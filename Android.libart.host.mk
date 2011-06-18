@@ -20,12 +20,11 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_CPP_EXTENSION := .cc
-
-LOCAL_SRC_FILES += $(LIBART_LOCAL_SRC_FILES)
+include $(LOCAL_PATH)/Android.common.mk
+LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 
 LOCAL_CFLAGS += \
-	-g3
+	-g3 \
 	-Wall \
 	-Wextra \
 	-Wno-unused-parameter \

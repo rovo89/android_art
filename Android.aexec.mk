@@ -20,9 +20,8 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := aexec
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_CPP_EXTENSION := .cc
-
-LOCAL_SRC_FILES := src/main.cc
+include $(LOCAL_PATH)/Android.common.mk
+LOCAL_SRC_FILES := $(AEXEC_LOCAL_SRC_FILES)
 
 LOCAL_SHARED_LIBRARIES := \
 	libart \
@@ -32,6 +31,6 @@ LOCAL_C_INCLUDES += \
 	external/stlport/stlport \
 	bionic \
 	bionic/libstdc++/include \
-	$(LOCAL_PATH)/arc
+	$(LOCAL_PATH)/src
 
 include $(BUILD_EXECUTABLE)

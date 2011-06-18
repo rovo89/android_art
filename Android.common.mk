@@ -14,6 +14,10 @@
 # limitations under the License.
 #
 
+LOCAL_CPP_EXTENSION := .cc
+
+AEXEC_LOCAL_SRC_FILES := \
+	src/main.cc
+
 LIBART_LOCAL_SRC_FILES := \
 	src/art.cc
-
