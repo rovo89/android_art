@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MACROS_H_
-#define SRC_MACROS_H_
+#ifndef ART_MACROS_H_
+#define ART_MACROS_H_
 
 // DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions.
 // It goes in the private: declarations in a class.
@@ -30,4 +30,4 @@
   TypeName();                                    \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
 
-#endif  // SRC_MACROS_H_
+#endif  // ART_MACROS_H_

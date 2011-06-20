@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_LOGGING_H_
-#define SRC_LOGGING_H_
+#ifndef ART_LOGGING_H_
+#define ART_LOGGING_H_
 
 #include <cstdlib>
 #include <iostream>  // NOLINT
@@ -98,4 +98,4 @@ class LogMessageFatal : public LogMessage {
   DISALLOW_COPY_AND_ASSIGN(LogMessageFatal);
 };
 
-#endif  // SRC_LOGGING_H_
+#endif  // ART_LOGGING_H_
