@@ -6,8 +6,7 @@
 #include "src/globals.h"
 #include "src/memory_region.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 static byte* NewContents(size_t capacity) {
   byte* result = new byte[capacity];
@@ -134,4 +133,4 @@ void Assembler::Unreachable(const char* message) {
 }
 #endif
 
-} }  // namespace android::runtime
+}  // namespace art

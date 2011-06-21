@@ -9,8 +9,7 @@
 #include "src/macros.h"
 #include "src/utils.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 class Immediate {
  public:
@@ -474,6 +473,6 @@ inline void Assembler::EmitOperandSizeOverride() {
   EmitUint8(0x66);
 }
 
-} }  // namespace android::runtime
+}  // namespace art
 
 #endif  // ART_SRC_ASSEMBLER_X86_H_

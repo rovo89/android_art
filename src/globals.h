@@ -5,8 +5,7 @@
 
 #include <stdint.h>
 
-namespace android {
-namespace runtime {
+namespace art {
 
 typedef uint8_t byte;
 typedef intptr_t word;
@@ -32,6 +31,6 @@ const int kBitsPerPointer = kPointerSize * kBitsPerByte;
 const int kBitsPerWord = kWordSize * kBitsPerWord;
 const int kBitsPerInt = kIntSize * kBitsPerByte;
 
-} }  // namespace android::runtime
+}  // namespace art
 
 #endif  // ART_SRC_GLOBALS_H_

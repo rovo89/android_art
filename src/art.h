@@ -1,8 +1,9 @@
-#ifndef ART_ART_H_
-#define ART_ART_H_
+// Copyright 2011 Google Inc. All Rights Reserved.
 
-namespace android {
-namespace runtime {
+#ifndef ART_SRC_ART_H_
+#define ART_SRC_ART_H_
+
+namespace art {
 
 class Art {
  public:
@@ -10,8 +11,8 @@ class Art {
   static void Shutdown();
 };
 
-} }  // namespace android::runtime
+}  // namespace art
 
-namespace r = android::runtime;
+namespace r = art;
 
-#endif  // ART_ART_H_
+#endif  // ART_SRC_ART_H_

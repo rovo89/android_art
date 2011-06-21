@@ -1,7 +1,8 @@
+// Copyright 2011 Google Inc. All Rights Reserved.
+
 #include "art.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 bool Art::Startup() {
   return true;
@@ -10,4 +11,4 @@ bool Art::Startup() {
 void Art::Shutdown() {
 }
 
-} }  // namespace
+}  // namespace art

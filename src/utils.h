@@ -5,8 +5,7 @@
 
 #include "src/globals.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 // Check whether an N-bit two's-complement representation can hold value.
 static inline bool IsInt(int N, word value) {
@@ -40,6 +39,6 @@ static inline int32_t High32Bits(int64_t value) {
   return static_cast<int32_t>(value >> 32);
 }
 
-} }  // namespace android::runtime
+}  // namespace art
 
 #endif  // ART_SRC_UTILS_H_

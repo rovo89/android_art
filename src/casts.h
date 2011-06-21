@@ -6,8 +6,7 @@
 #include <string.h>
 #include "src/macros.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 template <class Dest, class Source>
 inline Dest bit_cast(const Source& source) {
@@ -19,6 +18,6 @@ inline Dest bit_cast(const Source& source) {
   return dest;
 }
 
-} }  // namespace android::runtime
+}  // namespace art
 
 #endif  // ART_SRC_CASTS_H_

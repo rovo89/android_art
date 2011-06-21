@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef ART_MACROS_H_
-#define ART_MACROS_H_
+#ifndef ART_SRC_MACROS_H_
+#define ART_SRC_MACROS_H_
 
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the
@@ -59,4 +59,4 @@ struct CompileAssert {
      &reinterpret_cast<t*>(16)->f) -  \
    reinterpret_cast<char*>(16))
 
-#endif  // ART_MACROS_H_
+#endif  // ART_SRC_MACROS_H_

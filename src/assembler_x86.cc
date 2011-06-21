@@ -7,8 +7,7 @@
 #include "src/assembler.h"
 #include "src/memory_region.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 class DirectCallRelocation : public AssemblerFixup {
  public:
@@ -1347,4 +1346,4 @@ void Assembler::EmitGenericShift(int rm,
   EmitOperand(rm, Operand(operand));
 }
 
-} }  // namespace android::runtime
+} // namespace art

@@ -7,8 +7,7 @@
 #include "src/logging.h"
 #include "src/macros.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 enum Register {
   EAX = 0,
@@ -107,6 +106,6 @@ class Instr {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instr);
 };
 
-} }  // namespace android::runtime
+}  // namespace art
 
-#endif  // ART_CONSTANTS_IA32_H_
+#endif  // ART_SRC_CONSTANTS_X86_H_

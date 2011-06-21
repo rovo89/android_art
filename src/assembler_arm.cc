@@ -2,7 +2,6 @@
 
 #include "src/assembler.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
-} }  // namespace android::runtime
+}  // namespace art

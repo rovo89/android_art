@@ -6,8 +6,7 @@
 #include "src/logging.h"
 #include "src/memory_region.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 void MemoryRegion::CopyFrom(size_t offset, const MemoryRegion& from) const {
   CHECK_NE(from.pointer(), NULL);
@@ -18,4 +17,4 @@ void MemoryRegion::CopyFrom(size_t offset, const MemoryRegion& from) const {
           from.pointer(), from.size());
 }
 
-} }  // namespace android::runtime
+}  // namespace art

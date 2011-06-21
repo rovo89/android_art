@@ -3,12 +3,11 @@
 #ifndef ART_SRC_ASSEMBLER_ARM_H_
 #define ART_SRC_ASSEMBLER_ARM_H_
 
-namespace android {
-namespace runtime {
+namespace art {
 
 class Assembler {
 };
 
-} }  // namespace android::runtime
+} // namespace art
 
 #endif  // ART_SRC_ASSEMBLER_ARM_H_

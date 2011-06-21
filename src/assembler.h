@@ -7,8 +7,7 @@
 #include "src/macros.h"
 #include "src/memory_region.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 class Assembler;
 class AssemblerBuffer;
@@ -227,7 +226,7 @@ class AssemblerBuffer {
   friend class AssemblerFixup;
 };
 
-} }  // namespace android::runtime
+}  // namespace art
 
 #if defined(__i386__)
 #include "src/assembler_x86.h"

@@ -9,8 +9,7 @@
 #include "src/macros.h"
 #include "src/memory_region.h"
 
-namespace android {
-namespace runtime {
+namespace art {
 
 // Memory regions are useful for accessing memory with bounds check in
 // debug mode. They can be safely passed by value and do not assume ownership
@@ -81,6 +80,6 @@ class MemoryRegion {
   DISALLOW_COPY_AND_ASSIGN(MemoryRegion);
 };
 
-} }  // namespace android::runtime
+}  // namespace art
 
 #endif  // ART_MEMORY_REGION_H_
