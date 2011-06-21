@@ -20,6 +20,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 
+LIBART_TARGET_ARCH := $(TARGET_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 

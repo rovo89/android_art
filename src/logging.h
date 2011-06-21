@@ -74,6 +74,7 @@
 #endif
 
 #define LOG_INFO LogMessage(__FILE__, __LINE__)
+#define LOG_FATAL LogMessageFatal(__FILE__, __LINE__)
 #define LOG(severity) LOG_ ## severity.stream()
 #define LG LOG(INFO)
 

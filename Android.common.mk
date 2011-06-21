@@ -20,4 +20,16 @@ AEXEC_LOCAL_SRC_FILES := \
 	src/main.cc
 
 LIBART_LOCAL_SRC_FILES := \
-	src/art.cc
+	src/art.cc \
+	src/assembler.cc \
+	src/memory_region.cc
+
+ifeq ($(LIBART_TARGET_ARCH),arm)
+LIBART_LOCAL_SRC_FILES += \
+	src/assembler_arm.cc
+endif
+
+ifeq ($(LIBART_TARGET_ARCH),x86)
+LIBART_LOCAL_SRC_FILES += \
+	src/assembler_x86.cc
+endif
