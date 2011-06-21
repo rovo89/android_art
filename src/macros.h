@@ -30,4 +30,11 @@
   TypeName();                                    \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
 
+#define SIZEOF_MEMBER(t, f) sizeof(((t*) 4096)->f)
+
+#define OFFSETOF_MEMBER(t, f)         \
+  (reinterpret_cast<char*>(           \
+     &reinterpret_cast<t*>(16)->f) -  \
+   reinterpret_cast<char*>(16))
+
 #endif  // ART_MACROS_H_
