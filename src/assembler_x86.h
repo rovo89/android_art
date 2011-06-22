@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "src/assembler.h"
 #include "src/constants_x86.h"
 #include "src/macros.h"
 #include "src/utils.h"

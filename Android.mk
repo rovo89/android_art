@@ -22,5 +22,6 @@ include $(LOCAL_PATH)/Android.aexec.mk
 
 ifeq ($(WITH_HOST_DALVIK),true)
     include $(LOCAL_PATH)/Android.libart.host.mk
+    include $(LOCAL_PATH)/Android.test.host.mk
     include $(LOCAL_PATH)/Android.aexec.host.mk
 endif
