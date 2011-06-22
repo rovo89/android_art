@@ -52,6 +52,25 @@ struct CompileAssert {
   TypeName();                                    \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
 
+// The arraysize(arr) macro returns the # of elements in an array arr.
+// The expression is a compile-time constant, and therefore can be
+// used in defining new arrays, for example.  If you use arraysize on
+// a pointer by mistake, you will get a compile-time error.
+//
+// One caveat is that arraysize() doesn't accept any array of an
+// anonymous type or a type defined inside a function.  In these rare
+// cases, you have to use the unsafe ARRAYSIZE() macro below.  This is
+// due to a limitation in C++'s template system.  The limitation might
+// eventually be removed, but it hasn't happened yet.
+
+// This template function declaration is used in defining arraysize.
+// Note that the function doesn't need an implementation, as we only
+// use its type.
+template <typename T, size_t N>
+char (&ArraySizeHelper(T (&array)[N]))[N];
+
+#define arraysize(array) (sizeof(ArraySizeHelper(array)))
+
 #define SIZEOF_MEMBER(t, f) sizeof(((t*) 4096)->f)
 
 #define OFFSETOF_MEMBER(t, f)         \

@@ -7,18 +7,30 @@
 
 namespace art {
 
+template<typename T>
+static inline bool IsPowerOfTwo(T x) {
+  return (x & (x - 1)) == 0;
+}
+
+
+template<typename T>
+static inline bool IsAligned(T x, int n) {
+  CHECK(IsPowerOfTwo(n));
+  return (x & (n - 1)) == 0;
+}
+
+
+template<typename T>
+static inline bool IsAligned(T* x, int n) {
+  return IsAligned(reinterpret_cast<uintptr_t>(x), n);
+}
+
 // Check whether an N-bit two's-complement representation can hold value.
 static inline bool IsInt(int N, word value) {
   CHECK_LT(0, N);
   CHECK_LT(N, kBitsPerWord);
   word limit = static_cast<word>(1) << (N - 1);
   return (-limit <= value) && (value < limit);
-}
-
-
-template<typename T>
-static inline bool IsPowerOfTwo(T x) {
-  return (x & (x - 1)) == 0;
 }
 
 
@@ -30,6 +42,14 @@ static inline bool IsUint(int N, word value) {
 }
 
 
+static inline bool IsAbsoluteUint(int N, word value) {
+  CHECK_LT(0, N);
+  CHECK_LT(N, kBitsPerWord);
+  if (value < 0) value = -value;
+  return IsUint(N, value);
+}
+
+
 static inline int32_t Low32Bits(int64_t value) {
   return static_cast<int32_t>(value);
 }
@@ -37,6 +57,17 @@ static inline int32_t Low32Bits(int64_t value) {
 
 static inline int32_t High32Bits(int64_t value) {
   return static_cast<int32_t>(value >> 32);
+}
+
+// Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
+// figure 5-2, page 66, where the function is called pop.
+static inline int CountOneBits(uint32_t x) {
+  x = x - ((x >> 1) & 0x55555555);
+  x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+  x = (x + (x >> 4)) & 0x0F0F0F0F;
+  x = x + (x >> 8);
+  x = x + (x >> 16);
+  return static_cast<int>(x & 0x0000003F);
 }
 
 }  // namespace art
