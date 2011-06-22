@@ -33,3 +33,7 @@ ifeq ($(LIBART_TARGET_ARCH),x86)
 LIBART_LOCAL_SRC_FILES += \
 	src/assembler_x86.cc
 endif
+
+TEST_LOCAL_SRC_FILES := \
+	src/assembler_x86_test.cc
+
