@@ -18,6 +18,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 include $(LOCAL_PATH)/Android.libart.mk
+include $(LOCAL_PATH)/Android.test.mk
 include $(LOCAL_PATH)/Android.aexec.mk
 
 ifeq ($(WITH_HOST_DALVIK),true)

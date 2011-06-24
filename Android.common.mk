@@ -34,6 +34,13 @@ LIBART_LOCAL_SRC_FILES += \
 	src/assembler_x86.cc
 endif
 
-TEST_LOCAL_SRC_FILES := \
-	src/assembler_x86_test.cc
+TEST_LOCAL_SRC_FILES :=
 
+ifeq ($(TEST_TARGET_ARCH),arm)
+TEST_LOCAL_SRC_FILES +=
+endif
+
+ifeq ($(TEST_TARGET_ARCH),x86)
+TEST_LOCAL_SRC_FILES += \
+	src/assembler_x86_test.cc
+endif
