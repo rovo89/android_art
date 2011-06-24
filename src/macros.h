@@ -14,6 +14,8 @@
 #ifndef ART_SRC_MACROS_H_
 #define ART_SRC_MACROS_H_
 
+#include <stddef.h>  // for size_t
+
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the
 // size of a static array:

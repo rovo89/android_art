@@ -22,6 +22,7 @@ AEXEC_LOCAL_SRC_FILES := \
 LIBART_LOCAL_SRC_FILES := \
 	src/art.cc \
 	src/assembler.cc \
+	src/dex_instruction.cc \
 	src/memory_region.cc
 
 ifeq ($(LIBART_TARGET_ARCH),arm)
@@ -34,7 +35,8 @@ LIBART_LOCAL_SRC_FILES += \
 	src/assembler_x86.cc
 endif
 
-TEST_LOCAL_SRC_FILES :=
+TEST_LOCAL_SRC_FILES := \
+	src/dex_instruction_visitor_test.cc
 
 ifeq ($(TEST_TARGET_ARCH),arm)
 TEST_LOCAL_SRC_FILES +=

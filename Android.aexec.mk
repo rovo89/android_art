@@ -27,10 +27,9 @@ LOCAL_SHARED_LIBRARIES := \
 	libart \
 	libstlport
 
-LOCAL_C_INCLUDES += \
+LOCAL_C_INCLUDES := \
 	external/stlport/stlport \
 	bionic \
-	bionic/libstdc++/include \
-	$(LOCAL_PATH)/src
+	bionic/libstdc++/include
 
 include $(BUILD_EXECUTABLE)

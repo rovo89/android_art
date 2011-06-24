@@ -19,6 +19,7 @@ include $(CLEAR_VARS)
 
 local_module_tags := eng tests
 
+TEST_TARGET_ARCH := $(HOST_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 local_cpp_extension := $(LOCAL_CPP_EXTENSION)
 
@@ -26,8 +27,8 @@ local_shared_libraries := \
 	libart
 
 local_c_includes := \
-	external/gtest/include \
-	$(LOCAL_PATH)/src
+	dalvik \
+	external/gtest/include
 
 local_whole_static_libraries := \
 	libgtest_host \

@@ -24,31 +24,37 @@ LIBART_TARGET_ARCH := $(TARGET_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 
-LOCAL_CFLAGS += \
+LOCAL_CFLAGS := \
+	-g3
 	-Wall \
 	-Wextra \
 	-Wno-unused-parameter \
 	-Wstrict-aliasing=2 \
 	-fno-align-jumps \
-	-fstrict-aliasing \
-	-fvisibility=hidden
+	-fstrict-aliasing
 
 ifeq ($(TARGET_ARCH),arm)
-	LOCAL_CFLAGS +=
+LOCAL_CFLAGS +=
 endif
 
 ifeq ($(TARGET_ARCH),x86)
-	LOCAL_CFLAGS +=
+LOCAL_CFLAGS +=
 endif
 
-LOCAL_C_INCLUDES += \
+LOCAL_C_INCLUDES := \
 	external/stlport/stlport \
 	bionic/ \
 	bionic/libstdc++/include \
-	dalvik/libdex \
-	libcore/include \
-	$(LOCAL_PATH)/src
+	dalvik \
+	libcore/include
 
-LOCAL_SHARED_LIBRARIES += libstlport
+LOCAL_STATIC_LIBRARIES := \
+	libdex
+
+LOCAL_SHARED_LIBRARIES := \
+	libstlport \
+	liblog \
+	libcutils \
+	libz
 
 include $(BUILD_SHARED_LIBRARY)
