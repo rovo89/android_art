@@ -6,6 +6,7 @@
 #include "src/globals.h"
 #include "src/leb128.h"
 #include "src/logging.h"
+#include "src/scoped_ptr.h"
 #include "src/strutil.h"
 
 #include <map>
@@ -20,9 +21,9 @@ class RawDexFile {
 
   // Raw header_item.
   struct Header {
-    uint8_t magic[8];
-    uint32_t checksum;
-    uint8_t signature[kSha1DigestSize];
+    uint8_t magic_[8];
+    uint32_t checksum_;
+    uint8_t signature_[kSha1DigestSize];
     uint32_t file_size_;  // length of entire file
     uint32_t header_size_;  // offset to start of next section
     uint32_t endian_tag_;
@@ -142,11 +143,23 @@ class RawDexFile {
     uint32_t code_off_;
   };
 
-  // Opens a .dex file.
-  static RawDexFile* Open(const char* filename);
+  // Helper class to deallocate underlying storage.
+  class Closer {
+   public:
+    virtual ~Closer();
+  };
+
+  // Opens a .dex file from the file system.
+  static RawDexFile* OpenFile(const char* filename);
+
+  // Opens a .dex file from a base64 encoded array.
+  static RawDexFile* OpenBase64(const char* base64);
+
+  // Opens a .dex file at a the given address.
+  static RawDexFile* Open(const byte* dex_file, Closer* closer);
 
   // Closes a .dex file.
-  ~RawDexFile();
+  virtual ~RawDexFile();
 
   const Header& GetHeader() {
     CHECK(header_ != NULL);
@@ -335,9 +348,9 @@ class RawDexFile {
   }
 
  private:
-  RawDexFile(const byte* addr, size_t length)
+  RawDexFile(const byte* addr, Closer* closer)
       : base_(addr),
-        length_(length),
+        closer_(closer),
         header_(0),
         string_ids_(0),
         type_ids_(0),
@@ -368,8 +381,8 @@ class RawDexFile {
   // The base address of the memory mapping.
   const byte* base_;
 
-  // The length of the memory mapping in bytes.
-  const size_t length_;
+  // Helper object to free the underlying allocation.
+  scoped_ptr<Closer> closer_;
 
   // Points to the header section.
   const Header* header_;

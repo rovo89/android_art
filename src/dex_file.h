@@ -12,8 +12,16 @@ namespace art {
 
 class DexFile {
  public:
-  // Opens a dex file.  Returns NULL on failure.
-  static DexFile* Open(const char* filename);
+  // Opens a .dex file from the file system.  Returns NULL on failure.
+  static DexFile* OpenFile(const char* filename);
+
+  // Opens a .dex file from a base64 encoded array.  Returns NULL on
+  // failure.
+  static DexFile* OpenBase64(const char* base64);
+
+  // Opens a .dex file from a RawDexFile.  Takes ownership of the
+  // RawDexFile.
+  static DexFile* Open(RawDexFile* raw);
 
   // Close and deallocate.
   ~DexFile();
