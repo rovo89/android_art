@@ -29,7 +29,6 @@ DexFile* DexFile::Open(RawDexFile* raw) {
 }
 
 DexFile::~DexFile() {
-  delete raw_;
   delete[] strings_;
   delete[] classes_;
   delete[] methods_;

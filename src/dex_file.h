@@ -69,7 +69,7 @@ class DexFile {
   size_t length_;
 
   // The underlying dex file.
-  RawDexFile* raw_;
+  scoped_ptr<RawDexFile> raw_;
 
   DISALLOW_COPY_AND_ASSIGN(DexFile);
 };
