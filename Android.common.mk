@@ -41,6 +41,7 @@ AEXEC_LOCAL_SRC_FILES := \
 
 LIBART_LOCAL_SRC_FILES := \
 	src/assembler.cc \
+	src/base64.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
 	src/memory_region.cc \

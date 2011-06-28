@@ -279,14 +279,10 @@ class Method {
     return (access_flags_ & kAccStatic) != 0;
   }
 
-  // Returns true if the method is declared native and synchronized.
+  // Returns true if the method is declared synchronized.
   bool IsSynchronized() {
-    return (access_flags_ & kAccSynchronized) != 0;
-  }
-
-  // Returns true if the method is not native and declared synchronized.
-  bool IsDeclaredSynchronized() {
-    return (access_flags_ & kAccDeclaredSynchronized) != 0;
+    uint32_t synchonized = kAccSynchronized | kAccDeclaredSynchronized;
+    return (access_flags_ & synchonized) != 0;
   }
 
   // Returns true if the method is declared final.
