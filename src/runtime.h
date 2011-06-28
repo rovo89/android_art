@@ -1,18 +1,20 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#ifndef ART_SRC_ART_H_
-#define ART_SRC_ART_H_
+#ifndef ART_SRC_RUNTIME_H_
+#define ART_SRC_RUNTIME_H_
 
 namespace art {
 
-class Art {
+class Runtime {
  public:
   static bool Startup();
   static void Shutdown();
+
+  static void Compile(const char* filename);
 };
 
 }  // namespace art
 
 namespace r = art;
 
-#endif  // ART_SRC_ART_H_
+#endif  // ART_SRC_RUNTIME_H_

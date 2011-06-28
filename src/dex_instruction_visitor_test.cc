@@ -1,6 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "src/dex_instruction_visitor.h"
+#include "src/scoped_ptr.h"
 
 #include <iostream>
 #include "gtest/gtest.h"
@@ -10,7 +11,7 @@ namespace art {
 class TestVisitor : public DexInstructionVisitor<TestVisitor> {};
 
 TEST(Instruction, Init) {
-  TestVisitor visitor;
+  scoped_ptr<TestVisitor> visitor(new TestVisitor);
 }
 
 class CountVisitor : public DexInstructionVisitor<CountVisitor> {

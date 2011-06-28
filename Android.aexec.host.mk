@@ -23,6 +23,8 @@ LOCAL_MODULE_TAGS := optional
 include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(AEXEC_LOCAL_SRC_FILES)
 
+LOCAL_C_INCLUDES :=
+
 LOCAL_SHARED_LIBRARIES := \
 	libart
 

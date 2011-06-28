@@ -60,6 +60,18 @@ static inline int32_t High32Bits(int64_t value) {
 }
 
 // Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
+// figure 3-3, page 48, where the function is called clp2.
+static inline uint32_t RoundUpToPowerOfTwo(uint32_t x) {
+  x = x - 1;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  return x + 1;
+}
+
+// Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
 // figure 5-2, page 66, where the function is called pop.
 static inline int CountOneBits(uint32_t x) {
   x = x - ((x >> 1) & 0x55555555);

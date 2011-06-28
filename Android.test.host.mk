@@ -22,12 +22,12 @@ local_module_tags := eng tests
 TEST_TARGET_ARCH := $(HOST_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 local_cpp_extension := $(LOCAL_CPP_EXTENSION)
+local_cflags := $(LOCAL_CFLAGS)
 
 local_shared_libraries := \
 	libart
 
 local_c_includes := \
-	dalvik \
 	external/gtest/include
 
 local_whole_static_libraries := \
@@ -40,6 +40,7 @@ $(foreach file,$(TEST_LOCAL_SRC_FILES), \
   $(eval LOCAL_MODULE := $(notdir $(file:%.cc=%))) \
   $(eval LOCAL_MODULE_TAGS := $(local_module_tags)) \
   $(eval LOCAL_SRC_FILES := $(file)) \
+  $(eval LOCAL_CFLAGS := $(local_cflags)) \
   $(eval LOCAL_C_INCLUDES := $(local_c_includes)) \
   $(eval LOCAL_WHOLE_STATIC_LIBRARIES := $(local_whole_static_libraries)) \
   $(eval LOCAL_SHARED_LIBRARIES := $(local_shared_libraries)) \

@@ -16,14 +16,36 @@
 
 LOCAL_CPP_EXTENSION := .cc
 
+LOCAL_CFLAGS := \
+	-O0 \
+	-ggdb3 \
+	-Wall \
+	-Werror \
+	-Wextra \
+	-Wno-unused-parameter \
+	-Wno-deprecated \
+	-Wstrict-aliasing=2 \
+	-fno-align-jumps \
+	-fstrict-aliasing
+
+ifeq ($(TARGET_ARCH),arm)
+LOCAL_CFLAGS +=
+endif
+
+ifeq ($(TARGET_ARCH),x86)
+LOCAL_CFLAGS +=
+endif
+
 AEXEC_LOCAL_SRC_FILES := \
 	src/main.cc
 
 LIBART_LOCAL_SRC_FILES := \
-	src/art.cc \
 	src/assembler.cc \
+	src/dex_file.cc \
 	src/dex_instruction.cc \
-	src/memory_region.cc
+	src/memory_region.cc \
+	src/raw_dex_file.cc \
+	src/runtime.cc
 
 ifeq ($(LIBART_TARGET_ARCH),arm)
 LIBART_LOCAL_SRC_FILES += \
@@ -36,7 +58,9 @@ LIBART_LOCAL_SRC_FILES += \
 endif
 
 TEST_LOCAL_SRC_FILES := \
-	src/dex_instruction_visitor_test.cc
+	src/dex_file_test.cc \
+	src/dex_instruction_visitor_test.cc \
+	src/raw_dex_file_test.cc
 
 ifeq ($(TEST_TARGET_ARCH),arm)
 TEST_LOCAL_SRC_FILES +=

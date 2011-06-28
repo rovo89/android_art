@@ -3,6 +3,7 @@
 #ifndef ART_SRC_GLOBALS_H_
 #define ART_SRC_GLOBALS_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace art {

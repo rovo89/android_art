@@ -24,18 +24,8 @@ LIBART_TARGET_ARCH := $(HOST_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 
-LOCAL_CFLAGS := \
-	-g3 \
-	-Wall \
-	-Wextra \
-	-Wno-unused-parameter \
-	-Wstrict-aliasing=2 \
-	-fno-align-jumps \
-	-fstrict-aliasing
-
 LOCAL_C_INCLUDES := \
-	dalvik \
-	libcore/include
+	dalvik
 
 LOCAL_WHOLE_STATIC_LIBRARIES := \
 	libcutils \

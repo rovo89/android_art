@@ -23,13 +23,11 @@ LOCAL_MODULE_TAGS := optional
 include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(AEXEC_LOCAL_SRC_FILES)
 
+include external/stlport/libstlport.mk
+LOCAL_C_INCLUDES +=
+
 LOCAL_SHARED_LIBRARIES := \
 	libart \
 	libstlport
-
-LOCAL_C_INCLUDES := \
-	external/stlport/stlport \
-	bionic \
-	bionic/libstdc++/include
 
 include $(BUILD_EXECUTABLE)

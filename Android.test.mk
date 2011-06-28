@@ -22,16 +22,13 @@ local_module_tags := eng tests
 TEST_TARGET_ARCH := $(TARGET_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 local_cpp_extension := $(LOCAL_CPP_EXTENSION)
+local_cflags := $(LOCAL_CFLAGS)
 
 local_shared_libraries := \
 	libart \
 	libstlport
 
 local_c_includes := \
-	external/stlport/stlport \
-	bionic \
-	bionic/libstdc++/include \
-	dalvik \
 	external/gtest/include
 
 local_static_libraries := \
@@ -44,7 +41,9 @@ $(foreach file,$(TEST_LOCAL_SRC_FILES), \
   $(eval LOCAL_MODULE := $(notdir $(file:%.cc=%))) \
   $(eval LOCAL_MODULE_TAGS := $(local_module_tags)) \
   $(eval LOCAL_SRC_FILES := $(file)) \
-  $(eval LOCAL_C_INCLUDES := $(local_c_includes)) \
+  $(eval LOCAL_CFLAGS := $(local_cflags)) \
+  $(eval include external/stlport/libstlport.mk) \
+  $(eval LOCAL_C_INCLUDES += $(local_c_includes)) \
   $(eval LOCAL_STATIC_LIBRARIES := $(local_static_libraries)) \
   $(eval LOCAL_SHARED_LIBRARIES := $(local_shared_libraries)) \
   $(eval include $(BUILD_EXECUTABLE)) \

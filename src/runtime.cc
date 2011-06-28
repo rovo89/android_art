@@ -1,14 +1,14 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "art.h"
+#include "src/runtime.h"
 
 namespace art {
 
-bool Art::Startup() {
+bool Runtime::Startup() {
   return true;
 }
 
-void Art::Shutdown() {
+void Runtime::Shutdown() {
 }
 
 }  // namespace art
