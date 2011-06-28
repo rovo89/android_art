@@ -29,6 +29,7 @@ class DexInstructionVisitor {
           CHECK(true);
       }
       ptr += inst->Size();
+      CHECK_LE(ptr, end);
     }
   }
 
