@@ -4,6 +4,7 @@
 #define ART_SRC_OBJECT_H_
 
 #include "src/globals.h"
+#include "src/macros.h"
 
 namespace art {
 
@@ -14,29 +15,75 @@ class IField;
 class InterfaceEntry;
 class Monitor;
 class Method;
+class Object;
 class SField;
 
+union JValue {
+  uint8_t z;
+  int8_t b;
+  uint16_t c;
+  int16_t s;
+  int32_t i;
+  int64_t j;
+  float f;
+  double d;
+  Object* l;
+};
+
+static const uint32_t kAccPublic = 0x0001; // class, field, method, ic
+static const uint32_t kAccPrivate = 0x0002; // field, method, ic
+static const uint32_t kAccProtected = 0x0004; // field, method, ic
+static const uint32_t kAccStatic = 0x0008; // field, method, ic
+static const uint32_t kAccFinal = 0x0010; // class, field, method, ic
+static const uint32_t kAccSynchronized = 0x0020; // method (only allowed on natives)
+static const uint32_t kAccSuper = 0x0020; // class (not used in Dalvik)
+static const uint32_t kAccVolatile = 0x0040; // field
+static const uint32_t kAccBridge = 0x0040; // method (1.5)
+static const uint32_t kAccTransient = 0x0080; // field
+static const uint32_t kAccVarargs = 0x0080; // method (1.5)
+static const uint32_t kAccNative = 0x0100; // method
+static const uint32_t kAccInterface = 0x0200; // class, ic
+static const uint32_t kAccAbstract = 0x0400; // class, method, ic
+static const uint32_t kAccStrict = 0x0800; // method
+static const uint32_t kAccSynthetic = 0x1000; // field, method, ic
+static const uint32_t kAccAnnotation = 0x2000; // class, ic (1.5)
+static const uint32_t kAccEnum = 0x4000; // class, field, ic (1.5)
+
+static const uint32_t kAccConstructor = 0x00010000; // method (Dalvik only)
+static const uint32_t kAccDeclaredSynchronized = 0x00020000; // method (Dalvik only)
+
+
 class Object {
+ public:
   Class* klass_;
   Monitor* lock_;
 };
 
 class Field {
+ public:
+  // The class in which this field is declared.
   Class* klass_;
+
+  const char* name_;
+
+  // e.g. "I", "[C", "Landroid/os/Debug;"
+  const char* signature_;
+
+  uint32_t access_flags_;
 };
 
 // Instance fields.
-class IField : Field {
-  // TODO
+class IField : public Field {
+  uint32_t offset_;
 };
 
 // Static fields.
-class SField : Field {
-  // TODO
+class SField : public Field {
+  JValue value_;
 };
 
 // Class objects.
-class Class : Object {
+class Class : public Object {
  public:
   enum ClassStatus {
     kClassError = -1,
@@ -60,6 +107,15 @@ class Class : Object {
     return OFFSETOF_MEMBER(Class, sfields_) + sizeof(SField) * num_sfields;
   }
 
+  uint32_t NumDirectMethods() {
+    return num_dmethods_;
+  }
+
+  uint32_t NumVirtualMethods() {
+    return num_vmethods_;
+  }
+
+
  public: // TODO: private
   // leave space for instance data; we could access fields directly if
   // we freeze the definition of java/lang/Class
@@ -76,7 +132,7 @@ class Class : Object {
   char* descriptor_alloc_;
 
   // access flags; low 16 bits are defined by VM spec
-  uint32_t access_flags_;
+  uint32_t access_flags_;  // TODO: make an instance field?
 
   // VM-unique class serial number, nonzero, set very early
   //uint32_t serial_number_;
@@ -101,7 +157,7 @@ class Class : Object {
   // For array classes, the class object for base element, for
   // instanceof/checkcast (for String[][][], this will be String).
   // Otherwise, NULL.
-  Class* array_element_class_;
+  Class* array_element_class_;  // TODO: make an instance field
 
   // For array classes, the number of array dimensions, e.g. int[][]
   // is 2.  Otherwise 0.
@@ -112,10 +168,10 @@ class Class : Object {
 
   // The superclass, or NULL if this is java.lang.Object or a
   // primitive type.
-  Class* super_;
+  Class* super_;  // TODO: make an instance field
 
   // defining class loader, or NULL for the "bootstrap" system loader
-  Object* class_loader_;
+  Object* class_loader_;  // TODO: make an instance field
 
   // initiating class loader list
   // NOTE: for classes with low serialNumber, these are unused, and the
@@ -127,12 +183,12 @@ class Class : Object {
   Class** interfaces_;
 
   // static, private, and <init> methods
-  int direct_method_count_;
-  Method* direct_methods_;
+  uint32_t num_dmethods_;
+  Method* dmethods_;
 
   // virtual methods defined in this class; invoked through vtable
-  int virtual_method_count_;
-  Method* virtual_methods_;
+  uint32_t num_vmethods_;
+  Method* vmethods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The
   // vtable from the superclass is copied in, and virtual methods from
@@ -172,8 +228,10 @@ class Class : Object {
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  ifieldRefCount specifies the
   // number of reference fields.
-  int ifield_count_;
-  int ifield_ref_count_; // number of fields that are object refs
+  uint32_t num_ifields_;
+
+  // number of fields that are object refs
+  uint32_t num_reference_ifields_;
   IField* ifields_;
 
   // bitmap of offsets of ifields
@@ -183,7 +241,7 @@ class Class : Object {
   const char* source_file_;
 
   // Static fields
-  uint16_t num_sfields_;
+  uint32_t num_sfields_;
   SField sfields_[];  // MUST be last item
 };
 
@@ -206,7 +264,90 @@ class Array : Object {
 
 class Method {
  public:
-  Class* klass;
+  // Returns true if the method is declared public.
+  bool IsPublic() {
+    return (access_flags_ & kAccPublic) != 0;
+  }
+
+  // Returns true if the method is declared private.
+  bool IsPrivate() {
+    return (access_flags_ & kAccPrivate) != 0;
+  }
+
+  // Returns true if the method is declared static.
+  bool IsStatic() {
+    return (access_flags_ & kAccStatic) != 0;
+  }
+
+  // Returns true if the method is declared native and synchronized.
+  bool IsSynchronized() {
+    return (access_flags_ & kAccSynchronized) != 0;
+  }
+
+  // Returns true if the method is not native and declared synchronized.
+  bool IsDeclaredSynchronized() {
+    return (access_flags_ & kAccDeclaredSynchronized) != 0;
+  }
+
+  // Returns true if the method is declared final.
+  bool IsFinal() {
+    return (access_flags_ & kAccFinal) != 0;
+  }
+
+  // Returns true if the method is declared native.
+  bool IsNative() {
+    return (access_flags_ & kAccNative) != 0;
+  }
+
+  // Returns true if the method is declared abstract.
+  bool IsAbstract() {
+    return (access_flags_ & kAccAbstract) != 0;
+  }
+
+  bool IsSynthetic() {
+    return (access_flags_ & kAccSynthetic) != 0;
+  }
+
+  // Number of argument registers required by the prototype.
+  uint32_t NumArgRegisters();
+
+ public:  // TODO: private
+  // the class we are a part of
+  Class* klass_;
+
+  // access flags; low 16 bits are defined by spec (could be uint16_t?)
+  uint32_t access_flags_;
+
+  // For concrete virtual methods, this is the offset of the method
+  // in "vtable".
+  //
+  // For abstract methods in an interface class, this is the offset
+  // of the method in "iftable[n]->methodIndexArray".
+  uint16_t method_index_;
+
+  // Method bounds; not needed for an abstract method.
+  //
+  // For a native method, we compute the size of the argument list, and
+  // set "insSize" and "registerSize" equal to it.
+  uint16_t num_registers_;  // ins + locals
+  uint16_t num_outs_;
+  uint16_t num_ins_;
+
+  // method name, e.g. "<init>" or "eatLunch"
+  const char* name_;
+
+  // A pointer to the DEX file this class was loaded from or NULL for
+  // proxy objects.
+  DexFile* dex_file_;
+
+  // Method prototype descriptor string (return and argument types).
+  uint32_t proto_idx_;
+
+  // The short-form method descriptor string.
+  const char* shorty_;
+
+  // A pointer to the memory-mapped DEX code.
+  const uint16_t* insns_;
 };
 
 }  // namespace art

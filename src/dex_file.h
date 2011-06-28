@@ -35,17 +35,11 @@ class DexFile {
 
   void Init();
 
-  void LoadClassInterfaces(const RawDexFile::ClassDef& class_def,
-                             Class *klass);
+  void LoadInterfaces(const RawDexFile::ClassDef& class_def, Class *klass);
 
-  void LoadSFields(Class* klass, const RawDexFile::Field* src,
-                   Field* dst);
+  void LoadField(Class* klass, const RawDexFile::Field& src, Field* dst);
 
-  void LoadIFields(Class* klass, const RawDexFile::Field* src,
-                   Field* dst);
-
-  void LoadMethod(Class* klass, const RawDexFile::Method* src,
-                  Method* dst);
+  void LoadMethod(Class* klass, const RawDexFile::Method& src, Method* dst);
 
   // Table of contents for interned String objects.
   String** strings_;

@@ -30,6 +30,12 @@ TEST(DexFile, Load) {
 
   Class* klass = dex->LoadClass("LNested;");
   ASSERT_TRUE(klass != NULL);
+
+  uint32_t vmeth = klass->NumVirtualMethods();
+  EXPECT_EQ(vmeth, 0U);
+
+  uint32_t dmeth = klass->NumDirectMethods();
+  EXPECT_EQ(dmeth, 1U);
 }
 
 }  // namespace art

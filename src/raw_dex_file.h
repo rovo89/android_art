@@ -57,15 +57,15 @@ class RawDexFile {
 
   // Raw field_id_item.
   struct FieldId {
-    uint32_t class_idx_;  // index into typeIds list for defining class
-    uint32_t type_idx_;  // index into typeIds for field type
+    uint16_t class_idx_;  // index into typeIds list for defining class
+    uint16_t type_idx_;  // index into typeIds for field type
     uint32_t name_idx_;  // index into stringIds for field name
   };
 
   // Raw method_id_item.
   struct MethodId {
-    uint32_t class_idx_;  // index into typeIds list for defining class
-    uint32_t proto_idx_;  // index into protoIds for method prototype
+    uint16_t class_idx_;  // index into typeIds list for defining class
+    uint16_t proto_idx_;  // index into protoIds for method prototype
     uint32_t name_idx_;  // index into stringIds for method name
   };
 
@@ -148,6 +148,11 @@ class RawDexFile {
   // Closes a .dex file.
   ~RawDexFile();
 
+  const Header& GetHeader() {
+    CHECK(header_ != NULL);
+    return *header_;
+  }
+
   // Looks up a class definition by its class descriptor.
   const ClassDef* FindClassDef(const char* descriptor);
 
@@ -197,15 +202,13 @@ class RawDexFile {
   }
 
   // Decodes the header section from the raw class data bytes.
-  void DecodeClassDataHeader(ClassDataHeader* header, const byte* class_data) {
-    CHECK(header != NULL);
-    memset(header, 0, sizeof(ClassDataHeader));
-    if (header != NULL) {
-      header->static_fields_size_ = DecodeUnsignedLeb128(&class_data);
-      header->instance_fields_size_ = DecodeUnsignedLeb128(&class_data);
-      header->direct_methods_size_ = DecodeUnsignedLeb128(&class_data);
-      header->virtual_methods_size_ = DecodeUnsignedLeb128(&class_data);
-    }
+  ClassDataHeader ReadClassDataHeader(const byte** class_data) {
+    ClassDataHeader header;
+    header.static_fields_size_ = DecodeUnsignedLeb128(class_data);
+    header.instance_fields_size_ = DecodeUnsignedLeb128(class_data);
+    header.direct_methods_size_ = DecodeUnsignedLeb128(class_data);
+    header.virtual_methods_size_ = DecodeUnsignedLeb128(class_data);
+    return header;
   }
 
   // Returns the class descriptor string of a class definition.
@@ -258,6 +261,21 @@ class RawDexFile {
     }
   }
 
+  const Code* GetCode(const Method& method) const {
+    if (method.code_off_ == 0) {
+      return NULL;  // native or abstract method
+    } else {
+      const byte* addr = base_ + method.code_off_;
+      return reinterpret_cast<const Code*>(addr);
+    }
+  }
+
+  // Returns the short form method descriptor for the given prototype.
+  const char* GetShorty(uint32_t proto_idx) {
+    const ProtoId& proto_id = GetProtoId(proto_idx);
+    return dexStringById(proto_id.shorty_idx_);
+  }
+
   // From libdex...
 
   // Returns a pointer to the UTF-8 string data referred to by the
@@ -279,6 +297,41 @@ class RawDexFile {
   const char* dexStringByTypeIdx(uint32_t idx) const {
     const TypeId& type_id = GetTypeId(idx);
     return dexStringById(type_id.descriptor_idx_);
+  }
+
+  void dexReadClassDataField(const byte** encoded_field,
+                             RawDexFile::Field* field,
+                             uint32_t* last_idx) const {
+    uint32_t idx = *last_idx + DecodeUnsignedLeb128(encoded_field);
+    field->access_flags_ = DecodeUnsignedLeb128(encoded_field);
+    field->field_idx_ = idx;
+    *last_idx = idx;
+  }
+
+  void dexReadClassDataMethod(const byte** encoded_method,
+                              RawDexFile::Method* method,
+                              uint32_t* last_idx) const {
+    uint32_t idx = *last_idx + DecodeUnsignedLeb128(encoded_method);
+    method->access_flags_ = DecodeUnsignedLeb128(encoded_method);
+    method->code_off_ = DecodeUnsignedLeb128(encoded_method);
+    method->method_idx_ = idx;
+    *last_idx = idx;
+  }
+
+
+  // TODO: const reference
+  uint32_t dexGetIndexForClassDef(const ClassDef* class_def) const {
+    CHECK_GE(class_def, class_defs_);
+    CHECK_LT(class_def, class_defs_ + header_->class_defs_size_);
+    return class_def - class_defs_;
+  }
+
+  const char* dexGetSourceFile(const ClassDef& class_def) const {
+    if (class_def.source_file_idx_ == 0xffffffff) {
+      return NULL;
+    } else {
+      return dexStringById(class_def.source_file_idx_);
+    }
   }
 
  private:

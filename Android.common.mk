@@ -44,6 +44,7 @@ LIBART_LOCAL_SRC_FILES := \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
 	src/memory_region.cc \
+	src/object.cc \
 	src/raw_dex_file.cc \
 	src/runtime.cc
 
