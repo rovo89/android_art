@@ -153,10 +153,11 @@ class RawDexFile {
   static RawDexFile* OpenFile(const char* filename);
 
   // Opens a .dex file from a base64 encoded array.
+  // TODO: move this into the RawDexFile unit test
   static RawDexFile* OpenBase64(const char* base64);
 
   // Opens a .dex file at a the given address.
-  static RawDexFile* Open(const byte* dex_file, Closer* closer);
+  static RawDexFile* Open(const byte* dex_file, size_t length, Closer* closer);
 
   // Closes a .dex file.
   virtual ~RawDexFile();
@@ -348,8 +349,9 @@ class RawDexFile {
   }
 
  private:
-  RawDexFile(const byte* addr, Closer* closer)
+  RawDexFile(const byte* addr, size_t length, Closer* closer)
       : base_(addr),
+        length_(length),
         closer_(closer),
         header_(0),
         string_ids_(0),
@@ -380,6 +382,9 @@ class RawDexFile {
 
   // The base address of the memory mapping.
   const byte* base_;
+
+  // The size of the underlying memory allocation in bytes.
+  size_t length_;
 
   // Helper object to free the underlying allocation.
   scoped_ptr<Closer> closer_;

@@ -22,9 +22,10 @@ const byte RawDexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 // Helper class to deallocate mmap-backed .dex files.
 class MmapCloser : public RawDexFile::Closer {
  public:
-  MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {};
+  MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
+    CHECK(addr != NULL);
+  };
   virtual ~MmapCloser() {
-    CHECK(addr_ != NULL);
     if (munmap(addr_, length_) == -1) {
       LG << "munmap: " << strerror(errno);  // TODO: PLOG
     }
@@ -47,7 +48,7 @@ RawDexFile::Closer::~Closer() {}
 
 RawDexFile* RawDexFile::OpenFile(const char* filename) {
   CHECK(filename != NULL);
-  int fd = open(filename, O_RDONLY);
+  int fd = open(filename, O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
     LG << "open: " << strerror(errno);  // TODO: PLOG
     return NULL;
@@ -69,22 +70,23 @@ RawDexFile* RawDexFile::OpenFile(const char* filename) {
   close(fd);
   byte* dex_file = reinterpret_cast<byte*>(addr);
   Closer* closer = new MmapCloser(addr, length);
-  return Open(dex_file, closer);
+  return Open(dex_file, length, closer);
 }
 
 RawDexFile* RawDexFile::OpenBase64(const char* base64) {
   CHECK(base64 != NULL);
-  size_t size = strlen(base64);
-  byte* dex_file = DecodeBase64(base64, size, NULL);
+  size_t length;
+  byte* dex_file = DecodeBase64(base64, &length);
   if (dex_file == NULL) {
     return NULL;
   }
   RawDexFile::Closer* closer = new PtrCloser(dex_file);
-  return Open(dex_file, closer);
+  return Open(dex_file, length, closer);
 }
 
-RawDexFile* RawDexFile::Open(const byte* dex_file, Closer* closer) {
-  scoped_ptr<RawDexFile> raw(new RawDexFile(dex_file, closer));
+RawDexFile* RawDexFile::Open(const byte* dex_file, size_t length,
+                             Closer* closer) {
+  scoped_ptr<RawDexFile> raw(new RawDexFile(dex_file, length, closer));
   if (!raw->Init()) {
     return NULL;
   } else {
