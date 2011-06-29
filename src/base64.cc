@@ -32,11 +32,11 @@ static const byte kMap[256] = {
   255, 255, 255, 255
 };
 
-byte* DecodeBase64(const char* src, size_t size, size_t* dst_size) {
+byte* DecodeBase64(const char* src, size_t* dst_size) {
   std::vector<byte> tmp;
   unsigned long t = 0, y = 0;
   int g = 3;
-  for (size_t i = 0; i < size; ++i) {
+  for (size_t i = 0; src[i] != '\0'; ++i) {
     byte c = kMap[src[i] & 0xFF];
     if (c == 255) continue;
     // the final = symbols are read and used to trim the remaining bytes

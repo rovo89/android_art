@@ -7,7 +7,8 @@
 
 namespace art {
 
-byte* DecodeBase64(const char* src, size_t size, size_t* dst_size);
+// Decodes a C string with base64 encoded data.
+byte* DecodeBase64(const char* src, size_t* dst_size);
 
 }  // namespace art
 
