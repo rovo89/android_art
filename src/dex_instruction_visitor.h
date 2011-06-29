@@ -23,7 +23,9 @@ class DexInstructionVisitor {
           derived->Do_ ## cname(inst);             \
           break;                                   \
         }
+#include "src/dex_instruction_list.h"
         DEX_INSTRUCTION_LIST(INSTRUCTION_CASE)
+#undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_CASE
         default:
           CHECK(true);
@@ -40,7 +42,9 @@ class DexInstructionVisitor {
     T* derived = static_cast<T*>(this);   \
     derived->Do_Default(inst);            \
   };
-  DEX_INSTRUCTION_LIST(INSTRUCTION_VISITOR);
+#include "src/dex_instruction_list.h"
+  DEX_INSTRUCTION_LIST(INSTRUCTION_VISITOR)
+#undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_VISITOR
 
   // The default instruction handler.
