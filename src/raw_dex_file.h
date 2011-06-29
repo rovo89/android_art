@@ -19,6 +19,9 @@ class RawDexFile {
   static const byte kDexMagicVersion[];
   static const size_t kSha1DigestSize = 20;
 
+  // The value of an invalid index.
+  static const uint32_t kDexNoIndex = 0xFFFFFFFF;
+
   // Raw header_item.
   struct Header {
     uint8_t magic_[8];
