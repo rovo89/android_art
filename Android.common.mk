@@ -62,6 +62,7 @@ endif
 TEST_LOCAL_SRC_FILES := \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
+	src/object_test.cc \
 	src/raw_dex_file_test.cc
 
 ifeq ($(TEST_TARGET_ARCH),arm)

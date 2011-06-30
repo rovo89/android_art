@@ -86,20 +86,65 @@ class SField : public Field {
 class Class : public Object {
  public:
   enum ClassStatus {
-    kClassError = -1,
-    kClassNotReady = 0,
-    kClassIdx = 1,  // loaded, DEX idx in super or ifaces
-    kClassLoaded = 2,  // DEX idx values resolved
-    kClassResolved = 3,  // part of linking
-    kClassVerifying = 4,  // in the process of being verified
-    kClassVerified = 5,  // logically part of linking; done pre-init
-    kClassInitializing = 6,  // class init in progress
-    kClassInitialized = 7,  // ready to go
+    kStatusError = -1,
+    kStatusNotReady = 0,
+    kStatusIdx = 1,  // loaded, DEX idx in super or ifaces
+    kStatusLoaded = 2,  // DEX idx values resolved
+    kStatusResolved = 3,  // part of linking
+    kStatusVerifying = 4,  // in the process of being verified
+    kStatusVerified = 5,  // logically part of linking; done pre-init
+    kStatusInitializing = 6,  // class init in progress
+    kStatusInitialized = 7,  // ready to go
   };
 
   enum PrimitiveType {
     kPrimNot = -1
   };
+
+  // Returns true if this class is in the same packages as that class.
+  bool IsInSamePackage(const Class* that) const;
+
+  static bool IsInSamePackage(const char* descriptor1, const char* descriptor2);
+
+  // Returns true if this class represents an array class.
+  bool IsArray() const {
+    return descriptor_[0] == '[';  // TODO: avoid parsing the descriptor
+  }
+
+  // Returns true if the class is an interface.
+  bool IsInterface() const {
+    return (access_flags_ & kAccInterface) != 0;
+  }
+
+  // Returns true if the class is declared public.
+  bool IsPublic() const {
+    return (access_flags_ & kAccPublic) != 0;
+  }
+
+  // Returns true if the class is declared final.
+  bool IsFinal() const {
+    return (access_flags_ & kAccFinal) != 0;
+  }
+
+  // Returns true if the class is abstract.
+  bool IsAbstract() const {
+    return (access_flags_ & kAccAbstract) != 0;
+  }
+
+  // Returns true if the class is an annotation.
+  bool IsAnnotation() const {
+    return (access_flags_ & kAccAnnotation) != 0;
+  }
+
+  // Returns true if the class is a primitive type.
+  bool IsPrimitive() const {
+    return primitive_type_ != kPrimNot;
+  }
+
+  // Returns true if this class can access that class.
+  bool CanAccess(const Class* that) const {
+    return that->IsPublic() && this->IsInSamePackage(that);
+  }
 
   // Returns the size in bytes of a class object instance with the
   // given number of static fields.
@@ -115,11 +160,10 @@ class Class : public Object {
     return num_vmethods_;
   }
 
-
  public: // TODO: private
   // leave space for instance data; we could access fields directly if
   // we freeze the definition of java/lang/Class
-#define CLASS_FIELD_SLOTS   4
+#define CLASS_FIELD_SLOTS 4
   uint32_t instance_data_[CLASS_FIELD_SLOTS];
 #undef CLASS_FIELD_SLOTS
 
@@ -169,6 +213,7 @@ class Class : public Object {
   // The superclass, or NULL if this is java.lang.Object or a
   // primitive type.
   Class* super_;  // TODO: make an instance field
+  uint32_t super_idx_;
 
   // defining class loader, or NULL for the "bootstrap" system loader
   Object* class_loader_;  // TODO: make an instance field
@@ -179,7 +224,7 @@ class Class : public Object {
   //InitiatingLoaderList initiating_loader_list_;
 
   // array of interfaces this class implements directly
-  int interface_count_;
+  uint32_t interface_count_;
   Class** interfaces_;
 
   // static, private, and <init> methods

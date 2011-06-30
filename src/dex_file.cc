@@ -76,9 +76,10 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   klass->class_loader_ = NULL;  // TODO
   klass->dex_file_ = this;
   klass->primitive_type_ = Class::kPrimNot;
-  klass->status_ = Class::kClassIdx;
+  klass->status_ = Class::kStatusIdx;
 
   klass->super_ = reinterpret_cast<Class*>(class_def.superclass_idx_);
+  klass->super_idx_ = class_def.superclass_idx_;
 
   klass->num_sfields_ = header.static_fields_size_;
   klass->num_ifields_ = header.instance_fields_size_;
