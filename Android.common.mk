@@ -23,7 +23,6 @@ LOCAL_CFLAGS := \
 	-Werror \
 	-Wextra \
 	-Wno-unused-parameter \
-	-Wno-deprecated \
 	-Wstrict-aliasing=2 \
 	-fno-align-jumps \
 	-fstrict-aliasing
