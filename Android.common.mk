@@ -46,7 +46,8 @@ LIBART_LOCAL_SRC_FILES := \
 	src/memory_region.cc \
 	src/object.cc \
 	src/raw_dex_file.cc \
-	src/runtime.cc
+	src/runtime.cc \
+	src/stringpiece.cc
 
 ifeq ($(LIBART_TARGET_ARCH),arm)
 LIBART_LOCAL_SRC_FILES += \
