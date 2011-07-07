@@ -14,24 +14,23 @@
 # limitations under the License.
 #
 
-LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 
-LIBART_TARGET_ARCH := $(TARGET_ARCH)
-include $(LOCAL_PATH)/Android.common.mk
+LIBART_TARGET_ARCH := $(HOST_ARCH)
+include $(build_path)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 
-include external/stlport/libstlport.mk
-
-LOCAL_STATIC_LIBRARIES := \
+LOCAL_WHOLE_STATIC_LIBRARIES := \
 	libcutils \
 	liblog \
 	libz
 
-LOCAL_SHARED_LIBRARIES := \
-	libstlport
+LOCAL_LDLIBS := \
+	-ldl \
+	-lpthread \
+	-lrt
 
-include $(BUILD_SHARED_LIBRARY)
+include $(BUILD_HOST_SHARED_LIBRARY)

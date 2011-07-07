@@ -17,12 +17,13 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
-include $(LOCAL_PATH)/Android.libart.mk
-include $(LOCAL_PATH)/Android.test.mk
-include $(LOCAL_PATH)/Android.aexec.mk
+build_path := $(LOCAL_PATH)/build
+include $(build_path)/Android.libart.mk
+include $(build_path)/Android.test.mk
+include $(build_path)/Android.aexec.mk
 
 ifeq ($(WITH_HOST_DALVIK),true)
-    include $(LOCAL_PATH)/Android.libart.host.mk
-    include $(LOCAL_PATH)/Android.test.host.mk
-    include $(LOCAL_PATH)/Android.aexec.host.mk
+    include $(build_path)/Android.libart.host.mk
+    include $(build_path)/Android.test.host.mk
+    include $(build_path)/Android.aexec.host.mk
 endif

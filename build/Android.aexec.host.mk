@@ -14,20 +14,17 @@
 # limitations under the License.
 #
 
-LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := aexec
 LOCAL_MODULE_TAGS := optional
 
-include $(LOCAL_PATH)/Android.common.mk
+include $(build_path)/Android.common.mk
 LOCAL_SRC_FILES := $(AEXEC_LOCAL_SRC_FILES)
 
-include external/stlport/libstlport.mk
-LOCAL_C_INCLUDES +=
+LOCAL_C_INCLUDES :=
 
 LOCAL_SHARED_LIBRARIES := \
-	libart \
-	libstlport
+	libart
 
-include $(BUILD_EXECUTABLE)
+include $(BUILD_HOST_EXECUTABLE)

@@ -14,26 +14,24 @@
 # limitations under the License.
 #
 
-LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 local_module_tags := eng tests
 
-TEST_TARGET_ARCH := $(TARGET_ARCH)
-include $(LOCAL_PATH)/Android.common.mk
+TEST_TARGET_ARCH := $(HOST_ARCH)
+include $(build_path)/Android.common.mk
 local_cpp_extension := $(LOCAL_CPP_EXTENSION)
 local_cflags := $(LOCAL_CFLAGS)
 
 local_shared_libraries := \
-	libart \
-	libstlport
+	libart
 
 local_c_includes := \
 	external/gtest/include
 
-local_static_libraries := \
-	libgtest \
-	libgtest_main
+local_whole_static_libraries := \
+	libgtest_host \
+	libgtest_main_host
 
 $(foreach file,$(TEST_LOCAL_SRC_FILES), \
   $(eval include $(CLEAR_VARS)) \
@@ -42,9 +40,8 @@ $(foreach file,$(TEST_LOCAL_SRC_FILES), \
   $(eval LOCAL_MODULE_TAGS := $(local_module_tags)) \
   $(eval LOCAL_SRC_FILES := $(file)) \
   $(eval LOCAL_CFLAGS := $(local_cflags)) \
-  $(eval include external/stlport/libstlport.mk) \
-  $(eval LOCAL_C_INCLUDES += $(local_c_includes)) \
-  $(eval LOCAL_STATIC_LIBRARIES := $(local_static_libraries)) \
+  $(eval LOCAL_C_INCLUDES := $(local_c_includes)) \
+  $(eval LOCAL_WHOLE_STATIC_LIBRARIES := $(local_whole_static_libraries)) \
   $(eval LOCAL_SHARED_LIBRARIES := $(local_shared_libraries)) \
-  $(eval include $(BUILD_EXECUTABLE)) \
+  $(eval include $(BUILD_HOST_EXECUTABLE)) \
 )
