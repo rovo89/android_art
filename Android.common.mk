@@ -41,8 +41,10 @@ AEXEC_LOCAL_SRC_FILES := \
 LIBART_LOCAL_SRC_FILES := \
 	src/assembler.cc \
 	src/base64.cc \
+	src/class_linker.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
+	src/dex_verifier.cc \
 	src/memory_region.cc \
 	src/object.cc \
 	src/raw_dex_file.cc \
@@ -60,6 +62,7 @@ LIBART_LOCAL_SRC_FILES += \
 endif
 
 TEST_LOCAL_SRC_FILES := \
+	src/class_linker_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/object_test.cc \

@@ -37,16 +37,16 @@ DexFile::~DexFile() {
 
 void DexFile::Init() {
   num_strings_ = raw_->NumStringIds();
-  strings_ = new String*[num_strings_];
+  strings_ = new String*[num_strings_]();
 
   num_classes_ = raw_->NumTypeIds();
-  classes_ = new Class*[num_classes_];
+  classes_ = new Class*[num_classes_]();
 
   num_methods_ = raw_->NumMethodIds();
-  methods_ = new Method*[num_methods_];
+  methods_ = new Method*[num_methods_]();
 
   num_fields_ = raw_->NumFieldIds();
-  fields_ = new Field*[num_fields_];
+  fields_ = new Field*[num_fields_]();
 }
 
 Class* DexFile::LoadClass(const char* descriptor) {
@@ -71,20 +71,21 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   CHECK(klass != NULL);  // TODO: throw an OOME
 
   klass->klass_ = NULL;  // TODO
-  klass->descriptor_ = descriptor;
+  klass->descriptor_.set(descriptor);
+  klass->descriptor_alloc_ = NULL;
   klass->access_flags_ = class_def.access_flags_;
   klass->class_loader_ = NULL;  // TODO
   klass->dex_file_ = this;
   klass->primitive_type_ = Class::kPrimNot;
   klass->status_ = Class::kStatusIdx;
 
-  klass->super_ = reinterpret_cast<Class*>(class_def.superclass_idx_);
-  klass->super_idx_ = class_def.superclass_idx_;
+  klass->super_class_ = NULL;
+  klass->super_class_idx_ = class_def.superclass_idx_;
 
   klass->num_sfields_ = header.static_fields_size_;
   klass->num_ifields_ = header.instance_fields_size_;
-  klass->num_dmethods_ = header.direct_methods_size_;
-  klass->num_vmethods_ = header.virtual_methods_size_;
+  klass->num_direct_methods_ = header.direct_methods_size_;
+  klass->num_virtual_methods_ = header.virtual_methods_size_;
 
   klass->source_file_ = raw_->dexGetSourceFile(class_def);
 
@@ -102,11 +103,11 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   }
 
   // Load instance fields.
-  if (klass->num_ifields_ != 0) {
+  if (klass->NumInstanceFields() != 0) {
     // TODO: append instance fields to class object
-    klass->ifields_ = new IField[klass->num_ifields_];
+    klass->ifields_ = new InstanceField[klass->NumInstanceFields()];
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->num_ifields_; ++i) {
+    for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       RawDexFile::Field raw_field;
       raw_->dexReadClassDataField(&class_data, &raw_field, &last_idx);
       LoadField(klass, raw_field, &klass->ifields_[i]);
@@ -114,28 +115,28 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   }
 
   // Load direct methods.
-  if (klass->num_dmethods_ != 0) {
+  if (klass->NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->dmethods_ = new Method[klass->num_dmethods_];
+    klass->direct_methods_ = new Method[klass->NumDirectMethods()];
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->num_dmethods_; ++i) {
+    for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
       RawDexFile::Method raw_method;
       raw_->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
-      LoadMethod(klass, raw_method, &klass->dmethods_[i]);
+      LoadMethod(klass, raw_method, klass->GetDirectMethod(i));
       // TODO: register maps
     }
   }
 
   // Load virtual methods.
-  if (klass->num_vmethods_ != 0) {
+  if (klass->NumVirtualMethods() != 0) {
     // TODO: append virtual methods to class object
-    klass->vmethods_ = new Method[klass->num_vmethods_];
-    memset(klass->vmethods_, 0xff, sizeof(Method));
+    klass->virtual_methods_ = new Method[klass->NumVirtualMethods()];
+    memset(klass->virtual_methods_, 0xff, sizeof(Method));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->num_vmethods_; ++i) {
+    for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       RawDexFile::Method raw_method;
       raw_->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
-      LoadMethod(klass, raw_method, &klass->vmethods_[i]);
+      LoadMethod(klass, raw_method, klass->GetVirtualMethod(i));
       // TODO: register maps
     }
   }
@@ -169,10 +170,10 @@ void DexFile::LoadMethod(Class* klass, const RawDexFile::Method& src,
                          Method* dst) {
   const RawDexFile::MethodId& method_id = raw_->GetMethodId(src.method_idx_);
   dst->klass_ = klass;
-  dst->name_ = raw_->dexStringById(method_id.name_idx_);
+  dst->name_.set(raw_->dexStringById(method_id.name_idx_));
   dst->dex_file_ = this;
   dst->proto_idx_ = method_id.proto_idx_;
-  dst->shorty_ = raw_->GetShorty(method_id.proto_idx_);
+  dst->shorty_.set(raw_->GetShorty(method_id.proto_idx_));
   dst->access_flags_ = src.access_flags_;
 
   // TODO: check for finalize method

@@ -29,7 +29,7 @@ const int kPointerSize = sizeof(void*);
 const int kBitsPerByte = 8;
 const int kBitsPerByteLog2 = 3;
 const int kBitsPerPointer = kPointerSize * kBitsPerByte;
-const int kBitsPerWord = kWordSize * kBitsPerWord;
+const int kBitsPerWord = kWordSize * kBitsPerByte;
 const int kBitsPerInt = kIntSize * kBitsPerByte;
 
 }  // namespace art

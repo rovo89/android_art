@@ -151,9 +151,34 @@ class StringPiece {
   StringPiece substr(size_type pos, size_type n = npos) const;
 };
 
-}  // namespace art
+// This large function is defined inline so that in a fairly common case where
+// one of the arguments is a literal, the compiler can elide a lot of the
+// following comparisons.
+inline bool operator==(const art::StringPiece& x, const art::StringPiece& y) {
+  int len = x.size();
+  if (len != y.size()) {
+    return false;
+  }
 
-bool operator==(const art::StringPiece& x, const art::StringPiece& y);
+  const char* p1 = x.data();
+  const char* p2 = y.data();
+  if (p1 == p2) {
+    return true;
+  }
+  if (len <= 0) {
+    return true;
+  }
+
+  // Test last byte in case strings share large common prefix
+  if (p1[len-1] != p2[len-1]) return false;
+  if (len == 1) return true;
+
+  // At this point we can, but don't have to, ignore the last byte.  We use
+  // this observation to fold the odd-length case into the even-length case.
+  len &= ~1;
+
+  return memcmp(p1, p2, len) == 0;
+}
 
 inline bool operator!=(const art::StringPiece& x, const art::StringPiece& y) {
   return !(x == y);
@@ -172,6 +197,8 @@ inline bool operator<=(const art::StringPiece& x, const art::StringPiece& y) {
 inline bool operator>=(const art::StringPiece& x, const art::StringPiece& y) {
   return !(x < y);
 }
+
+}  // namespace art
 
 // allow StringPiece to be logged
 extern std::ostream& operator<<(std::ostream& o, const art::StringPiece& piece);

@@ -5,10 +5,14 @@
 
 #include "src/globals.h"
 #include "src/macros.h"
-#include "src/object.h"
 #include "src/raw_dex_file.h"
 
 namespace art {
+
+class Class;
+class Field;
+class Method;
+class String;
 
 class DexFile {
  public:
@@ -27,17 +31,33 @@ class DexFile {
   // Close and deallocate.
   ~DexFile();
 
-  size_t NumTypes() {
+  size_t NumTypes() const {
     return num_classes_;
   }
 
-  size_t NumMethods() {
+  size_t NumMethods() const {
     return num_methods_;
   }
 
   Class* LoadClass(const char* descriptor);
 
   Class* LoadClass(const RawDexFile::ClassDef& class_def);
+
+  bool HasClass(const char* descriptor) {
+    return raw_->FindClassDef(descriptor) != NULL;
+  }
+
+  RawDexFile* GetRaw() const {
+    return raw_.get();
+  }
+
+  Class* GetResolvedClass(uint32_t class_idx) const {
+    return classes_[class_idx];
+  }
+
+  void SetResolvedClass(uint32_t class_idx, Class* resolved) {
+    classes_[class_idx] = resolved;
+  }
 
  private:
   DexFile(RawDexFile* raw) : raw_(raw) {};

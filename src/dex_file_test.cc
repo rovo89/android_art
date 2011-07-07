@@ -1,6 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "src/dex_file.h"
+#include "src/object.h"
 #include "src/scoped_ptr.h"
 
 #include <stdio.h>
@@ -8,8 +9,6 @@
 
 namespace art {
 
-// Nested.java
-//
 // class Nested {
 //     class Inner {
 //     }

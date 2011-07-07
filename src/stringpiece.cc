@@ -11,33 +11,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <iostream>
-#include <utility>
 #include "src/stringpiece.h"
 
-using art::StringPiece;
+#include <iostream>
+#include <utility>
 
-std::ostream& operator<<(std::ostream& o, const StringPiece& piece) {
-  o.write(piece.data(), piece.size());
-  return o;
-}
-
-bool operator==(const StringPiece& x, const StringPiece& y) {
-  int len = x.size();
-  if (len != y.size()) {
-    return false;
-  }
-  const char* p = x.data();
-  const char* p2 = y.data();
-  // Test last byte in case strings share large common prefix
-  if ((len > 0) && (p[len-1] != p2[len-1])) return false;
-  const char* p_limit = p + len;
-  for (; p < p_limit; p++, p2++) {
-    if (*p != *p2)
-      return false;
-  }
-  return true;
-}
+namespace art {
 
 bool operator<(const art::StringPiece& x, const art::StringPiece& y) {
   const int r = memcmp(x.data(), y.data(),
@@ -110,3 +89,10 @@ StringPiece StringPiece::substr(size_type pos, size_type n) const {
 }
 
 const StringPiece::size_type StringPiece::npos = size_type(-1);
+
+}  // namespace art
+
+std::ostream& operator<<(std::ostream& o, const art::StringPiece& piece) {
+  o.write(piece.data(), piece.size());
+  return o;
+}

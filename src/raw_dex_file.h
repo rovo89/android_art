@@ -114,6 +114,37 @@ class RawDexFile {
     TypeItem list_[1];  // elements of the list
   };
 
+  class ParameterIterator {
+   public:
+    ParameterIterator(const RawDexFile& raw, const ProtoId& proto_id)
+        : raw_(raw), size_(0), pos_(0) {
+      type_list_ = raw_.GetProtoParameters(proto_id);
+      if (type_list_ != NULL) {
+        size_ = type_list_->Size();
+      }
+    }
+    bool HasNext() const { return pos_ != size_; }
+    void Next() { ++pos_; }
+    const char* GetDescriptor() {
+      uint32_t type_idx = type_list_->GetTypeItem(pos_).type_idx_;
+      return raw_.dexStringByTypeIdx(type_idx);
+    }
+   private:
+    const RawDexFile& raw_;
+    const TypeList* type_list_;
+    uint32_t size_;
+    uint32_t pos_;
+    DISALLOW_IMPLICIT_CONSTRUCTORS(ParameterIterator);
+  };
+
+  ParameterIterator* GetParameterIterator(const ProtoId& proto_id) const {
+    return new ParameterIterator(*this, proto_id);
+  }
+
+  const char* GetReturnTypeDescriptor(const ProtoId& proto_id) const {
+    return dexStringByTypeIdx(proto_id.return_type_idx_);
+  }
+
   // Raw code_item.
   struct Code {
     uint16_t registers_size_;
@@ -210,6 +241,7 @@ class RawDexFile {
   }
 
   // Returns a pointer to the memory mapped class data.
+  // TODO: return a stream
   const byte* GetClassData(const ClassDef& class_def) const {
     if (class_def.class_data_off_ == 0) {
       LG << "class_def.class_data_off_ == 0";
@@ -269,7 +301,7 @@ class RawDexFile {
     return class_defs_[idx];
   }
 
-  const TypeList* GetInterfacesList(const ClassDef& class_def) {
+  const TypeList* GetInterfacesList(const ClassDef& class_def) const {
     if (class_def.interfaces_off_ == 0) {
         return NULL;
     } else {
@@ -291,6 +323,15 @@ class RawDexFile {
   const char* GetShorty(uint32_t proto_idx) {
     const ProtoId& proto_id = GetProtoId(proto_idx);
     return dexStringById(proto_id.shorty_idx_);
+  }
+
+  const TypeList* GetProtoParameters(const ProtoId& proto_id) const {
+    if (proto_id.parameters_off_ == 0) {
+      return NULL;
+    } else {
+      const byte* addr = base_ + proto_id.parameters_off_;
+      return reinterpret_cast<const TypeList*>(addr);
+    }
   }
 
   // From libdex...
@@ -316,6 +357,7 @@ class RawDexFile {
     return dexStringById(type_id.descriptor_idx_);
   }
 
+  // TODO: encoded_field is actually a stream of bytes
   void dexReadClassDataField(const byte** encoded_field,
                              RawDexFile::Field* field,
                              uint32_t* last_idx) const {
@@ -325,6 +367,7 @@ class RawDexFile {
     *last_idx = idx;
   }
 
+  // TODO: encoded_method is actually a stream of bytes
   void dexReadClassDataMethod(const byte** encoded_method,
                               RawDexFile::Method* method,
                               uint32_t* last_idx) const {

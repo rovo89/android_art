@@ -13,6 +13,7 @@ class Heap {
  public:
   static Class* AllocClass(size_t size) {
     byte* raw = new byte[size];
+    memset(raw, 0, size);
     return reinterpret_cast<Class*>(raw);
   }
 };
