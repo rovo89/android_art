@@ -57,7 +57,7 @@ bool Class::IsInSamePackage(const Class* that) const {
 uint32_t Method::NumArgRegisters() {
   CHECK(shorty_ != NULL);
   uint32_t num_registers = 0;
-  for (size_t i = 1; shorty_[0] != '\0'; ++i) {
+  for (size_t i = 1; shorty_[i] != '\0'; ++i) {
     char ch = shorty_[i];
     if (ch == 'D' || ch == 'J') {
       num_registers += 2;
