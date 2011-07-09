@@ -12,9 +12,29 @@ namespace art {
 class Heap {
  public:
   static Class* AllocClass(size_t size) {
-    byte* raw = new byte[size];
-    memset(raw, 0, size);
+    byte* raw = new byte[size]();
     return reinterpret_cast<Class*>(raw);
+  }
+
+  static CharArray* AllocCharArray(size_t length) {
+    size_t size = sizeof(Array) + length * sizeof(uint16_t);
+    byte* raw = new byte[size]();
+    return reinterpret_cast<CharArray*>(raw);
+  }
+
+  static String* AllocString() {
+    size_t size = sizeof(String);
+    byte* raw = new byte[size]();
+    return reinterpret_cast<String*>(raw);
+  }
+
+  static String* AllocStringFromModifiedUtf8(const char* data) {
+    String* string = AllocString();
+    uint32_t count = strlen(data);  // TODO
+    CharArray* array = AllocCharArray(count);
+    string->array_ = array;
+    string->count_ = count;
+    return string;
   }
 };
 

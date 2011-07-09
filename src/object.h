@@ -187,6 +187,10 @@ class Field {
     return signature_[0];
   }
 
+  const char* GetSignature() const {
+    return signature_;
+  }
+
  public:  // TODO: private
   // The class in which this field is declared.
   Class* klass_;
@@ -224,6 +228,58 @@ class InstanceField : public Field {
 
 // Static fields.
 class StaticField : public Field {
+ public:
+  void SetBoolean(bool z) {
+    CHECK_EQ(GetType(), 'Z');
+    value_.z = z;
+  }
+
+  void SetByte(int8_t b) {
+    CHECK_EQ(GetType(), 'B');
+    value_.b = b;
+  }
+
+  void SetChar(uint16_t c) {
+    CHECK_EQ(GetType(), 'C');
+    value_.c = c;
+  }
+
+  void SetShort(uint16_t s) {
+    CHECK_EQ(GetType(), 'S');
+    value_.s = s;
+  }
+
+  void SetInt(int32_t i) {
+    CHECK_EQ(GetType(), 'I');
+    value_.i = i;
+  }
+
+  int64_t GetLong() {
+    CHECK_EQ(GetType(), 'J');
+    return value_.j;
+  }
+
+  void SetLong(int64_t j) {
+    CHECK_EQ(GetType(), 'J');
+    value_.j = j;
+  }
+
+  void SetFloat(float f) {
+    CHECK_EQ(GetType(), 'F');
+    value_.f = f;
+  }
+
+  void SetDouble(double d) {
+    CHECK_EQ(GetType(), 'D');
+    value_.d = d;
+  }
+
+  void SetObject(Object* l) {
+    CHECK_EQ(GetType(), 'L');
+    value_.l = l;
+    // TODO: write barrier
+  }
+
  private:
   JValue value_;
 };
@@ -642,21 +698,28 @@ class DataObject : public Object {
   uint32_t fields_[1];
 };
 
+class Array : public Object {
+ public:
+  void SetLength(uint32_t length) {
+    length_ = length;
+  }
+
+ private:
+  // The number of array elements.
+  uint32_t length_;
+};
+
+class CharArray : public Array {};
+
 class String : public Object {
  public:
-  Array* array_;
+  CharArray* array_;
 
   uint32_t hash_code_;
 
   uint32_t offset_;
 
   uint32_t count_;
-};
-
-class Array : public Object {
- public:
-  // The number of array elements.
-  uint32_t length_;
 };
 
 class InterfaceEntry {

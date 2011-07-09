@@ -13,6 +13,7 @@ class Class;
 class Field;
 class Method;
 class String;
+union JValue;
 
 class DexFile {
  public:
@@ -51,11 +52,19 @@ class DexFile {
     return raw_.get();
   }
 
+  String* GetResolvedString(uint32_t string_idx) const {
+    return strings_[string_idx];
+  }
+
+  void SetResolvedString(String* resolved, uint32_t string_idx) {
+    strings_[string_idx] = resolved;
+  }
+
   Class* GetResolvedClass(uint32_t class_idx) const {
     return classes_[class_idx];
   }
 
-  void SetResolvedClass(uint32_t class_idx, Class* resolved) {
+  void SetResolvedClass(Class* resolved, uint32_t class_idx) {
     classes_[class_idx] = resolved;
   }
 

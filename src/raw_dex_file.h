@@ -13,14 +13,39 @@
 
 namespace art {
 
+union JValue;
+
+// TODO: move all of the macro functionality into the DexFile class.
 class RawDexFile {
  public:
   static const byte kDexMagic[];
   static const byte kDexMagicVersion[];
   static const size_t kSha1DigestSize = 20;
 
+  static const byte kEncodedValueTypeMask = 0x1f;  // 0b11111
+  static const byte kEncodedValueArgShift = 5;
+
   // The value of an invalid index.
   static const uint32_t kDexNoIndex = 0xFFFFFFFF;
+
+  enum ValueType {
+    kByte = 0x00,
+    kShort = 0x02,
+    kChar = 0x03,
+    kInt = 0x04,
+    kLong = 0x06,
+    kFloat = 0x10,
+    kDouble = 0x11,
+    kString = 0x17,
+    kType = 0x18,
+    kField = 0x19,
+    kMethod = 0x1a,
+    kEnum = 0x1b,
+    kArray = 0x1c,
+    kAnnotation = 0x1d,
+    kNull = 0x1e,
+    kBoolean = 0x1f
+  };
 
   // Raw header_item.
   struct Header {
@@ -114,7 +139,7 @@ class RawDexFile {
     TypeItem list_[1];  // elements of the list
   };
 
-  class ParameterIterator {
+  class ParameterIterator {  // TODO: stream
    public:
     ParameterIterator(const RawDexFile& raw, const ProtoId& proto_id)
         : raw_(raw), size_(0), pos_(0) {
@@ -146,7 +171,7 @@ class RawDexFile {
   }
 
   // Raw code_item.
-  struct Code {
+  struct CodeItem {
     uint16_t registers_size_;
     uint16_t ins_size_;
     uint16_t outs_size_;
@@ -310,12 +335,12 @@ class RawDexFile {
     }
   }
 
-  const Code* GetCode(const Method& method) const {
+  const CodeItem* GetCodeItem(const Method& method) const {
     if (method.code_off_ == 0) {
       return NULL;  // native or abstract method
     } else {
       const byte* addr = base_ + method.code_off_;
-      return reinterpret_cast<const Code*>(addr);
+      return reinterpret_cast<const CodeItem*>(addr);
     }
   }
 
@@ -334,11 +359,26 @@ class RawDexFile {
     }
   }
 
+  const byte* GetEncodedArray(const ClassDef& class_def) const {
+    if (class_def.static_values_off_ == 0) {
+      return 0;
+    } else {
+      return base_ + class_def.static_values_off_;
+    }
+  }
+
+  int32_t GetStringLength(const StringId& string_id) const {
+    const byte* ptr = base_ + string_id.string_data_off_;
+    return DecodeUnsignedLeb128(&ptr);
+  }
+
+  ValueType ReadEncodedValue(const byte** encoded_value, JValue* value);
+
   // From libdex...
 
   // Returns a pointer to the UTF-8 string data referred to by the
   // given string_id.
-  const char* dexGetStringData(const StringId& string_id) const {
+  const char* GetStringData(const StringId& string_id) const {
     const byte* ptr = base_ + string_id.string_data_off_;
     // Skip the uleb128 length.
     while (*(ptr++) > 0x7f) /* empty */ ;
@@ -348,7 +388,7 @@ class RawDexFile {
   // return the UTF-8 encoded string with the specified string_id index
   const char* dexStringById(uint32_t idx) const {
     const StringId& string_id = GetStringId(idx);
-    return dexGetStringData(string_id);
+    return GetStringData(string_id);
   }
 
   // Get the descriptor string associated with a given type index.

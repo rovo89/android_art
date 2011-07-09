@@ -6,7 +6,9 @@
 #include <vector>
 #include <utility>
 
+#include "src/casts.h"
 #include "src/dex_verifier.h"
+#include "src/heap.h"
 #include "src/logging.h"
 #include "src/monitor.h"
 #include "src/object.h"
@@ -30,7 +32,7 @@ Class* ClassLinker::FindClass(const char* descriptor,
       // No .dex file specified, search the class path.
       dex_file = FindInClassPath(descriptor);
       if (dex_file == NULL) {
-        LG << "Class really not found";
+        LG << "Class " << descriptor << " really not found";
         return NULL;
       }
     }
@@ -229,7 +231,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
   } else {
     // JValue unused;
     // TODO: dvmCallMethod(self, method, NULL, &unused);
-    CHECK(!"unimplemented");
+    //CHECK(!"unimplemented");
   }
 
   {
@@ -357,10 +359,61 @@ bool ClassLinker::InitializeSuperClass(Class* klass) {
 }
 
 void ClassLinker::InitializeStaticFields(Class* klass) {
-  if (klass->NumStaticFields() == 0) {
+  size_t num_static_fields = klass->NumStaticFields();
+  if (num_static_fields == 0) {
     return;
-  } else {
-    LOG(FATAL) << "Unimplemented";
+  }
+  DexFile* dex_file = klass->GetDexFile();
+  if (dex_file == NULL) {
+    return;
+  }
+  const char* descriptor = klass->GetDescriptor().data();
+  RawDexFile* raw = dex_file->GetRaw();
+  const RawDexFile::ClassDef* class_def = raw->FindClassDef(descriptor);
+  CHECK(class_def != NULL);
+  const byte* addr = raw->GetEncodedArray(*class_def);
+  size_t array_size = DecodeUnsignedLeb128(&addr);
+  for (size_t i = 0; i < array_size; ++i) {
+    StaticField* field = klass->GetStaticField(i);
+    JValue value;
+    RawDexFile::ValueType type = raw->ReadEncodedValue(&addr, &value);
+    switch (type) {
+      case RawDexFile::kByte:
+        field->SetByte(value.b);
+        break;
+      case RawDexFile::kShort:
+        field->SetShort(value.s);
+        break;
+      case RawDexFile::kChar:
+        field->SetChar(value.c);
+        break;
+      case RawDexFile::kInt:
+        field->SetInt(value.i);
+        break;
+      case RawDexFile::kLong:
+        field->SetLong(value.j);
+        break;
+      case RawDexFile::kFloat:
+        field->SetFloat(value.f);
+        break;
+      case RawDexFile::kDouble:
+        field->SetDouble(value.d);
+        break;
+      case RawDexFile::kString: {
+        uint32_t string_idx = value.i;
+        String* resolved = ResolveString(klass, string_idx);
+        field->SetObject(resolved);
+        break;
+      }
+      case RawDexFile::kBoolean:
+        field->SetBoolean(value.z);
+        break;
+      case RawDexFile::kNull:
+        field->SetObject(value.l);
+        break;
+      default:
+        LOG(FATAL) << "Unknown type " << type;
+    }
   }
 }
 
@@ -855,7 +908,7 @@ void ClassLinker::CreateReferenceOffsets(Class* klass) {
   }
 }
 
-Class* ClassLinker::ResolveClass(Class* referrer, uint32_t class_idx) {
+Class* ClassLinker::ResolveClass(const Class* referrer, uint32_t class_idx) {
   DexFile* dex_file = referrer->GetDexFile();
   Class* resolved = dex_file->GetResolvedClass(class_idx);
   if (resolved != NULL) {
@@ -875,7 +928,7 @@ Class* ClassLinker::ResolveClass(Class* referrer, uint32_t class_idx) {
         return NULL;
       }
     }
-    dex_file->SetResolvedClass(class_idx, resolved);
+    dex_file->SetResolvedClass(resolved, class_idx);
   } else {
     CHECK(Thread::Self()->IsExceptionPending());
   }
@@ -886,6 +939,16 @@ Method* ResolveMethod(const Class* referrer, uint32_t method_idx,
                       /*MethodType*/ int method_type) {
   CHECK(false);
   return NULL;
+}
+
+String* ClassLinker::ResolveString(const Class* referring, uint32_t string_idx) {
+  const RawDexFile* raw = referring->GetDexFile()->GetRaw();
+  const RawDexFile::StringId& string_id = raw->GetStringId(string_idx);
+  const char* string_data = raw->GetStringData(string_id);
+  String* new_string = Heap::AllocStringFromModifiedUtf8(string_data);
+  // TODO: intern the new string
+  referring->GetDexFile()->SetResolvedString(new_string, string_idx);
+  return new_string;
 }
 
 }  // namespace art

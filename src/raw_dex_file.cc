@@ -1,10 +1,6 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/base64.h"
-#include "src/globals.h"
-#include "src/logging.h"
 #include "src/raw_dex_file.h"
-#include "src/scoped_ptr.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -13,6 +9,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <map>
+
+#include "src/base64.h"
+#include "src/globals.h"
+#include "src/logging.h"
+#include "src/object.h"
+#include "src/scoped_ptr.h"
+#include "src/utils.h"
 
 namespace art {
 
@@ -160,6 +163,128 @@ const RawDexFile::ClassDef* RawDexFile::FindClassDef(const char* descriptor) {
   } else {
     return it->second;
   }
+}
+
+// Read a signed integer.  "zwidth" is the zero-based byte count.
+static int32_t ReadSignedInt(const byte* ptr, int zwidth)
+{
+  int32_t val = 0;
+  for (int i = zwidth; i >= 0; --i) {
+    val = ((uint32_t)val >> 8) | (((int32_t)*ptr++) << 24);
+  }
+  val >>= (3 - zwidth) * 8;
+  return val;
+}
+
+// Read an unsigned integer.  "zwidth" is the zero-based byte count,
+// "fill_on_right" indicates which side we want to zero-fill from.
+static uint32_t ReadUnsignedInt(const byte* ptr, int zwidth,
+                                bool fill_on_right) {
+  uint32_t val = 0;
+  if (!fill_on_right) {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint32_t)*ptr++) << 24);
+    }
+    val >>= (3 - zwidth) * 8;
+  } else {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint32_t)*ptr++) << 24);
+    }
+  }
+  return val;
+}
+
+// Read a signed long.  "zwidth" is the zero-based byte count.
+static int64_t ReadSignedLong(const byte* ptr, int zwidth) {
+  int64_t val = 0;
+  for (int i = zwidth; i >= 0; --i) {
+    val = ((uint64_t)val >> 8) | (((int64_t)*ptr++) << 56);
+  }
+  val >>= (7 - zwidth) * 8;
+  return val;
+}
+
+// Read an unsigned long.  "zwidth" is the zero-based byte count,
+// "fill_on_right" indicates which side we want to zero-fill from.
+static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth,
+                                 bool fill_on_right) {
+  uint64_t val = 0;
+  if (!fill_on_right) {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint64_t)*ptr++) << 56);
+    }
+    val >>= (7 - zwidth) * 8;
+  } else {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint64_t)*ptr++) << 56);
+    }
+  }
+  return val;
+}
+
+RawDexFile::ValueType RawDexFile::ReadEncodedValue(const byte** stream,
+                                                   JValue* value) {
+  const byte* ptr = *stream;
+  byte value_type = *ptr++;
+  byte value_arg = value_type >> kEncodedValueArgShift;
+  size_t width = value_arg + 1;  // assume and correct later
+  int type = value_type & kEncodedValueTypeMask;
+  switch (type) {
+    case RawDexFile::kByte: {
+      int32_t b = ReadSignedInt(ptr, value_arg);
+      CHECK(IsInt(8, b));
+      value->i = b;
+      break;
+    }
+    case RawDexFile::kShort: {
+      int32_t s = ReadSignedInt(ptr, value_arg);
+      CHECK(IsInt(16, s));
+      value->i = s;
+      break;
+    }
+    case RawDexFile::kChar: {
+      uint32_t c = ReadUnsignedInt(ptr, value_arg, false);
+      CHECK(IsUint(16, c));
+      value->i = c;
+      break;
+    }
+    case RawDexFile::kInt:
+      value->i = ReadSignedInt(ptr, value_arg);
+      break;
+    case RawDexFile::kLong:
+      value->j = ReadSignedLong(ptr, value_arg);
+      break;
+    case RawDexFile::kFloat:
+      value->i = ReadUnsignedInt(ptr, value_arg, true);
+      break;
+    case RawDexFile::kDouble:
+      value->j = ReadUnsignedLong(ptr, value_arg, true);
+      break;
+    case RawDexFile::kBoolean:
+      value->i = (value_arg != 0);
+      width = 0;
+      break;
+    case RawDexFile::kString:
+    case RawDexFile::kType:
+    case RawDexFile::kMethod:
+    case RawDexFile::kEnum:
+      value->i = ReadUnsignedInt(ptr, value_arg, false);
+      break;
+    case RawDexFile::kField:
+    case RawDexFile::kArray:
+    case RawDexFile::kAnnotation:
+      LOG(FATAL) << "Unimplemented";
+      break;
+    case RawDexFile::kNull:
+      value->i = 0;
+      width = 0;
+      break;
+    default:
+      LOG(FATAL) << "Unreached";
+  }
+  ptr += width;
+  *stream = ptr;
+  return static_cast<ValueType>(type);
 }
 
 }  // namespace art

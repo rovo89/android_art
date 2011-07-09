@@ -110,7 +110,7 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       RawDexFile::Field raw_field;
       raw_->dexReadClassDataField(&class_data, &raw_field, &last_idx);
-      LoadField(klass, raw_field, &klass->ifields_[i]);
+      LoadField(klass, raw_field, klass->GetInstanceField(i));
     }
   }
 
@@ -177,7 +177,7 @@ void DexFile::LoadMethod(Class* klass, const RawDexFile::Method& src,
 
   // TODO: check for finalize method
 
-  const RawDexFile::Code* code_item = raw_->GetCode(src);
+  const RawDexFile::CodeItem* code_item = raw_->GetCodeItem(src);
   if (code_item != NULL) {
     dst->num_registers_ = code_item->registers_size_;
     dst->num_ins_ = code_item->ins_size_;

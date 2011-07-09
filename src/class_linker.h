@@ -29,7 +29,9 @@ class ClassLinker {
 
   Class* LookupClass(const char* descriptor, Object* class_loader);
 
-  Class* ResolveClass(Class* klass, uint32_t idx);
+  Class* ResolveClass(const Class* referring, uint32_t class_idx);
+
+  String* ResolveString(const Class* referring, uint32_t string_idx);
 
   DexFile* FindInClassPath(const char* descriptor);
 
