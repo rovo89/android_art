@@ -412,7 +412,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
         field->SetObject(value.l);
         break;
       default:
-        LOG(FATAL) << "Unknown type " << type;
+        LOG(FATAL) << "Unknown type " << static_cast<int>(type);
     }
   }
 }
