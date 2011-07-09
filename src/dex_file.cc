@@ -105,7 +105,7 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   // Load instance fields.
   if (klass->NumInstanceFields() != 0) {
     // TODO: append instance fields to class object
-    klass->ifields_ = new InstanceField[klass->NumInstanceFields()];
+    klass->ifields_ = new InstanceField[klass->NumInstanceFields()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       RawDexFile::Field raw_field;
@@ -117,7 +117,7 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   // Load direct methods.
   if (klass->NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->direct_methods_ = new Method[klass->NumDirectMethods()];
+    klass->direct_methods_ = new Method[klass->NumDirectMethods()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
       RawDexFile::Method raw_method;
@@ -130,8 +130,7 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
   // Load virtual methods.
   if (klass->NumVirtualMethods() != 0) {
     // TODO: append virtual methods to class object
-    klass->virtual_methods_ = new Method[klass->NumVirtualMethods()];
-    memset(klass->virtual_methods_, 0xff, sizeof(Method));
+    klass->virtual_methods_ = new Method[klass->NumVirtualMethods()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       RawDexFile::Method raw_method;
