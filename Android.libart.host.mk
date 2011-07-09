@@ -24,12 +24,8 @@ LIBART_TARGET_ARCH := $(HOST_ARCH)
 include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 
-LOCAL_C_INCLUDES := \
-	dalvik
-
 LOCAL_WHOLE_STATIC_LIBRARIES := \
 	libcutils \
-	libdex \
 	liblog \
 	libz
 

@@ -25,12 +25,9 @@ include $(LOCAL_PATH)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
 
 include external/stlport/libstlport.mk
-LOCAL_C_INCLUDES += \
-	dalvik
 
 LOCAL_STATIC_LIBRARIES := \
 	libcutils \
-	libdex \
 	liblog \
 	libz
 

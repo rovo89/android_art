@@ -18,7 +18,7 @@ class DexInstructionVisitor {
     while (ptr != end) {
       Instruction* inst = Instruction::At(ptr);
       switch (inst->Opcode()) {
-#define INSTRUCTION_CASE(cname, value)             \
+#define INSTRUCTION_CASE(o, cname, p, f, r, i, a)  \
         case Instruction::cname: {                 \
           derived->Do_ ## cname(inst);             \
           break;                                   \
@@ -37,10 +37,10 @@ class DexInstructionVisitor {
 
  private:
   // Specific handlers for each instruction.
-#define INSTRUCTION_VISITOR(cname, value) \
-  void Do_ ## cname(Instruction* inst) {  \
-    T* derived = static_cast<T*>(this);   \
-    derived->Do_Default(inst);            \
+#define INSTRUCTION_VISITOR(o, cname, p, f, r, i, a)    \
+  void Do_ ## cname(Instruction* inst) {                \
+    T* derived = static_cast<T*>(this);                 \
+    derived->Do_Default(inst);                          \
   };
 #include "src/dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_VISITOR)
