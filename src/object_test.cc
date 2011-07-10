@@ -53,8 +53,9 @@ TEST(Method, ProtoCompare) {
   scoped_ptr<DexFile> dex_file(DexFile::OpenBase64(kProtoCompareDex));
   ASSERT_TRUE(dex_file != NULL);
 
-  Class* klass = dex_file->LoadClass("LProtoCompare;");
-  ASSERT_TRUE(klass != NULL);
+  scoped_ptr<Class> klass(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
+  bool result = dex_file->LoadClass("LProtoCompare;", klass.get());
+  ASSERT_TRUE(result);
 
   ASSERT_EQ(4U, klass->NumVirtualMethods());
 
@@ -130,10 +131,12 @@ TEST(Method, ProtoCompare2) {
   scoped_ptr<DexFile> dex_file2(DexFile::OpenBase64(kProtoCompare2Dex));
   ASSERT_TRUE(dex_file2 != NULL);
 
-  Class* klass1 = dex_file1->LoadClass("LProtoCompare;");
-  ASSERT_TRUE(klass1 != NULL);
-  Class* klass2 = dex_file2->LoadClass("LProtoCompare2;");
-  ASSERT_TRUE(klass2 != NULL);
+  scoped_ptr<Class> klass1(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
+  bool result1 = dex_file1->LoadClass("LProtoCompare;", klass1.get());
+  ASSERT_TRUE(result1);
+  scoped_ptr<Class> klass2(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
+  bool result2 = dex_file2->LoadClass("LProtoCompare2;", klass2.get());
+  ASSERT_TRUE(result2);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);
   ASSERT_STREQ("m1", m1_1->GetName().data());

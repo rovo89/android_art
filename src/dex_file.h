@@ -40,9 +40,9 @@ class DexFile {
     return num_methods_;
   }
 
-  Class* LoadClass(const char* descriptor);
+  bool LoadClass(const char* descriptor, Class* klass);
 
-  Class* LoadClass(const RawDexFile::ClassDef& class_def);
+  bool LoadClass(const RawDexFile::ClassDef& class_def, Class* klass);
 
   bool HasClass(const char* descriptor) {
     return raw_->FindClassDef(descriptor) != NULL;
@@ -53,18 +53,22 @@ class DexFile {
   }
 
   String* GetResolvedString(uint32_t string_idx) const {
+    CHECK_LT(string_idx, num_strings_);
     return strings_[string_idx];
   }
 
   void SetResolvedString(String* resolved, uint32_t string_idx) {
+    CHECK_LT(string_idx, num_strings_);
     strings_[string_idx] = resolved;
   }
 
   Class* GetResolvedClass(uint32_t class_idx) const {
+    CHECK_LT(class_idx, num_classes_);
     return classes_[class_idx];
   }
 
   void SetResolvedClass(Class* resolved, uint32_t class_idx) {
+    CHECK_LT(class_idx, num_classes_);
     classes_[class_idx] = resolved;
   }
 

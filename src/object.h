@@ -33,6 +33,20 @@ union JValue {
   Object* l;
 };
 
+enum JType {
+  kTypeByte = 'B',
+  kTypeChar = 'C',
+  kTypeDouble = 'D',
+  kTypeFloat = 'F',
+  kTypeInt = 'I',
+  kTypeLong = 'J',
+  kTypeShort = 'S',
+  kTypeBoolean = 'Z',
+  kTypeClass = 'L',
+  kTypeArray= '[',
+  kTypeVoid = 'V',
+};
+
 static const uint32_t kAccPublic = 0x0001; // class, field, method, ic
 static const uint32_t kAccPrivate = 0x0002; // field, method, ic
 static const uint32_t kAccProtected = 0x0004; // field, method, ic
@@ -275,7 +289,7 @@ class StaticField : public Field {
   }
 
   void SetObject(Object* l) {
-    CHECK_EQ(GetType(), 'L');
+    CHECK(GetType() == 'L' || GetType() == '[');
     value_.l = l;
     // TODO: write barrier
   }
@@ -513,9 +527,9 @@ class Class : public Object {
 
   // Returns the size in bytes of a class object instance with the
   // given number of static fields.
-  static size_t Size(size_t num_sfields) {
-    return OFFSETOF_MEMBER(Class, sfields_) + sizeof(StaticField) * num_sfields;
-  }
+  // static size_t Size(size_t num_sfields) {
+  //   return OFFSETOF_MEMBER(Class, sfields_) + sizeof(StaticField) * num_sfields;
+  // }
 
   // Returns the number of static, private, and constructor methods.
   size_t NumDirectMethods() const {
@@ -690,7 +704,7 @@ class Class : public Object {
 
   // Static fields
   size_t num_sfields_;
-  StaticField sfields_[];  // MUST be last item
+  StaticField* sfields_;
 };
 
 class DataObject : public Object {

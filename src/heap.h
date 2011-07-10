@@ -11,8 +11,8 @@ namespace art {
 
 class Heap {
  public:
-  static Class* AllocClass(size_t size) {
-    byte* raw = new byte[size]();
+  static Class* AllocClass() {
+    byte* raw = new byte[sizeof(Class)]();
     return reinterpret_cast<Class*>(raw);
   }
 

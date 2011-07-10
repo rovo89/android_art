@@ -19,6 +19,25 @@
 
 namespace art {
 
+void ClassLinker::Init() {
+  // Allocate and partially initialize the class Class.  This object
+  // will complete its initialization when its definition is loaded.
+  java_lang_Class_ = Heap::AllocClass();
+  java_lang_Class_->super_class_ = java_lang_Class_;
+  java_lang_Class_->descriptor_ = "Ljava/lang/Class;";
+
+  // Allocate and initialize the primitive type classes.
+  primitive_byte_ = CreatePrimitiveClass(kTypeByte, "B");
+  primitive_char_ = CreatePrimitiveClass(kTypeChar, "C");
+  primitive_double_ = CreatePrimitiveClass(kTypeDouble, "D");
+  primitive_float_ = CreatePrimitiveClass(kTypeFloat, "F");
+  primitive_int_ = CreatePrimitiveClass(kTypeInt, "I");
+  primitive_long_ = CreatePrimitiveClass(kTypeLong, "J");
+  primitive_short_ = CreatePrimitiveClass(kTypeShort, "S");
+  primitive_boolean_ = CreatePrimitiveClass(kTypeBoolean, "Z");
+  primitive_void_ = CreatePrimitiveClass(kTypeVoid, "V");
+}
+
 Class* ClassLinker::FindClass(const char* descriptor,
                               Object* class_loader,
                               DexFile* dex_file) {
@@ -37,8 +56,13 @@ Class* ClassLinker::FindClass(const char* descriptor,
       }
     }
     // Load the class from the dex file.
-    klass = dex_file->LoadClass(descriptor);
-    if (klass == NULL) {
+    if (!strcmp(descriptor, "Ljava/lang/Class;")) {
+      klass = java_lang_Class_;
+    } else {
+      klass = Heap::AllocClass();
+    }
+    bool is_loaded = dex_file->LoadClass(descriptor, klass);
+    if (!is_loaded) {
       // TODO: this occurs only when a dex file is provided.
       LG << "Class not found";  // TODO: NoClassDefFoundError
       return NULL;
@@ -106,9 +130,49 @@ void ClassLinker::AppendToClassPath(DexFile* dex_file) {
   class_path_.push_back(dex_file);
 }
 
+Class* ClassLinker::CreatePrimitiveClass(JType type, const char* descriptor) {
+  Class* klass = Heap::AllocClass();
+  CHECK(klass != NULL);
+  klass->super_class_ = java_lang_Class_;
+  klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
+  klass->descriptor_ = descriptor;
+  klass->status_ = Class::kStatusInitialized;
+  return klass;
+}
 
-Class* ClassLinker::FindPrimitiveClass(const char* descriptor) {
-  return NULL;  // TODO
+Class* ClassLinker::FindPrimitiveClass(JType type) {
+  switch (type) {
+    case kTypeByte:
+      CHECK(primitive_byte_ != NULL);
+      return primitive_byte_;
+    case kTypeChar:
+      CHECK(primitive_char_ != NULL);
+      return primitive_char_;
+    case kTypeDouble:
+      CHECK(primitive_double_ != NULL);
+      return primitive_double_;
+    case kTypeFloat:
+      CHECK(primitive_float_ != NULL);
+      return primitive_float_;
+    case kTypeInt:
+      CHECK(primitive_int_ != NULL);
+      return primitive_int_;
+    case kTypeLong:
+      CHECK(primitive_long_ != NULL);
+      return primitive_long_;
+    case kTypeShort:
+      CHECK(primitive_short_ != NULL);
+      return primitive_short_;
+    case kTypeBoolean:
+      CHECK(primitive_boolean_ != NULL);
+      return primitive_boolean_;
+    case kTypeVoid:
+      CHECK(primitive_void_ != NULL);
+      return primitive_void_;
+    default:
+      LOG(FATAL) << "Unknown primitive type " << static_cast<int>(type);
+  };
+  return NULL;  // Not reachable.
 }
 
 bool ClassLinker::InsertClass(Class* klass) {
@@ -445,9 +509,10 @@ bool ClassLinker::LinkInterfaces(Class* klass) {
   // TODO: store interfaces_idx in the Class object
   // TODO: move this outside of link interfaces
   if (klass->interface_count_ > 0) {
+    size_t length = klass->interface_count_ * sizeof(klass->interfaces_[0]);
     interfaces_idx.reset(new uint32_t[klass->interface_count_]);
-    memcpy(interfaces_idx.get(), klass->interfaces_, klass->interface_count_);
-    memset(klass->interfaces_, 0, klass->interface_count_);
+    memcpy(interfaces_idx.get(), klass->interfaces_, length);
+    memset(klass->interfaces_, 0xFF, length);
   }
   // Mark the class as loaded.
   klass->status_ = Class::kStatusLoaded;
@@ -517,7 +582,7 @@ bool ClassLinker::LinkMethods(Class* klass) {
       LG << "Too many methods on interface";  // TODO: VirtualMachineError
       return false;
     }
-    for (size_t i = 0; i < count; ++count) {
+    for (size_t i = 0; i < count; ++i) {
       klass->GetVirtualMethod(i)->method_index_ = i;
     }
   } else {
@@ -580,7 +645,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
     if (actual_count < max_count) {
       Method** new_vtable = new Method*[actual_count];
       memcpy(new_vtable, klass->vtable_, actual_count * sizeof(Method*));
-      delete klass->vtable_;
+      delete[] klass->vtable_;
       klass->vtable_ = new_vtable;
       LG << "shrunk vtable: "
          << "was " << max_count << ", "
@@ -666,7 +731,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       int k;  // must be signed
       for (k = klass->vtable_count_ - 1; k >= 0; --k) {
         if (interface_method->HasSameNameAndPrototype(klass->vtable_[k])) {
-          if (klass->vtable_[k]->IsPublic()) {
+          if (!klass->vtable_[k]->IsPublic()) {
             LG << "Implementation not public";
             return false;
           }
@@ -916,7 +981,8 @@ Class* ClassLinker::ResolveClass(const Class* referrer, uint32_t class_idx) {
   }
   const char* descriptor = dex_file->GetRaw()->dexStringByTypeIdx(class_idx);
   if (descriptor[0] != '\0' && descriptor[1] == '\0') {
-    resolved = FindPrimitiveClass(descriptor);
+    JType type = static_cast<JType>(descriptor[0]);
+    resolved = FindPrimitiveClass(type);
   } else {
     resolved = FindClass(descriptor, referrer->GetClassLoader(), NULL);
   }

@@ -269,19 +269,23 @@ class RawDexFile {
   // TODO: return a stream
   const byte* GetClassData(const ClassDef& class_def) const {
     if (class_def.class_data_off_ == 0) {
-      LG << "class_def.class_data_off_ == 0";
       return NULL;
+    } else {
+      return base_ + class_def.class_data_off_;
     }
-    return base_ + class_def.class_data_off_;
   }
 
   // Decodes the header section from the raw class data bytes.
   ClassDataHeader ReadClassDataHeader(const byte** class_data) {
+    CHECK(class_data != NULL);
     ClassDataHeader header;
-    header.static_fields_size_ = DecodeUnsignedLeb128(class_data);
-    header.instance_fields_size_ = DecodeUnsignedLeb128(class_data);
-    header.direct_methods_size_ = DecodeUnsignedLeb128(class_data);
-    header.virtual_methods_size_ = DecodeUnsignedLeb128(class_data);
+    memset(&header, 0, sizeof(ClassDataHeader));
+    if (*class_data != NULL) {
+      header.static_fields_size_ = DecodeUnsignedLeb128(class_data);
+      header.instance_fields_size_ = DecodeUnsignedLeb128(class_data);
+      header.direct_methods_size_ = DecodeUnsignedLeb128(class_data);
+      header.virtual_methods_size_ = DecodeUnsignedLeb128(class_data);
+    }
     return header;
   }
 

@@ -40,16 +40,18 @@ TEST(DexFile, LoadNonexistent) {
   scoped_ptr<DexFile> dex(DexFile::OpenBase64(kNestedDex));
   ASSERT_TRUE(dex != NULL);
 
-  Class* klass = dex->LoadClass("NoSuchClass");
-  ASSERT_TRUE(klass == NULL);
+  scoped_ptr<Class> klass(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
+  bool result = dex->LoadClass("NoSuchClass", klass.get());
+  ASSERT_FALSE(result);
 }
 
 TEST(DexFile, Load) {
   scoped_ptr<DexFile> dex(DexFile::OpenBase64(kNestedDex));
   ASSERT_TRUE(dex != NULL);
 
-  Class* klass = dex->LoadClass("LNested;");
-  ASSERT_TRUE(klass != NULL);
+  scoped_ptr<Class> klass(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
+  bool result = dex->LoadClass("LNested;", klass.get());
+  ASSERT_TRUE(result);
 
   uint32_t vmeth = klass->NumVirtualMethods();
   EXPECT_EQ(vmeth, 0U);

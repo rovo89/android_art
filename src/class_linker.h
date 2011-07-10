@@ -18,12 +18,19 @@ class ClassLinker {
   ClassLinker() {}
   ~ClassLinker() {}
 
+  // Initializes the class linker.
+  void Init();
+
   // Finds a class by its descriptor name.
   Class* FindClass(const char* descriptor,
                    Object* class_loader,
                    DexFile* dex_file);
 
-  Class* FindPrimitiveClass(const char* descriptor);
+  Class* FindSystemClass(const char* descriptor) {
+    return FindClass(descriptor, NULL, NULL);
+  }
+
+  Class* FindPrimitiveClass(JType type);
 
   bool InitializeClass(Class* klass);
 
@@ -38,6 +45,8 @@ class ClassLinker {
   void AppendToClassPath(DexFile* dex_file);
 
  private:
+  Class* CreatePrimitiveClass(JType type, const char* descriptor);
+
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
   bool InsertClass(Class* klass);
@@ -84,6 +93,18 @@ class ClassLinker {
   Mutex* classes_lock_;
 
   // TODO: classpath
+
+  Class* primitive_boolean_;
+  Class* primitive_char_;
+  Class* primitive_float_;
+  Class* primitive_double_;
+  Class* primitive_byte_;
+  Class* primitive_short_;
+  Class* primitive_int_;
+  Class* primitive_long_;
+  Class* primitive_void_;
+
+  Class* java_lang_Class_;
 
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };

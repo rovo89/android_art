@@ -49,26 +49,22 @@ void DexFile::Init() {
   fields_ = new Field*[num_fields_]();
 }
 
-Class* DexFile::LoadClass(const char* descriptor) {
+bool DexFile::LoadClass(const char* descriptor, Class* klass) {
   const RawDexFile::ClassDef* class_def = raw_->FindClassDef(descriptor);
   if (class_def == NULL) {
-    return NULL;
+    return false;
   } else {
-    return LoadClass(*class_def);
+    return LoadClass(*class_def, klass);
   }
 }
 
-Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
+bool DexFile::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass) {
+  CHECK(klass != NULL);
   const byte* class_data = raw_->GetClassData(class_def);
   RawDexFile::ClassDataHeader header = raw_->ReadClassDataHeader(&class_data);
 
   const char* descriptor = raw_->GetClassDescriptor(class_def);
   CHECK(descriptor != NULL);
-
-  // Allocate storage for the new class object.
-  size_t size = Class::Size(header.static_fields_size_);
-  Class* klass = Heap::AllocClass(size);
-  CHECK(klass != NULL);  // TODO: throw an OOME
 
   klass->klass_ = NULL;  // TODO
   klass->descriptor_.set(descriptor);
@@ -94,6 +90,8 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
 
   // Load static fields.
   if (klass->num_sfields_ != 0) {
+    // TODO: allocate on the object heap.
+    klass->sfields_ = new StaticField[klass->NumStaticFields()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->num_sfields_; ++i) {
       RawDexFile::Field raw_field;
@@ -104,7 +102,7 @@ Class* DexFile::LoadClass(const RawDexFile::ClassDef& class_def) {
 
   // Load instance fields.
   if (klass->NumInstanceFields() != 0) {
-    // TODO: append instance fields to class object
+    // TODO: allocate on the object heap.
     klass->ifields_ = new InstanceField[klass->NumInstanceFields()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
@@ -148,7 +146,8 @@ void DexFile::LoadInterfaces(const RawDexFile::ClassDef& class_def,
   const RawDexFile::TypeList* list = raw_->GetInterfacesList(class_def);
   if (list != NULL) {
     klass->interface_count_ = list->Size();
-    klass->interfaces_ = new Class*[list->Size()];
+    // TODO: allocate the interfaces array on the object heap.
+    klass->interfaces_ = new Class*[list->Size()]();
     for (size_t i = 0; i < list->Size(); ++i) {
       const RawDexFile::TypeItem& type_item = list->GetTypeItem(i);
       klass->interfaces_[i] = reinterpret_cast<Class*>(type_item.type_idx_);
