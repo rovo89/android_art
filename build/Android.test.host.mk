@@ -16,7 +16,7 @@
 
 include $(CLEAR_VARS)
 
-local_module_tags := eng tests
+local_module_tags := tests
 
 TEST_TARGET_ARCH := $(HOST_ARCH)
 include $(build_path)/Android.common.mk
