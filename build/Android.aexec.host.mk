@@ -20,7 +20,7 @@ LOCAL_MODULE := aexec
 LOCAL_MODULE_TAGS := optional
 
 include $(build_path)/Android.common.mk
-LOCAL_SRC_FILES := $(AEXEC_LOCAL_SRC_FILES)
+LOCAL_SRC_FILES := $(AEXEC_SRC_FILES)
 
 LOCAL_C_INCLUDES :=
 

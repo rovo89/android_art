@@ -20,10 +20,11 @@
 namespace art {
 
 void ClassLinker::Init() {
-  // Allocate and partially initialize the class Class.  This object
-  // will complete its initialization when its definition is loaded.
-  java_lang_Class_ = Heap::AllocClass();
-  java_lang_Class_->super_class_ = java_lang_Class_;
+  // Allocate and partially initialize the Object and Class classes.
+  // Initialization will be completed when the definitions are loaded.
+  java_lang_Object_ = Heap::AllocClass(NULL);
+  java_lang_Object_->descriptor_ = "Ljava/lang/Object;";
+  java_lang_Class_ = Heap::AllocClass(NULL);
   java_lang_Class_->descriptor_ = "Ljava/lang/Class;";
 
   // Allocate and initialize the primitive type classes.
@@ -56,12 +57,16 @@ Class* ClassLinker::FindClass(const char* descriptor,
       }
     }
     // Load the class from the dex file.
-    if (!strcmp(descriptor, "Ljava/lang/Class;")) {
+    if (!strcmp(descriptor, "Ljava/lang/Object;")) {
+      klass = java_lang_Object_;
+      klass->dex_file_ = dex_file;
+    } else if (!strcmp(descriptor, "Ljava/lang/Class;")) {
       klass = java_lang_Class_;
+      klass->dex_file_ = dex_file;
     } else {
-      klass = Heap::AllocClass();
+      klass = Heap::AllocClass(dex_file);
     }
-    bool is_loaded = dex_file->LoadClass(descriptor, klass);
+    bool is_loaded = LoadClass(descriptor, klass);
     if (!is_loaded) {
       // TODO: this occurs only when a dex file is provided.
       LG << "Class not found";  // TODO: NoClassDefFoundError
@@ -116,6 +121,153 @@ Class* ClassLinker::FindClass(const char* descriptor,
   return klass;
 }
 
+bool ClassLinker::LoadClass(const char* descriptor, Class* klass) {
+  const RawDexFile* raw = klass->GetDexFile()->GetRaw();
+  const RawDexFile::ClassDef* class_def = raw->FindClassDef(descriptor);
+  if (class_def == NULL) {
+    return false;
+  } else {
+    return LoadClass(*class_def, klass);
+  }
+}
+
+bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass) {
+  CHECK(klass != NULL);
+  CHECK(klass->dex_file_ != NULL);
+  const RawDexFile* raw = klass->GetDexFile()->GetRaw();
+  const byte* class_data = raw->GetClassData(class_def);
+  RawDexFile::ClassDataHeader header = raw->ReadClassDataHeader(&class_data);
+
+  const char* descriptor = raw->GetClassDescriptor(class_def);
+  CHECK(descriptor != NULL);
+
+  klass->klass_ = java_lang_Class_;
+  klass->descriptor_.set(descriptor);
+  klass->descriptor_alloc_ = NULL;
+  klass->access_flags_ = class_def.access_flags_;
+  klass->class_loader_ = NULL;  // TODO
+  klass->primitive_type_ = Class::kPrimNot;
+  klass->status_ = Class::kStatusIdx;
+
+  klass->super_class_ = NULL;
+  klass->super_class_idx_ = class_def.superclass_idx_;
+
+  klass->num_sfields_ = header.static_fields_size_;
+  klass->num_ifields_ = header.instance_fields_size_;
+  klass->num_direct_methods_ = header.direct_methods_size_;
+  klass->num_virtual_methods_ = header.virtual_methods_size_;
+
+  klass->source_file_ = raw->dexGetSourceFile(class_def);
+
+  // Load class interfaces.
+  LoadInterfaces(class_def, klass);
+
+  // Load static fields.
+  if (klass->num_sfields_ != 0) {
+    // TODO: allocate on the object heap.
+    klass->sfields_ = new StaticField[klass->NumStaticFields()]();
+    uint32_t last_idx = 0;
+    for (size_t i = 0; i < klass->num_sfields_; ++i) {
+      RawDexFile::Field raw_field;
+      raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
+      LoadField(klass, raw_field, &klass->sfields_[i]);
+    }
+  }
+
+  // Load instance fields.
+  if (klass->NumInstanceFields() != 0) {
+    // TODO: allocate on the object heap.
+    klass->ifields_ = new InstanceField[klass->NumInstanceFields()]();
+    uint32_t last_idx = 0;
+    for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
+      RawDexFile::Field raw_field;
+      raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
+      LoadField(klass, raw_field, klass->GetInstanceField(i));
+    }
+  }
+
+  // Load direct methods.
+  if (klass->NumDirectMethods() != 0) {
+    // TODO: append direct methods to class object
+    klass->direct_methods_ = new Method[klass->NumDirectMethods()]();
+    uint32_t last_idx = 0;
+    for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
+      RawDexFile::Method raw_method;
+      raw->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
+      LoadMethod(klass, raw_method, klass->GetDirectMethod(i));
+      // TODO: register maps
+    }
+  }
+
+  // Load virtual methods.
+  if (klass->NumVirtualMethods() != 0) {
+    // TODO: append virtual methods to class object
+    klass->virtual_methods_ = new Method[klass->NumVirtualMethods()]();
+    uint32_t last_idx = 0;
+    for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+      RawDexFile::Method raw_method;
+      raw->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
+      LoadMethod(klass, raw_method, klass->GetVirtualMethod(i));
+      // TODO: register maps
+    }
+  }
+
+  return klass;
+}
+
+void ClassLinker::LoadInterfaces(const RawDexFile::ClassDef& class_def,
+                                 Class* klass) {
+  const RawDexFile* raw = klass->GetDexFile()->GetRaw();
+  const RawDexFile::TypeList* list = raw->GetInterfacesList(class_def);
+  if (list != NULL) {
+    klass->interface_count_ = list->Size();
+    // TODO: allocate the interfaces array on the object heap.
+    klass->interfaces_ = new Class*[list->Size()]();
+    for (size_t i = 0; i < list->Size(); ++i) {
+      const RawDexFile::TypeItem& type_item = list->GetTypeItem(i);
+      klass->interfaces_[i] = reinterpret_cast<Class*>(type_item.type_idx_);
+    }
+  }
+}
+
+void ClassLinker::LoadField(Class* klass, const RawDexFile::Field& src,
+                            Field* dst) {
+  const RawDexFile* raw = klass->GetDexFile()->GetRaw();
+  const RawDexFile::FieldId& field_id = raw->GetFieldId(src.field_idx_);
+  dst->klass_ = klass;
+  dst->name_ = raw->dexStringById(field_id.name_idx_);
+  dst->signature_ = raw->dexStringByTypeIdx(field_id.type_idx_);
+  dst->access_flags_ = src.access_flags_;
+}
+
+void ClassLinker::LoadMethod(Class* klass, const RawDexFile::Method& src,
+                             Method* dst) {
+  const RawDexFile* raw = klass->GetDexFile()->GetRaw();
+  const RawDexFile::MethodId& method_id = raw->GetMethodId(src.method_idx_);
+  dst->klass_ = klass;
+  dst->name_.set(raw->dexStringById(method_id.name_idx_));
+  dst->proto_idx_ = method_id.proto_idx_;
+  dst->shorty_.set(raw->GetShorty(method_id.proto_idx_));
+  dst->access_flags_ = src.access_flags_;
+
+  // TODO: check for finalize method
+
+  const RawDexFile::CodeItem* code_item = raw->GetCodeItem(src);
+  if (code_item != NULL) {
+    dst->num_registers_ = code_item->registers_size_;
+    dst->num_ins_ = code_item->ins_size_;
+    dst->num_outs_ = code_item->outs_size_;
+    dst->insns_ = code_item->insns_;
+  } else {
+    uint16_t num_args = dst->NumArgRegisters();
+    if (!dst->IsStatic()) {
+      ++num_args;
+    }
+    dst->num_registers_ = dst->num_ins_ + num_args;
+    // TODO: native methods
+  }
+}
+
 DexFile* ClassLinker::FindInClassPath(const char* descriptor) {
   for (size_t i = 0; i != class_path_.size(); ++i) {
     DexFile* dex_file = class_path_[i];
@@ -131,7 +283,7 @@ void ClassLinker::AppendToClassPath(DexFile* dex_file) {
 }
 
 Class* ClassLinker::CreatePrimitiveClass(JType type, const char* descriptor) {
-  Class* klass = Heap::AllocClass();
+  Class* klass = Heap::AllocClass(NULL);
   CHECK(klass != NULL);
   klass->super_class_ = java_lang_Class_;
   klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
@@ -348,8 +500,8 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
 }
 
 bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
-                                                const Class* klass1,
-                                                const Class* klass2) {
+                                                 const Class* klass1,
+                                                 const Class* klass2) {
   const RawDexFile* raw = method->GetClass()->GetDexFile()->GetRaw();
   const RawDexFile::ProtoId& proto_id = raw->GetProtoId(method->proto_idx_);
   RawDexFile::ParameterIterator *it;
@@ -378,8 +530,8 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
 // Returns true if classes referenced by the descriptor are the
 // same classes in klass1 as they are in klass2.
 bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
-                                          const Class* klass1,
-                                          const Class* klass2) {
+                                           const Class* klass1,
+                                           const Class* klass2) {
   CHECK(descriptor != NULL);
   CHECK(klass1 != NULL);
   CHECK(klass2 != NULL);
@@ -432,7 +584,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
     return;
   }
   const char* descriptor = klass->GetDescriptor().data();
-  RawDexFile* raw = dex_file->GetRaw();
+  const RawDexFile* raw = dex_file->GetRaw();
   const RawDexFile::ClassDef* class_def = raw->FindClassDef(descriptor);
   CHECK(class_def != NULL);
   const byte* addr = raw->GetEncodedArray(*class_def);

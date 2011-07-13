@@ -311,7 +311,7 @@ class Method {
   }
 
   // const char* GetReturnTypeDescriptor() const {
-  //   return dex_file_->GetRaw()->dexStringByTypeIdx(proto_id_.return_type_id_);
+  //   return klass_->GetDexFile_->GetRaw()->dexStringByTypeIdx(proto_id_.return_type_id_);
   // }
 
   // Returns true if the method is declared public.
@@ -397,10 +397,6 @@ class Method {
 
   // method name, e.g. "<init>" or "eatLunch"
   StringPiece name_;
-
-  // A pointer to the DEX file this class was loaded from or NULL for
-  // proxy objects.
-  DexFile* dex_file_;
 
   // Method prototype descriptor string (return and argument types).
   uint32_t proto_idx_;

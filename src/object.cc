@@ -69,9 +69,9 @@ uint32_t Method::NumArgRegisters() {
 }
 
 bool Method::HasSameArgumentTypes(const Method* that) const {
-  const RawDexFile* raw1 = this->dex_file_->GetRaw();
+  const RawDexFile* raw1 = this->GetClass()->GetDexFile()->GetRaw();
   const RawDexFile::ProtoId& proto1 = raw1->GetProtoId(this->proto_idx_);
-  const RawDexFile* raw2 = that->dex_file_->GetRaw();
+  const RawDexFile* raw2 = that->GetClass()->GetDexFile()->GetRaw();
   const RawDexFile::ProtoId& proto2 = raw2->GetProtoId(that->proto_idx_);
 
   // TODO: compare ProtoId objects for equality and exit early
@@ -101,11 +101,11 @@ bool Method::HasSameArgumentTypes(const Method* that) const {
 }
 
 bool Method::HasSameReturnType(const Method* that) const {
-  const RawDexFile* raw1 = this->dex_file_->GetRaw();
+  const RawDexFile* raw1 = this->GetClass()->GetDexFile()->GetRaw();
   const RawDexFile::ProtoId& proto1 = raw1->GetProtoId(this->proto_idx_);
   const char* type1 = raw1->dexStringByTypeIdx(proto1.return_type_idx_);
 
-  const RawDexFile* raw2 = that->dex_file_->GetRaw();
+  const RawDexFile* raw2 = that->GetClass()->GetDexFile()->GetRaw();
   const RawDexFile::ProtoId& proto2 = raw2->GetProtoId(that->proto_idx_);
   const char* type2 = raw2->dexStringByTypeIdx(proto2.return_type_idx_);
 

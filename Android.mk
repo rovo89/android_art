@@ -27,3 +27,18 @@ ifeq ($(WITH_HOST_DALVIK),true)
     include $(build_path)/Android.test.host.mk
     include $(build_path)/Android.aexec.host.mk
 endif
+
+
+# "m build-art" for quick minimal build
+.PHONY: build-art
+build-art: \
+    $(TARGET_OUT_EXECUTABLES)/aexec \
+    $(foreach file,$(TEST_TARGET_SRC_FILES),$(TARGET_OUT_EXECUTABLES)/$(notdir $(file:%.cc=%))) \
+    $(HOST_OUT_EXECUTABLES)/aexec \
+    $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(file:%.cc=%))) \
+#
+
+# "mm test-art-host" to build and run all host tests
+.PHONY: test-art-host
+test-art-host: $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(file:%.cc=%)))
+	$(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(file:%.cc=%)) &&) true

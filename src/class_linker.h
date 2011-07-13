@@ -30,6 +30,10 @@ class ClassLinker {
     return FindClass(descriptor, NULL, NULL);
   }
 
+  bool LoadClass(const char* descriptor, Class* klass);
+
+  bool LoadClass(const RawDexFile::ClassDef& class_def, Class* klass);
+
   Class* FindPrimitiveClass(JType type);
 
   bool InitializeClass(Class* klass);
@@ -46,6 +50,12 @@ class ClassLinker {
 
  private:
   Class* CreatePrimitiveClass(JType type, const char* descriptor);
+
+  void LoadInterfaces(const RawDexFile::ClassDef& class_def, Class *klass);
+
+  void LoadField(Class* klass, const RawDexFile::Field& src, Field* dst);
+
+  void LoadMethod(Class* klass, const RawDexFile::Method& src, Method* dst);
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
@@ -104,6 +114,7 @@ class ClassLinker {
   Class* primitive_long_;
   Class* primitive_void_;
 
+  Class* java_lang_Object_;
   Class* java_lang_Class_;
 
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);

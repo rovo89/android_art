@@ -227,7 +227,7 @@ class RawDexFile {
   }
 
   // Looks up a class definition by its class descriptor.
-  const ClassDef* FindClassDef(const char* descriptor);
+  const ClassDef* FindClassDef(const char* descriptor) const;
 
   // Returns the number of string identifiers in the .dex file.
   size_t NumStringIds() const {
@@ -276,7 +276,7 @@ class RawDexFile {
   }
 
   // Decodes the header section from the raw class data bytes.
-  ClassDataHeader ReadClassDataHeader(const byte** class_data) {
+  ClassDataHeader ReadClassDataHeader(const byte** class_data) const {
     CHECK(class_data != NULL);
     ClassDataHeader header;
     memset(&header, 0, sizeof(ClassDataHeader));
@@ -349,7 +349,7 @@ class RawDexFile {
   }
 
   // Returns the short form method descriptor for the given prototype.
-  const char* GetShorty(uint32_t proto_idx) {
+  const char* GetShorty(uint32_t proto_idx) const {
     const ProtoId& proto_id = GetProtoId(proto_idx);
     return dexStringById(proto_id.shorty_idx_);
   }
@@ -376,7 +376,7 @@ class RawDexFile {
     return DecodeUnsignedLeb128(&ptr);
   }
 
-  ValueType ReadEncodedValue(const byte** encoded_value, JValue* value);
+  ValueType ReadEncodedValue(const byte** encoded_value, JValue* value) const;
 
   // From libdex...
 

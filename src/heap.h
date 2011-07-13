@@ -11,9 +11,11 @@ namespace art {
 
 class Heap {
  public:
-  static Class* AllocClass() {
+  static Class* AllocClass(DexFile* dex_file) {
     byte* raw = new byte[sizeof(Class)]();
-    return reinterpret_cast<Class*>(raw);
+    Class* klass = reinterpret_cast<Class*>(raw);
+    klass->dex_file_ = dex_file;
+    return klass;
   }
 
   static CharArray* AllocCharArray(size_t length) {

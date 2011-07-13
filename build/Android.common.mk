@@ -35,10 +35,10 @@ ifeq ($(TARGET_ARCH),x86)
 LOCAL_CFLAGS +=
 endif
 
-AEXEC_LOCAL_SRC_FILES := \
+AEXEC_SRC_FILES := \
 	src/main.cc
 
-LIBART_LOCAL_SRC_FILES := \
+LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
 	src/base64.cc \
 	src/class_linker.cc \
@@ -52,28 +52,24 @@ LIBART_LOCAL_SRC_FILES := \
 	src/stringpiece.cc \
 	src/thread.cc
 
-ifeq ($(LIBART_TARGET_ARCH),arm)
-LIBART_LOCAL_SRC_FILES += \
+LIBART_TARGET_SRC_FILES := \
+	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_arm.cc
-endif
 
-ifeq ($(LIBART_TARGET_ARCH),x86)
-LIBART_LOCAL_SRC_FILES += \
+LIBART_HOST_SRC_FILES := \
+	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_x86.cc
-endif
 
-TEST_LOCAL_SRC_FILES := \
+TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/object_test.cc \
 	src/raw_dex_file_test.cc
 
-ifeq ($(TEST_TARGET_ARCH),arm)
-TEST_LOCAL_SRC_FILES +=
-endif
+TEST_TARGET_SRC_FILES := \
+	$(TEST_COMMON_SRC_FILES)
 
-ifeq ($(TEST_TARGET_ARCH),x86)
-TEST_LOCAL_SRC_FILES += \
+TEST_HOST_SRC_FILES := \
+	$(TEST_COMMON_SRC_FILES) \
 	src/assembler_x86_test.cc
-endif

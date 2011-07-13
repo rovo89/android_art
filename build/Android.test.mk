@@ -18,7 +18,6 @@ include $(CLEAR_VARS)
 
 local_module_tags := tests
 
-TEST_TARGET_ARCH := $(TARGET_ARCH)
 include $(build_path)/Android.common.mk
 local_cpp_extension := $(LOCAL_CPP_EXTENSION)
 local_cflags := $(LOCAL_CFLAGS)
@@ -34,7 +33,7 @@ local_static_libraries := \
 	libgtest \
 	libgtest_main
 
-$(foreach file,$(TEST_LOCAL_SRC_FILES), \
+$(foreach file,$(TEST_TARGET_SRC_FILES), \
   $(eval include $(CLEAR_VARS)) \
   $(eval LOCAL_CPP_EXTENSION := $(local_cpp_extension)) \
   $(eval LOCAL_MODULE := $(notdir $(file:%.cc=%))) \

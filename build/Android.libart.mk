@@ -19,9 +19,8 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 
-LIBART_TARGET_ARCH := $(TARGET_ARCH)
 include $(build_path)/Android.common.mk
-LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
+LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
 
 include external/stlport/libstlport.mk
 

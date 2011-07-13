@@ -155,9 +155,9 @@ void RawDexFile::InitIndex() {
   }
 }
 
-const RawDexFile::ClassDef* RawDexFile::FindClassDef(const char* descriptor) {
+const RawDexFile::ClassDef* RawDexFile::FindClassDef(const char* descriptor) const {
   CHECK(descriptor != NULL);
-  Index::iterator it = index_.find(descriptor);
+  Index::const_iterator it = index_.find(descriptor);
   if (it == index_.end()) {
     return NULL;
   } else {
@@ -223,7 +223,7 @@ static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth,
 }
 
 RawDexFile::ValueType RawDexFile::ReadEncodedValue(const byte** stream,
-                                                   JValue* value) {
+                                                   JValue* value) const {
   const byte* ptr = *stream;
   byte value_type = *ptr++;
   byte value_arg = value_type >> kEncodedValueArgShift;

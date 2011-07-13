@@ -19,9 +19,8 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 
-LIBART_TARGET_ARCH := $(HOST_ARCH)
 include $(build_path)/Android.common.mk
-LOCAL_SRC_FILES := $(LIBART_LOCAL_SRC_FILES)
+LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
 
 LOCAL_WHOLE_STATIC_LIBRARIES := \
 	libcutils \

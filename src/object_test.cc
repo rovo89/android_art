@@ -1,7 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
+#include "src/class_linker.h"
+#include "src/common_test.h"
 #include "src/dex_file.h"
+#include "src/heap.h"
 #include "src/object.h"
 #include "src/scoped_ptr.h"
 
@@ -24,37 +27,18 @@ TEST(Object, IsInSamePackage) {
                                       "Ljava/lang/reflect/Method;"));
 }
 
-// class ProtoCompare {
-//     int m1(short x, int y, long z) { return x + y + (int)z; }
-//     int m2(short x, int y, long z) { return x + y + (int)z; }
-//     int m3(long x, int y, short z) { return (int)x + y + z; }
-//     long m4(long x, int y, short z) { return x + y + z; }
-// }
-static const char kProtoCompareDex[] =
-  "ZGV4CjAzNQBLUetu+TVZ8gsYsCOFoij7ecsHaGSEGA8gAwAAcAAAAHhWNBIAAAAAAAAAAIwCAAAP"
-  "AAAAcAAAAAYAAACsAAAABAAAAMQAAAAAAAAAAAAAAAYAAAD0AAAAAQAAACQBAADcAQAARAEAAN4B"
-  "AADmAQAA6QEAAO8BAAD1AQAA+AEAAP4BAAAOAgAAIgIAADUCAAA4AgAAOwIAAD8CAABDAgAARwIA"
-  "AAEAAAAEAAAABgAAAAcAAAAJAAAACgAAAAIAAAAAAAAAyAEAAAMAAAAAAAAA1AEAAAUAAAABAAAA"
-  "yAEAAAoAAAAFAAAAAAAAAAIAAwAAAAAAAgABAAsAAAACAAEADAAAAAIAAAANAAAAAgACAA4AAAAD"
-  "AAMAAAAAAAIAAAAAAAAAAwAAAAAAAAAIAAAAAAAAAHACAAAAAAAAAQABAAEAAABLAgAABAAAAHAQ"
-  "BQAAAA4ABwAFAAAAAABQAgAABQAAAJAAAwSEUbAQDwAAAAcABQAAAAAAWAIAAAUAAACQAAMEhFGw"
-  "EA8AAAAGAAUAAAAAAGACAAAEAAAAhCCwQLBQDwAJAAUAAAAAAGgCAAAFAAAAgXC7UIGCuyAQAAAA"
-  "AwAAAAEAAAAEAAAAAwAAAAQAAAABAAY8aW5pdD4AAUkABElKSVMABElTSUoAAUoABEpKSVMADkxQ"
-  "cm90b0NvbXBhcmU7ABJMamF2YS9sYW5nL09iamVjdDsAEVByb3RvQ29tcGFyZS5qYXZhAAFTAAFW"
-  "AAJtMQACbTIAAm0zAAJtNAABAAcOAAIDAAAABw4AAwMAAAAHDgAEAwAAAAcOAAUDAAAABw4AAAAB"
-  "BACAgATEAgEA3AIBAPgCAQCUAwEArAMAAAwAAAAAAAAAAQAAAAAAAAABAAAADwAAAHAAAAACAAAA"
-  "BgAAAKwAAAADAAAABAAAAMQAAAAFAAAABgAAAPQAAAAGAAAAAQAAACQBAAABIAAABQAAAEQBAAAB"
-  "EAAAAgAAAMgBAAACIAAADwAAAN4BAAADIAAABQAAAEsCAAAAIAAAAQAAAHACAAAAEAAAAQAAAIwC"
-  "AAA=";
-
 // TODO: test 0 argument methods
 // TODO: make this test simpler and shorter
 TEST(Method, ProtoCompare) {
   scoped_ptr<DexFile> dex_file(DexFile::OpenBase64(kProtoCompareDex));
   ASSERT_TRUE(dex_file != NULL);
 
-  scoped_ptr<Class> klass(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
-  bool result = dex_file->LoadClass("LProtoCompare;", klass.get());
+  ClassLinker linker;
+  linker.Init();
+  linker.AppendToClassPath(dex_file.get());
+
+  scoped_ptr<Class> klass(Heap::AllocClass(dex_file.get()));
+  bool result = linker.LoadClass("LProtoCompare;", klass.get());
   ASSERT_TRUE(result);
 
   ASSERT_EQ(4U, klass->NumVirtualMethods());
@@ -102,40 +86,23 @@ TEST(Method, ProtoCompare) {
   EXPECT_FALSE(m1->HasSameNameAndPrototype(m2));
 }
 
-// class ProtoCompare2 {
-//     int m1(short x, int y, long z) { return x + y + (int)z; }
-//     int m2(short x, int y, long z) { return x + y + (int)z; }
-//     int m3(long x, int y, short z) { return (int)x + y + z; }
-//     long m4(long x, int y, short z) { return x + y + z; }
-// }
-static const char kProtoCompare2Dex[] =
-  "ZGV4CjAzNQDVUXj687EpyTTDJZEZPA8dEYnDlm0Ir6YgAwAAcAAAAHhWNBIAAAAAAAAAAIwCAAAP"
-  "AAAAcAAAAAYAAACsAAAABAAAAMQAAAAAAAAAAAAAAAYAAAD0AAAAAQAAACQBAADcAQAARAEAAN4B"
-  "AADmAQAA6QEAAO8BAAD1AQAA+AEAAP4BAAAPAgAAIwIAADcCAAA6AgAAPQIAAEECAABFAgAASQIA"
-  "AAEAAAAEAAAABgAAAAcAAAAJAAAACgAAAAIAAAAAAAAAyAEAAAMAAAAAAAAA1AEAAAUAAAABAAAA"
-  "yAEAAAoAAAAFAAAAAAAAAAIAAwAAAAAAAgABAAsAAAACAAEADAAAAAIAAAANAAAAAgACAA4AAAAD"
-  "AAMAAAAAAAIAAAAAAAAAAwAAAAAAAAAIAAAAAAAAAHICAAAAAAAAAQABAAEAAABNAgAABAAAAHAQ"
-  "BQAAAA4ABwAFAAAAAABSAgAABQAAAJAAAwSEUbAQDwAAAAcABQAAAAAAWgIAAAUAAACQAAMEhFGw"
-  "EA8AAAAGAAUAAAAAAGICAAAEAAAAhCCwQLBQDwAJAAUAAAAAAGoCAAAFAAAAgXC7UIGCuyAQAAAA"
-  "AwAAAAEAAAAEAAAAAwAAAAQAAAABAAY8aW5pdD4AAUkABElKSVMABElTSUoAAUoABEpKSVMAD0xQ"
-  "cm90b0NvbXBhcmUyOwASTGphdmEvbGFuZy9PYmplY3Q7ABJQcm90b0NvbXBhcmUyLmphdmEAAVMA"
-  "AVYAAm0xAAJtMgACbTMAAm00AAEABw4AAgMAAAAHDgADAwAAAAcOAAQDAAAABw4ABQMAAAAHDgAA"
-  "AAEEAICABMQCAQDcAgEA+AIBAJQDAQCsAwwAAAAAAAAAAQAAAAAAAAABAAAADwAAAHAAAAACAAAA"
-  "BgAAAKwAAAADAAAABAAAAMQAAAAFAAAABgAAAPQAAAAGAAAAAQAAACQBAAABIAAABQAAAEQBAAAB"
-  "EAAAAgAAAMgBAAACIAAADwAAAN4BAAADIAAABQAAAE0CAAAAIAAAAQAAAHICAAAAEAAAAQAAAIwC"
-  "AAA=";
-
 TEST(Method, ProtoCompare2) {
   scoped_ptr<DexFile> dex_file1(DexFile::OpenBase64(kProtoCompareDex));
   ASSERT_TRUE(dex_file1 != NULL);
   scoped_ptr<DexFile> dex_file2(DexFile::OpenBase64(kProtoCompare2Dex));
   ASSERT_TRUE(dex_file2 != NULL);
+  ClassLinker linker1;
+  linker1.Init();
+  linker1.AppendToClassPath(dex_file1.get());
+  ClassLinker linker2;
+  linker2.Init();
+  linker2.AppendToClassPath(dex_file2.get());
 
-  scoped_ptr<Class> klass1(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
-  bool result1 = dex_file1->LoadClass("LProtoCompare;", klass1.get());
+  scoped_ptr<Class> klass1(Heap::AllocClass(dex_file1.get()));
+  bool result1 = linker1.LoadClass("LProtoCompare;", klass1.get());
   ASSERT_TRUE(result1);
-  scoped_ptr<Class> klass2(reinterpret_cast<Class*>(new byte[sizeof(Class)]));
-  bool result2 = dex_file2->LoadClass("LProtoCompare2;", klass2.get());
+  scoped_ptr<Class> klass2(Heap::AllocClass(dex_file2.get()));
+  bool result2 = linker2.LoadClass("LProtoCompare2;", klass2.get());
   ASSERT_TRUE(result2);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);

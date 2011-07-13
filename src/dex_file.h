@@ -40,10 +40,6 @@ class DexFile {
     return num_methods_;
   }
 
-  bool LoadClass(const char* descriptor, Class* klass);
-
-  bool LoadClass(const RawDexFile::ClassDef& class_def, Class* klass);
-
   bool HasClass(const char* descriptor) {
     return raw_->FindClassDef(descriptor) != NULL;
   }
@@ -76,12 +72,6 @@ class DexFile {
   DexFile(RawDexFile* raw) : raw_(raw) {};
 
   void Init();
-
-  void LoadInterfaces(const RawDexFile::ClassDef& class_def, Class *klass);
-
-  void LoadField(Class* klass, const RawDexFile::Field& src, Field* dst);
-
-  void LoadMethod(Class* klass, const RawDexFile::Method& src, Method* dst);
 
   // Table of contents for interned String objects.
   String** strings_;
