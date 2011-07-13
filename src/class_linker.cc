@@ -41,7 +41,7 @@ void ClassLinker::Init() {
 Class* ClassLinker::FindClass(const char* descriptor,
                               Object* class_loader,
                               DexFile* dex_file) {
-  Thread* self = Thread::Self();
+  Thread* self = Thread::Current();
   CHECK(!self->IsExceptionPending());
   // Find the class in the loaded classes table.
   Class* klass = LookupClass(descriptor, class_loader);
@@ -74,7 +74,7 @@ Class* ClassLinker::FindClass(const char* descriptor,
     }
     {
       ObjectLock lock(klass);
-      klass->clinit_thread_id_ = self->GetThreadId();
+      klass->clinit_thread_id_ = self->GetId();
       // Add the newly loaded class to the loaded classes table.
       bool success = InsertClass(klass);
       if (!success) {
@@ -98,7 +98,7 @@ Class* ClassLinker::FindClass(const char* descriptor,
   if (!klass->IsLinked() && !klass->IsErroneous()) {
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
-    if (!klass->IsLinked() && klass->clinit_thread_id_ == self->GetThreadId()) {
+    if (!klass->IsLinked() && klass->clinit_thread_id_ == self->GetId()) {
       LG << "Recursive link";  // TODO: ClassCircularityError
       return NULL;
     }
@@ -198,7 +198,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
   CHECK(klass->GetStatus() == Class::kStatusResolved ||
         klass->GetStatus() == Class::kStatusError);
 
-  Thread* self = Thread::Self();
+  Thread* self = Thread::Current();
 
   {
     ObjectLock lock(klass);
@@ -230,7 +230,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
     while (klass->status_ == Class::kStatusInitializing) {
       // we caught somebody else in the act; was it us?
-      if (klass->clinit_thread_id_ == self->GetThreadId()) {
+      if (klass->clinit_thread_id_ == self->GetId()) {
         LG << "recursive <clinit>";
         return true;
       }
@@ -280,7 +280,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
     assert(klass->status < CLASS_INITIALIZING);
 
-    klass->clinit_thread_id_ = self->GetThreadId();
+    klass->clinit_thread_id_ = self->GetId();
     klass->status_ = Class::kStatusInitializing;
   }
 
@@ -390,7 +390,7 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
   // TODO: found2 == NULL
   // TODO: lookup found1 in initiating loader list
   if (found1 == NULL || found2 == NULL) {
-    Thread::Self()->ClearException();
+    Thread::Current()->ClearException();
     if (found1 == found2) {
       return true;
     } else {
@@ -996,7 +996,7 @@ Class* ClassLinker::ResolveClass(const Class* referrer, uint32_t class_idx) {
     }
     dex_file->SetResolvedClass(resolved, class_idx);
   } else {
-    CHECK(Thread::Self()->IsExceptionPending());
+    CHECK(Thread::Current()->IsExceptionPending());
   }
   return resolved;
 }
