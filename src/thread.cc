@@ -6,8 +6,10 @@
 #include <list>
 #include <errno.h>
 #include <pthread.h>
+#include <sys/mman.h>
 
 #include "src/runtime.h"
+#include "src/utils.h"
 
 namespace art {
 
@@ -44,9 +46,58 @@ void Mutex::Unlock() {
   SetOwner(Thread::Current());
 }
 
-Thread* Thread::Create(const char* name) {
+void* ThreadStart(void *arg) {
   LOG(FATAL) << "Unimplemented";
   return NULL;
+}
+
+Thread* Thread::Create(size_t stack_size) {
+  int prot = PROT_READ | PROT_WRITE;
+  // TODO: require the stack size to be page aligned?
+  size_t length = RoundUp(stack_size, 0x1000);
+  void* stack_limit = mmap(NULL, length, prot, MAP_PRIVATE, -1, 0);
+  if (stack_limit == MAP_FAILED) {
+    LOG(FATAL) << "mmap";
+    return false;
+  }
+
+  Thread* new_thread = new Thread;
+  new_thread->stack_limit_ = static_cast<byte*>(stack_limit);
+  new_thread->stack_base_ = new_thread->stack_limit_ + length;
+
+  pthread_attr_t attr;
+  int result = pthread_attr_init(&attr);
+  CHECK_EQ(result, 0);
+
+  result = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  CHECK_EQ(result, 0);
+
+  pthread_t handle;
+  result = pthread_create(&handle, &attr, ThreadStart, new_thread);
+  CHECK_EQ(result, 0);
+
+  result = pthread_attr_destroy(&attr);
+  CHECK_EQ(result, 0);
+
+  return new_thread;
+}
+
+Thread* Thread::Attach() {
+  Thread* thread = new Thread;
+
+  thread->stack_limit_ = reinterpret_cast<byte*>(-1);  // TODO: getrlimit
+  uintptr_t addr = reinterpret_cast<uintptr_t>(&thread);  // TODO: ask pthreads
+  uintptr_t stack_base = RoundUp(addr, 4096);
+  thread->stack_base_ = reinterpret_cast<byte*>(stack_base);
+  // TODO: set the stack size
+
+  thread->handle_ = pthread_self();
+
+  thread->state_ = kRunnable;
+
+  int result = pthread_setspecific(Thread::pthread_key_self_, thread);
+  CHECK_EQ(result, 0);
+  return thread;
 }
 
 static void ThreadExitCheck(void* arg) {
@@ -69,6 +120,10 @@ bool Thread::Init() {
   // TODO: initialize other locks and condition variables
 
   return true;
+}
+
+ThreadList* ThreadList::Create() {
+  return new ThreadList;
 }
 
 ThreadList::ThreadList() {
@@ -94,11 +149,6 @@ void ThreadList::Unregister(Thread* thread) {
   MutexLock mu(lock_);
   CHECK(find(list_.begin(), list_.end(), thread) != list_.end());
   list_.remove(thread);
-}
-
-void ThreadList::Init(Runtime* runtime) {
-  ThreadList* thread_list = new ThreadList();
-  runtime->SetThreadList(thread_list);
 }
 
 }  // namespace

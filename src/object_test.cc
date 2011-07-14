@@ -33,12 +33,11 @@ TEST(Method, ProtoCompare) {
   scoped_ptr<DexFile> dex_file(DexFile::OpenBase64(kProtoCompareDex));
   ASSERT_TRUE(dex_file != NULL);
 
-  ClassLinker linker;
-  linker.Init();
-  linker.AppendToClassPath(dex_file.get());
+  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
+  linker->AppendToClassPath(dex_file.get());
 
   scoped_ptr<Class> klass(Heap::AllocClass(dex_file.get()));
-  bool result = linker.LoadClass("LProtoCompare;", klass.get());
+  bool result = linker->LoadClass("LProtoCompare;", klass.get());
   ASSERT_TRUE(result);
 
   ASSERT_EQ(4U, klass->NumVirtualMethods());
@@ -91,18 +90,16 @@ TEST(Method, ProtoCompare2) {
   ASSERT_TRUE(dex_file1 != NULL);
   scoped_ptr<DexFile> dex_file2(DexFile::OpenBase64(kProtoCompare2Dex));
   ASSERT_TRUE(dex_file2 != NULL);
-  ClassLinker linker1;
-  linker1.Init();
-  linker1.AppendToClassPath(dex_file1.get());
-  ClassLinker linker2;
-  linker2.Init();
-  linker2.AppendToClassPath(dex_file2.get());
+  scoped_ptr<ClassLinker> linker1(ClassLinker::Create());
+  linker1->AppendToClassPath(dex_file1.get());
+  scoped_ptr<ClassLinker> linker2(ClassLinker::Create());
+  linker2->AppendToClassPath(dex_file2.get());
 
   scoped_ptr<Class> klass1(Heap::AllocClass(dex_file1.get()));
-  bool result1 = linker1.LoadClass("LProtoCompare;", klass1.get());
+  bool result1 = linker1->LoadClass("LProtoCompare;", klass1.get());
   ASSERT_TRUE(result1);
   scoped_ptr<Class> klass2(Heap::AllocClass(dex_file2.get()));
-  bool result2 = linker2.LoadClass("LProtoCompare2;", klass2.get());
+  bool result2 = linker2->LoadClass("LProtoCompare2;", klass2.get());
   ASSERT_TRUE(result2);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);

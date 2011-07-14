@@ -15,11 +15,10 @@ namespace art {
 
 class ClassLinker {
  public:
-  ClassLinker() {}
-  ~ClassLinker() {}
-
   // Initializes the class linker.
-  void Init();
+  static ClassLinker* Create();
+
+  ~ClassLinker() {}
 
   // Finds a class by its descriptor name.
   Class* FindClass(const char* descriptor,
@@ -49,6 +48,10 @@ class ClassLinker {
   void AppendToClassPath(DexFile* dex_file);
 
  private:
+  ClassLinker() {}
+
+  void Init();
+
   Class* CreatePrimitiveClass(JType type, const char* descriptor);
 
   void LoadInterfaces(const RawDexFile::ClassDef& class_def, Class *klass);

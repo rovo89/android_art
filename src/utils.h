@@ -59,6 +59,17 @@ static inline int32_t High32Bits(int64_t value) {
   return static_cast<int32_t>(value >> 32);
 }
 
+template<typename T>
+static inline T RoundDown(T x, int n) {
+  CHECK(IsPowerOfTwo(n));
+  return (x & -n);
+}
+
+template<typename T>
+static inline T RoundUp(T x, int n) {
+  return RoundDown(x + n - 1, n);
+}
+
 // Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
 // figure 3-3, page 48, where the function is called clp2.
 static inline uint32_t RoundUpToPowerOfTwo(uint32_t x) {

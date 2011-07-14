@@ -19,6 +19,13 @@
 
 namespace art {
 
+ClassLinker* ClassLinker::Create() {
+  scoped_ptr<ClassLinker> class_linker(new ClassLinker);
+  class_linker->Init();
+  // TODO: check for failure during initialization
+  return class_linker.release();
+}
+
 void ClassLinker::Init() {
   // Allocate and partially initialize the Object and Class classes.
   // Initialization will be completed when the definitions are loaded.

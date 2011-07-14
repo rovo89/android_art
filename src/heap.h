@@ -11,6 +11,14 @@ namespace art {
 
 class Heap {
  public:
+  static Heap* Create() {
+    Heap* new_heap = new Heap();
+    // TODO: should return NULL if the heap could not be created.
+    return new_heap;
+  }
+
+  ~Heap() {}
+
   static Class* AllocClass(DexFile* dex_file) {
     byte* raw = new byte[sizeof(Class)]();
     Class* klass = reinterpret_cast<Class*>(raw);
@@ -38,6 +46,11 @@ class Heap {
     string->count_ = count;
     return string;
   }
+
+ private:
+  Heap() {}
+
+  DISALLOW_COPY_AND_ASSIGN(Heap);
 };
 
 }  // namespace art

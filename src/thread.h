@@ -10,9 +10,11 @@
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/macros.h"
+#include "src/runtime.h"
 
 namespace art {
 
+class Heap;
 class Object;
 class Runtime;
 class Thread;
@@ -72,7 +74,13 @@ class Thread {
     kTerminated,
   };
 
-  static Thread* Create(const char* name);
+  static const size_t kDefaultStackSize = 64 * KB;
+
+  // Creates a new thread.
+  static Thread* Create(size_t stack_size);
+
+  // Creates a new thread from the calling thread.
+  static Thread* Attach();
 
   static Thread* Current() {
     static Thread self;
@@ -115,10 +123,6 @@ class Thread {
 
   static bool Init();
 
-  Thread* next_;
-
-  Thread* prev_;
-
   State GetState() {
     return state_;
   }
@@ -137,9 +141,12 @@ class Thread {
 
   pid_t native_id_;
 
-  pthread_t native_handle_;
+  pthread_t handle_;
 
   Object* exception_;
+
+  byte* stack_base_;
+  byte* stack_limit_;
 
   static pthread_key_t pthread_key_self_;
 
@@ -148,20 +155,17 @@ class Thread {
 
 class ThreadList {
  public:
-  static const int kMaxThreadId = 0xFFFF;
-  static const int kMainThreadId = 1;
+  static const int kMaxId = 0xFFFF;
+  static const int kInvalidId = 0;
+  static const int kMainId = 1;
 
-  void Init(Runtime* runtime);
+  static ThreadList* Create();
+
+  ~ThreadList();
 
   void Register(Thread* thread);
 
   void Unregister(Thread* thread);
-
-  void SuspendAll();
-
-  void ResumeAll();
-
-  ~ThreadList();
 
   void Lock() {
     lock_->Lock();
@@ -205,11 +209,6 @@ class ThreadListLock {
   ~ThreadListLock() {
     thread_list_->Unlock();
   }
-
-  // Allocates
-  int AllocThreadId();
-
-  void FreeThreadId(int thread_id);
 
  private:
   ThreadList* thread_list_;
