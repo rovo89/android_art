@@ -62,10 +62,10 @@ TEST(ClassLinker, FindClass) {
   EXPECT_TRUE(JavaLangObject->IsPublic());
   EXPECT_FALSE(JavaLangObject->IsFinal());
   EXPECT_FALSE(JavaLangObject->IsPrimitive());
-  EXPECT_EQ((size_t) 1, JavaLangObject->NumDirectMethods());
-  EXPECT_EQ((size_t) 0, JavaLangObject->NumVirtualMethods());
-  EXPECT_EQ((size_t) 0, JavaLangObject->NumInstanceFields());
-  EXPECT_EQ((size_t) 0, JavaLangObject->NumStaticFields());
+  EXPECT_EQ(1U, JavaLangObject->NumDirectMethods());
+  EXPECT_EQ(0U, JavaLangObject->NumVirtualMethods());
+  EXPECT_EQ(0U, JavaLangObject->NumInstanceFields());
+  EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
 
   Class* MyClass = linker->FindClass("LMyClass;", NULL, dex.get());
   ASSERT_TRUE(MyClass != NULL);
@@ -83,10 +83,10 @@ TEST(ClassLinker, FindClass) {
   EXPECT_FALSE(MyClass->IsPublic());
   EXPECT_FALSE(MyClass->IsFinal());
   EXPECT_FALSE(MyClass->IsPrimitive());
-  EXPECT_EQ((size_t) 1, MyClass->NumDirectMethods());
-  EXPECT_EQ((size_t) 0, MyClass->NumVirtualMethods());
-  EXPECT_EQ((size_t) 0, MyClass->NumInstanceFields());
-  EXPECT_EQ((size_t) 0, MyClass->NumStaticFields());
+  EXPECT_EQ(1U, MyClass->NumDirectMethods());
+  EXPECT_EQ(0U, MyClass->NumVirtualMethods());
+  EXPECT_EQ(0U, MyClass->NumInstanceFields());
+  EXPECT_EQ(0U, MyClass->NumStaticFields());
 }
 
 }  // namespace art
