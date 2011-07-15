@@ -83,8 +83,8 @@ class Thread {
   static Thread* Attach();
 
   static Thread* Current() {
-    static Thread self;
-    return &self; // TODO
+    void* thread = pthread_getspecific(Thread::pthread_key_self_);
+    return reinterpret_cast<Thread*>(thread);
   }
 
   uint32_t GetId() const {
