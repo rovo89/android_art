@@ -50,15 +50,18 @@ LIBART_COMMON_SRC_FILES := \
 	src/raw_dex_file.cc \
 	src/runtime.cc \
 	src/stringpiece.cc \
+	src/stringprintf.cc \
 	src/thread.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
-	src/assembler_arm.cc
+	src/assembler_arm.cc \
+	src/logging_android.cc
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
-	src/assembler_x86.cc
+	src/assembler_x86.cc \
+	src/logging_linux.cc
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \
