@@ -95,8 +95,11 @@ Thread* Thread::Attach() {
 
   thread->state_ = kRunnable;
 
-  int result = pthread_setspecific(Thread::pthread_key_self_, thread);
-  CHECK_EQ(result, 0);
+  errno = pthread_setspecific(Thread::pthread_key_self_, thread);
+  if (errno != 0) {
+      PLOG(FATAL) << "pthread_setspecific failed";
+  }
+
   return thread;
 }
 

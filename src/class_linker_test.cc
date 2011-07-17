@@ -41,6 +41,9 @@ TEST(ClassLinker, Load) {
 }
 
 TEST(ClassLinker, FindClass) {
+  ASSERT_TRUE(Thread::Init());
+  ASSERT_TRUE(Thread::Attach() != NULL);
+
   scoped_ptr<DexFile> dex(DexFile::OpenBase64(kMyClassDex));
   ASSERT_TRUE(dex != NULL);
 
