@@ -1,0 +1,33 @@
+// Copyright 2011 Google Inc. All Rights Reserved.
+// Author: enh@google.com (Elliott Hughes)
+
+#include "logging.h"
+
+#include <iostream>
+#include <unistd.h>
+
+#include "cutils/log.h"
+
+static const int kLogSeverityToAndroidLogPriority[] = {
+  ANDROID_LOG_INFO, ANDROID_LOG_WARN, ANDROID_LOG_ERROR, ANDROID_LOG_FATAL
+};
+
+LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
+: severity_(severity), errno_(error)
+{
+}
+
+LogMessage::~LogMessage() {
+  if (errno_ != -1) {
+    stream() << ": " << strerror(errno);
+  }
+  int priority = kLogSeverityToAndroidLogPriority[severity_];
+  LOG_PRI(priority, LOG_TAG, "%s", buffer_.str().c_str());
+  if (severity_ == FATAL) {
+    abort();  // TODO: dvmAbort
+  }
+}
+
+std::ostream& LogMessage::stream() {
+  return buffer_;
+}

@@ -3,8 +3,8 @@
 #include "src/thread.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <list>
-#include <errno.h>
 #include <pthread.h>
 #include <sys/mman.h>
 
@@ -107,13 +107,13 @@ static void ThreadExitCheck(void* arg) {
 bool Thread::Init() {
   // Allocate a TLS slot.
   if (pthread_key_create(&Thread::pthread_key_self_, ThreadExitCheck) != 0) {
-    LOG(WARN) << "pthread_key_create failed";
+    PLOG(WARNING) << "pthread_key_create failed";
     return false;
   }
 
   // Double-check the TLS slot allocation.
   if (pthread_getspecific(pthread_key_self_) != NULL) {
-    LOG(WARN) << "newly-created pthread TLS slot is not NULL";
+    LOG(WARNING) << "newly-created pthread TLS slot is not NULL";
     return false;
   }
 

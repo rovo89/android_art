@@ -2,7 +2,6 @@
 
 #include "src/raw_dex_file.h"
 
-#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -30,7 +29,7 @@ class MmapCloser : public RawDexFile::Closer {
   };
   virtual ~MmapCloser() {
     if (munmap(addr_, length_) == -1) {
-      LG << "munmap: " << strerror(errno);  // TODO: PLOG
+      PLOG(INFO) << "munmap failed";
     }
   }
  private:
@@ -53,20 +52,20 @@ RawDexFile* RawDexFile::OpenFile(const char* filename) {
   CHECK(filename != NULL);
   int fd = open(filename, O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
-    LG << "open: " << strerror(errno);  // TODO: PLOG
+    PLOG(ERROR) << "open(\"" << filename << "\", O_RDONLY) failed";
     return NULL;
   }
   struct stat sbuf;
   memset(&sbuf, 0, sizeof(sbuf));
   if (fstat(fd, &sbuf) == -1) {
-    LG << "fstat: " << strerror(errno);  // TODO: PLOG
+    PLOG(ERROR) << "fstat \"" << filename << "\" failed";
     close(fd);
     return NULL;
   }
   size_t length = sbuf.st_size;
   void* addr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, 0);
   if (addr == MAP_FAILED) {
-    LG << "mmap: " << strerror(errno);  // TODO: PLOG
+    PLOG(ERROR) << "mmap \"" << filename << "\" failed";
     close(fd);
     return NULL;
   }
@@ -127,20 +126,20 @@ bool RawDexFile::IsMagicValid() {
 bool RawDexFile::CheckMagic(const byte* magic) {
   CHECK(magic != NULL);
   if (memcmp(magic, kDexMagic, sizeof(kDexMagic)) != 0) {
-    LOG(WARN) << "Unrecognized magic number:"
-              << " " << magic[0]
-              << " " << magic[1]
-              << " " << magic[2]
-              << " " << magic[3];
+    LOG(WARNING) << "Unrecognized magic number:"
+            << " " << magic[0]
+            << " " << magic[1]
+            << " " << magic[2]
+            << " " << magic[3];
     return false;
   }
   const byte* version = &magic[sizeof(kDexMagic)];
   if (memcmp(version, kDexMagicVersion, sizeof(kDexMagicVersion)) != 0) {
-    LOG(WARN) << "Unrecognized version number:"
-              << " " << version[0]
-              << " " << version[1]
-              << " " << version[2]
-              << " " << version[3];
+    LOG(WARNING) << "Unrecognized version number:"
+            << " " << version[0]
+            << " " << version[1]
+            << " " << version[2]
+            << " " << version[3];
     return false;
   }
   return true;

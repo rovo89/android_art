@@ -14,18 +14,35 @@
 #ifndef ART_SRC_LOGGING_H_
 #define ART_SRC_LOGGING_H_
 
-#include <cstdlib>
+#include <cerrno>
+#include <cstring>
 #include <iostream>  // NOLINT
-#include "src/macros.h"
+#include <sstream>
+#include "log_severity.h"
+#include "macros.h"
 
 #define CHECK(x) \
-  if (!(x)) LogMessageFatal(__FILE__, __LINE__).stream() << "Check failed: " #x
+  if (!(x)) \
+    LogMessage(__FILE__, __LINE__, FATAL, -1).stream() << "Check failed: " #x
+
 #define CHECK_EQ(x, y) CHECK((x) == (y))
 #define CHECK_NE(x, y) CHECK((x) != (y))
 #define CHECK_LE(x, y) CHECK((x) <= (y))
 #define CHECK_LT(x, y) CHECK((x) < (y))
 #define CHECK_GE(x, y) CHECK((x) >= (y))
 #define CHECK_GT(x, y) CHECK((x) > (y))
+#define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
+#define CHECK_STRNE(s1, s2) CHECK_STROP(s1, s2, false)
+
+#define CHECK_STROP(s1, s2, sense) \
+  do { \
+    if ((strcmp(s1, s2) == 0) != sense) { \
+      LOG(FATAL) << "Check failed: " \
+                 << "\"" << s1 << "\"" \
+                 << (sense ? " == " : " != ") \
+                 << "\"" << s2 << "\""; \
+    } \
+  } while (false)
 
 #ifndef NDEBUG
 
@@ -36,6 +53,8 @@
 #define DCHECK_LT(x, y) CHECK_LT(x, y)
 #define DCHECK_GE(x, y) CHECK_GE(x, y)
 #define DCHECK_GT(x, y) CHECK_GT(x, y)
+#define DCHECK_STREQ(s1, s2) CHECK_STREQ(s1, s2)
+#define DCHECK_STRNE(s1, s2) CHECK_STRNE(s1, s2)
 
 #else  // NDEBUG
 
@@ -71,33 +90,29 @@
   while (false) \
     CHECK_STREQ(str1, str2)
 
+#define DCHECK_STRNE(str1, str2) \
+  while (false) \
+    CHECK_STRNE(str1, str2)
+
 #endif
 
-#define LOG_INFO LogMessage(__FILE__, __LINE__)
-#define LOG_WARN LOG_INFO  // TODO
-#define LOG_FATAL LogMessageFatal(__FILE__, __LINE__)
-#define LOG(severity) LOG_ ## severity.stream()
+#define LOG(severity) LogMessage(__FILE__, __LINE__, severity, -1).stream()
+#define PLOG(severity) LogMessage(__FILE__, __LINE__, severity, errno).stream()
+
 #define LG LOG(INFO)
 
 class LogMessage {
  public:
-  LogMessage(const char* file, int line) {}
-  ~LogMessage() { std::cerr << "\n"; }
-  std::ostream& stream() { return std::cerr; }
- private:
-  DISALLOW_COPY_AND_ASSIGN(LogMessage);
-};
+  LogMessage(const char* file, int line, LogSeverity severity, int error);
+  ~LogMessage();
+  std::ostream& stream();
 
-class LogMessageFatal : public LogMessage {
- public:
-  LogMessageFatal(const char* file, int line)
-    : LogMessage(file, line) {}
-  ~LogMessageFatal() {
-    std::cerr << "\n";
-    std::abort();
-  }
  private:
-  DISALLOW_COPY_AND_ASSIGN(LogMessageFatal);
+  std::stringstream buffer_;
+  LogSeverity severity_;
+  int errno_;
+
+  DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
 
 #endif  // ART_SRC_LOGGING_H_
