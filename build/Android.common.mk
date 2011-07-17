@@ -56,12 +56,14 @@ LIBART_COMMON_SRC_FILES := \
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_arm.cc \
-	src/logging_android.cc
+	src/logging_android.cc \
+	src/runtime_android.cc
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_x86.cc \
-	src/logging_linux.cc
+	src/logging_linux.cc \
+	src/runtime_linux.cc
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \

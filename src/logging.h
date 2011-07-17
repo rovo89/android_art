@@ -109,6 +109,8 @@ class LogMessage {
 
  private:
   std::stringstream buffer_;
+  const char* file_;
+  int line_;
   LogSeverity severity_;
   int errno_;
 

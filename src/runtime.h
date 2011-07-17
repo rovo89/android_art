@@ -21,6 +21,13 @@ class Runtime {
   // Compiles a dex file.
   static void Compile(const StringPiece& filename);
 
+  // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
+  // callers should prefer.
+  // This isn't marked ((noreturn)) because then gcc will merge multiple calls
+  // in a single function together. This reduces code size slightly, but means
+  // that the native stack trace we get may point at the wrong call site.
+  static void Abort(const char* file, int line);
+
   // Attaches the current native thread to the runtime.
   bool AttachCurrentThread();
 
@@ -30,6 +37,8 @@ class Runtime {
   ~Runtime();
 
  private:
+  static void PlatformAbort(const char*, int);
+
   Runtime() : class_linker_(NULL), heap_(NULL), thread_list_(NULL) {}
 
   // Initializes a new uninitialized runtime.
