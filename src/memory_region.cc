@@ -9,8 +9,8 @@
 namespace art {
 
 void MemoryRegion::CopyFrom(size_t offset, const MemoryRegion& from) const {
-  CHECK_NE(from.pointer(), NULL);
-  CHECK_GT(from.size(), 0);
+  CHECK(from.pointer() != NULL);
+  CHECK_GT(from.size(), 0U);
   CHECK_GE(this->size(), from.size());
   CHECK_LE(offset, this->size() - from.size());
   memmove(reinterpret_cast<void*>(start() + offset),

@@ -146,7 +146,7 @@ bool RawDexFile::CheckMagic(const byte* magic) {
 }
 
 void RawDexFile::InitIndex() {
-  CHECK_EQ(index_.size(), 0);
+  CHECK_EQ(index_.size(), 0U);
   for (size_t i = 0; i < NumClassDefs(); ++i) {
     const ClassDef& class_def = GetClassDef(i);
     const char* descriptor = GetClassDescriptor(class_def);

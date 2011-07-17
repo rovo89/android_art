@@ -198,9 +198,8 @@ inline bool operator>=(const art::StringPiece& x, const art::StringPiece& y) {
   return !(x < y);
 }
 
-}  // namespace art
-
-// allow StringPiece to be logged
 extern std::ostream& operator<<(std::ostream& o, const art::StringPiece& piece);
+
+}  // namespace art
 
 #endif  // ART_SRC_STRINGPIECE_H_

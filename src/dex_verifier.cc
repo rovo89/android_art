@@ -2,6 +2,10 @@
 
 #include "src/dex_verifier.h"
 
+#include <iostream>
+
+#include "logging.h"
+#include "stringpiece.h"
 
 namespace art {
 
@@ -12,14 +16,14 @@ bool DexVerify::VerifyClass(Class* klass) {
   for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
     Method* method = klass->GetDirectMethod(i);
     if (!VerifyMethod(method)) {
-      LG << "Verifier rejected class " << klass->GetDescriptor();
+        LOG(ERROR) << "Verifier rejected class " << klass->GetDescriptor();
       return false;
     }
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
     Method* method = klass->GetVirtualMethod(i);
     if (!VerifyMethod(method)) {
-      LG << "Verifier rejected class " << klass->GetDescriptor();
+        LOG(ERROR) << "Verifier rejected class " << klass->GetDescriptor();
       return false;
     }
   }

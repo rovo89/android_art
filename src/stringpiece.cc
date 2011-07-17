@@ -90,9 +90,9 @@ StringPiece StringPiece::substr(size_type pos, size_type n) const {
 
 const StringPiece::size_type StringPiece::npos = size_type(-1);
 
-}  // namespace art
-
 std::ostream& operator<<(std::ostream& o, const art::StringPiece& piece) {
   o.write(piece.data(), piece.size());
   return o;
 }
+
+}  // namespace art

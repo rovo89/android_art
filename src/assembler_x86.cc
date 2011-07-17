@@ -20,6 +20,18 @@ class DirectCallRelocation : public AssemblerFixup {
   }
 };
 
+static const char* kRegisterNames[] = {
+  "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi",
+};
+std::ostream& operator<<(std::ostream& os, const Register& rhs) {
+  if (rhs >= EAX && rhs <= EDI) {
+    os << kRegisterNames[rhs];
+  } else {
+    os << "Register[" << int(rhs) << "]";
+  }
+  return os;
+}
+
 
 void Assembler::InitializeMemoryWithBreakpoints(byte* data, size_t length) {
   memset(reinterpret_cast<void*>(data), Instr::kBreakPointInstruction, length);

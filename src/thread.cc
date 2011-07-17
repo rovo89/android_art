@@ -137,7 +137,7 @@ ThreadList::~ThreadList() {
   // Make sure that all threads have exited and unregistered when we
   // reach this point. This means that all daemon threads had been
   // shutdown cleanly.
-  CHECK_EQ(list_.size(), 0);
+  CHECK_EQ(list_.size(), 0U);
   delete lock_;
   lock_ = NULL;
 }

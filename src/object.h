@@ -702,6 +702,7 @@ class Class : public Object {
   size_t num_sfields_;
   StaticField* sfields_;
 };
+std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 class DataObject : public Object {
  public:

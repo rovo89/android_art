@@ -25,14 +25,23 @@
   if (!(x)) \
     LogMessage(__FILE__, __LINE__, FATAL, -1).stream() << "Check failed: " #x
 
-#define CHECK_EQ(x, y) CHECK((x) == (y))
-#define CHECK_NE(x, y) CHECK((x) != (y))
-#define CHECK_LE(x, y) CHECK((x) <= (y))
-#define CHECK_LT(x, y) CHECK((x) < (y))
-#define CHECK_GE(x, y) CHECK((x) >= (y))
-#define CHECK_GT(x, y) CHECK((x) > (y))
-#define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
-#define CHECK_STRNE(s1, s2) CHECK_STROP(s1, s2, false)
+#define CHECK_OP(LHS, RHS, OP) \
+  do { \
+    typeof (LHS) _lhs = (LHS); \
+    typeof (RHS) _rhs = (RHS); \
+    if (!(_lhs OP _rhs)) { \
+      LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
+          << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
+          << " (" #LHS "=" << _lhs << ", " #RHS "=" << _rhs << ")";  \
+    } \
+  } while (false)
+
+#define CHECK_EQ(x, y) CHECK_OP(x, y, ==)
+#define CHECK_NE(x, y) CHECK_OP(x, y, !=)
+#define CHECK_LE(x, y) CHECK_OP(x, y, <=)
+#define CHECK_LT(x, y) CHECK_OP(x, y, <)
+#define CHECK_GE(x, y) CHECK_OP(x, y, >=)
+#define CHECK_GT(x, y) CHECK_OP(x, y, >)
 
 #define CHECK_STROP(s1, s2, sense) \
   do { \
@@ -43,6 +52,9 @@
                  << "\"" << s2 << "\""; \
     } \
   } while (false)
+
+#define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
+#define CHECK_STRNE(s1, s2) CHECK_STROP(s1, s2, false)
 
 #ifndef NDEBUG
 

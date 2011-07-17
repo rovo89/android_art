@@ -117,5 +117,24 @@ Method* Class::FindDirectMethodLocally(const StringPiece& name,
   return NULL;  // TODO
 }
 
+static const char* kClassStatusNames[] = {
+  "Error",
+  "NotReady",
+  "Idx",
+  "Loaded",
+  "Resolved",
+  "Verifying",
+  "Verified",
+  "Initializing",
+  "Initialized"
+};
+std::ostream& operator<<(std::ostream& os, const Class::Status& rhs) {
+  if (rhs >= Class::kStatusError && rhs <= Class::kStatusInitialized) {
+    os << kClassStatusNames[rhs - 1];
+  } else {
+    os << "Class::Status[" << int(rhs) << "]";
+  }
+  return os;
+}
 
 }  // namespace art

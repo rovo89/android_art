@@ -3,6 +3,7 @@
 #ifndef ART_SRC_CONSTANTS_ARM_H_
 #define ART_SRC_CONSTANTS_ARM_H_
 
+#include <iosfwd>
 #include <stdint.h>
 #include "src/casts.h"
 #include "src/logging.h"
@@ -54,6 +55,7 @@ enum Register {
   kNumberOfCoreRegisters = 16,
   kNoRegister = -1,
 };
+std::ostream& operator<<(std::ostream& os, const Register& rhs);
 
 
 enum ScaleFactor {
@@ -101,6 +103,7 @@ enum SRegister {
   kNumberOfSRegisters = 32,
   kNoSRegister = -1,
 };
+std::ostream& operator<<(std::ostream& os, const SRegister& rhs);
 
 
 // Values for double-precision floating point registers.
@@ -145,6 +148,7 @@ enum DRegister {
   kNumberOfOverlappingDRegisters = 16,
   kNoDRegister = -1,
 };
+std::ostream& operator<<(std::ostream& os, const DRegister& rhs);
 
 
 // Values for the condition field as defined in section A3.2.
@@ -168,6 +172,7 @@ enum Condition {
   kSpecialCondition = 15,  // special condition (refer to section A3.2.1)
   kMaxCondition = 16,
 };
+std::ostream& operator<<(std::ostream& os, const Condition& rhs);
 
 
 // Opcodes for Data-processing instructions (instructions with a type 0 and 1)

@@ -1118,10 +1118,10 @@ void ClassLinker::CreateReferenceOffsets(Class* klass) {
       const InstanceField* field = klass->GetInstanceField(i);
       size_t byte_offset = field->GetOffset();
       CHECK_GE(byte_offset, CLASS_SMALLEST_OFFSET);
-      CHECK_EQ(byte_offset & (CLASS_OFFSET_ALIGNMENT - 1), 0);
+      CHECK_EQ(byte_offset & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
       if (CLASS_CAN_ENCODE_OFFSET(byte_offset)) {
         uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset);
-        CHECK_NE(new_bit, 0);
+        CHECK_NE(new_bit, 0U);
         reference_offsets |= new_bit;
       } else {
         reference_offsets = CLASS_WALK_SUPER;

@@ -61,6 +61,53 @@ enum {
 };
 
 
+static const char* kRegisterNames[] = {
+  "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10",
+  "fp", "ip", "sp", "lr", "pc"
+};
+std::ostream& operator<<(std::ostream& os, const Register& rhs) {
+  if (rhs >= R0 && rhs <= PC) {
+    os << kRegisterNames[rhs];
+  } else {
+     os << "Register[" << int(rhs) << "]";
+  }
+  return os;
+}
+
+
+std::ostream& operator<<(std::ostream& os, const SRegister& rhs) {
+  if (rhs >= S0 && rhs < kNumberOfSRegisters) {
+    os << "s" << int(rhs);
+  } else {
+    os << "SRegister[" << int(rhs) << "]";
+  }
+  return os;
+}
+
+
+std::ostream& operator<<(std::ostream& os, const DRegister& rhs) {
+  if (rhs >= D0 && rhs < kNumberOfDRegisters) {
+    os << "d" << int(rhs);
+  } else {
+    os << "DRegister[" << int(rhs) << "]";
+  }
+  return os;
+}
+
+
+static const char* kConditionNames[] = {
+  "EQ", "NE", "CS", "CC", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT", "LE", "AL",
+};
+std::ostream& operator<<(std::ostream& os, const Condition& rhs) {
+  if (rhs >= EQ && rhs <= AL) {
+    os << kConditionNames[rhs];
+  } else {
+    os << "Condition[" << int(rhs) << "]";
+  }
+  return os;
+}
+
+
 void Assembler::Emit(int32_t value) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   buffer_.Emit<int32_t>(value);
@@ -151,7 +198,7 @@ void Assembler::EmitShiftImmediate(Condition cond,
                                    Register rm,
                                    ShifterOperand so) {
   CHECK_NE(cond, kNoCondition);
-  CHECK_EQ(so.type(), 1);
+  CHECK_EQ(so.type(), 1U);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
                      static_cast<int32_t>(MOV) << kOpcodeShift |
                      static_cast<int32_t>(rd) << kRdShift |
@@ -168,7 +215,7 @@ void Assembler::EmitShiftRegister(Condition cond,
                                   Register rm,
                                   ShifterOperand so) {
   CHECK_NE(cond, kNoCondition);
-  CHECK_EQ(so.type(), 0);
+  CHECK_EQ(so.type(), 0U);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
                      static_cast<int32_t>(MOV) << kOpcodeShift |
                      static_cast<int32_t>(rd) << kRdShift |

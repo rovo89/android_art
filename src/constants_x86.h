@@ -7,6 +7,8 @@
 #include "src/logging.h"
 #include "src/macros.h"
 
+#include <iosfwd>
+
 namespace art {
 
 enum Register {
@@ -22,6 +24,7 @@ enum Register {
   kFirstByteUnsafeRegister = 4,
   kNoRegister = -1  // Signals an illegal register.
 };
+std::ostream& operator<<(std::ostream& os, const Register& rhs);
 
 
 enum ByteRegister {

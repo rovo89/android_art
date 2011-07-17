@@ -61,7 +61,7 @@ AssemblerBuffer::AssemblerBuffer() {
 
   // Verify internal state.
   CHECK_EQ(Capacity(), kInitialBufferCapacity);
-  CHECK_EQ(Size(), 0);
+  CHECK_EQ(Size(), 0U);
 }
 
 
