@@ -43,16 +43,16 @@ TEST(Method, ProtoCompare) {
   ASSERT_EQ(4U, klass->NumVirtualMethods());
 
   Method* m1 = klass->GetVirtualMethod(0);
-  ASSERT_STREQ("m1", m1->GetName().data());
+  ASSERT_EQ("m1", m1->GetName());
 
   Method* m2 = klass->GetVirtualMethod(1);
-  ASSERT_STREQ("m2", m2->GetName().data());
+  ASSERT_EQ("m2", m2->GetName());
 
   Method* m3 = klass->GetVirtualMethod(2);
-  ASSERT_STREQ("m3", m3->GetName().data());
+  ASSERT_EQ("m3", m3->GetName());
 
   Method* m4 = klass->GetVirtualMethod(3);
-  ASSERT_STREQ("m4", m4->GetName().data());
+  ASSERT_EQ("m4", m4->GetName());
 
   EXPECT_TRUE(m1->HasSameReturnType(m2));
   EXPECT_TRUE(m2->HasSameReturnType(m1));
@@ -103,22 +103,22 @@ TEST(Method, ProtoCompare2) {
   ASSERT_TRUE(result2);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);
-  ASSERT_STREQ("m1", m1_1->GetName().data());
+  ASSERT_EQ("m1", m1_1->GetName());
   Method* m2_1 = klass1->GetVirtualMethod(1);
-  ASSERT_STREQ("m2", m2_1->GetName().data());
+  ASSERT_EQ("m2", m2_1->GetName());
   Method* m3_1 = klass1->GetVirtualMethod(2);
-  ASSERT_STREQ("m3", m3_1->GetName().data());
+  ASSERT_EQ("m3", m3_1->GetName());
   Method* m4_1 = klass1->GetVirtualMethod(3);
-  ASSERT_STREQ("m4", m4_1->GetName().data());
+  ASSERT_EQ("m4", m4_1->GetName());
 
   Method* m1_2 = klass2->GetVirtualMethod(0);
-  ASSERT_STREQ("m1", m1_2->GetName().data());
+  ASSERT_EQ("m1", m1_2->GetName());
   Method* m2_2 = klass2->GetVirtualMethod(1);
-  ASSERT_STREQ("m2", m2_2->GetName().data());
+  ASSERT_EQ("m2", m2_2->GetName());
   Method* m3_2 = klass2->GetVirtualMethod(2);
-  ASSERT_STREQ("m3", m3_2->GetName().data());
+  ASSERT_EQ("m3", m3_2->GetName());
   Method* m4_2 = klass2->GetVirtualMethod(3);
-  ASSERT_STREQ("m4", m4_2->GetName().data());
+  ASSERT_EQ("m4", m4_2->GetName());
 
   EXPECT_TRUE(m1_1->HasSameNameAndPrototype(m1_2));
   EXPECT_TRUE(m1_2->HasSameNameAndPrototype(m1_1));

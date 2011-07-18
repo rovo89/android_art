@@ -50,7 +50,7 @@ TEST(ClassLinker, FindClass) {
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
   linker->AppendToClassPath(dex.get());
 
-  Class* JavaLangObject = linker->FindClass("Ljava/lang/Object;", NULL, dex.get());
+  Class* JavaLangObject = linker->FindClass("Ljava/lang/Object;", NULL);
   ASSERT_TRUE(JavaLangObject != NULL);
   ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
   ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
@@ -72,7 +72,7 @@ TEST(ClassLinker, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumInstanceFields());
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
 
-  Class* MyClass = linker->FindClass("LMyClass;", NULL, dex.get());
+  Class* MyClass = linker->FindClass("LMyClass;", NULL);
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());

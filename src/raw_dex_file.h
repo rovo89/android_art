@@ -7,6 +7,7 @@
 #include "src/leb128.h"
 #include "src/logging.h"
 #include "src/scoped_ptr.h"
+#include "src/stringpiece.h"
 #include "src/strutil.h"
 
 #include <map>
@@ -227,7 +228,7 @@ class RawDexFile {
   }
 
   // Looks up a class definition by its class descriptor.
-  const ClassDef* FindClassDef(const char* descriptor) const;
+  const ClassDef* FindClassDef(const StringPiece& descriptor) const;
 
   // Returns the number of string identifiers in the .dex file.
   size_t NumStringIds() const {
@@ -467,7 +468,7 @@ class RawDexFile {
   bool IsMagicValid();
 
   // The index of descriptors to class definitions.
-  typedef std::map<const char*, const RawDexFile::ClassDef*, CStringLt> Index;
+  typedef std::map<const StringPiece, const RawDexFile::ClassDef*> Index;
   Index index_;
 
   // The base address of the memory mapping.

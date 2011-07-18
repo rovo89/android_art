@@ -40,7 +40,7 @@ class DexFile {
     return num_methods_;
   }
 
-  bool HasClass(const char* descriptor) {
+  bool HasClass(const StringPiece& descriptor) {
     return raw_->FindClassDef(descriptor) != NULL;
   }
 

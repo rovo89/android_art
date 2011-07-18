@@ -83,9 +83,8 @@ Method* ClassLinker::AllocMethod() {
   return reinterpret_cast<Method*>(Heap::AllocRaw(sizeof(Method), java_lang_ref_Method_));
 }
 
-Class* ClassLinker::FindClass(const char* descriptor,
-                              Object* class_loader,
-                              DexFile* dex_file) {
+Class* ClassLinker::FindClass(const StringPiece& descriptor,
+                              Object* class_loader) {
   Thread* self = Thread::Current();
   CHECK(!self->IsExceptionPending());
   // Find the class in the loaded classes table.
@@ -93,51 +92,40 @@ Class* ClassLinker::FindClass(const char* descriptor,
   if (klass == NULL) {
     // Class is not yet loaded.
     const RawDexFile::ClassDef* class_def;
-    if (dex_file == NULL) {
-      // No .dex file specified, search the class path.
-      ClassPathEntry pair = FindInClassPath(descriptor);
-      if (pair.first == NULL) {
-        LG << "Class " << descriptor << " really not found";
-        return NULL;
-      }
-      dex_file = pair.first;
-      class_def = pair.second;
-    } else {
-      class_def = dex_file->GetRaw()->FindClassDef(descriptor);
+    // No .dex file specified, search the class path.
+    ClassPathEntry pair = FindInClassPath(descriptor);
+    if (pair.first == NULL) {
+      LG << "Class " << descriptor << " really not found";
+      return NULL;
     }
+    DexFile* dex_file = pair.first;
+    class_def = pair.second;
     // Load the class from the dex file.
-    if (!strcmp(descriptor, "Ljava/lang/Object;")) {
+    if (descriptor == "Ljava/lang/Object;") {
       klass = java_lang_Object_;
       klass->dex_file_ = dex_file;
       klass->object_size_ = sizeof(Object);
-      if (class_def != NULL) {
-        char_array_class_->super_class_idx_ = class_def->class_idx_;
-      }
-    } else if (!strcmp(descriptor, "Ljava/lang/Class;")) {
+      char_array_class_->super_class_idx_ = class_def->class_idx_;
+    } else if (descriptor == "Ljava/lang/Class;") {
       klass = java_lang_Class_;
       klass->dex_file_ = dex_file;
       klass->object_size_ = sizeof(Class);
-    } else if (!strcmp(descriptor, "Ljava/lang/ref/Field;")) {
+    } else if (descriptor == "Ljava/lang/ref/Field;") {
       klass = java_lang_ref_Field_;
       klass->dex_file_ = dex_file;
       klass->object_size_ = sizeof(Field);
-    } else if (!strcmp(descriptor, "Ljava/lang/ref/Method;")) {
+    } else if (descriptor == "Ljava/lang/ref/Method;") {
       klass = java_lang_ref_Method_;
       klass->dex_file_ = dex_file;
       klass->object_size_ = sizeof(Method);
-    } else if (!strcmp(descriptor, "Ljava/lang/String;")) {
+    } else if (descriptor == "Ljava/lang/String;") {
       klass = java_lang_String_;
       klass->dex_file_ = dex_file;
       klass->object_size_ = sizeof(String);
     } else {
       klass = AllocClass(dex_file);
     }
-    bool is_loaded;
-    if (class_def == NULL) {
-      is_loaded = false;
-    } else {
-      is_loaded = LoadClass(*class_def, klass);
-    }
+    bool is_loaded = LoadClass(*class_def, klass);
     if (!is_loaded) {
       // TODO: this occurs only when a dex file is provided.
       LG << "Class not found";  // TODO: NoClassDefFoundError
@@ -192,7 +180,7 @@ Class* ClassLinker::FindClass(const char* descriptor,
   return klass;
 }
 
-bool ClassLinker::LoadClass(const char* descriptor, Class* klass) {
+bool ClassLinker::LoadClass(const StringPiece& descriptor, Class* klass) {
   const RawDexFile* raw = klass->GetDexFile()->GetRaw();
   const RawDexFile::ClassDef* class_def = raw->FindClassDef(descriptor);
   if (class_def == NULL) {
@@ -346,7 +334,7 @@ void ClassLinker::LoadMethod(Class* klass, const RawDexFile::Method& src,
   }
 }
 
-ClassLinker::ClassPathEntry ClassLinker::FindInClassPath(const char* descriptor) {
+ClassLinker::ClassPathEntry ClassLinker::FindInClassPath(const StringPiece& descriptor) {
   for (size_t i = 0; i != class_path_.size(); ++i) {
     DexFile* dex_file = class_path_[i];
     const RawDexFile::ClassDef* class_def = dex_file->GetRaw()->FindClassDef(descriptor);
@@ -408,13 +396,13 @@ Class* ClassLinker::FindPrimitiveClass(JType type) {
 
 bool ClassLinker::InsertClass(Class* klass) {
   // TODO: acquire classes_lock_
-  const char* key = klass->GetDescriptor().data();
+  const StringPiece& key = klass->GetDescriptor();
   bool success = classes_.insert(std::make_pair(key, klass)).second;
   // TODO: release classes_lock_
   return success;
 }
 
-Class* ClassLinker::LookupClass(const char* descriptor, Object* class_loader) {
+Class* ClassLinker::LookupClass(const StringPiece& descriptor, Object* class_loader) {
   // TODO: acquire classes_lock_
   Table::iterator it = classes_.find(descriptor);
   // TODO: release classes_lock_
@@ -662,7 +650,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   if (dex_file == NULL) {
     return;
   }
-  const char* descriptor = klass->GetDescriptor().data();
+  const StringPiece& descriptor = klass->GetDescriptor();
   const RawDexFile* raw = dex_file->GetRaw();
   const RawDexFile::ClassDef* class_def = raw->FindClassDef(descriptor);
   CHECK(class_def != NULL);
@@ -1207,7 +1195,7 @@ Class* ClassLinker::ResolveClass(const Class* referrer, uint32_t class_idx) {
     JType type = static_cast<JType>(descriptor[0]);
     resolved = FindPrimitiveClass(type);
   } else {
-    resolved = FindClass(descriptor, referrer->GetClassLoader(), NULL);
+    resolved = FindClass(descriptor, referrer->GetClassLoader());
   }
   if (resolved != NULL) {
     Class* check = resolved->IsArray() ? resolved->component_type_ : resolved;

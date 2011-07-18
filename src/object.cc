@@ -6,17 +6,17 @@
 #include "src/dex_file.h"
 #include "src/raw_dex_file.h"
 
-#include <string.h>
+#include <algorithm>
 
 namespace art {
 
-bool Class::IsInSamePackage(const char* descriptor1, const char* descriptor2) {
+bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
   size_t i = 0;
   while (descriptor1[i] != '\0' && descriptor1[i] == descriptor2[i]) {
     ++i;
   }
-  if (strrchr(descriptor1 + i, '/') != NULL ||
-      strrchr(descriptor2 + i, '/') != NULL ) {
+  if (descriptor1.find('/', i) != StringPiece::npos ||
+      descriptor2.find('/', i) != StringPiece::npos) {
     return false;
   } else {
     return true;
@@ -24,10 +24,10 @@ bool Class::IsInSamePackage(const char* descriptor1, const char* descriptor2) {
 }
 
 #if 0
-bool Class::IsInSamePackage(const char* descriptor1, const char* descriptor2) {
+bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
   size_t size = std::min(descriptor1.size(), descriptor2.size());
-  std::pair<const char*, const char*> pos;
-  pos = std::mismatch(descriptor1.data(), size, descriptor2.data());
+  std::pair<StringPiece::const_iterator, StringPiece::const_iterator> pos;
+  pos = std::mismatch(descriptor1.begin(), descriptor1.begin() + size, descriptor2.begin());
   return !(*(pos.second).rfind('/') != npos && descriptor2.rfind('/') != npos);
 }
 #endif
@@ -50,8 +50,7 @@ bool Class::IsInSamePackage(const Class* that) const {
     klass2 = klass2->GetComponentType();
   }
   // Compare the package part of the descriptor string.
-  return IsInSamePackage(klass1->descriptor_.data(),
-                         klass2->descriptor_.data());
+  return IsInSamePackage(klass1->descriptor_, klass2->descriptor_);
 }
 
 uint32_t Method::NumArgRegisters() {

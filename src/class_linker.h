@@ -26,15 +26,14 @@ class ClassLinker {
   Method* AllocMethod();
 
   // Finds a class by its descriptor name.
-  Class* FindClass(const char* descriptor,
-                   Object* class_loader,
-                   DexFile* dex_file);
+  Class* FindClass(const StringPiece& descriptor,
+                   Object* class_loader);
 
-  Class* FindSystemClass(const char* descriptor) {
-    return FindClass(descriptor, NULL, NULL);
+  Class* FindSystemClass(const StringPiece& descriptor) {
+    return FindClass(descriptor, NULL);
   }
 
-  bool LoadClass(const char* descriptor, Class* klass);
+  bool LoadClass(const StringPiece& descriptor, Class* klass);
 
   bool LoadClass(const RawDexFile::ClassDef& class_def, Class* klass);
 
@@ -42,7 +41,7 @@ class ClassLinker {
 
   bool InitializeClass(Class* klass);
 
-  Class* LookupClass(const char* descriptor, Object* class_loader);
+  Class* LookupClass(const StringPiece& descriptor, Object* class_loader);
 
   Class* ResolveClass(const Class* referring, uint32_t class_idx);
 
@@ -50,7 +49,7 @@ class ClassLinker {
 
   typedef std::pair<DexFile*, const RawDexFile::ClassDef*> ClassPathEntry;
 
-  ClassPathEntry FindInClassPath(const char* descriptor);
+  ClassPathEntry FindInClassPath(const StringPiece& descriptor);
 
   void AppendToClassPath(DexFile* dex_file);
 
@@ -106,7 +105,7 @@ class ClassLinker {
   std::vector<DexFile*> class_path_;
 
   // TODO: multimap
-  typedef std::map<const char*, Class*, CStringLt> Table;
+  typedef std::map<const StringPiece, Class*> Table;
 
   Table classes_;
 

@@ -507,7 +507,7 @@ class Class : public Object {
   // Returns true if this class is in the same packages as that class.
   bool IsInSamePackage(const Class* that) const;
 
-  static bool IsInSamePackage(const char* descriptor1, const char* descriptor2);
+  static bool IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2);
 
   // Returns true if this class represents an array class.
   bool IsArray() const {
