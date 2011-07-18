@@ -27,12 +27,23 @@ ClassLinker* ClassLinker::Create() {
 }
 
 void ClassLinker::Init() {
-  // Allocate and partially initialize the Object and Class classes.
+  // Allocate and partially initialize the Class, Object, Field, Method classes.
   // Initialization will be completed when the definitions are loaded.
-  java_lang_Object_ = Heap::AllocClass(NULL);
-  java_lang_Object_->descriptor_ = "Ljava/lang/Object;";
-  java_lang_Class_ = Heap::AllocClass(NULL);
+  java_lang_Class_ = reinterpret_cast<Class*>(Heap::AllocRaw(sizeof(Class), NULL));
   java_lang_Class_->descriptor_ = "Ljava/lang/Class;";
+  java_lang_Class_->object_size_ = sizeof(Class);
+  java_lang_Class_->klass_ = java_lang_Class_;
+
+  java_lang_Object_ = AllocClass(NULL);
+  java_lang_Object_->descriptor_ = "Ljava/lang/Object;";
+
+  java_lang_Class_->super_class_ = java_lang_Object_;
+
+  java_lang_ref_Field_ = AllocClass(NULL);
+  java_lang_ref_Field_->descriptor_ = "Ljava/lang/ref/Field;";
+
+  java_lang_ref_Method_ = AllocClass(NULL);
+  java_lang_ref_Method_->descriptor_ = "Ljava/lang/Method;";
 
   // Allocate and initialize the primitive type classes.
   primitive_byte_ = CreatePrimitiveClass(kTypeByte, "B");
@@ -44,6 +55,32 @@ void ClassLinker::Init() {
   primitive_short_ = CreatePrimitiveClass(kTypeShort, "S");
   primitive_boolean_ = CreatePrimitiveClass(kTypeBoolean, "Z");
   primitive_void_ = CreatePrimitiveClass(kTypeVoid, "V");
+
+  char_array_class_ = AllocClass(NULL);
+  char_array_class_->descriptor_ = "[C";
+  char_array_class_->status_ = Class::kStatusInitialized;
+  char_array_class_->component_type_ = primitive_char_;
+  char_array_class_->array_rank_ = 1;
+  char_array_class_->primitive_type_ = Class::kPrimNot;
+  char_array_class_->super_class_ = java_lang_Object_;
+}
+
+Class* ClassLinker::AllocClass(DexFile* dex_file) {
+  Class* klass = reinterpret_cast<Class*>(Heap::AllocObject(java_lang_Class_));
+  klass->dex_file_ = dex_file;
+  return klass;
+}
+
+StaticField* ClassLinker::AllocStaticField() {
+  return reinterpret_cast<StaticField*>(Heap::AllocRaw(sizeof(StaticField), java_lang_ref_Field_));
+}
+
+InstanceField* ClassLinker::AllocInstanceField() {
+  return reinterpret_cast<InstanceField*>(Heap::AllocRaw(sizeof(InstanceField), java_lang_ref_Field_));
+}
+
+Method* ClassLinker::AllocMethod() {
+  return reinterpret_cast<Method*>(Heap::AllocRaw(sizeof(Method), java_lang_ref_Method_));
 }
 
 Class* ClassLinker::FindClass(const char* descriptor,
@@ -55,25 +92,52 @@ Class* ClassLinker::FindClass(const char* descriptor,
   Class* klass = LookupClass(descriptor, class_loader);
   if (klass == NULL) {
     // Class is not yet loaded.
+    const RawDexFile::ClassDef* class_def;
     if (dex_file == NULL) {
       // No .dex file specified, search the class path.
-      dex_file = FindInClassPath(descriptor);
-      if (dex_file == NULL) {
+      ClassPathEntry pair = FindInClassPath(descriptor);
+      if (pair.first == NULL) {
         LG << "Class " << descriptor << " really not found";
         return NULL;
       }
+      dex_file = pair.first;
+      class_def = pair.second;
+    } else {
+      class_def = dex_file->GetRaw()->FindClassDef(descriptor);
     }
     // Load the class from the dex file.
     if (!strcmp(descriptor, "Ljava/lang/Object;")) {
       klass = java_lang_Object_;
       klass->dex_file_ = dex_file;
+      klass->object_size_ = sizeof(Object);
+      if (class_def != NULL) {
+        char_array_class_->super_class_idx_ = class_def->class_idx_;
+      }
     } else if (!strcmp(descriptor, "Ljava/lang/Class;")) {
       klass = java_lang_Class_;
       klass->dex_file_ = dex_file;
+      klass->object_size_ = sizeof(Class);
+    } else if (!strcmp(descriptor, "Ljava/lang/ref/Field;")) {
+      klass = java_lang_ref_Field_;
+      klass->dex_file_ = dex_file;
+      klass->object_size_ = sizeof(Field);
+    } else if (!strcmp(descriptor, "Ljava/lang/ref/Method;")) {
+      klass = java_lang_ref_Method_;
+      klass->dex_file_ = dex_file;
+      klass->object_size_ = sizeof(Method);
+    } else if (!strcmp(descriptor, "Ljava/lang/String;")) {
+      klass = java_lang_String_;
+      klass->dex_file_ = dex_file;
+      klass->object_size_ = sizeof(String);
     } else {
-      klass = Heap::AllocClass(dex_file);
+      klass = AllocClass(dex_file);
     }
-    bool is_loaded = LoadClass(descriptor, klass);
+    bool is_loaded;
+    if (class_def == NULL) {
+      is_loaded = false;
+    } else {
+      is_loaded = LoadClass(*class_def, klass);
+    }
     if (!is_loaded) {
       // TODO: this occurs only when a dex file is provided.
       LG << "Class not found";  // TODO: NoClassDefFoundError
@@ -177,7 +241,7 @@ bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
     for (size_t i = 0; i < klass->num_sfields_; ++i) {
       RawDexFile::Field raw_field;
       raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
-      StaticField* sfield = Heap::AllocStaticField();
+      StaticField* sfield = AllocStaticField();
       klass->sfields_[i] = sfield;
       LoadField(klass, raw_field, sfield);
     }
@@ -191,7 +255,7 @@ bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       RawDexFile::Field raw_field;
       raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
-      InstanceField* ifield = Heap::AllocInstanceField();
+      InstanceField* ifield = AllocInstanceField();
       klass->ifields_[i] = ifield;
       LoadField(klass, raw_field, ifield);
     }
@@ -205,7 +269,7 @@ bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
     for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
       RawDexFile::Method raw_method;
       raw->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
-      Method* meth = Heap::AllocMethod();
+      Method* meth = AllocMethod();
       klass->direct_methods_[i] = meth;
       LoadMethod(klass, raw_method, meth);
       // TODO: register maps
@@ -220,14 +284,13 @@ bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       RawDexFile::Method raw_method;
       raw->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
-      Method* meth = Heap::AllocMethod();
+      Method* meth = AllocMethod();
       klass->virtual_methods_[i] = meth;
       LoadMethod(klass, raw_method, meth);
       // TODO: register maps
     }
   }
-
-  return klass;
+  return true;
 }
 
 void ClassLinker::LoadInterfaces(const RawDexFile::ClassDef& class_def,
@@ -283,14 +346,15 @@ void ClassLinker::LoadMethod(Class* klass, const RawDexFile::Method& src,
   }
 }
 
-DexFile* ClassLinker::FindInClassPath(const char* descriptor) {
+ClassLinker::ClassPathEntry ClassLinker::FindInClassPath(const char* descriptor) {
   for (size_t i = 0; i != class_path_.size(); ++i) {
     DexFile* dex_file = class_path_[i];
-    if (dex_file->HasClass(descriptor)) {
-      return dex_file;
+    const RawDexFile::ClassDef* class_def = dex_file->GetRaw()->FindClassDef(descriptor);
+    if (class_def != NULL) {
+      return ClassPathEntry(dex_file, class_def);
     }
   }
-  return NULL;
+  return ClassPathEntry(NULL, NULL);
 }
 
 void ClassLinker::AppendToClassPath(DexFile* dex_file) {
@@ -298,9 +362,9 @@ void ClassLinker::AppendToClassPath(DexFile* dex_file) {
 }
 
 Class* ClassLinker::CreatePrimitiveClass(JType type, const char* descriptor) {
-  Class* klass = Heap::AllocClass(NULL);
+  Class* klass = AllocClass(NULL);
   CHECK(klass != NULL);
-  klass->super_class_ = java_lang_Class_;
+  klass->super_class_ = NULL;
   klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
   klass->descriptor_ = descriptor;
   klass->status_ = Class::kStatusInitialized;
@@ -946,7 +1010,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     klass->vtable_count_ += miranda_count;
 
     for (int i = 0; i < miranda_count; i++) {
-      Method* meth = Heap::AllocMethod();
+      Method* meth = AllocMethod();
       memcpy(meth, miranda_list[i], sizeof(Method));
       meth->klass_ = klass;
       meth->access_flags_ |= kAccMiranda;
@@ -968,11 +1032,11 @@ void ClassLinker::LinkAbstractMethods(Class* klass) {
 }
 
 bool ClassLinker::LinkInstanceFields(Class* klass) {
-  int fieldOffset;
+  int field_offset;
   if (klass->GetSuperClass() != NULL) {
-    fieldOffset = klass->GetSuperClass()->object_size_;
+    field_offset = klass->GetSuperClass()->object_size_;
   } else {
-    fieldOffset = OFFSETOF_MEMBER(DataObject, fields_);
+    field_offset = OFFSETOF_MEMBER(DataObject, fields_);
   }
   // Move references to the front.
   klass->num_reference_ifields_ = 0;
@@ -1000,22 +1064,22 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
     if (c != '[' && c != 'L') {
       break;
     }
-    pField->SetOffset(fieldOffset);
-    fieldOffset += sizeof(uint32_t);
+    pField->SetOffset(field_offset);
+    field_offset += sizeof(uint32_t);
   }
 
   // Now we want to pack all of the double-wide fields together.  If
   // we're not aligned, though, we want to shuffle one 32-bit field
   // into place.  If we can't find one, we'll have to pad it.
-  if (i != klass->NumInstanceFields() && (fieldOffset & 0x04) != 0) {
+  if (i != klass->NumInstanceFields() && (field_offset & 0x04) != 0) {
     InstanceField* pField = klass->GetInstanceField(i);
     char c = pField->GetType();
 
     if (c != 'J' && c != 'D') {
       // The field that comes next is 32-bit, so just advance past it.
       assert(c != '[' && c != 'L');
-      pField->SetOffset(fieldOffset);
-      fieldOffset += sizeof(uint32_t);
+      pField->SetOffset(field_offset);
+      field_offset += sizeof(uint32_t);
       i++;
     } else {
       // Next field is 64-bit, so search for a 32-bit field we can
@@ -1028,22 +1092,22 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
           klass->SetInstanceField(i, singleField);
           klass->SetInstanceField(j, pField);
           pField = singleField;
-          pField->SetOffset(fieldOffset);
-          fieldOffset += sizeof(uint32_t);
+          pField->SetOffset(field_offset);
+          field_offset += sizeof(uint32_t);
           found = true;
           i++;
           break;
         }
       }
       if (!found) {
-        fieldOffset += sizeof(uint32_t);
+        field_offset += sizeof(uint32_t);
       }
     }
   }
 
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
-  assert(i == klass->NumInstanceFields() || (fieldOffset & 0x04) == 0);
+  assert(i == klass->NumInstanceFields() || (field_offset & 0x04) == 0);
   for ( ; i < klass->NumInstanceFields(); i++) {
     InstanceField* pField = klass->GetInstanceField(i);
     char c = pField->GetType();
@@ -1063,10 +1127,10 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
       // This is a double-wide field, leave it be.
     }
 
-    pField->SetOffset(fieldOffset);
-    fieldOffset += sizeof(uint32_t);
+    pField->SetOffset(field_offset);
+    field_offset += sizeof(uint32_t);
     if (c == 'J' || c == 'D')
-      fieldOffset += sizeof(uint32_t);
+      field_offset += sizeof(uint32_t);
   }
 
 #ifndef NDEBUG
@@ -1096,7 +1160,7 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
   }
 #endif
 
-  klass->object_size_ = fieldOffset;
+  klass->object_size_ = field_offset;
   return true;
 }
 
@@ -1170,7 +1234,7 @@ String* ClassLinker::ResolveString(const Class* referring, uint32_t string_idx) 
   const RawDexFile* raw = referring->GetDexFile()->GetRaw();
   const RawDexFile::StringId& string_id = raw->GetStringId(string_idx);
   const char* string_data = raw->GetStringData(string_id);
-  String* new_string = Heap::AllocStringFromModifiedUtf8(string_data);
+  String* new_string = Heap::AllocStringFromModifiedUtf8(java_lang_String_, char_array_class_, string_data);
   // TODO: intern the new string
   referring->GetDexFile()->SetResolvedString(new_string, string_idx);
   return new_string;

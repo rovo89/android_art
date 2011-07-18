@@ -20,6 +20,11 @@ class ClassLinker {
 
   ~ClassLinker() {}
 
+  Class* AllocClass(DexFile* dex_file);
+  StaticField* AllocStaticField();
+  InstanceField* AllocInstanceField();
+  Method* AllocMethod();
+
   // Finds a class by its descriptor name.
   Class* FindClass(const char* descriptor,
                    Object* class_loader,
@@ -43,7 +48,9 @@ class ClassLinker {
 
   String* ResolveString(const Class* referring, uint32_t string_idx);
 
-  DexFile* FindInClassPath(const char* descriptor);
+  typedef std::pair<DexFile*, const RawDexFile::ClassDef*> ClassPathEntry;
+
+  ClassPathEntry FindInClassPath(const char* descriptor);
 
   void AppendToClassPath(DexFile* dex_file);
 
@@ -117,8 +124,12 @@ class ClassLinker {
   Class* primitive_long_;
   Class* primitive_void_;
 
-  Class* java_lang_Object_;
   Class* java_lang_Class_;
+  Class* java_lang_Object_;
+  Class* java_lang_ref_Field_;
+  Class* java_lang_ref_Method_;
+  Class* java_lang_String_;
+  Class* char_array_class_;
 
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };

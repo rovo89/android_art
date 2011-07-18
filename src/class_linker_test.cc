@@ -15,7 +15,7 @@ TEST(ClassLinker, LoadNonexistent) {
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
   linker->AppendToClassPath(dex.get());
 
-  scoped_ptr<Class> klass(Heap::AllocClass(dex.get()));
+  scoped_ptr<Class> klass(linker.get()->AllocClass(dex.get()));
   bool result1 = linker->LoadClass("NoSuchClass", klass.get());
   EXPECT_FALSE(result1);
   bool result2 = linker->LoadClass("LNoSuchClass;", klass.get());
@@ -29,7 +29,7 @@ TEST(ClassLinker, Load) {
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
   linker->AppendToClassPath(dex.get());
 
-  scoped_ptr<Class> klass(Heap::AllocClass(dex.get()));
+  scoped_ptr<Class> klass(linker.get()->AllocClass(dex.get()));
   bool result = linker->LoadClass("LNested;", klass.get());
   ASSERT_TRUE(result);
 
@@ -52,7 +52,9 @@ TEST(ClassLinker, FindClass) {
 
   Class* JavaLangObject = linker->FindClass("Ljava/lang/Object;", NULL, dex.get());
   ASSERT_TRUE(JavaLangObject != NULL);
-  EXPECT_TRUE(JavaLangObject->GetClass() != NULL);
+  ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
+  ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
+  EXPECT_EQ(JavaLangObject->GetClass()->GetSuperClass(), JavaLangObject);
   ASSERT_TRUE(JavaLangObject->GetDescriptor() == "Ljava/lang/Object;");
   EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
@@ -72,7 +74,9 @@ TEST(ClassLinker, FindClass) {
 
   Class* MyClass = linker->FindClass("LMyClass;", NULL, dex.get());
   ASSERT_TRUE(MyClass != NULL);
-  EXPECT_TRUE(MyClass->GetClass() != NULL);
+  ASSERT_TRUE(MyClass->GetClass() != NULL);
+  ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
+  EXPECT_EQ(MyClass->GetClass()->GetSuperClass(), JavaLangObject);
   ASSERT_TRUE(MyClass->GetDescriptor() == "LMyClass;");
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
@@ -90,6 +94,9 @@ TEST(ClassLinker, FindClass) {
   EXPECT_EQ(0U, MyClass->NumVirtualMethods());
   EXPECT_EQ(0U, MyClass->NumInstanceFields());
   EXPECT_EQ(0U, MyClass->NumStaticFields());
+
+  EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
+
 }
 
 }  // namespace art

@@ -190,8 +190,8 @@ class ObjectLock {
 
 class Field : public Object {
  public:
-  Class* GetClass() const {
-    return klass_;
+  Class* GetDeclaringClass() const {
+    return declaring_class_;
   }
 
   const char* GetName() const {
@@ -219,7 +219,7 @@ class Field : public Object {
 #undef FIELD_FIELD_SLOTS
 
   // The class in which this field is declared.
-  Class* klass_;
+  Class* declaring_class_;
 
   const char* name_;
 
@@ -315,12 +315,12 @@ class Method : public Object {
     return name_;
   }
 
-  Class* GetClass() const {
-    return klass_;
+  Class* GetDeclaringClass() const {
+    return declaring_class_;
   }
 
   // const char* GetReturnTypeDescriptor() const {
-  //   return klass_->GetDexFile_->GetRaw()->dexStringByTypeIdx(proto_id_.return_type_id_);
+  //   return declaring_class_->GetDexFile_->GetRaw()->dexStringByTypeIdx(proto_id_.return_type_id_);
   // }
 
   // Returns true if the method is declared public.
@@ -400,7 +400,7 @@ class Method : public Object {
 #undef METHOD_FIELD_SLOTS
 
   // the class we are a part of
-  Class* klass_;
+  Class* declaring_class_;
 
   // access flags; low 16 bits are defined by spec (could be uint16_t?)
   uint32_t access_flags_;

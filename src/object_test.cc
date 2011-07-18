@@ -36,7 +36,7 @@ TEST(Method, ProtoCompare) {
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
   linker->AppendToClassPath(dex_file.get());
 
-  scoped_ptr<Class> klass(Heap::AllocClass(dex_file.get()));
+  scoped_ptr<Class> klass(linker.get()->AllocClass(dex_file.get()));
   bool result = linker->LoadClass("LProtoCompare;", klass.get());
   ASSERT_TRUE(result);
 
@@ -95,10 +95,10 @@ TEST(Method, ProtoCompare2) {
   scoped_ptr<ClassLinker> linker2(ClassLinker::Create());
   linker2->AppendToClassPath(dex_file2.get());
 
-  scoped_ptr<Class> klass1(Heap::AllocClass(dex_file1.get()));
+  scoped_ptr<Class> klass1(linker1.get()->AllocClass(dex_file1.get()));
   bool result1 = linker1->LoadClass("LProtoCompare;", klass1.get());
   ASSERT_TRUE(result1);
-  scoped_ptr<Class> klass2(Heap::AllocClass(dex_file2.get()));
+  scoped_ptr<Class> klass2(linker2.get()->AllocClass(dex_file2.get()));
   bool result2 = linker2->LoadClass("LProtoCompare2;", klass2.get());
   ASSERT_TRUE(result2);
 

@@ -19,47 +19,30 @@ class Heap {
 
   ~Heap() {}
 
-  static Class* AllocClass(DexFile* dex_file) {
-    byte* raw = new byte[sizeof(Class)]();
-    Class* klass = reinterpret_cast<Class*>(raw);
-    klass->dex_file_ = dex_file;
-    return klass;
-  }
-
-  static StaticField* AllocStaticField() {
-    size_t size = sizeof(StaticField);
+  static Object* AllocRaw(size_t size, Class* klass) {
     byte* raw = new byte[size]();
-    return reinterpret_cast<StaticField*>(raw);
+    Object* object = reinterpret_cast<Object*>(raw);
+    object->klass_ = klass;
+    return object;
   }
 
-  static InstanceField* AllocInstanceField() {
-    size_t size = sizeof(InstanceField);
-    byte* raw = new byte[size]();
-    return reinterpret_cast<InstanceField*>(raw);
+  static Object* AllocObject(Class* klass) {
+    return AllocRaw(klass->object_size_, klass);
   }
 
-  static Method* AllocMethod() {
-    size_t size = sizeof(Method);
-    byte* raw = new byte[size]();
-    return reinterpret_cast<Method*>(raw);
-  }
-
-  static CharArray* AllocCharArray(size_t length) {
+  static CharArray* AllocCharArray(Class* char_array, size_t length) {
     size_t size = sizeof(Array) + length * sizeof(uint16_t);
-    byte* raw = new byte[size]();
-    return reinterpret_cast<CharArray*>(raw);
+    return reinterpret_cast<CharArray*>(AllocRaw(size, char_array));
   }
 
-  static String* AllocString() {
-    size_t size = sizeof(String);
-    byte* raw = new byte[size]();
-    return reinterpret_cast<String*>(raw);
+  static String* AllocString(Class* java_lang_String) {
+    return reinterpret_cast<String*>(AllocObject(java_lang_String));
   }
 
-  static String* AllocStringFromModifiedUtf8(const char* data) {
-    String* string = AllocString();
+  static String* AllocStringFromModifiedUtf8(Class* java_lang_String, Class* char_array, const char* data) {
+    String* string = AllocString(java_lang_String);
     uint32_t count = strlen(data);  // TODO
-    CharArray* array = AllocCharArray(count);
+    CharArray* array = AllocCharArray(char_array, count);
     string->array_ = array;
     string->count_ = count;
     return string;
