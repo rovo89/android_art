@@ -26,6 +26,24 @@ class Heap {
     return klass;
   }
 
+  static StaticField* AllocStaticField() {
+    size_t size = sizeof(StaticField);
+    byte* raw = new byte[size]();
+    return reinterpret_cast<StaticField*>(raw);
+  }
+
+  static InstanceField* AllocInstanceField() {
+    size_t size = sizeof(InstanceField);
+    byte* raw = new byte[size]();
+    return reinterpret_cast<InstanceField*>(raw);
+  }
+
+  static Method* AllocMethod() {
+    size_t size = sizeof(Method);
+    byte* raw = new byte[size]();
+    return reinterpret_cast<Method*>(raw);
+  }
+
   static CharArray* AllocCharArray(size_t length) {
     size_t size = sizeof(Array) + length * sizeof(uint16_t);
     byte* raw = new byte[size]();

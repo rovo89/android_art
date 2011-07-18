@@ -172,36 +172,42 @@ bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
   // Load static fields.
   if (klass->num_sfields_ != 0) {
     // TODO: allocate on the object heap.
-    klass->sfields_ = new StaticField[klass->NumStaticFields()]();
+    klass->sfields_ = new StaticField*[klass->NumStaticFields()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->num_sfields_; ++i) {
       RawDexFile::Field raw_field;
       raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
-      LoadField(klass, raw_field, &klass->sfields_[i]);
+      StaticField* sfield = Heap::AllocStaticField();
+      klass->sfields_[i] = sfield;
+      LoadField(klass, raw_field, sfield);
     }
   }
 
   // Load instance fields.
   if (klass->NumInstanceFields() != 0) {
     // TODO: allocate on the object heap.
-    klass->ifields_ = new InstanceField[klass->NumInstanceFields()]();
+    klass->ifields_ = new InstanceField*[klass->NumInstanceFields()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       RawDexFile::Field raw_field;
       raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
-      LoadField(klass, raw_field, klass->GetInstanceField(i));
+      InstanceField* ifield = Heap::AllocInstanceField();
+      klass->ifields_[i] = ifield;
+      LoadField(klass, raw_field, ifield);
     }
   }
 
   // Load direct methods.
   if (klass->NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->direct_methods_ = new Method[klass->NumDirectMethods()]();
+    klass->direct_methods_ = new Method*[klass->NumDirectMethods()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
       RawDexFile::Method raw_method;
       raw->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
-      LoadMethod(klass, raw_method, klass->GetDirectMethod(i));
+      Method* meth = Heap::AllocMethod();
+      klass->direct_methods_[i] = meth;
+      LoadMethod(klass, raw_method, meth);
       // TODO: register maps
     }
   }
@@ -209,12 +215,14 @@ bool ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
   // Load virtual methods.
   if (klass->NumVirtualMethods() != 0) {
     // TODO: append virtual methods to class object
-    klass->virtual_methods_ = new Method[klass->NumVirtualMethods()]();
+    klass->virtual_methods_ = new Method*[klass->NumVirtualMethods()]();
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       RawDexFile::Method raw_method;
       raw->dexReadClassDataMethod(&class_data, &raw_method, &last_idx);
-      LoadMethod(klass, raw_method, klass->GetVirtualMethod(i));
+      Method* meth = Heap::AllocMethod();
+      klass->virtual_methods_[i] = meth;
+      LoadMethod(klass, raw_method, meth);
       // TODO: register maps
     }
   }
@@ -922,39 +930,28 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     }
   }
   if (miranda_count != 0) {
-    Method* newVirtualMethods;
-    Method* meth;
-    int oldMethodCount, oldVtableCount;
-    if (klass->virtual_methods_ == NULL) {
-      newVirtualMethods = new Method[klass->NumVirtualMethods() + miranda_count];
-
-    } else {
-      newVirtualMethods = new Method[klass->NumVirtualMethods() + miranda_count];
+    int oldMethodCount = klass->NumVirtualMethods();
+    int newMethodCount = oldMethodCount + miranda_count;
+    Method** newVirtualMethods = new Method*[newMethodCount];
+    if (klass->virtual_methods_ != NULL) {
       memcpy(newVirtualMethods,
              klass->virtual_methods_,
-             klass->NumVirtualMethods() * sizeof(Method));
-
+             klass->NumVirtualMethods() * sizeof(Method*));
     }
-    if (newVirtualMethods != klass->virtual_methods_) {
-      Method* meth = newVirtualMethods;
-      for (size_t i = 0; i < klass->NumVirtualMethods(); i++, meth++) {
-        klass->vtable_[meth->method_index_] = meth;
-      }
-    }
-    oldMethodCount = klass->NumVirtualMethods();
     klass->virtual_methods_ = newVirtualMethods;
-    klass->num_virtual_methods_ += miranda_count;
+    klass->num_virtual_methods_ = newMethodCount;
 
     CHECK(klass->vtable_ != NULL);
-    oldVtableCount = klass->vtable_count_;
+    int oldVtableCount = klass->vtable_count_;
     klass->vtable_count_ += miranda_count;
 
-    meth = klass->virtual_methods_ + oldMethodCount;
-    for (int i = 0; i < miranda_count; i++, meth++) {
+    for (int i = 0; i < miranda_count; i++) {
+      Method* meth = Heap::AllocMethod();
       memcpy(meth, miranda_list[i], sizeof(Method));
       meth->klass_ = klass;
       meth->access_flags_ |= kAccMiranda;
       meth->method_index_ = 0xFFFF & (oldVtableCount + i);
+      klass->virtual_methods_[oldMethodCount+i] = meth;
       klass->vtable_[oldVtableCount + i] = meth;
     }
   }
@@ -980,17 +977,18 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
   // Move references to the front.
   klass->num_reference_ifields_ = 0;
   size_t i = 0;
-  size_t j = klass->NumInstanceFields() - 1;
-  for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
+  for ( ; i < klass->NumInstanceFields(); i++) {
     InstanceField* pField = klass->GetInstanceField(i);
     char c = pField->GetType();
 
     if (c != '[' && c != 'L') {
-      while (j > i) {
-        InstanceField* refField = klass->GetInstanceField(j--);
+      for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
+        InstanceField* refField = klass->GetInstanceField(j);
         char rc = refField->GetType();
         if (rc == '[' || rc == 'L') {
-          pField->Swap(refField);
+          klass->SetInstanceField(i, refField);
+          klass->SetInstanceField(j, pField);
+          pField = refField;
           c = rc;
           klass->num_reference_ifields_++;
           break;
@@ -1023,12 +1021,13 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
       // Next field is 64-bit, so search for a 32-bit field we can
       // swap into it.
       bool found = false;
-      j = klass->NumInstanceFields() - 1;
-      while (j > i) {
-        InstanceField* singleField = klass->GetInstanceField(j--);
+      for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
+        InstanceField* singleField = klass->GetInstanceField(j);
         char rc = singleField->GetType();
         if (rc != 'J' && rc != 'D') {
-          pField->Swap(singleField);
+          klass->SetInstanceField(i, singleField);
+          klass->SetInstanceField(j, pField);
+          pField = singleField;
           pField->SetOffset(fieldOffset);
           fieldOffset += sizeof(uint32_t);
           found = true;
@@ -1045,16 +1044,17 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
   assert(i == klass->NumInstanceFields() || (fieldOffset & 0x04) == 0);
-  j = klass->NumInstanceFields() - 1;
   for ( ; i < klass->NumInstanceFields(); i++) {
     InstanceField* pField = klass->GetInstanceField(i);
     char c = pField->GetType();
     if (c != 'D' && c != 'J') {
-      while (j > i) {
-        InstanceField* doubleField = klass->GetInstanceField(j--);
+      for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
+        InstanceField* doubleField = klass->GetInstanceField(j);
         char rc = doubleField->GetType();
         if (rc == 'D' || rc == 'J') {
-          pField->Swap(doubleField);
+          klass->SetInstanceField(i, doubleField);
+          klass->SetInstanceField(j, pField);
+          pField = doubleField;
           c = rc;
           break;
         }

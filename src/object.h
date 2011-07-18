@@ -156,6 +156,7 @@ class Object {
   Monitor* monitor_;
 
  private:
+  Object();
   DISALLOW_COPY_AND_ASSIGN(Object);
 };
 
@@ -187,7 +188,7 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
-class Field {
+class Field : public Object {
  public:
   Class* GetClass() const {
     return klass_;
@@ -206,6 +207,17 @@ class Field {
   }
 
  public:  // TODO: private
+#define FIELD_FIELD_SLOTS 1+6
+  // AccessibleObject #0 flag
+  // Field #0 declaringClass
+  // Field #1 genericType
+  // Field #2 genericTypesAreInitialized
+  // Field #3 name
+  // Field #4 slot
+  // Field #5 type
+  uint32_t instance_data_[FIELD_FIELD_SLOTS];
+#undef FIELD_FIELD_SLOTS
+
   // The class in which this field is declared.
   Class* klass_;
 
@@ -215,6 +227,9 @@ class Field {
   const char* signature_;
 
   uint32_t access_flags_;
+
+ private:
+  Field();
 };
 
 // Instance fields.
@@ -228,16 +243,9 @@ class InstanceField : public Field {
     offset_ = num_bytes;
   }
 
-  // TODO: stl::swap
-  void Swap(InstanceField* that) {
-    InstanceField tmp;
-    memcpy(&tmp, this, sizeof(InstanceField));
-    memcpy(this, that, sizeof(InstanceField));
-    memcpy(that, &tmp, sizeof(InstanceField));
-  }
-
  private:
   size_t offset_;
+  InstanceField();
 };
 
 // Static fields.
@@ -296,9 +304,10 @@ class StaticField : public Field {
 
  private:
   JValue value_;
+  StaticField();
 };
 
-class Method {
+class Method : public Object {
  public:
   // Returns the method name.
   // TODO: example
@@ -374,6 +383,22 @@ class Method {
   bool HasSameArgumentTypes(const Method* that) const;
 
  public:  // TODO: private
+#define METHOD_FIELD_SLOTS 1+11
+  // AccessibleObject #0 flag
+  // Method #0  declaringClass
+  // Method #1  exceptionTypes
+  // Method #2  formalTypeParameters
+  // Method #3  genericExceptionTypes
+  // Method #4  genericParameterTypes
+  // Method #5  genericReturnType
+  // Method #6  genericTypesAreInitialized
+  // Method #7  name
+  // Method #8  parameterTypes
+  // Method #9  returnType
+  // Method #10 slot
+  uint32_t instance_data_[METHOD_FIELD_SLOTS];
+#undef METHOD_FIELD_SLOTS
+
   // the class we are a part of
   Class* klass_;
 
@@ -406,6 +431,9 @@ class Method {
 
   // A pointer to the memory-mapped DEX code.
   const uint16_t* insns_;
+
+ private:
+  Method();
 };
 
 // Class objects.
@@ -533,7 +561,7 @@ class Class : public Object {
   }
 
   Method* GetDirectMethod(uint32_t i) const {
-    return &direct_methods_[i];
+    return direct_methods_[i];
   }
 
   // Returns the number of non-inherited virtual methods.
@@ -542,7 +570,7 @@ class Class : public Object {
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
-    return &virtual_methods_[i];
+    return virtual_methods_[i];
   }
 
   size_t NumInstanceFields() const {
@@ -554,7 +582,11 @@ class Class : public Object {
   }
 
   InstanceField* GetInstanceField(uint32_t i) {  // TODO: uint16_t
-    return &ifields_[i];
+    return ifields_[i];
+  }
+
+  void SetInstanceField(uint32_t i, InstanceField* f) {  // TODO: uint16_t
+    ifields_[i] = f;
   }
 
   size_t NumStaticFields() const {
@@ -562,7 +594,7 @@ class Class : public Object {
   }
 
   StaticField* GetStaticField(uint32_t i) {  // TODO: uint16_t
-    return &sfields_[i];
+    return sfields_[i];
   }
 
   uint32_t GetReferenceOffsets() const {
@@ -579,7 +611,8 @@ class Class : public Object {
  public: // TODO: private
   // leave space for instance data; we could access fields directly if
   // we freeze the definition of java/lang/Class
-#define CLASS_FIELD_SLOTS 4
+#define CLASS_FIELD_SLOTS 1
+  // Class.#0 name
   uint32_t instance_data_[CLASS_FIELD_SLOTS];
 #undef CLASS_FIELD_SLOTS
 
@@ -642,11 +675,11 @@ class Class : public Object {
 
   // static, private, and <init> methods
   size_t num_direct_methods_;
-  Method* direct_methods_;
+  Method** direct_methods_;
 
   // virtual methods defined in this class; invoked through vtable
   size_t num_virtual_methods_;
-  Method* virtual_methods_;
+  Method** virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The
   // vtable from the superclass is copied in, and virtual methods from
@@ -690,7 +723,7 @@ class Class : public Object {
 
   // number of fields that are object refs
   size_t num_reference_ifields_;
-  InstanceField* ifields_;
+  InstanceField** ifields_;
 
   // Bitmap of offsets of ifields.
   uint32_t reference_offsets_;
@@ -700,13 +733,18 @@ class Class : public Object {
 
   // Static fields
   size_t num_sfields_;
-  StaticField* sfields_;
+  StaticField** sfields_;
+
+ private:
+  Class();
 };
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 class DataObject : public Object {
  public:
   uint32_t fields_[1];
+ private:
+  DataObject();
 };
 
 class Array : public Object {
@@ -718,9 +756,13 @@ class Array : public Object {
  private:
   // The number of array elements.
   uint32_t length_;
+  Array();
 };
 
-class CharArray : public Array {};
+class CharArray : public Array {
+ private:
+  CharArray();
+};
 
 class String : public Object {
  public:
@@ -731,6 +773,9 @@ class String : public Object {
   uint32_t offset_;
 
   uint32_t count_;
+
+ private:
+  String();
 };
 
 class InterfaceEntry {
