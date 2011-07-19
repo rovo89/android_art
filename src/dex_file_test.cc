@@ -11,7 +11,7 @@
 namespace art {
 
 TEST(DexFileTest, Open) {
-  scoped_ptr<DexFile> dex(DexFile::OpenBase64(kNestedDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kNestedDex));
   ASSERT_TRUE(dex != NULL);
 }
 

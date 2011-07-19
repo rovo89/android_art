@@ -14,11 +14,6 @@ DexFile* DexFile::OpenFile(const char* filename) {
   return Open(raw);
 }
 
-DexFile* DexFile::OpenBase64(const char* base64) {
-  RawDexFile* raw = RawDexFile::OpenBase64(base64);
-  return Open(raw);
-}
-
 DexFile* DexFile::Open(RawDexFile* raw) {
   if (raw == NULL) {
     return NULL;

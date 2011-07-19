@@ -34,9 +34,9 @@ class MethodTest : public RuntimeTest {};
 // TODO: test 0 argument methods
 // TODO: make this test simpler and shorter
 TEST_F(MethodTest, ProtoCompare) {
-  scoped_ptr<DexFile> object_dex_file(DexFile::OpenBase64(kJavaLangDex));
+  scoped_ptr<DexFile> object_dex_file(OpenDexFileBase64(kJavaLangDex));
   ASSERT_TRUE(object_dex_file != NULL);
-  scoped_ptr<DexFile> proto_dex_file(DexFile::OpenBase64(kProtoCompareDex));
+  scoped_ptr<DexFile> proto_dex_file(OpenDexFileBase64(kProtoCompareDex));
   ASSERT_TRUE(proto_dex_file != NULL);
 
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
@@ -92,11 +92,11 @@ TEST_F(MethodTest, ProtoCompare) {
 }
 
 TEST_F(MethodTest, ProtoCompare2) {
-  scoped_ptr<DexFile> object_dex_file(DexFile::OpenBase64(kJavaLangDex));
+  scoped_ptr<DexFile> object_dex_file(OpenDexFileBase64(kJavaLangDex));
   ASSERT_TRUE(object_dex_file != NULL);
-  scoped_ptr<DexFile> proto1_dex_file(DexFile::OpenBase64(kProtoCompareDex));
+  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
   ASSERT_TRUE(proto1_dex_file != NULL);
-  scoped_ptr<DexFile> proto2_dex_file(DexFile::OpenBase64(kProtoCompare2Dex));
+  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex));
   ASSERT_TRUE(proto2_dex_file != NULL);
   scoped_ptr<ClassLinker> linker1(ClassLinker::Create());
   linker1->AppendToClassPath(object_dex_file.get());

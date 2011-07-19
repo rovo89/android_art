@@ -20,11 +20,6 @@ class DexFile {
   // Opens a .dex file from the file system.  Returns NULL on failure.
   static DexFile* OpenFile(const char* filename);
 
-  // Opens a .dex file from a base64 encoded array.  Returns NULL on
-  // failure.
-  // TODO: move this into the DexFile unit test
-  static DexFile* OpenBase64(const char* base64);
-
   // Opens a .dex file from a RawDexFile.  Takes ownership of the
   // RawDexFile.
   static DexFile* Open(RawDexFile* raw);

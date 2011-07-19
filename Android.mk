@@ -18,6 +18,8 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 build_path := $(LOCAL_PATH)/build
+include $(build_path)/Android.common.mk
+
 include $(build_path)/Android.libart.mk
 include $(build_path)/Android.test.mk
 include $(build_path)/Android.aexec.mk

@@ -9,7 +9,6 @@
 #include <sys/types.h>
 #include <map>
 
-#include "src/base64.h"
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/object.h"
@@ -21,32 +20,19 @@ namespace art {
 const byte RawDexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const byte RawDexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
-// Helper class to deallocate mmap-backed .dex files.
-class MmapCloser : public RawDexFile::Closer {
- public:
-  MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
-    CHECK(addr != NULL);
-  };
-  virtual ~MmapCloser() {
-    if (munmap(addr_, length_) == -1) {
-      PLOG(INFO) << "munmap failed";
-    }
-  }
- private:
-  void* addr_;
-  size_t length_;
-};
-
-// Helper class for deallocating new/delete-backed .dex files.
-class PtrCloser : public RawDexFile::Closer {
- public:
-  PtrCloser(byte* addr) : addr_(addr) {};
-  virtual ~PtrCloser() { delete[] addr_; }
- private:
-  byte* addr_;
-};
-
 RawDexFile::Closer::~Closer() {}
+
+RawDexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
+  CHECK(addr != NULL);
+}
+RawDexFile::MmapCloser::~MmapCloser() {
+  if (munmap(addr_, length_) == -1) {
+    PLOG(INFO) << "munmap failed";
+  }
+}
+
+RawDexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
+RawDexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
 
 RawDexFile* RawDexFile::OpenFile(const char* filename) {
   CHECK(filename != NULL);
@@ -75,15 +61,10 @@ RawDexFile* RawDexFile::OpenFile(const char* filename) {
   return Open(dex_file, length, closer);
 }
 
-RawDexFile* RawDexFile::OpenBase64(const char* base64) {
-  CHECK(base64 != NULL);
-  size_t length;
-  byte* dex_file = DecodeBase64(base64, &length);
-  if (dex_file == NULL) {
-    return NULL;
-  }
-  RawDexFile::Closer* closer = new PtrCloser(dex_file);
-  return Open(dex_file, length, closer);
+RawDexFile* RawDexFile::OpenPtr(byte* ptr, size_t length) {
+  CHECK(ptr != NULL);
+  RawDexFile::Closer* closer = new PtrCloser(ptr);
+  return Open(ptr, length, closer);
 }
 
 RawDexFile* RawDexFile::Open(const byte* dex_file, size_t length,

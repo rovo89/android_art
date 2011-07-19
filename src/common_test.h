@@ -1,10 +1,26 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "src/base64.h"
 #include "src/thread.h"
+#include "src/dex_file.h"
 
 #include "gtest/gtest.h"
 
 namespace art {
+
+static inline RawDexFile* OpenRawDexFileBase64(const char* base64) {
+  CHECK(base64 != NULL);
+  size_t length;
+  byte* dex_file = DecodeBase64(base64, &length);
+  if (dex_file == NULL) {
+    return NULL;
+  }
+  return RawDexFile::OpenPtr(dex_file, length);
+}
+
+static inline DexFile* OpenDexFileBase64(const char* base64) {
+  return DexFile::Open(OpenRawDexFileBase64(base64));
+}
 
 class RuntimeTest : public testing::Test {
  protected:

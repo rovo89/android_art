@@ -203,21 +203,11 @@ class RawDexFile {
     uint32_t code_off_;
   };
 
-  // Helper class to deallocate underlying storage.
-  class Closer {
-   public:
-    virtual ~Closer();
-  };
-
   // Opens a .dex file from the file system.
   static RawDexFile* OpenFile(const char* filename);
 
-  // Opens a .dex file from a base64 encoded array.
-  // TODO: move this into the RawDexFile unit test
-  static RawDexFile* OpenBase64(const char* base64);
-
-  // Opens a .dex file at a the given address.
-  static RawDexFile* Open(const byte* dex_file, size_t length, Closer* closer);
+  // Opens a .dex file from a new allocated pointer
+  static RawDexFile* OpenPtr(byte* ptr, size_t length);
 
   // Closes a .dex file.
   virtual ~RawDexFile();
@@ -440,6 +430,34 @@ class RawDexFile {
   }
 
  private:
+  // Helper class to deallocate underlying storage.
+  class Closer {
+   public:
+    virtual ~Closer();
+  };
+
+  // Helper class to deallocate mmap-backed .dex files.
+  class MmapCloser : public Closer {
+   public:
+    MmapCloser(void* addr, size_t length);
+    virtual ~MmapCloser();
+   private:
+    void* addr_;
+    size_t length_;
+  };
+
+  // Helper class for deallocating new/delete-backed .dex files.
+  class PtrCloser : public Closer {
+   public:
+    PtrCloser(byte* addr);
+    virtual ~PtrCloser();
+   private:
+    byte* addr_;
+  };
+
+  // Opens a .dex file at a the given address.
+  static RawDexFile* Open(const byte* dex_file, size_t length, Closer* closer);
+
   RawDexFile(const byte* addr, size_t length, Closer* closer)
       : base_(addr),
         length_(length),

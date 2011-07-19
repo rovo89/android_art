@@ -15,32 +15,23 @@
 #
 
 include $(CLEAR_VARS)
-
-local_module_tags := tests
-
-include $(build_path)/Android.common.mk
-local_cpp_extension := $(LOCAL_CPP_EXTENSION)
-local_cflags := $(LOCAL_CFLAGS)
-
-local_shared_libraries := \
-	libart
-
-local_c_includes := \
-	external/gtest/include
-
-local_whole_static_libraries := \
-	libgtest_host \
-	libgtest_main_host
+LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
+LOCAL_MODULE := libarttest
+LOCAL_MODULE_TAGS := tests
+LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
+LOCAL_CFLAGS := $(ART_CFLAGS)
+LOCAL_LDLIBS := -lrt
+include $(BUILD_HOST_SHARED_LIBRARY)
 
 $(foreach file,$(TEST_HOST_SRC_FILES), \
   $(eval include $(CLEAR_VARS)) \
-  $(eval LOCAL_CPP_EXTENSION := $(local_cpp_extension)) \
+  $(eval LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)) \
   $(eval LOCAL_MODULE := $(notdir $(file:%.cc=%))) \
-  $(eval LOCAL_MODULE_TAGS := $(local_module_tags)) \
+  $(eval LOCAL_MODULE_TAGS := tests) \
   $(eval LOCAL_SRC_FILES := $(file)) \
-  $(eval LOCAL_CFLAGS := $(local_cflags)) \
-  $(eval LOCAL_C_INCLUDES := $(local_c_includes)) \
-  $(eval LOCAL_WHOLE_STATIC_LIBRARIES := $(local_whole_static_libraries)) \
-  $(eval LOCAL_SHARED_LIBRARIES := $(local_shared_libraries)) \
+  $(eval LOCAL_CFLAGS := $(ART_CFLAGS)) \
+  $(eval LOCAL_C_INCLUDES += external/gtest/include) \
+  $(eval LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host) \
+  $(eval LOCAL_SHARED_LIBRARIES := libarttest libart) \
   $(eval include $(BUILD_HOST_EXECUTABLE)) \
 )

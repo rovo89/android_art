@@ -14,9 +14,9 @@
 # limitations under the License.
 #
 
-LOCAL_CPP_EXTENSION := .cc
+ART_CPP_EXTENSION := .cc
 
-LOCAL_CFLAGS := \
+ART_CFLAGS := \
 	-O0 \
 	-ggdb3 \
 	-Wall \
@@ -27,20 +27,11 @@ LOCAL_CFLAGS := \
 	-fno-align-jumps \
 	-fstrict-aliasing
 
-ifeq ($(TARGET_ARCH),arm)
-LOCAL_CFLAGS +=
-endif
-
-ifeq ($(TARGET_ARCH),x86)
-LOCAL_CFLAGS +=
-endif
-
 AEXEC_SRC_FILES := \
 	src/main.cc
 
 LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
-	src/base64.cc \
 	src/class_linker.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
@@ -64,6 +55,9 @@ LIBART_HOST_SRC_FILES := \
 	src/assembler_x86.cc \
 	src/logging_linux.cc \
 	src/runtime_linux.cc
+
+LIBARTTEST_COMMON_SRC_FILES := \
+	src/base64.cc
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \

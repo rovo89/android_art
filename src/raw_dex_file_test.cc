@@ -11,12 +11,12 @@
 namespace art {
 
 TEST(RawDexFileTest, Open) {
-  scoped_ptr<RawDexFile> raw(RawDexFile::OpenBase64(kNestedDex));
+  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
   ASSERT_TRUE(raw != NULL);
 }
 
 TEST(RawDexFileTest, Header) {
-  scoped_ptr<RawDexFile> raw(RawDexFile::OpenBase64(kNestedDex));
+  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
   ASSERT_TRUE(raw != NULL);
 
   const RawDexFile::Header& header = raw->GetHeader();
@@ -44,7 +44,7 @@ TEST(RawDexFileTest, Header) {
 }
 
 TEST(RawDexFileTest, ClassDefs) {
-  scoped_ptr<RawDexFile> raw(RawDexFile::OpenBase64(kNestedDex));
+  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(2U, raw->NumClassDefs());
 

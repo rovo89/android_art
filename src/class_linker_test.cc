@@ -11,7 +11,7 @@ namespace art {
 class ClassLinkerTest : public RuntimeTest {};
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
-  scoped_ptr<DexFile> dex(DexFile::OpenBase64(kMyClassDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
   ASSERT_TRUE(dex != NULL);
 
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
@@ -24,9 +24,9 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  scoped_ptr<DexFile> objectDex(DexFile::OpenBase64(kJavaLangDex));
+  scoped_ptr<DexFile> objectDex(OpenDexFileBase64(kJavaLangDex));
   ASSERT_TRUE(objectDex != NULL);
-  scoped_ptr<DexFile> nestedDex(DexFile::OpenBase64(kNestedDex));
+  scoped_ptr<DexFile> nestedDex(OpenDexFileBase64(kNestedDex));
   ASSERT_TRUE(nestedDex != NULL);
 
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
@@ -122,7 +122,7 @@ TEST_F(ClassLinkerTest, FindClass) {
     }
   }
 
-  scoped_ptr<DexFile> dex(DexFile::OpenBase64(kMyClassDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
   ASSERT_TRUE(dex != NULL);
   linker->AppendToClassPath(dex.get());
 

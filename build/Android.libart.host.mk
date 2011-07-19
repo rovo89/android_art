@@ -15,21 +15,11 @@
 #
 
 include $(CLEAR_VARS)
-
+LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
-
-include $(build_path)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
-
-LOCAL_WHOLE_STATIC_LIBRARIES := \
-	libcutils \
-	liblog \
-	libz
-
-LOCAL_LDLIBS := \
-	-ldl \
-	-lpthread \
-	-lrt
-
+LOCAL_CFLAGS := $(ART_CFLAGS)
+LOCAL_WHOLE_STATIC_LIBRARIES := libcutils liblog libz
+LOCAL_LDLIBS := -ldl -lpthread -lrt
 include $(BUILD_HOST_SHARED_LIBRARY)

@@ -15,21 +15,12 @@
 #
 
 include $(CLEAR_VARS)
-
+include external/stlport/libstlport.mk
+LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
 LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
-
-include $(build_path)/Android.common.mk
 LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
-
-include external/stlport/libstlport.mk
-
-LOCAL_STATIC_LIBRARIES := \
-	libcutils \
-	liblog \
-	libz
-
-LOCAL_SHARED_LIBRARIES := \
-	libstlport
-
+LOCAL_CFLAGS := $(ART_CFLAGS)
+LOCAL_STATIC_LIBRARIES := libcutils liblog libz
+LOCAL_SHARED_LIBRARIES := libstlport
 include $(BUILD_SHARED_LIBRARY)

@@ -15,16 +15,10 @@
 #
 
 include $(CLEAR_VARS)
-
+LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
 LOCAL_MODULE := aexec
 LOCAL_MODULE_TAGS := optional
-
-include $(build_path)/Android.common.mk
 LOCAL_SRC_FILES := $(AEXEC_SRC_FILES)
-
-LOCAL_C_INCLUDES :=
-
-LOCAL_SHARED_LIBRARIES := \
-	libart
-
+LOCAL_CFLAGS := $(ART_CFLAGS)
+LOCAL_SHARED_LIBRARIES := libart
 include $(BUILD_HOST_EXECUTABLE)
