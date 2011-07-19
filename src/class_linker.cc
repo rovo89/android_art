@@ -108,7 +108,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     }
     ClassPathEntry pair = FindInClassPath(descriptor);
     if (pair.first == NULL) {
-      LG << "Class " << descriptor << " not found"; // TODO: NoClassDefFoundError
+      LG << "Class " << descriptor << " not found";  // TODO: NoClassDefFoundError
       return NULL;
     }
     DexFile* dex_file = pair.first;
@@ -365,80 +365,74 @@ Class* ClassLinker::CreatePrimitiveClass(const StringPiece& descriptor) {
   return klass;
 }
 
-/*
- * Create an array class (i.e. the class object for the array, not the
- * array itself).  "descriptor" looks like "[C" or "[[[[B" or
- * "[Ljava/lang/String;".
- *
- * If "descriptor" refers to an array of primitives, look up the
- * primitive type's internally-generated class object.
- *
- * "loader" is the class loader of the class that's referring to us.  It's
- * used to ensure that we're looking for the element type in the right
- * context.  It does NOT become the class loader for the array class; that
- * always comes from the base element class.
- *
- * Returns NULL with an exception raised on failure.
- */
+// Create an array class (i.e. the class object for the array, not the
+// array itself).  "descriptor" looks like "[C" or "[[[[B" or
+// "[Ljava/lang/String;".
+//
+// If "descriptor" refers to an array of primitives, look up the
+// primitive type's internally-generated class object.
+//
+// "loader" is the class loader of the class that's referring to us.  It's
+// used to ensure that we're looking for the element type in the right
+// context.  It does NOT become the class loader for the array class; that
+// always comes from the base element class.
+//
+// Returns NULL with an exception raised on failure.
 Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor, Object* class_loader)
 {
     CHECK(descriptor[0] == '[');
     DCHECK(java_lang_Class_ != NULL);
     DCHECK(java_lang_Object_ != NULL);
 
-    /*
-     * Identify the underlying element class and the array dimension depth.
-     */
+    // Identify the underlying element class and the array dimension depth.
     Class* component_type_ = NULL;
     int array_rank;
     if (descriptor[1] == '[') {
-        /* array of arrays; keep descriptor and grab stuff from parent */
+        // array of arrays; keep descriptor and grab stuff from parent
         Class* outer = FindClass(descriptor.substr(1), class_loader);
         if (outer != NULL) {
-            /* want the base class, not "outer", in our component_type_ */
+            // want the base class, not "outer", in our component_type_
             component_type_ = outer->component_type_;
             array_rank = outer->array_rank_ + 1;
         } else {
-            DCHECK(component_type_ == NULL);     /* make sure we fail */
+            DCHECK(component_type_ == NULL);  // make sure we fail
         }
     } else {
         array_rank = 1;
         if (descriptor[1] == 'L') {
-            /* array of objects; strip off "[" and look up descriptor. */
+            // array of objects; strip off "[" and look up descriptor.
             const StringPiece subDescriptor = descriptor.substr(1);
             LG << "searching for element class '" << subDescriptor << "'";
-            component_type_ = FindClass(subDescriptor, class_loader); // TODO FindClassNoInit
+            component_type_ = FindClass(subDescriptor, class_loader);  // TODO FindClassNoInit
         } else {
-            /* array of a primitive type */
+            // array of a primitive type
             component_type_ = FindPrimitiveClass(descriptor[1]);
         }
     }
 
     if (component_type_ == NULL) {
-        /* failed */
+        // failed
         DCHECK(Thread::Current()->IsExceptionPending());
         return NULL;
     }
 
-    /*
-     * See if the component type is already loaded.  Array classes are
-     * always associated with the class loader of their underlying
-     * element type -- an array of Strings goes with the loader for
-     * java/lang/String -- so we need to look for it there.  (The
-     * caller should have checked for the existence of the class
-     * before calling here, but they did so with *their* class loader,
-     * not the component type's loader.)
-     *
-     * If we find it, the caller adds "loader" to the class' initiating
-     * loader list, which should prevent us from going through this again.
-     *
-     * This call is unnecessary if "loader" and "component_type_->class_loader_"
-     * are the same, because our caller (FindClass) just did the
-     * lookup.  (Even if we get this wrong we still have correct behavior,
-     * because we effectively do this lookup again when we add the new
-     * class to the hash table --- necessary because of possible races with
-     * other threads.)
-     */
+    // See if the component type is already loaded.  Array classes are
+    // always associated with the class loader of their underlying
+    // element type -- an array of Strings goes with the loader for
+    // java/lang/String -- so we need to look for it there.  (The
+    // caller should have checked for the existence of the class
+    // before calling here, but they did so with *their* class loader,
+    // not the component type's loader.)
+    //
+    // If we find it, the caller adds "loader" to the class' initiating
+    // loader list, which should prevent us from going through this again.
+    //
+    // This call is unnecessary if "loader" and "component_type_->class_loader_"
+    // are the same, because our caller (FindClass) just did the
+    // lookup.  (Even if we get this wrong we still have correct behavior,
+    // because we effectively do this lookup again when we add the new
+    // class to the hash table --- necessary because of possible races with
+    // other threads.)
     if (class_loader != component_type_->class_loader_) {
         Class* new_class = LookupClass(descriptor, component_type_->class_loader_);
         if (new_class != NULL) {
@@ -446,16 +440,14 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor, Object* clas
         }
     }
 
-    /*
-     * Fill out the fields in the Class.
-     *
-     * It is possible to execute some methods against arrays, because
-     * all arrays are subclasses of java_lang_Object_, so we need to set
-     * up a vtable.  We can just point at the one in java_lang_Object_.
-     *
-     * Array classes are simple enough that we don't need to do a full
-     * link step.
-     */
+    // Fill out the fields in the Class.
+    //
+    // It is possible to execute some methods against arrays, because
+    // all arrays are subclasses of java_lang_Object_, so we need to set
+    // up a vtable.  We can just point at the one in java_lang_Object_.
+    //
+    // Array classes are simple enough that we don't need to do a full
+    // link step.
     Class* new_class = AllocClass(NULL);
     if (new_class == NULL) {
       return NULL;
@@ -472,66 +464,58 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor, Object* clas
     new_class->class_loader_ = component_type_->class_loader_;
     new_class->array_rank_ = array_rank;
     new_class->status_ = Class::kStatusInitialized;
+    // don't need to set new_class->object_size_
 
-    /* don't need to set new_class->object_size_ */
 
-    /*
-     * All arrays have java/lang/Cloneable and java/io/Serializable as
-     * interfaces.  We need to set that up here, so that stuff like
-     * "instanceof" works right.
-     *
-     * Note: The GC could run during the call to FindSystemClassNoInit(),
-     * so we need to make sure the class object is GC-valid while we're in
-     * there.  Do this by clearing the interface list so the GC will just
-     * think that the entries are null.
-     *
-     * TODO?
-     * We may want to create a single, global copy of "interfaces" and
-     * "iftable" somewhere near the start and just point to those (and
-     * remember not to free them for arrays).
-     */
+    // All arrays have java/lang/Cloneable and java/io/Serializable as
+    // interfaces.  We need to set that up here, so that stuff like
+    // "instanceof" works right.
+    //
+    // Note: The GC could run during the call to FindSystemClassNoInit(),
+    // so we need to make sure the class object is GC-valid while we're in
+    // there.  Do this by clearing the interface list so the GC will just
+    // think that the entries are null.
+    //
+    // TODO?
+    // We may want to create a single, global copy of "interfaces" and
+    // "iftable" somewhere near the start and just point to those (and
+    // remember not to free them for arrays).
     new_class->interface_count_ = 2;
     new_class->interfaces_ = new Class*[2];
     memset(new_class->interfaces_, 0, sizeof(Class*) * 2);
     new_class->interfaces_[0] = java_lang_Cloneable_;
     new_class->interfaces_[1] = java_io_Serializable_;
-    /*
-     * We assume that Cloneable/Serializable don't have superinterfaces --
-     * normally we'd have to crawl up and explicitly list all of the
-     * supers as well.  These interfaces don't have any methods, so we
-     * don't have to worry about the ifviPool either.
-     */
+
+    // We assume that Cloneable/Serializable don't have superinterfaces --
+    // normally we'd have to crawl up and explicitly list all of the
+    // supers as well.  These interfaces don't have any methods, so we
+    // don't have to worry about the ifviPool either.
     new_class->iftable_count_ = 2;
     new_class->iftable_ = new InterfaceEntry[2];
     memset(new_class->iftable_, 0, sizeof(InterfaceEntry) * 2);
     new_class->iftable_[0].SetClass(new_class->interfaces_[0]);
     new_class->iftable_[1].SetClass(new_class->interfaces_[1]);
 
-    /*
-     * Inherit access flags from the component type.  Arrays can't be
-     * used as a superclass or interface, so we want to add "final"
-     * and remove "interface".
-     *
-     * Don't inherit any non-standard flags (e.g., kAccFinal)
-     * from component_type_.  We assume that the array class does not
-     * override finalize().
-     */
+    // Inherit access flags from the component type.  Arrays can't be
+    // used as a superclass or interface, so we want to add "final"
+    // and remove "interface".
+    //
+    // Don't inherit any non-standard flags (e.g., kAccFinal)
+    // from component_type_.  We assume that the array class does not
+    // override finalize().
     new_class->access_flags_ = ((new_class->component_type_->access_flags_ &
                                  ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask;
 
     if (InsertClass(new_class)) {
       return new_class;
     }
-    /*
-     * Another thread must have loaded the class after we
-     * started but before we finished.  Abandon what we've
-     * done.
-     *
-     * (Yes, this happens.)
-     */
+    // Another thread must have loaded the class after we
+    // started but before we finished.  Abandon what we've
+    // done.
+    //
+    // (Yes, this happens.)
 
-    /* Grab the winning class.
-     */
+    // Grab the winning class.
     Class* other_class = LookupClass(descriptor, component_type_->class_loader_);
     DCHECK(other_class != NULL);
     return other_class;
@@ -654,10 +638,8 @@ bool ClassLinker::InitializeClass(Class* klass) {
       DCHECK(klass->GetStatus() == Class::kStatusInitialized ||
              klass->GetStatus() == Class::kStatusError);
       if (klass->IsErroneous()) {
-        /*
-         * The caller wants an exception, but it was thrown in a
-         * different thread.  Synthesize one here.
-         */
+        // The caller wants an exception, but it was thrown in a
+        // different thread.  Synthesize one here.
         LG << "<clinit> failed";  // TODO: throw UnsatisfiedLinkError
         return false;
       }
@@ -1022,7 +1004,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
         if (local_method->HasSameNameAndPrototype(super_method)) {
           // Verify
           if (super_method->IsFinal()) {
-            LG << "Method overrides final method"; // TODO: VirtualMachineError
+            LG << "Method overrides final method";  // TODO: VirtualMachineError
             return false;
           }
           klass->vtable_[j] = local_method;
@@ -1246,7 +1228,8 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
 
     if (c != 'J' && c != 'D') {
       // The field that comes next is 32-bit, so just advance past it.
-      DCHECK(c != '[' && c != 'L');
+      DCHECK(c != '[');
+      DCHECK(c != 'L');
       pField->SetOffset(field_offset);
       field_offset += sizeof(uint32_t);
       i++;
@@ -1303,29 +1286,28 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
   }
 
 #ifndef NDEBUG
-  /* Make sure that all reference fields appear before
-   * non-reference fields, and all double-wide fields are aligned.
-   */
-  j = 0;  // seen non-ref
+  // Make sure that all reference fields appear before
+  // non-reference fields, and all double-wide fields are aligned.
+  bool seen_non_ref = false;
   for (i = 0; i < klass->NumInstanceFields(); i++) {
-    InstanceField *pField = &klass->ifields[i];
+    InstanceField *pField = klass->GetInstanceField(i);
     char c = pField->GetType();
 
     if (c == 'D' || c == 'J') {
-      DCHECK((pField->offset_ & 0x07) == 0);
+      DCHECK_EQ(0U, pField->GetOffset() & 0x07);
     }
 
     if (c != '[' && c != 'L') {
-      if (!j) {
-        DCHECK(i == klass->num_reference_ifields_);
-        j = 1;
+      if (!seen_non_ref) {
+        seen_non_ref = true;
+        DCHECK_EQ(klass->num_reference_ifields_, i);
       }
-    } else if (j) {
-      DCHECK(false);
+    } else {
+      DCHECK(!seen_non_ref);
     }
   }
-  if (!j) {
-    DCHECK(klass->num_reference_ifields_ == klass->NumInstanceFields());
+  if (!seen_non_ref) {
+    DCHECK(klass->NumInstanceFields(), klass->num_reference_ifields_);
   }
 #endif
 

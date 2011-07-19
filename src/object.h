@@ -33,31 +33,31 @@ union JValue {
   Object* l;
 };
 
-static const uint32_t kAccPublic = 0x0001; // class, field, method, ic
-static const uint32_t kAccPrivate = 0x0002; // field, method, ic
-static const uint32_t kAccProtected = 0x0004; // field, method, ic
-static const uint32_t kAccStatic = 0x0008; // field, method, ic
-static const uint32_t kAccFinal = 0x0010; // class, field, method, ic
-static const uint32_t kAccSynchronized = 0x0020; // method (only allowed on natives)
-static const uint32_t kAccSuper = 0x0020; // class (not used in Dalvik)
-static const uint32_t kAccVolatile = 0x0040; // field
-static const uint32_t kAccBridge = 0x0040; // method (1.5)
-static const uint32_t kAccTransient = 0x0080; // field
-static const uint32_t kAccVarargs = 0x0080; // method (1.5)
-static const uint32_t kAccNative = 0x0100; // method
-static const uint32_t kAccInterface = 0x0200; // class, ic
-static const uint32_t kAccAbstract = 0x0400; // class, method, ic
-static const uint32_t kAccStrict = 0x0800; // method
-static const uint32_t kAccSynthetic = 0x1000; // field, method, ic
-static const uint32_t kAccAnnotation = 0x2000; // class, ic (1.5)
-static const uint32_t kAccEnum = 0x4000; // class, field, ic (1.5)
+static const uint32_t kAccPublic = 0x0001;  // class, field, method, ic
+static const uint32_t kAccPrivate = 0x0002;  // field, method, ic
+static const uint32_t kAccProtected = 0x0004;  // field, method, ic
+static const uint32_t kAccStatic = 0x0008;  // field, method, ic
+static const uint32_t kAccFinal = 0x0010;  // class, field, method, ic
+static const uint32_t kAccSynchronized = 0x0020;  // method (only allowed on natives)
+static const uint32_t kAccSuper = 0x0020;  // class (not used in Dalvik)
+static const uint32_t kAccVolatile = 0x0040;  // field
+static const uint32_t kAccBridge = 0x0040;  // method (1.5)
+static const uint32_t kAccTransient = 0x0080;  // field
+static const uint32_t kAccVarargs = 0x0080;  // method (1.5)
+static const uint32_t kAccNative = 0x0100;  // method
+static const uint32_t kAccInterface = 0x0200;  // class, ic
+static const uint32_t kAccAbstract = 0x0400;  // class, method, ic
+static const uint32_t kAccStrict = 0x0800;  // method
+static const uint32_t kAccSynthetic = 0x1000;  // field, method, ic
+static const uint32_t kAccAnnotation = 0x2000;  // class, ic (1.5)
+static const uint32_t kAccEnum = 0x4000;  // class, field, ic (1.5)
 
 static const uint32_t kAccMiranda = 0x8000;  // method
 
 static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources (low 16)
 
-static const uint32_t kAccConstructor = 0x00010000; // method (Dalvik only)
-static const uint32_t kAccDeclaredSynchronized = 0x00020000; // method (Dalvik only)
+static const uint32_t kAccConstructor = 0x00010000;  // method (Dalvik only)
+static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik only)
 
 /*
  * Definitions for packing refOffsets in Class.
