@@ -33,20 +33,6 @@ union JValue {
   Object* l;
 };
 
-enum JType {
-  kTypeByte = 'B',
-  kTypeChar = 'C',
-  kTypeDouble = 'D',
-  kTypeFloat = 'F',
-  kTypeInt = 'I',
-  kTypeLong = 'J',
-  kTypeShort = 'S',
-  kTypeBoolean = 'Z',
-  kTypeClass = 'L',
-  kTypeArray= '[',
-  kTypeVoid = 'V',
-};
-
 static const uint32_t kAccPublic = 0x0001; // class, field, method, ic
 static const uint32_t kAccPrivate = 0x0002; // field, method, ic
 static const uint32_t kAccProtected = 0x0004; // field, method, ic
@@ -68,12 +54,13 @@ static const uint32_t kAccEnum = 0x4000; // class, field, ic (1.5)
 
 static const uint32_t kAccMiranda = 0x8000;  // method
 
+static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources (low 16)
+
 static const uint32_t kAccConstructor = 0x00010000; // method (Dalvik only)
 static const uint32_t kAccDeclaredSynchronized = 0x00020000; // method (Dalvik only)
 
-
 /*
- * Definitions for packing refOffsets in ClassObject.
+ * Definitions for packing refOffsets in Class.
  */
 /*
  * A magic value for refOffsets. Ignore the bits and walk the super
@@ -622,7 +609,7 @@ class Class : public Object {
 
   // Proxy classes have their descriptor allocated on the native heap.
   // When this field is non-NULL it must be explicitly freed.
-  char* descriptor_alloc_;
+  std::string* descriptor_alloc_;
 
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;  // TODO: make an instance field?
@@ -714,7 +701,7 @@ class Class : public Object {
   // These describe the layout of the contents of a
   // DataObject-compatible Object.  Note that only the fields directly
   // declared by this class are listed in ifields; fields declared by
-  // a superclass are listed in the superclass's ClassObject.ifields.
+  // a superclass are listed in the superclass's Class.ifields.
   //
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  ifieldRefCount specifies the

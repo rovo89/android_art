@@ -10,7 +10,7 @@ namespace art {
 
 class TestVisitor : public DexInstructionVisitor<TestVisitor> {};
 
-TEST(Instruction, Init) {
+TEST(InstructionTest, Init) {
   scoped_ptr<TestVisitor> visitor(new TestVisitor);
 }
 
@@ -25,7 +25,7 @@ class CountVisitor : public DexInstructionVisitor<CountVisitor> {
   }
 };
 
-TEST(Instruction, Count) {
+TEST(InstructionTest, Count) {
   CountVisitor v0;
   uint16_t c0[] = {};
   v0.Visit(c0, sizeof(c0));

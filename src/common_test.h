@@ -1,6 +1,39 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "src/thread.h"
+
+#include "gtest/gtest.h"
+
 namespace art {
+
+class RuntimeTest : public testing::Test {
+ protected:
+  virtual void SetUp() {
+    ASSERT_TRUE(Thread::Init());
+    ASSERT_TRUE(Thread::Attach() != NULL);
+  }
+};
+
+// package java.lang;
+// public class Object {}
+//
+// package java.lang;
+// public interface Cloneable {}
+//
+// package java.io;
+// public interface Serializable {}
+static const char kJavaLangDex[] =
+  "ZGV4CjAzNQAdS5NB20pfz7Z3u9Jh2IVuB3Hxe6BzR9FAAgAAcAAAAHhWNBIAAAAAAAAAALgBAAAI"
+  "AAAAcAAAAAQAAACQAAAAAQAAAKAAAAAAAAAAAAAAAAEAAACsAAAAAwAAALQAAAAsAQAAFAEAACgB"
+  "AAAwAQAAQAEAAFgBAABvAQAAgwEAAJABAACjAQAAAgAAAAMAAAAEAAAABwAAAAcAAAADAAAAAAAA"
+  "AAIAAAAAAAAAAgAAAAEAAAD/////AAAAAAUAAAAAAAAAqwEAAAAAAAAAAAAAAQYAAAIAAAAAAAAA"
+  "BgAAAAAAAAAAAAAAAAAAAAEAAAABBgAAAgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQABAAAAAACm"
+  "AQAAAQAAAA4AAAAGPGluaXQ+AA5DbG9uZWFibGUuamF2YQAWTGphdmEvaW8vU2VyaWFsaXphYmxl"
+  "OwAVTGphdmEvbGFuZy9DbG9uZWFibGU7ABJMamF2YS9sYW5nL09iamVjdDsAC09iamVjdC5qYXZh"
+  "ABFTZXJpYWxpemFibGUuamF2YQABVgADAAcOAAAAAQAAgYAElAIAAAALAAAAAAAAAAEAAAAAAAAA"
+  "AQAAAAgAAABwAAAAAgAAAAQAAACQAAAAAwAAAAEAAACgAAAABQAAAAEAAACsAAAABgAAAAMAAAC0"
+  "AAAAASAAAAEAAAAUAQAAAiAAAAgAAAAoAQAAAyAAAAEAAACmAQAAACAAAAEAAACrAQAAABAAAAEA"
+  "AAC4AQAA";
 
 // package java.lang;
 // public class Object {}

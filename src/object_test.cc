@@ -13,7 +13,9 @@
 
 namespace art {
 
-TEST(Object, IsInSamePackage) {
+class ObjectTest : public RuntimeTest {};
+
+TEST_F(ObjectTest, IsInSamePackage) {
   // Matches
   EXPECT_TRUE(Class::IsInSamePackage("Ljava/lang/Object;",
                                      "Ljava/lang/Class"));
@@ -27,18 +29,22 @@ TEST(Object, IsInSamePackage) {
                                       "Ljava/lang/reflect/Method;"));
 }
 
+class MethodTest : public RuntimeTest {};
+
 // TODO: test 0 argument methods
 // TODO: make this test simpler and shorter
-TEST(Method, ProtoCompare) {
-  scoped_ptr<DexFile> dex_file(DexFile::OpenBase64(kProtoCompareDex));
-  ASSERT_TRUE(dex_file != NULL);
+TEST_F(MethodTest, ProtoCompare) {
+  scoped_ptr<DexFile> object_dex_file(DexFile::OpenBase64(kJavaLangDex));
+  ASSERT_TRUE(object_dex_file != NULL);
+  scoped_ptr<DexFile> proto_dex_file(DexFile::OpenBase64(kProtoCompareDex));
+  ASSERT_TRUE(proto_dex_file != NULL);
 
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
-  linker->AppendToClassPath(dex_file.get());
+  linker->AppendToClassPath(object_dex_file.get());
+  linker->AppendToClassPath(proto_dex_file.get());
 
-  scoped_ptr<Class> klass(linker.get()->AllocClass(dex_file.get()));
-  bool result = linker->LoadClass("LProtoCompare;", klass.get());
-  ASSERT_TRUE(result);
+  Class* klass = linker->FindClass("LProtoCompare;", NULL);
+  ASSERT_TRUE(klass != NULL);
 
   ASSERT_EQ(4U, klass->NumVirtualMethods());
 
@@ -85,22 +91,24 @@ TEST(Method, ProtoCompare) {
   EXPECT_FALSE(m1->HasSameNameAndPrototype(m2));
 }
 
-TEST(Method, ProtoCompare2) {
-  scoped_ptr<DexFile> dex_file1(DexFile::OpenBase64(kProtoCompareDex));
-  ASSERT_TRUE(dex_file1 != NULL);
-  scoped_ptr<DexFile> dex_file2(DexFile::OpenBase64(kProtoCompare2Dex));
-  ASSERT_TRUE(dex_file2 != NULL);
+TEST_F(MethodTest, ProtoCompare2) {
+  scoped_ptr<DexFile> object_dex_file(DexFile::OpenBase64(kJavaLangDex));
+  ASSERT_TRUE(object_dex_file != NULL);
+  scoped_ptr<DexFile> proto1_dex_file(DexFile::OpenBase64(kProtoCompareDex));
+  ASSERT_TRUE(proto1_dex_file != NULL);
+  scoped_ptr<DexFile> proto2_dex_file(DexFile::OpenBase64(kProtoCompare2Dex));
+  ASSERT_TRUE(proto2_dex_file != NULL);
   scoped_ptr<ClassLinker> linker1(ClassLinker::Create());
-  linker1->AppendToClassPath(dex_file1.get());
+  linker1->AppendToClassPath(object_dex_file.get());
+  linker1->AppendToClassPath(proto1_dex_file.get());
   scoped_ptr<ClassLinker> linker2(ClassLinker::Create());
-  linker2->AppendToClassPath(dex_file2.get());
+  linker2->AppendToClassPath(object_dex_file.get());
+  linker2->AppendToClassPath(proto2_dex_file.get());
 
-  scoped_ptr<Class> klass1(linker1.get()->AllocClass(dex_file1.get()));
-  bool result1 = linker1->LoadClass("LProtoCompare;", klass1.get());
-  ASSERT_TRUE(result1);
-  scoped_ptr<Class> klass2(linker2.get()->AllocClass(dex_file2.get()));
-  bool result2 = linker2->LoadClass("LProtoCompare2;", klass2.get());
-  ASSERT_TRUE(result2);
+  Class* klass1 = linker1->FindClass("LProtoCompare;", NULL);
+  ASSERT_TRUE(klass1 != NULL);
+  Class* klass2 = linker2->FindClass("LProtoCompare2;", NULL);
+  ASSERT_TRUE(klass2 != NULL);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);
   ASSERT_EQ("m1", m1_1->GetName());

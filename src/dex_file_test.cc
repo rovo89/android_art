@@ -10,7 +10,7 @@
 
 namespace art {
 
-TEST(DexFile, Open) {
+TEST(DexFileTest, Open) {
   scoped_ptr<DexFile> dex(DexFile::OpenBase64(kNestedDex));
   ASSERT_TRUE(dex != NULL);
 }

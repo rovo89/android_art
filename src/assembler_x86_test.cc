@@ -5,6 +5,6 @@
 #include <stdio.h>
 #include "gtest/gtest.h"
 
-TEST(AssemblerX86, Init) {
+TEST(AssemblerX86Test, Init) {
   ASSERT_TRUE(true);
 }

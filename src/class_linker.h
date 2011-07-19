@@ -33,11 +33,7 @@ class ClassLinker {
     return FindClass(descriptor, NULL);
   }
 
-  bool LoadClass(const StringPiece& descriptor, Class* klass);
-
-  bool LoadClass(const RawDexFile::ClassDef& class_def, Class* klass);
-
-  Class* FindPrimitiveClass(JType type);
+  Class* FindPrimitiveClass(char type);
 
   bool InitializeClass(Class* klass);
 
@@ -58,7 +54,11 @@ class ClassLinker {
 
   void Init();
 
-  Class* CreatePrimitiveClass(JType type, const char* descriptor);
+  Class* CreatePrimitiveClass(const StringPiece& descriptor);
+
+  Class* CreateArrayClass(const StringPiece& descriptor, Object* class_loader);
+
+  void LoadClass(const RawDexFile::ClassDef& class_def, Class* klass);
 
   void LoadInterfaces(const RawDexFile::ClassDef& class_def, Class *klass);
 
@@ -113,6 +113,14 @@ class ClassLinker {
 
   // TODO: classpath
 
+  Class* java_lang_Class_;
+  Class* java_lang_Object_;
+  Class* java_lang_ref_Field_;
+  Class* java_lang_ref_Method_;
+  Class* java_lang_Cloneable_;
+  Class* java_io_Serializable_;
+  Class* java_lang_String_;
+
   Class* primitive_boolean_;
   Class* primitive_char_;
   Class* primitive_float_;
@@ -123,11 +131,6 @@ class ClassLinker {
   Class* primitive_long_;
   Class* primitive_void_;
 
-  Class* java_lang_Class_;
-  Class* java_lang_Object_;
-  Class* java_lang_ref_Field_;
-  Class* java_lang_ref_Method_;
-  Class* java_lang_String_;
   Class* char_array_class_;
 
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
