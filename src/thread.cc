@@ -62,6 +62,7 @@ Thread* Thread::Create(size_t stack_size) {
   }
 
   Thread* new_thread = new Thread;
+  new_thread->InitCpu();
   new_thread->stack_limit_ = static_cast<byte*>(stack_limit);
   new_thread->stack_base_ = new_thread->stack_limit_ + length;
 
@@ -79,14 +80,12 @@ Thread* Thread::Create(size_t stack_size) {
   result = pthread_attr_destroy(&attr);
   CHECK_EQ(result, 0);
 
-  InitCpu();
-
   return new_thread;
 }
 
 Thread* Thread::Attach() {
   Thread* thread = new Thread;
-
+  thread->InitCpu();
   thread->stack_limit_ = reinterpret_cast<byte*>(-1);  // TODO: getrlimit
   uintptr_t addr = reinterpret_cast<uintptr_t>(&thread);  // TODO: ask pthreads
   uintptr_t stack_base = RoundUp(addr, 4096);
@@ -101,8 +100,6 @@ Thread* Thread::Attach() {
   if (errno != 0) {
       PLOG(FATAL) << "pthread_setspecific failed";
   }
-
-  InitCpu();
 
   return thread;
 }
