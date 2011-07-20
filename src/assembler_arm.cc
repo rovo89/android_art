@@ -2,6 +2,7 @@
 
 #include "src/assembler.h"
 #include "src/logging.h"
+#include "src/utils.h"
 
 namespace art {
 
@@ -69,7 +70,7 @@ std::ostream& operator<<(std::ostream& os, const Register& rhs) {
   if (rhs >= R0 && rhs <= PC) {
     os << kRegisterNames[rhs];
   } else {
-     os << "Register[" << int(rhs) << "]";
+    os << "Register[" << static_cast<int>(rhs) << "]";
   }
   return os;
 }
@@ -77,9 +78,9 @@ std::ostream& operator<<(std::ostream& os, const Register& rhs) {
 
 std::ostream& operator<<(std::ostream& os, const SRegister& rhs) {
   if (rhs >= S0 && rhs < kNumberOfSRegisters) {
-    os << "s" << int(rhs);
+    os << "s" << static_cast<int>(rhs);
   } else {
-    os << "SRegister[" << int(rhs) << "]";
+    os << "SRegister[" << static_cast<int>(rhs) << "]";
   }
   return os;
 }
@@ -87,22 +88,23 @@ std::ostream& operator<<(std::ostream& os, const SRegister& rhs) {
 
 std::ostream& operator<<(std::ostream& os, const DRegister& rhs) {
   if (rhs >= D0 && rhs < kNumberOfDRegisters) {
-    os << "d" << int(rhs);
+    os << "d" << static_cast<int>(rhs);
   } else {
-    os << "DRegister[" << int(rhs) << "]";
+    os << "DRegister[" << static_cast<int>(rhs) << "]";
   }
   return os;
 }
 
 
 static const char* kConditionNames[] = {
-  "EQ", "NE", "CS", "CC", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT", "LE", "AL",
+  "EQ", "NE", "CS", "CC", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT",
+  "LE", "AL",
 };
 std::ostream& operator<<(std::ostream& os, const Condition& rhs) {
   if (rhs >= EQ && rhs <= AL) {
     os << kConditionNames[rhs];
   } else {
-    os << "Condition[" << int(rhs) << "]";
+    os << "Condition[" << static_cast<int>(rhs) << "]";
   }
   return os;
 }
@@ -1076,6 +1078,7 @@ void Assembler::EncodeUint32InTstInstructions(uint32_t data) {
   tst(R0, ShifterOperand(data), MI);
 }
 
+
 int32_t Assembler::EncodeBranchOffset(int offset, int32_t inst) {
   // The offset is off by 8 due to the way the ARM CPUs read PC.
   offset -= 8;
@@ -1092,6 +1095,417 @@ int32_t Assembler::EncodeBranchOffset(int offset, int32_t inst) {
 int Assembler::DecodeBranchOffset(int32_t inst) {
   // Sign-extend, left-shift by 2, then add 8.
   return ((((inst & kBranchOffsetMask) << 8) >> 6) + 8);
+}
+
+void Assembler::AddConstant(Register rd, int32_t value, Condition cond) {
+  AddConstant(rd, rd, value, cond);
+}
+
+
+void Assembler::AddConstant(Register rd, Register rn, int32_t value,
+                            Condition cond) {
+  if (value == 0) {
+    if (rd != rn) {
+      mov(rd, ShifterOperand(rn), cond);
+    }
+    return;
+  }
+  // We prefer to select the shorter code sequence rather than selecting add for
+  // positive values and sub for negatives ones, which would slightly improve
+  // the readability of generated code for some constants.
+  ShifterOperand shifter_op;
+  if (ShifterOperand::CanHold(value, &shifter_op)) {
+    add(rd, rn, shifter_op, cond);
+  } else if (ShifterOperand::CanHold(-value, &shifter_op)) {
+    sub(rd, rn, shifter_op, cond);
+  } else {
+    CHECK(rn != IP);
+    if (ShifterOperand::CanHold(~value, &shifter_op)) {
+      mvn(IP, shifter_op, cond);
+      add(rd, rn, ShifterOperand(IP), cond);
+    } else if (ShifterOperand::CanHold(~(-value), &shifter_op)) {
+      mvn(IP, shifter_op, cond);
+      sub(rd, rn, ShifterOperand(IP), cond);
+    } else {
+      movw(IP, Low16Bits(value), cond);
+      uint16_t value_high = High16Bits(value);
+      if (value_high != 0) {
+        movt(IP, value_high, cond);
+      }
+      add(rd, rn, ShifterOperand(IP), cond);
+    }
+  }
+}
+
+
+void Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
+                                    Condition cond) {
+  ShifterOperand shifter_op;
+  if (ShifterOperand::CanHold(value, &shifter_op)) {
+    adds(rd, rn, shifter_op, cond);
+  } else if (ShifterOperand::CanHold(-value, &shifter_op)) {
+    subs(rd, rn, shifter_op, cond);
+  } else {
+    CHECK(rn != IP);
+    if (ShifterOperand::CanHold(~value, &shifter_op)) {
+      mvn(IP, shifter_op, cond);
+      adds(rd, rn, ShifterOperand(IP), cond);
+    } else if (ShifterOperand::CanHold(~(-value), &shifter_op)) {
+      mvn(IP, shifter_op, cond);
+      subs(rd, rn, ShifterOperand(IP), cond);
+    } else {
+      movw(IP, Low16Bits(value), cond);
+      uint16_t value_high = High16Bits(value);
+      if (value_high != 0) {
+        movt(IP, value_high, cond);
+      }
+      adds(rd, rn, ShifterOperand(IP), cond);
+    }
+  }
+}
+
+
+void Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
+  ShifterOperand shifter_op;
+  if (ShifterOperand::CanHold(value, &shifter_op)) {
+    mov(rd, shifter_op, cond);
+  } else if (ShifterOperand::CanHold(~value, &shifter_op)) {
+    mvn(rd, shifter_op, cond);
+  } else {
+    movw(rd, Low16Bits(value), cond);
+    uint16_t value_high = High16Bits(value);
+    if (value_high != 0) {
+      movt(rd, value_high, cond);
+    }
+  }
+}
+
+
+bool Address::CanHoldLoadOffset(LoadOperandType type, int offset) {
+  switch (type) {
+    case kLoadSignedByte:
+    case kLoadSignedHalfword:
+    case kLoadUnsignedHalfword:
+    case kLoadWordPair:
+      return IsAbsoluteUint(8, offset);  // Addressing mode 3.
+    case kLoadUnsignedByte:
+    case kLoadWord:
+      return IsAbsoluteUint(12, offset);  // Addressing mode 2.
+    case kLoadSWord:
+    case kLoadDWord:
+      return IsAbsoluteUint(10, offset);  // VFP addressing mode.
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      return false;
+  }
+}
+
+
+bool Address::CanHoldStoreOffset(StoreOperandType type, int offset) {
+  switch (type) {
+    case kStoreHalfword:
+    case kStoreWordPair:
+      return IsAbsoluteUint(8, offset);  // Addressing mode 3.
+    case kStoreByte:
+    case kStoreWord:
+      return IsAbsoluteUint(12, offset);  // Addressing mode 2.
+    case kStoreSWord:
+    case kStoreDWord:
+      return IsAbsoluteUint(10, offset);  // VFP addressing mode.
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      return false;
+  }
+}
+
+
+// Implementation note: this method must emit at most one instruction when
+// Address::CanHoldLoadOffset.
+void Assembler::LoadFromOffset(LoadOperandType type,
+                               Register reg,
+                               Register base,
+                               int32_t offset,
+                               Condition cond) {
+  if (!Address::CanHoldLoadOffset(type, offset)) {
+    CHECK(base != IP);
+    LoadImmediate(IP, offset, cond);
+    add(IP, IP, ShifterOperand(base), cond);
+    base = IP;
+    offset = 0;
+  }
+  CHECK(Address::CanHoldLoadOffset(type, offset));
+  switch (type) {
+    case kLoadSignedByte:
+      ldrsb(reg, Address(base, offset), cond);
+      break;
+    case kLoadUnsignedByte:
+      ldrb(reg, Address(base, offset), cond);
+      break;
+    case kLoadSignedHalfword:
+      ldrsh(reg, Address(base, offset), cond);
+      break;
+    case kLoadUnsignedHalfword:
+      ldrh(reg, Address(base, offset), cond);
+      break;
+    case kLoadWord:
+      ldr(reg, Address(base, offset), cond);
+      break;
+    case kLoadWordPair:
+      ldrd(reg, Address(base, offset), cond);
+      break;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+  }
+}
+
+
+// Implementation note: this method must emit at most one instruction when
+// Address::CanHoldStoreOffset.
+void Assembler::StoreToOffset(StoreOperandType type,
+                              Register reg,
+                              Register base,
+                              int32_t offset,
+                              Condition cond) {
+  if (!Address::CanHoldStoreOffset(type, offset)) {
+    CHECK(reg != IP);
+    CHECK(base != IP);
+    LoadImmediate(IP, offset, cond);
+    add(IP, IP, ShifterOperand(base), cond);
+    base = IP;
+    offset = 0;
+  }
+  CHECK(Address::CanHoldStoreOffset(type, offset));
+  switch (type) {
+    case kStoreByte:
+      strb(reg, Address(base, offset), cond);
+      break;
+    case kStoreHalfword:
+      strh(reg, Address(base, offset), cond);
+      break;
+    case kStoreWord:
+      str(reg, Address(base, offset), cond);
+      break;
+    case kStoreWordPair:
+      strd(reg, Address(base, offset), cond);
+      break;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+  }
+}
+
+// Emit code that will create an activation on the stack
+void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg) {
+  CHECK(IsAligned(frame_size, 16));
+  // TODO: use stm/ldm
+  StoreToOffset(kStoreWord, LR, SP, 0);
+  StoreToOffset(kStoreWord, method_reg.AsCoreRegister(), SP, -4);
+  AddConstant(SP, -frame_size);
+}
+
+// Emit code that will remove an activation from the stack
+void Assembler::RemoveFrame(size_t frame_size) {
+  CHECK(IsAligned(frame_size, 16));
+  LoadFromOffset(kLoadWord, LR, SP, 0);
+  AddConstant(SP, frame_size);
+  mov(PC, ShifterOperand(LR));
+}
+
+void Assembler::IncreaseFrameSize(size_t adjust) {
+  CHECK(IsAligned(adjust, 16));
+  AddConstant(SP, -adjust);
+}
+
+void Assembler::DecreaseFrameSize(size_t adjust) {
+  CHECK(IsAligned(adjust, 16));
+  AddConstant(SP, adjust);
+}
+
+// Store bytes from the given register onto the stack
+void Assembler::Store(FrameOffset dest, ManagedRegister src, size_t size) {
+  if (src.IsCoreRegister()) {
+    CHECK_EQ(4u, size);
+    StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
+  } else {
+    // VFP
+    LOG(FATAL) << "TODO";
+  }
+}
+
+void Assembler::StoreRef(FrameOffset dest, ManagedRegister src) {
+  CHECK(src.IsCoreRegister());
+  StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
+}
+
+void Assembler::CopyRef(FrameOffset dest, FrameOffset src,
+                        ManagedRegister scratch) {
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
+}
+
+void Assembler::LoadRef(ManagedRegister dest, ManagedRegister base,
+                        MemberOffset offs) {
+  CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
+  LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
+                 base.AsCoreRegister(), offs.Int32Value());
+}
+
+void Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
+                                      ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  LoadImmediate(scratch.AsCoreRegister(), imm);
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
+}
+
+void Assembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
+                                       ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  LoadImmediate(scratch.AsCoreRegister(), imm);
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), TR, dest.Int32Value());
+}
+
+void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
+  if (dest.IsCoreRegister()) {
+    CHECK_EQ(4u, size);
+    LoadFromOffset(kLoadWord, dest.AsCoreRegister(), SP, src.Int32Value());
+  } else {
+    // TODO: VFP
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void Assembler::LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs) {
+  CHECK(dest.IsCoreRegister());
+  LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
+                 TR, offs.Int32Value());
+}
+
+void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
+                          ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 TR, thr_offs.Int32Value());
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
+                SP, fr_offs.Int32Value());
+}
+
+void Assembler::CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                        ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 SP, fr_offs.Int32Value());
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
+                TR, thr_offs.Int32Value());
+}
+
+void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
+                                         FrameOffset fr_offs,
+                                         ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  AddConstant(scratch.AsCoreRegister(), SP, fr_offs.Int32Value(), AL);
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
+                TR, thr_offs.Int32Value());
+}
+
+void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
+  if (dest.IsCoreRegister()) {
+    CHECK(src.IsCoreRegister());
+    mov(dest.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
+  } else {
+    // TODO: VFP
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
+                     size_t size) {
+  CHECK(scratch.IsCoreRegister());
+  if (size == 4) {
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                   SP, src.Int32Value());
+    StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
+                  SP, dest.Int32Value());
+  } else {
+    // TODO: size != 4
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void Assembler::CreateStackHandle(ManagedRegister out_reg,
+                                  FrameOffset handle_offset,
+                                  ManagedRegister in_reg, bool null_allowed) {
+  CHECK(in_reg.IsCoreRegister());
+  CHECK(out_reg.IsCoreRegister());
+  if (null_allowed) {
+    // Null values get a handle value of 0.  Otherwise, the handle value is
+    // the address in the stack handle block holding the reference.
+    // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
+    cmp(in_reg.AsCoreRegister(), ShifterOperand(0));
+    if (!out_reg.Equals(in_reg)) {
+      LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
+    }
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_offset.Int32Value(), NE);
+  } else {
+    AddConstant(out_reg.AsCoreRegister(), SP, handle_offset.Int32Value(), AL);
+  }
+}
+
+void Assembler::CreateStackHandle(FrameOffset out_off,
+                                  FrameOffset handle_offset,
+                                  ManagedRegister scratch, bool null_allowed) {
+  CHECK(scratch.IsCoreRegister());
+  if (null_allowed) {
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP,
+                   handle_offset.Int32Value());
+    // Null values get a handle value of 0.  Otherwise, the handle value is
+    // the address in the stack handle block holding the reference.
+    // e.g. scratch = (handle == 0) ? 0 : (SP+handle_offset)
+    cmp(scratch.AsCoreRegister(), ShifterOperand(0));
+    AddConstant(scratch.AsCoreRegister(), SP, handle_offset.Int32Value(), NE);
+  } else {
+    AddConstant(scratch.AsCoreRegister(), SP, handle_offset.Int32Value(), AL);
+  }
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, out_off.Int32Value());
+}
+
+void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
+                                             ManagedRegister in_reg,
+                                             FrameOffset shb_offset) {
+  CHECK(out_reg.IsCoreRegister());
+  CHECK(in_reg.IsCoreRegister());
+  Label null_arg;
+  if (!out_reg.Equals(in_reg)) {
+    LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
+  }
+  cmp(in_reg.AsCoreRegister(), ShifterOperand(0));
+  LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(), in_reg.AsCoreRegister(),
+                 shb_offset.Int32Value(), NE);
+}
+
+void Assembler::ValidateRef(ManagedRegister src, bool could_be_null) {
+  // TODO: not validating references
+}
+
+void Assembler::ValidateRef(FrameOffset src, bool could_be_null) {
+  // TODO: not validating references
+}
+
+void Assembler::Call(ManagedRegister base, MemberOffset offset,
+                     ManagedRegister scratch) {
+  CHECK(base.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister());
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 base.AsCoreRegister(), offset.Int32Value());
+  blx(scratch.AsCoreRegister());
+  // TODO: place reference map on call
+}
+
+// Emit code that will lock the reference in the given register
+void Assembler::LockReferenceOnStack(FrameOffset fr_offs) {
+  LOG(FATAL) << "TODO";
+}
+// Emit code that will unlock the reference in the given register
+void Assembler::UnLockReferenceOnStack(FrameOffset fr_offs) {
+  LOG(FATAL) << "TODO";
 }
 
 }  // namespace art

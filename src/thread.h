@@ -4,19 +4,23 @@
 #ifndef ART_SRC_THREAD_H_
 #define ART_SRC_THREAD_H_
 
-#include <list>
 #include <pthread.h>
+#include <list>
 
 #include "src/globals.h"
+#include "src/heap.h"
 #include "src/logging.h"
 #include "src/macros.h"
 #include "src/runtime.h"
+
+#include "jni.h"
 
 namespace art {
 
 class Heap;
 class Object;
 class Runtime;
+class StackHandleBlock;
 class Thread;
 class ThreadList;
 
@@ -62,6 +66,39 @@ class MutexLock {
   DISALLOW_COPY_AND_ASSIGN(MutexLock);
 };
 
+// Stack handle blocks are allocated within the bridge frame between managed
+// and native code.
+class StackHandleBlock {
+ public:
+  // Number of references contained within this SHB
+  size_t NumberOfReferences() {
+    return number_of_references_;
+  }
+
+  // Link to previous SHB or NULL
+  StackHandleBlock* Link() {
+    return link_;
+  }
+
+  // Offset of length within SHB, used by generated code
+  static size_t NumberOfReferencesOffset() {
+    return OFFSETOF_MEMBER(StackHandleBlock, number_of_references_);
+  }
+
+  // Offset of link within SHB, used by generated code
+  static size_t LinkOffset() {
+    return OFFSETOF_MEMBER(StackHandleBlock, link_);
+  }
+
+ private:
+  StackHandleBlock() {}
+
+  size_t number_of_references_;
+  StackHandleBlock* link_;
+
+  DISALLOW_COPY_AND_ASSIGN(StackHandleBlock);
+};
+
 class Thread {
  public:
   enum State {
@@ -71,6 +108,7 @@ class Thread {
     kBlocked,
     kWaiting,
     kTimedWaiting,
+    kNative,
     kTerminated,
   };
 
@@ -131,9 +169,62 @@ class Thread {
     state_ = new_state;
   }
 
+  // Offset of state within Thread, used by generated code
+  static ThreadOffset StateOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
+  }
+
+  Heap* GetHeap() {
+    return heap_;
+  }
+
+  // JNI methods
+  JNIEnv* GetJniEnv() const {
+    return jni_env_;
+  }
+
+  // Offset of JNI environment within Thread, used by generated code
+  static ThreadOffset JniEnvOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, jni_env_));
+  }
+
+  // Offset of top stack handle block within Thread, used by generated code
+  static ThreadOffset TopShbOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_shb_));
+  }
+
+  // Number of references allocated in StackHandleBlocks on this thread
+  size_t NumShbHandles() {
+    size_t count = 0;
+    for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
+      count += cur->NumberOfReferences();
+    }
+    return count;
+  }
+
  private:
-  Thread() : id_(1234), exception_(NULL) {}
+  Thread() :
+    thread_id_(1234), top_shb_(NULL),
+    jni_env_(reinterpret_cast<JNIEnv*>(0xEBADC0DE)), exception_(NULL) {
+  }
   ~Thread() {}
+
+  void InitCpu();
+
+  // Initialized to "this". On certain architectures (such as x86) reading
+  // off of Thread::Current is easy but getting the address of Thread::Current
+  // is hard. This field can be read off of Thread::Current to give the address.
+  Thread* self_;
+
+  uint32_t thread_id_;
+
+  Heap* heap_;
+
+  // Top of linked list of stack handle blocks or NULL for none
+  StackHandleBlock* top_shb_;
+
+  // Every thread may have an associated JNI environment
+  JNIEnv* jni_env_;
 
   State state_;
 
@@ -152,6 +243,7 @@ class Thread {
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
+std::ostream& operator<<(std::ostream& os, const Thread::State& state);
 
 class ThreadList {
  public:

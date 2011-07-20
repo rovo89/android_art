@@ -65,14 +65,13 @@ bool Runtime::Init() {
   return true;
 }
 
-bool AttachCurrentThread() {
-  LOG(FATAL) << "Unimplemented";
-  return false;
+bool Runtime::AttachCurrentThread() {
+  return Thread::Attach() != NULL;
 }
 
-bool DetachCurrentThread() {
-  LOG(FATAL) << "Unimplemented";
-  return false;
+bool Runtime::DetachCurrentThread() {
+  LOG(WARNING) << "Unimplemented: Runtime::DetachCurrentThread";
+  return true;
 }
 
 }  // namespace art

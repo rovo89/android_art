@@ -3,7 +3,8 @@
 #ifndef ART_SRC_ASSEMBLER_ARM_H_
 #define ART_SRC_ASSEMBLER_ARM_H_
 
-#include "src/constants_arm.h"
+#include "src/constants.h"
+#include "src/managed_register.h"
 #include "src/logging.h"
 #include "src/utils.h"
 
@@ -165,7 +166,7 @@ class Address {
   uint32_t encoding3() const {
     const uint32_t offset_mask = (1 << 12) - 1;
     uint32_t offset = encoding_ & offset_mask;
-    CHECK(offset < 256);
+    CHECK_LT(offset, 256u);
     return (encoding_ & ~offset_mask) | ((offset & 0xf0) << 4) | (offset & 0xf);
   }
 
@@ -412,11 +413,73 @@ class Assembler {
   void Untested(const char* message);
   void Unreachable(const char* message);
 
+  // Emit code that will create an activation on the stack
+  void BuildFrame(size_t frame_size, ManagedRegister method_reg);
+
+  // Emit code that will remove an activation from the stack
+  void RemoveFrame(size_t frame_size);
+
+  void IncreaseFrameSize(size_t adjust);
+  void DecreaseFrameSize(size_t adjust);
+
+  // Store bytes from the given register onto the stack
+  void Store(FrameOffset dest, ManagedRegister src, size_t size);
+
+  void StoreRef(FrameOffset dest, ManagedRegister src);
+  void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch);
+  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs);
+
+  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
+                             ManagedRegister scratch);
+  void StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
+                              ManagedRegister scratch);
+
+  void Load(ManagedRegister dest, FrameOffset src, size_t size);
+
+  void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs);
+  void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
+                            ManagedRegister scratch);
+  void CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                          ManagedRegister scratch);
+
+  void StoreStackOffsetToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                                ManagedRegister scratch);
+
+  void Move(ManagedRegister dest, ManagedRegister src);
+  void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
+            size_t size);
+  void CreateStackHandle(ManagedRegister out_reg, FrameOffset handle_offset,
+                         ManagedRegister in_reg, bool null_allowed);
+
+  void CreateStackHandle(FrameOffset out_off, FrameOffset handle_offset,
+                         ManagedRegister scratch, bool null_allowed);
+
+  void LoadReferenceFromStackHandle(ManagedRegister dst, ManagedRegister src,
+                                    FrameOffset shb_offset);
+
+  void ValidateRef(ManagedRegister src, bool could_be_null);
+
+  void ValidateRef(FrameOffset src, bool could_be_null);
+
+  void Call(ManagedRegister base, MemberOffset offset, ManagedRegister scratch);
+
+  // Emit code that will lock the reference in the given frame location
+  void LockReferenceOnStack(FrameOffset fr_offs);
+
+  // Emit code that will unlock the reference in the given frame location
+  void UnLockReferenceOnStack(FrameOffset fr_offs);
+
   // Emit data (e.g. encoded instruction or immediate) to the
   // instruction stream.
   void Emit(int32_t value);
 
   void Bind(Label* label);
+
+  size_t CodeSize() const { return buffer_.Size(); }
+
+  void FinalizeInstructions(const MemoryRegion& region) {
+    buffer_.FinalizeInstructions(region);
+  }
 
  private:
   AssemblerBuffer buffer_;
@@ -501,6 +564,6 @@ class Assembler {
   }
 };
 
-} // namespace art
+}  // namespace art
 
 #endif  // ART_SRC_ASSEMBLER_ARM_H_

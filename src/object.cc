@@ -1,16 +1,17 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "src/object.h"
+#include <algorithm>
+#include <string.h>
 #include "src/globals.h"
 #include "src/logging.h"
-#include "src/object.h"
 #include "src/dex_file.h"
 #include "src/raw_dex_file.h"
 
-#include <algorithm>
-
 namespace art {
 
-bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
+bool Class::IsInSamePackage(const StringPiece& descriptor1,
+                            const StringPiece& descriptor2) {
   size_t i = 0;
   while (descriptor1[i] != '\0' && descriptor1[i] == descriptor2[i]) {
     ++i;
@@ -24,10 +25,12 @@ bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& d
 }
 
 #if 0
-bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
+bool Class::IsInSamePackage(const StringPiece& descriptor1,
+                            const StringPiece& descriptor2) {
   size_t size = std::min(descriptor1.size(), descriptor2.size());
   std::pair<StringPiece::const_iterator, StringPiece::const_iterator> pos;
-  pos = std::mismatch(descriptor1.begin(), descriptor1.begin() + size, descriptor2.begin());
+  pos = std::mismatch(descriptor1.begin(), descriptor1.begin() + size,
+                      descriptor2.begin());
   return !(*(pos.second).rfind('/') != npos && descriptor2.rfind('/') != npos);
 }
 #endif
@@ -65,6 +68,79 @@ uint32_t Method::NumArgRegisters() {
     }
   }
   return num_registers;
+}
+
+// The number of reference arguments to this method including implicit this
+// pointer
+size_t Method::NumReferenceArgs() const {
+  size_t result = IsStatic() ? 0 : 1;
+  for (int i = 1; i < shorty_.length(); i++) {
+    if ((shorty_[i] == 'L') || (shorty_[i] == '[')) {
+      result++;
+    }
+  }
+  return result;
+}
+
+// The number of long or double arguments
+size_t Method::NumLongOrDoubleArgs() const {
+  size_t result = 0;
+  for (int i = 1; i < shorty_.length(); i++) {
+    if ((shorty_[i] == 'D') || (shorty_[i] == 'J')) {
+      result++;
+    }
+  }
+  return result;
+}
+
+// The number of reference arguments to this method before the given parameter
+// index
+size_t Method::NumReferenceArgsBefore(unsigned int param) const {
+  CHECK_LT(param, NumArgs());
+  unsigned int result = IsStatic() ? 0 : 1;
+  for (unsigned int i = 1; (i < (unsigned int)shorty_.length()) &&
+                           (i < (param + 1)); i++) {
+    if ((shorty_[i] == 'L') || (shorty_[i] == '[')) {
+      result++;
+    }
+  }
+  return result;
+}
+
+// Is the given method parameter a reference?
+bool Method::IsParamAReference(unsigned int param) const {
+  CHECK_LT(param, NumArgs());
+  if (IsStatic()) {
+    param++;  // 0th argument must skip return value at start of the shorty
+  } else if (param == 0) {
+    return true;  // this argument
+  }
+  return ((shorty_[param] == 'L') || (shorty_[param] == '['));
+}
+
+// Is the given method parameter a long or double?
+bool Method::IsParamALongOrDouble(unsigned int param) const {
+  CHECK_LT(param, NumArgs());
+  if (IsStatic()) {
+    param++;  // 0th argument must skip return value at start of the shorty
+  }
+  return (shorty_[param] == 'J') || (shorty_[param] == 'D');
+}
+
+size_t Method::ParamSizeInBytes(unsigned int param) const {
+  CHECK_LT(param, NumArgs());
+  if (IsStatic()) {
+    param++;  // 0th argument must skip return value at start of the shorty
+  } else if (param == 0) {
+    return kPointerSize;  // this argument
+  }
+  switch (shorty_[param]) {
+    case '[': return kPointerSize;
+    case 'L': return kPointerSize;
+    case 'D': return 8;
+    case 'J': return 8;
+    default:  return 4;
+  }
 }
 
 bool Method::HasSameArgumentTypes(const Method* that) const {
@@ -111,6 +187,30 @@ bool Method::HasSameReturnType(const Method* that) const {
   return (strcmp(type1, type2) == 0);
 }
 
+Method* Class::FindDirectMethod(const StringPiece& name) const {
+  Method* result = NULL;
+  for (size_t i = 0; i < NumDirectMethods(); i++) {
+    Method* method = GetDirectMethod(i);
+    if (method->GetName().compare(name) == 0) {
+      result = method;
+      break;
+    }
+  }
+  return result;
+}
+
+Method* Class::FindVirtualMethod(const StringPiece& name) const {
+  Method* result = NULL;
+  for (size_t i = 0; i < NumVirtualMethods(); i++) {
+    Method* method = GetVirtualMethod(i);
+    if (method->GetName().compare(name) == 0) {
+      result = method;
+      break;
+    }
+  }
+  return result;
+}
+
 Method* Class::FindDirectMethodLocally(const StringPiece& name,
                                        const StringPiece& descriptor) const {
   return NULL;  // TODO
@@ -131,7 +231,7 @@ std::ostream& operator<<(std::ostream& os, const Class::Status& rhs) {
   if (rhs >= Class::kStatusError && rhs <= Class::kStatusInitialized) {
     os << kClassStatusNames[rhs - 1];
   } else {
-    os << "Class::Status[" << int(rhs) << "]";
+    os << "Class::Status[" << static_cast<int>(rhs) << "]";
   }
   return os;
 }

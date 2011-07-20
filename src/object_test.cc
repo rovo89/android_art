@@ -48,7 +48,7 @@ TEST_F(MethodTest, ProtoCompare) {
 
   ASSERT_EQ(4U, klass->NumVirtualMethods());
 
-  Method* m1 = klass->GetVirtualMethod(0);
+  Method* m1 = klass->GetVirtualMethod(0u);
   ASSERT_EQ("m1", m1->GetName());
 
   Method* m2 = klass->GetVirtualMethod(1);
@@ -110,7 +110,7 @@ TEST_F(MethodTest, ProtoCompare2) {
   Class* klass2 = linker2->FindClass("LProtoCompare2;", NULL);
   ASSERT_TRUE(klass2 != NULL);
 
-  Method* m1_1 = klass1->GetVirtualMethod(0);
+  Method* m1_1 = klass1->GetVirtualMethod(0u);
   ASSERT_EQ("m1", m1_1->GetName());
   Method* m2_1 = klass1->GetVirtualMethod(1);
   ASSERT_EQ("m2", m2_1->GetName());
@@ -119,7 +119,7 @@ TEST_F(MethodTest, ProtoCompare2) {
   Method* m4_1 = klass1->GetVirtualMethod(3);
   ASSERT_EQ("m4", m4_1->GetName());
 
-  Method* m1_2 = klass2->GetVirtualMethod(0);
+  Method* m1_2 = klass2->GetVirtualMethod(0u);
   ASSERT_EQ("m1", m1_2->GetName());
   Method* m2_2 = klass2->GetVirtualMethod(1);
   ASSERT_EQ("m2", m2_2->GetName());

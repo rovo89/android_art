@@ -3,9 +3,10 @@
 #ifndef ART_SRC_CONSTANTS_ARM_H_
 #define ART_SRC_CONSTANTS_ARM_H_
 
-#include <iosfwd>
 #include <stdint.h>
+#include <iosfwd>
 #include "src/casts.h"
+#include "src/globals.h"
 #include "src/logging.h"
 
 namespace art {
@@ -47,6 +48,7 @@ enum Register {
   R13 = 13,
   R14 = 14,
   R15 = 15,
+  TR  = 9,  // thread register
   FP  = 11,
   IP  = 12,
   SP  = 13,
@@ -451,8 +453,8 @@ class Instr {
   // See "ARM Architecture Reference Manual ARMv7-A and ARMv7-R edition",
   // section A5.1 "ARM instruction set encoding".
   inline bool IsDataProcessing() const {
-    CHECK(ConditionField() != kSpecialCondition);
-    CHECK(Bits(26, 2) == 0);  // Type 0 or 1.
+    CHECK_NE(ConditionField(), kSpecialCondition);
+    CHECK_EQ(Bits(26, 2), 0);  // Type 0 or 1.
     return ((Bits(20, 5) & 0x19) != 0x10) &&
       ((Bit(25) == 1) ||  // Data processing immediate.
        (Bit(4) == 0) ||  // Data processing register.
@@ -463,11 +465,11 @@ class Instr {
   // as well as multiplications, synchronization primitives, and miscellaneous).
   // Can only be called for a type 0 or 1 instruction.
   inline bool IsMiscellaneous() const {
-    CHECK(Bits(26, 2) == 0);  // Type 0 or 1.
+    CHECK_EQ(Bits(26, 2), 0);  // Type 0 or 1.
     return ((Bit(25) == 0) && ((Bits(20, 5) & 0x19) == 0x10) && (Bit(7) == 0));
   }
   inline bool IsMultiplyOrSyncPrimitive() const {
-    CHECK(Bits(26, 2) == 0);  // Type 0 or 1.
+    CHECK_EQ(Bits(26, 2), 0);  // Type 0 or 1.
     return ((Bit(25) == 0) && (Bits(4, 4) == 9));
   }
 
@@ -503,8 +505,8 @@ class Instr {
 
   // Test for VFP data processing or single transfer instructions of type 7.
   inline bool IsVFPDataProcessingOrSingleTransfer() const {
-    CHECK(ConditionField() != kSpecialCondition);
-    CHECK(TypeField() == 7);
+    CHECK_NE(ConditionField(), kSpecialCondition);
+    CHECK_EQ(TypeField(), 7);
     return ((Bit(24) == 0) && (Bits(9, 3) == 5));
     // Bit(4) == 0: Data Processing
     // Bit(4) == 1: 8, 16, or 32-bit Transfer between ARM Core and VFP
@@ -512,16 +514,16 @@ class Instr {
 
   // Test for VFP 64-bit transfer instructions of type 6.
   inline bool IsVFPDoubleTransfer() const {
-    CHECK(ConditionField() != kSpecialCondition);
-    CHECK(TypeField() == 6);
+    CHECK_NE(ConditionField(), kSpecialCondition);
+    CHECK_EQ(TypeField(), 6);
     return ((Bits(21, 4) == 2) && (Bits(9, 3) == 5) &&
             ((Bits(4, 4) & 0xd) == 1));
   }
 
   // Test for VFP load and store instructions of type 6.
   inline bool IsVFPLoadStore() const {
-    CHECK(ConditionField() != kSpecialCondition);
-    CHECK(TypeField() == 6);
+    CHECK_NE(ConditionField(), kSpecialCondition);
+    CHECK_EQ(TypeField(), 6);
     return ((Bits(20, 5) & 0x12) == 0x10) && (Bits(9, 3) == 5);
   }
 

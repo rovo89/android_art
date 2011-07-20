@@ -2,11 +2,11 @@
 
 #include "src/thread.h"
 
+#include <pthread.h>
+#include <sys/mman.h>
 #include <algorithm>
 #include <cerrno>
 #include <list>
-#include <pthread.h>
-#include <sys/mman.h>
 
 #include "src/runtime.h"
 #include "src/utils.h"
@@ -18,7 +18,7 @@ pthread_key_t Thread::pthread_key_self_;
 Mutex* Mutex::Create(const char* name) {
   Mutex* mu = new Mutex(name);
   int result = pthread_mutex_init(&mu->lock_impl_, NULL);
-  CHECK(result == 0);
+  CHECK_EQ(0, result);
   return mu;
 }
 
@@ -79,6 +79,8 @@ Thread* Thread::Create(size_t stack_size) {
   result = pthread_attr_destroy(&attr);
   CHECK_EQ(result, 0);
 
+  InitCpu();
+
   return new_thread;
 }
 
@@ -99,6 +101,8 @@ Thread* Thread::Attach() {
   if (errno != 0) {
       PLOG(FATAL) << "pthread_setspecific failed";
   }
+
+  InitCpu();
 
   return thread;
 }
@@ -123,6 +127,24 @@ bool Thread::Init() {
   // TODO: initialize other locks and condition variables
 
   return true;
+}
+
+static const char* kStateNames[] = {
+  "New",
+  "Runnable",
+  "Blocked",
+  "Waiting",
+  "TimedWaiting",
+  "Native",
+  "Terminated",
+};
+std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
+  if (state >= Thread::kNew && state <= Thread::kTerminated) {
+    os << kStateNames[state-Thread::kNew];
+  } else {
+    os << "State[" << static_cast<int>(state) << "]";
+  }
+  return os;
 }
 
 ThreadList* ThreadList::Create() {

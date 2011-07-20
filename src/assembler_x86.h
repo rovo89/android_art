@@ -6,7 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 #include "src/assembler.h"
-#include "src/constants_x86.h"
+#include "src/constants.h"
+#include "src/managed_register.h"
 #include "src/macros.h"
 #include "src/utils.h"
 
@@ -120,6 +121,19 @@ class Operand {
 class Address : public Operand {
  public:
   Address(Register base, int32_t disp) {
+    Init(base, disp);
+  }
+
+  Address(Register base, FrameOffset disp) {
+    CHECK_EQ(base, ESP);
+    Init(ESP, disp.Int32Value());
+  }
+
+  Address(Register base, MemberOffset disp) {
+    Init(base, disp.Int32Value());
+  }
+
+  void Init(Register base, int32_t disp) {
     if (disp == 0 && base != EBP) {
       SetModRM(0, base);
       if (base == ESP) SetSIB(TIMES_1, ESP, base);
@@ -133,6 +147,7 @@ class Address : public Operand {
       SetDisp32(disp);
     }
   }
+
 
   Address(Register index, ScaleFactor scale, int32_t disp) {
     CHECK_NE(index, ESP);  // Illegal addressing mode.
@@ -162,6 +177,10 @@ class Address : public Operand {
     result.SetModRM(0, EBP);
     result.SetDisp32(addr);
     return result;
+  }
+
+  static Address Absolute(ThreadOffset addr) {
+    return Absolute(addr.Int32Value());
   }
 
  private:
@@ -214,8 +233,9 @@ class Assembler {
 
   void leal(Register dst, const Address& src);
 
-  void cmovs(Register dst, Register src);
-  void cmovns(Register dst, Register src);
+  void cmovl(Condition condition, Register dst, Register src);
+
+  void setb(Condition condition, Register dst);
 
   void movss(XmmRegister dst, const Address& src);
   void movss(const Address& dst, XmmRegister src);
@@ -381,9 +401,74 @@ class Assembler {
   void lock();
   void cmpxchgl(const Address& address, Register reg);
 
-  /*
-   * Macros for High-level operations.
-   */
+  void fs();
+
+  //
+  // Macros for High-level operations.
+  //
+
+  // Emit code that will create an activation on the stack
+  void BuildFrame(size_t frame_size, ManagedRegister method_reg);
+
+  // Emit code that will remove an activation from the stack
+  void RemoveFrame(size_t frame_size);
+
+  void IncreaseFrameSize(size_t adjust);
+  void DecreaseFrameSize(size_t adjust);
+
+  // Store bytes from the given register onto the stack
+  void Store(FrameOffset offs, ManagedRegister src, size_t size);
+  void StoreRef(FrameOffset dest, ManagedRegister src);
+
+  void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch);
+
+  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
+                             ManagedRegister scratch);
+
+  void StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
+                              ManagedRegister scratch);
+
+  void Load(ManagedRegister dest, FrameOffset src, size_t size);
+
+  void LoadRef(ManagedRegister dest, FrameOffset  src);
+
+  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs);
+
+  void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs);
+
+  void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
+                            ManagedRegister scratch);
+
+  void CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                          ManagedRegister scratch);
+
+  void StoreStackOffsetToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                                ManagedRegister scratch);
+  void Move(ManagedRegister dest, ManagedRegister src);
+
+  void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
+            unsigned int size);
+
+  void CreateStackHandle(ManagedRegister out_reg, FrameOffset handle_offset,
+                         ManagedRegister in_reg, bool null_allowed);
+
+  void CreateStackHandle(FrameOffset out_off, FrameOffset handle_offset,
+                         ManagedRegister scratch, bool null_allowed);
+
+  void LoadReferenceFromStackHandle(ManagedRegister dst, ManagedRegister src,
+                                    FrameOffset shb_offset);
+
+  void ValidateRef(ManagedRegister src, bool could_be_null);
+  void ValidateRef(FrameOffset src, bool could_be_null);
+
+  void Call(ManagedRegister base, MemberOffset offset, ManagedRegister scratch);
+
+  // Emit code that will lock the reference in the given frame location
+  void LockReferenceOnStack(FrameOffset fr_offs);
+
+  // Emit code that will unlock the reference in the given frame location
+  void UnLockReferenceOnStack(FrameOffset fr_offs);
+
   void AddImmediate(Register reg, const Immediate& imm);
 
   void LoadDoubleConstant(XmmRegister dst, double value);
@@ -398,14 +483,14 @@ class Assembler {
     cmpxchgl(address, reg);
   }
 
-  /*
-   * Misc. functionality
-   */
+  //
+  // Misc. functionality
+  //
   int PreferredLoopAlignment() { return 16; }
   void Align(int alignment, int offset);
   void Bind(Label* label);
 
-  int CodeSize() const { return buffer_.Size(); }
+  size_t CodeSize() const { return buffer_.Size(); }
 
   void FinalizeInstructions(const MemoryRegion& region) {
     buffer_.FinalizeInstructions(region);

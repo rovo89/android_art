@@ -3,11 +3,10 @@
 #ifndef ART_SRC_CONSTANTS_X86_H_
 #define ART_SRC_CONSTANTS_X86_H_
 
+#include <iosfwd>
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/macros.h"
-
-#include <iosfwd>
 
 namespace art {
 
@@ -25,7 +24,6 @@ enum Register {
   kNoRegister = -1  // Signals an illegal register.
 };
 std::ostream& operator<<(std::ostream& os, const Register& rhs);
-
 
 enum ByteRegister {
   AL = 0,
@@ -52,7 +50,21 @@ enum XmmRegister {
   kNumberOfXmmRegisters = 8,
   kNoXmmRegister = -1  // Signals an illegal register.
 };
+std::ostream& operator<<(std::ostream& os, const XmmRegister& reg);
 
+enum X87Register {
+  ST0 = 0,
+  ST1 = 1,
+  ST2 = 2,
+  ST3 = 3,
+  ST4 = 4,
+  ST5 = 5,
+  ST6 = 6,
+  ST7 = 7,
+  kNumberOfX87Registers = 8,
+  kNoX87Register = -1  // Signals an illegal register.
+};
+std::ostream& operator<<(std::ostream& os, const X87Register& reg);
 
 enum ScaleFactor {
   TIMES_1 = 0,

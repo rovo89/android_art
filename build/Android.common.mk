@@ -32,10 +32,12 @@ AEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
+	src/calling_convention.cc \
 	src/class_linker.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
+	src/jni_compiler.cc \
 	src/memory_region.cc \
 	src/object.cc \
 	src/raw_dex_file.cc \
@@ -47,14 +49,20 @@ LIBART_COMMON_SRC_FILES := \
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_arm.cc \
+	src/calling_convention_arm.cc \
 	src/logging_android.cc \
-	src/runtime_android.cc
+	src/managed_register_arm.cc \
+	src/runtime_android.cc \
+	src/thread_arm.cc
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_x86.cc \
+	src/calling_convention_x86.cc \
 	src/logging_linux.cc \
-	src/runtime_linux.cc
+	src/managed_register_x86.cc \
+	src/runtime_linux.cc \
+	src/thread_x86.cc
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	src/base64.cc
@@ -63,12 +71,15 @@ TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
+	src/jni_compiler_test.cc \
 	src/object_test.cc \
 	src/raw_dex_file_test.cc
 
 TEST_TARGET_SRC_FILES := \
-	$(TEST_COMMON_SRC_FILES)
+	$(TEST_COMMON_SRC_FILES) \
+	src/managed_register_arm_test.cc
 
 TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
-	src/assembler_x86_test.cc
+	src/assembler_x86_test.cc \
+	src/managed_register_x86_test.cc

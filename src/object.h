@@ -3,8 +3,11 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
+#include "src/assembler.h"
+#include "src/constants.h"
 #include "src/dex_file.h"
 #include "src/globals.h"
+#include "src/logging.h"
 #include "src/macros.h"
 #include "src/stringpiece.h"
 #include "src/monitor.h"
@@ -95,7 +98,7 @@ static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik 
  * Return an offset, given a bit number as returned from CLZ.
  */
 #define CLASS_OFFSET_FROM_CLZ(rshift) \
-    (((int)(rshift) * CLASS_OFFSET_ALIGNMENT) + CLASS_SMALLEST_OFFSET)
+   ((static_cast<int>(rshift) * CLASS_OFFSET_ALIGNMENT) + CLASS_SMALLEST_OFFSET)
 
 
 class Object {
@@ -149,7 +152,7 @@ class Object {
 
 class ObjectLock {
  public:
-  ObjectLock(Object* object) : obj_(object) {
+  explicit ObjectLock(Object* object) : obj_(object) {
     CHECK(object != NULL);
     obj_->MonitorEnter();
   }
@@ -306,8 +309,13 @@ class Method : public Object {
     return declaring_class_;
   }
 
+  static MemberOffset ClassOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Method, klass_));
+  }
+
   // const char* GetReturnTypeDescriptor() const {
-  //   return declaring_class_->GetDexFile_->GetRaw()->dexStringByTypeIdx(proto_id_.return_type_id_);
+  //   return declaring_class_->GetDexFile_->GetRaw()
+  //          ->dexStringByTypeIdx(proto_id_.return_type_id_);
   // }
 
   // Returns true if the method is declared public.
@@ -386,6 +394,67 @@ class Method : public Object {
   uint32_t instance_data_[METHOD_FIELD_SLOTS];
 #undef METHOD_FIELD_SLOTS
 
+  bool IsReturnAReference() const {
+    return (shorty_[0] == 'L') || (shorty_[0] == '[');
+  }
+
+  bool IsReturnAFloatOrDouble() const {
+    return (shorty_[0] == 'F') || (shorty_[0] == 'D');
+  }
+
+  bool IsReturnAFloat() const {
+    return shorty_[0] == 'F';
+  }
+
+  bool IsReturnADouble() const {
+    return shorty_[0] == 'D';
+  }
+
+  bool IsReturnALong() const {
+    return shorty_[0] == 'J';
+  }
+
+  // The number of arguments that should be supplied to this method
+  size_t NumArgs() const {
+    return (IsStatic() ? 0 : 1) + shorty_.length() - 1;
+  }
+
+  // The number of reference arguments to this method including implicit this
+  // pointer
+  size_t NumReferenceArgs() const;
+
+  // The number of long or double arguments
+  size_t NumLongOrDoubleArgs() const;
+
+  // The number of reference arguments to this method before the given
+  // parameter index
+  size_t NumReferenceArgsBefore(unsigned int param) const;
+
+  // Is the given method parameter a reference?
+  bool IsParamAReference(unsigned int param) const;
+
+  // Is the given method parameter a long or double?
+  bool IsParamALongOrDouble(unsigned int param) const;
+
+  size_t ParamSizeInBytes(unsigned int param) const;
+
+  void SetCode(const void* code) {
+    code_ = code;
+  }
+
+  const void* GetCode() const {
+    return code_;
+  }
+
+  void RegisterNative(const void* native_method) {
+    native_method_ = native_method;
+  }
+
+  static MemberOffset NativeMethodOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Method, native_method_));
+  }
+
+ public:  // TODO: private/const
   // the class we are a part of
   Class* declaring_class_;
 
@@ -421,6 +490,12 @@ class Method : public Object {
 
  private:
   Method();
+
+  // Compiled code associated with this method
+  const void* code_;
+
+  // Any native method registered with this method
+  const void* native_method_;
 };
 
 // Class objects.
@@ -494,7 +569,8 @@ class Class : public Object {
   // Returns true if this class is in the same packages as that class.
   bool IsInSamePackage(const Class* that) const;
 
-  static bool IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2);
+  static bool IsInSamePackage(const StringPiece& descriptor1,
+                              const StringPiece& descriptor2);
 
   // Returns true if this class represents an array class.
   bool IsArray() const {
@@ -539,7 +615,8 @@ class Class : public Object {
   // Returns the size in bytes of a class object instance with the
   // given number of static fields.
   // static size_t Size(size_t num_sfields) {
-  //   return OFFSETOF_MEMBER(Class, sfields_) + sizeof(StaticField) * num_sfields;
+  //   return OFFSETOF_MEMBER(Class, sfields_) +
+  //          sizeof(StaticField) * num_sfields;
   // }
 
   // Returns the number of static, private, and constructor methods.
@@ -592,10 +669,14 @@ class Class : public Object {
     reference_offsets_ = new_reference_offsets;
   }
 
+  Method* FindDirectMethod(const StringPiece& name) const;
+
+  Method* FindVirtualMethod(const StringPiece& name) const;
+
   Method* FindDirectMethodLocally(const StringPiece& name,
                                   const StringPiece& descriptor) const;
 
- public: // TODO: private
+ public:  // TODO: private
   // leave space for instance data; we could access fields directly if
   // we freeze the definition of java/lang/Class
 #define CLASS_FIELD_SLOTS 1
@@ -654,7 +735,7 @@ class Class : public Object {
   // initiating class loader list
   // NOTE: for classes with low serialNumber, these are unused, and the
   // values are kept in a table in gDvm.
-  //InitiatingLoaderList initiating_loader_list_;
+  // InitiatingLoaderList initiating_loader_list_;
 
   // array of interfaces this class implements directly
   size_t interface_count_;

@@ -8,6 +8,10 @@
 
 namespace art {
 
+std::ostream& operator<<(std::ostream& os, const Offset& offs) {
+  return os << offs.Int32Value();
+}
+
 static byte* NewContents(size_t capacity) {
   byte* result = new byte[capacity];
 #if defined(DEBUG)
@@ -30,7 +34,7 @@ AssemblerBuffer::EnsureCapacity::EnsureCapacity(AssemblerBuffer* buffer) {
   gap_ = ComputeGap();
   // Make sure that extending the capacity leaves a big enough gap
   // for any kind of instruction.
-  CHECK(gap_ >= kMinimumGap);
+  CHECK_GE(gap_, kMinimumGap);
   // Mark the buffer as having ensured the capacity.
   CHECK(!buffer->HasEnsuredCapacity());  // Cannot nest.
   buffer->has_ensured_capacity_ = true;
@@ -43,7 +47,7 @@ AssemblerBuffer::EnsureCapacity::~EnsureCapacity() {
   // Make sure the generated instruction doesn't take up more
   // space than the minimum gap.
   int delta = gap_ - ComputeGap();
-  CHECK(delta <= kMinimumGap);
+  CHECK_LE(delta, kMinimumGap);
 }
 #endif
 

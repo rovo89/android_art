@@ -4,7 +4,6 @@
 #include "src/assembler.h"
 #include "src/casts.h"
 #include "src/globals.h"
-#include "src/assembler.h"
 #include "src/memory_region.h"
 
 namespace art {
@@ -27,11 +26,18 @@ std::ostream& operator<<(std::ostream& os, const Register& rhs) {
   if (rhs >= EAX && rhs <= EDI) {
     os << kRegisterNames[rhs];
   } else {
-    os << "Register[" << int(rhs) << "]";
+    os << "Register[" << static_cast<int>(rhs) << "]";
   }
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const XmmRegister& reg) {
+  return os << "XMM" << static_cast<int>(reg);
+}
+
+std::ostream& operator<<(std::ostream& os, const X87Register& reg) {
+  return os << "ST" << static_cast<int>(reg);
+}
 
 void Assembler::InitializeMemoryWithBreakpoints(byte* data, size_t length) {
   memset(reinterpret_cast<void*>(data), Instr::kBreakPointInstruction, length);
@@ -234,19 +240,19 @@ void Assembler::leal(Register dst, const Address& src) {
 }
 
 
-void Assembler::cmovs(Register dst, Register src) {
+void Assembler::cmovl(Condition condition, Register dst, Register src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
-  EmitUint8(0x48);
+  EmitUint8(0x40 + condition);
   EmitRegisterOperand(dst, src);
 }
 
 
-void Assembler::cmovns(Register dst, Register src) {
+void Assembler::setb(Condition condition, Register dst) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
-  EmitUint8(0x49);
-  EmitRegisterOperand(dst, src);
+  EmitUint8(0x90 + condition);
+  EmitOperand(0, Operand(dst));
 }
 
 
@@ -1179,6 +1185,11 @@ void Assembler::cmpxchgl(const Address& address, Register reg) {
   EmitOperand(reg, address);
 }
 
+void Assembler::fs() {
+  // TODO: fs is a prefix and not an instruction
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x64);
+}
 
 void Assembler::AddImmediate(Register reg, const Immediate& imm) {
   int value = imm.value();
@@ -1358,4 +1369,220 @@ void Assembler::EmitGenericShift(int rm,
   EmitOperand(rm, Operand(operand));
 }
 
-} // namespace art
+// Emit code that will create an activation on the stack
+void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg) {
+  CHECK(IsAligned(frame_size, 16));
+  // return address then method on stack
+  addl(ESP, Immediate(-frame_size + 4 /*method*/ + 4 /*return address*/));
+  pushl(method_reg.AsCpuRegister());
+}
+
+// Emit code that will remove an activation from the stack
+void Assembler::RemoveFrame(size_t frame_size) {
+  CHECK(IsAligned(frame_size, 16));
+  addl(ESP, Immediate(frame_size - 4));
+  ret();
+}
+
+void Assembler::IncreaseFrameSize(size_t adjust) {
+  CHECK(IsAligned(adjust, 16));
+  addl(ESP, Immediate(-adjust));
+}
+
+void Assembler::DecreaseFrameSize(size_t adjust) {
+  CHECK(IsAligned(adjust, 16));
+  addl(ESP, Immediate(adjust));
+}
+
+// Store bytes from the given register onto the stack
+void Assembler::Store(FrameOffset offs, ManagedRegister src, size_t size) {
+  if (src.IsCpuRegister()) {
+    CHECK_EQ(4u, size);
+    movl(Address(ESP, offs), src.AsCpuRegister());
+  } else if (src.IsXmmRegister()) {
+    if (size == 4) {
+      movss(Address(ESP, offs), src.AsXmmRegister());
+    } else {
+      movsd(Address(ESP, offs), src.AsXmmRegister());
+    }
+  }
+}
+
+void Assembler::StoreRef(FrameOffset dest, ManagedRegister src) {
+  CHECK(src.IsCpuRegister());
+  movl(Address(ESP, dest), src.AsCpuRegister());
+}
+
+void Assembler::CopyRef(FrameOffset dest, FrameOffset src,
+                        ManagedRegister scratch) {
+  CHECK(scratch.IsCpuRegister());
+  movl(scratch.AsCpuRegister(), Address(ESP, src));
+  movl(Address(ESP, dest), scratch.AsCpuRegister());
+}
+
+void Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
+                                      ManagedRegister) {
+  movl(Address(ESP, dest), Immediate(imm));
+}
+
+void Assembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
+                                       ManagedRegister) {
+  fs();
+  movl(Address::Absolute(dest), Immediate(imm));
+}
+
+void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
+  if (dest.IsCpuRegister()) {
+    CHECK_EQ(4u, size);
+    movl(dest.AsCpuRegister(), Address(ESP, src));
+  } else {
+    // TODO: x87, SSE
+    LOG(FATAL) << "Unimplemented";
+  }
+}
+
+void Assembler::LoadRef(ManagedRegister dest, FrameOffset  src) {
+  CHECK(dest.IsCpuRegister());
+  movl(dest.AsCpuRegister(), Address(ESP, src));
+}
+
+void Assembler::LoadRef(ManagedRegister dest, ManagedRegister base,
+                        MemberOffset offs) {
+  CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
+  movl(dest.AsCpuRegister(), Address(base.AsCpuRegister(), offs));
+}
+
+void Assembler::LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs) {
+  CHECK(dest.IsCpuRegister());
+  fs();
+  movl(dest.AsCpuRegister(), Address::Absolute(offs));
+}
+
+void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
+                          ManagedRegister scratch) {
+  CHECK(scratch.IsCpuRegister());
+  fs();
+  movl(scratch.AsCpuRegister(), Address::Absolute(thr_offs));
+  Store(fr_offs, scratch, 4);
+}
+
+void Assembler::CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                                   ManagedRegister scratch) {
+  CHECK(scratch.IsCpuRegister());
+  Load(scratch, fr_offs, 4);
+  fs();
+  movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
+}
+
+void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
+                                         FrameOffset fr_offs,
+                                         ManagedRegister scratch) {
+  CHECK(scratch.IsCpuRegister());
+  leal(scratch.AsCpuRegister(), Address(ESP, fr_offs));
+  fs();
+  movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
+}
+
+void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
+  if (!dest.Equals(src)) {
+    if (dest.IsCpuRegister() && src.IsCpuRegister()) {
+      movl(dest.AsCpuRegister(), src.AsCpuRegister());
+    } else {
+      // TODO: x87, SSE
+      LOG(FATAL) << "Unimplemented";
+    }
+  }
+}
+
+void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
+                     size_t size) {
+  if (scratch.IsCpuRegister() && size == 8) {
+    Load(scratch, src, 4);
+    Store(dest, scratch, 4);
+    Load(scratch, FrameOffset(src.Int32Value() + 4), 4);
+    Store(FrameOffset(dest.Int32Value() + 4), scratch, 4);
+  } else {
+    Load(scratch, src, size);
+    Store(dest, scratch, size);
+  }
+}
+
+void Assembler::CreateStackHandle(ManagedRegister out_reg,
+                                  FrameOffset handle_offset,
+                                  ManagedRegister in_reg, bool null_allowed) {
+  CHECK(in_reg.IsCpuRegister());
+  CHECK(out_reg.IsCpuRegister());
+  ValidateRef(in_reg, null_allowed);
+  if (null_allowed) {
+    Label null_arg;
+    if (!out_reg.Equals(in_reg)) {
+      xorl(out_reg.AsCpuRegister(), out_reg.AsCpuRegister());
+    }
+    testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
+    j(ZERO, &null_arg);
+    leal(out_reg.AsCpuRegister(), Address(ESP, handle_offset));
+    Bind(&null_arg);
+  } else {
+    leal(out_reg.AsCpuRegister(), Address(ESP, handle_offset));
+  }
+}
+
+void Assembler::CreateStackHandle(FrameOffset out_off,
+                                  FrameOffset handle_offset,
+                                  ManagedRegister scratch, bool null_allowed) {
+  CHECK(scratch.IsCpuRegister());
+  if (null_allowed) {
+    Label null_arg;
+    movl(scratch.AsCpuRegister(), Address(ESP, handle_offset));
+    testl(scratch.AsCpuRegister(), scratch.AsCpuRegister());
+    j(ZERO, &null_arg);
+    leal(scratch.AsCpuRegister(), Address(ESP, handle_offset));
+    Bind(&null_arg);
+  } else {
+    leal(scratch.AsCpuRegister(), Address(ESP, handle_offset));
+  }
+  Store(out_off, scratch, 4);
+}
+
+// Given a stack handle, load the associated reference.
+void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
+                                             ManagedRegister in_reg,
+                                             FrameOffset shb_offset) {
+  CHECK(out_reg.IsCpuRegister());
+  CHECK(in_reg.IsCpuRegister());
+  Label null_arg;
+  if (!out_reg.Equals(in_reg)) {
+    xorl(out_reg.AsCpuRegister(), out_reg.AsCpuRegister());
+  }
+  testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
+  j(ZERO, &null_arg);
+  movl(out_reg.AsCpuRegister(), Address(in_reg.AsCpuRegister(), 0));
+  Bind(&null_arg);
+}
+
+void Assembler::ValidateRef(ManagedRegister src, bool could_be_null) {
+  // TODO: not validating references
+}
+
+void Assembler::ValidateRef(FrameOffset src, bool could_be_null) {
+  // TODO: not validating references
+}
+
+void Assembler::Call(ManagedRegister base, MemberOffset offset,
+                     ManagedRegister) {
+  CHECK(base.IsCpuRegister());
+  call(Address(base.AsCpuRegister(), offset));
+  // TODO: place reference map on call
+}
+
+// Emit code that will lock the reference in the given register
+void Assembler::LockReferenceOnStack(FrameOffset fr_offs) {
+  LOG(FATAL) << "TODO";
+}
+// Emit code that will unlock the reference in the given register
+void Assembler::UnLockReferenceOnStack(FrameOffset fr_offs) {
+  LOG(FATAL) << "TODO";
+}
+
+
+}  // namespace art
