@@ -17,6 +17,8 @@ class CallingConvention {
 
   bool IsReturnAReference() const { return method_->IsReturnAReference(); }
 
+  size_t SizeOfReturnValue() const { return method_->ReturnSize(); }
+
   // Register that holds the incoming method argument
   ManagedRegister MethodRegister();
   // Register that holds result of this method
@@ -66,7 +68,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   bool IsCurrentParamInRegister();
   bool IsCurrentParamOnStack();
   bool IsCurrentParamPossiblyNull();
-  size_t CurrentParamSizeInBytes();
+  size_t CurrentParamSize();
   ManagedRegister CurrentParamRegister();
   FrameOffset CurrentParamStackOffset();
 
@@ -77,10 +79,10 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // | incoming stack args    | <-- Prior SP
 // | { Spilled registers    |
 // |   & return address }   |
-// | { Saved JNI Env Data } |
+// | { Return value spill } |     (live on return slow paths)
 // | { Stack Handle Block   |
 // |   ...                  |
-// |   length/link }        |     (here to prior SP is frame size)
+// |   num. refs./link }    |     (here to prior SP is frame size)
 // | Method*                | <-- Anchor SP written to thread
 // | { Outgoing stack args  |
 // |   ... }                | <-- SP at point of call
@@ -98,6 +100,9 @@ class JniCallingConvention : public CallingConvention {
   size_t OutArgSize();
   // Number of handles in stack handle block
   size_t HandleCount();
+  // Location where the return value of a call can be squirreled if another
+  // call is made following the native call
+  FrameOffset ReturnValueSaveLocation();
 
   // Iterator interface
   bool HasNext();
@@ -105,7 +110,7 @@ class JniCallingConvention : public CallingConvention {
   bool IsCurrentParamAReference();
   bool IsCurrentParamInRegister();
   bool IsCurrentParamOnStack();
-  size_t CurrentParamSizeInBytes();
+  size_t CurrentParamSize();
   ManagedRegister CurrentParamRegister();
   FrameOffset CurrentParamStackOffset();
 

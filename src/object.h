@@ -436,7 +436,11 @@ class Method : public Object {
   // Is the given method parameter a long or double?
   bool IsParamALongOrDouble(unsigned int param) const;
 
-  size_t ParamSizeInBytes(unsigned int param) const;
+  // Size in bytes of the given parameter
+  size_t ParamSize(unsigned int param) const;
+
+  // Size in bytes of the return value
+  size_t ReturnSize() const;
 
   void SetCode(const void* code) {
     code_ = code;

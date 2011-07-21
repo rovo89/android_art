@@ -7,6 +7,8 @@
 
 namespace art {
 
+// Managed runtime calling convention
+
 size_t ManagedRuntimeCallingConvention::FrameSize() {
   LOG(FATAL) << "Unimplemented";
   return 0;
@@ -30,21 +32,22 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamPossiblyNull() {
   return GetMethod()->IsStatic() || (itr_position_ != 0);
 }
 
-size_t ManagedRuntimeCallingConvention::CurrentParamSizeInBytes() {
-  return GetMethod()->ParamSizeInBytes(itr_position_);
+size_t ManagedRuntimeCallingConvention::CurrentParamSize() {
+  return GetMethod()->ParamSize(itr_position_);
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
   return GetMethod()->IsParamAReference(itr_position_);
 }
 
+// JNI calling convention
 
 size_t JniCallingConvention::FrameSize() {
   // Return address and Method*
   size_t frame_data_size = 2 * kPointerSize;
   // Handles plus 2 words for SHB header
   size_t handle_area_size = (HandleCount() + 2) * kPointerSize;
-  return RoundUp(frame_data_size + handle_area_size, 16);
+  return RoundUp(frame_data_size + handle_area_size + SizeOfReturnValue(), 16);
 }
 
 size_t JniCallingConvention::OutArgSize() {
@@ -54,6 +57,12 @@ size_t JniCallingConvention::OutArgSize() {
 size_t JniCallingConvention::HandleCount() {
   const Method* method = GetMethod();
   return method->NumReferenceArgs() + (method->IsStatic() ? 1 : 0);
+}
+
+FrameOffset JniCallingConvention::ReturnValueSaveLocation() {
+  size_t start_of_shb = ShbLinkOffset().Int32Value() +  kPointerSize;
+  size_t handle_size = kPointerSize * HandleCount();  // size excluding header
+  return FrameOffset(start_of_shb + handle_size);
 }
 
 bool JniCallingConvention::HasNext() {
@@ -108,12 +117,12 @@ FrameOffset JniCallingConvention::CurrentParamHandleOffset() {
   return FrameOffset(result);
 }
 
-unsigned int JniCallingConvention::CurrentParamSizeInBytes() {
+size_t JniCallingConvention::CurrentParamSize() {
   if (itr_position_ <= kObjectOrClass) {
     return kPointerSize;  // JNIEnv or jobject/jclass
   } else {
     int arg_pos = itr_position_ - (GetMethod()->IsStatic() ? 2 : 1);
-    return GetMethod()->ParamSizeInBytes(arg_pos);
+    return GetMethod()->ParamSize(arg_pos);
   }
 }
 

@@ -38,6 +38,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
 	src/jni_compiler.cc \
+	src/jni_internal.cc \
 	src/memory_region.cc \
 	src/object.cc \
 	src/raw_dex_file.cc \
