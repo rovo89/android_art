@@ -3,7 +3,7 @@
 #ifndef ART_SRC_UTILS_H_
 #define ART_SRC_UTILS_H_
 
-#include "src/globals.h"
+#include "globals.h"
 
 namespace art {
 

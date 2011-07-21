@@ -3,11 +3,11 @@
 #ifndef ART_SRC_ASSEMBLER_H_
 #define ART_SRC_ASSEMBLER_H_
 
-#include "src/logging.h"
-#include "src/macros.h"
-#include "src/managed_register.h"
-#include "src/memory_region.h"
-#include "src/offsets.h"
+#include "logging.h"
+#include "macros.h"
+#include "managed_register.h"
+#include "memory_region.h"
+#include "offsets.h"
 
 namespace art {
 
@@ -300,9 +300,9 @@ class AssemblerBuffer {
 }  // namespace art
 
 #if defined(__i386__)
-#include "src/assembler_x86.h"
+#include "assembler_x86.h"
 #elif defined(__arm__)
-#include "src/assembler_arm.h"
+#include "assembler_arm.h"
 #endif
 
 #endif  // ART_SRC_ASSEMBLER_H_

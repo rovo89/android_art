@@ -3,13 +3,13 @@
 #ifndef ART_SRC_ASSEMBLER_X86_H_
 #define ART_SRC_ASSEMBLER_X86_H_
 
-#include "src/assembler.h"
-#include "src/constants.h"
-#include "src/globals.h"
-#include "src/managed_register.h"
-#include "src/macros.h"
-#include "src/offsets.h"
-#include "src/utils.h"
+#include "assembler.h"
+#include "constants.h"
+#include "globals.h"
+#include "managed_register.h"
+#include "macros.h"
+#include "offsets.h"
+#include "utils.h"
 
 namespace art {
 

@@ -4,10 +4,10 @@
 #ifndef ART_SRC_HEAP_H_
 #define ART_SRC_HEAP_H_
 
-#include "src/globals.h"
-#include "src/object.h"
-#include "src/object_bitmap.h"
-#include "src/thread.h"
+#include "globals.h"
+#include "object.h"
+#include "object_bitmap.h"
+#include "thread.h"
 
 namespace art {
 
@@ -40,13 +40,21 @@ class Heap {
     return obj;
   }
 
-  static CharArray* AllocCharArray(Class* char_array, size_t length) {
-    size_t size = sizeof(Array) + length * sizeof(uint16_t);
-    Object* new_array = AllocObject(char_array, size);
-    if (new_array != NULL) {
-      char_array->klass_ = char_array;
+  static Array* AllocArray(Class* array_class, size_t component_count, size_t component_size) {
+    size_t size = sizeof(Array) + component_count * component_size;
+    Array* array = down_cast<Array*>(AllocObject(array_class, size));
+    if (array != NULL) {
+      array->SetLength(component_count);
     }
-    return down_cast<CharArray*>(new_array);
+    return array;
+  }
+
+  static ObjectArray* AllocObjectArray(Class* object_array_class, size_t length) {
+    return down_cast<ObjectArray*>(AllocArray(object_array_class, length, sizeof(uint32_t)));
+  }
+
+  static CharArray* AllocCharArray(Class* char_array_class, size_t length) {
+    return down_cast<CharArray*>(AllocArray(char_array_class, length, sizeof(uint16_t)));
   }
 
   static String* AllocString(Class* java_lang_String) {

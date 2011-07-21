@@ -5,7 +5,7 @@
 #define ART_SRC_OFFSETS_H_
 
 #include <iostream>  // NOLINT
-#include "src/globals.h"
+#include "globals.h"
 
 namespace art {
 

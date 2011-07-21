@@ -20,6 +20,7 @@ LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
 LOCAL_CFLAGS := $(ART_CFLAGS)
+LOCAL_C_INCLUDES += src external/gtest/include
 LOCAL_SHARED_LIBRARIES := liblog libz-host
 LOCAL_LDLIBS := -ldl -lpthread -lrt
 include $(BUILD_HOST_SHARED_LIBRARY)

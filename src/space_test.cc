@@ -1,12 +1,12 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/space.h"
+#include "space.h"
 
 #include "gtest/gtest.h"
 
-#include "src/globals.h"
-#include "src/scoped_ptr.h"
+#include "globals.h"
+#include "scoped_ptr.h"
 
 namespace art {
 

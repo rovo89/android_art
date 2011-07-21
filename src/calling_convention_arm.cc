@@ -1,8 +1,8 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: irogers@google.com (Ian Rogers)
 
-#include "src/calling_convention.h"
-#include "src/logging.h"
+#include "calling_convention.h"
+#include "logging.h"
 
 namespace art {
 

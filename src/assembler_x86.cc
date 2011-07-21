@@ -1,11 +1,11 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/assembler.h"
-#include "src/casts.h"
-#include "src/globals.h"
-#include "src/memory_region.h"
-#include "src/offsets.h"
-#include "src/thread.h"
+#include "assembler.h"
+#include "casts.h"
+#include "globals.h"
+#include "memory_region.h"
+#include "offsets.h"
+#include "thread.h"
 
 namespace art {
 

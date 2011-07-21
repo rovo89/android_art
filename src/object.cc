@@ -1,12 +1,14 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/object.h"
+#include "object.h"
+
 #include <string.h>
 #include <algorithm>
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/dex_file.h"
-#include "src/raw_dex_file.h"
+
+#include "globals.h"
+#include "logging.h"
+#include "dex_file.h"
+#include "raw_dex_file.h"
 
 namespace art {
 
@@ -150,50 +152,6 @@ size_t Method::ParamSize(unsigned int param) const {
 
 size_t Method::ReturnSize() const {
   return ShortyCharToSize(shorty_[0]);
-}
-
-bool Method::HasSameArgumentTypes(const Method* that) const {
-  const RawDexFile* raw1 = this->GetClass()->GetDexFile()->GetRaw();
-  const RawDexFile::ProtoId& proto1 = raw1->GetProtoId(this->proto_idx_);
-  const RawDexFile* raw2 = that->GetClass()->GetDexFile()->GetRaw();
-  const RawDexFile::ProtoId& proto2 = raw2->GetProtoId(that->proto_idx_);
-
-  // TODO: compare ProtoId objects for equality and exit early
-
-  const RawDexFile::TypeList* type_list1 = raw1->GetProtoParameters(proto1);
-  size_t arity1 = (type_list1 == NULL) ? 0 : type_list1->Size();
-  const RawDexFile::TypeList* type_list2 = raw2->GetProtoParameters(proto2);
-  size_t arity2 = (type_list2 == NULL) ? 0 : type_list2->Size();
-
-  if (arity1 != arity2) {
-    return false;
-  }
-
-  for (size_t i = 0; i < arity1; ++i) {
-    uint32_t type_idx1 = type_list1->GetTypeItem(i).type_idx_;
-    const char* type1 = raw1->dexStringByTypeIdx(type_idx1);
-
-    uint32_t type_idx2 = type_list2->GetTypeItem(i).type_idx_;
-    const char* type2 = raw2->dexStringByTypeIdx(type_idx2);
-
-    if (strcmp(type1, type2) != 0) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-bool Method::HasSameReturnType(const Method* that) const {
-  const RawDexFile* raw1 = this->GetClass()->GetDexFile()->GetRaw();
-  const RawDexFile::ProtoId& proto1 = raw1->GetProtoId(this->proto_idx_);
-  const char* type1 = raw1->dexStringByTypeIdx(proto1.return_type_idx_);
-
-  const RawDexFile* raw2 = that->GetClass()->GetDexFile()->GetRaw();
-  const RawDexFile::ProtoId& proto2 = raw2->GetProtoId(that->proto_idx_);
-  const char* type2 = raw2->dexStringByTypeIdx(proto2.return_type_idx_);
-
-  return (strcmp(type1, type2) == 0);
 }
 
 Method* Class::FindDirectMethod(const StringPiece& name) const {

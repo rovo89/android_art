@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/globals.h"
-#include "src/scoped_ptr.h"
+#include "globals.h"
+#include "scoped_ptr.h"
 
 #include <vector>
 

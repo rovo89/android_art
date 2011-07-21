@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/assembler_x86.h"
+#include "assembler_x86.h"
 
 #include "gtest/gtest.h"
 

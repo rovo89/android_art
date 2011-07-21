@@ -1,13 +1,13 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/runtime.h"
+#include "runtime.h"
 
 #include <cstdio>
 #include <cstdlib>
 
-#include "src/class_linker.h"
-#include "src/heap.h"
-#include "src/thread.h"
+#include "class_linker.h"
+#include "heap.h"
+#include "thread.h"
 
 namespace art {
 
@@ -44,9 +44,9 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
-Runtime* Runtime::Create() {
+Runtime* Runtime::Create(std::vector<RawDexFile*> boot_class_path) {
   scoped_ptr<Runtime> runtime(new Runtime());
-  bool success = runtime->Init();
+  bool success = runtime->Init(boot_class_path);
   if (!success) {
     return NULL;
   } else {
@@ -54,13 +54,13 @@ Runtime* Runtime::Create() {
   }
 }
 
-bool Runtime::Init() {
+bool Runtime::Init(std::vector<RawDexFile*> boot_class_path) {
   thread_list_ = ThreadList::Create();
   Heap::Init(Heap::kStartupSize, Heap::kMaximumSize);
   Thread::Init();
   Thread* current_thread = Thread::Attach();
   thread_list_->Register(current_thread);
-  class_linker_ = ClassLinker::Create();
+  class_linker_ = ClassLinker::Create(boot_class_path);
   return true;
 }
 

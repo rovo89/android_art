@@ -1,9 +1,9 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/assembler.h"
-#include "src/logging.h"
-#include "src/offsets.h"
-#include "src/utils.h"
+#include "assembler.h"
+#include "logging.h"
+#include "offsets.h"
+#include "utils.h"
 
 namespace art {
 

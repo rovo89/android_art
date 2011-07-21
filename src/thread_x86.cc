@@ -1,10 +1,12 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/thread.h"
+#include "thread.h"
+
 #include <asm/ldt.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include "src/macros.h"
+
+#include "macros.h"
 
 namespace art {
 

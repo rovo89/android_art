@@ -1,132 +1,116 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/common_test.h"
-#include "src/class_linker.h"
-#include "src/dex_file.h"
-#include "src/heap.h"
+#include "common_test.h"
+#include "class_linker.h"
+#include "dex_file.h"
+#include "heap.h"
 #include "gtest/gtest.h"
 
 namespace art {
 
-class ClassLinkerTest : public RuntimeTest {};
+class ClassLinkerTest : public RuntimeTest {
+ protected:
+  void AssertNonExistantClass(const StringPiece& descriptor) {
+    EXPECT_TRUE(class_linker_.get()->FindSystemClass(descriptor) == NULL);
+  }
+
+  void AssertPrimitiveClass(const StringPiece& descriptor) {
+    Class* primitive = class_linker_.get()->FindSystemClass(descriptor);
+    ASSERT_TRUE(primitive != NULL);
+    ASSERT_TRUE(primitive->GetClass() != NULL);
+    ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
+    EXPECT_TRUE(primitive->GetClass()->GetSuperClass() != NULL);
+    ASSERT_EQ(descriptor, primitive->GetDescriptor());
+    EXPECT_TRUE(primitive->GetSuperClass() == NULL);
+    EXPECT_FALSE(primitive->HasSuperClass());
+    EXPECT_TRUE(primitive->GetComponentType() == NULL);
+    EXPECT_TRUE(primitive->GetStatus() == Class::kStatusInitialized);
+    EXPECT_FALSE(primitive->IsErroneous());
+    EXPECT_TRUE(primitive->IsVerified());
+    EXPECT_TRUE(primitive->IsLinked());
+    EXPECT_FALSE(primitive->IsArray());
+    EXPECT_EQ(0, primitive->array_rank_);
+    EXPECT_FALSE(primitive->IsInterface());
+    EXPECT_TRUE(primitive->IsPublic());
+    EXPECT_TRUE(primitive->IsFinal());
+    EXPECT_TRUE(primitive->IsPrimitive());
+    EXPECT_EQ(0U, primitive->NumDirectMethods());
+    EXPECT_EQ(0U, primitive->NumVirtualMethods());
+    EXPECT_EQ(0U, primitive->NumInstanceFields());
+    EXPECT_EQ(0U, primitive->NumStaticFields());
+    EXPECT_EQ(0U, primitive->interface_count_);
+  }
+
+  void AssertArrayClass(const StringPiece& array_descriptor,
+                        int32_t array_rank,
+                        const StringPiece& component_type) {
+    Class* array = class_linker_.get()->FindSystemClass(array_descriptor);
+    ASSERT_TRUE(array != NULL);
+    ASSERT_TRUE(array->GetClass() != NULL);
+    ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
+    EXPECT_TRUE(array->GetClass()->GetSuperClass() != NULL);
+    ASSERT_EQ(array_descriptor, array->GetDescriptor());
+    EXPECT_TRUE(array->GetSuperClass() != NULL);
+    EXPECT_EQ(class_linker_.get()->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
+    EXPECT_TRUE(array->HasSuperClass());
+    ASSERT_TRUE(array->GetComponentType() != NULL);
+    ASSERT_TRUE(array->GetComponentType()->GetDescriptor() != NULL);
+    EXPECT_EQ(component_type, array->GetComponentType()->GetDescriptor());
+    EXPECT_TRUE(array->GetStatus() == Class::kStatusInitialized);
+    EXPECT_FALSE(array->IsErroneous());
+    EXPECT_TRUE(array->IsVerified());
+    EXPECT_TRUE(array->IsLinked());
+    EXPECT_TRUE(array->IsArray());
+    EXPECT_EQ(array_rank, array->array_rank_);
+    EXPECT_FALSE(array->IsInterface());
+    EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
+    EXPECT_TRUE(array->IsFinal());
+    EXPECT_FALSE(array->IsPrimitive());
+    EXPECT_EQ(0U, array->NumDirectMethods());
+    EXPECT_EQ(0U, array->NumVirtualMethods());
+    EXPECT_EQ(0U, array->NumInstanceFields());
+    EXPECT_EQ(0U, array->NumStaticFields());
+    EXPECT_EQ(2U, array->interface_count_);
+  }
+};
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
-  ASSERT_TRUE(dex != NULL);
-
-  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
-  linker->AppendToClassPath(dex.get());
-
-  Class* result1 = linker.get()->FindClass("NoSuchClass;", NULL);
+  Class* result1 = class_linker_.get()->FindSystemClass("NoSuchClass;");
   EXPECT_TRUE(result1 == NULL);
-  Class* result2 = linker.get()->FindClass("LNoSuchClass;", NULL);
+  Class* result2 = class_linker_.get()->FindSystemClass("LNoSuchClass;");
   EXPECT_TRUE(result2 == NULL);
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  scoped_ptr<DexFile> objectDex(OpenDexFileBase64(kJavaLangDex));
-  ASSERT_TRUE(objectDex != NULL);
-  scoped_ptr<DexFile> nestedDex(OpenDexFileBase64(kNestedDex));
-  ASSERT_TRUE(nestedDex != NULL);
+  scoped_ptr<RawDexFile> nestedDex(OpenRawDexFileBase64(kNestedDex));
+  class_linker_.get()->RegisterDexFile(nestedDex.get());
 
-  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
-  linker->AppendToClassPath(objectDex.get());
-  linker->AppendToClassPath(nestedDex.get());
-
-  Class* outer = linker.get()->FindClass("LNested;", NULL);
+  Class* outer = class_linker_.get()->FindClass("LNested;", NULL, nestedDex.get());
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  Class* inner = linker.get()->FindClass("LNested$Inner;", NULL);
+  Class* inner = class_linker_.get()->FindClass("LNested$Inner;", NULL, nestedDex.get());
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
 }
 
-static void AssertNonExistantClass(ClassLinker* linker, const StringPiece& descriptor) {
-  EXPECT_TRUE(linker->FindClass(descriptor, NULL) == NULL);
-}
-
-static void AssertPrimitiveClass(ClassLinker* linker, const StringPiece& descriptor) {
-  Class* primitive = linker->FindClass(descriptor, NULL);
-  ASSERT_TRUE(primitive != NULL);
-  ASSERT_TRUE(primitive->GetClass() != NULL);
-  ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
-  EXPECT_TRUE(primitive->GetClass()->GetSuperClass() != NULL);
-  ASSERT_EQ(descriptor, primitive->GetDescriptor());
-  EXPECT_TRUE(primitive->GetSuperClass() == NULL);
-  EXPECT_FALSE(primitive->HasSuperClass());
-  EXPECT_TRUE(primitive->GetComponentType() == NULL);
-  EXPECT_TRUE(primitive->GetStatus() == Class::kStatusInitialized);
-  EXPECT_FALSE(primitive->IsErroneous());
-  EXPECT_TRUE(primitive->IsVerified());
-  EXPECT_TRUE(primitive->IsLinked());
-  EXPECT_FALSE(primitive->IsArray());
-  EXPECT_EQ(0, primitive->array_rank_);
-  EXPECT_FALSE(primitive->IsInterface());
-  EXPECT_TRUE(primitive->IsPublic());
-  EXPECT_TRUE(primitive->IsFinal());
-  EXPECT_TRUE(primitive->IsPrimitive());
-  EXPECT_EQ(0U, primitive->NumDirectMethods());
-  EXPECT_EQ(0U, primitive->NumVirtualMethods());
-  EXPECT_EQ(0U, primitive->NumInstanceFields());
-  EXPECT_EQ(0U, primitive->NumStaticFields());
-  EXPECT_EQ(0U, primitive->interface_count_);
-}
-
-static void AssertArrayClass(ClassLinker* linker,
-                             const StringPiece& array_descriptor,
-                             int32_t array_rank,
-                             const StringPiece& component_type) {
-  Class* array = linker->FindClass(array_descriptor, NULL);
-  ASSERT_TRUE(array != NULL);
-  ASSERT_TRUE(array->GetClass() != NULL);
-  ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
-  EXPECT_TRUE(array->GetClass()->GetSuperClass() != NULL);
-  ASSERT_EQ(array_descriptor, array->GetDescriptor());
-  EXPECT_TRUE(array->GetSuperClass() != NULL);
-  EXPECT_EQ(linker->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
-  EXPECT_TRUE(array->HasSuperClass());
-  ASSERT_TRUE(array->GetComponentType() != NULL);
-  ASSERT_TRUE(array->GetComponentType()->GetDescriptor() != NULL);
-  EXPECT_EQ(component_type, array->GetComponentType()->GetDescriptor());
-  EXPECT_TRUE(array->GetStatus() == Class::kStatusInitialized);
-  EXPECT_FALSE(array->IsErroneous());
-  EXPECT_TRUE(array->IsVerified());
-  EXPECT_TRUE(array->IsLinked());
-  EXPECT_TRUE(array->IsArray());
-  EXPECT_EQ(array_rank, array->array_rank_);
-  EXPECT_FALSE(array->IsInterface());
-  EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
-  EXPECT_TRUE(array->IsFinal());
-  EXPECT_FALSE(array->IsPrimitive());
-  EXPECT_EQ(0U, array->NumDirectMethods());
-  EXPECT_EQ(0U, array->NumVirtualMethods());
-  EXPECT_EQ(0U, array->NumInstanceFields());
-  EXPECT_EQ(0U, array->NumStaticFields());
-  EXPECT_EQ(2U, array->interface_count_);
-}
-
 TEST_F(ClassLinkerTest, FindClass) {
-  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
+  ClassLinker* linker = class_linker_.get();
 
   StringPiece expected = "BCDFIJSZV";
   for (int ch = 0; ch < 255; ch++) {
     char* s = reinterpret_cast<char*>(&ch);
     StringPiece descriptor(s, 1);
     if (expected.find(ch) == StringPiece::npos) {
-      AssertNonExistantClass(linker.get(), descriptor);
+      AssertNonExistantClass(descriptor);
     } else {
-      AssertPrimitiveClass(linker.get(), descriptor);
+      AssertPrimitiveClass(descriptor);
     }
   }
 
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
-  ASSERT_TRUE(dex != NULL);
-  linker->AppendToClassPath(dex.get());
-
-  Class* JavaLangObject = linker->FindClass("Ljava/lang/Object;", NULL);
+  Class* JavaLangObject = linker->FindSystemClass("Ljava/lang/Object;");
   ASSERT_TRUE(JavaLangObject != NULL);
   ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
   ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
@@ -151,7 +135,10 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->interface_count_);
 
 
-  Class* MyClass = linker->FindClass("LMyClass;", NULL);
+  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassDex));
+  linker->RegisterDexFile(dex.get());
+  EXPECT_TRUE(linker->FindSystemClass("LMyClass;") == NULL);
+  Class* MyClass = linker->FindClass("LMyClass;", NULL, dex.get());
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
@@ -179,12 +166,111 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
 
   // created by class_linker
-  AssertArrayClass(linker.get(), "[C", 1, "C");
+  AssertArrayClass("[C", 1, "C");
+  AssertArrayClass("[Ljava/lang/Object;", 1, "Ljava/lang/Object;");
   // synthesized on the fly
-  AssertArrayClass(linker.get(), "[[C", 2, "C");
-  AssertArrayClass(linker.get(), "[[[LMyClass;", 3, "LMyClass;");
+  AssertArrayClass("[[C", 2, "C");
+  AssertArrayClass("[[[LMyClass;", 3, "LMyClass;");
   // or not available at all
-  AssertNonExistantClass(linker.get(), "[[[[LNonExistantClass;");
+  AssertNonExistantClass("[[[[LNonExistantClass;");
+}
+
+TEST_F(ClassLinkerTest, ProtoCompare) {
+  ClassLinker* linker = class_linker_.get();
+
+  scoped_ptr<RawDexFile> proto_dex_file(OpenRawDexFileBase64(kProtoCompareDex));
+  linker->RegisterDexFile(proto_dex_file.get());
+
+  Class* klass = linker->FindClass("LProtoCompare;", NULL, proto_dex_file.get());
+  ASSERT_TRUE(klass != NULL);
+
+  ASSERT_EQ(4U, klass->NumVirtualMethods());
+
+  Method* m1 = klass->GetVirtualMethod(0);
+  ASSERT_EQ("m1", m1->GetName());
+
+  Method* m2 = klass->GetVirtualMethod(1);
+  ASSERT_EQ("m2", m2->GetName());
+
+  Method* m3 = klass->GetVirtualMethod(2);
+  ASSERT_EQ("m3", m3->GetName());
+
+  Method* m4 = klass->GetVirtualMethod(3);
+  ASSERT_EQ("m4", m4->GetName());
+
+  EXPECT_TRUE(linker->HasSameReturnType(m1, m2));
+  EXPECT_TRUE(linker->HasSameReturnType(m2, m1));
+
+  EXPECT_TRUE(linker->HasSameReturnType(m1, m2));
+  EXPECT_TRUE(linker->HasSameReturnType(m2, m1));
+
+  EXPECT_FALSE(linker->HasSameReturnType(m1, m4));
+  EXPECT_FALSE(linker->HasSameReturnType(m4, m1));
+
+  EXPECT_TRUE(linker->HasSameArgumentTypes(m1, m2));
+  EXPECT_TRUE(linker->HasSameArgumentTypes(m2, m1));
+
+  EXPECT_FALSE(linker->HasSameArgumentTypes(m1, m3));
+  EXPECT_FALSE(linker->HasSameArgumentTypes(m3, m1));
+
+  EXPECT_FALSE(linker->HasSameArgumentTypes(m1, m4));
+  EXPECT_FALSE(linker->HasSameArgumentTypes(m4, m1));
+
+  EXPECT_TRUE(linker->HasSamePrototype(m1, m2));
+  EXPECT_TRUE(linker->HasSamePrototype(m2, m1));
+
+  EXPECT_FALSE(linker->HasSamePrototype(m1, m3));
+  EXPECT_FALSE(linker->HasSamePrototype(m3, m1));
+
+  EXPECT_FALSE(linker->HasSamePrototype(m3, m4));
+  EXPECT_FALSE(linker->HasSamePrototype(m4, m3));
+
+  EXPECT_FALSE(linker->HasSameName(m1, m2));
+  EXPECT_FALSE(linker->HasSameNameAndPrototype(m1, m2));
+}
+
+TEST_F(ClassLinkerTest, ProtoCompare2) {
+  ClassLinker* linker = class_linker_.get();
+
+  scoped_ptr<RawDexFile> proto1_dex_file(OpenRawDexFileBase64(kProtoCompareDex));
+  linker->RegisterDexFile(proto1_dex_file.get());
+  scoped_ptr<RawDexFile> proto2_dex_file(OpenRawDexFileBase64(kProtoCompare2Dex));
+  linker->RegisterDexFile(proto2_dex_file.get());
+
+  Class* klass1 = linker->FindClass("LProtoCompare;", NULL, proto1_dex_file.get());
+  ASSERT_TRUE(klass1 != NULL);
+  Class* klass2 = linker->FindClass("LProtoCompare2;", NULL, proto2_dex_file.get());
+  ASSERT_TRUE(klass2 != NULL);
+
+  Method* m1_1 = klass1->GetVirtualMethod(0);
+  ASSERT_EQ("m1", m1_1->GetName());
+  Method* m2_1 = klass1->GetVirtualMethod(1);
+  ASSERT_EQ("m2", m2_1->GetName());
+  Method* m3_1 = klass1->GetVirtualMethod(2);
+  ASSERT_EQ("m3", m3_1->GetName());
+  Method* m4_1 = klass1->GetVirtualMethod(3);
+  ASSERT_EQ("m4", m4_1->GetName());
+
+  Method* m1_2 = klass2->GetVirtualMethod(0);
+  ASSERT_EQ("m1", m1_2->GetName());
+  Method* m2_2 = klass2->GetVirtualMethod(1);
+  ASSERT_EQ("m2", m2_2->GetName());
+  Method* m3_2 = klass2->GetVirtualMethod(2);
+  ASSERT_EQ("m3", m3_2->GetName());
+  Method* m4_2 = klass2->GetVirtualMethod(3);
+  ASSERT_EQ("m4", m4_2->GetName());
+
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m1_1, m1_2));
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m1_2, m1_1));
+
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m2_1, m2_2));
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m2_2, m2_1));
+
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m3_1, m3_2));
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m3_2, m3_1));
+
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m4_1, m4_2));
+  EXPECT_TRUE(linker->HasSameNameAndPrototype(m4_2, m4_1));
 }
 
 }  // namespace art

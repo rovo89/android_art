@@ -3,8 +3,8 @@
 #ifndef ART_SRC_MANAGED_REGISTER_ARM_H_
 #define ART_SRC_MANAGED_REGISTER_ARM_H_
 
-#include "src/constants.h"
-#include "src/logging.h"
+#include "constants.h"
+#include "logging.h"
 
 namespace art {
 

@@ -1,14 +1,14 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/space.h"
+#include "space.h"
 
 #include <sys/mman.h>
 
-#include "src/logging.h"
-#include "src/mspace.h"
-#include "src/scoped_ptr.h"
-#include "src/utils.h"
+#include "logging.h"
+#include "mspace.h"
+#include "scoped_ptr.h"
+#include "utils.h"
 
 namespace art {
 

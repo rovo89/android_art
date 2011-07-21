@@ -1,9 +1,9 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/common_test.h"
-#include "src/dex_file.h"
-#include "src/raw_dex_file.h"
-#include "src/scoped_ptr.h"
+#include "common_test.h"
+#include "dex_file.h"
+#include "raw_dex_file.h"
+#include "scoped_ptr.h"
 
 #include <stdio.h>
 #include "gtest/gtest.h"

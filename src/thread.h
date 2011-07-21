@@ -7,13 +7,13 @@
 #include <pthread.h>
 #include <list>
 
-#include "src/globals.h"
-#include "src/jni_internal.h"
-#include "src/logging.h"
-#include "src/macros.h"
-#include "src/object.h"
-#include "src/offsets.h"
-#include "src/runtime.h"
+#include "globals.h"
+#include "jni_internal.h"
+#include "logging.h"
+#include "macros.h"
+#include "object.h"
+#include "offsets.h"
+#include "runtime.h"
 
 #include "jni.h"
 

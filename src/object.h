@@ -3,15 +3,14 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
-#include "src/constants.h"
-#include "src/casts.h"
-#include "src/dex_file.h"
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/macros.h"
-#include "src/offsets.h"
-#include "src/stringpiece.h"
-#include "src/monitor.h"
+#include "constants.h"
+#include "casts.h"
+#include "globals.h"
+#include "logging.h"
+#include "macros.h"
+#include "offsets.h"
+#include "stringpiece.h"
+#include "monitor.h"
 
 namespace art {
 
@@ -432,22 +431,6 @@ class Method : public Object {
 
   // Number of argument registers required by the prototype.
   uint32_t NumArgRegisters();
-
-  bool HasSameNameAndPrototype(const Method* that) const {
-    return HasSameName(that) && HasSamePrototype(that);
-  }
-
-  bool HasSameName(const Method* that) const {
-    return this->GetName() == that->GetName();
-  }
-
-  bool HasSamePrototype(const Method* that) const {
-    return HasSameReturnType(that) && HasSameArgumentTypes(that);
-  }
-
-  bool HasSameReturnType(const Method* that) const;
-
-  bool HasSameArgumentTypes(const Method* that) const;
 
  public:  // TODO: private
 #define METHOD_FIELD_SLOTS 1+11
@@ -911,26 +894,32 @@ std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 class DataObject : public Object {
  public:
-  uint32_t fields_[1];
+  uint32_t fields_[0];
  private:
   DataObject();
 };
 
 class Array : public Object {
  public:
-  uint32_t GetLength() const{
+  uint32_t GetLength() const {
     return length_;
   }
-
   void SetLength(uint32_t length) {
     length_ = length;
+  }
+  const void* GetData() const {
+    return &elements_;
+  }
+  void* GetData() {
+    return &elements_;
   }
 
  private:
   // The number of array elements.
   uint32_t length_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Array);
+  // Location of first element.
+  uint32_t elements_[0];
+  Array();
 };
 
 class CharArray : public Array {
@@ -940,18 +929,19 @@ class CharArray : public Array {
 
 class ObjectArray : public Array {
  public:
-  Object* Get(int32_t i) {
-    return NULL;
+  Object* Get(uint32_t i) const {
+    DCHECK_LT(i, GetLength());
+    Object* const * data = reinterpret_cast<Object* const *>(GetData());
+    return data[i];
   }
-
-  const Object* Get(int32_t i) const {
-    return NULL;
+  void Set(uint32_t i, Object* object) {
+    DCHECK_LT(i, GetLength());
+    Object** data = reinterpret_cast<Object**>(GetData());
+    data[i] = object;
   }
-
  private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
+  ObjectArray();
 };
-
 
 class String : public Object {
  public:

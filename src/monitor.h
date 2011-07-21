@@ -4,8 +4,8 @@
 #ifndef ART_SRC_MONITOR_H_
 #define ART_SRC_MONITOR_H_
 
-#include "src/logging.h"
-#include "src/macros.h"
+#include "logging.h"
+#include "macros.h"
 
 namespace art {
 

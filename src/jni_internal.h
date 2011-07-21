@@ -4,8 +4,9 @@
 #define ART_SRC_JNI_INTERNAL_H_
 
 #include "jni.h"
-#include "src/assembler.h"
-#include "src/macros.h"
+
+#include "assembler.h"
+#include "macros.h"
 
 namespace art {
 

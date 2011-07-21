@@ -3,9 +3,9 @@
 #ifndef ART_SRC_DEX_FILE_H_
 #define ART_SRC_DEX_FILE_H_
 
-#include "src/globals.h"
-#include "src/macros.h"
-#include "src/raw_dex_file.h"
+#include "globals.h"
+#include "macros.h"
+#include "object.h"
 
 namespace art {
 
@@ -15,82 +15,81 @@ class Method;
 class String;
 union JValue;
 
-class DexFile {
+class DexFile : public ObjectArray {
  public:
-  // Opens a .dex file from the file system.  Returns NULL on failure.
-  static DexFile* OpenFile(const char* filename);
 
-  // Opens a .dex file from a RawDexFile.  Takes ownership of the
-  // RawDexFile.
-  static DexFile* Open(RawDexFile* raw);
+  enum ArrayIndexes {
+    kStrings = 0,
+    kClasses = 1,
+    kMethods = 2,
+    kFields  = 3,
+    kMax     = 4,
+  };
 
-  // Close and deallocate.
-  ~DexFile();
+  void Init(ObjectArray* strings, ObjectArray* classes,  ObjectArray* methods,  ObjectArray* fields);
 
-  size_t NumTypes() const {
-    return num_classes_;
+  size_t NumStrings() const {
+    return GetStrings()->GetLength();
+  }
+
+  size_t NumClasses() const {
+    return GetClasses()->GetLength();
   }
 
   size_t NumMethods() const {
-    return num_methods_;
+    return GetMethods()->GetLength();
   }
 
-  bool HasClass(const StringPiece& descriptor) {
-    return raw_->FindClassDef(descriptor) != NULL;
-  }
-
-  RawDexFile* GetRaw() const {
-    return raw_.get();
+  size_t NumFields() const {
+    return GetFields()->GetLength();
   }
 
   String* GetResolvedString(uint32_t string_idx) const {
-    CHECK_LT(string_idx, num_strings_);
-    return strings_[string_idx];
+    return down_cast<String*>(GetStrings()->Get(string_idx));
   }
 
-  void SetResolvedString(String* resolved, uint32_t string_idx) {
-    CHECK_LT(string_idx, num_strings_);
-    strings_[string_idx] = resolved;
+  void SetResolvedString(uint32_t string_idx, String* resolved) {
+    GetStrings()->Set(string_idx, resolved);
   }
 
   Class* GetResolvedClass(uint32_t class_idx) const {
-    CHECK_LT(class_idx, num_classes_);
-    return classes_[class_idx];
+    return down_cast<Class*>(GetClasses()->Get(class_idx));
   }
 
-  void SetResolvedClass(Class* resolved, uint32_t class_idx) {
-    CHECK_LT(class_idx, num_classes_);
-    classes_[class_idx] = resolved;
+  void SetResolvedClass(uint32_t class_idx, Class* resolved) {
+    GetClasses()->Set(class_idx, resolved);
+  }
+
+  Method* GetResolvedMethod(uint32_t method_idx) const {
+    return down_cast<Method*>(GetMethods()->Get(method_idx));
+  }
+
+  void SetResolvedMethod(uint32_t method_idx, Method* resolved) {
+    GetMethods()->Set(method_idx, resolved);
+  }
+
+  Field* GetResolvedField(uint32_t field_idx) const {
+    return down_cast<Field*>(GetFields()->Get(field_idx));
+  }
+
+  void SetResolvedfield(uint32_t field_idx, Field* resolved) {
+    GetFields()->Set(field_idx, resolved);
   }
 
  private:
-  DexFile(RawDexFile* raw) : raw_(raw) {};
-
-  void Init();
-
-  // Table of contents for interned String objects.
-  String** strings_;
-  size_t num_strings_;
-
-  // Table of contents for Class objects.
-  Class** classes_;
-  size_t num_classes_;
-
-  // Table of contents for methods.
-  Method** methods_;
-  size_t num_methods_;
-
-  // Table of contents for fields.
-  Field** fields_;
-  size_t num_fields_;
-
-  // The size of the DEX file, in bytes.
-  size_t length_;
-
-  // The underlying dex file.
-  scoped_ptr<RawDexFile> raw_;
-
-  DISALLOW_COPY_AND_ASSIGN(DexFile);
+  ObjectArray* GetStrings() const {
+      return down_cast<ObjectArray*>(Get(kStrings));
+  }
+  ObjectArray* GetClasses() const {
+      return down_cast<ObjectArray*>(Get(kClasses));
+  }
+  ObjectArray* GetMethods() const {
+      return down_cast<ObjectArray*>(Get(kMethods));
+  }
+  ObjectArray* GetFields() const {
+      return down_cast<ObjectArray*>(Get(kFields));
+  }
+  DexFile();
 };
 
 }  // namespace art

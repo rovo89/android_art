@@ -4,8 +4,8 @@
 #ifndef ART_SRC_SPACE_H_
 #define ART_SRC_SPACE_H_
 
-#include "src/globals.h"
-#include "src/macros.h"
+#include "globals.h"
+#include "macros.h"
 
 namespace art {
 

@@ -3,11 +3,11 @@
 #ifndef ART_SRC_ASSEMBLER_ARM_H_
 #define ART_SRC_ASSEMBLER_ARM_H_
 
-#include "src/constants.h"
-#include "src/managed_register.h"
-#include "src/logging.h"
-#include "src/offsets.h"
-#include "src/utils.h"
+#include "constants.h"
+#include "managed_register.h"
+#include "logging.h"
+#include "offsets.h"
+#include "utils.h"
 
 namespace art {
 

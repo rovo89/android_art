@@ -1,9 +1,9 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/heap.h"
-#include "src/object.h"
-#include "src/space.h"
+#include "heap.h"
+#include "object.h"
+#include "space.h"
 
 namespace art {
 

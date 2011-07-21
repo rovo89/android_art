@@ -3,9 +3,12 @@
 #ifndef ART_SRC_RUNTIME_H_
 #define ART_SRC_RUNTIME_H_
 
-#include "src/globals.h"
-#include "src/macros.h"
-#include "src/stringpiece.h"
+#include <vector>
+
+#include "globals.h"
+#include "macros.h"
+#include "raw_dex_file.h"
+#include "stringpiece.h"
 
 namespace art {
 
@@ -16,7 +19,7 @@ class ThreadList;
 class Runtime {
  public:
   // Creates and initializes a new runtime.
-  static Runtime* Create();
+  static Runtime* Create(std::vector<RawDexFile*> boot_class_path);
 
   // Compiles a dex file.
   static void Compile(const StringPiece& filename);
@@ -42,7 +45,7 @@ class Runtime {
   Runtime() : class_linker_(NULL), thread_list_(NULL) {}
 
   // Initializes a new uninitialized runtime.
-  bool Init();
+  bool Init(std::vector<RawDexFile*> boot_class_path);
 
   ClassLinker* class_linker_;
 

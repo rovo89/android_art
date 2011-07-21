@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/globals.h"
-#include "src/managed_register.h"
+#include "globals.h"
+#include "managed_register.h"
 #include "gtest/gtest.h"
 
 namespace art {

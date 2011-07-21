@@ -1,12 +1,12 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/dex_instruction.h"
+#include "dex_instruction.h"
 
 namespace art {
 
 const char* const Instruction::kInstructionNames[] = {
 #define INSTRUCTION_NAME(o, c, pname, f, r, i, a) pname,
-#include "src/dex_instruction_list.h"
+#include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_NAME)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_NAME
@@ -14,7 +14,7 @@ const char* const Instruction::kInstructionNames[] = {
 
 Instruction::InstructionFormat const Instruction::kInstructionFormats[] = {
 #define INSTRUCTION_FORMAT(o, c, p, format, r, i, a) format,
-#include "src/dex_instruction_list.h"
+#include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_FORMAT)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_FORMAT
@@ -22,7 +22,7 @@ Instruction::InstructionFormat const Instruction::kInstructionFormats[] = {
 
 int const Instruction::kInstructionFlags[] = {
 #define INSTRUCTION_FLAGS(o, c, p, f, r, i, flags) flags,
-#include "src/dex_instruction_list.h"
+#include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_FLAGS)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_FLAGS

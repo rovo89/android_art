@@ -3,7 +3,7 @@
 #ifndef ART_SRC_MANAGED_REGISTER_X86_H_
 #define ART_SRC_MANAGED_REGISTER_X86_H_
 
-#include "src/constants_x86.h"
+#include "constants_x86.h"
 
 namespace art {
 

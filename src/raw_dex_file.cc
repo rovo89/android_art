@@ -1,6 +1,6 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/raw_dex_file.h"
+#include "raw_dex_file.h"
 
 #include <fcntl.h>
 #include <string.h>
@@ -9,11 +9,11 @@
 #include <sys/types.h>
 #include <map>
 
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/object.h"
-#include "src/scoped_ptr.h"
-#include "src/utils.h"
+#include "globals.h"
+#include "logging.h"
+#include "object.h"
+#include "scoped_ptr.h"
+#include "utils.h"
 
 namespace art {
 

@@ -18,8 +18,8 @@
 #include <limits.h>
 #include <stdint.h>
 
-#include "src/globals.h"
-#include "src/logging.h"
+#include "globals.h"
+#include "logging.h"
 
 namespace art {
 

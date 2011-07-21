@@ -1,8 +1,8 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/globals.h"
-#include "src/calling_convention.h"
-#include "src/managed_register.h"
+#include "globals.h"
+#include "calling_convention.h"
+#include "managed_register.h"
 
 namespace art {
 

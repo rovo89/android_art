@@ -1,13 +1,13 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/mark_sweep.h"
+#include "mark_sweep.h"
 
-#include "src/logging.h"
-#include "src/macros.h"
-#include "src/mark_stack.h"
-#include "src/object.h"
-#include "src/thread.h"
+#include "logging.h"
+#include "macros.h"
+#include "mark_stack.h"
+#include "object.h"
+#include "thread.h"
 
 #define CLZ(x) __builtin_clz(x)
 

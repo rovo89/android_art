@@ -5,7 +5,7 @@
 
 #include <assert.h>
 #include <string.h>
-#include "src/macros.h"
+#include "macros.h"
 
 namespace art {
 

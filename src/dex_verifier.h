@@ -3,8 +3,8 @@
 #ifndef ART_SRC_DEX_VERIFY_H_
 #define ART_SRC_DEX_VERIFY_H_
 
-#include "src/macros.h"
-#include "src/object.h"
+#include "macros.h"
+#include "object.h"
 
 namespace art {
 

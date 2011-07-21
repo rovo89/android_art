@@ -4,9 +4,9 @@
 #define ART_SRC_MANAGED_REGISTER_H_
 
 #if defined(__i386__)
-#include "src/managed_register_x86.h"
+#include "managed_register_x86.h"
 #elif defined(__arm__)
-#include "src/managed_register_arm.h"
+#include "managed_register_arm.h"
 #else
 #error Unknown architecture.
 #endif

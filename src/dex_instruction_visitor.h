@@ -3,8 +3,8 @@
 #ifndef ART_SRC_DEX_INSTRUCTION_VISITOR_H_
 #define ART_SRC_DEX_INSTRUCTION_VISITOR_H_
 
-#include "src/dex_instruction.h"
-#include "src/macros.h"
+#include "dex_instruction.h"
+#include "macros.h"
 
 namespace art {
 
@@ -23,7 +23,7 @@ class DexInstructionVisitor {
           derived->Do_ ## cname(inst);             \
           break;                                   \
         }
-#include "src/dex_instruction_list.h"
+#include "dex_instruction_list.h"
         DEX_INSTRUCTION_LIST(INSTRUCTION_CASE)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_CASE
@@ -42,7 +42,7 @@ class DexInstructionVisitor {
     T* derived = static_cast<T*>(this);                 \
     derived->Do_Default(inst);                          \
   };
-#include "src/dex_instruction_list.h"
+#include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_VISITOR)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_VISITOR

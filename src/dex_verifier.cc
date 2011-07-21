@@ -1,6 +1,6 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/dex_verifier.h"
+#include "dex_verifier.h"
 
 #include <iostream>
 

@@ -2,9 +2,9 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/memory_region.h"
+#include "globals.h"
+#include "logging.h"
+#include "memory_region.h"
 
 namespace art {
 

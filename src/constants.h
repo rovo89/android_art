@@ -4,9 +4,9 @@
 #define ART_SRC_CONSTANTS_H_
 
 #if defined(__i386__)
-#include "src/constants_x86.h"
+#include "constants_x86.h"
 #elif defined(__arm__)
-#include "src/constants_arm.h"
+#include "constants_arm.h"
 #endif
 
 #endif  // ART_SRC_CONSTANTS_H_

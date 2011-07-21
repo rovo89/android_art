@@ -1,13 +1,13 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/mark_stack.h"
+#include "mark_stack.h"
 
 #include <sys/mman.h>
 
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/scoped_ptr.h"
+#include "globals.h"
+#include "logging.h"
+#include "scoped_ptr.h"
 
 namespace art {
 

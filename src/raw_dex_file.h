@@ -3,12 +3,12 @@
 #ifndef ART_SRC_RAW_DEX_FILE_H_
 #define ART_SRC_RAW_DEX_FILE_H_
 
-#include "src/globals.h"
-#include "src/leb128.h"
-#include "src/logging.h"
-#include "src/scoped_ptr.h"
-#include "src/stringpiece.h"
-#include "src/strutil.h"
+#include "globals.h"
+#include "leb128.h"
+#include "logging.h"
+#include "scoped_ptr.h"
+#include "stringpiece.h"
+#include "strutil.h"
 
 #include <map>
 

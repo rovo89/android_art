@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: cshapiro@google.com (Carl Shapiro)
 
-#include "src/offsets.h"
+#include "offsets.h"
 
 #include <iostream>  // NOLINT
 

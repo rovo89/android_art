@@ -3,9 +3,9 @@
 #ifndef ART_SRC_DEX_INSTRUCTION_H_
 #define ART_SRC_DEX_INSTRUCTION_H_
 
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/macros.h"
+#include "globals.h"
+#include "logging.h"
+#include "macros.h"
 
 namespace art {
 
@@ -20,7 +20,7 @@ class Instruction {
 
   enum Code {
 #define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a) cname = opcode,
-#include "src/dex_instruction_list.h"
+#include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_ENUM

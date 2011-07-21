@@ -4,9 +4,9 @@
 #define ART_SRC_CONSTANTS_X86_H_
 
 #include <iosfwd>
-#include "src/globals.h"
-#include "src/logging.h"
-#include "src/macros.h"
+#include "globals.h"
+#include "logging.h"
+#include "macros.h"
 
 namespace art {
 

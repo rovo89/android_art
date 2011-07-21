@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "src/object_bitmap.h"
+#include "object_bitmap.h"
 
 #include <sys/mman.h>
 
-#include "src/logging.h"
-#include "src/scoped_ptr.h"
+#include "logging.h"
+#include "scoped_ptr.h"
 
 namespace art {
 

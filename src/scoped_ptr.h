@@ -18,7 +18,7 @@
 //  implementation of the scoped_ptr class, and its closely-related brethren,
 //  scoped_array, scoped_ptr_malloc, and make_scoped_ptr.
 
-#include "src/macros.h"
+#include "macros.h"
 
 #include <assert.h>
 #include <stdlib.h>

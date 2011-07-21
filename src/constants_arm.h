@@ -5,9 +5,9 @@
 
 #include <stdint.h>
 #include <iosfwd>
-#include "src/casts.h"
-#include "src/globals.h"
-#include "src/logging.h"
+#include "casts.h"
+#include "globals.h"
+#include "logging.h"
 
 namespace art {
 

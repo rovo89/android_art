@@ -1,40 +1,14 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/base64.h"
-#include "src/heap.h"
-#include "src/thread.h"
-#include "src/dex_file.h"
+#include "base64.h"
+#include "heap.h"
+#include "thread.h"
+#include "class_linker.h"
+#include "dex_file.h"
 
 #include "gtest/gtest.h"
 
 namespace art {
-
-static inline RawDexFile* OpenRawDexFileBase64(const char* base64) {
-  CHECK(base64 != NULL);
-  size_t length;
-  byte* dex_file = DecodeBase64(base64, &length);
-  if (dex_file == NULL) {
-    return NULL;
-  }
-  return RawDexFile::OpenPtr(dex_file, length);
-}
-
-static inline DexFile* OpenDexFileBase64(const char* base64) {
-  return DexFile::Open(OpenRawDexFileBase64(base64));
-}
-
-class RuntimeTest : public testing::Test {
- protected:
-  virtual void SetUp() {
-    ASSERT_TRUE(Thread::Init());
-    ASSERT_TRUE(Thread::Attach() != NULL);
-    ASSERT_TRUE(Heap::Init());
-  }
-
-  virtual void TearDown() {
-    Heap::Destroy();
-  }
-};
 
 // package java.lang;
 // public class Object {}
@@ -170,5 +144,39 @@ static const char kMyClassNativesDex[] =
   "AYACAAwAAAAAAAAAAQAAAAAAAAABAAAAEwAAAHAAAAACAAAABQAAALwAAAADAAAABQAAANAAAAAF"
   "AAAACQAAAAwBAAAGAAAAAgAAAFQBAAABIAAAAgAAAJQBAAABEAAABAAAAMABAAACIAAAEwAAAOIB"
   "AAADIAAAAgAAAHUCAAAAIAAAAgAAAH8CAAAAEAAAAQAAALACAAA=";
+
+static inline RawDexFile* OpenRawDexFileBase64(const char* base64) {
+  CHECK(base64 != NULL);
+  size_t length;
+  byte* dex_file = DecodeBase64(base64, &length);
+  CHECK(dex_file != NULL);
+  RawDexFile* raw_dex_file = RawDexFile::OpenPtr(dex_file, length);
+  CHECK(raw_dex_file != NULL);
+  return raw_dex_file;
+}
+
+class RuntimeTest : public testing::Test {
+ protected:
+  virtual void SetUp() {
+    ASSERT_TRUE(Thread::Init());
+    ASSERT_TRUE(Thread::Attach() != NULL);
+    ASSERT_TRUE(Heap::Init());
+
+    java_lang_raw_dex_file_.reset(OpenRawDexFileBase64(kJavaLangDex));
+
+    std::vector<RawDexFile*> boot_class_path;
+    boot_class_path.push_back(java_lang_raw_dex_file_.get());
+
+    class_linker_.reset(ClassLinker::Create(boot_class_path));
+    CHECK(class_linker_ != NULL);
+  }
+
+  virtual void TearDown() {
+    Heap::Destroy();
+  }
+
+  scoped_ptr<RawDexFile> java_lang_raw_dex_file_;
+  scoped_ptr<ClassLinker> class_linker_;
+};
 
 }  // namespace art

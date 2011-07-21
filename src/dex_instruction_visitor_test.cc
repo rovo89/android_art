@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/dex_instruction_visitor.h"
-#include "src/scoped_ptr.h"
+#include "dex_instruction_visitor.h"
+#include "scoped_ptr.h"
 
 #include <iostream>
 #include "gtest/gtest.h"

@@ -1,14 +1,17 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: irogers@google.com (Ian Rogers)
-#include "src/jni_compiler.h"
+
+#include "jni_compiler.h"
+
 #include <sys/mman.h>
-#include "src/assembler.h"
-#include "src/calling_convention.h"
-#include "src/jni_internal.h"
-#include "src/macros.h"
-#include "src/managed_register.h"
-#include "src/logging.h"
-#include "src/thread.h"
+
+#include "assembler.h"
+#include "calling_convention.h"
+#include "jni_internal.h"
+#include "macros.h"
+#include "managed_register.h"
+#include "logging.h"
+#include "thread.h"
 
 namespace art {
 

@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/jni_internal.h"
-#include "src/logging.h"
+#include "jni_internal.h"
+#include "logging.h"
 
 namespace art {
 

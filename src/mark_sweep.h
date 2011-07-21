@@ -4,9 +4,9 @@
 #ifndef ART_SRC_MARK_SWEEP_H_
 #define ART_SRC_MARK_SWEEP_H_
 
-#include "src/macros.h"
-#include "src/mark_stack.h"
-#include "src/object_bitmap.h"
+#include "macros.h"
+#include "mark_stack.h"
+#include "object_bitmap.h"
 
 namespace art {
 

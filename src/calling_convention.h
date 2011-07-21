@@ -4,9 +4,9 @@
 #ifndef ART_SRC_CALLING_CONVENTION_H_
 #define ART_SRC_CALLING_CONVENTION_H_
 
-#include "src/managed_register.h"
-#include "src/object.h"
-#include "src/thread.h"
+#include "managed_register.h"
+#include "object.h"
+#include "thread.h"
 
 namespace art {
 

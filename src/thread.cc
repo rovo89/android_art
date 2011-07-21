@@ -1,6 +1,6 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/thread.h"
+#include "thread.h"
 
 #include <pthread.h>
 #include <sys/mman.h>
@@ -8,8 +8,8 @@
 #include <cerrno>
 #include <list>
 
-#include "src/runtime.h"
-#include "src/utils.h"
+#include "runtime.h"
+#include "utils.h"
 
 namespace art {
 
