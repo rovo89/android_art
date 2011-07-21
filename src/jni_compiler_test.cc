@@ -163,6 +163,22 @@ jobject Java_MyClass_fooSIOO(JNIEnv*, jclass klass, jint x, jobject y,
   }
 }
 
+int gJava_MyClass_fooSSIOO_calls = 0;
+jobject Java_MyClass_fooSSIOO(JNIEnv*, jclass klass, jint x, jobject y,
+                             jobject z) {
+  EXPECT_EQ(3u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+  gJava_MyClass_fooSSIOO_calls++;
+  switch (x) {
+    case 1:
+      return y;
+    case 2:
+      return z;
+    default:
+      return klass;
+  }
+}
+
 TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   scoped_ptr<ClassLinker> linker(ClassLinker::Create());
@@ -385,6 +401,59 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
   d = RunMethod(method, a, b, c, a);
   ASSERT_EQ((jobject)NULL, d.l);
   EXPECT_EQ(7, gJava_MyClass_fooSIOO_calls);
+}
+
+TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
+  linker->AppendToClassPath(dex.get());
+  Class* klass = linker->FindClass("LMyClass;", NULL);
+  Method* method = klass->FindDirectMethod("fooSSIOO");
+
+  Assembler jni_asm;
+  JniCompiler jni_compiler;
+  jni_compiler.Compile(&jni_asm, method);
+
+  // TODO: should really use JNIEnv to RegisterNative, but missing a
+  // complete story on this, so hack the RegisterNative below
+  method->RegisterNative(reinterpret_cast<void*>(&Java_MyClass_fooSSIOO));
+
+  jvalue a, b, c, d;
+  a.i = 0;
+  b.l = (jobject)NULL;
+  c.l = (jobject)NULL;
+  EXPECT_EQ(0, gJava_MyClass_fooSSIOO_calls);
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)method->GetClass(), d.l);
+  EXPECT_EQ(1, gJava_MyClass_fooSSIOO_calls);
+  a.i = 0;
+  b.l = (jobject)NULL;
+  c.l = (jobject)16;
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)method->GetClass(), d.l);
+  EXPECT_EQ(2, gJava_MyClass_fooSSIOO_calls);
+  a.i = 1;
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)NULL, d.l);
+  EXPECT_EQ(3, gJava_MyClass_fooSSIOO_calls);
+  a.i = 2;
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)16, d.l);
+  EXPECT_EQ(4, gJava_MyClass_fooSSIOO_calls);
+  a.i = 0;
+  b.l = (jobject)16;
+  c.l = (jobject)NULL;
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)method->GetClass(), d.l);
+  EXPECT_EQ(5, gJava_MyClass_fooSSIOO_calls);
+  a.i = 1;
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)16, d.l);
+  EXPECT_EQ(6, gJava_MyClass_fooSSIOO_calls);
+  a.i = 2;
+  d = RunMethod(method, a, b, c, a);
+  ASSERT_EQ((jobject)NULL, d.l);
+  EXPECT_EQ(7, gJava_MyClass_fooSSIOO_calls);
 }
 
 }  // namespace art

@@ -9,6 +9,7 @@
 
 #include "src/globals.h"
 #include "src/heap.h"
+#include "src/jni_internal.h"
 #include "src/logging.h"
 #include "src/macros.h"
 #include "src/runtime.h"
@@ -179,7 +180,7 @@ class Thread {
   }
 
   // JNI methods
-  JNIEnv* GetJniEnv() const {
+  JniEnvironment* GetJniEnv() const {
     return jni_env_;
   }
 
@@ -204,10 +205,12 @@ class Thread {
 
  private:
   Thread() :
-    thread_id_(1234), top_shb_(NULL),
-    jni_env_(reinterpret_cast<JNIEnv*>(0xEBADC0DE)), exception_(NULL) {
+    thread_id_(1234), top_shb_(NULL), exception_(NULL) {
+    jni_env_ = new JniEnvironment();
   }
-  ~Thread() {}
+  ~Thread() {
+    delete jni_env_;
+  }
 
   void InitCpu();
 
@@ -224,7 +227,7 @@ class Thread {
   StackHandleBlock* top_shb_;
 
   // Every thread may have an associated JNI environment
-  JNIEnv* jni_env_;
+  JniEnvironment* jni_env_;
 
   State state_;
 

@@ -1,8 +1,8 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "src/object.h"
-#include <algorithm>
 #include <string.h>
+#include <algorithm>
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/dex_file.h"
@@ -127,20 +127,28 @@ bool Method::IsParamALongOrDouble(unsigned int param) const {
   return (shorty_[param] == 'J') || (shorty_[param] == 'D');
 }
 
-size_t Method::ParamSizeInBytes(unsigned int param) const {
-  CHECK_LT(param, NumArgs());
-  if (IsStatic()) {
-    param++;  // 0th argument must skip return value at start of the shorty
-  } else if (param == 0) {
-    return kPointerSize;  // this argument
-  }
-  switch (shorty_[param]) {
+static size_t ShortyCharToSize(char x) {
+  switch (x) {
     case '[': return kPointerSize;
     case 'L': return kPointerSize;
     case 'D': return 8;
     case 'J': return 8;
     default:  return 4;
   }
+}
+
+size_t Method::ParamSize(unsigned int param) const {
+  CHECK_LT(param, NumArgs());
+  if (IsStatic()) {
+    param++;  // 0th argument must skip return value at start of the shorty
+  } else if (param == 0) {
+    return kPointerSize;  // this argument
+  }
+  return ShortyCharToSize(shorty_[param]);
+}
+
+size_t Method::ReturnSize() const {
+  return ShortyCharToSize(shorty_[0]);
 }
 
 bool Method::HasSameArgumentTypes(const Method* that) const {

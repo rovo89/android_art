@@ -1336,6 +1336,11 @@ void Assembler::StoreRef(FrameOffset dest, ManagedRegister src) {
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
 }
 
+void Assembler::StoreRawPtr(FrameOffset dest, ManagedRegister src) {
+  CHECK(src.IsCoreRegister());
+  StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
+}
+
 void Assembler::CopyRef(FrameOffset dest, FrameOffset src,
                         ManagedRegister scratch) {
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
@@ -1468,8 +1473,7 @@ void Assembler::CreateStackHandle(FrameOffset out_off,
 }
 
 void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
-                                             ManagedRegister in_reg,
-                                             FrameOffset shb_offset) {
+                                             ManagedRegister in_reg) {
   CHECK(out_reg.IsCoreRegister());
   CHECK(in_reg.IsCoreRegister());
   Label null_arg;
@@ -1477,8 +1481,8 @@ void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
     LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
   }
   cmp(in_reg.AsCoreRegister(), ShifterOperand(0));
-  LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(), in_reg.AsCoreRegister(),
-                 shb_offset.Int32Value(), NE);
+  LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(),
+                 in_reg.AsCoreRegister(), 0, NE);
 }
 
 void Assembler::ValidateRef(ManagedRegister src, bool could_be_null) {
@@ -1489,7 +1493,7 @@ void Assembler::ValidateRef(FrameOffset src, bool could_be_null) {
   // TODO: not validating references
 }
 
-void Assembler::Call(ManagedRegister base, MemberOffset offset,
+void Assembler::Call(ManagedRegister base, Offset offset,
                      ManagedRegister scratch) {
   CHECK(base.IsCoreRegister());
   CHECK(scratch.IsCoreRegister());
@@ -1497,15 +1501,6 @@ void Assembler::Call(ManagedRegister base, MemberOffset offset,
                  base.AsCoreRegister(), offset.Int32Value());
   blx(scratch.AsCoreRegister());
   // TODO: place reference map on call
-}
-
-// Emit code that will lock the reference in the given register
-void Assembler::LockReferenceOnStack(FrameOffset fr_offs) {
-  LOG(FATAL) << "TODO";
-}
-// Emit code that will unlock the reference in the given register
-void Assembler::UnLockReferenceOnStack(FrameOffset fr_offs) {
-  LOG(FATAL) << "TODO";
 }
 
 }  // namespace art

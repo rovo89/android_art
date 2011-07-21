@@ -3,6 +3,7 @@
 #ifndef ART_SRC_JNI_COMPILER_H_
 #define ART_SRC_JNI_COMPILER_H_
 
+#include "calling_convention.h"
 #include "globals.h"
 #include "macros.h"
 
@@ -19,7 +20,14 @@ class JniCompiler {
   JniCompiler();
   ~JniCompiler();
   void Compile(Assembler* jni_asm, Method* method);
+
  private:
+  // Copy a single parameter from the managed to the JNI calling convention
+  void CopyParameter(Assembler* jni_asm,
+                     ManagedRuntimeCallingConvention* mr_conv,
+                     JniCallingConvention* jni_conv,
+                     size_t frame_size, size_t out_arg_size);
+
   // A poor man's code cache
   void* AllocateCode(size_t size);
 

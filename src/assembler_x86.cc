@@ -1413,6 +1413,11 @@ void Assembler::StoreRef(FrameOffset dest, ManagedRegister src) {
   movl(Address(ESP, dest), src.AsCpuRegister());
 }
 
+void Assembler::StoreRawPtr(FrameOffset dest, ManagedRegister src) {
+  CHECK(src.IsCpuRegister());
+  movl(Address(ESP, dest), src.AsCpuRegister());
+}
+
 void Assembler::CopyRef(FrameOffset dest, FrameOffset src,
                         ManagedRegister scratch) {
   CHECK(scratch.IsCpuRegister());
@@ -1546,8 +1551,7 @@ void Assembler::CreateStackHandle(FrameOffset out_off,
 
 // Given a stack handle, load the associated reference.
 void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
-                                             ManagedRegister in_reg,
-                                             FrameOffset shb_offset) {
+                                             ManagedRegister in_reg) {
   CHECK(out_reg.IsCpuRegister());
   CHECK(in_reg.IsCpuRegister());
   Label null_arg;
@@ -1568,21 +1572,11 @@ void Assembler::ValidateRef(FrameOffset src, bool could_be_null) {
   // TODO: not validating references
 }
 
-void Assembler::Call(ManagedRegister base, MemberOffset offset,
+void Assembler::Call(ManagedRegister base, Offset offset,
                      ManagedRegister) {
   CHECK(base.IsCpuRegister());
-  call(Address(base.AsCpuRegister(), offset));
+  call(Address(base.AsCpuRegister(), offset.Int32Value()));
   // TODO: place reference map on call
 }
-
-// Emit code that will lock the reference in the given register
-void Assembler::LockReferenceOnStack(FrameOffset fr_offs) {
-  LOG(FATAL) << "TODO";
-}
-// Emit code that will unlock the reference in the given register
-void Assembler::UnLockReferenceOnStack(FrameOffset fr_offs) {
-  LOG(FATAL) << "TODO";
-}
-
 
 }  // namespace art

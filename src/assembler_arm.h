@@ -424,8 +424,9 @@ class Assembler {
 
   // Store bytes from the given register onto the stack
   void Store(FrameOffset dest, ManagedRegister src, size_t size);
-
   void StoreRef(FrameOffset dest, ManagedRegister src);
+  void StoreRawPtr(FrameOffset dest, ManagedRegister src);
+
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch);
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs);
 
@@ -454,20 +455,13 @@ class Assembler {
   void CreateStackHandle(FrameOffset out_off, FrameOffset handle_offset,
                          ManagedRegister scratch, bool null_allowed);
 
-  void LoadReferenceFromStackHandle(ManagedRegister dst, ManagedRegister src,
-                                    FrameOffset shb_offset);
+  void LoadReferenceFromStackHandle(ManagedRegister dst, ManagedRegister src);
 
   void ValidateRef(ManagedRegister src, bool could_be_null);
 
   void ValidateRef(FrameOffset src, bool could_be_null);
 
-  void Call(ManagedRegister base, MemberOffset offset, ManagedRegister scratch);
-
-  // Emit code that will lock the reference in the given frame location
-  void LockReferenceOnStack(FrameOffset fr_offs);
-
-  // Emit code that will unlock the reference in the given frame location
-  void UnLockReferenceOnStack(FrameOffset fr_offs);
+  void Call(ManagedRegister base, Offset offset, ManagedRegister scratch);
 
   // Emit data (e.g. encoded instruction or immediate) to the
   // instruction stream.
