@@ -21,6 +21,5 @@ LOCAL_MODULE := libart
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
 LOCAL_CFLAGS := $(ART_CFLAGS)
-LOCAL_STATIC_LIBRARIES := libcutils liblog libz
-LOCAL_SHARED_LIBRARIES := libstlport
+LOCAL_SHARED_LIBRARIES := libcutils liblog libstlport libz
 include $(BUILD_SHARED_LIBRARY)
