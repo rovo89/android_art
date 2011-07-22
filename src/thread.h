@@ -11,6 +11,7 @@
 #include "src/jni_internal.h"
 #include "src/logging.h"
 #include "src/macros.h"
+#include "src/object.h"
 #include "src/offsets.h"
 #include "src/runtime.h"
 
@@ -151,6 +152,11 @@ class Thread {
     exception_ = NULL;
   }
 
+  // Offset of exception within Thread, used by generated code
+  static ThreadOffset ExceptionOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
+  }
+
   void SetName(const char* name);
 
   void Suspend();
@@ -173,6 +179,10 @@ class Thread {
     state_ = new_state;
   }
 
+  static ThreadOffset SuspendCountOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_));
+  }
+
   // Offset of state within Thread, used by generated code
   static ThreadOffset StateOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
@@ -186,6 +196,11 @@ class Thread {
   // Offset of JNI environment within Thread, used by generated code
   static ThreadOffset JniEnvOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, jni_env_));
+  }
+
+  // Offset of top of managed stack address, used by generated code
+  static ThreadOffset TopOfManagedStackOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_));
   }
 
   // Offset of top stack handle block within Thread, used by generated code
@@ -202,9 +217,31 @@ class Thread {
     return count;
   }
 
+  // Offset of exception_entry_point_ within Thread, used by generated code
+  static ThreadOffset ExceptionEntryPointOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_entry_point_));
+  }
+
+  void RegisterExceptionEntryPoint(void (*handler)(Method**)) {
+    exception_entry_point_ = handler;
+  }
+
+  // Offset of suspend_count_entry_point_ within Thread, used by generated code
+  static ThreadOffset SuspendCountEntryPointOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_entry_point_));
+  }
+
+  void RegisterSuspendCountEntryPoint(void (*handler)(Method**)) {
+    suspend_count_entry_point_ = handler;
+  }
+
+  // Increasing the suspend count, will cause the thread to run to safepoint
+  void IncrementSuspendCount() { suspend_count_++; }
+  void DecrementSuspendCount() { suspend_count_--; }
+
  private:
   Thread() :
-    id_(1234), top_shb_(NULL), exception_(NULL) {
+    id_(1234), top_shb_(NULL), exception_(NULL), suspend_count_(0) {
     jni_env_ = new JniEnvironment();
   }
 
@@ -216,6 +253,11 @@ class Thread {
 
   // Managed thread id.
   uint32_t id_;
+
+  // Top of the managed stack, written out prior to the state transition from
+  // kRunnable to kNative. Uses include to give the starting point for scanning
+  // a managed stack when a thread is in native code.
+  void* top_of_managed_stack_;
 
   // Top of linked list of stack handle blocks or NULL for none
   StackHandleBlock* top_shb_;
@@ -241,6 +283,10 @@ class Thread {
   // The pending exception or NULL.
   Object* exception_;
 
+  // A non-zero value is used to tell the current thread to enter a safe point
+  // at the next poll.
+  int suspend_count_;
+
   // The inclusive base of the control stack.
   byte* stack_base_;
 
@@ -249,6 +295,12 @@ class Thread {
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
+
+  // Entry point called when exception_ is set
+  void (*exception_entry_point_)(Method** frame);
+
+  // Entry point called when suspend_count_ is non-zero
+  void (*suspend_count_entry_point_)(Method** frame);
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };

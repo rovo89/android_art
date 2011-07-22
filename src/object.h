@@ -486,6 +486,10 @@ class Method : public Object {
     return shorty_[0] == 'J';
   }
 
+  bool IsReturnVoid() const {
+    return shorty_[0] == 'V';
+  }
+
   // The number of arguments that should be supplied to this method
   size_t NumArgs() const {
     return (IsStatic() ? 0 : 1) + shorty_.length() - 1;

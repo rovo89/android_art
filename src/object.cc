@@ -129,6 +129,7 @@ bool Method::IsParamALongOrDouble(unsigned int param) const {
 
 static size_t ShortyCharToSize(char x) {
   switch (x) {
+    case 'V': return 0;
     case '[': return kPointerSize;
     case 'L': return kPointerSize;
     case 'D': return 8;

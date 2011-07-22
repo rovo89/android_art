@@ -5,6 +5,7 @@
 #include "src/globals.h"
 #include "src/memory_region.h"
 #include "src/offsets.h"
+#include "src/thread.h"
 
 namespace art {
 
@@ -1396,10 +1397,19 @@ void Assembler::DecreaseFrameSize(size_t adjust) {
 
 // Store bytes from the given register onto the stack
 void Assembler::Store(FrameOffset offs, ManagedRegister src, size_t size) {
-  if (src.IsCpuRegister()) {
+  if (src.IsNoRegister()) {
+    CHECK_EQ(0u, size);
+  } else if (src.IsCpuRegister()) {
     CHECK_EQ(4u, size);
     movl(Address(ESP, offs), src.AsCpuRegister());
-  } else if (src.IsXmmRegister()) {
+  } else if (src.IsX87Register()) {
+    if (size == 4) {
+      fstps(Address(ESP, offs));
+    } else {
+      fstpl(Address(ESP, offs));
+    }
+  } else {
+    CHECK(src.IsXmmRegister());
     if (size == 4) {
       movss(Address(ESP, offs), src.AsXmmRegister());
     } else {
@@ -1437,12 +1447,24 @@ void Assembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
 }
 
 void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
-  if (dest.IsCpuRegister()) {
+  if (dest.IsNoRegister()) {
+    CHECK_EQ(0u, size);
+  } else if (dest.IsCpuRegister()) {
     CHECK_EQ(4u, size);
     movl(dest.AsCpuRegister(), Address(ESP, src));
+  } else if (dest.IsX87Register()) {
+    if (size == 4) {
+      flds(Address(ESP, src));
+    } else {
+      fldl(Address(ESP, src));
+    }
   } else {
-    // TODO: x87, SSE
-    LOG(FATAL) << "Unimplemented";
+    CHECK(dest.IsXmmRegister());
+    if (size == 4) {
+      movss(dest.AsXmmRegister(), Address(ESP, src));
+    } else {
+      movsd(dest.AsXmmRegister(), Address(ESP, src));
+    }
   }
 }
 
@@ -1486,6 +1508,11 @@ void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
   leal(scratch.AsCpuRegister(), Address(ESP, fr_offs));
   fs();
   movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
+}
+
+void Assembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
+  fs();
+  movl(Address::Absolute(thr_offs), ESP);
 }
 
 void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
@@ -1577,6 +1604,59 @@ void Assembler::Call(ManagedRegister base, Offset offset,
   CHECK(base.IsCpuRegister());
   call(Address(base.AsCpuRegister(), offset.Int32Value()));
   // TODO: place reference map on call
+}
+
+// Generate code to check if Thread::Current()->suspend_count_ is non-zero
+// and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
+// at the next instruction.
+void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
+                            FrameOffset return_save_location,
+                            size_t return_size) {
+  SuspendCountSlowPath* slow =
+      new SuspendCountSlowPath(return_reg, return_save_location, return_size);
+  buffer_.EnqueueSlowPath(slow);
+  fs();
+  cmpl(Address::Absolute(Thread::SuspendCountOffset()), Immediate(0));
+  j(NOT_EQUAL, slow->Entry());
+  Bind(slow->Continuation());
+}
+void SuspendCountSlowPath::Emit(Assembler *sp_asm) {
+  sp_asm->Bind(&entry_);
+  // Save return value
+  sp_asm->Store(return_save_location_, return_register_, return_size_);
+  // Pass top of stack as argument
+  sp_asm->pushl(ESP);
+  sp_asm->fs();
+  sp_asm->call(Address::Absolute(Thread::SuspendCountEntryPointOffset()));
+  // Release argument
+  sp_asm->addl(ESP, Immediate(kPointerSize));
+  // Reload return value
+  sp_asm->Load(return_register_, return_save_location_, return_size_);
+  sp_asm->jmp(&continuation_);
+}
+
+// Generate code to check if Thread::Current()->exception_ is non-null
+// and branch to a ExceptionSlowPath if it is.
+void Assembler::ExceptionPoll(ManagedRegister scratch) {
+  ExceptionSlowPath* slow = new ExceptionSlowPath();
+  buffer_.EnqueueSlowPath(slow);
+  fs();
+  cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));
+  j(NOT_EQUAL, slow->Entry());
+  Bind(slow->Continuation());
+}
+void ExceptionSlowPath::Emit(Assembler *sp_asm) {
+  sp_asm->Bind(&entry_);
+  // NB the return value is dead
+  // Pass top of stack as argument
+  sp_asm->pushl(ESP);
+  sp_asm->fs();
+  sp_asm->call(Address::Absolute(Thread::ExceptionEntryPointOffset()));
+  // TODO: this call should never return as it should make a long jump to
+  // the appropriate catch block
+  // Release argument
+  sp_asm->addl(ESP, Immediate(kPointerSize));
+  sp_asm->jmp(&continuation_);
 }
 
 }  // namespace art

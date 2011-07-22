@@ -1412,6 +1412,10 @@ void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
                 TR, thr_offs.Int32Value());
 }
 
+void Assembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
+  StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
+}
+
 void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
   if (dest.IsCoreRegister()) {
     CHECK(src.IsCoreRegister());
@@ -1502,6 +1506,21 @@ void Assembler::Call(ManagedRegister base, Offset offset,
                  base.AsCoreRegister(), offset.Int32Value());
   blx(scratch.AsCoreRegister());
   // TODO: place reference map on call
+}
+
+// Generate code to check if Thread::Current()->suspend_count_ is non-zero
+// and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
+// at the next instruction.
+void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
+                            FrameOffset return_save_location,
+                            size_t return_size) {
+  LOG(WARNING) << "Unimplemented: Suspend poll";
+}
+
+// Generate code to check if Thread::Current()->exception_ is non-null
+// and branch to a ExceptionSlowPath if it is.
+void Assembler::ExceptionPoll(ManagedRegister scratch) {
+  LOG(WARNING) << "Unimplemented: Exception poll";
 }
 
 }  // namespace art

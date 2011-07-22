@@ -198,7 +198,7 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 
   jvalue a;
   a.l = (jobject)NULL;
-  EXPECT_EQ(0, gJava_MyClass_foo_calls);
+  gJava_MyClass_foo_calls = 0;
   RunMethod(method, a, a, a, a);
   EXPECT_EQ(1, gJava_MyClass_foo_calls);
   RunMethod(method, a, a, a, a);
@@ -454,6 +454,87 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
   d = RunMethod(method, a, b, c, a);
   ASSERT_EQ((jobject)NULL, d.l);
   EXPECT_EQ(7, gJava_MyClass_fooSSIOO_calls);
+}
+
+int gSuspendCounterHandler_calls;
+void SuspendCountHandler(Method** frame) {
+  EXPECT_EQ(0, (*frame)->GetName().compare("fooI"));
+  gSuspendCounterHandler_calls++;
+  Thread::Current()->DecrementSuspendCount();
+}
+TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
+  linker->AppendToClassPath(dex.get());
+  Class* klass = linker->FindClass("LMyClass;", NULL);
+  Method* method = klass->FindVirtualMethod("fooI");
+
+  Assembler jni_asm;
+  JniCompiler jni_compiler;
+  jni_compiler.Compile(&jni_asm, method);
+
+  // TODO: should really use JNIEnv to RegisterNative, but missing a
+  // complete story on this, so hack the RegisterNative below
+  method->RegisterNative(reinterpret_cast<void*>(&Java_MyClass_fooI));
+  Thread::Current()->RegisterSuspendCountEntryPoint(&SuspendCountHandler);
+
+  gSuspendCounterHandler_calls = 0;
+  gJava_MyClass_fooI_calls = 0;
+  jvalue a, b, c;
+  a.l = (jobject)NULL;
+  b.i = 42;
+  c = RunMethod(method, a, b, a, a);
+  ASSERT_EQ(42, c.i);
+  EXPECT_EQ(1, gJava_MyClass_fooI_calls);
+  EXPECT_EQ(0, gSuspendCounterHandler_calls);
+  Thread::Current()->IncrementSuspendCount();
+  c = RunMethod(method, a, b, a, a);
+  ASSERT_EQ(42, c.i);
+  EXPECT_EQ(2, gJava_MyClass_fooI_calls);
+  EXPECT_EQ(1, gSuspendCounterHandler_calls);
+  c = RunMethod(method, a, b, a, a);
+  ASSERT_EQ(42, c.i);
+  EXPECT_EQ(3, gJava_MyClass_fooI_calls);
+  EXPECT_EQ(1, gSuspendCounterHandler_calls);
+}
+
+int gExceptionHandler_calls;
+void ExceptionHandler(Method** frame) {
+  EXPECT_EQ(0, (*frame)->GetName().compare("foo"));
+  gExceptionHandler_calls++;
+  Thread::Current()->ClearException();
+}
+TEST_F(JniCompilerTest, ExceptionHandling) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<ClassLinker> linker(ClassLinker::Create());
+  linker->AppendToClassPath(dex.get());
+  Class* klass = linker->FindClass("LMyClass;", NULL);
+  Method* method = klass->FindVirtualMethod("foo");
+
+  Assembler jni_asm;
+  JniCompiler jni_compiler;
+  jni_compiler.Compile(&jni_asm, method);
+
+  // TODO: should really use JNIEnv to RegisterNative, but missing a
+  // complete story on this, so hack the RegisterNative below
+  method->RegisterNative(reinterpret_cast<void*>(&Java_MyClass_foo));
+  Thread::Current()->RegisterExceptionEntryPoint(&ExceptionHandler);
+
+  gExceptionHandler_calls = 0;
+  gJava_MyClass_foo_calls = 0;
+  jvalue a;
+  a.l = (jobject)NULL;
+  RunMethod(method, a, a, a, a);
+  EXPECT_EQ(1, gJava_MyClass_foo_calls);
+  EXPECT_EQ(0, gExceptionHandler_calls);
+  // TODO: create a real exception here
+  Thread::Current()->SetException(reinterpret_cast<Object*>(8));
+  RunMethod(method, a, a, a, a);
+  EXPECT_EQ(2, gJava_MyClass_foo_calls);
+  EXPECT_EQ(1, gExceptionHandler_calls);
+  RunMethod(method, a, a, a, a);
+  EXPECT_EQ(3, gJava_MyClass_foo_calls);
+  EXPECT_EQ(1, gExceptionHandler_calls);
 }
 
 }  // namespace art

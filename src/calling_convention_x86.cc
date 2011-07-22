@@ -16,10 +16,13 @@ ManagedRegister CallingConvention::InterproceduralScratchRegister() {
 }
 
 ManagedRegister CallingConvention::ReturnRegister() {
-  if (GetMethod()->IsReturnAFloatOrDouble()) {
+  const Method *method = GetMethod();
+  if (method->IsReturnAFloatOrDouble()) {
     return ManagedRegister::FromX87Register(ST0);
-  } else if (GetMethod()->IsReturnALong()) {
+  } else if (method->IsReturnALong()) {
     return ManagedRegister::FromRegisterPair(EAX_EDX);
+  } else if (method->IsReturnVoid()) {
+    return ManagedRegister::NoRegister();
   } else {
     return ManagedRegister::FromCpuRegister(EAX);
   }

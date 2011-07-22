@@ -5,7 +5,9 @@
 
 #include "src/logging.h"
 #include "src/macros.h"
+#include "src/managed_register.h"
 #include "src/memory_region.h"
+#include "src/offsets.h"
 
 namespace art {
 
@@ -83,6 +85,52 @@ class AssemblerFixup {
   friend class AssemblerBuffer;
 };
 
+// Parent of all queued slow paths, emitted during finalization
+class SlowPath {
+ public:
+  SlowPath() : next_(NULL) {}
+  virtual ~SlowPath() {}
+
+  Label* Continuation() { return &continuation_; }
+  Label* Entry() { return &entry_; }
+  // Generate code for slow path
+  virtual void Emit(Assembler *sp_asm) = 0;
+
+ protected:
+  // Entry branched to by fast path
+  Label entry_;
+  // Optional continuation that is branched to at the end of the slow path
+  Label continuation_;
+  // Next in linked list of slow paths
+  SlowPath *next_;
+
+  friend class AssemblerBuffer;
+  DISALLOW_COPY_AND_ASSIGN(SlowPath);
+};
+
+// Slowpath entered when Thread::Current()->_exception is non-null
+class ExceptionSlowPath : public SlowPath {
+ public:
+  ExceptionSlowPath() {}
+  virtual void Emit(Assembler *sp_asm);
+};
+
+// Slowpath entered when Thread::Current()->_suspend_count is non-zero
+class SuspendCountSlowPath : public SlowPath {
+ public:
+  SuspendCountSlowPath(ManagedRegister return_reg,
+                       FrameOffset return_save_location,
+                       size_t return_size) :
+     return_register_(return_reg), return_save_location_(return_save_location),
+     return_size_(return_size) {}
+  virtual void Emit(Assembler *sp_asm);
+
+ private:
+  // Remember how to save the return value
+  const ManagedRegister return_register_;
+  const FrameOffset return_save_location_;
+  const size_t return_size_;
+};
 
 class AssemblerBuffer {
  public:
@@ -111,6 +159,27 @@ class AssemblerBuffer {
     fixup->set_previous(fixup_);
     fixup->set_position(Size());
     fixup_ = fixup;
+  }
+
+  void EnqueueSlowPath(SlowPath* slowpath) {
+    if (slow_path_ == NULL) {
+      slow_path_ = slowpath;
+    } else {
+      SlowPath* cur = slow_path_;
+      for ( ; cur->next_ != NULL ; cur = cur->next_) {}
+      cur->next_ = slowpath;
+    }
+  }
+
+  void EmitSlowPaths(Assembler* sp_asm) {
+    SlowPath* cur = slow_path_;
+    SlowPath* next = NULL;
+    slow_path_ = NULL;
+    for ( ; cur != NULL ; cur = next) {
+      cur->Emit(sp_asm);
+      next = cur->next_;
+      delete cur;
+    }
   }
 
   // Get the size of the emitted code.
@@ -202,6 +271,9 @@ class AssemblerBuffer {
   byte* limit_;
   AssemblerFixup* fixup_;
   bool fixups_processed_;
+
+  // Head of linked list of slow paths
+  SlowPath* slow_path_;
 
   byte* cursor() const { return cursor_; }
   byte* limit() const { return limit_; }

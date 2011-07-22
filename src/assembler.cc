@@ -54,6 +54,7 @@ AssemblerBuffer::AssemblerBuffer() {
   cursor_ = contents_;
   limit_ = ComputeLimit(contents_, kInitialBufferCapacity);
   fixup_ = NULL;
+  slow_path_ = NULL;
 #if defined(DEBUG)
   has_ensured_capacity_ = false;
   fixups_processed_ = false;

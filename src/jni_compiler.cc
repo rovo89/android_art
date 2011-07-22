@@ -89,6 +89,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   // 5. Transition from being in managed to native code
   // TODO: write out anchor, ensure the transition to native follow a store
   //       fence.
+  jni_asm->StoreStackPointerToThread(Thread::TopOfManagedStackOffset());
   jni_asm->StoreImmediateToThread(Thread::StateOffset(), Thread::kNative,
                                   mr_conv.InterproceduralScratchRegister());
 
@@ -230,9 +231,18 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
 
   // 12. Transition from being in native to managed code, possibly entering a
   //     safepoint
+  CHECK(!jni_conv.InterproceduralScratchRegister()
+                 .Equals(jni_conv.ReturnRegister()));  // don't clobber result
+  // Location to preserve result on slow path, ensuring its within the frame
+  FrameOffset return_save_location = jni_conv.ReturnValueSaveLocation();
+  CHECK_LT(return_save_location.Uint32Value(), frame_size);
+  jni_asm->SuspendPoll(jni_conv.InterproceduralScratchRegister(),
+                       jni_conv.ReturnRegister(), return_save_location,
+                       jni_conv.SizeOfReturnValue());
+  jni_asm->ExceptionPoll(jni_conv.InterproceduralScratchRegister());
   jni_asm->StoreImmediateToThread(Thread::StateOffset(), Thread::kRunnable,
-                                  mr_conv.InterproceduralScratchRegister());
-  // TODO: check for safepoint transition
+                                  jni_conv.InterproceduralScratchRegister());
+
 
   // 15. Place result in correct register possibly dehandlerizing
   if (jni_conv.IsReturnAReference()) {
@@ -250,6 +260,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   jni_asm->RemoveFrame(frame_size);
 
   // 18. Finalize code generation
+  jni_asm->EmitSlowPaths();
   size_t cs = jni_asm->CodeSize();
   MemoryRegion code(AllocateCode(cs), cs);
   jni_asm->FinalizeInstructions(code);

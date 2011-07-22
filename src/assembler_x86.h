@@ -445,6 +445,8 @@ class Assembler {
 
   void StoreStackOffsetToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
                                 ManagedRegister scratch);
+  void StoreStackPointerToThread(ThreadOffset thr_offs);
+
   void Move(ManagedRegister dest, ManagedRegister src);
 
   void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
@@ -462,6 +464,16 @@ class Assembler {
   void ValidateRef(FrameOffset src, bool could_be_null);
 
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch);
+
+  // Generate code to check if Thread::Current()->suspend_count_ is non-zero
+  // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
+  // at the next instruction.
+  void SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
+                   FrameOffset return_save_location, size_t return_size);
+
+  // Generate code to check if Thread::Current()->exception_ is non-null
+  // and branch to a ExceptionSlowPath if it is.
+  void ExceptionPoll(ManagedRegister scratch);
 
   void AddImmediate(Register reg, const Immediate& imm);
 
@@ -483,6 +495,8 @@ class Assembler {
   int PreferredLoopAlignment() { return 16; }
   void Align(int alignment, int offset);
   void Bind(Label* label);
+
+  void EmitSlowPaths() { buffer_.EmitSlowPaths(this); }
 
   size_t CodeSize() const { return buffer_.Size(); }
 

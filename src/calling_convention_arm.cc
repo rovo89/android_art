@@ -15,12 +15,15 @@ ManagedRegister CallingConvention::InterproceduralScratchRegister() {
 }
 
 ManagedRegister CallingConvention::ReturnRegister() {
+  const Method *method = GetMethod();
   if (GetMethod()->IsReturnAFloat()) {
     return ManagedRegister::FromSRegister(S0);
-  } else if (GetMethod()->IsReturnAFloat()) {
+  } else if (GetMethod()->IsReturnADouble()) {
     return ManagedRegister::FromDRegister(D0);
-  } else if (GetMethod()->IsReturnALong()) {
+  } else if (method->IsReturnALong()) {
     return ManagedRegister::FromRegisterPair(R0_R1);
+  } else if (method->IsReturnVoid()) {
+    return ManagedRegister::NoRegister();
   } else {
     return ManagedRegister::FromCoreRegister(R0);
   }
