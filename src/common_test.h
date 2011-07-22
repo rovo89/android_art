@@ -1,6 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "src/base64.h"
+#include "src/heap.h"
 #include "src/thread.h"
 #include "src/dex_file.h"
 
@@ -27,6 +28,11 @@ class RuntimeTest : public testing::Test {
   virtual void SetUp() {
     ASSERT_TRUE(Thread::Init());
     ASSERT_TRUE(Thread::Attach() != NULL);
+    ASSERT_TRUE(Heap::Init());
+  }
+
+  virtual void TearDown() {
+    Heap::Destroy();
   }
 };
 

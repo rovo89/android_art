@@ -8,17 +8,16 @@
 #include <list>
 
 #include "src/globals.h"
-#include "src/heap.h"
 #include "src/jni_internal.h"
 #include "src/logging.h"
 #include "src/macros.h"
+#include "src/offsets.h"
 #include "src/runtime.h"
 
 #include "jni.h"
 
 namespace art {
 
-class Heap;
 class Object;
 class Runtime;
 class StackHandleBlock;
@@ -162,6 +161,10 @@ class Thread {
 
   static bool Init();
 
+  Runtime* GetRuntime() const {
+    return runtime_;
+  }
+
   State GetState() {
     return state_;
   }
@@ -173,10 +176,6 @@ class Thread {
   // Offset of state within Thread, used by generated code
   static ThreadOffset StateOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
-  }
-
-  Heap* GetHeap() {
-    return heap_;
   }
 
   // JNI methods
@@ -205,23 +204,18 @@ class Thread {
 
  private:
   Thread() :
-    thread_id_(1234), top_shb_(NULL), exception_(NULL) {
+    id_(1234), top_shb_(NULL), exception_(NULL) {
     jni_env_ = new JniEnvironment();
   }
+
   ~Thread() {
     delete jni_env_;
   }
 
   void InitCpu();
 
-  // Initialized to "this". On certain architectures (such as x86) reading
-  // off of Thread::Current is easy but getting the address of Thread::Current
-  // is hard. This field can be read off of Thread::Current to give the address.
-  Thread* self_;
-
-  uint32_t thread_id_;
-
-  Heap* heap_;
+  // Managed thread id.
+  uint32_t id_;
 
   // Top of linked list of stack handle blocks or NULL for none
   StackHandleBlock* top_shb_;
@@ -231,17 +225,29 @@ class Thread {
 
   State state_;
 
-  uint32_t id_;
-
+  // Native (kernel) thread id.
   pid_t native_id_;
 
+  // Native thread handle.
   pthread_t handle_;
 
+  // Initialized to "this". On certain architectures (such as x86) reading
+  // off of Thread::Current is easy but getting the address of Thread::Current
+  // is hard. This field can be read off of Thread::Current to give the address.
+  Thread* self_;
+
+  Runtime* runtime_;
+
+  // The pending exception or NULL.
   Object* exception_;
 
+  // The inclusive base of the control stack.
   byte* stack_base_;
+
+  // The exclusive limit of the control stack.
   byte* stack_limit_;
 
+  // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
 
   DISALLOW_COPY_AND_ASSIGN(Thread);

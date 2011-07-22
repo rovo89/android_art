@@ -14,7 +14,7 @@ namespace art {
 Runtime::~Runtime() {
   // TODO: use a smart pointer instead.
   delete class_linker_;
-  delete heap_;
+  Heap::Destroy();
   delete thread_list_;
 }
 
@@ -32,10 +32,9 @@ void Runtime::Abort(const char* file, int line) {
   PlatformAbort(file, line);
 
   // If we call abort(3) on a device, all threads in the process
-  // receive SIBABRT.
-  // debuggerd dumps the stack trace of the main thread, whether or not
-  // that was the thread that failed.
-  // By stuffing a value into a bogus address, we cause a segmentation
+  // receive SIGABRT.  debuggerd dumps the stack trace of the main
+  // thread, whether or not that was the thread that failed.  By
+  // stuffing a value into a bogus address, we cause a segmentation
   // fault in the current thread, and get a useful log from debuggerd.
   // We can also trivially tell the difference between a VM crash and
   // a deliberate abort by looking at the fault address.
@@ -57,7 +56,7 @@ Runtime* Runtime::Create() {
 
 bool Runtime::Init() {
   thread_list_ = ThreadList::Create();
-  heap_ = Heap::Create();
+  Heap::Init(Heap::kStartupSize, Heap::kMaximumSize);
   Thread::Init();
   Thread* current_thread = Thread::Attach();
   thread_list_->Register(current_thread);

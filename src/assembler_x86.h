@@ -3,12 +3,12 @@
 #ifndef ART_SRC_ASSEMBLER_X86_H_
 #define ART_SRC_ASSEMBLER_X86_H_
 
-#include <stdint.h>
-#include <string.h>
 #include "src/assembler.h"
 #include "src/constants.h"
+#include "src/globals.h"
 #include "src/managed_register.h"
 #include "src/macros.h"
+#include "src/offsets.h"
 #include "src/utils.h"
 
 namespace art {
@@ -172,7 +172,7 @@ class Address : public Operand {
     }
   }
 
-  static Address Absolute(const uword addr) {
+  static Address Absolute(uword addr) {
     Address result;
     result.SetModRM(0, EBP);
     result.SetDisp32(addr);

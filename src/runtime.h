@@ -39,14 +39,12 @@ class Runtime {
  private:
   static void PlatformAbort(const char*, int);
 
-  Runtime() : class_linker_(NULL), heap_(NULL), thread_list_(NULL) {}
+  Runtime() : class_linker_(NULL), thread_list_(NULL) {}
 
   // Initializes a new uninitialized runtime.
   bool Init();
 
   ClassLinker* class_linker_;
-
-  Heap* heap_;
 
   ThreadList* thread_list_;
 

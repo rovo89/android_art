@@ -12,9 +12,9 @@ typedef uint8_t byte;
 typedef intptr_t word;
 typedef uintptr_t uword;
 
-const int KB = 1024;
-const int MB = KB * KB;
-const int GB = KB * KB * KB;
+const size_t KB = 1024;
+const size_t MB = KB * KB;
+const size_t GB = KB * KB * KB;
 const int kMaxInt = 0x7FFFFFFF;
 const int kMinInt = -kMaxInt - 1;
 

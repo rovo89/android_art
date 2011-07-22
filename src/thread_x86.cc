@@ -47,12 +47,11 @@ void Thread::InitCpu() {
   // Allow easy indirection back to Thread*
   self_ = this;
   // Sanity check reads from FS goes to this Thread*
-  CHECK_EQ(0, OFFSETOF_MEMBER(Thread, self_));
   Thread* self_check;
   // TODO: use our assembler to generate code
-  asm("movl %%fs:0, %0"
+  asm("movl %%fs:(%1), %0"
       : "=r"(self_check)  // output
-      :    // input
+      : "r"(OFFSETOF_MEMBER(Thread, self_))  // input
       :);  // clobber
   CHECK_EQ(self_check, this);
 }

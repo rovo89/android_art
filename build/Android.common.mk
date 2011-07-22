@@ -37,12 +37,19 @@ LIBART_COMMON_SRC_FILES := \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
+	src/heap.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
+	src/mark_stack.cc \
+	src/mark_sweep.cc \
 	src/memory_region.cc \
+	src/mspace.c \
 	src/object.cc \
+	src/object_bitmap.cc \
+	src/offsets.cc \
 	src/raw_dex_file.cc \
 	src/runtime.cc \
+	src/space.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
 	src/thread.cc
@@ -74,7 +81,8 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_instruction_visitor_test.cc \
 	src/jni_compiler_test.cc \
 	src/object_test.cc \
-	src/raw_dex_file_test.cc
+	src/raw_dex_file_test.cc \
+	src/space_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \

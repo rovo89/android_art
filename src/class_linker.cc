@@ -29,7 +29,7 @@ ClassLinker* ClassLinker::Create() {
 void ClassLinker::Init() {
   // Allocate and partially initialize the Class, Object, Field, Method classes.
   // Initialization will be completed when the definitions are loaded.
-  java_lang_Class_ = reinterpret_cast<Class*>(Heap::AllocRaw(sizeof(Class), NULL));
+  java_lang_Class_ = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
   CHECK(java_lang_Class_ != NULL);
   java_lang_Class_->descriptor_ = "Ljava/lang/Class;";
   java_lang_Class_->object_size_ = sizeof(Class);
@@ -83,15 +83,18 @@ Class* ClassLinker::AllocClass(DexFile* dex_file) {
 }
 
 StaticField* ClassLinker::AllocStaticField() {
-  return reinterpret_cast<StaticField*>(Heap::AllocRaw(sizeof(StaticField), java_lang_ref_Field_));
+  return down_cast<StaticField*>(Heap::AllocObject(java_lang_ref_Field_,
+                                                   sizeof(StaticField)));
 }
 
 InstanceField* ClassLinker::AllocInstanceField() {
-  return reinterpret_cast<InstanceField*>(Heap::AllocRaw(sizeof(InstanceField), java_lang_ref_Field_));
+  return down_cast<InstanceField*>(Heap::AllocObject(java_lang_ref_Field_,
+                                                     sizeof(InstanceField)));
 }
 
 Method* ClassLinker::AllocMethod() {
-  return reinterpret_cast<Method*>(Heap::AllocRaw(sizeof(Method), java_lang_ref_Method_));
+  return down_cast<Method*>(Heap::AllocObject(java_lang_ref_Method_,
+                                              sizeof(Method)));
 }
 
 Class* ClassLinker::FindClass(const StringPiece& descriptor,
@@ -215,8 +218,8 @@ void ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
   klass->super_class_ = NULL;
   klass->super_class_idx_ = class_def.superclass_idx_;
 
-  klass->num_sfields_ = header.static_fields_size_;
-  klass->num_ifields_ = header.instance_fields_size_;
+  klass->num_static_fields_ = header.static_fields_size_;
+  klass->num_instance_fields_ = header.instance_fields_size_;
   klass->num_direct_methods_ = header.direct_methods_size_;
   klass->num_virtual_methods_ = header.virtual_methods_size_;
 
@@ -226,11 +229,11 @@ void ClassLinker::LoadClass(const RawDexFile::ClassDef& class_def, Class* klass)
   LoadInterfaces(class_def, klass);
 
   // Load static fields.
-  if (klass->num_sfields_ != 0) {
+  if (klass->NumStaticFields() != 0) {
     // TODO: allocate on the object heap.
     klass->sfields_ = new StaticField*[klass->NumStaticFields()]();
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->num_sfields_; ++i) {
+    for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
       RawDexFile::Field raw_field;
       raw->dexReadClassDataField(&class_data, &raw_field, &last_idx);
       StaticField* sfield = AllocStaticField();
@@ -599,8 +602,8 @@ bool ClassLinker::InitializeClass(Class* klass) {
       if (!DexVerify::VerifyClass(klass)) {
         LG << "Verification failed";  // TODO: ThrowVerifyError
         Object* exception = self->GetException();
-        klass->SetObjectAt(OFFSETOF_MEMBER(Class, verify_error_class_),
-                           exception->GetClass());
+        size_t field_offset = OFFSETOF_MEMBER(Class, verify_error_class_);
+        klass->SetFieldObject(field_offset, exception->GetClass());
         klass->SetStatus(Class::kStatusError);
         return false;
       }
@@ -1190,12 +1193,11 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
     field_offset = OFFSETOF_MEMBER(DataObject, fields_);
   }
   // Move references to the front.
-  klass->num_reference_ifields_ = 0;
+  klass->num_reference_instance_fields_ = 0;
   size_t i = 0;
   for ( ; i < klass->NumInstanceFields(); i++) {
     InstanceField* pField = klass->GetInstanceField(i);
     char c = pField->GetType();
-
     if (c != '[' && c != 'L') {
       for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
         InstanceField* refField = klass->GetInstanceField(j);
@@ -1205,12 +1207,12 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
           klass->SetInstanceField(j, pField);
           pField = refField;
           c = rc;
-          klass->num_reference_ifields_++;
+          klass->num_reference_instance_fields_++;
           break;
         }
       }
     } else {
-      klass->num_reference_ifields_++;
+      klass->num_reference_instance_fields_++;
     }
     if (c != '[' && c != 'L') {
       break;
@@ -1380,11 +1382,14 @@ Method* ResolveMethod(const Class* referrer, uint32_t method_idx,
   return NULL;
 }
 
-String* ClassLinker::ResolveString(const Class* referring, uint32_t string_idx) {
+String* ClassLinker::ResolveString(const Class* referring,
+                                   uint32_t string_idx) {
   const RawDexFile* raw = referring->GetDexFile()->GetRaw();
   const RawDexFile::StringId& string_id = raw->GetStringId(string_idx);
   const char* string_data = raw->GetStringData(string_id);
-  String* new_string = Heap::AllocStringFromModifiedUtf8(java_lang_String_, char_array_class_, string_data);
+  String* new_string = Heap::AllocStringFromModifiedUtf8(java_lang_String_,
+                                                         char_array_class_,
+                                                         string_data);
   // TODO: intern the new string
   referring->GetDexFile()->SetResolvedString(new_string, string_idx);
   return new_string;

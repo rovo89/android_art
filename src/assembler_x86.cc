@@ -1,10 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include <string.h>
 #include "src/assembler.h"
 #include "src/casts.h"
 #include "src/globals.h"
 #include "src/memory_region.h"
+#include "src/offsets.h"
 
 namespace art {
 

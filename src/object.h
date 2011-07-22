@@ -3,12 +3,13 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
-#include "src/assembler.h"
 #include "src/constants.h"
+#include "src/casts.h"
 #include "src/dex_file.h"
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/macros.h"
+#include "src/offsets.h"
 #include "src/stringpiece.h"
 #include "src/monitor.h"
 
@@ -22,6 +23,7 @@ class InterfaceEntry;
 class Monitor;
 class Method;
 class Object;
+class ObjectArray;
 class StaticField;
 
 union JValue {
@@ -135,14 +137,76 @@ class Object {
     monitor_->Wait(timeout, nanos);
   }
 
-  void SetObjectAt(size_t offset, Object* new_value) {
+  const Object* GetFieldObject(size_t field_offset) const {
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
+    return *reinterpret_cast<Object* const*>(raw_addr);
+  }
+
+  Object* GetFieldObject(size_t field_offset) {
+    return const_cast<Object*>(GetFieldObject(field_offset));
+  }
+
+  void SetFieldObject(size_t offset, Object* new_value) {
     byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
     *reinterpret_cast<Object**>(raw_addr) = new_value;
     // TODO: write barrier
   }
 
+  bool IsClass() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  Class* AsClass() {
+    return down_cast<Class*>(this);
+  }
+
+  const Class* AsClass() const {
+    return down_cast<const Class*>(this);
+  }
+
+  bool IsObjectArray() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  const ObjectArray* AsObjectArray() const {
+    return down_cast<const ObjectArray*>(this);
+  }
+
+  bool IsReference() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  bool IsWeakReference() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  bool IsSoftReference() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  bool IsFinalizerReference() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  bool IsPhantomReference() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
+  bool IsArray() const {
+    LOG(FATAL) << "Unimplemented";
+    return true;
+  }
+
  public:
   Class* klass_;
+
   Monitor* monitor_;
 
  private:
@@ -284,6 +348,14 @@ class StaticField : public Field {
   void SetDouble(double d) {
     CHECK_EQ(GetType(), 'D');
     value_.d = d;
+  }
+
+  Object* GetObject() {
+    return value_.l;
+  }
+
+  const Object* GetObject() const {
+    return value_.l;
   }
 
   void SetObject(Object* l) {
@@ -542,6 +614,7 @@ class Class : public Object {
   }
 
   Class* GetComponentType() const {
+    DCHECK(IsArray());
     return component_type_;
   }
 
@@ -558,16 +631,23 @@ class Class : public Object {
     status_ = new_status;
   }
 
+  // Returns true if the class has failed to link.
   bool IsErroneous() const {
     return GetStatus() == kStatusError;
   }
 
+  // Returns true if the class has been verified.
   bool IsVerified() const {
     return GetStatus() >= kStatusVerified;
   }
 
+  // Returns true if the class has been linked.
   bool IsLinked() const {
     return GetStatus() >= kStatusResolved;
+  }
+
+  bool IsLoaded() const {
+    return GetStatus() >= kStatusLoaded;
   }
 
   // Returns true if this class is in the same packages as that class.
@@ -642,26 +722,30 @@ class Class : public Object {
   }
 
   size_t NumInstanceFields() const {
-    return num_ifields_;
+    return num_instance_fields_;
   }
 
+  // Returns the number of instance fields containing reference types.
   size_t NumReferenceInstanceFields() const {
-    return num_reference_ifields_;
+    return num_reference_instance_fields_;
   }
 
   InstanceField* GetInstanceField(uint32_t i) {  // TODO: uint16_t
+    DCHECK_LT(i, num_instance_fields_);
     return ifields_[i];
   }
 
   void SetInstanceField(uint32_t i, InstanceField* f) {  // TODO: uint16_t
+    DCHECK_LT(i, num_instance_fields_);
     ifields_[i] = f;
   }
 
   size_t NumStaticFields() const {
-    return num_sfields_;
+    return num_static_fields_;
   }
 
-  StaticField* GetStaticField(uint32_t i) {  // TODO: uint16_t
+  StaticField* GetStaticField(uint32_t i) const {  // TODO: uint16_t
+    DCHECK_LT(i, num_static_fields_);
     return sfields_[i];
   }
 
@@ -676,6 +760,15 @@ class Class : public Object {
   Method* FindDirectMethod(const StringPiece& name) const;
 
   Method* FindVirtualMethod(const StringPiece& name) const;
+
+  size_t NumInterfaces() const {
+    return interface_count_;
+  }
+
+  Class* GetInterface(uint32_t i) const {
+    DCHECK_LT(i, interface_count_);
+    return interfaces_[i];
+  }
 
   Method* FindDirectMethodLocally(const StringPiece& name,
                                   const StringPiece& descriptor) const;
@@ -791,10 +884,10 @@ class Class : public Object {
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  ifieldRefCount specifies the
   // number of reference fields.
-  size_t num_ifields_;
+  size_t num_instance_fields_;
 
   // number of fields that are object refs
-  size_t num_reference_ifields_;
+  size_t num_reference_instance_fields_;
   InstanceField** ifields_;
 
   // Bitmap of offsets of ifields.
@@ -804,7 +897,7 @@ class Class : public Object {
   const char* source_file_;
 
   // Static fields
-  size_t num_sfields_;
+  size_t num_static_fields_;
   StaticField** sfields_;
 
  private:
@@ -821,6 +914,10 @@ class DataObject : public Object {
 
 class Array : public Object {
  public:
+  uint32_t GetLength() const{
+    return length_;
+  }
+
   void SetLength(uint32_t length) {
     length_ = length;
   }
@@ -828,13 +925,29 @@ class Array : public Object {
  private:
   // The number of array elements.
   uint32_t length_;
-  Array();
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Array);
 };
 
 class CharArray : public Array {
  private:
-  CharArray();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(CharArray);
 };
+
+class ObjectArray : public Array {
+ public:
+  Object* Get(int32_t i) {
+    return NULL;
+  }
+
+  const Object* Get(int32_t i) const {
+    return NULL;
+  }
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
+};
+
 
 class String : public Object {
  public:

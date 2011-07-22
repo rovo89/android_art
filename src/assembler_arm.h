@@ -6,6 +6,7 @@
 #include "src/constants.h"
 #include "src/managed_register.h"
 #include "src/logging.h"
+#include "src/offsets.h"
 #include "src/utils.h"
 
 namespace art {

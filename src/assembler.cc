@@ -8,10 +8,6 @@
 
 namespace art {
 
-std::ostream& operator<<(std::ostream& os, const Offset& offs) {
-  return os << offs.Int32Value();
-}
-
 static byte* NewContents(size_t capacity) {
   byte* result = new byte[capacity];
 #if defined(DEBUG)

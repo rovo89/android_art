@@ -6,52 +6,103 @@
 
 #include "src/globals.h"
 #include "src/object.h"
+#include "src/object_bitmap.h"
+#include "src/thread.h"
 
 namespace art {
 
+class Space;
+class HeapBitmap;
+
 class Heap {
  public:
-  static Heap* Create() {
-    Heap* new_heap = new Heap();
-    // TODO: should return NULL if the heap could not be created.
-    return new_heap;
+  static const size_t kStartupSize = 1 * MB;
+
+  static const size_t kMaximumSize = 16 * MB;
+
+  static bool Init() {
+    return Init(kStartupSize, kMaximumSize);
   }
 
-  ~Heap() {}
+  static bool Init(size_t staring_size, size_t maximum_size);
 
-  static Object* AllocRaw(size_t size, Class* klass) {
-    byte* raw = new byte[size]();
-    Object* object = reinterpret_cast<Object*>(raw);
-    object->klass_ = klass;
-    return object;
-  }
+  static void Destroy();
 
   static Object* AllocObject(Class* klass) {
-    return AllocRaw(klass->object_size_, klass);
+    return AllocObject(klass, klass->object_size_);
+  }
+
+  static Object* AllocObject(Class* klass, size_t num_bytes) {
+    Object* obj = Allocate(num_bytes);
+    if (obj != NULL) {
+      obj->klass_ = klass;
+    }
+    return obj;
   }
 
   static CharArray* AllocCharArray(Class* char_array, size_t length) {
     size_t size = sizeof(Array) + length * sizeof(uint16_t);
-    return reinterpret_cast<CharArray*>(AllocRaw(size, char_array));
+    Object* new_array = AllocObject(char_array, size);
+    if (new_array != NULL) {
+      char_array->klass_ = char_array;
+    }
+    return down_cast<CharArray*>(new_array);
   }
 
   static String* AllocString(Class* java_lang_String) {
-    return reinterpret_cast<String*>(AllocObject(java_lang_String));
+    return down_cast<String*>(AllocObject(java_lang_String));
   }
 
-  static String* AllocStringFromModifiedUtf8(Class* java_lang_String, Class* char_array, const char* data) {
-    String* string = AllocString(java_lang_String);
-    uint32_t count = strlen(data);  // TODO
-    CharArray* array = AllocCharArray(char_array, count);
-    string->array_ = array;
-    string->count_ = count;
-    return string;
+  static String* AllocStringFromModifiedUtf8(Class* java_lang_String,
+                                             Class* char_array,
+                                             const char* data);
+
+  // Initiates an explicit garbage collection.
+  static void CollectGarbage();
+
+  // Blocks the caller until the garbage collector becomes idle.
+  static void WaitForConcurrentGcToComplete();
+
+  static Mutex* GetLock() {
+    return lock_;
   }
 
  private:
-  Heap() {}
 
-  DISALLOW_COPY_AND_ASSIGN(Heap);
+  static Object* Allocate(size_t num_bytes);
+
+  static void CollectGarbageInternal();
+
+  static void GrowForUtilization();
+
+  static Mutex* lock_;
+
+  static Space* space_;
+
+  static HeapBitmap* mark_bitmap_;
+
+  static HeapBitmap* live_bitmap_;
+
+  static size_t startup_size_;
+
+  static size_t maximum_size_;
+
+  static bool is_gc_running_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
+};
+
+class HeapLock {
+ public:
+  HeapLock(Heap* heap) : lock_(heap->GetLock()) {
+    lock_->Lock();
+  }
+  ~HeapLock() {
+    lock_->Unlock();
+  }
+ private:
+  Mutex* lock_;
+  DISALLOW_COPY_AND_ASSIGN(HeapLock);
 };
 
 }  // namespace art
