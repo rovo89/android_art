@@ -34,6 +34,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
 	src/calling_convention.cc \
 	src/class_linker.cc \
+	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
@@ -47,7 +48,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/object.cc \
 	src/object_bitmap.cc \
 	src/offsets.cc \
-	src/raw_dex_file.cc \
 	src/runtime.cc \
 	src/space.cc \
 	src/stringpiece.cc \
@@ -77,11 +77,11 @@ LIBARTTEST_COMMON_SRC_FILES := \
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \
+	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/jni_compiler_test.cc \
 	src/object_test.cc \
-	src/raw_dex_file_test.cc \
 	src/space_test.cc
 
 TEST_TARGET_SRC_FILES := \

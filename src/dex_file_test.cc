@@ -1,10 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
-#include "heap.h"
-#include "object.h"
 #include "scoped_ptr.h"
 
 #include <stdio.h>
@@ -12,20 +9,49 @@
 
 namespace art {
 
-class DexFileTest : public RuntimeTest {};
+TEST(RawDexFileTest, Open) {
+  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
+  ASSERT_TRUE(raw != NULL);
+}
 
-TEST_F(DexFileTest, Open) {
+TEST(RawDexFileTest, Header) {
+  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
+  ASSERT_TRUE(raw != NULL);
 
-  DexFile* dex_file = down_cast<DexFile*>(class_linker_->AllocObjectArray(DexFile::kMax));
-  ASSERT_TRUE(dex_file != NULL);
-  dex_file->Init(class_linker_->AllocObjectArray(1),
-                 class_linker_->AllocObjectArray(2),
-                 class_linker_->AllocObjectArray(3),
-                 class_linker_->AllocObjectArray(4));
-  EXPECT_EQ(1U, dex_file->NumStrings());
-  EXPECT_EQ(2U, dex_file->NumClasses());
-  EXPECT_EQ(3U, dex_file->NumMethods());
-  EXPECT_EQ(4U, dex_file->NumFields());
+  const RawDexFile::Header& header = raw->GetHeader();
+  // TODO: header.magic_
+  EXPECT_EQ(0x00d87910U, header.checksum_);
+  // TODO: header.signature_
+  EXPECT_EQ(904U, header.file_size_);
+  EXPECT_EQ(112U, header.header_size_);
+  EXPECT_EQ(0U, header.link_size_);
+  EXPECT_EQ(0U, header.link_off_);
+  EXPECT_EQ(15U, header.string_ids_size_);
+  EXPECT_EQ(112U, header.string_ids_off_);
+  EXPECT_EQ(7U, header.type_ids_size_);
+  EXPECT_EQ(172U, header.type_ids_off_);
+  EXPECT_EQ(2U, header.proto_ids_size_);
+  EXPECT_EQ(200U, header.proto_ids_off_);
+  EXPECT_EQ(1U, header.field_ids_size_);
+  EXPECT_EQ(224U, header.field_ids_off_);
+  EXPECT_EQ(3U, header.method_ids_size_);
+  EXPECT_EQ(232U, header.method_ids_off_);
+  EXPECT_EQ(2U, header.class_defs_size_);
+  EXPECT_EQ(256U, header.class_defs_off_);
+  EXPECT_EQ(584U, header.data_size_);
+  EXPECT_EQ(320U, header.data_off_);
+}
+
+TEST(RawDexFileTest, ClassDefs) {
+  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
+  ASSERT_TRUE(raw != NULL);
+  EXPECT_EQ(2U, raw->NumClassDefs());
+
+  const RawDexFile::ClassDef& c0 = raw->GetClassDef(0);
+  EXPECT_STREQ("LNested$Inner;", raw->GetClassDescriptor(c0));
+
+  const RawDexFile::ClassDef& c1 = raw->GetClassDef(1);
+  EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
 }
 
 }  // namespace art

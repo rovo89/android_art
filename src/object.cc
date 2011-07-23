@@ -7,8 +7,8 @@
 
 #include "globals.h"
 #include "logging.h"
+#include "dex_cache.h"
 #include "dex_file.h"
-#include "raw_dex_file.h"
 
 namespace art {
 

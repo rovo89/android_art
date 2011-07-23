@@ -7,7 +7,7 @@
 
 #include "globals.h"
 #include "macros.h"
-#include "raw_dex_file.h"
+#include "dex_file.h"
 #include "stringpiece.h"
 
 namespace art {

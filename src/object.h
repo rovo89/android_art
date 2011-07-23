@@ -16,7 +16,7 @@ namespace art {
 
 class Array;
 class Class;
-class DexFile;
+class DexCache;
 class InstanceField;
 class InterfaceEntry;
 class Monitor;
@@ -385,7 +385,7 @@ class Method : public Object {
   }
 
   // const char* GetReturnTypeDescriptor() const {
-  //   return declaring_class_->GetDexFile_->GetRaw()
+  //   return FindDexFile(declaring_class_->GetDexCache()
   //          ->dexStringByTypeIdx(proto_id_.return_type_id_);
   // }
 
@@ -596,8 +596,8 @@ class Class : public Object {
     return class_loader_;
   }
 
-  DexFile* GetDexFile() const {
-    return dex_file_;
+  DexCache* GetDexCache() const {
+    return dex_cache_;
   }
 
   Class* GetComponentType() const {
@@ -779,9 +779,9 @@ class Class : public Object {
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;  // TODO: make an instance field?
 
-  // DexFile from which we came; needed to resolve constant pool entries
+  // DexCache of resolved constant pool entries
   // (will be NULL for VM-generated, e.g. arrays and primitive classes)
-  DexFile* dex_file_;
+  DexCache* dex_cache_;
 
   // state of class initialization
   Status status_;
@@ -924,7 +924,7 @@ class Array : public Object {
 
 class CharArray : public Array {
  private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(CharArray);
+  CharArray();
 };
 
 class ObjectArray : public Array {

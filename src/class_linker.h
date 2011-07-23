@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "macros.h"
-#include "raw_dex_file.h"
+#include "dex_file.h"
 #include "thread.h"
 #include "object.h"
 #include "gtest/gtest.h"
@@ -22,8 +22,8 @@ class ClassLinker {
 
   ~ClassLinker() {}
 
-  DexFile* AllocDexFile();
-  Class* AllocClass(DexFile* dex_file);
+  DexCache* AllocDexCache();
+  Class* AllocClass(DexCache* dex_cache);
   StaticField* AllocStaticField();
   InstanceField* AllocInstanceField();
   Method* AllocMethod();
@@ -64,9 +64,9 @@ class ClassLinker {
 
   Class* FindPrimitiveClass(char type);
 
-  const RawDexFile* FindRawDexFile(const DexFile* dex_file) const;
+  const RawDexFile* FindRawDexFile(const DexCache* dex_file) const;
 
-  DexFile* FindDexFile(const RawDexFile* raw_dex_file) const;
+  DexCache* FindDexCache(const RawDexFile* raw_dex_file) const;
 
   typedef std::pair<const RawDexFile*, const RawDexFile::ClassDef*> ClassPathEntry;
 
@@ -148,7 +148,7 @@ class ClassLinker {
 
   std::vector<RawDexFile*> raw_dex_files_;
 
-  std::vector<DexFile*> dex_files_;
+  std::vector<DexCache*> dex_caches_;
 
   // TODO: multimap
   typedef std::map<const StringPiece, Class*> Table;

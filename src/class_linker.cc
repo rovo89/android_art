@@ -7,13 +7,13 @@
 #include <utility>
 
 #include "casts.h"
-#include "dex_file.h"
+#include "dex_cache.h"
 #include "dex_verifier.h"
 #include "heap.h"
 #include "logging.h"
 #include "monitor.h"
 #include "object.h"
-#include "raw_dex_file.h"
+#include "dex_file.h"
 #include "scoped_ptr.h"
 #include "thread.h"
 #include "utils.h"
@@ -86,13 +86,13 @@ void ClassLinker::Init(std::vector<RawDexFile*> boot_class_path) {
   CHECK(object_array_class_ != NULL);
 }
 
-DexFile* ClassLinker::AllocDexFile() {
-  return down_cast<DexFile*>(Heap::AllocObjectArray(object_array_class_, DexFile::kMax));
+DexCache* ClassLinker::AllocDexCache() {
+  return down_cast<DexCache*>(Heap::AllocObjectArray(object_array_class_, DexCache::kMax));
 }
 
-Class* ClassLinker::AllocClass(DexFile* dex_file) {
+Class* ClassLinker::AllocClass(DexCache* dex_cache) {
   Class* klass = down_cast<Class*>(Heap::AllocObject(java_lang_Class_));
-  klass->dex_file_ = dex_file;
+  klass->dex_cache_ = dex_cache;
   return klass;
 }
 
@@ -141,37 +141,37 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     }
     const RawDexFile* raw_dex_file = pair.first;
     const RawDexFile::ClassDef* class_def = pair.second;
-    DexFile* dex_file = FindDexFile(raw_dex_file);
+    DexCache* dex_cache = FindDexCache(raw_dex_file);
     // Load the class from the dex file.
     if (descriptor == "Ljava/lang/Object;") {
       klass = java_lang_Object_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Object);
       char_array_class_->super_class_idx_ = class_def->class_idx_;
     } else if (descriptor == "Ljava/lang/Class;") {
       klass = java_lang_Class_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Class);
     } else if (descriptor == "Ljava/lang/ref/Field;") {
       klass = java_lang_ref_Field_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Field);
     } else if (descriptor == "Ljava/lang/ref/Method;") {
       klass = java_lang_ref_Method_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Method);
     } else if (descriptor == "Ljava/lang/Cloneable;") {
       klass = java_lang_Cloneable_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
     } else if (descriptor == "Ljava/io/Serializable;") {
       klass = java_io_Serializable_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
     } else if (descriptor == "Ljava/lang/String;") {
       klass = java_lang_String_;
-      klass->dex_file_ = dex_file;
+      klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(String);
     } else {
-      klass = AllocClass(dex_file);
+      klass = AllocClass(dex_cache);
     }
     LoadClass(*raw_dex_file, *class_def, klass);
     // Check for a pending exception during load
@@ -227,7 +227,7 @@ void ClassLinker::LoadClass(const RawDexFile& raw_dex_file,
                             const RawDexFile::ClassDef& class_def,
                             Class* klass) {
   CHECK(klass != NULL);
-  CHECK(klass->dex_file_ != NULL);
+  CHECK(klass->dex_cache_ != NULL);
   const byte* class_data = raw_dex_file.GetClassData(class_def);
   RawDexFile::ClassDataHeader header = raw_dex_file.ReadClassDataHeader(&class_data);
 
@@ -387,19 +387,19 @@ void ClassLinker::AppendToBootClassPath(RawDexFile* raw_dex_file) {
 
 void ClassLinker::RegisterDexFile(RawDexFile* raw_dex_file) {
   raw_dex_files_.push_back(raw_dex_file);
-  DexFile* dex_file = AllocDexFile();
-  CHECK(dex_file != NULL);
-  dex_file->Init(AllocObjectArray(raw_dex_file->NumStringIds()),
-                 AllocObjectArray(raw_dex_file->NumTypeIds()),
-                 AllocObjectArray(raw_dex_file->NumMethodIds()),
-                 AllocObjectArray(raw_dex_file->NumFieldIds()));
-  dex_files_.push_back(dex_file);
+  DexCache* dex_cache = AllocDexCache();
+  CHECK(dex_cache != NULL);
+  dex_cache->Init(AllocObjectArray(raw_dex_file->NumStringIds()),
+                  AllocObjectArray(raw_dex_file->NumTypeIds()),
+                  AllocObjectArray(raw_dex_file->NumMethodIds()),
+                  AllocObjectArray(raw_dex_file->NumFieldIds()));
+  dex_caches_.push_back(dex_cache);
 }
 
-const RawDexFile* ClassLinker::FindRawDexFile(const DexFile* dex_file) const {
-  CHECK(dex_file != NULL);
-  for (size_t i = 0; i != dex_files_.size(); ++i) {
-    if (dex_files_[i] == dex_file) {
+const RawDexFile* ClassLinker::FindRawDexFile(const DexCache* dex_cache) const {
+  CHECK(dex_cache != NULL);
+  for (size_t i = 0; i != dex_caches_.size(); ++i) {
+    if (dex_caches_[i] == dex_cache) {
         return raw_dex_files_[i];
     }
   }
@@ -407,14 +407,14 @@ const RawDexFile* ClassLinker::FindRawDexFile(const DexFile* dex_file) const {
   return NULL;
 }
 
-DexFile* ClassLinker::FindDexFile(const RawDexFile* raw_dex_file) const {
+DexCache* ClassLinker::FindDexCache(const RawDexFile* raw_dex_file) const {
   CHECK(raw_dex_file != NULL);
   for (size_t i = 0; i != raw_dex_files_.size(); ++i) {
     if (raw_dex_files_[i] == raw_dex_file) {
-        return dex_files_[i];
+        return dex_caches_[i];
     }
   }
-  CHECK(false) << "Could not find DexFile";
+  CHECK(false) << "Could not find DexCache";
   return NULL;
 }
 
@@ -799,7 +799,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
 bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
                                                  const Class* klass1,
                                                  const Class* klass2) {
-  const RawDexFile* raw = FindRawDexFile(method->GetClass()->GetDexFile());
+  const RawDexFile* raw = FindRawDexFile(method->GetClass()->GetDexCache());
   const RawDexFile::ProtoId& proto_id = raw->GetProtoId(method->proto_idx_);
   RawDexFile::ParameterIterator *it;
   for (it = raw->GetParameterIterator(proto_id); it->HasNext(); it->Next()) {
@@ -851,8 +851,8 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
 }
 
 bool ClassLinker::HasSameArgumentTypes(const Method* m1, const Method* m2) const {
-  const RawDexFile* raw1 = FindRawDexFile(m1->GetClass()->GetDexFile());
-  const RawDexFile* raw2 = FindRawDexFile(m2->GetClass()->GetDexFile());
+  const RawDexFile* raw1 = FindRawDexFile(m1->GetClass()->GetDexCache());
+  const RawDexFile* raw2 = FindRawDexFile(m2->GetClass()->GetDexCache());
   const RawDexFile::ProtoId& proto1 = raw1->GetProtoId(m1->proto_idx_);
   const RawDexFile::ProtoId& proto2 = raw2->GetProtoId(m2->proto_idx_);
 
@@ -879,8 +879,8 @@ bool ClassLinker::HasSameArgumentTypes(const Method* m1, const Method* m2) const
 }
 
 bool ClassLinker::HasSameReturnType(const Method* m1, const Method* m2) const {
-  const RawDexFile* raw1 = FindRawDexFile(m1->GetClass()->GetDexFile());
-  const RawDexFile* raw2 = FindRawDexFile(m2->GetClass()->GetDexFile());
+  const RawDexFile* raw1 = FindRawDexFile(m1->GetClass()->GetDexCache());
+  const RawDexFile* raw2 = FindRawDexFile(m2->GetClass()->GetDexCache());
   const RawDexFile::ProtoId& proto1 = raw1->GetProtoId(m1->proto_idx_);
   const RawDexFile::ProtoId& proto2 = raw2->GetProtoId(m2->proto_idx_);
   const char* type1 = raw1->dexStringByTypeIdx(proto1.return_type_idx_);
@@ -914,7 +914,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   if (num_static_fields == 0) {
     return;
   }
-  DexFile* dex_file = klass->GetDexFile();
+  DexCache* dex_file = klass->GetDexCache();
   if (dex_file == NULL) {
     return;
   }
@@ -1454,8 +1454,8 @@ void ClassLinker::CreateReferenceOffsets(Class* klass) {
 Class* ClassLinker::ResolveClass(const Class* referrer,
                                  uint32_t class_idx,
                                  const RawDexFile* raw_dex_file) {
-  DexFile* dex_file = referrer->GetDexFile();
-  Class* resolved = dex_file->GetResolvedClass(class_idx);
+  DexCache* dex_cache = referrer->GetDexCache();
+  Class* resolved = dex_cache->GetResolvedClass(class_idx);
   if (resolved != NULL) {
     return resolved;
   }
@@ -1467,13 +1467,13 @@ Class* ClassLinker::ResolveClass(const Class* referrer,
   }
   if (resolved != NULL) {
     Class* check = resolved->IsArray() ? resolved->component_type_ : resolved;
-    if (referrer->GetDexFile() != check->GetDexFile()) {
+    if (referrer->GetDexCache() != check->GetDexCache()) {
       if (check->GetClassLoader() != NULL) {
         LG << "Class resolved by unexpected DEX";  // TODO: IllegalAccessError
         return NULL;
       }
     }
-    dex_file->SetResolvedClass(class_idx, resolved);
+    dex_cache->SetResolvedClass(class_idx, resolved);
   } else {
     DCHECK(Thread::Current()->IsExceptionPending());
   }
@@ -1488,14 +1488,14 @@ Method* ResolveMethod(const Class* referrer, uint32_t method_idx,
 
 String* ClassLinker::ResolveString(const Class* referring,
                                    uint32_t string_idx) {
-  const RawDexFile* raw = FindRawDexFile(referring->GetDexFile());
+  const RawDexFile* raw = FindRawDexFile(referring->GetDexCache());
   const RawDexFile::StringId& string_id = raw->GetStringId(string_idx);
   const char* string_data = raw->GetStringData(string_id);
   String* new_string = Heap::AllocStringFromModifiedUtf8(java_lang_String_,
                                                          char_array_class_,
                                                          string_data);
   // TODO: intern the new string
-  referring->GetDexFile()->SetResolvedString(string_idx, new_string);
+  referring->GetDexCache()->SetResolvedString(string_idx, new_string);
   return new_string;
 }
 
