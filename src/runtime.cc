@@ -44,7 +44,7 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
-Runtime* Runtime::Create(std::vector<RawDexFile*> boot_class_path) {
+Runtime* Runtime::Create(std::vector<DexFile*> boot_class_path) {
   scoped_ptr<Runtime> runtime(new Runtime());
   bool success = runtime->Init(boot_class_path);
   if (!success) {
@@ -54,7 +54,7 @@ Runtime* Runtime::Create(std::vector<RawDexFile*> boot_class_path) {
   }
 }
 
-bool Runtime::Init(std::vector<RawDexFile*> boot_class_path) {
+bool Runtime::Init(std::vector<DexFile*> boot_class_path) {
   thread_list_ = ThreadList::Create();
   Heap::Init(Heap::kStartupSize, Heap::kMaximumSize);
   Thread::Init();

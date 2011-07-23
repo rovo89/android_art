@@ -18,7 +18,7 @@ namespace art {
 class ClassLinker {
  public:
   // Initializes the class linker.
-  static ClassLinker* Create(std::vector<RawDexFile*> boot_class_path);
+  static ClassLinker* Create(std::vector<DexFile*> boot_class_path);
 
   ~ClassLinker() {}
 
@@ -30,10 +30,10 @@ class ClassLinker {
   ObjectArray* AllocObjectArray(size_t length);
 
   // Finds a class by its descriptor name.
-  // If raw_dex_file is null, searches boot_class_path_.
+  // If dex_file is null, searches boot_class_path_.
   Class* FindClass(const StringPiece& descriptor,
                    Object* class_loader,
-                   const RawDexFile* raw_dex_file);
+                   const DexFile* dex_file);
 
   Class* FindSystemClass(const StringPiece& descriptor) {
     return FindClass(descriptor, NULL, NULL);
@@ -45,50 +45,50 @@ class ClassLinker {
 
   Class* ResolveClass(const Class* referring,
                       uint32_t class_idx,
-                      const RawDexFile* raw_dex_file);
+                      const DexFile* dex_file);
 
   String* ResolveString(const Class* referring, uint32_t string_idx);
 
-  void RegisterDexFile(RawDexFile* raw_dex_file);
+  void RegisterDexFile(DexFile* dex_file);
 
  private:
   ClassLinker() {}
 
-  void Init(std::vector<RawDexFile*> boot_class_path_);
+  void Init(std::vector<DexFile*> boot_class_path_);
 
   Class* CreatePrimitiveClass(const StringPiece& descriptor);
 
   Class* CreateArrayClass(const StringPiece& descriptor,
                           Object* class_loader,
-                          const RawDexFile* raw_dex_file);
+                          const DexFile* dex_file);
 
   Class* FindPrimitiveClass(char type);
 
-  const RawDexFile* FindRawDexFile(const DexCache* dex_file) const;
+  const DexFile* FindDexFile(const DexCache* dex_cache) const;
 
-  DexCache* FindDexCache(const RawDexFile* raw_dex_file) const;
+  DexCache* FindDexCache(const DexFile* dex_file) const;
 
-  typedef std::pair<const RawDexFile*, const RawDexFile::ClassDef*> ClassPathEntry;
+  typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
 
-  void AppendToBootClassPath(RawDexFile* raw_dex_file);
+  void AppendToBootClassPath(DexFile* dex_file);
 
   ClassPathEntry FindInBootClassPath(const StringPiece& descriptor);
 
-  void LoadClass(const RawDexFile& raw_dex_file,
-                 const RawDexFile::ClassDef& class_def,
+  void LoadClass(const DexFile& dex_file,
+                 const DexFile::ClassDef& dex_class_def,
                  Class* klass);
 
-  void LoadInterfaces(const RawDexFile& raw_dex_file,
-                      const RawDexFile::ClassDef& class_def,
+  void LoadInterfaces(const DexFile& dex_file,
+                      const DexFile::ClassDef& dex_class_def,
                       Class *klass);
 
-  void LoadField(const RawDexFile& raw_dex_file,
-                 const RawDexFile::Field& src,
+  void LoadField(const DexFile& dex_file,
+                 const DexFile::Field& dex_field,
                  Class* klass,
                  Field* dst);
 
-  void LoadMethod(const RawDexFile& raw_dex_file,
-                  const RawDexFile::Method& src,
+  void LoadMethod(const DexFile& dex_file,
+                  const DexFile::Method& dex_method,
                   Class* klass,
                   Method* dst);
 
@@ -126,11 +126,11 @@ class ClassLinker {
 
   bool HasSameArgumentTypes(const Method* m1, const Method* m2) const;
 
-  bool LinkClass(Class* klass, const RawDexFile* raw_dex_file);
+  bool LinkClass(Class* klass, const DexFile* dex_file);
 
   bool LinkSuperClass(Class* klass);
 
-  bool LinkInterfaces(Class* klass, const RawDexFile* raw_dex_file);
+  bool LinkInterfaces(Class* klass, const DexFile* dex_file);
 
   bool LinkMethods(Class* klass);
 
@@ -144,9 +144,9 @@ class ClassLinker {
 
   void CreateReferenceOffsets(Class* klass);
 
-  std::vector<RawDexFile*> boot_class_path_;
+  std::vector<DexFile*> boot_class_path_;
 
-  std::vector<RawDexFile*> raw_dex_files_;
+  std::vector<DexFile*> dex_files_;
 
   std::vector<DexCache*> dex_caches_;
 

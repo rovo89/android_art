@@ -82,7 +82,7 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  scoped_ptr<RawDexFile> nestedDex(OpenRawDexFileBase64(kNestedDex));
+  scoped_ptr<DexFile> nestedDex(OpenDexFileBase64(kNestedDex));
   class_linker_.get()->RegisterDexFile(nestedDex.get());
 
   Class* outer = class_linker_.get()->FindClass("LNested;", NULL, nestedDex.get());
@@ -135,7 +135,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->interface_count_);
 
 
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
   linker->RegisterDexFile(dex.get());
   EXPECT_TRUE(linker->FindSystemClass("LMyClass;") == NULL);
   Class* MyClass = linker->FindClass("LMyClass;", NULL, dex.get());
@@ -178,7 +178,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 TEST_F(ClassLinkerTest, ProtoCompare) {
   ClassLinker* linker = class_linker_.get();
 
-  scoped_ptr<RawDexFile> proto_dex_file(OpenRawDexFileBase64(kProtoCompareDex));
+  scoped_ptr<DexFile> proto_dex_file(OpenDexFileBase64(kProtoCompareDex));
   linker->RegisterDexFile(proto_dex_file.get());
 
   Class* klass = linker->FindClass("LProtoCompare;", NULL, proto_dex_file.get());
@@ -232,9 +232,9 @@ TEST_F(ClassLinkerTest, ProtoCompare) {
 TEST_F(ClassLinkerTest, ProtoCompare2) {
   ClassLinker* linker = class_linker_.get();
 
-  scoped_ptr<RawDexFile> proto1_dex_file(OpenRawDexFileBase64(kProtoCompareDex));
+  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
   linker->RegisterDexFile(proto1_dex_file.get());
-  scoped_ptr<RawDexFile> proto2_dex_file(OpenRawDexFileBase64(kProtoCompare2Dex));
+  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex));
   linker->RegisterDexFile(proto2_dex_file.get());
 
   Class* klass1 = linker->FindClass("LProtoCompare;", NULL, proto1_dex_file.get());

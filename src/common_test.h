@@ -145,14 +145,14 @@ static const char kMyClassNativesDex[] =
   "AAAACQAAAAwBAAAGAAAAAgAAAFQBAAABIAAAAgAAAJQBAAABEAAABAAAAMABAAACIAAAEwAAAOIB"
   "AAADIAAAAgAAAHUCAAAAIAAAAgAAAH8CAAAAEAAAAQAAALACAAA=";
 
-static inline RawDexFile* OpenRawDexFileBase64(const char* base64) {
+static inline DexFile* OpenDexFileBase64(const char* base64) {
   CHECK(base64 != NULL);
   size_t length;
-  byte* dex_file = DecodeBase64(base64, &length);
+  byte* dex_bytes = DecodeBase64(base64, &length);
+  CHECK(dex_bytes != NULL);
+  DexFile* dex_file = DexFile::OpenPtr(dex_bytes, length);
   CHECK(dex_file != NULL);
-  RawDexFile* raw_dex_file = RawDexFile::OpenPtr(dex_file, length);
-  CHECK(raw_dex_file != NULL);
-  return raw_dex_file;
+  return dex_file;
 }
 
 class RuntimeTest : public testing::Test {
@@ -162,10 +162,10 @@ class RuntimeTest : public testing::Test {
     ASSERT_TRUE(Thread::Attach() != NULL);
     ASSERT_TRUE(Heap::Init());
 
-    java_lang_raw_dex_file_.reset(OpenRawDexFileBase64(kJavaLangDex));
+    java_lang_dex_file_.reset(OpenDexFileBase64(kJavaLangDex));
 
-    std::vector<RawDexFile*> boot_class_path;
-    boot_class_path.push_back(java_lang_raw_dex_file_.get());
+    std::vector<DexFile*> boot_class_path;
+    boot_class_path.push_back(java_lang_dex_file_.get());
 
     class_linker_.reset(ClassLinker::Create(boot_class_path));
     CHECK(class_linker_ != NULL);
@@ -175,7 +175,7 @@ class RuntimeTest : public testing::Test {
     Heap::Destroy();
   }
 
-  scoped_ptr<RawDexFile> java_lang_raw_dex_file_;
+  scoped_ptr<DexFile> java_lang_dex_file_;
   scoped_ptr<ClassLinker> class_linker_;
 };
 

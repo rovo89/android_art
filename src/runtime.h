@@ -19,7 +19,7 @@ class ThreadList;
 class Runtime {
  public:
   // Creates and initializes a new runtime.
-  static Runtime* Create(std::vector<RawDexFile*> boot_class_path);
+  static Runtime* Create(std::vector<DexFile*> boot_class_path);
 
   // Compiles a dex file.
   static void Compile(const StringPiece& filename);
@@ -45,7 +45,7 @@ class Runtime {
   Runtime() : class_linker_(NULL), thread_list_(NULL) {}
 
   // Initializes a new uninitialized runtime.
-  bool Init(std::vector<RawDexFile*> boot_class_path);
+  bool Init(std::vector<DexFile*> boot_class_path);
 
   ClassLinker* class_linker_;
 

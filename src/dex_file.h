@@ -17,7 +17,7 @@ namespace art {
 union JValue;
 
 // TODO: move all of the macro functionality into the DexCache class.
-class RawDexFile {
+class DexFile {
  public:
   static const byte kDexMagic[];
   static const byte kDexMagicVersion[];
@@ -142,9 +142,9 @@ class RawDexFile {
 
   class ParameterIterator {  // TODO: stream
    public:
-    ParameterIterator(const RawDexFile& raw, const ProtoId& proto_id)
-        : raw_(raw), size_(0), pos_(0) {
-      type_list_ = raw_.GetProtoParameters(proto_id);
+    ParameterIterator(const DexFile& dex_file, const ProtoId& proto_id)
+        : dex_file_(dex_file), size_(0), pos_(0) {
+      type_list_ = dex_file_.GetProtoParameters(proto_id);
       if (type_list_ != NULL) {
         size_ = type_list_->Size();
       }
@@ -153,10 +153,10 @@ class RawDexFile {
     void Next() { ++pos_; }
     const char* GetDescriptor() {
       uint32_t type_idx = type_list_->GetTypeItem(pos_).type_idx_;
-      return raw_.dexStringByTypeIdx(type_idx);
+      return dex_file_.dexStringByTypeIdx(type_idx);
     }
    private:
-    const RawDexFile& raw_;
+    const DexFile& dex_file_;
     const TypeList* type_list_;
     uint32_t size_;
     uint32_t pos_;
@@ -204,13 +204,13 @@ class RawDexFile {
   };
 
   // Opens a .dex file from the file system.
-  static RawDexFile* OpenFile(const char* filename);
+  static DexFile* OpenFile(const char* filename);
 
   // Opens a .dex file from a new allocated pointer
-  static RawDexFile* OpenPtr(byte* ptr, size_t length);
+  static DexFile* OpenPtr(byte* ptr, size_t length);
 
   // Closes a .dex file.
-  virtual ~RawDexFile();
+  virtual ~DexFile();
 
   const Header& GetHeader() {
     CHECK(header_ != NULL);
@@ -266,7 +266,7 @@ class RawDexFile {
     }
   }
 
-  // Decodes the header section from the raw class data bytes.
+  // Decodes the header section from the class data bytes.
   ClassDataHeader ReadClassDataHeader(const byte** class_data) const {
     CHECK(class_data != NULL);
     ClassDataHeader header;
@@ -394,7 +394,7 @@ class RawDexFile {
 
   // TODO: encoded_field is actually a stream of bytes
   void dexReadClassDataField(const byte** encoded_field,
-                             RawDexFile::Field* field,
+                             DexFile::Field* field,
                              uint32_t* last_idx) const {
     uint32_t idx = *last_idx + DecodeUnsignedLeb128(encoded_field);
     field->access_flags_ = DecodeUnsignedLeb128(encoded_field);
@@ -404,7 +404,7 @@ class RawDexFile {
 
   // TODO: encoded_method is actually a stream of bytes
   void dexReadClassDataMethod(const byte** encoded_method,
-                              RawDexFile::Method* method,
+                              DexFile::Method* method,
                               uint32_t* last_idx) const {
     uint32_t idx = *last_idx + DecodeUnsignedLeb128(encoded_method);
     method->access_flags_ = DecodeUnsignedLeb128(encoded_method);
@@ -456,9 +456,9 @@ class RawDexFile {
   };
 
   // Opens a .dex file at a the given address.
-  static RawDexFile* Open(const byte* dex_file, size_t length, Closer* closer);
+  static DexFile* Open(const byte* dex_file, size_t length, Closer* closer);
 
-  RawDexFile(const byte* addr, size_t length, Closer* closer)
+  DexFile(const byte* addr, size_t length, Closer* closer)
       : base_(addr),
         length_(length),
         closer_(closer),
@@ -486,7 +486,7 @@ class RawDexFile {
   bool IsMagicValid();
 
   // The index of descriptors to class definitions.
-  typedef std::map<const StringPiece, const RawDexFile::ClassDef*> Index;
+  typedef std::map<const StringPiece, const DexFile::ClassDef*> Index;
   Index index_;
 
   // The base address of the memory mapping.

@@ -19,8 +19,8 @@ class JniCompilerTest : public RuntimeTest {
   virtual void SetUp() {
     RuntimeTest::SetUp();
     // Create runtime and attach thread
-    std::vector<RawDexFile*> boot_class_path;
-    boot_class_path.push_back(java_lang_raw_dex_file_.get());
+    std::vector<DexFile*> boot_class_path;
+    boot_class_path.push_back(java_lang_dex_file_.get());
     runtime_ = Runtime::Create(boot_class_path);
     CHECK(runtime_->AttachCurrentThread());
     // Create thunk code that performs the native to managed transition
@@ -184,7 +184,7 @@ jobject Java_MyClass_fooSSIOO(JNIEnv*, jclass klass, jint x, jobject y,
 }
 
 TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("foo");
@@ -209,7 +209,7 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("fooI");
@@ -236,7 +236,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("fooII");
@@ -266,7 +266,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 
 
 TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("fooDD");
@@ -295,7 +295,7 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("fooIOO");
@@ -350,7 +350,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindDirectMethod("fooSIOO");
@@ -402,7 +402,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindDirectMethod("fooSSIOO");
@@ -460,7 +460,7 @@ void SuspendCountHandler(Method** frame) {
   Thread::Current()->DecrementSuspendCount();
 }
 TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("fooI");
@@ -501,7 +501,7 @@ void ExceptionHandler(Method** frame) {
   Thread::Current()->ClearException();
 }
 TEST_F(JniCompilerTest, ExceptionHandling) {
-  scoped_ptr<RawDexFile> dex(OpenRawDexFileBase64(kMyClassNativesDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_.get()->RegisterDexFile(dex.get());
   Class* klass = class_linker_.get()->FindClass("LMyClass;", NULL, dex.get());
   Method* method = klass->FindVirtualMethod("foo");

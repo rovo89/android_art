@@ -9,16 +9,16 @@
 
 namespace art {
 
-TEST(RawDexFileTest, Open) {
-  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
-  ASSERT_TRUE(raw != NULL);
+TEST(DexFileTest, Open) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kNestedDex));
+  ASSERT_TRUE(dex != NULL);
 }
 
-TEST(RawDexFileTest, Header) {
-  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
+TEST(DexFileTest, Header) {
+  scoped_ptr<DexFile> raw(OpenDexFileBase64(kNestedDex));
   ASSERT_TRUE(raw != NULL);
 
-  const RawDexFile::Header& header = raw->GetHeader();
+  const DexFile::Header& header = raw->GetHeader();
   // TODO: header.magic_
   EXPECT_EQ(0x00d87910U, header.checksum_);
   // TODO: header.signature_
@@ -42,15 +42,15 @@ TEST(RawDexFileTest, Header) {
   EXPECT_EQ(320U, header.data_off_);
 }
 
-TEST(RawDexFileTest, ClassDefs) {
-  scoped_ptr<RawDexFile> raw(OpenRawDexFileBase64(kNestedDex));
+TEST(DexFileTest, ClassDefs) {
+  scoped_ptr<DexFile> raw(OpenDexFileBase64(kNestedDex));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(2U, raw->NumClassDefs());
 
-  const RawDexFile::ClassDef& c0 = raw->GetClassDef(0);
+  const DexFile::ClassDef& c0 = raw->GetClassDef(0);
   EXPECT_STREQ("LNested$Inner;", raw->GetClassDescriptor(c0));
 
-  const RawDexFile::ClassDef& c1 = raw->GetClassDef(1);
+  const DexFile::ClassDef& c1 = raw->GetClassDef(1);
   EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
 }
 

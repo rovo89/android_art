@@ -17,24 +17,24 @@
 
 namespace art {
 
-const byte RawDexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
-const byte RawDexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
+const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
+const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
-RawDexFile::Closer::~Closer() {}
+DexFile::Closer::~Closer() {}
 
-RawDexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
+DexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
   CHECK(addr != NULL);
 }
-RawDexFile::MmapCloser::~MmapCloser() {
+DexFile::MmapCloser::~MmapCloser() {
   if (munmap(addr_, length_) == -1) {
     PLOG(INFO) << "munmap failed";
   }
 }
 
-RawDexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
-RawDexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
+DexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
+DexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
 
-RawDexFile* RawDexFile::OpenFile(const char* filename) {
+DexFile* DexFile::OpenFile(const char* filename) {
   CHECK(filename != NULL);
   int fd = open(filename, O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
@@ -61,25 +61,25 @@ RawDexFile* RawDexFile::OpenFile(const char* filename) {
   return Open(dex_file, length, closer);
 }
 
-RawDexFile* RawDexFile::OpenPtr(byte* ptr, size_t length) {
+DexFile* DexFile::OpenPtr(byte* ptr, size_t length) {
   CHECK(ptr != NULL);
-  RawDexFile::Closer* closer = new PtrCloser(ptr);
+  DexFile::Closer* closer = new PtrCloser(ptr);
   return Open(ptr, length, closer);
 }
 
-RawDexFile* RawDexFile::Open(const byte* dex_file, size_t length,
-                             Closer* closer) {
-  scoped_ptr<RawDexFile> raw(new RawDexFile(dex_file, length, closer));
-  if (!raw->Init()) {
+DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
+                       Closer* closer) {
+  scoped_ptr<DexFile> dex_file(new DexFile(dex_bytes, length, closer));
+  if (!dex_file->Init()) {
     return NULL;
   } else {
-    return raw.release();
+    return dex_file.release();
   }
 }
 
-RawDexFile::~RawDexFile() {}
+DexFile::~DexFile() {}
 
-bool RawDexFile::Init() {
+bool DexFile::Init() {
   InitMembers();
   if (!IsMagicValid()) {
     return false;
@@ -88,7 +88,7 @@ bool RawDexFile::Init() {
   return true;
 }
 
-void RawDexFile::InitMembers() {
+void DexFile::InitMembers() {
   const byte* b = base_;
   header_ = reinterpret_cast<const Header*>(b);
   const Header* h = header_;
@@ -100,11 +100,11 @@ void RawDexFile::InitMembers() {
   class_defs_ = reinterpret_cast<const ClassDef*>(b + h->class_defs_off_);
 }
 
-bool RawDexFile::IsMagicValid() {
+bool DexFile::IsMagicValid() {
   return CheckMagic(header_->magic_);
 }
 
-bool RawDexFile::CheckMagic(const byte* magic) {
+bool DexFile::CheckMagic(const byte* magic) {
   CHECK(magic != NULL);
   if (memcmp(magic, kDexMagic, sizeof(kDexMagic)) != 0) {
     LOG(WARNING) << "Unrecognized magic number:"
@@ -126,7 +126,7 @@ bool RawDexFile::CheckMagic(const byte* magic) {
   return true;
 }
 
-void RawDexFile::InitIndex() {
+void DexFile::InitIndex() {
   CHECK_EQ(index_.size(), 0U);
   for (size_t i = 0; i < NumClassDefs(); ++i) {
     const ClassDef& class_def = GetClassDef(i);
@@ -135,7 +135,7 @@ void RawDexFile::InitIndex() {
   }
 }
 
-const RawDexFile::ClassDef* RawDexFile::FindClassDef(const StringPiece& descriptor) const {
+const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) const {
   CHECK(descriptor != NULL);
   Index::const_iterator it = index_.find(descriptor);
   if (it == index_.end()) {
@@ -202,60 +202,60 @@ static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth,
   return val;
 }
 
-RawDexFile::ValueType RawDexFile::ReadEncodedValue(const byte** stream,
-                                                   JValue* value) const {
+DexFile::ValueType DexFile::ReadEncodedValue(const byte** stream,
+                                             JValue* value) const {
   const byte* ptr = *stream;
   byte value_type = *ptr++;
   byte value_arg = value_type >> kEncodedValueArgShift;
   size_t width = value_arg + 1;  // assume and correct later
   int type = value_type & kEncodedValueTypeMask;
   switch (type) {
-    case RawDexFile::kByte: {
+    case DexFile::kByte: {
       int32_t b = ReadSignedInt(ptr, value_arg);
       CHECK(IsInt(8, b));
       value->i = b;
       break;
     }
-    case RawDexFile::kShort: {
+    case DexFile::kShort: {
       int32_t s = ReadSignedInt(ptr, value_arg);
       CHECK(IsInt(16, s));
       value->i = s;
       break;
     }
-    case RawDexFile::kChar: {
+    case DexFile::kChar: {
       uint32_t c = ReadUnsignedInt(ptr, value_arg, false);
       CHECK(IsUint(16, c));
       value->i = c;
       break;
     }
-    case RawDexFile::kInt:
+    case DexFile::kInt:
       value->i = ReadSignedInt(ptr, value_arg);
       break;
-    case RawDexFile::kLong:
+    case DexFile::kLong:
       value->j = ReadSignedLong(ptr, value_arg);
       break;
-    case RawDexFile::kFloat:
+    case DexFile::kFloat:
       value->i = ReadUnsignedInt(ptr, value_arg, true);
       break;
-    case RawDexFile::kDouble:
+    case DexFile::kDouble:
       value->j = ReadUnsignedLong(ptr, value_arg, true);
       break;
-    case RawDexFile::kBoolean:
+    case DexFile::kBoolean:
       value->i = (value_arg != 0);
       width = 0;
       break;
-    case RawDexFile::kString:
-    case RawDexFile::kType:
-    case RawDexFile::kMethod:
-    case RawDexFile::kEnum:
+    case DexFile::kString:
+    case DexFile::kType:
+    case DexFile::kMethod:
+    case DexFile::kEnum:
       value->i = ReadUnsignedInt(ptr, value_arg, false);
       break;
-    case RawDexFile::kField:
-    case RawDexFile::kArray:
-    case RawDexFile::kAnnotation:
+    case DexFile::kField:
+    case DexFile::kArray:
+    case DexFile::kAnnotation:
       LOG(FATAL) << "Unimplemented";
       break;
-    case RawDexFile::kNull:
+    case DexFile::kNull:
       value->i = 0;
       width = 0;
       break;
