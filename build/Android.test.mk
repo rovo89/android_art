@@ -28,7 +28,7 @@ $(foreach file,$(TEST_TARGET_SRC_FILES), \
   $(eval include $(CLEAR_VARS)) \
   $(eval include external/stlport/libstlport.mk) \
   $(eval LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)) \
-  $(eval LOCAL_MODULE := $(notdir $(file:%.cc=%))) \
+  $(eval LOCAL_MODULE := $(notdir $(basename $(file:%.arm=%)))) \
   $(eval LOCAL_MODULE_TAGS := tests) \
   $(eval LOCAL_SRC_FILES := $(file)) \
   $(eval LOCAL_CFLAGS := $(ART_CFLAGS)) \
