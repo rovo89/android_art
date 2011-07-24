@@ -15,13 +15,30 @@ class Object;
 
 class MarkSweep {
  public:
+  MarkSweep() :
+      finger_(NULL), condemned_(NULL) {
+  }
+
   ~MarkSweep();
+
+  // Initializes internal structures.
+  bool Init();
 
   // Marks the root set at the start of a garbage collection.
   void MarkRoots();
 
+  // Builds a mark stack and recursively mark until it empties.
+  void RecursiveMark();
+
   // Remarks the root set after completing the concurrent mark.
   void ReMarkRoots();
+
+  void ProcessReferences(bool clear_soft_references) {
+    ProcessReferences(&soft_reference_list_, clear_soft_references,
+                      &weak_reference_list_,
+                      &finalizer_reference_list_,
+                      &phantom_reference_list_);
+  }
 
   // Sweeps unmarked objects to complete the garbage collection.
   void Sweep();
@@ -37,6 +54,10 @@ class MarkSweep {
 
   // Yuck.
   void MarkObject0(const Object* obj, bool check_finger);
+
+  static void ScanBitmapCallback(Object* obj, void* finger, void* arg);
+
+  static void SweepCallback(size_t num_ptrs, void** ptrs, void* arg);
 
   // Blackens an object.
   void ScanObject(const Object* obj);
@@ -56,7 +77,7 @@ class MarkSweep {
   // Grays references in an array.
   void ScanArray(const Object* obj);
 
-  void ScanDataObject(const Object* obj);
+  void ScanOther(const Object* obj);
 
   // Blackens objects grayed during a garbage collection.
   void ScanDirtyObjects();
@@ -90,16 +111,18 @@ class MarkSweep {
 
   void ClearWhiteReferences(Object** list);
 
-  void ProcessReferences(Object** soft_references, bool clear_soft,
+  void ProcessReferences(Object** soft_references, bool clear_soft_references,
                          Object** weak_references,
                          Object** finalizer_references,
                          Object** phantom_references);
+
+  void SweepSystemWeaks();
 
   MarkStack* mark_stack_;
 
   HeapBitmap* mark_bitmap_;
 
-  // HeapBitmap* alloc_bitmap_;
+  HeapBitmap* live_bitmap_;
 
   Object* finger_;
 

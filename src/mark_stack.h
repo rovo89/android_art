@@ -13,7 +13,7 @@ class Object;
 
 class MarkStack {
  public:
-  MarkStack* Create(size_t maximum_size);
+  static MarkStack* Create(size_t maximum_size);
 
   ~MarkStack();
 

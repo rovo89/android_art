@@ -3,10 +3,15 @@
 
 #include "mark_sweep.h"
 
+#include <climits>
+#include <vector>
+
+#include "heap.h"
 #include "logging.h"
 #include "macros.h"
 #include "mark_stack.h"
 #include "object.h"
+#include "space.h"
 #include "thread.h"
 
 #define CLZ(x) __builtin_clz(x)
@@ -18,6 +23,22 @@ size_t MarkSweep::reference_queue_offset_ = 0;  // TODO
 size_t MarkSweep::reference_queueNext_offset_ = 0;  // TODO
 size_t MarkSweep::reference_pendingNext_offset_ = 0;  // TODO
 size_t MarkSweep::finalizer_reference_zombie_offset_ = 0;  // TODO
+
+bool MarkSweep::Init() {
+  mark_stack_ = MarkStack::Create(Heap::GetMaximumSize());
+  if (mark_stack_ == NULL) {
+    return false;
+  }
+
+  mark_bitmap_ = Heap::GetMarkBits();
+  live_bitmap_ = Heap::GetLiveBits();
+
+  // TODO: if concurrent, clear the card table.
+
+  // TODO: check that the mark bitmap is entirely clear.
+
+  return true;
+}
 
 void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
   DCHECK(obj != NULL);
@@ -52,9 +73,57 @@ void MarkSweep::MarkRoots() {
   LOG(FATAL) << "Unimplemented";
 }
 
-void MarkSweep::ReMarkRoots()
-{
+void MarkSweep::ScanBitmapCallback(Object* obj, void* finger, void* arg) {
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
+  mark_sweep->finger_ = reinterpret_cast<Object*>(finger);
+  mark_sweep->ScanObject(obj);
+}
+
+// Populates the mark stack based on the set of marked objects and
+// recursively marks until the mark stack is emptied.
+void MarkSweep::RecursiveMark() {
+  void* arg = reinterpret_cast<void*>(this);
+  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (spaces[i]->IsCondemned()) {
+      uintptr_t base = reinterpret_cast<uintptr_t>(spaces[i]->GetBase());
+      uintptr_t limit = reinterpret_cast<uintptr_t>(spaces[i]->GetLimit());
+      mark_bitmap_->ScanWalk(base, limit, &MarkSweep::ScanBitmapCallback, arg);
+    }
+  }
+  finger_ = reinterpret_cast<Object*>(~0);
+  ProcessMarkStack();
+}
+
+void MarkSweep::ReMarkRoots() {
   LOG(FATAL) << "Unimplemented";
+}
+
+void MarkSweep::SweepSystemWeaks() {
+  LOG(FATAL) << "Unimplemented";
+}
+
+void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {
+  // TODO, lock heap if concurrent
+  Space* space = static_cast<Space*>(arg);
+  for (size_t i = 0; i < num_ptrs; ++i) {
+    Object* obj = static_cast<Object*>(ptrs[i]);
+    space->Free(obj);
+  }
+  // TODO, unlock heap if concurrent
+}
+
+void MarkSweep::Sweep() {
+  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (spaces[i]->IsCondemned()) {
+      uintptr_t base = reinterpret_cast<uintptr_t>(spaces[i]->GetBase());
+      uintptr_t limit = reinterpret_cast<uintptr_t>(spaces[i]->GetLimit());
+      void* arg = static_cast<void*>(spaces[i]);
+      HeapBitmap::SweepWalk(*live_bitmap_, *mark_bitmap_, base, limit,
+                            &MarkSweep::SweepCallback, arg);
+    }
+  }
 }
 
 // Scans instance fields.
@@ -91,12 +160,9 @@ void MarkSweep::ScanInstanceFields(const Object* obj) {
 void MarkSweep::ScanStaticFields(const Class* klass) {
   DCHECK(klass != NULL);
   for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
-    // char ch = clazz->sfields[i].signature[0];
     const StaticField* static_field = klass->GetStaticField(i);
     char ch = static_field->GetType();
     if (ch == '[' || ch == 'L') {
-      // Object *obj = clazz->sfields[i].value.l;
-      // markObject(obj, ctx);
       const Object* obj = static_field->GetObject();
       MarkObject(obj);
     }
@@ -186,7 +252,7 @@ Object* MarkSweep::DequeuePendingReference(Object** list) {
 void MarkSweep::DelayReferenceReferent(Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(obj->GetClass() != NULL);
-  //DCHECK(IS_CLASS_FLAG_SET(obj->clazz, CLASS_ISREFERENCE));
+  DCHECK(obj->IsReference());
   Object* pending = obj->GetFieldObject(reference_pendingNext_offset_);
   Object* referent = obj->GetFieldObject(reference_referent_offset_);
   if (pending == NULL && referent != NULL && !IsMarked(referent)) {
@@ -208,7 +274,7 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
 // Scans the header and field references of a data object.  If the
 // scanned object is a reference subclass, it is scheduled for later
 // processing
-void MarkSweep::ScanDataObject(const Object *obj) {
+void MarkSweep::ScanOther(const Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(obj->GetClass() != NULL);
   MarkObject(obj->GetClass());
@@ -229,7 +295,7 @@ void MarkSweep::ScanObject(const Object* obj) {
   } else if (obj->IsArray()) {
     ScanArray(obj);
   } else {
-    ScanDataObject(obj);
+    ScanOther(obj);
   }
 }
 
@@ -344,9 +410,7 @@ void MarkSweep::EnqueueFinalizerReferences(Object** list) {
   DCHECK(*list == NULL);
 }
 
-/*
- * Process reference class instances and schedule finalizations.
- */
+// Process reference class instances and schedule finalizations.
 void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
                                   Object** weak_references,
                                   Object** finalizer_references,
@@ -403,6 +467,7 @@ void MarkSweep::EnqueueClearedReferences(Object** cleared) {
 }
 
 MarkSweep::~MarkSweep() {
+  delete mark_stack_;
   mark_bitmap_->Clear();
 }
 

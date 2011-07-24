@@ -2,16 +2,25 @@
 // Author: cshapiro@google.com (Carl Shapiro)
 
 #include "heap.h"
+
+#include <vector>
+
+#include "mark_sweep.h"
 #include "object.h"
 #include "space.h"
+#include "stl_util.h"
 
 namespace art {
 
-Space* Heap::space_ = NULL;
+std::vector<Space*> Heap::spaces_;
 
 size_t Heap::startup_size_ = 0;
 
 size_t Heap::maximum_size_ = 0;
+
+size_t Heap::num_bytes_allocated_ = 0;
+
+size_t Heap::num_objects_allocated_ = 0;
 
 bool Heap::is_gc_running_ = false;
 
@@ -20,13 +29,13 @@ HeapBitmap* Heap::mark_bitmap_ = NULL;
 HeapBitmap* Heap::live_bitmap_ = NULL;
 
 bool Heap::Init(size_t startup_size, size_t maximum_size) {
-  space_ = Space::Create(startup_size, maximum_size);
-  if (space_ == NULL) {
+  Space* space = Space::Create(startup_size, maximum_size);
+  if (space == NULL) {
     return false;
   }
 
-  byte* base = space_->GetBase();
-  size_t num_bytes = space_->Size();
+  byte* base = space->GetBase();
+  size_t num_bytes = space->Size();
 
   // Allocate the initial live bitmap.
   scoped_ptr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
@@ -40,6 +49,7 @@ bool Heap::Init(size_t startup_size, size_t maximum_size) {
     return false;
   }
 
+  spaces_.push_back(space);
   startup_size_ = startup_size;
   maximum_size_ = maximum_size;
   live_bitmap_ = live_bitmap.release();
@@ -51,18 +61,62 @@ bool Heap::Init(size_t startup_size, size_t maximum_size) {
 }
 
 void Heap::Destroy() {
-  delete space_;
+  STLDeleteElements(&spaces_);
   delete mark_bitmap_;
   delete live_bitmap_;
 }
 
+Object* Heap::AllocObject(Class* klass) {
+  return AllocObject(klass, klass->object_size_);
+}
+
+Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
+  Object* obj = Allocate(num_bytes);
+  if (obj != NULL) {
+    obj->klass_ = klass;
+  }
+  return obj;
+}
+
+void Heap::RecordAllocation(Space* space, const Object* obj) {
+  size_t size = space->AllocationSize(obj);
+  DCHECK_NE(size, 0u);
+  num_bytes_allocated_ += size;
+  num_objects_allocated_ += 1;
+  live_bitmap_->Set(obj);
+}
+
+void Heap::RecordFree(Space* space, const Object* obj) {
+  size_t size = space->AllocationSize(obj);
+  DCHECK_NE(size, 0u);
+  if (size < num_bytes_allocated_) {
+    num_bytes_allocated_ -= size;
+  } else {
+    num_bytes_allocated_ = 0;
+  }
+  live_bitmap_->Clear(obj);
+  if (num_objects_allocated_ > 0) {
+    num_objects_allocated_ -= 1;
+  }
+}
+
 Object* Heap::Allocate(size_t size) {
+  CHECK_EQ(spaces_.size(), 1u);
+  Space* space = spaces_[0];
+  Object* obj = Allocate(space, size);
+  if (obj != NULL) {
+    RecordAllocation(space, obj);
+  }
+  return obj;
+}
+
+Object* Heap::Allocate(Space* space, size_t size) {
   // Fail impossible allocations.  TODO: collect soft references.
   if (size > maximum_size_) {
     return NULL;
   }
 
-  Object* ptr = space_->AllocWithoutGrowth(size);
+  Object* ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {
     return ptr;
   }
@@ -73,7 +127,7 @@ Object* Heap::Allocate(size_t size) {
     // The GC is concurrently tracing the heap.  Release the heap
     // lock, wait for the GC to complete, and retrying allocating.
     WaitForConcurrentGcToComplete();
-    ptr = space_->AllocWithoutGrowth(size);
+    ptr = space->AllocWithoutGrowth(size);
     if (ptr != NULL) {
       return ptr;
     }
@@ -82,25 +136,22 @@ Object* Heap::Allocate(size_t size) {
   // Another failure.  Our thread was starved or there may be too many
   // live objects.  Try a foreground GC.  This will have no effect if
   // the concurrent GC is already running.
-  CollectGarbage();
-  ptr = space_->AllocWithoutGrowth(size);
+  CollectGarbageInternal();
+  ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {
     return ptr;
   }
 
   // Even that didn't work;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
-  ptr = space_->AllocWithGrowth(size);
+  ptr = space->AllocWithGrowth(size);
   if (ptr != NULL) {
     //size_t new_footprint = dvmHeapSourceGetIdealFootprint();
-    size_t new_footprint = space_->MaxAllowedFootprint();
-    //TODO: may want to grow a little bit more so that the amount of free
-    //      space is equal to the old free space + the utilization slop for
-    //      the new allocation.
-    // LOGI_HEAP("Grow heap (frag case) to "
-    //           "%zu.%03zuMB for %zu-byte allocation",
-    //           FRACTIONAL_MB(newHeapSize), size);
-    LOG(INFO) << "Grow heap (frag case) to " << new_footprint
+    size_t new_footprint = space->MaxAllowedFootprint();
+    // TODO: may want to grow a little bit more so that the amount of
+    //       free space is equal to the old free space + the
+    //       utilization slop for the new allocation.
+    LOG(INFO) << "Grow heap (frag case) to " << new_footprint / MB
               << "for " << size << "-byte allocation";
     return ptr;
   }
@@ -111,25 +162,20 @@ Object* Heap::Allocate(size_t size) {
   // spec requires that all SoftReferences have been collected and
   // cleared before throwing an OOME.
 
-  //TODO: wait for the finalizers from the previous GC to finish
-  //collect_soft_refs:
+  // TODO: wait for the finalizers from the previous GC to finish
   LOG(INFO) << "Forcing collection of SoftReferences for "
             << size << "-byte allocation";
-  //gcForMalloc(true);
-  CollectGarbage();
-  ptr = space_->AllocWithGrowth(size);
+  CollectGarbageInternal();
+  ptr = space->AllocWithGrowth(size);
   if (ptr != NULL) {
     return ptr;
   }
-  //TODO: maybe wait for finalizers and try one last time
 
-  //LOGE_HEAP("Out of memory on a %zd-byte allocation.", size);
   LOG(ERROR) << "Out of memory on a " << size << " byte allocation";
 
-  //TODO: tell the HeapSource to dump its state
-  //dvmDumpThread(dvmThreadSelf(), false);
+  // TODO: tell the HeapSource to dump its state
+  // TODO: dump stack traces for all threads
 
-  // TODO: stack trace
   return NULL;
 }
 
@@ -145,9 +191,44 @@ String* Heap::AllocStringFromModifiedUtf8(Class* java_lang_String,
 }
 
 void Heap::CollectGarbage() {
+  CollectGarbageInternal();
 }
 
 void Heap::CollectGarbageInternal() {
+  // TODO: check that heap lock is held
+
+  // TODO: Suspend all threads
+  {
+    MarkSweep mark_sweep;
+
+    mark_sweep.Init();
+
+    mark_sweep.MarkRoots();
+
+    // Push marked roots onto the mark stack
+
+    // TODO: if concurrent
+    //   unlock heap
+    //   resume threads
+
+    mark_sweep.RecursiveMark();
+
+    // TODO: if concurrent
+    //   lock heap
+    //   suspend threads
+    //   re-mark root set
+    //   scan dirty objects
+
+    mark_sweep.ProcessReferences(false);
+
+    // TODO: swap bitmaps
+
+    mark_sweep.Sweep();
+  }
+
+  GrowForUtilization();
+
+  // TODO: Resume all threads
 }
 
 void Heap::WaitForConcurrentGcToComplete() {
@@ -157,7 +238,7 @@ void Heap::WaitForConcurrentGcToComplete() {
 // heap footprint to match the target utilization ratio.  This should
 // only be called immediately after a full garbage collection.
 void Heap::GrowForUtilization() {
-  LOG(FATAL) << "Unimplemented";
+  LOG(ERROR) << "Unimplemented";
 }
 
 }  // namespace art

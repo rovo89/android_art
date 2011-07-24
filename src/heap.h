@@ -4,6 +4,8 @@
 #ifndef ART_SRC_HEAP_H_
 #define ART_SRC_HEAP_H_
 
+#include <vector>
+
 #include "globals.h"
 #include "object.h"
 #include "object_bitmap.h"
@@ -28,19 +30,14 @@ class Heap {
 
   static void Destroy();
 
-  static Object* AllocObject(Class* klass) {
-    return AllocObject(klass, klass->object_size_);
-  }
+  // Allocates and initializes storage for a class instance.
+  static Object* AllocObject(Class* klass);
 
-  static Object* AllocObject(Class* klass, size_t num_bytes) {
-    Object* obj = Allocate(num_bytes);
-    if (obj != NULL) {
-      obj->klass_ = klass;
-    }
-    return obj;
-  }
+  static Object* AllocObject(Class* klass, size_t num_bytes);
 
-  static Array* AllocArray(Class* array_class, size_t component_count, size_t component_size) {
+  static Array* AllocArray(Class* array_class,
+                           size_t component_count,
+                           size_t component_size) {
     size_t size = sizeof(Array) + component_count * component_size;
     Array* array = down_cast<Array*>(AllocObject(array_class, size));
     if (array != NULL) {
@@ -49,12 +46,17 @@ class Heap {
     return array;
   }
 
-  static ObjectArray* AllocObjectArray(Class* object_array_class, size_t length) {
-    return down_cast<ObjectArray*>(AllocArray(object_array_class, length, sizeof(uint32_t)));
+  static ObjectArray* AllocObjectArray(Class* object_array_class,
+                                       size_t length) {
+    return down_cast<ObjectArray*>(AllocArray(object_array_class,
+                                              length,
+                                              sizeof(uint32_t)));
   }
 
   static CharArray* AllocCharArray(Class* char_array_class, size_t length) {
-    return down_cast<CharArray*>(AllocArray(char_array_class, length, sizeof(uint16_t)));
+    return down_cast<CharArray*>(AllocArray(char_array_class,
+                                            length,
+                                            sizeof(uint16_t)));
   }
 
   static String* AllocString(Class* java_lang_String) {
@@ -75,9 +77,29 @@ class Heap {
     return lock_;
   }
 
- private:
+  static const std::vector<Space*>& GetSpaces() {
+    return spaces_;
+  }
 
+  static HeapBitmap* GetLiveBits() {
+    return live_bitmap_;
+  };
+
+  static HeapBitmap* GetMarkBits() {
+    return mark_bitmap_;
+  };
+
+  static size_t GetMaximumSize() {
+    return maximum_size_;
+  }
+
+ private:
+  // Allocates uninitialized storage.
   static Object* Allocate(size_t num_bytes);
+  static Object* Allocate(Space* space, size_t num_bytes);
+
+  static void RecordAllocation(Space* space, const Object* object);
+  static void RecordFree(Space* space, const Object* object);
 
   static void CollectGarbageInternal();
 
@@ -85,17 +107,28 @@ class Heap {
 
   static Mutex* lock_;
 
-  static Space* space_;
+  static std::vector<Space*> spaces_;
 
   static HeapBitmap* mark_bitmap_;
 
   static HeapBitmap* live_bitmap_;
 
+  // The startup size of the heap in bytes.
   static size_t startup_size_;
 
+  // The maximum size of the heap in bytes.
   static size_t maximum_size_;
 
+  // True while the garbage collector is running.
   static bool is_gc_running_;
+
+  // Number of bytes allocated.  Adjusted after each allocation and
+  // free.
+  static size_t num_bytes_allocated_;
+
+  // Number of objects allocated.  Adjusted after each allocation and
+  // free.
+  static size_t num_objects_allocated_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

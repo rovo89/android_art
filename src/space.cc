@@ -98,6 +98,10 @@ size_t Space::Free(void* ptr) {
   return num_bytes;
 }
 
+size_t Space::AllocationSize(const Object* obj) {
+  return mspace_usable_size(mspace_, obj) + kChunkOverhead;
+}
+
 void Space::DontNeed(void* start, void* end, void* num_bytes) {
   start = (void*)RoundUp((uintptr_t)start, 4096);
   end = (void*)RoundDown((uintptr_t)end, 4096);
@@ -125,6 +129,7 @@ size_t Space::MaxAllowedFootprint() {
 }
 
 void Space::Grow(size_t new_size) {
+  LOG(FATAL) << "Unimplemented";
 }
 
 }  // namespace art

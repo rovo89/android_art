@@ -34,11 +34,24 @@ class Space {
     return base_;
   }
 
+  byte* GetLimit() {
+    return limit_;
+  }
+
   size_t Size() {
     return limit_ - base_;
   }
 
+  size_t AllocationSize(const Object* obj);
+
+  bool IsCondemned() {
+    return true;  // TODO
+  }
+
  private:
+  // The boundary tag overhead.
+  static const size_t kChunkOverhead = kWordSize;
+
   Space(size_t startup_size, size_t maximum_size) :
       mspace_(NULL),
       base_(NULL),
@@ -46,6 +59,7 @@ class Space {
       maximum_size_(maximum_size) {
   }
 
+  // Initializes the space and underlying storage.
   bool Init();
 
   void* CreateMallocSpace(void* base, size_t startup_size,
@@ -62,6 +76,8 @@ class Space {
   size_t startup_size_;
 
   size_t maximum_size_;
+
+  bool is_condemned_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Space);
 };
