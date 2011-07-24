@@ -44,3 +44,8 @@ build-art: \
 .PHONY: test-art-host
 test-art-host: $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))))
 	$(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))) &&) true
+
+# "mm cpplint-art" to style check art source files
+.PHONY: cpplint-art
+cpplint-art:
+	$(LOCAL_PATH)/tools/cpplint.py $(LOCAL_PATH)/src/*.h $(LOCAL_PATH)/src/*.cc
