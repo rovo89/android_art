@@ -29,11 +29,6 @@ ClassLinker* ClassLinker::Create(std::vector<DexFile*> boot_class_path) {
 
 void ClassLinker::Init(std::vector<DexFile*> boot_class_path) {
 
-  // setup boot_class_path_ so that object_array_class_ can be properly initialized
-  for (size_t i = 0; i != boot_class_path.size(); ++i) {
-    AppendToBootClassPath(boot_class_path[i]);
-  }
-
   // Allocate and partially initialize the Class, Object, Field, Method classes.
   // Initialization will be completed when the definitions are loaded.
   java_lang_Class_ = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
@@ -48,21 +43,13 @@ void ClassLinker::Init(std::vector<DexFile*> boot_class_path) {
 
   java_lang_Class_->super_class_ = java_lang_Object_;
 
-  java_lang_ref_Field_ = AllocClass(NULL);
-  CHECK(java_lang_ref_Field_ != NULL);
-  java_lang_ref_Field_->descriptor_ = "Ljava/lang/ref/Field;";
+  java_lang_reflect_Field_ = AllocClass(NULL);
+  CHECK(java_lang_reflect_Field_ != NULL);
+  java_lang_reflect_Field_->descriptor_ = "Ljava/lang/reflect/Field;";
 
-  java_lang_ref_Method_ = AllocClass(NULL);
-  CHECK(java_lang_ref_Method_ != NULL);
-  java_lang_ref_Method_->descriptor_ = "Ljava/lang/Method;";
-
-  java_lang_Cloneable_ = AllocClass(NULL);
-  CHECK(java_lang_Cloneable_ != NULL);
-  java_lang_Cloneable_->descriptor_ = "Ljava/lang/Cloneable;";
-
-  java_io_Serializable_ = AllocClass(NULL);
-  CHECK(java_io_Serializable_ != NULL);
-  java_io_Serializable_->descriptor_ = "Ljava/io/Serializable;";
+  java_lang_reflect_Method_ = AllocClass(NULL);
+  CHECK(java_lang_reflect_Method_ != NULL);
+  java_lang_reflect_Method_->descriptor_ = "Ljava/lang/reflect/Method;";
 
   java_lang_String_ = AllocClass(NULL);
   CHECK(java_lang_String_ != NULL);
@@ -79,11 +66,50 @@ void ClassLinker::Init(std::vector<DexFile*> boot_class_path) {
   primitive_boolean_ = CreatePrimitiveClass("Z");
   primitive_void_ = CreatePrimitiveClass("V");
 
+  // object_array_class_ is needed to heap alloc DexCache instances
+  // created by AppendToBootClassPath below
+  object_array_class_ = AllocClass(NULL);
+  CHECK(object_array_class_ != NULL);
+
+  // setup boot_class_path_ so that the below array classes can be
+  // initialized using the normal FindSystemClass API
+  for (size_t i = 0; i != boot_class_path.size(); ++i) {
+    AppendToBootClassPath(boot_class_path[i]);
+  }
+
+  // A single, global copy of "interfaces" and "iftable" for reuse across array classes
+  java_lang_Cloneable_ = AllocClass(NULL);
+  CHECK(java_lang_Cloneable_ != NULL);
+  java_lang_Cloneable_->descriptor_ = "Ljava/lang/Cloneable;";
+
+  java_io_Serializable_ = AllocClass(NULL);
+  CHECK(java_io_Serializable_ != NULL);
+  java_io_Serializable_->descriptor_ = "Ljava/io/Serializable;";
+
+  array_interfaces_ = AllocObjectArray(2);
+  CHECK(array_interfaces_ != NULL);
+  array_interfaces_->Set(0, java_lang_Cloneable_);
+  array_interfaces_->Set(1, java_io_Serializable_);
+
+  // We assume that Cloneable/Serializable don't have superinterfaces --
+  // normally we'd have to crawl up and explicitly list all of the
+  // supers as well.  These interfaces don't have any methods, so we
+  // don't have to worry about the ifviPool either.
+  array_iftable_ = new InterfaceEntry[2];
+  CHECK(array_iftable_ != NULL);
+  memset(array_iftable_, 0, sizeof(InterfaceEntry) * 2);
+  array_iftable_[0].SetClass(down_cast<Class*>(array_interfaces_->Get(0)));
+  array_iftable_[1].SetClass(down_cast<Class*>(array_interfaces_->Get(1)));
+
   char_array_class_ = FindSystemClass("[C");
   CHECK(char_array_class_ != NULL);
+  class_array_class_ = FindSystemClass("[Ljava/lang/Class;");
+  CHECK(class_array_class_ != NULL);
+  field_array_class_ = FindSystemClass("[Ljava/lang/reflect/Field;");
+  CHECK(field_array_class_ != NULL);
+  method_array_class_ = FindSystemClass("[Ljava/lang/reflect/Method;");
+  CHECK(method_array_class_ != NULL);
 
-  object_array_class_ = FindSystemClass("[Ljava/lang/Object;");
-  CHECK(object_array_class_ != NULL);
 }
 
 DexCache* ClassLinker::AllocDexCache() {
@@ -97,17 +123,17 @@ Class* ClassLinker::AllocClass(DexCache* dex_cache) {
 }
 
 StaticField* ClassLinker::AllocStaticField() {
-  return down_cast<StaticField*>(Heap::AllocObject(java_lang_ref_Field_,
+  return down_cast<StaticField*>(Heap::AllocObject(java_lang_reflect_Field_,
                                                    sizeof(StaticField)));
 }
 
 InstanceField* ClassLinker::AllocInstanceField() {
-  return down_cast<InstanceField*>(Heap::AllocObject(java_lang_ref_Field_,
+  return down_cast<InstanceField*>(Heap::AllocObject(java_lang_reflect_Field_,
                                                      sizeof(InstanceField)));
 }
 
 Method* ClassLinker::AllocMethod() {
-  return down_cast<Method*>(Heap::AllocObject(java_lang_ref_Method_,
+  return down_cast<Method*>(Heap::AllocObject(java_lang_reflect_Method_,
                                               sizeof(Method)));
 }
 
@@ -143,6 +169,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     const DexFile::ClassDef* dex_class_def = pair.second;
     DexCache* dex_cache = FindDexCache(dex_file);
     // Load the class from the dex file.
+    // TODO add fast path to avoid all these comparisons once special cases are found
     if (descriptor == "Ljava/lang/Object;") {
       klass = java_lang_Object_;
       klass->dex_cache_ = dex_cache;
@@ -152,26 +179,31 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
       klass = java_lang_Class_;
       klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Class);
-    } else if (descriptor == "Ljava/lang/ref/Field;") {
-      klass = java_lang_ref_Field_;
+    } else if (descriptor == "Ljava/lang/reflect/Field;") {
+      klass = java_lang_reflect_Field_;
       klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Field);
-    } else if (descriptor == "Ljava/lang/ref/Method;") {
-      klass = java_lang_ref_Method_;
+    } else if (descriptor == "Ljava/lang/reflect/Method;") {
+      klass = java_lang_reflect_Method_;
       klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(Method);
-    } else if (descriptor == "Ljava/lang/Cloneable;") {
-      klass = java_lang_Cloneable_;
-      klass->dex_cache_ = dex_cache;
-    } else if (descriptor == "Ljava/io/Serializable;") {
-      klass = java_io_Serializable_;
-      klass->dex_cache_ = dex_cache;
     } else if (descriptor == "Ljava/lang/String;") {
       klass = java_lang_String_;
       klass->dex_cache_ = dex_cache;
       klass->object_size_ = sizeof(String);
+    } else if (descriptor == "Ljava/lang/Cloneable;") {
+      klass = java_lang_Cloneable_;
+      klass->dex_cache_ = dex_cache;
+      klass->object_size_ = 0;
+    } else if (descriptor == "Ljava/io/Serializable;") {
+      klass = java_io_Serializable_;
+      klass->dex_cache_ = dex_cache;
+      klass->object_size_ = 0;
     } else {
       klass = AllocClass(dex_cache);
+      // LinkInstanceFields only will update object_size_ if it is 0
+      // to avoid overwriting the special initialized cases above.
+      klass->object_size_ = 0;
     }
     LoadClass(*dex_file, *dex_class_def, klass);
     // Check for a pending exception during load
@@ -245,10 +277,10 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   klass->super_class_ = NULL;
   klass->super_class_idx_ = dex_class_def.superclass_idx_;
 
-  klass->num_static_fields_ = header.static_fields_size_;
-  klass->num_instance_fields_ = header.instance_fields_size_;
-  klass->num_direct_methods_ = header.direct_methods_size_;
-  klass->num_virtual_methods_ = header.virtual_methods_size_;
+  size_t num_static_fields = header.static_fields_size_;
+  size_t num_instance_fields = header.instance_fields_size_;
+  size_t num_direct_methods = header.direct_methods_size_;
+  size_t num_virtual_methods = header.virtual_methods_size_;
 
   klass->source_file_ = dex_file.dexGetSourceFile(dex_class_def);
 
@@ -256,58 +288,61 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   LoadInterfaces(dex_file, dex_class_def, klass);
 
   // Load static fields.
-  if (klass->NumStaticFields() != 0) {
-    // TODO: allocate on the object heap.
-    klass->sfields_ = new StaticField*[klass->NumStaticFields()]();
+  DCHECK(klass->sfields_ == NULL);
+  if (num_static_fields != 0) {
+    klass->sfields_ = AllocObjectArray(num_static_fields);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
       DexFile::Field dex_field;
       dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
       StaticField* sfield = AllocStaticField();
-      klass->sfields_[i] = sfield;
+      klass->SetStaticField(i, sfield);
       LoadField(dex_file, dex_field, klass, sfield);
     }
   }
 
   // Load instance fields.
-  if (klass->NumInstanceFields() != 0) {
+  DCHECK(klass->ifields_ == NULL);
+  if (num_instance_fields != 0) {
     // TODO: allocate on the object heap.
-    klass->ifields_ = new InstanceField*[klass->NumInstanceFields()]();
+    klass->ifields_ = AllocObjectArray(num_instance_fields);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       DexFile::Field dex_field;
       dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
       InstanceField* ifield = AllocInstanceField();
-      klass->ifields_[i] = ifield;
+      klass->SetInstanceField(i, ifield);
       LoadField(dex_file, dex_field, klass, ifield);
     }
   }
 
   // Load direct methods.
-  if (klass->NumDirectMethods() != 0) {
+  DCHECK(klass->direct_methods_ == NULL);
+  if (num_direct_methods != 0) {
     // TODO: append direct methods to class object
-    klass->direct_methods_ = new Method*[klass->NumDirectMethods()]();
+    klass->direct_methods_ = AllocObjectArray(num_direct_methods);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
-      klass->direct_methods_[i] = meth;
+      klass->SetDirectMethod(i, meth);
       LoadMethod(dex_file, dex_method, klass, meth);
       // TODO: register maps
     }
   }
 
   // Load virtual methods.
-  if (klass->NumVirtualMethods() != 0) {
+  DCHECK(klass->virtual_methods_ == NULL);
+  if (num_virtual_methods != 0) {
     // TODO: append virtual methods to class object
-    klass->virtual_methods_ = new Method*[klass->NumVirtualMethods()]();
+    klass->virtual_methods_ = AllocObjectArray(num_virtual_methods);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
-      klass->virtual_methods_[i] = meth;
+      klass->SetVirtualMethod(i, meth);
       LoadMethod(dex_file, dex_method, klass, meth);
       // TODO: register maps
     }
@@ -319,12 +354,13 @@ void ClassLinker::LoadInterfaces(const DexFile& dex_file,
                                  Class* klass) {
   const DexFile::TypeList* list = dex_file.GetInterfacesList(dex_class_def);
   if (list != NULL) {
-    klass->interface_count_ = list->Size();
-    // TODO: allocate the interfaces array on the object heap.
-    klass->interfaces_ = new Class*[list->Size()]();
+    DCHECK(klass->interfaces_ == NULL);
+    klass->interfaces_ = AllocObjectArray(list->Size());
+    DCHECK(klass->interfaces_idx_ == NULL);
+    klass->interfaces_idx_ = new uint32_t[list->Size()];
     for (size_t i = 0; i < list->Size(); ++i) {
       const DexFile::TypeItem& type_item = list->GetTypeItem(i);
-      klass->interfaces_[i] = reinterpret_cast<Class*>(type_item.type_idx_);
+      klass->interfaces_idx_[i] = type_item.type_idx_;
     }
   }
 }
@@ -515,9 +551,16 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     //
     // Array classes are simple enough that we don't need to do a full
     // link step.
-    Class* new_class = AllocClass(NULL);
-    if (new_class == NULL) {
-      return NULL;
+
+    Class* new_class;
+    if (descriptor == "[Ljava/lang/Object;") {
+      CHECK(object_array_class_);
+      new_class = object_array_class_;
+    } else {
+      new_class = AllocClass(NULL);
+      if (new_class == NULL) {
+        return NULL;
+      }
     }
     new_class->descriptor_alloc_ = new std::string(descriptor.data(),
                                                    descriptor.size());
@@ -542,26 +585,15 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     // so we need to make sure the class object is GC-valid while we're in
     // there.  Do this by clearing the interface list so the GC will just
     // think that the entries are null.
-    //
-    // TODO?
-    // We may want to create a single, global copy of "interfaces" and
-    // "iftable" somewhere near the start and just point to those (and
-    // remember not to free them for arrays).
-    new_class->interface_count_ = 2;
-    new_class->interfaces_ = new Class*[2];
-    memset(new_class->interfaces_, 0, sizeof(Class*) * 2);
-    new_class->interfaces_[0] = java_lang_Cloneable_;
-    new_class->interfaces_[1] = java_io_Serializable_;
 
-    // We assume that Cloneable/Serializable don't have superinterfaces --
-    // normally we'd have to crawl up and explicitly list all of the
-    // supers as well.  These interfaces don't have any methods, so we
-    // don't have to worry about the ifviPool either.
+
+    // Use the single, global copies of "interfaces" and "iftable"
+    // (remember not to free them for arrays).
+    DCHECK(array_interfaces_ != NULL);
+    new_class->interfaces_ = array_interfaces_;
     new_class->iftable_count_ = 2;
-    new_class->iftable_ = new InterfaceEntry[2];
-    memset(new_class->iftable_, 0, sizeof(InterfaceEntry) * 2);
-    new_class->iftable_[0].SetClass(new_class->interfaces_[0]);
-    new_class->iftable_[1].SetClass(new_class->interfaces_[1]);
+    DCHECK(array_iftable_ != NULL);
+    new_class->iftable_ = array_iftable_;
 
     // Inherit access flags from the component type.  Arrays can't be
     // used as a superclass or interface, so we want to add "final"
@@ -992,15 +1024,6 @@ bool ClassLinker::LinkClass(Class* klass, const DexFile* dex_file) {
 }
 
 bool ClassLinker::LinkInterfaces(Class* klass, const DexFile* dex_file) {
-  scoped_array<uint32_t> interfaces_idx;
-  // TODO: store interfaces_idx in the Class object
-  // TODO: move this outside of link interfaces
-  if (klass->interface_count_ > 0) {
-    size_t length = klass->interface_count_ * sizeof(klass->interfaces_[0]);
-    interfaces_idx.reset(new uint32_t[klass->interface_count_]);
-    memcpy(interfaces_idx.get(), klass->interfaces_, length);
-    memset(klass->interfaces_, 0xFF, length);
-  }
   // Mark the class as loaded.
   klass->status_ = Class::kStatusLoaded;
   if (klass->super_class_idx_ != DexFile::kDexNoIndex) {
@@ -1011,16 +1034,16 @@ bool ClassLinker::LinkInterfaces(Class* klass, const DexFile* dex_file) {
     }
     klass->super_class_ = super_class;  // TODO: write barrier
   }
-  if (klass->interface_count_ > 0) {
-    for (size_t i = 0; i < klass->interface_count_; ++i) {
-      uint32_t idx = interfaces_idx[i];
-      klass->interfaces_[i] = ResolveClass(klass, idx, dex_file);
-      if (klass->interfaces_[i] == NULL) {
+  if (klass->NumInterfaces() > 0) {
+    for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
+      uint32_t idx = klass->interfaces_idx_[i];
+      klass->SetInterface(i, ResolveClass(klass, idx, dex_file));
+      if (klass->GetInterface(i) == NULL) {
         LG << "Failed to resolve interface";
         return false;
       }
       // Verify
-      if (!klass->CanAccess(klass->interfaces_[i])) {
+      if (!klass->CanAccess(klass->GetInterface(i))) {
         LG << "Inaccessible interface";
         return false;
       }
@@ -1165,26 +1188,26 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   } else {
     super_ifcount = 0;
   }
-  size_t ifCount = super_ifcount;
-  ifCount += klass->interface_count_;
-  for (size_t i = 0; i < klass->interface_count_; i++) {
-    ifCount += klass->interfaces_[i]->iftable_count_;
+  size_t ifcount = super_ifcount;
+  ifcount += klass->NumInterfaces();
+  for (size_t i = 0; i < klass->NumInterfaces(); i++) {
+    ifcount += klass->GetInterface(i)->iftable_count_;
   }
-  if (ifCount == 0) {
+  if (ifcount == 0) {
     DCHECK(klass->iftable_count_ == 0);
     DCHECK(klass->iftable_ == NULL);
     return true;
   }
-  klass->iftable_ = new InterfaceEntry[ifCount * sizeof(InterfaceEntry)];
-  memset(klass->iftable_, 0x00, sizeof(InterfaceEntry) * ifCount);
+  klass->iftable_ = new InterfaceEntry[ifcount * sizeof(InterfaceEntry)];
+  memset(klass->iftable_, 0x00, sizeof(InterfaceEntry) * ifcount);
   if (super_ifcount != 0) {
     memcpy(klass->iftable_, klass->GetSuperClass()->iftable_,
            sizeof(InterfaceEntry) * super_ifcount);
   }
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
-  for (size_t i = 0; i < klass->interface_count_; i++) {
-    Class* interf = klass->interfaces_[i];
+  for (size_t i = 0; i < klass->NumInterfaces(); i++) {
+    Class* interf = klass->GetInterface(i);
     DCHECK(interf != NULL);
     if (!interf->IsInterface()) {
       LG << "Class implements non-interface class";  // TODO: IncompatibleClassChangeError
@@ -1195,12 +1218,12 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       klass->iftable_[idx++].SetClass(interf->iftable_[j].GetClass());
     }
   }
-  CHECK_EQ(idx, ifCount);
-  klass->iftable_count_ = ifCount;
-  if (klass->IsInterface() || super_ifcount == ifCount) {
+  CHECK_EQ(idx, ifcount);
+  klass->iftable_count_ = ifcount;
+  if (klass->IsInterface() || super_ifcount == ifcount) {
     return true;
   }
-  for (size_t i = super_ifcount; i < ifCount; i++) {
+  for (size_t i = super_ifcount; i < ifcount; i++) {
     pool_size += klass->iftable_[i].GetClass()->NumVirtualMethods();
   }
   if (pool_size == 0) {
@@ -1209,7 +1232,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   klass->ifvi_pool_count_ = pool_size;
   klass->ifvi_pool_ = new uint32_t[pool_size];
   std::vector<Method*> miranda_list;
-  for (size_t i = super_ifcount; i < ifCount; ++i) {
+  for (size_t i = super_ifcount; i < ifcount; ++i) {
     klass->iftable_[i].method_index_array_ = klass->ifvi_pool_ + pool_offset;
     Class* interface = klass->iftable_[i].GetClass();
     pool_offset += interface->NumVirtualMethods();    // end here
@@ -1250,19 +1273,18 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     }
   }
   if (miranda_count != 0) {
-    int oldMethodCount = klass->NumVirtualMethods();
-    int newMethodCount = oldMethodCount + miranda_count;
-    Method** newVirtualMethods = new Method*[newMethodCount];
+    int old_method_count = klass->NumVirtualMethods();
+    int new_method_count = old_method_count + miranda_count;
+    ObjectArray* new_virtual_methods = AllocObjectArray(new_method_count);
     if (klass->virtual_methods_ != NULL) {
-      memcpy(newVirtualMethods,
-             klass->virtual_methods_,
-             klass->NumVirtualMethods() * sizeof(Method*));
+      ObjectArray::Copy(klass->virtual_methods_, 0,
+                        new_virtual_methods, 0,
+                        old_method_count);
     }
-    klass->virtual_methods_ = newVirtualMethods;
-    klass->num_virtual_methods_ = newMethodCount;
+    klass->virtual_methods_ = new_virtual_methods;
 
     CHECK(klass->vtable_ != NULL);
-    int oldVtableCount = klass->vtable_count_;
+    int old_vtable_count = klass->vtable_count_;
     klass->vtable_count_ += miranda_count;
 
     for (int i = 0; i < miranda_count; i++) {
@@ -1270,9 +1292,9 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       memcpy(meth, miranda_list[i], sizeof(Method));
       meth->klass_ = klass;
       meth->access_flags_ |= kAccMiranda;
-      meth->method_index_ = 0xFFFF & (oldVtableCount + i);
-      klass->virtual_methods_[oldMethodCount+i] = meth;
-      klass->vtable_[oldVtableCount + i] = meth;
+      meth->method_index_ = 0xFFFF & (old_vtable_count + i);
+      klass->SetVirtualMethod(old_method_count + i, meth);
+      klass->vtable_[old_vtable_count + i] = meth;
     }
   }
   return true;
@@ -1415,7 +1437,10 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
   }
 #endif
 
-  klass->object_size_ = field_offset;
+  if (klass->object_size_ == 0) {
+    // avoid overwriting object_size_ of special crafted classes such as java_lang_*_
+    klass->object_size_ = field_offset;
+  }
   return true;
 }
 

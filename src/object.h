@@ -561,6 +561,51 @@ class Method : public Object {
   const void* native_method_;
 };
 
+class Array : public Object {
+ public:
+  uint32_t GetLength() const {
+    return length_;
+  }
+  void SetLength(uint32_t length) {
+    length_ = length;
+  }
+  const void* GetData() const {
+    return &elements_;
+  }
+  void* GetData() {
+    return &elements_;
+  }
+
+ private:
+  // The number of array elements.
+  uint32_t length_;
+  // Location of first element.
+  uint32_t elements_[0];
+  Array();
+};
+
+class ObjectArray : public Array {
+ public:
+  Object* Get(uint32_t i) const {
+    DCHECK_LT(i, GetLength());
+    Object* const * data = reinterpret_cast<Object* const *>(GetData());
+    return data[i];
+  }
+  void Set(uint32_t i, Object* object) {
+    DCHECK_LT(i, GetLength());
+    Object** data = reinterpret_cast<Object**>(GetData());
+    data[i] = object;
+  }
+  static void Copy(ObjectArray* src, int src_pos, ObjectArray* dst, int dst_pos, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+      dst->Set(dst_pos + i, src->Get(src_pos + i));
+    }
+  }
+
+ private:
+  ObjectArray();
+};
+
 // Class objects.
 class Class : public Object {
  public:
@@ -692,24 +737,32 @@ class Class : public Object {
 
   // Returns the number of static, private, and constructor methods.
   size_t NumDirectMethods() const {
-    return num_direct_methods_;
+    return (direct_methods_ != NULL) ? direct_methods_->GetLength() : 0;
   }
 
   Method* GetDirectMethod(uint32_t i) const {
-    return direct_methods_[i];
+    return down_cast<Method*>(direct_methods_->Get(i));
+  }
+
+  void SetDirectMethod(uint32_t i, Method* f) {  // TODO: uint16_t
+    direct_methods_->Set(i, f);
   }
 
   // Returns the number of non-inherited virtual methods.
   size_t NumVirtualMethods() const {
-    return num_virtual_methods_;
+    return (virtual_methods_ != NULL) ? virtual_methods_->GetLength() : 0;
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
-    return virtual_methods_[i];
+    return down_cast<Method*>(virtual_methods_->Get(i));
+  }
+
+  void SetVirtualMethod(uint32_t i, Method* f) {  // TODO: uint16_t
+    virtual_methods_->Set(i, f);
   }
 
   size_t NumInstanceFields() const {
-    return num_instance_fields_;
+    return (ifields_ != NULL) ? ifields_->GetLength() : 0;
   }
 
   // Returns the number of instance fields containing reference types.
@@ -718,22 +771,23 @@ class Class : public Object {
   }
 
   InstanceField* GetInstanceField(uint32_t i) {  // TODO: uint16_t
-    DCHECK_LT(i, num_instance_fields_);
-    return ifields_[i];
+    return down_cast<InstanceField*>(ifields_->Get(i));
   }
 
   void SetInstanceField(uint32_t i, InstanceField* f) {  // TODO: uint16_t
-    DCHECK_LT(i, num_instance_fields_);
-    ifields_[i] = f;
+    ifields_->Set(i, f);
   }
 
   size_t NumStaticFields() const {
-    return num_static_fields_;
+    return (sfields_ != NULL) ? sfields_->GetLength() : 0;
   }
 
   StaticField* GetStaticField(uint32_t i) const {  // TODO: uint16_t
-    DCHECK_LT(i, num_static_fields_);
-    return sfields_[i];
+    return down_cast<StaticField*>(sfields_->Get(i));
+  }
+
+  void SetStaticField(uint32_t i, StaticField* f) {  // TODO: uint16_t
+    sfields_->Set(i, f);
   }
 
   uint32_t GetReferenceOffsets() const {
@@ -749,12 +803,15 @@ class Class : public Object {
   Method* FindVirtualMethod(const StringPiece& name) const;
 
   size_t NumInterfaces() const {
-    return interface_count_;
+    return (interfaces_ != NULL) ? interfaces_->GetLength() : 0;
   }
 
   Class* GetInterface(uint32_t i) const {
-    DCHECK_LT(i, interface_count_);
-    return interfaces_[i];
+    return down_cast<Class*>(interfaces_->Get(i));
+  }
+
+  void SetInterface(uint32_t i, Class* f) {  // TODO: uint16_t
+    interfaces_->Set(i, f);
   }
 
   Method* FindDirectMethodLocally(const StringPiece& name,
@@ -822,16 +879,14 @@ class Class : public Object {
   // InitiatingLoaderList initiating_loader_list_;
 
   // array of interfaces this class implements directly
-  size_t interface_count_;
-  Class** interfaces_;
+  ObjectArray* interfaces_;
+  uint32_t* interfaces_idx_;
 
   // static, private, and <init> methods
-  size_t num_direct_methods_;
-  Method** direct_methods_;
+  ObjectArray* direct_methods_;
 
   // virtual methods defined in this class; invoked through vtable
-  size_t num_virtual_methods_;
-  Method** virtual_methods_;
+  ObjectArray* virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The
   // vtable from the superclass is copied in, and virtual methods from
@@ -869,13 +924,12 @@ class Class : public Object {
   // a superclass are listed in the superclass's Class.ifields.
   //
   // All instance fields that refer to objects are guaranteed to be at
-  // the beginning of the field list.  ifieldRefCount specifies the
-  // number of reference fields.
-  size_t num_instance_fields_;
+  // the beginning of the field list.  num_reference_instance_fields_
+  // specifies the number of reference fields.
+  ObjectArray* ifields_;
 
   // number of fields that are object refs
   size_t num_reference_instance_fields_;
-  InstanceField** ifields_;
 
   // Bitmap of offsets of ifields.
   uint32_t reference_offsets_;
@@ -884,8 +938,7 @@ class Class : public Object {
   const char* source_file_;
 
   // Static fields
-  size_t num_static_fields_;
-  StaticField** sfields_;
+  ObjectArray* sfields_;
 
  private:
   Class();
@@ -899,48 +952,9 @@ class DataObject : public Object {
   DataObject();
 };
 
-class Array : public Object {
- public:
-  uint32_t GetLength() const {
-    return length_;
-  }
-  void SetLength(uint32_t length) {
-    length_ = length;
-  }
-  const void* GetData() const {
-    return &elements_;
-  }
-  void* GetData() {
-    return &elements_;
-  }
-
- private:
-  // The number of array elements.
-  uint32_t length_;
-  // Location of first element.
-  uint32_t elements_[0];
-  Array();
-};
-
 class CharArray : public Array {
  private:
   CharArray();
-};
-
-class ObjectArray : public Array {
- public:
-  Object* Get(uint32_t i) const {
-    DCHECK_LT(i, GetLength());
-    Object* const * data = reinterpret_cast<Object* const *>(GetData());
-    return data[i];
-  }
-  void Set(uint32_t i, Object* object) {
-    DCHECK_LT(i, GetLength());
-    Object** data = reinterpret_cast<Object**>(GetData());
-    data[i] = object;
-  }
- private:
-  ObjectArray();
 };
 
 class String : public Object {

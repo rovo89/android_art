@@ -161,8 +161,8 @@ class ClassLinker {
 
   Class* java_lang_Class_;
   Class* java_lang_Object_;
-  Class* java_lang_ref_Field_;
-  Class* java_lang_ref_Method_;
+  Class* java_lang_reflect_Field_;
+  Class* java_lang_reflect_Method_;
   Class* java_lang_Cloneable_;
   Class* java_io_Serializable_;
   Class* java_lang_String_;
@@ -177,8 +177,14 @@ class ClassLinker {
   Class* primitive_long_;
   Class* primitive_void_;
 
-  Class* object_array_class_;
   Class* char_array_class_;
+  Class* class_array_class_;
+  Class* object_array_class_;
+  Class* field_array_class_;
+  Class* method_array_class_;
+
+  ObjectArray* array_interfaces_;
+  InterfaceEntry* array_iftable_;
 
   FRIEND_TEST(ClassLinkerTest, ProtoCompare);
   FRIEND_TEST(ClassLinkerTest, ProtoCompare2);

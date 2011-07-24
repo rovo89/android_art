@@ -38,7 +38,7 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_EQ(0U, primitive->NumVirtualMethods());
     EXPECT_EQ(0U, primitive->NumInstanceFields());
     EXPECT_EQ(0U, primitive->NumStaticFields());
-    EXPECT_EQ(0U, primitive->interface_count_);
+    EXPECT_EQ(0U, primitive->NumInterfaces());
   }
 
   void AssertArrayClass(const StringPiece& array_descriptor,
@@ -70,7 +70,7 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_EQ(0U, array->NumVirtualMethods());
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
-    EXPECT_EQ(2U, array->interface_count_);
+    EXPECT_EQ(2U, array->NumInterfaces());
   }
 };
 
@@ -132,7 +132,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumVirtualMethods());
   EXPECT_EQ(0U, JavaLangObject->NumInstanceFields());
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
-  EXPECT_EQ(0U, JavaLangObject->interface_count_);
+  EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
 
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
@@ -161,7 +161,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, MyClass->NumVirtualMethods());
   EXPECT_EQ(0U, MyClass->NumInstanceFields());
   EXPECT_EQ(0U, MyClass->NumStaticFields());
-  EXPECT_EQ(0U, MyClass->interface_count_);
+  EXPECT_EQ(0U, MyClass->NumInterfaces());
 
   EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
 
