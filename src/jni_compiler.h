@@ -3,9 +3,9 @@
 #ifndef ART_SRC_JNI_COMPILER_H_
 #define ART_SRC_JNI_COMPILER_H_
 
-#include "src/calling_convention.h"
-#include "src/globals.h"
-#include "src/macros.h"
+#include "calling_convention.h"
+#include "globals.h"
+#include "macros.h"
 
 namespace art {
 

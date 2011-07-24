@@ -82,15 +82,15 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  scoped_ptr<DexFile> nestedDex(OpenDexFileBase64(kNestedDex));
-  class_linker_.get()->RegisterDexFile(nestedDex.get());
+  scoped_ptr<DexFile> nested_dex(OpenDexFileBase64(kNestedDex));
+  class_linker_.get()->RegisterDexFile(nested_dex.get());
 
-  Class* outer = class_linker_.get()->FindClass("LNested;", NULL, nestedDex.get());
+  Class* outer = class_linker_.get()->FindClass("LNested;", NULL, nested_dex.get());
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  Class* inner = class_linker_.get()->FindClass("LNested$Inner;", NULL, nestedDex.get());
+  Class* inner = class_linker_.get()->FindClass("LNested$Inner;", NULL, nested_dex.get());
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
