@@ -74,7 +74,6 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       bool input_in_reg = mr_conv.IsCurrentParamInRegister();
       CHECK(input_in_reg || mr_conv.IsCurrentParamOnStack());
       if (input_in_reg) {
-        LOG(FATAL) << "UNTESTED";
         ManagedRegister in_reg  =  mr_conv.CurrentParamRegister();
         jni_asm->ValidateRef(in_reg, mr_conv.IsCurrentParamPossiblyNull());
         jni_asm->StoreRef(handle_offset, in_reg);
@@ -90,8 +89,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   }
 
   // 5. Transition from being in managed to native code
-  // TODO: write out anchor, ensure the transition to native follow a store
-  //       fence.
+  // TODO: ensure the transition to native follow a store fence.
   jni_asm->StoreStackPointerToThread(Thread::TopOfManagedStackOffset());
   jni_asm->StoreImmediateToThread(Thread::StateOffset(), Thread::kNative,
                                   mr_conv.InterproceduralScratchRegister());
@@ -103,6 +101,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
 
   // 7. Acquire lock for synchronized methods.
   if (native_method->IsSynchronized()) {
+    // TODO: preserve incoming arguments in registers
     mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
     jni_conv.ResetIterator(FrameOffset(out_arg_size));
     jni_conv.Next();  // Skip JNIEnv*
@@ -148,6 +147,19 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   jni_conv.ResetIterator(FrameOffset(out_arg_size));
   jni_conv.Next();  // Skip JNIEnv*
   if (is_static) {
+    jni_conv.Next(); // Skip Class for now
+  }
+  while (mr_conv.HasNext()) {
+    CHECK(jni_conv.HasNext());
+    CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
+    mr_conv.Next();
+    jni_conv.Next();
+  }
+  if (is_static) {
+    // Create argument for Class
+    mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
+    jni_conv.ResetIterator(FrameOffset(out_arg_size));
+    jni_conv.Next();  // Skip JNIEnv*
     FrameOffset handle_offset = jni_conv.CurrentParamHandleOffset();
     if (jni_conv.IsCurrentParamOnStack()) {
       FrameOffset out_off = jni_conv.CurrentParamStackOffset();
@@ -159,13 +171,6 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       jni_asm->CreateStackHandle(out_reg, handle_offset,
                                  ManagedRegister::NoRegister(), false);
     }
-    jni_conv.Next();
-  }
-  while (mr_conv.HasNext()) {
-    CHECK(jni_conv.HasNext());
-    CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
-    mr_conv.Next();
-    jni_conv.Next();
   }
   // 9. Create 1st argument, the JNI environment ptr
   jni_conv.ResetIterator(FrameOffset(out_arg_size));
@@ -179,9 +184,15 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   }
 
   // 10. Plant call to native code associated with method
-  jni_asm->Call(mr_conv.MethodRegister(), Method::NativeMethodOffset(),
-                mr_conv.InterproceduralScratchRegister());
-
+  if (!jni_conv.IsOutArgRegister(mr_conv.MethodRegister())) {
+    // Method register shouldn't have been crushed by setting up outgoing
+    // arguments
+    jni_asm->Call(mr_conv.MethodRegister(), Method::NativeMethodOffset(),
+                  mr_conv.InterproceduralScratchRegister());
+  } else {
+    jni_asm->Call(jni_conv.MethodStackOffset(), Method::NativeMethodOffset(),
+                  mr_conv.InterproceduralScratchRegister());
+  }
   // 11. Release lock for synchronized methods.
   if (native_method->IsSynchronized()) {
     mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
@@ -294,7 +305,6 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     CHECK_LT(handle_offset.Uint32Value(), (frame_size+out_arg_size));
   }
   if (input_in_reg && output_in_reg) {
-    LOG(FATAL) << "UNTESTED";
     ManagedRegister in_reg = mr_conv->CurrentParamRegister();
     ManagedRegister out_reg = jni_conv->CurrentParamRegister();
     if (ref_param) {
@@ -317,7 +327,6 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
                     param_size);
     }
   } else if (!input_in_reg && output_in_reg) {
-    LOG(FATAL) << "UNTESTED";
     FrameOffset in_off = mr_conv->CurrentParamStackOffset();
     ManagedRegister out_reg = jni_conv->CurrentParamRegister();
     // Check that incoming stack arguments are above the current stack frame.
@@ -331,7 +340,6 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
       jni_asm->Load(out_reg, in_off, param_size);
     }
   } else {
-    LOG(FATAL) << "UNTESTED";
     CHECK(input_in_reg && !output_in_reg);
     ManagedRegister in_reg = mr_conv->CurrentParamRegister();
     FrameOffset out_off = jni_conv->CurrentParamStackOffset();
@@ -362,8 +370,8 @@ JniCompiler::JniCompiler() {
   // code cache.
   jni_code_size_ = 4096;
   jni_code_ = static_cast<byte*>(mmap(NULL, jni_code_size_,
-                                 PROT_READ | PROT_WRITE | PROT_EXEC,
-                                 MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
+                                      PROT_READ | PROT_WRITE | PROT_EXEC,
+                                      MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
   CHECK_NE(MAP_FAILED, jni_code_);
   jni_code_top_ = jni_code_;
 }

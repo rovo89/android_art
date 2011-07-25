@@ -125,6 +125,8 @@ bool Method::IsParamALongOrDouble(unsigned int param) const {
   CHECK_LT(param, NumArgs());
   if (IsStatic()) {
     param++;  // 0th argument must skip return value at start of the shorty
+  } else if (param == 0) {
+    return false;  // this argument
   }
   return (shorty_[param] == 'J') || (shorty_[param] == 'D');
 }

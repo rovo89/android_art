@@ -3,6 +3,7 @@
 #include "assembler.h"
 #include "logging.h"
 #include "offsets.h"
+#include "thread.h"
 #include "utils.h"
 
 namespace art {
@@ -240,7 +241,6 @@ void Assembler::EmitBranch(Condition cond, Label* label, bool link) {
     label->LinkTo(position);
   }
 }
-
 
 void Assembler::and_(Register rd, Register rn, ShifterOperand so,
                      Condition cond) {
@@ -1259,6 +1259,39 @@ void Assembler::LoadFromOffset(LoadOperandType type,
   }
 }
 
+// Implementation note: this method must emit at most one instruction when
+// Address::CanHoldLoadOffset, as expected by JIT::GuardedLoadFromOffset.
+void Assembler::LoadSFromOffset(SRegister reg,
+                                Register base,
+                                int32_t offset,
+                                Condition cond) {
+  if (!Address::CanHoldLoadOffset(kLoadSWord, offset)) {
+    CHECK_NE(base, IP);
+    LoadImmediate(IP, offset, cond);
+    add(IP, IP, ShifterOperand(base), cond);
+    base = IP;
+    offset = 0;
+  }
+  CHECK(Address::CanHoldLoadOffset(kLoadSWord, offset));
+  vldrs(reg, Address(base, offset), cond);
+}
+
+// Implementation note: this method must emit at most one instruction when
+// Address::CanHoldLoadOffset, as expected by JIT::GuardedLoadFromOffset.
+void Assembler::LoadDFromOffset(DRegister reg,
+                                Register base,
+                                int32_t offset,
+                                Condition cond) {
+  if (!Address::CanHoldLoadOffset(kLoadDWord, offset)) {
+    CHECK_NE(base, IP);
+    LoadImmediate(IP, offset, cond);
+    add(IP, IP, ShifterOperand(base), cond);
+    base = IP;
+    offset = 0;
+  }
+  CHECK(Address::CanHoldLoadOffset(kLoadDWord, offset));
+  vldrd(reg, Address(base, offset), cond);
+}
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldStoreOffset.
@@ -1294,19 +1327,53 @@ void Assembler::StoreToOffset(StoreOperandType type,
   }
 }
 
+// Implementation note: this method must emit at most one instruction when
+// Address::CanHoldStoreOffset, as expected by JIT::GuardedStoreToOffset.
+void Assembler::StoreSToOffset(SRegister reg,
+                               Register base,
+                               int32_t offset,
+                               Condition cond) {
+  if (!Address::CanHoldStoreOffset(kStoreSWord, offset)) {
+    CHECK_NE(base, IP);
+    LoadImmediate(IP, offset, cond);
+    add(IP, IP, ShifterOperand(base), cond);
+    base = IP;
+    offset = 0;
+  }
+  CHECK(Address::CanHoldStoreOffset(kStoreSWord, offset));
+  vstrs(reg, Address(base, offset), cond);
+}
+
+// Implementation note: this method must emit at most one instruction when
+// Address::CanHoldStoreOffset, as expected by JIT::GuardedStoreSToOffset.
+void Assembler::StoreDToOffset(DRegister reg,
+                               Register base,
+                               int32_t offset,
+                               Condition cond) {
+  if (!Address::CanHoldStoreOffset(kStoreDWord, offset)) {
+    CHECK_NE(base, IP);
+    LoadImmediate(IP, offset, cond);
+    add(IP, IP, ShifterOperand(base), cond);
+    base = IP;
+    offset = 0;
+  }
+  CHECK(Address::CanHoldStoreOffset(kStoreDWord, offset));
+  vstrd(reg, Address(base, offset), cond);
+}
+
 // Emit code that will create an activation on the stack
 void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg) {
   CHECK(IsAligned(frame_size, 16));
   // TODO: use stm/ldm
-  StoreToOffset(kStoreWord, LR, SP, 0);
-  StoreToOffset(kStoreWord, method_reg.AsCoreRegister(), SP, -4);
   AddConstant(SP, -frame_size);
+  StoreToOffset(kStoreWord, LR, SP, frame_size - 4);
+  StoreToOffset(kStoreWord, method_reg.AsCoreRegister(), SP, 0);
 }
 
 // Emit code that will remove an activation from the stack
 void Assembler::RemoveFrame(size_t frame_size) {
   CHECK(IsAligned(frame_size, 16));
-  LoadFromOffset(kLoadWord, LR, SP, 0);
+  LoadFromOffset(kLoadWord, LR, SP, frame_size - 4);
   AddConstant(SP, frame_size);
   mov(PC, ShifterOperand(LR));
 }
@@ -1323,12 +1390,21 @@ void Assembler::DecreaseFrameSize(size_t adjust) {
 
 // Store bytes from the given register onto the stack
 void Assembler::Store(FrameOffset dest, ManagedRegister src, size_t size) {
-  if (src.IsCoreRegister()) {
+  if (src.IsNoRegister()) {
+    CHECK_EQ(0u, size);
+  } else if (src.IsCoreRegister()) {
     CHECK_EQ(4u, size);
     StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
+  } else if (src.IsRegisterPair()) {
+    CHECK_EQ(8u, size);
+    StoreToOffset(kStoreWord, src.AsRegisterPairLow(), SP, dest.Int32Value());
+    StoreToOffset(kStoreWord, src.AsRegisterPairHigh(),
+                  SP, dest.Int32Value() + 4);
+  } else if (src.IsSRegister()) {
+    StoreSToOffset(src.AsSRegister(), SP, dest.Int32Value());
   } else {
-    // VFP
-    LOG(FATAL) << "TODO";
+    CHECK(src.IsDRegister());
+    StoreDToOffset(src.AsDRegister(), SP, dest.Int32Value());
   }
 }
 
@@ -1370,12 +1446,21 @@ void Assembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
 }
 
 void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
-  if (dest.IsCoreRegister()) {
+  if (dest.IsNoRegister()) {
+    CHECK_EQ(0u, size);
+  } else if (dest.IsCoreRegister()) {
     CHECK_EQ(4u, size);
     LoadFromOffset(kLoadWord, dest.AsCoreRegister(), SP, src.Int32Value());
+  } else if (dest.IsRegisterPair()) {
+    CHECK_EQ(8u, size);
+    LoadFromOffset(kLoadWord, dest.AsRegisterPairLow(), SP, src.Int32Value());
+    LoadFromOffset(kLoadWord, dest.AsRegisterPairHigh(),
+                   SP, src.Int32Value() + 4);
+  } else if (dest.IsSRegister()) {
+    LoadSFromOffset(dest.AsSRegister(), SP, src.Int32Value());
   } else {
-    // TODO: VFP
-    LOG(FATAL) << "Unimplemented";
+    CHECK(dest.IsDRegister());
+    LoadDFromOffset(dest.AsDRegister(), SP, src.Int32Value());
   }
 }
 
@@ -1386,7 +1471,7 @@ void Assembler::LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs) {
 }
 
 void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
-                          ManagedRegister scratch) {
+                                     ManagedRegister scratch) {
   CHECK(scratch.IsCoreRegister());
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, thr_offs.Int32Value());
@@ -1395,7 +1480,7 @@ void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
 }
 
 void Assembler::CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
-                        ManagedRegister scratch) {
+                                   ManagedRegister scratch) {
   CHECK(scratch.IsCoreRegister());
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  SP, fr_offs.Int32Value());
@@ -1417,12 +1502,14 @@ void Assembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
 }
 
 void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
-  if (dest.IsCoreRegister()) {
-    CHECK(src.IsCoreRegister());
-    mov(dest.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
-  } else {
-    // TODO: VFP
-    LOG(FATAL) << "Unimplemented";
+  if (!dest.Equals(src)) {
+    if (dest.IsCoreRegister()) {
+      CHECK(src.IsCoreRegister());
+      mov(dest.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
+    } else {
+      // TODO: VFP
+      LOG(FATAL) << "Unimplemented";
+    }
   }
 }
 
@@ -1443,12 +1530,17 @@ void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
 void Assembler::CreateStackHandle(ManagedRegister out_reg,
                                   FrameOffset handle_offset,
                                   ManagedRegister in_reg, bool null_allowed) {
-  CHECK(in_reg.IsCoreRegister());
+  CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister());
   CHECK(out_reg.IsCoreRegister());
   if (null_allowed) {
     // Null values get a handle value of 0.  Otherwise, the handle value is
     // the address in the stack handle block holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
+    if (in_reg.IsNoRegister()) {
+      LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(),
+                     SP, handle_offset.Int32Value());
+      in_reg = out_reg;
+    }
     cmp(in_reg.AsCoreRegister(), ShifterOperand(0));
     if (!out_reg.Equals(in_reg)) {
       LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
@@ -1508,19 +1600,73 @@ void Assembler::Call(ManagedRegister base, Offset offset,
   // TODO: place reference map on call
 }
 
+void Assembler::Call(FrameOffset base, Offset offset,
+                     ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  // Call *(*(SP + base) + offset)
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 SP, base.Int32Value());
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 scratch.AsCoreRegister(), offset.Int32Value());
+  blx(scratch.AsCoreRegister());
+  // TODO: place reference map on call
+}
+
 // Generate code to check if Thread::Current()->suspend_count_ is non-zero
 // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
 // at the next instruction.
 void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
                             FrameOffset return_save_location,
                             size_t return_size) {
-  LOG(WARNING) << "Unimplemented: Suspend poll";
+  SuspendCountSlowPath* slow = new SuspendCountSlowPath(return_reg,
+                                                        return_save_location,
+                                                        return_size);
+  buffer_.EnqueueSlowPath(slow);
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 TR, Thread::SuspendCountOffset().Int32Value());
+  cmp(scratch.AsCoreRegister(), ShifterOperand(0));
+  b(slow->Entry(), NE);
+  Bind(slow->Continuation());
+}
+
+void SuspendCountSlowPath::Emit(Assembler* sp_asm) {
+  sp_asm->Bind(&entry_);
+  // Save return value
+  sp_asm->Store(return_save_location_, return_register_, return_size_);
+  // Pass top of stack as argument
+  sp_asm->mov(R0, ShifterOperand(SP));
+  sp_asm->LoadFromOffset(kLoadWord, R12, TR,
+                         Thread::SuspendCountEntryPointOffset().Int32Value());
+  // Note: assume that link register will be spilled/filled on method entry/exit
+  sp_asm->blx(R12);
+  // Reload return value
+  sp_asm->Load(return_register_, return_save_location_, return_size_);
+  sp_asm->b(&continuation_);
 }
 
 // Generate code to check if Thread::Current()->exception_ is non-null
 // and branch to a ExceptionSlowPath if it is.
 void Assembler::ExceptionPoll(ManagedRegister scratch) {
-  LOG(WARNING) << "Unimplemented: Exception poll";
+  ExceptionSlowPath* slow = new ExceptionSlowPath();
+  buffer_.EnqueueSlowPath(slow);
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                 TR, Thread::ExceptionOffset().Int32Value());
+  cmp(scratch.AsCoreRegister(), ShifterOperand(0));
+  b(slow->Entry(), NE);
+  Bind(slow->Continuation());
+}
+
+void ExceptionSlowPath::Emit(Assembler* sp_asm) {
+  sp_asm->Bind(&entry_);
+  // Pass top of stack as argument
+  sp_asm->mov(R0, ShifterOperand(SP));
+  sp_asm->LoadFromOffset(kLoadWord, R12, TR,
+                         Thread::ExceptionEntryPointOffset().Int32Value());
+  // Note: assume that link register will be spilled/filled on method entry/exit
+  sp_asm->blx(R12);
+  // TODO: this call should never return as it should make a long jump to
+  // the appropriate catch block
+  sp_asm->b(&continuation_);
 }
 
 }  // namespace art

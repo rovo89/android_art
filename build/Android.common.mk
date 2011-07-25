@@ -80,7 +80,7 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
-	src/jni_compiler_test.cc \
+	src/jni_compiler_test.cc.arm \
 	src/object_test.cc \
 	src/space_test.cc
 

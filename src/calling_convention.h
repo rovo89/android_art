@@ -26,6 +26,9 @@ class CallingConvention {
   // Register reserved for scratch usage during procedure calls
   ManagedRegister InterproceduralScratchRegister();
 
+  // Offset of Method within the frame
+  FrameOffset MethodStackOffset();
+
   // Iterator interface
 
   // Place iterator at start of arguments. The displacement is applied to
@@ -103,6 +106,10 @@ class JniCallingConvention : public CallingConvention {
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
   FrameOffset ReturnValueSaveLocation();
+
+  // Returns true if the register will be clobbered by an outgoing
+  // argument value.
+  bool IsOutArgRegister(ManagedRegister reg);
 
   // Iterator interface
   bool HasNext();

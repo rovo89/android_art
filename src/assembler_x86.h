@@ -464,6 +464,7 @@ class Assembler {
   void ValidateRef(FrameOffset src, bool could_be_null);
 
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch);
+  void Call(FrameOffset base, Offset offset, ManagedRegister scratch);
 
   // Generate code to check if Thread::Current()->suspend_count_ is non-zero
   // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue

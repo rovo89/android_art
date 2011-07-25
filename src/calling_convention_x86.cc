@@ -50,6 +50,10 @@ FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
+bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {
+  return false;  // Everything is passed by stack
+}
+
 bool JniCallingConvention::IsCurrentParamInRegister() {
   return false;  // Everything is passed by stack
 }

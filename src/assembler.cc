@@ -83,7 +83,8 @@ void AssemblerBuffer::FinalizeInstructions(const MemoryRegion& instructions) {
   // Copy the instructions from the buffer.
   MemoryRegion from(reinterpret_cast<void*>(contents()), Size());
   instructions.CopyFrom(0, from);
-
+  // Flush instruction cache
+  __builtin___clear_cache(instructions.start(), instructions.end());
   // Process fixups in the instructions.
   ProcessFixups(instructions);
 #if defined(DEBUG)

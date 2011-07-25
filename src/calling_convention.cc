@@ -7,6 +7,11 @@
 
 namespace art {
 
+// Offset of Method within the frame
+FrameOffset CallingConvention::MethodStackOffset() {
+  return displacement_;
+}
+
 // Managed runtime calling convention
 
 size_t ManagedRuntimeCallingConvention::FrameSize() {

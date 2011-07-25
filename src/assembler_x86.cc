@@ -1606,6 +1606,11 @@ void Assembler::Call(ManagedRegister base, Offset offset,
   // TODO: place reference map on call
 }
 
+void Assembler::Call(FrameOffset base, Offset offset,
+                     ManagedRegister) {
+  LOG(FATAL) << "Unimplemented";
+}
+
 // Generate code to check if Thread::Current()->suspend_count_ is non-zero
 // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
 // at the next instruction.
