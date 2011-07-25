@@ -11,8 +11,6 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 
-#include <cutils/ashmem.h>
-
 /* It's a pain getting the mallinfo stuff to work
  * with Linux, OSX, and klibc, so just turn it off
  * for now.
@@ -195,64 +193,6 @@ mspace create_contiguous_mspace_with_base(size_t starting_capacity,
 
 error:
   return (mspace)0;
-}
-
-mspace create_contiguous_mspace_with_name(size_t starting_capacity,
-    size_t max_capacity, int locked, char const *name) {
-  int fd;
-  char buf[ASHMEM_NAME_LEN] = "mspace";
-  void *base;
-  unsigned int pagesize;
-  mstate m;
-
-  if (starting_capacity > max_capacity)
-    return (mspace)0;
-
-  init_mparams();
-  pagesize = PAGESIZE;
-
-  /* Create the anonymous memory that will back the mspace.
-   * This reserves all of the virtual address space we could
-   * ever need.  Physical pages will be mapped as the memory
-   * is touched.
-   *
-   * Align max_capacity to a whole page.
-   */
-  max_capacity = (size_t)ALIGN_UP(max_capacity, pagesize);
-
-  if (name)
-    snprintf(buf, sizeof(buf), "mspace/%s", name);
-#ifdef USE_ASHMEM
-  fd = ashmem_create_region(buf, max_capacity);
-  if (fd < 0)
-    return (mspace)0;
-  base = mmap(NULL, max_capacity, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-  close(fd);
-#else
-  fd = -1;
-  base = mmap(NULL, max_capacity, PROT_READ | PROT_WRITE,
-              MAP_PRIVATE | MAP_ANONYMOUS, fd, 0);
-#endif /* USE_ASHMEM */
-
-  if (base == MAP_FAILED)
-    return (mspace)0;
-
-  /* Make sure that base is at the beginning of a page.
-   */
-  assert(((uintptr_t)base & (pagesize-1)) == 0);
-
-  m = create_contiguous_mspace_with_base(starting_capacity, max_capacity,
-                                         locked, base);
-  if (m == 0) {
-    munmap(base, max_capacity);
-  }
-  return m;
-}
-
-mspace create_contiguous_mspace(size_t starting_capacity,
-    size_t max_capacity, int locked) {
-  return create_contiguous_mspace_with_name(starting_capacity,
-      max_capacity, locked, NULL);
 }
 
 size_t destroy_contiguous_mspace(mspace msp) {
