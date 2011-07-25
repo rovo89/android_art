@@ -11,11 +11,11 @@ namespace art {
 class ClassLinkerTest : public RuntimeTest {
  protected:
   void AssertNonExistantClass(const StringPiece& descriptor) {
-    EXPECT_TRUE(class_linker_.get()->FindSystemClass(descriptor) == NULL);
+    EXPECT_TRUE(class_linker_->FindSystemClass(descriptor) == NULL);
   }
 
   void AssertPrimitiveClass(const StringPiece& descriptor) {
-    Class* primitive = class_linker_.get()->FindSystemClass(descriptor);
+    Class* primitive = class_linker_->FindSystemClass(descriptor);
     ASSERT_TRUE(primitive != NULL);
     ASSERT_TRUE(primitive->GetClass() != NULL);
     ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
@@ -44,14 +44,14 @@ class ClassLinkerTest : public RuntimeTest {
   void AssertArrayClass(const StringPiece& array_descriptor,
                         int32_t array_rank,
                         const StringPiece& component_type) {
-    Class* array = class_linker_.get()->FindSystemClass(array_descriptor);
+    Class* array = class_linker_->FindSystemClass(array_descriptor);
     ASSERT_TRUE(array != NULL);
     ASSERT_TRUE(array->GetClass() != NULL);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
     EXPECT_TRUE(array->GetClass()->GetSuperClass() != NULL);
     ASSERT_EQ(array_descriptor, array->GetDescriptor());
     EXPECT_TRUE(array->GetSuperClass() != NULL);
-    EXPECT_EQ(class_linker_.get()->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
+    EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
     EXPECT_TRUE(array->HasSuperClass());
     ASSERT_TRUE(array->GetComponentType() != NULL);
     ASSERT_TRUE(array->GetComponentType()->GetDescriptor() != NULL);
@@ -75,29 +75,29 @@ class ClassLinkerTest : public RuntimeTest {
 };
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
-  Class* result1 = class_linker_.get()->FindSystemClass("NoSuchClass;");
+  Class* result1 = class_linker_->FindSystemClass("NoSuchClass;");
   EXPECT_TRUE(result1 == NULL);
-  Class* result2 = class_linker_.get()->FindSystemClass("LNoSuchClass;");
+  Class* result2 = class_linker_->FindSystemClass("LNoSuchClass;");
   EXPECT_TRUE(result2 == NULL);
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
   scoped_ptr<DexFile> nested_dex(OpenDexFileBase64(kNestedDex));
-  class_linker_.get()->RegisterDexFile(nested_dex.get());
+  class_linker_->RegisterDexFile(nested_dex.get());
 
-  Class* outer = class_linker_.get()->FindClass("LNested;", NULL, nested_dex.get());
+  Class* outer = class_linker_->FindClass("LNested;", NULL, nested_dex.get());
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  Class* inner = class_linker_.get()->FindClass("LNested$Inner;", NULL, nested_dex.get());
+  Class* inner = class_linker_->FindClass("LNested$Inner;", NULL, nested_dex.get());
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
 }
 
 TEST_F(ClassLinkerTest, FindClass) {
-  ClassLinker* linker = class_linker_.get();
+  ClassLinker* linker = class_linker_;
 
   StringPiece expected = "BCDFIJSZV";
   for (int ch = 0; ch < 255; ch++) {
@@ -176,7 +176,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 }
 
 TEST_F(ClassLinkerTest, ProtoCompare) {
-  ClassLinker* linker = class_linker_.get();
+  ClassLinker* linker = class_linker_;
 
   scoped_ptr<DexFile> proto_dex_file(OpenDexFileBase64(kProtoCompareDex));
   linker->RegisterDexFile(proto_dex_file.get());
@@ -230,7 +230,7 @@ TEST_F(ClassLinkerTest, ProtoCompare) {
 }
 
 TEST_F(ClassLinkerTest, ProtoCompare2) {
-  ClassLinker* linker = class_linker_.get();
+  ClassLinker* linker = class_linker_;
 
   scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
   linker->RegisterDexFile(proto1_dex_file.get());

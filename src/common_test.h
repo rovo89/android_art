@@ -173,25 +173,19 @@ static inline DexFile* OpenDexFileBase64(const char* base64) {
 class RuntimeTest : public testing::Test {
  protected:
   virtual void SetUp() {
-    ASSERT_TRUE(Thread::Init());
-    ASSERT_TRUE(Thread::Attach() != NULL);
-    ASSERT_TRUE(Heap::Init());
-
     java_lang_dex_file_.reset(OpenDexFileBase64(kJavaLangDex));
 
     std::vector<DexFile*> boot_class_path;
     boot_class_path.push_back(java_lang_dex_file_.get());
 
-    class_linker_.reset(ClassLinker::Create(boot_class_path));
-    CHECK(class_linker_ != NULL);
-  }
-
-  virtual void TearDown() {
-    Heap::Destroy();
+    runtime_.reset(Runtime::Create(boot_class_path));
+    ASSERT_TRUE(runtime_ != NULL);
+    class_linker_ = runtime_->GetClassLinker();
   }
 
   scoped_ptr<DexFile> java_lang_dex_file_;
-  scoped_ptr<ClassLinker> class_linker_;
+  scoped_ptr<Runtime> runtime_;
+  ClassLinker* class_linker_;
 };
 
 }  // namespace art

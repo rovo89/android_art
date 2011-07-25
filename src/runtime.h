@@ -39,6 +39,10 @@ class Runtime {
 
   ~Runtime();
 
+  ClassLinker* GetClassLinker() {
+    return class_linker_;
+  }
+
  private:
   static void PlatformAbort(const char*, int);
 
