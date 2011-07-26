@@ -18,7 +18,7 @@ namespace art {
 class ClassLinker {
  public:
   // Initializes the class linker.
-  static ClassLinker* Create(std::vector<DexFile*> boot_class_path);
+  static ClassLinker* Create(const std::vector<DexFile*>& boot_class_path);
 
   ~ClassLinker() {}
 
@@ -54,7 +54,7 @@ class ClassLinker {
  private:
   ClassLinker() {}
 
-  void Init(std::vector<DexFile*> boot_class_path_);
+  void Init(const std::vector<DexFile*>& boot_class_path_);
 
   Class* CreatePrimitiveClass(const StringPiece& descriptor);
 

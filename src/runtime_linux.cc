@@ -22,7 +22,7 @@ void Runtime::PlatformAbort(const char* file, int line) {
   // Turn them into something human-readable with symbols.
   // TODO: in practice, we may find that we should use backtrace_symbols_fd
   // to avoid allocation, rather than use our own custom formatting.
-  art::scoped_ptr_malloc<char*> symbols(backtrace_symbols(frames, frame_count));
+  scoped_ptr_malloc<char*> symbols(backtrace_symbols(frames, frame_count));
   if (symbols == NULL) {
     PLOG(ERROR) << "backtrace_symbols failed";
     return;

@@ -27,6 +27,29 @@ class JniEnvironment {
  private:
   void (*monitor_enter_)(JniEnvironment*, jobject);
   void (*monitor_exit_)(JniEnvironment*, jobject);
+
+  DISALLOW_COPY_AND_ASSIGN(JniEnvironment);
+};
+
+class JniInvoke {
+ public:
+  // Index 3
+  int DestroyJavaVM(JavaVM* vm);
+
+  // Index 4
+  int AttachCurrentThread(JavaVM* vm, JNIEnv** penv, void* thr_args);
+
+  // Index 5
+  int DetachCurrentThread(JavaVM* vm);
+
+  // Index 6
+  int GetEnv(JavaVM* vm, void** penv, int version);
+
+  // Index 7
+  int AttachCurrentThreadAsDaemon(JavaVM* vm, JNIEnv** penv, void* thr_args);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JniInvoke);
 };
 
 }  // namespace art

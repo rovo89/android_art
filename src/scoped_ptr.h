@@ -26,8 +26,6 @@
 #include <algorithm>
 #include <cstddef>
 
-namespace art {
-
 template <class C> class scoped_ptr;
 template <class C, class Free> class scoped_ptr_malloc;
 template <class C> class scoped_array;
@@ -375,6 +373,5 @@ template<class C, class FP> inline
 bool operator!=(C* p, const scoped_ptr_malloc<C, FP>& b) {
   return p != b.get();
 }
-}  // namespace art
 
 #endif  // ART_SRC_SCOPED_PTR_H_

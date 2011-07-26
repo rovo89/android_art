@@ -4,12 +4,15 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 #include "class_linker.h"
 #include "heap.h"
 #include "thread.h"
 
 namespace art {
+
+Runtime* Runtime::instance_ = NULL;
 
 Runtime::~Runtime() {
   // TODO: use a smart pointer instead.
@@ -44,17 +47,27 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
-Runtime* Runtime::Create(std::vector<DexFile*> boot_class_path) {
+Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
+  // TODO: parse arguments
+  std::vector<DexFile*> boot_class_path;  // empty
+  return Runtime::Create(boot_class_path);
+}
+
+Runtime* Runtime::Create(const std::vector<DexFile*>& boot_class_path) {
+  // TODO: acquire a static mutex on Runtime to avoid racing.
+  if (Runtime::instance_ != NULL) {
+    return NULL;
+  }
   scoped_ptr<Runtime> runtime(new Runtime());
   bool success = runtime->Init(boot_class_path);
   if (!success) {
     return NULL;
   } else {
-    return runtime.release();
+    return Runtime::instance_ = runtime.release();
   }
 }
 
-bool Runtime::Init(std::vector<DexFile*> boot_class_path) {
+bool Runtime::Init(const std::vector<DexFile*>& boot_class_path) {
   thread_list_ = ThreadList::Create();
   Heap::Init(Heap::kStartupSize, Heap::kMaximumSize);
   Thread::Init();
@@ -64,7 +77,13 @@ bool Runtime::Init(std::vector<DexFile*> boot_class_path) {
   return true;
 }
 
-bool Runtime::AttachCurrentThread() {
+bool Runtime::AttachCurrentThread(const char* name, JniEnvironment** penv) {
+  return Thread::Attach() != NULL;
+}
+
+bool Runtime::AttachCurrentThreadAsDaemon(const char* name,
+                                          JniEnvironment** penv) {
+  // TODO: do something different for daemon threads.
   return Thread::Attach() != NULL;
 }
 

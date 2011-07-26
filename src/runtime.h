@@ -14,12 +14,20 @@ namespace art {
 
 class ClassLinker;
 class Heap;
+class JniEnvironment;
 class ThreadList;
 
 class Runtime {
  public:
+  typedef std::vector<std::pair<const char*, void*> > Options;
+
   // Creates and initializes a new runtime.
-  static Runtime* Create(std::vector<DexFile*> boot_class_path);
+  static Runtime* Create(const Options& options, bool ignore_unrecognized);
+  static Runtime* Create(const std::vector<DexFile*>& boot_class_path);
+
+  static Runtime* Current() {
+    return instance_;
+  }
 
   // Compiles a dex file.
   static void Compile(const StringPiece& filename);
@@ -32,7 +40,8 @@ class Runtime {
   static void Abort(const char* file, int line);
 
   // Attaches the current native thread to the runtime.
-  bool AttachCurrentThread();
+  bool AttachCurrentThread(const char* name, JniEnvironment** jni_env);
+  bool AttachCurrentThreadAsDaemon(const char* name, JniEnvironment** jni_env);
 
   // Detaches the current native thread from the runtime.
   bool DetachCurrentThread();
@@ -43,17 +52,26 @@ class Runtime {
     return class_linker_;
   }
 
+  void SetVfprintfHook(void* hook);
+
+  void SetExitHook(void* hook);
+
+  void SetAbortHook(void* hook);
+
  private:
   static void PlatformAbort(const char*, int);
 
   Runtime() : class_linker_(NULL), thread_list_(NULL) {}
 
   // Initializes a new uninitialized runtime.
-  bool Init(std::vector<DexFile*> boot_class_path);
+  bool Init(const std::vector<DexFile*>& boot_class_path);
 
   ClassLinker* class_linker_;
 
   ThreadList* thread_list_;
+
+  // A pointer to the active runtime or NULL.
+  static Runtime* instance_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

@@ -20,14 +20,14 @@
 
 namespace art {
 
-ClassLinker* ClassLinker::Create(std::vector<DexFile*> boot_class_path) {
+ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path) {
   scoped_ptr<ClassLinker> class_linker(new ClassLinker);
   class_linker->Init(boot_class_path);
   // TODO: check for failure during initialization
   return class_linker.release();
 }
 
-void ClassLinker::Init(std::vector<DexFile*> boot_class_path) {
+void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
 
   // Allocate and partially initialize the Class, Object, Field, Method classes.
   // Initialization will be completed when the definitions are loaded.
@@ -417,11 +417,13 @@ ClassLinker::ClassPathEntry ClassLinker::FindInBootClassPath(const StringPiece& 
 }
 
 void ClassLinker::AppendToBootClassPath(DexFile* dex_file) {
+  CHECK(dex_file != NULL);
   boot_class_path_.push_back(dex_file);
   RegisterDexFile(dex_file);
 }
 
 void ClassLinker::RegisterDexFile(DexFile* dex_file) {
+  CHECK(dex_file != NULL);
   dex_files_.push_back(dex_file);
   DexCache* dex_cache = AllocDexCache();
   CHECK(dex_cache != NULL);
