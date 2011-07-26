@@ -173,6 +173,8 @@ static inline DexFile* OpenDexFileBase64(const char* base64) {
 class RuntimeTest : public testing::Test {
  protected:
   virtual void SetUp() {
+    is_host_ = getenv("ANDROID_BUILD_TOP") != NULL;
+
     java_lang_dex_file_.reset(OpenDexFileBase64(kJavaLangDex));
 
     std::vector<DexFile*> boot_class_path;
@@ -183,6 +185,7 @@ class RuntimeTest : public testing::Test {
     class_linker_ = runtime_->GetClassLinker();
   }
 
+  bool is_host_;
   scoped_ptr<DexFile> java_lang_dex_file_;
   scoped_ptr<Runtime> runtime_;
   ClassLinker* class_linker_;

@@ -40,10 +40,26 @@ build-art: \
     $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%)))) \
 #
 
+# "mm test-art" to build and run all tests on host and device
+.PHONY: test-art
+test-art: test-art-host test-art-target
+
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
 test-art-host: $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))))
 	$(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))) &&) true
+
+# "mm test-art-device" to build and run all target tests
+.PHONY: test-art-target
+test-art-target: $(foreach file,$(TEST_TARGET_SRC_FILES),$(TARGET_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))))
+	adb remount
+	adb sync
+	adb shell touch /sdcard/test-art-target
+	adb shell rm /sdcard/test-art-target
+	adb shell sh -c "$(foreach file,$(TEST_TARGET_SRC_FILES), /system/bin/$(notdir $(basename $(file:%.arm=%))) &&) touch /sdcard/test-art-target"
+	adb pull /sdcard/test-art-target /tmp/
+	rm /tmp/test-art-target
+
 
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art

@@ -22,7 +22,7 @@ class InterfaceEntry;
 class Monitor;
 class Method;
 class Object;
-class ObjectArray;
+template<class T> class ObjectArray;
 class StaticField;
 
 union JValue {
@@ -169,8 +169,8 @@ class Object {
     return true;
   }
 
-  const ObjectArray* AsObjectArray() const {
-    return down_cast<const ObjectArray*>(this);
+  const ObjectArray<Object>* AsObjectArray() const {
+    return down_cast<const ObjectArray<Object>*>(this);
   }
 
   bool IsReference() const {
@@ -584,19 +584,20 @@ class Array : public Object {
   Array();
 };
 
+template<class T>
 class ObjectArray : public Array {
  public:
-  Object* Get(uint32_t i) const {
+  C* Get(uint32_t i) const {
     DCHECK_LT(i, GetLength());
     Object* const * data = reinterpret_cast<Object* const *>(GetData());
-    return data[i];
+    return down_cast<C*>(data[i]);
   }
-  void Set(uint32_t i, Object* object) {
+  void Set(uint32_t i, C* object) {
     DCHECK_LT(i, GetLength());
-    Object** data = reinterpret_cast<Object**>(GetData());
+    C** data = reinterpret_cast<C**>(GetData());
     data[i] = object;
   }
-  static void Copy(ObjectArray* src, int src_pos, ObjectArray* dst, int dst_pos, size_t length) {
+  static void Copy(ObjectArray<C>* src, int src_pos, ObjectArray<C>* dst, int dst_pos, size_t length) {
     for (size_t i = 0; i < length; i++) {
       dst->Set(dst_pos + i, src->Get(src_pos + i));
     }
@@ -741,7 +742,7 @@ class Class : public Object {
   }
 
   Method* GetDirectMethod(uint32_t i) const {
-    return down_cast<Method*>(direct_methods_->Get(i));
+    return direct_methods_->Get(i);
   }
 
   void SetDirectMethod(uint32_t i, Method* f) {  // TODO: uint16_t
@@ -754,7 +755,7 @@ class Class : public Object {
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
-    return down_cast<Method*>(virtual_methods_->Get(i));
+    return virtual_methods_->Get(i);
   }
 
   void SetVirtualMethod(uint32_t i, Method* f) {  // TODO: uint16_t
@@ -771,7 +772,7 @@ class Class : public Object {
   }
 
   InstanceField* GetInstanceField(uint32_t i) {  // TODO: uint16_t
-    return down_cast<InstanceField*>(ifields_->Get(i));
+    return ifields_->Get(i);
   }
 
   void SetInstanceField(uint32_t i, InstanceField* f) {  // TODO: uint16_t
@@ -783,7 +784,7 @@ class Class : public Object {
   }
 
   StaticField* GetStaticField(uint32_t i) const {  // TODO: uint16_t
-    return down_cast<StaticField*>(sfields_->Get(i));
+    return sfields_->Get(i);
   }
 
   void SetStaticField(uint32_t i, StaticField* f) {  // TODO: uint16_t
@@ -807,7 +808,7 @@ class Class : public Object {
   }
 
   Class* GetInterface(uint32_t i) const {
-    return down_cast<Class*>(interfaces_->Get(i));
+    return interfaces_->Get(i);
   }
 
   void SetInterface(uint32_t i, Class* f) {  // TODO: uint16_t
@@ -879,20 +880,19 @@ class Class : public Object {
   // InitiatingLoaderList initiating_loader_list_;
 
   // array of interfaces this class implements directly
-  ObjectArray* interfaces_;
+  ObjectArray<Class>* interfaces_;
   uint32_t* interfaces_idx_;
 
   // static, private, and <init> methods
-  ObjectArray* direct_methods_;
+  ObjectArray<Method>* direct_methods_;
 
   // virtual methods defined in this class; invoked through vtable
-  ObjectArray* virtual_methods_;
+  ObjectArray<Method>* virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The
   // vtable from the superclass is copied in, and virtual methods from
   // our class either replace those from the super or are appended.
-  size_t vtable_count_;
-  Method** vtable_;
+  ObjectArray<Method>* vtable_;
 
   // Interface table (iftable), one entry per interface supported by
   // this class.  That means one entry for each interface we support
@@ -926,7 +926,7 @@ class Class : public Object {
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  num_reference_instance_fields_
   // specifies the number of reference fields.
-  ObjectArray* ifields_;
+  ObjectArray<InstanceField>* ifields_;
 
   // number of fields that are object refs
   size_t num_reference_instance_fields_;
@@ -938,7 +938,7 @@ class Class : public Object {
   const char* source_file_;
 
   // Static fields
-  ObjectArray* sfields_;
+  ObjectArray<StaticField>* sfields_;
 
  private:
   Class();

@@ -23,7 +23,7 @@ MarkStack* MarkStack::Create(size_t maximum_size) {
 
 bool MarkStack::Init(size_t maximum_size) {
   size_t length = 64 * MB;
-  void* addr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_PRIVATE, -1, 0);
+  void* addr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (addr == MAP_FAILED) {
     PLOG(ERROR) << "mmap failed";
     return false;

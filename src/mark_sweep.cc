@@ -206,7 +206,7 @@ void MarkSweep::ScanArray(const Object *obj) {
   DCHECK(obj->GetClass() != NULL);
   MarkObject(obj->GetClass());
   if (obj->IsObjectArray()) {
-    const ObjectArray* array = obj->AsObjectArray();
+    const ObjectArray<Object>* array = obj->AsObjectArray();
     for (size_t i = 0; i < array->GetLength(); ++i) {
       const Object* element = array->Get(i);
       MarkObject(element);

@@ -4,6 +4,7 @@
 #include "class_linker.h"
 #include "dex_file.h"
 #include "heap.h"
+#include "stringprintf.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -72,6 +73,23 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_EQ(0U, array->NumStaticFields());
     EXPECT_EQ(2U, array->NumInterfaces());
   }
+
+  void AssertDexFileClass(const DexFile* dex, const char* descriptor) {
+    CHECK(descriptor != NULL);
+    Class* klass = class_linker_->FindClass(descriptor, NULL, dex);
+    CHECK(klass != NULL);
+  }
+
+  void AssertDexFile(const DexFile* dex) {
+    CHECK(dex != NULL);
+    class_linker_->RegisterDexFile(dex);
+    for (size_t i = 0; i < dex->NumClassDefs(); i++) {
+      const DexFile::ClassDef class_def = dex->GetClassDef(i);
+      const char* descriptor = dex->GetClassDescriptor(class_def);
+      AssertDexFileClass(dex, descriptor);
+    }
+  }
+
 };
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
@@ -271,6 +289,19 @@ TEST_F(ClassLinkerTest, ProtoCompare2) {
 
   EXPECT_TRUE(linker->HasSameNameAndPrototype(m4_1, m4_2));
   EXPECT_TRUE(linker->HasSameNameAndPrototype(m4_2, m4_1));
+}
+
+TEST_F(ClassLinkerTest, LibCore) {
+  // TODO add host support when we have DexFile::OpenJar
+  if (!is_host_) {
+    return;
+  }
+
+  // TODO switch to jar when we have DexFile::OpenJar
+  std::string libcore_dex_file_name = StringPrintf("%s/out/target/common/obj/JAVA_LIBRARIES/core_intermediates/noproguard.classes.dex",
+                                                   getenv("ANDROID_BUILD_TOP"));
+  scoped_ptr<DexFile> libcore_dex_file(DexFile::OpenFile(libcore_dex_file_name.c_str()));
+  AssertDexFile(libcore_dex_file.get());
 }
 
 }  // namespace art

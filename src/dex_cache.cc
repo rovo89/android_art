@@ -8,10 +8,10 @@
 
 namespace art {
 
-void DexCache::Init(ObjectArray* strings,
-                    ObjectArray* classes,
-                    ObjectArray* methods,
-                    ObjectArray* fields) {
+void DexCache::Init(ObjectArray<String>* strings,
+                    ObjectArray<Class>* classes,
+                    ObjectArray<Method>* methods,
+                    ObjectArray<Field>* fields) {
   Set(kStrings, strings);
   Set(kClasses, classes);
   Set(kMethods, methods);

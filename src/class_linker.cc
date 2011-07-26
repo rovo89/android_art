@@ -86,7 +86,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK(java_io_Serializable_ != NULL);
   java_io_Serializable_->descriptor_ = "Ljava/io/Serializable;";
 
-  array_interfaces_ = AllocObjectArray(2);
+  array_interfaces_ = AllocObjectArray<Class>(2);
   CHECK(array_interfaces_ != NULL);
   array_interfaces_->Set(0, java_lang_Cloneable_);
   array_interfaces_->Set(1, java_io_Serializable_);
@@ -98,8 +98,8 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   array_iftable_ = new InterfaceEntry[2];
   CHECK(array_iftable_ != NULL);
   memset(array_iftable_, 0, sizeof(InterfaceEntry) * 2);
-  array_iftable_[0].SetClass(down_cast<Class*>(array_interfaces_->Get(0)));
-  array_iftable_[1].SetClass(down_cast<Class*>(array_interfaces_->Get(1)));
+  array_iftable_[0].SetClass(array_interfaces_->Get(0));
+  array_iftable_[1].SetClass(array_interfaces_->Get(1));
 
   char_array_class_ = FindSystemClass("[C");
   CHECK(char_array_class_ != NULL);
@@ -113,7 +113,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
 }
 
 DexCache* ClassLinker::AllocDexCache() {
-  return down_cast<DexCache*>(Heap::AllocObjectArray(object_array_class_, DexCache::kMax));
+  return down_cast<DexCache*>(Heap::AllocObjectArray<Object>(object_array_class_, DexCache::kMax));
 }
 
 Class* ClassLinker::AllocClass(DexCache* dex_cache) {
@@ -135,10 +135,6 @@ InstanceField* ClassLinker::AllocInstanceField() {
 Method* ClassLinker::AllocMethod() {
   return down_cast<Method*>(Heap::AllocObject(java_lang_reflect_Method_,
                                               sizeof(Method)));
-}
-
-ObjectArray* ClassLinker::AllocObjectArray(size_t length) {
-    return Heap::AllocObjectArray(object_array_class_, length);
 }
 
 Class* ClassLinker::FindClass(const StringPiece& descriptor,
@@ -290,7 +286,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   // Load static fields.
   DCHECK(klass->sfields_ == NULL);
   if (num_static_fields != 0) {
-    klass->sfields_ = AllocObjectArray(num_static_fields);
+    klass->sfields_ = AllocObjectArray<StaticField>(num_static_fields);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
       DexFile::Field dex_field;
@@ -305,7 +301,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(klass->ifields_ == NULL);
   if (num_instance_fields != 0) {
     // TODO: allocate on the object heap.
-    klass->ifields_ = AllocObjectArray(num_instance_fields);
+    klass->ifields_ = AllocObjectArray<InstanceField>(num_instance_fields);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
       DexFile::Field dex_field;
@@ -320,7 +316,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(klass->direct_methods_ == NULL);
   if (num_direct_methods != 0) {
     // TODO: append direct methods to class object
-    klass->direct_methods_ = AllocObjectArray(num_direct_methods);
+    klass->direct_methods_ = AllocObjectArray<Method>(num_direct_methods);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
       DexFile::Method dex_method;
@@ -336,7 +332,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(klass->virtual_methods_ == NULL);
   if (num_virtual_methods != 0) {
     // TODO: append virtual methods to class object
-    klass->virtual_methods_ = AllocObjectArray(num_virtual_methods);
+    klass->virtual_methods_ = AllocObjectArray<Method>(num_virtual_methods);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       DexFile::Method dex_method;
@@ -355,7 +351,7 @@ void ClassLinker::LoadInterfaces(const DexFile& dex_file,
   const DexFile::TypeList* list = dex_file.GetInterfacesList(dex_class_def);
   if (list != NULL) {
     DCHECK(klass->interfaces_ == NULL);
-    klass->interfaces_ = AllocObjectArray(list->Size());
+    klass->interfaces_ = AllocObjectArray<Class>(list->Size());
     DCHECK(klass->interfaces_idx_ == NULL);
     klass->interfaces_idx_ = new uint32_t[list->Size()];
     for (size_t i = 0; i < list->Size(); ++i) {
@@ -407,7 +403,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
 
 ClassLinker::ClassPathEntry ClassLinker::FindInBootClassPath(const StringPiece& descriptor) {
   for (size_t i = 0; i != boot_class_path_.size(); ++i) {
-    DexFile* dex_file = boot_class_path_[i];
+    const DexFile* dex_file = boot_class_path_[i];
     const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
     if (dex_class_def != NULL) {
       return ClassPathEntry(dex_file, dex_class_def);
@@ -422,15 +418,15 @@ void ClassLinker::AppendToBootClassPath(DexFile* dex_file) {
   RegisterDexFile(dex_file);
 }
 
-void ClassLinker::RegisterDexFile(DexFile* dex_file) {
+void ClassLinker::RegisterDexFile(const DexFile* dex_file) {
   CHECK(dex_file != NULL);
   dex_files_.push_back(dex_file);
   DexCache* dex_cache = AllocDexCache();
   CHECK(dex_cache != NULL);
-  dex_cache->Init(AllocObjectArray(dex_file->NumStringIds()),
-                  AllocObjectArray(dex_file->NumTypeIds()),
-                  AllocObjectArray(dex_file->NumMethodIds()),
-                  AllocObjectArray(dex_file->NumFieldIds()));
+  dex_cache->Init(AllocObjectArray<String>(dex_file->NumStringIds()),
+                  AllocObjectArray<Class>(dex_file->NumTypeIds()),
+                  AllocObjectArray<Method>(dex_file->NumMethodIds()),
+                  AllocObjectArray<Field>(dex_file->NumFieldIds()));
   dex_caches_.push_back(dex_cache);
 }
 
@@ -569,7 +565,6 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     new_class->descriptor_.set(new_class->descriptor_alloc_->data(),
                                new_class->descriptor_alloc_->size());
     new_class->super_class_ = java_lang_Object_;
-    new_class->vtable_count_ = java_lang_Object_->vtable_count_;
     new_class->vtable_ = java_lang_Object_->vtable_;
     new_class->primitive_type_ = Class::kPrimNot;
     new_class->component_type_ = component_type_;
@@ -1113,38 +1108,36 @@ bool ClassLinker::LinkMethods(Class* klass) {
 bool ClassLinker::LinkVirtualMethods(Class* klass) {
   uint32_t max_count = klass->NumVirtualMethods();
   if (klass->GetSuperClass() != NULL) {
-    max_count += klass->GetSuperClass()->NumVirtualMethods();
+    max_count += klass->GetSuperClass()->vtable_->GetLength();
   } else {
     CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
   }
   // TODO: do not assign to the vtable field until it is fully constructed.
-  // TODO: make this a vector<Method*> instead?
-  klass->vtable_ = new Method*[max_count];
+  klass->vtable_ = AllocObjectArray<Method>(max_count);
   if (klass->HasSuperClass()) {
-    memcpy(klass->vtable_,
-           klass->GetSuperClass()->vtable_,
-           klass->GetSuperClass()->vtable_count_ * sizeof(Method*));
-    size_t actual_count = klass->GetSuperClass()->vtable_count_;
+    size_t actual_count = klass->GetSuperClass()->vtable_->GetLength();
+    CHECK_LE(actual_count, max_count);
+    ObjectArray<Method>::Copy(klass->GetSuperClass()->vtable_, 0, klass->vtable_, 0, actual_count);
     // See if any of our virtual methods override the superclass.
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       Method* local_method = klass->GetVirtualMethod(i);
       size_t j = 0;
-      for (; j < klass->GetSuperClass()->vtable_count_; ++j) {
-        const Method* super_method = klass->vtable_[j];
+      for (; j < actual_count; ++j) {
+        Method* super_method = klass->vtable_->Get(j);
         if (HasSameNameAndPrototype(local_method, super_method)) {
           // Verify
           if (super_method->IsFinal()) {
             LG << "Method overrides final method";  // TODO: VirtualMachineError
             return false;
           }
-          klass->vtable_[j] = local_method;
+          klass->vtable_->Set(j, local_method);
           local_method->method_index_ = j;
           break;
         }
       }
-      if (j == klass->GetSuperClass()->vtable_count_) {
+      if (j == actual_count) {
         // Not overriding, append.
-        klass->vtable_[actual_count] = local_method;
+        klass->vtable_->Set(actual_count, local_method);
         local_method->method_index_ = actual_count;
         actual_count += 1;
       }
@@ -1155,15 +1148,13 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
     }
     CHECK_LE(actual_count, max_count);
     if (actual_count < max_count) {
-      Method** new_vtable = new Method*[actual_count];
-      memcpy(new_vtable, klass->vtable_, actual_count * sizeof(Method*));
-      delete[] klass->vtable_;
+      ObjectArray<Method>* new_vtable = AllocObjectArray<Method>(actual_count);
+      ObjectArray<Method>::Copy(klass->vtable_, 0, new_vtable, 0, actual_count);
       klass->vtable_ = new_vtable;
       LG << "shrunk vtable: "
          << "was " << max_count << ", "
          << "now " << actual_count;
     }
-    klass->vtable_count_ = actual_count;
   } else {
     CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
     if (!IsUint(16, klass->NumVirtualMethods())) {
@@ -1171,10 +1162,9 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       return false;
     }
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-      klass->vtable_[i] = klass->GetVirtualMethod(i);
+      klass->vtable_->Set(i, klass->GetVirtualMethod(i));
       klass->GetVirtualMethod(i)->method_index_ = i & 0xFFFF;
     }
-    klass->vtable_count_ = klass->NumVirtualMethods();
   }
   return true;
 }
@@ -1241,9 +1231,9 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
       Method* interface_method = interface->GetVirtualMethod(j);
       int k;  // must be signed
-      for (k = klass->vtable_count_ - 1; k >= 0; --k) {
-        if (HasSameNameAndPrototype(interface_method, klass->vtable_[k])) {
-          if (!klass->vtable_[k]->IsPublic()) {
+      for (k = klass->vtable_->GetLength() - 1; k >= 0; --k) {
+        if (HasSameNameAndPrototype(interface_method, klass->vtable_->Get(k))) {
+          if (!klass->vtable_->Get(k)->IsPublic()) {
             LG << "Implementation not public";
             return false;
           }
@@ -1267,7 +1257,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
           }
         }
         // point the interface table at a phantom slot index
-        klass->iftable_[i].method_index_array_[j] = klass->vtable_count_ + mir;
+        klass->iftable_[i].method_index_array_[j] = klass->vtable_->GetLength() + mir;
         if (mir == miranda_count) {
           miranda_list[miranda_count++] = interface_method;
         }
@@ -1277,17 +1267,20 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   if (miranda_count != 0) {
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_count;
-    ObjectArray* new_virtual_methods = AllocObjectArray(new_method_count);
-    if (klass->virtual_methods_ != NULL) {
-      ObjectArray::Copy(klass->virtual_methods_, 0,
-                        new_virtual_methods, 0,
-                        old_method_count);
-    }
+    ObjectArray<Method>* new_virtual_methods = AllocObjectArray<Method>(new_method_count);
+    ObjectArray<Method>::Copy(klass->virtual_methods_, 0,
+                              new_virtual_methods, 0,
+                              old_method_count);
     klass->virtual_methods_ = new_virtual_methods;
 
     CHECK(klass->vtable_ != NULL);
-    int old_vtable_count = klass->vtable_count_;
-    klass->vtable_count_ += miranda_count;
+    int old_vtable_count = klass->vtable_->GetLength();
+    int new_vtable_count = old_vtable_count + miranda_count;
+    ObjectArray<Method>* new_vtable = AllocObjectArray<Method>(new_vtable_count);
+    ObjectArray<Method>::Copy(klass->vtable_, 0,
+                              new_vtable, 0,
+                              old_vtable_count);
+    klass->vtable_ = new_vtable;
 
     for (int i = 0; i < miranda_count; i++) {
       Method* meth = AllocMethod();
@@ -1296,7 +1289,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       meth->access_flags_ |= kAccMiranda;
       meth->method_index_ = 0xFFFF & (old_vtable_count + i);
       klass->SetVirtualMethod(old_method_count + i, meth);
-      klass->vtable_[old_vtable_count + i] = meth;
+      klass->vtable_->Set(old_vtable_count + i, meth);
     }
   }
   return true;

@@ -15,7 +15,7 @@ class Method;
 class String;
 union JValue;
 
-class DexCache : public ObjectArray {
+class DexCache : public ObjectArray<Object> {
  public:
 
   enum ArrayIndexes {
@@ -26,10 +26,10 @@ class DexCache : public ObjectArray {
     kMax     = 4,
   };
 
-  void Init(ObjectArray* strings,
-            ObjectArray* classes,
-            ObjectArray* methods,
-            ObjectArray* fields);
+  void Init(ObjectArray<String>* strings,
+            ObjectArray<Class>* classes,
+            ObjectArray<Method>* methods,
+            ObjectArray<Field>* fields);
 
   size_t NumStrings() const {
     return GetStrings()->GetLength();
@@ -48,7 +48,7 @@ class DexCache : public ObjectArray {
   }
 
   String* GetResolvedString(uint32_t string_idx) const {
-    return down_cast<String*>(GetStrings()->Get(string_idx));
+    return GetStrings()->Get(string_idx);
   }
 
   void SetResolvedString(uint32_t string_idx, String* resolved) {
@@ -56,7 +56,7 @@ class DexCache : public ObjectArray {
   }
 
   Class* GetResolvedClass(uint32_t class_idx) const {
-    return down_cast<Class*>(GetClasses()->Get(class_idx));
+    return GetClasses()->Get(class_idx);
   }
 
   void SetResolvedClass(uint32_t class_idx, Class* resolved) {
@@ -64,7 +64,7 @@ class DexCache : public ObjectArray {
   }
 
   Method* GetResolvedMethod(uint32_t method_idx) const {
-    return down_cast<Method*>(GetMethods()->Get(method_idx));
+    return GetMethods()->Get(method_idx);
   }
 
   void SetResolvedMethod(uint32_t method_idx, Method* resolved) {
@@ -72,7 +72,7 @@ class DexCache : public ObjectArray {
   }
 
   Field* GetResolvedField(uint32_t field_idx) const {
-    return down_cast<Field*>(GetFields()->Get(field_idx));
+    return GetFields()->Get(field_idx);
   }
 
   void SetResolvedfield(uint32_t field_idx, Field* resolved) {
@@ -80,17 +80,17 @@ class DexCache : public ObjectArray {
   }
 
  private:
-  ObjectArray* GetStrings() const {
-      return down_cast<ObjectArray*>(Get(kStrings));
+  ObjectArray<String>* GetStrings() const {
+      return down_cast<ObjectArray<String>*>(Get(kStrings));
   }
-  ObjectArray* GetClasses() const {
-      return down_cast<ObjectArray*>(Get(kClasses));
+  ObjectArray<Class>* GetClasses() const {
+      return down_cast<ObjectArray<Class>*>(Get(kClasses));
   }
-  ObjectArray* GetMethods() const {
-      return down_cast<ObjectArray*>(Get(kMethods));
+  ObjectArray<Method>* GetMethods() const {
+      return down_cast<ObjectArray<Method>*>(Get(kMethods));
   }
-  ObjectArray* GetFields() const {
-      return down_cast<ObjectArray*>(Get(kFields));
+  ObjectArray<Field>* GetFields() const {
+      return down_cast<ObjectArray<Field>*>(Get(kFields));
   }
   DexCache();
 };

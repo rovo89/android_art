@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "heap.h"
 #include "macros.h"
 #include "dex_file.h"
 #include "thread.h"
@@ -27,7 +28,10 @@ class ClassLinker {
   StaticField* AllocStaticField();
   InstanceField* AllocInstanceField();
   Method* AllocMethod();
-  ObjectArray* AllocObjectArray(size_t length);
+  template <class C> ObjectArray<C>* AllocObjectArray(size_t length) {
+    return Heap::AllocObjectArray<C>(object_array_class_, length);
+  }
+
 
   // Finds a class by its descriptor name.
   // If dex_file is null, searches boot_class_path_.
@@ -49,7 +53,7 @@ class ClassLinker {
 
   String* ResolveString(const Class* referring, uint32_t string_idx);
 
-  void RegisterDexFile(DexFile* dex_file);
+  void RegisterDexFile(const DexFile* dex_file);
 
  private:
   ClassLinker() {}
@@ -144,9 +148,9 @@ class ClassLinker {
 
   void CreateReferenceOffsets(Class* klass);
 
-  std::vector<DexFile*> boot_class_path_;
+  std::vector<const DexFile*> boot_class_path_;
 
-  std::vector<DexFile*> dex_files_;
+  std::vector<const DexFile*> dex_files_;
 
   std::vector<DexCache*> dex_caches_;
 
@@ -183,7 +187,7 @@ class ClassLinker {
   Class* field_array_class_;
   Class* method_array_class_;
 
-  ObjectArray* array_interfaces_;
+  ObjectArray<Class>* array_interfaces_;
   InterfaceEntry* array_iftable_;
 
   FRIEND_TEST(ClassLinkerTest, ProtoCompare);

@@ -87,16 +87,16 @@ class DexFile {
 
   // Raw field_id_item.
   struct FieldId {
-    uint16_t class_idx_;  // index into typeIds list for defining class
-    uint16_t type_idx_;  // index into typeIds for field type
-    uint32_t name_idx_;  // index into stringIds for field name
+    uint16_t class_idx_;  // index into type_ids_ list for defining class
+    uint16_t type_idx_;  // index into type_ids_ for field type
+    uint32_t name_idx_;  // index into string_ids_ for field name
   };
 
   // Raw method_id_item.
   struct MethodId {
-    uint16_t class_idx_;  // index into typeIds list for defining class
-    uint16_t proto_idx_;  // index into protoIds for method prototype
-    uint32_t name_idx_;  // index into stringIds for method name
+    uint16_t class_idx_;  // index into type_ids_ list for defining class
+    uint16_t proto_idx_;  // index into proto_ids_ for method prototype
+    uint32_t name_idx_;  // index into string_ids_ for method name
   };
 
   // Raw proto_id_item.
@@ -108,11 +108,11 @@ class DexFile {
 
   // Raw class_def_item.
   struct ClassDef {
-    uint32_t class_idx_;  // index into typeIds for this class
+    uint32_t class_idx_;  // index into type_ids_ for this class
     uint32_t access_flags_;
-    uint32_t superclass_idx_;  // index into typeIds for superclass
+    uint32_t superclass_idx_;  // index into type_ids_ for superclass
     uint32_t interfaces_off_;  // file offset to TypeList
-    uint32_t source_file_idx_;  // index into stringIds for source file name
+    uint32_t source_file_idx_;  // index into string_ids_ for source file name
     uint32_t annotations_off_;  // file offset to annotations_directory_item
     uint32_t class_data_off_;  // file offset to class_data_item
     uint32_t static_values_off_;  // file offset to EncodedArray

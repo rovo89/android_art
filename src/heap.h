@@ -18,9 +18,9 @@ class HeapBitmap;
 
 class Heap {
  public:
-  static const size_t kStartupSize = 1 * MB;
+  static const size_t kStartupSize = 16 * MB;
 
-  static const size_t kMaximumSize = 16 * MB;
+  static const size_t kMaximumSize = 64 * MB;
 
   static bool Init() {
     return Init(kStartupSize, kMaximumSize);
@@ -46,11 +46,11 @@ class Heap {
     return array;
   }
 
-  static ObjectArray* AllocObjectArray(Class* object_array_class,
-                                       size_t length) {
-    return down_cast<ObjectArray*>(AllocArray(object_array_class,
-                                              length,
-                                              sizeof(uint32_t)));
+  template <class C> static ObjectArray<C>* AllocObjectArray(Class* object_array_class,
+                                                             size_t length) {
+    return down_cast<ObjectArray<C>*>(AllocArray(object_array_class,
+                                                 length,
+                                                 sizeof(uint32_t)));
   }
 
   static CharArray* AllocCharArray(Class* char_array_class, size_t length) {
