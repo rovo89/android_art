@@ -19,6 +19,9 @@ Runtime::~Runtime() {
   delete class_linker_;
   Heap::Destroy();
   delete thread_list_;
+  // TODO: acquire a static mutex on Runtime to avoid racing.
+  CHECK(instance_ == this);
+  instance_ = NULL;
 }
 
 void Runtime::Abort(const char* file, int line) {
