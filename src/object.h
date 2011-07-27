@@ -1043,6 +1043,7 @@ class String : public Object {
   }
 
  public: // TODO: private
+  // Field order required by test "ValidateFieldOrderOfJavaLangString".
   CharArray* array_;
 
   uint32_t hash_code_;

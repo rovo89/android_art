@@ -3,6 +3,7 @@
 #include "base64.h"
 #include "heap.h"
 #include "thread.h"
+#include "stringprintf.h"
 #include "class_linker.h"
 #include "dex_file.h"
 
@@ -183,6 +184,18 @@ class RuntimeTest : public testing::Test {
     runtime_.reset(Runtime::Create(boot_class_path));
     ASSERT_TRUE(runtime_ != NULL);
     class_linker_ = runtime_->GetClassLinker();
+  }
+
+  DexFile* GetLibCoreDex() {
+    // TODO add host support when we have DexFile::OpenJar
+    // TODO switch to jar when we have DexFile::OpenJar
+    if (!is_host_) {
+      return NULL;
+    }
+
+    std::string libcore_dex_file_name = StringPrintf("%s/out/target/common/obj/JAVA_LIBRARIES/core_intermediates/noproguard.classes.dex",
+                                                     getenv("ANDROID_BUILD_TOP"));
+    return DexFile::OpenFile(libcore_dex_file_name.c_str());
   }
 
   bool is_host_;

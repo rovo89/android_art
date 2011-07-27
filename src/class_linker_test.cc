@@ -4,7 +4,6 @@
 #include "class_linker.h"
 #include "dex_file.h"
 #include "heap.h"
-#include "stringprintf.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -183,7 +182,6 @@ class ClassLinkerTest : public RuntimeTest {
       AssertDexFileClass(dex, descriptor);
     }
   }
-
 };
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
@@ -386,16 +384,23 @@ TEST_F(ClassLinkerTest, ProtoCompare2) {
 }
 
 TEST_F(ClassLinkerTest, LibCore) {
-  // TODO add host support when we have DexFile::OpenJar
-  if (!is_host_) {
-    return;
-  }
-
-  // TODO switch to jar when we have DexFile::OpenJar
-  std::string libcore_dex_file_name = StringPrintf("%s/out/target/common/obj/JAVA_LIBRARIES/core_intermediates/noproguard.classes.dex",
-                                                   getenv("ANDROID_BUILD_TOP"));
-  scoped_ptr<DexFile> libcore_dex_file(DexFile::OpenFile(libcore_dex_file_name.c_str()));
+  scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
+  EXPECT_TRUE(libcore_dex_file.get() != NULL); // Passes on host only until we have DexFile::OpenJar
   AssertDexFile(libcore_dex_file.get());
+}
+
+// C++ fields must exactly match the fields in the Java class. If this fails,
+// reorder the fields in the C++ class. Managed class fields are ordered by
+// ClassLinker::LinkInstanceFields.
+TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaLangString) {
+  scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
+  EXPECT_TRUE(libcore_dex_file.get() != NULL); // Passes on host only until we have DexFile::OpenJar
+  class_linker_->RegisterDexFile(libcore_dex_file.get());
+  Class* string = class_linker_->FindClass( "Ljava/lang/String;", NULL, libcore_dex_file.get());
+  EXPECT_EQ("value",    string->GetInstanceField(0)->GetName());
+  EXPECT_EQ("hashCode", string->GetInstanceField(1)->GetName());
+  EXPECT_EQ("offset",   string->GetInstanceField(2)->GetName());
+  EXPECT_EQ("count",    string->GetInstanceField(3)->GetName());
 }
 
 }  // namespace art
