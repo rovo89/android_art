@@ -14,13 +14,47 @@
 # limitations under the License.
 #
 
-include $(CLEAR_VARS)
-include external/stlport/libstlport.mk
-LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-LOCAL_MODULE := libart
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
-LOCAL_CFLAGS := $(ART_CFLAGS)
-LOCAL_C_INCLUDES += src external/gtest/include
-LOCAL_SHARED_LIBRARIES := libcutils liblog libstlport libz
-include $(BUILD_SHARED_LIBRARY)
+# $(1): target or host
+# $(2): ndebug or debug
+define build-libart
+  include $(CLEAR_VARS)
+  ifeq ($(1),target)
+    include external/stlport/libstlport.mk
+  endif
+  LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
+  ifeq ($(2),ndebug)
+    LOCAL_MODULE := libart
+  else
+    LOCAL_MODULE := libartd
+  endif
+  LOCAL_MODULE_TAGS := optional
+  ifeq ($(1),target)
+    LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
+  else
+    LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
+  endif
+  LOCAL_CFLAGS := $(ART_CFLAGS)
+  ifeq ($(2),debug)
+    LOCAL_CFLAGS += -UNDEBUG
+  endif
+  LOCAL_C_INCLUDES += src external/gtest/include
+  LOCAL_SHARED_LIBRARIES := liblog
+  ifeq ($(1),target)
+    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz
+  else
+    LOCAL_SHARED_LIBRARIES += libz-host
+    LOCAL_LDLIBS := -ldl -lpthread -lrt
+  endif
+  ifeq ($(1),target)
+    include $(BUILD_SHARED_LIBRARY)
+  else
+    include $(BUILD_HOST_SHARED_LIBRARY)
+  endif
+endef
+
+$(eval $(call build-libart,target,ndebug))
+$(eval $(call build-libart,target,debug))
+ifeq ($(WITH_HOST_DALVIK),true)
+  $(eval $(call build-libart,host,ndebug))
+  $(eval $(call build-libart,host,debug))
+endif

@@ -14,26 +14,34 @@
 # limitations under the License.
 #
 
-include $(CLEAR_VARS)
-include external/stlport/libstlport.mk
-LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-LOCAL_MODULE := libarttest
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
-LOCAL_CFLAGS := $(ART_CFLAGS)
-LOCAL_SHARED_LIBRARIES := libstlport
-include $(BUILD_SHARED_LIBRARY)
+# $(1): target or host
+# $(2): file name with .cc or .cc.arm extension
+define build-art-test
+  include $(CLEAR_VARS)
+  ifeq ($(1),target)
+    include external/stlport/libstlport.mk
+  endif
+  LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
+  LOCAL_MODULE := $(notdir $(basename $(2:%.arm=%)))
+  LOCAL_MODULE_TAGS := tests
+  LOCAL_SRC_FILES := $(2)
+  LOCAL_CFLAGS := $(ART_CFLAGS)
+  LOCAL_C_INCLUDES += external/gtest/include
+  LOCAL_SHARED_LIBRARIES := libarttest libart
+  ifeq ($(1),target)
+    LOCAL_SHARED_LIBRARIES += libstlport
+    LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
+  else
+    LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
+  endif
+  ifeq ($(1),target)
+    include $(BUILD_EXECUTABLE)
+  else
+    include $(BUILD_HOST_EXECUTABLE)
+  endif
+endef
 
-$(foreach file,$(TEST_TARGET_SRC_FILES), \
-  $(eval include $(CLEAR_VARS)) \
-  $(eval include external/stlport/libstlport.mk) \
-  $(eval LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)) \
-  $(eval LOCAL_MODULE := $(notdir $(basename $(file:%.arm=%)))) \
-  $(eval LOCAL_MODULE_TAGS := tests) \
-  $(eval LOCAL_SRC_FILES := $(file)) \
-  $(eval LOCAL_CFLAGS := $(ART_CFLAGS)) \
-  $(eval LOCAL_C_INCLUDES += external/gtest/include) \
-  $(eval LOCAL_STATIC_LIBRARIES := libgtest libgtest_main) \
-  $(eval LOCAL_SHARED_LIBRARIES := libarttest libart libstlport) \
-  $(eval include $(BUILD_EXECUTABLE)) \
-)
+$(foreach file,$(TEST_TARGET_SRC_FILES), $(eval $(call build-art-test,target,$(file))))
+ifeq ($(WITH_HOST_DALVIK),true)
+  $(foreach file,$(TEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file))))
+endif

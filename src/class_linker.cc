@@ -1408,14 +1408,14 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
     if (c != '[' && c != 'L') {
       if (!seen_non_ref) {
         seen_non_ref = true;
-        DCHECK_EQ(klass->num_reference_ifields_, i);
+        DCHECK_EQ(klass->NumReferenceInstanceFields(), i);
       }
     } else {
       DCHECK(!seen_non_ref);
     }
   }
   if (!seen_non_ref) {
-    DCHECK(klass->NumInstanceFields(), klass->num_reference_ifields_);
+    DCHECK_EQ(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
   }
 #endif
 

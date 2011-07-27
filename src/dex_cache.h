@@ -81,16 +81,16 @@ class DexCache : public ObjectArray<Object> {
 
  private:
   ObjectArray<String>* GetStrings() const {
-      return down_cast<ObjectArray<String>*>(Get(kStrings));
+      return static_cast<ObjectArray<String>*>(Get(kStrings));
   }
   ObjectArray<Class>* GetClasses() const {
-      return down_cast<ObjectArray<Class>*>(Get(kClasses));
+      return static_cast<ObjectArray<Class>*>(Get(kClasses));
   }
   ObjectArray<Method>* GetMethods() const {
-      return down_cast<ObjectArray<Method>*>(Get(kMethods));
+      return static_cast<ObjectArray<Method>*>(Get(kMethods));
   }
   ObjectArray<Field>* GetFields() const {
-      return down_cast<ObjectArray<Field>*>(Get(kFields));
+      return static_cast<ObjectArray<Field>*>(Get(kFields));
   }
   DexCache();
 };

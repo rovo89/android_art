@@ -15,39 +15,29 @@
 #
 
 # $(1): target or host
-# $(2): ndebug or debug
-define build-aexec
+define build-libarttest
   include $(CLEAR_VARS)
   ifeq ($(1),target)
-    include external/stlport/libstlport.mk
+   include external/stlport/libstlport.mk
   endif
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  ifeq ($(2),ndebug)
-    LOCAL_MODULE := aexec
-  else
-    LOCAL_MODULE := aexecd
-  endif
-  LOCAL_MODULE_TAGS := optional
-  LOCAL_SRC_FILES := $(AEXEC_SRC_FILES)
-  LOCAL_CFLAGS := $(ART_CFLAGS)
-  ifeq ($(2),debug)
-    LOCAL_CFLAGS += -UNDEBUG
-  endif
-  LOCAL_SHARED_LIBRARIES := libart
+  LOCAL_MODULE := libarttest
+  LOCAL_MODULE_TAGS := tests
+  LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
+  LOCAL_CFLAGS := $(ART_CFLAGS) -UNDEBUG
   ifeq ($(1),target)
-    LOCAL_SHARED_LIBRARIES += libstlport
+    LOCAL_SHARED_LIBRARIES := libstlport
+  else
+    LOCAL_LDLIBS := -lrt
   endif
   ifeq ($(1),target)
-    include $(BUILD_EXECUTABLE)
+    include $(BUILD_SHARED_LIBRARY)
   else
-    include $(BUILD_HOST_EXECUTABLE)
+    include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef
 
-$(eval $(call build-aexec,target,ndebug))
-$(eval $(call build-aexec,target,debug))
+$(eval $(call build-libarttest,target))
 ifeq ($(WITH_HOST_DALVIK),true)
-  $(eval $(call build-aexec,host,ndebug))
-  $(eval $(call build-aexec,host,debug))
+  $(eval $(call build-libarttest,host))
 endif
-

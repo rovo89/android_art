@@ -21,15 +21,10 @@ build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 
 include $(build_path)/Android.libart.mk
-include $(build_path)/Android.test.mk
 include $(build_path)/Android.aexec.mk
 
-ifeq ($(WITH_HOST_DALVIK),true)
-    include $(build_path)/Android.libart.host.mk
-    include $(build_path)/Android.test.host.mk
-    include $(build_path)/Android.aexec.host.mk
-endif
-
+include $(build_path)/Android.libarttest.mk
+include $(build_path)/Android.test.mk
 
 # "m build-art" for quick minimal build
 .PHONY: build-art
