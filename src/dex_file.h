@@ -377,7 +377,7 @@ class DexFile {
     const byte* ptr = base_ + string_id.string_data_off_;
     // Skip the uleb128 length.
     while (*(ptr++) > 0x7f) /* empty */ ;
-    return (const char*) ptr;
+    return reinterpret_cast<const char*>(ptr);
   }
 
   // return the UTF-8 encoded string with the specified string_id index

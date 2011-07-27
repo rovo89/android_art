@@ -607,12 +607,12 @@ class ObjectArray : public Array {
   }
 
   T* Get(uint32_t i) const {
-    DCHECK_LT(i, GetLength());
+    CHECK_LT(i, GetLength());
     Object* const * data = reinterpret_cast<Object* const *>(GetData());
     return down_cast<T*>(data[i]);
   }
   void Set(uint32_t i, T* object) {
-    DCHECK_LT(i, GetLength());
+    CHECK_LT(i, GetLength());
     T** data = reinterpret_cast<T**>(GetData());
     data[i] = object;
   }
@@ -992,24 +992,53 @@ class CharArray : public Array {
                                               length,
                                               sizeof(uint16_t)));
   }
+
+  uint16_t* GetChars() {
+    return reinterpret_cast<uint16_t*>(GetData());
+  }
+
+  const uint16_t* GetChars() const {
+    return reinterpret_cast<const uint16_t*>(GetData());
+  }
+
+  uint16_t GetChar(uint32_t i) const {
+    CHECK_LT(i, GetLength());
+    return GetChars()[i];
+  }
+
+  void  SetChar(uint32_t i, uint16_t ch) {
+    CHECK_LT(i, GetLength());
+    GetChars()[i] = ch;
+  }
+
  private:
   CharArray();
 };
 
 class String : public Object {
  public:
-  static String* Alloc(Class* java_lang_String) {
-    return down_cast<String*>(Object::Alloc(java_lang_String));
+  static String* AllocFromUtf16(Class* java_lang_String,
+                                Class* char_array,
+                                int32_t utf16_length,
+                                uint16_t* utf16_data_in) {
+    String* string = Alloc(java_lang_String, char_array, utf16_length);
+    uint16_t* utf16_data_out = string->array_->GetChars();
+    // TODO use 16-bit wide memset variant
+    for (int i = 0; i < utf16_length; i++ ) {
+        utf16_data_out[i] = utf16_data_in[i];
+    }
+    string->hash_code_ = ComputeUtf16Hash(utf16_data_out, utf16_length);
+    return string;
   }
 
   static String* AllocFromModifiedUtf8(Class* java_lang_String,
                                        Class* char_array,
-                                       const char* data) {
-    String* string = Alloc(java_lang_String);
-    uint32_t count = strlen(data);  // TODO
-    CharArray* array = CharArray::Alloc(char_array, count);
-    string->array_ = array;
-    string->count_ = count;
+                                       int32_t utf16_length,
+                                       const char* utf8_data_in) {
+    String* string = Alloc(java_lang_String, char_array, utf16_length);
+    uint16_t* utf16_data_out = string->array_->GetChars();
+    ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
+    string->hash_code_ = ComputeUtf16Hash(utf16_data_out, utf16_length);
     return string;
   }
 
@@ -1021,6 +1050,65 @@ class String : public Object {
   uint32_t offset_;
 
   uint32_t count_;
+
+  static String* Alloc(Class* java_lang_String,
+                       Class* char_array,
+                       int32_t utf16_length) {
+    String* string = down_cast<String*>(Object::Alloc(java_lang_String));
+    CharArray* array = CharArray::Alloc(char_array, utf16_length);
+    string->array_ = array;
+    string->count_ = utf16_length;
+    return string;
+  }
+
+  // Convert Modified UTF-8 to UTF-16
+  // http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+  static void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_in) {
+    while (*utf8_data_in != '\0') {
+      *utf16_data_out++ = GetUtf16FromUtf8(&utf8_data_in);
+    }
+  }
+
+  // Retrieve the next UTF-16 character from a UTF-8 string.
+  //
+  // Advances "*pUtf8Ptr" to the start of the next character.
+  //
+  // WARNING: If a string is corrupted by dropping a '\0' in the middle
+  // of a 3-byte sequence, you can end up overrunning the buffer with
+  // reads (and possibly with the writes if the length was computed and
+  // cached before the damage). For performance reasons, this function
+  // assumes that the string being parsed is known to be valid (e.g., by
+  // already being verified). Most strings we process here are coming
+  // out of dex files or other internal translations, so the only real
+  // risk comes from the JNI NewStringUTF call.
+  static uint16_t GetUtf16FromUtf8(const char** utf8_data_in) {
+    uint8_t one = *(*utf8_data_in)++;
+    if ((one & 0x80) == 0) {
+      /* one-byte encoding */
+      return one;
+    }
+    /* two- or three-byte encoding */
+    uint8_t two = *(*utf8_data_in)++;
+    if ((one & 0x20) == 0) {
+      /* two-byte encoding */
+      return ((one & 0x1f) << 6) |
+              (two & 0x3f);
+    }
+    /* three-byte encoding */
+    uint8_t three = *(*utf8_data_in)++;
+    return ((one & 0x0f) << 12) |
+            ((two & 0x3f) << 6) |
+            (three & 0x3f);
+  }
+
+  // The java/lang/String.computeHashCode() algorithm
+  static uint32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {
+    uint32_t hash = 0;
+    while (string_length--) {
+        hash = hash * 31 + *string_data++;
+    }
+    return hash;
+  }
 
  private:
   String();

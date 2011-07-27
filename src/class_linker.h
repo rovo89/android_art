@@ -23,12 +23,15 @@ class ClassLinker {
 
   ~ClassLinker() {}
 
+  // Alloc* convenience functions to avoid needing to pass in Class*
+  // values that are known to the ClassLinker such as
+  // object_array_class_ and java_lang_String_ etc.
   DexCache* AllocDexCache();
   Class* AllocClass(DexCache* dex_cache);
   StaticField* AllocStaticField();
   InstanceField* AllocInstanceField();
   Method* AllocMethod();
-
+  String* AllocStringFromModifiedUtf8(int32_t utf16_length, const char* utf8_data_in);
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(object_array_class_, length);
