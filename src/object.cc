@@ -199,7 +199,7 @@ static const char* kClassStatusNames[] = {
 };
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs) {
   if (rhs >= Class::kStatusError && rhs <= Class::kStatusInitialized) {
-    os << kClassStatusNames[rhs - 1];
+    os << kClassStatusNames[rhs + 1];
   } else {
     os << "Class::Status[" << static_cast<int>(rhs) << "]";
   }

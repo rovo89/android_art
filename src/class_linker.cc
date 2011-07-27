@@ -367,8 +367,8 @@ void ClassLinker::LoadField(const DexFile& dex_file,
                             Field* dst) {
   const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
   dst->klass_ = klass;
-  dst->name_ = dex_file.dexStringById(field_id.name_idx_);
-  dst->signature_ = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+  dst->name_.set(dex_file.dexStringById(field_id.name_idx_));
+  dst->descriptor_.set(dex_file.dexStringByTypeIdx(field_id.type_idx_));
   dst->access_flags_ = src.access_flags_;
 }
 
@@ -1144,9 +1144,6 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
     if (actual_count < max_count) {
       // TODO: do not assign to the vtable field until it is fully constructed.
       klass->vtable_ = klass->vtable_->CopyOf(actual_count);
-      LG << "shrunk vtable: "
-         << "was " << max_count << ", "
-         << "now " << actual_count;
     }
   } else {
     CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
@@ -1457,8 +1454,8 @@ void ClassLinker::CreateReferenceOffsets(Class* klass) {
         break;
       }
     }
-    klass->SetReferenceOffsets(reference_offsets);
   }
+  klass->SetReferenceOffsets(reference_offsets);
 }
 
 Class* ClassLinker::ResolveClass(const Class* referrer,

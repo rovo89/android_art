@@ -250,16 +250,16 @@ class Field : public Object {
     return declaring_class_;
   }
 
-  const char* GetName() const {
+  const StringPiece& GetName() const {
     return name_;
   }
 
   char GetType() const {  // TODO: return type
-    return signature_[0];
+    return descriptor_[0];
   }
 
-  const char* GetSignature() const {
-    return signature_;
+  const StringPiece& GetDescriptor() const {
+    return descriptor_;
   }
 
  public:  // TODO: private
@@ -277,10 +277,10 @@ class Field : public Object {
   // The class in which this field is declared.
   Class* declaring_class_;
 
-  const char* name_;
+  StringPiece name_;
 
   // e.g. "I", "[C", "Landroid/os/Debug;"
-  const char* signature_;
+  StringPiece descriptor_;
 
   uint32_t access_flags_;
 
@@ -373,8 +373,7 @@ class StaticField : public Field {
 
 class Method : public Object {
  public:
-  // Returns the method name.
-  // TODO: example
+  // Returns the method name, e.g. "<init>" or "eatLunch"
   const StringPiece& GetName() const {
     return name_;
   }
@@ -747,6 +746,11 @@ class Class : public Object {
   // Returns true if the class is a primitive type.
   bool IsPrimitive() const {
     return primitive_type_ != kPrimNot;
+  }
+
+  // Returns true if the class is synthetic.
+  bool IsSynthetic() const {
+    return (access_flags_ & kAccSynthetic) != 0;
   }
 
   // Returns true if this class can access that class.
