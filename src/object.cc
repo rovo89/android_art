@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "globals.h"
+#include "heap.h"
 #include "logging.h"
 #include "dex_cache.h"
 #include "dex_file.h"

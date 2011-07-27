@@ -7,12 +7,13 @@
 #include <vector>
 
 #include "globals.h"
-#include "object.h"
 #include "object_bitmap.h"
 #include "thread.h"
 
 namespace art {
 
+class Class;
+class Object;
 class Space;
 class HeapBitmap;
 
@@ -30,42 +31,8 @@ class Heap {
 
   static void Destroy();
 
-  // Allocates and initializes storage for a class instance.
-  static Object* AllocObject(Class* klass);
-
+  // Allocates and initializes storage for an object instance.
   static Object* AllocObject(Class* klass, size_t num_bytes);
-
-  static Array* AllocArray(Class* array_class,
-                           size_t component_count,
-                           size_t component_size) {
-    size_t size = sizeof(Array) + component_count * component_size;
-    Array* array = down_cast<Array*>(AllocObject(array_class, size));
-    if (array != NULL) {
-      array->SetLength(component_count);
-    }
-    return array;
-  }
-
-  template <class C> static ObjectArray<C>* AllocObjectArray(Class* object_array_class,
-                                                             size_t length) {
-    return down_cast<ObjectArray<C>*>(AllocArray(object_array_class,
-                                                 length,
-                                                 sizeof(uint32_t)));
-  }
-
-  static CharArray* AllocCharArray(Class* char_array_class, size_t length) {
-    return down_cast<CharArray*>(AllocArray(char_array_class,
-                                            length,
-                                            sizeof(uint16_t)));
-  }
-
-  static String* AllocString(Class* java_lang_String) {
-    return down_cast<String*>(AllocObject(java_lang_String));
-  }
-
-  static String* AllocStringFromModifiedUtf8(Class* java_lang_String,
-                                             Class* char_array,
-                                             const char* data);
 
   // Initiates an explicit garbage collection.
   static void CollectGarbage();

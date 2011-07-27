@@ -6,6 +6,7 @@
 #include "constants.h"
 #include "casts.h"
 #include "globals.h"
+#include "heap.h"
 #include "logging.h"
 #include "macros.h"
 #include "offsets.h"
@@ -104,6 +105,8 @@ static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik 
 
 class Object {
  public:
+  static Object* Alloc(Class* klass);
+
   Class* GetClass() const {
     return klass_;
   }
@@ -563,6 +566,16 @@ class Method : public Object {
 
 class Array : public Object {
  public:
+  static Array* Alloc(Class* array_class,
+                      size_t component_count,
+                      size_t component_size) {
+    size_t size = sizeof(Array) + component_count * component_size;
+    Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
+    if (array != NULL) {
+      array->SetLength(component_count);
+    }
+    return array;
+  }
   uint32_t GetLength() const {
     return length_;
   }
@@ -587,20 +600,32 @@ class Array : public Object {
 template<class T>
 class ObjectArray : public Array {
  public:
-  C* Get(uint32_t i) const {
+  static ObjectArray<T>* Alloc(Class* object_array_class,
+                               size_t length) {
+    return down_cast<ObjectArray<T>*>(Array::Alloc(object_array_class,
+                                                   length,
+                                                   sizeof(uint32_t)));
+  }
+
+  T* Get(uint32_t i) const {
     DCHECK_LT(i, GetLength());
     Object* const * data = reinterpret_cast<Object* const *>(GetData());
-    return down_cast<C*>(data[i]);
+    return down_cast<T*>(data[i]);
   }
-  void Set(uint32_t i, C* object) {
+  void Set(uint32_t i, T* object) {
     DCHECK_LT(i, GetLength());
-    C** data = reinterpret_cast<C**>(GetData());
+    T** data = reinterpret_cast<T**>(GetData());
     data[i] = object;
   }
-  static void Copy(ObjectArray<C>* src, int src_pos, ObjectArray<C>* dst, int dst_pos, size_t length) {
+  static void Copy(ObjectArray<T>* src, int src_pos, ObjectArray<T>* dst, int dst_pos, size_t length) {
     for (size_t i = 0; i < length; i++) {
       dst->Set(dst_pos + i, src->Get(src_pos + i));
     }
+  }
+  ObjectArray<T>* CopyOf(size_t new_length) {
+    ObjectArray<T>* new_array = Alloc(klass_, new_length);
+    Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
+    return new_array;
   }
 
  private:
@@ -945,6 +970,10 @@ class Class : public Object {
 };
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
+inline Object* Object::Alloc(Class* klass) {
+  return Heap::AllocObject(klass, klass->object_size_);
+}
+
 class DataObject : public Object {
  public:
   uint32_t fields_[0];
@@ -953,12 +982,34 @@ class DataObject : public Object {
 };
 
 class CharArray : public Array {
+ public:
+  static CharArray* Alloc(Class* char_array_class, size_t length) {
+    return down_cast<CharArray*>(Array::Alloc(char_array_class,
+                                              length,
+                                              sizeof(uint16_t)));
+  }
  private:
   CharArray();
 };
 
 class String : public Object {
  public:
+  static String* Alloc(Class* java_lang_String) {
+    return down_cast<String*>(Object::Alloc(java_lang_String));
+  }
+
+  static String* AllocFromModifiedUtf8(Class* java_lang_String,
+                                       Class* char_array,
+                                       const char* data) {
+    String* string = Alloc(java_lang_String);
+    uint32_t count = strlen(data);  // TODO
+    CharArray* array = CharArray::Alloc(char_array, count);
+    string->array_ = array;
+    string->count_ = count;
+    return string;
+  }
+
+ public: // TODO: private
   CharArray* array_;
 
   uint32_t hash_code_;

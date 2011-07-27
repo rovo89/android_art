@@ -66,10 +66,6 @@ void Heap::Destroy() {
   delete live_bitmap_;
 }
 
-Object* Heap::AllocObject(Class* klass) {
-  return AllocObject(klass, klass->object_size_);
-}
-
 Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
   Object* obj = Allocate(num_bytes);
   if (obj != NULL) {
@@ -177,17 +173,6 @@ Object* Heap::Allocate(Space* space, size_t size) {
   // TODO: dump stack traces for all threads
 
   return NULL;
-}
-
-String* Heap::AllocStringFromModifiedUtf8(Class* java_lang_String,
-                                          Class* char_array,
-                                          const char* data) {
-  String* string = AllocString(java_lang_String);
-  uint32_t count = strlen(data);  // TODO
-  CharArray* array = AllocCharArray(char_array, count);
-  string->array_ = array;
-  string->count_ = count;
-  return string;
 }
 
 void Heap::CollectGarbage() {

@@ -11,7 +11,6 @@
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
-#include "object.h"
 #include "offsets.h"
 #include "runtime.h"
 
@@ -19,6 +18,7 @@
 
 namespace art {
 
+class Method;
 class Object;
 class Runtime;
 class StackHandleBlock;

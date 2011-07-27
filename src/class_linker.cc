@@ -113,11 +113,11 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
 }
 
 DexCache* ClassLinker::AllocDexCache() {
-  return down_cast<DexCache*>(Heap::AllocObjectArray<Object>(object_array_class_, DexCache::kMax));
+  return down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::kMax));
 }
 
 Class* ClassLinker::AllocClass(DexCache* dex_cache) {
-  Class* klass = down_cast<Class*>(Heap::AllocObject(java_lang_Class_));
+  Class* klass = down_cast<Class*>(Object::Alloc(java_lang_Class_));
   klass->dex_cache_ = dex_cache;
   return klass;
 }
@@ -1106,18 +1106,12 @@ bool ClassLinker::LinkMethods(Class* klass) {
 }
 
 bool ClassLinker::LinkVirtualMethods(Class* klass) {
-  uint32_t max_count = klass->NumVirtualMethods();
-  if (klass->GetSuperClass() != NULL) {
-    max_count += klass->GetSuperClass()->vtable_->GetLength();
-  } else {
-    CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
-  }
-  // TODO: do not assign to the vtable field until it is fully constructed.
-  klass->vtable_ = AllocObjectArray<Method>(max_count);
   if (klass->HasSuperClass()) {
+    uint32_t max_count = klass->NumVirtualMethods() + klass->GetSuperClass()->vtable_->GetLength();
     size_t actual_count = klass->GetSuperClass()->vtable_->GetLength();
     CHECK_LE(actual_count, max_count);
-    ObjectArray<Method>::Copy(klass->GetSuperClass()->vtable_, 0, klass->vtable_, 0, actual_count);
+    // TODO: do not assign to the vtable field until it is fully constructed.
+    klass->vtable_ = klass->GetSuperClass()->vtable_->CopyOf(max_count);
     // See if any of our virtual methods override the superclass.
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       Method* local_method = klass->GetVirtualMethod(i);
@@ -1148,20 +1142,23 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
     }
     CHECK_LE(actual_count, max_count);
     if (actual_count < max_count) {
-      ObjectArray<Method>* new_vtable = AllocObjectArray<Method>(actual_count);
-      ObjectArray<Method>::Copy(klass->vtable_, 0, new_vtable, 0, actual_count);
-      klass->vtable_ = new_vtable;
+      // TODO: do not assign to the vtable field until it is fully constructed.
+      klass->vtable_ = klass->vtable_->CopyOf(actual_count);
       LG << "shrunk vtable: "
          << "was " << max_count << ", "
          << "now " << actual_count;
     }
   } else {
     CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
-    if (!IsUint(16, klass->NumVirtualMethods())) {
+    uint32_t num_virtual_methods = klass->NumVirtualMethods();
+    CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
+    if (!IsUint(16, num_virtual_methods)) {
       LG << "Too many methods";  // TODO: VirtualMachineError
       return false;
     }
-    for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+    // TODO: do not assign to the vtable field until it is fully constructed.
+    klass->vtable_ = AllocObjectArray<Method>(num_virtual_methods);
+    for (size_t i = 0; i < num_virtual_methods; ++i) {
       klass->vtable_->Set(i, klass->GetVirtualMethod(i));
       klass->GetVirtualMethod(i)->method_index_ = i & 0xFFFF;
     }
@@ -1267,20 +1264,13 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   if (miranda_count != 0) {
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_count;
-    ObjectArray<Method>* new_virtual_methods = AllocObjectArray<Method>(new_method_count);
-    ObjectArray<Method>::Copy(klass->virtual_methods_, 0,
-                              new_virtual_methods, 0,
-                              old_method_count);
-    klass->virtual_methods_ = new_virtual_methods;
+    klass->virtual_methods_ = klass->virtual_methods_->CopyOf(new_method_count);
 
     CHECK(klass->vtable_ != NULL);
     int old_vtable_count = klass->vtable_->GetLength();
     int new_vtable_count = old_vtable_count + miranda_count;
-    ObjectArray<Method>* new_vtable = AllocObjectArray<Method>(new_vtable_count);
-    ObjectArray<Method>::Copy(klass->vtable_, 0,
-                              new_vtable, 0,
-                              old_vtable_count);
-    klass->vtable_ = new_vtable;
+    // TODO: do not assign to the vtable field until it is fully constructed.
+    klass->vtable_ = klass->vtable_->CopyOf(new_vtable_count);
 
     for (int i = 0; i < miranda_count; i++) {
       Method* meth = AllocMethod();
@@ -1511,9 +1501,9 @@ String* ClassLinker::ResolveString(const Class* referring,
   const DexFile* dex_file = FindDexFile(referring->GetDexCache());
   const DexFile::StringId& string_id = dex_file->GetStringId(string_idx);
   const char* string_data = dex_file->GetStringData(string_id);
-  String* new_string = Heap::AllocStringFromModifiedUtf8(java_lang_String_,
-                                                         char_array_class_,
-                                                         string_data);
+  String* new_string = String::AllocFromModifiedUtf8(java_lang_String_,
+                                                     char_array_class_,
+                                                     string_data);
   // TODO: intern the new string
   referring->GetDexCache()->SetResolvedString(string_idx, new_string);
   return new_string;

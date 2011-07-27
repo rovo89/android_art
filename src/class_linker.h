@@ -28,8 +28,10 @@ class ClassLinker {
   StaticField* AllocStaticField();
   InstanceField* AllocInstanceField();
   Method* AllocMethod();
-  template <class C> ObjectArray<C>* AllocObjectArray(size_t length) {
-    return Heap::AllocObjectArray<C>(object_array_class_, length);
+
+  template <class T>
+  ObjectArray<T>* AllocObjectArray(size_t length) {
+    return ObjectArray<T>::Alloc(object_array_class_, length);
   }
 
 
