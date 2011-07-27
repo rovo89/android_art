@@ -51,12 +51,14 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
+// Splits a colon delimited list of pathname elements into a vector of
+// strings.  Empty strings will be omitted.
 void ParseClassPath(const char* class_path, std::vector<std::string>* vec) {
   CHECK(vec != NULL);
   scoped_ptr_malloc<char> tmp(strdup(class_path));
   char* full = tmp.get();
   char* p = full;
-  while (p) {
+  while (p != NULL) {
     p = strpbrk(full, ":");
     if (p != NULL) {
       p[0] = '\0';
@@ -64,7 +66,7 @@ void ParseClassPath(const char* class_path, std::vector<std::string>* vec) {
     if (full[0] != '\0') {
       vec->push_back(std::string(full));
     }
-    if (p) {
+    if (p != NULL) {
       full = p + 1;
     }
   }
