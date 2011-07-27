@@ -44,8 +44,7 @@ ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
 }
 
 FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
-  int num_slots = itr_position_ + itr_longs_and_doubles_;
-  return FrameOffset(displacement_.Int32Value() + (num_slots * kPointerSize));
+  return FrameOffset(displacement_.Int32Value() + (itr_slots_ * kPointerSize));
 }
 
 // JNI calling convention
@@ -68,9 +67,8 @@ ManagedRegister JniCallingConvention::CurrentParamRegister() {
 }
 
 FrameOffset JniCallingConvention::CurrentParamStackOffset() {
-  int num_slots = itr_position_ + itr_longs_and_doubles_;
   return FrameOffset(displacement_.Int32Value() - OutArgSize() +
-                     (num_slots * kPointerSize));
+                     (itr_slots_ * kPointerSize));
 }
 
 size_t JniCallingConvention::NumberOfOutgoingStackArgs() {

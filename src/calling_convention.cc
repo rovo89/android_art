@@ -20,29 +20,34 @@ size_t ManagedRuntimeCallingConvention::FrameSize() {
 }
 
 bool ManagedRuntimeCallingConvention::HasNext() {
-  return itr_position_ < GetMethod()->NumArgs();
+  return itr_args_ < GetMethod()->NumArgs();
 }
 
 void ManagedRuntimeCallingConvention::Next() {
   CHECK(HasNext());
-  if (((itr_position_ != 0) || GetMethod()->IsStatic()) &&
-      GetMethod()->IsParamALongOrDouble(itr_position_)) {
+  if (IsCurrentUserArg() && 
+      GetMethod()->IsParamALongOrDouble(itr_args_)) {
     itr_longs_and_doubles_++;
+    itr_slots_++;
   }
-  itr_position_++;
+  itr_args_++;
+  itr_slots_++;
 }
 
-bool ManagedRuntimeCallingConvention::IsCurrentParamPossiblyNull() {
-  // for a virtual method, this should never be NULL
-  return GetMethod()->IsStatic() || (itr_position_ != 0);
+bool ManagedRuntimeCallingConvention::IsCurrentUserArg() {
+  if (GetMethod()->IsStatic()) {
+    return true;
+  }
+  // For a virtual method, "this" should never be NULL.
+  return (itr_args_ != 0);
 }
 
 size_t ManagedRuntimeCallingConvention::CurrentParamSize() {
-  return GetMethod()->ParamSize(itr_position_);
+  return GetMethod()->ParamSize(itr_args_);
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
-  return GetMethod()->IsParamAReference(itr_position_);
+  return GetMethod()->IsParamAReference(itr_args_);
 }
 
 // JNI calling convention
@@ -71,33 +76,35 @@ FrameOffset JniCallingConvention::ReturnValueSaveLocation() {
 }
 
 bool JniCallingConvention::HasNext() {
-  if (itr_position_ <= kObjectOrClass) {
+  if (itr_args_ <= kObjectOrClass) {
     return true;
   } else {
-    unsigned int arg_pos = itr_position_ - (GetMethod()->IsStatic() ? 2 : 1);
+    unsigned int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
     return arg_pos < GetMethod()->NumArgs();
   }
 }
 
 void JniCallingConvention::Next() {
   CHECK(HasNext());
-  if (itr_position_ > kObjectOrClass) {
-    int arg_pos = itr_position_ - (GetMethod()->IsStatic() ? 2 : 1);
+  if (itr_args_ > kObjectOrClass) {
+    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
     if (GetMethod()->IsParamALongOrDouble(arg_pos)) {
       itr_longs_and_doubles_++;
+      itr_slots_++;
     }
   }
-  itr_position_++;
+  itr_args_++;
+  itr_slots_++;
 }
 
 bool JniCallingConvention::IsCurrentParamAReference() {
-  switch (itr_position_) {
+  switch (itr_args_) {
     case kJniEnv:
       return false;  // JNIEnv*
     case kObjectOrClass:
       return true;   // jobject or jclass
     default: {
-      int arg_pos = itr_position_ - (GetMethod()->IsStatic() ? 2 : 1);
+      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
       return GetMethod()->IsParamAReference(arg_pos);
     }
   }
@@ -109,11 +116,11 @@ FrameOffset JniCallingConvention::CurrentParamHandleOffset() {
   CHECK_GT(ShbLinkOffset(), ShbNumRefsOffset());
   // Address of 1st handle
   int result = ShbLinkOffset().Int32Value() + kPointerSize;
-  if (itr_position_ != kObjectOrClass) {
-    bool is_static = GetMethod()->IsStatic();
-    int arg_pos = itr_position_ - (is_static ? 2 : 1);
+  if (itr_args_ != kObjectOrClass) {
+    const Method *method = GetMethod();
+    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
     int previous_refs = GetMethod()->NumReferenceArgsBefore(arg_pos);
-    if (is_static) {
+    if (method->IsStatic()) {
       previous_refs++;  // account for jclass
     }
     result += previous_refs * kPointerSize;
@@ -123,12 +130,19 @@ FrameOffset JniCallingConvention::CurrentParamHandleOffset() {
 }
 
 size_t JniCallingConvention::CurrentParamSize() {
-  if (itr_position_ <= kObjectOrClass) {
+  if (itr_args_ <= kObjectOrClass) {
     return kPointerSize;  // JNIEnv or jobject/jclass
   } else {
-    int arg_pos = itr_position_ - (GetMethod()->IsStatic() ? 2 : 1);
+    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
     return GetMethod()->ParamSize(arg_pos);
   }
+}
+
+size_t JniCallingConvention::NumberOfExtraArgumentsForJni(
+    const Method* method) {
+  // The first argument is the JNIEnv*.
+  // Static methods have an extra argument which is the jclass.
+  return (method->IsStatic() ? 2 : 1);
 }
 
 }  // namespace art

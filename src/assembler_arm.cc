@@ -1516,14 +1516,21 @@ void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
 void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
                      size_t size) {
   CHECK(scratch.IsCoreRegister());
+  CHECK(size == 4 || size == 8);
   if (size == 4) {
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                    SP, src.Int32Value());
     StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
                   SP, dest.Int32Value());
-  } else {
-    // TODO: size != 4
-    LOG(FATAL) << "Unimplemented";
+  } else if (size == 8) {
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                   SP, src.Int32Value());
+    StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
+                  SP, dest.Int32Value());
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
+                   SP, src.Int32Value() + 4);
+    StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
+                  SP, dest.Int32Value() + 4);
   }
 }
 

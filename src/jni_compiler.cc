@@ -72,14 +72,16 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       // Check handle offset is within frame
       CHECK_LT(handle_offset.Uint32Value(), frame_size);
       bool input_in_reg = mr_conv.IsCurrentParamInRegister();
-      CHECK(input_in_reg || mr_conv.IsCurrentParamOnStack());
+      bool input_on_stack = mr_conv.IsCurrentParamOnStack();
+      CHECK(input_in_reg || input_on_stack);
+
       if (input_in_reg) {
         ManagedRegister in_reg  =  mr_conv.CurrentParamRegister();
-        jni_asm->ValidateRef(in_reg, mr_conv.IsCurrentParamPossiblyNull());
+        jni_asm->ValidateRef(in_reg, mr_conv.IsCurrentUserArg());
         jni_asm->StoreRef(handle_offset, in_reg);
-      } else {
+      } else if (input_on_stack) {
         FrameOffset in_off  = mr_conv.CurrentParamStackOffset();
-        jni_asm->ValidateRef(in_off, mr_conv.IsCurrentParamPossiblyNull());
+        jni_asm->ValidateRef(in_off, mr_conv.IsCurrentUserArg());
         jni_asm->CopyRef(handle_offset, in_off,
                          mr_conv.InterproceduralScratchRegister());
       }
@@ -296,7 +298,7 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
   CHECK(output_in_reg || jni_conv->IsCurrentParamOnStack());
   // References need handlerization and the handle address passing
   if (ref_param) {
-    null_allowed = mr_conv->IsCurrentParamPossiblyNull();
+    null_allowed = mr_conv->IsCurrentUserArg();
     // Compute handle offset. Note null is placed in the SHB but the jobject
     // passed to the native code must be null (not a pointer into the SHB
     // as with regular references).

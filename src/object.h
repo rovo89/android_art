@@ -433,8 +433,21 @@ class Method : public AccessibleObject {
     return shorty_[0] == 'V';
   }
 
-  // The number of arguments that should be supplied to this method
+  // "Args" may refer to any of the 3 levels of "Args."
+  // To avoid confusion, our code will denote which "Args" clearly:
+  //  1. UserArgs: Args that a user see.
+  //  2. Args: Logical JVM-level Args. E.g., the first in Args will be the
+  //       receiver.
+  //  3. CConvArgs: Calling Convention Args, which is physical-level Args.
+  //       E.g., the first in Args is Method* for both static and non-static
+  //       methods. And CConvArgs doesn't deal with the receiver because
+  //       receiver is hardwired in an implicit register, so CConvArgs doesn't
+  //       need to deal with it.
+  //
+  // The number of Args that should be supplied to this method
   size_t NumArgs() const {
+    // "1 +" because the first in Args is the receiver.
+    // "- 1" because we don't count the return type.
     return (IsStatic() ? 0 : 1) + shorty_.length() - 1;
   }
 

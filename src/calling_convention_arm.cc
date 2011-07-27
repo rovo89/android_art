@@ -32,36 +32,44 @@ ManagedRegister CallingConvention::ReturnRegister() {
 // Managed runtime calling convention
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
-  return itr_position_ < 3;
+  if (itr_slots_ < 3) {
+    return true;
+  }
+  return false;  // everything else on the stack
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
-  return itr_position_ >= 3;
+  return !IsCurrentParamInRegister();
 }
 
 static const Register kManagedArgumentRegisters[] = {
   R1, R2, R3
 };
 ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
-  CHECK_LT(itr_position_, 3u);
+  CHECK_LT(itr_slots_, 3u); // Otherwise, should have gone through stack
   const Method* method = GetMethod();
-  if (method->IsParamALongOrDouble(itr_position_)) {
-    // TODO: handle a long/double split between registers and the stack, also
-    // itr_position_ 0
-    if (itr_position_ != 1u) {
-      LOG(WARNING) << "Unimplemented";
+  if (method->IsParamALongOrDouble(itr_args_)) {
+    if (itr_slots_ == 0) {
+      // return R1 to denote R1_R2
+      return ManagedRegister::FromCoreRegister(kManagedArgumentRegisters
+                                               [itr_slots_]);
+    } else if (itr_slots_ == 1) {
+      return ManagedRegister::FromRegisterPair(R2_R3);
+    } else {
+      // This is a long/double split between registers and the stack
+      return ManagedRegister::FromCoreRegister(
+        kManagedArgumentRegisters[itr_slots_]);
     }
-    return ManagedRegister::FromRegisterPair(R2_R3);
   } else {
     return
-      ManagedRegister::FromCoreRegister(kManagedArgumentRegisters[itr_position_]);
+      ManagedRegister::FromCoreRegister(kManagedArgumentRegisters[itr_slots_]);
   }
 }
 
 FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
-  CHECK_GE(itr_position_, 3u);
+  CHECK_GE(itr_slots_, 3u);
   return FrameOffset(displacement_.Int32Value() +
-                 ((itr_position_ + itr_longs_and_doubles_ - 3) * kPointerSize));
+             ((itr_slots_ - 3) * kPointerSize));
 }
 
 // JNI calling convention
@@ -72,37 +80,50 @@ bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {
   return true;
 }
 
+// JniCallingConvention ABI follows AAPCS
+//
+// In processing each parameter, we know that IsCurrentParamInRegister()
+// or IsCurrentParamOnStack() will be called first.
+// Both functions will ensure that we conform to AAPCS.
+//
 bool JniCallingConvention::IsCurrentParamInRegister() {
-  return (itr_position_ + itr_longs_and_doubles_) < 4;
+  // AAPCS processing
+  const Method* method = GetMethod();
+  int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
+  if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
+    // itr_slots_ needs to be an even number, according to AAPCS.
+    if (itr_slots_ & 0x1u) {
+      itr_slots_++;
+    }
+  }
+
+  return itr_slots_ < 4;
 }
 
 bool JniCallingConvention::IsCurrentParamOnStack() {
-  return (itr_position_ + itr_longs_and_doubles_) >= 4;
+  return !IsCurrentParamInRegister();
 }
 
 static const Register kJniArgumentRegisters[] = {
   R0, R1, R2, R3
 };
 ManagedRegister JniCallingConvention::CurrentParamRegister() {
-  CHECK_LT(itr_position_ + itr_longs_and_doubles_, 4u);
+  CHECK_LT(itr_slots_, 4u);
   const Method* method = GetMethod();
-  int arg_pos = itr_position_ - (method->IsStatic() ? 2 : 1);
-  if ((itr_position_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
-    // TODO: handle a long/double split between registers and the stack
-    if (itr_position_ != 2u) {
-      LOG(WARNING) << "Unimplemented";
-    }
+  int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
+  if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
+    CHECK_EQ(itr_slots_, 2u);
     return ManagedRegister::FromRegisterPair(R2_R3);
   } else {
     return
-      ManagedRegister::FromCoreRegister(kJniArgumentRegisters[itr_position_]);
+      ManagedRegister::FromCoreRegister(kJniArgumentRegisters[itr_slots_]);
   }
 }
 
 FrameOffset JniCallingConvention::CurrentParamStackOffset() {
-  CHECK_GE(itr_position_ + itr_longs_and_doubles_, 4u);
+  CHECK_GE(itr_slots_, 4u);
   return FrameOffset(displacement_.Int32Value() - OutArgSize()
-               + ((itr_position_ + itr_longs_and_doubles_ - 4) * kPointerSize));
+               + ((itr_slots_ - 4) * kPointerSize));
 }
 
 size_t JniCallingConvention::NumberOfOutgoingStackArgs() {

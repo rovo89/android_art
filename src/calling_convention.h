@@ -36,7 +36,8 @@ class CallingConvention {
   // below the one being iterated over.
   void ResetIterator(FrameOffset displacement) {
     displacement_ = displacement;
-    itr_position_ = 0;
+    itr_slots_ = 0;
+    itr_args_ = 0;
     itr_longs_and_doubles_ = 0;
   }
 
@@ -45,9 +46,13 @@ class CallingConvention {
                                                method_(method) {}
   const Method* GetMethod() const { return method_; }
 
-  // position along argument list
-  unsigned int itr_position_;
-  // number of longs and doubles seen along argument list
+  // The slot number for current calling_convention argument.
+  // Note that each slot is 32-bit. When the current argument is bigger
+  // than 32 bits, return the first slot number for this argument.
+  unsigned int itr_slots_;
+  // The argument number along argument list for current argument
+  unsigned int itr_args_;
+  // Number of longs and doubles seen along argument list
   unsigned int itr_longs_and_doubles_;
   // Space for frames below this on the stack
   FrameOffset displacement_;
@@ -70,7 +75,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   bool IsCurrentParamAReference();
   bool IsCurrentParamInRegister();
   bool IsCurrentParamOnStack();
-  bool IsCurrentParamPossiblyNull();
+  bool IsCurrentUserArg();
   size_t CurrentParamSize();
   ManagedRegister CurrentParamRegister();
   FrameOffset CurrentParamStackOffset();
@@ -149,6 +154,7 @@ class JniCallingConvention : public CallingConvention {
   // located
   size_t NumberOfOutgoingStackArgs();
 
+  static size_t NumberOfExtraArgumentsForJni(const Method* method);
   DISALLOW_COPY_AND_ASSIGN(JniCallingConvention);
 };
 

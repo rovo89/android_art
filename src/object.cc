@@ -291,7 +291,7 @@ uint32_t Method::NumArgRegisters() {
 // The number of reference arguments to this method including implicit this
 // pointer
 size_t Method::NumReferenceArgs() const {
-  size_t result = IsStatic() ? 0 : 1;
+  size_t result = IsStatic() ? 0 : 1;  // The implicit this pointer.
   for (int i = 1; i < shorty_.length(); i++) {
     if ((shorty_[i] == 'L') || (shorty_[i] == '[')) {
       result++;
