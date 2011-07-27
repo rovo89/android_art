@@ -75,13 +75,107 @@ class ClassLinkerTest : public RuntimeTest {
   }
 
   void AssertDexFileClass(const DexFile* dex, const char* descriptor) {
-    CHECK(descriptor != NULL);
+    ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindClass(descriptor, NULL, dex);
-    CHECK(klass != NULL);
+    ASSERT_TRUE(klass != NULL);
+    EXPECT_EQ(descriptor, klass->GetDescriptor());
+    if (klass->descriptor_ == "Ljava/lang/Object;") {
+        EXPECT_FALSE(klass->HasSuperClass());
+    } else {
+        EXPECT_TRUE(klass->HasSuperClass());
+        EXPECT_TRUE(klass->GetSuperClass() != NULL);
+    }
+    // EXPECT_TRUE(klass->GetClassLoader() != NULL); // TODO needs class loader
+    EXPECT_TRUE(klass->GetDexCache() != NULL);
+    EXPECT_TRUE(klass->GetComponentType() == NULL);
+    EXPECT_TRUE(klass->GetComponentType() == NULL);
+    EXPECT_EQ(Class::kStatusResolved, klass->GetStatus());
+    EXPECT_FALSE(klass->IsErroneous());
+    EXPECT_FALSE(klass->IsVerified());
+    EXPECT_TRUE(klass->IsLinked());
+    EXPECT_TRUE(klass->IsLoaded());
+    EXPECT_TRUE(klass->IsInSamePackage(klass));
+    EXPECT_TRUE(Class::IsInSamePackage(klass->GetDescriptor(), klass->GetDescriptor()));
+    if (klass->IsInterface()) {
+        EXPECT_TRUE(klass->IsAbstract());
+        if (klass->NumDirectMethods() == 1) {
+            EXPECT_EQ("<clinit>", klass->GetDirectMethod(0)->GetName());
+        } else {
+            EXPECT_EQ(0U, klass->NumDirectMethods());
+        }
+    } else {
+        if (!klass->IsSynthetic()) {
+            EXPECT_NE(0U, klass->NumDirectMethods());
+        }
+    }
+    if (klass->IsAbstract()) {
+        EXPECT_FALSE(klass->IsFinal());
+    } else {
+        EXPECT_FALSE(klass->IsAnnotation());
+    }
+    if (klass->IsFinal()) {
+        EXPECT_FALSE(klass->IsAbstract());
+        EXPECT_FALSE(klass->IsAnnotation());
+    }
+    if (klass->IsAnnotation()) {
+        EXPECT_FALSE(klass->IsFinal());
+        EXPECT_TRUE(klass->IsAbstract());
+    }
+
+    EXPECT_FALSE(klass->IsPrimitive());
+    EXPECT_TRUE(klass->CanAccess(klass));
+
+    for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
+        Method* method = klass->GetDirectMethod(i);
+        EXPECT_TRUE(method != NULL);
+    }
+
+    for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
+        Method* method = klass->GetVirtualMethod(i);
+        EXPECT_TRUE(method != NULL);
+    }
+
+    for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
+        InstanceField* field = klass->GetInstanceField(i);
+        EXPECT_TRUE(field != NULL);
+    }
+
+    for (size_t i = 0; i < klass->NumStaticFields(); i++) {
+        StaticField* field = klass->GetStaticField(i);
+        EXPECT_TRUE(field != NULL);
+    }
+
+    // Confirm that all instances fields are packed together at the start
+    EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
+    for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
+        InstanceField* field = klass->GetInstanceField(i);
+        ASSERT_TRUE(field != NULL);
+        ASSERT_TRUE(field->GetDescriptor() != NULL);
+        Class* fieldType = class_linker_->FindClass(field->GetDescriptor(), NULL, dex);
+        ASSERT_TRUE(fieldType != NULL);
+        EXPECT_FALSE(fieldType->IsPrimitive());
+    }
+    for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
+        InstanceField* field = klass->GetInstanceField(i);
+        ASSERT_TRUE(field != NULL);
+        ASSERT_TRUE(field->GetDescriptor() != NULL);
+        Class* fieldType = class_linker_->FindClass(field->GetDescriptor(), NULL, dex);
+        ASSERT_TRUE(fieldType != NULL);
+        EXPECT_TRUE(fieldType->IsPrimitive());
+    }
+
+    size_t total_num_reference_instance_fields = 0;
+    Class* k = klass;
+    while (k != NULL) {
+        total_num_reference_instance_fields += k->NumReferenceInstanceFields();
+        k = k->GetSuperClass();
+    }
+    EXPECT_EQ(klass->GetReferenceOffsets() == 0,
+              total_num_reference_instance_fields == 0);
   }
 
   void AssertDexFile(const DexFile* dex) {
-    CHECK(dex != NULL);
+    ASSERT_TRUE(dex != NULL);
     class_linker_->RegisterDexFile(dex);
     for (size_t i = 0; i < dex->NumClassDefs(); i++) {
       const DexFile::ClassDef class_def = dex->GetClassDef(i);
