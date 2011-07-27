@@ -82,6 +82,7 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_instruction_visitor_test.cc \
 	src/jni_compiler_test.cc.arm \
 	src/object_test.cc \
+	src/runtime_test.cc \
 	src/space_test.cc
 
 TEST_TARGET_SRC_FILES := \

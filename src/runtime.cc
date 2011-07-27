@@ -8,6 +8,7 @@
 
 #include "class_linker.h"
 #include "heap.h"
+#include "scoped_ptr.h"
 #include "thread.h"
 
 namespace art {
@@ -50,9 +51,61 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
+void ParseClassPath(const char* class_path, std::vector<std::string>* vec) {
+  CHECK(vec != NULL);
+  scoped_ptr_malloc<char> tmp(strdup(class_path));
+  char* full = tmp.get();
+  char* p = full;
+  while (p) {
+    p = strpbrk(full, ":");
+    if (p != NULL) {
+      p[0] = '\0';
+    }
+    if (full[0] != '\0') {
+      vec->push_back(std::string(full));
+    }
+    if (p) {
+      full = p + 1;
+    }
+  }
+}
+
+// TODO: move option processing elsewhere.
+const char* FindBootClassPath(const Runtime::Options& options) {
+  const char* boot_class_path = getenv("BOOTCLASSPATH");
+  const char* flag = "-Xbootclasspath:";
+  for (size_t i = 0; i < options.size(); ++i) {
+    const StringPiece& option = options[i].first;
+    if (option.starts_with(flag)) {
+      boot_class_path = option.substr(strlen(flag)).data();
+    }
+  }
+  if (boot_class_path == NULL) {
+    return "";
+  } else {
+    return boot_class_path;
+  }
+}
+
+void CreateBootClassPath(const Runtime::Options& options,
+                         std::vector<DexFile*>* boot_class_path) {
+  CHECK(boot_class_path != NULL);
+  const char* str = FindBootClassPath(options);
+  std::vector<std::string> parsed;
+  ParseClassPath(str, &parsed);
+  for (size_t i = 0; i < parsed.size(); ++i) {
+    DexFile* dex_file = DexFile::OpenFile(parsed[i].c_str());
+    if (dex_file != NULL) {
+      boot_class_path->push_back(dex_file);
+    }
+  }
+}
+
+// TODO: do something with ignore_unrecognized when we parse the option
+// strings for real.
 Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
-  // TODO: parse arguments
-  std::vector<DexFile*> boot_class_path;  // empty
+  std::vector<DexFile*> boot_class_path;
+  CreateBootClassPath(options, &boot_class_path);
   return Runtime::Create(boot_class_path);
 }
 

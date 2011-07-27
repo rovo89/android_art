@@ -4,22 +4,23 @@
 #define ART_SRC_RUNTIME_H_
 
 #include <vector>
+#include <utility>
 
 #include "globals.h"
 #include "macros.h"
-#include "dex_file.h"
 #include "stringpiece.h"
 
 namespace art {
 
 class ClassLinker;
+class DexFile;
 class Heap;
 class JniEnvironment;
 class ThreadList;
 
 class Runtime {
  public:
-  typedef std::vector<std::pair<const char*, void*> > Options;
+  typedef std::vector<std::pair<StringPiece, void*> > Options;
 
   // Creates and initializes a new runtime.
   static Runtime* Create(const Options& options, bool ignore_unrecognized);

@@ -8,6 +8,7 @@
 #include "mark_sweep.h"
 #include "object.h"
 #include "space.h"
+#include "scoped_ptr.h"
 #include "stl_util.h"
 
 namespace art {

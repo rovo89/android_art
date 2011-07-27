@@ -7,6 +7,8 @@
 
 #include "logging.h"
 #include "runtime.h"
+#include "scoped_ptr.h"
+#include "stringpiece.h"
 #include "thread.h"
 
 namespace art {
@@ -32,7 +34,8 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
   Runtime::Options options;
   for (int i = 0; i < args->nOptions; ++i) {
     JavaVMOption* option = &args->options[i];
-    options.push_back(std::make_pair(option->optionString, option->extraInfo));
+    options.push_back(std::make_pair(StringPiece(option->optionString),
+                                     option->extraInfo));
   }
   bool ignore_unrecognized = args->ignoreUnrecognized;
   scoped_ptr<Runtime> runtime(Runtime::Create(options, ignore_unrecognized));
