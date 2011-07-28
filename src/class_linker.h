@@ -23,21 +23,6 @@ class ClassLinker {
 
   ~ClassLinker() {}
 
-  // Alloc* convenience functions to avoid needing to pass in Class*
-  // values that are known to the ClassLinker such as
-  // object_array_class_ and java_lang_String_ etc.
-  DexCache* AllocDexCache();
-  Class* AllocClass(DexCache* dex_cache);
-  StaticField* AllocStaticField();
-  InstanceField* AllocInstanceField();
-  Method* AllocMethod();
-  String* AllocStringFromModifiedUtf8(int32_t utf16_length, const char* utf8_data_in);
-  template <class T>
-  ObjectArray<T>* AllocObjectArray(size_t length) {
-    return ObjectArray<T>::Alloc(object_array_class_, length);
-  }
-
-
   // Finds a class by its descriptor name.
   // If dex_file is null, searches boot_class_path_.
   Class* FindClass(const StringPiece& descriptor,
@@ -60,10 +45,31 @@ class ClassLinker {
 
   void RegisterDexFile(const DexFile* dex_file);
 
+  // TODO replace with heap interface
+  typedef void (RootVistor)(Object* root, void* arg);
+  void VisitRoots(RootVistor* rootVisitor, void* arg);
+
  private:
   ClassLinker() {}
 
   void Init(const std::vector<DexFile*>& boot_class_path_);
+
+  // For early bootstrapping by Init
+  Class* AllocClass(Class* java_lang_Class);
+
+  // Alloc* convenience functions to avoid needing to pass in Class*
+  // values that are known to the ClassLinker such as
+  // kObjectArrayClass and kJavaLangString etc.
+  Class* AllocClass();
+  DexCache* AllocDexCache();
+  StaticField* AllocStaticField();
+  InstanceField* AllocInstanceField();
+  Method* AllocMethod();
+  String* AllocStringFromModifiedUtf8(int32_t utf16_length, const char* utf8_data_in);
+  template <class T>
+  ObjectArray<T>* AllocObjectArray(size_t length) {
+    return ObjectArray<T>::Alloc(class_roots_->Get(kObjectArrayClass), length);
+  }
 
   Class* CreatePrimitiveClass(const StringPiece& descriptor);
 
@@ -168,35 +174,38 @@ class ClassLinker {
 
   // TODO: classpath
 
-  Class* java_lang_Class_;
-  Class* java_lang_Object_;
-  Class* java_lang_reflect_Field_;
-  Class* java_lang_reflect_Method_;
-  Class* java_lang_Cloneable_;
-  Class* java_io_Serializable_;
-  Class* java_lang_String_;
-
-  Class* primitive_boolean_;
-  Class* primitive_char_;
-  Class* primitive_float_;
-  Class* primitive_double_;
-  Class* primitive_byte_;
-  Class* primitive_short_;
-  Class* primitive_int_;
-  Class* primitive_long_;
-  Class* primitive_void_;
-
-  Class* char_array_class_;
-  Class* class_array_class_;
-  Class* object_array_class_;
-  Class* field_array_class_;
-  Class* method_array_class_;
+  // indexes into class_roots_
+  enum ClassRoots {
+    kJavaLangClass,
+    kJavaLangObject,
+    kJavaLangReflectField,
+    kJavaLangReflectMethod,
+    kJavaLangString,
+    kPrimitiveBoolean,
+    kPrimitiveChar,
+    kPrimitiveFloat,
+    kPrimitiveDouble,
+    kPrimitiveByte,
+    kPrimitiveShort,
+    kPrimitiveInt,
+    kPrimitiveLong,
+    kPrimitiveVoid,
+    kObjectArrayClass,
+    kCharArrayClass,
+    kClassRootsMax,
+  };
+  ObjectArray<Class>* class_roots_;
 
   ObjectArray<Class>* array_interfaces_;
   InterfaceEntry* array_iftable_;
 
+  bool init_done_;
+
   FRIEND_TEST(ClassLinkerTest, ProtoCompare);
   FRIEND_TEST(ClassLinkerTest, ProtoCompare2);
+  FRIEND_TEST(DexCacheTest, Open);
+  friend class ObjectTest;
+  FRIEND_TEST(ObjectTest, AllocObjectArray);
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 

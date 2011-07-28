@@ -34,6 +34,7 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_TRUE(primitive->IsPublic());
     EXPECT_TRUE(primitive->IsFinal());
     EXPECT_TRUE(primitive->IsPrimitive());
+    EXPECT_FALSE(primitive->IsSynthetic());
     EXPECT_EQ(0U, primitive->NumDirectMethods());
     EXPECT_EQ(0U, primitive->NumVirtualMethods());
     EXPECT_EQ(0U, primitive->NumInstanceFields());
@@ -66,6 +67,7 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
     EXPECT_TRUE(array->IsFinal());
     EXPECT_FALSE(array->IsPrimitive());
+    EXPECT_FALSE(array->IsSynthetic());
     EXPECT_EQ(0U, array->NumDirectMethods());
     EXPECT_EQ(0U, array->NumVirtualMethods());
     EXPECT_EQ(0U, array->NumInstanceFields());
@@ -173,6 +175,10 @@ class ClassLinkerTest : public RuntimeTest {
               total_num_reference_instance_fields == 0);
   }
 
+  static void TestRootVisitor(Object* root, void* arg) {
+    EXPECT_TRUE(root != NULL);
+  }
+
   void AssertDexFile(const DexFile* dex) {
     ASSERT_TRUE(dex != NULL);
     class_linker_->RegisterDexFile(dex);
@@ -181,6 +187,7 @@ class ClassLinkerTest : public RuntimeTest {
       const char* descriptor = dex->GetClassDescriptor(class_def);
       AssertDexFileClass(dex, descriptor);
     }
+    class_linker_->VisitRoots(TestRootVisitor, NULL);
   }
 };
 
@@ -238,6 +245,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(JavaLangObject->IsPublic());
   EXPECT_FALSE(JavaLangObject->IsFinal());
   EXPECT_FALSE(JavaLangObject->IsPrimitive());
+  EXPECT_FALSE(JavaLangObject->IsSynthetic());
   EXPECT_EQ(1U, JavaLangObject->NumDirectMethods());
   EXPECT_EQ(0U, JavaLangObject->NumVirtualMethods());
   EXPECT_EQ(0U, JavaLangObject->NumInstanceFields());
@@ -267,6 +275,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(MyClass->IsPublic());
   EXPECT_FALSE(MyClass->IsFinal());
   EXPECT_FALSE(MyClass->IsPrimitive());
+  EXPECT_FALSE(MyClass->IsSynthetic());
   EXPECT_EQ(1U, MyClass->NumDirectMethods());
   EXPECT_EQ(0U, MyClass->NumVirtualMethods());
   EXPECT_EQ(0U, MyClass->NumInstanceFields());

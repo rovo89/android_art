@@ -771,10 +771,12 @@ class Class : public Object {
   }
 
   Method* GetDirectMethod(uint32_t i) const {
+    DCHECK_NE(NumDirectMethods(), 0U);
     return direct_methods_->Get(i);
   }
 
   void SetDirectMethod(uint32_t i, Method* f) {  // TODO: uint16_t
+    DCHECK_NE(NumDirectMethods(), 0U);
     direct_methods_->Set(i, f);
   }
 
@@ -784,10 +786,12 @@ class Class : public Object {
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
+    DCHECK_NE(NumVirtualMethods(), 0U);
     return virtual_methods_->Get(i);
   }
 
   void SetVirtualMethod(uint32_t i, Method* f) {  // TODO: uint16_t
+    DCHECK_NE(NumVirtualMethods(), 0U);
     virtual_methods_->Set(i, f);
   }
 
@@ -801,10 +805,12 @@ class Class : public Object {
   }
 
   InstanceField* GetInstanceField(uint32_t i) {  // TODO: uint16_t
+    DCHECK_NE(NumInstanceFields(), 0U);
     return ifields_->Get(i);
   }
 
   void SetInstanceField(uint32_t i, InstanceField* f) {  // TODO: uint16_t
+    DCHECK_NE(NumInstanceFields(), 0U);
     ifields_->Set(i, f);
   }
 
@@ -813,10 +819,12 @@ class Class : public Object {
   }
 
   StaticField* GetStaticField(uint32_t i) const {  // TODO: uint16_t
+    DCHECK_NE(NumStaticFields(), 0U);
     return sfields_->Get(i);
   }
 
   void SetStaticField(uint32_t i, StaticField* f) {  // TODO: uint16_t
+    DCHECK_NE(NumStaticFields(), 0U);
     sfields_->Set(i, f);
   }
 
@@ -837,10 +845,12 @@ class Class : public Object {
   }
 
   Class* GetInterface(uint32_t i) const {
+    DCHECK_NE(NumInterfaces(), 0U);
     return interfaces_->Get(i);
   }
 
   void SetInterface(uint32_t i, Class* f) {  // TODO: uint16_t
+    DCHECK_NE(NumInterfaces(), 0U);
     interfaces_->Set(i, f);
   }
 

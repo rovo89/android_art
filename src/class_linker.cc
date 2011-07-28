@@ -28,68 +28,86 @@ ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path) {
 }
 
 void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
+  init_done_ = false;
 
-  // Allocate and partially initialize the Class, Object, Field, Method classes.
-  // Initialization will be completed when the definitions are loaded.
-  java_lang_Class_ = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
-  CHECK(java_lang_Class_ != NULL);
-  java_lang_Class_->descriptor_ = "Ljava/lang/Class;";
-  java_lang_Class_->object_size_ = sizeof(Class);
-  java_lang_Class_->klass_ = java_lang_Class_;
+  // java_lang_Class comes first, its needed for AllocClass
+  Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
+  CHECK(java_lang_Class != NULL);
+  java_lang_Class->descriptor_ = "Ljava/lang/Class;";
+  java_lang_Class->object_size_ = sizeof(Class);
+  java_lang_Class->klass_ = java_lang_Class;
+  // AllocClass(Class*) can now be used
 
-  java_lang_Object_ = AllocClass(NULL);
-  CHECK(java_lang_Object_ != NULL);
-  java_lang_Object_->descriptor_ = "Ljava/lang/Object;";
+  // java_lang_Object comes next so that object_array_class can be created
+  Class* java_lang_Object = AllocClass(java_lang_Class);
+  CHECK(java_lang_Object != NULL);
+  java_lang_Object->descriptor_ = "Ljava/lang/Object;";
+  // backfill Object as the super class of Class
+  java_lang_Class->super_class_ = java_lang_Object;
 
-  java_lang_Class_->super_class_ = java_lang_Object_;
+  // object_array_class is for root_classes to provide the storage for these classes
+  Class* object_array_class = AllocClass(java_lang_Class);
+  CHECK(object_array_class != NULL);
 
-  java_lang_reflect_Field_ = AllocClass(NULL);
-  CHECK(java_lang_reflect_Field_ != NULL);
-  java_lang_reflect_Field_->descriptor_ = "Ljava/lang/reflect/Field;";
+  // create storage for root classes, save away our work so far
+  class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
+  class_roots_->Set(kJavaLangClass, java_lang_Class);
+  class_roots_->Set(kJavaLangObject, java_lang_Object);
+  class_roots_->Set(kObjectArrayClass, object_array_class);
+  // now that these are registered, we can use AllocClass() and AllocObjectArray
 
-  java_lang_reflect_Method_ = AllocClass(NULL);
-  CHECK(java_lang_reflect_Method_ != NULL);
-  java_lang_reflect_Method_->descriptor_ = "Ljava/lang/reflect/Method;";
-
-  java_lang_String_ = AllocClass(NULL);
-  CHECK(java_lang_String_ != NULL);
-  java_lang_String_->descriptor_ = "Ljava/lang/String;";
-
-  // Allocate and initialize the primitive type classes.
-  primitive_byte_ = CreatePrimitiveClass("B");
-  primitive_char_ = CreatePrimitiveClass("C");
-  primitive_double_ = CreatePrimitiveClass("D");
-  primitive_float_ = CreatePrimitiveClass("F");
-  primitive_int_ = CreatePrimitiveClass("I");
-  primitive_long_ = CreatePrimitiveClass("J");
-  primitive_short_ = CreatePrimitiveClass("S");
-  primitive_boolean_ = CreatePrimitiveClass("Z");
-  primitive_void_ = CreatePrimitiveClass("V");
-
-  // object_array_class_ is needed to heap alloc DexCache instances
-  // created by AppendToBootClassPath below
-  object_array_class_ = AllocClass(NULL);
-  CHECK(object_array_class_ != NULL);
-
-  // setup boot_class_path_ so that the below array classes can be
-  // initialized using the normal FindSystemClass API
+  // setup boot_class_path_ now that we can use AllocObjectArray to
+  // DexCache instances
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
     AppendToBootClassPath(boot_class_path[i]);
   }
+  // now we can use FindSystemClass, at least for non-arrays classes.
 
-  // A single, global copy of "interfaces" and "iftable" for reuse across array classes
-  java_lang_Cloneable_ = AllocClass(NULL);
-  CHECK(java_lang_Cloneable_ != NULL);
-  java_lang_Cloneable_->descriptor_ = "Ljava/lang/Cloneable;";
+  // run Object and Class to setup their dex_cache_ fields and register them in classes_.
+  // we also override their object_size_ values to accommodate the extra C++ fields.
+  Class* Object_class = FindSystemClass(java_lang_Object->GetDescriptor());
+  CHECK_EQ(java_lang_Object, Object_class);
+  CHECK_LE(java_lang_Object->object_size_, sizeof(Object));
+  java_lang_Object->object_size_ = sizeof(Object);
+  Class* Class_class = FindSystemClass(java_lang_Class->GetDescriptor());
+  CHECK_EQ(java_lang_Class, Class_class);
+  CHECK_LE(java_lang_Class->object_size_, sizeof(Class));
+  java_lang_Class->object_size_ = sizeof(Class);
 
-  java_io_Serializable_ = AllocClass(NULL);
-  CHECK(java_io_Serializable_ != NULL);
-  java_io_Serializable_->descriptor_ = "Ljava/io/Serializable;";
+  // set special sizes for these C++ extended classes (Field, Method, String).
+  // we also remember them in class_roots_ to construct them within ClassLinker
+  Class* java_lang_reflect_Field = FindSystemClass("Ljava/lang/reflect/Field;");
+  CHECK(java_lang_reflect_Field != NULL);
+  CHECK_LE(java_lang_reflect_Field->object_size_, std::max(sizeof(StaticField), sizeof(InstanceField)));
+  java_lang_reflect_Field->object_size_ = std::max(sizeof(StaticField), sizeof(InstanceField));
+  class_roots_->Set(kJavaLangReflectField, java_lang_reflect_Field);
+
+  Class* java_lang_reflect_Method = FindSystemClass("Ljava/lang/reflect/Method;");
+  CHECK(java_lang_reflect_Method != NULL);
+  CHECK_LE(java_lang_reflect_Method->object_size_, sizeof(Method));
+  java_lang_reflect_Method->object_size_ = sizeof(Method);
+  class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
+
+  Class* java_lang_String = FindSystemClass("Ljava/lang/String;");
+  CHECK(java_lang_String != NULL);
+  CHECK_EQ(java_lang_String->object_size_, sizeof(String));
+  java_lang_String->object_size_ = sizeof(String);
+  class_roots_->Set(kJavaLangString, java_lang_String);
+
+  // Setup a single, global copy of "interfaces" and "iftable" for
+  // reuse across array classes
+  Class* java_lang_Cloneable = AllocClass();
+  CHECK(java_lang_Cloneable != NULL);
+  java_lang_Cloneable->descriptor_ = "Ljava/lang/Cloneable;";
+
+  Class* java_io_Serializable = AllocClass();
+  CHECK(java_io_Serializable != NULL);
+  java_io_Serializable->descriptor_ = "Ljava/io/Serializable;";
 
   array_interfaces_ = AllocObjectArray<Class>(2);
   CHECK(array_interfaces_ != NULL);
-  array_interfaces_->Set(0, java_lang_Cloneable_);
-  array_interfaces_->Set(1, java_io_Serializable_);
+  array_interfaces_->Set(0, java_lang_Cloneable);
+  array_interfaces_->Set(1, java_io_Serializable);
 
   // We assume that Cloneable/Serializable don't have superinterfaces --
   // normally we'd have to crawl up and explicitly list all of the
@@ -100,47 +118,87 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   memset(array_iftable_, 0, sizeof(InterfaceEntry) * 2);
   array_iftable_[0].SetClass(array_interfaces_->Get(0));
   array_iftable_[1].SetClass(array_interfaces_->Get(1));
+  // now FindClass can be used for non-primitive array classes
 
-  char_array_class_ = FindSystemClass("[C");
-  CHECK(char_array_class_ != NULL);
-  class_array_class_ = FindSystemClass("[Ljava/lang/Class;");
-  CHECK(class_array_class_ != NULL);
-  field_array_class_ = FindSystemClass("[Ljava/lang/reflect/Field;");
-  CHECK(field_array_class_ != NULL);
-  method_array_class_ = FindSystemClass("[Ljava/lang/reflect/Method;");
-  CHECK(method_array_class_ != NULL);
+  // run Object[] through FindClass to complete initialization
+  Class* Object_array_class = FindSystemClass("[Ljava/lang/Object;");
+  CHECK_EQ(object_array_class, Object_array_class);
 
+  // Setup the primitive type classes.
+  class_roots_->Set(kPrimitiveByte, CreatePrimitiveClass("B"));
+  class_roots_->Set(kPrimitiveChar, CreatePrimitiveClass("C"));
+  class_roots_->Set(kPrimitiveDouble, CreatePrimitiveClass("D"));
+  class_roots_->Set(kPrimitiveFloat, CreatePrimitiveClass("F"));
+  class_roots_->Set(kPrimitiveInt, CreatePrimitiveClass("I"));
+  class_roots_->Set(kPrimitiveLong, CreatePrimitiveClass("J"));
+  class_roots_->Set(kPrimitiveShort, CreatePrimitiveClass("S"));
+  class_roots_->Set(kPrimitiveBoolean, CreatePrimitiveClass("Z"));
+  class_roots_->Set(kPrimitiveVoid, CreatePrimitiveClass("V"));
+  // now we can use FindSystemClass for anything, including for "[C"
+
+  class_roots_->Set(kCharArrayClass, FindSystemClass("[C"));
+  // Now AllocString* can be used
+
+  // ensure all class_roots_ were initialized
+  for (size_t i = 0; i < kClassRootsMax; i++) {
+      CHECK(class_roots_->Get(i) != NULL);
+  }
+
+  // disable the slow paths in FindClass and CreatePrimitiveClass now
+  // that Object, Class, and Object[] are setup
+  init_done_ = true;
+}
+
+void ClassLinker::VisitRoots(RootVistor* rootVisitor, void* arg) {
+  for (size_t i = 0; i < kClassRootsMax; i++) {
+      rootVisitor(class_roots_->Get(i), arg);
+  }
+
+  for (size_t i = 0; i < dex_caches_.size(); i++) {
+      rootVisitor(dex_caches_[i], arg);
+  }
+
+  // TODO: acquire classes_lock_
+  typedef Table::const_iterator It; // TODO: C++0x auto
+  for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
+      rootVisitor(it->second, arg);
+  }
+  // TODO: release classes_lock_
+
+  rootVisitor(array_interfaces_, arg);
 }
 
 DexCache* ClassLinker::AllocDexCache() {
   return down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::kMax));
 }
 
-Class* ClassLinker::AllocClass(DexCache* dex_cache) {
-  Class* klass = down_cast<Class*>(Object::Alloc(java_lang_Class_));
-  klass->dex_cache_ = dex_cache;
-  return klass;
+Class* ClassLinker::AllocClass(Class* java_lang_Class) {
+  return down_cast<Class*>(Object::Alloc(java_lang_Class));
+}
+
+Class* ClassLinker::AllocClass() {
+  return AllocClass(class_roots_->Get(kJavaLangClass));
 }
 
 StaticField* ClassLinker::AllocStaticField() {
-  return down_cast<StaticField*>(Heap::AllocObject(java_lang_reflect_Field_,
+  return down_cast<StaticField*>(Heap::AllocObject(class_roots_->Get(kJavaLangReflectField),
                                                    sizeof(StaticField)));
 }
 
 InstanceField* ClassLinker::AllocInstanceField() {
-  return down_cast<InstanceField*>(Heap::AllocObject(java_lang_reflect_Field_,
+  return down_cast<InstanceField*>(Heap::AllocObject(class_roots_->Get(kJavaLangReflectField),
                                                      sizeof(InstanceField)));
 }
 
 Method* ClassLinker::AllocMethod() {
-  return down_cast<Method*>(Heap::AllocObject(java_lang_reflect_Method_,
+  return down_cast<Method*>(Heap::AllocObject(class_roots_->Get(kJavaLangReflectMethod),
                                               sizeof(Method)));
 }
 
 String* ClassLinker::AllocStringFromModifiedUtf8(int32_t utf16_length,
                                                  const char* utf8_data_in) {
-  return String::AllocFromModifiedUtf8(java_lang_String_,
-                                       char_array_class_,
+  return String::AllocFromModifiedUtf8(class_roots_->Get(kJavaLangString),
+                                       class_roots_->Get(kCharArrayClass),
                                        utf16_length,
                                        utf8_data_in);
 }
@@ -173,42 +231,19 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     const DexFile::ClassDef* dex_class_def = pair.second;
     DexCache* dex_cache = FindDexCache(dex_file);
     // Load the class from the dex file.
-    // TODO add fast path to avoid all these comparisons once special cases are found
-    if (descriptor == "Ljava/lang/Object;") {
-      klass = java_lang_Object_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = sizeof(Object);
-      char_array_class_->super_class_idx_ = dex_class_def->class_idx_;
-    } else if (descriptor == "Ljava/lang/Class;") {
-      klass = java_lang_Class_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = sizeof(Class);
-    } else if (descriptor == "Ljava/lang/reflect/Field;") {
-      klass = java_lang_reflect_Field_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = sizeof(Field);
-    } else if (descriptor == "Ljava/lang/reflect/Method;") {
-      klass = java_lang_reflect_Method_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = sizeof(Method);
-    } else if (descriptor == "Ljava/lang/String;") {
-      klass = java_lang_String_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = sizeof(String);
-    } else if (descriptor == "Ljava/lang/Cloneable;") {
-      klass = java_lang_Cloneable_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = 0;
-    } else if (descriptor == "Ljava/io/Serializable;") {
-      klass = java_io_Serializable_;
-      klass->dex_cache_ = dex_cache;
-      klass->object_size_ = 0;
+    if (!init_done_) {
+      // finish up init of hand crafted class_roots_
+      if (descriptor == "Ljava/lang/Object;") {
+        klass = class_roots_->Get(kJavaLangObject);
+      } else if (descriptor == "Ljava/lang/Class;") {
+        klass = class_roots_->Get(kJavaLangClass);
+      } else {
+        klass = AllocClass();
+      }
     } else {
-      klass = AllocClass(dex_cache);
-      // LinkInstanceFields only will update object_size_ if it is 0
-      // to avoid overwriting the special initialized cases above.
-      klass->object_size_ = 0;
+      klass = AllocClass();
     }
+    klass->dex_cache_ = dex_cache;
     LoadClass(*dex_file, *dex_class_def, klass);
     // Check for a pending exception during load
     if (self->IsExceptionPending()) {
@@ -270,7 +305,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   const char* descriptor = dex_file.GetClassDescriptor(dex_class_def);
   CHECK(descriptor != NULL);
 
-  klass->klass_ = java_lang_Class_;
+  klass->klass_ = class_roots_->Get(kJavaLangClass);
   klass->descriptor_.set(descriptor);
   klass->descriptor_alloc_ = NULL;
   klass->access_flags_ = dex_class_def.access_flags_;
@@ -461,7 +496,7 @@ DexCache* ClassLinker::FindDexCache(const DexFile* dex_file) const {
 }
 
 Class* ClassLinker::CreatePrimitiveClass(const StringPiece& descriptor) {
-  Class* klass = AllocClass(NULL);
+  Class* klass = AllocClass();
   CHECK(klass != NULL);
   klass->super_class_ = NULL;
   klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
@@ -469,7 +504,7 @@ Class* ClassLinker::CreatePrimitiveClass(const StringPiece& descriptor) {
   klass->descriptor_alloc_ = NULL;
   klass->status_ = Class::kStatusInitialized;
   bool success = InsertClass(klass);
-  CHECK(success);
+  CHECK(success) << "CreatePrimitiveClass(" << descriptor << ") failed";
   return klass;
 }
 
@@ -491,8 +526,6 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
                                      const DexFile* dex_file)
 {
     CHECK(descriptor[0] == '[');
-    DCHECK(java_lang_Class_ != NULL);
-    DCHECK(java_lang_Object_ != NULL);
 
     // Identify the underlying element class and the array dimension depth.
     Class* component_type_ = NULL;
@@ -558,12 +591,13 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     // Array classes are simple enough that we don't need to do a full
     // link step.
 
-    Class* new_class;
-    if (descriptor == "[Ljava/lang/Object;") {
-      CHECK(object_array_class_);
-      new_class = object_array_class_;
-    } else {
-      new_class = AllocClass(NULL);
+    Class* new_class = NULL;
+    if (!init_done_ && descriptor == "[Ljava/lang/Object;") {
+        new_class = class_roots_->Get(kObjectArrayClass);
+        CHECK(new_class);
+    }
+    if (new_class == NULL) {
+      new_class = AllocClass();
       if (new_class == NULL) {
         return NULL;
       }
@@ -572,8 +606,9 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
                                                    descriptor.size());
     new_class->descriptor_.set(new_class->descriptor_alloc_->data(),
                                new_class->descriptor_alloc_->size());
-    new_class->super_class_ = java_lang_Object_;
-    new_class->vtable_ = java_lang_Object_->vtable_;
+    Class* java_lang_Object = class_roots_->Get(kJavaLangObject);
+    new_class->super_class_ = java_lang_Object;
+    new_class->vtable_ = java_lang_Object->vtable_;
     new_class->primitive_type_ = Class::kPrimNot;
     new_class->component_type_ = component_type_;
     new_class->class_loader_ = component_type_->class_loader_;
@@ -628,32 +663,32 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
 Class* ClassLinker::FindPrimitiveClass(char type) {
   switch (type) {
     case 'B':
-      CHECK(primitive_byte_ != NULL);
-      return primitive_byte_;
+      DCHECK(class_roots_->Get(kPrimitiveByte) != NULL);
+      return class_roots_->Get(kPrimitiveByte);
     case 'C':
-      CHECK(primitive_char_ != NULL);
-      return primitive_char_;
+      DCHECK(class_roots_->Get(kPrimitiveChar) != NULL);
+      return class_roots_->Get(kPrimitiveChar);
     case 'D':
-      CHECK(primitive_double_ != NULL);
-      return primitive_double_;
+      DCHECK(class_roots_->Get(kPrimitiveDouble) != NULL);
+      return class_roots_->Get(kPrimitiveDouble);
     case 'F':
-      CHECK(primitive_float_ != NULL);
-      return primitive_float_;
+      DCHECK(class_roots_->Get(kPrimitiveFloat) != NULL);
+      return class_roots_->Get(kPrimitiveFloat);
     case 'I':
-      CHECK(primitive_int_ != NULL);
-      return primitive_int_;
+      DCHECK(class_roots_->Get(kPrimitiveInt) != NULL);
+      return class_roots_->Get(kPrimitiveInt);
     case 'J':
-      CHECK(primitive_long_ != NULL);
-      return primitive_long_;
+      DCHECK(class_roots_->Get(kPrimitiveLong) != NULL);
+      return class_roots_->Get(kPrimitiveLong);
     case 'S':
-      CHECK(primitive_short_ != NULL);
-      return primitive_short_;
+      DCHECK(class_roots_->Get(kPrimitiveShort) != NULL);
+      return class_roots_->Get(kPrimitiveShort);
     case 'Z':
-      CHECK(primitive_boolean_ != NULL);
-      return primitive_boolean_;
+      DCHECK(class_roots_->Get(kPrimitiveBoolean) != NULL);
+      return class_roots_->Get(kPrimitiveBoolean);
     case 'V':
-      CHECK(primitive_void_ != NULL);
-      return primitive_void_;
+      DCHECK(class_roots_->Get(kPrimitiveVoid) != NULL);
+      return class_roots_->Get(kPrimitiveVoid);
     case 'L':
     case '[':
       LOG(ERROR) << "Not a primitive type " << static_cast<int>(type);
@@ -1426,11 +1461,7 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
     DCHECK_EQ(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
   }
 #endif
-
-  if (klass->object_size_ == 0) {
-    // avoid overwriting object_size_ of special crafted classes such as java_lang_*_
-    klass->object_size_ = field_offset;
-  }
+  klass->object_size_ = field_offset;
   return true;
 }
 
