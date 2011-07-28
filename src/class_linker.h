@@ -47,7 +47,7 @@ class ClassLinker {
 
   // TODO replace with heap interface
   typedef void (RootVistor)(Object* root, void* arg);
-  void VisitRoots(RootVistor* rootVisitor, void* arg);
+  void VisitRoots(RootVistor* root_visitor, void* arg);
 
  private:
   ClassLinker() {}

@@ -149,23 +149,21 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   init_done_ = true;
 }
 
-void ClassLinker::VisitRoots(RootVistor* rootVisitor, void* arg) {
-  for (size_t i = 0; i < kClassRootsMax; i++) {
-      rootVisitor(class_roots_->Get(i), arg);
-  }
+void ClassLinker::VisitRoots(RootVistor* root_visitor, void* arg) {
+  root_visitor(class_roots_, arg);
 
   for (size_t i = 0; i < dex_caches_.size(); i++) {
-      rootVisitor(dex_caches_[i], arg);
+      root_visitor(dex_caches_[i], arg);
   }
 
   // TODO: acquire classes_lock_
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
-      rootVisitor(it->second, arg);
+      root_visitor(it->second, arg);
   }
   // TODO: release classes_lock_
 
-  rootVisitor(array_interfaces_, arg);
+  root_visitor(array_interfaces_, arg);
 }
 
 DexCache* ClassLinker::AllocDexCache() {
