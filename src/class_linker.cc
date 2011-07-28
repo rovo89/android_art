@@ -137,6 +137,14 @@ Method* ClassLinker::AllocMethod() {
                                               sizeof(Method)));
 }
 
+String* ClassLinker::AllocStringFromModifiedUtf8(int32_t utf16_length,
+                                                 const char* utf8_data_in) {
+  return String::AllocFromModifiedUtf8(java_lang_String_,
+                                       char_array_class_,
+                                       utf16_length,
+                                       utf8_data_in);
+}
+
 Class* ClassLinker::FindClass(const StringPiece& descriptor,
                               Object* class_loader,
                               const DexFile* dex_file) {
@@ -1497,10 +1505,9 @@ String* ClassLinker::ResolveString(const Class* referring,
                                    uint32_t string_idx) {
   const DexFile* dex_file = FindDexFile(referring->GetDexCache());
   const DexFile::StringId& string_id = dex_file->GetStringId(string_idx);
-  const char* string_data = dex_file->GetStringData(string_id);
-  String* new_string = String::AllocFromModifiedUtf8(java_lang_String_,
-                                                     char_array_class_,
-                                                     string_data);
+  int32_t utf16_length = dex_file->GetStringLength(string_id);
+  const char* utf8_data = dex_file->GetStringData(string_id);
+  String* new_string = AllocStringFromModifiedUtf8(utf16_length, utf8_data);
   // TODO: intern the new string
   referring->GetDexCache()->SetResolvedString(string_idx, new_string);
   return new_string;
