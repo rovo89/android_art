@@ -398,18 +398,44 @@ TEST_F(ClassLinkerTest, LibCore) {
   AssertDexFile(libcore_dex_file.get());
 }
 
-// C++ fields must exactly match the fields in the Java class. If this fails,
+// C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkInstanceFields.
-TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaLangString) {
-  scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
-  EXPECT_TRUE(libcore_dex_file.get() != NULL); // Passes on host only until we have DexFile::OpenJar
-  class_linker_->RegisterDexFile(libcore_dex_file.get());
-  Class* string = class_linker_->FindClass( "Ljava/lang/String;", NULL, libcore_dex_file.get());
+TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
+  UseLibCoreDex();
+  Class* string = class_linker_->FindClass( "Ljava/lang/String;", NULL, java_lang_dex_file_.get());
+  ASSERT_EQ(4U, string->NumInstanceFields());
   EXPECT_EQ("value",    string->GetInstanceField(0)->GetName());
   EXPECT_EQ("hashCode", string->GetInstanceField(1)->GetName());
   EXPECT_EQ("offset",   string->GetInstanceField(2)->GetName());
   EXPECT_EQ("count",    string->GetInstanceField(3)->GetName());
+
+  Class* accessible_object = class_linker_->FindClass("Ljava/lang/reflect/AccessibleObject;", NULL, java_lang_dex_file_.get());
+  ASSERT_EQ(1U, accessible_object->NumInstanceFields());
+  EXPECT_EQ("flag", accessible_object->GetInstanceField(0)->GetName());
+
+  Class* field = class_linker_->FindClass("Ljava/lang/reflect/Field;", NULL, java_lang_dex_file_.get());
+  ASSERT_EQ(6U, field->NumInstanceFields());
+  EXPECT_EQ("declaringClass",             field->GetInstanceField(0)->GetName());
+  EXPECT_EQ("genericType",                field->GetInstanceField(1)->GetName());
+  EXPECT_EQ("type",                       field->GetInstanceField(2)->GetName());
+  EXPECT_EQ("name",                       field->GetInstanceField(3)->GetName());
+  EXPECT_EQ("slot",                       field->GetInstanceField(4)->GetName());
+  EXPECT_EQ("genericTypesAreInitialized", field->GetInstanceField(5)->GetName());
+
+  Class* method = class_linker_->FindClass("Ljava/lang/reflect/Method;", NULL, java_lang_dex_file_.get());
+  ASSERT_EQ(11U, method->NumInstanceFields());
+  EXPECT_EQ("declaringClass",             method->GetInstanceField( 0)->GetName());
+  EXPECT_EQ("exceptionTypes",             method->GetInstanceField( 1)->GetName());
+  EXPECT_EQ("formalTypeParameters",       method->GetInstanceField( 2)->GetName());
+  EXPECT_EQ("genericExceptionTypes",      method->GetInstanceField( 3)->GetName());
+  EXPECT_EQ("genericParameterTypes",      method->GetInstanceField( 4)->GetName());
+  EXPECT_EQ("genericReturnType",          method->GetInstanceField( 5)->GetName());
+  EXPECT_EQ("returnType",                 method->GetInstanceField( 6)->GetName());
+  EXPECT_EQ("name",                       method->GetInstanceField( 7)->GetName());
+  EXPECT_EQ("parameterTypes",             method->GetInstanceField( 8)->GetName());
+  EXPECT_EQ("genericTypesAreInitialized", method->GetInstanceField( 9)->GetName());
+  EXPECT_EQ("slot",                       method->GetInstanceField(10)->GetName());
 }
 
 }  // namespace art

@@ -211,6 +211,18 @@ class RuntimeTest : public testing::Test {
     return DexFile::OpenFile(libcore_dex_file_name.c_str());
   }
 
+  void UseLibCoreDex() {
+    delete runtime_.release();
+    java_lang_dex_file_.reset(GetLibCoreDex());
+
+    std::vector<DexFile*> boot_class_path;
+    boot_class_path.push_back(java_lang_dex_file_.get());
+
+    runtime_.reset(Runtime::Create(boot_class_path));
+    ASSERT_TRUE(runtime_ != NULL);
+    class_linker_ = runtime_->GetClassLinker();
+  }
+
   bool is_host_;
   scoped_ptr<DexFile> java_lang_dex_file_;
   scoped_ptr<Runtime> runtime_;

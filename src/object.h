@@ -23,6 +23,7 @@ class InterfaceEntry;
 class Monitor;
 class Method;
 class Object;
+class String;
 template<class T> class ObjectArray;
 class StaticField;
 
@@ -244,7 +245,13 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
-class Field : public Object {
+class AccessibleObject : public Object {
+ private:
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  uint32_t java_flag_;
+};
+
+class Field : public AccessibleObject {
  public:
   Class* GetDeclaringClass() const {
     return declaring_class_;
@@ -263,16 +270,13 @@ class Field : public Object {
   }
 
  public:  // TODO: private
-#define FIELD_FIELD_SLOTS 1+6
-  // AccessibleObject #0 flag
-  // Field #0 declaringClass
-  // Field #1 genericType
-  // Field #2 genericTypesAreInitialized
-  // Field #3 name
-  // Field #4 slot
-  // Field #5 type
-  uint32_t instance_data_[FIELD_FIELD_SLOTS];
-#undef FIELD_FIELD_SLOTS
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  Class* java_declaring_class_;
+  Object* java_generic_type_;
+  uint32_t java_generic_types_are_initialized_;
+  String* java_name_;
+  uint32_t java_slot_;
+  Class* java_type_;
 
   // The class in which this field is declared.
   Class* declaring_class_;
@@ -371,7 +375,7 @@ class StaticField : public Field {
   StaticField();
 };
 
-class Method : public Object {
+class Method : public AccessibleObject {
  public:
   // Returns the method name, e.g. "<init>" or "eatLunch"
   const StringPiece& GetName() const {
@@ -435,21 +439,18 @@ class Method : public Object {
   uint32_t NumArgRegisters();
 
  public:  // TODO: private
-#define METHOD_FIELD_SLOTS 1+11
-  // AccessibleObject #0 flag
-  // Method #0  declaringClass
-  // Method #1  exceptionTypes
-  // Method #2  formalTypeParameters
-  // Method #3  genericExceptionTypes
-  // Method #4  genericParameterTypes
-  // Method #5  genericReturnType
-  // Method #6  genericTypesAreInitialized
-  // Method #7  name
-  // Method #8  parameterTypes
-  // Method #9  returnType
-  // Method #10 slot
-  uint32_t instance_data_[METHOD_FIELD_SLOTS];
-#undef METHOD_FIELD_SLOTS
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  Class* java_declaring_class_;
+  ObjectArray<Class>* java_exception_types_;
+  Object* java_formal_type_parameters_;
+  Object* java_generic_exception_types_;
+  Object* java_generic_parameter_types_;
+  Object* java_generic_return_type_;
+  Class* java_return_type_;
+  String* java_name_;
+  ObjectArray<Class>* java_parameter_types_;
+  uint32_t java_generic_types_are_initialized_;
+  uint32_t java_slot_;
 
   bool IsReturnAReference() const {
     return (shorty_[0] == 'L') || (shorty_[0] == '[');
@@ -1053,7 +1054,7 @@ class String : public Object {
   }
 
  public: // TODO: private
-  // Field order required by test "ValidateFieldOrderOfJavaLangString".
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
 
   uint32_t hash_code_;
