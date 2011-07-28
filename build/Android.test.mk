@@ -14,6 +14,9 @@
 # limitations under the License.
 #
 
+ART_HOST_TEST_EXECUTABLES :=
+ART_TARGET_TEST_EXECUTABLES :=
+
 # $(1): target or host
 # $(2): file name with .cc or .cc.arm extension
 define build-art-test
@@ -27,7 +30,7 @@ define build-art-test
   LOCAL_SRC_FILES := $(2)
   LOCAL_CFLAGS := $(ART_CFLAGS)
   LOCAL_C_INCLUDES += external/gtest/include
-  LOCAL_SHARED_LIBRARIES := libarttest libart
+  LOCAL_SHARED_LIBRARIES := libarttest libartd
   ifeq ($(1),target)
     LOCAL_SHARED_LIBRARIES += libstlport
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
@@ -38,6 +41,11 @@ define build-art-test
     include $(BUILD_EXECUTABLE)
   else
     include $(BUILD_HOST_EXECUTABLE)
+  endif
+  ifeq ($(1),target)
+    ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+  else
+    ART_HOST_TEST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   endif
 endef
 

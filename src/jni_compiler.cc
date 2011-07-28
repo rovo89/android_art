@@ -147,7 +147,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   jni_conv.ResetIterator(FrameOffset(out_arg_size));
   jni_conv.Next();  // Skip JNIEnv*
   if (is_static) {
-    jni_conv.Next(); // Skip Class for now
+    jni_conv.Next();  // Skip Class for now
   }
   while (mr_conv.HasNext()) {
     CHECK(jni_conv.HasNext());

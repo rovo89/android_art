@@ -33,7 +33,11 @@ define build-aexec
   ifeq ($(2),debug)
     LOCAL_CFLAGS += -UNDEBUG
   endif
-  LOCAL_SHARED_LIBRARIES := libart
+  ifeq ($(2),ndebug)
+    LOCAL_SHARED_LIBRARIES := libart
+  else
+    LOCAL_SHARED_LIBRARIES := libartd
+  endif
   ifeq ($(1),target)
     LOCAL_SHARED_LIBRARIES += libstlport
   endif

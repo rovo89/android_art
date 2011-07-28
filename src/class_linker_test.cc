@@ -85,7 +85,7 @@ class ClassLinkerTest : public RuntimeTest {
         EXPECT_TRUE(klass->HasSuperClass());
         EXPECT_TRUE(klass->GetSuperClass() != NULL);
     }
-    // EXPECT_TRUE(klass->GetClassLoader() != NULL); // TODO needs class loader
+    // EXPECT_TRUE(klass->GetClassLoader() != NULL);  // TODO needs class loader
     EXPECT_TRUE(klass->GetDexCache() != NULL);
     EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->GetComponentType() == NULL);

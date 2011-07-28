@@ -521,7 +521,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
 
     if (component_type_ == NULL) {
         // failed
-        DCHECK(Thread::Current()->IsExceptionPending());
+        // DCHECK(Thread::Current()->IsExceptionPending());  // TODO
         return NULL;
     }
 

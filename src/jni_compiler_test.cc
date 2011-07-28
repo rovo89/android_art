@@ -42,21 +42,21 @@ class JniCompilerTest : public RuntimeTest {
     thk_asm.ret();
 #elif defined(__arm__)
     thk_asm.AddConstant(SP, -32);         // Build frame
-    thk_asm.StoreToOffset(kStoreWord, LR, SP, 28); // Spill link register
-    thk_asm.StoreToOffset(kStoreWord, R9, SP, 24); // Spill R9
-    thk_asm.mov(R12, ShifterOperand(R0)); // R12 = method->GetCode()
-    thk_asm.mov(R0,  ShifterOperand(R1)); // R0  = method
-    thk_asm.mov(R9,  ShifterOperand(R2)); // R9  = Thread::Current()
-    thk_asm.mov(R1,  ShifterOperand(R3)); // R1  = arg1 (jint/jlong low)
-    thk_asm.LoadFromOffset(kLoadWord, R3, SP, 44); // R3 = arg5 (pad/jlong high)
+    thk_asm.StoreToOffset(kStoreWord, LR, SP, 28);  // Spill link register
+    thk_asm.StoreToOffset(kStoreWord, R9, SP, 24);  // Spill R9
+    thk_asm.mov(R12, ShifterOperand(R0));  // R12 = method->GetCode()
+    thk_asm.mov(R0,  ShifterOperand(R1));  // R0  = method
+    thk_asm.mov(R9,  ShifterOperand(R2));  // R9  = Thread::Current()
+    thk_asm.mov(R1,  ShifterOperand(R3));  // R1  = arg1 (jint/jlong low)
+    thk_asm.LoadFromOffset(kLoadWord, R3, SP, 44);  // R3 = arg5 (pad/jlong high)
     thk_asm.StoreToOffset(kStoreWord, R3, SP, 4);
-    thk_asm.LoadFromOffset(kLoadWord, R3, SP, 40); // R3 = arg4 (jint/jlong low)
+    thk_asm.LoadFromOffset(kLoadWord, R3, SP, 40);  // R3 = arg4 (jint/jlong low)
     thk_asm.StoreToOffset(kStoreWord, R3, SP, 0);
-    thk_asm.LoadFromOffset(kLoadWord, R3, SP, 36); // R3 = arg3 (jint/jlong high)
-    thk_asm.LoadFromOffset(kLoadWord, R2, SP, 32); // R2 = arg2 (jint/jlong high)
+    thk_asm.LoadFromOffset(kLoadWord, R3, SP, 36);  // R3 = arg3 (jint/jlong high)
+    thk_asm.LoadFromOffset(kLoadWord, R2, SP, 32);  // R2 = arg2 (jint/jlong high)
     thk_asm.blx(R12);                     // Branch and link R12
-    thk_asm.LoadFromOffset(kLoadWord, LR, SP, 28); // Fill link register
-    thk_asm.LoadFromOffset(kLoadWord, R9, SP, 24); // Fill R9
+    thk_asm.LoadFromOffset(kLoadWord, LR, SP, 28);  // Fill link register
+    thk_asm.LoadFromOffset(kLoadWord, R9, SP, 24);  // Fill R9
     thk_asm.AddConstant(SP, 32);          // Remove frame
     thk_asm.mov(PC, ShifterOperand(LR));  // Return
 #else

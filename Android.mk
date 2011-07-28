@@ -30,9 +30,9 @@ include $(build_path)/Android.test.mk
 .PHONY: build-art
 build-art: \
     $(TARGET_OUT_EXECUTABLES)/aexec \
-    $(foreach file,$(TEST_TARGET_SRC_FILES),$(TARGET_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%)))) \
+    $(ART_TARGET_TEST_EXECUTABLES) \
     $(HOST_OUT_EXECUTABLES)/aexec \
-    $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%)))) \
+    $(ART_HOST_TEST_EXECUTABLES) \
 #
 
 # "mm test-art" to build and run all tests on host and device
@@ -41,17 +41,17 @@ test-art: test-art-host test-art-target
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: $(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))))
-	$(foreach file,$(TEST_HOST_SRC_FILES),$(HOST_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))) &&) true
+test-art-host: $(ART_HOST_TEST_EXECUTABLES)
+	$(foreach file,$(ART_HOST_TEST_EXECUTABLES),$(file) &&) true
 
 # "mm test-art-device" to build and run all target tests
 .PHONY: test-art-target
-test-art-target: $(foreach file,$(TEST_TARGET_SRC_FILES),$(TARGET_OUT_EXECUTABLES)/$(notdir $(basename $(file:%.arm=%))))
+test-art-target: $(ART_TARGET_TEST_EXECUTABLES)
 	adb remount
 	adb sync
 	adb shell touch /sdcard/test-art-target
 	adb shell rm /sdcard/test-art-target
-	adb shell sh -c "$(foreach file,$(TEST_TARGET_SRC_FILES), /system/bin/$(notdir $(basename $(file:%.arm=%))) &&) touch /sdcard/test-art-target"
+	adb shell sh -c "$(foreach file,$(ART_TARGET_TEST_EXECUTABLES), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target"
 	adb pull /sdcard/test-art-target /tmp/
 	rm /tmp/test-art-target
 
