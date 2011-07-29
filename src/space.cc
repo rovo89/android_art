@@ -46,7 +46,7 @@ bool Space::Init() {
   if (!(startup_size_ <= maximum_size_)) {
     return false;
   }
-  size_t length = RoundUp(maximum_size_, 4096);
+  size_t length = RoundUp(maximum_size_, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
   void* base = mmap(NULL, length, prot, flags, -1, 0);
@@ -103,8 +103,8 @@ size_t Space::AllocationSize(const Object* obj) {
 }
 
 void Space::DontNeed(void* start, void* end, void* num_bytes) {
-  start = (void*)RoundUp((uintptr_t)start, 4096);
-  end = (void*)RoundDown((uintptr_t)end, 4096);
+  start = (void*)RoundUp((uintptr_t)start, kPageSize);
+  end = (void*)RoundDown((uintptr_t)end, kPageSize);
   if (start >= end) {
     return;
   }

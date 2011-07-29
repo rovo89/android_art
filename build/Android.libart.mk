@@ -37,7 +37,7 @@ define build-libart
   ifeq ($(2),debug)
     LOCAL_CFLAGS += -UNDEBUG
   endif
-  LOCAL_C_INCLUDES += src external/gtest/include
+  LOCAL_C_INCLUDES += src $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := liblog
   ifeq ($(1),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz

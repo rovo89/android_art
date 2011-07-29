@@ -126,6 +126,7 @@ Runtime* Runtime::Create(const std::vector<DexFile*>& boot_class_path) {
 }
 
 bool Runtime::Init(const std::vector<DexFile*>& boot_class_path) {
+  CHECK_EQ(kPageSize, sysconf(_SC_PAGE_SIZE));
   thread_list_ = ThreadList::Create();
   Heap::Init(Heap::kStartupSize, Heap::kMaximumSize);
   Thread::Init();

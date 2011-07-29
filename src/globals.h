@@ -32,6 +32,8 @@ const int kBitsPerPointer = kPointerSize * kBitsPerByte;
 const int kBitsPerWord = kWordSize * kBitsPerByte;
 const int kBitsPerInt = kIntSize * kBitsPerByte;
 
+const int kPageSize = 4096;
+
 }  // namespace art
 
 #endif  // ART_SRC_GLOBALS_H_

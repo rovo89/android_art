@@ -19,7 +19,7 @@ class JniCompilerTest : public RuntimeTest {
   virtual void SetUp() {
     RuntimeTest::SetUp();
     // Create thunk code that performs the native to managed transition
-    thunk_code_size_ = 4096;
+    thunk_code_size_ = kPageSize;
     thunk_ = mmap(NULL, thunk_code_size_, PROT_READ | PROT_WRITE | PROT_EXEC,
                   MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
     CHECK_NE(MAP_FAILED, thunk_);

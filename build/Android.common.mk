@@ -16,6 +16,8 @@
 
 ART_CPP_EXTENSION := .cc
 
+ART_C_INCLUDES := external/gtest/include external/zlib
+
 ART_CFLAGS := \
 	-O0 \
 	-ggdb3 \
@@ -52,7 +54,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/space.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
-	src/thread.cc
+	src/thread.cc \
+	src/zip_archive.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -83,7 +86,8 @@ TEST_COMMON_SRC_FILES := \
 	src/jni_compiler_test.cc.arm \
 	src/object_test.cc \
 	src/runtime_test.cc \
-	src/space_test.cc
+	src/space_test.cc \
+	src/zip_archive_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \

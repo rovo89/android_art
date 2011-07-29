@@ -164,7 +164,7 @@ class ClassLinker {
 
   std::vector<DexCache*> dex_caches_;
 
-  // TODO: multimap
+  // TODO: unordered_multimap
   typedef std::map<const StringPiece, Class*> Table;
 
   Table classes_;

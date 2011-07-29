@@ -41,12 +41,12 @@ test-art: test-art-host test-art-target
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: $(ART_HOST_TEST_EXECUTABLES)
+test-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
 	$(foreach file,$(ART_HOST_TEST_EXECUTABLES),$(file) &&) true
 
 # "mm test-art-device" to build and run all target tests
 .PHONY: test-art-target
-test-art-target: $(ART_TARGET_TEST_EXECUTABLES)
+test-art-target: $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar
 	adb remount
 	adb sync
 	adb shell touch /sdcard/test-art-target

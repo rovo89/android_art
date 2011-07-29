@@ -368,7 +368,7 @@ void* JniCompiler::AllocateCode(size_t size) {
 JniCompiler::JniCompiler() {
   // TODO: this shouldn't be managed by the JniCompiler, we should have a
   // code cache.
-  jni_code_size_ = 4096;
+  jni_code_size_ = kPageSize;
   jni_code_ = static_cast<byte*>(mmap(NULL, jni_code_size_,
                                       PROT_READ | PROT_WRITE | PROT_EXEC,
                                       MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));

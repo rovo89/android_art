@@ -1,5 +1,9 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "base64.h"
 #include "heap.h"
 #include "thread.h"
@@ -189,6 +193,17 @@ class RuntimeTest : public testing::Test {
   virtual void SetUp() {
     is_host_ = getenv("ANDROID_BUILD_TOP") != NULL;
 
+    android_data_.reset(strdup(is_host_ ? "/tmp/art-data-XXXXXX" : "/sdcard/art-data-XXXXXX"));
+    ASSERT_TRUE(android_data_ != NULL);
+    const char* android_data_modified = mkdtemp(android_data_.get());
+    // note that mkdtemp side effects android_data_ as well
+    ASSERT_TRUE(android_data_modified != NULL);
+    setenv("ANDROID_DATA", android_data_modified, 1);
+    art_cache_.append(android_data_.get());
+    art_cache_.append("/art-cache");
+    int mkdir_result = mkdir(art_cache_.c_str(), 0700);
+    ASSERT_EQ(mkdir_result, 0);
+
     java_lang_dex_file_.reset(OpenDexFileBase64(kJavaLangDex));
 
     std::vector<DexFile*> boot_class_path;
@@ -199,16 +214,47 @@ class RuntimeTest : public testing::Test {
     class_linker_ = runtime_->GetClassLinker();
   }
 
-  DexFile* GetLibCoreDex() {
-    // TODO add host support when we have DexFile::OpenJar
-    // TODO switch to jar when we have DexFile::OpenJar
-    if (!is_host_) {
-      return NULL;
+  virtual void TearDown() {
+    const char* android_data = getenv("ANDROID_DATA");
+    ASSERT_TRUE(android_data != NULL);
+    DIR* dir = opendir(art_cache_.c_str());
+    ASSERT_TRUE(dir != NULL);
+    while (true) {
+      struct dirent entry;
+      struct dirent* entry_ptr;
+      int readdir_result = readdir_r(dir, &entry, &entry_ptr);
+      ASSERT_EQ(0, readdir_result);
+      if (entry_ptr == NULL) {
+        break;
+      }
+      if ((strcmp(entry_ptr->d_name, ".") == 0) || (strcmp(entry_ptr->d_name, "..") == 0)) {
+        continue;
+      }
+      std::string filename(art_cache_);
+      filename.push_back('/');
+      filename.append(entry_ptr->d_name);
+      int unlink_result = unlink(filename.c_str());
+      ASSERT_EQ(0, unlink_result);
     }
+    closedir(dir);
+    int rmdir_cache_result = rmdir(art_cache_.c_str());
+    ASSERT_EQ(0, rmdir_cache_result);
+    int rmdir_data_result = rmdir(android_data_.get());
+    ASSERT_EQ(0, rmdir_data_result);
+  }
 
-    std::string libcore_dex_file_name = StringPrintf("%s/out/target/common/obj/JAVA_LIBRARIES/core_intermediates/noproguard.classes.dex",
-                                                     getenv("ANDROID_BUILD_TOP"));
-    return DexFile::OpenFile(libcore_dex_file_name.c_str());
+  std::string GetLibCoreDexFileName() {
+    if (is_host_) {
+      const char* host_dir = getenv("ANDROID_HOST_OUT");
+      CHECK(host_dir != NULL);
+      return StringPrintf("%s/framework/core-hostdex.jar", host_dir);
+    }
+    return std::string("/system/framework/core.jar");
+  }
+
+  DexFile* GetLibCoreDex() {
+    std::string libcore_dex_file_name = GetLibCoreDexFileName();
+    return DexFile::OpenZip(libcore_dex_file_name.c_str());
   }
 
   void UseLibCoreDex() {
@@ -224,6 +270,8 @@ class RuntimeTest : public testing::Test {
   }
 
   bool is_host_;
+  scoped_ptr_malloc<char> android_data_;
+  std::string art_cache_;
   scoped_ptr<DexFile> java_lang_dex_file_;
   scoped_ptr<Runtime> runtime_;
   ClassLinker* class_linker_;

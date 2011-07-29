@@ -19,7 +19,7 @@ void Thread::InitCpu() {
   struct user_desc ldt_entry;
   ldt_entry.entry_number = -1;
   ldt_entry.base_addr = (unsigned int)this;
-  ldt_entry.limit = 4096;
+  ldt_entry.limit = kPageSize;
   ldt_entry.seg_32bit = 1;
   ldt_entry.contents = MODIFY_LDT_CONTENTS_DATA;
   ldt_entry.read_exec_only = 0;

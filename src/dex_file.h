@@ -204,7 +204,10 @@ class DexFile {
   };
 
   // Opens a .dex file from the file system.
-  static DexFile* OpenFile(const char* filename);
+  static DexFile* OpenFile(const std::string& filename);
+
+  // Opens a .jar, .zip, or .apk file from the file system.
+  static DexFile* OpenZip(const std::string& filename);
 
   // Opens a .dex file from a new allocated pointer
   static DexFile* OpenPtr(byte* ptr, size_t length);

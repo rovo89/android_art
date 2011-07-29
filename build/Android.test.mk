@@ -29,12 +29,13 @@ define build-art-test
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(2)
   LOCAL_CFLAGS := $(ART_CFLAGS)
-  LOCAL_C_INCLUDES += external/gtest/include
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libarttest libartd
   ifeq ($(1),target)
-    LOCAL_SHARED_LIBRARIES += libstlport
+    LOCAL_SHARED_LIBRARIES += libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
   else
+    LOCAL_SHARED_LIBRARIES += libz-host
     LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
   endif
   ifeq ($(1),target)

@@ -62,14 +62,14 @@ class Runtime {
  private:
   static void PlatformAbort(const char*, int);
 
-  Runtime() : class_linker_(NULL), thread_list_(NULL) {}
+  Runtime() : thread_list_(NULL), class_linker_(NULL) {}
 
   // Initializes a new uninitialized runtime.
   bool Init(const std::vector<DexFile*>& boot_class_path);
 
-  ClassLinker* class_linker_;
-
   ThreadList* thread_list_;
+
+  ClassLinker* class_linker_;
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;

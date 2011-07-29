@@ -88,7 +88,7 @@ Thread* Thread::Attach() {
   thread->InitCpu();
   thread->stack_limit_ = reinterpret_cast<byte*>(-1);  // TODO: getrlimit
   uintptr_t addr = reinterpret_cast<uintptr_t>(&thread);  // TODO: ask pthreads
-  uintptr_t stack_base = RoundUp(addr, 4096);
+  uintptr_t stack_base = RoundUp(addr, kPageSize);
   thread->stack_base_ = reinterpret_cast<byte*>(stack_base);
   // TODO: set the stack size
 
