@@ -257,8 +257,8 @@ class Field : public AccessibleObject {
     return declaring_class_;
   }
 
-  const StringPiece& GetName() const {
-    return name_;
+  const String* GetName() const {
+    return java_name_;
   }
 
   char GetType() const {  // TODO: return type
@@ -986,6 +986,7 @@ class Class : public Object {
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 inline Object* Object::Alloc(Class* klass) {
+  DCHECK(klass != NULL);
   return Heap::AllocObject(klass, klass->object_size_);
 }
 
