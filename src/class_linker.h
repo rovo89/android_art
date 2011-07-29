@@ -206,6 +206,7 @@ class ClassLinker {
   FRIEND_TEST(DexCacheTest, Open);
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);
+  FRIEND_TEST(ObjectTest, StringEquals);
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 
