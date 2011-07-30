@@ -46,6 +46,7 @@ define build-art-test
     ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   else
     ART_HOST_TEST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+    LOCAL_LDFLAGS += -lpthread
   endif
 endef
 
