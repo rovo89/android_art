@@ -405,37 +405,37 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   UseLibCoreDex();
   Class* string = class_linker_->FindClass( "Ljava/lang/String;", NULL, java_lang_dex_file_.get());
   ASSERT_EQ(4U, string->NumInstanceFields());
-  EXPECT_EQ("value",    string->GetInstanceField(0)->GetName());
-  EXPECT_EQ("hashCode", string->GetInstanceField(1)->GetName());
-  EXPECT_EQ("offset",   string->GetInstanceField(2)->GetName());
-  EXPECT_EQ("count",    string->GetInstanceField(3)->GetName());
+  EXPECT_PRED2(String::Equals, string->GetInstanceField(0)->GetName(), "value");
+  EXPECT_PRED2(String::Equals, string->GetInstanceField(1)->GetName(), "hashCode");
+  EXPECT_PRED2(String::Equals, string->GetInstanceField(2)->GetName(), "offset");
+  EXPECT_PRED2(String::Equals, string->GetInstanceField(3)->GetName(), "count");
 
   Class* accessible_object = class_linker_->FindClass("Ljava/lang/reflect/AccessibleObject;", NULL, java_lang_dex_file_.get());
   ASSERT_EQ(1U, accessible_object->NumInstanceFields());
-  EXPECT_EQ("flag", accessible_object->GetInstanceField(0)->GetName());
+  EXPECT_PRED2(String::Equals, accessible_object->GetInstanceField(0)->GetName(), "flag");
 
   Class* field = class_linker_->FindClass("Ljava/lang/reflect/Field;", NULL, java_lang_dex_file_.get());
   ASSERT_EQ(6U, field->NumInstanceFields());
-  EXPECT_EQ("declaringClass",             field->GetInstanceField(0)->GetName());
-  EXPECT_EQ("genericType",                field->GetInstanceField(1)->GetName());
-  EXPECT_EQ("type",                       field->GetInstanceField(2)->GetName());
-  EXPECT_EQ("name",                       field->GetInstanceField(3)->GetName());
-  EXPECT_EQ("slot",                       field->GetInstanceField(4)->GetName());
-  EXPECT_EQ("genericTypesAreInitialized", field->GetInstanceField(5)->GetName());
+  EXPECT_PRED2(String::Equals, field->GetInstanceField(0)->GetName(), "declaringClass");
+  EXPECT_PRED2(String::Equals, field->GetInstanceField(1)->GetName(), "genericType");
+  EXPECT_PRED2(String::Equals, field->GetInstanceField(2)->GetName(), "type");
+  EXPECT_PRED2(String::Equals, field->GetInstanceField(3)->GetName(), "name");
+  EXPECT_PRED2(String::Equals, field->GetInstanceField(4)->GetName(), "slot");
+  EXPECT_PRED2(String::Equals, field->GetInstanceField(5)->GetName(), "genericTypesAreInitialized");
 
   Class* method = class_linker_->FindClass("Ljava/lang/reflect/Method;", NULL, java_lang_dex_file_.get());
   ASSERT_EQ(11U, method->NumInstanceFields());
-  EXPECT_EQ("declaringClass",             method->GetInstanceField( 0)->GetName());
-  EXPECT_EQ("exceptionTypes",             method->GetInstanceField( 1)->GetName());
-  EXPECT_EQ("formalTypeParameters",       method->GetInstanceField( 2)->GetName());
-  EXPECT_EQ("genericExceptionTypes",      method->GetInstanceField( 3)->GetName());
-  EXPECT_EQ("genericParameterTypes",      method->GetInstanceField( 4)->GetName());
-  EXPECT_EQ("genericReturnType",          method->GetInstanceField( 5)->GetName());
-  EXPECT_EQ("returnType",                 method->GetInstanceField( 6)->GetName());
-  EXPECT_EQ("name",                       method->GetInstanceField( 7)->GetName());
-  EXPECT_EQ("parameterTypes",             method->GetInstanceField( 8)->GetName());
-  EXPECT_EQ("genericTypesAreInitialized", method->GetInstanceField( 9)->GetName());
-  EXPECT_EQ("slot",                       method->GetInstanceField(10)->GetName());
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 0)->GetName(), "declaringClass");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 1)->GetName(), "exceptionTypes");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 2)->GetName(), "formalTypeParameters");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 3)->GetName(), "genericExceptionTypes");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 4)->GetName(), "genericParameterTypes");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 5)->GetName(), "genericReturnType");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 6)->GetName(), "returnType");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 7)->GetName(), "name");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 8)->GetName(), "parameterTypes");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField( 9)->GetName(), "genericTypesAreInitialized");
+  EXPECT_PRED2(String::Equals, method->GetInstanceField(10)->GetName(), "slot");
 }
 
 }  // namespace art

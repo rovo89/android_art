@@ -49,11 +49,17 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   Class* object_array_class = AllocClass(java_lang_Class);
   CHECK(object_array_class != NULL);
 
+  // string is necessary so that FindClass can assigning names to members
+  Class* java_lang_String = AllocClass(java_lang_Class);
+  CHECK(java_lang_String != NULL);
+  java_lang_String->object_size_ = sizeof(String);
+
   // create storage for root classes, save away our work so far
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
   class_roots_->Set(kJavaLangClass, java_lang_Class);
   class_roots_->Set(kJavaLangObject, java_lang_Object);
   class_roots_->Set(kObjectArrayClass, object_array_class);
+  class_roots_->Set(kJavaLangString, java_lang_String);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
   // setup boot_class_path_ now that we can use AllocObjectArray to
@@ -88,8 +94,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   java_lang_reflect_Method->object_size_ = sizeof(Method);
   class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
 
-  Class* java_lang_String = FindSystemClass("Ljava/lang/String;");
-  CHECK(java_lang_String != NULL);
+  FindSystemClass("Ljava/lang/String;");
   CHECK_EQ(java_lang_String->object_size_, sizeof(String));
   java_lang_String->object_size_ = sizeof(String);
   class_roots_->Set(kJavaLangString, java_lang_String);
@@ -235,6 +240,8 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         klass = class_roots_->Get(kJavaLangObject);
       } else if (descriptor == "Ljava/lang/Class;") {
         klass = class_roots_->Get(kJavaLangClass);
+      } else if (descriptor == "Ljava/lang/String;") {
+        klass = class_roots_->Get(kJavaLangString);
       } else {
         klass = AllocClass();
       }
@@ -408,7 +415,7 @@ void ClassLinker::LoadField(const DexFile& dex_file,
                             Field* dst) {
   const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
   dst->klass_ = klass;
-  dst->name_.set(dex_file.dexStringById(field_id.name_idx_));
+  dst->java_name_ = ResolveString(klass, field_id.name_idx_);
   dst->descriptor_.set(dex_file.dexStringByTypeIdx(field_id.type_idx_));
   dst->access_flags_ = src.access_flags_;
 }
