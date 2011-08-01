@@ -19,7 +19,7 @@ class ObjectTest : public RuntimeTest {
   void AssertString(size_t length,
                     const char* utf8_in,
                     const char* utf16_expected_le,
-                    uint32_t hash_expected) {
+                    int32_t hash_expected) {
     uint16_t utf16_expected[length];
     for (size_t i = 0; i < length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |
@@ -28,9 +28,11 @@ class ObjectTest : public RuntimeTest {
     }
 
     String* string = class_linker_->AllocStringFromModifiedUtf8(length, utf8_in);
-    ASSERT_EQ(length, string->count_);
+    ASSERT_EQ(length,  static_cast<size_t>(string->count_));
     ASSERT_TRUE(string->array_ != NULL);
     ASSERT_TRUE(string->array_->GetChars() != NULL);
+    // strlen is necessary because the 1-character string "\0" is interpreted as ""
+    ASSERT_TRUE(String::Equals(string, utf8_in) || length != strlen(utf8_in));
     for (size_t i = 0; i < length; i++) {
       EXPECT_EQ(utf16_expected[i], string->array_->GetChar(i));
     }
@@ -87,4 +89,23 @@ TEST_F(ObjectTest, String) {
   AssertString(1, "\xef\xbf\xbf",   "\xff\xff",                 0xffff);
   AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69", (31 * ((31 * 0x68) + 0x1234)) + 0x69);
 }
+
+static bool StringNotEquals(const String* a, const char* b) {
+  return !String::Equals(a, b);
+}
+
+TEST_F(ObjectTest, StringEquals) {
+  String* string = class_linker_->AllocStringFromModifiedUtf8(7, "android");
+  EXPECT_PRED2(String::Equals, string, "android");
+  EXPECT_PRED2(StringNotEquals, string, "Android");
+  EXPECT_PRED2(StringNotEquals, string, "ANDROID");
+  EXPECT_PRED2(StringNotEquals, string, "");
+  EXPECT_PRED2(StringNotEquals, string, "and");
+  EXPECT_PRED2(StringNotEquals, string, "androids");
+
+  String* empty = class_linker_->AllocStringFromModifiedUtf8(0, "");
+  EXPECT_PRED2(String::Equals, empty, "");
+  EXPECT_PRED2(StringNotEquals, empty, "a");
+}
+
 }  // namespace art

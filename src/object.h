@@ -1057,11 +1057,11 @@ class String : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
 
-  uint32_t hash_code_;
+  int32_t hash_code_;
 
-  uint32_t offset_;
+  int32_t offset_;
 
-  uint32_t count_;
+  int32_t count_;
 
   static String* Alloc(Class* java_lang_String,
                        Class* char_array,
@@ -1114,12 +1114,23 @@ class String : public Object {
   }
 
   // The java/lang/String.computeHashCode() algorithm
-  static uint32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {
-    uint32_t hash = 0;
+  static int32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {
+    int32_t hash = 0;
     while (string_length--) {
         hash = hash * 31 + *string_data++;
     }
     return hash;
+  }
+
+  static bool Equals(const String* string, const char* other) {
+    uint16_t* chars = string->array_->GetChars();
+    for (int32_t i = 0; i < string->count_; i++) {
+      uint16_t c = GetUtf16FromUtf8(&other);
+      if (c == '\0' || c != chars[string->offset_ + i]) {
+        return false;
+      }
+    }
+    return *other == '\0';
   }
 
  private:
