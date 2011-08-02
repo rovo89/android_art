@@ -94,7 +94,8 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   java_lang_reflect_Method->object_size_ = sizeof(Method);
   class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
 
-  FindSystemClass("Ljava/lang/String;");
+  Class* String_class = FindSystemClass("Ljava/lang/String;");
+  CHECK_EQ(java_lang_String, String_class);
   CHECK_EQ(java_lang_String->object_size_, sizeof(String));
   java_lang_String->object_size_ = sizeof(String);
   class_roots_->Set(kJavaLangString, java_lang_String);
@@ -141,7 +142,9 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kPrimitiveVoid, CreatePrimitiveClass("V"));
   // now we can use FindSystemClass for anything, including for "[C"
 
-  class_roots_->Set(kCharArrayClass, FindSystemClass("[C"));
+  Class* char_array = FindSystemClass("[C");
+  class_roots_->Set(kCharArrayClass, char_array);
+  String::InitClasses(java_lang_String, char_array);
   // Now AllocString* can be used
 
   // ensure all class_roots_ were initialized
@@ -426,7 +429,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->klass_ = klass;
-  dst->name_.set(dex_file.dexStringById(method_id.name_idx_));
+  dst->java_name_ = ResolveString(klass, method_id.name_idx_);
   dst->proto_idx_ = method_id.proto_idx_;
   dst->shorty_.set(dex_file.GetShorty(method_id.proto_idx_));
   dst->access_flags_ = src.access_flags_;

@@ -206,7 +206,7 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("foo");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("foo"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -231,7 +231,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("fooI");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooI"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -258,7 +258,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("fooII");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooII"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -288,7 +288,7 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("fooDD");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooDD"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -317,7 +317,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("fooIOO");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooIOO"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -372,7 +372,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindDirectMethod("fooSIOO");
+  Method* method = klass->FindDirectMethod(String::AllocFromAscii("fooSIOO"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -424,7 +424,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindDirectMethod("fooSSIOO");
+  Method* method = klass->FindDirectMethod(String::AllocFromAscii("fooSSIOO"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -474,7 +474,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
 
 int gSuspendCounterHandler_calls;
 void SuspendCountHandler(Method** frame) {
-  EXPECT_EQ(0, (*frame)->GetName().compare("fooI"));
+  EXPECT_PRED2(String::EqualsUtf8, (*frame)->GetName(), "fooI");
   gSuspendCounterHandler_calls++;
   Thread::Current()->DecrementSuspendCount();
 }
@@ -482,7 +482,7 @@ TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("fooI");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooI"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -515,7 +515,7 @@ TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
 
 int gExceptionHandler_calls;
 void ExceptionHandler(Method** frame) {
-  EXPECT_EQ(0, (*frame)->GetName().compare("foo"));
+  EXPECT_PRED2(String::EqualsUtf8, (*frame)->GetName(), "foo");
   gExceptionHandler_calls++;
   Thread::Current()->ClearException();
 }
@@ -523,7 +523,7 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod("foo");
+  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("foo"));
 
   Assembler jni_asm;
   JniCompiler jni_compiler;

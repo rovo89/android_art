@@ -157,11 +157,11 @@ size_t Method::ReturnSize() const {
   return ShortyCharToSize(shorty_[0]);
 }
 
-Method* Class::FindDirectMethod(const StringPiece& name) const {
+Method* Class::FindDirectMethod(const String* name) const {
   Method* result = NULL;
   for (size_t i = 0; i < NumDirectMethods(); i++) {
     Method* method = GetDirectMethod(i);
-    if (method->GetName().compare(name) == 0) {
+    if (String::Equals(method->GetName(), name)) {
       result = method;
       break;
     }
@@ -169,11 +169,11 @@ Method* Class::FindDirectMethod(const StringPiece& name) const {
   return result;
 }
 
-Method* Class::FindVirtualMethod(const StringPiece& name) const {
+Method* Class::FindVirtualMethod(const String* name) const {
   Method* result = NULL;
   for (size_t i = 0; i < NumVirtualMethods(); i++) {
     Method* method = GetVirtualMethod(i);
-    if (method->GetName().compare(name) == 0) {
+    if (String::Equals(method->GetName(), name)) {
       result = method;
       break;
     }
@@ -184,6 +184,15 @@ Method* Class::FindVirtualMethod(const StringPiece& name) const {
 Method* Class::FindDirectMethodLocally(const StringPiece& name,
                                        const StringPiece& descriptor) const {
   return NULL;  // TODO
+}
+
+// TODO: get global references for these
+Class* String::java_lang_String_ = NULL;
+Class* String::char_array_ = NULL;
+
+void String::InitClasses(Class* java_lang_String, Class* char_array) {
+  java_lang_String_ = java_lang_String;
+  char_array_ = char_array;
 }
 
 static const char* kClassStatusNames[] = {

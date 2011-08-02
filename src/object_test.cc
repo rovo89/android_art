@@ -32,7 +32,7 @@ class ObjectTest : public RuntimeTest {
     ASSERT_TRUE(string->array_ != NULL);
     ASSERT_TRUE(string->array_->GetChars() != NULL);
     // strlen is necessary because the 1-character string "\0" is interpreted as ""
-    ASSERT_TRUE(String::Equals(string, utf8_in) || length != strlen(utf8_in));
+    ASSERT_TRUE(String::EqualsUtf8(string, utf8_in) || length != strlen(utf8_in));
     for (size_t i = 0; i < length; i++) {
       EXPECT_EQ(utf16_expected[i], string->array_->GetChar(i));
     }
@@ -90,22 +90,40 @@ TEST_F(ObjectTest, String) {
   AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69", (31 * ((31 * 0x68) + 0x1234)) + 0x69);
 }
 
-static bool StringNotEquals(const String* a, const char* b) {
+static bool StringNotEqualsUtf8(const String* a, const char* b) {
+  return !String::EqualsUtf8(a, b);
+}
+
+TEST_F(ObjectTest, StringEqualsUtf8) {
+  String* string = String::AllocFromAscii("android");
+  EXPECT_PRED2(String::EqualsUtf8, string, "android");
+  EXPECT_PRED2(StringNotEqualsUtf8, string, "Android");
+  EXPECT_PRED2(StringNotEqualsUtf8, string, "ANDROID");
+  EXPECT_PRED2(StringNotEqualsUtf8, string, "");
+  EXPECT_PRED2(StringNotEqualsUtf8, string, "and");
+  EXPECT_PRED2(StringNotEqualsUtf8, string, "androids");
+
+  String* empty = String::AllocFromAscii("");
+  EXPECT_PRED2(String::EqualsUtf8, empty, "");
+  EXPECT_PRED2(StringNotEqualsUtf8, empty, "a");
+}
+
+static bool StringNotEquals(const String* a, const String* b) {
   return !String::Equals(a, b);
 }
 
 TEST_F(ObjectTest, StringEquals) {
-  String* string = class_linker_->AllocStringFromModifiedUtf8(7, "android");
-  EXPECT_PRED2(String::Equals, string, "android");
-  EXPECT_PRED2(StringNotEquals, string, "Android");
-  EXPECT_PRED2(StringNotEquals, string, "ANDROID");
-  EXPECT_PRED2(StringNotEquals, string, "");
-  EXPECT_PRED2(StringNotEquals, string, "and");
-  EXPECT_PRED2(StringNotEquals, string, "androids");
+  String* string = String::AllocFromAscii("android");
+  EXPECT_PRED2(String::Equals, string, String::AllocFromAscii("android"));
+  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("Android"));
+  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("ANDROID"));
+  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii(""));
+  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("and"));
+  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("androids"));
 
-  String* empty = class_linker_->AllocStringFromModifiedUtf8(0, "");
-  EXPECT_PRED2(String::Equals, empty, "");
-  EXPECT_PRED2(StringNotEquals, empty, "a");
+  String* empty = String::AllocFromAscii("");
+  EXPECT_PRED2(String::Equals, empty, String::AllocFromAscii(""));
+  EXPECT_PRED2(StringNotEquals, empty, String::AllocFromAscii("a"));
 }
 
 }  // namespace art

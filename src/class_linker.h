@@ -130,7 +130,7 @@ class ClassLinker {
   }
 
   bool HasSameName(const Method* m1, const Method* m2) const {
-    return m1->GetName() == m2->GetName();
+    return String::Equals(m1->GetName(), m2->GetName());
   }
 
   bool HasSamePrototype(const Method* m1, const Method* m2) const {
@@ -206,7 +206,6 @@ class ClassLinker {
   FRIEND_TEST(DexCacheTest, Open);
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);
-  FRIEND_TEST(ObjectTest, StringEquals);
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 

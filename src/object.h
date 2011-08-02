@@ -378,8 +378,8 @@ class StaticField : public Field {
 class Method : public AccessibleObject {
  public:
   // Returns the method name, e.g. "<init>" or "eatLunch"
-  const StringPiece& GetName() const {
-    return name_;
+  const String* GetName() const {
+    return java_name_;
   }
 
   Class* GetDeclaringClass() const {
@@ -837,9 +837,9 @@ class Class : public Object {
     reference_offsets_ = new_reference_offsets;
   }
 
-  Method* FindDirectMethod(const StringPiece& name) const;
+  Method* FindDirectMethod(const String* name) const;
 
-  Method* FindVirtualMethod(const StringPiece& name) const;
+  Method* FindVirtualMethod(const String* name) const;
 
   size_t NumInterfaces() const {
     return (interfaces_ != NULL) ? interfaces_->GetLength() : 0;
@@ -1054,6 +1054,17 @@ class String : public Object {
     return string;
   }
 
+  // Creates a String of the given ASCII characters. It is an error to call this
+  // using non-ASCII characters as this function assumes one char per byte.
+  static String* AllocFromAscii(const char* ascii_data_in) {
+    DCHECK(java_lang_String_ != NULL);
+    DCHECK(char_array_ != NULL);
+    return AllocFromModifiedUtf8(java_lang_String_,
+                                 char_array_,
+                                 strlen(ascii_data_in),
+                                 ascii_data_in);
+  }
+
  public: // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
@@ -1063,6 +1074,8 @@ class String : public Object {
   int32_t offset_;
 
   int32_t count_;
+
+  static void InitClasses(Class* java_lang_String, Class* char_array);
 
   static String* Alloc(Class* java_lang_String,
                        Class* char_array,
@@ -1123,7 +1136,7 @@ class String : public Object {
     return hash;
   }
 
-  static bool Equals(const String* string, const char* other) {
+  static bool EqualsUtf8(const String* string, const char* other) {
     uint16_t* chars = string->array_->GetChars();
     for (int32_t i = 0; i < string->count_; i++) {
       uint16_t c = GetUtf16FromUtf8(&other);
@@ -1134,8 +1147,29 @@ class String : public Object {
     return *other == '\0';
   }
 
+  static bool Equals(const String* a, const String* b) {
+    // TODO short circuit on hash_code_
+    int32_t a_count = a->count_;
+    if (a_count != b->count_) {
+      return false;
+    }
+    int32_t a_offset = a->offset_;
+    int32_t b_offset = b->offset_;
+    uint16_t* a_chars = a->array_->GetChars();
+    uint16_t* b_chars = b->array_->GetChars();
+    for (int32_t i = 0; i < a_count; i++) {
+      if (a_chars[a_offset + i] != b_chars[b_offset + i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
  private:
   String();
+
+  static Class* java_lang_String_;
+  static Class* char_array_;
 };
 
 class InterfaceEntry {
