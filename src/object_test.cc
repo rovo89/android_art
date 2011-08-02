@@ -27,7 +27,7 @@ class ObjectTest : public RuntimeTest {
       utf16_expected[i] = ch;
     }
 
-    String* string = class_linker_->AllocStringFromModifiedUtf8(length, utf8_in);
+    String* string = String::AllocFromModifiedUtf8(length, utf8_in);
     ASSERT_EQ(length,  static_cast<size_t>(string->count_));
     ASSERT_TRUE(string->array_ != NULL);
     ASSERT_TRUE(string->array_->GetChars() != NULL);

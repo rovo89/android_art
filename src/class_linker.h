@@ -65,7 +65,6 @@ class ClassLinker {
   StaticField* AllocStaticField();
   InstanceField* AllocInstanceField();
   Method* AllocMethod();
-  String* AllocStringFromModifiedUtf8(int32_t utf16_length, const char* utf8_data_in);
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(class_roots_->Get(kObjectArrayClass), length);

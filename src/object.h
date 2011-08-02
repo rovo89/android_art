@@ -1065,6 +1065,11 @@ class String : public Object {
                                  ascii_data_in);
   }
 
+  static String* AllocFromModifiedUtf8(int32_t utf16_length,
+                                       const char* utf8_data_in) {
+    return AllocFromModifiedUtf8(java_lang_String_, char_array_, utf16_length, utf8_data_in);
+  }
+
  public: // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;

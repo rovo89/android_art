@@ -49,10 +49,12 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   Class* object_array_class = AllocClass(java_lang_Class);
   CHECK(object_array_class != NULL);
 
-  // string is necessary so that FindClass can assigning names to members
+  // string and char[] are necessary so that FindClass can assign names to members
   Class* java_lang_String = AllocClass(java_lang_Class);
   CHECK(java_lang_String != NULL);
   java_lang_String->object_size_ = sizeof(String);
+  Class* char_array_class = AllocClass(java_lang_Class);
+  CHECK(char_array_class != NULL);
 
   // create storage for root classes, save away our work so far
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
@@ -60,7 +62,11 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kJavaLangObject, java_lang_Object);
   class_roots_->Set(kObjectArrayClass, object_array_class);
   class_roots_->Set(kJavaLangString, java_lang_String);
+  class_roots_->Set(kCharArrayClass, char_array_class);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
+
+  String::InitClasses(java_lang_String, char_array_class);
+  // Now AllocString* can be used
 
   // setup boot_class_path_ now that we can use AllocObjectArray to
   // DexCache instances
@@ -127,8 +133,8 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // now FindClass can be used for non-primitive array classes
 
   // run Object[] through FindClass to complete initialization
-  Class* Object_array_class = FindSystemClass("[Ljava/lang/Object;");
-  CHECK_EQ(object_array_class, Object_array_class);
+  Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
+  CHECK_EQ(object_array_class, found_object_array_class);
 
   // Setup the primitive type classes.
   class_roots_->Set(kPrimitiveByte, CreatePrimitiveClass("B"));
@@ -142,10 +148,9 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kPrimitiveVoid, CreatePrimitiveClass("V"));
   // now we can use FindSystemClass for anything, including for "[C"
 
-  Class* char_array = FindSystemClass("[C");
-  class_roots_->Set(kCharArrayClass, char_array);
-  String::InitClasses(java_lang_String, char_array);
-  // Now AllocString* can be used
+  // run char[] through FindClass to complete initialization
+  Class* found_char_array_class = FindSystemClass("[C");
+  CHECK_EQ(char_array_class, found_char_array_class);
 
   // ensure all class_roots_ were initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
@@ -199,14 +204,6 @@ InstanceField* ClassLinker::AllocInstanceField() {
 Method* ClassLinker::AllocMethod() {
   return down_cast<Method*>(Heap::AllocObject(class_roots_->Get(kJavaLangReflectMethod),
                                               sizeof(Method)));
-}
-
-String* ClassLinker::AllocStringFromModifiedUtf8(int32_t utf16_length,
-                                                 const char* utf8_data_in) {
-  return String::AllocFromModifiedUtf8(class_roots_->Get(kJavaLangString),
-                                       class_roots_->Get(kCharArrayClass),
-                                       utf16_length,
-                                       utf8_data_in);
 }
 
 Class* ClassLinker::FindClass(const StringPiece& descriptor,
@@ -600,9 +597,14 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     // link step.
 
     Class* new_class = NULL;
-    if (!init_done_ && descriptor == "[Ljava/lang/Object;") {
+    if (!init_done_) {
+      if (descriptor == "[Ljava/lang/Object;") {
         new_class = class_roots_->Get(kObjectArrayClass);
         CHECK(new_class);
+      } else if (descriptor == "[C") {
+        new_class = class_roots_->Get(kCharArrayClass);
+        CHECK(new_class);
+      }
     }
     if (new_class == NULL) {
       new_class = AllocClass();
@@ -1546,7 +1548,7 @@ String* ClassLinker::ResolveString(const Class* referring,
   const DexFile::StringId& string_id = dex_file->GetStringId(string_idx);
   int32_t utf16_length = dex_file->GetStringLength(string_id);
   const char* utf8_data = dex_file->GetStringData(string_id);
-  String* new_string = AllocStringFromModifiedUtf8(utf16_length, utf8_data);
+  String* new_string = String::AllocFromModifiedUtf8(utf16_length, utf8_data);
   // TODO: intern the new string
   referring->GetDexCache()->SetResolvedString(string_idx, new_string);
   return new_string;
