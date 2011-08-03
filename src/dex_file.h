@@ -357,6 +357,9 @@ class DexFile {
     }
   }
 
+  char* CreateMethodDescriptor(uint32_t proto_idx,
+                               int32_t* unicode_length) const;
+
   const byte* GetEncodedArray(const ClassDef& class_def) const {
     if (class_def.static_values_off_ == 0) {
       return 0;
@@ -376,20 +379,35 @@ class DexFile {
 
   // Returns a pointer to the UTF-8 string data referred to by the
   // given string_id.
-  const char* GetStringData(const StringId& string_id) const {
+  const char* GetStringData(const StringId& string_id, int32_t* length) const {
+    CHECK(length != NULL);
     const byte* ptr = base_ + string_id.string_data_off_;
-    // Skip the uleb128 length.
-    while (*(ptr++) > 0x7f) /* empty */ ;
+    *length = DecodeUnsignedLeb128(&ptr);
     return reinterpret_cast<const char*>(ptr);
   }
 
+  const char* GetStringData(const StringId& string_id) const {
+    int32_t length;
+    return GetStringData(string_id, &length);
+  }
+
   // return the UTF-8 encoded string with the specified string_id index
-  const char* dexStringById(uint32_t idx) const {
+  const char* dexStringById(uint32_t idx, int32_t* unicode_length) const {
     const StringId& string_id = GetStringId(idx);
-    return GetStringData(string_id);
+    return GetStringData(string_id, unicode_length);
+  }
+
+  const char* dexStringById(uint32_t idx) const {
+    int32_t unicode_length;
+    return dexStringById(idx, &unicode_length);
   }
 
   // Get the descriptor string associated with a given type index.
+  const char* dexStringByTypeIdx(uint32_t idx, int32_t* unicode_length) const {
+    const TypeId& type_id = GetTypeId(idx);
+    return dexStringById(type_id.descriptor_idx_, unicode_length);
+  }
+
   const char* dexStringByTypeIdx(uint32_t idx) const {
     const TypeId& type_id = GetTypeId(idx);
     return dexStringById(type_id.descriptor_idx_);

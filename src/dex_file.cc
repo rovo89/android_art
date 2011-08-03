@@ -342,6 +342,40 @@ const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) co
   }
 }
 
+// Materializes the method descriptor for a method prototype.  Method
+// descriptors are not stored directly in the dex file.  Instead, one
+// must assemble the descriptor from references in the prototype.
+char* DexFile::CreateMethodDescriptor(uint32_t proto_idx,
+                                      int32_t* unicode_length) const {
+  CHECK(unicode_length != NULL);
+  const ProtoId& proto_id = GetProtoId(proto_idx);
+  std::string descriptor;
+  descriptor.push_back('(');
+  const TypeList* type_list = GetProtoParameters(proto_id);
+  size_t parameter_length = 0;
+  if (type_list != NULL) {
+    // A non-zero number of arguments.  Append the type names.
+    for (size_t i = 0; i < type_list->Size(); ++i) {
+      const TypeItem& type_item = type_list->GetTypeItem(i);
+      uint32_t type_idx = type_item.type_idx_;
+      int32_t type_length;
+      const char* name = dexStringByTypeIdx(type_idx, &type_length);
+      parameter_length += type_length;
+      descriptor.append(name);
+    }
+  }
+  descriptor.push_back(')');
+  uint32_t return_type_idx = proto_id.return_type_idx_;
+  int32_t return_type_length;
+  const char* name = dexStringByTypeIdx(return_type_idx, &return_type_length);
+  descriptor.append(name);
+  // TODO: should this just return a std::string?
+  scoped_ptr<char> c_string(new char[descriptor.size() + 1]);
+  strcpy(c_string.get(), descriptor.c_str());
+  *unicode_length = parameter_length + return_type_length + 2;  // 2 for ( and )
+  return c_string.release();
+}
+
 // Read a signed integer.  "zwidth" is the zero-based byte count.
 static int32_t ReadSignedInt(const byte* ptr, int zwidth)
 {

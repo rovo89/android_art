@@ -205,8 +205,12 @@ jobject Java_MyClass_fooSSIOO(JNIEnv*, jclass klass, jint x, jobject y,
 TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("foo"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod("foo", "()V");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -230,8 +234,12 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooI"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod("fooI", "(I)I");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -257,8 +265,12 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooII"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod("fooII", "(II)I");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -287,8 +299,12 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooDD"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod("fooDD", "(DD)D");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -316,8 +332,14 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
 TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooIOO"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod(
+      "fooIOO",
+      "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -371,8 +393,14 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindDirectMethod(String::AllocFromAscii("fooSIOO"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindDirectMethod(
+      "fooSIOO",
+      "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -423,8 +451,14 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
 TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindDirectMethod(String::AllocFromAscii("fooSSIOO"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindDirectMethod(
+      "fooSSIOO",
+      "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -481,8 +515,12 @@ void SuspendCountHandler(Method** frame) {
 TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("fooI"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod("fooI", "(I)I");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;
@@ -522,8 +560,12 @@ void ExceptionHandler(Method** frame) {
 TEST_F(JniCompilerTest, ExceptionHandling) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   class_linker_->RegisterDexFile(dex.get());
+
   Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
-  Method* method = klass->FindVirtualMethod(String::AllocFromAscii("foo"));
+  ASSERT_TRUE(klass != NULL);
+
+  Method* method = klass->FindVirtualMethod("foo", "()V");
+  ASSERT_TRUE(method != NULL);
 
   Assembler jni_asm;
   JniCompiler jni_compiler;

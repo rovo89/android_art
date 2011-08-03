@@ -427,8 +427,14 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->klass_ = klass;
   dst->java_name_ = ResolveString(klass, method_id.name_idx_);
+  {
+    int32_t utf16_length;
+    scoped_ptr<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
+                                                          &utf16_length));
+    dst->descriptor_ = String::AllocFromModifiedUtf8(utf16_length, utf8.get());
+  }
   dst->proto_idx_ = method_id.proto_idx_;
-  dst->shorty_.set(dex_file.GetShorty(method_id.proto_idx_));
+  dst->shorty_ = dex_file.GetShorty(method_id.proto_idx_);
   dst->access_flags_ = src.access_flags_;
 
   // TODO: check for finalize method
@@ -821,7 +827,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
   InitializeStaticFields(klass);
 
-  Method* clinit = klass->FindDirectMethodLocally("<clinit>", "()V");
+  Method* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
   if (clinit != NULL) {
   } else {
     // JValue unused;

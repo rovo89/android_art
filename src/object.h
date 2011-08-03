@@ -382,6 +382,10 @@ class Method : public AccessibleObject {
     return java_name_;
   }
 
+  const String* GetDescriptor() const {
+    return descriptor_;
+  }
+
   Class* GetDeclaringClass() const {
     return declaring_class_;
   }
@@ -544,6 +548,18 @@ class Method : public AccessibleObject {
 
   // method name, e.g. "<init>" or "eatLunch"
   StringPiece name_;
+
+  // The method descriptor.  This represents the parameters a method
+  // takes and value it returns.  This string is a list of the type
+  // descriptors for the parameters enclosed in parenthesis followed
+  // by the return type descriptor.  For example, for the method
+  //
+  //   Object mymethod(int i, double d, Thread t)
+  //
+  // the method descriptor would be
+  //
+  //   (IDLjava/lang/Thread;)Ljava/lang/Object;
+  String* descriptor_;
 
   // Method prototype descriptor string (return and argument types).
   uint32_t proto_idx_;
@@ -781,6 +797,12 @@ class Class : public Object {
     direct_methods_->Set(i, f);
   }
 
+  Method* FindDeclaredDirectMethod(const StringPiece& name,
+                                   const StringPiece& descriptor);
+
+  Method* FindDirectMethod(const StringPiece& name,
+                           const StringPiece& descriptor);
+
   // Returns the number of non-inherited virtual methods.
   size_t NumVirtualMethods() const {
     return (virtual_methods_ != NULL) ? virtual_methods_->GetLength() : 0;
@@ -795,6 +817,12 @@ class Class : public Object {
     DCHECK_NE(NumVirtualMethods(), 0U);
     virtual_methods_->Set(i, f);
   }
+
+  Method* FindDeclaredVirtualMethod(const StringPiece& name,
+                                    const StringPiece& descriptor);
+
+  Method* FindVirtualMethod(const StringPiece& name,
+                            const StringPiece& descriptor);
 
   size_t NumInstanceFields() const {
     return (ifields_ != NULL) ? ifields_->GetLength() : 0;
@@ -837,10 +865,6 @@ class Class : public Object {
     reference_offsets_ = new_reference_offsets;
   }
 
-  Method* FindDirectMethod(const String* name) const;
-
-  Method* FindVirtualMethod(const String* name) const;
-
   size_t NumInterfaces() const {
     return (interfaces_ != NULL) ? interfaces_->GetLength() : 0;
   }
@@ -854,9 +878,6 @@ class Class : public Object {
     DCHECK_NE(NumInterfaces(), 0U);
     interfaces_->Set(i, f);
   }
-
-  Method* FindDirectMethodLocally(const StringPiece& name,
-                                  const StringPiece& descriptor) const;
 
  public:  // TODO: private
   // leave space for instance data; we could access fields directly if

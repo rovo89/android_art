@@ -157,33 +157,50 @@ size_t Method::ReturnSize() const {
   return ShortyCharToSize(shorty_[0]);
 }
 
-Method* Class::FindDirectMethod(const String* name) const {
-  Method* result = NULL;
-  for (size_t i = 0; i < NumDirectMethods(); i++) {
+Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
+                                        const StringPiece& descriptor) {
+  for (size_t i = 0; i < NumDirectMethods(); ++i) {
     Method* method = GetDirectMethod(i);
-    if (String::Equals(method->GetName(), name)) {
-      result = method;
-      break;
+    if (String::EqualsUtf8(method->GetName(), name.data()) &&
+        String::EqualsUtf8(method->GetDescriptor(), descriptor.data())) {
+      return method;
     }
   }
-  return result;
+  return NULL;
 }
 
-Method* Class::FindVirtualMethod(const String* name) const {
-  Method* result = NULL;
-  for (size_t i = 0; i < NumVirtualMethods(); i++) {
+Method* Class::FindDirectMethod(const StringPiece& name,
+                                const StringPiece& descriptor) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    Method* method = klass->FindDeclaredDirectMethod(name, descriptor);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
+                                         const StringPiece& descriptor) {
+  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     Method* method = GetVirtualMethod(i);
-    if (String::Equals(method->GetName(), name)) {
-      result = method;
-      break;
+    if (String::EqualsUtf8(method->GetName(), name.data()) &&
+        String::EqualsUtf8(method->GetDescriptor(), descriptor.data())) {
+      return method;
     }
   }
-  return result;
+  return NULL;
 }
 
-Method* Class::FindDirectMethodLocally(const StringPiece& name,
-                                       const StringPiece& descriptor) const {
-  return NULL;  // TODO
+Method* Class::FindVirtualMethod(const StringPiece& name,
+                                 const StringPiece& descriptor) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    Method* method = klass->FindDeclaredVirtualMethod(name, descriptor);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
 }
 
 // TODO: get global references for these

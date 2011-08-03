@@ -54,4 +54,70 @@ TEST(DexFileTest, ClassDefs) {
   EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
 }
 
+TEST(DexFileTest, CreateMethodDescriptor) {
+  scoped_ptr<DexFile> raw(OpenDexFileBase64(kCreateMethodDescriptorDex));
+  ASSERT_TRUE(raw != NULL);
+  EXPECT_EQ(1U, raw->NumClassDefs());
+
+  const DexFile::ClassDef& class_def = raw->GetClassDef(0);
+  ASSERT_STREQ("LCreateMethodDescriptor;", raw->GetClassDescriptor(class_def));
+
+  const byte* class_data = raw->GetClassData(class_def);
+  ASSERT_TRUE(class_data != NULL);
+  DexFile::ClassDataHeader header = raw->ReadClassDataHeader(&class_data);
+
+  EXPECT_EQ(1u, header.direct_methods_size_);
+
+  // Check the descriptor for the static initializer.
+  {
+    uint32_t last_idx = 0;
+    ASSERT_EQ(1U, header.direct_methods_size_);
+    DexFile::Method method;
+    raw->dexReadClassDataMethod(&class_data, &method, &last_idx);
+    const DexFile::MethodId& method_id = raw->GetMethodId(method.method_idx_);
+    uint32_t proto_idx = method_id.proto_idx_;
+    const char* name = raw->dexStringById(method_id.name_idx_);
+    ASSERT_STREQ("<init>", name);
+    int32_t length;
+    scoped_ptr<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
+                                                                  &length));
+    ASSERT_STREQ("()V", descriptor.get());
+  }
+
+  // Check both virtual methods.
+  ASSERT_EQ(2U, header.virtual_methods_size_);
+  uint32_t last_idx = 0;
+
+  {
+    DexFile::Method method;
+    raw->dexReadClassDataMethod(&class_data, &method, &last_idx);
+    const DexFile::MethodId& method_id = raw->GetMethodId(method.method_idx_);
+
+    const char* name = raw->dexStringById(method_id.name_idx_);
+    ASSERT_STREQ("m1", name);
+
+    uint32_t proto_idx = method_id.proto_idx_;
+    int32_t length;
+    scoped_ptr<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
+                                                                  &length));
+    ASSERT_STREQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", descriptor.get());
+  }
+
+  {
+    DexFile::Method method;
+    raw->dexReadClassDataMethod(&class_data, &method, &last_idx);
+    const DexFile::MethodId& method_id = raw->GetMethodId(method.method_idx_);
+
+    const char* name = raw->dexStringById(method_id.name_idx_);
+    ASSERT_STREQ("m2", name);
+
+    uint32_t proto_idx = method_id.proto_idx_;
+    int32_t length;
+    scoped_ptr<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
+                                                                  &length));
+    ASSERT_STREQ("(ZSC)LCreateMethodDescriptor;", descriptor.get());
+  }
+
+}
+
 }  // namespace art
