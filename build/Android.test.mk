@@ -28,7 +28,7 @@ define build-art-test
   LOCAL_MODULE := $(notdir $(basename $(2:%.arm=%)))
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(2)
-  LOCAL_CFLAGS := $(ART_CFLAGS)
+  LOCAL_CFLAGS := $(ART_CFLAGS) -UNDEBUG
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libarttest libartd
   ifeq ($(1),target)

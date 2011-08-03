@@ -262,10 +262,11 @@ class Field : public AccessibleObject {
   }
 
   char GetType() const {  // TODO: return type
-    return descriptor_[0];
+    return GetDescriptor()[0];
   }
 
   const StringPiece& GetDescriptor() const {
+    DCHECK_NE(0, descriptor_.size());
     return descriptor_;
   }
 
@@ -648,13 +649,72 @@ class ObjectArray : public Array {
   ObjectArray();
 };
 
+// ClassLoader objects.
+class ClassLoader : public Object {
+ public:
+  std::vector<const DexFile*>& GetClassPath() {
+    return class_path_;
+  }
+  void SetClassPath(std::vector<const DexFile*>& class_path) {
+    DCHECK_EQ(0U, class_path_.size());
+    class_path_ = class_path;
+  }
+
+ private:
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  Object* packages_;
+  ClassLoader* parent_;
+
+  // TODO remove once we can create a real PathClassLoader
+  std::vector<const DexFile*> class_path_;
+
+  ClassLoader();
+};
+
+class BaseDexClassLoader : public ClassLoader {
+ private:
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  String* original_path_;
+  Object* path_list_;
+  BaseDexClassLoader();
+};
+
+class PathClassLoader : public BaseDexClassLoader {
+ private:
+  PathClassLoader();
+};
+
 // Class objects.
 class Class : public Object {
  public:
+
+  // Class Status
+  //
+  // kStatusNotReady: If a Class cannot be found in the class table by
+  // FindClass, it allocates an new one with AllocClass in the
+  // kStatusNotReady and calls LoadClass. Note if it does find a
+  // class, it may not be kStatusResolved and it will try to push it
+  // forward toward kStatusResolved.
+  //
+  // kStatusIdx: LoadClass populates with Class with information from
+  // the DexFile, moving the status to kStatusIdx, indicating that the
+  // Class values in super_class_ and interfaces_ have not been
+  // populated based on super_class_idx_ and interfaces_idx_. The new
+  // Class can then be inserted into the classes table.
+  //
+  // kStatusLoaded: After taking a lock on Class, the ClassLinker will
+  // attempt to move a kStatusIdx class forward to kStatusLoaded by
+  // using ResolveClass to initialize the super_class_ and interfaces_.
+  //
+  // kStatusResolved: Still holding the lock on Class, the ClassLinker
+  // will use LinkClass to link all members, creating Field and Method
+  // objects, setting up the vtable, etc. On success, the class is
+  // marked kStatusResolved.
+
   enum Status {
     kStatusError = -1,
     kStatusNotReady = 0,
-    kStatusIdx = 1,  // loaded, DEX idx in super or ifaces
+    kStatusIdx = 1,  // loaded, DEX idx in super_class_idx_ and interfaces_idx_
     kStatusLoaded = 2,  // DEX idx values resolved
     kStatusResolved = 3,  // part of linking
     kStatusVerifying = 4,  // in the process of being verified
@@ -679,7 +739,7 @@ class Class : public Object {
     return super_class_ != NULL;
   }
 
-  Object* GetClassLoader() const {
+  ClassLoader* GetClassLoader() const {
     return class_loader_;
   }
 
@@ -688,11 +748,11 @@ class Class : public Object {
   }
 
   Class* GetComponentType() const {
-    DCHECK(IsArray());
     return component_type_;
   }
 
   const StringPiece& GetDescriptor() const {
+    DCHECK_NE(0, descriptor_.size());
     return descriptor_;
   }
 
@@ -732,7 +792,7 @@ class Class : public Object {
 
   // Returns true if this class represents an array class.
   bool IsArray() const {
-    return descriptor_[0] == '[';  // TODO: avoid parsing the descriptor
+    return GetDescriptor()[0] == '[';  // TODO: avoid parsing the descriptor
   }
 
   // Returns true if the class is an interface.
@@ -933,7 +993,7 @@ class Class : public Object {
   uint32_t super_class_idx_;
 
   // defining class loader, or NULL for the "bootstrap" system loader
-  Object* class_loader_;  // TODO: make an instance field
+  ClassLoader* class_loader_;  // TODO: make an instance field
 
   // initiating class loader list
   // NOTE: for classes with low serialNumber, these are unused, and the
@@ -1136,22 +1196,51 @@ class String : public Object {
   static uint16_t GetUtf16FromUtf8(const char** utf8_data_in) {
     uint8_t one = *(*utf8_data_in)++;
     if ((one & 0x80) == 0) {
-      /* one-byte encoding */
+      // one-byte encoding
       return one;
     }
-    /* two- or three-byte encoding */
+    // two- or three-byte encoding
     uint8_t two = *(*utf8_data_in)++;
     if ((one & 0x20) == 0) {
-      /* two-byte encoding */
+      // two-byte encoding
       return ((one & 0x1f) << 6) |
               (two & 0x3f);
     }
-    /* three-byte encoding */
+    // three-byte encoding
     uint8_t three = *(*utf8_data_in)++;
     return ((one & 0x0f) << 12) |
             ((two & 0x3f) << 6) |
             (three & 0x3f);
   }
+
+  // Like "strlen", but for strings encoded with "modified" UTF-8.
+  //
+  // The value returned is the number of characters, which may or may not
+  // be the same as the number of bytes.
+  //
+  // (If this needs optimizing, try: mask against 0xa0, shift right 5,
+  // get increment {1-3} from table of 8 values.)
+  static size_t ModifiedUtf8Len(const char* utf8) {
+    size_t len = 0;
+    int ic;
+    while ((ic = *utf8++) != '\0') {
+      len++;
+      if ((ic & 0x80) == 0) {
+        // one-byte encoding
+        continue;
+      }
+      // two- or three-byte encoding
+      utf8++;
+      if ((ic & 0x20) == 0) {
+        // two-byte encoding
+        continue;
+      }
+      // three-byte encoding
+      utf8++;
+    }
+    return len;
+  }
+
 
   // The java/lang/String.computeHashCode() algorithm
   static int32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {

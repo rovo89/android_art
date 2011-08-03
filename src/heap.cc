@@ -68,6 +68,9 @@ void Heap::Destroy() {
 }
 
 Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
+  DCHECK((klass == NULL && num_bytes == sizeof(Class))
+         || klass->descriptor_ == NULL
+         || (klass->object_size_ == (klass->IsArray() ? 0 : num_bytes)));
   Object* obj = Allocate(num_bytes);
   if (obj != NULL) {
     obj->klass_ = klass;

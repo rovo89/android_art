@@ -23,6 +23,7 @@ class ClassLinkerTest : public RuntimeTest {
     ASSERT_EQ(descriptor, primitive->GetDescriptor());
     EXPECT_TRUE(primitive->GetSuperClass() == NULL);
     EXPECT_FALSE(primitive->HasSuperClass());
+    EXPECT_TRUE(primitive->GetClassLoader() == NULL);
     EXPECT_TRUE(primitive->GetComponentType() == NULL);
     EXPECT_TRUE(primitive->GetStatus() == Class::kStatusInitialized);
     EXPECT_FALSE(primitive->IsErroneous());
@@ -44,8 +45,9 @@ class ClassLinkerTest : public RuntimeTest {
 
   void AssertArrayClass(const StringPiece& array_descriptor,
                         int32_t array_rank,
-                        const StringPiece& component_type) {
-    Class* array = class_linker_->FindSystemClass(array_descriptor);
+                        const StringPiece& component_type,
+                        ClassLoader* class_loader) {
+    Class* array = class_linker_->FindClass(array_descriptor, class_loader);
     ASSERT_TRUE(array != NULL);
     ASSERT_TRUE(array->GetClass() != NULL);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
@@ -54,6 +56,7 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_TRUE(array->GetSuperClass() != NULL);
     EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
     EXPECT_TRUE(array->HasSuperClass());
+    EXPECT_EQ(class_loader, array->GetClassLoader());
     ASSERT_TRUE(array->GetComponentType() != NULL);
     ASSERT_TRUE(array->GetComponentType()->GetDescriptor() != NULL);
     EXPECT_EQ(component_type, array->GetComponentType()->GetDescriptor());
@@ -75,18 +78,18 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_EQ(2U, array->NumInterfaces());
   }
 
-  void AssertDexFileClass(const DexFile* dex, const char* descriptor) {
+  void AssertDexFileClass(ClassLoader* class_loader, const char* descriptor) {
     ASSERT_TRUE(descriptor != NULL);
-    Class* klass = class_linker_->FindClass(descriptor, NULL, dex);
+    Class* klass = class_linker_->FindSystemClass(descriptor);
     ASSERT_TRUE(klass != NULL);
     EXPECT_EQ(descriptor, klass->GetDescriptor());
     if (klass->descriptor_ == "Ljava/lang/Object;") {
-        EXPECT_FALSE(klass->HasSuperClass());
+      EXPECT_FALSE(klass->HasSuperClass());
     } else {
-        EXPECT_TRUE(klass->HasSuperClass());
-        EXPECT_TRUE(klass->GetSuperClass() != NULL);
+      EXPECT_TRUE(klass->HasSuperClass());
+      EXPECT_TRUE(klass->GetSuperClass() != NULL);
     }
-    // EXPECT_TRUE(klass->GetClassLoader() != NULL);  // TODO needs class loader
+    EXPECT_EQ(class_loader, klass->GetClassLoader());
     EXPECT_TRUE(klass->GetDexCache() != NULL);
     EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->GetComponentType() == NULL);
@@ -98,78 +101,78 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_TRUE(klass->IsInSamePackage(klass));
     EXPECT_TRUE(Class::IsInSamePackage(klass->GetDescriptor(), klass->GetDescriptor()));
     if (klass->IsInterface()) {
-        EXPECT_TRUE(klass->IsAbstract());
-        if (klass->NumDirectMethods() == 1) {
-            EXPECT_PRED2(String::EqualsUtf8, klass->GetDirectMethod(0)->GetName(), "<clinit>");
-        } else {
-            EXPECT_EQ(0U, klass->NumDirectMethods());
-        }
+      EXPECT_TRUE(klass->IsAbstract());
+      if (klass->NumDirectMethods() == 1) {
+        EXPECT_PRED2(String::EqualsUtf8, klass->GetDirectMethod(0)->GetName(), "<clinit>");
+      } else {
+        EXPECT_EQ(0U, klass->NumDirectMethods());
+      }
     } else {
-        if (!klass->IsSynthetic()) {
-            EXPECT_NE(0U, klass->NumDirectMethods());
-        }
+      if (!klass->IsSynthetic()) {
+        EXPECT_NE(0U, klass->NumDirectMethods());
+      }
     }
     if (klass->IsAbstract()) {
-        EXPECT_FALSE(klass->IsFinal());
+      EXPECT_FALSE(klass->IsFinal());
     } else {
-        EXPECT_FALSE(klass->IsAnnotation());
+      EXPECT_FALSE(klass->IsAnnotation());
     }
     if (klass->IsFinal()) {
-        EXPECT_FALSE(klass->IsAbstract());
-        EXPECT_FALSE(klass->IsAnnotation());
+      EXPECT_FALSE(klass->IsAbstract());
+      EXPECT_FALSE(klass->IsAnnotation());
     }
     if (klass->IsAnnotation()) {
-        EXPECT_FALSE(klass->IsFinal());
-        EXPECT_TRUE(klass->IsAbstract());
+      EXPECT_FALSE(klass->IsFinal());
+      EXPECT_TRUE(klass->IsAbstract());
     }
 
     EXPECT_FALSE(klass->IsPrimitive());
     EXPECT_TRUE(klass->CanAccess(klass));
 
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-        Method* method = klass->GetDirectMethod(i);
-        EXPECT_TRUE(method != NULL);
+      Method* method = klass->GetDirectMethod(i);
+      EXPECT_TRUE(method != NULL);
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-        Method* method = klass->GetVirtualMethod(i);
-        EXPECT_TRUE(method != NULL);
+      Method* method = klass->GetVirtualMethod(i);
+      EXPECT_TRUE(method != NULL);
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
-        InstanceField* field = klass->GetInstanceField(i);
-        EXPECT_TRUE(field != NULL);
+      InstanceField* field = klass->GetInstanceField(i);
+      EXPECT_TRUE(field != NULL);
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
-        StaticField* field = klass->GetStaticField(i);
-        EXPECT_TRUE(field != NULL);
+      StaticField* field = klass->GetStaticField(i);
+      EXPECT_TRUE(field != NULL);
     }
 
     // Confirm that all instances fields are packed together at the start
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
-        InstanceField* field = klass->GetInstanceField(i);
-        ASSERT_TRUE(field != NULL);
-        ASSERT_TRUE(field->GetDescriptor() != NULL);
-        Class* fieldType = class_linker_->FindClass(field->GetDescriptor(), NULL, dex);
-        ASSERT_TRUE(fieldType != NULL);
-        EXPECT_FALSE(fieldType->IsPrimitive());
+      InstanceField* field = klass->GetInstanceField(i);
+      ASSERT_TRUE(field != NULL);
+      ASSERT_TRUE(field->GetDescriptor() != NULL);
+      Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
+      ASSERT_TRUE(field_type != NULL);
+      EXPECT_FALSE(field_type->IsPrimitive());
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
-        InstanceField* field = klass->GetInstanceField(i);
-        ASSERT_TRUE(field != NULL);
-        ASSERT_TRUE(field->GetDescriptor() != NULL);
-        Class* fieldType = class_linker_->FindClass(field->GetDescriptor(), NULL, dex);
-        ASSERT_TRUE(fieldType != NULL);
-        EXPECT_TRUE(fieldType->IsPrimitive());
+      InstanceField* field = klass->GetInstanceField(i);
+      ASSERT_TRUE(field != NULL);
+      ASSERT_TRUE(field->GetDescriptor() != NULL);
+      Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
+      ASSERT_TRUE(field_type != NULL);
+      EXPECT_TRUE(field_type->IsPrimitive());
     }
 
     size_t total_num_reference_instance_fields = 0;
     Class* k = klass;
     while (k != NULL) {
-        total_num_reference_instance_fields += k->NumReferenceInstanceFields();
-        k = k->GetSuperClass();
+      total_num_reference_instance_fields += k->NumReferenceInstanceFields();
+      k = k->GetSuperClass();
     }
     EXPECT_EQ(klass->GetReferenceOffsets() == 0,
               total_num_reference_instance_fields == 0);
@@ -179,13 +182,12 @@ class ClassLinkerTest : public RuntimeTest {
     EXPECT_TRUE(root != NULL);
   }
 
-  void AssertDexFile(const DexFile* dex) {
+  void AssertDexFile(const DexFile* dex, ClassLoader* class_loader) {
     ASSERT_TRUE(dex != NULL);
-    class_linker_->RegisterDexFile(dex);
     for (size_t i = 0; i < dex->NumClassDefs(); i++) {
       const DexFile::ClassDef class_def = dex->GetClassDef(i);
       const char* descriptor = dex->GetClassDescriptor(class_def);
-      AssertDexFileClass(dex, descriptor);
+      AssertDexFileClass(class_loader, descriptor);
     }
     class_linker_->VisitRoots(TestRootVisitor, NULL);
   }
@@ -199,15 +201,15 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  scoped_ptr<DexFile> nested_dex(OpenDexFileBase64(kNestedDex));
-  class_linker_->RegisterDexFile(nested_dex.get());
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kNestedDex));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* outer = class_linker_->FindClass("LNested;", NULL, nested_dex.get());
+  Class* outer = class_linker_->FindClass("LNested;", class_loader);
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  Class* inner = class_linker_->FindClass("LNested$Inner;", NULL, nested_dex.get());
+  Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader);
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
@@ -235,6 +237,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   ASSERT_TRUE(JavaLangObject->GetDescriptor() == "Ljava/lang/Object;");
   EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
+  EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
   EXPECT_TRUE(JavaLangObject->GetComponentType() == NULL);
   EXPECT_FALSE(JavaLangObject->IsErroneous());
   EXPECT_FALSE(JavaLangObject->IsVerified());
@@ -254,9 +257,9 @@ TEST_F(ClassLinkerTest, FindClass) {
 
 
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
-  linker->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   EXPECT_TRUE(linker->FindSystemClass("LMyClass;") == NULL);
-  Class* MyClass = linker->FindClass("LMyClass;", NULL, dex.get());
+  Class* MyClass = linker->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
@@ -264,6 +267,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   ASSERT_TRUE(MyClass->GetDescriptor() == "LMyClass;");
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
+  EXPECT_EQ(class_loader, MyClass->GetClassLoader());
   EXPECT_TRUE(MyClass->GetComponentType() == NULL);
   EXPECT_TRUE(MyClass->GetStatus() == Class::kStatusResolved);
   EXPECT_FALSE(MyClass->IsErroneous());
@@ -285,11 +289,11 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
 
   // created by class_linker
-  AssertArrayClass("[C", 1, "C");
-  AssertArrayClass("[Ljava/lang/Object;", 1, "Ljava/lang/Object;");
+  AssertArrayClass("[C", 1, "C", NULL);
+  AssertArrayClass("[Ljava/lang/Object;", 1, "Ljava/lang/Object;", NULL);
   // synthesized on the fly
-  AssertArrayClass("[[C", 2, "C");
-  AssertArrayClass("[[[LMyClass;", 3, "LMyClass;");
+  AssertArrayClass("[[C", 2, "C", NULL);
+  AssertArrayClass("[[[LMyClass;", 3, "LMyClass;", class_loader);
   // or not available at all
   AssertNonExistantClass("[[[[LNonExistantClass;");
 }
@@ -297,10 +301,10 @@ TEST_F(ClassLinkerTest, FindClass) {
 TEST_F(ClassLinkerTest, ProtoCompare) {
   ClassLinker* linker = class_linker_;
 
-  scoped_ptr<DexFile> proto_dex_file(OpenDexFileBase64(kProtoCompareDex));
-  linker->RegisterDexFile(proto_dex_file.get());
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kProtoCompareDex));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = linker->FindClass("LProtoCompare;", NULL, proto_dex_file.get());
+  Class* klass = linker->FindClass("LProtoCompare;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   ASSERT_EQ(4U, klass->NumVirtualMethods());
@@ -352,13 +356,13 @@ TEST_F(ClassLinkerTest, ProtoCompare2) {
   ClassLinker* linker = class_linker_;
 
   scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
-  linker->RegisterDexFile(proto1_dex_file.get());
+  PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
   scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex));
-  linker->RegisterDexFile(proto2_dex_file.get());
+  PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
 
-  Class* klass1 = linker->FindClass("LProtoCompare;", NULL, proto1_dex_file.get());
+  Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
   ASSERT_TRUE(klass1 != NULL);
-  Class* klass2 = linker->FindClass("LProtoCompare2;", NULL, proto2_dex_file.get());
+  Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2);
   ASSERT_TRUE(klass2 != NULL);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);
@@ -393,9 +397,10 @@ TEST_F(ClassLinkerTest, ProtoCompare2) {
 }
 
 TEST_F(ClassLinkerTest, LibCore) {
+  UseLibCoreDex();
   scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
-  EXPECT_TRUE(libcore_dex_file.get() != NULL); // Passes on host only until we have DexFile::OpenJar
-  AssertDexFile(libcore_dex_file.get());
+  EXPECT_TRUE(libcore_dex_file.get() != NULL);
+  AssertDexFile(libcore_dex_file.get(), NULL);
 }
 
 // C++ fields must exactly match the fields in the Java classes. If this fails,
@@ -403,18 +408,18 @@ TEST_F(ClassLinkerTest, LibCore) {
 // ClassLinker::LinkInstanceFields.
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   UseLibCoreDex();
-  Class* string = class_linker_->FindClass( "Ljava/lang/String;", NULL, java_lang_dex_file_.get());
+  Class* string = class_linker_->FindSystemClass( "Ljava/lang/String;");
   ASSERT_EQ(4U, string->NumInstanceFields());
   EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(0)->GetName(), "value");
   EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(1)->GetName(), "hashCode");
   EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(2)->GetName(), "offset");
   EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(3)->GetName(), "count");
 
-  Class* accessible_object = class_linker_->FindClass("Ljava/lang/reflect/AccessibleObject;", NULL, java_lang_dex_file_.get());
+  Class* accessible_object = class_linker_->FindSystemClass("Ljava/lang/reflect/AccessibleObject;");
   ASSERT_EQ(1U, accessible_object->NumInstanceFields());
   EXPECT_PRED2(String::EqualsUtf8, accessible_object->GetInstanceField(0)->GetName(), "flag");
 
-  Class* field = class_linker_->FindClass("Ljava/lang/reflect/Field;", NULL, java_lang_dex_file_.get());
+  Class* field = class_linker_->FindSystemClass("Ljava/lang/reflect/Field;");
   ASSERT_EQ(6U, field->NumInstanceFields());
   EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(0)->GetName(), "declaringClass");
   EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(1)->GetName(), "genericType");
@@ -423,7 +428,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(4)->GetName(), "slot");
   EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(5)->GetName(), "genericTypesAreInitialized");
 
-  Class* method = class_linker_->FindClass("Ljava/lang/reflect/Method;", NULL, java_lang_dex_file_.get());
+  Class* method = class_linker_->FindSystemClass("Ljava/lang/reflect/Method;");
   ASSERT_EQ(11U, method->NumInstanceFields());
   EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 0)->GetName(), "declaringClass");
   EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 1)->GetName(), "exceptionTypes");
@@ -436,6 +441,28 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 8)->GetName(), "parameterTypes");
   EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 9)->GetName(), "genericTypesAreInitialized");
   EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField(10)->GetName(), "slot");
+
+  Class* class_loader = class_linker_->FindSystemClass("Ljava/lang/ClassLoader;");
+  ASSERT_EQ(2U, class_loader->NumInstanceFields());
+  EXPECT_PRED2(String::EqualsUtf8, class_loader->GetInstanceField(0)->GetName(), "packages");
+  EXPECT_PRED2(String::EqualsUtf8, class_loader->GetInstanceField(1)->GetName(), "parent");
+
+  Class* dex_base_class_loader = class_linker_->FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
+  ASSERT_EQ(2U, dex_base_class_loader->NumInstanceFields());
+  EXPECT_PRED2(String::EqualsUtf8, dex_base_class_loader->GetInstanceField(0)->GetName(), "originalPath");
+  EXPECT_PRED2(String::EqualsUtf8, dex_base_class_loader->GetInstanceField(1)->GetName(), "pathList");
+}
+
+TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
+  scoped_ptr<DexFile> dex_1(OpenDexFileBase64(kMyClassDex));
+  scoped_ptr<DexFile> dex_2(OpenDexFileBase64(kMyClassDex));
+  PathClassLoader* class_loader_1 = AllocPathClassLoader(dex_1.get());
+  PathClassLoader* class_loader_2 = AllocPathClassLoader(dex_2.get());
+  Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1);
+  Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2);
+  EXPECT_TRUE(MyClass_1 != NULL);
+  EXPECT_TRUE(MyClass_2 != NULL);
+  EXPECT_NE(MyClass_1, MyClass_2);
 }
 
 }  // namespace art

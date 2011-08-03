@@ -204,9 +204,9 @@ jobject Java_MyClass_fooSSIOO(JNIEnv*, jclass klass, jint x, jobject y,
 
 TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod("foo", "()V");
@@ -233,9 +233,9 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod("fooI", "(I)I");
@@ -264,9 +264,9 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod("fooII", "(II)I");
@@ -298,9 +298,9 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod("fooDD", "(DD)D");
@@ -331,9 +331,9 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod(
@@ -392,9 +392,9 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod(
@@ -450,9 +450,9 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
 
 TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod(
@@ -514,9 +514,9 @@ void SuspendCountHandler(Method** frame) {
 }
 TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod("fooI", "(I)I");
@@ -559,9 +559,9 @@ void ExceptionHandler(Method** frame) {
 }
 TEST_F(JniCompilerTest, ExceptionHandling) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
-  class_linker_->RegisterDexFile(dex.get());
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
-  Class* klass = class_linker_->FindClass("LMyClass;", NULL, dex.get());
+  Class* klass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindVirtualMethod("foo", "()V");

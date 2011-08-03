@@ -24,24 +24,25 @@ class ClassLinker {
   ~ClassLinker() {}
 
   // Finds a class by its descriptor name.
-  // If dex_file is null, searches boot_class_path_.
+  // If class_loader is null, searches boot_class_path_.
   Class* FindClass(const StringPiece& descriptor,
-                   Object* class_loader,
-                   const DexFile* dex_file);
+                   ClassLoader* class_loader);
 
   Class* FindSystemClass(const StringPiece& descriptor) {
-    return FindClass(descriptor, NULL, NULL);
+    return FindClass(descriptor, NULL);
   }
 
   bool InitializeClass(Class* klass);
 
-  Class* LookupClass(const StringPiece& descriptor, Object* class_loader);
+  Class* LookupClass(const StringPiece& descriptor, ClassLoader* class_loader);
 
   Class* ResolveClass(const Class* referring,
                       uint32_t class_idx,
-                      const DexFile* dex_file);
+                      const DexFile& dex_file);
 
-  String* ResolveString(const Class* referring, uint32_t string_idx);
+  String* ResolveString(const Class* referring,
+                        uint32_t string_idx,
+                        const DexFile& dex_file);
 
   void RegisterDexFile(const DexFile* dex_file);
 
@@ -69,28 +70,25 @@ class ClassLinker {
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(class_roots_->Get(kObjectArrayClass), length);
   }
+  PathClassLoader* AllocPathClassLoader(std::vector<const DexFile*> dex_files);
 
   Class* CreatePrimitiveClass(const StringPiece& descriptor);
 
   Class* CreateArrayClass(const StringPiece& descriptor,
-                          Object* class_loader,
-                          const DexFile* dex_file);
+                          ClassLoader* class_loader);
 
   Class* FindPrimitiveClass(char type);
 
-  const DexFile* FindDexFile(const DexCache* dex_cache) const;
+  const DexFile& FindDexFile(const DexCache* dex_cache) const;
 
   DexCache* FindDexCache(const DexFile* dex_file) const;
 
-  typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
-
   void AppendToBootClassPath(DexFile* dex_file);
-
-  ClassPathEntry FindInBootClassPath(const StringPiece& descriptor);
 
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
-                 Class* klass);
+                 Class* klass,
+                 ClassLoader* class_loader);
 
   void LoadInterfaces(const DexFile& dex_file,
                       const DexFile::ClassDef& dex_class_def,
@@ -140,11 +138,11 @@ class ClassLinker {
 
   bool HasSameArgumentTypes(const Method* m1, const Method* m2) const;
 
-  bool LinkClass(Class* klass, const DexFile* dex_file);
+  bool LinkClass(Class* klass, const DexFile& dex_file);
 
   bool LinkSuperClass(Class* klass);
 
-  bool LinkInterfaces(Class* klass, const DexFile* dex_file);
+  bool LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file);
 
   bool LinkMethods(Class* klass);
 
@@ -164,8 +162,11 @@ class ClassLinker {
 
   std::vector<DexCache*> dex_caches_;
 
+  // multimap from String::descriptor_ to Class* instances. Results
+  // should be compared for a matching Class::descriptor_ and
+  // Class::class_loader_.
   // TODO: unordered_multimap
-  typedef std::map<const StringPiece, Class*> Table;
+  typedef std::multimap<const StringPiece, Class*> Table;
 
   Table classes_;
 
@@ -174,12 +175,17 @@ class ClassLinker {
   // TODO: classpath
 
   // indexes into class_roots_
-  enum ClassRoots {
+  enum ClassRoot {
     kJavaLangClass,
     kJavaLangObject,
+    kObjectArrayClass,
+    kJavaLangString,
+    kCharArrayClass,
     kJavaLangReflectField,
     kJavaLangReflectMethod,
-    kJavaLangString,
+    kJavaLangClassLoader,
+    kDalvikSystemBaseDexClassLoader,
+    kDalvikSystemPathClassLoader,
     kPrimitiveBoolean,
     kPrimitiveChar,
     kPrimitiveFloat,
@@ -189,17 +195,22 @@ class ClassLinker {
     kPrimitiveInt,
     kPrimitiveLong,
     kPrimitiveVoid,
-    kObjectArrayClass,
-    kCharArrayClass,
     kClassRootsMax,
   };
   ObjectArray<Class>* class_roots_;
+
+  Class* GetClassRoot(ClassRoot class_root) {
+    Class* klass = class_roots_->Get(class_root);
+    DCHECK(klass != NULL);
+    return klass;
+  }
 
   ObjectArray<Class>* array_interfaces_;
   InterfaceEntry* array_iftable_;
 
   bool init_done_;
 
+  friend class RuntimeTest;
   FRIEND_TEST(ClassLinkerTest, ProtoCompare);
   FRIEND_TEST(ClassLinkerTest, ProtoCompare2);
   FRIEND_TEST(DexCacheTest, Open);

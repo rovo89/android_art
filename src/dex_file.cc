@@ -25,6 +25,18 @@ namespace art {
 const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
+DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
+                                                 ClassPath& class_path) {
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+    if (dex_class_def != NULL) {
+      return ClassPathEntry(dex_file, dex_class_def);
+    }
+  }
+  return ClassPathEntry(NULL, NULL);
+}
+
 DexFile::Closer::~Closer() {}
 
 DexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {

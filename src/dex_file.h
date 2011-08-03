@@ -4,6 +4,7 @@
 #define ART_SRC_DEX_FILE_H_
 
 #include <map>
+#include <vector>
 
 #include "globals.h"
 #include "leb128.h"
@@ -202,6 +203,13 @@ class DexFile {
     uint32_t access_flags_;
     uint32_t code_off_;
   };
+
+  typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
+  typedef std::vector<const DexFile*> ClassPath;
+
+  // Search a collection of DexFiles for a descriptor
+  static ClassPathEntry FindInClassPath(const StringPiece& descriptor,
+                                        ClassPath& class_path);
 
   // Opens a .dex file from the file system.
   static DexFile* OpenFile(const std::string& filename);
