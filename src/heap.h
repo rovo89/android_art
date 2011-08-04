@@ -23,6 +23,8 @@ class Heap {
 
   static const size_t kMaximumSize = 64 * MB;
 
+  typedef void (RootVistor)(Object* root, void* arg);
+
   static bool Init() {
     return Init(kStartupSize, kMaximumSize);
   }

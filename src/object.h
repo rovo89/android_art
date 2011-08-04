@@ -1096,7 +1096,7 @@ class CharArray : public Array {
     return GetChars()[i];
   }
 
-  void  SetChar(uint32_t i, uint16_t ch) {
+  void SetChar(uint32_t i, uint16_t ch) {
     CHECK_LT(i, GetLength());
     GetChars()[i] = ch;
   }
@@ -1111,33 +1111,34 @@ class String : public Object {
     return array_;
   }
 
-  uint32_t GetHashCode() const {
+  int32_t GetHashCode() const {
     return hash_code_;
   }
 
-  uint32_t GetOffset() const {
+  int32_t GetOffset() const {
+    DCHECK_LE(0, offset_);
     return offset_;
   }
 
-  uint32_t GetLength() const {
+  int32_t GetLength() const {
+    DCHECK_LE(0, count_);
     return count_;
   }
 
-  uint16_t CharAt(uint32_t index) const {
+  uint16_t CharAt(int32_t index) const {
     return GetCharArray()->GetChar(index + GetOffset());
   }
 
-  static String* AllocFromUtf16(Class* java_lang_String,
-                                Class* char_array,
-                                int32_t utf16_length,
-                                uint16_t* utf16_data_in) {
-    String* string = Alloc(java_lang_String, char_array, utf16_length);
+  static String* AllocFromUtf16(int32_t utf16_length,
+                                uint16_t* utf16_data_in,
+                                int32_t hash_code) {
+    String* string = Alloc(GetJavaLangString(), GetCharArrayClass(), utf16_length);
     uint16_t* utf16_data_out = string->array_->GetChars();
     // TODO use 16-bit wide memset variant
     for (int i = 0; i < utf16_length; i++ ) {
         utf16_data_out[i] = utf16_data_in[i];
     }
-    string->hash_code_ = ComputeUtf16Hash(utf16_data_out, utf16_length);
+    string->hash_code_ = hash_code;
     return string;
   }
 
@@ -1155,17 +1156,16 @@ class String : public Object {
   // Creates a String of the given ASCII characters. It is an error to call this
   // using non-ASCII characters as this function assumes one char per byte.
   static String* AllocFromAscii(const char* ascii_data_in) {
-    DCHECK(java_lang_String_ != NULL);
-    DCHECK(char_array_ != NULL);
-    return AllocFromModifiedUtf8(java_lang_String_,
-                                 char_array_,
+    return AllocFromModifiedUtf8(GetJavaLangString(),
+                                 GetCharArrayClass(),
                                  strlen(ascii_data_in),
                                  ascii_data_in);
   }
 
   static String* AllocFromModifiedUtf8(int32_t utf16_length,
                                        const char* utf8_data_in) {
-    return AllocFromModifiedUtf8(java_lang_String_, char_array_, utf16_length, utf8_data_in);
+    return AllocFromModifiedUtf8(GetJavaLangString(), GetCharArrayClass(),
+                                 utf16_length, utf8_data_in);
   }
 
   static void InitClasses(Class* java_lang_String, Class* char_array);
@@ -1253,13 +1253,13 @@ class String : public Object {
   static int32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {
     int32_t hash = 0;
     while (string_length--) {
-        hash = hash * 31 + *string_data++;
+      hash = hash * 31 + *string_data++;
     }
     return hash;
   }
 
   bool Equals(const char* modified_utf8) const {
-    for (size_t i = 0; i < GetLength(); ++i) {
+    for (int32_t i = 0; i < GetLength(); ++i) {
       uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
       if (ch == '\0' || ch != CharAt(i)) {
         return false;
@@ -1274,11 +1274,24 @@ class String : public Object {
   }
 
   bool Equals(const String* that) const {
+    // TODO short circuit on hash_code_
     if (this->GetLength() != that->GetLength()) {
       return false;
     }
-    for (size_t i = 0; i < that->GetLength(); ++i) {
+    for (int32_t i = 0; i < that->GetLength(); ++i) {
       if (this->CharAt(i) != that->CharAt(i)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) const {
+    if (this->GetLength() != that_length) {
+      return false;
+    }
+    for (int32_t i = 0; i < that_length; ++i) {
+      if (this->CharAt(i) != that_chars[that_offset + i]) {
         return false;
       }
     }
@@ -1289,11 +1302,20 @@ class String : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
 
-  uint32_t hash_code_;
+  int32_t hash_code_;
 
-  uint32_t offset_;
+  int32_t offset_;
 
-  uint32_t count_;
+  int32_t count_;
+
+  static Class* GetJavaLangString() {
+    DCHECK(java_lang_String_ != NULL);
+    return java_lang_String_;
+  }
+  static Class* GetCharArrayClass() {
+    DCHECK(char_array_ != NULL);
+    return char_array_;
+  }
 
   static Class* java_lang_String_;
   static Class* char_array_;

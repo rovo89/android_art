@@ -310,7 +310,7 @@ ZipArchive* ZipArchive::Open(const std::string& filename) {
 
 ZipEntry* ZipArchive::Find(const char* name) {
   DCHECK(name != NULL);
-  std::map<StringPiece, const uint8_t*>::const_iterator it = dir_entries_.find(name);
+  DirEntries::const_iterator it = dir_entries_.find(name);
   if (it == dir_entries_.end()) {
     return NULL;
   }

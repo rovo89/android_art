@@ -26,6 +26,7 @@
 #include "logging.h"
 #include "scoped_ptr.h"
 #include "stringpiece.h"
+#include "unordered_map.h"
 
 namespace art {
 
@@ -183,8 +184,8 @@ class ZipArchive {
   uint16_t num_entries_;
   off_t dir_offset_;
   scoped_ptr<MemMap> dir_map_;
-  // TODO: unordered map
-  std::map<StringPiece, const uint8_t*> dir_entries_;
+  typedef std::tr1::unordered_map<StringPiece, const uint8_t*> DirEntries;
+  DirEntries dir_entries_;
 
   friend class ZipEntry;
 };

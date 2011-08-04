@@ -41,6 +41,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
 	src/heap.cc \
+	src/intern_table.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
 	src/mark_stack.cc \
@@ -83,6 +84,7 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
+	src/intern_table_test.cc \
 	src/jni_compiler_test.cc.arm \
 	src/object_test.cc \
 	src/runtime_test.cc \

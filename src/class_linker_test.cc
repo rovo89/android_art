@@ -4,6 +4,7 @@
 #include "class_linker.h"
 #include "dex_file.h"
 #include "heap.h"
+
 #include "gtest/gtest.h"
 
 namespace art {

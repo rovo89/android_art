@@ -34,7 +34,9 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
       return ClassPathEntry(dex_file, dex_class_def);
     }
   }
-  return ClassPathEntry(NULL, NULL);
+  // TODO remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
+  return ClassPathEntry(reinterpret_cast<const DexFile*>(NULL),
+                        reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
 DexFile::Closer::~Closer() {}

@@ -16,12 +16,12 @@ namespace art {
 
 class ObjectTest : public RuntimeTest {
  protected:
-  void AssertString(size_t length,
+  void AssertString(int32_t length,
                     const char* utf8_in,
                     const char* utf16_expected_le,
-                    uint32_t hash_expected) {
+                    int32_t hash_expected) {
     uint16_t utf16_expected[length];
-    for (size_t i = 0; i < length; i++) {
+    for (int32_t i = 0; i < length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |
                      ((utf16_expected_le[i*2 + 1] & 0xff) << 0));
       utf16_expected[i] = ch;
@@ -32,8 +32,8 @@ class ObjectTest : public RuntimeTest {
     ASSERT_TRUE(string->GetCharArray() != NULL);
     ASSERT_TRUE(string->GetCharArray()->GetChars() != NULL);
     // strlen is necessary because the 1-character string "\0" is interpreted as ""
-    ASSERT_TRUE(string->Equals(utf8_in) || length != strlen(utf8_in));
-    for (size_t i = 0; i < length; i++) {
+    ASSERT_TRUE(string->Equals(utf8_in) || length != static_cast<int32_t>(strlen(utf8_in)));
+    for (int32_t i = 0; i < length; i++) {
       EXPECT_EQ(utf16_expected[i], string->GetCharArray()->GetChar(i));
     }
     EXPECT_EQ(hash_expected, string->GetHashCode());

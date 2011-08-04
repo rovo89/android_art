@@ -186,19 +186,22 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   init_done_ = true;
 }
 
-void ClassLinker::VisitRoots(RootVistor* root_visitor, void* arg) {
+void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) {
   root_visitor(class_roots_, arg);
 
   for (size_t i = 0; i < dex_caches_.size(); i++) {
       root_visitor(dex_caches_[i], arg);
   }
 
-  // TODO: acquire classes_lock_
-  typedef Table::const_iterator It; // TODO: C++0x auto
-  for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
-      root_visitor(it->second, arg);
+  {
+    MutexLock mu(classes_lock_);
+    typedef Table::const_iterator It; // TODO: C++0x auto
+    for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
+        root_visitor(it->second, arg);
+    }
   }
-  // TODO: release classes_lock_
+
+  intern_table_.VisitRoots(root_visitor, arg);
 
   root_visitor(array_interfaces_, arg);
 }
@@ -736,15 +739,14 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
 }
 
 bool ClassLinker::InsertClass(Class* klass) {
-  // TODO: acquire classes_lock_
+  MutexLock mu(classes_lock_);
   const StringPiece& key = klass->GetDescriptor();
   Table::iterator it = classes_.insert(std::make_pair(key, klass));
   return ((*it).second == klass);
-  // TODO: release classes_lock_
 }
 
 Class* ClassLinker::LookupClass(const StringPiece& descriptor, ClassLoader* class_loader) {
-  // TODO: acquire classes_lock_
+  MutexLock mu(classes_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = classes_.find(descriptor), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
@@ -753,7 +755,6 @@ Class* ClassLinker::LookupClass(const StringPiece& descriptor, ClassLoader* clas
     }
   }
   return NULL;
-  // TODO: release classes_lock_
 }
 
 bool ClassLinker::InitializeClass(Class* klass) {
@@ -963,7 +964,7 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
 
 bool ClassLinker::InitializeSuperClass(Class* klass) {
   CHECK(klass != NULL);
-  // TODO: assert klass lock is acquired
+  MutexLock mu(classes_lock_);
   if (!klass->IsInterface() && klass->HasSuperClass()) {
     Class* super_class = klass->GetSuperClass();
     if (super_class->GetStatus() != Class::kStatusInitialized) {
@@ -1536,10 +1537,9 @@ String* ClassLinker::ResolveString(const Class* referring,
   const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
   int32_t utf16_length = dex_file.GetStringLength(string_id);
   const char* utf8_data = dex_file.GetStringData(string_id);
-  String* new_string = String::AllocFromModifiedUtf8(utf16_length, utf8_data);
-  // TODO: intern the new string
-  referring->GetDexCache()->SetResolvedString(string_idx, new_string);
-  return new_string;
+  String* string = intern_table_.Intern(utf16_length, utf8_data);
+  referring->GetDexCache()->SetResolvedString(string_idx, string);
+  return string;
 }
 
 }  // namespace art

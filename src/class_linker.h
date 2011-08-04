@@ -7,11 +7,14 @@
 #include <utility>
 #include <vector>
 
-#include "heap.h"
-#include "macros.h"
 #include "dex_file.h"
-#include "thread.h"
+#include "heap.h"
+#include "intern_table.h"
+#include "macros.h"
 #include "object.h"
+#include "thread.h"
+#include "unordered_map.h"
+
 #include "gtest/gtest.h"
 
 namespace art {
@@ -34,24 +37,14 @@ class ClassLinker {
 
   bool InitializeClass(Class* klass);
 
-  Class* LookupClass(const StringPiece& descriptor, ClassLoader* class_loader);
-
-  Class* ResolveClass(const Class* referring,
-                      uint32_t class_idx,
-                      const DexFile& dex_file);
-
-  String* ResolveString(const Class* referring,
-                        uint32_t string_idx,
-                        const DexFile& dex_file);
-
   void RegisterDexFile(const DexFile* dex_file);
 
-  // TODO replace with heap interface
-  typedef void (RootVistor)(Object* root, void* arg);
-  void VisitRoots(RootVistor* root_visitor, void* arg);
+  void VisitRoots(Heap::RootVistor* root_visitor, void* arg);
 
  private:
-  ClassLinker() {}
+  ClassLinker() {
+    classes_lock_ = Mutex::Create("ClassLinker::Lock");
+  }
 
   void Init(const std::vector<DexFile*>& boot_class_path_);
 
@@ -104,6 +97,16 @@ class ClassLinker {
                   Class* klass,
                   Method* dst);
 
+  Class* ResolveClass(const Class* referring,
+                      uint32_t class_idx,
+                      const DexFile& dex_file);
+
+  String* ResolveString(const Class* referring,
+                        uint32_t string_idx,
+                        const DexFile& dex_file);
+
+  Class* LookupClass(const StringPiece& descriptor, ClassLoader* class_loader);
+
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
   bool InsertClass(Class* klass);
@@ -149,14 +152,11 @@ class ClassLinker {
   // multimap from String::descriptor_ to Class* instances. Results
   // should be compared for a matching Class::descriptor_ and
   // Class::class_loader_.
-  // TODO: unordered_multimap
-  typedef std::multimap<const StringPiece, Class*> Table;
-
+  typedef std::tr1::unordered_multimap<StringPiece, Class*> Table;
   Table classes_;
-
   Mutex* classes_lock_;
 
-  // TODO: classpath
+  InternTable intern_table_;
 
   // indexes into class_roots_
   enum ClassRoot {
