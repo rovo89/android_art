@@ -395,11 +395,6 @@ class Method : public AccessibleObject {
     return MemberOffset(OFFSETOF_MEMBER(Method, klass_));
   }
 
-  // const char* GetReturnTypeDescriptor() const {
-  //   return FindDexFile(declaring_class_->GetDexCache()
-  //          ->dexStringByTypeIdx(proto_id_.return_type_id_);
-  // }
-
   // Returns true if the method is declared public.
   bool IsPublic() const {
     return (access_flags_ & kAccPublic) != 0;
@@ -524,6 +519,8 @@ class Method : public AccessibleObject {
   static MemberOffset NativeMethodOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Method, native_method_));
   }
+
+  bool HasSameNameAndDescriptor(const Method* that) const;
 
  public:  // TODO: private/const
   // the class we are a part of
@@ -1110,6 +1107,26 @@ class CharArray : public Array {
 
 class String : public Object {
  public:
+  const CharArray* GetCharArray() const {
+    return array_;
+  }
+
+  uint32_t GetHashCode() const {
+    return hash_code_;
+  }
+
+  uint32_t GetOffset() const {
+    return offset_;
+  }
+
+  uint32_t GetLength() const {
+    return count_;
+  }
+
+  uint16_t CharAt(uint32_t index) const {
+    return GetCharArray()->GetChar(index + GetOffset());
+  }
+
   static String* AllocFromUtf16(Class* java_lang_String,
                                 Class* char_array,
                                 int32_t utf16_length,
@@ -1150,16 +1167,6 @@ class String : public Object {
                                        const char* utf8_data_in) {
     return AllocFromModifiedUtf8(java_lang_String_, char_array_, utf16_length, utf8_data_in);
   }
-
- public: // TODO: private
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  CharArray* array_;
-
-  int32_t hash_code_;
-
-  int32_t offset_;
-
-  int32_t count_;
 
   static void InitClasses(Class* java_lang_String, Class* char_array);
 
@@ -1251,29 +1258,27 @@ class String : public Object {
     return hash;
   }
 
-  static bool EqualsUtf8(const String* string, const char* other) {
-    uint16_t* chars = string->array_->GetChars();
-    for (int32_t i = 0; i < string->count_; i++) {
-      uint16_t c = GetUtf16FromUtf8(&other);
-      if (c == '\0' || c != chars[string->offset_ + i]) {
+  bool Equals(const char* modified_utf8) const {
+    for (size_t i = 0; i < GetLength(); ++i) {
+      uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
+      if (ch == '\0' || ch != CharAt(i)) {
         return false;
       }
     }
-    return *other == '\0';
+    return *modified_utf8 == '\0';
   }
 
-  static bool Equals(const String* a, const String* b) {
-    // TODO short circuit on hash_code_
-    int32_t a_count = a->count_;
-    if (a_count != b->count_) {
+  bool Equals(const StringPiece& modified_utf8) const {
+    // TODO: do not assume C-string representation.
+    return Equals(modified_utf8.data());
+  }
+
+  bool Equals(const String* that) const {
+    if (this->GetLength() != that->GetLength()) {
       return false;
     }
-    int32_t a_offset = a->offset_;
-    int32_t b_offset = b->offset_;
-    uint16_t* a_chars = a->array_->GetChars();
-    uint16_t* b_chars = b->array_->GetChars();
-    for (int32_t i = 0; i < a_count; i++) {
-      if (a_chars[a_offset + i] != b_chars[b_offset + i]) {
+    for (size_t i = 0; i < that->GetLength(); ++i) {
+      if (this->CharAt(i) != that->CharAt(i)) {
         return false;
       }
     }
@@ -1281,10 +1286,19 @@ class String : public Object {
   }
 
  private:
-  String();
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  CharArray* array_;
+
+  uint32_t hash_code_;
+
+  uint32_t offset_;
+
+  uint32_t count_;
 
   static Class* java_lang_String_;
   static Class* char_array_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
 class InterfaceEntry {

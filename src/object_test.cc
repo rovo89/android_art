@@ -19,7 +19,7 @@ class ObjectTest : public RuntimeTest {
   void AssertString(size_t length,
                     const char* utf8_in,
                     const char* utf16_expected_le,
-                    int32_t hash_expected) {
+                    uint32_t hash_expected) {
     uint16_t utf16_expected[length];
     for (size_t i = 0; i < length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |
@@ -28,15 +28,15 @@ class ObjectTest : public RuntimeTest {
     }
 
     String* string = String::AllocFromModifiedUtf8(length, utf8_in);
-    ASSERT_EQ(length,  static_cast<size_t>(string->count_));
-    ASSERT_TRUE(string->array_ != NULL);
-    ASSERT_TRUE(string->array_->GetChars() != NULL);
+    ASSERT_EQ(length, string->GetLength());
+    ASSERT_TRUE(string->GetCharArray() != NULL);
+    ASSERT_TRUE(string->GetCharArray()->GetChars() != NULL);
     // strlen is necessary because the 1-character string "\0" is interpreted as ""
-    ASSERT_TRUE(String::EqualsUtf8(string, utf8_in) || length != strlen(utf8_in));
+    ASSERT_TRUE(string->Equals(utf8_in) || length != strlen(utf8_in));
     for (size_t i = 0; i < length; i++) {
-      EXPECT_EQ(utf16_expected[i], string->array_->GetChar(i));
+      EXPECT_EQ(utf16_expected[i], string->GetCharArray()->GetChar(i));
     }
-    EXPECT_EQ(hash_expected, string->hash_code_);
+    EXPECT_EQ(hash_expected, string->GetHashCode());
   }
 };
 
@@ -90,40 +90,76 @@ TEST_F(ObjectTest, String) {
   AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69", (31 * ((31 * 0x68) + 0x1234)) + 0x69);
 }
 
-static bool StringNotEqualsUtf8(const String* a, const char* b) {
-  return !String::EqualsUtf8(a, b);
-}
-
 TEST_F(ObjectTest, StringEqualsUtf8) {
   String* string = String::AllocFromAscii("android");
-  EXPECT_PRED2(String::EqualsUtf8, string, "android");
-  EXPECT_PRED2(StringNotEqualsUtf8, string, "Android");
-  EXPECT_PRED2(StringNotEqualsUtf8, string, "ANDROID");
-  EXPECT_PRED2(StringNotEqualsUtf8, string, "");
-  EXPECT_PRED2(StringNotEqualsUtf8, string, "and");
-  EXPECT_PRED2(StringNotEqualsUtf8, string, "androids");
+  EXPECT_TRUE(string->Equals("android"));
+  EXPECT_FALSE(string->Equals("Android"));
+  EXPECT_FALSE(string->Equals("ANDROID"));
+  EXPECT_FALSE(string->Equals(""));
+  EXPECT_FALSE(string->Equals("and"));
+  EXPECT_FALSE(string->Equals("androids"));
 
   String* empty = String::AllocFromAscii("");
-  EXPECT_PRED2(String::EqualsUtf8, empty, "");
-  EXPECT_PRED2(StringNotEqualsUtf8, empty, "a");
-}
-
-static bool StringNotEquals(const String* a, const String* b) {
-  return !String::Equals(a, b);
+  EXPECT_TRUE(empty->Equals(""));
+  EXPECT_FALSE(empty->Equals("a"));
 }
 
 TEST_F(ObjectTest, StringEquals) {
   String* string = String::AllocFromAscii("android");
-  EXPECT_PRED2(String::Equals, string, String::AllocFromAscii("android"));
-  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("Android"));
-  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("ANDROID"));
-  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii(""));
-  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("and"));
-  EXPECT_PRED2(StringNotEquals, string, String::AllocFromAscii("androids"));
+  EXPECT_TRUE(string->Equals(String::AllocFromAscii("android")));
+  EXPECT_FALSE(string->Equals("Android"));
+  EXPECT_FALSE(string->Equals("ANDROID"));
+  EXPECT_FALSE(string->Equals(""));
+  EXPECT_FALSE(string->Equals("and"));
+  EXPECT_FALSE(string->Equals("androids"));
 
   String* empty = String::AllocFromAscii("");
-  EXPECT_PRED2(String::Equals, empty, String::AllocFromAscii(""));
-  EXPECT_PRED2(StringNotEquals, empty, String::AllocFromAscii("a"));
+  EXPECT_TRUE(empty->Equals(""));
+  EXPECT_FALSE(empty->Equals("a"));
+}
+
+TEST_F(ObjectTest, DescriptorCompare) {
+  ClassLinker* linker = class_linker_;
+
+  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
+  PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
+  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex));
+  PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
+
+  Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
+  ASSERT_TRUE(klass1 != NULL);
+  Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2);
+  ASSERT_TRUE(klass2 != NULL);
+
+  Method* m1_1 = klass1->GetVirtualMethod(0);
+  EXPECT_TRUE(m1_1->GetName()->Equals("m1"));
+  Method* m2_1 = klass1->GetVirtualMethod(1);
+  EXPECT_TRUE(m2_1->GetName()->Equals("m2"));
+  Method* m3_1 = klass1->GetVirtualMethod(2);
+  EXPECT_TRUE(m3_1->GetName()->Equals("m3"));
+  Method* m4_1 = klass1->GetVirtualMethod(3);
+  EXPECT_TRUE(m4_1->GetName()->Equals("m4"));
+
+  Method* m1_2 = klass2->GetVirtualMethod(0);
+  EXPECT_TRUE(m1_2->GetName()->Equals("m1"));
+  Method* m2_2 = klass2->GetVirtualMethod(1);
+  EXPECT_TRUE(m2_2->GetName()->Equals("m2"));
+  Method* m3_2 = klass2->GetVirtualMethod(2);
+  EXPECT_TRUE(m3_2->GetName()->Equals("m3"));
+  Method* m4_2 = klass2->GetVirtualMethod(3);
+  EXPECT_TRUE(m4_2->GetName()->Equals("m4"));
+
+  EXPECT_TRUE(m1_1->HasSameNameAndDescriptor(m1_2));
+  EXPECT_TRUE(m1_2->HasSameNameAndDescriptor(m1_1));
+
+  EXPECT_TRUE(m2_1->HasSameNameAndDescriptor(m2_2));
+  EXPECT_TRUE(m2_2->HasSameNameAndDescriptor(m2_1));
+
+  EXPECT_TRUE(m3_1->HasSameNameAndDescriptor(m3_2));
+  EXPECT_TRUE(m3_2->HasSameNameAndDescriptor(m3_1));
+
+  EXPECT_TRUE(m4_1->HasSameNameAndDescriptor(m4_2));
+  EXPECT_TRUE(m4_2->HasSameNameAndDescriptor(m4_1));
 }
 
 }  // namespace art

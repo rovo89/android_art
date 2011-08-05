@@ -103,7 +103,7 @@ class ClassLinkerTest : public RuntimeTest {
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
       if (klass->NumDirectMethods() == 1) {
-        EXPECT_PRED2(String::EqualsUtf8, klass->GetDirectMethod(0)->GetName(), "<clinit>");
+        EXPECT_TRUE(klass->GetDirectMethod(0)->GetName()->Equals("<clinit>"));
       } else {
         EXPECT_EQ(0U, klass->NumDirectMethods());
       }
@@ -298,104 +298,6 @@ TEST_F(ClassLinkerTest, FindClass) {
   AssertNonExistantClass("[[[[LNonExistantClass;");
 }
 
-TEST_F(ClassLinkerTest, ProtoCompare) {
-  ClassLinker* linker = class_linker_;
-
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kProtoCompareDex));
-  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-
-  Class* klass = linker->FindClass("LProtoCompare;", class_loader);
-  ASSERT_TRUE(klass != NULL);
-
-  ASSERT_EQ(4U, klass->NumVirtualMethods());
-
-  Method* m1 = klass->GetVirtualMethod(0);
-  EXPECT_PRED2(String::EqualsUtf8, m1->GetName(), "m1");
-
-  Method* m2 = klass->GetVirtualMethod(1);
-  EXPECT_PRED2(String::EqualsUtf8, m2->GetName(), "m2");
-
-  Method* m3 = klass->GetVirtualMethod(2);
-  EXPECT_PRED2(String::EqualsUtf8, m3->GetName(), "m3");
-
-  Method* m4 = klass->GetVirtualMethod(3);
-  EXPECT_PRED2(String::EqualsUtf8, m4->GetName(), "m4");
-
-  EXPECT_TRUE(linker->HasSameReturnType(m1, m2));
-  EXPECT_TRUE(linker->HasSameReturnType(m2, m1));
-
-  EXPECT_TRUE(linker->HasSameReturnType(m1, m2));
-  EXPECT_TRUE(linker->HasSameReturnType(m2, m1));
-
-  EXPECT_FALSE(linker->HasSameReturnType(m1, m4));
-  EXPECT_FALSE(linker->HasSameReturnType(m4, m1));
-
-  EXPECT_TRUE(linker->HasSameArgumentTypes(m1, m2));
-  EXPECT_TRUE(linker->HasSameArgumentTypes(m2, m1));
-
-  EXPECT_FALSE(linker->HasSameArgumentTypes(m1, m3));
-  EXPECT_FALSE(linker->HasSameArgumentTypes(m3, m1));
-
-  EXPECT_FALSE(linker->HasSameArgumentTypes(m1, m4));
-  EXPECT_FALSE(linker->HasSameArgumentTypes(m4, m1));
-
-  EXPECT_TRUE(linker->HasSamePrototype(m1, m2));
-  EXPECT_TRUE(linker->HasSamePrototype(m2, m1));
-
-  EXPECT_FALSE(linker->HasSamePrototype(m1, m3));
-  EXPECT_FALSE(linker->HasSamePrototype(m3, m1));
-
-  EXPECT_FALSE(linker->HasSamePrototype(m3, m4));
-  EXPECT_FALSE(linker->HasSamePrototype(m4, m3));
-
-  EXPECT_FALSE(linker->HasSameName(m1, m2));
-  EXPECT_FALSE(linker->HasSameNameAndPrototype(m1, m2));
-}
-
-TEST_F(ClassLinkerTest, ProtoCompare2) {
-  ClassLinker* linker = class_linker_;
-
-  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
-  PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
-  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex));
-  PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
-
-  Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
-  ASSERT_TRUE(klass1 != NULL);
-  Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2);
-  ASSERT_TRUE(klass2 != NULL);
-
-  Method* m1_1 = klass1->GetVirtualMethod(0);
-  EXPECT_PRED2(String::EqualsUtf8, m1_1->GetName(), "m1");
-  Method* m2_1 = klass1->GetVirtualMethod(1);
-  EXPECT_PRED2(String::EqualsUtf8, m2_1->GetName(), "m2");
-  Method* m3_1 = klass1->GetVirtualMethod(2);
-  EXPECT_PRED2(String::EqualsUtf8, m3_1->GetName(), "m3");
-  Method* m4_1 = klass1->GetVirtualMethod(3);
-  EXPECT_PRED2(String::EqualsUtf8, m4_1->GetName(), "m4");
-
-  Method* m1_2 = klass2->GetVirtualMethod(0);
-  EXPECT_PRED2(String::EqualsUtf8, m1_2->GetName(), "m1");
-  Method* m2_2 = klass2->GetVirtualMethod(1);
-  EXPECT_PRED2(String::EqualsUtf8, m2_2->GetName(), "m2");
-  Method* m3_2 = klass2->GetVirtualMethod(2);
-  EXPECT_PRED2(String::EqualsUtf8, m3_2->GetName(), "m3");
-  Method* m4_2 = klass2->GetVirtualMethod(3);
-  EXPECT_PRED2(String::EqualsUtf8, m4_2->GetName(), "m4");
-
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m1_1, m1_2));
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m1_2, m1_1));
-
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m2_1, m2_2));
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m2_2, m2_1));
-
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m3_1, m3_2));
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m3_2, m3_1));
-
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m4_1, m4_2));
-  EXPECT_TRUE(linker->HasSameNameAndPrototype(m4_2, m4_1));
-}
-
 TEST_F(ClassLinkerTest, LibCore) {
   UseLibCoreDex();
   scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
@@ -410,47 +312,47 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   UseLibCoreDex();
   Class* string = class_linker_->FindSystemClass( "Ljava/lang/String;");
   ASSERT_EQ(4U, string->NumInstanceFields());
-  EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(0)->GetName(), "value");
-  EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(1)->GetName(), "hashCode");
-  EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(2)->GetName(), "offset");
-  EXPECT_PRED2(String::EqualsUtf8, string->GetInstanceField(3)->GetName(), "count");
+  EXPECT_TRUE(string->GetInstanceField(0)->GetName()->Equals("value"));
+  EXPECT_TRUE(string->GetInstanceField(1)->GetName()->Equals("hashCode"));
+  EXPECT_TRUE(string->GetInstanceField(2)->GetName()->Equals("offset"));
+  EXPECT_TRUE(string->GetInstanceField(3)->GetName()->Equals("count"));
 
   Class* accessible_object = class_linker_->FindSystemClass("Ljava/lang/reflect/AccessibleObject;");
   ASSERT_EQ(1U, accessible_object->NumInstanceFields());
-  EXPECT_PRED2(String::EqualsUtf8, accessible_object->GetInstanceField(0)->GetName(), "flag");
+  EXPECT_TRUE(accessible_object->GetInstanceField(0)->GetName()->Equals("flag"));
 
   Class* field = class_linker_->FindSystemClass("Ljava/lang/reflect/Field;");
   ASSERT_EQ(6U, field->NumInstanceFields());
-  EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(0)->GetName(), "declaringClass");
-  EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(1)->GetName(), "genericType");
-  EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(2)->GetName(), "type");
-  EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(3)->GetName(), "name");
-  EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(4)->GetName(), "slot");
-  EXPECT_PRED2(String::EqualsUtf8, field->GetInstanceField(5)->GetName(), "genericTypesAreInitialized");
+  EXPECT_TRUE(field->GetInstanceField(0)->GetName()->Equals("declaringClass"));
+  EXPECT_TRUE(field->GetInstanceField(1)->GetName()->Equals("genericType"));
+  EXPECT_TRUE(field->GetInstanceField(2)->GetName()->Equals("type"));
+  EXPECT_TRUE(field->GetInstanceField(3)->GetName()->Equals("name"));
+  EXPECT_TRUE(field->GetInstanceField(4)->GetName()->Equals("slot"));
+  EXPECT_TRUE(field->GetInstanceField(5)->GetName()->Equals("genericTypesAreInitialized"));
 
   Class* method = class_linker_->FindSystemClass("Ljava/lang/reflect/Method;");
   ASSERT_EQ(11U, method->NumInstanceFields());
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 0)->GetName(), "declaringClass");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 1)->GetName(), "exceptionTypes");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 2)->GetName(), "formalTypeParameters");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 3)->GetName(), "genericExceptionTypes");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 4)->GetName(), "genericParameterTypes");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 5)->GetName(), "genericReturnType");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 6)->GetName(), "returnType");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 7)->GetName(), "name");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 8)->GetName(), "parameterTypes");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField( 9)->GetName(), "genericTypesAreInitialized");
-  EXPECT_PRED2(String::EqualsUtf8, method->GetInstanceField(10)->GetName(), "slot");
+  EXPECT_TRUE(method->GetInstanceField( 0)->GetName()->Equals("declaringClass"));
+  EXPECT_TRUE(method->GetInstanceField( 1)->GetName()->Equals("exceptionTypes"));
+  EXPECT_TRUE(method->GetInstanceField( 2)->GetName()->Equals("formalTypeParameters"));
+  EXPECT_TRUE(method->GetInstanceField( 3)->GetName()->Equals("genericExceptionTypes"));
+  EXPECT_TRUE(method->GetInstanceField( 4)->GetName()->Equals("genericParameterTypes"));
+  EXPECT_TRUE(method->GetInstanceField( 5)->GetName()->Equals("genericReturnType"));
+  EXPECT_TRUE(method->GetInstanceField( 6)->GetName()->Equals("returnType"));
+  EXPECT_TRUE(method->GetInstanceField( 7)->GetName()->Equals("name"));
+  EXPECT_TRUE(method->GetInstanceField( 8)->GetName()->Equals("parameterTypes"));
+  EXPECT_TRUE(method->GetInstanceField( 9)->GetName()->Equals("genericTypesAreInitialized"));
+  EXPECT_TRUE(method->GetInstanceField(10)->GetName()->Equals("slot"));
 
   Class* class_loader = class_linker_->FindSystemClass("Ljava/lang/ClassLoader;");
   ASSERT_EQ(2U, class_loader->NumInstanceFields());
-  EXPECT_PRED2(String::EqualsUtf8, class_loader->GetInstanceField(0)->GetName(), "packages");
-  EXPECT_PRED2(String::EqualsUtf8, class_loader->GetInstanceField(1)->GetName(), "parent");
+  EXPECT_TRUE(class_loader->GetInstanceField(0)->GetName()->Equals("packages"));
+  EXPECT_TRUE(class_loader->GetInstanceField(1)->GetName()->Equals("parent"));
 
   Class* dex_base_class_loader = class_linker_->FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
   ASSERT_EQ(2U, dex_base_class_loader->NumInstanceFields());
-  EXPECT_PRED2(String::EqualsUtf8, dex_base_class_loader->GetInstanceField(0)->GetName(), "originalPath");
-  EXPECT_PRED2(String::EqualsUtf8, dex_base_class_loader->GetInstanceField(1)->GetName(), "pathList");
+  EXPECT_TRUE(dex_base_class_loader->GetInstanceField(0)->GetName()->Equals("originalPath"));
+  EXPECT_TRUE(dex_base_class_loader->GetInstanceField(1)->GetName()->Equals("pathList"));
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {

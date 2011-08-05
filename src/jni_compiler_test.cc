@@ -508,7 +508,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
 
 int gSuspendCounterHandler_calls;
 void SuspendCountHandler(Method** frame) {
-  EXPECT_PRED2(String::EqualsUtf8, (*frame)->GetName(), "fooI");
+  EXPECT_TRUE((*frame)->GetName()->Equals("fooI"));
   gSuspendCounterHandler_calls++;
   Thread::Current()->DecrementSuspendCount();
 }
@@ -553,7 +553,7 @@ TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
 
 int gExceptionHandler_calls;
 void ExceptionHandler(Method** frame) {
-  EXPECT_PRED2(String::EqualsUtf8, (*frame)->GetName(), "foo");
+  EXPECT_TRUE((*frame)->GetName()->Equals("foo"));
   gExceptionHandler_calls++;
   Thread::Current()->ClearException();
 }

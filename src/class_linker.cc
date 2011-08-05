@@ -961,44 +961,6 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
   return true;
 }
 
-bool ClassLinker::HasSameArgumentTypes(const Method* m1, const Method* m2) const {
-  const DexFile& dex1 = FindDexFile(m1->GetClass()->GetDexCache());
-  const DexFile& dex2 = FindDexFile(m2->GetClass()->GetDexCache());
-  const DexFile::ProtoId& proto1 = dex1.GetProtoId(m1->proto_idx_);
-  const DexFile::ProtoId& proto2 = dex2.GetProtoId(m2->proto_idx_);
-
-  // TODO: compare ProtoId objects for equality and exit early
-  const DexFile::TypeList* type_list1 = dex1.GetProtoParameters(proto1);
-  const DexFile::TypeList* type_list2 = dex2.GetProtoParameters(proto2);
-  size_t arity1 = (type_list1 == NULL) ? 0 : type_list1->Size();
-  size_t arity2 = (type_list2 == NULL) ? 0 : type_list2->Size();
-  if (arity1 != arity2) {
-    return false;
-  }
-
-  for (size_t i = 0; i < arity1; ++i) {
-    uint32_t type_idx1 = type_list1->GetTypeItem(i).type_idx_;
-    uint32_t type_idx2 = type_list2->GetTypeItem(i).type_idx_;
-    const char* type1 = dex1.dexStringByTypeIdx(type_idx1);
-    const char* type2 = dex2.dexStringByTypeIdx(type_idx2);
-    if (strcmp(type1, type2) != 0) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-bool ClassLinker::HasSameReturnType(const Method* m1, const Method* m2) const {
-  const DexFile& dex1 = FindDexFile(m1->GetClass()->GetDexCache());
-  const DexFile& dex2 = FindDexFile(m2->GetClass()->GetDexCache());
-  const DexFile::ProtoId& proto1 = dex1.GetProtoId(m1->proto_idx_);
-  const DexFile::ProtoId& proto2 = dex2.GetProtoId(m2->proto_idx_);
-  const char* type1 = dex1.dexStringByTypeIdx(proto1.return_type_idx_);
-  const char* type2 = dex2.dexStringByTypeIdx(proto2.return_type_idx_);
-  return (strcmp(type1, type2) == 0);
-}
-
 bool ClassLinker::InitializeSuperClass(Class* klass) {
   CHECK(klass != NULL);
   // TODO: assert klass lock is acquired
@@ -1195,7 +1157,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       size_t j = 0;
       for (; j < actual_count; ++j) {
         Method* super_method = klass->vtable_->Get(j);
-        if (HasSameNameAndPrototype(local_method, super_method)) {
+        if (local_method->HasSameNameAndDescriptor(super_method)) {
           // Verify
           if (super_method->IsFinal()) {
             LG << "Method overrides final method";  // TODO: VirtualMachineError
@@ -1303,8 +1265,9 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       Method* interface_method = interface->GetVirtualMethod(j);
       int k;  // must be signed
       for (k = klass->vtable_->GetLength() - 1; k >= 0; --k) {
-        if (HasSameNameAndPrototype(interface_method, klass->vtable_->Get(k))) {
-          if (!klass->vtable_->Get(k)->IsPublic()) {
+        Method* vtable_method = klass->vtable_->Get(k);
+        if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
+          if (!vtable_method->IsPublic()) {
             LG << "Implementation not public";
             return false;
           }
@@ -1323,7 +1286,8 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
         }
         int mir;
         for (mir = 0; mir < miranda_count; mir++) {
-          if (HasSameNameAndPrototype(miranda_list[mir], interface_method)) {
+          Method* miranda_method = miranda_list[mir];
+          if (miranda_method->HasSameNameAndDescriptor(interface_method)) {
             break;
           }
         }

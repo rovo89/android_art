@@ -157,12 +157,17 @@ size_t Method::ReturnSize() const {
   return ShortyCharToSize(shorty_[0]);
 }
 
+bool Method::HasSameNameAndDescriptor(const Method* that) const {
+  return (this->GetName()->Equals(that->GetName()) &&
+          this->GetDescriptor()->Equals(that->GetDescriptor()));
+}
+
 Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
                                         const StringPiece& descriptor) {
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     Method* method = GetDirectMethod(i);
-    if (String::EqualsUtf8(method->GetName(), name.data()) &&
-        String::EqualsUtf8(method->GetDescriptor(), descriptor.data())) {
+    if (method->GetName()->Equals(name) &&
+        method->GetDescriptor()->Equals(descriptor)) {
       return method;
     }
   }
@@ -184,8 +189,8 @@ Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
                                          const StringPiece& descriptor) {
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     Method* method = GetVirtualMethod(i);
-    if (String::EqualsUtf8(method->GetName(), name.data()) &&
-        String::EqualsUtf8(method->GetDescriptor(), descriptor.data())) {
+    if (method->GetName()->Equals(name) &&
+        method->GetDescriptor()->Equals(descriptor)) {
       return method;
     }
   }

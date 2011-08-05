@@ -122,22 +122,6 @@ class ClassLinker {
                                       const Class* klass1,
                                       const Class* klass2);
 
-  bool HasSameNameAndPrototype(const Method* m1, const Method* m2) const {
-    return HasSameName(m1, m2) && HasSamePrototype(m1, m2);
-  }
-
-  bool HasSameName(const Method* m1, const Method* m2) const {
-    return String::Equals(m1->GetName(), m2->GetName());
-  }
-
-  bool HasSamePrototype(const Method* m1, const Method* m2) const {
-    return HasSameReturnType(m1, m2) && HasSameArgumentTypes(m1, m2);
-  }
-
-  bool HasSameReturnType(const Method* m1, const Method* m2) const;
-
-  bool HasSameArgumentTypes(const Method* m1, const Method* m2) const;
-
   bool LinkClass(Class* klass, const DexFile& dex_file);
 
   bool LinkSuperClass(Class* klass);
@@ -211,8 +195,6 @@ class ClassLinker {
   bool init_done_;
 
   friend class RuntimeTest;
-  FRIEND_TEST(ClassLinkerTest, ProtoCompare);
-  FRIEND_TEST(ClassLinkerTest, ProtoCompare2);
   FRIEND_TEST(DexCacheTest, Open);
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);
