@@ -30,11 +30,11 @@ class ObjectTest : public RuntimeTest {
     String* string = String::AllocFromModifiedUtf8(length, utf8_in);
     ASSERT_EQ(length, string->GetLength());
     ASSERT_TRUE(string->GetCharArray() != NULL);
-    ASSERT_TRUE(string->GetCharArray()->GetChars() != NULL);
+    ASSERT_TRUE(string->GetCharArray()->GetData() != NULL);
     // strlen is necessary because the 1-character string "\0" is interpreted as ""
     ASSERT_TRUE(string->Equals(utf8_in) || length != static_cast<int32_t>(strlen(utf8_in)));
     for (int32_t i = 0; i < length; i++) {
-      EXPECT_EQ(utf16_expected[i], string->GetCharArray()->GetChar(i));
+      EXPECT_EQ(utf16_expected[i], string->CharAt(i));
     }
     EXPECT_EQ(hash_expected, string->GetHashCode());
   }
@@ -160,6 +160,13 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
   EXPECT_TRUE(m4_1->HasSameNameAndDescriptor(m4_2));
   EXPECT_TRUE(m4_2->HasSameNameAndDescriptor(m4_1));
+}
+
+
+TEST_F(ObjectTest, StringHashCode) {
+  EXPECT_EQ(0, String::AllocFromAscii("")->GetHashCode());
+  EXPECT_EQ(65, String::AllocFromAscii("A")->GetHashCode());
+  EXPECT_EQ(64578, String::AllocFromAscii("ABC")->GetHashCode());
 }
 
 }  // namespace art

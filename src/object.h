@@ -25,7 +25,11 @@ class Method;
 class Object;
 class String;
 template<class T> class ObjectArray;
+template<class T> class PrimitiveArray;
 class StaticField;
+typedef PrimitiveArray<uint16_t> CharArray;
+typedef PrimitiveArray<uint32_t> IntArray;
+typedef PrimitiveArray<uint64_t> LongArray;
 
 union JValue {
   uint8_t z;
@@ -258,7 +262,11 @@ class Field : public AccessibleObject {
   }
 
   const String* GetName() const {
-    return java_name_;
+    return name_;
+  }
+
+  bool IsStatic() const {
+    return (access_flags_ & kAccStatic) != 0;
   }
 
   char GetType() const {  // TODO: return type
@@ -275,14 +283,12 @@ class Field : public AccessibleObject {
   Class* java_declaring_class_;
   Object* java_generic_type_;
   uint32_t java_generic_types_are_initialized_;
-  String* java_name_;
+  String* name_;
   uint32_t java_slot_;
   Class* java_type_;
 
   // The class in which this field is declared.
   Class* declaring_class_;
-
-  StringPiece name_;
 
   // e.g. "I", "[C", "Landroid/os/Debug;"
   StringPiece descriptor_;
@@ -380,7 +386,7 @@ class Method : public AccessibleObject {
  public:
   // Returns the method name, e.g. "<init>" or "eatLunch"
   const String* GetName() const {
-    return java_name_;
+    return name_;
   }
 
   const String* GetDescriptor() const {
@@ -447,7 +453,7 @@ class Method : public AccessibleObject {
   Object* java_generic_parameter_types_;
   Object* java_generic_return_type_;
   Class* java_return_type_;
-  String* java_name_;
+  String* name_;
   ObjectArray<Class>* java_parameter_types_;
   uint32_t java_generic_types_are_initialized_;
   uint32_t java_slot_;
@@ -544,9 +550,6 @@ class Method : public AccessibleObject {
   uint16_t num_outs_;
   uint16_t num_ins_;
 
-  // method name, e.g. "<init>" or "eatLunch"
-  StringPiece name_;
-
   // The method descriptor.  This represents the parameters a method
   // takes and value it returns.  This string is a list of the type
   // descriptors for the parameters enclosed in parenthesis followed
@@ -596,18 +599,10 @@ class Array : public Object {
   void SetLength(uint32_t length) {
     length_ = length;
   }
-  const void* GetData() const {
-    return &elements_;
-  }
-  void* GetData() {
-    return &elements_;
-  }
 
  private:
   // The number of array elements.
   uint32_t length_;
-  // Location of first element.
-  uint32_t elements_[0];
   Array();
 };
 
@@ -621,15 +616,19 @@ class ObjectArray : public Array {
                                                    sizeof(uint32_t)));
   }
 
+  T* const * GetData() const {
+    return reinterpret_cast<T* const *>(&elements_);
+  }
+  T** GetData() {
+    return reinterpret_cast<T**>(&elements_);
+  }
   T* Get(uint32_t i) const {
     CHECK_LT(i, GetLength());
-    Object* const * data = reinterpret_cast<Object* const *>(GetData());
-    return down_cast<T*>(data[i]);
+    return GetData()[i];
   }
   void Set(uint32_t i, T* object) {
     CHECK_LT(i, GetLength());
-    T** data = reinterpret_cast<T**>(GetData());
-    data[i] = object;
+    GetData()[i] = object;
   }
   static void Copy(ObjectArray<T>* src, int src_pos, ObjectArray<T>* dst, int dst_pos, size_t length) {
     for (size_t i = 0; i < length; i++) {
@@ -644,6 +643,8 @@ class ObjectArray : public Array {
 
  private:
   ObjectArray();
+  // Location of first element.
+  T* elements_[0];
 };
 
 // ClassLoader objects.
@@ -1055,6 +1056,10 @@ class Class : public Object {
   // source file name, if known.  Otherwise, NULL.
   const char* source_file_;
 
+  ObjectArray<Object>* static_references_;
+  IntArray* static_32bit_primitives_;
+  LongArray* static_64bit_primitives_;
+
   // Static fields
   ObjectArray<StaticField>* sfields_;
 
@@ -1075,34 +1080,37 @@ class DataObject : public Object {
   DataObject();
 };
 
-class CharArray : public Array {
+template<class T>
+class PrimitiveArray : public Array {
  public:
-  static CharArray* Alloc(Class* char_array_class, size_t length) {
-    return down_cast<CharArray*>(Array::Alloc(char_array_class,
-                                              length,
-                                              sizeof(uint16_t)));
+  static PrimitiveArray<T>* Alloc(Class* element_class, size_t length) {
+    return down_cast<PrimitiveArray<T>*>(Array::Alloc(element_class,
+                                         length,
+                                         sizeof(T)));
   }
 
-  uint16_t* GetChars() {
-    return reinterpret_cast<uint16_t*>(GetData());
+  const T* GetData() const {
+    return reinterpret_cast<const T*>(&elements_);
   }
 
-  const uint16_t* GetChars() const {
-    return reinterpret_cast<const uint16_t*>(GetData());
+  T* GetData() {
+    return reinterpret_cast<T*>(&elements_);
   }
 
-  uint16_t GetChar(uint32_t i) const {
+  T Get(T i) const {
     CHECK_LT(i, GetLength());
-    return GetChars()[i];
+    return GetData()[i];
   }
 
-  void SetChar(uint32_t i, uint16_t ch) {
+  void Set(uint32_t i, T value) {
     CHECK_LT(i, GetLength());
-    GetChars()[i] = ch;
+    GetData()[i] = value;
   }
 
  private:
-  CharArray();
+  PrimitiveArray();
+  // Location of first element.
+  T elements_[0];
 };
 
 class String : public Object {
@@ -1126,19 +1134,18 @@ class String : public Object {
   }
 
   uint16_t CharAt(int32_t index) const {
-    return GetCharArray()->GetChar(index + GetOffset());
+    return GetCharArray()->Get(index + GetOffset());
   }
 
   static String* AllocFromUtf16(int32_t utf16_length,
                                 uint16_t* utf16_data_in,
                                 int32_t hash_code) {
     String* string = Alloc(GetJavaLangString(), GetCharArrayClass(), utf16_length);
-    uint16_t* utf16_data_out = string->array_->GetChars();
     // TODO use 16-bit wide memset variant
     for (int i = 0; i < utf16_length; i++ ) {
-        utf16_data_out[i] = utf16_data_in[i];
+        string->array_->Set(i, utf16_data_in[i]);
     }
-    string->hash_code_ = hash_code;
+    string->ComputeHashCode();
     return string;
   }
 
@@ -1147,9 +1154,9 @@ class String : public Object {
                                        int32_t utf16_length,
                                        const char* utf8_data_in) {
     String* string = Alloc(java_lang_String, char_array, utf16_length);
-    uint16_t* utf16_data_out = string->array_->GetChars();
+    uint16_t* utf16_data_out = string->array_->GetData();
     ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
-    string->hash_code_ = ComputeUtf16Hash(utf16_data_out, utf16_length);
+    string->ComputeHashCode();
     return string;
   }
 
@@ -1248,7 +1255,6 @@ class String : public Object {
     return len;
   }
 
-
   // The java/lang/String.computeHashCode() algorithm
   static int32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {
     int32_t hash = 0;
@@ -1256,6 +1262,10 @@ class String : public Object {
       hash = hash * 31 + *string_data++;
     }
     return hash;
+  }
+
+  void ComputeHashCode() {
+    hash_code_ = ComputeUtf16Hash(array_->GetData(), count_);
   }
 
   bool Equals(const char* modified_utf8) const {

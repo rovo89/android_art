@@ -143,11 +143,13 @@ class ClassLinkerTest : public RuntimeTest {
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
       InstanceField* field = klass->GetInstanceField(i);
       EXPECT_TRUE(field != NULL);
+      EXPECT_FALSE(field->IsStatic());
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
       StaticField* field = klass->GetStaticField(i);
       EXPECT_TRUE(field != NULL);
+      EXPECT_TRUE(field->IsStatic());
     }
 
     // Confirm that all instances fields are packed together at the start
@@ -368,4 +370,4 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   EXPECT_NE(MyClass_1, MyClass_2);
 }
 
-}  // namespace art
+}// namespace art

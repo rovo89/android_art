@@ -464,7 +464,7 @@ void ClassLinker::LoadField(const DexFile& dex_file,
                             Field* dst) {
   const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
   dst->klass_ = klass;
-  dst->java_name_ = ResolveString(klass, field_id.name_idx_, dex_file);
+  dst->name_ = ResolveString(klass, field_id.name_idx_, dex_file);
   dst->descriptor_.set(dex_file.dexStringByTypeIdx(field_id.type_idx_));
   dst->access_flags_ = src.access_flags_;
 }
@@ -475,7 +475,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->klass_ = klass;
-  dst->java_name_ = ResolveString(klass, method_id.name_idx_, dex_file);
+  dst->name_ = ResolveString(klass, method_id.name_idx_, dex_file);
   {
     int32_t utf16_length;
     scoped_ptr<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
