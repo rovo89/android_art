@@ -183,6 +183,13 @@ class DexFile {
     uint16_t insns_[1];
   };
 
+  // Raw try_item.
+  struct TryItem {
+    uint32_t start_addr_;
+    uint16_t insn_count_;
+    uint16_t handler_off_;
+  };
+
   // Partially decoded form of class_data_item.
   struct ClassDataHeader {
     uint32_t static_fields_size_;  // the number of static fields
