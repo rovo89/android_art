@@ -217,8 +217,7 @@ class Object {
   Monitor* monitor_;
 
  private:
-  Object();
-  DISALLOW_COPY_AND_ASSIGN(Object);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
 class ObjectLock {
@@ -296,7 +295,7 @@ class Field : public AccessibleObject {
   uint32_t access_flags_;
 
  private:
-  Field();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
 };
 
 // Instance fields.
@@ -312,7 +311,8 @@ class InstanceField : public Field {
 
  private:
   size_t offset_;
-  InstanceField();
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(InstanceField);
 };
 
 // Static fields.
@@ -379,7 +379,8 @@ class StaticField : public Field {
 
  private:
   JValue value_;
-  StaticField();
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StaticField);
 };
 
 class Method : public AccessibleObject {
@@ -572,13 +573,13 @@ class Method : public AccessibleObject {
   const uint16_t* insns_;
 
  private:
-  Method();
-
   // Compiled code associated with this method
   const void* code_;
 
   // Any native method registered with this method
   const void* native_method_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Method);
 };
 
 class Array : public Object {
@@ -593,17 +594,31 @@ class Array : public Object {
     }
     return array;
   }
+
   uint32_t GetLength() const {
     return length_;
   }
+
   void SetLength(uint32_t length) {
     length_ = length;
+  }
+
+  const void* GetData() const {
+    return &elements_;
+  }
+
+  void* GetData() {
+    return &elements_;
   }
 
  private:
   // The number of array elements.
   uint32_t length_;
-  Array();
+
+  // Location of first element.
+  uint32_t elements_[0];
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Array);
 };
 
 template<class T>
@@ -626,15 +641,20 @@ class ObjectArray : public Array {
     CHECK_LT(i, GetLength());
     return GetData()[i];
   }
+
   void Set(uint32_t i, T* object) {
     CHECK_LT(i, GetLength());
     GetData()[i] = object;
   }
-  static void Copy(ObjectArray<T>* src, int src_pos, ObjectArray<T>* dst, int dst_pos, size_t length) {
+
+  static void Copy(ObjectArray<T>* src, int src_pos,
+                   ObjectArray<T>* dst, int dst_pos,
+                   size_t length) {
     for (size_t i = 0; i < length; i++) {
       dst->Set(dst_pos + i, src->Get(src_pos + i));
     }
   }
+
   ObjectArray<T>* CopyOf(size_t new_length) {
     ObjectArray<T>* new_array = Alloc(klass_, new_length);
     Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
@@ -642,9 +662,10 @@ class ObjectArray : public Array {
   }
 
  private:
-  ObjectArray();
   // Location of first element.
   T* elements_[0];
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
 };
 
 // ClassLoader objects.
@@ -666,7 +687,7 @@ class ClassLoader : public Object {
   // TODO remove once we can create a real PathClassLoader
   std::vector<const DexFile*> class_path_;
 
-  ClassLoader();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 
 class BaseDexClassLoader : public ClassLoader {
@@ -674,12 +695,12 @@ class BaseDexClassLoader : public ClassLoader {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   String* original_path_;
   Object* path_list_;
-  BaseDexClassLoader();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(BaseDexClassLoader);
 };
 
 class PathClassLoader : public BaseDexClassLoader {
  private:
-  PathClassLoader();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PathClassLoader);
 };
 
 // Class objects.
@@ -832,13 +853,6 @@ class Class : public Object {
   bool CanAccess(const Class* that) const {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
-
-  // Returns the size in bytes of a class object instance with the
-  // given number of static fields.
-  // static size_t Size(size_t num_sfields) {
-  //   return OFFSETOF_MEMBER(Class, sfields_) +
-  //          sizeof(StaticField) * num_sfields;
-  // }
 
   // Returns the number of static, private, and constructor methods.
   size_t NumDirectMethods() const {
@@ -1064,7 +1078,7 @@ class Class : public Object {
   ObjectArray<StaticField>* sfields_;
 
  private:
-  Class();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
 };
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
@@ -1077,7 +1091,7 @@ class DataObject : public Object {
  public:
   uint32_t fields_[0];
  private:
-  DataObject();
+  DISALLOW_IMPLICIT_CONSTRUCTORS(DataObject);
 };
 
 template<class T>
@@ -1108,39 +1122,42 @@ class PrimitiveArray : public Array {
   }
 
  private:
-  PrimitiveArray();
   // Location of first element.
   T elements_[0];
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PrimitiveArray);
 };
 
 class String : public Object {
  public:
   const CharArray* GetCharArray() const {
+    DCHECK(array_ != NULL);
     return array_;
   }
 
-  int32_t GetHashCode() const {
+  uint32_t GetHashCode() const {
     return hash_code_;
   }
 
-  int32_t GetOffset() const {
-    DCHECK_LE(0, offset_);
+  uint32_t GetOffset() const {
     return offset_;
   }
 
-  int32_t GetLength() const {
-    DCHECK_LE(0, count_);
+  uint32_t GetLength() const {
     return count_;
   }
 
-  uint16_t CharAt(int32_t index) const {
+  uint16_t CharAt(uint32_t index) const {
+    DCHECK_LE(index, GetLength());
     return GetCharArray()->Get(index + GetOffset());
   }
 
   static String* AllocFromUtf16(int32_t utf16_length,
                                 uint16_t* utf16_data_in,
                                 int32_t hash_code) {
-    String* string = Alloc(GetJavaLangString(), GetCharArrayClass(), utf16_length);
+    String* string = Alloc(GetJavaLangString(),
+                           GetCharArrayClass(),
+                           utf16_length);
     // TODO use 16-bit wide memset variant
     for (int i = 0; i < utf16_length; i++ ) {
         string->array_->Set(i, utf16_data_in[i]);
@@ -1269,7 +1286,7 @@ class String : public Object {
   }
 
   bool Equals(const char* modified_utf8) const {
-    for (int32_t i = 0; i < GetLength(); ++i) {
+    for (uint32_t i = 0; i < GetLength(); ++i) {
       uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
       if (ch == '\0' || ch != CharAt(i)) {
         return false;
@@ -1288,7 +1305,7 @@ class String : public Object {
     if (this->GetLength() != that->GetLength()) {
       return false;
     }
-    for (int32_t i = 0; i < that->GetLength(); ++i) {
+    for (uint32_t i = 0; i < that->GetLength(); ++i) {
       if (this->CharAt(i) != that->CharAt(i)) {
         return false;
       }
@@ -1296,11 +1313,11 @@ class String : public Object {
     return true;
   }
 
-  bool Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) const {
+  bool Equals(const uint16_t* that_chars, uint32_t that_offset, uint32_t that_length) const {
     if (this->GetLength() != that_length) {
       return false;
     }
-    for (int32_t i = 0; i < that_length; ++i) {
+    for (uint32_t i = 0; i < that_length; ++i) {
       if (this->CharAt(i) != that_chars[that_offset + i]) {
         return false;
       }
@@ -1312,11 +1329,11 @@ class String : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
 
-  int32_t hash_code_;
+  uint32_t hash_code_;
 
-  int32_t offset_;
+  uint32_t offset_;
 
-  int32_t count_;
+  uint32_t count_;
 
   static Class* GetJavaLangString() {
     DCHECK(java_lang_String_ != NULL);
@@ -1335,13 +1352,16 @@ class String : public Object {
 
 class InterfaceEntry {
  public:
+  InterfaceEntry() : klass_(NULL), method_index_array_(NULL) {
+  }
+
   Class* GetClass() const {
     return klass_;
-  };
+  }
 
   void SetClass(Class* klass) {
     klass_ = klass;
-  };
+  }
 
  private:
   // Points to the interface class.
@@ -1352,6 +1372,9 @@ class InterfaceEntry {
   // ifviPool, which holds the vtables for all interfaces declared by
   // this class.
   uint32_t* method_index_array_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InterfaceEntry);
 };
 
 }  // namespace art

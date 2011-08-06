@@ -150,8 +150,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // supers as well.  These interfaces don't have any methods, so we
   // don't have to worry about the ifviPool either.
   array_iftable_ = new InterfaceEntry[2];
-  CHECK(array_iftable_ != NULL);
-  memset(array_iftable_, 0, sizeof(InterfaceEntry) * 2);
   array_iftable_[0].SetClass(array_interfaces_->Get(0));
   array_iftable_[1].SetClass(array_interfaces_->Get(1));
   // now FindClass can be used for non-primitive array classes
