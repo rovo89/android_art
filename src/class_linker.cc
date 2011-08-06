@@ -732,7 +732,7 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
       LOG(ERROR) << "Not a primitive type " << static_cast<int>(type);
     default:
       LOG(ERROR) << "Unknown primitive type " << static_cast<int>(type);
-  };
+  }
   return NULL;  // Not reachable.
 }
 

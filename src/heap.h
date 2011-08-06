@@ -52,11 +52,11 @@ class Heap {
 
   static HeapBitmap* GetLiveBits() {
     return live_bitmap_;
-  };
+  }
 
   static HeapBitmap* GetMarkBits() {
     return mark_bitmap_;
-  };
+  }
 
   static size_t GetMaximumSize() {
     return maximum_size_;

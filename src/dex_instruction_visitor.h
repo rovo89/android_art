@@ -41,7 +41,7 @@ class DexInstructionVisitor {
   void Do_ ## cname(Instruction* inst) {                \
     T* derived = static_cast<T*>(this);                 \
     derived->Do_Default(inst);                          \
-  };
+  }
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_VISITOR)
 #undef DEX_INSTRUCTION_LIST
