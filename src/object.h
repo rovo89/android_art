@@ -603,20 +603,9 @@ class Array : public Object {
     length_ = length;
   }
 
-  const void* GetData() const {
-    return &elements_;
-  }
-
-  void* GetData() {
-    return &elements_;
-  }
-
  private:
   // The number of array elements.
   uint32_t length_;
-
-  // Location of first element.
-  uint32_t elements_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Array);
 };
