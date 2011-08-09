@@ -32,6 +32,14 @@ const int kBitsPerPointer = kPointerSize * kBitsPerByte;
 const int kBitsPerWord = kWordSize * kBitsPerByte;
 const int kBitsPerInt = kIntSize * kBitsPerByte;
 
+
+// System page size.  Normally you're expected to get this from
+// sysconf(_SC_PAGESIZE) or some system-specific define (usually
+// PAGESIZE or PAGE_SIZE).  If we use a simple compile-time constant
+// the compiler can generate appropriate masks directly, so we define
+// it here and verify it as the runtime is starting up.
+//
+// Must be a power of 2.
 const int kPageSize = 4096;
 
 }  // namespace art

@@ -86,7 +86,7 @@ class LockedFd {
    static LockedFd* CreateAndLock(std::string& name, mode_t mode) {
     int fd = open(name.c_str(), O_CREAT | O_RDWR, mode);
     if (fd == -1) {
-      PLOG(ERROR) << "Can't open file '" << name;
+      PLOG(ERROR) << "Can't open file '" << name << "'";
       return NULL;
     }
     fchmod(fd, mode);
@@ -98,8 +98,8 @@ class LockedFd {
         result = flock(fd, LOCK_EX);
     }
     if (result == -1 ) {
+      PLOG(ERROR) << "Can't lock file '" << name << "'";
       close(fd);
-      PLOG(ERROR) << "Can't lock file '" << name;
       return NULL;
     }
     return new LockedFd(fd);
@@ -255,6 +255,10 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
     uint32_t computed_crc = crc32(0L, Z_NULL, 0);
     while (true) {
       ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd->GetFd(), buf.get(), kBufSize));
+      if (bytes_read == -1) {
+        PLOG(ERROR) << "Problem computing CRC of '" << cache_path_tmp << "'";
+        return NULL;
+      }
       if (bytes_read == 0) {
         break;
       }
@@ -265,7 +269,8 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
     }
     int rename_result = rename(cache_path_tmp.c_str(), cache_path.c_str());
     if (rename_result == -1) {
-      PLOG(ERROR) << "Can't install dex cache file '" << cache_path << "' from '" << cache_path_tmp;
+      PLOG(ERROR) << "Can't install dex cache file '" << cache_path << "'"
+                  << " from '" << cache_path_tmp << "'";
       unlink(cache_path.c_str());
     }
   }

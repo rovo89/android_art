@@ -63,30 +63,30 @@ off_t ZipEntry::GetDataOffset() {
   // off the end of the mapped region.
 
   off_t dir_offset = zip_archive_->dir_offset_;
-  int64_t local_hdr_offset = Le32ToHost(ptr_ + ZipArchive::kCDELocalOffset);
-  if (local_hdr_offset + ZipArchive::kLFHLen >= dir_offset) {
-    LOG(WARNING) << "Zip: bad local hdr offset in zip";
+  int64_t lfh_offset = Le32ToHost(ptr_ + ZipArchive::kCDELocalOffset);
+  if (lfh_offset + ZipArchive::kLFHLen >= dir_offset) {
+    LOG(WARNING) << "Zip: bad LFH offset in zip";
     return -1;
   }
 
-  if (lseek(zip_archive_->fd_, local_hdr_offset, SEEK_SET) != local_hdr_offset) {
-    PLOG(WARNING) << "Zip: failed seeking to lfh at offset " << local_hdr_offset;
+  if (lseek(zip_archive_->fd_, lfh_offset, SEEK_SET) != lfh_offset) {
+    PLOG(WARNING) << "Zip: failed seeking to LFH at offset " << lfh_offset;
     return -1;
   }
 
   uint8_t lfh_buf[ZipArchive::kLFHLen];
   ssize_t actual = TEMP_FAILURE_RETRY(read(zip_archive_->fd_, lfh_buf, sizeof(lfh_buf)));
   if (actual != sizeof(lfh_buf)) {
-    LOG(WARNING) << "Zip: failed reading lfh from offset " << local_hdr_offset;
+    LOG(WARNING) << "Zip: failed reading LFH from offset " << lfh_offset;
     return -1;
   }
 
   if (Le32ToHost(lfh_buf) != ZipArchive::kLFHSignature) {
-    LOG(WARNING) << "Zip: didn't find signature at start of lfh, offset " << local_hdr_offset;
+    LOG(WARNING) << "Zip: didn't find signature at start of LFH, offset " << lfh_offset;
     return -1;
   }
 
-  off_t data_offset = (local_hdr_offset + ZipArchive::kLFHLen
+  off_t data_offset = (lfh_offset + ZipArchive::kLFHLen
                        + Le16ToHost(lfh_buf + ZipArchive::kLFHNameLen)
                        + Le16ToHost(lfh_buf + ZipArchive::kLFHExtraLen));
   if (data_offset >= dir_offset) {
@@ -270,27 +270,12 @@ bool ZipEntry::Extract(int fd) {
   }
 }
 
-static bool CloseOnExec(int fd) {
-  int flags = fcntl(fd, F_GETFD);
-  if (flags < 0) {
-    return false;
-  }
-  if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
-    return false;
-  }
-  return true;
-}
-
 // return new ZipArchive instance on success, NULL on error.
 ZipArchive* ZipArchive::Open(const std::string& filename) {
   DCHECK(!filename.empty());
-  int fd = open(filename.c_str(), O_RDONLY, 0);
+  int fd = open(filename.c_str(), O_RDONLY | O_CLOEXEC, 0);
   if (fd < 0) {
-    int err = errno ? errno : -1;
-    LOG(WARNING) << "Unable to open '" << filename << "': " << strerror(err);
-    return NULL;
-  }
-  if (!CloseOnExec(fd)) {
+    PLOG(WARNING) << "Unable to open '" << filename << "'";
     return NULL;
   }
   scoped_ptr<ZipArchive> zip_archive(new ZipArchive(fd));
