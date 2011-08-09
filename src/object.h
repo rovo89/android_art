@@ -606,6 +606,8 @@ class Array : public Object {
  private:
   // The number of array elements.
   uint32_t length_;
+  // Padding to ensure the first member defined by a subclass begins on a 8-byte boundary
+  int32_t padding_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Array);
 };
@@ -623,9 +625,11 @@ class ObjectArray : public Array {
   T* const * GetData() const {
     return reinterpret_cast<T* const *>(&elements_);
   }
+
   T** GetData() {
     return reinterpret_cast<T**>(&elements_);
   }
+
   T* Get(uint32_t i) const {
     CHECK_LT(i, GetLength());
     return GetData()[i];
@@ -633,7 +637,7 @@ class ObjectArray : public Array {
 
   void Set(uint32_t i, T* object) {
     CHECK_LT(i, GetLength());
-    GetData()[i] = object;
+    GetData()[i] = object;  // TODO: write barrier
   }
 
   static void Copy(ObjectArray<T>* src, int src_pos,

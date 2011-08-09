@@ -358,6 +358,24 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(dex_base_class_loader->GetInstanceField(1)->GetName()->Equals("pathList"));
 }
 
+// The first reference array element must be a multiple of 8 bytes from the
+// start of the object
+TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
+  Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  ObjectArray<String>* array = ObjectArray<String>::Alloc(array_class, 0);
+  uint32_t array_offset = reinterpret_cast<uint32_t>(array);
+  uint32_t data_offset = reinterpret_cast<uint32_t>(array->GetData());
+  EXPECT_EQ(16U, data_offset - array_offset);
+}
+
+TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
+  Class* array_class = class_linker_->FindSystemClass("[J");
+  LongArray* array = LongArray::Alloc(array_class, 0);
+  uint32_t array_offset = reinterpret_cast<uint32_t>(array);
+  uint32_t data_offset = reinterpret_cast<uint32_t>(array->GetData());
+  EXPECT_EQ(16U, data_offset - array_offset);
+}
+
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   scoped_ptr<DexFile> dex_1(OpenDexFileBase64(kMyClassDex));
   scoped_ptr<DexFile> dex_2(OpenDexFileBase64(kMyClassDex));
@@ -370,4 +388,4 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   EXPECT_NE(MyClass_1, MyClass_2);
 }
 
-}// namespace art
+}  // namespace art
