@@ -325,68 +325,45 @@ class InstanceField : public Field {
 // Static fields.
 class StaticField : public Field {
  public:
-  void SetBoolean(bool z) {
-    CHECK_EQ(GetType(), 'Z');
-    value_.z = z;
-  }
+  bool GetBoolean();
 
-  void SetByte(int8_t b) {
-    CHECK_EQ(GetType(), 'B');
-    value_.b = b;
-  }
+  void SetBoolean(bool z);
 
-  void SetChar(uint16_t c) {
-    CHECK_EQ(GetType(), 'C');
-    value_.c = c;
-  }
+  int8_t GetByte();
 
-  void SetShort(uint16_t s) {
-    CHECK_EQ(GetType(), 'S');
-    value_.s = s;
-  }
+  void SetByte(int8_t b);
 
-  void SetInt(int32_t i) {
-    CHECK_EQ(GetType(), 'I');
-    value_.i = i;
-  }
+  uint16_t GetChar();
 
-  int64_t GetLong() {
-    CHECK_EQ(GetType(), 'J');
-    return value_.j;
-  }
+  void SetChar(uint16_t c);
 
-  void SetLong(int64_t j) {
-    CHECK_EQ(GetType(), 'J');
-    value_.j = j;
-  }
+  uint16_t GetShort();
 
-  void SetFloat(float f) {
-    CHECK_EQ(GetType(), 'F');
-    value_.f = f;
-  }
+  void SetShort(uint16_t s);
 
-  void SetDouble(double d) {
-    CHECK_EQ(GetType(), 'D');
-    value_.d = d;
-  }
+  int32_t GetInt();
 
-  Object* GetObject() {
-    return value_.l;
-  }
+  void SetInt(int32_t i);
 
-  const Object* GetObject() const {
-    return value_.l;
-  }
+  int64_t GetLong();
 
-  void SetObject(Object* l) {
-    CHECK(GetType() == 'L' || GetType() == '[');
-    value_.l = l;
-    // TODO: write barrier
-  }
+  void SetLong(int64_t j);
+
+  float GetFloat();
+
+  void SetFloat(float f);
+
+  double GetDouble();
+
+  void SetDouble(double d);
+
+  Object* GetObject();
+
+  const Object* GetObject() const;
+
+  void SetObject(Object* l);
 
  private:
-  JValue value_;
-
   DISALLOW_IMPLICIT_CONSTRUCTORS(StaticField);
 };
 
@@ -1101,12 +1078,21 @@ class Class : public Object {
   // source file name, if known.  Otherwise, NULL.
   const char* source_file_;
 
+  // Static fields
+  ObjectArray<StaticField>* sfields_;
+
+  // static field storage
+  //
+  // Each static field is stored in one of three arrays:
+  //  o references are stored in static_references_
+  //  o doubles and longs are stored in static_64bit_primitives_
+  //  o everything else is in static_32bit_primitives_
+  // Static fields select their array using their type and their index using the
+  // Field->slot_ member. Storing static fields in arrays avoids the need for a
+  // special case in the GC.
   ObjectArray<Object>* static_references_;
   IntArray* static_32bit_primitives_;
   LongArray* static_64bit_primitives_;
-
-  // Static fields
-  ObjectArray<StaticField>* sfields_;
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);

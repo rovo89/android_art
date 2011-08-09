@@ -58,6 +58,12 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   Class* char_array_class = AllocClass(java_lang_Class);
   CHECK(char_array_class != NULL);
 
+  // int[] and long[] are used for static field storage
+  Class* int_array_class = AllocClass(java_lang_Class);
+  CHECK(int_array_class != NULL);
+  Class* long_array_class = AllocClass(java_lang_Class);
+  CHECK(long_array_class != NULL);
+
   // Field and Method are necessary so that FindClass can link members
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class);
   CHECK(java_lang_reflect_Field != NULL);
@@ -77,6 +83,8 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kObjectArrayClass, object_array_class);
   class_roots_->Set(kJavaLangString, java_lang_String);
   class_roots_->Set(kCharArrayClass, char_array_class);
+  class_roots_->Set(kIntArrayClass, int_array_class);
+  class_roots_->Set(kLongArrayClass, long_array_class);
   class_roots_->Set(kJavaLangReflectField, java_lang_reflect_Field);
   class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
@@ -169,9 +177,13 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kPrimitiveVoid, CreatePrimitiveClass("V"));
   // now we can use FindSystemClass for anything, including for "[C"
 
-  // run char[] through FindClass to complete initialization
+  // run char[], int[] and long[] through FindClass to complete initialization
   Class* found_char_array_class = FindSystemClass("[C");
   CHECK_EQ(char_array_class, found_char_array_class);
+  Class* found_int_array_class = FindSystemClass("[I");
+  CHECK_EQ(int_array_class, found_int_array_class);
+  Class* found_long_array_class = FindSystemClass("[J");
+  CHECK_EQ(long_array_class, found_long_array_class);
 
   // ensure all class_roots_ were initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
@@ -460,7 +472,8 @@ void ClassLinker::LoadField(const DexFile& dex_file,
                             Class* klass,
                             Field* dst) {
   const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
-  dst->klass_ = klass;
+  dst->java_declaring_class_ = klass;
+  dst->declaring_class_ = klass;
   dst->name_ = ResolveString(klass, field_id.name_idx_, dex_file);
   dst->descriptor_.set(dex_file.dexStringByTypeIdx(field_id.type_idx_));
   dst->access_flags_ = src.access_flags_;
@@ -471,7 +484,8 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Class* klass,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
-  dst->klass_ = klass;
+  dst->java_declaring_class_ = klass;
+  dst->declaring_class_ = klass;
   dst->name_ = ResolveString(klass, method_id.name_idx_, dex_file);
   {
     int32_t utf16_length;
@@ -640,6 +654,10 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
       new_class = GetClassRoot(kObjectArrayClass);
     } else if (descriptor == "[C") {
       new_class = GetClassRoot(kCharArrayClass);
+    } else if (descriptor == "[I") {
+      new_class = GetClassRoot(kIntArrayClass);
+    } else if (descriptor == "[J") {
+      new_class = GetClassRoot(kLongArrayClass);
     }
   }
   if (new_class == NULL) {
@@ -1046,6 +1064,9 @@ bool ClassLinker::LinkClass(Class* klass, const DexFile& dex_file) {
   if (!LinkMethods(klass)) {
     return false;
   }
+  if (!LinkStaticFields(klass)) {
+    return false;
+  }
   if (!LinkInstanceFields(klass)) {
     return false;
   }
@@ -1327,6 +1348,42 @@ void ClassLinker::LinkAbstractMethods(Class* klass) {
       method->insns_ = reinterpret_cast<uint16_t*>(0xFFFFFFFF);  // TODO: AbstractMethodError
     }
   }
+}
+
+// Each static field will be stored in one of three arrays: static_references_,
+// static_32bit_primitives_, or static_64bit_primitives_. This assigns each
+// field a slot in its array and create the arrays.
+bool ClassLinker::LinkStaticFields(Class* klass) {
+  size_t next_reference_slot = 0;
+  size_t next_32bit_primitive_slot = 0;
+  size_t next_64bit_primitive_slot = 0;
+
+  for (size_t i = 0; i < klass->NumStaticFields(); i++) {
+    StaticField* field = klass->GetStaticField(i);
+    char type = field->GetType();
+    if (type == '[' || type == 'L') {
+      field->java_slot_ = next_reference_slot++;
+    } else if (type == 'J' || type == 'D') {
+      field->java_slot_ = next_64bit_primitive_slot++;
+    } else {
+      field->java_slot_ = next_32bit_primitive_slot++;
+    }
+  }
+
+  if (next_reference_slot > 0) {
+    Class* array_class = GetClassRoot(kObjectArrayClass);
+    klass->static_references_ = ObjectArray<Object>::Alloc(array_class, next_reference_slot);
+  }
+  if (next_32bit_primitive_slot > 0) {
+    Class* array_class = GetClassRoot(kIntArrayClass);
+    klass->static_32bit_primitives_ = IntArray::Alloc(array_class, next_32bit_primitive_slot);
+  }
+  if (next_64bit_primitive_slot > 0) {
+    Class* array_class = GetClassRoot(kLongArrayClass);
+    klass->static_64bit_primitives_ = LongArray::Alloc(array_class, next_64bit_primitive_slot);
+  }
+
+  return true;
 }
 
 bool ClassLinker::LinkInstanceFields(Class* klass) {

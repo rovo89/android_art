@@ -139,6 +139,8 @@ class ClassLinker {
 
   void LinkAbstractMethods(Class* klass);
 
+  bool LinkStaticFields(Class* klass);
+
   bool LinkInstanceFields(Class* klass);
 
   void CreateReferenceOffsets(Class* klass);
@@ -165,6 +167,8 @@ class ClassLinker {
     kObjectArrayClass,
     kJavaLangString,
     kCharArrayClass,
+    kIntArrayClass,
+    kLongArrayClass,
     kJavaLangReflectField,
     kJavaLangReflectMethod,
     kJavaLangClassLoader,
