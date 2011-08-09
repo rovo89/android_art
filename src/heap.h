@@ -24,11 +24,7 @@ class Heap {
 
   typedef void (RootVistor)(Object* root, void* arg);
 
-  static bool Init() {
-    return Init(kStartupSize, kMaximumSize);
-  }
-
-  static bool Init(size_t staring_size, size_t maximum_size);
+  static bool Init(size_t starting_size, size_t maximum_size);
 
   static void Destroy();
 

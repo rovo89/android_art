@@ -24,13 +24,13 @@
 namespace art {
 
 // Get 2 little-endian bytes.
-static uint32_t Le16ToHost(const uint8_t* src) {
+static uint32_t Le16ToHost(const byte* src) {
   return ((src[0] <<  0) |
           (src[1] <<  8));
 }
 
 // Get 4 little-endian bytes.
-static uint32_t Le32ToHost(const uint8_t* src) {
+static uint32_t Le32ToHost(const byte* src) {
   return ((src[0] <<  0) |
           (src[1] <<  8) |
           (src[2] << 16) |
@@ -114,22 +114,7 @@ off_t ZipEntry::GetDataOffset() {
   return data_offset;
 }
 
-// Write until all bytes have been written, returning true on success
-bool WriteFully(int fd, const uint8_t* buf, size_t count) {
-  while (count != 0) {
-    ssize_t actual = TEMP_FAILURE_RETRY(write(fd, buf, count));
-    if (actual < 0) {
-      return false;
-    }
-    if (actual != static_cast<ssize_t>(count)) {
-      buf += actual;
-    }
-    count -= actual;
-  }
-  return true;
-}
-
-static bool CopyFdToFd(int out, int in, size_t count) {
+static bool CopyFdToFile(File& file, int in, size_t count) {
   const size_t kBufSize = 32768;
   uint8_t buf[kBufSize];
 
@@ -139,7 +124,7 @@ static bool CopyFdToFd(int out, int in, size_t count) {
     if (actual != static_cast<ssize_t>(bytes_to_read)) {
       return false;
     }
-    if (!WriteFully(out, buf, bytes_to_read)) {
+    if (!file.WriteFully(buf, bytes_to_read)) {
       return false;
     }
     count -= bytes_to_read;
@@ -149,7 +134,7 @@ static bool CopyFdToFd(int out, int in, size_t count) {
 
 class ZStream {
  public:
-  ZStream(uint8_t* write_buf, size_t write_buf_size) {
+  ZStream(byte* write_buf, size_t write_buf_size) {
     // Initialize the zlib stream struct.
     memset(&zstream_, 0, sizeof(zstream_));
     zstream_.zalloc = Z_NULL;
@@ -173,7 +158,7 @@ class ZStream {
   z_stream zstream_;
 };
 
-static bool InflateToFd(int out, int in, size_t uncompressed_length, size_t compressed_length) {
+static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t compressed_length) {
   const size_t kBufSize = 32768;
   scoped_array<uint8_t> read_buf(new uint8_t[kBufSize]);
   scoped_array<uint8_t> write_buf(new uint8_t[kBufSize]);
@@ -227,7 +212,7 @@ static bool InflateToFd(int out, int in, size_t uncompressed_length, size_t comp
     if (zstream->Get().avail_out == 0 ||
         (zerr == Z_STREAM_END && zstream->Get().avail_out != kBufSize)) {
       size_t bytes_to_write = zstream->Get().next_out - write_buf.get();
-      if (!WriteFully(out, write_buf.get(), bytes_to_write)) {
+      if (!out.WriteFully(write_buf.get(), bytes_to_write)) {
         return false;
       }
       zstream->Get().next_out = write_buf.get();
@@ -247,7 +232,7 @@ static bool InflateToFd(int out, int in, size_t uncompressed_length, size_t comp
   return true;
 }
 
-bool ZipEntry::Extract(int fd) {
+bool ZipEntry::Extract(File& file) {
 
   off_t data_offset = GetDataOffset();
   if (data_offset == -1) {
@@ -262,9 +247,9 @@ bool ZipEntry::Extract(int fd) {
   // for uncompressed data).
   switch (GetCompressionMethod()) {
     case kCompressStored:
-      return CopyFdToFd(fd, zip_archive_->fd_, GetUncompressedLength());
+      return CopyFdToFile(file, zip_archive_->fd_, GetUncompressedLength());
     case kCompressDeflated:
-      return InflateToFd(fd, zip_archive_->fd_, GetUncompressedLength(), GetCompressedLength());
+      return InflateToFile(file, zip_archive_->fd_, GetUncompressedLength(), GetCompressedLength());
     default:
       return false;
   }
@@ -376,7 +361,7 @@ bool ZipArchive::MapCentralDirectory() {
   }
 
   off_t eocd_offset = search_start + i;
-  const uint8_t* eocd_ptr = scan_buf.get() + i;
+  const byte* eocd_ptr = scan_buf.get() + i;
 
   DCHECK(eocd_offset < file_length);
 
@@ -399,7 +384,7 @@ bool ZipArchive::MapCentralDirectory() {
   }
 
   // It all looks good.  Create a mapping for the CD.
-  dir_map_.reset(MemMap::Map(fd_, dir_offset, dir_size));
+  dir_map_.reset(MemMap::Map(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset));
   if (dir_map_ == NULL) {
     LOG(WARNING) << "Zip: cd map failed " << strerror(errno);
     return false;
@@ -411,12 +396,12 @@ bool ZipArchive::MapCentralDirectory() {
 }
 
 bool ZipArchive::Parse() {
-  const uint8_t* cd_ptr = reinterpret_cast<const uint8_t*>(dir_map_->GetAddress());
+  const byte* cd_ptr = dir_map_->GetAddress();
   size_t cd_length = dir_map_->GetLength();
 
   // Walk through the central directory, adding entries to the hash
   // table and verifying values.
-  const uint8_t* ptr = cd_ptr;
+  const byte* ptr = cd_ptr;
   for (int i = 0; i < num_entries_; i++) {
     if (Le32ToHost(ptr) != kCDESignature) {
       LOG(WARNING) << "Zip: missed a central dir sig (at " << i << ")";

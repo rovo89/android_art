@@ -21,8 +21,6 @@
 
 namespace art {
 
-#define CLZ(x) __builtin_clz(x)
-
 HeapBitmap* HeapBitmap::Create(byte* base, size_t length) {
   scoped_ptr<HeapBitmap> bitmap(new HeapBitmap(base, length));
   if (!bitmap->Init(base, length)) {
@@ -38,12 +36,12 @@ HeapBitmap* HeapBitmap::Create(byte* base, size_t length) {
 bool HeapBitmap::Init(const byte* base, size_t max_size) {
   CHECK(base != NULL);
   size_t length = HB_OFFSET_TO_INDEX(max_size) * kWordSize;
-  void* words = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (words == MAP_FAILED) {
+  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS));
+  if (mem_map_ == NULL) {
     LOG(ERROR) << "mmap failed";
     return false;
   }
-  words_ = static_cast<unsigned long*>(words);
+  words_ = reinterpret_cast<word*>(mem_map_->GetAddress());
   num_bytes_ = length;
   base_ = reinterpret_cast<uintptr_t>(base);
   max_ = base_ - 1;
@@ -51,15 +49,7 @@ bool HeapBitmap::Init(const byte* base, size_t max_size) {
 }
 
 // Clean up any resources associated with the bitmap.
-HeapBitmap::~HeapBitmap() {
-  if (words_ != NULL) {
-    int result = munmap(words_, num_bytes_);
-    if (result == -1) {
-      PLOG(WARNING) << "munmap failed";
-    }
-    words_ = NULL;
-  }
-}
+HeapBitmap::~HeapBitmap() {}
 
 // Fill the bitmap with zeroes.  Returns the bitmap's memory to the
 // system as a side-effect.
@@ -169,8 +159,8 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
   void** pb = pointer_buf;
   size_t start = HB_OFFSET_TO_INDEX(base - live_bitmap.base_);
   size_t end = HB_OFFSET_TO_INDEX(max - live_bitmap.base_);
-  unsigned long* live = live_bitmap.words_;
-  unsigned long* mark = mark_bitmap.words_;
+  word* live = live_bitmap.words_;
+  word* mark = mark_bitmap.words_;
   for (size_t i = start; i <= end; i++) {
     unsigned long garbage = live[i] & ~mark[i];
     if (garbage != 0) {

@@ -365,7 +365,7 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
 }
 
 void* JniCompiler::AllocateCode(size_t size) {
-  CHECK_LT(((jni_code_top_ - jni_code_) + size), jni_code_size_);
+  CHECK_LT(((jni_code_top_ - jni_code_->GetAddress()) + size), jni_code_->GetLength());
   void *result = jni_code_top_;
   jni_code_top_ += size;
   return result;
@@ -374,18 +374,13 @@ void* JniCompiler::AllocateCode(size_t size) {
 JniCompiler::JniCompiler() {
   // TODO: this shouldn't be managed by the JniCompiler, we should have a
   // code cache.
-  jni_code_size_ = kPageSize;
-  jni_code_ = static_cast<byte*>(mmap(NULL, jni_code_size_,
-                                      PROT_READ | PROT_WRITE | PROT_EXEC,
-                                      MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
-  CHECK_NE(MAP_FAILED, jni_code_);
-  jni_code_top_ = jni_code_;
+  jni_code_.reset(MemMap::Map(kPageSize,
+                              PROT_READ | PROT_WRITE | PROT_EXEC,
+                              MAP_ANONYMOUS | MAP_PRIVATE));
+  CHECK(jni_code_ !=  NULL);
+  jni_code_top_ = jni_code_->GetAddress();
 }
 
-JniCompiler::~JniCompiler() {
-  // TODO: this shouldn't be managed by the JniCompiler, we should have a
-  // code cache.
-  CHECK_EQ(0, munmap(jni_code_, jni_code_size_));
-}
+JniCompiler::~JniCompiler() {}
 
 }  // namespace art

@@ -4,6 +4,7 @@
 #define ART_SRC_UTILS_H_
 
 #include "globals.h"
+#include "logging.h"
 #include "stringprintf.h"
 
 namespace art {
@@ -95,6 +96,8 @@ static inline int CountOneBits(uint32_t x) {
   x = x + (x >> 16);
   return static_cast<int>(x & 0x0000003F);
 }
+
+#define CLZ(x) __builtin_clz(x)
 
 static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');

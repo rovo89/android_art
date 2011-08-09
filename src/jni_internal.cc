@@ -1892,6 +1892,7 @@ static const struct JNINativeInterface gNativeInterface = {
 };
 
 void MonitorEnterHelper(JNIEnv* env, jobject obj) {
+  env = Thread::Current()->GetJniEnv();  // XXX bdc do not commit workaround
   CHECK_EQ(Thread::Current()->GetJniEnv(), env);
   MonitorEnter(env, obj);  // Ignore the result.
 }

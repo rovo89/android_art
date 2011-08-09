@@ -118,10 +118,13 @@ class Object {
   }
 
   Class* GetClass() const {
+    DCHECK(klass_ != NULL);
     return klass_;
   }
 
   bool InstanceOf(const Class* klass) const;
+
+  size_t Size() const;
 
   void MonitorEnter() {
     monitor_->Enter();
@@ -152,12 +155,14 @@ class Object {
   }
 
   const Object* GetFieldObject(size_t field_offset) const {
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
-    return *reinterpret_cast<Object* const*>(raw_addr);
+    Object* that = const_cast<Object*>(this);
+    Object* other = that->GetFieldObject(field_offset);
+    return const_cast<const Object*>(other);
   }
 
   Object* GetFieldObject(size_t field_offset) {
-    return const_cast<Object*>(GetFieldObject(field_offset));
+    byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset;
+    return *reinterpret_cast<Object**>(raw_addr);
   }
 
   void SetFieldObject(size_t offset, Object* new_value) {
@@ -166,26 +171,30 @@ class Object {
     // TODO: write barrier
   }
 
-  bool IsClass() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
-  }
+  bool IsClass() const;
 
   Class* AsClass() {
+    DCHECK(IsClass());
     return down_cast<Class*>(this);
   }
 
   const Class* AsClass() const {
+    DCHECK(IsClass());
     return down_cast<const Class*>(this);
   }
 
-  bool IsObjectArray() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
+  bool IsObjectArray() const;
+
+  template<class T>
+  ObjectArray<T>* AsObjectArray() {
+    DCHECK(IsObjectArray());
+    return down_cast<ObjectArray<T>*>(this);
   }
 
-  const ObjectArray<Object>* AsObjectArray() const {
-    return down_cast<const ObjectArray<Object>*>(this);
+  template<class T>
+  const ObjectArray<T>* AsObjectArray() const {
+    DCHECK(IsObjectArray());
+    return down_cast<const ObjectArray<T>*>(this);
   }
 
   bool IsReference() const {
@@ -213,9 +222,16 @@ class Object {
     return true;
   }
 
-  bool IsArray() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
+  bool IsArray() const;
+
+  Array* AsArray() {
+    DCHECK(IsArray());
+    return down_cast<Array*>(this);
+  }
+
+  const Array* AsArray() const {
+    DCHECK(IsArray());
+    return down_cast<const Array*>(this);
   }
 
  public:
@@ -578,16 +594,22 @@ class Method : public AccessibleObject {
 
 class Array : public Object {
  public:
+  static size_t Size(size_t component_count,
+                     size_t component_size) {
+    return sizeof(Array) + component_count * component_size;
+  }
   static Array* Alloc(Class* array_class,
                       size_t component_count,
                       size_t component_size) {
-    size_t size = sizeof(Array) + component_count * component_size;
-    Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
+    size_t size = Size(component_count, component_size);
+    Array* array = Heap::AllocObject(array_class, size)->AsArray();
     if (array != NULL) {
       array->SetLength(component_count);
     }
     return array;
   }
+
+  size_t Size() const;
 
   uint32_t GetLength() const {
     return length_;
@@ -611,9 +633,7 @@ class ObjectArray : public Array {
  public:
   static ObjectArray<T>* Alloc(Class* object_array_class,
                                size_t length) {
-    return down_cast<ObjectArray<T>*>(Array::Alloc(object_array_class,
-                                                   length,
-                                                   sizeof(uint32_t)));
+    return Array::Alloc(object_array_class, length, sizeof(uint32_t))->AsObjectArray<T>();
   }
 
   T* const * GetData() const {
@@ -773,6 +793,24 @@ class Class : public Object {
 
   Class* GetComponentType() const {
     return component_type_;
+  }
+
+  size_t GetComponentSize() const {
+    switch (component_type_->descriptor_[0]) {
+      case 'B': return 1;  // byte
+      case 'C': return 2;  // char
+      case 'D': return 8;  // double
+      case 'F': return 4;  // float
+      case 'I': return 4;  // int
+      case 'J': return 8;  // long
+      case 'S': return 2;  // short
+      case 'Z': return 1;  // boolean
+      case 'L': return sizeof(Object*);
+      case '[': return sizeof(Array*);
+      default: 
+        LOG(ERROR) << "Unknown component type " << component_type_->descriptor_;
+        return 0;
+    }
   }
 
   const StringPiece& GetDescriptor() const {
@@ -1115,6 +1153,28 @@ inline bool Object::InstanceOf(const Class* klass) const {
   return klass->IsAssignableFrom(klass_);
 }
 
+inline bool Object::IsClass() const {
+  return klass_ == klass_->klass_;
+}
+
+inline bool Object::IsObjectArray() const {
+  return IsArray() && !klass_->component_type_->IsPrimitive();
+}
+
+inline bool Object::IsArray() const {
+  return klass_->IsArray();
+}
+
+inline size_t Object::Size() const {
+  if (IsArray()) {
+    return AsArray()->Size();
+  }
+  return klass_->object_size_;
+}
+
+inline size_t Array::Size() const {
+  return Size(GetLength(), klass_->GetComponentSize());
+}
 
 class DataObject : public Object {
  public:

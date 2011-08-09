@@ -20,6 +20,8 @@
 
 #include "globals.h"
 #include "logging.h"
+#include "mem_map.h"
+#include "scoped_ptr.h"
 
 namespace art {
 
@@ -117,7 +119,9 @@ class HeapBitmap {
 
   bool Init(const byte* base, size_t length);
 
-  unsigned long* words_;
+  scoped_ptr<MemMap> mem_map_;
+
+  word* words_;
 
   size_t num_bytes_;
 

@@ -18,9 +18,9 @@
 //  implementation of the scoped_ptr class, and its closely-related brethren,
 //  scoped_array, scoped_ptr_malloc, and make_scoped_ptr.
 
+#include "logging.h"
 #include "macros.h"
 
-#include <assert.h>
 #include <stdlib.h>
 
 #include <algorithm>
@@ -71,13 +71,13 @@ class scoped_ptr {
   }
 
   // Accessors to get the owned object.
-  // operator* and operator-> will assert() if there is no current object.
+  // operator* and operator-> will DCHECK() if there is no current object.
   C& operator*() const {
-    assert(ptr_ != NULL);
+    DCHECK(ptr_ != NULL);
     return *ptr_;
   }
   C* operator->() const  {
-    assert(ptr_ != NULL);
+    DCHECK(ptr_ != NULL);
     return ptr_;
   }
   C* get() const { return ptr_; }
@@ -190,10 +190,10 @@ class scoped_array {
   }
 
   // Get one element of the current object.
-  // Will assert() if there is no current object, or index i is negative.
+  // Will DCHECK() if there is no current object, or index i is negative.
   C& operator[](std::ptrdiff_t i) const {
-    assert(i >= 0);
-    assert(array_ != NULL);
+    DCHECK_GE(i, 0);
+    DCHECK(array_ != NULL);
     return array_[i];
   }
 
@@ -295,15 +295,15 @@ class scoped_ptr_malloc {
   }
 
   // Get the current object.
-  // operator* and operator-> will cause an assert() failure if there is
+  // operator* and operator-> will cause an DCHECK() failure if there is
   // no current object.
   C& operator*() const {
-    assert(ptr_ != NULL);
+    DCHECK(ptr_ != NULL);
     return *ptr_;
   }
 
   C* operator->() const {
-    assert(ptr_ != NULL);
+    DCHECK(ptr_ != NULL);
     return ptr_;
   }
 

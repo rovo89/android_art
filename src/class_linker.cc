@@ -43,10 +43,14 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   java_lang_Object->descriptor_ = "Ljava/lang/Object;";
   // backfill Object as the super class of Class
   java_lang_Class->super_class_ = java_lang_Object;
+  // mark as non-primitive for object_array_class
+  java_lang_Object->primitive_type_ = Class::kPrimNot;
 
   // object_array_class is for root_classes to provide the storage for these classes
   Class* object_array_class = AllocClass(java_lang_Class);
   CHECK(object_array_class != NULL);
+  object_array_class->descriptor_ = "[Ljava/lang/Object;";
+  object_array_class->component_type_ = java_lang_Object;
 
   // String and char[] are necessary so that FindClass can assign names to members
   Class* java_lang_String = AllocClass(java_lang_Class);
@@ -56,12 +60,15 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   java_lang_String->object_size_ = sizeof(String);
   Class* char_array_class = AllocClass(java_lang_Class);
   CHECK(char_array_class != NULL);
+  char_array_class->descriptor_ = "[C";
 
   // int[] and long[] are used for static field storage
   Class* int_array_class = AllocClass(java_lang_Class);
   CHECK(int_array_class != NULL);
+  int_array_class->descriptor_ = "[I";
   Class* long_array_class = AllocClass(java_lang_Class);
   CHECK(long_array_class != NULL);
+  long_array_class->descriptor_ = "[J";
 
   // Field and Method are necessary so that FindClass can link members
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class);
@@ -219,7 +226,7 @@ DexCache* ClassLinker::AllocDexCache() {
 }
 
 Class* ClassLinker::AllocClass(Class* java_lang_Class) {
-  return down_cast<Class*>(java_lang_Class->NewInstance());
+  return java_lang_Class->NewInstance()->AsClass();
 }
 
 Class* ClassLinker::AllocClass() {

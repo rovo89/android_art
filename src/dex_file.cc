@@ -14,6 +14,7 @@
 #include "globals.h"
 #include "logging.h"
 #include "object.h"
+#include "os.h"
 #include "scoped_ptr.h"
 #include "stringprintf.h"
 #include "thread.h"
@@ -151,15 +152,15 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
                                 adjacent_dex_filename.end(),
                                 ".dex");
   // Example adjacent_dex_filename = dir/foo.dex
-  struct stat sb;
-  if (stat(adjacent_dex_filename.c_str(), &sb) == 0) {
+  if (OS::FileExists(adjacent_dex_filename.c_str())) {
     DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
     if (adjacent_dex_file != NULL) {
-      // We don't verify anything in this case, because we aren't in
-      // the cache and typically the file is in the readonly /system
-      // area, so if something is wrong, there is nothing we can do.
-      return adjacent_dex_file;
+        // We don't verify anything in this case, because we aren't in
+        // the cache and typically the file is in the readonly /system
+        // area, so if something is wrong, there is nothing we can do.
+        return adjacent_dex_file;
     }
+    return NULL;
   }
 
   char resolved[PATH_MAX];
@@ -198,9 +199,11 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
   // Example cache_path = /data/art-cache/parent@dir@foo.jar@classes.dex.1a2b3c4d
 
   while (true) {
-    DexFile* cached_dex_file = DexFile::OpenFile(cache_path);
-    if (cached_dex_file != NULL) {
-      return cached_dex_file;
+    if (OS::FileExists(cache_path.c_str())) {
+      DexFile* cached_dex_file = DexFile::OpenFile(cache_path);
+      if (cached_dex_file != NULL) {
+        return cached_dex_file;
+      }
     }
 
     // Try to open the temporary cache file, grabbing an exclusive
@@ -245,7 +248,11 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
 
     // We have the correct file open and locked. Extract classes.dex
     TmpFile tmp_file(cache_path_tmp);
-    bool success = zip_entry->Extract(fd->GetFd());
+    scoped_ptr<File> file(OS::FileFromFd(cache_path_tmp.c_str(), fd->GetFd()));
+    if (file == NULL) {
+      return NULL;
+    }
+    bool success = zip_entry->Extract(*file);
     if (!success) {
       return NULL;
     }

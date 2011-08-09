@@ -22,13 +22,14 @@ MarkStack* MarkStack::Create(size_t maximum_size) {
 
 bool MarkStack::Init(size_t maximum_size) {
   size_t length = 64 * MB;
-  void* addr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (addr == MAP_FAILED) {
+  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS));
+  if (mem_map_ == NULL) {
     PLOG(ERROR) << "mmap failed";
     return false;
   }
+  byte* addr = mem_map_->GetAddress();
   base_ = reinterpret_cast<const Object**>(addr);
-  limit_ = reinterpret_cast<const Object**>((byte*)addr + length);
+  limit_ = reinterpret_cast<const Object**>(addr + length);
   ptr_ = reinterpret_cast<Object const**>(addr);
   int result = madvise(addr, length, MADV_DONTNEED);
   if (result == -1) {
@@ -37,11 +38,6 @@ bool MarkStack::Init(size_t maximum_size) {
   return true;
 }
 
-MarkStack::~MarkStack() {
-  int result = munmap((void*)base_, limit_ - base_);
-  if (result == -1) {
-    PLOG(WARNING) << "munmap failed";
-  }
-}
+MarkStack::~MarkStack() {}
 
 }  // namespace art

@@ -6,6 +6,8 @@
 #include "calling_convention.h"
 #include "globals.h"
 #include "macros.h"
+#include "mem_map.h"
+#include "scoped_ptr.h"
 
 namespace art {
 
@@ -31,11 +33,8 @@ class JniCompiler {
   // A poor man's code cache
   void* AllocateCode(size_t size);
 
-  // Base of memory region for allocated code
-  byte* jni_code_;
-
-  // Allocated code size
-  size_t jni_code_size_;
+  // Allocated code
+  scoped_ptr<MemMap> jni_code_;
 
   // Pointer to the free space
   byte* jni_code_top_;

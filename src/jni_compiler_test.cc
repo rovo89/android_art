@@ -7,7 +7,9 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "jni_compiler.h"
+#include "mem_map.h"
 #include "runtime.h"
+#include "scoped_ptr.h"
 #include "thread.h"
 #include "gtest/gtest.h"
 
@@ -18,10 +20,10 @@ class JniCompilerTest : public RuntimeTest {
   virtual void SetUp() {
     RuntimeTest::SetUp();
     // Create thunk code that performs the native to managed transition
-    thunk_code_size_ = kPageSize;
-    thunk_ = mmap(NULL, thunk_code_size_, PROT_READ | PROT_WRITE | PROT_EXEC,
-                  MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    CHECK_NE(MAP_FAILED, thunk_);
+    thunk_code_.reset(MemMap::Map(kPageSize,
+                                  PROT_READ | PROT_WRITE | PROT_EXEC,
+                                  MAP_ANONYMOUS | MAP_PRIVATE));
+    CHECK(thunk_code_ !=  NULL);
     Assembler thk_asm;
     // TODO: shouldn't have machine specific code in a general purpose file
 #if defined(__i386__)
@@ -62,7 +64,7 @@ class JniCompilerTest : public RuntimeTest {
 #error Unimplemented
 #endif
     size_t cs = thk_asm.CodeSize();
-    MemoryRegion code(thunk_, cs);
+    MemoryRegion code(thunk_code_->GetAddress(), cs);
     thk_asm.FinalizeInstructions(code);
     thunk_entry1_ = reinterpret_cast<jint (*)(const void*, art::Method*,
                                               Thread*, jobject, jint, jint,
@@ -77,7 +79,6 @@ class JniCompilerTest : public RuntimeTest {
   virtual void TearDown() {
     // Release thunk code
     CHECK(runtime_->DetachCurrentThread());
-    CHECK_EQ(0, munmap(thunk_, thunk_code_size_));
   }
 
   // Run generated code associated with method passing and returning int size
@@ -114,8 +115,7 @@ class JniCompilerTest : public RuntimeTest {
     return result;
   }
 
-  void* thunk_;
-  size_t thunk_code_size_;
+  scoped_ptr<MemMap> thunk_code_;
   jint (*thunk_entry1_)(const void*, Method*, Thread*, jobject, jint, jint,
                         jint);
   jdouble (*thunk_entry2_)(const void*, Method*, Thread*, jobject, jdouble,

@@ -395,6 +395,38 @@ static inline DexFile* OpenDexFileBase64(const char* base64) {
   return dex_file;
 }
 
+class ScratchFile {
+ public:
+  ScratchFile() {
+    std::string filename_template;
+    filename_template = getenv("ANDROID_DATA");
+    filename_template += "/TmpFile-XXXXXX";
+    filename_.reset(strdup(filename_template.c_str()));
+    CHECK(filename_ != NULL);
+    fd_ = mkstemp(filename_.get());
+    CHECK_NE(-1, fd_);
+  }
+
+  ~ScratchFile() {
+    int unlink_result = unlink(filename_.get());
+    CHECK_EQ(0, unlink_result);
+    int close_result = close(fd_);
+    CHECK_EQ(0, close_result);
+  }
+
+  const char* GetFilename() const {
+    return filename_.get();
+  }
+
+  int GetFd() const {
+    return fd_;
+  }
+
+ private:
+  scoped_ptr_malloc<char> filename_;
+  int fd_;
+};
+
 class RuntimeTest : public testing::Test {
  protected:
   virtual void SetUp() {

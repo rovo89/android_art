@@ -5,6 +5,8 @@
 
 #include "logging.h"
 #include "macros.h"
+#include "mem_map.h"
+#include "scoped_ptr.h"
 
 namespace art {
 
@@ -40,6 +42,9 @@ class MarkStack {
   }
 
   bool Init(size_t maximum_size);
+
+  // Memory mapping of the mark stack.
+  scoped_ptr<MemMap> mem_map_;
 
   // Base of the mark stack.
   const Object* const* base_;

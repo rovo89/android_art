@@ -1,6 +1,6 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "src/runtime.h"
+#include "runtime.h"
 
 #include "gtest/gtest.h"
 

@@ -5,6 +5,8 @@
 
 #include "globals.h"
 #include "macros.h"
+#include "mem_map.h"
+#include "scoped_ptr.h"
 
 namespace art {
 
@@ -29,21 +31,21 @@ class Space {
 
   void Grow(size_t num_bytes);
 
-  byte* GetBase() {
+  byte* GetBase() const {
     return base_;
   }
 
-  byte* GetLimit() {
+  byte* GetLimit() const {
     return limit_;
   }
 
-  size_t Size() {
+  size_t Size() const {
     return limit_ - base_;
   }
 
   size_t AllocationSize(const Object* obj);
 
-  bool IsCondemned() {
+  bool IsCondemned() const {
     return true;  // TODO
   }
 
@@ -67,6 +69,8 @@ class Space {
   static void DontNeed(void* start, void* end, void* num_bytes);
 
   void* mspace_;
+
+  scoped_ptr<MemMap> mem_map_;
 
   byte* base_;
 

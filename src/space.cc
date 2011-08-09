@@ -48,30 +48,22 @@ bool Space::Init() {
   size_t length = RoundUp(maximum_size_, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  void* base = mmap(NULL, length, prot, flags, -1, 0);
-  if (base == MAP_FAILED) {
+  mem_map_.reset(MemMap::Map(length, prot, flags));
+  if (mem_map_ == NULL) {
     PLOG(ERROR) << "mmap failed";
     return false;
   }
-  base_ = static_cast<byte*>(base);
+  base_ = mem_map_->GetAddress();
   limit_ = base_ + length;
-  mspace_ = CreateMallocSpace(base, startup_size_, maximum_size_);
+  mspace_ = CreateMallocSpace(base_, startup_size_, maximum_size_);
   if (mspace_ == NULL) {
-    munmap(base_, length);
+    mem_map_->Unmap();
     return false;
   }
   return true;
 }
 
-Space::~Space() {
-  if (base_ == NULL) {
-    return;
-  }
-  int result = munmap(base_, limit_ - base_);
-  if (result == -1) {
-    PLOG(WARNING) << "munmap failed";
-  }
-}
+Space::~Space() {}
 
 Object* Space::AllocWithoutGrowth(size_t num_bytes) {
   return reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));

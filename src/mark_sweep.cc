@@ -13,8 +13,6 @@
 #include "space.h"
 #include "thread.h"
 
-#define CLZ(x) __builtin_clz(x)
-
 namespace art {
 
 size_t MarkSweep::reference_referent_offset_ = 0;  // TODO
@@ -205,7 +203,7 @@ void MarkSweep::ScanArray(const Object *obj) {
   DCHECK(obj->GetClass() != NULL);
   MarkObject(obj->GetClass());
   if (obj->IsObjectArray()) {
-    const ObjectArray<Object>* array = obj->AsObjectArray();
+    const ObjectArray<Object>* array = obj->AsObjectArray<Object>();
     for (size_t i = 0; i < array->GetLength(); ++i) {
       const Object* element = array->Get(i);
       MarkObject(element);

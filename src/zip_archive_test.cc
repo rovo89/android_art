@@ -5,6 +5,7 @@
 #include <sys/types.h>
 
 #include "common_test.h"
+#include "os.h"
 #include "zip_archive.h"
 #include "gtest/gtest.h"
 
@@ -12,47 +13,17 @@ namespace art {
 
 class ZipArchiveTest : public RuntimeTest {};
 
-class TmpFile {
- public:
-  TmpFile() {
-    std::string filename_template;
-    filename_template = getenv("ANDROID_DATA");
-    filename_template += "/TmpFile-XXXXXX";
-    filename_.reset(strdup(filename_template.c_str()));
-    CHECK(filename_ != NULL);
-    fd_ = mkstemp(filename_.get());
-    CHECK_NE(-1, fd_);
-  }
-
-  ~TmpFile() {
-    int unlink_result = unlink(filename_.get());
-    CHECK_EQ(0, unlink_result);
-    int close_result = close(fd_);
-    CHECK_EQ(0, close_result);
-  }
-
-  const char* GetFilename() const {
-    return filename_.get();
-  }
-
-  int GetFd() const {
-    return fd_;
-  }
-
- private:
-  scoped_ptr_malloc<char> filename_;
-  int fd_;
-};
-
 TEST_F(ZipArchiveTest, FindAndExtract) {
   scoped_ptr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName()));
   ASSERT_TRUE(zip_archive != false);
   scoped_ptr<ZipEntry> zip_entry(zip_archive->Find("classes.dex"));
   ASSERT_TRUE(zip_entry != false);
 
-  TmpFile tmp;
+  ScratchFile tmp;
   ASSERT_NE(-1, tmp.GetFd());
-  bool success = zip_entry->Extract(tmp.GetFd());
+  scoped_ptr<File> file(OS::FileFromFd(tmp.GetFilename(), tmp.GetFd()));
+  ASSERT_TRUE(file != NULL);
+  bool success = zip_entry->Extract(*file);
   ASSERT_TRUE(success);
   close(tmp.GetFd());
 

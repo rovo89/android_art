@@ -22,8 +22,10 @@
 #include <sys/mman.h>
 #include <zlib.h>
 
+#include "file.h"
 #include "globals.h"
 #include "logging.h"
+#include "mem_map.h"
 #include "scoped_ptr.h"
 #include "stringpiece.h"
 #include "unordered_map.h"
@@ -37,13 +39,13 @@ class ZipEntry {
 
  public:
   // Uncompress an entry, in its entirety, to an open file descriptor.
-  bool Extract(int fd);
+  bool Extract(File& file);
 
   uint32_t GetCrc32();
 
  private:
 
-  ZipEntry(ZipArchive* zip_archive, const uint8_t* ptr) : zip_archive_(zip_archive), ptr_(ptr) {};
+  ZipEntry(ZipArchive* zip_archive, const byte* ptr) : zip_archive_(zip_archive), ptr_(ptr) {};
 
   // Zip compression methods
   enum {
@@ -64,76 +66,9 @@ class ZipEntry {
   ZipArchive* zip_archive_;
 
   // pointer to zip entry within central directory
-  const uint8_t* ptr_;
+  const byte* ptr_;
 
   friend class ZipArchive;
-};
-
-// Used to keep track of unaligned mmap segments.
-class MemMap {
- public:
-
-  // Map part of a file into a shared, read-only memory segment.  The "start"
-  // offset is absolute, not relative.
-  //
-  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(int fd, off_t start, size_t length) {
-    // adjust to be page-aligned
-    int page_offset = start % kPageSize;
-    off_t page_aligned_offset = start - page_offset;
-    size_t page_aligned_size = length + page_offset;
-    uint8_t* addr = reinterpret_cast<uint8_t*>(mmap(NULL,
-                                                    page_aligned_size,
-                                                    PROT_READ,
-                                                    MAP_FILE | MAP_SHARED,
-                                                    fd,
-                                                    page_aligned_offset));
-    if (addr == MAP_FAILED) {
-      return NULL;
-    }
-    return new MemMap(addr+page_offset, length, addr, page_aligned_size);
-  }
-
-  ~MemMap() {
-    Unmap();
-  };
-
-  // Release a memory mapping, returning true on success or it was previously unmapped.
-  bool Unmap() {
-    if (base_addr_ == NULL && base_length_ == 0) {
-      return true;
-    }
-    int result = munmap(base_addr_, base_length_);
-    if (result != 0) {
-      return false;
-    }
-    base_addr_ = NULL;
-    base_length_ = 0;
-    return true;
-  }
-
-  void* GetAddress() {
-    return addr_;
-  }
-
-  size_t GetLength() {
-    return length_;
-  }
-
- private:
-  MemMap(void* addr, size_t length, void* base_addr, size_t base_length)
-      : addr_(addr), length_(length), base_addr_(base_addr), base_length_(base_length) {
-    CHECK(addr_ != NULL);
-    CHECK(length_ != 0);
-    CHECK(base_addr_ != NULL);
-    CHECK(base_length_ != 0);
-  };
-
-  void*   addr_;              // start of data
-  size_t  length_;            // length of data
-
-  void*   base_addr_;         // page-aligned base address
-  size_t  base_length_;       // length of mapping
 };
 
 class ZipArchive {
@@ -184,7 +119,7 @@ class ZipArchive {
   uint16_t num_entries_;
   off_t dir_offset_;
   scoped_ptr<MemMap> dir_map_;
-  typedef std::tr1::unordered_map<StringPiece, const uint8_t*> DirEntries;
+  typedef std::tr1::unordered_map<StringPiece, const byte*> DirEntries;
   DirEntries dir_entries_;
 
   friend class ZipEntry;
