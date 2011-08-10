@@ -18,7 +18,7 @@ namespace art {
 class Array;
 class Class;
 class DexCache;
-class InstanceField;
+class Field;
 class InterfaceEntry;
 class Monitor;
 class Method;
@@ -26,7 +26,6 @@ class Object;
 class String;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
-class StaticField;
 typedef PrimitiveArray<uint16_t> CharArray;
 typedef PrimitiveArray<uint32_t> IntArray;
 typedef PrimitiveArray<uint64_t> LongArray;
@@ -284,30 +283,6 @@ class Field : public AccessibleObject {
     return descriptor_;
   }
 
- public:  // TODO: private
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  Class* java_declaring_class_;
-  Object* java_generic_type_;
-  uint32_t java_generic_types_are_initialized_;
-  String* name_;
-  uint32_t java_slot_;
-  Class* java_type_;
-
-  // The class in which this field is declared.
-  Class* declaring_class_;
-
-  // e.g. "I", "[C", "Landroid/os/Debug;"
-  StringPiece descriptor_;
-
-  uint32_t access_flags_;
-
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
-};
-
-// Instance fields.
-class InstanceField : public Field {
- public:
   uint32_t GetOffset() const {
     return offset_;
   }
@@ -316,55 +291,44 @@ class InstanceField : public Field {
     offset_ = num_bytes;
   }
 
- private:
-  size_t offset_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(InstanceField);
-};
-
-// Static fields.
-class StaticField : public Field {
- public:
+  // static field access
   bool GetBoolean();
-
   void SetBoolean(bool z);
-
   int8_t GetByte();
-
   void SetByte(int8_t b);
-
   uint16_t GetChar();
-
   void SetChar(uint16_t c);
-
   uint16_t GetShort();
-
   void SetShort(uint16_t s);
-
   int32_t GetInt();
-
   void SetInt(int32_t i);
-
   int64_t GetLong();
-
   void SetLong(int64_t j);
-
   float GetFloat();
-
   void SetFloat(float f);
-
   double GetDouble();
-
   void SetDouble(double d);
-
   Object* GetObject();
-
   const Object* GetObject() const;
-
   void SetObject(Object* l);
 
+ public:  // TODO: private
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  // The class in which this field is declared.
+  Class* declaring_class_;
+  Object* generic_type_;
+  uint32_t generic_types_are_initialized_;
+  String* name_;
+  uint32_t offset_;
+  Class* type_;
+
+  // e.g. "I", "[C", "Landroid/os/Debug;"
+  StringPiece descriptor_;
+
+  uint32_t access_flags_;
+
  private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(StaticField);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
 };
 
 class Method : public AccessibleObject {
@@ -431,7 +395,8 @@ class Method : public AccessibleObject {
 
  public:  // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  Class* java_declaring_class_;
+  // the class we are a part of
+  Class* declaring_class_;
   ObjectArray<Class>* java_exception_types_;
   Object* java_formal_type_parameters_;
   Object* java_generic_exception_types_;
@@ -514,9 +479,6 @@ class Method : public AccessibleObject {
   bool HasSameNameAndDescriptor(const Method* that) const;
 
  public:  // TODO: private/const
-  // the class we are a part of
-  Class* declaring_class_;
-
   // access flags; low 16 bits are defined by spec (could be uint16_t?)
   uint32_t access_flags_;
 
@@ -900,12 +862,12 @@ class Class : public Object {
     return num_reference_instance_fields_;
   }
 
-  InstanceField* GetInstanceField(uint32_t i) const {  // TODO: uint16_t
+  Field* GetInstanceField(uint32_t i) const {  // TODO: uint16_t
     DCHECK_NE(NumInstanceFields(), 0U);
     return ifields_->Get(i);
   }
 
-  void SetInstanceField(uint32_t i, InstanceField* f) {  // TODO: uint16_t
+  void SetInstanceField(uint32_t i, Field* f) {  // TODO: uint16_t
     DCHECK_NE(NumInstanceFields(), 0U);
     ifields_->Set(i, f);
   }
@@ -914,12 +876,12 @@ class Class : public Object {
     return (sfields_ != NULL) ? sfields_->GetLength() : 0;
   }
 
-  StaticField* GetStaticField(uint32_t i) const {  // TODO: uint16_t
+  Field* GetStaticField(uint32_t i) const {  // TODO: uint16_t
     DCHECK_NE(NumStaticFields(), 0U);
     return sfields_->Get(i);
   }
 
-  void SetStaticField(uint32_t i, StaticField* f) {  // TODO: uint16_t
+  void SetStaticField(uint32_t i, Field* f) {  // TODO: uint16_t
     DCHECK_NE(NumStaticFields(), 0U);
     sfields_->Set(i, f);
   }
@@ -1067,7 +1029,7 @@ class Class : public Object {
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  num_reference_instance_fields_
   // specifies the number of reference fields.
-  ObjectArray<InstanceField>* ifields_;
+  ObjectArray<Field>* ifields_;
 
   // number of fields that are object refs
   size_t num_reference_instance_fields_;
@@ -1079,7 +1041,7 @@ class Class : public Object {
   const char* source_file_;
 
   // Static fields
-  ObjectArray<StaticField>* sfields_;
+  ObjectArray<Field>* sfields_;
 
   // static field storage
   //

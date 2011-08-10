@@ -160,7 +160,7 @@ void MarkSweep::ScanInstanceFields(const Object* obj) {
 void MarkSweep::ScanStaticFields(const Class* klass) {
   DCHECK(klass != NULL);
   for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
-    const StaticField* static_field = klass->GetStaticField(i);
+    const Field* static_field = klass->GetStaticField(i);
     char ch = static_field->GetType();
     if (ch == '[' || ch == 'L') {
       const Object* obj = static_field->GetObject();

@@ -153,105 +153,125 @@ bool Class::IsInSamePackage(const Class* that) const {
   return IsInSamePackage(klass1->descriptor_, klass2->descriptor_);
 }
 
-bool StaticField::GetBoolean() {
+bool Field::GetBoolean() {
   CHECK_EQ(GetType(), 'Z');
-  return declaring_class_->static_32bit_primitives_->Get(java_slot_);
+  CHECK(IsStatic());
+  return declaring_class_->static_32bit_primitives_->Get(offset_);
 }
 
-void StaticField::SetBoolean(bool z) {
+void Field::SetBoolean(bool z) {
   CHECK_EQ(GetType(), 'Z');
-  declaring_class_->static_32bit_primitives_->Set(java_slot_, z);
+  CHECK(IsStatic());
+  declaring_class_->static_32bit_primitives_->Set(offset_, z);
 }
 
-int8_t StaticField::GetByte() {
+int8_t Field::GetByte() {
   CHECK_EQ(GetType(), 'B');
-  return declaring_class_->static_32bit_primitives_->Get(java_slot_);
+  CHECK(IsStatic());
+  return declaring_class_->static_32bit_primitives_->Get(offset_);
 }
 
-void StaticField::SetByte(int8_t b) {
+void Field::SetByte(int8_t b) {
   CHECK_EQ(GetType(), 'B');
-  declaring_class_->static_32bit_primitives_->Set(java_slot_, b);
+  CHECK(IsStatic());
+  declaring_class_->static_32bit_primitives_->Set(offset_, b);
 }
 
-uint16_t StaticField::GetChar() {
+uint16_t Field::GetChar() {
   CHECK_EQ(GetType(), 'C');
-  return declaring_class_->static_32bit_primitives_->Get(java_slot_);
+  CHECK(IsStatic());
+  return declaring_class_->static_32bit_primitives_->Get(offset_);
 }
 
-void StaticField::SetChar(uint16_t c) {
+void Field::SetChar(uint16_t c) {
   CHECK_EQ(GetType(), 'C');
-  declaring_class_->static_32bit_primitives_->Set(java_slot_, c);
+  CHECK(IsStatic());
+  declaring_class_->static_32bit_primitives_->Set(offset_, c);
 }
 
-uint16_t StaticField::GetShort() {
+uint16_t Field::GetShort() {
   CHECK_EQ(GetType(), 'S');
-  return declaring_class_->static_32bit_primitives_->Get(java_slot_);
+  CHECK(IsStatic());
+  return declaring_class_->static_32bit_primitives_->Get(offset_);
 }
 
-void StaticField::SetShort(uint16_t s) {
+void Field::SetShort(uint16_t s) {
   CHECK_EQ(GetType(), 'S');
-  declaring_class_->static_32bit_primitives_->Set(java_slot_, s);
+  CHECK(IsStatic());
+  declaring_class_->static_32bit_primitives_->Set(offset_, s);
 }
 
-int32_t StaticField::GetInt() {
+int32_t Field::GetInt() {
   CHECK_EQ(GetType(), 'I');
-  return declaring_class_->static_32bit_primitives_->Get(java_slot_);
+  CHECK(IsStatic());
+  return declaring_class_->static_32bit_primitives_->Get(offset_);
 }
 
-void StaticField::SetInt(int32_t i) {
+void Field::SetInt(int32_t i) {
   CHECK_EQ(GetType(), 'I');
-  declaring_class_->static_32bit_primitives_->Set(java_slot_, i);
+  CHECK(IsStatic());
+  declaring_class_->static_32bit_primitives_->Set(offset_, i);
 }
 
-int64_t StaticField::GetLong() {
+int64_t Field::GetLong() {
   CHECK_EQ(GetType(), 'J');
-  return declaring_class_->static_64bit_primitives_->Get(java_slot_);
+  CHECK(IsStatic());
+  return declaring_class_->static_64bit_primitives_->Get(offset_);
 }
 
-void StaticField::SetLong(int64_t j) {
+void Field::SetLong(int64_t j) {
   CHECK_EQ(GetType(), 'J');
-  declaring_class_->static_64bit_primitives_->Set(java_slot_, j);
+  CHECK(IsStatic());
+  declaring_class_->static_64bit_primitives_->Set(offset_, j);
 }
 
-float StaticField::GetFloat() {
+float Field::GetFloat() {
   CHECK_EQ(GetType(), 'F');
+  CHECK(IsStatic());
   JValue float_bits;
-  float_bits.i = declaring_class_->static_32bit_primitives_->Get(java_slot_);
+  float_bits.i = declaring_class_->static_32bit_primitives_->Get(offset_);
   return float_bits.f;
 }
 
-void StaticField::SetFloat(float f) {
+void Field::SetFloat(float f) {
   CHECK_EQ(GetType(), 'F');
+  CHECK(IsStatic());
   JValue float_bits;
   float_bits.f = f;
-  declaring_class_->static_32bit_primitives_->Set(java_slot_, float_bits.i);
+  declaring_class_->static_32bit_primitives_->Set(offset_, float_bits.i);
 }
 
-double StaticField::GetDouble() {
+double Field::GetDouble() {
   CHECK_EQ(GetType(), 'D');
+  CHECK(IsStatic());
   JValue double_bits;
-  double_bits.j = declaring_class_->static_64bit_primitives_->Get(java_slot_);
+  double_bits.j = declaring_class_->static_64bit_primitives_->Get(offset_);
   return double_bits.d;
 }
 
-void StaticField::SetDouble(double d) {
+void Field::SetDouble(double d) {
   CHECK_EQ(GetType(), 'D');
+  CHECK(IsStatic());
   JValue double_bits;
   double_bits.d = d;
-  declaring_class_->static_64bit_primitives_->Set(java_slot_, double_bits.j);
+  declaring_class_->static_64bit_primitives_->Set(offset_, double_bits.j);
 }
 
-Object* StaticField::GetObject() {
-  return declaring_class_->static_references_->Get(java_slot_);
-}
-
-const Object* StaticField::GetObject() const {
-  return declaring_class_->static_references_->Get(java_slot_);
-}
-
-void StaticField::SetObject(Object* l) {
+Object* Field::GetObject() {
   CHECK(GetType() == 'L' || GetType() == '[');
-  declaring_class_->static_references_->Set(java_slot_, l);  // TODO: write barrier
+  CHECK(IsStatic());
+  return declaring_class_->static_references_->Get(offset_);
+}
+
+const Object* Field::GetObject() const {
+  CHECK(GetType() == 'L' || GetType() == '[');
+  CHECK(IsStatic());
+  return declaring_class_->static_references_->Get(offset_);
+}
+
+void Field::SetObject(Object* l) {
+  CHECK(GetType() == 'L' || GetType() == '[');
+  declaring_class_->static_references_->Set(offset_, l);  // TODO: write barrier
 }
 
 uint32_t Method::NumArgRegisters() {

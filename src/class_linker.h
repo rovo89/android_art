@@ -56,8 +56,7 @@ class ClassLinker {
   // kObjectArrayClass and kJavaLangString etc.
   Class* AllocClass();
   DexCache* AllocDexCache();
-  StaticField* AllocStaticField();
-  InstanceField* AllocInstanceField();
+  Field* AllocField();
   Method* AllocMethod();
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {

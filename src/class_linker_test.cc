@@ -142,14 +142,14 @@ class ClassLinkerTest : public RuntimeTest {
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
-      InstanceField* field = klass->GetInstanceField(i);
+      Field* field = klass->GetInstanceField(i);
       EXPECT_TRUE(field != NULL);
       EXPECT_FALSE(field->IsStatic());
       EXPECT_EQ(klass, field->GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
-      StaticField* field = klass->GetStaticField(i);
+      Field* field = klass->GetStaticField(i);
       EXPECT_TRUE(field != NULL);
       EXPECT_TRUE(field->IsStatic());
       EXPECT_EQ(klass, field->GetDeclaringClass());
@@ -158,7 +158,7 @@ class ClassLinkerTest : public RuntimeTest {
     // Confirm that all instances fields are packed together at the start
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
-      InstanceField* field = klass->GetInstanceField(i);
+      Field* field = klass->GetInstanceField(i);
       ASSERT_TRUE(field != NULL);
       ASSERT_TRUE(field->GetDescriptor() != NULL);
       Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
@@ -166,7 +166,7 @@ class ClassLinkerTest : public RuntimeTest {
       EXPECT_FALSE(field_type->IsPrimitive());
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
-      InstanceField* field = klass->GetInstanceField(i);
+      Field* field = klass->GetInstanceField(i);
       ASSERT_TRUE(field != NULL);
       ASSERT_TRUE(field->GetDescriptor() != NULL);
       Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
@@ -400,53 +400,53 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   EXPECT_EQ(10U, statics->NumStaticFields());
 
-  StaticField* s0 = statics->GetStaticField(0);
+  Field* s0 = statics->GetStaticField(0);
   EXPECT_EQ("Ljava/lang/reflect/Field;", s0->GetClass()->descriptor_);
   EXPECT_EQ('Z', s0->GetType());
 //  EXPECT_EQ(true, s0->GetBoolean());  // TODO uncomment this
   s0->SetBoolean(false);
 
-  StaticField* s1 = statics->GetStaticField(1);
+  Field* s1 = statics->GetStaticField(1);
   EXPECT_EQ('B', s1->GetType());
 //  EXPECT_EQ(5, s1->GetByte());  // TODO uncomment this
   s1->SetByte(6);
 
-  StaticField* s2 = statics->GetStaticField(2);
+  Field* s2 = statics->GetStaticField(2);
   EXPECT_EQ('C', s2->GetType());
 //  EXPECT_EQ('a', s2->GetChar());  // TODO uncomment this
   s2->SetChar('b');
 
-  StaticField* s3 = statics->GetStaticField(3);
+  Field* s3 = statics->GetStaticField(3);
   EXPECT_EQ('S', s3->GetType());
 //  EXPECT_EQ(65000, s3->GetShort());  // TODO uncomment this
   s3->SetShort(65001);
 
-  StaticField* s4 = statics->GetStaticField(4);
+  Field* s4 = statics->GetStaticField(4);
   EXPECT_EQ('I', s4->GetType());
 //  EXPECT_EQ(2000000000, s4->GetInt());  // TODO uncomment this
   s4->SetInt(2000000001);
 
-  StaticField* s5 = statics->GetStaticField(5);
+  Field* s5 = statics->GetStaticField(5);
   EXPECT_EQ('J', s5->GetType());
 //  EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong());  // TODO uncomment this
   s5->SetLong(0x34567890abcdef12LL);
 
-  StaticField* s6 = statics->GetStaticField(6);
+  Field* s6 = statics->GetStaticField(6);
   EXPECT_EQ('F', s6->GetType());
 //  EXPECT_EQ(0.5, s6->GetFloat());  // TODO uncomment this
   s6->SetFloat(0.75);
 
-  StaticField* s7 = statics->GetStaticField(7);
+  Field* s7 = statics->GetStaticField(7);
   EXPECT_EQ('D', s7->GetType());
 //  EXPECT_EQ(16777217, s7->GetDouble());  // TODO uncomment this
   s7->SetDouble(16777219);
 
-  StaticField* s8 = statics->GetStaticField(8);
+  Field* s8 = statics->GetStaticField(8);
   EXPECT_EQ('L', s8->GetType());
 //  EXPECT_TRUE(down_cast<String*>(s8->GetObject())->Equals("android"));  // TODO uncomment this
   s8->SetObject(String::AllocFromAscii("robot"));
 
-  StaticField* s9 = statics->GetStaticField(9);
+  Field* s9 = statics->GetStaticField(9);
   EXPECT_EQ('[', s9->GetType());
 //  EXPECT_EQ(NULL, s9->GetObject());  // TODO uncomment this
   s9->SetObject(NULL);
