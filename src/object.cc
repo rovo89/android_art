@@ -13,6 +13,100 @@
 
 namespace art {
 
+bool Class::Implements(const Class* klass) const {
+  DCHECK(klass != NULL);
+  DCHECK(klass->IsInterface());
+  // All interfaces implemented directly and by our superclass, and
+  // recursively all super-interfaces of those interfaces, are listed
+  // in iftable_, so we can just do a linear scan through that.
+  for (size_t i = 0; i < iftable_count_; i++) {
+    if (iftable_[i].GetClass() == klass) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Determine whether "this" is assignable from "klazz", where both of these
+// are array classes.
+//
+// Consider an array class, e.g. Y[][], where Y is a subclass of X.
+//   Y[][]            = Y[][] --> true (identity)
+//   X[][]            = Y[][] --> true (element superclass)
+//   Y                = Y[][] --> false
+//   Y[]              = Y[][] --> false
+//   Object           = Y[][] --> true (everything is an object)
+//   Object[]         = Y[][] --> true
+//   Object[][]       = Y[][] --> true
+//   Object[][][]     = Y[][] --> false (too many []s)
+//   Serializable     = Y[][] --> true (all arrays are Serializable)
+//   Serializable[]   = Y[][] --> true
+//   Serializable[][] = Y[][] --> false (unless Y is Serializable)
+//
+// Don't forget about primitive types.
+//   int[] instanceof Object[]     --> false
+//
+bool Class::IsArrayAssignableFromArray(const Class* klass) const {
+  DCHECK(IsArray());
+  DCHECK(klass->IsArray());
+  DCHECK_GT(array_rank_, 0);
+  DCHECK_GT(klass->array_rank_, 0);
+  DCHECK(component_type_ != NULL);
+  DCHECK(klass->component_type_ != NULL);
+  if (array_rank_ > klass->array_rank_) {
+    // Too many []s.
+    return false;
+  }
+  if (array_rank_ == klass->array_rank_) {
+    return component_type_->IsAssignableFrom(klass->component_type_);
+  }
+  DCHECK_LT(array_rank_, klass->array_rank_);
+  // The thing we might be assignable from has more dimensions.  We
+  // must be an Object or array of Object, or a standard array
+  // interface or array of standard array interfaces (the standard
+  // interfaces being java/lang/Cloneable and java/io/Serializable).
+  if (component_type_->IsInterface()) {
+    // See if we implement our component type.  We know the
+    // base element is an interface; if the array class implements
+    // it, we know it's a standard array interface.
+    return Implements(component_type_);
+  }
+  // See if this is an array of Object, Object[], etc.  We know
+  // that the superclass of an array is always Object, so we
+  // just compare the element type to that.
+  Class* java_lang_Object = GetSuperClass();
+  DCHECK(java_lang_Object != NULL);
+  DCHECK(java_lang_Object->GetSuperClass() == NULL);
+  return (component_type_ == java_lang_Object);
+}
+
+bool Class::IsAssignableFromArray(const Class* klass) const {
+  DCHECK(!IsInterface());  // handled first in IsAssignableFrom
+  DCHECK(klass->IsArray());
+  if (!IsArray()) {
+    // If "this" is not also an array, it must be Object.
+    // klass's super should be java_lang_Object, since it is an array.
+    Class* java_lang_Object = klass->GetSuperClass();
+    DCHECK(java_lang_Object != NULL);
+    DCHECK(java_lang_Object->GetSuperClass() == NULL);
+    return this == java_lang_Object;
+  }
+  return IsArrayAssignableFromArray(klass);
+}
+
+bool Class::IsSubClass(const Class* klass) const {
+  DCHECK(!IsInterface());
+  DCHECK(!klass->IsArray());
+  const Class* current = this;
+  do {
+    if (current == klass) {
+      return true;
+    }
+    current = current->GetSuperClass();
+  } while (current != NULL);
+  return false;
+}
+
 bool Class::IsInSamePackage(const StringPiece& descriptor1,
                             const StringPiece& descriptor2) {
   size_t i = 0;

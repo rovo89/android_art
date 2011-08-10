@@ -110,11 +110,18 @@ static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik 
 
 class Object {
  public:
-  static Object* Alloc(Class* klass);
+  static bool InstanceOf(const Object* object, const Class* klass) {
+    if (object == NULL) {
+      return false;
+    }
+    return object->InstanceOf(klass);
+  }
 
   Class* GetClass() const {
     return klass_;
   }
+
+  bool InstanceOf(const Class* klass) const;
 
   void MonitorEnter() {
     monitor_->Enter();
@@ -739,6 +746,10 @@ class Class : public Object {
     kPrimNot = -1
   };
 
+  Object* NewInstance() {
+    return Heap::AllocObject(this, this->object_size_);
+  }
+
   Class* GetSuperClass() const {
     return super_class_;
   }
@@ -749,6 +760,20 @@ class Class : public Object {
 
   bool HasSuperClass() const {
     return super_class_ != NULL;
+  }
+
+  bool IsAssignableFrom(const Class* klass) const {
+    DCHECK(klass != NULL);
+    if (this == klass) {
+      return true;
+    }
+    if (IsInterface()) {
+      return klass->Implements(this);
+    }
+    if (klass->IsArray()) {
+      return IsAssignableFromArray(klass);
+    }
+    return klass->IsSubClass(this);
   }
 
   ClassLoader* GetClassLoader() const {
@@ -898,7 +923,7 @@ class Class : public Object {
     return num_reference_instance_fields_;
   }
 
-  InstanceField* GetInstanceField(uint32_t i) {  // TODO: uint16_t
+  InstanceField* GetInstanceField(uint32_t i) const {  // TODO: uint16_t
     DCHECK_NE(NumInstanceFields(), 0U);
     return ifields_->Get(i);
   }
@@ -944,6 +969,18 @@ class Class : public Object {
     interfaces_->Set(i, f);
   }
 
+  void SetVerifyErrorClass(Class* klass) {
+    // Note SetFieldObject is used rather than verify_error_class_ directly for the barrier
+    size_t field_offset = OFFSETOF_MEMBER(Class, verify_error_class_);
+    klass->SetFieldObject(field_offset, klass);
+  }
+
+ private:
+  bool Implements(const Class* klass) const;
+  bool IsArrayAssignableFromArray(const Class* klass) const;
+  bool IsAssignableFromArray(const Class* klass) const;
+  bool IsSubClass(const Class* klass) const;
+
  public:  // TODO: private
   // leave space for instance data; we could access fields directly if
   // we freeze the definition of java/lang/Class
@@ -970,8 +1007,9 @@ class Class : public Object {
   // state of class initialization
   Status status_;
 
-  // if class verify fails, we must return same error on subsequent tries
-  Class* verify_error_class_;
+  // If class verify fails, we must return same error on subsequent tries.
+  // Update with SetVerifyErrorClass to ensure a write barrier is used.
+  const Class* verify_error_class_;
 
   // threadId, used to check for recursive <clinit> invocation
   uint32_t clinit_thread_id_;
@@ -1075,10 +1113,12 @@ class Class : public Object {
 };
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
-inline Object* Object::Alloc(Class* klass) {
+inline bool Object::InstanceOf(const Class* klass) const {
   DCHECK(klass != NULL);
-  return Heap::AllocObject(klass, klass->object_size_);
+  DCHECK(klass_ != NULL);
+  return klass->IsAssignableFrom(klass_);
 }
+
 
 class DataObject : public Object {
  public:
@@ -1190,7 +1230,7 @@ class String : public Object {
   static String* Alloc(Class* java_lang_String,
                        Class* char_array,
                        int32_t utf16_length) {
-    String* string = down_cast<String*>(Object::Alloc(java_lang_String));
+    String* string = down_cast<String*>(java_lang_String->NewInstance());
     CharArray* array = CharArray::Alloc(char_array, utf16_length);
     string->array_ = array;
     string->count_ = utf16_length;

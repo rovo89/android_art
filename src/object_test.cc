@@ -55,16 +55,23 @@ TEST_F(ObjectTest, IsInSamePackage) {
 }
 
 TEST_F(ObjectTest, AllocObjectArray) {
-    ObjectArray<Object>* oa = class_linker_->AllocObjectArray<Object>(2);
-    EXPECT_EQ(2U, oa->GetLength());
-    EXPECT_TRUE(oa->Get(0) == NULL);
-    EXPECT_TRUE(oa->Get(1) == NULL);
-    oa->Set(0, oa);
-    EXPECT_TRUE(oa->Get(0) == oa);
-    EXPECT_TRUE(oa->Get(1) == NULL);
-    oa->Set(1, oa);
-    EXPECT_TRUE(oa->Get(0) == oa);
-    EXPECT_TRUE(oa->Get(1) == oa);
+  ObjectArray<Object>* oa = class_linker_->AllocObjectArray<Object>(2);
+  EXPECT_EQ(2U, oa->GetLength());
+  EXPECT_TRUE(oa->Get(0) == NULL);
+  EXPECT_TRUE(oa->Get(1) == NULL);
+  oa->Set(0, oa);
+  EXPECT_TRUE(oa->Get(0) == oa);
+  EXPECT_TRUE(oa->Get(1) == NULL);
+  oa->Set(1, oa);
+  EXPECT_TRUE(oa->Get(0) == oa);
+  EXPECT_TRUE(oa->Get(1) == oa);
+
+  ASSERT_TRUE(oa->GetClass() != NULL);
+  ASSERT_EQ(2U, oa->GetClass()->NumInterfaces());
+  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"),
+            oa->GetClass()->GetInterface(0));
+  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"),
+            oa->GetClass()->GetInterface(1));
 }
 
 TEST_F(ObjectTest, String) {
@@ -167,6 +174,97 @@ TEST_F(ObjectTest, StringHashCode) {
   EXPECT_EQ(0U, String::AllocFromAscii("")->GetHashCode());
   EXPECT_EQ(65U, String::AllocFromAscii("A")->GetHashCode());
   EXPECT_EQ(64578U, String::AllocFromAscii("ABC")->GetHashCode());
+}
+
+TEST_F(ObjectTest, InstanceOf) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  Class* X = class_linker_->FindClass("LX;", class_loader);
+  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  ASSERT_TRUE(X != NULL);
+  ASSERT_TRUE(Y != NULL);
+
+  EXPECT_FALSE(Object::InstanceOf(NULL, X));
+  EXPECT_FALSE(Object::InstanceOf(NULL, Y));
+
+  Object* x = X->NewInstance();
+  Object* y = Y->NewInstance();
+  ASSERT_TRUE(x != NULL);
+  ASSERT_TRUE(y != NULL);
+
+  EXPECT_TRUE(Object::InstanceOf(x, X));
+  EXPECT_FALSE(Object::InstanceOf(x, Y));
+  EXPECT_TRUE(Object::InstanceOf(y, X));
+  EXPECT_TRUE(Object::InstanceOf(y, Y));
+
+  EXPECT_TRUE(x->InstanceOf(X));
+  EXPECT_FALSE(x->InstanceOf(Y));
+  EXPECT_TRUE(y->InstanceOf(X));
+  EXPECT_TRUE(y->InstanceOf(Y));
+}
+
+TEST_F(ObjectTest, IsAssignableFrom) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  Class* X = class_linker_->FindClass("LX;", class_loader);
+  Class* Y = class_linker_->FindClass("LY;", class_loader);
+
+  EXPECT_TRUE(X->IsAssignableFrom(X));
+  EXPECT_TRUE(X->IsAssignableFrom(Y));
+  EXPECT_FALSE(Y->IsAssignableFrom(X));
+  EXPECT_TRUE(Y->IsAssignableFrom(Y));
+}
+
+TEST_F(ObjectTest, IsAssignableFromArray) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  Class* X = class_linker_->FindClass("LX;", class_loader);
+  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  ASSERT_TRUE(X != NULL);
+  ASSERT_TRUE(Y != NULL);
+
+  Class* YA = class_linker_->FindClass("[LY;", class_loader);
+  Class* YAA = class_linker_->FindClass("[[LY;", class_loader);
+  ASSERT_TRUE(YA != NULL);
+  ASSERT_TRUE(YAA != NULL);
+
+  Class* XAA = class_linker_->FindClass("[[LX;", class_loader);
+  ASSERT_TRUE(XAA != NULL);
+
+  Class* O = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  Class* OA = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+  Class* OAA = class_linker_->FindSystemClass("[[Ljava/lang/Object;");
+  Class* OAAA = class_linker_->FindSystemClass("[[[Ljava/lang/Object;");
+  ASSERT_TRUE(O != NULL);
+  ASSERT_TRUE(OA != NULL);
+  ASSERT_TRUE(OAA != NULL);
+  ASSERT_TRUE(OAAA != NULL);
+
+  Class* S = class_linker_->FindSystemClass("Ljava/io/Serializable;");
+  Class* SA = class_linker_->FindSystemClass("[Ljava/io/Serializable;");
+  Class* SAA = class_linker_->FindSystemClass("[[Ljava/io/Serializable;");
+  ASSERT_TRUE(S != NULL);
+  ASSERT_TRUE(SA != NULL);
+  ASSERT_TRUE(SAA != NULL);
+
+  Class* IA = class_linker_->FindSystemClass("[I");
+  ASSERT_TRUE(IA != NULL);
+
+  EXPECT_TRUE(YAA->IsAssignableFrom(YAA));  // identity
+  EXPECT_TRUE(XAA->IsAssignableFrom(YAA));  // element superclass
+  EXPECT_FALSE(YAA->IsAssignableFrom(XAA));
+  EXPECT_FALSE(Y->IsAssignableFrom(YAA));
+  EXPECT_FALSE(YA->IsAssignableFrom(YAA));
+  EXPECT_TRUE(O->IsAssignableFrom(YAA));  // everything is an Object
+  EXPECT_TRUE(OA->IsAssignableFrom(YAA));
+  EXPECT_TRUE(OAA->IsAssignableFrom(YAA));
+  EXPECT_TRUE(S->IsAssignableFrom(YAA));  // all arrays are Serializable
+  EXPECT_TRUE(SA->IsAssignableFrom(YAA));
+  EXPECT_FALSE(SAA->IsAssignableFrom(YAA));  // unless Y was Serializable
+
+  EXPECT_FALSE(IA->IsAssignableFrom(OA));
+  EXPECT_FALSE(OA->IsAssignableFrom(IA));
+  EXPECT_TRUE(O->IsAssignableFrom(IA));
 }
 
 }  // namespace art

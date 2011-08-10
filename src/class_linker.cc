@@ -132,13 +132,10 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
 
   // Setup a single, global copy of "interfaces" and "iftable" for
   // reuse across array classes
-  Class* java_lang_Cloneable = AllocClass();
+  Class* java_lang_Cloneable = FindSystemClass("Ljava/lang/Cloneable;");
   CHECK(java_lang_Cloneable != NULL);
-  java_lang_Cloneable->descriptor_ = "Ljava/lang/Cloneable;";
-
-  Class* java_io_Serializable = AllocClass();
+  Class* java_io_Serializable = FindSystemClass("Ljava/io/Serializable;");
   CHECK(java_io_Serializable != NULL);
-  java_io_Serializable->descriptor_ = "Ljava/io/Serializable;";
 
   array_interfaces_ = AllocObjectArray<Class>(2);
   CHECK(array_interfaces_ != NULL);
@@ -157,6 +154,8 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // run Object[] through FindClass to complete initialization
   Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
   CHECK_EQ(object_array_class, found_object_array_class);
+  CHECK_EQ(java_lang_Cloneable, object_array_class->GetInterface(0));
+  CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
 
   // Setup the primitive type classes.
   class_roots_->Set(kPrimitiveByte, CreatePrimitiveClass("B"));
@@ -209,7 +208,7 @@ DexCache* ClassLinker::AllocDexCache() {
 }
 
 Class* ClassLinker::AllocClass(Class* java_lang_Class) {
-  return down_cast<Class*>(Object::Alloc(java_lang_Class));
+  return down_cast<Class*>(java_lang_Class->NewInstance());
 }
 
 Class* ClassLinker::AllocClass() {
@@ -217,20 +216,20 @@ Class* ClassLinker::AllocClass() {
 }
 
 StaticField* ClassLinker::AllocStaticField() {
-  return down_cast<StaticField*>(Object::Alloc(GetClassRoot(kJavaLangReflectField)));
+  return down_cast<StaticField*>(GetClassRoot(kJavaLangReflectField)->NewInstance());
 }
 
 InstanceField* ClassLinker::AllocInstanceField() {
-  return down_cast<InstanceField*>(Object::Alloc(GetClassRoot(kJavaLangReflectField)));
+  return down_cast<InstanceField*>(GetClassRoot(kJavaLangReflectField)->NewInstance());
 }
 
 Method* ClassLinker::AllocMethod() {
-  return down_cast<Method*>(Object::Alloc(GetClassRoot(kJavaLangReflectMethod)));
+  return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->NewInstance());
 }
 
 // TODO remove once we can use java.lang.Class.getSystemClassLoader
 PathClassLoader* ClassLinker::AllocPathClassLoader(std::vector<const DexFile*> dex_files) {
-  PathClassLoader* cl = down_cast<PathClassLoader*>(Object::Alloc(GetClassRoot(kDalvikSystemPathClassLoader)));
+  PathClassLoader* cl = down_cast<PathClassLoader*>(GetClassRoot(kDalvikSystemPathClassLoader)->NewInstance());
   cl->SetClassPath(dex_files);
   return cl;
 }
@@ -776,8 +775,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
       if (!DexVerify::VerifyClass(klass)) {
         LG << "Verification failed";  // TODO: ThrowVerifyError
         Object* exception = self->GetException();
-        size_t field_offset = OFFSETOF_MEMBER(Class, verify_error_class_);
-        klass->SetFieldObject(field_offset, exception->GetClass());
+        klass->SetVerifyErrorClass(exception->GetClass());
         klass->SetStatus(Class::kStatusError);
         return false;
       }
