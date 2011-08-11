@@ -8,34 +8,7 @@
 #include "jni.h"
 #include "logging.h"
 #include "scoped_ptr.h"
-
-// TODO: move this into a publicly accessible location
-template<typename T>
-class scoped_local_ref {
- public:
-  scoped_local_ref(JNIEnv* env, T ref) : env_(env), ref_(ref) {}
-  ~scoped_local_ref() { reset(); }
-
-  T get() const { return ref_; }
-
-  void reset() {
-    if (ref_ != NULL) {
-      env_->DeleteLocalRef(ref_);
-      ref_ = NULL;
-    }
-  }
-
-  T release() {
-    T ref = ref_;
-    ref_ = NULL;
-    return ref;
-  }
-
- private:
-    JNIEnv* env_;
-    T ref_;
-    DISALLOW_COPY_AND_ASSIGN(scoped_local_ref);
-  };
+#include "ScopedLocalRef.h"
 
 // TODO: move this into the runtime.
 static void BlockSigpipe() {
@@ -58,7 +31,7 @@ static void BlockSigpipe() {
 //Create a String[] and populate it with the contents of argv.
 static jobjectArray CreateStringArray(JNIEnv* env, char** argv, int argc) {
   // Find the String class.
-  scoped_local_ref<jclass> klass(env, env->FindClass("java/lang/String"));
+  ScopedLocalRef<jclass> klass(env, env->FindClass("java/lang/String"));
   if (env->ExceptionCheck()) {
     fprintf(stderr, "Got exception while finding class String\n");
     return NULL;
@@ -66,45 +39,41 @@ static jobjectArray CreateStringArray(JNIEnv* env, char** argv, int argc) {
   DCHECK(klass.get() != NULL);
 
   // Create an array of String elements.
-  scoped_local_ref<jobjectArray> args(env, env->NewObjectArray(argc,
-                                                               klass.get(),
-                                                               NULL));
+  jobjectArray args = env->NewObjectArray(argc, klass.get(), NULL);
   if (env->ExceptionCheck()) {
     fprintf(stderr, "Got exception while creating String array\n");
     return NULL;
   }
-  DCHECK(args.get() != NULL);
+  DCHECK(args != NULL);
 
   // Allocate a string object for each argv element.
   for (int i = 0; i < argc; ++i) {
-    scoped_local_ref<jstring> elt(env, env->NewStringUTF(argv[i]));
+    ScopedLocalRef<jstring> elt(env, env->NewStringUTF(argv[i]));
     if (env->ExceptionCheck()) {
       fprintf(stderr, "Got exception while allocating Strings\n");
       return NULL;
     }
     DCHECK(elt.get() != NULL);
-    env->SetObjectArrayElement(args.get(), i, elt.get());
+    env->SetObjectArrayElement(args, i, elt.get());
   }
 
-  // Return a local reference to the newly created array.
-  return args.release();
+  return args;
 }
 
 // Determine whether or not the specified method is public.
 //
 // Returns JNI_TRUE on success, JNI_FALSE on failure.
 static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
-  scoped_local_ref<jobject> reflected(env, env->ToReflectedMethod(clazz,
-                                                                  method_id,
-                                                                  JNI_FALSE));
+  ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(clazz,
+      method_id, JNI_FALSE));
   if (reflected.get() == NULL) {
     fprintf(stderr, "Unable to get reflected method\n");
     return false;
   }
   // We now have a Method instance.  We need to call its
   // getModifiers() method.
-  scoped_local_ref<jclass> method(env,
-                                  env->FindClass("java/lang/reflect/Method"));
+  ScopedLocalRef<jclass> method(env,
+      env->FindClass("java/lang/reflect/Method"));
   if (method.get() == NULL) {
     fprintf(stderr, "Unable to find class Method\n");
     return false;
@@ -128,9 +97,8 @@ static bool InvokeMain(JavaVM* vm, JNIEnv* env, int argc, char** argv) {
   // We want to call main() with a String array with our arguments in
   // it.  Create an array and populate it.  Note argv[0] is not
   // included.
-  scoped_local_ref<jobjectArray> args(env, CreateStringArray(env,
-                                                             argv + 1,
-                                                             argc - 1));
+  ScopedLocalRef<jobjectArray> args(env,
+      CreateStringArray(env, argv + 1, argc - 1));
   if (args.get() == NULL) {
     return false;
   }
@@ -141,7 +109,7 @@ static bool InvokeMain(JavaVM* vm, JNIEnv* env, int argc, char** argv) {
   std::string class_name = argv[0];
   std::replace(class_name.begin(), class_name.end(), '.', '/');
 
-  scoped_local_ref<jclass> klass(env, env->FindClass(class_name.c_str()));
+  ScopedLocalRef<jclass> klass(env, env->FindClass(class_name.c_str()));
   if (klass.get() == NULL) {
     fprintf(stderr, "Unable to locate class '%s'\n", class_name.c_str());
     return false;
