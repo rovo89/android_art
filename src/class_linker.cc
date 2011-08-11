@@ -489,6 +489,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     dst->descriptor_ = String::AllocFromModifiedUtf8(utf16_length, utf8.get());
   }
   dst->proto_idx_ = method_id.proto_idx_;
+  dst->code_off_ = src.code_off_;
   dst->shorty_ = dex_file.GetShorty(method_id.proto_idx_);
   dst->access_flags_ = src.access_flags_;
 
@@ -499,7 +500,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     dst->num_registers_ = code_item->registers_size_;
     dst->num_ins_ = code_item->ins_size_;
     dst->num_outs_ = code_item->outs_size_;
-    dst->insns_ = code_item->insns_;
   } else {
     uint16_t num_args = dst->NumArgRegisters();
     if (!dst->IsStatic()) {
@@ -1340,7 +1340,9 @@ void ClassLinker::LinkAbstractMethods(Class* klass) {
   for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
     Method* method = klass->GetVirtualMethod(i);
     if (method->IsAbstract()) {
-      method->insns_ = reinterpret_cast<uint16_t*>(0xFFFFFFFF);  // TODO: AbstractMethodError
+      LG << "AbstractMethodError";
+      method->code_off_ = 0xFFFFFFFF;
+      // TODO: throw AbstractMethodError
     }
   }
 }

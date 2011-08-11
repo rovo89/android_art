@@ -12,6 +12,7 @@
 #include "scoped_ptr.h"
 #include "stringpiece.h"
 #include "strutil.h"
+#include "utils.h"
 
 namespace art {
 
@@ -183,11 +184,74 @@ class DexFile {
     uint16_t insns_[1];
   };
 
+  struct CatchHandlerItem {
+    uint32_t type_idx_;    // type index of the caught exception type
+    uint32_t address_;     // handler address
+  };
+
   // Raw try_item.
   struct TryItem {
     uint32_t start_addr_;
     uint16_t insn_count_;
     uint16_t handler_off_;
+  };
+
+  class CatchHandlerIterator {
+    public:
+      CatchHandlerIterator() {
+        remaining_count_ = -1;
+        catch_all_ = false;
+      }
+
+      CatchHandlerIterator(const byte* handler_data) {
+        current_data_ = handler_data;
+        remaining_count_ = DecodeUnsignedLeb128(&current_data_);
+
+        // If remaining_count_ is non-positive, then it is the negative of
+        // the number of catch types, and the catches are followed by a
+        // catch-all handler.
+        if (remaining_count_ <= 0) {
+          catch_all_ = true;
+          remaining_count_ = -remaining_count_;
+        } else {
+          catch_all_ = false;
+        }
+        Next();
+      }
+
+      CatchHandlerItem& Get() {
+        return handler_;
+      }
+
+      void Next() {
+        if (remaining_count_ > 0) {
+          handler_.type_idx_ = DecodeUnsignedLeb128(&current_data_);
+          handler_.address_  = DecodeUnsignedLeb128(&current_data_);
+          remaining_count_--;
+          return;
+        }
+
+        if (catch_all_) {
+          handler_.type_idx_ = kDexNoIndex;
+          handler_.address_  = DecodeUnsignedLeb128(&current_data_);
+          catch_all_ = false;
+          return;
+        }
+
+        // no more handler
+        remaining_count_ = -1;
+      }
+
+      bool End() const {
+        return remaining_count_ < 0 && catch_all_ == false;
+      }
+
+    private:
+      CatchHandlerItem handler_;
+      const byte *current_data_;  // the current handlder in dex file.
+      int32_t remaining_count_;   // number of handler not read.
+      bool catch_all_;            // is there a handler that will catch all exceptions in case
+                                  // that all typed handler does not match.
   };
 
   // Partially decoded form of class_data_item.
@@ -349,10 +413,14 @@ class DexFile {
   }
 
   const CodeItem* GetCodeItem(const Method& method) const {
-    if (method.code_off_ == 0) {
+    return GetCodeItem(method.code_off_);
+  }
+
+  const CodeItem* GetCodeItem(const uint32_t code_off_) const {
+    if (code_off_ == 0) {
       return NULL;  // native or abstract method
     } else {
-      const byte* addr = base_ + method.code_off_;
+      const byte* addr = base_ + code_off_;
       return reinterpret_cast<const CodeItem*>(addr);
     }
   }
@@ -447,6 +515,86 @@ class DexFile {
     method->code_off_ = DecodeUnsignedLeb128(encoded_method);
     method->method_idx_ = idx;
     *last_idx = idx;
+  }
+
+  const TryItem* dexGetTryItems(const CodeItem& code_item, uint32_t offset) const {
+    const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_];
+    return reinterpret_cast<const TryItem*>
+        (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
+  }
+
+  // Get the base of the encoded data for the given DexCode.
+  const byte* dexGetCatchHandlerData(const CodeItem& code_item, uint32_t offset) const {
+    const byte* handler_data = reinterpret_cast<const byte*>
+        (dexGetTryItems(code_item, code_item.tries_size_));
+    return handler_data + offset;
+  }
+
+  // Find the handler associated with a given address, if any.
+  // Initializes the given iterator and returns true if a match is
+  // found. Returns end if there is no applicable handler.
+  CatchHandlerIterator dexFindCatchHandler(const CodeItem& code_item, uint32_t address) const {
+    CatchHandlerItem handler;
+    handler.address_ = -1;
+    int32_t offset = -1;
+
+    // Short-circuit the overwhelmingly common cases.
+    switch (code_item.tries_size_) {
+      case 0:
+        break;
+      case 1: {
+        const TryItem* tries = dexGetTryItems(code_item, 0);
+        uint32_t start = tries->start_addr_;
+        if (address < start)
+          break;
+
+        uint32_t end = start + tries->insn_count_;
+        if (address >= end)
+          break;
+
+        offset = tries->handler_off_;
+        break;
+      }
+      default:
+        offset = dexFindCatchHandlerOffset0(code_item, code_item.tries_size_, address);
+    }
+
+    if (offset >= 0) {
+      const byte* handler_data = dexGetCatchHandlerData(code_item, offset);
+      return CatchHandlerIterator(handler_data);
+    }
+    return CatchHandlerIterator();
+  }
+
+  int32_t dexFindCatchHandlerOffset0(const CodeItem &code_item,
+                                     int32_t tries_size,
+                                     uint32_t address) const {
+    // Note: Signed type is important for max and min.
+    int32_t min = 0;
+    int32_t max = tries_size - 1;
+
+    while (max >= min) {
+      int32_t guess = (min + max) >> 1;
+      const TryItem* pTry = dexGetTryItems(code_item, guess);
+      uint32_t start = pTry->start_addr_;
+
+      if (address < start) {
+        max = guess - 1;
+        continue;
+      }
+
+      uint32_t end = start + pTry->insn_count_;
+      if (address >= end) {
+        min = guess + 1;
+        continue;
+      }
+
+      // We have a winner!
+      return (int32_t) pTry->handler_off_;
+    }
+
+    // No match.
+    return -1;
   }
 
 

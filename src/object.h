@@ -5,6 +5,7 @@
 
 #include "constants.h"
 #include "casts.h"
+#include "dex_file.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"
@@ -512,11 +513,11 @@ class Method : public AccessibleObject {
   // Method prototype descriptor string (return and argument types).
   uint32_t proto_idx_;
 
+  // Offset to the CodeItem.
+  uint32_t code_off_;
+
   // The short-form method descriptor string.
   StringPiece shorty_;
-
-  // A pointer to the memory-mapped DEX code.
-  const uint16_t* insns_;
 
  private:
   // Compiled code associated with this method
