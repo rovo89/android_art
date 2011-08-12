@@ -342,7 +342,7 @@ bool ZipArchive::MapCentralDirectory() {
       read_amount = file_length;
   }
 
-  scoped_ptr<uint8_t> scan_buf(new uint8_t[read_amount]);
+  scoped_array<uint8_t> scan_buf(new uint8_t[read_amount]);
   if (scan_buf == NULL) {
     return false;
   }

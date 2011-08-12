@@ -89,6 +89,19 @@ const char* FindBootClassPath(const Runtime::Options& options) {
   }
 }
 
+DexFile* Open(const std::string& filename) {
+  if (filename.size() < 4) {
+    LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
+    return NULL;
+  }
+  std::string suffix(filename.substr(filename.size() - 4));
+  if (suffix == ".zip" || suffix == ".jar" || suffix == ".apk") {
+    return DexFile::OpenZip(filename);
+  } else {
+    return DexFile::OpenFile(filename);
+  }
+}
+
 void CreateBootClassPath(const Runtime::Options& options,
                          std::vector<DexFile*>* boot_class_path) {
   CHECK(boot_class_path != NULL);
@@ -96,7 +109,7 @@ void CreateBootClassPath(const Runtime::Options& options,
   std::vector<std::string> parsed;
   ParseClassPath(str, &parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
-    DexFile* dex_file = DexFile::OpenFile(parsed[i].c_str());
+    DexFile* dex_file = Open(parsed[i]);
     if (dex_file != NULL) {
       boot_class_path->push_back(dex_file);
     }
@@ -136,12 +149,11 @@ bool Runtime::Init(const std::vector<DexFile*>& boot_class_path) {
   return true;
 }
 
-bool Runtime::AttachCurrentThread(const char* name, JniEnvironment** penv) {
+bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv) {
   return Thread::Attach() != NULL;
 }
 
-bool Runtime::AttachCurrentThreadAsDaemon(const char* name,
-                                          JniEnvironment** penv) {
+bool Runtime::AttachCurrentThreadAsDaemon(const char* name, JNIEnv** penv) {
   // TODO: do something different for daemon threads.
   return Thread::Attach() != NULL;
 }

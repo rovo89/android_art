@@ -151,6 +151,7 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
                                 adjacent_dex_filename.end(),
                                 ".dex");
   // Example adjacent_dex_filename = dir/foo.dex
+  // TODO: stat first, so we don't report a bogus error.
   DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
   if (adjacent_dex_file != NULL) {
       // We don't verify anything in this case, because we aren't in
@@ -204,11 +205,18 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
     // lock. If somebody else is working on it, we'll block here until
     // they complete.  Because we're waiting on an external resource,
     // we go into native mode.
+    // Note that current_thread can be NULL if we're parsing the bootclasspath
+    // during JNI_CreateJavaVM.
     Thread* current_thread = Thread::Current();
-    Thread::State old = current_thread->GetState();
-    current_thread->SetState(Thread::kNative);
+    Thread::State old;
+    if (current_thread != NULL) {
+        old = current_thread->GetState();
+        current_thread->SetState(Thread::kNative);
+    }
     scoped_ptr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
-    current_thread->SetState(old);
+    if (current_thread != NULL) {
+        current_thread->SetState(old);
+    }
     if (fd == NULL) {
       return NULL;
     }

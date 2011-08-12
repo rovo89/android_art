@@ -189,7 +189,7 @@ class Thread {
   }
 
   // JNI methods
-  JniEnvironment* GetJniEnv() const {
+  JNIEnv* GetJniEnv() const {
     return jni_env_;
   }
 
@@ -240,9 +240,9 @@ class Thread {
   void DecrementSuspendCount() { suspend_count_--; }
 
  private:
-  Thread() :
-    id_(1234), top_shb_(NULL), exception_(NULL), suspend_count_(0) {
-    jni_env_ = new JniEnvironment();
+  Thread()
+      : id_(1234), top_shb_(NULL), exception_(NULL), suspend_count_(0) {
+    jni_env_ = CreateJNIEnv();
   }
 
   ~Thread() {
@@ -263,7 +263,7 @@ class Thread {
   StackHandleBlock* top_shb_;
 
   // Every thread may have an associated JNI environment
-  JniEnvironment* jni_env_;
+  JNIEnv* jni_env_;
 
   State state_;
 

@@ -484,7 +484,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->name_ = ResolveString(klass, method_id.name_idx_, dex_file);
   {
     int32_t utf16_length;
-    scoped_ptr<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
+    scoped_array<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
                                                           &utf16_length));
     dst->descriptor_ = String::AllocFromModifiedUtf8(utf16_length, utf8.get());
   }

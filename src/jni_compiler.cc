@@ -134,9 +134,11 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       FrameOffset out_off = jni_conv.CurrentParamStackOffset();
       jni_asm->StoreRawPtr(out_off, jni_env_register);
     }
-    // Call JNIEnv*->MonitorEnter(JNIEnv*, object)
-    jni_asm->Call(jni_env_register, JniEnvironment::MonitorEnterOffset(),
+    // Call JNIEnvExt::MonitorEnterHelper(JNIEnv*, object)
+    static Offset monitor_enter(OFFSETOF_MEMBER(JNIEnvExt, MonitorEnterHelper));
+    jni_asm->Call(jni_env_register, monitor_enter,
                   jni_conv.InterproceduralScratchRegister());
+    jni_asm->ExceptionPoll(jni_conv.InterproceduralScratchRegister());
   }
 
   // 8. Iterate over arguments placing values from managed calling convention in
@@ -232,9 +234,11 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       FrameOffset out_off = jni_conv.CurrentParamStackOffset();
       jni_asm->StoreRawPtr(out_off, jni_env_register);
     }
-    // Call JNIEnv*->MonitorExit(JNIEnv*, object)
-    jni_asm->Call(jni_env_register, JniEnvironment::MonitorExitOffset(),
+    // Call JNIEnvExt::MonitorExitHelper(JNIEnv*, object)
+    static Offset monitor_exit(OFFSETOF_MEMBER(JNIEnvExt, MonitorExitHelper));
+    jni_asm->Call(jni_env_register, monitor_exit,
                   jni_conv.InterproceduralScratchRegister());
+    jni_asm->ExceptionPoll(jni_conv.InterproceduralScratchRegister());
     // Reload return value
     jni_asm->Load(jni_conv.ReturnRegister(), return_save_location,
                   jni_conv.SizeOfReturnValue());

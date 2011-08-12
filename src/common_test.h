@@ -342,7 +342,7 @@ class RuntimeTest : public testing::Test {
 
   DexFile* GetLibCoreDex() {
     std::string libcore_dex_file_name = GetLibCoreDexFileName();
-    return DexFile::OpenZip(libcore_dex_file_name.c_str());
+    return DexFile::OpenZip(libcore_dex_file_name);
   }
 
   void UseLibCoreDex() {

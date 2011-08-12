@@ -19,7 +19,7 @@ void InternTable::VisitRoots(Heap::RootVistor* root_visitor, void* arg) {
 }
 
 String* InternTable::Intern(int32_t utf16_length, const char* utf8_data_in) {
-  scoped_ptr<uint16_t> utf16_data_out(new uint16_t[utf16_length]);
+  scoped_array<uint16_t> utf16_data_out(new uint16_t[utf16_length]);
   String::ConvertModifiedUtf8ToUtf16(utf16_data_out.get(), utf8_data_in);
   int32_t hash_code = String::ComputeUtf16Hash(utf16_data_out.get(), utf16_length);
   {
