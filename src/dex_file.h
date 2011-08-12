@@ -243,7 +243,7 @@ class DexFile {
       }
 
       bool End() const {
-        return remaining_count_ < 0 && catch_all_ == false;
+        return remaining_count_ == -1 && catch_all_ == false;
       }
 
     private:
