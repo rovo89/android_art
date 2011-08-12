@@ -13,6 +13,8 @@
 #include "stringpiece.h"
 #include "thread.h"
 
+#define UNIMPLEMENTED(LEVEL) LOG(LEVEL) << __FUNCTION__ << " unimplemented"
+
 namespace art {
 
 jint GetVersion(JNIEnv* env) {
@@ -21,7 +23,7 @@ jint GetVersion(JNIEnv* env) {
 
 jclass DefineClass(JNIEnv *env, const char *name,
     jobject loader, const jbyte *buf, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
@@ -59,1196 +61,1196 @@ jclass FindClass(JNIEnv* env, const char* name) {
 }
 
 jmethodID FromReflectedMethod(JNIEnv* env, jobject method) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jfieldID FromReflectedField(JNIEnv* env, jobject field) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject ToReflectedMethod(JNIEnv* env, jclass cls,
     jmethodID methodID, jboolean isStatic) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jclass GetSuperclass(JNIEnv* env, jclass sub) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean IsAssignableFrom(JNIEnv* env, jclass sub, jclass sup) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jobject ToReflectedField(JNIEnv* env, jclass cls,
     jfieldID fieldID, jboolean isStatic) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jint Throw(JNIEnv* env, jthrowable obj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint ThrowNew(JNIEnv* env, jclass clazz, const char* msg) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jthrowable ExceptionOccurred(JNIEnv* env) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ExceptionDescribe(JNIEnv* env) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ExceptionClear(JNIEnv* env) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void FatalError(JNIEnv* env, const char* msg) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jint PushLocalFrame(JNIEnv* env, jint cap) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobject PopLocalFrame(JNIEnv* env, jobject res) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewGlobalRef(JNIEnv* env, jobject lobj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void DeleteGlobalRef(JNIEnv* env, jobject gref) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void DeleteLocalRef(JNIEnv* env, jobject obj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jboolean IsSameObject(JNIEnv* env, jobject obj1, jobject obj2) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jobject NewLocalRef(JNIEnv* env, jobject ref) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jint EnsureLocalCapacity(JNIEnv* env, jint) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobject AllocObject(JNIEnv* env, jclass clazz) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewObject(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewObjectV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewObjectA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jclass GetObjectClass(JNIEnv* env, jobject obj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean IsInstanceOf(JNIEnv* env, jobject obj, jclass clazz) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jmethodID GetMethodID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallObjectMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallObjectMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallObjectMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean CallBooleanMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallBooleanMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallBooleanMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte CallByteMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallByteMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallByteMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallCharMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallCharMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallCharMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallShortMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallShortMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallShortMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallIntMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallIntMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallIntMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallLongMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallLongMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallLongMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallFloatMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallFloatMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallFloatMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallDoubleMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallDoubleMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallDoubleMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void CallVoidMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void CallVoidMethodV(JNIEnv* env, jobject obj,
     jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void CallVoidMethodA(JNIEnv* env, jobject obj,
     jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jobject CallNonvirtualObjectMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallNonvirtualObjectMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallNonvirtualObjectMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean CallNonvirtualBooleanMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallNonvirtualBooleanMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallNonvirtualBooleanMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte CallNonvirtualByteMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallNonvirtualByteMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallNonvirtualByteMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallNonvirtualCharMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallNonvirtualCharMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallNonvirtualCharMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallNonvirtualShortMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallNonvirtualShortMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallNonvirtualShortMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallNonvirtualIntMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallNonvirtualIntMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallNonvirtualIntMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallNonvirtualLongMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallNonvirtualLongMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallNonvirtualLongMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallNonvirtualFloatMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallNonvirtualFloatMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallNonvirtualFloatMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallNonvirtualDoubleMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallNonvirtualDoubleMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallNonvirtualDoubleMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void CallNonvirtualVoidMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void CallNonvirtualVoidMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void CallNonvirtualVoidMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jfieldID GetFieldID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject GetObjectField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte GetByteField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar GetCharField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort GetShortField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint GetIntField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong GetLongField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat GetFloatField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble GetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void SetObjectField(JNIEnv* env, jobject obj, jfieldID fieldID, jobject val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetBooleanField(JNIEnv* env, jobject obj, jfieldID fieldID, jboolean val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetByteField(JNIEnv* env, jobject obj, jfieldID fieldID, jbyte val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetCharField(JNIEnv* env, jobject obj, jfieldID fieldID, jchar val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetShortField(JNIEnv* env, jobject obj, jfieldID fieldID, jshort val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetIntField(JNIEnv* env, jobject obj, jfieldID fieldID, jint val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetLongField(JNIEnv* env, jobject obj, jfieldID fieldID, jlong val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetFloatField(JNIEnv* env, jobject obj, jfieldID fieldID, jfloat val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID, jdouble val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jmethodID GetStaticMethodID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallStaticObjectMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallStaticObjectMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallStaticObjectMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean CallStaticBooleanMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallStaticBooleanMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallStaticBooleanMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte CallStaticByteMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallStaticByteMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallStaticByteMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallStaticCharMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallStaticCharMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallStaticCharMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallStaticShortMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallStaticShortMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallStaticShortMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallStaticIntMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallStaticIntMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallStaticIntMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallStaticLongMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallStaticLongMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallStaticLongMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallStaticFloatMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallStaticFloatMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallStaticFloatMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallStaticDoubleMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallStaticDoubleMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallStaticDoubleMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void CallStaticVoidMethod(JNIEnv* env, jclass cls, jmethodID methodID, ...) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void CallStaticVoidMethodV(JNIEnv* env,
     jclass cls, jmethodID methodID, va_list args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void CallStaticVoidMethodA(JNIEnv* env,
     jclass cls, jmethodID methodID, jvalue*  args) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jfieldID GetStaticFieldID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobject GetStaticObjectField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean GetStaticBooleanField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte GetStaticByteField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar GetStaticCharField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort GetStaticShortField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint GetStaticIntField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong GetStaticLongField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat GetStaticFloatField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble GetStaticDoubleField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void SetStaticObjectField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jobject value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticBooleanField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jboolean value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticByteField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jbyte value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticCharField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jchar value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticShortField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jshort value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticIntField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jint value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticLongField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jlong value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticFloatField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jfloat value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticDoubleField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jdouble value) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jstring NewString(JNIEnv* env, const jchar* unicode, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jsize GetStringLength(JNIEnv* env, jstring str) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 const jchar* GetStringChars(JNIEnv* env, jstring str, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseStringChars(JNIEnv* env, jstring str, const jchar* chars) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jstring NewStringUTF(JNIEnv* env, const char* utf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jsize GetStringUTFLength(JNIEnv* env, jstring str) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 const char* GetStringUTFChars(JNIEnv* env, jstring str, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseStringUTFChars(JNIEnv* env, jstring str, const char* chars) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jsize GetArrayLength(JNIEnv* env, jarray array) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobjectArray NewObjectArray(JNIEnv* env,
     jsize len, jclass clazz, jobject init) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject GetObjectArrayElement(JNIEnv* env, jobjectArray array, jsize index) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void SetObjectArrayElement(JNIEnv* env,
     jobjectArray array, jsize index, jobject val) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jbooleanArray NewBooleanArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jbyteArray NewByteArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jcharArray NewCharArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jshortArray NewShortArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jintArray NewIntArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jlongArray NewLongArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jfloatArray NewFloatArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jdoubleArray NewDoubleArray(JNIEnv* env, jsize len) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean* GetBooleanArrayElements(JNIEnv* env,
     jbooleanArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jbyte* GetByteArrayElements(JNIEnv* env, jbyteArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jchar* GetCharArrayElements(JNIEnv* env, jcharArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jshort* GetShortArrayElements(JNIEnv* env,
     jshortArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jint* GetIntArrayElements(JNIEnv* env, jintArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jlong* GetLongArrayElements(JNIEnv* env, jlongArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jfloat* GetFloatArrayElements(JNIEnv* env,
     jfloatArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jdouble* GetDoubleArrayElements(JNIEnv* env,
     jdoubleArray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseBooleanArrayElements(JNIEnv* env,
     jbooleanArray array, jboolean* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseByteArrayElements(JNIEnv* env,
     jbyteArray array, jbyte* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseCharArrayElements(JNIEnv* env,
     jcharArray array, jchar* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseShortArrayElements(JNIEnv* env,
     jshortArray array, jshort* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseIntArrayElements(JNIEnv* env,
     jintArray array, jint* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseLongArrayElements(JNIEnv* env,
     jlongArray array, jlong* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseFloatArrayElements(JNIEnv* env,
     jfloatArray array, jfloat* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseDoubleArrayElements(JNIEnv* env,
     jdoubleArray array, jdouble* elems, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetBooleanArrayRegion(JNIEnv* env,
     jbooleanArray array, jsize start, jsize l, jboolean* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetByteArrayRegion(JNIEnv* env,
     jbyteArray array, jsize start, jsize len, jbyte* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetCharArrayRegion(JNIEnv* env,
     jcharArray array, jsize start, jsize len, jchar* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetShortArrayRegion(JNIEnv* env,
     jshortArray array, jsize start, jsize len, jshort* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetIntArrayRegion(JNIEnv* env,
     jintArray array, jsize start, jsize len, jint* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetLongArrayRegion(JNIEnv* env,
     jlongArray array, jsize start, jsize len, jlong* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetFloatArrayRegion(JNIEnv* env,
     jfloatArray array, jsize start, jsize len, jfloat* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetDoubleArrayRegion(JNIEnv* env,
     jdoubleArray array, jsize start, jsize len, jdouble* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetBooleanArrayRegion(JNIEnv* env,
     jbooleanArray array, jsize start, jsize l, const jboolean* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetByteArrayRegion(JNIEnv* env,
     jbyteArray array, jsize start, jsize len, const jbyte* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetCharArrayRegion(JNIEnv* env,
     jcharArray array, jsize start, jsize len, const jchar* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetShortArrayRegion(JNIEnv* env,
     jshortArray array, jsize start, jsize len, const jshort* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetIntArrayRegion(JNIEnv* env,
     jintArray array, jsize start, jsize len, const jint* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetLongArrayRegion(JNIEnv* env,
     jlongArray array, jsize start, jsize len, const jlong* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetFloatArrayRegion(JNIEnv* env,
     jfloatArray array, jsize start, jsize len, const jfloat* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void SetDoubleArrayRegion(JNIEnv* env,
     jdoubleArray array, jsize start, jsize len, const jdouble* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jint RegisterNatives(JNIEnv* env,
     jclass clazz, const JNINativeMethod* methods, jint nMethods) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint UnregisterNatives(JNIEnv* env, jclass clazz) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint MonitorEnter(JNIEnv* env, jobject obj) {
-  LOG(WARNING) << "MonitorEnter unimplemented";
+  UNIMPLEMENTED(WARNING);
   return 0;
 }
 
 jint MonitorExit(JNIEnv* env, jobject obj) {
-  LOG(WARNING) << "MonitorExit unimplemented";
+  UNIMPLEMENTED(WARNING);
   return 0;
 }
 
 jint GetJavaVM(JNIEnv* env, JavaVM* *vm) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void GetStringRegion(JNIEnv* env,
     jstring str, jsize start, jsize len, jchar* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void GetStringUTFRegion(JNIEnv* env,
     jstring str, jsize start, jsize len, char* buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void* GetPrimitiveArrayCritical(JNIEnv* env,
     jarray array, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleasePrimitiveArrayCritical(JNIEnv* env,
     jarray array, void* carray, jint mode) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 const jchar* GetStringCritical(JNIEnv* env, jstring s, jboolean* isCopy) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 jboolean ExceptionCheck(JNIEnv* env) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 
 void* GetDirectBufferAddress(JNIEnv* env, jobject buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jlong GetDirectBufferCapacity(JNIEnv* env, jobject buf) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobjectRefType GetObjectRefType(JNIEnv* env, jobject jobj) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return JNIInvalidRefType;
 }
 

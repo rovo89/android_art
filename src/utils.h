@@ -4,6 +4,7 @@
 #define ART_SRC_UTILS_H_
 
 #include "globals.h"
+#include "stringprintf.h"
 
 namespace art {
 
@@ -93,6 +94,36 @@ static inline int CountOneBits(uint32_t x) {
   x = x + (x >> 8);
   x = x + (x >> 16);
   return static_cast<int>(x & 0x0000003F);
+}
+
+static inline std::string PrintableChar(uint16_t ch) {
+  std::string result;
+  if (ch >= ' ' && ch <= '~') {
+    // ASCII.
+    result += '\'';
+    result += ch;
+    result += '\'';
+    return result;
+  }
+  // Non-ASCII; show the code point.
+  StringAppendF(&result, "'\\u%04x'", ch);
+  return result;
+}
+
+template<typename StringT>
+static inline std::string PrintableString(const StringT& s) {
+  std::string result;
+  result += '"';
+  for (typename StringT::iterator it = s.begin(); it != s.end(); ++it) {
+    char ch = *it;
+    if (ch >= ' ' && ch <= '~') {
+      result += ch;
+    } else {
+      StringAppendF(&result, "\\x%02x", ch & 0xff);
+    }
+  }
+  result += '"';
+  return result;
 }
 
 }  // namespace art

@@ -8,17 +8,25 @@
 namespace art {
 
 class JniInternalTest : public RuntimeTest {
+ protected:
+  virtual void SetUp() {
+    RuntimeTest::SetUp();
+    env_ = Thread::Current()->GetJniEnv();
+  }
+  JNIEnv* env_;
 };
 
+TEST_F(JniInternalTest, GetVersion) {
+  ASSERT_EQ(JNI_VERSION_1_6, env_->GetVersion());
+}
+
 #define EXPECT_CLASS_FOUND(NAME) \
-  EXPECT_TRUE(env->FindClass(NAME) != NULL)
+  EXPECT_TRUE(env_->FindClass(NAME) != NULL)
 
 #define EXPECT_CLASS_NOT_FOUND(NAME) \
-  EXPECT_TRUE(env->FindClass(NAME) == NULL)
+  EXPECT_TRUE(env_->FindClass(NAME) == NULL)
 
 TEST_F(JniInternalTest, FindClass) {
-  JNIEnv* env = Thread::Current()->GetJniEnv();
-
   // TODO: when these tests start failing because you're calling FindClass
   // with a pending exception, fix EXPECT_CLASS_NOT_FOUND to assert that an
   // exception was thrown and clear the exception.

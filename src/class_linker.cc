@@ -265,7 +265,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     DexFile::ClassPath& class_path = ((class_loader != NULL) ? class_loader->GetClassPath() : boot_class_path_);
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
     if (pair.second == NULL) {
-      LG << "Class " << descriptor << " not found in class loader " << class_loader;  // TODO: NoClassDefFoundError
+      LG << "Class " << PrintableString(descriptor) << " not found in class loader " << class_loader;  // TODO: NoClassDefFoundError
       return NULL;
     }
     const DexFile& dex_file = *pair.first;
@@ -741,9 +741,9 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
       return GetClassRoot(kPrimitiveVoid);
     case 'L':
     case '[':
-      LOG(ERROR) << "Not a primitive type " << static_cast<int>(type);
+      LOG(ERROR) << "Not a primitive type " << PrintableChar(type);
     default:
-      LOG(ERROR) << "Unknown primitive type " << static_cast<int>(type);
+      LOG(ERROR) << "Unknown primitive type " << PrintableChar(type);
   }
   return NULL;  // Not reachable.
 }
