@@ -171,7 +171,7 @@ class Thread {
     return runtime_;
   }
 
-  State GetState() {
+  State GetState() const {
     return state_;
   }
 
@@ -241,8 +241,11 @@ class Thread {
 
  private:
   Thread()
-      : id_(1234), top_shb_(NULL), exception_(NULL), suspend_count_(0) {
-    jni_env_ = CreateJNIEnv();
+      : id_(1234),
+        top_shb_(NULL),
+        jni_env_(NULL),
+        exception_(NULL),
+        suspend_count_(0) {
   }
 
   ~Thread() {
@@ -304,6 +307,7 @@ class Thread {
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
+std::ostream& operator<<(std::ostream& os, const Thread& thread);
 std::ostream& operator<<(std::ostream& os, const Thread::State& state);
 
 class ThreadList {

@@ -171,8 +171,9 @@ jobject Java_MyClass_fooIOO(JNIEnv*, jobject thisObject, jint x, jobject y,
 }
 
 int gJava_MyClass_fooSIOO_calls = 0;
-jobject Java_MyClass_fooSIOO(JNIEnv*, jclass klass, jint x, jobject y,
+jobject Java_MyClass_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_EQ(3u, Thread::Current()->NumShbHandles());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   gJava_MyClass_fooSIOO_calls++;

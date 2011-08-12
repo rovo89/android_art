@@ -101,6 +101,8 @@ Thread* Thread::Attach() {
       PLOG(FATAL) << "pthread_setspecific failed";
   }
 
+  thread->jni_env_ = CreateJNIEnv();
+
   return thread;
 }
 
@@ -141,6 +143,14 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
   } else {
     os << "State[" << static_cast<int>(state) << "]";
   }
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Thread& thread) {
+  os << "Thread[" << &thread
+      << ",id=" << thread.GetId()
+      << ",tid=" << thread.GetNativeId()
+      << ",state=" << thread.GetState() << "]";
   return os;
 }
 
