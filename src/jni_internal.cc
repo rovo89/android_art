@@ -17,12 +17,51 @@
 
 namespace art {
 
+// Entry/exit processing for all JNI calls.
+//
+// This performs the necessary thread state switching, lets us amortize the
+// cost of working out the current thread, and lets us check (and repair) apps
+// that are using a JNIEnv on the wrong thread.
+class ScopedJniThreadState {
+ public:
+  explicit ScopedJniThreadState(JNIEnv* env) {
+    self_ = threadForEnv(env);
+    self_->SetState(Thread::kRunnable);
+  }
+
+  ~ScopedJniThreadState() {
+    self_->SetState(Thread::kNative);
+  }
+
+  Thread* self() {
+    return self_;
+  }
+
+  static Thread* threadForEnv(JNIEnv* env) {
+    // TODO: need replacement for gDvmJni.
+    bool workAroundAppJniBugs = true;
+    Thread* env_self = reinterpret_cast<JNIEnvExt*>(env)->self;
+    Thread* self = workAroundAppJniBugs ? Thread::Current() : env_self;
+    if (self != env_self) {
+      LOG(ERROR) << "JNI ERROR: JNIEnv for thread " << env_self << " used on "
+          << "thread " << self << ")";
+    }
+    return self;
+  }
+
+ private:
+  Thread* self_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedJniThreadState);
+};
+
 jint GetVersion(JNIEnv* env) {
+  ScopedJniThreadState ts(env);
   return JNI_VERSION_1_6;
 }
 
 jclass DefineClass(JNIEnv *env, const char *name,
     jobject loader, const jbyte *buf, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
@@ -52,6 +91,7 @@ std::string NormalizeJniClassDescriptor(const char* name) {
 }
 
 jclass FindClass(JNIEnv* env, const char* name) {
+  ScopedJniThreadState ts(env);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   std::string descriptor(NormalizeJniClassDescriptor(name));
   // TODO: need to get the appropriate ClassLoader.
@@ -61,1195 +101,1421 @@ jclass FindClass(JNIEnv* env, const char* name) {
 }
 
 jmethodID FromReflectedMethod(JNIEnv* env, jobject method) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jfieldID FromReflectedField(JNIEnv* env, jobject field) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject ToReflectedMethod(JNIEnv* env, jclass cls,
     jmethodID methodID, jboolean isStatic) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jclass GetSuperclass(JNIEnv* env, jclass sub) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean IsAssignableFrom(JNIEnv* env, jclass sub, jclass sup) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jobject ToReflectedField(JNIEnv* env, jclass cls,
     jfieldID fieldID, jboolean isStatic) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jint Throw(JNIEnv* env, jthrowable obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint ThrowNew(JNIEnv* env, jclass clazz, const char* msg) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jthrowable ExceptionOccurred(JNIEnv* env) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ExceptionDescribe(JNIEnv* env) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ExceptionClear(JNIEnv* env) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void FatalError(JNIEnv* env, const char* msg) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jint PushLocalFrame(JNIEnv* env, jint cap) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobject PopLocalFrame(JNIEnv* env, jobject res) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewGlobalRef(JNIEnv* env, jobject lobj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void DeleteGlobalRef(JNIEnv* env, jobject gref) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void DeleteLocalRef(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jboolean IsSameObject(JNIEnv* env, jobject obj1, jobject obj2) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jobject NewLocalRef(JNIEnv* env, jobject ref) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jint EnsureLocalCapacity(JNIEnv* env, jint) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobject AllocObject(JNIEnv* env, jclass clazz) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewObject(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewObjectV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject NewObjectA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jclass GetObjectClass(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean IsInstanceOf(JNIEnv* env, jobject obj, jclass clazz) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jmethodID GetMethodID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallObjectMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallObjectMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallObjectMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean CallBooleanMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallBooleanMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallBooleanMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte CallByteMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallByteMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallByteMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallCharMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallCharMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallCharMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallShortMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallShortMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallShortMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallIntMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallIntMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallIntMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallLongMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallLongMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallLongMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallFloatMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallFloatMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallFloatMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallDoubleMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallDoubleMethodV(JNIEnv* env,
     jobject obj, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallDoubleMethodA(JNIEnv* env,
     jobject obj, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void CallVoidMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void CallVoidMethodV(JNIEnv* env, jobject obj,
     jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void CallVoidMethodA(JNIEnv* env, jobject obj,
     jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jobject CallNonvirtualObjectMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallNonvirtualObjectMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallNonvirtualObjectMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean CallNonvirtualBooleanMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallNonvirtualBooleanMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallNonvirtualBooleanMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte CallNonvirtualByteMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallNonvirtualByteMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallNonvirtualByteMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallNonvirtualCharMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallNonvirtualCharMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallNonvirtualCharMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallNonvirtualShortMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallNonvirtualShortMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallNonvirtualShortMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallNonvirtualIntMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallNonvirtualIntMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallNonvirtualIntMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallNonvirtualLongMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallNonvirtualLongMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallNonvirtualLongMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallNonvirtualFloatMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallNonvirtualFloatMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallNonvirtualFloatMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallNonvirtualDoubleMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallNonvirtualDoubleMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallNonvirtualDoubleMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void CallNonvirtualVoidMethod(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void CallNonvirtualVoidMethodV(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void CallNonvirtualVoidMethodA(JNIEnv* env,
     jobject obj, jclass clazz, jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jfieldID GetFieldID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject GetObjectField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte GetByteField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar GetCharField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort GetShortField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint GetIntField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong GetLongField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat GetFloatField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble GetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void SetObjectField(JNIEnv* env, jobject obj, jfieldID fieldID, jobject val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetBooleanField(JNIEnv* env, jobject obj, jfieldID fieldID, jboolean val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetByteField(JNIEnv* env, jobject obj, jfieldID fieldID, jbyte val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetCharField(JNIEnv* env, jobject obj, jfieldID fieldID, jchar val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetShortField(JNIEnv* env, jobject obj, jfieldID fieldID, jshort val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetIntField(JNIEnv* env, jobject obj, jfieldID fieldID, jint val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetLongField(JNIEnv* env, jobject obj, jfieldID fieldID, jlong val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetFloatField(JNIEnv* env, jobject obj, jfieldID fieldID, jfloat val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID, jdouble val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jmethodID GetStaticMethodID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallStaticObjectMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallStaticObjectMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject CallStaticObjectMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean CallStaticBooleanMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallStaticBooleanMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jboolean CallStaticBooleanMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte CallStaticByteMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallStaticByteMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jbyte CallStaticByteMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallStaticCharMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallStaticCharMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar CallStaticCharMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallStaticShortMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallStaticShortMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort CallStaticShortMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallStaticIntMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallStaticIntMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint CallStaticIntMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallStaticLongMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallStaticLongMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong CallStaticLongMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallStaticFloatMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallStaticFloatMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat CallStaticFloatMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallStaticDoubleMethod(JNIEnv* env,
     jclass clazz, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallStaticDoubleMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble CallStaticDoubleMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void CallStaticVoidMethod(JNIEnv* env, jclass cls, jmethodID methodID, ...) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void CallStaticVoidMethodV(JNIEnv* env,
     jclass cls, jmethodID methodID, va_list args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void CallStaticVoidMethodA(JNIEnv* env,
     jclass cls, jmethodID methodID, jvalue*  args) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jfieldID GetStaticFieldID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobject GetStaticObjectField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean GetStaticBooleanField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jbyte GetStaticByteField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jchar GetStaticCharField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jshort GetStaticShortField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint GetStaticIntField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jlong GetStaticLongField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jfloat GetStaticFloatField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jdouble GetStaticDoubleField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void SetStaticObjectField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jobject value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticBooleanField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jboolean value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticByteField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jbyte value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticCharField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jchar value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticShortField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jshort value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticIntField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jint value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticLongField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jlong value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticFloatField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jfloat value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetStaticDoubleField(JNIEnv* env,
     jclass clazz, jfieldID fieldID, jdouble value) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jstring NewString(JNIEnv* env, const jchar* unicode, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jsize GetStringLength(JNIEnv* env, jstring str) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 const jchar* GetStringChars(JNIEnv* env, jstring str, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseStringChars(JNIEnv* env, jstring str, const jchar* chars) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jstring NewStringUTF(JNIEnv* env, const char* utf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jsize GetStringUTFLength(JNIEnv* env, jstring str) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 const char* GetStringUTFChars(JNIEnv* env, jstring str, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseStringUTFChars(JNIEnv* env, jstring str, const char* chars) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jsize GetArrayLength(JNIEnv* env, jarray array) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobjectArray NewObjectArray(JNIEnv* env,
     jsize len, jclass clazz, jobject init) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jobject GetObjectArrayElement(JNIEnv* env, jobjectArray array, jsize index) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void SetObjectArrayElement(JNIEnv* env,
     jobjectArray array, jsize index, jobject val) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jbooleanArray NewBooleanArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jbyteArray NewByteArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jcharArray NewCharArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jshortArray NewShortArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jintArray NewIntArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jlongArray NewLongArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jfloatArray NewFloatArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jdoubleArray NewDoubleArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jboolean* GetBooleanArrayElements(JNIEnv* env,
     jbooleanArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jbyte* GetByteArrayElements(JNIEnv* env, jbyteArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jchar* GetCharArrayElements(JNIEnv* env, jcharArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jshort* GetShortArrayElements(JNIEnv* env,
     jshortArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jint* GetIntArrayElements(JNIEnv* env, jintArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jlong* GetLongArrayElements(JNIEnv* env, jlongArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jfloat* GetFloatArrayElements(JNIEnv* env,
     jfloatArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jdouble* GetDoubleArrayElements(JNIEnv* env,
     jdoubleArray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseBooleanArrayElements(JNIEnv* env,
     jbooleanArray array, jboolean* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseByteArrayElements(JNIEnv* env,
     jbyteArray array, jbyte* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseCharArrayElements(JNIEnv* env,
     jcharArray array, jchar* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseShortArrayElements(JNIEnv* env,
     jshortArray array, jshort* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseIntArrayElements(JNIEnv* env,
     jintArray array, jint* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseLongArrayElements(JNIEnv* env,
     jlongArray array, jlong* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseFloatArrayElements(JNIEnv* env,
     jfloatArray array, jfloat* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void ReleaseDoubleArrayElements(JNIEnv* env,
     jdoubleArray array, jdouble* elems, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetBooleanArrayRegion(JNIEnv* env,
     jbooleanArray array, jsize start, jsize l, jboolean* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetByteArrayRegion(JNIEnv* env,
     jbyteArray array, jsize start, jsize len, jbyte* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetCharArrayRegion(JNIEnv* env,
     jcharArray array, jsize start, jsize len, jchar* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetShortArrayRegion(JNIEnv* env,
     jshortArray array, jsize start, jsize len, jshort* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetIntArrayRegion(JNIEnv* env,
     jintArray array, jsize start, jsize len, jint* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetLongArrayRegion(JNIEnv* env,
     jlongArray array, jsize start, jsize len, jlong* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetFloatArrayRegion(JNIEnv* env,
     jfloatArray array, jsize start, jsize len, jfloat* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetDoubleArrayRegion(JNIEnv* env,
     jdoubleArray array, jsize start, jsize len, jdouble* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetBooleanArrayRegion(JNIEnv* env,
     jbooleanArray array, jsize start, jsize l, const jboolean* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetByteArrayRegion(JNIEnv* env,
     jbyteArray array, jsize start, jsize len, const jbyte* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetCharArrayRegion(JNIEnv* env,
     jcharArray array, jsize start, jsize len, const jchar* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetShortArrayRegion(JNIEnv* env,
     jshortArray array, jsize start, jsize len, const jshort* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetIntArrayRegion(JNIEnv* env,
     jintArray array, jsize start, jsize len, const jint* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetLongArrayRegion(JNIEnv* env,
     jlongArray array, jsize start, jsize len, const jlong* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetFloatArrayRegion(JNIEnv* env,
     jfloatArray array, jsize start, jsize len, const jfloat* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void SetDoubleArrayRegion(JNIEnv* env,
     jdoubleArray array, jsize start, jsize len, const jdouble* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jint RegisterNatives(JNIEnv* env,
     jclass clazz, const JNINativeMethod* methods, jint nMethods) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint UnregisterNatives(JNIEnv* env, jclass clazz) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jint MonitorEnter(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(WARNING);
   return 0;
 }
 
 jint MonitorExit(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(WARNING);
   return 0;
 }
 
 jint GetJavaVM(JNIEnv* env, JavaVM* *vm) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 void GetStringRegion(JNIEnv* env,
     jstring str, jsize start, jsize len, jchar* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void GetStringUTFRegion(JNIEnv* env,
     jstring str, jsize start, jsize len, char* buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 void* GetPrimitiveArrayCritical(JNIEnv* env,
     jarray array, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleasePrimitiveArrayCritical(JNIEnv* env,
     jarray array, void* carray, jint mode) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 const jchar* GetStringCritical(JNIEnv* env, jstring s, jboolean* isCopy) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
 }
 
 jboolean ExceptionCheck(JNIEnv* env) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
 }
 
 jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 
 void* GetDirectBufferAddress(JNIEnv* env, jobject buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return NULL;
 }
 
 jlong GetDirectBufferCapacity(JNIEnv* env, jobject buf) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
 }
 
 jobjectRefType GetObjectRefType(JNIEnv* env, jobject jobj) {
+  ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNIInvalidRefType;
 }
