@@ -87,6 +87,7 @@ TEST_COMMON_SRC_FILES := \
 	src/exception_test.cc \
 	src/intern_table_test.cc \
 	src/jni_compiler_test.cc.arm \
+	src/jni_internal_test.cc \
 	src/object_test.cc \
 	src/runtime_test.cc \
 	src/space_test.cc \
