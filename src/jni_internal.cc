@@ -25,10 +25,35 @@ jclass DefineClass(JNIEnv *env, const char *name,
   return NULL;
 }
 
+// Section 12.3.2 of the JNI spec describes JNI class descriptors. They're
+// separated with slashes but aren't wrapped with "L;" like regular descriptors
+// (i.e. "a/b/C" rather than "La/b/C;"). Arrays of reference types are an
+// exception; there the "L;" must be present ("[La/b/C;"). Historically we've
+// supported names with dots too (such as "a.b.C").
+std::string NormalizeJniClassDescriptor(const char* name) {
+  std::string result;
+  // Add the missing "L;" if necessary.
+  if (name[0] == '[') {
+    result = name;
+  } else {
+    result += 'L';
+    result += name;
+    result += ';';
+  }
+  // Rewrite '.' as '/' for backwards compatibility.
+  for (size_t i = 0; i < result.size(); ++i) {
+    if (result[i] == '.') {
+      result[i] = '/';
+    }
+  }
+  return result;
+}
+
 jclass FindClass(JNIEnv* env, const char* name) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  std::string descriptor(NormalizeJniClassDescriptor(name));
   // TODO: need to get the appropriate ClassLoader.
-  Class* c = class_linker->FindClass(name, NULL);
+  Class* c = class_linker->FindClass(descriptor, NULL);
   // TODO: local reference.
   return reinterpret_cast<jclass>(c);
 }
