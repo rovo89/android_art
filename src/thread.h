@@ -135,7 +135,7 @@ class Thread {
   }
 
   bool IsExceptionPending() const {
-    return false;  // TODO exception_ != NULL;
+    return exception_ != NULL;
   }
 
   Object* GetException() const {

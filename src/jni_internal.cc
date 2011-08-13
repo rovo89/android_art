@@ -25,7 +25,7 @@ namespace art {
 class ScopedJniThreadState {
  public:
   explicit ScopedJniThreadState(JNIEnv* env) {
-    self_ = threadForEnv(env);
+    self_ = ThreadForEnv(env);
     self_->SetState(Thread::kRunnable);
   }
 
@@ -33,11 +33,12 @@ class ScopedJniThreadState {
     self_->SetState(Thread::kNative);
   }
 
-  Thread* self() {
+  Thread* Self() {
     return self_;
   }
 
-  static Thread* threadForEnv(JNIEnv* env) {
+ private:
+  static Thread* ThreadForEnv(JNIEnv* env) {
     // TODO: need replacement for gDvmJni.
     bool workAroundAppJniBugs = true;
     Thread* env_self = reinterpret_cast<JNIEnvExt*>(env)->self;
@@ -50,7 +51,6 @@ class ScopedJniThreadState {
     return self;
   }
 
- private:
   Thread* self_;
   DISALLOW_COPY_AND_ASSIGN(ScopedJniThreadState);
 };
@@ -60,10 +60,9 @@ jint GetVersion(JNIEnv* env) {
   return JNI_VERSION_1_6;
 }
 
-jclass DefineClass(JNIEnv *env, const char *name,
-    jobject loader, const jbyte *buf, jsize len) {
+jclass DefineClass(JNIEnv* env, const char*, jobject, const jbyte*, jsize) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
+  LOG(WARNING) << "JNI DefineClass is not supported";
   return NULL;
 }
 
@@ -164,12 +163,12 @@ void ExceptionDescribe(JNIEnv* env) {
 
 void ExceptionClear(JNIEnv* env) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
+  ts.Self()->ClearException();
 }
 
 void FatalError(JNIEnv* env, const char* msg) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
+  LOG(FATAL) << "JNI FatalError called: " << msg;
 }
 
 jint PushLocalFrame(JNIEnv* env, jint cap) {
@@ -1437,7 +1436,7 @@ jint MonitorExit(JNIEnv* env, jobject obj) {
   return 0;
 }
 
-jint GetJavaVM(JNIEnv* env, JavaVM* *vm) {
+jint GetJavaVM(JNIEnv* env, JavaVM** vm) {
   ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return 0;
@@ -1492,8 +1491,7 @@ void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
 
 jboolean ExceptionCheck(JNIEnv* env) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return JNI_FALSE;
+  return ts.Self()->IsExceptionPending() ? JNI_TRUE : JNI_FALSE;
 }
 
 jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
@@ -1860,7 +1858,7 @@ jint JniInvokeInterface::DetachCurrentThread(JavaVM* vm) {
   }
 }
 
-jint JniInvokeInterface::GetEnv(JavaVM *vm, void **env, jint version) {
+jint JniInvokeInterface::GetEnv(JavaVM* vm, void** env, jint version) {
   if (version < JNI_VERSION_1_1 || version > JNI_VERSION_1_6) {
     return JNI_EVERSION;
   }
