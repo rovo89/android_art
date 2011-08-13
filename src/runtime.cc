@@ -159,7 +159,7 @@ bool Runtime::AttachCurrentThreadAsDaemon(const char* name, JNIEnv** penv) {
 }
 
 bool Runtime::DetachCurrentThread() {
-  LOG(WARNING) << "Unimplemented: Runtime::DetachCurrentThread";
+  UNIMPLEMENTED(WARNING);
   return true;
 }
 

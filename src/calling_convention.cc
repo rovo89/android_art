@@ -15,7 +15,7 @@ FrameOffset CallingConvention::MethodStackOffset() {
 // Managed runtime calling convention
 
 size_t ManagedRuntimeCallingConvention::FrameSize() {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return 0;
 }
 

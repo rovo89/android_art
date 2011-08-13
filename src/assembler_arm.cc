@@ -1508,7 +1508,7 @@ void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
       mov(dest.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
     } else {
       // TODO: VFP
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL) << ": VFP";
     }
   }
 }

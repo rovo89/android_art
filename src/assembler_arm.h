@@ -408,12 +408,6 @@ class Assembler {
   static uint32_t DecodeUint32FromTstInstructions(uword pc);
   static bool IsInstructionForExceptionHandling(uword pc);
 
-  // Debugging and bringup support.
-  void Stop(const char* message);
-  void Unimplemented(const char* message);
-  void Untested(const char* message);
-  void Unreachable(const char* message);
-
   // Emit code that will create an activation on the stack
   void BuildFrame(size_t frame_size, ManagedRegister method_reg);
 

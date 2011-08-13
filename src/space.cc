@@ -129,7 +129,7 @@ size_t Space::MaxAllowedFootprint() {
 }
 
 void Space::Grow(size_t new_size) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 }  // namespace art

@@ -70,7 +70,7 @@ void MarkSweep::MarkObject(const Object* obj) {
 
 // Marks all objects in the root set.
 void MarkSweep::MarkRoots() {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void MarkSweep::ScanBitmapCallback(Object* obj, void* finger, void* arg) {
@@ -96,11 +96,11 @@ void MarkSweep::RecursiveMark() {
 }
 
 void MarkSweep::ReMarkRoots() {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void MarkSweep::SweepSystemWeaks() {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {
@@ -461,7 +461,7 @@ void MarkSweep::EnqueueClearedReferences(Object** cleared) {
     // JValue unused;
     // Object *reference = *cleared;
     // TODO: dvmCallMethod(self, meth, NULL, &unused, reference);
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     *cleared = NULL;
   }
 }

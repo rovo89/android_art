@@ -13,8 +13,6 @@
 #include "stringpiece.h"
 #include "thread.h"
 
-#define UNIMPLEMENTED(LEVEL) LOG(LEVEL) << __FUNCTION__ << " unimplemented"
-
 namespace art {
 
 // Entry/exit processing for all JNI calls.

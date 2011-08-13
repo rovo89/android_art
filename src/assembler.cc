@@ -117,22 +117,4 @@ void AssemblerBuffer::ExtendCapacity() {
   CHECK_EQ(Size(), old_size);
 }
 
-
-#if 0
-// Shared macros are implemented here.
-void Assembler::Unimplemented(const char* message) {
-  Stop("unimplemented");
-}
-
-
-void Assembler::Untested(const char* message) {
-  Stop("untested");
-}
-
-
-void Assembler::Unreachable(const char* message) {
-  Stop("unreachable");
-}
-#endif
-
 }  // namespace art

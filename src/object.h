@@ -167,7 +167,7 @@ class Object {
   }
 
   bool IsClass() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
@@ -180,7 +180,7 @@ class Object {
   }
 
   bool IsObjectArray() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
@@ -189,32 +189,32 @@ class Object {
   }
 
   bool IsReference() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
   bool IsWeakReference() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
   bool IsSoftReference() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
   bool IsFinalizerReference() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
   bool IsPhantomReference() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 
   bool IsArray() const {
-    LOG(FATAL) << "Unimplemented";
+    UNIMPLEMENTED(FATAL);
     return true;
   }
 

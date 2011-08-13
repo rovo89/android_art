@@ -47,7 +47,7 @@ void Mutex::Unlock() {
 }
 
 void* ThreadStart(void *arg) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
   return NULL;
 }
 

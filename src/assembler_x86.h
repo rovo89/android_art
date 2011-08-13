@@ -507,9 +507,6 @@ class Assembler {
 
   // Debugging and bringup support.
   void Stop(const char* message);
-  void Unimplemented(const char* message);
-  void Untested(const char* message);
-  void Unreachable(const char* message);
 
   static void InitializeMemoryWithBreakpoints(byte* data, size_t length);
 

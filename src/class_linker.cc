@@ -865,7 +865,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
   } else {
     // JValue unused;
     // TODO: dvmCallMethod(self, method, NULL, &unused);
-    //CHECK(!"unimplemented");
+    // UNIMPLEMENTED(FATAL);
   }
 
   {

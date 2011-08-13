@@ -227,7 +227,7 @@ void Heap::WaitForConcurrentGcToComplete() {
 // heap footprint to match the target utilization ratio.  This should
 // only be called immediately after a full garbage collection.
 void Heap::GrowForUtilization() {
-  LOG(ERROR) << "Unimplemented";
+  UNIMPLEMENTED(ERROR);
 }
 
 }  // namespace art

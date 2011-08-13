@@ -113,6 +113,8 @@
 
 #define LG LOG(INFO)
 
+#define UNIMPLEMENTED(level) LOG(level) << __FUNCTION__ << " unimplemented"
+
 class LogMessage {
  public:
   LogMessage(const char* file, int line, LogSeverity severity, int error);

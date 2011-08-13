@@ -513,7 +513,7 @@ DexFile::ValueType DexFile::ReadEncodedValue(const byte** stream,
     case DexFile::kField:
     case DexFile::kArray:
     case DexFile::kAnnotation:
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL) << ": type " << type;
       break;
     case DexFile::kNull:
       value->i = 0;

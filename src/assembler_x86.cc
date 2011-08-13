@@ -1521,7 +1521,7 @@ void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
       movl(dest.AsCpuRegister(), src.AsCpuRegister());
     } else {
       // TODO: x87, SSE
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL) << ": x87, SSE";
     }
   }
 }
@@ -1608,7 +1608,7 @@ void Assembler::Call(ManagedRegister base, Offset offset,
 
 void Assembler::Call(FrameOffset base, Offset offset,
                      ManagedRegister) {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
 }
 
 // Generate code to check if Thread::Current()->suspend_count_ is non-zero
