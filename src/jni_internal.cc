@@ -43,8 +43,9 @@ class ScopedJniThreadState {
     Thread* env_self = reinterpret_cast<JNIEnvExt*>(env)->self;
     Thread* self = workAroundAppJniBugs ? Thread::Current() : env_self;
     if (self != env_self) {
-      LOG(ERROR) << "JNI ERROR: JNIEnv for thread " << env_self << " used on "
-          << "thread " << self << ")";
+      LOG(ERROR) << "JNI ERROR: JNIEnv for " << *env_self
+          << " used on " << *self;
+      // TODO: dump stack
     }
     return self;
   }
@@ -1757,17 +1758,21 @@ static const struct JNINativeInterface gNativeInterface = {
 };
 
 void MonitorEnterHelper(JNIEnv* env, jobject obj) {
+  CHECK_EQ(Thread::Current()->GetJniEnv(), env);
   MonitorEnter(env, obj);  // Ignore the result.
 }
 
 void MonitorExitHelper(JNIEnv* env, jobject obj) {
+  CHECK_EQ(Thread::Current()->GetJniEnv(), env);
   MonitorExit(env, obj);  // Ignore the result.
 }
 
 JNIEnv* CreateJNIEnv() {
+  Thread* self = Thread::Current();
+  CHECK(self != NULL);
   JNIEnvExt* result = (JNIEnvExt*) calloc(1, sizeof(JNIEnvExt));
   result->fns = &gNativeInterface;
-  result->self = Thread::Current();
+  result->self = self;
   result->MonitorEnterHelper = &MonitorEnterHelper;
   result->MonitorExitHelper = &MonitorExitHelper;
   return reinterpret_cast<JNIEnv*>(result);
