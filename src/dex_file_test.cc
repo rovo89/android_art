@@ -79,8 +79,8 @@ TEST(DexFileTest, CreateMethodDescriptor) {
     const char* name = raw->dexStringById(method_id.name_idx_);
     ASSERT_STREQ("<init>", name);
     int32_t length;
-    scoped_ptr<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
-                                                                  &length));
+    scoped_array<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
+        &length));
     ASSERT_STREQ("()V", descriptor.get());
   }
 
@@ -98,8 +98,8 @@ TEST(DexFileTest, CreateMethodDescriptor) {
 
     uint32_t proto_idx = method_id.proto_idx_;
     int32_t length;
-    scoped_ptr<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
-                                                                  &length));
+    scoped_array<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
+        &length));
     ASSERT_STREQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", descriptor.get());
   }
 
@@ -113,8 +113,8 @@ TEST(DexFileTest, CreateMethodDescriptor) {
 
     uint32_t proto_idx = method_id.proto_idx_;
     int32_t length;
-    scoped_ptr<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
-                                                                  &length));
+    scoped_array<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
+        &length));
     ASSERT_STREQ("(ZSC)LCreateMethodDescriptor;", descriptor.get());
   }
 

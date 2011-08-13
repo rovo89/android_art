@@ -175,8 +175,8 @@ class ZStream {
 
 static bool InflateToFd(int out, int in, size_t uncompressed_length, size_t compressed_length) {
   const size_t kBufSize = 32768;
-  scoped_ptr<uint8_t> read_buf(new uint8_t[kBufSize]);
-  scoped_ptr<uint8_t> write_buf(new uint8_t[kBufSize]);
+  scoped_array<uint8_t> read_buf(new uint8_t[kBufSize]);
+  scoped_array<uint8_t> write_buf(new uint8_t[kBufSize]);
   if (read_buf == NULL || write_buf == NULL) {
     return false;
   }

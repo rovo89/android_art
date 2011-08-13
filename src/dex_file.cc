@@ -151,13 +151,15 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
                                 adjacent_dex_filename.end(),
                                 ".dex");
   // Example adjacent_dex_filename = dir/foo.dex
-  // TODO: stat first, so we don't report a bogus error.
-  DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
-  if (adjacent_dex_file != NULL) {
+  struct stat sb;
+  if (stat(adjacent_dex_filename.c_str(), &sb) == 0) {
+    DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
+    if (adjacent_dex_file != NULL) {
       // We don't verify anything in this case, because we aren't in
       // the cache and typically the file is in the readonly /system
       // area, so if something is wrong, there is nothing we can do.
       return adjacent_dex_file;
+    }
   }
 
   char resolved[PATH_MAX];
@@ -256,7 +258,7 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
       return NULL;
     }
     const size_t kBufSize = 32768;
-    scoped_ptr<uint8_t> buf(new uint8_t[kBufSize]);
+    scoped_array<uint8_t> buf(new uint8_t[kBufSize]);
     if (buf == NULL) {
       return NULL;
     }
