@@ -96,30 +96,33 @@ static inline int CountOneBits(uint32_t x) {
   return static_cast<int>(x & 0x0000003F);
 }
 
+static inline bool NeedsEscaping(uint16_t ch) {
+  return (ch < ' ' || ch > '~');
+}
+
 static inline std::string PrintableChar(uint16_t ch) {
   std::string result;
-  if (ch >= ' ' && ch <= '~') {
-    // ASCII.
-    result += '\'';
+  result += '\'';
+  if (NeedsEscaping(ch)) {
+    StringAppendF(&result, "\\u%04x", ch);
+  } else {
     result += ch;
-    result += '\'';
-    return result;
   }
-  // Non-ASCII; show the code point.
-  StringAppendF(&result, "'\\u%04x'", ch);
+  result += '\'';
   return result;
 }
 
+// TODO: assume the content is UTF-8, and show code point escapes?
 template<typename StringT>
 static inline std::string PrintableString(const StringT& s) {
   std::string result;
   result += '"';
   for (typename StringT::iterator it = s.begin(); it != s.end(); ++it) {
     char ch = *it;
-    if (ch >= ' ' && ch <= '~') {
-      result += ch;
-    } else {
+    if (NeedsEscaping(ch)) {
       StringAppendF(&result, "\\x%02x", ch & 0xff);
+    } else {
+      result += ch;
     }
   }
   result += '"';
