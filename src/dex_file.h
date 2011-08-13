@@ -219,7 +219,7 @@ class DexFile {
         Next();
       }
 
-      CatchHandlerItem& Get() {
+      const CatchHandlerItem& Get() const {
         return handler_;
       }
 
