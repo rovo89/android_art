@@ -1361,6 +1361,58 @@ void Assembler::StoreDToOffset(DRegister reg,
   vstrd(reg, Address(base, offset), cond);
 }
 
+void Assembler::Push(Register rd, Condition cond) {
+  str(rd, Address(SP, -kRegisterSize, Address::PreIndex), cond);
+}
+
+void Assembler::Pop(Register rd, Condition cond) {
+  ldr(rd, Address(SP, kRegisterSize, Address::PostIndex), cond);
+}
+
+void Assembler::PushList(RegList regs, Condition cond) {
+  stm(DB_W, SP, regs, cond);
+}
+
+void Assembler::PopList(RegList regs, Condition cond) {
+  ldm(IA_W, SP, regs, cond);
+}
+
+void Assembler::Mov(Register rd, Register rm, Condition cond) {
+  if (rd != rm) {
+    mov(rd, ShifterOperand(rm), cond);
+  }
+}
+
+void Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
+                    Condition cond) {
+  CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
+  mov(rd, ShifterOperand(rm, LSL, shift_imm), cond);
+}
+
+void Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
+                    Condition cond) {
+  CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
+  if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
+  mov(rd, ShifterOperand(rm, LSR, shift_imm), cond);
+}
+
+void Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
+                    Condition cond) {
+  CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
+  if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
+  mov(rd, ShifterOperand(rm, ASR, shift_imm), cond);
+}
+
+void Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
+                    Condition cond) {
+  CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
+  mov(rd, ShifterOperand(rm, ROR, shift_imm), cond);
+}
+
+void Assembler::Rrx(Register rd, Register rm, Condition cond) {
+  mov(rd, ShifterOperand(rm, ROR, 0), cond);
+}
+
 // Emit code that will create an activation on the stack
 void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg) {
   CHECK(IsAligned(frame_size, 16));

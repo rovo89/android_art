@@ -62,6 +62,7 @@ LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_arm.cc \
 	src/calling_convention_arm.cc \
+	src/jni_internal_arm.cc \
 	src/logging_android.cc \
 	src/managed_register_arm.cc \
 	src/runtime_android.cc \
@@ -71,6 +72,7 @@ LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/assembler_x86.cc \
 	src/calling_convention_x86.cc \
+	src/jni_internal_x86.cc \
 	src/logging_linux.cc \
 	src/managed_register_x86.cc \
 	src/runtime_linux.cc \
@@ -86,8 +88,8 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_instruction_visitor_test.cc \
 	src/exception_test.cc \
 	src/intern_table_test.cc \
+	src/jni_internal_test.cc.arm \
 	src/jni_compiler_test.cc.arm \
-	src/jni_internal_test.cc \
 	src/object_test.cc \
 	src/runtime_test.cc \
 	src/space_test.cc \
