@@ -1,5 +1,4 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
-// Author: irogers@google.com (Ian Rogers)
 
 #ifndef ART_SRC_CALLING_CONVENTION_H_
 #define ART_SRC_CALLING_CONVENTION_H_

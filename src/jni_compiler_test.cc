@@ -1,5 +1,4 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
-// Author: irogers@google.com (Ian Rogers)
 
 #include <sys/mman.h>
 

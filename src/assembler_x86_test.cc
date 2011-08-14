@@ -1,5 +1,4 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
-// Author: cshapiro@google.com (Carl Shapiro)
 
 #include "assembler_x86.h"
 

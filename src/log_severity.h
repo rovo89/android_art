@@ -1,5 +1,4 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
-// Author: enh@google.com (Elliott Hughes)
 
 #ifndef BASE_LOG_SEVERITY_H_
 #define BASE_LOG_SEVERITY_H_

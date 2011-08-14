@@ -1,5 +1,4 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
-// Author: cshapiro@google.com (Carl Shapiro)
 
 #ifndef ART_SRC_SPACE_H_
 #define ART_SRC_SPACE_H_

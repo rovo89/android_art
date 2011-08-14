@@ -1,5 +1,4 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
-// Author: enh@google.com (Elliott Hughes)
 
 #ifndef STRINGPRINTF_H_
 #define STRINGPRINTF_H_
