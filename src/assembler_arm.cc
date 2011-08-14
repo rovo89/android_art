@@ -1413,34 +1413,50 @@ void Assembler::Rrx(Register rd, Register rm, Condition cond) {
   mov(rd, ShifterOperand(rm, ROR, 0), cond);
 }
 
-// Emit code that will create an activation on the stack
-void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg) {
-  CHECK(IsAligned(frame_size, 16));
-  // TODO: use stm/ldm
+void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                           const std::vector<ManagedRegister>& spill_regs) {
+  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_EQ(R0, method_reg.AsCoreRegister());
   AddConstant(SP, -frame_size);
-  StoreToOffset(kStoreWord, LR, SP, frame_size - 4);
-  StoreToOffset(kStoreWord, method_reg.AsCoreRegister(), SP, 0);
+  RegList spill_list = 1 << R0 | 1 << LR;
+  for(size_t i = 0; i < spill_regs.size(); i++) {
+    Register reg = spill_regs.at(i).AsCoreRegister();
+    // check assumption LR is the last register that gets spilled
+    CHECK_LT(reg, LR);
+    spill_list |= 1 << reg;
+  }
+  // Store spill list from (low to high number register) starting at SP
+  // incrementing after each store but not updating SP
+  stm(IA, SP, spill_list, AL);
 }
 
-// Emit code that will remove an activation from the stack
-void Assembler::RemoveFrame(size_t frame_size) {
-  CHECK(IsAligned(frame_size, 16));
-  LoadFromOffset(kLoadWord, LR, SP, frame_size - 4);
+void Assembler::RemoveFrame(size_t frame_size,
+                            const std::vector<ManagedRegister>& spill_regs) {
+  CHECK(IsAligned(frame_size, kStackAlignment));
+  // Reload LR. TODO: reload any saved callee saves from spill_regs
+  LoadFromOffset(kLoadWord, LR, SP, (spill_regs.size() + 1) * kPointerSize);
   AddConstant(SP, frame_size);
   mov(PC, ShifterOperand(LR));
 }
 
+void Assembler::FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
+                                  size_t displacement) {
+  for(size_t i = 0; i < spill_regs.size(); i++) {
+    Register reg = spill_regs.at(i).AsCoreRegister();
+    LoadFromOffset(kLoadWord, reg, SP, displacement + ((i + 1) * kPointerSize));
+  }
+}
+
 void Assembler::IncreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, 16));
+  CHECK(IsAligned(adjust, kStackAlignment));
   AddConstant(SP, -adjust);
 }
 
 void Assembler::DecreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, 16));
+  CHECK(IsAligned(adjust, kStackAlignment));
   AddConstant(SP, adjust);
 }
 
-// Store bytes from the given register onto the stack
 void Assembler::Store(FrameOffset dest, ManagedRegister src, size_t size) {
   if (src.IsNoRegister()) {
     CHECK_EQ(0u, size);
@@ -1671,9 +1687,6 @@ void Assembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
-// Generate code to check if Thread::Current()->suspend_count_ is non-zero
-// and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
-// at the next instruction.
 void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
                             FrameOffset return_save_location,
                             size_t return_size) {
@@ -1703,8 +1716,6 @@ void SuspendCountSlowPath::Emit(Assembler* sp_asm) {
   sp_asm->b(&continuation_);
 }
 
-// Generate code to check if Thread::Current()->exception_ is non-null
-// and branch to a ExceptionSlowPath if it is.
 void Assembler::ExceptionPoll(ManagedRegister scratch) {
   ExceptionSlowPath* slow = new ExceptionSlowPath();
   buffer_.EnqueueSlowPath(slow);

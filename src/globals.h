@@ -32,6 +32,8 @@ const int kBitsPerPointer = kPointerSize * kBitsPerByte;
 const int kBitsPerWord = kWordSize * kBitsPerByte;
 const int kBitsPerInt = kIntSize * kBitsPerByte;
 
+// Required stack alignment
+const int kStackAlignment = 16;
 
 // System page size.  Normally you're expected to get this from
 // sysconf(_SC_PAGESIZE) or some system-specific define (usually

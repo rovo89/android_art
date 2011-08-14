@@ -3,6 +3,7 @@
 #ifndef ART_SRC_CALLING_CONVENTION_H_
 #define ART_SRC_CALLING_CONVENTION_H_
 
+#include <vector>
 #include "managed_register.h"
 #include "object.h"
 #include "thread.h"
@@ -84,12 +85,12 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 
 // Abstraction for JNI calling conventions
 // | incoming stack args    | <-- Prior SP
-// | { Spilled registers    |
-// |   & return address }   |
+// | { Return address }     |     (x86)
 // | { Return value spill } |     (live on return slow paths)
 // | { Stack Handle Block   |
 // |   ...                  |
 // |   num. refs./link }    |     (here to prior SP is frame size)
+// | { Spill area }         |     (ARM)
 // | Method*                | <-- Anchor SP written to thread
 // | { Outgoing stack args  |
 // |   ... }                | <-- SP at point of call
@@ -97,7 +98,8 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 class JniCallingConvention : public CallingConvention {
  public:
   explicit JniCallingConvention(Method* native_method) :
-                      CallingConvention(native_method) {}
+                      CallingConvention(native_method),
+                      spill_regs_(ComputeRegsToSpillPreCall()) {}
 
   // Size of frame excluding space for outgoing args (its assumed Method* is
   // always at the bottom of a frame, but this doesn't work for outgoing
@@ -107,9 +109,17 @@ class JniCallingConvention : public CallingConvention {
   size_t OutArgSize();
   // Number of handles in stack handle block
   size_t HandleCount();
+  // Size of area used to hold spilled registers
+  size_t SpillAreaSize();
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
   FrameOffset ReturnValueSaveLocation();
+
+  // Registers that must be spilled (due to clobbering) before the call into
+  // the native routine
+  const std::vector<ManagedRegister>& RegsToSpillPreCall() {
+    return *spill_regs_.get();
+  }
 
   // Returns true if the register will be clobbered by an outgoing
   // argument value.
@@ -131,6 +141,7 @@ class JniCallingConvention : public CallingConvention {
   // Position of stack handle block and interior fields
   FrameOffset ShbOffset() {
     return FrameOffset(displacement_.Int32Value() +
+                       SpillAreaSize() +
                        kPointerSize);  // above Method*
   }
   FrameOffset ShbNumRefsOffset() {
@@ -152,6 +163,12 @@ class JniCallingConvention : public CallingConvention {
   // Number of stack slots for outgoing arguments, above which handles are
   // located
   size_t NumberOfOutgoingStackArgs();
+
+  // Compute registers for RegsToSpillPreCall
+  std::vector<ManagedRegister>* ComputeRegsToSpillPreCall();
+
+  // Extra registers to spill before the call into native
+  const scoped_ptr<std::vector<ManagedRegister> > spill_regs_;
 
   static size_t NumberOfExtraArgumentsForJni(const Method* method);
   DISALLOW_COPY_AND_ASSIGN(JniCallingConvention);

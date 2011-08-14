@@ -3,6 +3,7 @@
 #ifndef ART_SRC_ASSEMBLER_X86_H_
 #define ART_SRC_ASSEMBLER_X86_H_
 
+#include <vector>
 #include "assembler.h"
 #include "constants.h"
 #include "globals.h"
@@ -398,20 +399,26 @@ class Assembler {
   void jmp(Register reg);
   void jmp(Label* label);
 
-  void lock();
+  Assembler* lock();
   void cmpxchgl(const Address& address, Register reg);
 
-  void fs();
+  Assembler* fs();
 
   //
   // Macros for High-level operations.
   //
 
   // Emit code that will create an activation on the stack
-  void BuildFrame(size_t frame_size, ManagedRegister method_reg);
+  void BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                  const std::vector<ManagedRegister>& spill_regs);
 
   // Emit code that will remove an activation from the stack
-  void RemoveFrame(size_t frame_size);
+  void RemoveFrame(size_t frame_size,
+                   const std::vector<ManagedRegister>& spill_regs);
+
+  // Fill registers from spill area - no-op on x86
+  void FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
+                         size_t displacement);
 
   void IncreaseFrameSize(size_t adjust);
   void DecreaseFrameSize(size_t adjust);
@@ -486,8 +493,7 @@ class Assembler {
   void DoubleAbs(XmmRegister reg);
 
   void LockCmpxchgl(const Address& address, Register reg) {
-    lock();
-    cmpxchgl(address, reg);
+    lock()->cmpxchgl(address, reg);
   }
 
   //

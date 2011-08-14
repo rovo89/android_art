@@ -1173,9 +1173,10 @@ void Assembler::jmp(Label* label) {
 }
 
 
-void Assembler::lock() {
+Assembler* Assembler::lock() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF0);
+  return this;
 }
 
 
@@ -1186,10 +1187,11 @@ void Assembler::cmpxchgl(const Address& address, Register reg) {
   EmitOperand(reg, address);
 }
 
-void Assembler::fs() {
+Assembler* Assembler::fs() {
   // TODO: fs is a prefix and not an instruction
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x64);
+  return this;
 }
 
 void Assembler::AddImmediate(Register reg, const Immediate& imm) {
@@ -1370,32 +1372,39 @@ void Assembler::EmitGenericShift(int rm,
   EmitOperand(rm, Operand(operand));
 }
 
-// Emit code that will create an activation on the stack
-void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg) {
-  CHECK(IsAligned(frame_size, 16));
+void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                           const std::vector<ManagedRegister>& spill_regs) {
+  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
   // return address then method on stack
-  addl(ESP, Immediate(-frame_size + 4 /*method*/ + 4 /*return address*/));
+  addl(ESP, Immediate(-frame_size + kPointerSize /*method*/ +
+                      kPointerSize /*return address*/));
   pushl(method_reg.AsCpuRegister());
 }
 
-// Emit code that will remove an activation from the stack
-void Assembler::RemoveFrame(size_t frame_size) {
-  CHECK(IsAligned(frame_size, 16));
-  addl(ESP, Immediate(frame_size - 4));
+void Assembler::RemoveFrame(size_t frame_size,
+                            const std::vector<ManagedRegister>& spill_regs) {
+  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
+  addl(ESP, Immediate(frame_size - kPointerSize));
   ret();
 }
 
+void Assembler::FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
+                                  size_t displacement) {
+  CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
+}
+
 void Assembler::IncreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, 16));
+  CHECK(IsAligned(adjust, kStackAlignment));
   addl(ESP, Immediate(-adjust));
 }
 
 void Assembler::DecreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, 16));
+  CHECK(IsAligned(adjust, kStackAlignment));
   addl(ESP, Immediate(adjust));
 }
 
-// Store bytes from the given register onto the stack
 void Assembler::Store(FrameOffset offs, ManagedRegister src, size_t size) {
   if (src.IsNoRegister()) {
     CHECK_EQ(0u, size);
@@ -1442,8 +1451,7 @@ void Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
 
 void Assembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
                                        ManagedRegister) {
-  fs();
-  movl(Address::Absolute(dest), Immediate(imm));
+  fs()->movl(Address::Absolute(dest), Immediate(imm));
 }
 
 void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
@@ -1481,15 +1489,13 @@ void Assembler::LoadRef(ManagedRegister dest, ManagedRegister base,
 
 void Assembler::LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs) {
   CHECK(dest.IsCpuRegister());
-  fs();
-  movl(dest.AsCpuRegister(), Address::Absolute(offs));
+  fs()->movl(dest.AsCpuRegister(), Address::Absolute(offs));
 }
 
 void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
                           ManagedRegister scratch) {
   CHECK(scratch.IsCpuRegister());
-  fs();
-  movl(scratch.AsCpuRegister(), Address::Absolute(thr_offs));
+  fs()->movl(scratch.AsCpuRegister(), Address::Absolute(thr_offs));
   Store(fr_offs, scratch, 4);
 }
 
@@ -1497,8 +1503,7 @@ void Assembler::CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
                                    ManagedRegister scratch) {
   CHECK(scratch.IsCpuRegister());
   Load(scratch, fr_offs, 4);
-  fs();
-  movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
+  fs()->movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
 }
 
 void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
@@ -1506,13 +1511,11 @@ void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
                                          ManagedRegister scratch) {
   CHECK(scratch.IsCpuRegister());
   leal(scratch.AsCpuRegister(), Address(ESP, fr_offs));
-  fs();
-  movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
+  fs()->movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
 }
 
 void Assembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
-  fs();
-  movl(Address::Absolute(thr_offs), ESP);
+  fs()->movl(Address::Absolute(thr_offs), ESP);
 }
 
 void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
@@ -1611,57 +1614,54 @@ void Assembler::Call(FrameOffset base, Offset offset,
   UNIMPLEMENTED(FATAL);
 }
 
-// Generate code to check if Thread::Current()->suspend_count_ is non-zero
-// and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
-// at the next instruction.
 void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
                             FrameOffset return_save_location,
                             size_t return_size) {
   SuspendCountSlowPath* slow =
       new SuspendCountSlowPath(return_reg, return_save_location, return_size);
   buffer_.EnqueueSlowPath(slow);
-  fs();
-  cmpl(Address::Absolute(Thread::SuspendCountOffset()), Immediate(0));
+  fs()->cmpl(Address::Absolute(Thread::SuspendCountOffset()), Immediate(0));
   j(NOT_EQUAL, slow->Entry());
   Bind(slow->Continuation());
 }
+
 void SuspendCountSlowPath::Emit(Assembler *sp_asm) {
-  sp_asm->Bind(&entry_);
+#define __ sp_asm->
+  __ Bind(&entry_);
   // Save return value
-  sp_asm->Store(return_save_location_, return_register_, return_size_);
+  __ Store(return_save_location_, return_register_, return_size_);
   // Pass top of stack as argument
-  sp_asm->pushl(ESP);
-  sp_asm->fs();
-  sp_asm->call(Address::Absolute(Thread::SuspendCountEntryPointOffset()));
+  __ pushl(ESP);
+  __ fs()->call(Address::Absolute(Thread::SuspendCountEntryPointOffset()));
   // Release argument
-  sp_asm->addl(ESP, Immediate(kPointerSize));
+  __ addl(ESP, Immediate(kPointerSize));
   // Reload return value
-  sp_asm->Load(return_register_, return_save_location_, return_size_);
-  sp_asm->jmp(&continuation_);
+  __ Load(return_register_, return_save_location_, return_size_);
+  __ jmp(&continuation_);
+#undef __
 }
 
-// Generate code to check if Thread::Current()->exception_ is non-null
-// and branch to a ExceptionSlowPath if it is.
 void Assembler::ExceptionPoll(ManagedRegister scratch) {
   ExceptionSlowPath* slow = new ExceptionSlowPath();
   buffer_.EnqueueSlowPath(slow);
-  fs();
-  cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));
+  fs()->cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));
   j(NOT_EQUAL, slow->Entry());
   Bind(slow->Continuation());
 }
+
 void ExceptionSlowPath::Emit(Assembler *sp_asm) {
-  sp_asm->Bind(&entry_);
+#define __ sp_asm->
+  __ Bind(&entry_);
   // NB the return value is dead
   // Pass top of stack as argument
-  sp_asm->pushl(ESP);
-  sp_asm->fs();
-  sp_asm->call(Address::Absolute(Thread::ExceptionEntryPointOffset()));
+  __ pushl(ESP);
+  __ fs()->call(Address::Absolute(Thread::ExceptionEntryPointOffset()));
   // TODO: this call should never return as it should make a long jump to
   // the appropriate catch block
   // Release argument
-  sp_asm->addl(ESP, Immediate(kPointerSize));
-  sp_asm->jmp(&continuation_);
+  __ addl(ESP, Immediate(kPointerSize));
+  __ jmp(&continuation_);
+#undef __
 }
 
 }  // namespace art

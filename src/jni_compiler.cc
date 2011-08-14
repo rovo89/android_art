@@ -28,7 +28,8 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
 
   // 1. Build the frame
   const size_t frame_size(jni_conv.FrameSize());
-  jni_asm->BuildFrame(frame_size, mr_conv.MethodRegister());
+  const std::vector<ManagedRegister>& spill_regs = jni_conv.RegsToSpillPreCall();
+  jni_asm->BuildFrame(frame_size, mr_conv.MethodRegister(), spill_regs);
 
   // 2. Save callee save registers that aren't callee save in the native code
   // TODO: implement computing the difference of the callee saves
@@ -124,6 +125,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
     }
     // Generate JNIEnv* in place and leave a copy in jni_env_register
+    jni_conv.ResetIterator(FrameOffset(out_arg_size));
     ManagedRegister jni_env_register =
         jni_conv.InterproceduralScratchRegister();
     if (jni_conv.IsCurrentParamInRegister()) {
@@ -138,6 +140,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     static Offset monitor_enter(OFFSETOF_MEMBER(JNIEnvExt, MonitorEnterHelper));
     jni_asm->Call(jni_env_register, monitor_enter,
                   jni_conv.InterproceduralScratchRegister());
+    jni_asm->FillFromSpillArea(spill_regs, out_arg_size);
     jni_asm->ExceptionPoll(jni_conv.InterproceduralScratchRegister());
   }
 
@@ -224,6 +227,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
     }
     // Generate JNIEnv* in place and leave a copy in jni_env_register
+    jni_conv.ResetIterator(FrameOffset(out_arg_size));
     ManagedRegister jni_env_register =
         jni_conv.InterproceduralScratchRegister();
     if (jni_conv.IsCurrentParamInRegister()) {
@@ -238,7 +242,6 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     static Offset monitor_exit(OFFSETOF_MEMBER(JNIEnvExt, MonitorExitHelper));
     jni_asm->Call(jni_env_register, monitor_exit,
                   jni_conv.InterproceduralScratchRegister());
-    jni_asm->ExceptionPoll(jni_conv.InterproceduralScratchRegister());
     // Reload return value
     jni_asm->Load(jni_conv.ReturnRegister(), return_save_location,
                   jni_conv.SizeOfReturnValue());
@@ -277,7 +280,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
                               jni_conv.InterproceduralScratchRegister());
 
   // 17. Remove activation
-  jni_asm->RemoveFrame(frame_size);
+  jni_asm->RemoveFrame(frame_size, spill_regs);
 
   // 18. Finalize code generation
   jni_asm->EmitSlowPaths();

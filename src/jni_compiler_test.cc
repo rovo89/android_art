@@ -512,7 +512,7 @@ void SuspendCountHandler(Method** frame) {
   gSuspendCounterHandler_calls++;
   Thread::Current()->DecrementSuspendCount();
 }
-TEST_F(JniCompilerTest, SuspendCountAcknolewdgement) {
+TEST_F(JniCompilerTest, SuspendCountAcknowledgement) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassNativesDex));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 

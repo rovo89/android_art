@@ -48,6 +48,27 @@ FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
+size_t JniCallingConvention::FrameSize() {
+  // Return address and Method*
+  size_t frame_data_size = 2 * kPointerSize;
+  // Handles plus 2 words for SHB header
+  size_t handle_area_size = (HandleCount() + 2) * kPointerSize;
+  // Plus return value spill area size
+  return RoundUp(frame_data_size + handle_area_size + SizeOfReturnValue(), 16);
+}
+
+size_t JniCallingConvention::SpillAreaSize() {
+  // No spills, return address was pushed at the top of the frame
+  return 0;
+}
+
+std::vector<ManagedRegister>* JniCallingConvention::ComputeRegsToSpillPreCall()
+{
+  // No live values in registers (everything is on the stack) so never anything
+  // to preserve.
+  return  new std::vector<ManagedRegister>();
+}
+
 bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {
   return false;  // Everything is passed by stack
 }

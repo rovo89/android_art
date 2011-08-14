@@ -73,6 +73,34 @@ FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
+size_t JniCallingConvention::FrameSize() {
+  // Method* and spill area size
+  size_t frame_data_size = kPointerSize + SpillAreaSize();
+  // Handles plus 2 words for SHB header
+  size_t handle_area_size = (HandleCount() + 2) * kPointerSize;
+  // Plus return value spill area size
+  return RoundUp(frame_data_size + handle_area_size + SizeOfReturnValue(), 16);
+}
+
+size_t JniCallingConvention::SpillAreaSize() {
+  // Space for link register. For synchronized methods we need enough space to
+  // save R1, R2 and R3 (R0 is the method register and always preserved)
+  return GetMethod()->IsSynchronized() ? (4 * kPointerSize) : kPointerSize;
+}
+
+std::vector<ManagedRegister>* JniCallingConvention::ComputeRegsToSpillPreCall()
+{
+  // A synchronized method will call monitor enter clobbering R1, R2 and R3
+  // unless they are spilled.
+  std::vector<ManagedRegister>* result = new std::vector<ManagedRegister>();
+  if (GetMethod()->IsSynchronized()) {
+    result->push_back(ManagedRegister::FromCoreRegister(R1));
+    result->push_back(ManagedRegister::FromCoreRegister(R2));
+    result->push_back(ManagedRegister::FromCoreRegister(R3));
+  }
+  return result;
+}
+
 // Will reg be crushed by an outgoing argument?
 bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {
   // R0 holds the method register and will be crushed by the JNIEnv*

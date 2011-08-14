@@ -8,6 +8,7 @@
 #include "logging.h"
 #include "offsets.h"
 #include "utils.h"
+#include <vector>
 
 namespace art {
 
@@ -409,10 +410,16 @@ class Assembler {
   static bool IsInstructionForExceptionHandling(uword pc);
 
   // Emit code that will create an activation on the stack
-  void BuildFrame(size_t frame_size, ManagedRegister method_reg);
+  void BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                  const std::vector<ManagedRegister>& spill_regs);
 
   // Emit code that will remove an activation from the stack
-  void RemoveFrame(size_t frame_size);
+  void RemoveFrame(size_t frame_size,
+                   const std::vector<ManagedRegister>& spill_regs);
+
+  // Fill registers from spill area, excluding R0 (Method*) and LR
+  void FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
+                         size_t displacement);
 
   void IncreaseFrameSize(size_t adjust);
   void DecreaseFrameSize(size_t adjust);
