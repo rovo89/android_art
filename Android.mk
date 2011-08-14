@@ -39,15 +39,24 @@ build-art: \
 .PHONY: test-art
 test-art: test-art-host test-art-target
 
+define run-host-tests-with
+  $(foreach file,$(ART_HOST_TEST_EXECUTABLES),$(1) $(file) &&) true
+endef
+
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
 test-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
-	$(foreach file,$(ART_HOST_TEST_EXECUTABLES),$(file) &&) true
+	$(call run-host-tests-with,)
 
 # "mm valgrind-art-host" to build and run all host tests under valgrind.
 .PHONY: valgrind-art-host
 valgrind-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
-	$(foreach file,$(ART_HOST_TEST_EXECUTABLES),valgrind $(file) &&) true
+	$(call run-host-tests-with,"valgrind")
+
+# "mm tsan-art-host" to build and run all host tests under tsan.
+.PHONY: tsan-art-host
+tsan-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
+	$(call run-host-tests-with,"tsan")
 
 # "mm test-art-device" to build and run all target tests
 .PHONY: test-art-target
