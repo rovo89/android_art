@@ -334,6 +334,13 @@ class Field : public AccessibleObject {
 
 class Method : public AccessibleObject {
  public:
+  // An function that invokes a method with an array of its arguments.
+  typedef void InvokeStub(Method* method,
+                          Object* obj,
+                          Thread* thread,
+                          byte* args,
+                          JValue* result);
+
   // Returns the method name, e.g. "<init>" or "eatLunch"
   const String* GetName() const {
     return name_;
@@ -394,6 +401,10 @@ class Method : public AccessibleObject {
   // Number of argument registers required by the prototype.
   uint32_t NumArgRegisters();
 
+  // Number of argument bytes required for densely packing the
+  // arguments into an array of arguments.
+  size_t NumArgArrayBytes();
+
  public:  // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // the class we are a part of
@@ -408,6 +419,10 @@ class Method : public AccessibleObject {
   ObjectArray<Class>* java_parameter_types_;
   uint32_t java_generic_types_are_initialized_;
   uint32_t java_slot_;
+
+  const StringPiece& GetShorty() const {
+    return shorty_;
+  }
 
   bool IsReturnAReference() const {
     return (shorty_[0] == 'L') || (shorty_[0] == '[');
@@ -452,10 +467,10 @@ class Method : public AccessibleObject {
   }
 
   // The number of reference arguments to this method including implicit this
-  // pointer
+  // pointer.
   size_t NumReferenceArgs() const;
 
-  // The number of long or double arguments
+  // The number of long or double arguments.
   size_t NumLongOrDoubleArgs() const;
 
   // The number of reference arguments to this method before the given
@@ -474,12 +489,16 @@ class Method : public AccessibleObject {
   // Size in bytes of the return value
   size_t ReturnSize() const;
 
+  const void* GetCode() const {
+    return code_;
+  }
+
   void SetCode(const void* code) {
     code_ = code;
   }
 
-  const void* GetCode() const {
-    return code_;
+  static size_t GetCodeOffset() {
+    return OFFSETOF_MEMBER(Method, code_);
   }
 
   void RegisterNative(const void* native_method) {
@@ -488,6 +507,18 @@ class Method : public AccessibleObject {
 
   static MemberOffset NativeMethodOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Method, native_method_));
+  }
+
+  InvokeStub* GetInvokeStub() const {
+    return invoke_stub_;
+  }
+
+  void SetInvokeStub(const InvokeStub* invoke_stub) {
+    invoke_stub_ = invoke_stub;
+  }
+
+  static size_t GetInvokeStubOffset() {
+    return OFFSETOF_MEMBER(Method, invoke_stub_);
   }
 
   bool HasSameNameAndDescriptor(const Method* that) const;
@@ -538,6 +569,9 @@ class Method : public AccessibleObject {
 
   // Any native method registered with this method
   const void* native_method_;
+
+  // Native invocation stub entry point.
+  const InvokeStub* invoke_stub_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Method);
 };

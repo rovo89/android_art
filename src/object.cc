@@ -288,6 +288,24 @@ uint32_t Method::NumArgRegisters() {
   return num_registers;
 }
 
+size_t Method::NumArgArrayBytes() {
+  const StringPiece& shorty = GetShorty();
+  size_t num_bytes = 0;
+  for (int i = 1; i < shorty.size(); ++i) {
+    char ch = shorty[i];
+    if (ch == 'D' || ch == 'J') {
+      num_bytes += 8;
+    } if (ch == 'L') {
+      // Argument is a reference or an array.  The shorty descriptor
+      // does not distinguish between these types.
+      num_bytes += sizeof(Object*);
+    } else {
+      num_bytes += 4;
+    }
+  }
+  return num_bytes;
+}
+
 // The number of reference arguments to this method including implicit this
 // pointer
 size_t Method::NumReferenceArgs() const {
