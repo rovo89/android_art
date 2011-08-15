@@ -98,7 +98,7 @@ byte* CreateArgArray(Method* method, va_list ap) {
         offset += 4;
         break;
       case 'L': {
-        // TODO: local reference
+        // TODO: DecodeReference
         Object* obj = reinterpret_cast<Object*>(va_arg(ap, jobject));
         *reinterpret_cast<Object**>(&arg_array[offset]) = obj;
         offset += sizeof(Object*);
@@ -136,7 +136,8 @@ byte* CreateArgArray(Method* method, jvalue* args) {
         offset += 4;
         break;
       case 'L': {
-        Object* obj = reinterpret_cast<Object*>(args[i - 1].l);  // TODO: local reference
+        // TODO: DecodeReference
+        Object* obj = reinterpret_cast<Object*>(args[i - 1].l);
         *reinterpret_cast<Object**>(&arg_array[offset]) = obj;
         offset += sizeof(Object*);
         break;
@@ -156,7 +157,8 @@ byte* CreateArgArray(Method* method, jvalue* args) {
 
 JValue InvokeWithArgArray(Thread* self, Object* obj, jmethodID method_id,
                           byte* args) {
-  Method* method = reinterpret_cast<Method*>(method_id);  // TODO
+  // TODO: DecodeReference
+  Method* method = reinterpret_cast<Method*>(method_id);
   // Call the invoke stub associated with the method
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
@@ -221,7 +223,7 @@ jclass FindClass(JNIEnv* env, const char* name) {
   std::string descriptor(NormalizeJniClassDescriptor(name));
   // TODO: need to get the appropriate ClassLoader.
   Class* c = class_linker->FindClass(descriptor, NULL);
-  // TODO: local reference.
+  // TODO: AddLocalReference.
   return reinterpret_cast<jclass>(c);
 }
 
@@ -321,7 +323,7 @@ void DeleteGlobalRef(JNIEnv* env, jobject gref) {
 
 void DeleteLocalRef(JNIEnv* env, jobject obj) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
+  UNIMPLEMENTED(WARNING);
 }
 
 jboolean IsSameObject(JNIEnv* env, jobject obj1, jobject obj2) {
@@ -900,7 +902,7 @@ void SetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID, jdouble val) {
 jmethodID GetStaticMethodID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
   ScopedJniThreadState ts(env);
-  // TODO: retrieve handle value for class
+  // TODO: DecodeReference
   Class* klass = reinterpret_cast<Class*>(clazz);
   // TODO: check that klass is initialized
   Method* method = klass->FindDirectMethod(name, sig);
@@ -923,7 +925,7 @@ jobject CallStaticObjectMethod(JNIEnv* env,
   va_list ap;
   va_start(ap, methodID);
   JValue result = InvokeWithVarArgs(ts.Self(), NULL, methodID, ap);
-  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: local reference
+  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: AddLocalReference
   return obj;
 }
 
@@ -931,7 +933,7 @@ jobject CallStaticObjectMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
   JValue result = InvokeWithVarArgs(ts.Self(), NULL, methodID, args);
-  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: local reference
+  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: AddLocalReference
   return obj;
 }
 
@@ -939,7 +941,7 @@ jobject CallStaticObjectMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
   JValue result = InvokeWithJValues(ts.Self(), NULL, methodID, args);
-  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: local reference
+  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: AddLocalReference
   return obj;
 }
 
@@ -1282,13 +1284,6 @@ jsize GetArrayLength(JNIEnv* env, jarray array) {
   return 0;
 }
 
-jobjectArray NewObjectArray(JNIEnv* env,
-    jsize len, jclass clazz, jobject init) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
 jobject GetObjectArrayElement(JNIEnv* env, jobjectArray array, jsize index) {
   ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
@@ -1305,48 +1300,73 @@ template<typename JniT, typename ArtT>
 JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
   CHECK_GE(length, 0); // TODO: ReportJniError
   ArtT* result = ArtT::Alloc(length);
-  // TODO: local reference
+  // TODO: AddLocalReference
   return reinterpret_cast<JniT>(result);
 }
 
-jbooleanArray NewBooleanArray(JNIEnv* env, jsize len) {
+jbooleanArray NewBooleanArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jbooleanArray, BooleanArray>(ts, len);
+  return NewPrimitiveArray<jbooleanArray, BooleanArray>(ts, length);
 }
 
-jbyteArray NewByteArray(JNIEnv* env, jsize len) {
+jbyteArray NewByteArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jbyteArray, ByteArray>(ts, len);
+  return NewPrimitiveArray<jbyteArray, ByteArray>(ts, length);
 }
 
-jcharArray NewCharArray(JNIEnv* env, jsize len) {
+jcharArray NewCharArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jcharArray, CharArray>(ts, len);
+  return NewPrimitiveArray<jcharArray, CharArray>(ts, length);
 }
 
-jdoubleArray NewDoubleArray(JNIEnv* env, jsize len) {
+jdoubleArray NewDoubleArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jdoubleArray, DoubleArray>(ts, len);
+  return NewPrimitiveArray<jdoubleArray, DoubleArray>(ts, length);
 }
 
-jfloatArray NewFloatArray(JNIEnv* env, jsize len) {
+jfloatArray NewFloatArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jfloatArray, FloatArray>(ts, len);
+  return NewPrimitiveArray<jfloatArray, FloatArray>(ts, length);
 }
 
-jintArray NewIntArray(JNIEnv* env, jsize len) {
+jintArray NewIntArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jintArray, IntArray>(ts, len);
+  return NewPrimitiveArray<jintArray, IntArray>(ts, length);
 }
 
-jlongArray NewLongArray(JNIEnv* env, jsize len) {
+jlongArray NewLongArray(JNIEnv* env, jsize length) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jlongArray, LongArray>(ts, len);
+  return NewPrimitiveArray<jlongArray, LongArray>(ts, length);
 }
 
-jshortArray NewShortArray(JNIEnv* env, jsize len) {
+jobjectArray NewObjectArray(JNIEnv* env, jsize length, jclass element_jclass, jobject initial_element) {
   ScopedJniThreadState ts(env);
-  return NewPrimitiveArray<jshortArray, ShortArray>(ts, len);
+  CHECK_GE(length, 0); // TODO: ReportJniError
+
+  // Compute the array class corresponding to the given element class.
+  // TODO: DecodeReference
+  Class* element_class = reinterpret_cast<Class*>(element_jclass);
+  std::string descriptor;
+  descriptor += "[";
+  descriptor += element_class->GetDescriptor().ToString();
+
+  // Find the class.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  // TODO: need to get the appropriate ClassLoader.
+  Class* array_class = class_linker->FindClass(descriptor, NULL);
+  if (array_class == NULL) {
+    return NULL;
+  }
+
+  ObjectArray<Object>* result = ObjectArray<Object>::Alloc(array_class, length);
+  CHECK(initial_element == NULL);  // TODO: support initial_element
+  // TODO: AddLocalReference.
+  return reinterpret_cast<jobjectArray>(result);
+}
+
+jshortArray NewShortArray(JNIEnv* env, jsize length) {
+  ScopedJniThreadState ts(env);
+  return NewPrimitiveArray<jshortArray, ShortArray>(ts, length);
 }
 
 jboolean* GetBooleanArrayElements(JNIEnv* env,
@@ -1572,8 +1592,13 @@ jint MonitorExit(JNIEnv* env, jobject obj) {
 
 jint GetJavaVM(JNIEnv* env, JavaVM** vm) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Runtime* runtime = Runtime::Current();
+  if (runtime != NULL) {
+    *vm = runtime->GetJavaVM();
+  } else {
+    *vm = NULL;
+  }
+  return (*vm != NULL) ? JNI_OK : JNI_ERR;
 }
 
 void GetStringRegion(JNIEnv* env,
@@ -1902,9 +1927,10 @@ void MonitorExitHelper(JNIEnv* env, jobject obj) {
 JNIEnv* CreateJNIEnv() {
   Thread* self = Thread::Current();
   CHECK(self != NULL);
-  JNIEnvExt* result = (JNIEnvExt*) calloc(1, sizeof(JNIEnvExt));
+  JNIEnvExt* result = new JNIEnvExt;
   result->fns = &gNativeInterface;
   result->self = self;
+  result->critical = false;
   result->MonitorEnterHelper = &MonitorEnterHelper;
   result->MonitorExitHelper = &MonitorExitHelper;
   return reinterpret_cast<JNIEnv*>(result);
@@ -1924,24 +1950,23 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
                                      option->extraInfo));
   }
   bool ignore_unrecognized = args->ignoreUnrecognized;
-  scoped_ptr<Runtime> runtime(Runtime::Create(options, ignore_unrecognized));
+  Runtime* runtime = Runtime::Create(options, ignore_unrecognized);
   if (runtime == NULL) {
     return JNI_ERR;
   } else {
     *p_env = reinterpret_cast<JNIEnv*>(Thread::Current()->GetJniEnv());
-    *p_vm = reinterpret_cast<JavaVM*>(runtime.release());
+    *p_vm = runtime->GetJavaVM();
     return JNI_OK;
   }
 }
 
-extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vmBuf, jsize bufLen,
-                                      jsize* nVMs) {
+extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {
   Runtime* runtime = Runtime::Current();
   if (runtime == NULL) {
-    *nVMs = 0;
+    *vm_count = 0;
   } else {
-    *nVMs = 1;
-    vmBuf[0] = reinterpret_cast<JavaVM*>(runtime);
+    *vm_count = 1;
+    vms[0] = runtime->GetJavaVM();
   }
   return JNI_OK;
 }
@@ -1951,23 +1976,23 @@ extern "C" jint JNI_GetDefaultJavaVMInitArgs(void* vm_args) {
   return JNI_ERR;
 }
 
-jint JniInvokeInterface::DestroyJavaVM(JavaVM* vm) {
+jint DestroyJavaVM(JavaVM* vm) {
   if (vm == NULL) {
     return JNI_ERR;
   } else {
-    Runtime* runtime = reinterpret_cast<Runtime*>(vm);
-    delete runtime;
+    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+    delete raw_vm->runtime;
+    raw_vm->runtime = NULL;
     return JNI_OK;
   }
 }
 
-jint JniInvokeInterface::AttachCurrentThread(JavaVM* vm,
-                                             JNIEnv** p_env,
-                                             void* thr_args) {
+jint AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
   if (vm == NULL || p_env == NULL) {
     return JNI_ERR;
   }
-  Runtime* runtime = reinterpret_cast<Runtime*>(vm);
+  JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+  Runtime* runtime = raw_vm->runtime;
   const char* name = NULL;
   if (thr_args != NULL) {
     // TODO: check version
@@ -1982,17 +2007,18 @@ jint JniInvokeInterface::AttachCurrentThread(JavaVM* vm,
   }
 }
 
-jint JniInvokeInterface::DetachCurrentThread(JavaVM* vm) {
+jint DetachCurrentThread(JavaVM* vm) {
   if (vm == NULL) {
     return JNI_ERR;
   } else {
-    Runtime* runtime = reinterpret_cast<Runtime*>(vm);
+    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+    Runtime* runtime = raw_vm->runtime;
     runtime->DetachCurrentThread();
     return JNI_OK;
   }
 }
 
-jint JniInvokeInterface::GetEnv(JavaVM* vm, void** env, jint version) {
+jint GetEnv(JavaVM* vm, void** env, jint version) {
   if (version < JNI_VERSION_1_1 || version > JNI_VERSION_1_6) {
     return JNI_EVERSION;
   }
@@ -2008,13 +2034,12 @@ jint JniInvokeInterface::GetEnv(JavaVM* vm, void** env, jint version) {
   return JNI_OK;
 }
 
-jint JniInvokeInterface::AttachCurrentThreadAsDaemon(JavaVM* vm,
-                                                     JNIEnv** p_env,
-                                                     void* thr_args) {
+jint AttachCurrentThreadAsDaemon(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
   if (vm == NULL || p_env == NULL) {
     return JNI_ERR;
   }
-  Runtime* runtime = reinterpret_cast<Runtime*>(vm);
+  JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+  Runtime* runtime = raw_vm->runtime;
   const char* name = NULL;
   if (thr_args != NULL) {
     // TODO: check version
@@ -2029,7 +2054,7 @@ jint JniInvokeInterface::AttachCurrentThreadAsDaemon(JavaVM* vm,
   }
 }
 
-struct JNIInvokeInterface JniInvokeInterface::invoke_interface_ = {
+struct JNIInvokeInterface gInvokeInterface = {
   NULL,  // reserved0
   NULL,  // reserved1
   NULL,  // reserved2
@@ -2039,5 +2064,12 @@ struct JNIInvokeInterface JniInvokeInterface::invoke_interface_ = {
   GetEnv,
   AttachCurrentThreadAsDaemon
 };
+
+JavaVM* CreateJavaVM(Runtime* runtime) {
+  JavaVMExt* result = new JavaVMExt;
+  result->fns = &gInvokeInterface;
+  result->runtime = runtime;
+  return reinterpret_cast<JavaVM*>(result);
+}
 
 }  // namespace art

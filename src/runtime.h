@@ -9,6 +9,7 @@
 #include "jni.h"
 #include "globals.h"
 #include "macros.h"
+#include "scoped_ptr.h"
 #include "stringpiece.h"
 
 namespace art {
@@ -53,6 +54,10 @@ class Runtime {
     return class_linker_;
   }
 
+  JavaVM* GetJavaVM() {
+    return java_vm_.get();
+  }
+
   void SetVfprintfHook(void* hook);
 
   void SetExitHook(void* hook);
@@ -70,6 +75,8 @@ class Runtime {
   ThreadList* thread_list_;
 
   ClassLinker* class_linker_;
+
+  scoped_ptr<JavaVM> java_vm_;
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;

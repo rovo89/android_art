@@ -93,7 +93,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
   return true;
 }
 
-static bool InvokeMain(JavaVM* vm, JNIEnv* env, int argc, char** argv) {
+static bool InvokeMain(JNIEnv* env, int argc, char** argv) {
   // We want to call main() with a String array with our arguments in
   // it.  Create an array and populate it.  Note argv[0] is not
   // included.
@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
   DCHECK_LE(curr_opt, option_count);
 
   JavaVMInitArgs init_args;
-  init_args.version = JNI_VERSION_1_4;
+  init_args.version = JNI_VERSION_1_6;
   init_args.options = options.get();
   init_args.nOptions = curr_opt;
   init_args.ignoreUnrecognized = JNI_FALSE;
@@ -212,18 +212,17 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  bool success = InvokeMain(vm, env, argc - arg_idx, &argv[arg_idx]);
+  bool success = InvokeMain(env, argc - arg_idx, &argv[arg_idx]);
 
-  if (vm != NULL && vm->DetachCurrentThread() != JNI_OK) {
+  if (vm->DetachCurrentThread() != JNI_OK) {
     fprintf(stderr, "Warning: unable to detach main thread\n");
     success = false;
   }
 
-  if (vm != NULL && vm->DestroyJavaVM() != 0) {
+  if (vm->DestroyJavaVM() != 0) {
     fprintf(stderr, "Warning: VM did not shut down cleanly\n");
     success = false;
   }
 
-  int retval = success ? EXIT_SUCCESS : EXIT_FAILURE;
-  return retval;
+  return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

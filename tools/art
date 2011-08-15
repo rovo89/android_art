@@ -18,9 +18,11 @@ mkdir -p /tmp/android-data/art-cache
 ANDROID_DATA=/tmp/android-data \
 ANDROID_ROOT=$ANDROID_BUILD_TOP/out/host/linux-x86 \
 LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/out/host/linux-x86/lib \
-$ANDROID_BUILD_TOP/out/host/linux-x86/bin/aexecd \
+$ANDROID_BUILD_TOP/out/host/linux-x86/bin/aexec \
 -Xbootclasspath\
 :$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-hostdex.jar\
+:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-junit-hostdex.jar\
+:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-tests-hostdex.jar\
 :$ANDROID_BUILD_TOP/out/host/linux-x86/framework/bouncycastle-hostdex.jar\
 :$ANDROID_BUILD_TOP/out/host/linux-x86/framework/apache-xml-hostdex.jar \
 $*

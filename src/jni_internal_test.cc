@@ -60,6 +60,10 @@ TEST_F(JniInternalTest, FindClass) {
 TEST_F(JniInternalTest, NewPrimitiveArray) {
   // TODO: death tests for negative array sizes.
 
+  // TODO: check returned array size.
+
+  // TODO: check returned array class.
+
   CHECK(env_->NewBooleanArray(0) != NULL);
   CHECK(env_->NewByteArray(0) != NULL);
   CHECK(env_->NewCharArray(0) != NULL);
@@ -77,6 +81,22 @@ TEST_F(JniInternalTest, NewPrimitiveArray) {
   CHECK(env_->NewIntArray(1) != NULL);
   CHECK(env_->NewLongArray(1) != NULL);
   CHECK(env_->NewShortArray(1) != NULL);
+}
+
+TEST_F(JniInternalTest, NewObjectArray) {
+  // TODO: death tests for negative array sizes.
+
+  // TODO: check returned array size.
+
+  // TODO: check returned array class.
+
+  // TODO: check non-NULL initial elements.
+
+  jclass c = env_->FindClass("[Ljava.lang.String;");
+
+  CHECK(env_->NewObjectArray(0, c, NULL) != NULL);
+
+  CHECK(env_->NewObjectArray(1, c, NULL) != NULL);
 }
 
 bool EnsureInvokeStub(Method* method);

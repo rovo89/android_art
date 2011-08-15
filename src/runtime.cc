@@ -146,6 +146,7 @@ bool Runtime::Init(const std::vector<DexFile*>& boot_class_path) {
   Thread* current_thread = Thread::Attach();
   thread_list_->Register(current_thread);
   class_linker_ = ClassLinker::Create(boot_class_path);
+  java_vm_.reset(CreateJavaVM(this));
   return true;
 }
 

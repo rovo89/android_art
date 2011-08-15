@@ -10,12 +10,22 @@
 
 namespace art {
 
+class Runtime;
 class Thread;
 
+JavaVM* CreateJavaVM(Runtime* runtime);
 JNIEnv* CreateJNIEnv();
 
+struct JavaVMExt {
+  // Must be first to correspond with JNIEnv.
+  const struct JNIInvokeInterface* fns;
+
+  Runtime* runtime;
+};
+
 struct JNIEnvExt {
-  const struct JNINativeInterface* fns;  // Must be first.
+  // Must be first to correspond with JavaVM.
+  const struct JNINativeInterface* fns;
 
   Thread* self;
 
@@ -26,23 +36,6 @@ struct JNIEnvExt {
   // TODO: make jni_compiler.cc do the indirection itself.
   void (*MonitorEnterHelper)(JNIEnv*, jobject);
   void (*MonitorExitHelper)(JNIEnv*, jobject);
-};
-
-class JniInvokeInterface {
- public:
-  static struct JNIInvokeInterface* GetInterface() {
-    return &invoke_interface_;
-  }
- private:
-  static jint DestroyJavaVM(JavaVM* vm);
-  static jint AttachCurrentThread(JavaVM* vm, JNIEnv** penv, void* thr_args);
-  static jint DetachCurrentThread(JavaVM* vm);
-  static jint GetEnv(JavaVM* vm, void** penv, int version);
-  static jint AttachCurrentThreadAsDaemon(JavaVM* vm,
-                                          JNIEnv** penv,
-                                          void* thr_args);
-  static struct JNIInvokeInterface invoke_interface_;
-  DISALLOW_IMPLICIT_CONSTRUCTORS(JniInvokeInterface);
 };
 
 }  // namespace art
