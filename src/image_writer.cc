@@ -22,7 +22,7 @@ bool ImageWriter::Write(Space* space, const char* filename, byte* image_base) {
   }
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
-  
+
   scoped_ptr<File> file(OS::OpenBinaryFile(filename, true));
   if (file == NULL) {
     return false;
@@ -72,7 +72,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object *obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
-  
+
   size_t offset = image_writer->GetImageOffset(obj);
   byte* dst = image_writer->mem_map_->GetAddress() + offset;
   byte* src = reinterpret_cast<byte*>(obj);
@@ -96,7 +96,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
 }
 
 void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
-  for (size_t i = 0; i < orig->GetLength(); ++i) {
+  for (int32_t i = 0; i < orig->GetLength(); ++i) {
     const Object* element = orig->Get(i);
     copy->Set(i, GetImageAddress(element));
   }

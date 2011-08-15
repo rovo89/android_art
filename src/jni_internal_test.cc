@@ -57,6 +57,28 @@ TEST_F(JniInternalTest, FindClass) {
   EXPECT_CLASS_NOT_FOUND("K");
 }
 
+TEST_F(JniInternalTest, NewPrimitiveArray) {
+  // TODO: death tests for negative array sizes.
+
+  CHECK(env_->NewBooleanArray(0) != NULL);
+  CHECK(env_->NewByteArray(0) != NULL);
+  CHECK(env_->NewCharArray(0) != NULL);
+  CHECK(env_->NewDoubleArray(0) != NULL);
+  CHECK(env_->NewFloatArray(0) != NULL);
+  CHECK(env_->NewIntArray(0) != NULL);
+  CHECK(env_->NewLongArray(0) != NULL);
+  CHECK(env_->NewShortArray(0) != NULL);
+
+  CHECK(env_->NewBooleanArray(1) != NULL);
+  CHECK(env_->NewByteArray(1) != NULL);
+  CHECK(env_->NewCharArray(1) != NULL);
+  CHECK(env_->NewDoubleArray(1) != NULL);
+  CHECK(env_->NewFloatArray(1) != NULL);
+  CHECK(env_->NewIntArray(1) != NULL);
+  CHECK(env_->NewLongArray(1) != NULL);
+  CHECK(env_->NewShortArray(1) != NULL);
+}
+
 bool EnsureInvokeStub(Method* method);
 
 byte* AllocateCode(void* code, size_t length) {

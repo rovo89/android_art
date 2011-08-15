@@ -31,6 +31,8 @@ class ClassLinker {
   Class* FindClass(const StringPiece& descriptor,
                    ClassLoader* class_loader);
 
+  Class* FindPrimitiveClass(char type);
+
   Class* FindSystemClass(const StringPiece& descriptor) {
     return FindClass(descriptor, NULL);
   }
@@ -42,8 +44,9 @@ class ClassLinker {
   void VisitRoots(Heap::RootVistor* root_visitor, void* arg);
 
  private:
-  ClassLinker() {
-    classes_lock_ = Mutex::Create("ClassLinker::Lock");
+  ClassLinker()
+      : classes_lock_(Mutex::Create("ClassLinker::Lock")),
+        init_done_(false) {
   }
 
   void Init(const std::vector<DexFile*>& boot_class_path_);
@@ -68,8 +71,6 @@ class ClassLinker {
 
   Class* CreateArrayClass(const StringPiece& descriptor,
                           ClassLoader* class_loader);
-
-  Class* FindPrimitiveClass(char type);
 
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
 
@@ -165,23 +166,28 @@ class ClassLinker {
     kJavaLangObject,
     kObjectArrayClass,
     kJavaLangString,
-    kCharArrayClass,
-    kIntArrayClass,
-    kLongArrayClass,
     kJavaLangReflectField,
     kJavaLangReflectMethod,
     kJavaLangClassLoader,
     kDalvikSystemBaseDexClassLoader,
     kDalvikSystemPathClassLoader,
     kPrimitiveBoolean,
-    kPrimitiveChar,
-    kPrimitiveFloat,
-    kPrimitiveDouble,
     kPrimitiveByte,
-    kPrimitiveShort,
+    kPrimitiveChar,
+    kPrimitiveDouble,
+    kPrimitiveFloat,
     kPrimitiveInt,
     kPrimitiveLong,
+    kPrimitiveShort,
     kPrimitiveVoid,
+    kBooleanArrayClass,
+    kByteArrayClass,
+    kCharArrayClass,
+    kDoubleArrayClass,
+    kFloatArrayClass,
+    kIntArrayClass,
+    kLongArrayClass,
+    kShortArrayClass,
     kClassRootsMax,
   };
   ObjectArray<Class>* class_roots_;

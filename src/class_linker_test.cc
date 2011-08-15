@@ -372,8 +372,8 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 }
 
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
-  Class* array_class = class_linker_->FindSystemClass("[J");
-  LongArray* array = LongArray::Alloc(array_class, 0);
+  LongArray* array = LongArray::Alloc(0);
+  EXPECT_EQ(class_linker_->FindSystemClass("[J"), array->GetClass());
   uint32_t array_offset = reinterpret_cast<uint32_t>(array);
   uint32_t data_offset = reinterpret_cast<uint32_t>(array->GetData());
   EXPECT_EQ(16U, data_offset - array_offset);

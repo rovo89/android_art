@@ -27,9 +27,14 @@ class Object;
 class String;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
+typedef PrimitiveArray<uint8_t> BooleanArray;
+typedef PrimitiveArray<int8_t> ByteArray;
 typedef PrimitiveArray<uint16_t> CharArray;
-typedef PrimitiveArray<uint32_t> IntArray;
-typedef PrimitiveArray<uint64_t> LongArray;
+typedef PrimitiveArray<double> DoubleArray;
+typedef PrimitiveArray<float> FloatArray;
+typedef PrimitiveArray<int32_t> IntArray;
+typedef PrimitiveArray<int64_t> LongArray;
+typedef PrimitiveArray<int16_t> ShortArray;
 
 union JValue {
   uint8_t z;
@@ -611,7 +616,7 @@ class Array : public Object {
 
   size_t Size() const;
 
-  uint32_t GetLength() const {
+  int32_t GetLength() const {
     return length_;
   }
 
@@ -644,12 +649,12 @@ class ObjectArray : public Array {
     return reinterpret_cast<T**>(&elements_);
   }
 
-  T* Get(uint32_t i) const {
+  T* Get(int32_t i) const {
     CHECK_LT(i, GetLength());
     return GetData()[i];
   }
 
-  void Set(uint32_t i, T* object) {
+  void Set(int32_t i, T* object) {
     CHECK_LT(i, GetLength());
     GetData()[i] = object;  // TODO: write barrier
   }
@@ -662,7 +667,7 @@ class ObjectArray : public Array {
     }
   }
 
-  ObjectArray<T>* CopyOf(size_t new_length) {
+  ObjectArray<T>* CopyOf(int32_t new_length) {
     ObjectArray<T>* new_array = Alloc(klass_, new_length);
     Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
     return new_array;
@@ -795,22 +800,26 @@ class Class : public Object {
     return component_type_;
   }
 
-  size_t GetComponentSize() const {
-    switch (component_type_->descriptor_[0]) {
-      case 'B': return 1;  // byte
-      case 'C': return 2;  // char
-      case 'D': return 8;  // double
-      case 'F': return 4;  // float
-      case 'I': return 4;  // int
-      case 'J': return 8;  // long
-      case 'S': return 2;  // short
-      case 'Z': return 1;  // boolean
-      case 'L': return sizeof(Object*);
-      case '[': return sizeof(Array*);
-      default: 
-        LOG(ERROR) << "Unknown component type " << component_type_->descriptor_;
-        return 0;
+  static size_t GetTypeSize(const StringPiece& descriptor) {
+    switch (descriptor[0]) {
+    case 'B': return 1;  // byte
+    case 'C': return 2;  // char
+    case 'D': return 8;  // double
+    case 'F': return 4;  // float
+    case 'I': return 4;  // int
+    case 'J': return 8;  // long
+    case 'S': return 2;  // short
+    case 'Z': return 1;  // boolean
+    case 'L': return sizeof(Object*);
+    case '[': return sizeof(Array*);
+    default:
+      LOG(ERROR) << "Unknown type " << descriptor;
+      return 0;
     }
+  }
+
+  size_t GetComponentSize() const {
+    return GetTypeSize(component_type_->descriptor_);
   }
 
   const StringPiece& GetDescriptor() const {
@@ -902,7 +911,7 @@ class Class : public Object {
     return (direct_methods_ != NULL) ? direct_methods_->GetLength() : 0;
   }
 
-  Method* GetDirectMethod(uint32_t i) const {
+  Method* GetDirectMethod(int32_t i) const {
     DCHECK_NE(NumDirectMethods(), 0U);
     return direct_methods_->Get(i);
   }
@@ -1186,11 +1195,7 @@ class DataObject : public Object {
 template<class T>
 class PrimitiveArray : public Array {
  public:
-  static PrimitiveArray<T>* Alloc(Class* element_class, size_t length) {
-    return down_cast<PrimitiveArray<T>*>(Array::Alloc(element_class,
-                                         length,
-                                         sizeof(T)));
-  }
+  static PrimitiveArray<T>* Alloc(size_t length);
 
   const T* GetData() const {
     return reinterpret_cast<const T*>(&elements_);
@@ -1200,19 +1205,26 @@ class PrimitiveArray : public Array {
     return reinterpret_cast<T*>(&elements_);
   }
 
-  T Get(T i) const {
+  T Get(int32_t i) const {
     CHECK_LT(i, GetLength());
     return GetData()[i];
   }
 
-  void Set(uint32_t i, T value) {
+  void Set(int32_t i, T value) {
     CHECK_LT(i, GetLength());
     GetData()[i] = value;
+  }
+
+  static void SetArrayClass(Class* array_class) {
+    CHECK(array_class != NULL);
+    array_class_ = array_class;
   }
 
  private:
   // Location of first element.
   T elements_[0];
+
+  static Class* array_class_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(PrimitiveArray);
 };
@@ -1245,7 +1257,6 @@ class String : public Object {
                                 uint16_t* utf16_data_in,
                                 int32_t hash_code) {
     String* string = Alloc(GetJavaLangString(),
-                           GetCharArrayClass(),
                            utf16_length);
     // TODO use 16-bit wide memset variant
     for (int i = 0; i < utf16_length; i++ ) {
@@ -1256,10 +1267,9 @@ class String : public Object {
   }
 
   static String* AllocFromModifiedUtf8(Class* java_lang_String,
-                                       Class* char_array,
                                        int32_t utf16_length,
                                        const char* utf8_data_in) {
-    String* string = Alloc(java_lang_String, char_array, utf16_length);
+    String* string = Alloc(java_lang_String, utf16_length);
     uint16_t* utf16_data_out = string->array_->GetData();
     ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
     string->ComputeHashCode();
@@ -1270,24 +1280,22 @@ class String : public Object {
   // using non-ASCII characters as this function assumes one char per byte.
   static String* AllocFromAscii(const char* ascii_data_in) {
     return AllocFromModifiedUtf8(GetJavaLangString(),
-                                 GetCharArrayClass(),
                                  strlen(ascii_data_in),
                                  ascii_data_in);
   }
 
   static String* AllocFromModifiedUtf8(int32_t utf16_length,
                                        const char* utf8_data_in) {
-    return AllocFromModifiedUtf8(GetJavaLangString(), GetCharArrayClass(),
+    return AllocFromModifiedUtf8(GetJavaLangString(),
                                  utf16_length, utf8_data_in);
   }
 
-  static void InitClasses(Class* java_lang_String, Class* char_array);
+  static void InitClasses(Class* java_lang_String);
 
   static String* Alloc(Class* java_lang_String,
-                       Class* char_array,
                        int32_t utf16_length) {
     String* string = down_cast<String*>(java_lang_String->NewInstance());
-    CharArray* array = CharArray::Alloc(char_array, utf16_length);
+    CharArray* array = CharArray::Alloc(utf16_length);
     string->array_ = array;
     string->count_ = utf16_length;
     return string;
@@ -1428,13 +1436,8 @@ class String : public Object {
     DCHECK(java_lang_String_ != NULL);
     return java_lang_String_;
   }
-  static Class* GetCharArrayClass() {
-    DCHECK(char_array_ != NULL);
-    return char_array_;
-  }
 
   static Class* java_lang_String_;
-  static Class* char_array_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };

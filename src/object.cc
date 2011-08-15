@@ -5,6 +5,7 @@
 #include <string.h>
 #include <algorithm>
 
+#include "class_linker.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"
@@ -441,13 +442,29 @@ Method* Class::FindVirtualMethod(const StringPiece& name,
   return NULL;
 }
 
+template<typename T>
+PrimitiveArray<T>* PrimitiveArray<T>::Alloc(size_t length) {
+  Array* raw_array = Array::Alloc(array_class_, length, sizeof(T));
+  return down_cast<PrimitiveArray<T>*>(raw_array);
+}
+
+template <typename T> Class* PrimitiveArray<T>::array_class_ = NULL;
+
+// Explicitly instantiate all the primitive array types.
+template class PrimitiveArray<uint8_t>;   // BooleanArray
+template class PrimitiveArray<int8_t>;    // ByteArray
+template class PrimitiveArray<uint16_t>;  // CharArray
+template class PrimitiveArray<double>;    // DoubleArray
+template class PrimitiveArray<float>;     // FloatArray
+template class PrimitiveArray<int32_t>;   // IntArray
+template class PrimitiveArray<int64_t>;   // LongArray
+template class PrimitiveArray<int16_t>;   // ShortArray
+
 // TODO: get global references for these
 Class* String::java_lang_String_ = NULL;
-Class* String::char_array_ = NULL;
 
-void String::InitClasses(Class* java_lang_String, Class* char_array) {
+void String::InitClasses(Class* java_lang_String) {
   java_lang_String_ = java_lang_String;
-  char_array_ = char_array;
 }
 
 static const char* kClassStatusNames[] = {

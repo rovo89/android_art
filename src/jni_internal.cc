@@ -79,7 +79,7 @@ bool EnsureInvokeStub(Method* method) {
   return true;
 }
 
-static byte* CreateArgArray(Method* method, va_list ap) {
+byte* CreateArgArray(Method* method, va_list ap) {
   size_t num_bytes = method->NumArgArrayBytes();
   scoped_array<byte> arg_array(new byte[num_bytes]);
   const StringPiece& shorty = method->GetShorty();
@@ -117,7 +117,7 @@ static byte* CreateArgArray(Method* method, va_list ap) {
   return arg_array.release();
 }
 
-static byte* CreateArgArray(Method* method, jvalue* args) {
+byte* CreateArgArray(Method* method, jvalue* args) {
   size_t num_bytes = method->NumArgArrayBytes();
   scoped_array<byte> arg_array(new byte[num_bytes]);
   const StringPiece& shorty = method->GetShorty();
@@ -1301,52 +1301,52 @@ void SetObjectArrayElement(JNIEnv* env,
   UNIMPLEMENTED(FATAL);
 }
 
+template<typename JniT, typename ArtT>
+JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
+  CHECK_GE(length, 0); // TODO: ReportJniError
+  ArtT* result = ArtT::Alloc(length);
+  // TODO: local reference
+  return reinterpret_cast<JniT>(result);
+}
+
 jbooleanArray NewBooleanArray(JNIEnv* env, jsize len) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  return NewPrimitiveArray<jbooleanArray, BooleanArray>(ts, len);
 }
 
 jbyteArray NewByteArray(JNIEnv* env, jsize len) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  return NewPrimitiveArray<jbyteArray, ByteArray>(ts, len);
 }
 
 jcharArray NewCharArray(JNIEnv* env, jsize len) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
-jshortArray NewShortArray(JNIEnv* env, jsize len) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
-jintArray NewIntArray(JNIEnv* env, jsize len) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
-jlongArray NewLongArray(JNIEnv* env, jsize len) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
-jfloatArray NewFloatArray(JNIEnv* env, jsize len) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  return NewPrimitiveArray<jcharArray, CharArray>(ts, len);
 }
 
 jdoubleArray NewDoubleArray(JNIEnv* env, jsize len) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  return NewPrimitiveArray<jdoubleArray, DoubleArray>(ts, len);
+}
+
+jfloatArray NewFloatArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
+  return NewPrimitiveArray<jfloatArray, FloatArray>(ts, len);
+}
+
+jintArray NewIntArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
+  return NewPrimitiveArray<jintArray, IntArray>(ts, len);
+}
+
+jlongArray NewLongArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
+  return NewPrimitiveArray<jlongArray, LongArray>(ts, len);
+}
+
+jshortArray NewShortArray(JNIEnv* env, jsize len) {
+  ScopedJniThreadState ts(env);
+  return NewPrimitiveArray<jshortArray, ShortArray>(ts, len);
 }
 
 jboolean* GetBooleanArrayElements(JNIEnv* env,

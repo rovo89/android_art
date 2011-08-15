@@ -55,7 +55,7 @@ TEST_F(ObjectTest, IsInSamePackage) {
 
 TEST_F(ObjectTest, AllocObjectArray) {
   ObjectArray<Object>* oa = class_linker_->AllocObjectArray<Object>(2);
-  EXPECT_EQ(2U, oa->GetLength());
+  EXPECT_EQ(2, oa->GetLength());
   EXPECT_TRUE(oa->Get(0) == NULL);
   EXPECT_TRUE(oa->Get(1) == NULL);
   oa->Set(0, oa);

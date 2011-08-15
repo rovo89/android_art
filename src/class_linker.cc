@@ -27,7 +27,7 @@ ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path) {
 }
 
 void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
-  init_done_ = false;
+  CHECK(!init_done_);
 
   // java_lang_Class comes first, its needed for AllocClass
   Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
@@ -61,14 +61,17 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   Class* char_array_class = AllocClass(java_lang_Class);
   CHECK(char_array_class != NULL);
   char_array_class->descriptor_ = "[C";
+  CharArray::SetArrayClass(char_array_class);
 
   // int[] and long[] are used for static field storage
   Class* int_array_class = AllocClass(java_lang_Class);
   CHECK(int_array_class != NULL);
   int_array_class->descriptor_ = "[I";
+  IntArray::SetArrayClass(int_array_class);
   Class* long_array_class = AllocClass(java_lang_Class);
   CHECK(long_array_class != NULL);
   long_array_class->descriptor_ = "[J";
+  LongArray::SetArrayClass(long_array_class);
 
   // Field and Method are necessary so that FindClass can link members
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class);
@@ -95,7 +98,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
-  String::InitClasses(java_lang_String, char_array_class);
+  String::InitClasses(java_lang_String);
   // Now AllocString* can be used
 
   // setup boot_class_path_ now that we can use AllocObjectArray to
@@ -172,6 +175,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
 
   // Setup the primitive type classes.
+  class_roots_->Set(kPrimitiveBoolean, CreatePrimitiveClass("Z"));
   class_roots_->Set(kPrimitiveByte, CreatePrimitiveClass("B"));
   class_roots_->Set(kPrimitiveChar, CreatePrimitiveClass("C"));
   class_roots_->Set(kPrimitiveDouble, CreatePrimitiveClass("D"));
@@ -179,7 +183,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kPrimitiveInt, CreatePrimitiveClass("I"));
   class_roots_->Set(kPrimitiveLong, CreatePrimitiveClass("J"));
   class_roots_->Set(kPrimitiveShort, CreatePrimitiveClass("S"));
-  class_roots_->Set(kPrimitiveBoolean, CreatePrimitiveClass("Z"));
   class_roots_->Set(kPrimitiveVoid, CreatePrimitiveClass("V"));
   // now we can use FindSystemClass for anything, including for "[C"
 
@@ -190,6 +193,19 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK_EQ(int_array_class, found_int_array_class);
   Class* found_long_array_class = FindSystemClass("[J");
   CHECK_EQ(long_array_class, found_long_array_class);
+
+  // Initialize all the other primitive array types for PrimitiveArray::Alloc.
+  // These are easy because everything we need has already been set up.
+  class_roots_->Set(kBooleanArrayClass, FindSystemClass("[Z"));
+  class_roots_->Set(kByteArrayClass, FindSystemClass("[B"));
+  class_roots_->Set(kDoubleArrayClass, FindSystemClass("[D"));
+  class_roots_->Set(kFloatArrayClass, FindSystemClass("[F"));
+  class_roots_->Set(kShortArrayClass, FindSystemClass("[S"));
+  BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
+  ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
+  DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
+  FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
+  ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
   // ensure all class_roots_ were initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
@@ -1378,12 +1394,10 @@ bool ClassLinker::LinkStaticFields(Class* klass) {
     klass->static_references_ = ObjectArray<Object>::Alloc(array_class, next_reference_slot);
   }
   if (next_32bit_primitive_slot > 0) {
-    Class* array_class = GetClassRoot(kIntArrayClass);
-    klass->static_32bit_primitives_ = IntArray::Alloc(array_class, next_32bit_primitive_slot);
+    klass->static_32bit_primitives_ = IntArray::Alloc(next_32bit_primitive_slot);
   }
   if (next_64bit_primitive_slot > 0) {
-    Class* array_class = GetClassRoot(kLongArrayClass);
-    klass->static_64bit_primitives_ = LongArray::Alloc(array_class, next_64bit_primitive_slot);
+    klass->static_64bit_primitives_ = LongArray::Alloc(next_64bit_primitive_slot);
   }
 
   return true;
