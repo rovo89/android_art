@@ -13,8 +13,7 @@ class OS {
  public:
 
   // Open a file. The returned file must be deleted by the caller.
-  static File* OpenBinaryFile(const char* name, bool writable);
-  static File* OpenTextFile(const char* name, bool writable);
+  static File* OpenFile(const char* name, bool writable);
 
   // Create a file from an already open file descriptor
   static File* FileFromFd(const char* name, int fd);

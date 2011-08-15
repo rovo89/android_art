@@ -67,7 +67,7 @@ class MemMap {
 
   ~MemMap() {
     Unmap();
-  };
+  }
 
   // Release a memory mapping, returning true on success or it was previously unmapped.
   bool Unmap() {

@@ -23,11 +23,11 @@ bool ImageWriter::Write(Space* space, const char* filename, byte* image_base) {
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 
-  scoped_ptr<File> file(OS::OpenBinaryFile(filename, true));
+  scoped_ptr<File> file(OS::OpenFile(filename, true));
   if (file == NULL) {
     return false;
   }
-  return file->WriteFully(mem_map_->GetAddress(), top_);
+  return file->WriteFully(image_->GetAddress(), image_top_);
 }
 
 bool ImageWriter::Init(Space* space) {
@@ -35,31 +35,32 @@ bool ImageWriter::Init(Space* space) {
   int prot = PROT_READ | PROT_WRITE;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
   size_t length = RoundUp(size, kPageSize);
-  mem_map_.reset(MemMap::Map(length, prot, flags));
-  if (mem_map_ == NULL) {
+  image_.reset(MemMap::Map(length, prot, flags));
+  if (image_ == NULL) {
     PLOG(ERROR) << "mmap failed";
     return false;
   }
   return true;
 }
 
-void ImageWriter::CalculateNewObjectOffsets() {
-  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
-  DCHECK(heap_bitmap != NULL);
-  DCHECK_EQ(0U, top_);
-  top_ += sizeof(uint64_t);  // leave a header, ensures objects have non-zero offset for DCHECKs
-  heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);
-  DCHECK_LT(top_, mem_map_->GetLength());
-  // Note that top_ is left at end of used space
-}
-
 void ImageWriter::CalculateNewObjectOffsetsCallback(Object *obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
-  image_writer->SetImageOffset(obj, image_writer->top_);
-  image_writer->top_ += RoundUp(obj->Size(), 8);  // 64-bit alignment
-  DCHECK_LT(image_writer->top_, image_writer->mem_map_->GetLength());
+  image_writer->SetImageOffset(obj, image_writer->image_top_);
+  image_writer->image_top_ += RoundUp(obj->Size(), 8);  // 64-bit alignment
+  DCHECK_LT(image_writer->image_top_, image_writer->image_->GetLength());
+}
+
+void ImageWriter::CalculateNewObjectOffsets() {
+  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  DCHECK(heap_bitmap != NULL);
+  DCHECK_EQ(0U, image_top_);
+  // leave a header, ensures objects have non-zero offset for DCHECKs
+  image_top_ += 8; // 64-bit-alignment
+  heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);
+  DCHECK_LT(image_top_, image_->GetLength());
+  // Note that top_ is left at end of used space
 }
 
 void ImageWriter::CopyAndFixupObjects() {
@@ -74,10 +75,10 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object *obj, void *arg) {
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
 
   size_t offset = image_writer->GetImageOffset(obj);
-  byte* dst = image_writer->mem_map_->GetAddress() + offset;
+  byte* dst = image_writer->image_->GetAddress() + offset;
   byte* src = reinterpret_cast<byte*>(obj);
   size_t n = obj->Size();
-  DCHECK_LT(offset + n, image_writer->mem_map_->GetLength());
+  DCHECK_LT(offset + n, image_writer->image_->GetLength());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
   image_writer->FixupObject(obj, copy);

@@ -155,10 +155,10 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
   if (OS::FileExists(adjacent_dex_filename.c_str())) {
     DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
     if (adjacent_dex_file != NULL) {
-        // We don't verify anything in this case, because we aren't in
-        // the cache and typically the file is in the readonly /system
-        // area, so if something is wrong, there is nothing we can do.
-        return adjacent_dex_file;
+      // We don't verify anything in this case, because we aren't in
+      // the cache and typically the file is in the readonly /system
+      // area, so if something is wrong, there is nothing we can do.
+      return adjacent_dex_file;
     }
     return NULL;
   }

@@ -76,6 +76,8 @@ class MemoryRegion {
 
   void* pointer_;
   size_t size_;
+
+  DISALLOW_COPY_AND_ASSIGN(MemoryRegion);
 };
 
 }  // namespace art

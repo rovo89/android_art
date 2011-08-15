@@ -13,10 +13,11 @@
 
 namespace art {
 
+// Write a Space built during compilation for use during execution.
 class ImageWriter {
 
  public:
-  ImageWriter() : top_(0), image_base_(NULL) {};
+  ImageWriter() : image_top_(0), image_base_(NULL) {};
   bool Write(Space* space, const char* filename, byte* image_base);
   ~ImageWriter() {};
 
@@ -54,10 +55,10 @@ class ImageWriter {
   void FixupInstanceFields(Object* orig, Object* copy);
 
   // memory mapped for generating the image
-  scoped_ptr<MemMap> mem_map_;
+  scoped_ptr<MemMap> image_;
 
-  // Offset to the free space in mem_map_ 
-  size_t top_;
+  // Offset to the free space in image_
+  size_t image_top_;
 
   // Target base address for the output image
   byte* image_base_;

@@ -13,7 +13,7 @@ class FileTest : public RuntimeTest {};
 
 TEST_F(FileTest, Read) {
   std::string filename = GetLibCoreDexFileName();
-  scoped_ptr<File> file(OS::OpenBinaryFile(filename.c_str(), false));
+  scoped_ptr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file != NULL);
   EXPECT_STREQ(filename.c_str(), file->name());
   char buffer[3];
@@ -27,7 +27,7 @@ TEST_F(FileTest, Read) {
 
 TEST_F(FileTest, FileLength) {
   std::string filename = GetLibCoreDexFileName();
-  scoped_ptr<File> file(OS::OpenBinaryFile(filename.c_str(), false));
+  scoped_ptr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file != NULL);
   EXPECT_NE(0, file->Length());
 }
@@ -35,7 +35,7 @@ TEST_F(FileTest, FileLength) {
 
 TEST_F(FileTest, FilePosition) {
   std::string filename = GetLibCoreDexFileName();
-  scoped_ptr<File> file(OS::OpenBinaryFile(filename.c_str(), false));
+  scoped_ptr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file != NULL);
   char buf[4];
   EXPECT_TRUE(file->ReadFully(buf, 2));

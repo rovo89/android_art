@@ -11,7 +11,7 @@
 
 namespace art {
 
-File* OS::OpenBinaryFile(const char* name, bool writable) {
+File* OS::OpenFile(const char* name, bool writable) {
   int flags = O_RDONLY;
   if (writable) {
     flags = (O_RDWR | O_CREAT | O_TRUNC);
@@ -21,10 +21,6 @@ File* OS::OpenBinaryFile(const char* name, bool writable) {
     return NULL;
   }
   return new LinuxFile(name, fd, true);
-}
-
-File* OS::OpenTextFile(const char* name, bool writable) {
-  return OpenBinaryFile(name, writable);
 }
 
 File* OS::FileFromFd(const char* name, int fd) {
