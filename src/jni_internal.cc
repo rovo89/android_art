@@ -154,32 +154,30 @@ static byte* CreateArgArray(Method* method, jvalue* args) {
   return arg_array.release();
 }
 
-JValue InvokeWithArgArray(JNIEnv* env, Object* obj, jmethodID method_id,
+JValue InvokeWithArgArray(Thread* self, Object* obj, jmethodID method_id,
                           byte* args) {
   Method* method = reinterpret_cast<Method*>(method_id);  // TODO
   // Call the invoke stub associated with the method
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
   CHECK(stub != NULL);
-  // TODO: get thread from env
-  Thread* thread = NULL;
   JValue result;
-  (*stub)(method, obj, thread, args, &result);
+  (*stub)(method, obj, self, args, &result);
   return result;
 }
 
-JValue InvokeWithJValues(JNIEnv* env, Object* obj, jmethodID method_id,
+JValue InvokeWithJValues(Thread* self, Object* obj, jmethodID method_id,
                          jvalue* args) {
   Method* method = reinterpret_cast<Method*>(method_id);
   scoped_array<byte> arg_array(CreateArgArray(method, args));
-  return InvokeWithArgArray(env, obj, method_id, arg_array.get());
+  return InvokeWithArgArray(self, obj, method_id, arg_array.get());
 }
 
-JValue InvokeWithVarArgs(JNIEnv* env, Object* obj, jmethodID method_id,
+JValue InvokeWithVarArgs(Thread* self, Object* obj, jmethodID method_id,
                          va_list args) {
   Method* method = reinterpret_cast<Method*>(method_id);
   scoped_array<byte> arg_array(CreateArgArray(method, args));
-  return InvokeWithArgArray(env, obj, method_id, arg_array.get());
+  return InvokeWithArgArray(self, obj, method_id, arg_array.get());
 }
 
 jint GetVersion(JNIEnv* env) {
@@ -924,7 +922,7 @@ jobject CallStaticObjectMethod(JNIEnv* env,
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  JValue result = InvokeWithVarArgs(env, NULL, methodID, ap);
+  JValue result = InvokeWithVarArgs(ts.Self(), NULL, methodID, ap);
   jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: local reference
   return obj;
 }
@@ -932,7 +930,7 @@ jobject CallStaticObjectMethod(JNIEnv* env,
 jobject CallStaticObjectMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  JValue result = InvokeWithVarArgs(env, NULL, methodID, args);
+  JValue result = InvokeWithVarArgs(ts.Self(), NULL, methodID, args);
   jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: local reference
   return obj;
 }
@@ -940,7 +938,7 @@ jobject CallStaticObjectMethodV(JNIEnv* env,
 jobject CallStaticObjectMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  JValue result = InvokeWithJValues(env, NULL, methodID, args);
+  JValue result = InvokeWithJValues(ts.Self(), NULL, methodID, args);
   jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: local reference
   return obj;
 }
@@ -950,171 +948,171 @@ jboolean CallStaticBooleanMethod(JNIEnv* env,
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).z;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).z;
 }
 
 jboolean CallStaticBooleanMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).z;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).z;
 }
 
 jboolean CallStaticBooleanMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).z;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).z;
 }
 
 jbyte CallStaticByteMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).b;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).b;
 }
 
 jbyte CallStaticByteMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).b;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).b;
 }
 
 jbyte CallStaticByteMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).b;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).b;
 }
 
 jchar CallStaticCharMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).c;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).c;
 }
 
 jchar CallStaticCharMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).c;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).c;
 }
 
 jchar CallStaticCharMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).c;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).c;
 }
 
 jshort CallStaticShortMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).s;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).s;
 }
 
 jshort CallStaticShortMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).s;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).s;
 }
 
 jshort CallStaticShortMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).s;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).s;
 }
 
 jint CallStaticIntMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).i;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).i;
 }
 
 jint CallStaticIntMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).i;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).i;
 }
 
 jint CallStaticIntMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).i;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).i;
 }
 
 jlong CallStaticLongMethod(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).j;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).j;
 }
 
 jlong CallStaticLongMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).j;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).j;
 }
 
 jlong CallStaticLongMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).j;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).j;
 }
 
 jfloat CallStaticFloatMethod(JNIEnv* env, jclass cls, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).f;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).f;
 }
 
 jfloat CallStaticFloatMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).f;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).f;
 }
 
 jfloat CallStaticFloatMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).f;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).f;
 }
 
 jdouble CallStaticDoubleMethod(JNIEnv* env, jclass cls, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  return InvokeWithVarArgs(env, NULL, methodID, ap).d;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, ap).d;
 }
 
 jdouble CallStaticDoubleMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithVarArgs(env, NULL, methodID, args).d;
+  return InvokeWithVarArgs(ts.Self(), NULL, methodID, args).d;
 }
 
 jdouble CallStaticDoubleMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  return InvokeWithJValues(env, NULL, methodID, args).d;
+  return InvokeWithJValues(ts.Self(), NULL, methodID, args).d;
 }
 
 void CallStaticVoidMethod(JNIEnv* env, jclass cls, jmethodID methodID, ...) {
   ScopedJniThreadState ts(env);
   va_list ap;
   va_start(ap, methodID);
-  InvokeWithVarArgs(env, NULL, methodID, ap);
+  InvokeWithVarArgs(ts.Self(), NULL, methodID, ap);
 }
 
 void CallStaticVoidMethodV(JNIEnv* env,
     jclass cls, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
-  InvokeWithVarArgs(env, NULL, methodID, args);
+  InvokeWithVarArgs(ts.Self(), NULL, methodID, args);
 }
 
 void CallStaticVoidMethodA(JNIEnv* env,
     jclass cls, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
-  InvokeWithJValues(env, NULL, methodID, args);
+  InvokeWithJValues(ts.Self(), NULL, methodID, args);
 }
 
 jfieldID GetStaticFieldID(JNIEnv* env,
