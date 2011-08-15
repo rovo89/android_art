@@ -15,7 +15,10 @@ class ZipArchiveTest : public RuntimeTest {};
 class TmpFile {
  public:
   TmpFile() {
-    filename_.reset(strdup("TmpFile-XXXXXX"));
+    std::string filename_template;
+    filename_template = getenv("ANDROID_DATA");
+    filename_template += "/TmpFile-XXXXXX";
+    filename_.reset(strdup(filename_template.c_str()));
     CHECK(filename_ != NULL);
     fd_ = mkstemp(filename_.get());
     CHECK_NE(-1, fd_);
