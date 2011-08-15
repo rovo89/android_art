@@ -485,6 +485,18 @@ class Method : public AccessibleObject {
   // arguments into an array of arguments.
   size_t NumArgArrayBytes() const;
 
+  // Converts a native PC to a virtual PC.  TODO: this is a no-op
+  // until we associate a PC mapping table with each method.
+  uintptr_t ToDexPC(const uintptr_t pc) const {
+    return pc;
+  }
+
+  // Converts a virtual PC to a native PC.  TODO: this is a no-op
+  // until we associate a PC mapping table with each method.
+  uintptr_t ToNativePC(const uintptr_t pc) const {
+    return pc;
+  }
+
  public:  // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // the class we are a part of
@@ -573,7 +585,9 @@ class Method : public AccessibleObject {
     return code_ != NULL;
   }
 
-  void SetCode(const byte* compiled_code, size_t byte_count, InstructionSet set) {
+  void SetCode(const byte* compiled_code,
+               size_t byte_count,
+               InstructionSet set) {
     // Copy the code into an executable region.
     code_instruction_set_ = set;
     code_area_.reset(MemMap::Map(byte_count,
@@ -593,6 +607,18 @@ class Method : public AccessibleObject {
 
   void SetFrameSize(uint32_t frame_size) {
     frame_size_ = frame_size;
+  }
+
+  void SetPcOffset(uint32_t pc_offset) {
+    pc_offset_ = pc_offset;
+  }
+
+  size_t GetFrameSize() const {
+    return frame_size_;
+  }
+
+  size_t GetPcOffset() const {
+    return pc_offset_;
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
@@ -691,6 +717,9 @@ class Method : public AccessibleObject {
 
   // Size in bytes of compiled code associated with this method
   const uint32_t code_size_;
+
+  // Offset of PC within compiled code (in bytes)
+  uint32_t pc_offset_;
 
   // Any native method registered with this method
   const void* native_method_;

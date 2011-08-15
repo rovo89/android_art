@@ -49,6 +49,24 @@ void Mutex::Unlock() {
   SetOwner(NULL);
 }
 
+void Frame::Next() {
+  byte* next_sp = reinterpret_cast<byte*>(sp_) +
+      GetMethod()->GetFrameSize();
+  sp_ = reinterpret_cast<const Method**>(next_sp);
+}
+
+void* Frame::GetPC() const {
+  byte* pc_addr = reinterpret_cast<byte*>(sp_) +
+      GetMethod()->GetPcOffset();
+  return reinterpret_cast<void*>(pc_addr);
+}
+
+const Method* Frame::NextMethod() const {
+  byte* next_sp = reinterpret_cast<byte*>(sp_) +
+      GetMethod()->GetFrameSize();
+  return reinterpret_cast<const Method*>(next_sp);
+}
+
 void* ThreadStart(void *arg) {
   UNIMPLEMENTED(FATAL);
   return NULL;
@@ -188,6 +206,67 @@ void Thread::ThrowNewException(const char* exception_class_name, const char* fmt
   va_end(args);
 
   ThrowNewException(exception_class, msg.c_str());
+}
+
+Frame Thread::FindExceptionHandler(void* throw_pc, void** handler_pc) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  DCHECK(class_linker != NULL);
+
+  Frame cur_frame = GetTopOfStack();
+  for (int unwind_depth = 0; ; unwind_depth++) {
+    const Method* cur_method = cur_frame.GetMethod();
+    DexCache* dex_cache = cur_method->GetDeclaringClass()->GetDexCache();
+    const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+
+    void* handler_addr = FindExceptionHandlerInMethod(cur_method,
+                                                      throw_pc,
+                                                      dex_file,
+                                                      class_linker);
+    if (handler_addr) {
+      *handler_pc = handler_addr;
+      return cur_frame;
+    } else {
+      // Check if we are at the last frame
+      if (cur_frame.HasNext()) {
+        cur_frame.Next();
+      } else {
+        // Either at the top of stack or next frame is native.
+        break;
+      }
+    }
+  }
+  *handler_pc = NULL;
+  return Frame();
+}
+
+void* Thread::FindExceptionHandlerInMethod(const Method* method,
+                                           void* throw_pc,
+                                           const DexFile& dex_file,
+                                           ClassLinker* class_linker) {
+  Object* exception_obj = exception_;
+  exception_ = NULL;
+
+  intptr_t dex_pc = -1;
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->code_off_);
+  DexFile::CatchHandlerIterator iter;
+  for (iter = dex_file.dexFindCatchHandler(*code_item,
+                                           method->ToDexPC(reinterpret_cast<intptr_t>(throw_pc)));
+       !iter.HasNext();
+       iter.Next()) {
+    Class* klass = class_linker->FindSystemClass(dex_file.dexStringByTypeIdx(iter.Get().type_idx_));
+    DCHECK(klass != NULL);
+    if (exception_obj->InstanceOf(klass)) {
+      dex_pc = iter.Get().address_;
+      break;
+    }
+  }
+
+  exception_ = exception_obj;
+  if (iter.HasNext()) {
+    return NULL;
+  } else {
+    return reinterpret_cast<void*>( method->ToNativePC(dex_pc) );
+  }
 }
 
 static const char* kStateNames[] = {

@@ -113,6 +113,40 @@ struct NativeToManagedRecord {
   void* last_top_of_managed_stack;
 };
 
+// Iterator over managed frames up to the first native-to-managed transition
+class Frame {
+  Frame() : sp_(NULL) {}
+
+  const Method* GetMethod() const {
+    return *sp_;
+  }
+
+  bool HasNext() const {
+    return NextMethod() != NULL;
+  }
+
+  void Next();
+
+  void* GetPC() const;
+
+  const Method** GetSP() const {
+    return sp_;
+  }
+
+  // TODO: this is here for testing, remove when we have exception unit tests
+  // that use the real stack
+  void SetSP(const Method** sp) {
+    sp_ = sp;
+  }
+
+ private:
+  const Method* NextMethod() const;
+
+  friend class Thread;
+
+  const Method** sp_;
+};
+
 class Thread {
  public:
   enum State {
@@ -202,6 +236,16 @@ class Thread {
   }
 
   // TODO: Throwable*
+  Frame GetTopOfStack() const {
+    return top_of_managed_stack_;
+  }
+
+  // TODO: this is here for testing, remove when we have exception unit tests
+  // that use the real stack
+  void SetTopOfStack(void* stack) {
+    top_of_managed_stack_.SetSP(reinterpret_cast<const Method**>(stack));
+  }
+
   void SetException(Object* new_exception) {
     CHECK(new_exception != NULL);
     // TODO: CHECK(exception_ == NULL);
@@ -216,6 +260,13 @@ class Thread {
   void ClearException() {
     exception_ = NULL;
   }
+
+  Frame FindExceptionHandler(void* throw_pc, void** handler_pc);
+
+  void* FindExceptionHandlerInMethod(const Method* method,
+                                     void* throw_pc,
+                                     const DexFile& dex_file,
+                                     ClassLinker* class_linker);
 
   // Offset of exception within Thread, used by generated code
   static ThreadOffset ExceptionOffset() {
@@ -241,10 +292,6 @@ class Thread {
   void Resume();
 
   static bool Init();
-
-  Runtime* GetRuntime() const {
-    return runtime_;
-  }
 
   State GetState() const {
     return state_;
@@ -275,7 +322,8 @@ class Thread {
 
   // Offset of top of managed stack address, used by generated code
   static ThreadOffset TopOfManagedStackOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_));
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_) +
+                        OFFSETOF_MEMBER(Frame, sp_));
   }
 
   // Offset of top stack handle block within Thread, used by generated code
@@ -313,14 +361,14 @@ class Thread {
 
   // Linked list recording transitions from native to managed code
   void PushNativeToManagedRecord(NativeToManagedRecord* record) {
-    record->last_top_of_managed_stack = top_of_managed_stack_;
+    record->last_top_of_managed_stack = reinterpret_cast<void*>(top_of_managed_stack_.GetSP());
     record->link = native_to_managed_record_;
     native_to_managed_record_ = record;
-    top_of_managed_stack_ = NULL;
+    top_of_managed_stack_.SetSP(NULL);
   }
   void PopNativeToManagedRecord(const NativeToManagedRecord& record) {
     native_to_managed_record_ = record.link;
-    top_of_managed_stack_ = record.last_top_of_managed_stack;
+    top_of_managed_stack_.SetSP( reinterpret_cast<const Method**>(record.last_top_of_managed_stack) );
   }
 
   ClassLoader* GetClassLoaderOverride() {
@@ -334,7 +382,7 @@ class Thread {
  private:
   Thread()
       : id_(1234),
-        top_of_managed_stack_(NULL),
+        top_of_managed_stack_(),
         native_to_managed_record_(NULL),
         top_shb_(NULL),
         jni_env_(NULL),
@@ -358,7 +406,7 @@ class Thread {
   // Top of the managed stack, written out prior to the state transition from
   // kRunnable to kNative. Uses include to give the starting point for scanning
   // a managed stack when a thread is in native code.
-  void* top_of_managed_stack_;
+  Frame top_of_managed_stack_;
 
   // A linked list (of stack allocated records) recording transitions from
   // native to managed code.

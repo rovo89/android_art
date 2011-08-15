@@ -271,7 +271,7 @@ class ClassLinker {
   FRIEND_TEST(DexCacheTest, Open);
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);
-  FRIEND_TEST(ExceptionTest, MyClass_F_G);
+  FRIEND_TEST(ExceptionTest, FindExceptionHandler);
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 

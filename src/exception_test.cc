@@ -61,19 +61,46 @@ static const char kMyClassExceptionHandleDex[] =
   "IAAAAgAAAAkDAAAAEAAAAQAAACgDAAA=";
 
 class ExceptionTest : public CommonTest {
+ protected:
+  virtual void SetUp() {
+    CommonTest::SetUp();
+
+    dex_.reset(OpenDexFileBase64(kMyClassExceptionHandleDex, "kMyClassExceptionHandleDex"));
+    ASSERT_TRUE(dex_ != NULL);
+    PathClassLoader* class_loader = AllocPathClassLoader(dex_.get());
+    ASSERT_TRUE(class_loader != NULL);
+    my_klass_ = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
+    ASSERT_TRUE(my_klass_ != NULL);
+    method_f_ = my_klass_->FindVirtualMethod("f", "()I");
+    ASSERT_TRUE(method_f_ != NULL);
+    method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
+    ASSERT_TRUE(method_g_ != NULL);
+  }
+
+  DexFile::CatchHandlerItem FindCatchHandlerItem(Method* method,
+                                                 const char exception_type[],
+                                                 uint32_t addr) {
+    const DexFile::CodeItem* code_item = dex_->GetCodeItem(method->code_off_);
+    for (DexFile::CatchHandlerIterator iter = dex_->dexFindCatchHandler(*code_item, addr);
+         !iter.HasNext(); iter.Next()) {
+      if (strcmp(exception_type, dex_->dexStringByTypeIdx(iter.Get().type_idx_)) == 0) {
+        return iter.Get();
+      }
+    }
+    return DexFile::CatchHandlerItem();
+  }
+
+  scoped_ptr<DexFile> dex_;
+
+  Method* method_f_;
+  Method* method_g_;
+
+ private:
+  Class* my_klass_;
 };
 
-TEST_F(ExceptionTest, MyClass_F_G) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassExceptionHandleDex, "kMyClassExceptionHandleDex"));
-  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  Class* klass = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method_f = klass->FindVirtualMethod("f", "()I");
-  ASSERT_TRUE(method_f != NULL);
-
-  const DexFile& dex_file = class_linker_->FindDexFile(klass->GetDexCache());
-  const DexFile::CodeItem *code_item = dex_file.GetCodeItem(method_f->code_off_);
+TEST_F(ExceptionTest, FindCatchHandler) {
+  const DexFile::CodeItem *code_item = dex_->GetCodeItem(method_f_->code_off_);
 
   ASSERT_TRUE(code_item != NULL);
 
@@ -81,25 +108,28 @@ TEST_F(ExceptionTest, MyClass_F_G) {
   ASSERT_NE(0u, code_item->insns_size_);
 
   const struct DexFile::TryItem *t0, *t1;
-  t0 = dex_file.dexGetTryItems(*code_item, 0);
-  t1 = dex_file.dexGetTryItems(*code_item, 1);
+  t0 = dex_->dexGetTryItems(*code_item, 0);
+  t1 = dex_->dexGetTryItems(*code_item, 1);
   EXPECT_LE(t0->start_addr_, t1->start_addr_);
 
   DexFile::CatchHandlerIterator iter =
-    dex_file.dexFindCatchHandler(*code_item, 4 /* Dex PC in the first try block */);
-  ASSERT_EQ(false, iter.End());
-  EXPECT_STREQ("Ljava/io/IOException;", dex_file.dexStringByTypeIdx(iter.Get().type_idx_));
+    dex_->dexFindCatchHandler(*code_item, 4 /* Dex PC in the first try block */);
+  ASSERT_EQ(false, iter.HasNext());
+  EXPECT_STREQ("Ljava/io/IOException;", dex_->dexStringByTypeIdx(iter.Get().type_idx_));
   iter.Next();
-  ASSERT_EQ(false, iter.End());
-  EXPECT_STREQ("Ljava/lang/Exception;", dex_file.dexStringByTypeIdx(iter.Get().type_idx_));
+  ASSERT_EQ(false, iter.HasNext());
+  EXPECT_STREQ("Ljava/lang/Exception;", dex_->dexStringByTypeIdx(iter.Get().type_idx_));
   iter.Next();
-  ASSERT_EQ(true, iter.End());
+  ASSERT_EQ(true, iter.HasNext());
 
-  iter = dex_file.dexFindCatchHandler(*code_item, 8 /* Dex PC in the second try block */);
-  ASSERT_EQ(false, iter.End());
-  EXPECT_STREQ("Ljava/io/IOException;", dex_file.dexStringByTypeIdx(iter.Get().type_idx_));
+  iter = dex_->dexFindCatchHandler(*code_item, 8 /* Dex PC in the second try block */);
+  ASSERT_EQ(false, iter.HasNext());
+  EXPECT_STREQ("Ljava/io/IOException;", dex_->dexStringByTypeIdx(iter.Get().type_idx_));
   iter.Next();
-  ASSERT_EQ(true, iter.End());
+  ASSERT_EQ(true, iter.HasNext());
+
+  iter = dex_->dexFindCatchHandler(*code_item, 11 /* Dex PC not in any try block */);
+  ASSERT_EQ(true, iter.HasNext());
 }
 
 }  // namespace art

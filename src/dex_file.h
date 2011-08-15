@@ -244,7 +244,7 @@ class DexFile {
         remaining_count_ = -1;
       }
 
-      bool End() const {
+      bool HasNext() const {
         return remaining_count_ == -1 && catch_all_ == false;
       }
 
