@@ -625,9 +625,21 @@ class Array : public Object {
     length_ = length;
   }
 
+ protected:
+  bool IsValidIndex(int32_t index) const {
+    if (index < 0 || index >= length_) {
+      // TODO: throw ArrayIndexOutOfBoundsException with the detail message
+      // "length=%d; index=%d", length_, index;
+      CHECK(false) << "ArrayIndexOutOfBoundsException: length="
+                   << length_ << "; index=" << index;
+      return false;
+    }
+    return true;
+  }
+
  private:
   // The number of array elements.
-  uint32_t length_;
+  int32_t length_;
   // Padding to ensure the first member defined by a subclass begins on a 8-byte boundary
   int32_t padding_;
 
@@ -651,13 +663,17 @@ class ObjectArray : public Array {
   }
 
   T* Get(int32_t i) const {
-    CHECK_LT(i, GetLength());
+    if (!IsValidIndex(i)) {
+      return NULL;
+    }
     return GetData()[i];
   }
 
   void Set(int32_t i, T* object) {
-    CHECK_LT(i, GetLength());
-    GetData()[i] = object;  // TODO: write barrier
+    if (IsValidIndex(i)) {
+      // TODO: ArrayStoreException
+      GetData()[i] = object;  // TODO: write barrier
+    }
   }
 
   static void Copy(ObjectArray<T>* src, int src_pos,
@@ -1207,13 +1223,17 @@ class PrimitiveArray : public Array {
   }
 
   T Get(int32_t i) const {
-    CHECK_LT(i, GetLength());
+    if (!IsValidIndex(i)) {
+      return T();
+    }
     return GetData()[i];
   }
 
   void Set(int32_t i, T value) {
-    CHECK_LT(i, GetLength());
-    GetData()[i] = value;
+    // TODO: ArrayStoreException
+    if (IsValidIndex(i)) {
+      GetData()[i] = value;
+    }
   }
 
   static void SetArrayClass(Class* array_class) {
@@ -1249,9 +1269,14 @@ class String : public Object {
     return count_;
   }
 
-  uint16_t CharAt(uint32_t index) const {
-    DCHECK_LE(index, GetLength());
-    return GetCharArray()->Get(index + GetOffset());
+  uint16_t CharAt(int32_t index) const {
+    if (index < 0 || index >= count_) {
+      // TODO: throw new StringIndexOutOfBounds(this, index);
+      CHECK(false) << "StringIndexOutOfBounds: " << index;
+      return 0;
+    } else {
+      return GetCharArray()->Get(index + GetOffset());
+    }
   }
 
   static String* AllocFromUtf16(int32_t utf16_length,
@@ -1429,9 +1454,9 @@ class String : public Object {
 
   uint32_t hash_code_;
 
-  uint32_t offset_;
+  int32_t offset_;
 
-  uint32_t count_;
+  int32_t count_;
 
   static Class* GetJavaLangString() {
     DCHECK(java_lang_String_ != NULL);

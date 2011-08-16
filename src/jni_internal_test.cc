@@ -92,7 +92,8 @@ TEST_F(JniInternalTest, NewObjectArray) {
 
   // TODO: check non-NULL initial elements.
 
-  jclass c = env_->FindClass("[Ljava.lang.String;");
+  jclass c = env_->FindClass("[Ljava/lang/String;");
+  ASSERT_TRUE(c != NULL);
 
   EXPECT_TRUE(env_->NewObjectArray(0, c, NULL) != NULL);
 
@@ -104,6 +105,18 @@ TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_TRUE(env_->NewStringUTF("") != NULL);
   EXPECT_TRUE(env_->NewStringUTF("hello") != NULL);
   // TODO: check some non-ASCII strings.
+}
+
+TEST_F(JniInternalTest, SetObjectArrayElement) {
+  jclass c = env_->FindClass("[Ljava/lang/Object;");
+  ASSERT_TRUE(c != NULL);
+
+  jobjectArray array = env_->NewObjectArray(1, c, NULL);
+  EXPECT_TRUE(array != NULL);
+  env_->SetObjectArrayElement(array, 0, c);
+  // TODO: check reading value back
+  // TODO: check IndexOutOfBoundsExceptions thrown for bad indexes.
+  // TODO: check ArrayStoreException thrown for bad types.
 }
 
 bool EnsureInvokeStub(Method* method);

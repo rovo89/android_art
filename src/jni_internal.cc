@@ -1302,7 +1302,6 @@ void SetObjectArrayElement(JNIEnv* env,
   // TODO: DecodeReference
   ObjectArray<Object>* array = reinterpret_cast<ObjectArray<Object>*>(java_array);
   Object* value = reinterpret_cast<Object*>(java_value);
-  // TODO: who should throw? JNI or ObjectArray?
   array->Set(index, value);
 }
 
