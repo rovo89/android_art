@@ -631,6 +631,7 @@ class Array : public Object {
       Thread* self = Thread::Current();
       self->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
           "length=%i; index=%i", length_, index);
+      return false;
     }
     return true;
   }
@@ -1216,6 +1217,8 @@ class DataObject : public Object {
 template<class T>
 class PrimitiveArray : public Array {
  public:
+  typedef T ElementType;
+
   static PrimitiveArray<T>* Alloc(size_t length);
 
   const T* GetData() const {
@@ -1228,7 +1231,7 @@ class PrimitiveArray : public Array {
 
   T Get(int32_t i) const {
     if (!IsValidIndex(i)) {
-      return T();
+      return T(0);
     }
     return GetData()[i];
   }
@@ -1281,9 +1284,8 @@ class String : public Object {
       self->ThrowNewException("Ljava/lang/StringIndexOutOfBoundsException;",
           "length=%i; index=%i", count_, index);
       return 0;
-    } else {
-      return GetCharArray()->Get(index + GetOffset());
     }
+    return GetCharArray()->Get(index + GetOffset());
   }
 
   static String* AllocFromUtf16(int32_t utf16_length,

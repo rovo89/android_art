@@ -147,11 +147,11 @@ void ThrowNewException(Thread* thread, const char* exception_class_name, const c
   // TODO: what if there's already a pending exception?
   // TODO: support the other constructors.
   Method* ctor = exception_class->FindDirectMethod("<init>", "(Ljava/lang/String;)V");
+  CHECK(ctor != NULL);
 
   // TODO: need to *call* the constructor!
   UNIMPLEMENTED(WARNING) << "can't call "
-                         << exception_class->GetDescriptor() << "."
-                         << ctor->GetDescriptor() << " "
+                         << exception_class->GetDescriptor() << ".<init> "
                          << "\"" << msg << "\"";
 
   thread->SetException(exception);

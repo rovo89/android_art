@@ -65,12 +65,79 @@ TEST_F(ObjectTest, AllocObjectArray) {
   EXPECT_TRUE(oa->Get(0) == oa);
   EXPECT_TRUE(oa->Get(1) == oa);
 
+  Thread* self = Thread::Current();
+  Class* aioobe = class_linker_->FindSystemClass("Ljava/lang/ArrayIndexOutOfBoundsException;");
+
+  EXPECT_TRUE(oa->Get(-1) == NULL);
+  EXPECT_TRUE(self->IsExceptionPending());
+  EXPECT_EQ(aioobe, self->GetException()->GetClass());
+  self->ClearException();
+
+  EXPECT_TRUE(oa->Get(2) == NULL);
+  EXPECT_TRUE(self->IsExceptionPending());
+  EXPECT_EQ(aioobe, self->GetException()->GetClass());
+  self->ClearException();
+
   ASSERT_TRUE(oa->GetClass() != NULL);
   ASSERT_EQ(2U, oa->GetClass()->NumInterfaces());
   EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"),
             oa->GetClass()->GetInterface(0));
   EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"),
             oa->GetClass()->GetInterface(1));
+}
+
+template<typename ArrayT>
+void TestPrimitiveArray(ClassLinker* cl) {
+  typedef typename ArrayT::ElementType T;
+
+  ArrayT* a = ArrayT::Alloc(2);
+  EXPECT_EQ(2, a->GetLength());
+  EXPECT_EQ(0, a->Get(0));
+  EXPECT_EQ(0, a->Get(1));
+  a->Set(0, T(123));
+  EXPECT_EQ(T(123), a->Get(0));
+  EXPECT_EQ(0, a->Get(1));
+  a->Set(1, T(321));
+  EXPECT_EQ(T(123), a->Get(0));
+  EXPECT_EQ(T(321), a->Get(1));
+
+  Thread* self = Thread::Current();
+  Class* aioobe = cl->FindSystemClass("Ljava/lang/ArrayIndexOutOfBoundsException;");
+
+  EXPECT_EQ(0, a->Get(-1));
+  EXPECT_TRUE(self->IsExceptionPending());
+  EXPECT_EQ(aioobe, self->GetException()->GetClass());
+  self->ClearException();
+
+  EXPECT_EQ(0, a->Get(2));
+  EXPECT_TRUE(self->IsExceptionPending());
+  EXPECT_EQ(aioobe, self->GetException()->GetClass());
+  self->ClearException();
+}
+
+TEST_F(ObjectTest, PrimitiveArray_Boolean_Alloc) {
+  TestPrimitiveArray<BooleanArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Byte_Alloc) {
+  TestPrimitiveArray<ByteArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Char_Alloc) {
+  TestPrimitiveArray<CharArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Double_Alloc) {
+  TestPrimitiveArray<DoubleArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Float_Alloc) {
+  TestPrimitiveArray<FloatArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Int_Alloc) {
+  TestPrimitiveArray<IntArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Long_Alloc) {
+  TestPrimitiveArray<LongArray>(class_linker_);
+}
+TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
+  TestPrimitiveArray<ShortArray>(class_linker_);
 }
 
 TEST_F(ObjectTest, String) {
