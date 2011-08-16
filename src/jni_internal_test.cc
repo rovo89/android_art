@@ -64,23 +64,23 @@ TEST_F(JniInternalTest, NewPrimitiveArray) {
 
   // TODO: check returned array class.
 
-  CHECK(env_->NewBooleanArray(0) != NULL);
-  CHECK(env_->NewByteArray(0) != NULL);
-  CHECK(env_->NewCharArray(0) != NULL);
-  CHECK(env_->NewDoubleArray(0) != NULL);
-  CHECK(env_->NewFloatArray(0) != NULL);
-  CHECK(env_->NewIntArray(0) != NULL);
-  CHECK(env_->NewLongArray(0) != NULL);
-  CHECK(env_->NewShortArray(0) != NULL);
+  EXPECT_TRUE(env_->NewBooleanArray(0) != NULL);
+  EXPECT_TRUE(env_->NewByteArray(0) != NULL);
+  EXPECT_TRUE(env_->NewCharArray(0) != NULL);
+  EXPECT_TRUE(env_->NewDoubleArray(0) != NULL);
+  EXPECT_TRUE(env_->NewFloatArray(0) != NULL);
+  EXPECT_TRUE(env_->NewIntArray(0) != NULL);
+  EXPECT_TRUE(env_->NewLongArray(0) != NULL);
+  EXPECT_TRUE(env_->NewShortArray(0) != NULL);
 
-  CHECK(env_->NewBooleanArray(1) != NULL);
-  CHECK(env_->NewByteArray(1) != NULL);
-  CHECK(env_->NewCharArray(1) != NULL);
-  CHECK(env_->NewDoubleArray(1) != NULL);
-  CHECK(env_->NewFloatArray(1) != NULL);
-  CHECK(env_->NewIntArray(1) != NULL);
-  CHECK(env_->NewLongArray(1) != NULL);
-  CHECK(env_->NewShortArray(1) != NULL);
+  EXPECT_TRUE(env_->NewBooleanArray(1) != NULL);
+  EXPECT_TRUE(env_->NewByteArray(1) != NULL);
+  EXPECT_TRUE(env_->NewCharArray(1) != NULL);
+  EXPECT_TRUE(env_->NewDoubleArray(1) != NULL);
+  EXPECT_TRUE(env_->NewFloatArray(1) != NULL);
+  EXPECT_TRUE(env_->NewIntArray(1) != NULL);
+  EXPECT_TRUE(env_->NewLongArray(1) != NULL);
+  EXPECT_TRUE(env_->NewShortArray(1) != NULL);
 }
 
 TEST_F(JniInternalTest, NewObjectArray) {
@@ -94,9 +94,16 @@ TEST_F(JniInternalTest, NewObjectArray) {
 
   jclass c = env_->FindClass("[Ljava.lang.String;");
 
-  CHECK(env_->NewObjectArray(0, c, NULL) != NULL);
+  EXPECT_TRUE(env_->NewObjectArray(0, c, NULL) != NULL);
 
-  CHECK(env_->NewObjectArray(1, c, NULL) != NULL);
+  EXPECT_TRUE(env_->NewObjectArray(1, c, NULL) != NULL);
+}
+
+TEST_F(JniInternalTest, NewStringUTF) {
+  EXPECT_TRUE(env_->NewStringUTF(NULL) == NULL);
+  EXPECT_TRUE(env_->NewStringUTF("") != NULL);
+  EXPECT_TRUE(env_->NewStringUTF("hello") != NULL);
+  // TODO: check some non-ASCII strings.
 }
 
 bool EnsureInvokeStub(Method* method);
