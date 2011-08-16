@@ -868,8 +868,14 @@ class Class : public Object {
     return GetStatus() >= kStatusResolved;
   }
 
+  // Returns true if the class has been loaded.
   bool IsLoaded() const {
     return GetStatus() >= kStatusLoaded;
+  }
+
+  // Returns true if the class is initialized.
+  bool IsInitialized() const {
+    return GetStatus() == kStatusInitialized;
   }
 
   // Returns true if this class is in the same packages as that class.

@@ -390,8 +390,28 @@ jboolean IsInstanceOf(JNIEnv* env, jobject obj, jclass clazz) {
 jmethodID GetMethodID(JNIEnv* env,
     jclass clazz, const char* name, const char* sig) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  // TODO: retrieve handle value for class
+  Class* klass = reinterpret_cast<Class*>(clazz);
+  if (!klass->IsInitialized()) {
+    // TODO: initialize the class
+  }
+  Method* method = klass->FindVirtualMethod(name, sig);
+  if (method == NULL) {
+    // No virtual method matching the signature.  Search declared
+    // private methods and constructors.
+    method = klass->FindDeclaredDirectMethod(name, sig);
+  }
+  if (method == NULL || method->IsStatic()) {
+    LG << "NoSuchMethodError";  // TODO: throw NoSuchMethodError
+    return NULL;
+  }
+  // TODO: create a JNI weak global reference for method
+  bool success = EnsureInvokeStub(method);
+  if (!success) {
+    // TODO: throw OutOfMemoryException
+    return NULL;
+  }
+  return reinterpret_cast<jmethodID>(method);
 }
 
 jobject CallObjectMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
@@ -909,10 +929,12 @@ jmethodID GetStaticMethodID(JNIEnv* env,
   ScopedJniThreadState ts(env);
   // TODO: DecodeReference
   Class* klass = reinterpret_cast<Class*>(clazz);
-  // TODO: check that klass is initialized
+  if (!klass->IsInitialized()) {
+    // TODO: initialize the class
+  }
   Method* method = klass->FindDirectMethod(name, sig);
   if (method == NULL || !method->IsStatic()) {
-    // TODO: throw NoSuchMethodError
+    LG << "NoSuchMethodError";  // TODO: throw NoSuchMethodError
     return NULL;
   }
   // TODO: create a JNI weak global reference for method
