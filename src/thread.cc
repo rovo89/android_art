@@ -8,6 +8,8 @@
 #include <cerrno>
 #include <list>
 
+#include "class_linker.h"
+#include "object.h"
 #include "runtime.h"
 #include "utils.h"
 
@@ -126,6 +128,46 @@ bool Thread::Init() {
   // TODO: initialize other locks and condition variables
 
   return true;
+}
+
+void ThrowNewException(Thread* thread, const char* exception_class_name, const char* msg) {
+  CHECK(thread != NULL);
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* exception_class = class_linker->FindSystemClass(exception_class_name);
+  CHECK(exception_class != NULL);
+
+  Object* exception = exception_class->NewInstance();
+  CHECK(exception != NULL);
+
+  size_t char_count = String::ModifiedUtf8Len(msg);
+  String* java_msg = String::AllocFromModifiedUtf8(char_count, msg);
+  CHECK(java_msg != NULL);
+
+  // TODO: what if there's already a pending exception?
+  // TODO: support the other constructors.
+  Method* ctor = exception_class->FindDirectMethod("<init>", "(Ljava/lang/String;)V");
+
+  // TODO: need to *call* the constructor!
+  UNIMPLEMENTED(WARNING) << "can't call "
+                         << exception_class->GetDescriptor() << "."
+                         << ctor->GetDescriptor() << " "
+                         << "\"" << msg << "\"";
+
+  thread->SetException(exception);
+}
+
+void ThrowNewExceptionV(Thread* thread, const char* exception_class_name, const char* fmt, va_list args) {
+  char msg[512];
+  vsnprintf(msg, sizeof(msg), fmt, args);
+  ThrowNewException(thread, exception_class_name, msg);
+}
+
+void Thread::ThrowNewException(const char* exception_class_name, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowNewExceptionV(this, exception_class_name, fmt, args);
+  va_end(args);
 }
 
 static const char* kStateNames[] = {

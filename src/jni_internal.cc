@@ -215,10 +215,10 @@ std::string NormalizeJniClassDescriptor(const char* name) {
     result += ';';
   }
   // Rewrite '.' as '/' for backwards compatibility.
-  for (size_t i = 0; i < result.size(); ++i) {
-    if (result[i] == '.') {
-      result[i] = '/';
-    }
+  if (result.find('.') != std::string::npos) {
+    LOG(WARNING) << "Call to JNI FindClass with dots in name: "
+                 << "\"" << name << "\"";
+    std::replace(result.begin(), result.end(), '.', '/');
   }
   return result;
 }

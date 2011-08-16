@@ -115,7 +115,19 @@ TEST_F(JniInternalTest, SetObjectArrayElement) {
   EXPECT_TRUE(array != NULL);
   env_->SetObjectArrayElement(array, 0, c);
   // TODO: check reading value back
-  // TODO: check IndexOutOfBoundsExceptions thrown for bad indexes.
+
+  // ArrayIndexOutOfBounds for negative index.
+  // TODO: check exception type
+  env_->SetObjectArrayElement(array, -1, c);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  env_->ExceptionClear();
+
+  // ArrayIndexOutOfBounds for too-large index.
+  // TODO: check exception type
+  env_->SetObjectArrayElement(array, 1, c);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  env_->ExceptionClear();
+
   // TODO: check ArrayStoreException thrown for bad types.
 }
 

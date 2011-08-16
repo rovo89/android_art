@@ -17,118 +17,6 @@ namespace art {
 
 // package java.lang;
 // public class Object {}
-
-// package java.lang;
-// public class Class {}
-//
-// package java.lang.reflect;
-// public class Field {}
-//
-// package java.lang.reflect;
-// public class Method {}
-//
-// package java.lang;
-// public class String {
-//   char[] value;
-//   int hashCode;
-//   int offset;
-//   int count;
-// }
-//
-// package java.lang;
-// public class ClassLoader {
-//   Object packages;
-//   ClassLoader parent;
-// }
-//
-// package dalvik.system;
-// public class BaseDexClassLoader extends ClassLoader {
-//   String originalPath;
-//   Object pathList;
-// }
-//
-// package dalvik.system;
-// public class PathClassLoader extends BaseDexClassLoader {}
-//
-// package java.lang;
-// public interface Cloneable {}
-//
-// package java.io;
-// public interface Serializable {}
-//
-// package java.lang;
-// public class StackTraceElement {
-//   String declaringClass;
-//   String methodName;
-//   String fileName;
-//   int lineNumber;
-// }
-//
-// package java.lang;
-// public class Throwable {
-//   String detailMessage;
-//   Throwable cause;
-//   Object suppressedExceptions;
-//   Object stackState;
-//   StackTraceElement[] stackTrace;
-// }
-//
-// package java.lang;
-// public class Exception extends Throwable {}
-//
-// package java.lang;
-// public class NullPointerException extends Exception {}
-//
-static const char kJavaLangDex[] =
-  "ZGV4CjAzNQCEjWBqSq808bjn0gC+ptCv0wtDNadp4vEQCgAAcAAAAHhWNBIAAAAAAAAAAHwJAAAy"
-  "AAAAcAAAABIAAAA4AQAAAQAAAIABAAARAAAAjAEAAAwAAAAUAgAADgAAAHQCAADcBQAANAQAAFAF"
-  "AABYBQAAcQUAAH0FAACPBQAAnwUAAK8FAAC7BQAAvgUAAOIFAAADBgAAGwYAAC4GAABHBgAAXgYA"
-  "AHUGAACXBgAAqwYAAMoGAADeBgAA9QYAABAHAAAsBwAAOQcAAFQHAABhBwAAdwcAAIoHAACiBwAA"
-  "rwcAAL8HAADCBwAAxgcAAOYHAADtBwAA9AcAAAQIAAATCAAAHQgAACcIAAAzCAAAPwgAAEcIAABV"
-  "CAAAXwgAAGcIAABxCAAAfQgAAIkIAACfCAAABwAAAAgAAAAJAAAACgAAAAsAAAAMAAAADQAAAA4A"
-  "AAAPAAAAEAAAABEAAAASAAAAEwAAABQAAAAVAAAAHgAAAB8AAAAgAAAAHgAAAA8AAAAAAAAAAQAL"
-  "ACoAAAABAAkALQAAAAUACQArAAAABQAFACwAAAAKAAsAIwAAAAoACwAlAAAACgAAACcAAAAKAAsA"
-  "KAAAAAsAAAAiAAAACwAAACYAAAALAAAAKQAAAAsAEAAxAAAADAAMACEAAAAMAAsAJAAAAAwACQAu"
-  "AAAADAARAC8AAAAMAAkAMAAAAAEAAAAAAAAAAgAAAAAAAAAEAAAAAAAAAAUAAAAAAAAABwAAAAAA"
-  "AAAIAAAAAAAAAAkAAAAAAAAACgAAAAAAAAALAAAAAAAAAAwAAAAAAAAADQAAAAAAAAAOAAAAAAAA"
-  "AAkAAAABAAAA/////wAAAAAYAAAAAAAAAOIIAAAAAAAABQAAAAEAAAAJAAAAAAAAAAMAAAAAAAAA"
-  "7AgAAAAAAAABAAAAAQAAAAUAAAAAAAAAAQAAAAAAAAD6CAAAAAAAAAIAAAABAAAAAQAAAAAAAAAZ"
-  "AAAAAAAAAAgJAAAAAAAAAwAAAAEGAAAJAAAAAAAAABoAAAAAAAAAAAAAAAAAAAAEAAAAAQAAAAkA"
-  "AAAAAAAAAgAAAAAAAAASCQAAAAAAAAYAAAABBgAACQAAAAAAAAAEAAAAAAAAAAAAAAAAAAAADAAA"
-  "AAEAAAAJAAAAAAAAAB0AAAAAAAAAHAkAAAAAAAAHAAAAAQAAAAwAAAAAAAAABQAAAAAAAAAwCQAA"
-  "AAAAAAgAAAABAAAABwAAAAAAAAAXAAAAAAAAADoJAAAAAAAACgAAAAEAAAAJAAAAAAAAABsAAAAA"
-  "AAAARAkAAAAAAAALAAAAAQAAAAkAAAAAAAAAHAAAAAAAAABWCQAAAAAAAA0AAAABAAAACQAAAAAA"
-  "AAAGAAAAAAAAAGgJAAAAAAAADgAAAAEAAAAJAAAAAAAAABYAAAAAAAAAcgkAAAAAAAABAAEAAAAA"
-  "AKYIAAABAAAADgAAAAEAAQABAAAAqwgAAAQAAABwEAYAAAAOAAEAAQABAAAAsAgAAAQAAABwEAMA"
-  "AAAOAAEAAQABAAAAtQgAAAQAAABwEAAAAAAOAAEAAQABAAAAuggAAAQAAABwEAYAAAAOAAEAAQAB"
-  "AAAAvwgAAAQAAABwEAYAAAAOAAEAAQABAAAAxAgAAAQAAABwEAkAAAAOAAEAAQABAAAAyQgAAAQA"
-  "AABwEAQAAAAOAAEAAQABAAAAzggAAAQAAABwEAYAAAAOAAEAAQABAAAA0wgAAAQAAABwEAYAAAAO"
-  "AAEAAQABAAAA2AgAAAQAAABwEAYAAAAOAAEAAQABAAAA3QgAAAQAAABwEAYAAAAOAAY8aW5pdD4A"
-  "F0Jhc2VEZXhDbGFzc0xvYWRlci5qYXZhAApDbGFzcy5qYXZhABBDbGFzc0xvYWRlci5qYXZhAA5D"
-  "bG9uZWFibGUuamF2YQAORXhjZXB0aW9uLmphdmEACkZpZWxkLmphdmEAAUkAIkxkYWx2aWsvc3lz"
-  "dGVtL0Jhc2VEZXhDbGFzc0xvYWRlcjsAH0xkYWx2aWsvc3lzdGVtL1BhdGhDbGFzc0xvYWRlcjsA"
-  "FkxqYXZhL2lvL1NlcmlhbGl6YWJsZTsAEUxqYXZhL2xhbmcvQ2xhc3M7ABdMamF2YS9sYW5nL0Ns"
-  "YXNzTG9hZGVyOwAVTGphdmEvbGFuZy9DbG9uZWFibGU7ABVMamF2YS9sYW5nL0V4Y2VwdGlvbjsA"
-  "IExqYXZhL2xhbmcvTnVsbFBvaW50ZXJFeGNlcHRpb247ABJMamF2YS9sYW5nL09iamVjdDsAHUxq"
-  "YXZhL2xhbmcvU3RhY2tUcmFjZUVsZW1lbnQ7ABJMamF2YS9sYW5nL1N0cmluZzsAFUxqYXZhL2xh"
-  "bmcvVGhyb3dhYmxlOwAZTGphdmEvbGFuZy9yZWZsZWN0L0ZpZWxkOwAaTGphdmEvbGFuZy9yZWZs"
-  "ZWN0L01ldGhvZDsAC01ldGhvZC5qYXZhABlOdWxsUG9pbnRlckV4Y2VwdGlvbi5qYXZhAAtPYmpl"
-  "Y3QuamF2YQAUUGF0aENsYXNzTG9hZGVyLmphdmEAEVNlcmlhbGl6YWJsZS5qYXZhABZTdGFja1Ry"
-  "YWNlRWxlbWVudC5qYXZhAAtTdHJpbmcuamF2YQAOVGhyb3dhYmxlLmphdmEAAVYAAltDAB5bTGph"
-  "dmEvbGFuZy9TdGFja1RyYWNlRWxlbWVudDsABWNhdXNlAAVjb3VudAAOZGVjbGFyaW5nQ2xhc3MA"
-  "DWRldGFpbE1lc3NhZ2UACGZpbGVOYW1lAAhoYXNoQ29kZQAKbGluZU51bWJlcgAKbWV0aG9kTmFt"
-  "ZQAGb2Zmc2V0AAxvcmlnaW5hbFBhdGgACHBhY2thZ2VzAAZwYXJlbnQACHBhdGhMaXN0AApzdGFj"
-  "a1N0YXRlAApzdGFja1RyYWNlABRzdXBwcmVzc2VkRXhjZXB0aW9ucwAFdmFsdWUAAwAHDgAFAAcO"
-  "AAUABw4ABQAHDgAFAAcOAAUABw4ABQAHDgAFAAcOAAUABw4ABQAHDgAFAAcOAAUABw4AAAABAAaB"
-  "gAS0CAACAQACAAEAA4GABMgIAAIBAAAAAQAAgYAE4AgAAAEAAYGABPgIAAABAAKBgASQCQAFAQAM"
-  "AAEAAQABAAEACYGABKgJAAABAASBgATACQAAAQAFgYAE2AkABAEABAABAAEAAQAHgYAE8AkABAEA"
-  "CAABAAEAAQAIgYAEiAoAAAEACoGABKAKAAABAAuBgAS4CgwAAAAAAAAAAQAAAAAAAAABAAAAMgAA"
-  "AHAAAAACAAAAEgAAADgBAAADAAAAAQAAAIABAAAEAAAAEQAAAIwBAAAFAAAADAAAABQCAAAGAAAA"
-  "DgAAAHQCAAABIAAADAAAADQEAAACIAAAMgAAAFAFAAADIAAADAAAAKYIAAAAIAAADAAAAOIIAAAA"
-  "EAAAAQAAAHwJAAA=";
-
-// package java.lang;
-// public class Object {}
 //
 // class MyClass {}
 static const char kMyClassDex[] =
@@ -443,7 +331,7 @@ class RuntimeTest : public testing::Test {
     int mkdir_result = mkdir(art_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
 
-    java_lang_dex_file_.reset(OpenDexFileBase64(kJavaLangDex));
+    java_lang_dex_file_.reset(GetLibCoreDex());
 
     std::vector<DexFile*> boot_class_path;
     boot_class_path.push_back(java_lang_dex_file_.get());
@@ -494,18 +382,6 @@ class RuntimeTest : public testing::Test {
   DexFile* GetLibCoreDex() {
     std::string libcore_dex_file_name = GetLibCoreDexFileName();
     return DexFile::OpenZip(libcore_dex_file_name);
-  }
-
-  void UseLibCoreDex() {
-    delete runtime_.release();
-    java_lang_dex_file_.reset(GetLibCoreDex());
-
-    std::vector<DexFile*> boot_class_path;
-    boot_class_path.push_back(java_lang_dex_file_.get());
-
-    runtime_.reset(Runtime::Create(boot_class_path));
-    ASSERT_TRUE(runtime_ != NULL);
-    class_linker_ = runtime_->GetClassLinker();
   }
 
   PathClassLoader* AllocPathClassLoader(const DexFile* dex_file) {

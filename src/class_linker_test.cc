@@ -255,8 +255,8 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(JavaLangObject->IsFinal());
   EXPECT_FALSE(JavaLangObject->IsPrimitive());
   EXPECT_FALSE(JavaLangObject->IsSynthetic());
-  EXPECT_EQ(1U, JavaLangObject->NumDirectMethods());
-  EXPECT_EQ(0U, JavaLangObject->NumVirtualMethods());
+  EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
+  EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
   EXPECT_EQ(0U, JavaLangObject->NumInstanceFields());
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
@@ -305,7 +305,6 @@ TEST_F(ClassLinkerTest, FindClass) {
 }
 
 TEST_F(ClassLinkerTest, LibCore) {
-  UseLibCoreDex();
   scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
   EXPECT_TRUE(libcore_dex_file.get() != NULL);
   AssertDexFile(libcore_dex_file.get(), NULL);
@@ -315,7 +314,6 @@ TEST_F(ClassLinkerTest, LibCore) {
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkInstanceFields.
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
-  UseLibCoreDex();
   Class* string = class_linker_->FindSystemClass( "Ljava/lang/String;");
   ASSERT_EQ(4U, string->NumInstanceFields());
   EXPECT_TRUE(string->GetInstanceField(0)->GetName()->Equals("value"));

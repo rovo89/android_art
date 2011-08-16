@@ -10,7 +10,6 @@ namespace art {
 class ImageTest : public RuntimeTest {};
 
 TEST_F(ImageTest, WriteRead) {
-  UseLibCoreDex();
   scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
   EXPECT_TRUE(libcore_dex_file.get() != NULL);
 

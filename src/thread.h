@@ -147,6 +147,9 @@ class Thread {
     exception_ = new_exception;  // TODO
   }
 
+  void ThrowNewException(const char* exception_class_name, const char* fmt, ...)
+      __attribute__ ((format(printf, 3, 4)));
+
   void ClearException() {
     exception_ = NULL;
   }

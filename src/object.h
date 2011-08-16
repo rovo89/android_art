@@ -628,11 +628,9 @@ class Array : public Object {
  protected:
   bool IsValidIndex(int32_t index) const {
     if (index < 0 || index >= length_) {
-      // TODO: throw ArrayIndexOutOfBoundsException with the detail message
-      // "length=%d; index=%d", length_, index;
-      CHECK(false) << "ArrayIndexOutOfBoundsException: length="
-                   << length_ << "; index=" << index;
-      return false;
+      Thread* self = Thread::Current();
+      self->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+          "length=%i; index=%i", length_, index);
     }
     return true;
   }
@@ -1275,10 +1273,13 @@ class String : public Object {
     return count_;
   }
 
+  // TODO: do we need this? Equals is the only caller, and could
+  // bounds check itself.
   uint16_t CharAt(int32_t index) const {
     if (index < 0 || index >= count_) {
-      // TODO: throw new StringIndexOutOfBounds(this, index);
-      CHECK(false) << "StringIndexOutOfBounds: " << index;
+      Thread* self = Thread::Current();
+      self->ThrowNewException("Ljava/lang/StringIndexOutOfBoundsException;",
+          "length=%i; index=%i", count_, index);
       return 0;
     } else {
       return GetCharArray()->Get(index + GetOffset());
@@ -1414,6 +1415,7 @@ class String : public Object {
     hash_code_ = ComputeUtf16Hash(array_->GetData(), count_);
   }
 
+  // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const char* modified_utf8) const {
     for (uint32_t i = 0; i < GetLength(); ++i) {
       uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
@@ -1424,6 +1426,7 @@ class String : public Object {
     return *modified_utf8 == '\0';
   }
 
+  // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const StringPiece& modified_utf8) const {
     // TODO: do not assume C-string representation.
     return Equals(modified_utf8.data());
@@ -1442,6 +1445,7 @@ class String : public Object {
     return true;
   }
 
+  // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const uint16_t* that_chars, uint32_t that_offset, uint32_t that_length) const {
     if (this->GetLength() != that_length) {
       return false;
