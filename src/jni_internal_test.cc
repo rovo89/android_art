@@ -57,6 +57,117 @@ TEST_F(JniInternalTest, FindClass) {
   EXPECT_CLASS_NOT_FOUND("K");
 }
 
+TEST_F(JniInternalTest, GetMethodID) {
+  jclass jlobject = env_->FindClass("java/lang/Object");
+  jclass jlstring = env_->FindClass("java/lang/String");
+  jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
+
+  // Sanity check that no exceptions are pending
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Check that java.lang.Object.foo() doesn't exist and NoSuchMethodError is
+  // a pending exception
+  jmethodID method = env_->GetMethodID(jlobject, "foo", "()V");
+  EXPECT_EQ(static_cast<jmethodID>(NULL), method);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  jthrowable exception = env_->ExceptionOccurred();
+  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
+  env_->ExceptionClear();
+
+  // Check that java.lang.Object.equals() does exist
+#if defined(__arm__)
+  method = env_->GetMethodID(jlobject, "equals", "(Ljava/lang/Object;)Z");
+  EXPECT_NE(static_cast<jmethodID>(NULL), method);
+  EXPECT_FALSE(env_->ExceptionCheck());
+#endif
+
+  // Check that GetMethodID for java.lang.String.valueOf(int) fails as the
+  // method is static
+  method = env_->GetMethodID(jlstring, "valueOf", "(I)Ljava/lang/String;");
+  EXPECT_EQ(static_cast<jmethodID>(NULL), method);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  exception = env_->ExceptionOccurred();
+  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
+  env_->ExceptionClear();
+}
+
+TEST_F(JniInternalTest, GetStaticMethodID) {
+  jclass jlobject = env_->FindClass("java/lang/Object");
+  jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
+
+  // Sanity check that no exceptions are pending
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Check that java.lang.Object.foo() doesn't exist and NoSuchMethodError is
+  // a pending exception
+  jmethodID method = env_->GetStaticMethodID(jlobject, "foo", "()V");
+  EXPECT_EQ(static_cast<jmethodID>(NULL), method);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  jthrowable exception = env_->ExceptionOccurred();
+  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
+  env_->ExceptionClear();
+
+  // Check that GetStaticMethodID for java.lang.Object.equals(Object) fails as
+  // the method is not static
+  method = env_->GetStaticMethodID(jlobject, "equals", "(Ljava/lang/Object;)Z");
+  EXPECT_EQ(static_cast<jmethodID>(NULL), method);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  exception = env_->ExceptionOccurred();
+  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
+  env_->ExceptionClear();
+
+  // Check that java.lang.String.valueOf(int) does exist
+#if defined(__arm__)
+  jclass jlstring = env_->FindClass("java/lang/String");
+  method = env_->GetStaticMethodID(jlstring, "valueOf",
+                                   "(I)Ljava/lang/String;");
+  EXPECT_NE(static_cast<jmethodID>(NULL), method);
+  EXPECT_FALSE(env_->ExceptionCheck());
+#endif
+}
+
+TEST_F(JniInternalTest, RegisterNatives) {
+  jclass jlobject = env_->FindClass("java/lang/Object");
+  jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
+
+  // Sanity check that no exceptions are pending
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Check that registering to a non-existent java.lang.Object.foo() causes a
+  // NoSuchMethodError
+  {
+    JNINativeMethod methods[] = {{"foo", "()V", NULL}};
+    env_->RegisterNatives(jlobject, methods, 1);
+  }
+  EXPECT_TRUE(env_->ExceptionCheck());
+  jthrowable exception = env_->ExceptionOccurred();
+  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
+  env_->ExceptionClear();
+
+  // Check that registering non-native methods causes a NoSuchMethodError
+  {
+    JNINativeMethod methods[] = {{"equals", "(Ljava/lang/Object;)Z", NULL}};
+    env_->RegisterNatives(jlobject, methods, 1);
+  }
+  EXPECT_TRUE(env_->ExceptionCheck());
+  exception = env_->ExceptionOccurred();
+  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
+  env_->ExceptionClear();
+
+  // Check that registering native methods is successful
+  {
+    JNINativeMethod methods[] = {{"hashCode", "()I", NULL}};
+    env_->RegisterNatives(jlobject, methods, 1);
+  }
+  EXPECT_FALSE(env_->ExceptionCheck());
+}
+
 TEST_F(JniInternalTest, NewPrimitiveArray) {
   // TODO: death tests for negative array sizes.
 

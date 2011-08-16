@@ -89,7 +89,7 @@ byte* CreateArgArray(Method* method, va_list ap) {
   size_t num_bytes = method->NumArgArrayBytes();
   scoped_array<byte> arg_array(new byte[num_bytes]);
   const StringPiece& shorty = method->GetShorty();
-  for (int i = 1, offset = 0; i < shorty.size() - 1; ++i) {
+  for (int i = 1, offset = 0; i < shorty.size(); ++i) {
     switch (shorty[i]) {
       case 'Z':
       case 'B':
@@ -127,7 +127,7 @@ byte* CreateArgArray(Method* method, jvalue* args) {
   size_t num_bytes = method->NumArgArrayBytes();
   scoped_array<byte> arg_array(new byte[num_bytes]);
   const StringPiece& shorty = method->GetShorty();
-  for (int i = 1, offset = 0; i < shorty.size() - 1; ++i) {
+  for (int i = 1, offset = 0; i < shorty.size(); ++i) {
     switch (shorty[i]) {
       case 'Z':
       case 'B':
@@ -284,8 +284,23 @@ jint ThrowNew(JNIEnv* env, jclass clazz, const char* msg) {
 
 jthrowable ExceptionOccurred(JNIEnv* env) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  Object* exception = ts.Self()->GetException();
+  if (exception == NULL) {
+    return NULL;
+  } else {
+    // TODO: if adding a local reference failing causes the VM to abort
+    // then the following check will never occur.
+    jthrowable localException = AddLocalReference<jthrowable>(ts, exception);
+    if (localException == NULL) {
+      // We were unable to add a new local reference, and threw a new
+      // exception.  We can't return "exception", because it's not a
+      // local reference.  So we have to return NULL, indicating that
+      // there was no exception, even though it's pretty much raining
+      // exceptions in here.
+      LOG(WARNING) << "JNI WARNING: addLocal/exception combo";
+    }
+    return localException;
+  }
 }
 
 void ExceptionDescribe(JNIEnv* env) {
@@ -381,10 +396,19 @@ jclass GetObjectClass(JNIEnv* env, jobject obj) {
   return NULL;
 }
 
-jboolean IsInstanceOf(JNIEnv* env, jobject obj, jclass clazz) {
+jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass clazz) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return JNI_FALSE;
+  CHECK_NE(static_cast<jclass>(NULL), clazz);
+  if (jobj == NULL) {
+    // NB. JNI is different from regular Java instanceof in this respect
+    return JNI_TRUE;
+  } else {
+    // TODO: retrieve handle value for object
+    Object* obj = reinterpret_cast<Object*>(jobj);
+    // TODO: retrieve handle value for class
+    Class* klass = reinterpret_cast<Class*>(clazz);
+    return Object::InstanceOf(obj, klass) ? JNI_TRUE : JNI_FALSE;
+  }
 }
 
 jmethodID GetMethodID(JNIEnv* env,
@@ -401,17 +425,31 @@ jmethodID GetMethodID(JNIEnv* env,
     // private methods and constructors.
     method = klass->FindDeclaredDirectMethod(name, sig);
   }
-  if (method == NULL || method->IsStatic()) {
-    LG << "NoSuchMethodError";  // TODO: throw NoSuchMethodError
+  if (method == NULL) {
+    Thread* self = Thread::Current();
+    std::string class_name = klass->GetDescriptor().ToString();
+    // TODO: pretty print method names through a single routine
+    self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+                            "no method \"%s.%s%s\"",
+                            class_name.c_str(), name, sig);
     return NULL;
-  }
-  // TODO: create a JNI weak global reference for method
-  bool success = EnsureInvokeStub(method);
-  if (!success) {
-    // TODO: throw OutOfMemoryException
+  } else if (method->IsStatic()) {
+    Thread* self = Thread::Current();
+    std::string class_name = klass->GetDescriptor().ToString();
+    // TODO: pretty print method names through a single routine
+    self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+                            "method \"%s.%s%s\" is static",
+                            class_name.c_str(), name, sig);
     return NULL;
+  } else {
+    // TODO: create a JNI weak global reference for method
+    bool success = EnsureInvokeStub(method);
+    if (!success) {
+      // TODO: throw OutOfMemoryException
+      return NULL;
+    }
+    return reinterpret_cast<jmethodID>(method);
   }
-  return reinterpret_cast<jmethodID>(method);
 }
 
 jobject CallObjectMethod(JNIEnv* env, jobject obj, jmethodID methodID, ...) {
@@ -933,17 +971,33 @@ jmethodID GetStaticMethodID(JNIEnv* env,
     // TODO: initialize the class
   }
   Method* method = klass->FindDirectMethod(name, sig);
-  if (method == NULL || !method->IsStatic()) {
-    LG << "NoSuchMethodError";  // TODO: throw NoSuchMethodError
+  if (method == NULL) {
+    Thread* self = Thread::Current();
+    std::string class_name = klass->GetDescriptor().ToString();
+    // TODO: pretty print method names through a single routine
+    // TODO: may want to FindVirtualMethod to give more informative error
+    // message here
+    self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+                            "no method \"%s.%s%s\"",
+                            class_name.c_str(), name, sig);
     return NULL;
-  }
-  // TODO: create a JNI weak global reference for method
-  bool success = EnsureInvokeStub(method);
-  if (!success) {
-    // TODO: throw OutOfMemoryException
+  } else if (!method->IsStatic()) {
+    Thread* self = Thread::Current();
+    std::string class_name = klass->GetDescriptor().ToString();
+    // TODO: pretty print method names through a single routine
+    self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+                            "method \"%s.%s%s\" is not static",
+                            class_name.c_str(), name, sig);
     return NULL;
+  } else {
+    // TODO: create a JNI weak global reference for method
+    bool success = EnsureInvokeStub(method);
+    if (!success) {
+      // TODO: throw OutOfMemoryException
+      return NULL;
+    }
+    return reinterpret_cast<jmethodID>(method);
   }
-  return reinterpret_cast<jmethodID>(method);
 }
 
 jobject CallStaticObjectMethod(JNIEnv* env,
@@ -1597,8 +1651,35 @@ void SetDoubleArrayRegion(JNIEnv* env,
 jint RegisterNatives(JNIEnv* env,
     jclass clazz, const JNINativeMethod* methods, jint nMethods) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  // TODO: retrieve handle value for class
+  Class* klass = reinterpret_cast<Class*>(clazz);
+  for(int i = 0; i < nMethods; i++) {
+    const char* name = methods[i].name;
+    const char* sig = methods[i].signature;
+    Method* method = klass->FindDirectMethod(name, sig);
+    if (method == NULL) {
+      method = klass->FindVirtualMethod(name, sig);
+    }
+    if (method == NULL) {
+      Thread* self = Thread::Current();
+      std::string class_name = klass->GetDescriptor().ToString();
+      // TODO: pretty print method names through a single routine
+      self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+                              "no method \"%s.%s%s\"",
+                              class_name.c_str(), name, sig);
+      return JNI_ERR;
+    } else if (!method->IsNative()) {
+      Thread* self = Thread::Current();
+      std::string class_name = klass->GetDescriptor().ToString();
+      // TODO: pretty print method names through a single routine
+      self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+                              "method \"%s.%s%s\" is not native",
+                              class_name.c_str(), name, sig);
+      return JNI_ERR;
+    }
+    method->RegisterNative(methods[i].fnPtr);
+  }
+  return JNI_OK;
 }
 
 jint UnregisterNatives(JNIEnv* env, jclass clazz) {
