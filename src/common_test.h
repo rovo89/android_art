@@ -333,7 +333,7 @@ class RuntimeTest : public testing::Test {
 
     java_lang_dex_file_.reset(GetLibCoreDex());
 
-    std::vector<DexFile*> boot_class_path;
+    std::vector<const DexFile*> boot_class_path;
     boot_class_path.push_back(java_lang_dex_file_.get());
 
     runtime_.reset(Runtime::Create(boot_class_path));

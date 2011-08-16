@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 
 #include "class_linker.h"
@@ -72,21 +73,73 @@ void ParseClassPath(const char* class_path, std::vector<std::string>* vec) {
   }
 }
 
-// TODO: move option processing elsewhere.
-const char* FindBootClassPath(const Runtime::Options& options) {
-  const char* boot_class_path = getenv("BOOTCLASSPATH");
-  const char* flag = "-Xbootclasspath:";
-  for (size_t i = 0; i < options.size(); ++i) {
-    const StringPiece& option = options[i].first;
-    if (option.starts_with(flag)) {
-      boot_class_path = option.substr(strlen(flag)).data();
+
+
+// Parse a string of the form /[0-9]+[kKmMgG]?/, which is used to specify
+// memory sizes.  [kK] indicates kilobytes, [mM] megabytes, and
+// [gG] gigabytes.
+//
+// "s" should point just past the "-Xm?" part of the string.
+// "min" specifies the lowest acceptable value described by "s".
+// "div" specifies a divisor, e.g. 1024 if the value must be a multiple
+// of 1024.
+//
+// The spec says the -Xmx and -Xms options must be multiples of 1024.  It
+// doesn't say anything about -Xss.
+//
+// Returns 0 (a useless size) if "s" is malformed or specifies a low or
+// non-evenly-divisible value.
+//
+size_t ParseMemoryOption(const char *s, size_t div) {
+  // strtoul accepts a leading [+-], which we don't want,
+  // so make sure our string starts with a decimal digit.
+  if (isdigit(*s)) {
+    const char *s2;
+    size_t val = strtoul(s, (char **)&s2, 10);
+    if (s2 != s) {
+      // s2 should be pointing just after the number.
+      // If this is the end of the string, the user
+      // has specified a number of bytes.  Otherwise,
+      // there should be exactly one more character
+      // that specifies a multiplier.
+      if (*s2 != '\0') {
+          // The remainder of the string is either a single multiplier
+          // character, or nothing to indicate that the value is in
+          // bytes.
+          char c = *s2++;
+          if (*s2 == '\0') {
+            size_t mul;
+            if (c == '\0') {
+              mul = 1;
+            } else if (c == 'k' || c == 'K') {
+              mul = 1024;
+            } else if (c == 'm' || c == 'M') {
+              mul = 1024 * 1024;
+            } else if (c == 'g' || c == 'G') {
+              mul = 1024 * 1024 * 1024;
+            } else {
+              // Unknown multiplier character.
+              return 0;
+            }
+
+            if (val <= std::numeric_limits<size_t>::max() / mul) {
+              val *= mul;
+            } else {
+              // Clamp to a multiple of 1024.
+              val = std::numeric_limits<size_t>::max() & ~(1024-1);
+            }
+          } else {
+            // There's more than one character after the numeric part.
+            return 0;
+          }
+      }
+      // The man page says that a -Xm value must be a multiple of 1024.
+      if (val % div == 0) {
+        return val;
+      }
     }
   }
-  if (boot_class_path == NULL) {
-    return "";
-  } else {
-    return boot_class_path;
-  }
+  return 0;
 }
 
 DexFile* Open(const std::string& filename) {
@@ -102,35 +155,67 @@ DexFile* Open(const std::string& filename) {
   }
 }
 
-void CreateBootClassPath(const Runtime::Options& options,
-                         std::vector<DexFile*>* boot_class_path) {
-  CHECK(boot_class_path != NULL);
-  const char* str = FindBootClassPath(options);
+void CreateBootClassPath(const char* boot_class_path_cstr,
+                         std::vector<DexFile*>& boot_class_path_vector) {
+  CHECK(boot_class_path_cstr != NULL);
   std::vector<std::string> parsed;
-  ParseClassPath(str, &parsed);
+  ParseClassPath(boot_class_path_cstr, &parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
     DexFile* dex_file = Open(parsed[i]);
     if (dex_file != NULL) {
-      boot_class_path->push_back(dex_file);
+      boot_class_path_vector.push_back(dex_file);
     }
   }
 }
 
-// TODO: do something with ignore_unrecognized when we parse the option
-// strings for real.
-Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
-  std::vector<DexFile*> boot_class_path;
-  CreateBootClassPath(options, &boot_class_path);
-  return Runtime::Create(boot_class_path);
+Runtime::ParsedOptions::ParsedOptions(const Options& options, bool ignore_unrecognized) {
+  const char* boot_class_path = getenv("BOOTCLASSPATH");
+  boot_image_ = NULL;
+  heap_initial_size_ = Heap::kInitialSize;
+  heap_maximum_size_ = Heap::kMaximumSize;
+
+  for (size_t i = 0; i < options.size(); ++i) {
+    const StringPiece& option = options[i].first;
+    // TODO parse -D, -verbose, vprintf, exit, abort
+    if (option.starts_with("-Xbootclasspath:")) {
+      boot_class_path = option.substr(strlen("-Xbootclasspath:")).data();
+    } else if (option == "bootclasspath") {
+      boot_class_path_ = *reinterpret_cast<const std::vector<DexFile*>*>(options[i].second);
+    } else if (option.starts_with("-Xbootimage:")) {
+      boot_image_ = option.substr(strlen("-Xbootimage:")).data();
+    } else if (option.starts_with("-Xms")) {
+      heap_initial_size_ = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
+    } else if (option.starts_with("-Xmx")) {
+      heap_maximum_size_ = ParseMemoryOption(option.substr(strlen("-Xmx")).data(), 1024);
+    } else {
+      if (!ignore_unrecognized) {
+        // TODO: indicate error for JNI_CreateJavaVM and print usage via vfprintf
+        LOG(FATAL) << "Unrecognized option " << option;
+      }
+    }
+  }
+
+  if (boot_class_path == NULL) {
+    boot_class_path = "";
+  }
+  if (boot_class_path_.size() == 0) {
+    CreateBootClassPath(boot_class_path, boot_class_path_);
+  }
 }
 
-Runtime* Runtime::Create(const std::vector<DexFile*>& boot_class_path) {
+Runtime* Runtime::Create(const std::vector<const DexFile*>& boot_class_path) {
+  Runtime::Options options;
+  options.push_back(std::make_pair("bootclasspath", &boot_class_path));
+  return Runtime::Create(options, false);
+}
+
+Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   if (Runtime::instance_ != NULL) {
     return NULL;
   }
   scoped_ptr<Runtime> runtime(new Runtime());
-  bool success = runtime->Init(boot_class_path);
+  bool success = runtime->Init(options, ignore_unrecognized);
   if (!success) {
     return NULL;
   } else {
@@ -138,14 +223,16 @@ Runtime* Runtime::Create(const std::vector<DexFile*>& boot_class_path) {
   }
 }
 
-bool Runtime::Init(const std::vector<DexFile*>& boot_class_path) {
+bool Runtime::Init(const Options& options, bool ignore_unrecognized) {
+  ParsedOptions parsed_options(options, ignore_unrecognized);
   CHECK_EQ(kPageSize, sysconf(_SC_PAGE_SIZE));
   thread_list_ = ThreadList::Create();
-  Heap::Init(Heap::kStartupSize, Heap::kMaximumSize);
+  Heap::Init(parsed_options.heap_initial_size_,
+             parsed_options.heap_maximum_size_);
   Thread::Init();
   Thread* current_thread = Thread::Attach();
   thread_list_->Register(current_thread);
-  class_linker_ = ClassLinker::Create(boot_class_path);
+  class_linker_ = ClassLinker::Create(parsed_options.boot_class_path_);
   java_vm_.reset(CreateJavaVM(this));
   return true;
 }

@@ -21,11 +21,22 @@ class ThreadList;
 
 class Runtime {
  public:
-  typedef std::vector<std::pair<StringPiece, void*> > Options;
+
+  typedef std::vector<std::pair<StringPiece, const void*> > Options;
+
+  class ParsedOptions {
+   public:
+    ParsedOptions(const Options& options, bool ignore_unrecognized);
+
+    std::vector<DexFile*> boot_class_path_;
+    const char* boot_image_;
+    size_t heap_initial_size_;
+    size_t heap_maximum_size_;
+  };
 
   // Creates and initializes a new runtime.
   static Runtime* Create(const Options& options, bool ignore_unrecognized);
-  static Runtime* Create(const std::vector<DexFile*>& boot_class_path);
+  static Runtime* Create(const std::vector<const DexFile*>& boot_class_path);
 
   static Runtime* Current() {
     return instance_;
@@ -70,7 +81,7 @@ class Runtime {
   Runtime() : thread_list_(NULL), class_linker_(NULL) {}
 
   // Initializes a new uninitialized runtime.
-  bool Init(const std::vector<DexFile*>& boot_class_path);
+  bool Init(const Options& options, bool ignore_unrecognized);
 
   ThreadList* thread_list_;
 

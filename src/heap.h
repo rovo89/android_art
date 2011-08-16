@@ -18,7 +18,7 @@ class HeapBitmap;
 
 class Heap {
  public:
-  static const size_t kStartupSize = 16 * MB;
+  static const size_t kInitialSize = 16 * MB;
 
   static const size_t kMaximumSize = 64 * MB;
 
