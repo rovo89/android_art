@@ -34,10 +34,14 @@ void Runtime::Abort(const char* file, int line) {
   // so be explicit.
   LogMessage(file, line, ERROR, -1).stream() << "Runtime aborting...";
 
-  // TODO: if we support an abort hook, call it here.
-
   // Perform any platform-specific pre-abort actions.
   PlatformAbort(file, line);
+
+  // use abort hook if we have one
+  if (Runtime::Current() != NULL && Runtime::Current()->abort_ != NULL) {
+    Runtime::Current()->abort_();
+    // notreached
+  }
 
   // If we call abort(3) on a device, all threads in the process
   // receive SIGABRT.  debuggerd dumps the stack trace of the main
@@ -48,24 +52,24 @@ void Runtime::Abort(const char* file, int line) {
   // a deliberate abort by looking at the fault address.
   *reinterpret_cast<char*>(0xdeadd00d) = 38;
   abort();
-
   // notreached
 }
 
-// Splits a colon delimited list of pathname elements into a vector of
-// strings.  Empty strings will be omitted.
-void ParseClassPath(const char* class_path, std::vector<std::string>* vec) {
-  CHECK(vec != NULL);
-  scoped_ptr_malloc<char> tmp(strdup(class_path));
+// Splits a C string using the given delimiter characters into a vector of
+// strings. Empty strings will be omitted.
+void Split(const char* str, const char* delim, std::vector<std::string>& vec) {
+  DCHECK(str != NULL);
+  DCHECK(delim != NULL);
+  scoped_ptr_malloc<char> tmp(strdup(str));
   char* full = tmp.get();
   char* p = full;
   while (p != NULL) {
-    p = strpbrk(full, ":");
+    p = strpbrk(full, delim);
     if (p != NULL) {
       p[0] = '\0';
     }
     if (full[0] != '\0') {
-      vec->push_back(std::string(full));
+      vec.push_back(std::string(full));
     }
     if (p != NULL) {
       full = p + 1;
@@ -73,7 +77,11 @@ void ParseClassPath(const char* class_path, std::vector<std::string>* vec) {
   }
 }
 
-
+// Splits a colon delimited list of pathname elements into a vector of
+// strings.  Empty strings will be omitted.
+void ParseClassPath(const char* class_path, std::vector<std::string>& vec) {
+  Split(class_path, ":", vec);
+}
 
 // Parse a string of the form /[0-9]+[kKmMgG]?/, which is used to specify
 // memory sizes.  [kK] indicates kilobytes, [mM] megabytes, and
@@ -159,7 +167,7 @@ void CreateBootClassPath(const char* boot_class_path_cstr,
                          std::vector<DexFile*>& boot_class_path_vector) {
   CHECK(boot_class_path_cstr != NULL);
   std::vector<std::string> parsed;
-  ParseClassPath(boot_class_path_cstr, &parsed);
+  ParseClassPath(boot_class_path_cstr, parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
     DexFile* dex_file = Open(parsed[i]);
     if (dex_file != NULL) {
@@ -168,29 +176,43 @@ void CreateBootClassPath(const char* boot_class_path_cstr,
   }
 }
 
-Runtime::ParsedOptions::ParsedOptions(const Options& options, bool ignore_unrecognized) {
+Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
+  scoped_ptr<ParsedOptions> parsed(new ParsedOptions());
   const char* boot_class_path = getenv("BOOTCLASSPATH");
-  boot_image_ = NULL;
-  heap_initial_size_ = Heap::kInitialSize;
-  heap_maximum_size_ = Heap::kMaximumSize;
+  parsed->boot_image_ = NULL;
+  parsed->heap_initial_size_ = Heap::kInitialSize;
+  parsed->heap_maximum_size_ = Heap::kMaximumSize;
+  parsed->hook_vfprintf_ = vfprintf;
+  parsed->hook_exit_ = exit;
+  parsed->hook_abort_ = abort;
 
   for (size_t i = 0; i < options.size(); ++i) {
     const StringPiece& option = options[i].first;
-    // TODO parse -D, -verbose, vprintf, exit, abort
     if (option.starts_with("-Xbootclasspath:")) {
       boot_class_path = option.substr(strlen("-Xbootclasspath:")).data();
     } else if (option == "bootclasspath") {
-      boot_class_path_ = *reinterpret_cast<const std::vector<DexFile*>*>(options[i].second);
+      parsed->boot_class_path_ = *reinterpret_cast<const std::vector<DexFile*>*>(options[i].second);
     } else if (option.starts_with("-Xbootimage:")) {
-      boot_image_ = option.substr(strlen("-Xbootimage:")).data();
+      parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
     } else if (option.starts_with("-Xms")) {
-      heap_initial_size_ = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
+      parsed->heap_initial_size_ = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
     } else if (option.starts_with("-Xmx")) {
-      heap_maximum_size_ = ParseMemoryOption(option.substr(strlen("-Xmx")).data(), 1024);
+      parsed->heap_maximum_size_ = ParseMemoryOption(option.substr(strlen("-Xmx")).data(), 1024);
+    } else if (option.starts_with("-D")) {
+      parsed->properties_.push_back(option.substr(strlen("-D")).data());
+    } else if (option.starts_with("-verbose:")) {
+      Split(option.substr(strlen("-verbose:")).data(), ",", parsed->verbose_);
+    } else if (option == "vfprintf") {
+      parsed->hook_vfprintf_ = reinterpret_cast<int (*)(FILE *, const char*, va_list)>(options[i].second);
+    } else if (option == "exit") {
+      parsed->hook_exit_ = reinterpret_cast<void(*)(jint)>(options[i].second);
+    } else if (option == "abort") {
+      parsed->hook_abort_ = reinterpret_cast<void(*)()>(options[i].second);
     } else {
       if (!ignore_unrecognized) {
-        // TODO: indicate error for JNI_CreateJavaVM and print usage via vfprintf
+        // TODO: print usage via vfprintf
         LOG(FATAL) << "Unrecognized option " << option;
+        return NULL;
       }
     }
   }
@@ -198,9 +220,10 @@ Runtime::ParsedOptions::ParsedOptions(const Options& options, bool ignore_unreco
   if (boot_class_path == NULL) {
     boot_class_path = "";
   }
-  if (boot_class_path_.size() == 0) {
-    CreateBootClassPath(boot_class_path, boot_class_path_);
+  if (parsed->boot_class_path_.size() == 0) {
+    CreateBootClassPath(boot_class_path, parsed->boot_class_path_);
   }
+  return parsed.release();
 }
 
 Runtime* Runtime::Create(const std::vector<const DexFile*>& boot_class_path) {
@@ -224,15 +247,27 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 }
 
 bool Runtime::Init(const Options& options, bool ignore_unrecognized) {
-  ParsedOptions parsed_options(options, ignore_unrecognized);
   CHECK_EQ(kPageSize, sysconf(_SC_PAGE_SIZE));
+
+  scoped_ptr<ParsedOptions> parsed_options(ParsedOptions::Create(options, ignore_unrecognized));
+  if (parsed_options == NULL) {
+    return false;
+  }
+  vfprintf_ = parsed_options->hook_vfprintf_;
+  exit_ = parsed_options->hook_exit_;
+  abort_ = parsed_options->hook_abort_;
+
   thread_list_ = ThreadList::Create();
-  Heap::Init(parsed_options.heap_initial_size_,
-             parsed_options.heap_maximum_size_);
+
+  Heap::Init(parsed_options->heap_initial_size_,
+             parsed_options->heap_maximum_size_);
+
   Thread::Init();
   Thread* current_thread = Thread::Attach();
   thread_list_->Register(current_thread);
-  class_linker_ = ClassLinker::Create(parsed_options.boot_class_path_);
+
+  class_linker_ = ClassLinker::Create(parsed_options->boot_class_path_);
+
   java_vm_.reset(CreateJavaVM(this));
   return true;
 }
