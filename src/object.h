@@ -129,7 +129,7 @@ class Object {
 
   bool InstanceOf(const Class* klass) const;
 
-  size_t Size() const;
+  size_t SizeOf() const;
 
   void MonitorEnter() {
     monitor_->Enter();
@@ -603,6 +603,7 @@ class Array : public Object {
                      size_t component_size) {
     return sizeof(Array) + component_count * component_size;
   }
+
   static Array* Alloc(Class* array_class,
                       size_t component_count,
                       size_t component_size) {
@@ -614,7 +615,7 @@ class Array : public Object {
     return array;
   }
 
-  size_t Size() const;
+  size_t SizeOf() const;
 
   int32_t GetLength() const {
     return length_;
@@ -1174,14 +1175,14 @@ inline bool Object::IsArray() const {
   return klass_->IsArray();
 }
 
-inline size_t Object::Size() const {
+inline size_t Object::SizeOf() const {
   if (IsArray()) {
-    return AsArray()->Size();
+    return AsArray()->SizeOf();
   }
   return klass_->object_size_;
 }
 
-inline size_t Array::Size() const {
+inline size_t Array::SizeOf() const {
   return Size(GetLength(), klass_->GetComponentSize());
 }
 

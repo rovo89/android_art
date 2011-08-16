@@ -48,7 +48,7 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object *obj, void *arg) {
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
   image_writer->SetImageOffset(obj, image_writer->image_top_);
-  image_writer->image_top_ += RoundUp(obj->Size(), 8);  // 64-bit alignment
+  image_writer->image_top_ += RoundUp(obj->SizeOf(), 8);  // 64-bit alignment
   DCHECK_LT(image_writer->image_top_, image_writer->image_->GetLength());
 }
 
@@ -77,7 +77,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object *obj, void *arg) {
   size_t offset = image_writer->GetImageOffset(obj);
   byte* dst = image_writer->image_->GetAddress() + offset;
   byte* src = reinterpret_cast<byte*>(obj);
-  size_t n = obj->Size();
+  size_t n = obj->SizeOf();
   DCHECK_LT(offset + n, image_writer->image_->GetLength());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
