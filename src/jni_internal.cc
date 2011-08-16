@@ -56,6 +56,12 @@ class ScopedJniThreadState {
   DISALLOW_COPY_AND_ASSIGN(ScopedJniThreadState);
 };
 
+template<typename T>
+T AddLocalReference(ScopedJniThreadState& ts, Object* obj) {
+  UNIMPLEMENTED(WARNING);
+  return reinterpret_cast<T>(obj);
+}
+
 void CreateInvokeStub(Assembler* assembler, Method* method);
 
 bool EnsureInvokeStub(Method* method) {
@@ -223,8 +229,7 @@ jclass FindClass(JNIEnv* env, const char* name) {
   std::string descriptor(NormalizeJniClassDescriptor(name));
   // TODO: need to get the appropriate ClassLoader.
   Class* c = class_linker->FindClass(descriptor, NULL);
-  // TODO: AddLocalReference.
-  return reinterpret_cast<jclass>(c);
+  return AddLocalReference<jclass>(ts, c);
 }
 
 jmethodID FromReflectedMethod(JNIEnv* env, jobject method) {
@@ -925,24 +930,21 @@ jobject CallStaticObjectMethod(JNIEnv* env,
   va_list ap;
   va_start(ap, methodID);
   JValue result = InvokeWithVarArgs(ts.Self(), NULL, methodID, ap);
-  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: AddLocalReference
-  return obj;
+  return AddLocalReference<jobject>(ts, result.l);
 }
 
 jobject CallStaticObjectMethodV(JNIEnv* env,
     jclass clazz, jmethodID methodID, va_list args) {
   ScopedJniThreadState ts(env);
   JValue result = InvokeWithVarArgs(ts.Self(), NULL, methodID, args);
-  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: AddLocalReference
-  return obj;
+  return AddLocalReference<jobject>(ts, result.l);
 }
 
 jobject CallStaticObjectMethodA(JNIEnv* env,
     jclass clazz, jmethodID methodID, jvalue* args) {
   ScopedJniThreadState ts(env);
   JValue result = InvokeWithJValues(ts.Self(), NULL, methodID, args);
-  jobject obj = reinterpret_cast<jobject>(result.l);  // TODO: AddLocalReference
-  return obj;
+  return AddLocalReference<jobject>(ts, result.l);
 }
 
 jboolean CallStaticBooleanMethod(JNIEnv* env,
@@ -1257,8 +1259,12 @@ void ReleaseStringChars(JNIEnv* env, jstring str, const jchar* chars) {
 
 jstring NewStringUTF(JNIEnv* env, const char* utf) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  if (utf == NULL) {
+    return NULL;
+  }
+  size_t char_count = String::ModifiedUtf8Len(utf);
+  String* result = String::AllocFromModifiedUtf8(char_count, utf);
+  return AddLocalReference<jstring>(ts, result);
 }
 
 jsize GetStringUTFLength(JNIEnv* env, jstring str) {
@@ -1291,17 +1297,20 @@ jobject GetObjectArrayElement(JNIEnv* env, jobjectArray array, jsize index) {
 }
 
 void SetObjectArrayElement(JNIEnv* env,
-    jobjectArray array, jsize index, jobject val) {
+    jobjectArray java_array, jsize index, jobject java_value) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
+  // TODO: DecodeReference
+  ObjectArray<Object>* array = reinterpret_cast<ObjectArray<Object>*>(java_array);
+  Object* value = reinterpret_cast<Object*>(java_value);
+  // TODO: who should throw? JNI or ObjectArray?
+  array->Set(index, value);
 }
 
 template<typename JniT, typename ArtT>
 JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
   CHECK_GE(length, 0); // TODO: ReportJniError
   ArtT* result = ArtT::Alloc(length);
-  // TODO: AddLocalReference
-  return reinterpret_cast<JniT>(result);
+  return AddLocalReference<JniT>(ts, result);
 }
 
 jbooleanArray NewBooleanArray(JNIEnv* env, jsize length) {
@@ -1360,8 +1369,7 @@ jobjectArray NewObjectArray(JNIEnv* env, jsize length, jclass element_jclass, jo
 
   ObjectArray<Object>* result = ObjectArray<Object>::Alloc(array_class, length);
   CHECK(initial_element == NULL);  // TODO: support initial_element
-  // TODO: AddLocalReference.
-  return reinterpret_cast<jobjectArray>(result);
+  return AddLocalReference<jobjectArray>(ts, result);
 }
 
 jshortArray NewShortArray(JNIEnv* env, jsize length) {
