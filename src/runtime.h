@@ -3,8 +3,9 @@
 #ifndef ART_SRC_RUNTIME_H_
 #define ART_SRC_RUNTIME_H_
 
-#include <vector>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "jni.h"
 #include "globals.h"
@@ -17,6 +18,7 @@ namespace art {
 class ClassLinker;
 class DexFile;
 class Heap;
+class String;
 class ThreadList;
 
 class Runtime {
@@ -26,12 +28,21 @@ class Runtime {
 
   class ParsedOptions {
    public:
-    ParsedOptions(const Options& options, bool ignore_unrecognized);
+    // returns null if problem parsing and ignore_unrecognized is false
+    static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
 
     std::vector<DexFile*> boot_class_path_;
     const char* boot_image_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
+    jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
+    void (*hook_exit_)(jint status);
+    void (*hook_abort_)();
+    std::vector<std::string> verbose_;
+    std::vector<std::string> properties_;
+
+   private:
+    ParsedOptions() {};
   };
 
   // Creates and initializes a new runtime.
@@ -69,12 +80,6 @@ class Runtime {
     return java_vm_.get();
   }
 
-  void SetVfprintfHook(void* hook);
-
-  void SetExitHook(void* hook);
-
-  void SetAbortHook(void* hook);
-
  private:
   static void PlatformAbort(const char*, int);
 
@@ -88,6 +93,11 @@ class Runtime {
   ClassLinker* class_linker_;
 
   scoped_ptr<JavaVM> java_vm_;
+
+  // Hooks supported by JNI_CreateJavaVM
+  jint (*vfprintf_)(FILE* stream, const char* format, va_list ap);
+  void (*exit_)(jint status);
+  void (*abort_)();
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
