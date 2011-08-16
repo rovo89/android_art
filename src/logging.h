@@ -23,7 +23,8 @@
 
 #define CHECK(x) \
   if (!(x)) \
-    LogMessage(__FILE__, __LINE__, FATAL, -1).stream() << "Check failed: " #x
+    LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
+        << "Check failed: " #x << " "
 
 #define CHECK_OP(LHS, RHS, OP) \
   do { \
@@ -113,7 +114,7 @@
 
 #define LG LOG(INFO)
 
-#define UNIMPLEMENTED(level) LOG(level) << __FUNCTION__ << " unimplemented"
+#define UNIMPLEMENTED(level) LOG(level) << __FUNCTION__ << " unimplemented "
 
 class LogMessage {
  public:
