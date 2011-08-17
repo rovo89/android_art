@@ -11,7 +11,7 @@
 
 namespace art {
 
-class ZipArchiveTest : public RuntimeTest {};
+class ZipArchiveTest : public CommonTest {};
 
 TEST_F(ZipArchiveTest, FindAndExtract) {
   scoped_ptr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName()));

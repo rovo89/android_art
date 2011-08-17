@@ -10,10 +10,10 @@
 
 namespace art {
 
-class JniInternalTest : public RuntimeTest {
+class JniInternalTest : public CommonTest {
  protected:
   virtual void SetUp() {
-    RuntimeTest::SetUp();
+    CommonTest::SetUp();
     env_ = Thread::Current()->GetJniEnv();
   }
   JNIEnv* env_;

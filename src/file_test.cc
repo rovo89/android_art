@@ -9,7 +9,7 @@
 
 namespace art {
 
-class FileTest : public RuntimeTest {};
+class FileTest : public CommonTest {};
 
 TEST_F(FileTest, Read) {
   std::string filename = GetLibCoreDexFileName();

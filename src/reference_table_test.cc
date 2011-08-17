@@ -8,7 +8,7 @@
 
 namespace art {
 
-class ReferenceTableTest : public RuntimeTest {
+class ReferenceTableTest : public CommonTest {
 };
 
 TEST_F(ReferenceTableTest, Basics) {

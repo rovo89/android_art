@@ -13,7 +13,7 @@
 
 namespace art {
 
-class ObjectTest : public RuntimeTest {
+class ObjectTest : public CommonTest {
  protected:
   void AssertString(size_t length,
                     const char* utf8_in,

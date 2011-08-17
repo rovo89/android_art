@@ -8,7 +8,7 @@
 
 namespace art {
 
-class UtilsTest : public RuntimeTest {
+class UtilsTest : public CommonTest {
 };
 
 TEST(PrettyDescriptorTest, ArrayReferences) {

@@ -12,7 +12,7 @@
 
 namespace art {
 
-class DexCacheTest : public RuntimeTest {};
+class DexCacheTest : public CommonTest {};
 
 TEST_F(DexCacheTest, Open) {
 

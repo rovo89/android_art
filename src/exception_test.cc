@@ -60,7 +60,7 @@ static const char kMyClassExceptionHandleDex[] =
   "AQAAABgCAAABEAAAAQAAADgCAAACIAAADQAAAD4CAAADIAAABAAAAN4CAAAEIAAAAQAAAAEDAAAA"
   "IAAAAgAAAAkDAAAAEAAAAQAAACgDAAA=";
 
-class ExceptionTest : public RuntimeTest {
+class ExceptionTest : public CommonTest {
 };
 
 TEST_F(ExceptionTest, MyClass_F_G) {

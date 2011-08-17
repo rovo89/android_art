@@ -88,7 +88,6 @@ void ParseClassPath(const char* class_path, std::vector<std::string>& vec) {
 // [gG] gigabytes.
 //
 // "s" should point just past the "-Xm?" part of the string.
-// "min" specifies the lowest acceptable value described by "s".
 // "div" specifies a divisor, e.g. 1024 if the value must be a multiple
 // of 1024.
 //
@@ -111,35 +110,35 @@ size_t ParseMemoryOption(const char *s, size_t div) {
       // there should be exactly one more character
       // that specifies a multiplier.
       if (*s2 != '\0') {
-          // The remainder of the string is either a single multiplier
-          // character, or nothing to indicate that the value is in
-          // bytes.
-          char c = *s2++;
-          if (*s2 == '\0') {
-            size_t mul;
-            if (c == '\0') {
-              mul = 1;
-            } else if (c == 'k' || c == 'K') {
-              mul = 1024;
-            } else if (c == 'm' || c == 'M') {
-              mul = 1024 * 1024;
-            } else if (c == 'g' || c == 'G') {
-              mul = 1024 * 1024 * 1024;
-            } else {
-              // Unknown multiplier character.
-              return 0;
-            }
-
-            if (val <= std::numeric_limits<size_t>::max() / mul) {
-              val *= mul;
-            } else {
-              // Clamp to a multiple of 1024.
-              val = std::numeric_limits<size_t>::max() & ~(1024-1);
-            }
+        // The remainder of the string is either a single multiplier
+        // character, or nothing to indicate that the value is in
+        // bytes.
+        char c = *s2++;
+        if (*s2 == '\0') {
+          size_t mul;
+          if (c == '\0') {
+            mul = 1;
+          } else if (c == 'k' || c == 'K') {
+            mul = KB;
+          } else if (c == 'm' || c == 'M') {
+            mul = MB;
+          } else if (c == 'g' || c == 'G') {
+            mul = GB;
           } else {
-            // There's more than one character after the numeric part.
+            // Unknown multiplier character.
             return 0;
           }
+
+          if (val <= std::numeric_limits<size_t>::max() / mul) {
+            val *= mul;
+          } else {
+            // Clamp to a multiple of 1024.
+            val = std::numeric_limits<size_t>::max() & ~(1024-1);
+          }
+        } else {
+          // There's more than one character after the numeric part.
+          return 0;
+        }
       }
       // The man page says that a -Xm value must be a multiple of 1024.
       if (val % div == 0) {
@@ -200,6 +199,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 #endif
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
+  parsed->stack_size_ = Thread::kDefaultStackSize;
+
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = abort;
@@ -209,15 +210,54 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     if (option.starts_with("-Xbootclasspath:")) {
       boot_class_path = option.substr(strlen("-Xbootclasspath:")).data();
     } else if (option == "bootclasspath") {
-      parsed->boot_class_path_ = *reinterpret_cast<const std::vector<DexFile*>*>(options[i].second);
+      const void* dex_vector = options[i].second;
+      const std::vector<DexFile*>* v = reinterpret_cast<const std::vector<DexFile*>*>(dex_vector);
+      if (v == NULL) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO: usage
+        LOG(FATAL) << "Could not parse " << option;
+        return NULL;
+      }
+      parsed->boot_class_path_ = *v;
     } else if (option.starts_with("-Xbootimage:")) {
       parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (option.starts_with("-Xms")) {
-      parsed->heap_initial_size_ = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
+      size_t size = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
+      if (size == 0) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO usage
+        LOG(FATAL) << "Could not parse " << option;
+        return NULL;
+      }
+      parsed->heap_initial_size_ = size;
     } else if (option.starts_with("-Xmx")) {
-      parsed->heap_maximum_size_ = ParseMemoryOption(option.substr(strlen("-Xmx")).data(), 1024);
+      size_t size = ParseMemoryOption(option.substr(strlen("-Xmx")).data(), 1024);
+      if (size == 0) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO usage
+        LOG(FATAL) << "Could not parse " << option;
+        return NULL;
+      }
+      parsed->heap_maximum_size_ = size;
+    } else if (option.starts_with("-Xss")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).data(), 1);
+      if (size == 0) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO usage
+        LOG(FATAL) << "Could not parse " << option;
+        return NULL;
+      }
+      parsed->stack_size_ = size;
     } else if (option.starts_with("-D")) {
       parsed->properties_.push_back(option.substr(strlen("-D")).data());
     } else if (option.starts_with("-verbose:")) {

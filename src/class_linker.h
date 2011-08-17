@@ -203,7 +203,7 @@ class ClassLinker {
 
   bool init_done_;
 
-  friend class RuntimeTest;
+  friend class CommonTest;
   FRIEND_TEST(DexCacheTest, Open);
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);

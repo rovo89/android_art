@@ -9,7 +9,7 @@
 
 namespace art {
 
-class InternTableTest : public RuntimeTest {};
+class InternTableTest : public CommonTest {};
 
 TEST_F(InternTableTest, Intern) {
   InternTable intern_table;

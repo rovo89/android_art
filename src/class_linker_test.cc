@@ -9,7 +9,7 @@
 
 namespace art {
 
-class ClassLinkerTest : public RuntimeTest {
+class ClassLinkerTest : public CommonTest {
  protected:
   void AssertNonExistantClass(const StringPiece& descriptor) {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor) == NULL);

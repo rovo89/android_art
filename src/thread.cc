@@ -56,7 +56,7 @@ void* ThreadStart(void *arg) {
 Thread* Thread::Create(size_t stack_size) {
   int prot = PROT_READ | PROT_WRITE;
   // TODO: require the stack size to be page aligned?
-  size_t length = RoundUp(stack_size, 0x1000);
+  size_t length = RoundUp(stack_size, kPageSize);
   void* stack_limit = mmap(NULL, length, prot, MAP_PRIVATE, -1, 0);
   if (stack_limit == MAP_FAILED) {
     LOG(FATAL) << "mmap";

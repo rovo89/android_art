@@ -7,7 +7,7 @@
 
 namespace art {
 
-class ImageTest : public RuntimeTest {};
+class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
   scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());

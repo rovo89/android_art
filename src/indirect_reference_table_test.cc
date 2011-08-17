@@ -22,7 +22,7 @@
 
 namespace art {
 
-class IndirectReferenceTableTest : public RuntimeTest {
+class IndirectReferenceTableTest : public CommonTest {
 };
 
 TEST_F(IndirectReferenceTableTest, BasicTest) {

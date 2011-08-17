@@ -15,10 +15,10 @@
 
 namespace art {
 
-class JniCompilerTest : public RuntimeTest {
+class JniCompilerTest : public CommonTest {
  protected:
   virtual void SetUp() {
-    RuntimeTest::SetUp();
+    CommonTest::SetUp();
     // Create thunk code that performs the native to managed transition
     thunk_code_.reset(MemMap::Map(kPageSize,
                                   PROT_READ | PROT_WRITE | PROT_EXEC,

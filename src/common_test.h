@@ -319,7 +319,7 @@ class ScratchFile {
   int fd_;
 };
 
-class RuntimeTest : public testing::Test {
+class CommonTest : public testing::Test {
  protected:
   virtual void SetUp() {
     is_host_ = getenv("ANDROID_BUILD_TOP") != NULL;
@@ -416,7 +416,7 @@ class RuntimeTest : public testing::Test {
   bool is_host_;
   scoped_ptr_malloc<char> android_data_;
   std::string art_cache_;
-  scoped_ptr<DexFile> java_lang_dex_file_;
+  scoped_ptr<const DexFile> java_lang_dex_file_;
   scoped_ptr<Runtime> runtime_;
   ClassLinker* class_linker_;
 };
