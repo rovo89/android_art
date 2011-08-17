@@ -55,11 +55,13 @@ LIBART_COMMON_SRC_FILES := \
 	src/object_bitmap.cc \
 	src/offsets.cc \
 	src/os_linux.cc \
+	src/reference_table.cc \
 	src/runtime.cc \
 	src/space.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
 	src/thread.cc \
+	src/utils.cc \
 	src/zip_archive.cc
 
 LIBART_TARGET_SRC_FILES := \
@@ -97,8 +99,10 @@ TEST_COMMON_SRC_FILES := \
 	src/jni_internal_test.cc.arm \
 	src/jni_compiler_test.cc.arm \
 	src/object_test.cc \
+	src/reference_table_test.cc \
 	src/runtime_test.cc \
 	src/space_test.cc \
+	src/utils_test.cc \
 	src/zip_archive_test.cc
 
 TEST_TARGET_SRC_FILES := \

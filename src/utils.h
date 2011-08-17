@@ -5,9 +5,12 @@
 
 #include "globals.h"
 #include "logging.h"
+#include "stringpiece.h"
 #include "stringprintf.h"
 
 namespace art {
+
+class Object;
 
 template<typename T>
 static inline bool IsPowerOfTwo(T x) {
@@ -131,6 +134,17 @@ static inline std::string PrintableString(const StringT& s) {
   result += '"';
   return result;
 }
+
+// Return a newly-allocated string containing a human-readable equivalent
+// of 'descriptor'. So "I" would be "int", "[[I" would be "int[][]",
+// "[Ljava/lang/String;" would be "java.lang.String[]", and so forth.
+std::string PrettyDescriptor(const StringPiece& descriptor);
+
+// Returns a human-readable string form of the name of the class of
+// the given object. So given a java.lang.String, the output would
+// be "java.lang.String". Given an array of int, the output would be "int[]".
+// Given String.class, the output would be "java.lang.Class<java.lang.String>".
+std::string PrettyType(const Object* obj);
 
 }  // namespace art
 
