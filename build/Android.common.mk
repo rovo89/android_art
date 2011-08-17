@@ -44,6 +44,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/file_linux.cc \
 	src/heap.cc \
 	src/image_writer.cc \
+	src/indirect_reference_table.cc \
 	src/intern_table.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
@@ -95,6 +96,7 @@ TEST_COMMON_SRC_FILES := \
 	src/exception_test.cc \
 	src/file_test.cc \
 	src/image_test.cc \
+	src/indirect_reference_table_test.cc \
 	src/intern_table_test.cc \
 	src/jni_internal_test.cc.arm \
 	src/jni_compiler_test.cc.arm \

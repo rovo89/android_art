@@ -26,11 +26,8 @@ namespace art {
 
 class Object;
 
-static const Object* const kInvalidIndirectRefObject = reinterpret_cast<Object*>(0xdead4321);
-static const Object* const kClearedJniWeakGlobal = reinterpret_cast<Object*>(0xdead1234);
-
-// Maintain a table of references.  Used for internal local references,
-// JNI monitor references, and JNI pinned array references.
+// Maintain a table of references.  Used for JNI monitor references and
+// JNI pinned array references.
 //
 // None of the functions are synchronized.
 class ReferenceTable {
@@ -46,6 +43,9 @@ class ReferenceTable {
   void Dump() const;
 
  private:
+  static void Dump(const std::vector<Object*>& entries);
+  friend class IndirectReferenceTable; // For Dump.
+
   std::string name_;
   std::vector<Object*> entries_;
   size_t max_size_;

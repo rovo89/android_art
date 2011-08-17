@@ -6,6 +6,7 @@
 #include "jni.h"
 
 #include "assembler.h"
+#include "indirect_reference_table.h"
 #include "macros.h"
 #include "reference_table.h"
 
@@ -26,6 +27,12 @@ struct JavaVMExt {
 
   // Used to hold references to pinned primitive arrays.
   ReferenceTable pin_table;
+
+  // JNI global references.
+  IndirectReferenceTable globals;
+
+  // JNI weak global references.
+  IndirectReferenceTable weak_globals;
 };
 
 struct JNIEnvExt {
@@ -42,7 +49,10 @@ struct JNIEnvExt {
   bool critical;
 
   // Entered JNI monitors, for bulk exit on thread detach.
-  ReferenceTable  monitor_table;
+  ReferenceTable  monitors;
+
+  // JNI local references.
+  IndirectReferenceTable locals;
 };
 
 }  // namespace art

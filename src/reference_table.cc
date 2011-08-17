@@ -16,6 +16,8 @@
 
 #include "reference_table.h"
 
+#include "indirect_reference_table.h"
+
 #include "object.h"
 
 namespace art {
@@ -125,28 +127,27 @@ size_t ReferenceTable::Size() const {
   return entries_.size();
 }
 
-// Dump a summary of an array of references to the log file.
-//
-// This is used to dump the contents of ReferenceTable and IndirectRefTable
-// structs.
 void ReferenceTable::Dump() const {
   LOG(WARNING) << name_ << " reference table dump:";
+  Dump(entries_);
+}
 
-  if (entries_.empty()) {
+void ReferenceTable::Dump(const std::vector<Object*>& entries) {
+  if (entries.empty()) {
     LOG(WARNING) << "  (empty)";
     return;
   }
 
   // Dump the most recent N entries.
   const size_t kLast = 10;
-  size_t count = entries_.size();
+  size_t count = entries.size();
   int first = count - kLast;
   if (first < 0) {
     first = 0;
   }
   LOG(WARNING) << "  Last " << (count - first) << " entries (of " << count << "):";
   for (int idx = count - 1; idx >= first; --idx) {
-    const Object* ref = entries_[idx];
+    const Object* ref = entries[idx];
     if (ref == NULL) {
       continue;
     }
@@ -191,7 +192,7 @@ void ReferenceTable::Dump() const {
   }
 
   // Make a copy of the table and sort it.
-  std::vector<Object*> sorted_entries(entries_.begin(), entries_.end());
+  std::vector<Object*> sorted_entries(entries.begin(), entries.end());
   std::sort(sorted_entries.begin(), sorted_entries.end(), ObjectComparator());
 
   // Remove any uninteresting stuff from the list. The sort moved them all to the end.

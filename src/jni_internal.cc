@@ -2024,15 +2024,19 @@ static const struct JNINativeInterface gNativeInterface = {
   GetObjectRefType,
 };
 
-static const size_t kMonitorTableInitialSize = 32; // Arbitrary.
-static const size_t kMonitorTableMaxSize = 4096; // Arbitrary sanity check.
+static const size_t kMonitorsInitial = 32; // Arbitrary.
+static const size_t kMonitorsMax = 4096; // Arbitrary sanity check.
+
+static const size_t kLocalsInitial = 64; // Arbitrary.
+static const size_t kLocalsMax = 512; // Arbitrary sanity check.
 
 JNIEnvExt::JNIEnvExt(Thread* self, bool check_jni)
     : fns(&gNativeInterface),
       self(self),
       check_jni(check_jni),
       critical(false),
-      monitor_table("monitor table", kMonitorTableInitialSize, kMonitorTableMaxSize) {
+      monitors("monitors", kMonitorsInitial, kMonitorsMax),
+      locals(kLocalsInitial, kLocalsMax, kLocal) {
 }
 
 // JNI Invocation interface.
@@ -2167,11 +2171,19 @@ struct JNIInvokeInterface gInvokeInterface = {
 static const size_t kPinTableInitialSize = 16;
 static const size_t kPinTableMaxSize = 1024;
 
+static const size_t kGlobalsInitial = 512; // Arbitrary.
+static const size_t kGlobalsMax = 51200; // Arbitrary sanity check.
+
+static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
+static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
+
 JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni)
     : fns(&gInvokeInterface),
       runtime(runtime),
       check_jni(check_jni),
-      pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize) {
+      pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
+      globals(kGlobalsInitial, kGlobalsMax, kGlobal),
+      weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal) {
 }
 
 }  // namespace art
