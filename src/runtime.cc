@@ -180,6 +180,13 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   scoped_ptr<ParsedOptions> parsed(new ParsedOptions());
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   parsed->boot_image_ = NULL;
+#ifdef NDEBUG
+  // CheckJNI is off by default for regular builds...
+  parsed->check_jni_ = false;
+#else
+  // ...but on by default in debug builds.
+  parsed->check_jni_ = true;
+#endif
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
   parsed->hook_vfprintf_ = vfprintf;
@@ -194,6 +201,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->boot_class_path_ = *reinterpret_cast<const std::vector<DexFile*>*>(options[i].second);
     } else if (option.starts_with("-Xbootimage:")) {
       parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
+    } else if (option.starts_with("-Xcheck:jni")) {
+      parsed->check_jni_ = true;
     } else if (option.starts_with("-Xms")) {
       parsed->heap_initial_size_ = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
     } else if (option.starts_with("-Xmx")) {
@@ -262,24 +271,24 @@ bool Runtime::Init(const Options& options, bool ignore_unrecognized) {
   Heap::Init(parsed_options->heap_initial_size_,
              parsed_options->heap_maximum_size_);
 
+  java_vm_.reset(reinterpret_cast<JavaVM*>(new JavaVMExt(this, parsed_options->check_jni_)));
+
   Thread::Init();
-  Thread* current_thread = Thread::Attach();
+  Thread* current_thread = Thread::Attach(this);
   thread_list_->Register(current_thread);
 
   class_linker_ = ClassLinker::Create(parsed_options->boot_class_path_);
-
-  java_vm_.reset(reinterpret_cast<JavaVM*>(new JavaVMExt(this)));
 
   return true;
 }
 
 bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv) {
-  return Thread::Attach() != NULL;
+  return Thread::Attach(instance_) != NULL;
 }
 
 bool Runtime::AttachCurrentThreadAsDaemon(const char* name, JNIEnv** penv) {
   // TODO: do something different for daemon threads.
-  return Thread::Attach() != NULL;
+  return Thread::Attach(instance_) != NULL;
 }
 
 bool Runtime::DetachCurrentThread() {

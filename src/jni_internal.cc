@@ -2037,9 +2037,10 @@ void MonitorExitHelper(JNIEnv* env, jobject obj) {
 static const size_t kMonitorTableInitialSize = 32; // Arbitrary.
 static const size_t kMonitorTableMaxSize = 4096; // Arbitrary sanity check.
 
-JNIEnvExt::JNIEnvExt(Thread* self)
+JNIEnvExt::JNIEnvExt(Thread* self, bool check_jni)
     : fns(&gNativeInterface),
       self(self),
+      check_jni(check_jni),
       critical(false),
       monitor_table("monitor table", kMonitorTableInitialSize, kMonitorTableMaxSize) {
   // TODO: kill these.
@@ -2179,9 +2180,10 @@ struct JNIInvokeInterface gInvokeInterface = {
 static const size_t kPinTableInitialSize = 16;
 static const size_t kPinTableMaxSize = 1024;
 
-JavaVMExt::JavaVMExt(Runtime* runtime)
+JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni)
     : fns(&gInvokeInterface),
       runtime(runtime),
+      check_jni(check_jni),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize) {
 }
 

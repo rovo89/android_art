@@ -85,7 +85,7 @@ Thread* Thread::Create(size_t stack_size) {
   return new_thread;
 }
 
-Thread* Thread::Attach() {
+Thread* Thread::Attach(const Runtime* runtime) {
   Thread* thread = new Thread;
   thread->InitCpu();
   thread->stack_limit_ = reinterpret_cast<byte*>(-1);  // TODO: getrlimit
@@ -103,7 +103,10 @@ Thread* Thread::Attach() {
       PLOG(FATAL) << "pthread_setspecific failed";
   }
 
-  thread->jni_env_ = reinterpret_cast<JNIEnv*>(new JNIEnvExt(thread));
+  JavaVMExt* vm = reinterpret_cast<JavaVMExt*>(runtime->GetJavaVM());
+  CHECK(vm != NULL);
+  bool check_jni = vm->check_jni;
+  thread->jni_env_ = reinterpret_cast<JNIEnv*>(new JNIEnvExt(thread, check_jni));
 
   return thread;
 }

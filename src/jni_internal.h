@@ -15,24 +15,28 @@ class Runtime;
 class Thread;
 
 struct JavaVMExt {
-  JavaVMExt(Runtime* runtime);
+  JavaVMExt(Runtime* runtime, bool check_jni);
 
   // Must be first to correspond with JNIEnv.
   const struct JNIInvokeInterface* fns;
 
   Runtime* runtime;
 
+  bool check_jni;
+
   // Used to hold references to pinned primitive arrays.
   ReferenceTable pin_table;
 };
 
 struct JNIEnvExt {
-  JNIEnvExt(Thread* self);
+  JNIEnvExt(Thread* self, bool check_jni);
 
   // Must be first to correspond with JavaVM.
   const struct JNINativeInterface* fns;
 
   Thread* self;
+
+  bool check_jni;
 
   // Are we in a "critical" JNI call?
   bool critical;

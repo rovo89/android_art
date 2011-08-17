@@ -33,6 +33,7 @@ class Runtime {
 
     std::vector<DexFile*> boot_class_path_;
     const char* boot_image_;
+    bool check_jni_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
@@ -76,7 +77,7 @@ class Runtime {
     return class_linker_;
   }
 
-  JavaVM* GetJavaVM() {
+  JavaVM* GetJavaVM() const {
     return java_vm_.get();
   }
 

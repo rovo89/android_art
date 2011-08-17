@@ -118,7 +118,7 @@ class Thread {
   static Thread* Create(size_t stack_size);
 
   // Creates a new thread from the calling thread.
-  static Thread* Attach();
+  static Thread* Attach(const Runtime* runtime);
 
   static Thread* Current() {
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
