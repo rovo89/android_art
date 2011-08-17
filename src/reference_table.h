@@ -26,15 +26,13 @@ namespace art {
 
 class Object;
 
-#define kInvalidIndirectRefObject reinterpret_cast<Object*>(0xdead4321)
-#define kClearedJniWeakGlobal reinterpret_cast<Object*>(0xdead1234)
+static const Object* const kInvalidIndirectRefObject = reinterpret_cast<Object*>(0xdead4321);
+static const Object* const kClearedJniWeakGlobal = reinterpret_cast<Object*>(0xdead1234);
 
-/*
- * Maintain a table of references.  Used for internal local references,
- * JNI monitor references, and JNI pinned array references.
- *
- * None of the functions are synchronized.
- */
+// Maintain a table of references.  Used for internal local references,
+// JNI monitor references, and JNI pinned array references.
+//
+// None of the functions are synchronized.
 class ReferenceTable {
  public:
   ReferenceTable(const char* name, size_t initial_size, size_t max_size);

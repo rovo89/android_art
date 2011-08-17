@@ -46,10 +46,8 @@ void ReferenceTable::Remove(Object* obj) {
   }
 }
 
-/*
- * If "obj" is an array, return the number of elements in the array.
- * Otherwise, return zero.
- */
+// If "obj" is an array, return the number of elements in the array.
+// Otherwise, return zero.
 size_t GetElementCount(const Object* obj) {
   if (obj == NULL || obj == kClearedJniWeakGlobal || !obj->IsArray()) {
     return 0;
@@ -90,13 +88,11 @@ struct ObjectComparator {
   }
 };
 
-/*
- * Log an object with some additional info.
- *
- * Pass in the number of elements in the array (or 0 if this is not an
- * array object), and the number of additional objects that are identical
- * or equivalent to the original.
- */
+// Log an object with some additional info.
+//
+// Pass in the number of elements in the array (or 0 if this is not an
+// array object), and the number of additional objects that are identical
+// or equivalent to the original.
 void LogSummaryLine(const Object* obj, size_t elems, int identical, int equiv) {
   if (obj == NULL) {
     LOG(WARNING) << "    NULL reference (count=" << equiv << ")";
@@ -129,12 +125,10 @@ size_t ReferenceTable::Size() const {
   return entries_.size();
 }
 
-/*
- * Dump a summary of an array of references to the log file.
- *
- * This is used to dump the contents of ReferenceTable and IndirectRefTable
- * structs.
- */
+// Dump a summary of an array of references to the log file.
+//
+// This is used to dump the contents of ReferenceTable and IndirectRefTable
+// structs.
 void ReferenceTable::Dump() const {
   LOG(WARNING) << name_ << " reference table dump:";
 
