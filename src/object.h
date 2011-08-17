@@ -712,7 +712,7 @@ class ClassLoader : public Object {
   Object* packages_;
   ClassLoader* parent_;
 
-  // TODO remove once we can create a real PathClassLoader
+  // TODO: remove once we can create a real PathClassLoader
   std::vector<const DexFile*> class_path_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
@@ -1293,7 +1293,7 @@ class String : public Object {
                                 int32_t hash_code) {
     String* string = Alloc(GetJavaLangString(),
                            utf16_length);
-    // TODO use 16-bit wide memset variant
+    // TODO: use 16-bit wide memset variant
     for (int i = 0; i < utf16_length; i++ ) {
         string->array_->Set(i, utf16_data_in[i]);
     }
@@ -1435,7 +1435,7 @@ class String : public Object {
   }
 
   bool Equals(const String* that) const {
-    // TODO short circuit on hash_code_
+    // TODO: short circuit on hash_code_
     if (this->GetLength() != that->GetLength()) {
       return false;
     }

@@ -36,9 +36,8 @@ HeapBitmap* HeapBitmap::Create(byte* base, size_t length) {
 bool HeapBitmap::Init(const byte* base, size_t max_size) {
   CHECK(base != NULL);
   size_t length = HB_OFFSET_TO_INDEX(max_size) * kWordSize;
-  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS));
+  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE));
   if (mem_map_ == NULL) {
-    LOG(ERROR) << "mmap failed";
     return false;
   }
   words_ = reinterpret_cast<word*>(mem_map_->GetAddress());

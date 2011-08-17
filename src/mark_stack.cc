@@ -10,9 +10,9 @@
 
 namespace art {
 
-MarkStack* MarkStack::Create(size_t maximum_size) {
+MarkStack* MarkStack::Create() {
   scoped_ptr<MarkStack> mark_stack(new MarkStack());
-  bool success = mark_stack->Init(maximum_size);
+  bool success = mark_stack->Init();
   if (!success) {
     return NULL;
   } else {
@@ -20,11 +20,10 @@ MarkStack* MarkStack::Create(size_t maximum_size) {
   }
 }
 
-bool MarkStack::Init(size_t maximum_size) {
+bool MarkStack::Init() {
   size_t length = 64 * MB;
-  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS));
+  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE));
   if (mem_map_ == NULL) {
-    PLOG(ERROR) << "mmap failed";
     return false;
   }
   byte* addr = mem_map_->GetAddress();

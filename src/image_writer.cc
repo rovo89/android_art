@@ -8,6 +8,7 @@
 #include "file.h"
 #include "globals.h"
 #include "heap.h"
+#include "image.h"
 #include "logging.h"
 #include "object.h"
 #include "space.h"
@@ -33,11 +34,9 @@ bool ImageWriter::Write(Space* space, const char* filename, byte* image_base) {
 bool ImageWriter::Init(Space* space) {
   size_t size = space->Size();
   int prot = PROT_READ | PROT_WRITE;
-  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
   size_t length = RoundUp(size, kPageSize);
-  image_.reset(MemMap::Map(length, prot, flags));
+  image_.reset(MemMap::Map(length, prot));
   if (image_ == NULL) {
-    PLOG(ERROR) << "mmap failed";
     return false;
   }
   return true;
@@ -56,8 +55,9 @@ void ImageWriter::CalculateNewObjectOffsets() {
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   DCHECK_EQ(0U, image_top_);
-  // leave a header, ensures objects have non-zero offset for DCHECKs
-  image_top_ += 8; // 64-bit-alignment
+  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_));
+  memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
+  image_top_ += RoundUp(sizeof(image_header), 8); // 64-bit-alignment
   heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);
   DCHECK_LT(image_top_, image_->GetLength());
   // Note that top_ is left at end of used space
@@ -88,7 +88,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   copy->klass_ = down_cast<Class*>(GetImageAddress(orig->klass_));
-  // TODO specical case init of pointers to malloc data (or removal of these pointers)
+  // TODO: specical case init of pointers to malloc data (or removal of these pointers)
   if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
   } else {

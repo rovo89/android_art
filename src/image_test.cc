@@ -1,7 +1,11 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "common_test.h"
+#include "file.h"
+#include "image.h"
 #include "image_writer.h"
+#include "os.h"
+#include "space.h"
 
 #include "gtest/gtest.h"
 
@@ -13,16 +17,26 @@ TEST_F(ImageTest, WriteRead) {
   scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
   EXPECT_TRUE(libcore_dex_file.get() != NULL);
 
-  // TODO garbage collect before writing
+  // TODO: garbage collect before writing
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   // can't currently deal with writing a space that might have pointers between spaces
-  CHECK_EQ(1U, spaces.size());
+  ASSERT_EQ(1U, spaces.size());
+  Space* space = spaces[0];
 
   ImageWriter writer;
   ScratchFile tmp;
   const int image_base = 0x5000000;
-  bool success = writer.Write(spaces[0], tmp.GetFilename(), reinterpret_cast<byte*>(image_base));
-  EXPECT_TRUE(success);
+  bool success = writer.Write(space, tmp.GetFilename(), reinterpret_cast<byte*>(image_base));
+  ASSERT_TRUE(success);
+
+  {
+    scoped_ptr<File> file(OS::OpenFile(tmp.GetFilename(), false));
+    ASSERT_TRUE(file != NULL);
+    ImageHeader image_header;
+    file->ReadFully(&image_header, sizeof(image_header));
+    ASSERT_TRUE(image_header.IsValid());
+    ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
+  }
 
   // tear down old runtime and make a new one
   delete runtime_.release();

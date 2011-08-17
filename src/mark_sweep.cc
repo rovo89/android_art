@@ -22,7 +22,7 @@ size_t MarkSweep::reference_pendingNext_offset_ = 0;  // TODO
 size_t MarkSweep::finalizer_reference_zombie_offset_ = 0;  // TODO
 
 bool MarkSweep::Init() {
-  mark_stack_ = MarkStack::Create(Heap::GetMaximumSize());
+  mark_stack_ = MarkStack::Create();
   if (mark_stack_ == NULL) {
     return false;
   }

@@ -44,4 +44,13 @@ TEST_F(FileTest, FilePosition) {
   EXPECT_EQ(4, file->Position());
 }
 
+
+TEST_F(FileTest, FileFd) {
+  std::string filename = GetLibCoreDexFileName();
+  scoped_ptr<File> file(OS::OpenFile(filename.c_str(), false));
+  ASSERT_TRUE(file != NULL);
+  EXPECT_NE(-1, file->Fd());
+}
+
+
 }  // namespace art

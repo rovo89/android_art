@@ -22,7 +22,7 @@ Runtime::~Runtime() {
   Heap::Destroy();
   delete thread_list_;
   // TODO: acquire a static mutex on Runtime to avoid racing.
-  CHECK(instance_ == this);
+  CHECK(instance_ == NULL || instance_ == this);
   instance_ = NULL;
 }
 
@@ -231,7 +231,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         if (ignore_unrecognized) {
           continue;
         }
-        // TODO usage
+        // TODO: usage
         LOG(FATAL) << "Could not parse " << option;
         return NULL;
       }
@@ -242,7 +242,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         if (ignore_unrecognized) {
           continue;
         }
-        // TODO usage
+        // TODO: usage
         LOG(FATAL) << "Could not parse " << option;
         return NULL;
       }
@@ -253,7 +253,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         if (ignore_unrecognized) {
           continue;
         }
-        // TODO usage
+        // TODO: usage
         LOG(FATAL) << "Could not parse " << option;
         return NULL;
       }
@@ -329,13 +329,18 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   stack_size_ = options->stack_size_;
   thread_list_ = ThreadList::Create();
 
-  Heap::Init(options->heap_initial_size_,
-             options->heap_maximum_size_);
+  if (!Heap::Init(options->heap_initial_size_,
+                  options->heap_maximum_size_,
+                  options->boot_image_)) {
+    return false;
+  }
 
   bool verbose_jni = options->verbose_.find("jni") != options->verbose_.end();
   java_vm_.reset(new JavaVMExt(this, options->check_jni_, verbose_jni));
 
-  Thread::Init();
+  if (!Thread::Init()) {
+    return false;
+  }
   Thread* current_thread = Thread::Attach(this);
   thread_list_->Register(current_thread);
 

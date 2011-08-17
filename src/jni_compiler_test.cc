@@ -20,9 +20,7 @@ class JniCompilerTest : public CommonTest {
   virtual void SetUp() {
     CommonTest::SetUp();
     // Create thunk code that performs the native to managed transition
-    thunk_code_.reset(MemMap::Map(kPageSize,
-                                  PROT_READ | PROT_WRITE | PROT_EXEC,
-                                  MAP_ANONYMOUS | MAP_PRIVATE));
+    thunk_code_.reset(MemMap::Map(kPageSize, PROT_READ | PROT_WRITE | PROT_EXEC));
     CHECK(thunk_code_ !=  NULL);
     Assembler thk_asm;
     // TODO: shouldn't have machine specific code in a general purpose file

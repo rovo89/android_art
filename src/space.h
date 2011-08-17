@@ -15,7 +15,11 @@ class Object;
 // A space contains memory allocated for managed objects.
 class Space {
  public:
-  static Space* Create(size_t startup_size, size_t maximum_size);
+  // create a Space with the requested sizes requesting a specific base address.
+  static Space* Create(size_t initial_size, size_t maximum_size, byte* requested_base);
+
+  // create a Space from an image file. cannot be used for future allocation or collected.
+  static Space* Create(const char* image);
 
   ~Space();
 
@@ -53,22 +57,27 @@ class Space {
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
 
-  Space(size_t startup_size, size_t maximum_size) :
-      mspace_(NULL),
-      base_(NULL),
-      startup_size_(startup_size),
-      maximum_size_(maximum_size) {
-  }
+  // create a Space from an existing memory mapping, taking ownership of the address space.
+  static Space* Create(MemMap* mem_map);
+
+  Space() : mspace_(NULL), maximum_size_(0), base_(0), limit_(0) {}
 
   // Initializes the space and underlying storage.
-  bool Init();
+  bool Init(size_t initial_size, size_t maximum_size, byte* requested_base);
 
-  void* CreateMallocSpace(void* base, size_t startup_size,
-                          size_t maximum_size);
+  // Initializes the space from existing storage, taking ownership of the storage.
+  void Init(MemMap* map);
+
+  // Initializes the space from an image file
+  bool Init(const char* image_file_name);
+
+  void* CreateMallocSpace(void* base, size_t initial_size, size_t maximum_size);
 
   static void DontNeed(void* start, void* end, void* num_bytes);
 
+  // TODO: have a Space subclass for methods that depend on mspace_ and maximum_size_
   void* mspace_;
+  size_t maximum_size_;
 
   scoped_ptr<MemMap> mem_map_;
 
@@ -76,13 +85,9 @@ class Space {
 
   byte* limit_;
 
-  size_t startup_size_;
+  // bool is_condemned_;  // TODO: with IsCondemned
 
-  size_t maximum_size_;
-
-  bool is_condemned_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Space);
+  DISALLOW_COPY_AND_ASSIGN(Space);
 };
 
 }  // namespace art

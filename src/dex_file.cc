@@ -35,7 +35,7 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
       return ClassPathEntry(dex_file, dex_class_def);
     }
   }
-  // TODO remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
+  // TODO: remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
   return ClassPathEntry(reinterpret_cast<const DexFile*>(NULL),
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
@@ -257,7 +257,7 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
       return NULL;
     }
 
-    // TODO restat and check length against zip_entry->GetUncompressedLength()?
+    // TODO: restat and check length against zip_entry->GetUncompressedLength()?
 
     // Compute checksum and compare to zip. If things look okay, rename from tmp.
     off_t lseek_result = lseek(fd->GetFd(), 0, SEEK_SET);

@@ -14,7 +14,7 @@ class Object;
 
 class MarkStack {
  public:
-  static MarkStack* Create(size_t maximum_size);
+  static MarkStack* Create();
 
   ~MarkStack();
 
@@ -41,7 +41,7 @@ class MarkStack {
       base_(NULL), limit_(NULL), ptr_(NULL) {
   }
 
-  bool Init(size_t maximum_size);
+  bool Init();
 
   // Memory mapping of the mark stack.
   scoped_ptr<MemMap> mem_map_;

@@ -4,16 +4,19 @@
 
 #include <sys/mman.h>
 
+#include "file.h"
+#include "image.h"
 #include "logging.h"
 #include "mspace.h"
+#include "os.h"
 #include "scoped_ptr.h"
 #include "utils.h"
 
 namespace art {
 
-Space* Space::Create(size_t startup_size, size_t maximum_size) {
-  scoped_ptr<Space> space(new Space(startup_size, maximum_size));
-  bool success = space->Init();
+Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_base) {
+  scoped_ptr<Space> space(new Space());
+  bool success = space->Init(initial_size, maximum_size, requested_base);
   if (!success) {
     return NULL;
   } else {
@@ -21,18 +24,31 @@ Space* Space::Create(size_t startup_size, size_t maximum_size) {
   }
 }
 
+Space* Space::Create(const char* image_file_name) {
+  CHECK(image_file_name != NULL);
+  scoped_ptr<Space> space(new Space());
+  bool success = space->Init(image_file_name);
+  if (!success) {
+    return NULL;
+  } else {
+    return space.release();
+  }
+}
+
+Space::~Space() {}
+
 void* Space::CreateMallocSpace(void* base,
-                               size_t startup_size,
+                               size_t initial_size,
                                size_t maximum_size) {
   errno = 0;
   bool is_locked = false;
-  size_t commit_size = startup_size / 2;
+  size_t commit_size = initial_size / 2;
   void* msp = create_contiguous_mspace_with_base(commit_size, maximum_size,
                                                  is_locked, base);
   if (msp != NULL) {
     // Do not permit the heap grow past the starting size without our
     // intervention.
-    mspace_set_max_allowed_footprint(msp, startup_size);
+    mspace_set_max_allowed_footprint(msp, initial_size);
   } else {
     // There is no guarantee that errno has meaning when the call
     // fails, but it often does.
@@ -41,35 +57,60 @@ void* Space::CreateMallocSpace(void* base,
   return msp;
 }
 
-bool Space::Init() {
-  if (!(startup_size_ <= maximum_size_)) {
+bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base) {
+  if (!(initial_size <= maximum_size)) {
     return false;
   }
-  size_t length = RoundUp(maximum_size_, kPageSize);
+  size_t length = RoundUp(maximum_size, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
-  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  mem_map_.reset(MemMap::Map(length, prot, flags));
-  if (mem_map_ == NULL) {
-    PLOG(ERROR) << "mmap failed";
+  scoped_ptr<MemMap> mem_map(MemMap::Map(requested_base, length, prot));
+  if (mem_map == NULL) {
     return false;
   }
+  Init(mem_map.release());
+  maximum_size_ = maximum_size;
+  mspace_ = CreateMallocSpace(base_, initial_size, maximum_size);
+  return (mspace_ != NULL);
+}
+
+void Space::Init(MemMap* mem_map) {
+  mem_map_.reset(mem_map);
   base_ = mem_map_->GetAddress();
-  limit_ = base_ + length;
-  mspace_ = CreateMallocSpace(base_, startup_size_, maximum_size_);
-  if (mspace_ == NULL) {
-    mem_map_->Unmap();
+  limit_ = base_ + mem_map->GetLength();
+}
+
+
+bool Space::Init(const char* image_file_name) {
+  scoped_ptr<File> file(OS::OpenFile(image_file_name, false));
+  if (file == NULL) {
     return false;
   }
+  ImageHeader image_header;
+  bool success = file->ReadFully(&image_header, sizeof(image_header));
+  if (!success || !image_header.IsValid()) {
+    return false;
+  }
+  scoped_ptr<MemMap> map(MemMap::Map(image_header.GetBaseAddr(),
+                                     file->Length(),
+                                     PROT_READ | PROT_WRITE,
+                                     MAP_PRIVATE | MAP_FIXED,
+                                     file->Fd(),
+                                     0));
+  if (map == NULL) {
+    return false;
+  }
+  CHECK_EQ(image_header.GetBaseAddr(), map->GetAddress());
+  Init(map.release());
   return true;
 }
 
-Space::~Space() {}
-
 Object* Space::AllocWithoutGrowth(size_t num_bytes) {
+  DCHECK(mspace_ != NULL);
   return reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));
 }
 
 Object* Space::AllocWithGrowth(size_t num_bytes) {
+  DCHECK(mspace_ != NULL);
   // Grow as much as possible within the mspace.
   size_t max_allowed = maximum_size_;
   mspace_set_max_allowed_footprint(mspace_, max_allowed);
@@ -83,6 +124,7 @@ Object* Space::AllocWithGrowth(size_t num_bytes) {
 }
 
 size_t Space::Free(void* ptr) {
+  DCHECK(mspace_ != NULL);
   DCHECK(ptr != NULL);
   size_t num_bytes = mspace_usable_size(mspace_, ptr);
   mspace_free(mspace_, ptr);
@@ -90,6 +132,7 @@ size_t Space::Free(void* ptr) {
 }
 
 size_t Space::AllocationSize(const Object* obj) {
+  DCHECK(mspace_ != NULL);
   return mspace_usable_size(mspace_, obj) + kChunkOverhead;
 }
 
@@ -116,6 +159,7 @@ void Space::Trim() {
 }
 
 size_t Space::MaxAllowedFootprint() {
+  DCHECK(mspace_ != NULL);
   return mspace_max_allowed_footprint(mspace_);
 }
 

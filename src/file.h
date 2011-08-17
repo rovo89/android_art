@@ -33,6 +33,8 @@ class File {
   // Returns a negative value if position cannot be determined.
   virtual off_t Position() = 0;
 
+  virtual int Fd() = 0;
+
   const char* name() const { return name_; }
 
  protected:

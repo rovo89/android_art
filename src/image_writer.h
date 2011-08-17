@@ -1,7 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#ifndef ART_SRC_IMAGE_H_
-#define ART_SRC_IMAGE_H_
+#ifndef ART_SRC_IMAGE_WRITER_H_
+#define ART_SRC_IMAGE_WRITER_H_
 
 #include <cstddef>
 #include <stdint.h>
@@ -66,4 +66,4 @@ class ImageWriter {
 
 }  // namespace art
 
-#endif  // ART_SRC_IMAGE_H_
+#endif  // ART_SRC_IMAGE_WRITER_H_

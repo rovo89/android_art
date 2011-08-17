@@ -55,7 +55,7 @@ void* ThreadStart(void *arg) {
 
 Thread* Thread::Create(const Runtime* runtime) {
   size_t stack_size = runtime->GetStackSize();
-  scoped_ptr<MemMap> stack(MemMap::Map(stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE));
+  scoped_ptr<MemMap> stack(MemMap::Map(stack_size, PROT_READ | PROT_WRITE));
   if (stack == NULL) {
     LOG(FATAL) << "failed to allocate thread stack";
     // notreached
@@ -212,9 +212,9 @@ ThreadList::~ThreadList() {
   // Make sure that all threads have exited and unregistered when we
   // reach this point. This means that all daemon threads had been
   // shutdown cleanly.
-  CHECK_EQ(list_.size(), 1U);
+  CHECK_LE(list_.size(), 1U);
   // TODO: wait for all other threads to unregister
-  CHECK_EQ(list_.front(), Thread::Current());
+  CHECK(list_.size() == 0 || list_.front() == Thread::Current());
   // TODO: detach the current thread
   delete lock_;
   lock_ = NULL;

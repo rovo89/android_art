@@ -30,7 +30,7 @@ File* OS::FileFromFd(const char* name, int fd) {
 bool OS::FileExists(const char* name) {
   struct stat st;
   if (stat(name, &st) == 0) {
-    return S_ISREG(st.st_mode);  // TODO Deal with symlinks?
+    return S_ISREG(st.st_mode);  // TODO: Deal with symlinks?
   } else {
     return false;
   }

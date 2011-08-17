@@ -14,7 +14,7 @@ namespace art {
 
 std::vector<Space*> Heap::spaces_;
 
-size_t Heap::startup_size_ = 0;
+Space* Heap::alloc_space_ = NULL;
 
 size_t Heap::maximum_size_ = 0;
 
@@ -28,14 +28,33 @@ HeapBitmap* Heap::mark_bitmap_ = NULL;
 
 HeapBitmap* Heap::live_bitmap_ = NULL;
 
-bool Heap::Init(size_t startup_size, size_t maximum_size) {
-  Space* space = Space::Create(startup_size, maximum_size);
+bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image_file_name) {
+  Space* boot_space;
+  byte* requested_base;
+  if (boot_image_file_name == NULL) {
+    boot_space = NULL;
+    requested_base = NULL;
+  } else {
+    boot_space = Space::Create(boot_image_file_name);
+    if (boot_space == NULL) {
+      return false;
+    }
+    spaces_.push_back(boot_space);
+    requested_base = boot_space->GetBase() + RoundUp(boot_space->Size(), kPageSize);
+  }
+
+  Space* space = Space::Create(initial_size, maximum_size, requested_base);
   if (space == NULL) {
     return false;
   }
 
-  byte* base = space->GetBase();
-  size_t num_bytes = space->Size();
+  if (boot_space == NULL) {
+    boot_space = space;
+  }
+  byte* base = std::min(boot_space->GetBase(), space->GetBase());
+  byte* limit = std::max(boot_space->GetLimit(), space->GetLimit());
+  DCHECK_LT(base, limit);
+  size_t num_bytes = limit - base;
 
   // Allocate the initial live bitmap.
   scoped_ptr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
@@ -49,8 +68,8 @@ bool Heap::Init(size_t startup_size, size_t maximum_size) {
     return false;
   }
 
+  alloc_space_ = space;
   spaces_.push_back(space);
-  startup_size_ = startup_size;
   maximum_size_ = maximum_size;
   live_bitmap_ = live_bitmap.release();
   mark_bitmap_ = mark_bitmap.release();
@@ -62,8 +81,14 @@ bool Heap::Init(size_t startup_size, size_t maximum_size) {
 
 void Heap::Destroy() {
   STLDeleteElements(&spaces_);
-  delete mark_bitmap_;
-  delete live_bitmap_;
+  if (mark_bitmap_ != NULL) {
+    delete mark_bitmap_;
+    mark_bitmap_ = NULL;
+  }
+  if (live_bitmap_ != NULL) {
+    delete live_bitmap_;
+  }
+  live_bitmap_ = NULL;
 }
 
 Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
@@ -100,8 +125,8 @@ void Heap::RecordFree(Space* space, const Object* obj) {
 }
 
 Object* Heap::Allocate(size_t size) {
-  CHECK_EQ(spaces_.size(), 1u);
-  Space* space = spaces_[0];
+  DCHECK(alloc_space_ != NULL);
+  Space* space = alloc_space_;
   Object* obj = Allocate(space, size);
   if (obj != NULL) {
     RecordAllocation(space, obj);

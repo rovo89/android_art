@@ -22,6 +22,10 @@ class LinuxFile : public File {
   virtual off_t Length();
   virtual off_t Position();
 
+  virtual int Fd() {
+    return fd_;
+  }
+
  private:
   static const int kClosedFd = -1;
 

@@ -257,7 +257,7 @@ Method* ClassLinker::AllocMethod() {
   return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->NewInstance());
 }
 
-// TODO remove once we can use java.lang.Class.getSystemClassLoader
+// TODO: remove once we can use java.lang.Class.getSystemClassLoader
 PathClassLoader* ClassLinker::AllocPathClassLoader(std::vector<const DexFile*> dex_files) {
   PathClassLoader* cl = down_cast<PathClassLoader*>(GetClassRoot(kDalvikSystemPathClassLoader)->NewInstance());
   cl->SetClassPath(dex_files);
@@ -266,7 +266,7 @@ PathClassLoader* ClassLinker::AllocPathClassLoader(std::vector<const DexFile*> d
 
 Class* ClassLinker::FindClass(const StringPiece& descriptor,
                               ClassLoader* class_loader) {
-  // TODO remove this contrived parent class loader check when we have a real ClassLoader.
+  // TODO: remove this contrived parent class loader check when we have a real ClassLoader.
   if (class_loader != NULL) {
     Class* klass = FindClass(descriptor, NULL);
     if (klass != NULL) {
@@ -323,7 +323,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
       ObjectLock lock(klass);
       klass->clinit_thread_id_ = self->GetId();
       // Add the newly loaded class to the loaded classes table.
-      bool success = InsertClass(klass); // TODO just return collision
+      bool success = InsertClass(klass);  // TODO: just return collision
       if (!success) {
         // We may fail to insert if we raced with another thread.
         klass->clinit_thread_id_ = 0;

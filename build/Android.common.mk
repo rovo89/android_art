@@ -47,6 +47,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/file.cc \
 	src/file_linux.cc \
 	src/heap.cc \
+	src/image.cc \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
 	src/intern_table.cc \

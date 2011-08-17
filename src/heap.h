@@ -24,7 +24,9 @@ class Heap {
 
   typedef void (RootVistor)(Object* root, void* arg);
 
-  static bool Init(size_t starting_size, size_t maximum_size);
+  // Create a heap with the requested sizes. optional boot image may
+  // be NULL, otherwise it is an image filename created by ImageWriter.
+  static bool Init(size_t starting_size, size_t maximum_size, const char* boot_image_file_name);
 
   static void Destroy();
 
@@ -53,10 +55,6 @@ class Heap {
     return mark_bitmap_;
   }
 
-  static size_t GetMaximumSize() {
-    return maximum_size_;
-  }
-
  private:
   // Allocates uninitialized storage.
   static Object* Allocate(size_t num_bytes);
@@ -73,12 +71,12 @@ class Heap {
 
   static std::vector<Space*> spaces_;
 
+  // default Space for allocations
+  static Space* alloc_space_;
+
   static HeapBitmap* mark_bitmap_;
 
   static HeapBitmap* live_bitmap_;
-
-  // The startup size of the heap in bytes.
-  static size_t startup_size_;
 
   // The maximum size of the heap in bytes.
   static size_t maximum_size_;

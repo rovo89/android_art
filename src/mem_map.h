@@ -30,18 +30,28 @@ class MemMap {
   // Request an anonymous region of a specified length.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(size_t length, int prot, int flags) {
+  static MemMap* Map(size_t length, int prot) {
+    return Map(NULL, length, prot);
+  }
+
+  // Request an anonymous region of a specified length and a requested base address.
+  //
+  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
+  static MemMap* Map(byte* addr, size_t length, int prot) {
+    CHECK_NE(0U, length);
+    CHECK_NE(0, prot);
     size_t page_aligned_size = RoundUp(length, kPageSize);
-    byte* addr = reinterpret_cast<byte*>(mmap(NULL,
-                                              page_aligned_size,
-                                              prot,
-                                              MAP_ANONYMOUS | flags,
-                                              -1,
-                                              0));
-    if (addr == MAP_FAILED) {
+    byte* actual = reinterpret_cast<byte*>(mmap(addr,
+                                                page_aligned_size,
+                                                prot,
+                                                MAP_PRIVATE | MAP_ANONYMOUS,
+                                                -1,
+                                                0));
+    if (actual == MAP_FAILED) {
+      PLOG(ERROR) << "mmap failed";
       return NULL;
     }
-    return new MemMap(addr, length, addr, page_aligned_size);
+    return new MemMap(actual, length, actual, page_aligned_size);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -49,20 +59,33 @@ class MemMap {
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* Map(size_t length, int prot, int flags, int fd, off_t start) {
+    return Map(NULL, length, prot, flags, fd, start);
+  }
+
+  // Map part of a file, taking care of non-page aligned offsets.  The
+  // "start" offset is absolute, not relative. This version allows
+  // requesting a specific address for the base of the mapping.
+  //
+  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
+  static MemMap* Map(byte* addr, size_t length, int prot, int flags, int fd, off_t start) {
+    CHECK_NE(0U, length);
+    CHECK_NE(0, prot);
+    CHECK(flags & MAP_SHARED || flags & MAP_PRIVATE);
     // adjust to be page-aligned
     int page_offset = start % kPageSize;
     off_t page_aligned_offset = start - page_offset;
-    size_t page_aligned_size = length + page_offset;
-    byte* addr = reinterpret_cast<byte*>(mmap(NULL,
-                                              page_aligned_size,
-                                              prot,
-                                              MAP_FILE | flags,
-                                              fd,
-                                              page_aligned_offset));
-    if (addr == MAP_FAILED) {
+    size_t page_aligned_size = RoundUp(length + page_offset, kPageSize);
+    byte* actual = reinterpret_cast<byte*>(mmap(addr,
+                                                page_aligned_size,
+                                                prot,
+                                                flags,
+                                                fd,
+                                                page_aligned_offset));
+    if (actual == MAP_FAILED) {
+      PLOG(ERROR) << "mmap failed";
       return NULL;
     }
-    return new MemMap(addr+page_offset, length, addr, page_aligned_size);
+    return new MemMap(actual + page_offset, length, actual, page_aligned_size);
   }
 
   ~MemMap() {

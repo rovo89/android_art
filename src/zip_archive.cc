@@ -386,7 +386,6 @@ bool ZipArchive::MapCentralDirectory() {
   // It all looks good.  Create a mapping for the CD.
   dir_map_.reset(MemMap::Map(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset));
   if (dir_map_ == NULL) {
-    LOG(WARNING) << "Zip: cd map failed " << strerror(errno);
     return false;
   }
 
