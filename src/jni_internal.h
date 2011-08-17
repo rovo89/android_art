@@ -43,11 +43,6 @@ struct JNIEnvExt {
 
   // Entered JNI monitors, for bulk exit on thread detach.
   ReferenceTable  monitor_table;
-
-  // Used to help call synchronized native methods.
-  // TODO: make jni_compiler.cc do the indirection itself.
-  void (*MonitorEnterHelper)(JNIEnv*, jobject);
-  void (*MonitorExitHelper)(JNIEnv*, jobject);
 };
 
 }  // namespace art

@@ -25,6 +25,9 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   JniCallingConvention jni_conv(native_method);
   ManagedRuntimeCallingConvention mr_conv(native_method);
   const bool is_static = native_method->IsStatic();
+  static Offset functions(OFFSETOF_MEMBER(JNIEnvExt, fns));
+  static Offset monitor_enter(OFFSETOF_MEMBER(JNINativeInterface, MonitorEnter));
+  static Offset monitor_exit(OFFSETOF_MEMBER(JNINativeInterface, MonitorExit));
 
   // 1. Build the frame
   const size_t frame_size(jni_conv.FrameSize());
@@ -136,9 +139,10 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       FrameOffset out_off = jni_conv.CurrentParamStackOffset();
       jni_asm->StoreRawPtr(out_off, jni_env_register);
     }
-    // Call JNIEnvExt::MonitorEnterHelper(JNIEnv*, object)
-    static Offset monitor_enter(OFFSETOF_MEMBER(JNIEnvExt, MonitorEnterHelper));
-    jni_asm->Call(jni_env_register, monitor_enter,
+    // Call JNIEnv->MonitorEnter(object)
+    ManagedRegister jni_fns_register = jni_conv.InterproceduralScratchRegister();
+    jni_asm->LoadRawPtr(jni_fns_register, jni_env_register, functions);
+    jni_asm->Call(jni_fns_register, monitor_enter,
                   jni_conv.InterproceduralScratchRegister());
     jni_asm->FillFromSpillArea(spill_regs, out_arg_size);
     jni_asm->ExceptionPoll(jni_conv.InterproceduralScratchRegister());
@@ -238,9 +242,10 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       FrameOffset out_off = jni_conv.CurrentParamStackOffset();
       jni_asm->StoreRawPtr(out_off, jni_env_register);
     }
-    // Call JNIEnvExt::MonitorExitHelper(JNIEnv*, object)
-    static Offset monitor_exit(OFFSETOF_MEMBER(JNIEnvExt, MonitorExitHelper));
-    jni_asm->Call(jni_env_register, monitor_exit,
+    // Call JNIEnv->MonitorExit(object)
+    ManagedRegister jni_fns_register = jni_conv.InterproceduralScratchRegister();
+    jni_asm->LoadRawPtr(jni_fns_register, jni_env_register, functions);
+    jni_asm->Call(jni_fns_register, monitor_exit,
                   jni_conv.InterproceduralScratchRegister());
     // Reload return value
     jni_asm->Load(jni_conv.ReturnRegister(), return_save_location,

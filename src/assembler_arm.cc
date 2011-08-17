@@ -1499,6 +1499,13 @@ void Assembler::LoadRef(ManagedRegister dest, ManagedRegister base,
                  base.AsCoreRegister(), offs.Int32Value());
 }
 
+void Assembler::LoadRawPtr(ManagedRegister dest, ManagedRegister base,
+                           Offset offs) {
+  CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
+  LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
+                 base.AsCoreRegister(), offs.Int32Value());
+}
+
 void Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
                                       ManagedRegister scratch) {
   CHECK(scratch.IsCoreRegister());

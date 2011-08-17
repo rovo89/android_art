@@ -1487,6 +1487,12 @@ void Assembler::LoadRef(ManagedRegister dest, ManagedRegister base,
   movl(dest.AsCpuRegister(), Address(base.AsCpuRegister(), offs));
 }
 
+void Assembler::LoadRawPtr(ManagedRegister dest, ManagedRegister base,
+                           Offset offs) {
+  CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
+  movl(dest.AsCpuRegister(), Address(base.AsCpuRegister(), offs));
+}
+
 void Assembler::LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs) {
   CHECK(dest.IsCpuRegister());
   fs()->movl(dest.AsCpuRegister(), Address::Absolute(offs));

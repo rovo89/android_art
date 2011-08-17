@@ -2024,16 +2024,6 @@ static const struct JNINativeInterface gNativeInterface = {
   GetObjectRefType,
 };
 
-void MonitorEnterHelper(JNIEnv* env, jobject obj) {
-  CHECK_EQ(Thread::Current()->GetJniEnv(), env);
-  MonitorEnter(env, obj);  // Ignore the result.
-}
-
-void MonitorExitHelper(JNIEnv* env, jobject obj) {
-  CHECK_EQ(Thread::Current()->GetJniEnv(), env);
-  MonitorExit(env, obj);  // Ignore the result.
-}
-
 static const size_t kMonitorTableInitialSize = 32; // Arbitrary.
 static const size_t kMonitorTableMaxSize = 4096; // Arbitrary sanity check.
 
@@ -2043,9 +2033,6 @@ JNIEnvExt::JNIEnvExt(Thread* self, bool check_jni)
       check_jni(check_jni),
       critical(false),
       monitor_table("monitor table", kMonitorTableInitialSize, kMonitorTableMaxSize) {
-  // TODO: kill these.
-  MonitorEnterHelper = &::art::MonitorEnterHelper;
-  MonitorExitHelper = &::art::MonitorExitHelper;
 }
 
 // JNI Invocation interface.

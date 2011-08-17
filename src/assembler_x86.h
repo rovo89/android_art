@@ -125,6 +125,10 @@ class Address : public Operand {
     Init(base, disp);
   }
 
+  Address(Register base, Offset disp) {
+    Init(base, disp.Int32Value());
+  }
+
   Address(Register base, FrameOffset disp) {
     CHECK_EQ(base, ESP);
     Init(ESP, disp.Int32Value());
@@ -441,6 +445,8 @@ class Assembler {
   void LoadRef(ManagedRegister dest, FrameOffset  src);
 
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs);
+
+  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs);
 
   void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs);
 

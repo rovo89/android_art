@@ -431,6 +431,7 @@ class Assembler {
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch);
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs);
+  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs);
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
                              ManagedRegister scratch);
