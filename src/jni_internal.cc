@@ -1953,16 +1953,17 @@ void MonitorExitHelper(JNIEnv* env, jobject obj) {
   MonitorExit(env, obj);  // Ignore the result.
 }
 
-JNIEnv* CreateJNIEnv() {
-  Thread* self = Thread::Current();
-  CHECK(self != NULL);
-  JNIEnvExt* result = new JNIEnvExt;
-  result->fns = &gNativeInterface;
-  result->self = self;
-  result->critical = false;
-  result->MonitorEnterHelper = &MonitorEnterHelper;
-  result->MonitorExitHelper = &MonitorExitHelper;
-  return reinterpret_cast<JNIEnv*>(result);
+static const size_t kMonitorTableInitialSize = 32; // Arbitrary.
+static const size_t kMonitorTableMaxSize = 4096; // Arbitrary sanity check.
+
+JNIEnvExt::JNIEnvExt(Thread* self)
+    : fns(&gNativeInterface),
+      self(self),
+      critical(false),
+      monitor_table("monitor table", kMonitorTableInitialSize, kMonitorTableMaxSize) {
+  // TODO: kill these.
+  MonitorEnterHelper = &::art::MonitorEnterHelper;
+  MonitorExitHelper = &::art::MonitorExitHelper;
 }
 
 // JNI Invocation interface.
@@ -2094,11 +2095,13 @@ struct JNIInvokeInterface gInvokeInterface = {
   AttachCurrentThreadAsDaemon
 };
 
-JavaVM* CreateJavaVM(Runtime* runtime) {
-  JavaVMExt* result = new JavaVMExt;
-  result->fns = &gInvokeInterface;
-  result->runtime = runtime;
-  return reinterpret_cast<JavaVM*>(result);
+static const size_t kPinTableInitialSize = 16;
+static const size_t kPinTableMaxSize = 1024;
+
+JavaVMExt::JavaVMExt(Runtime* runtime)
+    : fns(&gInvokeInterface),
+      runtime(runtime),
+      pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize) {
 }
 
 }  // namespace art

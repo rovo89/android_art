@@ -103,7 +103,7 @@ Thread* Thread::Attach() {
       PLOG(FATAL) << "pthread_setspecific failed";
   }
 
-  thread->jni_env_ = CreateJNIEnv();
+  thread->jni_env_ = reinterpret_cast<JNIEnv*>(new JNIEnvExt(thread));
 
   return thread;
 }

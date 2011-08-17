@@ -268,7 +268,8 @@ bool Runtime::Init(const Options& options, bool ignore_unrecognized) {
 
   class_linker_ = ClassLinker::Create(parsed_options->boot_class_path_);
 
-  java_vm_.reset(CreateJavaVM(this));
+  java_vm_.reset(reinterpret_cast<JavaVM*>(new JavaVMExt(this)));
+
   return true;
 }
 
