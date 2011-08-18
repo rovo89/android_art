@@ -38,7 +38,7 @@ define build-libart
     LOCAL_CFLAGS += -UNDEBUG
   endif
   LOCAL_C_INCLUDES += src $(ART_C_INCLUDES)
-  LOCAL_SHARED_LIBRARIES := liblog
+  LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($(1),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
   else

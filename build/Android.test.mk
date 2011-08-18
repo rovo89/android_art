@@ -32,10 +32,10 @@ define build-art-test
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libarttest libartd
   ifeq ($(1),target)
-    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libstlport libz
+    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
   else
-    LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libz-host
+    LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
   endif
   ifeq ($(1),target)

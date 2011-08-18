@@ -5,19 +5,19 @@
 
 #include "jni.h"
 
-#include "assembler.h"
 #include "indirect_reference_table.h"
 #include "macros.h"
 #include "reference_table.h"
-#include "thread.h"
 
 #include <map>
 #include <string>
 
 namespace art {
 
+class Mutex;
 class Runtime;
 class SharedLibrary;
+class Thread;
 
 struct JavaVMExt {
   JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);
@@ -53,11 +53,11 @@ struct JavaVMExt {
   ReferenceTable pin_table;
 
   // JNI global references.
-  Mutex globals_lock;
+  Mutex* globals_lock;
   IndirectReferenceTable globals;
 
   // JNI weak global references.
-  Mutex weak_globals_lock;
+  Mutex* weak_globals_lock;
   IndirectReferenceTable weak_globals;
 
   std::map<std::string, SharedLibrary*> libraries;
