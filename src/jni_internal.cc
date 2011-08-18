@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "assembler.h"
 #include "class_linker.h"
 #include "jni.h"
 #include "logging.h"
@@ -26,7 +27,11 @@ enum JNI_OnLoadState {
 };
 
 struct SharedLibrary {
-  SharedLibrary() : jni_on_load_lock("JNI_OnLoad") {
+  SharedLibrary() : jni_on_load_lock(Mutex::Create("JNI_OnLoad lock")) {
+  }
+
+  ~SharedLibrary() {
+    delete jni_on_load_lock;
   }
 
   // Path to library "/system/lib/libjni.so".
@@ -39,7 +44,7 @@ struct SharedLibrary {
   Object* class_loader;
 
   // Guards remaining items.
-  Mutex jni_on_load_lock;
+  Mutex* jni_on_load_lock;
   // Wait for JNI_OnLoad in other thread.
   pthread_cond_t  jni_on_load_cond;
   // Recursive invocation guard.
@@ -63,7 +68,7 @@ bool CheckOnLoadResult(JavaVMExt* vm, SharedLibrary* library) {
   }
 
   UNIMPLEMENTED(ERROR) << "need to pthread_cond_wait!";
-  // MutexLock mu(&library->jni_on_load_lock);
+  // MutexLock mu(library->jni_on_load_lock);
   while (library->jni_on_load_result == kPending) {
     if (vm->verbose_jni) {
       LOG(INFO) << "[" << *self << " waiting for \"" << library->path << "\" "
@@ -242,7 +247,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, Object* class_loader,
 
     // Broadcast a wakeup to anybody sleeping on the condition variable.
     UNIMPLEMENTED(ERROR) << "missing pthread_cond_broadcast";
-    // MutexLock mu(&library->jni_on_load_lock);
+    // MutexLock mu(library->jni_on_load_lock);
     // pthread_cond_broadcast(&library->jni_on_load_cond);
     return result;
   }
@@ -364,7 +369,7 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
     {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& globals = vm->globals;
-      MutexLock mu(&vm->globals_lock);
+      MutexLock mu(vm->globals_lock);
       result = globals.Get(ref);
       break;
     }
@@ -372,7 +377,7 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
     {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& weak_globals = vm->weak_globals;
-      MutexLock mu(&vm->weak_globals_lock);
+      MutexLock mu(vm->weak_globals_lock);
       result = weak_globals.Get(ref);
       if (result == kClearedJniWeakGlobal) {
         // This is a special case where it's okay to return NULL.
@@ -663,20 +668,79 @@ jobject PopLocalFrame(JNIEnv* env, jobject res) {
   return res;
 }
 
-jobject NewGlobalRef(JNIEnv* env, jobject lobj) {
+jobject NewGlobalRef(JNIEnv* env, jobject obj) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  if (obj == NULL) {
+    return NULL;
+  }
+
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  IndirectReferenceTable& globals = vm->globals;
+  MutexLock mu(vm->globals_lock);
+  IndirectRef ref = globals.Add(IRT_FIRST_SEGMENT, Decode<Object*>(ts, obj));
+  return reinterpret_cast<jobject>(ref);
 }
 
-void DeleteGlobalRef(JNIEnv* env, jobject gref) {
+void DeleteGlobalRef(JNIEnv* env, jobject obj) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
+  if (obj == NULL) {
+    return;
+  }
+
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  IndirectReferenceTable& globals = vm->globals;
+  MutexLock mu(vm->globals_lock);
+
+  if (!globals.Remove(IRT_FIRST_SEGMENT, obj)) {
+    LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
+                 << "failed to find entry";
+  }
+}
+
+jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
+  if (obj == NULL) {
+    return NULL;
+  }
+
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  IndirectReferenceTable& weak_globals = vm->weak_globals;
+  MutexLock mu(vm->weak_globals_lock);
+  IndirectRef ref = weak_globals.Add(IRT_FIRST_SEGMENT, Decode<Object*>(ts, obj));
+  return reinterpret_cast<jobject>(ref);
+}
+
+void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
+  ScopedJniThreadState ts(env);
+  if (obj == NULL) {
+    return;
+  }
+
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  IndirectReferenceTable& weak_globals = vm->weak_globals;
+  MutexLock mu(vm->weak_globals_lock);
+
+  if (!weak_globals.Remove(IRT_FIRST_SEGMENT, obj)) {
+    LOG(WARNING) << "JNI WARNING: DeleteWeakGlobalRef(" << obj << ") "
+                 << "failed to find entry";
+  }
+}
+
+jobject NewLocalRef(JNIEnv* env, jobject obj) {
+  ScopedJniThreadState ts(env);
+  if (obj == NULL) {
+    return NULL;
+  }
+
+  IndirectReferenceTable& locals = ts.Env()->locals;
+
+  uint32_t cookie = IRT_FIRST_SEGMENT; // TODO
+  IndirectRef ref = locals.Add(cookie, Decode<Object*>(ts, obj));
+  return reinterpret_cast<jobject>(ref);
 }
 
 void DeleteLocalRef(JNIEnv* env, jobject obj) {
   ScopedJniThreadState ts(env);
-
   if (obj == NULL) {
     return;
   }
@@ -699,12 +763,6 @@ jboolean IsSameObject(JNIEnv* env, jobject obj1, jobject obj2) {
   ScopedJniThreadState ts(env);
   UNIMPLEMENTED(FATAL);
   return JNI_FALSE;
-}
-
-jobject NewLocalRef(JNIEnv* env, jobject ref) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
 }
 
 jint EnsureLocalCapacity(JNIEnv* env, jint) {
@@ -2095,17 +2153,6 @@ void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
   UNIMPLEMENTED(FATAL);
 }
 
-jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
-void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
-  ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-}
-
 jboolean ExceptionCheck(JNIEnv* env) {
   ScopedJniThreadState ts(env);
   return ts.Self()->IsExceptionPending() ? JNI_TRUE : JNI_FALSE;
@@ -2530,9 +2577,9 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
       check_jni(check_jni),
       verbose_jni(verbose_jni),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
-      globals_lock("JNI global reference table"),
+      globals_lock(Mutex::Create("JNI global reference table lock")),
       globals(kGlobalsInitial, kGlobalsMax, kGlobal),
-      weak_globals_lock("JNI weak global reference table"),
+      weak_globals_lock(Mutex::Create("JNI weak global reference table lock")),
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal) {
 }
 

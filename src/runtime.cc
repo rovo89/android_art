@@ -7,6 +7,7 @@
 #include <limits>
 #include <vector>
 
+#include "JniConstants.h"
 #include "class_linker.h"
 #include "heap.h"
 #include "jni_internal.h"
@@ -312,7 +313,12 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 
   // Most JNI libraries can just use System.loadLibrary, but you can't
   // if you're the library that implements System.loadLibrary!
+  Thread* self = Thread::Current();
+  Thread::State old_state = self->GetState();
+  self->SetState(Thread::kNative);
+  JniConstants::init(self->GetJniEnv());
   LoadJniLibrary(instance_->GetJavaVM(), "javacore");
+  self->SetState(old_state);
 
   return instance_;
 }

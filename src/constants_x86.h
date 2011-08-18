@@ -73,29 +73,28 @@ enum ScaleFactor {
   TIMES_8 = 3
 };
 
-
 enum Condition {
-  OVERFLOW      =  0,
-  NO_OVERFLOW   =  1,
-  BELOW         =  2,
-  ABOVE_EQUAL   =  3,
-  EQUAL         =  4,
-  NOT_EQUAL     =  5,
-  BELOW_EQUAL   =  6,
-  ABOVE         =  7,
-  SIGN          =  8,
-  NOT_SIGN      =  9,
-  PARITY_EVEN   = 10,
-  PARITY_ODD    = 11,
-  LESS          = 12,
-  GREATER_EQUAL = 13,
-  LESS_EQUAL    = 14,
-  GREATER       = 15,
+  kOverflow     =  0,
+  kNoOverflow   =  1,
+  kBelow        =  2,
+  kAboveEqual   =  3,
+  kEqual        =  4,
+  kNotEqual     =  5,
+  kBelowEqual   =  6,
+  kAbove        =  7,
+  kSign         =  8,
+  kNotSign      =  9,
+  kParityEven   = 10,
+  kParityOdd    = 11,
+  kLess         = 12,
+  kGreaterEqual = 13,
+  kLessEqual    = 14,
+  kGreater      = 15,
 
-  ZERO          = EQUAL,
-  NOT_ZERO      = NOT_EQUAL,
-  NEGATIVE      = SIGN,
-  POSITIVE      = NOT_SIGN
+  kZero         = kEqual,
+  kNotZero      = kNotEqual,
+  kNegative     = kSign,
+  kPositive     = kNotSign
 };
 
 

@@ -1560,7 +1560,7 @@ void Assembler::CreateStackHandle(ManagedRegister out_reg,
       xorl(out_reg.AsCpuRegister(), out_reg.AsCpuRegister());
     }
     testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
-    j(ZERO, &null_arg);
+    j(kZero, &null_arg);
     leal(out_reg.AsCpuRegister(), Address(ESP, handle_offset));
     Bind(&null_arg);
   } else {
@@ -1576,7 +1576,7 @@ void Assembler::CreateStackHandle(FrameOffset out_off,
     Label null_arg;
     movl(scratch.AsCpuRegister(), Address(ESP, handle_offset));
     testl(scratch.AsCpuRegister(), scratch.AsCpuRegister());
-    j(ZERO, &null_arg);
+    j(kZero, &null_arg);
     leal(scratch.AsCpuRegister(), Address(ESP, handle_offset));
     Bind(&null_arg);
   } else {
@@ -1595,7 +1595,7 @@ void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
     xorl(out_reg.AsCpuRegister(), out_reg.AsCpuRegister());
   }
   testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
-  j(ZERO, &null_arg);
+  j(kZero, &null_arg);
   movl(out_reg.AsCpuRegister(), Address(in_reg.AsCpuRegister(), 0));
   Bind(&null_arg);
 }
@@ -1627,7 +1627,7 @@ void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
       new SuspendCountSlowPath(return_reg, return_save_location, return_size);
   buffer_.EnqueueSlowPath(slow);
   fs()->cmpl(Address::Absolute(Thread::SuspendCountOffset()), Immediate(0));
-  j(NOT_EQUAL, slow->Entry());
+  j(kNotEqual, slow->Entry());
   Bind(slow->Continuation());
 }
 
@@ -1651,7 +1651,7 @@ void Assembler::ExceptionPoll(ManagedRegister scratch) {
   ExceptionSlowPath* slow = new ExceptionSlowPath();
   buffer_.EnqueueSlowPath(slow);
   fs()->cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));
-  j(NOT_EQUAL, slow->Entry());
+  j(kNotEqual, slow->Entry());
   Bind(slow->Continuation());
 }
 

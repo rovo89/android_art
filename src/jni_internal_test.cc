@@ -242,6 +242,117 @@ TEST_F(JniInternalTest, SetObjectArrayElement) {
   // TODO: check ArrayStoreException thrown for bad types.
 }
 
+TEST_F(JniInternalTest, NewLocalRef_NULL) {
+  EXPECT_TRUE(env_->NewLocalRef(NULL) == NULL);
+}
+
+TEST_F(JniInternalTest, NewLocalRef) {
+  jstring s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+  jobject o = env_->NewLocalRef(s);
+  EXPECT_TRUE(o != NULL);
+  EXPECT_TRUE(o != s);
+
+  // TODO: check that o is a local reference.
+}
+
+TEST_F(JniInternalTest, DeleteLocalRef_NULL) {
+  env_->DeleteLocalRef(NULL);
+}
+
+TEST_F(JniInternalTest, DeleteLocalRef) {
+  jstring s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+  env_->DeleteLocalRef(s);
+
+  // Currently, deleting an already-deleted reference is just a warning.
+  env_->DeleteLocalRef(s);
+
+  s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+  jobject o = env_->NewLocalRef(s);
+  ASSERT_TRUE(o != NULL);
+
+  env_->DeleteLocalRef(s);
+  env_->DeleteLocalRef(o);
+}
+
+TEST_F(JniInternalTest, NewGlobalRef_NULL) {
+  EXPECT_TRUE(env_->NewGlobalRef(NULL) == NULL);
+}
+
+TEST_F(JniInternalTest, NewGlobalRef) {
+  jstring s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+  jobject o = env_->NewGlobalRef(s);
+  EXPECT_TRUE(o != NULL);
+  EXPECT_TRUE(o != s);
+
+  // TODO: check that o is a global reference.
+}
+
+TEST_F(JniInternalTest, DeleteGlobalRef_NULL) {
+  env_->DeleteGlobalRef(NULL);
+}
+
+TEST_F(JniInternalTest, DeleteGlobalRef) {
+  jstring s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+
+  jobject o = env_->NewGlobalRef(s);
+  ASSERT_TRUE(o != NULL);
+  env_->DeleteGlobalRef(o);
+
+  // Currently, deleting an already-deleted reference is just a warning.
+  env_->DeleteGlobalRef(o);
+
+  jobject o1 = env_->NewGlobalRef(s);
+  ASSERT_TRUE(o1 != NULL);
+  jobject o2 = env_->NewGlobalRef(s);
+  ASSERT_TRUE(o2 != NULL);
+
+  env_->DeleteGlobalRef(o1);
+  env_->DeleteGlobalRef(o2);
+}
+
+TEST_F(JniInternalTest, NewWeakGlobalRef_NULL) {
+  EXPECT_TRUE(env_->NewWeakGlobalRef(NULL) == NULL);
+}
+
+TEST_F(JniInternalTest, NewWeakGlobalRef) {
+  jstring s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+  jobject o = env_->NewWeakGlobalRef(s);
+  EXPECT_TRUE(o != NULL);
+  EXPECT_TRUE(o != s);
+
+  // TODO: check that o is a weak global reference.
+}
+
+TEST_F(JniInternalTest, DeleteWeakGlobalRef_NULL) {
+  env_->DeleteWeakGlobalRef(NULL);
+}
+
+TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
+  jstring s = env_->NewStringUTF("");
+  ASSERT_TRUE(s != NULL);
+
+  jobject o = env_->NewWeakGlobalRef(s);
+  ASSERT_TRUE(o != NULL);
+  env_->DeleteWeakGlobalRef(o);
+
+  // Currently, deleting an already-deleted reference is just a warning.
+  env_->DeleteWeakGlobalRef(o);
+
+  jobject o1 = env_->NewWeakGlobalRef(s);
+  ASSERT_TRUE(o1 != NULL);
+  jobject o2 = env_->NewWeakGlobalRef(s);
+  ASSERT_TRUE(o2 != NULL);
+
+  env_->DeleteWeakGlobalRef(o1);
+  env_->DeleteWeakGlobalRef(o2);
+}
+
 bool EnsureInvokeStub(Method* method);
 
 byte* AllocateCode(void* code, size_t length) {

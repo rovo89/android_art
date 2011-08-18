@@ -41,11 +41,11 @@ class Mutex {
   static Mutex* Create(const char* name);
 
  public:  // TODO: protected
-  explicit Mutex(const char* name) : name_(name), owner_(NULL) {}
-
   void SetOwner(Thread* thread) { owner_ = thread; }
 
  private:
+  explicit Mutex(const char* name) : name_(name), owner_(NULL) {}
+
   const char* name_;
 
   Thread* owner_;
