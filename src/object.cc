@@ -296,7 +296,7 @@ size_t Method::NumArgArrayBytes() {
     char ch = shorty[i];
     if (ch == 'D' || ch == 'J') {
       num_bytes += 8;
-    } if (ch == 'L') {
+    } else if (ch == 'L') {
       // Argument is a reference or an array.  The shorty descriptor
       // does not distinguish between these types.
       num_bytes += sizeof(Object*);
