@@ -62,6 +62,7 @@ class Heap {
 
   static void RecordAllocation(Space* space, const Object* object);
   static void RecordFree(Space* space, const Object* object);
+  static void RecordImageAllocations(Space* space);
 
   static void CollectGarbageInternal();
 

@@ -72,7 +72,7 @@ class ClassLinker {
   }
   PathClassLoader* AllocPathClassLoader(std::vector<const DexFile*> dex_files);
 
-  Class* CreatePrimitiveClass(const StringPiece& descriptor);
+  Class* CreatePrimitiveClass(const char* descriptor);
 
   Class* CreateArrayClass(const StringPiece& descriptor,
                           ClassLoader* class_loader);
@@ -114,7 +114,7 @@ class ClassLinker {
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
-  bool InsertClass(Class* klass);
+  bool InsertClass(const StringPiece& descriptor, Class* klass);
 
   bool InitializeSuperClass(Class* klass);
 
@@ -156,10 +156,10 @@ class ClassLinker {
 
   std::vector<DexCache*> dex_caches_;
 
-  // multimap from String::descriptor_ to Class* instances. Results
-  // should be compared for a matching Class::descriptor_ and
-  // Class::class_loader_.
-  typedef std::tr1::unordered_multimap<StringPiece, Class*> Table;
+  // multimap from a StringPiece hash code of a class descriptor to
+  // Class* instances. Results should be compared for a matching
+  // Class::descriptor_ and Class::class_loader_.
+  typedef std::tr1::unordered_multimap<size_t, Class*> Table;
   Table classes_;
   Mutex* classes_lock_;
 

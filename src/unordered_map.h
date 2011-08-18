@@ -35,4 +35,10 @@ struct hash<art::StringPiece> {
 #endif
 }  // namespace std
 
+#ifdef __ANDROID__
+typedef std::hash<art::StringPiece> StringPieceHash;
+#else
+typedef std::tr1::hash<art::StringPiece> StringPieceHash;
+#endif
+
 #endif  // ART_SRC_CLASS_UNORDERED_MAP_H_

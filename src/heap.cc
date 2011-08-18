@@ -4,6 +4,7 @@
 
 #include <vector>
 
+#include "image.h"
 #include "mark_sweep.h"
 #include "object.h"
 #include "space.h"
@@ -76,6 +77,11 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
 
   // TODO: allocate the card table
 
+  // Make objects in boot_space live (after live_bitmap_ is set)
+  if (boot_image_file_name != NULL) {
+    RecordImageAllocations(boot_space);
+  }
+
   return true;
 }
 
@@ -92,7 +98,7 @@ void Heap::Destroy() {
 }
 
 Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
-  DCHECK((klass == NULL && num_bytes == sizeof(Class))
+  DCHECK(klass == NULL
          || klass->descriptor_ == NULL
          || (klass->object_size_ == (klass->IsArray() ? 0 : num_bytes)));
   Object* obj = Allocate(num_bytes);
@@ -121,6 +127,18 @@ void Heap::RecordFree(Space* space, const Object* obj) {
   live_bitmap_->Clear(obj);
   if (num_objects_allocated_ > 0) {
     num_objects_allocated_ -= 1;
+  }
+}
+
+void Heap::RecordImageAllocations(Space* space) {
+  CHECK(space != NULL);
+  CHECK(live_bitmap_ != NULL);
+  byte* current = space->GetBase() + RoundUp(sizeof(ImageHeader), 8);
+  while (current < space->GetLimit()) {
+    DCHECK(IsAligned(current, 8));
+    const Object* obj = reinterpret_cast<const Object*>(current);
+    live_bitmap_->Set(obj);
+    current += RoundUp(obj->SizeOf(), 8);
   }
 }
 

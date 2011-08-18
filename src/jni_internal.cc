@@ -472,7 +472,7 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
 
   if (method == NULL || method->IsStatic() != is_static) {
     Thread* self = Thread::Current();
-    std::string class_name(c->GetDescriptor().ToString());
+    std::string class_name(c->GetDescriptor()->ToModifiedUtf8());
     // TODO: try searching for the opposite kind of method from is_static
     // for better diagnostics?
     self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
@@ -505,7 +505,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
 
   if (field == NULL) {
     Thread* self = Thread::Current();
-    std::string class_name(c->GetDescriptor().ToString());
+    std::string class_name(c->GetDescriptor()->ToModifiedUtf8());
     self->ThrowNewException("Ljava/lang/NoSuchFieldError;",
         "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
         name, class_name.c_str());
@@ -1768,7 +1768,7 @@ class JNI {
     Class* element_class = Decode<Class*>(ts, element_jclass);
     std::string descriptor;
     descriptor += "[";
-    descriptor += element_class->GetDescriptor().ToString();
+    descriptor += element_class->GetDescriptor()->ToModifiedUtf8();
 
     // Find the class.
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -2003,7 +2003,7 @@ class JNI {
       }
       if (method == NULL) {
         Thread* self = Thread::Current();
-        std::string class_name = klass->GetDescriptor().ToString();
+        std::string class_name = klass->GetDescriptor()->ToModifiedUtf8();
         // TODO: pretty print method names through a single routine
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "no method \"%s.%s%s\"",
@@ -2011,7 +2011,7 @@ class JNI {
         return JNI_ERR;
       } else if (!method->IsNative()) {
         Thread* self = Thread::Current();
-        std::string class_name = klass->GetDescriptor().ToString();
+        std::string class_name = klass->GetDescriptor()->ToModifiedUtf8();
         // TODO: pretty print method names through a single routine
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "method \"%s.%s%s\" is not native",

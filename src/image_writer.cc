@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <vector>
 
+#include "dex_cache.h"
 #include "file.h"
 #include "globals.h"
 #include "heap.h"
@@ -88,12 +89,32 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   copy->klass_ = down_cast<Class*>(GetImageAddress(orig->klass_));
-  // TODO: specical case init of pointers to malloc data (or removal of these pointers)
-  if (orig->IsObjectArray()) {
+  // TODO: special case init of pointers to malloc data (or removal of these pointers)
+  if (orig->IsClass()) {
+    FixupClass(orig->AsClass(), down_cast<Class*>(copy));
+  } else if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
   } else {
     FixupInstanceFields(orig, copy);
   }
+}
+
+void ImageWriter::FixupClass(Class* orig, Class* copy) {
+  FixupInstanceFields(orig, copy);
+  copy->descriptor_ = down_cast<String*>(GetImageAddress(orig->descriptor_));
+  copy->dex_cache_ = down_cast<DexCache*>(GetImageAddress(orig->dex_cache_));
+  copy->verify_error_class_ = down_cast<Class*>(GetImageAddress(orig->verify_error_class_));
+  copy->component_type_ = down_cast<Class*>(GetImageAddress(orig->component_type_));
+  copy->super_class_ = down_cast<Class*>(GetImageAddress(orig->super_class_));
+  copy->class_loader_ = down_cast<ClassLoader*>(GetImageAddress(orig->class_loader_));
+  copy->interfaces_ = down_cast<ObjectArray<Class>*>(GetImageAddress(orig->interfaces_));
+  copy->direct_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->direct_methods_));
+  copy->virtual_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->virtual_methods_));
+  copy->vtable_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->vtable_));
+  // TODO: convert iftable_ to heap allocated storage
+  copy->ifields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->ifields_));
+  copy->sfields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->sfields_));
+  copy->static_references_ = down_cast<ObjectArray<Object>*>(GetImageAddress(orig->static_references_));
 }
 
 void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {

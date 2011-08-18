@@ -61,9 +61,9 @@ std::string PrettyType(const Object* obj) {
   if (obj->GetClass() == NULL) {
     return "(raw)";
   }
-  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
+  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()->ToModifiedUtf8()));
   if (obj->IsClass()) {
-    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
+    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()->ToModifiedUtf8()) + ">";
   }
   return result;
 }

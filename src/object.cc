@@ -108,8 +108,11 @@ bool Class::IsSubClass(const Class* klass) const {
   return false;
 }
 
-bool Class::IsInSamePackage(const StringPiece& descriptor1,
-                            const StringPiece& descriptor2) {
+bool Class::IsInSamePackage(const String* descriptor_string_1,
+                            const String* descriptor_string_2) {
+  const std::string descriptor1(descriptor_string_1->ToModifiedUtf8());
+  const std::string descriptor2(descriptor_string_2->ToModifiedUtf8());
+
   size_t i = 0;
   while (descriptor1[i] != '\0' && descriptor1[i] == descriptor2[i]) {
     ++i;
@@ -393,15 +396,15 @@ size_t Method::ReturnSize() const {
 
 bool Method::HasSameNameAndDescriptor(const Method* that) const {
   return (this->GetName()->Equals(that->GetName()) &&
-          this->GetDescriptor()->Equals(that->GetDescriptor()));
+          this->GetSignature()->Equals(that->GetSignature()));
 }
 
 Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
-                                        const StringPiece& descriptor) {
+                                        const StringPiece& signature) {
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     Method* method = GetDirectMethod(i);
     if (method->GetName()->Equals(name) &&
-        method->GetDescriptor()->Equals(descriptor)) {
+        method->GetSignature()->Equals(signature)) {
       return method;
     }
   }
@@ -409,9 +412,9 @@ Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
 }
 
 Method* Class::FindDirectMethod(const StringPiece& name,
-                                const StringPiece& descriptor) {
+                                const StringPiece& signature) {
   for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredDirectMethod(name, descriptor);
+    Method* method = klass->FindDeclaredDirectMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -420,11 +423,11 @@ Method* Class::FindDirectMethod(const StringPiece& name,
 }
 
 Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
-                                         const StringPiece& descriptor) {
+                                         const StringPiece& signature) {
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     Method* method = GetVirtualMethod(i);
     if (method->GetName()->Equals(name) &&
-        method->GetDescriptor()->Equals(descriptor)) {
+        method->GetSignature()->Equals(signature)) {
       return method;
     }
   }
@@ -519,7 +522,7 @@ template class PrimitiveArray<int16_t>;   // ShortArray
 // TODO: get global references for these
 Class* String::java_lang_String_ = NULL;
 
-void String::InitClasses(Class* java_lang_String) {
+void String::InitClass(Class* java_lang_String) {
   java_lang_String_ = java_lang_String;
 }
 

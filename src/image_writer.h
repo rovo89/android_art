@@ -50,6 +50,7 @@ class ImageWriter {
 
   void CopyAndFixupObjects();
   static void CopyAndFixupObjectsCallback(Object *obj, void *arg);
+  void FixupClass(Class* orig, Class* copy);
   void FixupObject(Object* orig, Object* copy);
   void FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy);
   void FixupInstanceFields(Object* orig, Object* copy);

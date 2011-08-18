@@ -32,7 +32,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // java_lang_Class comes first, its needed for AllocClass
   Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
   CHECK(java_lang_Class != NULL);
-  java_lang_Class->descriptor_ = "Ljava/lang/Class;";
+  // java_lang_Class->descriptor_ = "Ljava/lang/Class;";  // XXX bdc can these be created later?
   java_lang_Class->object_size_ = sizeof(Class);
   java_lang_Class->klass_ = java_lang_Class;
   // AllocClass(Class*) can now be used
@@ -40,7 +40,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // java_lang_Object comes next so that object_array_class can be created
   Class* java_lang_Object = AllocClass(java_lang_Class);
   CHECK(java_lang_Object != NULL);
-  java_lang_Object->descriptor_ = "Ljava/lang/Object;";
+  // java_lang_Object->descriptor_ = "Ljava/lang/Object;";  // XXX bdc can these be created later?
   // backfill Object as the super class of Class
   java_lang_Class->super_class_ = java_lang_Object;
   // mark as non-primitive for object_array_class
@@ -49,38 +49,47 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // object_array_class is for root_classes to provide the storage for these classes
   Class* object_array_class = AllocClass(java_lang_Class);
   CHECK(object_array_class != NULL);
-  object_array_class->descriptor_ = "[Ljava/lang/Object;";
+  // object_array_class->descriptor_ = "[Ljava/lang/Object;";  // XXX bdc can these be created later?
   object_array_class->component_type_ = java_lang_Object;
 
   // String and char[] are necessary so that FindClass can assign names to members
   Class* java_lang_String = AllocClass(java_lang_Class);
   CHECK(java_lang_String != NULL);
-  java_lang_String->descriptor_ = "Ljava/lang/String;";
+  // java_lang_String->descriptor_ = "Ljava/lang/String;";  // XXX can these be created later?
   CHECK_LT(java_lang_String->object_size_, sizeof(String));
   java_lang_String->object_size_ = sizeof(String);
+  String::InitClass(java_lang_String);
   Class* char_array_class = AllocClass(java_lang_Class);
   CHECK(char_array_class != NULL);
-  char_array_class->descriptor_ = "[C";
+  // char_array_class->descriptor_ = "[C";  // XXX can these be created later?
   CharArray::SetArrayClass(char_array_class);
+  // Now String::Alloc* can be used
+
+  // backfill Class descriptors missing until this point
+  java_lang_Class->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/Class;");
+  java_lang_Object->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/Object;");
+  object_array_class->descriptor_ = String::AllocFromModifiedUtf8("[Ljava/lang/Object;");
+  java_lang_String->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/String;");
+  char_array_class->descriptor_ = String::AllocFromModifiedUtf8("[C");
 
   // int[] and long[] are used for static field storage
   Class* int_array_class = AllocClass(java_lang_Class);
   CHECK(int_array_class != NULL);
-  int_array_class->descriptor_ = "[I";
+  int_array_class->descriptor_ = String::AllocFromModifiedUtf8("[I");
   IntArray::SetArrayClass(int_array_class);
   Class* long_array_class = AllocClass(java_lang_Class);
   CHECK(long_array_class != NULL);
-  long_array_class->descriptor_ = "[J";
+  long_array_class->descriptor_ = String::AllocFromModifiedUtf8("[J");
   LongArray::SetArrayClass(long_array_class);
 
   // Field and Method are necessary so that FindClass can link members
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class);
   CHECK(java_lang_reflect_Field != NULL);
-  java_lang_reflect_Field->descriptor_ = "Ljava/lang/reflect/Field;";
+  java_lang_reflect_Field->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/reflect/Field;");
   CHECK_LT(java_lang_reflect_Field->object_size_, sizeof(Field));
   java_lang_reflect_Field->object_size_ = sizeof(Field);
   Class* java_lang_reflect_Method = AllocClass(java_lang_Class);
-  java_lang_reflect_Method->descriptor_ = "Ljava/lang/reflect/Method;";
+  java_lang_reflect_Method->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;");
   CHECK(java_lang_reflect_Method != NULL);
   CHECK_LT(java_lang_reflect_Method->object_size_, sizeof(Method));
   java_lang_reflect_Method->object_size_ = sizeof(Method);
@@ -98,9 +107,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
-  String::InitClasses(java_lang_String);
-  // Now AllocString* can be used
-
   // setup boot_class_path_ now that we can use AllocObjectArray to
   // create DexCache instances
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
@@ -111,24 +117,24 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // run Class, Field, and Method through FindSystemClass.
   // this initializes their dex_cache_ fields and register them in classes_.
   // we also override their object_size_ values to accommodate the extra C++ fields.
-  Class* Class_class = FindSystemClass(java_lang_Class->GetDescriptor());
+  Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class, Class_class);
   CHECK_LT(java_lang_Class->object_size_, sizeof(Class));
   java_lang_Class->object_size_ = sizeof(Class);
-  Class* Field_class = FindSystemClass(java_lang_reflect_Field->GetDescriptor());
+  Class* Field_class = FindSystemClass("Ljava/lang/reflect/Field;");
   CHECK_EQ(java_lang_reflect_Field, Field_class);
   CHECK_LT(java_lang_reflect_Field->object_size_, sizeof(Field));
   java_lang_reflect_Field->object_size_ = sizeof(Field);
-  Class* Method_class = FindSystemClass(java_lang_reflect_Method->GetDescriptor());
+  Class* Method_class = FindSystemClass("Ljava/lang/reflect/Method;");
   CHECK_EQ(java_lang_reflect_Method, Method_class);
   CHECK_LT(java_lang_reflect_Method->object_size_, sizeof(Method));
   java_lang_reflect_Method->object_size_ = sizeof(Method);
 
   // Object and String just need more minimal setup, since they do not have extra C++ fields.
-  Class* Object_class = FindSystemClass(java_lang_Object->GetDescriptor());
+  Class* Object_class = FindSystemClass("Ljava/lang/Object;");
   CHECK_EQ(java_lang_Object, Object_class);
   CHECK_EQ(java_lang_Object->object_size_, sizeof(Object));
-  Class* String_class = FindSystemClass(java_lang_String->GetDescriptor());
+  Class* String_class = FindSystemClass("Ljava/lang/String;");
   CHECK_EQ(java_lang_String, String_class);
   CHECK_EQ(java_lang_String->object_size_, sizeof(String));
 
@@ -323,7 +329,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
       ObjectLock lock(klass);
       klass->clinit_thread_id_ = self->GetId();
       // Add the newly loaded class to the loaded classes table.
-      bool success = InsertClass(klass);  // TODO: just return collision
+      bool success = InsertClass(descriptor, klass);  // TODO: just return collision
       if (!success) {
         // We may fail to insert if we raced with another thread.
         klass->clinit_thread_id_ = 0;
@@ -387,8 +393,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   CHECK(descriptor != NULL);
 
   klass->klass_ = GetClassRoot(kJavaLangClass);
-  klass->descriptor_.set(descriptor);
-  klass->descriptor_alloc_ = NULL;
+  klass->descriptor_ = String::AllocFromModifiedUtf8(descriptor);
   klass->access_flags_ = dex_class_def.access_flags_;
   klass->class_loader_ = class_loader;
   klass->primitive_type_ = Class::kPrimNot;
@@ -508,7 +513,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     int32_t utf16_length;
     scoped_array<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
                                                           &utf16_length));
-    dst->descriptor_ = String::AllocFromModifiedUtf8(utf16_length, utf8.get());
+    dst->signature_ = String::AllocFromModifiedUtf8(utf16_length, utf8.get());
   }
   dst->proto_idx_ = method_id.proto_idx_;
   dst->code_off_ = src.code_off_;
@@ -570,15 +575,14 @@ DexCache* ClassLinker::FindDexCache(const DexFile* dex_file) const {
   return NULL;
 }
 
-Class* ClassLinker::CreatePrimitiveClass(const StringPiece& descriptor) {
+Class* ClassLinker::CreatePrimitiveClass(const char* descriptor) {
   Class* klass = AllocClass();
   CHECK(klass != NULL);
   klass->super_class_ = NULL;
   klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
-  klass->descriptor_ = descriptor;
-  klass->descriptor_alloc_ = NULL;
+  klass->descriptor_ = String::AllocFromModifiedUtf8(descriptor);
   klass->status_ = Class::kStatusInitialized;
-  bool success = InsertClass(klass);
+  bool success = InsertClass(descriptor, klass);
   CHECK(success) << "CreatePrimitiveClass(" << descriptor << ") failed";
   return klass;
 }
@@ -683,10 +687,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
       return NULL;
     }
   }
-  new_class->descriptor_alloc_ = new std::string(descriptor.data(),
-                                                 descriptor.size());
-  new_class->descriptor_.set(new_class->descriptor_alloc_->data(),
-                             new_class->descriptor_alloc_->size());
+  new_class->descriptor_ = String::AllocFromModifiedUtf8(descriptor.ToString().c_str());
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->super_class_ = java_lang_Object;
   new_class->vtable_ = java_lang_Object->vtable_;
@@ -696,6 +697,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   new_class->array_rank_ = array_rank;
   new_class->status_ = Class::kStatusInitialized;
   // don't need to set new_class->object_size_
+  // because Object::SizeOf delegates to Array::SizeOf
 
 
   // All arrays have java/lang/Cloneable and java/io/Serializable as
@@ -726,7 +728,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   new_class->access_flags_ = ((new_class->component_type_->access_flags_ &
                                ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask;
 
-  if (InsertClass(new_class)) {
+  if (InsertClass(descriptor, new_class)) {
     return new_class;
   }
   // Another thread must have loaded the class after we
@@ -770,19 +772,20 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
   return NULL;  // Not reachable.
 }
 
-bool ClassLinker::InsertClass(Class* klass) {
+bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass) {
+  size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
-  const StringPiece& key = klass->GetDescriptor();
-  Table::iterator it = classes_.insert(std::make_pair(key, klass));
+  Table::iterator it = classes_.insert(std::make_pair(hash, klass));
   return ((*it).second == klass);
 }
 
 Class* ClassLinker::LookupClass(const StringPiece& descriptor, ClassLoader* class_loader) {
+  size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
-  for (It it = classes_.find(descriptor), end = classes_.end(); it != end; ++it) {
+  for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
-    if (klass->descriptor_ == descriptor && klass->class_loader_ == class_loader) {
+    if (klass->descriptor_->Equals(descriptor) && klass->class_loader_ == class_loader) {
       return klass;
     }
   }
@@ -974,7 +977,6 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
   CHECK(descriptor != NULL);
   CHECK(klass1 != NULL);
   CHECK(klass2 != NULL);
-#if 0
   Class* found1 = FindClass(descriptor, klass1->GetClassLoader());
   // TODO: found1 == NULL
   Class* found2 = FindClass(descriptor, klass2->GetClassLoader());
@@ -988,7 +990,6 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
       return false;
     }
   }
-#endif
   return true;
 }
 
@@ -1033,7 +1034,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   if (dex_cache == NULL) {
     return;
   }
-  const StringPiece& descriptor = klass->GetDescriptor();
+  const std::string descriptor(klass->GetDescriptor()->ToModifiedUtf8());
   const DexFile& dex_file = FindDexFile(dex_cache);
   const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
   CHECK(dex_class_def != NULL);
@@ -1140,7 +1141,7 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
 bool ClassLinker::LinkSuperClass(Class* klass) {
   CHECK(!klass->IsPrimitive());
   const Class* super = klass->GetSuperClass();
-  if (klass->GetDescriptor() == "Ljava/lang/Object;") {
+  if (klass->GetDescriptor()->Equals("Ljava/lang/Object;")) {
     if (super != NULL) {
       LG << "Superclass must not be defined";  // TODO: ClassFormatError
       return false;
@@ -1154,15 +1155,15 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   }
   // Verify
   if (super->IsFinal()) {
-    LG << "Superclass " << super->descriptor_ << " is declared final";  // TODO: IncompatibleClassChangeError
+    LG << "Superclass " << super->descriptor_->ToModifiedUtf8() << " is declared final";  // TODO: IncompatibleClassChangeError
     return false;
   }
   if (super->IsInterface()) {
-    LG << "Superclass " << super->descriptor_ << " is an interface";  // TODO: IncompatibleClassChangeError
+    LG << "Superclass " << super->descriptor_->ToModifiedUtf8() << " is an interface";  // TODO: IncompatibleClassChangeError
     return false;
   }
   if (!klass->CanAccess(super)) {
-    LG << "Superclass " << super->descriptor_ << " is  inaccessible";  // TODO: IllegalAccessError
+    LG << "Superclass " << super->descriptor_->ToModifiedUtf8() << " is  inaccessible";  // TODO: IllegalAccessError
     return false;
   }
   return true;
@@ -1234,9 +1235,8 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       klass->vtable_ = klass->vtable_->CopyOf(actual_count);
     }
   } else {
-    CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
+    CHECK(klass->GetDescriptor()->Equals("Ljava/lang/Object;"));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
-    CHECK(klass->GetDescriptor() == "Ljava/lang/Object;");
     if (!IsUint(16, num_virtual_methods)) {
       LG << "Too many methods";  // TODO: VirtualMachineError
       return false;

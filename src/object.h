@@ -367,8 +367,8 @@ class Method : public AccessibleObject {
     return name_;
   }
 
-  const String* GetDescriptor() const {
-    return descriptor_;
+  const String* GetSignature() const {
+    return signature_;
   }
 
   Class* GetDeclaringClass() const {
@@ -573,7 +573,7 @@ class Method : public AccessibleObject {
   // the method descriptor would be
   //
   //   (IDLjava/lang/Thread;)Ljava/lang/Object;
-  String* descriptor_;
+  String* signature_;
 
   // Method prototype descriptor string (return and argument types).
   uint32_t proto_idx_;
@@ -599,16 +599,16 @@ class Method : public AccessibleObject {
 
 class Array : public Object {
  public:
-  static size_t Size(size_t component_count,
-                     size_t component_size) {
+  static size_t SizeOf(size_t component_count,
+                       size_t component_size) {
     return sizeof(Array) + component_count * component_size;
   }
 
   static Array* Alloc(Class* array_class,
                       size_t component_count,
                       size_t component_size) {
-    size_t size = Size(component_count, component_size);
-    Array* array = Heap::AllocObject(array_class, size)->AsArray();
+    size_t size = SizeOf(component_count, component_size);
+    Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
     if (array != NULL) {
       array->SetLength(component_count);
     }
@@ -816,30 +816,15 @@ class Class : public Object {
     return component_type_;
   }
 
-  static size_t GetTypeSize(const StringPiece& descriptor) {
-    switch (descriptor[0]) {
-    case 'B': return 1;  // byte
-    case 'C': return 2;  // char
-    case 'D': return 8;  // double
-    case 'F': return 4;  // float
-    case 'I': return 4;  // int
-    case 'J': return 8;  // long
-    case 'S': return 2;  // short
-    case 'Z': return 1;  // boolean
-    case 'L': return sizeof(Object*);
-    case '[': return sizeof(Array*);
-    default:
-      LOG(ERROR) << "Unknown type " << descriptor;
-      return 0;
-    }
-  }
+  static size_t GetTypeSize(String* descriptor);
 
   size_t GetComponentSize() const {
     return GetTypeSize(component_type_->descriptor_);
   }
 
-  const StringPiece& GetDescriptor() const {
-    DCHECK_NE(0, descriptor_.size());
+  const String* GetDescriptor() const {
+    DCHECK(descriptor_ != NULL);
+    // DCHECK_NE(0, descriptor_->GetLength());  // TODO: keep?
     return descriptor_;
   }
 
@@ -880,13 +865,11 @@ class Class : public Object {
   // Returns true if this class is in the same packages as that class.
   bool IsInSamePackage(const Class* that) const;
 
-  static bool IsInSamePackage(const StringPiece& descriptor1,
-                              const StringPiece& descriptor2);
+  static bool IsInSamePackage(const String* descriptor1,
+                              const String* descriptor2);
 
   // Returns true if this class represents an array class.
-  bool IsArray() const {
-    return GetDescriptor()[0] == '[';  // TODO: avoid parsing the descriptor
-  }
+  bool IsArray() const;
 
   // Returns true if the class is an interface.
   bool IsInterface() const {
@@ -1052,20 +1035,11 @@ class Class : public Object {
   bool IsSubClass(const Class* klass) const;
 
  public:  // TODO: private
-  // leave space for instance data; we could access fields directly if
-  // we freeze the definition of java/lang/Class
-#define CLASS_FIELD_SLOTS 1
-  // Class.#0 name
-  uint32_t instance_data_[CLASS_FIELD_SLOTS];
-#undef CLASS_FIELD_SLOTS
+  // descriptor for the class such as "java.lang.Class" or "[C"
+  String* name_;  // TODO initialize
 
-  // UTF-8 descriptor for the class from constant pool
-  // ("Ljava/lang/Class;"), or on heap if generated ("[C")
-  StringPiece descriptor_;
-
-  // Proxy classes have their descriptor allocated on the native heap.
-  // When this field is non-NULL it must be explicitly freed.
-  std::string* descriptor_alloc_;
+  // descriptor for the class such as "Ljava/lang/Class;" or "[C"
+  String* descriptor_;
 
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;  // TODO: make an instance field?
@@ -1218,7 +1192,7 @@ inline size_t Object::SizeOf() const {
 }
 
 inline size_t Array::SizeOf() const {
-  return Size(GetLength(), klass_->GetComponentSize());
+  return SizeOf(GetLength(), klass_->GetComponentSize());
 }
 
 class DataObject : public Object {
@@ -1329,14 +1303,18 @@ class String : public Object {
     return string;
   }
 
-  static void InitClasses(Class* java_lang_String);
+  static void InitClass(Class* java_lang_String);
 
   static String* Alloc(Class* java_lang_String,
                        int32_t utf16_length) {
+    return Alloc(java_lang_String, CharArray::Alloc(utf16_length));
+  }
+
+  static String* Alloc(Class* java_lang_String,
+                       CharArray* array) {
     String* string = down_cast<String*>(java_lang_String->NewInstance());
-    CharArray* array = CharArray::Alloc(utf16_length);
     string->array_ = array;
-    string->count_ = utf16_length;
+    string->count_ = array->GetLength();
     return string;
   }
 
@@ -1464,6 +1442,29 @@ class String : public Object {
     return true;
   }
 
+  // Create a modified UTF-8 encoded std::string from a java/lang/String object.
+  std::string ToModifiedUtf8() const {
+    std::string result;
+    for (uint32_t i = 0; i < GetLength(); i++) {
+      uint16_t ch = CharAt(i);
+      // The most common case is (ch > 0 && ch <= 0x7f).
+      if (ch == 0 || ch > 0x7f) {
+        if (ch > 0x07ff) {
+          result.push_back((ch >> 12) | 0xe0);
+          result.push_back(((ch >> 6) & 0x3f) | 0x80);
+          result.push_back((ch & 0x3f) | 0x80);
+        } else { // (ch > 0x7f || ch == 0)
+          result.push_back((ch >> 6) | 0xc0);
+          result.push_back((ch & 0x3f) | 0x80);
+        }
+      } else {
+        result.push_back(ch);
+      }
+    }
+    return result;
+  }
+
+
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
@@ -1483,6 +1484,28 @@ class String : public Object {
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
+
+inline size_t Class::GetTypeSize(String* descriptor) {
+  switch (descriptor->CharAt(0)) {
+  case 'B': return 1;  // byte
+  case 'C': return 2;  // char
+  case 'D': return 8;  // double
+  case 'F': return 4;  // float
+  case 'I': return 4;  // int
+  case 'J': return 8;  // long
+  case 'S': return 2;  // short
+  case 'Z': return 1;  // boolean
+  case 'L': return sizeof(Object*);
+  case '[': return sizeof(Array*);
+  default:
+    LOG(ERROR) << "Unknown type " << descriptor;
+    return 0;
+  }
+}
+
+inline bool Class::IsArray() const {
+  return GetDescriptor()->CharAt(0) == '[';  // TODO: avoid parsing the descriptor
+}
 
 class InterfaceEntry {
  public:

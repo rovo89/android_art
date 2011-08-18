@@ -69,7 +69,6 @@ TEST_F(RuntimeTest, ParsedOptions) {
   void* test_abort = reinterpret_cast<void*>(0xb);
   void* test_exit = reinterpret_cast<void*>(0xc);
   void* null = reinterpret_cast<void*>(NULL);
-  scoped_ptr<const DexFile> java_lang_dex_file(GetLibCoreDex());
   std::vector<const DexFile*> boot_class_path;
   boot_class_path.push_back(java_lang_dex_file_.get());
 

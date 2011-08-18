@@ -176,7 +176,7 @@ void ThrowNewException(Thread* thread, const char* exception_class_name, const c
 
   // TODO: need to *call* the constructor!
   UNIMPLEMENTED(WARNING) << "can't call "
-                         << exception_class->GetDescriptor() << ".<init> "
+                         << exception_class->GetDescriptor()->ToModifiedUtf8() << ".<init> "
                          << "\"" << msg << "\"";
 
   thread->SetException(exception);

@@ -41,16 +41,16 @@ class ObjectTest : public CommonTest {
 
 TEST_F(ObjectTest, IsInSamePackage) {
   // Matches
-  EXPECT_TRUE(Class::IsInSamePackage("Ljava/lang/Object;",
-                                     "Ljava/lang/Class"));
-  EXPECT_TRUE(Class::IsInSamePackage("LFoo;",
-                                     "LBar;"));
+  EXPECT_TRUE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("Ljava/lang/Object;"),
+                                     String::AllocFromModifiedUtf8("Ljava/lang/Class")));
+  EXPECT_TRUE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("LFoo;"),
+                                     String::AllocFromModifiedUtf8("LBar;")));
 
   // Mismatches
-  EXPECT_FALSE(Class::IsInSamePackage("Ljava/lang/Object;",
-                                      "Ljava/io/File;"));
-  EXPECT_FALSE(Class::IsInSamePackage("Ljava/lang/Object;",
-                                      "Ljava/lang/reflect/Method;"));
+  EXPECT_FALSE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("Ljava/lang/Object;"),
+                                      String::AllocFromModifiedUtf8("Ljava/io/File;")));
+  EXPECT_FALSE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("Ljava/lang/Object;"),
+                                      String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;")));
 }
 
 TEST_F(ObjectTest, AllocObjectArray) {
