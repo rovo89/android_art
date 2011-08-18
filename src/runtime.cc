@@ -150,6 +150,16 @@ size_t ParseMemoryOption(const char *s, size_t div) {
   return 0;
 }
 
+void LoadJniLibrary(JavaVMExt* vm, const char* name) {
+  // TODO: OS_SHARED_LIB_FORMAT_STR
+  std::string mapped_name(StringPrintf("lib%s.so", name));
+  char* reason = NULL;
+  if (!vm->LoadNativeLibrary(mapped_name, NULL, &reason)) {
+    LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": "
+               << reason;
+  }
+}
+
 DexFile* Open(const std::string& filename) {
   if (filename.size() < 4) {
     LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
@@ -181,11 +191,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   parsed->boot_image_ = NULL;
 #ifdef NDEBUG
-  // CheckJNI is off by default for regular builds...
+  // -Xcheck:jni and -verbose:jni are off by default for regular builds...
   parsed->check_jni_ = false;
 #else
   // ...but on by default in debug builds.
   parsed->check_jni_ = true;
+  parsed->verbose_.insert("jni");
 #endif
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
@@ -210,7 +221,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option.starts_with("-D")) {
       parsed->properties_.push_back(option.substr(strlen("-D")).data());
     } else if (option.starts_with("-verbose:")) {
-      Split(option.substr(strlen("-verbose:")).data(), ",", parsed->verbose_);
+      std::vector<std::string> verbose_options;
+      Split(option.substr(strlen("-verbose:")).data(), ",", verbose_options);
+      for (size_t i = 0; i < verbose_options.size(); ++i) {
+        parsed->verbose_.insert(verbose_options[i]);
+      }
     } else if (option == "vfprintf") {
       parsed->hook_vfprintf_ = reinterpret_cast<int (*)(FILE *, const char*, va_list)>(options[i].second);
     } else if (option == "exit") {
@@ -250,34 +265,40 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   bool success = runtime->Init(options, ignore_unrecognized);
   if (!success) {
     return NULL;
-  } else {
-    return Runtime::instance_ = runtime.release();
   }
+  instance_ = runtime.release();
+
+  // Most JNI libraries can just use System.loadLibrary, but you can't
+  // if you're the library that implements System.loadLibrary!
+  LoadJniLibrary(instance_->GetJavaVM(), "javacore");
+
+  return instance_;
 }
 
-bool Runtime::Init(const Options& options, bool ignore_unrecognized) {
+bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(kPageSize, sysconf(_SC_PAGE_SIZE));
 
-  scoped_ptr<ParsedOptions> parsed_options(ParsedOptions::Create(options, ignore_unrecognized));
-  if (parsed_options == NULL) {
+  scoped_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
+  if (options == NULL) {
     return false;
   }
-  vfprintf_ = parsed_options->hook_vfprintf_;
-  exit_ = parsed_options->hook_exit_;
-  abort_ = parsed_options->hook_abort_;
+  vfprintf_ = options->hook_vfprintf_;
+  exit_ = options->hook_exit_;
+  abort_ = options->hook_abort_;
 
   thread_list_ = ThreadList::Create();
 
-  Heap::Init(parsed_options->heap_initial_size_,
-             parsed_options->heap_maximum_size_);
+  Heap::Init(options->heap_initial_size_,
+             options->heap_maximum_size_);
 
-  java_vm_.reset(reinterpret_cast<JavaVM*>(new JavaVMExt(this, parsed_options->check_jni_)));
+  bool verbose_jni = options->verbose_.find("jni") != options->verbose_.end();
+  java_vm_.reset(new JavaVMExt(this, options->check_jni_, verbose_jni));
 
   Thread::Init();
   Thread* current_thread = Thread::Attach(this);
   thread_list_->Register(current_thread);
 
-  class_linker_ = ClassLinker::Create(parsed_options->boot_class_path_);
+  class_linker_ = ClassLinker::Create(options->boot_class_path_);
 
   return true;
 }

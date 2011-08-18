@@ -3,12 +3,13 @@
 #ifndef ART_SRC_RUNTIME_H_
 #define ART_SRC_RUNTIME_H_
 
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "jni.h"
 #include "globals.h"
+#include "jni_internal.h"
 #include "macros.h"
 #include "scoped_ptr.h"
 #include "stringpiece.h"
@@ -39,7 +40,7 @@ class Runtime {
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
-    std::vector<std::string> verbose_;
+    std::set<std::string> verbose_;
     std::vector<std::string> properties_;
 
    private:
@@ -77,7 +78,7 @@ class Runtime {
     return class_linker_;
   }
 
-  JavaVM* GetJavaVM() const {
+  JavaVMExt* GetJavaVM() const {
     return java_vm_.get();
   }
 
@@ -93,7 +94,7 @@ class Runtime {
 
   ClassLinker* class_linker_;
 
-  scoped_ptr<JavaVM> java_vm_;
+  scoped_ptr<JavaVMExt> java_vm_;
 
   // Hooks supported by JNI_CreateJavaVM
   jint (*vfprintf_)(FILE* stream, const char* format, va_list ap);

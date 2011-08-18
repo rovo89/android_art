@@ -1,6 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include <dirent.h>
+#include <dlfcn.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -10,6 +11,9 @@
 #include "stringprintf.h"
 #include "class_linker.h"
 #include "dex_file.h"
+
+#include "unicode/uclean.h"
+#include "unicode/uvernum.h"
 
 #include "gtest/gtest.h"
 
@@ -320,6 +324,15 @@ class RuntimeTest : public testing::Test {
   virtual void SetUp() {
     is_host_ = getenv("ANDROID_BUILD_TOP") != NULL;
 
+    if (is_host_) {
+      // $ANDROID_ROOT is set on the device, but not on the host.
+      // We need to set this so that icu4c can find its locale data.
+      std::string root;
+      root += getenv("ANDROID_BUILD_TOP");
+      root += "/out/host/linux-x86";
+      setenv("ANDROID_ROOT", root.c_str(), 1);
+    }
+
     android_data_.reset(strdup(is_host_ ? "/tmp/art-data-XXXXXX" : "/sdcard/art-data-XXXXXX"));
     ASSERT_TRUE(android_data_ != NULL);
     const char* android_data_modified = mkdtemp(android_data_.get());
@@ -368,6 +381,15 @@ class RuntimeTest : public testing::Test {
     ASSERT_EQ(0, rmdir_cache_result);
     int rmdir_data_result = rmdir(android_data_.get());
     ASSERT_EQ(0, rmdir_data_result);
+
+    // icu4c has a fixed 10-element array "gCommonICUDataArray".
+    // If we run > 10 tests, we fill that array and u_setCommonData fails.
+    // There's a function to clear the array, but it's not public...
+    typedef void (*IcuCleanupFn)();
+    void* sym = dlsym(RTLD_DEFAULT, "u_cleanup_" U_ICU_VERSION_SHORT);
+    CHECK(sym != NULL);
+    IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
+    (*icu_cleanup_fn)();
   }
 
   std::string GetLibCoreDexFileName() {

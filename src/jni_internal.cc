@@ -3,9 +3,10 @@
 #include "jni_internal.h"
 
 #include <cstdarg>
-#include <vector>
-#include <utility>
+#include <dlfcn.h>
 #include <sys/mman.h>
+#include <utility>
+#include <vector>
 
 #include "class_linker.h"
 #include "jni.h"
@@ -17,6 +18,238 @@
 #include "thread.h"
 
 namespace art {
+
+enum JNI_OnLoadState {
+  kPending = 0,     /* initial state, must be zero */
+  kFailed,
+  kOkay,
+};
+
+struct SharedLibrary {
+  SharedLibrary() : jni_on_load_lock("JNI_OnLoad") {
+  }
+
+  // Path to library "/system/lib/libjni.so".
+  std::string path;
+
+  // The void* returned by dlopen(3).
+  void* handle;
+
+  // The ClassLoader this library is associated with.
+  Object* class_loader;
+
+  // Guards remaining items.
+  Mutex jni_on_load_lock;
+  // Wait for JNI_OnLoad in other thread.
+  pthread_cond_t  jni_on_load_cond;
+  // Recursive invocation guard.
+  uint32_t jni_on_load_tid;
+  // Result of earlier JNI_OnLoad call.
+  JNI_OnLoadState jni_on_load_result;
+};
+
+/*
+ * Check the result of an earlier call to JNI_OnLoad on this library.  If
+ * the call has not yet finished in another thread, wait for it.
+ */
+bool CheckOnLoadResult(JavaVMExt* vm, SharedLibrary* library) {
+  Thread* self = Thread::Current();
+  if (library->jni_on_load_tid == self->GetId()) {
+    // Check this so we don't end up waiting for ourselves.  We need
+    // to return "true" so the caller can continue.
+    LOG(INFO) << *self << " recursive attempt to load library "
+              << "\"" << library->path << "\"";
+    return true;
+  }
+
+  UNIMPLEMENTED(ERROR) << "need to pthread_cond_wait!";
+  // MutexLock mu(&library->jni_on_load_lock);
+  while (library->jni_on_load_result == kPending) {
+    if (vm->verbose_jni) {
+      LOG(INFO) << "[" << *self << " waiting for \"" << library->path << "\" "
+                << "JNI_OnLoad...]";
+    }
+    Thread::State old_state = self->GetState();
+    self->SetState(Thread::kWaiting); // TODO: VMWAIT
+    // pthread_cond_wait(&library->jni_on_load_cond, &library->jni_on_load_lock);
+    self->SetState(old_state);
+  }
+
+  bool okay = (library->jni_on_load_result == kOkay);
+  if (vm->verbose_jni) {
+    LOG(INFO) << "[Earlier JNI_OnLoad for \"" << library->path << "\" "
+              << (okay ? "succeeded" : "failed") << "]";
+  }
+  return okay;
+}
+
+typedef int (*JNI_OnLoadFn)(JavaVM*, void*);
+
+/*
+ * Load native code from the specified absolute pathname.  Per the spec,
+ * if we've already loaded a library with the specified pathname, we
+ * return without doing anything.
+ *
+ * TODO? for better results we should absolutify the pathname.  For fully
+ * correct results we should stat to get the inode and compare that.  The
+ * existing implementation is fine so long as everybody is using
+ * System.loadLibrary.
+ *
+ * The library will be associated with the specified class loader.  The JNI
+ * spec says we can't load the same library into more than one class loader.
+ *
+ * Returns "true" on success. On failure, sets *detail to a
+ * human-readable description of the error or NULL if no detail is
+ * available; ownership of the string is transferred to the caller.
+ */
+bool JavaVMExt::LoadNativeLibrary(const std::string& path, Object* class_loader, char** detail) {
+  *detail = NULL;
+
+  // See if we've already loaded this library.  If we have, and the class loader
+  // matches, return successfully without doing anything.
+  SharedLibrary* library = libraries[path];
+  if (library != NULL) {
+    if (library->class_loader != class_loader) {
+      LOG(WARNING) << "Shared library \"" << path << "\" already opened by "
+                   << "ClassLoader " << library->class_loader << "; "
+                   << "can't open in " << class_loader;
+      *detail = strdup("already opened by different ClassLoader");
+      return false;
+    }
+    if (verbose_jni) {
+      LOG(INFO) << "[Shared library \"" << path << "\" already loaded in "
+                << "ClassLoader " << class_loader << "]";
+    }
+    if (!CheckOnLoadResult(this, library)) {
+      *detail = strdup("JNI_OnLoad failed before");
+      return false;
+    }
+    return true;
+  }
+
+  // Open the shared library.  Because we're using a full path, the system
+  // doesn't have to search through LD_LIBRARY_PATH.  (It may do so to
+  // resolve this library's dependencies though.)
+
+  // Failures here are expected when java.library.path has several entries
+  // and we have to hunt for the lib.
+
+  // The current version of the dynamic linker prints detailed information
+  // about dlopen() failures.  Some things to check if the message is
+  // cryptic:
+  //   - make sure the library exists on the device
+  //   - verify that the right path is being opened (the debug log message
+  //     above can help with that)
+  //   - check to see if the library is valid (e.g. not zero bytes long)
+  //   - check config/prelink-linux-arm.map to ensure that the library
+  //     is listed and is not being overrun by the previous entry (if
+  //     loading suddenly stops working on a prelinked library, this is
+  //     a good one to check)
+  //   - write a trivial app that calls sleep() then dlopen(), attach
+  //     to it with "strace -p <pid>" while it sleeps, and watch for
+  //     attempts to open nonexistent dependent shared libs
+
+  // TODO: automate some of these checks!
+
+  if (verbose_jni) {
+    LOG(INFO) << "[calling dlopen(\"" << path << "\")...]";
+  }
+
+  // This can execute slowly for a large library on a busy system, so we
+  // want to switch from RUNNING to VMWAIT while it executes.  This allows
+  // the GC to ignore us.
+  Thread* self = Thread::Current();
+  Thread::State old_state = self->GetState();
+  self->SetState(Thread::kWaiting); // TODO: VMWAIT
+  void* handle = dlopen(path.c_str(), RTLD_LAZY);
+  self->SetState(old_state);
+
+  if (verbose_jni) {
+    LOG(INFO) << "[dlopen(\"" << path << "\") returned " << handle << "]";
+  }
+
+  if (handle == NULL) {
+    *detail = strdup(dlerror());
+    return false;
+  }
+
+  // Create a new entry.
+  library = new SharedLibrary;
+  library->path = path;
+  library->handle = handle;
+  library->class_loader = class_loader;
+  UNIMPLEMENTED(ERROR) << "missing pthread_cond_init";
+  // pthread_cond_init(&library->onLoadCond, NULL);
+  library->jni_on_load_tid = self->GetId();
+
+  libraries[path] = library;
+
+//  if (pNewEntry != pActualEntry) {
+//    LOG(INFO) << "WOW: we lost a race to add a shared library (\"" << path << "\" ClassLoader=" << class_loader <<")";
+//    freeSharedLibEntry(pNewEntry);
+//    return CheckOnLoadResult(this, pActualEntry);
+//  } else
+  {
+    if (verbose_jni) {
+      LOG(INFO) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
+    }
+
+    bool result = true;
+    void* sym = dlsym(handle, "JNI_OnLoad");
+    if (sym == NULL) {
+      if (verbose_jni) {
+        LOG(INFO) << "[No JNI_OnLoad found in \"" << path << "\"]";
+      }
+    } else {
+      // Call JNI_OnLoad.  We have to override the current class
+      // loader, which will always be "null" since the stuff at the
+      // top of the stack is around Runtime.loadLibrary().  (See
+      // the comments in the JNI FindClass function.)
+      UNIMPLEMENTED(WARNING) << "need to override current class loader";
+      JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
+      //Object* prevOverride = self->classLoaderOverride;
+      //self->classLoaderOverride = classLoader;
+
+      old_state = self->GetState();
+      self->SetState(Thread::kNative);
+      if (verbose_jni) {
+        LOG(INFO) << "[Calling JNI_OnLoad in \"" << path << "\"]";
+      }
+      int version = (*jni_on_load)(reinterpret_cast<JavaVM*>(this), NULL);
+      self->SetState(old_state);
+
+      UNIMPLEMENTED(WARNING) << "need to restore current class loader";
+      //self->classLoaderOverride = prevOverride;
+
+      if (version != JNI_VERSION_1_2 &&
+          version != JNI_VERSION_1_4 &&
+          version != JNI_VERSION_1_6) {
+        LOG(WARNING) << "JNI_OnLoad in \"" << path << "\" returned "
+                     << "bad version: " << version;
+        // It's unwise to call dlclose() here, but we can mark it
+        // as bad and ensure that future load attempts will fail.
+        // We don't know how far JNI_OnLoad got, so there could
+        // be some partially-initialized stuff accessible through
+        // newly-registered native method calls.  We could try to
+        // unregister them, but that doesn't seem worthwhile.
+        result = false;
+      } else {
+        if (verbose_jni) {
+          LOG(INFO) << "[Returned from JNI_OnLoad in \"" << path << "\"]";
+        }
+      }
+    }
+
+    library->jni_on_load_result = result ? kOkay : kFailed;
+    library->jni_on_load_tid = 0;
+
+    // Broadcast a wakeup to anybody sleeping on the condition variable.
+    UNIMPLEMENTED(ERROR) << "missing pthread_cond_broadcast";
+    // MutexLock mu(&library->jni_on_load_lock);
+    // pthread_cond_broadcast(&library->jni_on_load_cond);
+    return result;
+  }
+}
 
 // Entry/exit processing for all JNI calls.
 //
@@ -320,14 +553,14 @@ void FatalError(JNIEnv* env, const char* msg) {
 
 jint PushLocalFrame(JNIEnv* env, jint cap) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  UNIMPLEMENTED(WARNING) << "ignoring PushLocalFrame(" << cap << ")";
+  return JNI_OK;
 }
 
 jobject PopLocalFrame(JNIEnv* env, jobject res) {
   ScopedJniThreadState ts(env);
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  UNIMPLEMENTED(WARNING) << "ignoring PopLocalFrame";
+  return res;
 }
 
 jobject NewGlobalRef(JNIEnv* env, jobject lobj) {
@@ -1656,6 +1889,12 @@ jint RegisterNatives(JNIEnv* env,
   for(int i = 0; i < nMethods; i++) {
     const char* name = methods[i].name;
     const char* sig = methods[i].signature;
+
+    if (*sig == '!') {
+      // TODO: fast jni. it's too noisy to log all these.
+      ++sig;
+    }
+
     Method* method = klass->FindDirectMethod(name, sig);
     if (method == NULL) {
       method = klass->FindVirtualMethod(name, sig);
@@ -1704,7 +1943,7 @@ jint GetJavaVM(JNIEnv* env, JavaVM** vm) {
   ScopedJniThreadState ts(env);
   Runtime* runtime = Runtime::Current();
   if (runtime != NULL) {
-    *vm = runtime->GetJavaVM();
+    *vm = reinterpret_cast<JavaVM*>(runtime->GetJavaVM());
   } else {
     *vm = NULL;
   }
@@ -2058,7 +2297,7 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
     return JNI_ERR;
   } else {
     *p_env = reinterpret_cast<JNIEnv*>(Thread::Current()->GetJniEnv());
-    *p_vm = runtime->GetJavaVM();
+    *p_vm = reinterpret_cast<JavaVM*>(runtime->GetJavaVM());
     return JNI_OK;
   }
 }
@@ -2069,7 +2308,7 @@ extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {
     *vm_count = 0;
   } else {
     *vm_count = 1;
-    vms[0] = runtime->GetJavaVM();
+    vms[0] = reinterpret_cast<JavaVM*>(runtime->GetJavaVM());
   }
   return JNI_OK;
 }
@@ -2177,10 +2416,11 @@ static const size_t kGlobalsMax = 51200; // Arbitrary sanity check.
 static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
 
-JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni)
+JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
     : fns(&gInvokeInterface),
       runtime(runtime),
       check_jni(check_jni),
+      verbose_jni(verbose_jni),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
       globals(kGlobalsInitial, kGlobalsMax, kGlobal),
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal) {

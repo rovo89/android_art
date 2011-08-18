@@ -32,10 +32,10 @@ define build-art-test
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libarttest libartd
   ifeq ($(1),target)
-    LOCAL_SHARED_LIBRARIES += libstlport libz
+    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
   else
-    LOCAL_SHARED_LIBRARIES += libz-host
+    LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libz-host
     LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
   endif
   ifeq ($(1),target)
@@ -47,7 +47,7 @@ define build-art-test
     ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   else
     ART_HOST_TEST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
-    LOCAL_LDFLAGS += -lpthread
+    LOCAL_LDFLAGS += -ldl -lpthread
   endif
 endef
 

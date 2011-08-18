@@ -26,9 +26,9 @@ define build-libarttest
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
   LOCAL_CFLAGS := $(ART_CFLAGS) -UNDEBUG
   ifeq ($(1),target)
-    LOCAL_SHARED_LIBRARIES := libstlport
+    LOCAL_SHARED_LIBRARIES := libdl libstlport
   else
-    LOCAL_LDLIBS := -lrt
+    LOCAL_LDLIBS := -ldl -lrt
   endif
   ifeq ($(1),target)
     include $(BUILD_SHARED_LIBRARY)

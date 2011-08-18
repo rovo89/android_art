@@ -40,7 +40,7 @@ define build-libart
   LOCAL_C_INCLUDES += src $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := liblog
   ifeq ($(1),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz
+    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
   else
     LOCAL_SHARED_LIBRARIES += libz-host
     LOCAL_LDLIBS := -ldl -lpthread -lrt
