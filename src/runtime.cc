@@ -326,6 +326,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   exit_ = options->hook_exit_;
   abort_ = options->hook_abort_;
 
+  stack_size_ = options->stack_size_;
   thread_list_ = ThreadList::Create();
 
   Heap::Init(options->heap_initial_size_,

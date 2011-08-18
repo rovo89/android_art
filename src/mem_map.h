@@ -91,6 +91,10 @@ class MemMap {
     return length_;
   }
 
+  byte* GetLimit() const {
+    return addr_ + length_;
+  }
+
  private:
   MemMap(byte* addr, size_t length, void* base_addr, size_t base_length)
       : addr_(addr), length_(length), base_addr_(base_addr), base_length_(base_length) {

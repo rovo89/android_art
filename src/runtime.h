@@ -75,7 +75,11 @@ class Runtime {
 
   ~Runtime();
 
-  ClassLinker* GetClassLinker() {
+  size_t GetStackSize() const {
+    return stack_size_;
+  }
+
+  ClassLinker* GetClassLinker() const {
     return class_linker_;
   }
 
@@ -86,10 +90,13 @@ class Runtime {
  private:
   static void PlatformAbort(const char*, int);
 
-  Runtime() : thread_list_(NULL), class_linker_(NULL) {}
+  Runtime() : stack_size_(0), thread_list_(NULL), class_linker_(NULL) {}
 
   // Initializes a new uninitialized runtime.
   bool Init(const Options& options, bool ignore_unrecognized);
+
+  // The default stack size for managed threads created by the runtime.
+  size_t stack_size_;
 
   ThreadList* thread_list_;
 

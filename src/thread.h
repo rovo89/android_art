@@ -10,6 +10,7 @@
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
+#include "mem_map.h"
 #include "offsets.h"
 #include "runtime.h"
 
@@ -115,7 +116,7 @@ class Thread {
   static const size_t kDefaultStackSize = 64 * KB;
 
   // Creates a new thread.
-  static Thread* Create(size_t stack_size);
+  static Thread* Create(const Runtime* runtime);
 
   // Creates a new thread from the calling thread.
   static Thread* Attach(const Runtime* runtime);
@@ -291,6 +292,9 @@ class Thread {
   // A non-zero value is used to tell the current thread to enter a safe point
   // at the next poll.
   int suspend_count_;
+
+  // The memory mapping of the stack for non-attached threads.
+  scoped_ptr<MemMap> stack_;
 
   // The inclusive base of the control stack.
   byte* stack_base_;

@@ -53,20 +53,21 @@ void* ThreadStart(void *arg) {
   return NULL;
 }
 
-Thread* Thread::Create(size_t stack_size) {
-  int prot = PROT_READ | PROT_WRITE;
-  // TODO: require the stack size to be page aligned?
-  size_t length = RoundUp(stack_size, kPageSize);
-  void* stack_limit = mmap(NULL, length, prot, MAP_PRIVATE, -1, 0);
-  if (stack_limit == MAP_FAILED) {
-    LOG(FATAL) << "mmap";
-    return false;
+Thread* Thread::Create(const Runtime* runtime) {
+  size_t stack_size = runtime->GetStackSize();
+  scoped_ptr<MemMap> stack(MemMap::Map(stack_size, PROT_READ | PROT_WRITE, MAP_PRIVATE));
+  if (stack == NULL) {
+    LOG(FATAL) << "failed to allocate thread stack";
+    // notreached
+    return NULL;
   }
 
   Thread* new_thread = new Thread;
   new_thread->InitCpu();
-  new_thread->stack_limit_ = static_cast<byte*>(stack_limit);
-  new_thread->stack_base_ = new_thread->stack_limit_ + length;
+  new_thread->stack_.reset(stack.release());
+  // Since stacks are assumed to grown downward the base is the limit and the limit is the base.
+  new_thread->stack_limit_ = stack->GetAddress();
+  new_thread->stack_base_ = stack->GetLimit();
 
   pthread_attr_t attr;
   int result = pthread_attr_init(&attr);
