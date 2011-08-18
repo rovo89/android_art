@@ -2324,7 +2324,6 @@ jint DestroyJavaVM(JavaVM* vm) {
   } else {
     JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
     delete raw_vm->runtime;
-    raw_vm->runtime = NULL;
     return JNI_OK;
   }
 }

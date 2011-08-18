@@ -14,11 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+aexec=aexec
+invoke_with=
+
+while true; do
+  if [ "$1" = "--invoke-with" ]; then
+    shift
+    invoke_with="$1"
+    shift
+  elif [ "$1" = "-d" ]; then
+    aexec="aexecd"
+    shift
+  elif expr "$1" : "--" >/dev/null 2>&1; then
+    echo "unknown option: $1" 1>&2
+    exit 1
+  else
+    break
+  fi
+done
+
 mkdir -p /tmp/android-data/art-cache
 ANDROID_DATA=/tmp/android-data \
 ANDROID_ROOT=$ANDROID_BUILD_TOP/out/host/linux-x86 \
 LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/out/host/linux-x86/lib \
-$ANDROID_BUILD_TOP/out/host/linux-x86/bin/aexec \
+$invoke_with $ANDROID_BUILD_TOP/out/host/linux-x86/bin/$aexec \
 -Xbootclasspath\
 :$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-hostdex.jar\
 :$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-junit-hostdex.jar\
