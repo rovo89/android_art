@@ -76,11 +76,9 @@ TEST_F(JniInternalTest, GetMethodID) {
   env_->ExceptionClear();
 
   // Check that java.lang.Object.equals() does exist
-#if defined(__arm__)
   method = env_->GetMethodID(jlobject, "equals", "(Ljava/lang/Object;)Z");
   EXPECT_NE(static_cast<jmethodID>(NULL), method);
   EXPECT_FALSE(env_->ExceptionCheck());
-#endif
 
   // Check that GetMethodID for java.lang.String.valueOf(int) fails as the
   // method is static
@@ -121,13 +119,11 @@ TEST_F(JniInternalTest, GetStaticMethodID) {
   env_->ExceptionClear();
 
   // Check that java.lang.String.valueOf(int) does exist
-#if defined(__arm__)
   jclass jlstring = env_->FindClass("java/lang/String");
   method = env_->GetStaticMethodID(jlstring, "valueOf",
                                    "(I)Ljava/lang/String;");
   EXPECT_NE(static_cast<jmethodID>(NULL), method);
   EXPECT_FALSE(env_->ExceptionCheck());
-#endif
 }
 
 TEST_F(JniInternalTest, RegisterNatives) {

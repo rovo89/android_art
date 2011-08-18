@@ -31,10 +31,7 @@ ManagedRegister CallingConvention::ReturnRegister() {
 // Managed runtime calling convention
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
-  if (itr_slots_ < 3) {
-    return true;
-  }
-  return false;  // everything else on the stack
+  return itr_slots_ < 3;
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
@@ -67,8 +64,7 @@ ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
 
 FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 3u);
-  return FrameOffset(displacement_.Int32Value() +
-             ((itr_slots_ - 3) * kPointerSize));
+  return FrameOffset(displacement_.Int32Value() + (itr_slots_ * kPointerSize));
 }
 
 // JNI calling convention

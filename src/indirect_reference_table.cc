@@ -16,6 +16,7 @@
 
 #include "indirect_reference_table.h"
 #include "reference_table.h"
+#include "utils.h"
 
 #include <cstdlib>
 
@@ -82,7 +83,8 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, Object* obj) {
   size_t topIndex = segmentState.parts.topIndex;
 
   DCHECK(obj != NULL);
-  //DCHECK(dvmIsHeapAddress(obj));
+  // TODO: stronger sanity check on the object (such as in heap)
+  DCHECK(IsAligned(reinterpret_cast<intptr_t>(obj), 8));
   DCHECK(table_ != NULL);
   DCHECK_LE(alloc_entries_, max_entries_);
   DCHECK_GE(segmentState.parts.numHoles, prevState.parts.numHoles);

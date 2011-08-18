@@ -59,7 +59,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     // Check handle offset is within frame
     CHECK_LT(handle_offset.Uint32Value(), frame_size);
     jni_asm->LoadRef(jni_conv.InterproceduralScratchRegister(),
-                     mr_conv.MethodRegister(), Method::ClassOffset());
+                     mr_conv.MethodRegister(), Method::DeclaringClassOffset());
     jni_asm->ValidateRef(jni_conv.InterproceduralScratchRegister(), false);
     jni_asm->StoreRef(handle_offset, jni_conv.InterproceduralScratchRegister());
     jni_conv.Next();  // handlerized so move to next argument

@@ -375,8 +375,8 @@ class Method : public AccessibleObject {
     return declaring_class_;
   }
 
-  static MemberOffset ClassOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Method, klass_));
+  static MemberOffset DeclaringClassOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Method, declaring_class_));
   }
 
   // Returns true if the method is declared public.

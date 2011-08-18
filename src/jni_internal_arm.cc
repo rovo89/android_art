@@ -19,8 +19,8 @@ namespace art {
 // R0 = method pointer
 // R1 = receiver pointer or NULL for static methods
 // R2 = (managed) thread pointer
-// R3 = argument array or NULL for void arugment methods
-// [SP] = JValue result or NULL for void returns
+// R3 = argument array or NULL for no argument methods
+// [SP] = JValue* result or NULL for void returns
 //
 // As the JNI call has already transitioned the thread into the
 // "running" state the remaining responsibilities of this routine are
@@ -29,61 +29,64 @@ namespace art {
 // the stack, if needed.  On return, the thread register must be
 // shuffled and the return value must be store into the result JValue.
 void CreateInvokeStub(Assembler* assembler, Method* method) {
-  size_t num_arg_words = method->NumArgArrayBytes() / kWordSize;
-  // TODO: the incoming argument array should have implicit arguments.
-  size_t max_register_words = method->IsStatic() ? 3 : 2;
-  size_t num_register_words = std::min(num_arg_words, max_register_words);
-  size_t num_stack_words = num_arg_words - num_register_words;
+  // Size of frame - spill of R9/LR + Method* + possible receiver + arg array
+  size_t unpadded_frame_size = (3 * kPointerSize) +
+                               (method->IsStatic() ? 0 : kPointerSize) +
+                               method->NumArgArrayBytes();
+  size_t frame_size = RoundUp(unpadded_frame_size, kStackAlignment);
 
-  // For now we allocate stack space for stacked outgoing arguments.
-  size_t stack_parameters_size = num_stack_words*kWordSize;
-  if (num_arg_words != RoundUp(num_arg_words,8)) {
-    // Ensure 8-byte alignment.
-    stack_parameters_size += kWordSize;
-  }
-
+  // Spill R9 and LR
   RegList save = (1 << R9);
   __ PushList(save | (1 << LR));
-
-  // Allocate a frame large enough for the stacked arguments.
-  __ AddConstant(SP, -stack_parameters_size);
 
   // Move the managed thread pointer into R9.
   __ mov(R9, ShifterOperand(R2));
 
-  // Move all stacked arguments into place.
-  size_t first_stack_word = num_register_words;
-  if (num_arg_words > max_register_words) {
-    for (size_t i = first_stack_word, j = 0; i < num_arg_words; ++i, ++j) {
-      int r3_offset = i * kWordSize;
-      int sp_offset = j * kWordSize;
-      __ LoadFromOffset(kLoadWord, IP, R3, r3_offset);
-      __ StoreToOffset(kStoreWord, IP, SP, sp_offset);
-    }
+  // Move frame down for arguments less 2 pushed values above
+  __ AddConstant(SP, -frame_size + (2 * kPointerSize));
+
+  // Can either get 3 or 2 arguments into registers
+  size_t reg_bytes = (method->IsStatic() ? 3 : 2) * kPointerSize;
+  // Bytes passed by stack
+  size_t stack_bytes;
+  if( method->NumArgArrayBytes() > reg_bytes){
+    stack_bytes = method->NumArgArrayBytes() - reg_bytes;
+  } else {
+    stack_bytes = 0;
+    reg_bytes = method->NumArgArrayBytes();
+  }
+
+  // Copy values by stack
+  for(size_t off = 0; off < stack_bytes; off += kPointerSize) {
+    // we're displaced off of r3 by bytes that'll go in registers
+    int r3_offset = reg_bytes + off;
+    __ LoadFromOffset(kLoadWord, IP, R3, r3_offset);
+
+    // we're displaced off of the arguments by the spill space for the incoming
+    // arguments and the Method*
+    int sp_offset = reg_bytes + kPointerSize + off;
+    __ StoreToOffset(kStoreWord, IP, SP, sp_offset);
   }
 
   // Move all the register arguments into place.
   if (method->IsStatic()) {
-    if (num_register_words > 0) {
+    if (reg_bytes > 0) {
       __ LoadFromOffset(kLoadWord, R1, R3, 0);
-    }
-    if (num_register_words > 1) {
-      __ LoadFromOffset(kLoadWord, R2, R3, 4);
-    }
-    if (num_register_words > 2) {
-      __ LoadFromOffset(kLoadWord, R3, R3, 8);
+      if (reg_bytes > 4) {
+        __ LoadFromOffset(kLoadWord, R2, R3, 4);
+        if (reg_bytes > 8) {
+          __ LoadFromOffset(kLoadWord, R3, R3, 8);
+        }
+      }
     }
   } else {
-    if (num_register_words > 0) {
+    if (reg_bytes > 0) {
       __ LoadFromOffset(kLoadWord, R2, R3, 0);
-    }
-    if (num_register_words > 1) {
-      __ LoadFromOffset(kLoadWord, R3, R3, 4);
+      if (reg_bytes > 4) {
+        __ LoadFromOffset(kLoadWord, R3, R3, 4);
+      }
     }
   }
-
-  // Allocate the spill area for outgoing arguments.
-  __ AddConstant(SP, -((num_register_words+1)*kWordSize));
 
   // Load the code pointer we are about to call.
   __ LoadFromOffset(kLoadWord, IP, R0, method->GetCodeOffset());
@@ -91,15 +94,11 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   // Do the call.
   __ blx(IP);
 
-  // Deallocate the spill area for outgoing arguments.
-  __ AddConstant(SP, ((num_register_words+1)*kWordSize));
-
   // If the method returns a value, store it to the result pointer.
   char ch = method->GetShorty()[0];
   if (ch != 'V') {
-    // Load the result JValue pointer.  It is the first stacked
-    // argument so it is stored above the stacked R9 and LR values.
-    __ LoadFromOffset(kLoadWord, IP, SP, stack_parameters_size + 2*kWordSize);
+    // Load the result JValue pointer of the stub caller's out args.
+    __ LoadFromOffset(kLoadWord, IP, SP, frame_size);
     if (ch == 'D' || ch == 'J') {
       __ StoreToOffset(kStoreWordPair, R0, IP, 0);
     } else {
@@ -107,7 +106,10 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
     }
   }
 
-  __ AddConstant(SP, stack_parameters_size);
+  // Remove the frame less the spilled R9 and LR
+  __ AddConstant(SP, frame_size - (2 * kPointerSize));
+
+  // Pop R9 and the LR into PC
   __ PopList(save | (1 << PC));
 }
 
