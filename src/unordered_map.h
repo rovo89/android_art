@@ -11,6 +11,7 @@
 #include <tr1/unordered_map>
 #endif
 
+//TODO: move out to stringpiece.h?
 namespace std {
 #ifndef __ANDROID__
 namespace tr1 {

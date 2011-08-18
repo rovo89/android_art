@@ -3,7 +3,6 @@
 #ifndef ART_SRC_RUNTIME_H_
 #define ART_SRC_RUNTIME_H_
 
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -13,6 +12,7 @@
 #include "macros.h"
 #include "scoped_ptr.h"
 #include "stringpiece.h"
+#include "unordered_set.h"
 
 namespace art {
 
@@ -41,7 +41,7 @@ class Runtime {
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
-    std::set<std::string> verbose_;
+    std::tr1::unordered_set<std::string> verbose_;
     std::vector<std::string> properties_;
 
    private:
