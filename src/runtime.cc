@@ -9,6 +9,7 @@
 
 #include "class_linker.h"
 #include "heap.h"
+#include "jni_internal.h"
 #include "scoped_ptr.h"
 #include "thread.h"
 
@@ -17,10 +18,11 @@ namespace art {
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::~Runtime() {
-  // TODO: use a smart pointer instead.
+  // TODO: use smart pointers instead. (we'll need the pimpl idiom.)
   delete class_linker_;
   Heap::Destroy();
   delete thread_list_;
+  delete java_vm_;
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == NULL || instance_ == this);
   instance_ = NULL;
@@ -336,7 +338,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   }
 
   bool verbose_jni = options->verbose_.find("jni") != options->verbose_.end();
-  java_vm_.reset(new JavaVMExt(this, options->check_jni_, verbose_jni));
+  java_vm_ = new JavaVMExt(this, options->check_jni_, verbose_jni);
 
   if (!Thread::Init()) {
     return false;

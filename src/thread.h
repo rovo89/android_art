@@ -7,7 +7,6 @@
 #include <list>
 
 #include "globals.h"
-#include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
 #include "mem_map.h"

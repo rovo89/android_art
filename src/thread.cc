@@ -9,6 +9,7 @@
 #include <list>
 
 #include "class_linker.h"
+#include "jni_internal.h"
 #include "object.h"
 #include "runtime.h"
 #include "utils.h"

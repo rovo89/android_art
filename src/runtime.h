@@ -3,12 +3,15 @@
 #ifndef ART_SRC_RUNTIME_H_
 #define ART_SRC_RUNTIME_H_
 
+#include <stdio.h>
+
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <jni.h>
+
 #include "globals.h"
-#include "jni_internal.h"
 #include "macros.h"
 #include "scoped_ptr.h"
 #include "stringpiece.h"
@@ -19,6 +22,7 @@ namespace art {
 class ClassLinker;
 class DexFile;
 class Heap;
+class JavaVMExt;
 class String;
 class ThreadList;
 
@@ -84,7 +88,7 @@ class Runtime {
   }
 
   JavaVMExt* GetJavaVM() const {
-    return java_vm_.get();
+    return java_vm_;
   }
 
  private:
@@ -102,7 +106,7 @@ class Runtime {
 
   ClassLinker* class_linker_;
 
-  scoped_ptr<JavaVMExt> java_vm_;
+  JavaVMExt* java_vm_;
 
   // Hooks supported by JNI_CreateJavaVM
   jint (*vfprintf_)(FILE* stream, const char* format, va_list ap);

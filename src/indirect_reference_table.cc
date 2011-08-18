@@ -269,7 +269,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       segmentState.parts.topIndex = topIndex;
     } else {
       segmentState.parts.topIndex = topIndex-1;
-      LOG(INFO) << "+++ ate last entry " << topIndex-1;
+      //LOG(INFO) << "+++ ate last entry " << topIndex-1;
     }
   } else {
     /*
