@@ -10,6 +10,10 @@ InternTable::InternTable() {
   intern_table_lock_ = Mutex::Create("InternTable::Lock");
 }
 
+InternTable::~InternTable() {
+  delete intern_table_lock_;
+}
+
 void InternTable::VisitRoots(Heap::RootVistor* root_visitor, void* arg) {
   MutexLock mu(intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto

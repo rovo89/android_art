@@ -24,7 +24,9 @@ class ClassLinker {
   // Initializes the class linker.
   static ClassLinker* Create(const std::vector<DexFile*>& boot_class_path);
 
-  ~ClassLinker() {}
+  ~ClassLinker() {
+    delete classes_lock_;
+  }
 
   // Finds a class by its descriptor name.
   // If class_loader is null, searches boot_class_path_.

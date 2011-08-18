@@ -2583,4 +2583,9 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal) {
 }
 
+JavaVMExt::~JavaVMExt() {
+  delete globals_lock;
+  delete weak_globals_lock;
+}
+
 }  // namespace art

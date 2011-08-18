@@ -13,6 +13,7 @@ namespace art {
 class InternTable {
  public:
   InternTable();
+  ~InternTable();
   String* Intern(int32_t utf16_length, const char* utf8_data);
   void VisitRoots(Heap::RootVistor* root_visitor, void* arg);
 

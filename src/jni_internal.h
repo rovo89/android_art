@@ -21,6 +21,7 @@ class Thread;
 
 struct JavaVMExt {
   JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);
+  ~JavaVMExt();
 
   /*
    * Load native code from the specified absolute pathname.  Per the spec,
