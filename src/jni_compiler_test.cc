@@ -85,8 +85,7 @@ void Java_MyClass_foo(JNIEnv* env, jobject thisObj) {
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
-  // TODO: check JNIEnv and thisObj are sane
-  // EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClass_foo_calls++;
 }
 
@@ -106,8 +105,7 @@ jint Java_MyClass_fooI(JNIEnv* env, jobject thisObj, jint x) {
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
-  // TODO: check JNIEnv and thisObj are sane
-  // EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClass_fooI_calls++;
   return x;
 }
@@ -131,8 +129,7 @@ jint Java_MyClass_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
-  // TODO: check JNIEnv and thisObj are sane
-  // EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClass_fooII_calls++;
   return x - y;  // non-commutative operator
 }
@@ -157,8 +154,7 @@ jdouble Java_MyClass_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
-  // TODO: check JNIEnv and thisObj are sane
-  // EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClass_fooDD_calls++;
   return x - y;  // non-commutative operator
 }
@@ -186,8 +182,7 @@ jobject Java_MyClass_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
-  // TODO: check JNIEnv and thisObj are sane
-  // EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClass_fooIOO_calls++;
   switch (x) {
     case 1:
@@ -237,8 +232,7 @@ jobject Java_MyClass_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
-  // TODO: check JNIEnv and klass are sane
-  // EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
+  EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClass_fooSIOO_calls++;
   switch (x) {
     case 1:
@@ -289,8 +283,7 @@ jobject Java_MyClass_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
-  // TODO: check JNIEnv and klass are sane
-  // EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
+  EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClass_fooSSIOO_calls++;
   switch (x) {
     case 1:

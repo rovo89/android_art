@@ -283,6 +283,11 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
     }
   case kInvalid:
   default:
+    // TODO: make stack handle blocks more efficient
+    // Check if this is a local reference in a stack handle block
+    if (ts.Self()->ShbContains(obj)) {
+      return *reinterpret_cast<T*>(obj); // Read from stack handle block
+    }
     if (false /*gDvmJni.workAroundAppJniBugs*/) { // TODO
       // Assume an invalid local reference is actually a direct pointer.
       return reinterpret_cast<T>(obj);

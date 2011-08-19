@@ -135,6 +135,27 @@ bool Thread::Init() {
   return true;
 }
 
+size_t Thread::NumShbHandles() {
+  size_t count = 0;
+  for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
+    count += cur->NumberOfReferences();
+  }
+  return count;
+}
+
+bool Thread::ShbContains(jobject obj) {
+  Object **shb_entry = reinterpret_cast<Object**>(obj);
+  for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
+    size_t num_refs = cur->NumberOfReferences();
+    DCHECK_GT(num_refs, 0u); // A SHB should always have a jobject/jclass
+    if ((&cur->Handles()[0] >= shb_entry) &&
+        (shb_entry <= (&cur->Handles()[num_refs-1]))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void ThrowNewException(Thread* thread, const char* exception_class_name, const char* msg) {
   CHECK(thread != NULL);
 

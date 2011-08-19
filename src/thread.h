@@ -80,6 +80,10 @@ class StackHandleBlock {
     return link_;
   }
 
+  Object** Handles() {
+    return handles_;
+  }
+
   // Offset of length within SHB, used by generated code
   static size_t NumberOfReferencesOffset() {
     return OFFSETOF_MEMBER(StackHandleBlock, number_of_references_);
@@ -95,6 +99,9 @@ class StackHandleBlock {
 
   size_t number_of_references_;
   StackHandleBlock* link_;
+
+  // Fake array, really allocated and filled in by jni_compiler.
+  Object* handles_[0];
 
   DISALLOW_COPY_AND_ASSIGN(StackHandleBlock);
 };
@@ -216,13 +223,10 @@ class Thread {
   }
 
   // Number of references allocated in StackHandleBlocks on this thread
-  size_t NumShbHandles() {
-    size_t count = 0;
-    for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
-      count += cur->NumberOfReferences();
-    }
-    return count;
-  }
+  size_t NumShbHandles();
+
+  // Is the given obj in this thread's stack handle blocks?
+  bool ShbContains(jobject obj);
 
   // Offset of exception_entry_point_ within Thread, used by generated code
   static ThreadOffset ExceptionEntryPointOffset() {
