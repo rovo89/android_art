@@ -510,6 +510,13 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, jobject obj,
   // TODO: DecodeReference
   Method* method = reinterpret_cast<Method*>(method_id);
   Object* rcvr = Decode<Object*>(ts, obj);
+  Thread* self = ts.Self();
+
+  // Push a transition back into managed code onto the linked list in thread
+  CHECK_EQ(Thread::kRunnable, self->GetState());
+  NativeToManagedRecord record;
+  self->PushNativeToManagedRecord(&record);
+
   // Call the invoke stub associated with the method
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
@@ -517,12 +524,14 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, jobject obj,
   JValue result;
   // TODO: we should always have code associated with a method
   if (method->GetCode()) {
-    (*stub)(method, rcvr, ts.Self(), args, &result);
+    (*stub)(method, rcvr, self, args, &result);
   } else {
     // TODO: pretty print method here
     LOG(WARNING) << "Not invoking method with no associated code";
     result.j = 0;
   }
+  // Pop transition
+  self->PopNativeToManagedRecord(record);
   return result;
 }
 

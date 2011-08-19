@@ -99,6 +99,11 @@ class StackHandleBlock {
   DISALLOW_COPY_AND_ASSIGN(StackHandleBlock);
 };
 
+struct NativeToManagedRecord {
+  NativeToManagedRecord* link;
+  void* last_top_of_managed_stack;
+};
+
 class Thread {
  public:
   enum State {
@@ -241,9 +246,23 @@ class Thread {
   void IncrementSuspendCount() { suspend_count_++; }
   void DecrementSuspendCount() { suspend_count_--; }
 
+  // Linked list recording transitions from native to managed code
+  void PushNativeToManagedRecord(NativeToManagedRecord* record) {
+    record->last_top_of_managed_stack = top_of_managed_stack_;
+    record->link = native_to_managed_record_;
+    native_to_managed_record_ = record;
+    top_of_managed_stack_ = NULL;
+  }
+  void PopNativeToManagedRecord(const NativeToManagedRecord& record) {
+    native_to_managed_record_ = record.link;
+    top_of_managed_stack_ = record.last_top_of_managed_stack;
+  }
+
  private:
   Thread()
       : id_(1234),
+        top_of_managed_stack_(NULL),
+        native_to_managed_record_(NULL),
         top_shb_(NULL),
         jni_env_(NULL),
         exception_(NULL),
@@ -263,6 +282,10 @@ class Thread {
   // kRunnable to kNative. Uses include to give the starting point for scanning
   // a managed stack when a thread is in native code.
   void* top_of_managed_stack_;
+
+  // A linked list (of stack allocated records) recording transitions from
+  // native to managed code.
+  NativeToManagedRecord* native_to_managed_record_;
 
   // Top of linked list of stack handle blocks or NULL for none
   StackHandleBlock* top_shb_;
