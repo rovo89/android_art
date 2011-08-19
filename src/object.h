@@ -979,6 +979,20 @@ class Class : public Object {
     return num_reference_instance_fields_;
   }
 
+  // Finds the given instance field in this class or a superclass.
+  Field* FindInstanceField(const StringPiece& name,
+      const StringPiece& descriptor);
+
+  Field* FindDeclaredInstanceField(const StringPiece& name,
+      const StringPiece& descriptor);
+
+  // Finds the given static field in this class or a superclass.
+  Field* FindStaticField(const StringPiece& name,
+      const StringPiece& descriptor);
+
+  Field* FindDeclaredStaticField(const StringPiece& name,
+      const StringPiece& descriptor);
+
   Field* GetInstanceField(uint32_t i) const {  // TODO: uint16_t
     DCHECK_NE(NumInstanceFields(), 0U);
     return ifields_->Get(i);

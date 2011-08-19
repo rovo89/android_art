@@ -57,23 +57,91 @@ TEST_F(JniInternalTest, FindClass) {
   EXPECT_CLASS_NOT_FOUND("K");
 }
 
+#define EXPECT_EXCEPTION(exception_class) \
+  do { \
+    EXPECT_TRUE(env_->ExceptionCheck()); \
+    jthrowable exception = env_->ExceptionOccurred(); \
+    EXPECT_NE(static_cast<jthrowable>(NULL), exception); \
+    EXPECT_TRUE(env_->IsInstanceOf(exception, exception_class)); \
+    env_->ExceptionClear(); \
+  } while (false)
+
+TEST_F(JniInternalTest, GetFieldID) {
+  jclass jlnsfe = env_->FindClass("java/lang/NoSuchFieldError");
+  ASSERT_TRUE(jlnsfe != NULL);
+  jclass c = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(c != NULL);
+
+  // Wrong type.
+  jfieldID fid = env_->GetFieldID(c, "count", "J");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+
+  // Wrong name.
+  fid = env_->GetFieldID(c, "Count", "I");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+
+  // Good declared field lookup.
+  fid = env_->GetFieldID(c, "count", "I");
+  EXPECT_NE(static_cast<jfieldID>(NULL), fid);
+  EXPECT_TRUE(fid != NULL);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Good superclass field lookup.
+  c = env_->FindClass("java/lang/StringBuilder");
+  fid = env_->GetFieldID(c, "count", "I");
+  EXPECT_NE(static_cast<jfieldID>(NULL), fid);
+  EXPECT_TRUE(fid != NULL);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Not instance.
+  fid = env_->GetFieldID(c, "CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+}
+
+TEST_F(JniInternalTest, GetStaticFieldID) {
+  jclass jlnsfe = env_->FindClass("java/lang/NoSuchFieldError");
+  ASSERT_TRUE(jlnsfe != NULL);
+  jclass c = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(c != NULL);
+
+  // Wrong type.
+  jfieldID fid = env_->GetStaticFieldID(c, "CASE_INSENSITIVE_ORDER", "J");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+
+  // Wrong name.
+  fid = env_->GetStaticFieldID(c, "cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+
+  // Good declared field lookup.
+  fid = env_->GetStaticFieldID(c, "CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  EXPECT_NE(static_cast<jfieldID>(NULL), fid);
+  EXPECT_TRUE(fid != NULL);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Not static.
+  fid = env_->GetStaticFieldID(c, "count", "I");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+}
+
 TEST_F(JniInternalTest, GetMethodID) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlstring = env_->FindClass("java/lang/String");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
 
   // Sanity check that no exceptions are pending
-  EXPECT_FALSE(env_->ExceptionCheck());
+  ASSERT_FALSE(env_->ExceptionCheck());
 
   // Check that java.lang.Object.foo() doesn't exist and NoSuchMethodError is
   // a pending exception
   jmethodID method = env_->GetMethodID(jlobject, "foo", "()V");
   EXPECT_EQ(static_cast<jmethodID>(NULL), method);
-  EXPECT_TRUE(env_->ExceptionCheck());
-  jthrowable exception = env_->ExceptionOccurred();
-  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
-  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(jlnsme);
 
   // Check that java.lang.Object.equals() does exist
   method = env_->GetMethodID(jlobject, "equals", "(Ljava/lang/Object;)Z");
@@ -84,11 +152,7 @@ TEST_F(JniInternalTest, GetMethodID) {
   // method is static
   method = env_->GetMethodID(jlstring, "valueOf", "(I)Ljava/lang/String;");
   EXPECT_EQ(static_cast<jmethodID>(NULL), method);
-  EXPECT_TRUE(env_->ExceptionCheck());
-  exception = env_->ExceptionOccurred();
-  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
-  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(jlnsme);
 }
 
 TEST_F(JniInternalTest, GetStaticMethodID) {
@@ -96,27 +160,19 @@ TEST_F(JniInternalTest, GetStaticMethodID) {
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
 
   // Sanity check that no exceptions are pending
-  EXPECT_FALSE(env_->ExceptionCheck());
+  ASSERT_FALSE(env_->ExceptionCheck());
 
   // Check that java.lang.Object.foo() doesn't exist and NoSuchMethodError is
   // a pending exception
   jmethodID method = env_->GetStaticMethodID(jlobject, "foo", "()V");
   EXPECT_EQ(static_cast<jmethodID>(NULL), method);
-  EXPECT_TRUE(env_->ExceptionCheck());
-  jthrowable exception = env_->ExceptionOccurred();
-  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
-  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(jlnsme);
 
   // Check that GetStaticMethodID for java.lang.Object.equals(Object) fails as
   // the method is not static
   method = env_->GetStaticMethodID(jlobject, "equals", "(Ljava/lang/Object;)Z");
   EXPECT_EQ(static_cast<jmethodID>(NULL), method);
-  EXPECT_TRUE(env_->ExceptionCheck());
-  exception = env_->ExceptionOccurred();
-  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
-  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(jlnsme);
 
   // Check that java.lang.String.valueOf(int) does exist
   jclass jlstring = env_->FindClass("java/lang/String");
@@ -126,12 +182,42 @@ TEST_F(JniInternalTest, GetStaticMethodID) {
   EXPECT_FALSE(env_->ExceptionCheck());
 }
 
+TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
+  jclass jlrField = env_->FindClass("java/lang/reflect/Field");
+  jclass c = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(c != NULL);
+  jfieldID fid = env_->GetFieldID(c, "count", "I");
+  ASSERT_TRUE(fid != NULL);
+  // Turn the fid into a java.lang.reflect.Field...
+  jobject field = env_->ToReflectedField(c, fid, JNI_FALSE);
+  ASSERT_TRUE(c != NULL);
+  ASSERT_TRUE(env_->IsInstanceOf(field, jlrField));
+  // ...and back again.
+  jfieldID fid2 = env_->FromReflectedField(field);
+  ASSERT_TRUE(fid2 != NULL);
+}
+
+TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
+  jclass jlrMethod = env_->FindClass("java/lang/reflect/Method");
+  jclass c = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(c != NULL);
+  jmethodID mid = env_->GetMethodID(c, "length", "()I");
+  ASSERT_TRUE(mid != NULL);
+  // Turn the mid into a java.lang.reflect.Method...
+  jobject method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
+  ASSERT_TRUE(c != NULL);
+  ASSERT_TRUE(env_->IsInstanceOf(method, jlrMethod));
+  // ...and back again.
+  jmethodID mid2 = env_->FromReflectedMethod(method);
+  ASSERT_TRUE(mid2 != NULL);
+}
+
 TEST_F(JniInternalTest, RegisterNatives) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
 
   // Sanity check that no exceptions are pending
-  EXPECT_FALSE(env_->ExceptionCheck());
+  ASSERT_FALSE(env_->ExceptionCheck());
 
   // Check that registering to a non-existent java.lang.Object.foo() causes a
   // NoSuchMethodError
@@ -139,22 +225,14 @@ TEST_F(JniInternalTest, RegisterNatives) {
     JNINativeMethod methods[] = {{"foo", "()V", NULL}};
     env_->RegisterNatives(jlobject, methods, 1);
   }
-  EXPECT_TRUE(env_->ExceptionCheck());
-  jthrowable exception = env_->ExceptionOccurred();
-  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
-  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(jlnsme);
 
   // Check that registering non-native methods causes a NoSuchMethodError
   {
     JNINativeMethod methods[] = {{"equals", "(Ljava/lang/Object;)Z", NULL}};
     env_->RegisterNatives(jlobject, methods, 1);
   }
-  EXPECT_TRUE(env_->ExceptionCheck());
-  exception = env_->ExceptionOccurred();
-  EXPECT_NE(static_cast<jthrowable>(NULL), exception);
-  EXPECT_TRUE(env_->IsInstanceOf(exception, jlnsme));
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(jlnsme);
 
   // Check that registering native methods is successful
   {
@@ -215,6 +293,7 @@ TEST_F(JniInternalTest, NewStringUTF) {
 }
 
 TEST_F(JniInternalTest, SetObjectArrayElement) {
+  jclass aioobe = env_->FindClass("java/lang/ArrayIndexOutOfBoundsException");
   jclass c = env_->FindClass("[Ljava/lang/Object;");
   ASSERT_TRUE(c != NULL);
 
@@ -224,16 +303,12 @@ TEST_F(JniInternalTest, SetObjectArrayElement) {
   // TODO: check reading value back
 
   // ArrayIndexOutOfBounds for negative index.
-  // TODO: check exception type
   env_->SetObjectArrayElement(array, -1, c);
-  EXPECT_TRUE(env_->ExceptionCheck());
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(aioobe);
 
   // ArrayIndexOutOfBounds for too-large index.
-  // TODO: check exception type
   env_->SetObjectArrayElement(array, 1, c);
-  EXPECT_TRUE(env_->ExceptionCheck());
-  env_->ExceptionClear();
+  EXPECT_EXCEPTION(aioobe);
 
   // TODO: check ArrayStoreException thrown for bad types.
 }

@@ -442,6 +442,62 @@ Method* Class::FindVirtualMethod(const StringPiece& name,
   return NULL;
 }
 
+Field* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& descriptor) {
+  // Is the field in this class?
+  // Interfaces are not relevant because they can't contain instance fields.
+  for (size_t i = 0; i < NumInstanceFields(); ++i) {
+    Field* f = GetInstanceField(i);
+    if (f->GetName()->Equals(name) && f->GetDescriptor() == descriptor) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindInstanceField(const StringPiece& name, const StringPiece& descriptor) {
+  // Is the field in this class, or any of its superclasses?
+  // Interfaces are not relevant because they can't contain instance fields.
+  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
+    Field* f = c->FindDeclaredInstanceField(name, descriptor);
+    if (f != NULL) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& descriptor) {
+  for (size_t i = 0; i < NumStaticFields(); ++i) {
+    Field* f = GetStaticField(i);
+    if (f->GetName()->Equals(name) && f->GetDescriptor() == descriptor) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindStaticField(const StringPiece& name, const StringPiece& descriptor) {
+  // Is the field in this class (or its interfaces), or any of its
+  // superclasses (or their interfaces)?
+  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
+    // Is the field in this class?
+    Field* f = c->FindDeclaredStaticField(name, descriptor);
+    if (f != NULL) {
+      return f;
+    }
+
+    // Is this field in any of this class' interfaces?
+    for (size_t i = 0; i < c->NumInterfaces(); ++i) {
+      Class* interface = c->GetInterface(i);
+      f = interface->FindDeclaredStaticField(name, descriptor);
+      if (f != NULL) {
+        return f;
+      }
+    }
+  }
+  return NULL;
+}
+
 template<typename T>
 PrimitiveArray<T>* PrimitiveArray<T>::Alloc(size_t length) {
   Array* raw_array = Array::Alloc(array_class_, length, sizeof(T));
