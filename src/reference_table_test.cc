@@ -12,7 +12,7 @@ class ReferenceTableTest : public CommonTest {
 };
 
 TEST_F(ReferenceTableTest, Basics) {
-  Object* o1 = String::AllocFromModifiedUtf8(0, "hello");
+  Object* o1 = String::AllocFromModifiedUtf8("hello");
   Object* o2 = ShortArray::Alloc(0);
 
   // TODO: rewrite Dump to take a std::ostream& so we can test it better.

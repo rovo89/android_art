@@ -164,7 +164,7 @@ TEST_F(ObjectTest, String) {
 }
 
 TEST_F(ObjectTest, StringEqualsUtf8) {
-  String* string = String::AllocFromAscii("android");
+  String* string = String::AllocFromModifiedUtf8("android");
   EXPECT_TRUE(string->Equals("android"));
   EXPECT_FALSE(string->Equals("Android"));
   EXPECT_FALSE(string->Equals("ANDROID"));
@@ -172,21 +172,21 @@ TEST_F(ObjectTest, StringEqualsUtf8) {
   EXPECT_FALSE(string->Equals("and"));
   EXPECT_FALSE(string->Equals("androids"));
 
-  String* empty = String::AllocFromAscii("");
+  String* empty = String::AllocFromModifiedUtf8("");
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
 }
 
 TEST_F(ObjectTest, StringEquals) {
-  String* string = String::AllocFromAscii("android");
-  EXPECT_TRUE(string->Equals(String::AllocFromAscii("android")));
+  String* string = String::AllocFromModifiedUtf8("android");
+  EXPECT_TRUE(string->Equals(String::AllocFromModifiedUtf8("android")));
   EXPECT_FALSE(string->Equals("Android"));
   EXPECT_FALSE(string->Equals("ANDROID"));
   EXPECT_FALSE(string->Equals(""));
   EXPECT_FALSE(string->Equals("and"));
   EXPECT_FALSE(string->Equals("androids"));
 
-  String* empty = String::AllocFromAscii("");
+  String* empty = String::AllocFromModifiedUtf8("");
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
 }
@@ -237,9 +237,9 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
 
 TEST_F(ObjectTest, StringHashCode) {
-  EXPECT_EQ(0U, String::AllocFromAscii("")->GetHashCode());
-  EXPECT_EQ(65U, String::AllocFromAscii("A")->GetHashCode());
-  EXPECT_EQ(64578U, String::AllocFromAscii("ABC")->GetHashCode());
+  EXPECT_EQ(0U, String::AllocFromModifiedUtf8("")->GetHashCode());
+  EXPECT_EQ(65U, String::AllocFromModifiedUtf8("A")->GetHashCode());
+  EXPECT_EQ(64578U, String::AllocFromModifiedUtf8("ABC")->GetHashCode());
 }
 
 TEST_F(ObjectTest, InstanceOf) {

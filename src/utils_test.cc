@@ -54,7 +54,7 @@ TEST(PrettyDescriptorTest, PrimitiveScalars) {
 TEST_F(UtilsTest, PrettyType) {
   EXPECT_EQ("null", PrettyType(NULL));
 
-  String* s = String::AllocFromModifiedUtf8(0, "");
+  String* s = String::AllocFromModifiedUtf8("");
   EXPECT_EQ("java.lang.String", PrettyType(s));
 
   ShortArray* a = ShortArray::Alloc(2);

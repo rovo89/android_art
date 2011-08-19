@@ -145,8 +145,7 @@ void ThrowNewException(Thread* thread, const char* exception_class_name, const c
   Object* exception = exception_class->NewInstance();
   CHECK(exception != NULL);
 
-  size_t char_count = String::ModifiedUtf8Len(msg);
-  String* java_msg = String::AllocFromModifiedUtf8(char_count, msg);
+  String* java_msg = String::AllocFromModifiedUtf8(msg);
   CHECK(java_msg != NULL);
 
   // TODO: what if there's already a pending exception?

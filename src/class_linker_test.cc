@@ -442,7 +442,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   Field* s8 = statics->GetStaticField(8);
   EXPECT_EQ('L', s8->GetType());
 //  EXPECT_TRUE(down_cast<String*>(s8->GetObject())->Equals("android"));  // TODO: uncomment this
-  s8->SetObject(String::AllocFromAscii("robot"));
+  s8->SetObject(String::AllocFromModifiedUtf8("robot"));
 
   Field* s9 = statics->GetStaticField(9);
   EXPECT_EQ('[', s9->GetType());

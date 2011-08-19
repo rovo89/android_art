@@ -1301,28 +1301,18 @@ class String : public Object {
     return string;
   }
 
-  static String* AllocFromModifiedUtf8(Class* java_lang_String,
-                                       int32_t utf16_length,
-                                       const char* utf8_data_in) {
-    String* string = Alloc(java_lang_String, utf16_length);
-    uint16_t* utf16_data_out = string->array_->GetData();
-    ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
-    string->ComputeHashCode();
-    return string;
-  }
-
-  // Creates a String of the given ASCII characters. It is an error to call this
-  // using non-ASCII characters as this function assumes one char per byte.
-  static String* AllocFromAscii(const char* ascii_data_in) {
-    return AllocFromModifiedUtf8(GetJavaLangString(),
-                                 strlen(ascii_data_in),
-                                 ascii_data_in);
+  static String* AllocFromModifiedUtf8(const char* utf) {
+    size_t char_count = ModifiedUtf8Len(utf);
+    return AllocFromModifiedUtf8(char_count, utf);
   }
 
   static String* AllocFromModifiedUtf8(int32_t utf16_length,
                                        const char* utf8_data_in) {
-    return AllocFromModifiedUtf8(GetJavaLangString(),
-                                 utf16_length, utf8_data_in);
+    String* string = Alloc(GetJavaLangString(), utf16_length);
+    uint16_t* utf16_data_out = string->array_->GetData();
+    ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
+    string->ComputeHashCode();
+    return string;
   }
 
   static void InitClasses(Class* java_lang_String);

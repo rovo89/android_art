@@ -1741,8 +1741,7 @@ jstring NewStringUTF(JNIEnv* env, const char* utf) {
   if (utf == NULL) {
     return NULL;
   }
-  size_t char_count = String::ModifiedUtf8Len(utf);
-  String* result = String::AllocFromModifiedUtf8(char_count, utf);
+  String* result = String::AllocFromModifiedUtf8(utf);
   return AddLocalReference<jstring>(ts, result);
 }
 

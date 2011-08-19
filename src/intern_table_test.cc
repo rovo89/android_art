@@ -15,7 +15,7 @@ TEST_F(InternTableTest, Intern) {
   InternTable intern_table;
   String* foo_1 = intern_table.Intern(3, "foo");
   String* foo_2 = intern_table.Intern(3, "foo");
-  String* foo_3 = String::AllocFromAscii("foo");
+  String* foo_3 = String::AllocFromModifiedUtf8("foo");
   String* bar = intern_table.Intern(3, "bar");
   EXPECT_TRUE(foo_1->Equals("foo"));
   EXPECT_TRUE(foo_2->Equals("foo"));
