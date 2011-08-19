@@ -8,6 +8,7 @@
 #include "jni.h"
 #include "logging.h"
 #include "scoped_ptr.h"
+#include "toStringArray.h"
 #include "ScopedLocalRef.h"
 
 // TODO: move this into the runtime.
@@ -24,40 +25,6 @@ static void BlockSigpipe() {
   if (sigprocmask(SIG_BLOCK, &sigset, NULL) == -1) {
     PLOG(ERROR) << "sigprocmask failed";
   }
-}
-
-// TODO: this code should be shared with other parts of the system
-// that create string arrays.
-//Create a String[] and populate it with the contents of argv.
-static jobjectArray CreateStringArray(JNIEnv* env, char** argv, int argc) {
-  // Find the String class.
-  ScopedLocalRef<jclass> klass(env, env->FindClass("java/lang/String"));
-  if (env->ExceptionCheck()) {
-    fprintf(stderr, "Got exception while finding class String\n");
-    return NULL;
-  }
-  DCHECK(klass.get() != NULL);
-
-  // Create an array of String elements.
-  jobjectArray args = env->NewObjectArray(argc, klass.get(), NULL);
-  if (env->ExceptionCheck()) {
-    fprintf(stderr, "Got exception while creating String array\n");
-    return NULL;
-  }
-  DCHECK(args != NULL);
-
-  // Allocate a string object for each argv element.
-  for (int i = 0; i < argc; ++i) {
-    ScopedLocalRef<jstring> elt(env, env->NewStringUTF(argv[i]));
-    if (env->ExceptionCheck()) {
-      fprintf(stderr, "Got exception while allocating Strings\n");
-      return NULL;
-    }
-    DCHECK(elt.get() != NULL);
-    env->SetObjectArrayElement(args, i, elt.get());
-  }
-
-  return args;
 }
 
 // Determine whether or not the specified method is public.
@@ -97,8 +64,7 @@ static bool InvokeMain(JNIEnv* env, int argc, char** argv) {
   // We want to call main() with a String array with our arguments in
   // it.  Create an array and populate it.  Note argv[0] is not
   // included.
-  ScopedLocalRef<jobjectArray> args(env,
-      CreateStringArray(env, argv + 1, argc - 1));
+  ScopedLocalRef<jobjectArray> args(env, toStringArray(env, argv + 1));
   if (args.get() == NULL) {
     return false;
   }
