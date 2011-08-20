@@ -39,7 +39,8 @@ class ClassLinker {
     return FindClass(descriptor, NULL);
   }
 
-  bool InitializeClass(Class* klass);
+  // Returns true on success, false if there's an exception pending.
+  bool EnsureInitialized(Class* c);
 
   void RegisterDexFile(const DexFile* dex_file);
 
@@ -52,6 +53,8 @@ class ClassLinker {
   }
 
   void Init(const std::vector<DexFile*>& boot_class_path_);
+
+  bool InitializeClass(Class* klass);
 
   // For early bootstrapping by Init
   Class* AllocClass(Class* java_lang_Class);

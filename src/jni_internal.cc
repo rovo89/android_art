@@ -454,8 +454,8 @@ std::string NormalizeJniClassDescriptor(const char* name) {
 
 jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
-  if (!c->IsInitialized()) {
-    // TODO: initialize the class
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
+    return NULL;
   }
 
   Method* method = NULL;
@@ -492,8 +492,8 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
 
 jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
-  if (!c->IsInitialized()) {
-    // TODO: initialize the class
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
+    return NULL;
   }
 
   Field* field = NULL;

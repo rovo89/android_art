@@ -46,7 +46,7 @@ void Mutex::Unlock() {
   CHECK(GetOwner() == Thread::Current());
   int result = pthread_mutex_unlock(&lock_impl_);
   CHECK_EQ(result, 0);
-  SetOwner(Thread::Current());
+  SetOwner(NULL);
 }
 
 void* ThreadStart(void *arg) {

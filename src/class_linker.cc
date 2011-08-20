@@ -884,7 +884,6 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
   Method* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
   if (clinit != NULL) {
-  } else {
     // JValue unused;
     // TODO: dvmCallMethod(self, method, NULL, &unused);
     // UNIMPLEMENTED(FATAL);
@@ -913,7 +912,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
     const Class* super = klass->GetSuperClass();
     for (int i = super->NumVirtualMethods() - 1; i >= 0; --i) {
-      const Method* method = klass->GetVirtualMethod(i);
+      const Method* method = super->GetVirtualMethod(i);
       if (method != super->GetVirtualMethod(i) &&
           !HasSameMethodDescriptorClasses(method, super, klass)) {
         LG << "Classes resolve differently in superclass";
@@ -995,7 +994,6 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
 
 bool ClassLinker::InitializeSuperClass(Class* klass) {
   CHECK(klass != NULL);
-  MutexLock mu(classes_lock_);
   if (!klass->IsInterface() && klass->HasSuperClass()) {
     Class* super_class = klass->GetSuperClass();
     if (super_class->GetStatus() != Class::kStatusInitialized) {
@@ -1014,6 +1012,18 @@ bool ClassLinker::InitializeSuperClass(Class* klass) {
   return true;
 }
 
+bool ClassLinker::EnsureInitialized(Class* c) {
+  CHECK(c != NULL);
+  if (c->IsInitialized()) {
+    return true;
+  }
+
+  c->MonitorExit();
+  InitializeClass(c);
+  c->MonitorEnter();
+  return !Thread::Current()->IsExceptionPending();
+}
+
 void ClassLinker::InitializeStaticFields(Class* klass) {
   size_t num_static_fields = klass->NumStaticFields();
   if (num_static_fields == 0) {
@@ -1028,6 +1038,10 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
   CHECK(dex_class_def != NULL);
   const byte* addr = dex_file.GetEncodedArray(*dex_class_def);
+  if (addr == NULL) {
+    // All this class' static fields have default values.
+    return;
+  }
   size_t array_size = DecodeUnsignedLeb128(&addr);
   for (size_t i = 0; i < array_size; ++i) {
     Field* field = klass->GetStaticField(i);
