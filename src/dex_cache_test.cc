@@ -16,16 +16,12 @@ class DexCacheTest : public CommonTest {};
 
 TEST_F(DexCacheTest, Open) {
 
-  DexCache* dex_cache = class_linker_->AllocDexCache();
+  DexCache* dex_cache = class_linker_->AllocDexCache(java_lang_dex_file_.get());
   ASSERT_TRUE(dex_cache != NULL);
-  dex_cache->Init(class_linker_->AllocObjectArray<String>(1),
-                  class_linker_->AllocObjectArray<Class>(2),
-                  class_linker_->AllocObjectArray<Method>(3),
-                  class_linker_->AllocObjectArray<Field>(4));
-  EXPECT_EQ(1U, dex_cache->NumStrings());
-  EXPECT_EQ(2U, dex_cache->NumClasses());
-  EXPECT_EQ(3U, dex_cache->NumMethods());
-  EXPECT_EQ(4U, dex_cache->NumFields());
+  EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());
+  EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumClasses());
+  EXPECT_EQ(java_lang_dex_file_->NumMethodIds(), dex_cache->NumMethods());
+  EXPECT_EQ(java_lang_dex_file_->NumFieldIds(),  dex_cache->NumFields());
 }
 
 }  // namespace art

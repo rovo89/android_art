@@ -526,8 +526,14 @@ template class PrimitiveArray<int16_t>;   // ShortArray
 // TODO: get global references for these
 Class* String::java_lang_String_ = NULL;
 
-void String::InitClass(Class* java_lang_String) {
+void String::SetClass(Class* java_lang_String) {
+  CHECK(java_lang_String_ == NULL);
+  CHECK(java_lang_String != NULL);
   java_lang_String_ = java_lang_String;
+}
+void String::ResetClass() {
+  CHECK(java_lang_String_ != NULL);
+  java_lang_String_ = NULL;
 }
 
 static const char* kClassStatusNames[] = {

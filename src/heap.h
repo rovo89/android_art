@@ -47,6 +47,10 @@ class Heap {
     return spaces_;
   }
 
+  static Space* GetBootSpace() {
+    return boot_space_;
+  }
+
   static HeapBitmap* GetLiveBits() {
     return live_bitmap_;
   }
@@ -71,6 +75,9 @@ class Heap {
   static Mutex* lock_;
 
   static std::vector<Space*> spaces_;
+
+  // Space loaded from an image
+  static Space* boot_space_;
 
   // default Space for allocations
   static Space* alloc_space_;

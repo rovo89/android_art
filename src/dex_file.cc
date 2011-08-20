@@ -77,7 +77,7 @@ DexFile* DexFile::OpenFile(const std::string& filename) {
   close(fd);
   byte* dex_file = reinterpret_cast<byte*>(addr);
   Closer* closer = new MmapCloser(addr, length);
-  return Open(dex_file, length, closer);
+  return Open(dex_file, length, filename, closer);
 }
 
 static const char* kClassesDex = "classes.dex";
@@ -294,15 +294,15 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
   // NOTREACHED
 }
 
-DexFile* DexFile::OpenPtr(byte* ptr, size_t length) {
+DexFile* DexFile::OpenPtr(byte* ptr, size_t length, const std::string& location) {
   CHECK(ptr != NULL);
   DexFile::Closer* closer = new PtrCloser(ptr);
-  return Open(ptr, length, closer);
+  return Open(ptr, length, location, closer);
 }
 
 DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
-                       Closer* closer) {
-  scoped_ptr<DexFile> dex_file(new DexFile(dex_bytes, length, closer));
+                       const std::string& location, Closer* closer) {
+  scoped_ptr<DexFile> dex_file(new DexFile(dex_bytes, length, location, closer));
   if (!dex_file->Init()) {
     return NULL;
   } else {

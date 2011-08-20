@@ -15,6 +15,8 @@ namespace art {
 
 std::vector<Space*> Heap::spaces_;
 
+Space* Heap::boot_space_ = NULL;
+
 Space* Heap::alloc_space_ = NULL;
 
 size_t Heap::maximum_size_ = 0;
@@ -79,6 +81,7 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
 
   // Make objects in boot_space live (after live_bitmap_ is set)
   if (boot_image_file_name != NULL) {
+    boot_space_ = boot_space;
     RecordImageAllocations(boot_space);
   }
 

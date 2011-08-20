@@ -277,12 +277,12 @@ static const char kStaticLeafMethodsDex[] =
   "AAwAAADgAAAABQAAAA4AAABwAQAABgAAAAEAAADgAQAAASAAAA0AAAAAAgAAARAAAAsAAAA4AwAA"
   "AiAAABYAAACuAwAAAyAAAA0AAABXBAAAACAAAAEAAAC3BAAAABAAAAEAAAD0BAAA";
 
-static inline DexFile* OpenDexFileBase64(const char* base64) {
+static inline DexFile* OpenDexFileBase64(const char* base64, const std::string& location) {
   CHECK(base64 != NULL);
   size_t length;
   byte* dex_bytes = DecodeBase64(base64, &length);
   CHECK(dex_bytes != NULL);
-  DexFile* dex_file = DexFile::OpenPtr(dex_bytes, length);
+  DexFile* dex_file = DexFile::OpenPtr(dex_bytes, length, location);
   CHECK(dex_file != NULL);
   return dex_file;
 }

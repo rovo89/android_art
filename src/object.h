@@ -239,6 +239,27 @@ class Object {
     return down_cast<const Array*>(this);
   }
 
+  bool IsString() const;
+
+  String* AsString() {
+    DCHECK(IsString());
+    return down_cast<String*>(this);
+  }
+
+  bool IsMethod() const;
+
+  Method* AsMethod() {
+    DCHECK(IsMethod());
+    return down_cast<Method*>(this);
+  }
+
+  bool IsField() const;
+
+  Field* AsField() {
+    DCHECK(IsField());
+    return down_cast<Field*>(this);
+  }
+
  public:
   Class* klass_;
 
@@ -285,10 +306,12 @@ class AccessibleObject : public Object {
 class Field : public AccessibleObject {
  public:
   Class* GetDeclaringClass() const {
+    DCHECK(declaring_class_ != NULL);
     return declaring_class_;
   }
 
   const String* GetName() const {
+    DCHECK(name_ != NULL);
     return name_;
   }
 
@@ -364,14 +387,17 @@ class Method : public AccessibleObject {
 
   // Returns the method name, e.g. "<init>" or "eatLunch"
   const String* GetName() const {
+    DCHECK(name_ != NULL);
     return name_;
   }
 
   const String* GetSignature() const {
+    DCHECK(signature_ != NULL);
     return signature_;
   }
 
   Class* GetDeclaringClass() const {
+    DCHECK(declaring_class_ != NULL);
     return declaring_class_;
   }
 
@@ -1177,7 +1203,8 @@ inline bool Object::InstanceOf(const Class* klass) const {
 }
 
 inline bool Object::IsClass() const {
-  return klass_ == klass_->klass_;
+  Class* java_lang_Class = klass_->klass_;
+  return klass_ == java_lang_Class;
 }
 
 inline bool Object::IsObjectArray() const {
@@ -1186,6 +1213,18 @@ inline bool Object::IsObjectArray() const {
 
 inline bool Object::IsArray() const {
   return klass_->IsArray();
+}
+
+inline bool Object::IsField() const {
+  Class* java_lang_Class = klass_->klass_;
+  Class* java_lang_reflect_Field = java_lang_Class->GetInstanceField(0)->klass_;
+  return klass_ == java_lang_reflect_Field;
+}
+
+inline bool Object::IsMethod() const {
+  Class* java_lang_Class = klass_->klass_;
+  Class* java_lang_reflect_Method = java_lang_Class->GetDirectMethod(0)->klass_;
+  return klass_ == java_lang_reflect_Method;
 }
 
 inline size_t Object::SizeOf() const {
@@ -1236,8 +1275,14 @@ class PrimitiveArray : public Array {
   }
 
   static void SetArrayClass(Class* array_class) {
+    CHECK(array_class_ == NULL);
     CHECK(array_class != NULL);
     array_class_ = array_class;
+  }
+
+  static void ResetArrayClass() {
+    CHECK(array_class_ != NULL);
+    array_class_ = NULL;
   }
 
  private:
@@ -1281,7 +1326,7 @@ class String : public Object {
   }
 
   static String* AllocFromUtf16(int32_t utf16_length,
-                                uint16_t* utf16_data_in,
+                                const uint16_t* utf16_data_in,
                                 int32_t hash_code) {
     String* string = Alloc(GetJavaLangString(),
                            utf16_length);
@@ -1307,7 +1352,8 @@ class String : public Object {
     return string;
   }
 
-  static void InitClass(Class* java_lang_String);
+  static void SetClass(Class* java_lang_String);
+  static void ResetClass();
 
   static String* Alloc(Class* java_lang_String,
                        int32_t utf16_length) {
@@ -1488,6 +1534,11 @@ class String : public Object {
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
+
+inline bool Object::IsString() const {
+  // TODO use "klass_ == String::GetJavaLangString()" instead?
+  return klass_ == klass_->descriptor_->klass_;
+}
 
 inline size_t Class::GetTypeSize(String* descriptor) {
   switch (descriptor->CharAt(0)) {

@@ -134,11 +134,15 @@ class ClassLinkerTest : public CommonTest {
       Method* method = klass->GetDirectMethod(i);
       EXPECT_TRUE(method != NULL);
       EXPECT_EQ(klass, method->GetDeclaringClass());
+      EXPECT_TRUE(method->GetName() != NULL);
+      EXPECT_TRUE(method->GetSignature() != NULL);
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
       Method* method = klass->GetVirtualMethod(i);
       EXPECT_TRUE(method != NULL);
+      EXPECT_TRUE(method->GetName() != NULL);
+      EXPECT_TRUE(method->GetSignature() != NULL);
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
@@ -146,6 +150,8 @@ class ClassLinkerTest : public CommonTest {
       EXPECT_TRUE(field != NULL);
       EXPECT_FALSE(field->IsStatic());
       EXPECT_EQ(klass, field->GetDeclaringClass());
+      EXPECT_TRUE(field->GetName() != NULL);
+      EXPECT_TRUE(field->GetDescriptor() != NULL);
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
@@ -153,22 +159,20 @@ class ClassLinkerTest : public CommonTest {
       EXPECT_TRUE(field != NULL);
       EXPECT_TRUE(field->IsStatic());
       EXPECT_EQ(klass, field->GetDeclaringClass());
-    }
+      EXPECT_TRUE(field->GetName() != NULL);
+      EXPECT_TRUE(field->GetDescriptor() != NULL);
+   }
 
     // Confirm that all instances fields are packed together at the start
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      ASSERT_TRUE(field != NULL);
-      ASSERT_TRUE(field->GetDescriptor() != NULL);
       Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
       ASSERT_TRUE(field_type != NULL);
       EXPECT_FALSE(field_type->IsPrimitive());
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      ASSERT_TRUE(field != NULL);
-      ASSERT_TRUE(field->GetDescriptor() != NULL);
       Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
       ASSERT_TRUE(field_type != NULL);
       EXPECT_TRUE(field_type->IsPrimitive());
@@ -207,7 +211,7 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kNestedDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kNestedDex, "kNestedDex"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
   Class* outer = class_linker_->FindClass("LNested;", class_loader);
@@ -262,7 +266,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
 
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex, "kMyClassDex"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   EXPECT_TRUE(linker->FindSystemClass("LMyClass;") == NULL);
   Class* MyClass = linker->FindClass("LMyClass;", class_loader);
@@ -378,8 +382,8 @@ TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
-  scoped_ptr<DexFile> dex_1(OpenDexFileBase64(kMyClassDex));
-  scoped_ptr<DexFile> dex_2(OpenDexFileBase64(kMyClassDex));
+  scoped_ptr<DexFile> dex_1(OpenDexFileBase64(kMyClassDex, "kMyClassDex"));
+  scoped_ptr<DexFile> dex_2(OpenDexFileBase64(kMyClassDex, "kMyClassDex"));
   PathClassLoader* class_loader_1 = AllocPathClassLoader(dex_1.get());
   PathClassLoader* class_loader_2 = AllocPathClassLoader(dex_2.get());
   Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1);
@@ -391,7 +395,7 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 
 TEST_F(ClassLinkerTest, StaticFields) {
   // TODO: uncomment expectations of initial values when InitializeClass works
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStatics));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStatics, "kStatics"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* statics = class_linker_->FindClass("LStatics;", class_loader);
   // class_linker_->InitializeClass(statics);  // TODO: uncomment this
@@ -441,7 +445,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   Field* s8 = statics->GetStaticField(8);
   EXPECT_EQ('L', s8->GetType());
-//  EXPECT_TRUE(down_cast<String*>(s8->GetObject())->Equals("android"));  // TODO: uncomment this
+//  EXPECT_TRUE(s8->GetObject()->AsString()->Equals("android"));  // TODO: uncomment this
   s8->SetObject(String::AllocFromModifiedUtf8("robot"));
 
   Field* s9 = statics->GetStaticField(9);
@@ -457,7 +461,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong());
   EXPECT_EQ(0.75,                 s6->GetFloat());
   EXPECT_EQ(16777219,             s7->GetDouble());
-  EXPECT_TRUE(down_cast<String*>(s8->GetObject())->Equals("robot"));
+  EXPECT_TRUE(s8->GetObject()->AsString()->Equals("robot"));
 }
 
 }  // namespace art

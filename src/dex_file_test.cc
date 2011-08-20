@@ -10,12 +10,12 @@
 namespace art {
 
 TEST(DexFileTest, Open) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kNestedDex));
+  scoped_ptr<const DexFile> dex(OpenDexFileBase64(kNestedDex, "kNestedDex"));
   ASSERT_TRUE(dex != NULL);
 }
 
 TEST(DexFileTest, Header) {
-  scoped_ptr<DexFile> raw(OpenDexFileBase64(kNestedDex));
+  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kNestedDex, "kNestedDex"));
   ASSERT_TRUE(raw != NULL);
 
   const DexFile::Header& header = raw->GetHeader();
@@ -43,7 +43,7 @@ TEST(DexFileTest, Header) {
 }
 
 TEST(DexFileTest, ClassDefs) {
-  scoped_ptr<DexFile> raw(OpenDexFileBase64(kNestedDex));
+  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kNestedDex, "kNestedDex"));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(2U, raw->NumClassDefs());
 
@@ -55,7 +55,7 @@ TEST(DexFileTest, ClassDefs) {
 }
 
 TEST(DexFileTest, CreateMethodDescriptor) {
-  scoped_ptr<DexFile> raw(OpenDexFileBase64(kCreateMethodDescriptorDex));
+  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kCreateMethodDescriptorDex, "kCreateMethodDescriptorDex"));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 

@@ -208,9 +208,9 @@ TEST_F(ObjectTest, StringEquals) {
 TEST_F(ObjectTest, DescriptorCompare) {
   ClassLinker* linker = class_linker_;
 
-  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex));
+  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex, "kProtoCompareDex"));
   PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
-  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex));
+  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex, "kProtoCompare2Dex"));
   PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
 
   Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
@@ -257,7 +257,7 @@ TEST_F(ObjectTest, StringHashCode) {
 }
 
 TEST_F(ObjectTest, InstanceOf) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY, "kXandY"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
@@ -284,7 +284,7 @@ TEST_F(ObjectTest, InstanceOf) {
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY, "kXandY"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
@@ -296,7 +296,7 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY, "kXandY"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);

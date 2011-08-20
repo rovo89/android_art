@@ -59,7 +59,7 @@ inline To down_cast(From* f) {                   // so we only accept pointers
     implicit_cast<From*, To>(0);
   }
 
-  // 
+  //
   // assert(f == NULL || dynamic_cast<To>(f) != NULL);  // RTTI: debug mode only!
   return static_cast<To>(f);
 }

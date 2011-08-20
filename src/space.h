@@ -4,6 +4,7 @@
 #define ART_SRC_SPACE_H_
 
 #include "globals.h"
+#include "image.h"
 #include "macros.h"
 #include "mem_map.h"
 #include "scoped_ptr.h"
@@ -47,6 +48,11 @@ class Space {
     return limit_ - base_;
   }
 
+  const ImageHeader& GetImageHeader() const {
+    CHECK(image_header_ != NULL);
+    return *image_header_;
+  }
+
   size_t AllocationSize(const Object* obj);
 
   bool IsCondemned() const {
@@ -60,7 +66,7 @@ class Space {
   // create a Space from an existing memory mapping, taking ownership of the address space.
   static Space* Create(MemMap* mem_map);
 
-  Space() : mspace_(NULL), maximum_size_(0), base_(0), limit_(0) {}
+  Space() : mspace_(NULL), maximum_size_(0), image_header_(NULL), base_(0), limit_(0) {}
 
   // Initializes the space and underlying storage.
   bool Init(size_t initial_size, size_t maximum_size, byte* requested_base);
@@ -75,9 +81,12 @@ class Space {
 
   static void DontNeed(void* start, void* end, void* num_bytes);
 
-  // TODO: have a Space subclass for methods that depend on mspace_ and maximum_size_
+  // TODO: have a Space subclass for non-image Spaces with mspace_ and maximum_size_
   void* mspace_;
   size_t maximum_size_;
+
+  // TODO: have a Space subclass for image Spaces with image_header_
+  ImageHeader* image_header_;
 
   scoped_ptr<MemMap> mem_map_;
 

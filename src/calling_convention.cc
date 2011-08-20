@@ -24,7 +24,7 @@ bool ManagedRuntimeCallingConvention::HasNext() {
 
 void ManagedRuntimeCallingConvention::Next() {
   CHECK(HasNext());
-  if (IsCurrentUserArg() && 
+  if (IsCurrentUserArg() &&
       GetMethod()->IsParamALongOrDouble(itr_args_)) {
     itr_longs_and_doubles_++;
     itr_slots_++;

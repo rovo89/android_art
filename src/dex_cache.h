@@ -19,17 +19,23 @@ class DexCache : public ObjectArray<Object> {
  public:
 
   enum ArrayIndexes {
-    kStrings = 0,
-    kClasses = 1,
-    kMethods = 2,
-    kFields  = 3,
-    kMax     = 4,
+    kLocation = 0,
+    kStrings  = 1,
+    kClasses  = 2,
+    kMethods  = 3,
+    kFields   = 4,
+    kMax      = 5,
   };
 
-  void Init(ObjectArray<String>* strings,
+  void Init(String* location,
+            ObjectArray<String>* strings,
             ObjectArray<Class>* classes,
             ObjectArray<Method>* methods,
             ObjectArray<Field>* fields);
+
+  String* GetLocation() const {
+    return Get(kLocation)->AsString();
+  }
 
   size_t NumStrings() const {
     return GetStrings()->GetLength();
@@ -81,16 +87,16 @@ class DexCache : public ObjectArray<Object> {
 
  private:
   ObjectArray<String>* GetStrings() const {
-      return static_cast<ObjectArray<String>*>(Get(kStrings));
+    return static_cast<ObjectArray<String>*>(Get(kStrings));
   }
   ObjectArray<Class>* GetClasses() const {
-      return static_cast<ObjectArray<Class>*>(Get(kClasses));
+    return static_cast<ObjectArray<Class>*>(Get(kClasses));
   }
   ObjectArray<Method>* GetMethods() const {
-      return static_cast<ObjectArray<Method>*>(Get(kMethods));
+    return static_cast<ObjectArray<Method>*>(Get(kMethods));
   }
   ObjectArray<Field>* GetFields() const {
-      return static_cast<ObjectArray<Field>*>(Get(kFields));
+    return static_cast<ObjectArray<Field>*>(Get(kFields));
   }
   DexCache();
 };

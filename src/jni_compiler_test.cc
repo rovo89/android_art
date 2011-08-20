@@ -21,7 +21,7 @@ class JniCompilerTest : public CommonTest {
  protected:
   virtual void SetUp() {
     CommonTest::SetUp();
-    dex_.reset(OpenDexFileBase64(kMyClassNativesDex));
+    dex_.reset(OpenDexFileBase64(kMyClassNativesDex, "kMyClassNativesDex"));
     class_loader_ = AllocPathClassLoader(dex_.get());
   }
 

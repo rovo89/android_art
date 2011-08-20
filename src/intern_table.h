@@ -14,8 +14,16 @@ class InternTable {
  public:
   InternTable();
   ~InternTable();
+
+  // intern a potentially new string
   String* Intern(int32_t utf16_length, const char* utf8_data);
-  void VisitRoots(Heap::RootVistor* root_visitor, void* arg);
+
+  // register a String trusting that it is safe to intern.
+  // used when reinitializing InternTable from an image.
+  void Register(String* string);
+
+  size_t Size() const;
+  void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
  private:
   typedef std::tr1::unordered_multimap<int32_t, String*> Table;

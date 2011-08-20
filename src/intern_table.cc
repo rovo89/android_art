@@ -14,11 +14,15 @@ InternTable::~InternTable() {
   delete intern_table_lock_;
 }
 
-void InternTable::VisitRoots(Heap::RootVistor* root_visitor, void* arg) {
+size_t InternTable::Size() const {
+  return intern_table_.size();
+}
+
+void InternTable::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
   MutexLock mu(intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = intern_table_.begin(), end = intern_table_.end(); it != end; ++it) {
-      root_visitor(it->second, arg);
+    root_visitor(it->second, arg);
   }
 }
 
@@ -36,9 +40,13 @@ String* InternTable::Intern(int32_t utf16_length, const char* utf8_data_in) {
       }
     }
     String* new_string = String::AllocFromUtf16(utf16_length, utf16_data_out.get(), hash_code);
-    intern_table_.insert(std::make_pair(hash_code, new_string));
+    Register(new_string);
     return new_string;
   }
+}
+
+void InternTable::Register(String* string) {
+  intern_table_.insert(std::make_pair(string->GetHashCode(), string));
 }
 
 }  // namespace art

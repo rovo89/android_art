@@ -31,7 +31,16 @@ std::string ReadFileToString(const char* file_name) {
 }
 
 TEST_F(ImageTest, WriteRead) {
+
+  // TODO: move the touching of classes and GC to the ImageWriter proper
+  for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); i++) {
+    const DexFile::ClassDef class_def = java_lang_dex_file_->GetClassDef(i);
+    const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
+    Class* klass = class_linker_->FindSystemClass(descriptor);
+    ASSERT_TRUE(klass != NULL) << descriptor;
+  }
   // TODO: Heap::CollectGarbage before writing
+
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   // can't currently deal with writing a space that might have pointers between spaces
   ASSERT_EQ(1U, spaces.size());
@@ -52,7 +61,7 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
   }
 
-  // tear down old runtime and make a new one
+  // tear down old runtime before making a new one, clearing out misc state
   delete runtime_.release();
 
   // don't reuse java_lang_dex_file_ so we make sure we don't get
@@ -74,27 +83,27 @@ TEST_F(ImageTest, WriteRead) {
   runtime_.reset(Runtime::Create(options, false));
   ASSERT_TRUE(runtime_ != NULL);
   class_linker_ = runtime_->GetClassLinker();
-  
-  if (true) {
-    const char* maps_file = "/proc/self/maps";
-    std::string contents = ReadFileToString(maps_file);
-    LG << maps_file << ":\n" << contents;
-  }
 
   ASSERT_EQ(2U, Heap::GetSpaces().size());
   Space* boot_space = Heap::GetSpaces()[0];
   ASSERT_TRUE(boot_space != NULL);
 
-  // TODO: need to rebuild ClassLinker::classes_ and ::intern_table_
-  // byte* boot_base = boot_space->GetBase();
-  // byte* boot_limit = boot_space->GetLimit();
+  // enable to display maps to debug boot_base and boot_limit checking problems below
+  if (false) {
+    const char* maps_file = "/proc/self/maps";
+    std::string contents = ReadFileToString(maps_file);
+    LG << maps_file << ":\n" << contents;
+  }
+
+  byte* boot_base = boot_space->GetBase();
+  byte* boot_limit = boot_space->GetLimit();
   for (size_t i = 0; i < dex->NumClassDefs(); i++) {
     const DexFile::ClassDef class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);
-    EXPECT_TRUE(klass != NULL);
-    // EXPECT_LT(boot_base, reinterpret_cast<byte*>(klass));
-    // EXPECT_LT(reinterpret_cast<byte*>(klass), boot_limit);
+    EXPECT_TRUE(klass != NULL) << descriptor;
+    EXPECT_LT(boot_base, reinterpret_cast<byte*>(klass)) << descriptor;
+    EXPECT_LT(reinterpret_cast<byte*>(klass), boot_limit) << descriptor;
   }
 }
 

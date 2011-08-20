@@ -14,17 +14,52 @@
 #include "object.h"
 #include "dex_file.h"
 #include "scoped_ptr.h"
+#include "space.h"
 #include "thread.h"
 #include "utils.h"
 
 namespace art {
 
-ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path) {
+const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
+  "Ljava/lang/Class;",
+  "Ljava/lang/Object;",
+  "[Ljava/lang/Object;",
+  "Ljava/lang/String;",
+  "Ljava/lang/reflect/Field;",
+  "Ljava/lang/reflect/Method;",
+  "Ljava/lang/ClassLoader;",
+  "Ldalvik/system/BaseDexClassLoader;",
+  "Ldalvik/system/PathClassLoader;",
+  "Z",
+  "B",
+  "C",
+  "D",
+  "F",
+  "I",
+  "J",
+  "S",
+  "V",
+  "[Z",
+  "[B",
+  "[C",
+  "[D",
+  "[F",
+  "[I",
+  "[J",
+  "[S",
+};
+
+ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path, Space* space) {
   scoped_ptr<ClassLinker> class_linker(new ClassLinker);
-  class_linker->Init(boot_class_path);
+  if (space == NULL) {
+    class_linker->Init(boot_class_path);
+  } else {
+    class_linker->Init(boot_class_path, space);
+  }
   // TODO: check for failure during initialization
   return class_linker.release();
 }
+
 
 void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK(!init_done_);
@@ -32,7 +67,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // java_lang_Class comes first, its needed for AllocClass
   Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
   CHECK(java_lang_Class != NULL);
-  // java_lang_Class->descriptor_ = "Ljava/lang/Class;";  // XXX bdc can these be created later?
   java_lang_Class->object_size_ = sizeof(Class);
   java_lang_Class->klass_ = java_lang_Class;
   // AllocClass(Class*) can now be used
@@ -40,7 +74,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // java_lang_Object comes next so that object_array_class can be created
   Class* java_lang_Object = AllocClass(java_lang_Class);
   CHECK(java_lang_Object != NULL);
-  // java_lang_Object->descriptor_ = "Ljava/lang/Object;";  // XXX bdc can these be created later?
   // backfill Object as the super class of Class
   java_lang_Class->super_class_ = java_lang_Object;
   // mark as non-primitive for object_array_class
@@ -49,19 +82,16 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // object_array_class is for root_classes to provide the storage for these classes
   Class* object_array_class = AllocClass(java_lang_Class);
   CHECK(object_array_class != NULL);
-  // object_array_class->descriptor_ = "[Ljava/lang/Object;";  // XXX bdc can these be created later?
   object_array_class->component_type_ = java_lang_Object;
 
   // String and char[] are necessary so that FindClass can assign names to members
   Class* java_lang_String = AllocClass(java_lang_Class);
   CHECK(java_lang_String != NULL);
-  // java_lang_String->descriptor_ = "Ljava/lang/String;";  // XXX can these be created later?
   CHECK_LT(java_lang_String->object_size_, sizeof(String));
   java_lang_String->object_size_ = sizeof(String);
-  String::InitClass(java_lang_String);
+  String::SetClass(java_lang_String);
   Class* char_array_class = AllocClass(java_lang_Class);
   CHECK(char_array_class != NULL);
-  // char_array_class->descriptor_ = "[C";  // XXX can these be created later?
   CharArray::SetArrayClass(char_array_class);
   // Now String::Alloc* can be used
 
@@ -96,15 +126,15 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
 
   // create storage for root classes, save away our work so far
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
-  class_roots_->Set(kJavaLangClass, java_lang_Class);
-  class_roots_->Set(kJavaLangObject, java_lang_Object);
-  class_roots_->Set(kObjectArrayClass, object_array_class);
-  class_roots_->Set(kJavaLangString, java_lang_String);
-  class_roots_->Set(kCharArrayClass, char_array_class);
-  class_roots_->Set(kIntArrayClass, int_array_class);
-  class_roots_->Set(kLongArrayClass, long_array_class);
-  class_roots_->Set(kJavaLangReflectField, java_lang_reflect_Field);
-  class_roots_->Set(kJavaLangReflectMethod, java_lang_reflect_Method);
+  SetClassRoot(kJavaLangClass, java_lang_Class);
+  SetClassRoot(kJavaLangObject, java_lang_Object);
+  SetClassRoot(kObjectArrayClass, object_array_class);
+  SetClassRoot(kJavaLangString, java_lang_String);
+  SetClassRoot(kCharArrayClass, char_array_class);
+  SetClassRoot(kIntArrayClass, int_array_class);
+  SetClassRoot(kLongArrayClass, long_array_class);
+  SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
+  SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
   // setup boot_class_path_ now that we can use AllocObjectArray to
@@ -143,15 +173,15 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK(java_lang_ClassLoader != NULL);
   CHECK_LT(java_lang_ClassLoader->object_size_, sizeof(ClassLoader));
   java_lang_ClassLoader->object_size_ = sizeof(ClassLoader);
-  class_roots_->Set(kJavaLangClassLoader, java_lang_ClassLoader);
+  SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
   Class* dalvik_system_BaseDexClassLoader = FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
   CHECK(dalvik_system_BaseDexClassLoader != NULL);
   CHECK_EQ(dalvik_system_BaseDexClassLoader->object_size_, sizeof(BaseDexClassLoader));
-  class_roots_->Set(kDalvikSystemBaseDexClassLoader, dalvik_system_BaseDexClassLoader);
+  SetClassRoot(kDalvikSystemBaseDexClassLoader, dalvik_system_BaseDexClassLoader);
   Class* dalvik_system_PathClassLoader = FindSystemClass("Ldalvik/system/PathClassLoader;");
   CHECK(dalvik_system_PathClassLoader != NULL);
   CHECK_EQ(dalvik_system_PathClassLoader->object_size_, sizeof(PathClassLoader));
-  class_roots_->Set(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
+  SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
 
   // Setup a single, global copy of "interfaces" and "iftable" for
   // reuse across array classes
@@ -181,15 +211,15 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
 
   // Setup the primitive type classes.
-  class_roots_->Set(kPrimitiveBoolean, CreatePrimitiveClass("Z"));
-  class_roots_->Set(kPrimitiveByte, CreatePrimitiveClass("B"));
-  class_roots_->Set(kPrimitiveChar, CreatePrimitiveClass("C"));
-  class_roots_->Set(kPrimitiveDouble, CreatePrimitiveClass("D"));
-  class_roots_->Set(kPrimitiveFloat, CreatePrimitiveClass("F"));
-  class_roots_->Set(kPrimitiveInt, CreatePrimitiveClass("I"));
-  class_roots_->Set(kPrimitiveLong, CreatePrimitiveClass("J"));
-  class_roots_->Set(kPrimitiveShort, CreatePrimitiveClass("S"));
-  class_roots_->Set(kPrimitiveVoid, CreatePrimitiveClass("V"));
+  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z"));
+  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B"));
+  SetClassRoot(kPrimitiveChar, CreatePrimitiveClass("C"));
+  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D"));
+  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass("F"));
+  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I"));
+  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J"));
+  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S"));
+  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V"));
   // now we can use FindSystemClass for anything, including for "[C"
 
   // run char[], int[] and long[] through FindClass to complete initialization
@@ -202,20 +232,29 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
 
   // Initialize all the other primitive array types for PrimitiveArray::Alloc.
   // These are easy because everything we need has already been set up.
-  class_roots_->Set(kBooleanArrayClass, FindSystemClass("[Z"));
-  class_roots_->Set(kByteArrayClass, FindSystemClass("[B"));
-  class_roots_->Set(kDoubleArrayClass, FindSystemClass("[D"));
-  class_roots_->Set(kFloatArrayClass, FindSystemClass("[F"));
-  class_roots_->Set(kShortArrayClass, FindSystemClass("[S"));
+  SetClassRoot(kBooleanArrayClass, FindSystemClass("[Z"));
+  SetClassRoot(kByteArrayClass, FindSystemClass("[B"));
+  SetClassRoot(kDoubleArrayClass, FindSystemClass("[D"));
+  SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
+  SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
   FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
-  // ensure all class_roots_ were initialized
+  FinishInit();
+}
+
+void ClassLinker::FinishInit() {
+  // ensure all class_roots_ are initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
-    CHECK(GetClassRoot(static_cast<ClassRoot>(i)));
+    ClassRoot class_root = static_cast<ClassRoot>(i);
+    Class* klass = GetClassRoot(class_root);
+    CHECK(klass != NULL);
+    DCHECK(klass->IsArray() || klass->IsPrimitive() || klass->dex_cache_ != NULL);
+    // note SetClassRoot does additional validation.
+    // if possible add new checks there to catch errors early
   }
 
   // disable the slow paths in FindClass and CreatePrimitiveClass now
@@ -223,7 +262,125 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   init_done_ = true;
 }
 
-void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) {
+struct ClassLinker::InitCallbackState {
+  ClassLinker* class_linker;
+
+  Class* class_roots[kClassRootsMax];
+
+  typedef std::tr1::unordered_map<std::string, ClassRoot> Table;
+  Table descriptor_to_class_root;
+
+  struct DexCacheHash {
+    size_t operator()(art::DexCache* const& obj) const {
+     return reinterpret_cast<size_t>(&obj);
+    }
+  };
+  typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;
+  Set dex_caches;
+};
+
+void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path, Space* space) {
+  CHECK(!init_done_);
+
+  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  DCHECK(heap_bitmap != NULL);
+
+  InitCallbackState state;
+  state.class_linker = this;
+  for (size_t i = 0; i < kClassRootsMax; i++) {
+    ClassRoot class_root = static_cast<ClassRoot>(i);
+    state.descriptor_to_class_root[GetClassRootDescriptor(class_root)] = class_root;
+  }
+
+  // reinit clases_ table
+  heap_bitmap->Walk(InitCallback, &state);
+
+  // reinit class_roots_
+  Class* object_array_class = state.class_roots[kObjectArrayClass];
+  class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
+  for (size_t i = 0; i < kClassRootsMax; i++) {
+    ClassRoot class_root = static_cast<ClassRoot>(i);
+    SetClassRoot(class_root, state.class_roots[class_root]);
+  }
+
+  // reinit intern_table_
+  ObjectArray<Object>* interned_array = space->GetImageHeader().GetInternedArray();
+  for (int32_t i = 0; i < interned_array->GetLength(); i++) {
+    String* string = interned_array->Get(i)->AsString();
+    intern_table_.Register(string);
+  }
+
+  // reinit array_interfaces_ from any array class instance, they should all be ==
+  array_interfaces_ = GetClassRoot(kObjectArrayClass)->interfaces_;
+  DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->interfaces_);
+
+  // build a map from location to DexCache to match up with DexFile::GetLocation
+  std::tr1::unordered_map<std::string, DexCache*> location_to_dex_cache;
+  typedef InitCallbackState::Set::const_iterator It; // TODO: C++0x auto
+  for (It it = state.dex_caches.begin(), end = state.dex_caches.end(); it != end; ++it) {
+    DexCache* dex_cache = *it;
+    std::string location = dex_cache->GetLocation()->ToModifiedUtf8();
+    location_to_dex_cache[location] = dex_cache;
+  }
+
+  // reinit boot_class_path with DexFile arguments and found DexCaches
+  for (size_t i = 0; i != boot_class_path.size(); ++i) {
+    DexFile* dex_file = boot_class_path[i];
+    DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
+    AppendToBootClassPath(dex_file, dex_cache);
+  }
+
+  String::SetClass(GetClassRoot(kJavaLangString));
+  BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
+  ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
+  CharArray::SetArrayClass(GetClassRoot(kCharArrayClass));
+  DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
+  FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
+  IntArray::SetArrayClass(GetClassRoot(kIntArrayClass));
+  LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
+  ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
+
+  FinishInit();
+}
+
+void ClassLinker::InitCallback(Object *obj, void *arg) {
+  DCHECK(obj != NULL);
+  DCHECK(arg != NULL);
+  InitCallbackState* state = reinterpret_cast<InitCallbackState*>(arg);
+
+  if (!obj->IsClass()) {
+    return;
+  }
+  Class* klass = obj->AsClass();
+  CHECK(klass->class_loader_ == NULL);
+
+  std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
+
+  // restore class to ClassLinker::classes_ table
+  state->class_linker->InsertClass(descriptor, klass);
+
+  // note DexCache to match with DexFile later
+  DexCache* dex_cache = klass->GetDexCache();
+  if (dex_cache != NULL) {
+    state->dex_caches.insert(dex_cache);
+  } else {
+    DCHECK(klass->IsArray() || klass->IsPrimitive());
+  }
+
+  // check if this is a root, if so, register it
+  typedef InitCallbackState::Table::const_iterator It; // TODO: C++0x auto
+  It it = state->descriptor_to_class_root.find(descriptor);
+  if (it != state->descriptor_to_class_root.end()) {
+    ClassRoot class_root = it->second;
+    state->class_roots[class_root] = klass;
+  }
+}
+
+// Keep in sync with InitCallback. Anything we visit, we need to
+// reinit references to when reinitializing a ClassLinker from a
+// mapped image.
+void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
+
   root_visitor(class_roots_, arg);
 
   for (size_t i = 0; i < dex_caches_.size(); i++) {
@@ -243,8 +400,14 @@ void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) {
   root_visitor(array_interfaces_, arg);
 }
 
-DexCache* ClassLinker::AllocDexCache() {
-  return down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::kMax));
+DexCache* ClassLinker::AllocDexCache(const DexFile* dex_file) {
+  DexCache* dex_cache = down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::kMax));
+  dex_cache->Init(String::AllocFromModifiedUtf8(dex_file->GetLocation().c_str()),
+                  AllocObjectArray<String>(dex_file->NumStringIds()),
+                  AllocObjectArray<Class>(dex_file->NumTypeIds()),
+                  AllocObjectArray<Method>(dex_file->NumMethodIds()),
+                  AllocObjectArray<Field>(dex_file->NumFieldIds()));
+  return dex_cache;
 }
 
 Class* ClassLinker::AllocClass(Class* java_lang_Class) {
@@ -537,21 +700,27 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   }
 }
 
-void ClassLinker::AppendToBootClassPath(DexFile* dex_file) {
+void ClassLinker::AppendToBootClassPath(const DexFile* dex_file) {
   CHECK(dex_file != NULL);
+  AppendToBootClassPath(dex_file, AllocDexCache(dex_file));
+}
+
+void ClassLinker::AppendToBootClassPath(const DexFile* dex_file, DexCache* dex_cache) {
+  CHECK(dex_file != NULL);
+  CHECK(dex_cache != NULL);
   boot_class_path_.push_back(dex_file);
-  RegisterDexFile(dex_file);
+  RegisterDexFile(dex_file, dex_cache);
 }
 
 void ClassLinker::RegisterDexFile(const DexFile* dex_file) {
   CHECK(dex_file != NULL);
-  dex_files_.push_back(dex_file);
-  DexCache* dex_cache = AllocDexCache();
+  RegisterDexFile(dex_file, AllocDexCache(dex_file));
+}
+
+void ClassLinker::RegisterDexFile(const DexFile* dex_file, DexCache* dex_cache) {
+  CHECK(dex_file != NULL);
   CHECK(dex_cache != NULL);
-  dex_cache->Init(AllocObjectArray<String>(dex_file->NumStringIds()),
-                  AllocObjectArray<Class>(dex_file->NumTypeIds()),
-                  AllocObjectArray<Method>(dex_file->NumMethodIds()),
-                  AllocObjectArray<Field>(dex_file->NumFieldIds()));
+  dex_files_.push_back(dex_file);
   dex_caches_.push_back(dex_cache);
 }
 

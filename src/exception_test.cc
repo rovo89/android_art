@@ -64,7 +64,7 @@ class ExceptionTest : public CommonTest {
 };
 
 TEST_F(ExceptionTest, MyClass_F_G) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassExceptionHandleDex));
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassExceptionHandleDex, "kMyClassExceptionHandleDex"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* klass = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
   ASSERT_TRUE(klass != NULL);

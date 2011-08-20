@@ -119,7 +119,7 @@ class ZipArchive {
   uint16_t num_entries_;
   off_t dir_offset_;
   scoped_ptr<MemMap> dir_map_;
-  typedef std::tr1::unordered_map<StringPiece, const byte*> DirEntries;
+  typedef std::tr1::unordered_map<StringPiece, const byte*, StringPieceHash> DirEntries;
   DirEntries dir_entries_;
 
   friend class ZipEntry;

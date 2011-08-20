@@ -100,6 +100,9 @@ bool Space::Init(const char* image_file_name) {
     return false;
   }
   CHECK_EQ(image_header.GetBaseAddr(), map->GetAddress());
+  image_header_ = reinterpret_cast<ImageHeader*>(map->GetAddress());
+  DCHECK_EQ(0, memcmp(&image_header, image_header_, sizeof(ImageHeader)));
+
   Init(map.release());
   return true;
 }

@@ -6,10 +6,12 @@
 #include <vector>
 
 #include "dex_cache.h"
+#include "class_linker.h"
 #include "file.h"
 #include "globals.h"
 #include "heap.h"
 #include "image.h"
+#include "intern_table.h"
 #include "logging.h"
 #include "object.h"
 #include "space.h"
@@ -43,6 +45,40 @@ bool ImageWriter::Init(Space* space) {
   return true;
 }
 
+namespace {
+
+struct InternTableVisitorState {
+  int index;
+  ObjectArray<Object>* interned_array;
+};
+
+void InternTableVisitor(Object* obj, void* arg) {
+  InternTableVisitorState* state = reinterpret_cast<InternTableVisitorState*>(arg);
+  state->interned_array->Set(state->index++, obj);
+}
+
+ObjectArray<Object>* CreateInternedArray() {
+  // build a Object[] of the interned strings for reinit
+  // TODO: avoid creating this future garbage
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const InternTable& intern_table = class_linker->GetInternTable();
+  size_t size = intern_table.Size();
+  CHECK_NE(0U, size);
+
+  Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
+  ObjectArray<Object>* interned_array = ObjectArray<Object>::Alloc(object_array_class, size);
+
+  InternTableVisitorState state;
+  state.index = 0;
+  state.interned_array = interned_array;
+
+  intern_table.VisitRoots(InternTableVisitor, &state);
+
+  return interned_array;
+}
+
+} // namespace
+
 void ImageWriter::CalculateNewObjectOffsetsCallback(Object *obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
@@ -53,14 +89,24 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object *obj, void *arg) {
 }
 
 void ImageWriter::CalculateNewObjectOffsets() {
+  ObjectArray<Object>* interned_array = CreateInternedArray();
+
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   DCHECK_EQ(0U, image_top_);
-  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_));
-  memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
-  image_top_ += RoundUp(sizeof(image_header), 8); // 64-bit-alignment
+
+  // leave space for the header, but do not write it yet, we need to
+  // know where interned_array is going to end up
+  image_top_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
+
   heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);
   DCHECK_LT(image_top_, image_->GetLength());
+
+  // return to write header at start of image with future location of interned_array
+  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
+                           reinterpret_cast<uint32_t>(GetImageAddress(interned_array)));
+  memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
+
   // Note that top_ is left at end of used space
 }
 
@@ -92,6 +138,10 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   // TODO: special case init of pointers to malloc data (or removal of these pointers)
   if (orig->IsClass()) {
     FixupClass(orig->AsClass(), down_cast<Class*>(copy));
+  } else if (orig->IsMethod()) {
+    FixupMethod(orig->AsMethod(), down_cast<Method*>(copy));
+  } else if (orig->IsField()) {
+    FixupField(orig->AsField(), down_cast<Field*>(copy));
   } else if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
   } else {
@@ -115,6 +165,20 @@ void ImageWriter::FixupClass(Class* orig, Class* copy) {
   copy->ifields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->ifields_));
   copy->sfields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->sfields_));
   copy->static_references_ = down_cast<ObjectArray<Object>*>(GetImageAddress(orig->static_references_));
+}
+
+// TODO: remove this slow path
+void ImageWriter::FixupMethod(Method* orig, Method* copy) {
+  FixupInstanceFields(orig, copy);
+  // TODO: remove need for this by adding "signature" to java.lang.reflect.Method
+  copy->signature_ = down_cast<String*>(GetImageAddress(orig->signature_));
+  DCHECK(copy->signature_ != NULL);
+  // TODO: convert shorty_ to heap allocated storage
+}
+
+void ImageWriter::FixupField(Field* orig, Field* copy) {
+  FixupInstanceFields(orig, copy);
+  // TODO: convert descriptor_ to heap allocated storage
 }
 
 void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {

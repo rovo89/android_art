@@ -14,6 +14,7 @@
 #include "object.h"
 #include "thread.h"
 #include "unordered_map.h"
+#include "unordered_set.h"
 
 #include "gtest/gtest.h"
 
@@ -21,11 +22,20 @@ namespace art {
 
 class ClassLinker {
  public:
-  // Initializes the class linker.
-  static ClassLinker* Create(const std::vector<DexFile*>& boot_class_path);
+  // Initializes the class linker using DexFile and an optional boot Space.
+  static ClassLinker* Create(const std::vector<DexFile*>& boot_class_path, Space* boot_space);
 
   ~ClassLinker() {
     delete classes_lock_;
+    String::ResetClass();
+    BooleanArray::ResetArrayClass();
+    ByteArray::ResetArrayClass();
+    CharArray::ResetArrayClass();
+    DoubleArray::ResetArrayClass();
+    FloatArray::ResetArrayClass();
+    IntArray::ResetArrayClass();
+    LongArray::ResetArrayClass();
+    ShortArray::ResetArrayClass();
   }
 
   // Finds a class by its descriptor name.
@@ -43,16 +53,30 @@ class ClassLinker {
   bool EnsureInitialized(Class* c);
 
   void RegisterDexFile(const DexFile* dex_file);
+  void RegisterDexFile(const DexFile* dex_file, DexCache* dex_cache);
 
-  void VisitRoots(Heap::RootVistor* root_visitor, void* arg);
+  const InternTable& GetInternTable() {
+    return intern_table_;
+  }
+
+  void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
  private:
   ClassLinker()
       : classes_lock_(Mutex::Create("ClassLinker::Lock")),
+        class_roots_(NULL),
         init_done_(false) {
   }
 
+  // Initialize class linker from DexFile instances.
   void Init(const std::vector<DexFile*>& boot_class_path_);
+
+  // Initialize class linker from pre-initialized space.
+  void Init(const std::vector<DexFile*>& boot_class_path_, Space* space);
+  static void InitCallback(Object *obj, void *arg);
+  struct InitCallbackState;
+
+  void FinishInit();
 
   bool InitializeClass(Class* klass);
 
@@ -63,12 +87,12 @@ class ClassLinker {
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
   Class* AllocClass();
-  DexCache* AllocDexCache();
+  DexCache* AllocDexCache(const DexFile* dex_file);
   Field* AllocField();
   Method* AllocMethod();
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
-    return ObjectArray<T>::Alloc(class_roots_->Get(kObjectArrayClass), length);
+    return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
   }
   PathClassLoader* AllocPathClassLoader(std::vector<const DexFile*> dex_files);
 
@@ -81,7 +105,8 @@ class ClassLinker {
 
   DexCache* FindDexCache(const DexFile* dex_file) const;
 
-  void AppendToBootClassPath(DexFile* dex_file);
+  void AppendToBootClassPath(const DexFile* dex_file);
+  void AppendToBootClassPath(const DexFile* dex_file, DexCache* dex_cache);
 
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
@@ -165,7 +190,8 @@ class ClassLinker {
 
   InternTable intern_table_;
 
-  // indexes into class_roots_
+  // indexes into class_roots_.
+  // needs to be kept in sync with class_roots_descriptors_.
   enum ClassRoot {
     kJavaLangClass,
     kJavaLangObject,
@@ -198,9 +224,31 @@ class ClassLinker {
   ObjectArray<Class>* class_roots_;
 
   Class* GetClassRoot(ClassRoot class_root) {
+    DCHECK(class_roots_ != NULL);
     Class* klass = class_roots_->Get(class_root);
     DCHECK(klass != NULL);
     return klass;
+  }
+
+  void SetClassRoot(ClassRoot class_root, Class* klass) {
+    DCHECK(!init_done_);
+
+    DCHECK(klass != NULL);
+    DCHECK(klass->class_loader_ == NULL);
+    DCHECK(klass->descriptor_ != NULL);
+    DCHECK(klass->descriptor_->Equals(GetClassRootDescriptor(class_root)));
+
+    DCHECK(class_roots_ != NULL);
+    DCHECK(class_roots_->Get(class_root) == NULL);
+    class_roots_->Set(class_root, klass);
+  }
+
+  static const char* class_roots_descriptors_[kClassRootsMax];
+
+  const char* GetClassRootDescriptor(ClassRoot class_root) {
+    const char* descriptor = class_roots_descriptors_[class_root];
+    CHECK(descriptor != NULL);
+    return descriptor;
   }
 
   ObjectArray<Class>* array_interfaces_;

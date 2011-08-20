@@ -288,13 +288,21 @@ class DexFile {
   // Opens a .jar, .zip, or .apk file from the file system.
   static DexFile* OpenZip(const std::string& filename);
 
-  // Opens a .dex file from a new allocated pointer
-  static DexFile* OpenPtr(byte* ptr, size_t length);
+  // Opens a .dex file from a new allocated pointer.  location is used
+  // to identify the source, for example "/system/framework/core.jar"
+  // or "contrived-test-42". When initializing a ClassLinker from an
+  // image, the location is used to match DexCaches the image to their
+  // corresponding DexFiles.N
+  static DexFile* OpenPtr(byte* ptr, size_t length, const std::string& location);
 
   // Closes a .dex file.
   virtual ~DexFile();
 
-  const Header& GetHeader() {
+  const std::string& GetLocation() const {
+    return location_;
+  }
+
+  const Header& GetHeader() const {
     CHECK(header_ != NULL);
     return *header_;
   }
@@ -640,11 +648,12 @@ class DexFile {
   };
 
   // Opens a .dex file at a the given address.
-  static DexFile* Open(const byte* dex_file, size_t length, Closer* closer);
+  static DexFile* Open(const byte* dex_file, size_t length, const std::string& location, Closer* closer);
 
-  DexFile(const byte* addr, size_t length, Closer* closer)
+  DexFile(const byte* addr, size_t length, const std::string& location, Closer* closer)
       : base_(addr),
         length_(length),
+        location_(location),
         closer_(closer),
         header_(0),
         string_ids_(0),
@@ -652,7 +661,11 @@ class DexFile {
         field_ids_(0),
         method_ids_(0),
         proto_ids_(0),
-        class_defs_(0) {}
+        class_defs_(0) {
+    CHECK(addr != NULL);
+    CHECK_GT(length, 0U);
+    CHECK(closer != NULL);
+  }
 
   // Top-level initializer that calls other Init methods.
   bool Init();
@@ -678,6 +691,12 @@ class DexFile {
 
   // The size of the underlying memory allocation in bytes.
   size_t length_;
+
+  // Typically the dex file name when availble, alternatively some identifying string.
+  //
+  // The ClassLinker will use this to match DexFiles the boot class
+  // path to DexCache::GetLocation when loading from an image.
+  const std::string location_;
 
   // Helper object to free the underlying allocation.
   scoped_ptr<Closer> closer_;

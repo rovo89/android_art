@@ -352,7 +352,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread* current_thread = Thread::Attach(this);
   thread_list_->Register(current_thread);
 
-  class_linker_ = ClassLinker::Create(options->boot_class_path_);
+  class_linker_ = ClassLinker::Create(options->boot_class_path_, Heap::GetBootSpace());
 
   return true;
 }
