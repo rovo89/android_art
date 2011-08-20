@@ -54,6 +54,22 @@ std::string PrettyDescriptor(const StringPiece& descriptor) {
   return result;
 }
 
+std::string PrettyMethod(const Method* m, bool with_signature) {
+  if (m == NULL) {
+    return "null";
+  }
+  Class* c = m->GetDeclaringClass();
+  std::string result(PrettyDescriptor(c->GetDescriptor()->ToModifiedUtf8()));
+  result += '.';
+  result += m->GetName()->ToModifiedUtf8();
+  if (with_signature) {
+    // TODO: iterate over the signature's elements and pass them all to
+    // PrettyDescriptor? We'd need to pull out the return type specially, too.
+    result += m->GetSignature()->ToModifiedUtf8();
+  }
+  return result;
+}
+
 std::string PrettyType(const Object* obj) {
   if (obj == NULL) {
     return "null";

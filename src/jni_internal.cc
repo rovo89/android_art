@@ -38,7 +38,7 @@ bool EnsureInvokeStub(Method* method) {
   size_t length = assembler.CodeSize();
   void* addr = mmap(NULL, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (addr == MAP_FAILED) {
-    PLOG(FATAL) << "mmap failed";
+    PLOG(FATAL) << "mmap failed for " << PrettyMethod(method, true);
   }
   MemoryRegion region(addr, length);
   assembler.FinalizeInstructions(region);
@@ -405,8 +405,8 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, jobject obj,
   if (method->GetCode()) {
     (*stub)(method, rcvr, self, args, &result);
   } else {
-    // TODO: pretty print method here
-    LOG(WARNING) << "Not invoking method with no associated code";
+    LOG(WARNING) << "Not invoking method with no associated code: "
+                 << PrettyMethod(method, true);
     result.j = 0;
   }
   // Pop transition
@@ -472,12 +472,12 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
 
   if (method == NULL || method->IsStatic() != is_static) {
     Thread* self = Thread::Current();
-    std::string class_name(c->GetDescriptor()->ToModifiedUtf8());
+    std::string method_name(PrettyMethod(method, true));
     // TODO: try searching for the opposite kind of method from is_static
     // for better diagnostics?
     self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-        "no %s method \"%s.%s%s\"", is_static ? "static" : "non-static",
-        class_name.c_str(), name, sig);
+        "no %s method %s", is_static ? "static" : "non-static",
+        method_name.c_str());
     return NULL;
   }
 
@@ -2004,7 +2004,6 @@ class JNI {
       if (method == NULL) {
         Thread* self = Thread::Current();
         std::string class_name = klass->GetDescriptor()->ToModifiedUtf8();
-        // TODO: pretty print method names through a single routine
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "no method \"%s.%s%s\"",
             class_name.c_str(), name, sig);
@@ -2012,7 +2011,6 @@ class JNI {
       } else if (!method->IsNative()) {
         Thread* self = Thread::Current();
         std::string class_name = klass->GetDescriptor()->ToModifiedUtf8();
-        // TODO: pretty print method names through a single routine
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "method \"%s.%s%s\" is not native",
             class_name.c_str(), name, sig);

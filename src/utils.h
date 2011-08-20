@@ -10,6 +10,7 @@
 
 namespace art {
 
+class Method;
 class Object;
 
 template<typename T>
@@ -135,13 +136,17 @@ static inline std::string PrintableString(const StringT& s) {
   return result;
 }
 
-// Return a newly-allocated string containing a human-readable equivalent
-// of 'descriptor'. So "I" would be "int", "[[I" would be "int[][]",
-// "[Ljava/lang/String;" would be "java.lang.String[]", and so forth.
+// Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
+// "[[I" would be "int[][]", "[Ljava/lang/String;" would be
+// "java.lang.String[]", and so forth.
 std::string PrettyDescriptor(const StringPiece& descriptor);
 
-// Returns a human-readable string form of the name of the class of
-// the given object. So given a java.lang.String, the output would
+// Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
+// "a.b.C.m(II)V" (depending on the value of 'with_signature').
+std::string PrettyMethod(const Method* m, bool with_signature);
+
+// Returns a human-readable form of the name of the *class* of the given object.
+// So given an instance of java.lang.String, the output would
 // be "java.lang.String". Given an array of int, the output would be "int[]".
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyType(const Object* obj);
