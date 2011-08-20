@@ -56,6 +56,10 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
     reg_bytes = method->NumArgArrayBytes();
   }
 
+  // Method* at bottom of frame is null thereby terminating managed stack crawls
+  __ LoadImmediate(IP, 0, AL);
+  __ StoreToOffset(kStoreWord, IP, SP, 0);
+
   // Copy values by stack
   for(size_t off = 0; off < stack_bytes; off += kPointerSize) {
     // we're displaced off of r3 by bytes that'll go in registers

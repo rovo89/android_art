@@ -50,7 +50,8 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   if (!method->IsStatic()) {
     __ pushl(EAX);
   }
-  __ pushl(EDI);  // Method* at bottom of fake managed frame
+  // Push 0 as NULL Method* thereby terminating managed stack crawls
+  __ pushl(Immediate(0));
   __ call(Address(EDI, method->GetCodeOffset()));  // Call code off of method
 
   // pop arguments and padding up to saved EDI
