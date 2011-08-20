@@ -5,7 +5,6 @@
 
 #include "constants.h"
 #include "casts.h"
-#include "dex_file.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"

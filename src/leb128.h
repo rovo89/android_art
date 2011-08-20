@@ -35,6 +35,14 @@ static inline uint32_t DecodeUnsignedLeb128(const byte** data) {
   return (uint32_t)result;
 }
 
+// Reads an unsigned LEB128 + 1 value. updating the given pointer to point
+// just past the end of the read value. This function tolerates
+// non-zero high-order bits in the fifth encoded byte.
+// It is possible for this function to return -1.
+static inline int32_t DecodeUnsignedLeb128P1(const byte** data) {
+  return DecodeUnsignedLeb128(data) - 1;
+}
+
 // Reads a signed LEB128 value, updating the given pointer to point
 // just past the end of the read value. This function tolerates
 // non-zero high-order bits in the fifth encoded byte.

@@ -17,6 +17,8 @@
 namespace art {
 
 union JValue;
+class String;
+class Method;
 
 // TODO: move all of the macro functionality into the DexCache class.
 class DexFile {
@@ -484,6 +486,10 @@ class DexFile {
 
   // return the UTF-8 encoded string with the specified string_id index
   const char* dexStringById(uint32_t idx, int32_t* unicode_length) const {
+    if (idx == kDexNoIndex) {
+      *unicode_length = 0;
+      return NULL;
+    }
     const StringId& string_id = GetStringId(idx);
     return GetStringData(string_id, unicode_length);
   }
@@ -492,6 +498,8 @@ class DexFile {
     int32_t unicode_length;
     return dexStringById(idx, &unicode_length);
   }
+
+  String* dexArtStringById(uint32_t idx) const;
 
   // Get the descriptor string associated with a given type index.
   const char* dexStringByTypeIdx(uint32_t idx, int32_t* unicode_length) const {
@@ -502,6 +510,11 @@ class DexFile {
   const char* dexStringByTypeIdx(uint32_t idx) const {
     const TypeId& type_id = GetTypeId(idx);
     return dexStringById(type_id.descriptor_idx_);
+  }
+
+  String* dexArtStringByTypeIdx(uint32_t idx) const {
+    const TypeId& type_id = GetTypeId(idx);
+    return dexArtStringById(type_id.descriptor_idx_);
   }
 
   // TODO: encoded_field is actually a stream of bytes
@@ -605,6 +618,124 @@ class DexFile {
     return -1;
   }
 
+  // Get the pointer to the start of the debugging data
+  const byte* dexGetDebugInfoStream(const CodeItem* code_item) const {
+    if (code_item->debug_info_off_ == 0) {
+      return NULL;
+    } else {
+      return base_ + code_item->debug_info_off_;
+    }
+  }
+
+  // Callback for "new position table entry".
+  // Returning true causes the decoder to stop early.
+  typedef bool (*DexDebugNewPositionCb)(void *cnxt, uint32_t address, uint32_t line_num);
+
+  // Callback for "new locals table entry". "signature" is an empty string
+  // if no signature is available for an entry.
+  typedef void (*DexDebugNewLocalCb)(void *cnxt, uint16_t reg,
+                                     uint32_t startAddress,
+                                     uint32_t endAddress,
+                                     const String* name,
+                                     const String* descriptor,
+                                     const String* signature);
+
+  static bool LineNumForPcCb(void *cnxt, uint32_t address, uint32_t line_num) {
+    LineNumFromPcContext *context = (LineNumFromPcContext *)cnxt;
+
+    // We know that this callback will be called in
+    // ascending address order, so keep going until we find
+    // a match or we've just gone past it.
+    if (address > context->address_) {
+      // The line number from the previous positions callback
+      // wil be the final result.
+      return true;
+    } else {
+      context->line_num_ = line_num;
+      return address == context->address_;
+    }
+  }
+
+
+  // Debug info opcodes and constants
+  enum {
+    DBG_END_SEQUENCE         = 0x00,
+    DBG_ADVANCE_PC           = 0x01,
+    DBG_ADVANCE_LINE         = 0x02,
+    DBG_START_LOCAL          = 0x03,
+    DBG_START_LOCAL_EXTENDED = 0x04,
+    DBG_END_LOCAL            = 0x05,
+    DBG_RESTART_LOCAL        = 0x06,
+    DBG_SET_PROLOGUE_END     = 0x07,
+    DBG_SET_EPILOGUE_BEGIN   = 0x08,
+    DBG_SET_FILE             = 0x09,
+    DBG_FIRST_SPECIAL        = 0x0a,
+    DBG_LINE_BASE            = -4,
+    DBG_LINE_RANGE           = 15,
+  };
+
+  struct LocalInfo {
+    LocalInfo() : name_(NULL), descriptor_(NULL), signature_(NULL), start_address_(0), is_live_(false) {}
+
+    // E.g., list
+    const String* name_;
+
+    // E.g., Ljava/util/LinkedList;
+    const String* descriptor_;
+
+    // E.g., java.util.LinkedList<java.lang.Integer>
+    const String* signature_;
+
+    // PC location where the local is first defined.
+    uint16_t start_address_;
+
+    // Is the local defined and live.
+    bool is_live_;
+  };
+
+  struct LineNumFromPcContext {
+    LineNumFromPcContext(uint32_t address, uint32_t line_num) :
+                           address_(address), line_num_(line_num) {}
+    uint32_t address_;
+    uint32_t line_num_;
+  };
+
+  void InvokeLocalCbIfLive(void *cnxt, int reg, uint32_t end_address,
+                         LocalInfo *local_in_reg, DexDebugNewLocalCb local_cb) const {
+    if (local_cb != NULL && local_in_reg[reg].is_live_) {
+      local_cb(cnxt, reg, local_in_reg[reg].start_address_, end_address,
+               local_in_reg[reg].name_, local_in_reg[reg].descriptor_,
+               local_in_reg[reg].signature_);
+    }
+  }
+
+  // Determine the source file line number based on the program counter.
+  // "pc" is an offset, in 16-bit units, from the start of the method's code.
+  //
+  // Returns -1 if no match was found (possibly because the source files were
+  // compiled without "-g", so no line number information is present).
+  // Returns -2 for native methods (as expected in exception traces).
+  //
+  // This is used by runtime; therefore use art::Method not art::DexFile::Method.
+  int32_t GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const;
+
+  void dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* method,
+                           DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
+                           void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
+
+  void dexDecodeDebugInfo(const CodeItem* code_item, const art::Method *method,
+                          DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
+                          void* cnxt) const {
+    const byte* stream = dexGetDebugInfoStream(code_item);
+    LocalInfo local_in_reg[code_item->registers_size_];
+
+    if (stream != NULL) {
+      dexDecodeDebugInfo0(code_item, method, posCb, local_cb, cnxt, stream, local_in_reg);
+    }
+    for (int reg = 0; reg < code_item->registers_size_; reg++) {
+      InvokeLocalCbIfLive(cnxt, reg, code_item->insns_size_, local_in_reg, local_cb);
+    }
+  }
 
   // TODO: const reference
   uint32_t dexGetIndexForClassDef(const ClassDef* class_def) const {

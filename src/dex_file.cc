@@ -534,4 +534,158 @@ DexFile::ValueType DexFile::ReadEncodedValue(const byte** stream,
   return static_cast<ValueType>(type);
 }
 
+String* DexFile::dexArtStringById(uint32_t idx) const {
+  return String::AllocFromModifiedUtf8(dexStringById(idx));
+}
+
+int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const {
+  const CodeItem* code_item = GetCodeItem(method->code_off_);
+  DCHECK(code_item != NULL);
+
+  // A method with no line number info should return -1
+  LineNumFromPcContext context(rel_pc, -1);
+  dexDecodeDebugInfo(code_item, method, LineNumForPcCb, NULL, &context);
+  return context.line_num_;
+}
+
+void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* method,
+                         DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
+                         void* cnxt, const byte* stream, LocalInfo* local_in_reg) const {
+  uint32_t line = DecodeUnsignedLeb128(&stream);
+  uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
+  uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
+  uint32_t address = 0;
+
+  if (!method->IsStatic()) {
+    local_in_reg[arg_reg].name_ = String::AllocFromModifiedUtf8("this");
+    local_in_reg[arg_reg].descriptor_ = method->GetDeclaringClass()->GetDescriptor();
+    local_in_reg[arg_reg].signature_ = NULL;
+    local_in_reg[arg_reg].start_address_ = 0;
+    local_in_reg[arg_reg].is_live_ = true;
+    arg_reg++;
+  }
+
+  ParameterIterator *it = GetParameterIterator(GetProtoId(method->proto_idx_));
+  for (uint32_t i = 0; i < parameters_size && it->HasNext(); ++i, it->Next()) {
+    if (arg_reg >= code_item->registers_size_) {
+      LOG(FATAL) << "invalid stream";
+      return;
+    }
+
+    String* descriptor = String::AllocFromModifiedUtf8(it->GetDescriptor());
+    String* name = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
+
+    local_in_reg[arg_reg].name_ = name;
+    local_in_reg[arg_reg].descriptor_ = descriptor;
+    local_in_reg[arg_reg].signature_ = NULL;
+    local_in_reg[arg_reg].start_address_ = address;
+    local_in_reg[arg_reg].is_live_ = true;
+    switch (descriptor->CharAt(0)) {
+      case 'D':
+      case 'J':
+        arg_reg += 2;
+        break;
+      default:
+        arg_reg += 1;
+        break;
+    }
+  }
+
+  if (it->HasNext()) {
+    LOG(FATAL) << "invalid stream";
+    return;
+  }
+
+  for (;;)  {
+    uint8_t opcode = *stream++;
+    uint8_t adjopcode = opcode - DBG_FIRST_SPECIAL;
+    uint16_t reg;
+
+
+    switch (opcode) {
+      case DBG_END_SEQUENCE:
+        return;
+
+      case DBG_ADVANCE_PC:
+        address += DecodeUnsignedLeb128(&stream);
+        break;
+
+      case DBG_ADVANCE_LINE:
+        line += DecodeUnsignedLeb128(&stream);
+        break;
+
+      case DBG_START_LOCAL:
+      case DBG_START_LOCAL_EXTENDED:
+        reg = DecodeUnsignedLeb128(&stream);
+        if (reg > code_item->registers_size_) {
+          LOG(FATAL) << "invalid stream";
+          return;
+        }
+
+        // Emit what was previously there, if anything
+        InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
+
+        local_in_reg[reg].name_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
+        local_in_reg[reg].descriptor_ = dexArtStringByTypeIdx(DecodeUnsignedLeb128P1(&stream));
+        if (opcode == DBG_START_LOCAL_EXTENDED) {
+          local_in_reg[reg].signature_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
+        } else {
+          local_in_reg[reg].signature_ = NULL;
+        }
+        local_in_reg[reg].start_address_ = address;
+        local_in_reg[reg].is_live_ = true;
+        break;
+
+      case DBG_END_LOCAL:
+        reg = DecodeUnsignedLeb128(&stream);
+        if (reg > code_item->registers_size_) {
+          LOG(FATAL) << "invalid stream";
+          return;
+        }
+
+        InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
+        local_in_reg[reg].is_live_ = false;
+        break;
+
+      case DBG_RESTART_LOCAL:
+        reg = DecodeUnsignedLeb128(&stream);
+        if (reg > code_item->registers_size_) {
+          LOG(FATAL) << "invalid stream";
+          return;
+        }
+
+        if (local_in_reg[reg].name_ == NULL
+            || local_in_reg[reg].descriptor_ == NULL) {
+          LOG(FATAL) << "invalid stream";
+          return;
+        }
+
+        // If the register is live, the "restart" is superfluous,
+        // and we don't want to mess with the existing start address.
+        if (!local_in_reg[reg].is_live_) {
+          local_in_reg[reg].start_address_ = address;
+          local_in_reg[reg].is_live_ = true;
+        }
+        break;
+
+      case DBG_SET_PROLOGUE_END:
+      case DBG_SET_EPILOGUE_BEGIN:
+      case DBG_SET_FILE:
+        break;
+
+      default:
+        address += adjopcode / DBG_LINE_RANGE;
+        line += DBG_LINE_BASE + (adjopcode % DBG_LINE_RANGE);
+
+        if (posCb != NULL) {
+          if (posCb(cnxt, address, line)) {
+            // early exit
+            return;
+          }
+        }
+        break;
+    }
+  }
+}
+
 }  // namespace art
