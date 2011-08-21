@@ -683,6 +683,11 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->shorty_ = dex_file.GetShorty(method_id.proto_idx_);
   dst->access_flags_ = src.access_flags_;
 
+  dst->dex_cache_strings_ = klass->dex_cache_->GetStrings();
+  dst->dex_cache_classes_ = klass->dex_cache_->GetClasses();
+  dst->dex_cache_methods_ = klass->dex_cache_->GetMethods();
+  dst->dex_cache_fields_ = klass->dex_cache_->GetFields();
+
   // TODO: check for finalize method
 
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(src);

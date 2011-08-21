@@ -18,7 +18,7 @@ union JValue;
 class DexCache : public ObjectArray<Object> {
  public:
 
-  enum ArrayIndexes {
+  enum ArrayIndex {
     kLocation = 0,
     kStrings  = 1,
     kClasses  = 2,
@@ -85,20 +85,26 @@ class DexCache : public ObjectArray<Object> {
     GetFields()->Set(field_idx, resolved);
   }
 
- private:
   ObjectArray<String>* GetStrings() const {
-    return static_cast<ObjectArray<String>*>(Get(kStrings));
+    return static_cast<ObjectArray<String>*>(GetNonNull(kStrings));
   }
   ObjectArray<Class>* GetClasses() const {
-    return static_cast<ObjectArray<Class>*>(Get(kClasses));
+    return static_cast<ObjectArray<Class>*>(GetNonNull(kClasses));
   }
   ObjectArray<Method>* GetMethods() const {
-    return static_cast<ObjectArray<Method>*>(Get(kMethods));
+    return static_cast<ObjectArray<Method>*>(GetNonNull(kMethods));
   }
   ObjectArray<Field>* GetFields() const {
-    return static_cast<ObjectArray<Field>*>(Get(kFields));
+    return static_cast<ObjectArray<Field>*>(GetNonNull(kFields));
   }
-  DexCache();
+
+ private:
+  Object* GetNonNull(ArrayIndex array_index) const {
+    Object* obj = Get(array_index);
+    DCHECK(obj != NULL);
+    return obj;
+  }
+  DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
 };
 
 }  // namespace art

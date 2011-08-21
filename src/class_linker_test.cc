@@ -2,6 +2,7 @@
 
 #include "common_test.h"
 #include "class_linker.h"
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
 
@@ -79,6 +80,28 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(2U, array->NumInterfaces());
   }
 
+  void AssertDexFileMethod(Class* klass, Method* method) {
+    EXPECT_TRUE(method != NULL);
+    EXPECT_TRUE(method->GetName() != NULL);
+    EXPECT_TRUE(method->GetSignature() != NULL);
+
+    EXPECT_TRUE(method->dex_cache_strings_ != NULL);
+    EXPECT_TRUE(method->dex_cache_classes_ != NULL);
+    EXPECT_TRUE(method->dex_cache_methods_ != NULL);
+    EXPECT_TRUE(method->dex_cache_fields_ != NULL);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetStrings(), method->dex_cache_strings_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetClasses(), method->dex_cache_classes_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetMethods(), method->dex_cache_methods_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetFields(), method->dex_cache_fields_);
+  }
+
+  void AssertDexFileField(Class* klass, Field* field) {
+    EXPECT_TRUE(field != NULL);
+    EXPECT_EQ(klass, field->GetDeclaringClass());
+    EXPECT_TRUE(field->GetName() != NULL);
+    EXPECT_TRUE(field->GetDescriptor() != NULL);
+  }
+
   void AssertDexFileClass(ClassLoader* class_loader, const char* descriptor) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor);
@@ -132,35 +155,26 @@ class ClassLinkerTest : public CommonTest {
 
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       Method* method = klass->GetDirectMethod(i);
-      EXPECT_TRUE(method != NULL);
+      AssertDexFileMethod(klass, method);
       EXPECT_EQ(klass, method->GetDeclaringClass());
-      EXPECT_TRUE(method->GetName() != NULL);
-      EXPECT_TRUE(method->GetSignature() != NULL);
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
       Method* method = klass->GetVirtualMethod(i);
-      EXPECT_TRUE(method != NULL);
-      EXPECT_TRUE(method->GetName() != NULL);
-      EXPECT_TRUE(method->GetSignature() != NULL);
+      AssertDexFileMethod(klass, method);
+      EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass));
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      EXPECT_TRUE(field != NULL);
+      AssertDexFileField(klass, field);
       EXPECT_FALSE(field->IsStatic());
-      EXPECT_EQ(klass, field->GetDeclaringClass());
-      EXPECT_TRUE(field->GetName() != NULL);
-      EXPECT_TRUE(field->GetDescriptor() != NULL);
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
       Field* field = klass->GetStaticField(i);
-      EXPECT_TRUE(field != NULL);
+      AssertDexFileField(klass, field);
       EXPECT_TRUE(field->IsStatic());
-      EXPECT_EQ(klass, field->GetDeclaringClass());
-      EXPECT_TRUE(field->GetName() != NULL);
-      EXPECT_TRUE(field->GetDescriptor() != NULL);
    }
 
     // Confirm that all instances fields are packed together at the start

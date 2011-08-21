@@ -610,6 +610,12 @@ class Method : public AccessibleObject {
   // The short-form method descriptor string.
   StringPiece shorty_;
 
+  // short cuts to declaring_class_->dex_cache_ members for fast compiled code access
+  ObjectArray<String>* dex_cache_strings_;
+  ObjectArray<Class>* dex_cache_classes_;
+  ObjectArray<Method>* dex_cache_methods_;
+  ObjectArray<Field>* dex_cache_fields_;
+
  private:
   // Compiled code associated with this method
   const void* code_;
