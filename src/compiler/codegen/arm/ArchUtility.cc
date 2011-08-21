@@ -318,8 +318,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     switch(lir->opcode) {
         case kArmPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
-                 cUnit->method->clazz->descriptor << ":" <<
-                 cUnit->method->name;
+                art::PrettyMethod(cUnit->method, true);
             break;
         case kArmPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
@@ -390,8 +389,8 @@ void oatCodegenDump(CompilationUnit* cUnit)
 {
     const Method *method = cUnit->method;
     LOG(INFO) << "/*";
-    LOG(INFO) << "Dumping LIR insns for " << method->clazz->descriptor <<
-        ":" << method->name;
+    LOG(INFO) << "Dumping LIR insns for " <<
+        art::PrettyMethod(cUnit->method, true);
     LIR* lirInsn;
     ArmLIR* armLIR;
     int insnsSize = cUnit->insnsSize;
@@ -408,7 +407,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
         " bytes, Dalvik size is " << insnsSize * 2;
     LOG(INFO) << "expansion factor: " <<
          (float)cUnit->totalSize / (float)(insnsSize * 2);
-    for (int i = 0; i < method->registersSize; i++) {
+    for (int i = 0; i < method->num_registers_; i++) {
         RegLocation loc = cUnit->regLocation[i];
         char buf[100];
         if (loc.fpLocation == kLocPhysReg) {
@@ -425,41 +424,42 @@ void oatCodegenDump(CompilationUnit* cUnit)
 
     }
     for (lirInsn = cUnit->firstLIRInsn; lirInsn; lirInsn = lirInsn->next) {
-        oatDumpLIRInsn(cUnit, lirInsn, (unsigned char*) cUnit->baseAddr);
+        oatDumpLIRInsn(cUnit, lirInsn, 0);
     }
     for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
         armLIR = (ArmLIR*) lirInsn;
         char buf[100];
-        snprintf(buf, 100, "%p (%04x): .class (%s)",
-             (char*)cUnit->baseAddr + armLIR->generic.offset,
-             armLIR->generic.offset,
+        snprintf(buf, 100, "%x (%04x): .class (%s)",
+             armLIR->generic.offset, armLIR->generic.offset,
              ((CallsiteInfo *) armLIR->operands[0])->classDescriptor);
         LOG(INFO) << buf;
     }
     for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
         armLIR = (ArmLIR*) lirInsn;
         char buf[100];
-        snprintf(buf, 100, "%p (%04x): .word (%#x)",
-             (char*)cUnit->baseAddr + armLIR->generic.offset,
-             armLIR->generic.offset,
+        snprintf(buf, 100, "%x (%04x): .word (%#x)",
+             armLIR->generic.offset, armLIR->generic.offset,
              armLIR->operands[0]);
         LOG(INFO) << buf;
 
     }
 
     int linebreak = 0;
+    std::string signature = method->GetSignature()->ToModifiedUtf8();
+    std::string name = method->GetName()->ToModifiedUtf8();
+    std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->
+        ToModifiedUtf8();
+
     char buf[100];
     LOG(INFO) << "*/";
-    sprintf(buf,"\n    u1 %s%s_%s_code[] = {",
-            cUnit->method->clazz->descriptor, cUnit->method->name,
-            cUnit->method->shorty);
+    sprintf(buf,"\n    u1 %s%s_%s_code[] = {", descriptor.c_str(),
+            name.c_str(), signature.c_str());
     for (unsigned int i = 0; i < strlen(buf); i++)
         if (buf[i] == ';') buf[i] = '_';
     LOG(INFO) << buf;
     strcpy(buf,"        ");
-    for (int i = 0; i < cUnit->totalSize; i++) {
-        sprintf(buf+strlen(buf),"0x%02x,",
-               ((u1*)cUnit->baseAddr)[i]);
+    for (int i = 0; i < cUnit->totalSize/2; i++) {
+        sprintf(buf+strlen(buf),"0x%04x,", cUnit->codeBuffer[i]);
         if (++linebreak == 8) {
             linebreak = 0;
             LOG(INFO) << buf;
@@ -478,8 +478,8 @@ void oatCodegenDump(CompilationUnit* cUnit)
             LOG(FATAL) << "Null table";
         }
         sprintf(buf,"\n    MappingTable %s%s_%s_mappingTable[%d] = {",
-                cUnit->method->clazz->descriptor, cUnit->method->name,
-                cUnit->method->shorty, cUnit->mappingTableSize);
+                descriptor.c_str(), name.c_str(), signature.c_str(),
+                cUnit->mappingTableSize);
         for (unsigned int i = 0; i < strlen(buf); i++)
             if (buf[i] == ';') buf[i] = '_';
         LOG(INFO) << buf;

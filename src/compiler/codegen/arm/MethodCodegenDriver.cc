@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-//#define TESTMODE
-
-#ifdef TESTMODE
-#include "CalloutHelper.h"
-#endif
-
 static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
                                    kLocDalvikFrame, INVALID_REG, INVALID_REG,
@@ -31,8 +25,8 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
     oatFlushAllRegs(cUnit);  /* All temps to home location */
-    void* classPtr = (void*)
-        (cUnit->method->clazz->pDvmDex->pResClasses[mir->dalvikInsn.vC]);
+    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
+        GetResolvedClass(mir->dalvikInsn.vC);
     if (classPtr == NULL) {
          LOG(FATAL) << "Unexpected null passPtr";
     } else {
@@ -41,14 +35,8 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     }
     // FIXME: need this to throw errNegativeArraySize
     genRegImmCheck(cUnit, kArmCondMi, r1, 0, mir->offset, NULL);
-#ifdef TESTMODE
-// Hack until we get rSELF setup
-    loadConstant(cUnit, rLR, (int)dvmAllocArrayByClass);
-#else
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtAllocArrayByClass),
                  rLR);
-#endif
-    loadConstant(cUnit, r2, ALLOC_DONT_TRACK);
     newLIR1(cUnit, kThumbBlxR, rLR); // (arrayClass, length, allocFlags)
     storeValue(cUnit, rlDest, retLoc);
 }
@@ -72,8 +60,8 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         typeIndex = dInsn->vC;
     }
     oatFlushAllRegs(cUnit);  /* All temps to home location */
-    void* classPtr = (void*)
-        (cUnit->method->clazz->pDvmDex->pResClasses[typeIndex]);
+    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
+        GetResolvedClass(typeIndex);
     if (classPtr == NULL) {
          LOG(FATAL) << "Unexpected null passPtr";
     } else {
@@ -88,14 +76,8 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
      * the above mentioned bad cases of 'D', 'J' or !('L' | '[' | 'I').
      * That will keep us from wasting space generating an inline check here.
      */
-#ifdef TESTMODE
-// Hack until we get rSELF setup
-    loadConstant(cUnit, rLR, (int)dvmAllocArrayByClass);
-#else
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtAllocArrayByClass),
                  rLR);
-#endif
-    loadConstant(cUnit, r2, ALLOC_DONT_TRACK);
     newLIR1(cUnit, kThumbBlxR, rLR); // (arrayClass, length, allocFlags)
     // Reserve ret0 (r0) - we'll use it in place.
     oatLockTemp(cUnit, r0);
@@ -130,7 +112,7 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         opRegRegImm(cUnit, kOpAdd, rSrc, rSP, rlFirst.spOffset);
         // Set up the target pointer
         opRegRegImm(cUnit, kOpAdd, rDst, r0,
-                    OFFSETOF_MEMBER(ArrayObject, contents));
+                    Array::DataOffset().Int32Value());
         // Set up the loop counter (known to be > 0)
         loadConstant(cUnit, rIdx, dInsn->vA);
         // Generate the copy loop.  Going backwards for convenience
@@ -148,7 +130,8 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         for (unsigned int i = 0; i < dInsn->vA; i++) {
             RegLocation rlArg = loadValue(cUnit,
                 oatGetSrc(cUnit, mir, i), kCoreReg);
-            storeBaseDisp(cUnit, r0, OFFSETOF_MEMBER(ArrayObject, contents) +
+            storeBaseDisp(cUnit, r0,
+                          Array::DataOffset().Int32Value() +
                           i * 4, rlArg.lowReg, kWord);
             // If the loadValue caused a temp to be allocated, free it
             if (oatIsTemp(cUnit, rlArg.lowReg)) {
@@ -160,6 +143,8 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 
 static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
+    UNIMPLEMENTED(FATAL) << "Must update for new world";
+#if 0
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     int tReg = oatAllocTemp(cUnit);
     int objHead;
@@ -181,9 +166,9 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
                  (opcode == OP_SPUT_VOLATILE_JUMBO) ||
                  (opcode == OP_SPUT_OBJECT_VOLATILE) ||
                  (opcode == OP_SPUT_OBJECT_VOLATILE_JUMBO);
-    assert(isVolatile == dvmIsVolatileField((Field *) fieldPtr));
+    assert(isVolatile == artIsVolatileField((Field *) fieldPtr));
 #else
-    isVolatile = dvmIsVolatileField((Field *) fieldPtr);
+    isVolatile = artIsVolatileField((Field *) fieldPtr);
 #endif
 
     isSputObject = (opcode == OP_SPUT_OBJECT) ||
@@ -206,10 +191,13 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         markGCCard(cUnit, rlSrc.lowReg, objHead);
         oatFreeTemp(cUnit, objHead);
     }
+#endif
 }
 
 static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
+    UNIMPLEMENTED(FATAL) << "Must update for new world";
+#if 0
     int tReg = oatAllocTemp(cUnit);
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     const Method *method = (mir->OptimizationFlags & MIR_CALLEE) ?
@@ -227,6 +215,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
 
     storePair(cUnit, tReg, rlSrc.lowReg, rlSrc.highReg);
+#endif
 }
 
 
@@ -234,6 +223,8 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
                  RegLocation rlResult, RegLocation rlDest)
 {
+    UNIMPLEMENTED(FATAL) << "Must update for new world";
+#if 0
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     const Method *method = (mir->OptimizationFlags & MIR_CALLEE) ?
         mir->meta.calleeMethod : cUnit->method;
@@ -253,11 +244,14 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
     loadPair(cUnit, tReg, rlResult.lowReg, rlResult.highReg);
 
     storeValueWide(cUnit, rlDest, rlResult);
+#endif
 }
 
 static void genSget(CompilationUnit* cUnit, MIR* mir,
              RegLocation rlResult, RegLocation rlDest)
 {
+    UNIMPLEMENTED(FATAL) << "Must update for new world";
+#if 0
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     int tReg = oatAllocTemp(cUnit);
     bool isVolatile;
@@ -282,9 +276,9 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
     Opcode opcode = mir->dalvikInsn.opcode;
     isVolatile = (opcode == OP_SGET_VOLATILE) ||
                  (opcode == OP_SGET_OBJECT_VOLATILE);
-    assert(isVolatile == dvmIsVolatileField((Field *) fieldPtr));
+    assert(isVolatile == artIsVolatileField((Field *) fieldPtr));
 #else
-    isVolatile = dvmIsVolatileField((Field *) fieldPtr);
+    isVolatile = artIsVolatileField((Field *) fieldPtr);
 #endif
 
     rlDest = oatGetDest(cUnit, mir, 0);
@@ -297,6 +291,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
     loadWordDisp(cUnit, tReg, 0, rlResult.lowReg);
 
     storeValue(cUnit, rlDest, rlResult);
+#endif
 }
 
 typedef int (*NextCallInsn)(CompilationUnit*, MIR*, DecodedInstruction*, int);
@@ -308,11 +303,14 @@ typedef int (*NextCallInsn)(CompilationUnit*, MIR*, DecodedInstruction*, int);
 static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                         DecodedInstruction* dInsn, int state)
 {
+    UNIMPLEMENTED(FATAL) << "Update with new cache model";
+#if 0
     switch(state) {
         case 0:  // Get the current Method* [sets r0]
             loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
             break;
         case 1:  // Get the pResMethods pointer [uses r0, sets r0]
+            UNIMPLEMENTED(FATAL) << "Update with new cache";
             loadBaseDisp(cUnit, mir, r0, OFFSETOF_MEMBER(Method, pResMethods),
                          r0, kWord, INVALID_SREG);
             break;
@@ -328,6 +326,7 @@ static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
@@ -341,6 +340,8 @@ static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
 static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
                         DecodedInstruction* dInsn, int state)
 {
+    UNIMPLEMENTED(FATAL) << "Update with new cache model";
+#if 0
     RegLocation rlArg;
     switch(state) {
         case 0:  // Get the current Method* [set r0]
@@ -368,19 +369,21 @@ static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
                          r12, kUnsignedHalf, INVALID_SREG);
             // get this->clazz->vtable [use rLR, set rLR]
             loadBaseDisp(cUnit, mir, rLR,
-                         OFFSETOF_MEMBER(ClassObject, vtable), rLR, kWord,
+                         OFFSETOF_MEMBER(Class, vtable), rLR, kWord,
                          INVALID_SREG);
             break;
         case 4: // get target Method* [use rLR, use r12, set r0]
               loadBaseIndexed(cUnit, rLR, r12, r0, 2, kWord);
               break;
         case 5: // Get the target compiled code address [use r0, set rLR]
+            UNIMPLEMENTED(FATAL) << "Update with new cache";
             loadBaseDisp(cUnit, mir, r0, OFFSETOF_MEMBER(Method, compiledInsns),
                          rLR, kWord, INVALID_SREG);
             break;
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
@@ -412,6 +415,8 @@ static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
 static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
                                  DecodedInstruction* dInsn, int state)
 {
+    UNIMPLEMENTED(FATAL) << "Update with new cache model";
+#if 0
     RegLocation rlArg;
     switch(state) {
         case 0:
@@ -427,14 +432,14 @@ static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
             loadBaseDisp(cUnit, mir, r2, OFFSETOF_MEMBER(Method, clazz),
                          r3, kWord, INVALID_SREG);
             // Load this->class [usr r12, set arg0]
-            loadBaseDisp(cUnit, mir, r12, OFFSETOF_MEMBER(ClassObject, clazz),
+            loadBaseDisp(cUnit, mir, r12, OFFSETOF_MEMBER(Class, clazz),
                          r3, kWord, INVALID_SREG);
             // Load address of helper function
             loadBaseDisp(cUnit, mir, rSELF,
                       OFFSETOF_MEMBER(Thread, pArtFindInterfaceMethodInCache),
                       rLR, kWord, INVALID_SREG);
             // Get dvmDex
-            loadBaseDisp(cUnit, mir, r3, OFFSETOF_MEMBER(ClassObject, pDvmDex),
+            loadBaseDisp(cUnit, mir, r3, OFFSETOF_MEMBER(Class, pDvmDex),
                          r3, kWord, INVALID_SREG);
             // Load ref [set arg1]
             loadConstant(cUnit, r1, dInsn->vB);
@@ -447,6 +452,7 @@ static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
@@ -458,6 +464,8 @@ static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
 static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
                              DecodedInstruction* dInsn, int state)
 {
+    UNIMPLEMENTED(FATAL) << "Update with new cache model";
+#if 0
     RegLocation rlArg;
     switch(state) {
         case 0:
@@ -473,7 +481,7 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
             loadBaseDisp(cUnit, mir, r0, OFFSETOF_MEMBER(Method, pResMethods),
                          rLR, kWord, INVALID_SREG);
             // Get clazz->super [use r12, set r12]
-            loadBaseDisp(cUnit, mir, r12, OFFSETOF_MEMBER(ClassObject, super),
+            loadBaseDisp(cUnit, mir, r12, OFFSETOF_MEMBER(Class, super),
                          r12, kWord, INVALID_SREG);
             // Get base method [use rLR, set r0]
             loadBaseDisp(cUnit, mir, rLR, dInsn->vB * 4, r0,
@@ -486,7 +494,7 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
                          rLR, kUnsignedHalf, INVALID_SREG);
             // Get vtableCount [use r12, set r0]
             loadBaseDisp(cUnit, mir, r12,
-                         OFFSETOF_MEMBER(ClassObject, vtableCount),
+                         OFFSETOF_MEMBER(Class, vtableCount),
                          r0, kWord, INVALID_SREG);
             // Compare method index w/ vtable count [use r12, use rLR]
             genRegRegCheck(cUnit, kArmCondGe, rLR, r0, mir->offset, NULL);
@@ -498,6 +506,7 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
@@ -591,7 +600,8 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      * Dalvik vRegs and the ins.
      */
     int highestVreg = oatGetSrc(cUnit, mir, numArgs-1).sRegLow;
-    if (highestVreg >= cUnit->method->registersSize - cUnit->method->insSize) {
+    if (highestVreg >= cUnit->method->num_registers_ -
+        cUnit->method->num_ins_) {
         LOG(FATAL) << "Wide argument spanned locals & args";
     }
 
@@ -622,7 +632,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         newLIR1(cUnit, kThumbBlxR, rLR);
     } else {
         // Use vldm/vstm pair using r3 as a temp
-        int regsLeft = MIN(numArgs - 3, 16);
+        int regsLeft = std::min(numArgs - 3, 16);
         callState = nextCallInsn(cUnit, mir, dInsn, callState);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, startOffset);
         newLIR3(cUnit, kThumb2Vldms, r3, fr0 & FP_REG_MASK, regsLeft);
@@ -791,7 +801,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         case OP_MOVE_EXCEPTION:
             int exOffset;
             int resetReg;
-            exOffset = OFFSETOF_MEMBER(Thread, exception);
+            exOffset = Thread::ExceptionOffset().Int32Value();
             resetReg = oatAllocTemp(cUnit);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
             loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
@@ -923,7 +933,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
         case OP_ARRAY_LENGTH:
             int lenOffset;
-            lenOffset = OFFSETOF_MEMBER(ArrayObject, length);
+            lenOffset = Array::LengthOffset().Int32Value();
             genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg,
                          mir->offset, NULL);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
@@ -1101,7 +1111,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             genArrayPut(cUnit, mir, kWord, rlSrc[1], rlSrc[2], rlSrc[0], 2);
             break;
         case OP_APUT_OBJECT:
-            genArrayObjectPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
+            genArrayPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
             break;
         case OP_APUT_SHORT:
         case OP_APUT_CHAR:
@@ -1432,11 +1442,11 @@ static void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
  * Note: at this pointCopy any ins that are passed in register to their home location */
 static void flushIns(CompilationUnit* cUnit)
 {
-    if (cUnit->method->insSize == 0)
+    if (cUnit->method->num_ins_ == 0)
         return;
-    int inRegs = (cUnit->method->insSize > 2) ? 3 : cUnit->method->insSize;
+    int inRegs = (cUnit->method->num_ins_ > 2) ? 3 : cUnit->method->num_ins_;
     int startReg = r1;
-    int startLoc = cUnit->method->registersSize - cUnit->method->insSize;
+    int startLoc = cUnit->method->num_registers_ - cUnit->method->num_ins_;
     for (int i = 0; i < inRegs; i++) {
         RegLocation loc = cUnit->regLocation[startLoc + i];
         if (loc.location == kLocPhysReg) {
@@ -1459,7 +1469,7 @@ static void flushIns(CompilationUnit* cUnit)
     }
 
     // Now, do initial assignment of all promoted arguments passed in frame
-    for (int i = inRegs; i < cUnit->method->insSize;) {
+    for (int i = inRegs; i < cUnit->method->num_ins_;) {
         RegLocation loc = cUnit->regLocation[startLoc + i];
         if (loc.fpLocation == kLocPhysReg) {
             loc.location = kLocPhysReg;
@@ -1721,45 +1731,3 @@ void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
 {
     storeBaseDispWide(cUnit, rBase, displacement, rSrcLo, rSrcHi);
 }
-
-#ifdef TESTMODE
-// Will be done at runtime by art.  Keep for debugging
-void oatInitHelpers(Thread* thread)
-{
-    thread->pMemcpy = memcpy;
-    thread->pI2f = __aeabi_i2f;
-    thread->pF2iz = __aeabi_f2iz;
-    thread->pD2f = __aeabi_d2f;
-    thread->pF2d = __aeabi_f2d;
-    thread->pI2d = __aeabi_i2d;
-    thread->pD2iz = __aeabi_d2iz;
-    thread->pL2f = __aeabi_l2f;
-    thread->pL2d = __aeabi_l2d;
-    thread->pArtF2l = artF2L;
-    thread->pArtD2l = artD2L;
-    thread->pFadd = __aeabi_fadd;
-    thread->pFsub = __aeabi_fsub;
-    thread->pFdiv = __aeabi_fdiv;
-    thread->pFmul = __aeabi_fmul;
-    thread->pFmodf = fmodf;
-    thread->pDadd = __aeabi_dadd;
-    thread->pDsub = __aeabi_dsub;
-    thread->pDdiv = __aeabi_ddiv;
-    thread->pDmul = __aeabi_dmul;
-    thread->pFmod = fmod;
-    thread->pIdivmod = __aeabi_idivmod;
-    thread->pIdiv = __aeabi_idiv;
-    thread->pLdivmod = __aeabi_ldivmod;
-    thread->pArtUnlockObject = dvmUnlockObject;
-    thread->pArtCanPutArrayElementNoThrow = dvmCanPutArrayElement;
-    thread->pArtInstanceofNonTrivialNoThrow = dvmInstanceofNonTrivial;
-    thread->pArtInstanceofNonTrivial = dvmInstanceofNonTrivial;
-    thread->pArtAllocArrayByClass = dvmAllocArrayByClass;
-    thread->pArtFindInterfaceMethodInCache = dvmFindInterfaceMethodInCache;
-    thread->pArtUnlockObjectNoThrow = dvmUnlockObject;
-    thread->pArtLockObjectNoThrow = dvmLockObject;
-    thread->pArtAllocObjectNoThrow = dvmAllocObject;
-    thread->pArtThrowException = NULL;  //TBD
-    thread->pArtHandleFillArrayDataNoThrow = dvmInterpHandleFillArrayData;
-}
-#endif

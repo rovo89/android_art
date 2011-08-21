@@ -61,6 +61,8 @@ class ClassLinker {
 
   void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
+  const DexFile& FindDexFile(const DexCache* dex_cache) const;
+
  private:
   ClassLinker()
       : classes_lock_(Mutex::Create("ClassLinker::Lock")),
@@ -100,8 +102,6 @@ class ClassLinker {
 
   Class* CreateArrayClass(const StringPiece& descriptor,
                           ClassLoader* class_loader);
-
-  const DexFile& FindDexFile(const DexCache* dex_cache) const;
 
   DexCache* FindDexCache(const DexFile* dex_file) const;
 

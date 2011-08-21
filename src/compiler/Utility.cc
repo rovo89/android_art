@@ -164,8 +164,7 @@ void oatDumpCompilationUnit(CompilationUnit* cUnit)
         "Catch Block"
     };
 
-    LOG(INFO) << "Compiling " << cUnit->method->clazz->descriptor << " " <<
-         cUnit->method->name;
+    LOG(INFO) << "Compiling " << art::PrettyMethod(cUnit->method, true);
     LOG(INFO) << cUnit->insns << " insns";
     LOG(INFO) << cUnit->numBlocks << " blocks in total";
     GrowableListIterator iterator;

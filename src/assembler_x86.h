@@ -200,6 +200,10 @@ class Assembler {
   Assembler() : buffer_() {}
   ~Assembler() {}
 
+  InstructionSet GetInstructionSet() const {
+    return kX86;
+  }
+
   /*
    * Emit Machine Instructions.
    */

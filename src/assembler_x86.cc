@@ -44,7 +44,6 @@ void Assembler::InitializeMemoryWithBreakpoints(byte* data, size_t length) {
   memset(reinterpret_cast<void*>(data), Instr::kBreakPointInstruction, length);
 }
 
-
 void Assembler::call(Register reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xFF);

@@ -18,6 +18,8 @@
 #include "stringpiece.h"
 #include "thread.h"
 
+extern bool oatCompileMethod(art::Method*, art::InstructionSet);
+
 namespace art {
 
 // This is private API, but with two different implementations: ARM and x86.
@@ -400,15 +402,22 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, jobject obj,
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
   CHECK(stub != NULL);
+
+#ifdef __arm__
+  // Compile...
+  // TODO: not here!
+  oatCompileMethod(method, kThumb2);
+#endif
+
   JValue result;
-  // TODO: we should always have code associated with a method
-  if (method->GetCode()) {
+  if (method->HasCode()) {
     (*stub)(method, rcvr, self, args, &result);
   } else {
     LOG(WARNING) << "Not invoking method with no associated code: "
                  << PrettyMethod(method, true);
     result.j = 0;
   }
+
   // Pop transition
   self->PopNativeToManagedRecord(record);
   return result;
@@ -544,7 +553,8 @@ class JNI {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     std::string descriptor(NormalizeJniClassDescriptor(name));
     // TODO: need to get the appropriate ClassLoader.
-    Class* c = class_linker->FindClass(descriptor, NULL);
+    ClassLoader* cl = (ClassLoader*) ts.Self()->GetClassLoaderOverride(); // TODO: fix type in Thread
+    Class* c = class_linker->FindClass(descriptor, cl);
     return AddLocalReference<jclass>(ts, c);
   }
 

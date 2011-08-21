@@ -426,16 +426,6 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
 
 bool EnsureInvokeStub(Method* method);
 
-byte* AllocateCode(void* code, size_t length) {
-  int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
-  void* addr = mmap(NULL, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  CHECK(addr != MAP_FAILED);
-  memcpy(addr, code, length);
-  __builtin___clear_cache(addr, (byte*)addr + length);
-  // Set the low-order bit so a BLX will switch to Thumb mode.
-  return reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(addr) | 1);
-}
-
 Method::InvokeStub* AllocateStub(Method* method,
                                  byte* code,
                                  size_t length) {
@@ -443,15 +433,8 @@ Method::InvokeStub* AllocateStub(Method* method,
   EnsureInvokeStub(method);
   Method::InvokeStub* stub = method->GetInvokeStub();
   CHECK(stub != NULL);
-  method->SetCode(AllocateCode(code, length));
-  CHECK(method->GetCode() != NULL);
+  method->SetCode(code, length, kThumb2);
   return stub;
-}
-
-void FreeStub(Method* method, size_t length) {
-  void* addr = const_cast<void*>(method->GetCode());
-  munmap(addr, length);
-  method->SetCode(NULL);
 }
 
 #if defined(__arm__)
@@ -479,8 +462,6 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   Object* arg = NULL;
 
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), NULL);
-
-  FreeStub(method, sizeof(main_LV_code));
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
@@ -506,8 +487,6 @@ TEST_F(JniInternalTest, StaticNopMethod) {
   ASSERT_TRUE(stub);
 
   (*stub)(method, NULL, NULL, NULL, NULL);
-
-  FreeStub(method, sizeof(nop_V_code));
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
@@ -554,8 +533,6 @@ TEST_F(JniInternalTest, StaticIdentityByteMethod) {
   result.b = 0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(SCHAR_MIN, result.b);
-
-  FreeStub(method, sizeof(identity_BB_code));
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
@@ -602,8 +579,6 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
   result.i = 0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(INT_MIN, result.i);
-
-  FreeStub(method, sizeof(identity_II_code));
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
@@ -651,8 +626,6 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
   result.d = 0.0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(DBL_MIN, result.d);
-
-  FreeStub(method, sizeof(identity_DD_code));
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
@@ -711,8 +684,6 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
   result.i = INT_MIN;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-2, result.i);
-
-  FreeStub(method, sizeof(sum_III_code));
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
@@ -778,8 +749,6 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
   result.i = INT_MIN;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2147483645, result.i);
-
-  FreeStub(method, sizeof(sum_IIII_code));
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
@@ -851,8 +820,6 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   result.i = INT_MIN;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-4, result.i);
-
-  FreeStub(method, sizeof(sum_IIIII_code));
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
@@ -931,8 +898,6 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   result.i = INT_MIN;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2147483643, result.i);
-
-  FreeStub(method, sizeof(sum_IIIIII_code));
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
@@ -992,8 +957,6 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
   result.d = 0.0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(INFINITY, result.d);
-
-  FreeStub(method, sizeof(sum_DDD_code));
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
@@ -1046,8 +1009,6 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
   result.d = 0.0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2.0, result.d);
-
-  FreeStub(method, sizeof(sum_DDDD_code));
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
@@ -1105,8 +1066,6 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
   result.d = 0.0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-2.0, result.d);
-
-  FreeStub(method, sizeof(sum_DDDDD_code));
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
@@ -1169,8 +1128,6 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   result.d = 0.0;
   (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3.0, result.d);
-
-  FreeStub(method, sizeof(sum_DDDDDD_code));
 }
 #endif  // __arm__
 

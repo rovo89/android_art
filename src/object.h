@@ -535,16 +535,41 @@ class Method : public AccessibleObject {
   // Size in bytes of the return value
   size_t ReturnSize() const;
 
-  const void* GetCode() const {
-    return code_;
+  bool HasCode() {
+    return code_ != NULL;
   }
 
-  void SetCode(const void* code) {
-    code_ = code;
+  void SetCode(const byte* compiled_code, size_t byte_count, InstructionSet set) {
+    // Copy the code into an executable region.
+    code_instruction_set_ = set;
+    code_area_.reset(MemMap::Map(byte_count,
+        PROT_READ | PROT_WRITE | PROT_EXEC));
+    byte* code = code_area_->GetAddress();
+    memcpy(code, compiled_code, byte_count);
+    __builtin___clear_cache(code, code + byte_count);
+
+    uintptr_t address = reinterpret_cast<uintptr_t>(code);
+    if (code_instruction_set_ == kThumb2) {
+        // Set the low-order bit so a BLX will switch to Thumb mode
+        address |= 0x1;
+    }
+    code_ =  reinterpret_cast<void*>(address);
+  }
+
+  void SetFrameSize(uint32_t frame_size) {
+    frame_size_ = frame_size;
+  }
+
+  void SetCoreSpillMask(uint32_t core_spill_mask) {
+    core_spill_mask_ = core_spill_mask;
   }
 
   static size_t GetCodeOffset() {
     return OFFSETOF_MEMBER(Method, code_);
+  }
+
+  void SetFpSpillMask(uint32_t fp_spill_mask) {
+    fp_spill_mask_ = fp_spill_mask;
   }
 
   void RegisterNative(const void* native_method) {
@@ -588,6 +613,13 @@ class Method : public AccessibleObject {
   uint16_t num_outs_;
   uint16_t num_ins_;
 
+  // Total size in bytes of the frame
+  uint32_t frame_size_;
+
+  // Architecture-dependent register spill masks
+  uint32_t core_spill_mask_;
+  uint32_t fp_spill_mask_;
+
   // The method descriptor.  This represents the parameters a method
   // takes and value it returns.  This string is a list of the type
   // descriptors for the parameters enclosed in parenthesis followed
@@ -617,7 +649,13 @@ class Method : public AccessibleObject {
 
  private:
   // Compiled code associated with this method
-  const void* code_;
+  scoped_ptr<MemMap> code_area_;
+  void* code_;
+  // Instruction set of the coompiled code
+  InstructionSet code_instruction_set_;
+
+  // Size in bytes of compiled code associated with this method
+  const uint32_t code_size_;
 
   // Any native method registered with this method
   const void* native_method_;
@@ -660,6 +698,14 @@ class Array : public Object {
     length_ = length;
   }
 
+  static MemberOffset LengthOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Array, length_));
+  }
+
+  static MemberOffset DataOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Array, first_element_));
+  }
+
  protected:
   bool IsValidIndex(int32_t index) const {
     if (index < 0 || index >= length_) {
@@ -676,6 +722,8 @@ class Array : public Object {
   int32_t length_;
   // Padding to ensure the first member defined by a subclass begins on a 8-byte boundary
   int32_t padding_;
+  // Marker for the data (used by generated code)
+  uint32_t first_element_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Array);
 };

@@ -10,6 +10,13 @@ namespace art {
 
 class Monitor {
  public:
+
+  // Lock constants used by compiler
+  static const uint32_t kLwLockOwnerShift = 3;
+  static const uint32_t kLwHashStateShift = 1;
+  static const uint32_t kLwHashStateMask = 0x3;
+  static const uint32_t kLwShapeThin = 0;
+
   void Enter() {
   }
 
@@ -39,6 +46,7 @@ class Monitor {
 
 class MonitorLock {
  public:
+
   MonitorLock(Monitor* monitor) : monitor_(monitor) {
     CHECK(monitor != NULL);
     monitor_->Enter();

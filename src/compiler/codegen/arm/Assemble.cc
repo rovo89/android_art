@@ -965,13 +965,23 @@ ArmEncodingMap EncodingMap[kArmLast] = {
  */
 #define PADDING_MOV_R5_R5               0x1C2D
 
+static void pushWord(std::vector<short>&buf, int data) {
+    buf.push_back( (data >> 16) & 0xffff);
+    buf.push_back( data & 0xffff);
+}
+
+void alignBuffer(std::vector<short>&buf, size_t offset) {
+    while (buf.size() < (offset/2))
+        buf.push_back(0);
+}
+
 /* Write the numbers in the constant to the output stream */
 static void installLiteralPools(CompilationUnit* cUnit)
 {
-    int* dataPtr = (int*) ((char*) cUnit->baseAddr + cUnit->dataOffset);
+    alignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
     ArmLIR* dataLIR = (ArmLIR*) cUnit->literalList;
     while (dataLIR) {
-        *dataPtr++ = dataLIR->operands[0];
+        pushWord(cUnit->codeBuffer, dataLIR->operands[0]);
         dataLIR = NEXT_LIR(dataLIR);
     }
 }
@@ -985,7 +995,7 @@ static void installSwitchTables(CompilationUnit* cUnit)
         SwitchTable* tabRec = (SwitchTable *) oatGrowableListIteratorNext(
              &iterator);
         if (tabRec == NULL) break;
-        int* dataPtr = (int*)((char*)cUnit->baseAddr + tabRec->offset);
+        alignBuffer(cUnit->codeBuffer, tabRec->offset);
         int bxOffset = tabRec->bxInst->generic.offset + 4;
         if (cUnit->printMe) {
             LOG(INFO) << "Switch table for offset 0x" /*<< hex*/ << bxOffset;
@@ -999,8 +1009,9 @@ static void installSwitchTables(CompilationUnit* cUnit)
                         std::hex << keys[elems] << ", disp: 0x" <<
                         std::hex << disp;
                 }
-                *dataPtr++ = keys[elems];
-                *dataPtr++ = tabRec->targets[elems]->generic.offset - bxOffset;
+                pushWord(cUnit->codeBuffer, keys[elems]);
+                pushWord(cUnit->codeBuffer,
+                    tabRec->targets[elems]->generic.offset - bxOffset);
             }
         } else {
             assert(tabRec->table[0] == kPackedSwitchSignature);
@@ -1010,7 +1021,8 @@ static void installSwitchTables(CompilationUnit* cUnit)
                     LOG(INFO) << "    Case[" << elems << "] disp: 0x" <<
                         std::hex << disp;
                 }
-                *dataPtr++ = tabRec->targets[elems]->generic.offset - bxOffset;
+                pushWord(cUnit->codeBuffer,
+                         tabRec->targets[elems]->generic.offset - bxOffset);
             }
         }
     }
@@ -1025,8 +1037,10 @@ static void installFillArrayData(CompilationUnit* cUnit)
         FillArrayData *tabRec = (FillArrayData *) oatGrowableListIteratorNext(
              &iterator);
         if (tabRec == NULL) break;
-        char* dataPtr = (char*)cUnit->baseAddr + tabRec->offset;
-        memcpy(dataPtr, (char*)tabRec->table, tabRec->size);
+        alignBuffer(cUnit->codeBuffer, tabRec->offset);
+        cUnit->codeBuffer.reserve(cUnit->codeBuffer.size() + (tabRec->size/2));
+        memcpy(&cUnit->codeBuffer[tabRec->offset/2],
+              (char*)tabRec->table, tabRec->size);
     }
 }
 
@@ -1038,7 +1052,6 @@ static void installFillArrayData(CompilationUnit* cUnit)
 static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                                             intptr_t startAddr)
 {
-    short* bufferAddr = (short*) cUnit->codeBuffer;
     ArmLIR* lir;
     AssemblerStatus res = kSuccess;  // Assume success
 
@@ -1047,7 +1060,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
             if ((lir->opcode == kArmPseudoPseudoAlign4) &&
                 /* 1 means padding is needed */
                 (lir->operands[0] == 1)) {
-                *bufferAddr++ = PADDING_MOV_R5_R5;
+                cUnit->codeBuffer.push_back(PADDING_MOV_R5_R5);
             }
             continue;
         }
@@ -1394,9 +1407,9 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
             }
         }
         if (encoder->size == 2) {
-            *bufferAddr++ = (bits >> 16) & 0xffff;
+                cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
         }
-        *bufferAddr++ = bits & 0xffff;
+        cUnit->codeBuffer.push_back(bits & 0xffff);
     }
     return res;
 }
@@ -1526,23 +1539,6 @@ void assignOffsets(CompilationUnit* cUnit)
 void oatAssembleLIR(CompilationUnit* cUnit)
 {
     assignOffsets(cUnit);
-
-#ifdef TESTMODE
-//For testing - caller will allocate buffer
-    int testSize = 1024 * 1024;
-    int fd = ashmem_create_region("dalvik-test-code-cache",testSize);
-    if (fd < 0) {
-        LOG(FATAL) << "Coudln't create ashmem region";
-    }
-    cUnit->baseAddr = cUnit->codeBuffer = (unsigned char *)
-         mmap(NULL, testSize, PROT_READ | PROT_WRITE | PROT_EXEC,
-              MAP_PRIVATE, fd, 0);
-    close(fd);
-    if (cUnit->baseAddr == MAP_FAILED) {
-        LOG(FATAL) << "Failed to mmap the test region: " << strerror(errno);
-    }
-#endif
-
     /*
      * Assemble here.  Note that we generate code with optimistic assumptions
      * and if found now to work, we'll have to redo the sequence and retry.
@@ -1559,6 +1555,7 @@ void oatAssembleLIR(CompilationUnit* cUnit)
             }
             // Redo offsets and try again
             assignOffsets(cUnit);
+            cUnit->codeBuffer.clear();
         }
     }
 

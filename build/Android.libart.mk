@@ -45,6 +45,7 @@ define build-libart
     LOCAL_SHARED_LIBRARIES += libz-host
     LOCAL_LDLIBS := -ldl -lpthread -lrt
   endif
+  LOCAL_STATIC_LIBRARIES += libdex
   ifeq ($(1),target)
     include $(BUILD_SHARED_LIBRARY)
   else

@@ -86,7 +86,7 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
             for (i=0; i< ssaRep->numUses; i++) {
                 int origSreg = DECODE_REG(
                     oatConvertSSARegToDalvik(cUnit, ssaRep->uses[i]));
-                assert(origSreg < cUnit->method->registersSize);
+                assert(origSreg < cUnit->method->num_registers_);
                 bool fpUse = ssaRep->fpUse ? ssaRep->fpUse[i] : false;
                 if (fp == fpUse) {
                     counts[origSreg].count++;
@@ -99,7 +99,7 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                 }
                 int origSreg = DECODE_REG(
                     oatConvertSSARegToDalvik(cUnit, ssaRep->defs[i]));
-                assert(origSreg < cUnit->method->registersSize);
+                assert(origSreg < cUnit->method->num_registers_);
                 bool fpDef = ssaRep->fpDef ? ssaRep->fpDef[i] : false;
                 if (fp == fpDef) {
                     counts[origSreg].count++;
@@ -131,8 +131,8 @@ static void dumpCounts(const RefCounts* arr, int size, const char* msg)
  */
 extern void oatDoPromotion(CompilationUnit* cUnit)
 {
-    int numRegs = cUnit->method->registersSize;
-    int numIns = cUnit->method->insSize;
+    int numRegs = cUnit->method->num_registers_;
+    int numIns = cUnit->method->num_ins_;
 
     /*
      * Because ins don't have explicit definitions, we need to type
@@ -140,10 +140,9 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
      */
     if (numIns > 0) {
         int sReg = numRegs - numIns;
-        const char *shorty = cUnit->method->shorty;
-        shorty++;  // Move past return type;
-        while (*shorty) {
-            char arg = *shorty++;
+        const art::StringPiece& shorty = cUnit->method->GetShorty();
+        for (int i = 1; i < shorty.size(); i++) {
+            char arg = shorty[i];
             // Is it wide?
             if ((arg == 'D') || (arg == 'J')) {
                 cUnit->regLocation[sReg].wide = true;

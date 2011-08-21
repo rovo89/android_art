@@ -151,6 +151,8 @@ std::string PrettyMethod(const Method* m, bool with_signature);
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyType(const Object* obj);
 
+std::string ReadFileToString(const char* file_name);
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_H_

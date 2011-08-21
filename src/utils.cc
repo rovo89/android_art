@@ -1,10 +1,29 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: enh@google.com (Elliott Hughes)
 
+#include "file.h"
 #include "object.h"
+#include "os.h"
 #include "utils.h"
 
 namespace art {
+
+std::string ReadFileToString(const char* file_name) {
+  scoped_ptr<File> file(OS::OpenFile(file_name, false));
+  CHECK(file != NULL);
+
+  std::string contents;
+  char buf[8 * KB];
+  while (true) {
+    int64_t n = file->Read(buf, sizeof(buf));
+    CHECK_NE(-1, n);
+    if (n == 0) {
+        break;
+    }
+    contents.append(buf, n);
+  }
+  return contents;
+}
 
 std::string PrettyDescriptor(const StringPiece& descriptor) {
   // Count the number of '['s to get the dimensionality.

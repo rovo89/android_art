@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_COMPILER_IR_H_
 
 #include "codegen/Optimizer.h"
+#include <vector>
 
 typedef enum RegisterClass {
     kCoreReg,
@@ -197,8 +198,7 @@ typedef struct CompilationUnit {
     int totalSize;                      // header + code size
     AssemblerStatus assemblerStatus;    // Success or fix and retry
     int assemblerRetries;
-    unsigned char* codeBuffer;
-    void* baseAddr;
+    std::vector<short>codeBuffer;
     bool printMe;
     bool printMeVerbose;
     bool hasClassLiterals;              // Contains class ptrs used as literals

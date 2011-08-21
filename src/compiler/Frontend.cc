@@ -17,6 +17,7 @@
 #include "Dalvik.h"
 #include "CompilerInternals.h"
 #include "Dataflow.h"
+#include "constants.h"
 
 static inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;
@@ -185,21 +186,15 @@ static BasicBlock *findBlock(CompilationUnit* cUnit,
 /* Dump the CFG into a DOT graph */
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 {
-    const Method* method = cUnit->method;
     FILE* file;
-    char* signature = dexProtoCopyMethodDescriptor(&method->prototype);
+    std::string name = art::PrettyMethod(cUnit->method, true);
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
     char* fileName = (char *) oatNew(
-                                  strlen(dirPrefix) +
-                                  strlen(method->clazz->descriptor) +
-                                  strlen(method->name) +
-                                  strlen(signature) +
-                                  strlen(startOffset) +
-                                  strlen(".dot") + 1, true);
-    sprintf(fileName, "%s%s%s%s%s.dot", dirPrefix,
-            method->clazz->descriptor, method->name, signature, startOffset);
-    free(signature);
+                        strlen(dirPrefix) +
+                        name.length() +
+                        strlen(".dot") + 1, true);
+    sprintf(fileName, "%s%s%s.dot", dirPrefix, name.c_str(), startOffset);
 
     /*
      * Convert the special characters into a filesystem- and shell-friendly
@@ -397,6 +392,9 @@ static bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 /* Identify code range in try blocks and set up the empty catch blocks */
 static void processTryCatchBlocks(CompilationUnit* cUnit)
 {
+
+    UNIMPLEMENTED(WARNING) << "Need to finish processTryCatchBlocks()";
+#if 0
     const Method* meth = cUnit->method;
     const DexCode *pCode = dvmGetMethodCode(meth);
     int triesSize = pCode->triesSize;
@@ -450,6 +448,7 @@ static void processTryCatchBlocks(CompilationUnit* cUnit)
 
         offset = dexCatchIteratorGetEndOffset(&iterator, pCode);
     }
+#endif
 }
 
 /* Process instructions with the kInstrCanBranch flag */
@@ -612,6 +611,8 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                             ArenaBitVector* tryBlockAddr, const u2* codePtr,
                             const u2* codeEnd)
 {
+    UNIMPLEMENTED(WARNING) << "Need to complete processCanThrow";
+#if 0
     const Method* method = cUnit->method;
     const DexCode* dexCode = dvmGetMethodCode(method);
 
@@ -688,17 +689,22 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
             }
         }
     }
+#endif
 }
 
 /*
  * Compile a method.
  */
-bool oatCompileMethod(Method* method, OatInstructionSetType insnSet)
+bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
     CompilationUnit cUnit;
-    const DexCode* dexCode = dvmGetMethodCode(method);
-    const u2* codePtr = dexCode->insns;
-    const u2* codeEnd = dexCode->insns + dexCode->insnsSize;
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    const art::DexFile& dex_file = class_linker->FindDexFile(
+         method->GetDeclaringClass()->GetDexCache());
+    const art::DexFile::CodeItem* code_item =
+         dex_file.GetCodeItem(method->code_off_);
+    const u2* codePtr = code_item->insns_;
+    const u2* codeEnd = code_item->insns_ + code_item->insns_size_;
     int numBlocks = 0;
     unsigned int curOffset = 0;
 
@@ -709,9 +715,9 @@ bool oatCompileMethod(Method* method, OatInstructionSetType insnSet)
 
     memset(&cUnit, 0, sizeof(cUnit));
     cUnit.method = method;
-    cUnit.instructionSet = insnSet;
-    cUnit.insns = dexCode->insns;
-    cUnit.insnsSize = dexCode->insnsSize;
+    cUnit.instructionSet = (OatInstructionSetType)insnSet;
+    cUnit.insns = code_item->insns_;
+    cUnit.insnsSize = code_item->insns_size_;
 #if 1
     cUnit.printMe = true;
     cUnit.printMeVerbose = true;
@@ -842,7 +848,7 @@ bool oatCompileMethod(Method* method, OatInstructionSetType insnSet)
     }
 
     /* Adjust this value accordingly once inlining is performed */
-    cUnit.numDalvikRegisters = cUnit.method->registersSize;
+    cUnit.numDalvikRegisters = cUnit.method->num_registers_;
 
 
     /* Verify if all blocks are connected as claimed */
@@ -880,8 +886,12 @@ bool oatCompileMethod(Method* method, OatInstructionSetType insnSet)
         }
     }
 
-    method->compiledInsns = (void*)((int)cUnit.baseAddr | 1);
-    method->pResMethods = method->clazz->pDvmDex->pResMethods;
+    method->SetCode((const art::byte*)&cUnit.codeBuffer[0],
+                    cUnit.codeBuffer.size() * 2, art::kThumb2);
+    method->SetFrameSize(cUnit.frameSize);
+    method->SetCoreSpillMask(cUnit.coreSpillMask);
+    method->SetFpSpillMask(cUnit.fpSpillMask);
+    // TODO: Transmit mapping table to caller
 
 #if 0
     oatDumpCFG(&cUnit, "/sdcard/cfg/");

@@ -3,6 +3,17 @@
 #ifndef ART_SRC_CONSTANTS_H_
 #define ART_SRC_CONSTANTS_H_
 
+namespace art {
+
+enum InstructionSet {
+  kNone,
+  kArm,
+  kThumb2,
+  kX86
+};
+
+}  // namespace art
+
 #if defined(__i386__)
 #include "constants_x86.h"
 #elif defined(__arm__)

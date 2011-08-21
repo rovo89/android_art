@@ -124,7 +124,52 @@ class Thread {
     kTerminated,
   };
 
+
   static const size_t kDefaultStackSize = 64 * KB;
+
+// TODO - needs to be redone properly, just hacked into place for now
+  // Runtime support function pointers
+  void* (*pMemcpy)(void*, const void*, size_t);
+  float (*pI2f)(int);
+  int (*pF2iz)(float);
+  float (*pD2f)(double);
+  double (*pF2d)(float);
+  double (*pI2d)(int);
+  int (*pD2iz)(double);
+  float (*pL2f)(long);
+  double (*pL2d)(long);
+  long long (*pArtF2l)(float);
+  long long (*pArtD2l)(double);
+  float (*pFadd)(float, float);
+  float (*pFsub)(float, float);
+  float (*pFdiv)(float, float);
+  float (*pFmul)(float, float);
+  float (*pFmodf)(float, float);
+  double (*pDadd)(double, double);
+  double (*pDsub)(double, double);
+  double (*pDdiv)(double, double);
+  double (*pDmul)(double, double);
+  double (*pFmod)(double, double);
+  int (*pIdivmod)(int, int);
+  int (*pIdiv)(int, int);
+  long long (*pLdivmod)(long long, long long);
+  bool (*pArtUnlockObject)(struct Thread*, struct Object*);
+  bool (*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
+        const struct ClassObject*);
+  int (*pArtInstanceofNonTrivialNoThrow)
+    (const struct ClassObject*, const struct ClassObject*);
+  int (*pArtInstanceofNonTrivial) (const struct ClassObject*,
+       const struct ClassObject*);
+  struct ArrayObject* (*pArtAllocArrayByClass)(struct ClassObject*,
+       size_t, int);
+  struct Method* (*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
+        const struct Method*, struct DvmDex*);
+  bool (*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);
+  void (*pArtLockObjectNoThrow)(struct Thread*, struct Object*);
+  struct Object* (*pArtAllocObjectNoThrow)(struct ClassObject*, int);
+  void (*pArtThrowException)(struct Thread*, struct Object*);
+  bool (*pArtHandleFillArrayDataNoThrow)(struct ArrayObject*, const uint16_t*);
+
 
   // Creates a new thread.
   static Thread* Create(const Runtime* runtime);
@@ -169,6 +214,16 @@ class Thread {
   // Offset of exception within Thread, used by generated code
   static ThreadOffset ExceptionOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
+  }
+
+  // Offset of id within Thread, used by generated code
+  static ThreadOffset IdOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, id_));
+  }
+
+  // Offset of card_table within Thread, used by generated code
+  static ThreadOffset CardTableOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, card_table_));
   }
 
   void SetName(const char* name);
@@ -262,6 +317,14 @@ class Thread {
     top_of_managed_stack_ = record.last_top_of_managed_stack;
   }
 
+  Object* GetClassLoaderOverride() {
+    return class_loader_override_;
+  }
+
+  void SetClassLoaderOverride(Object* class_loader_override) {
+    class_loader_override_ = class_loader_override;
+  }
+
  private:
   Thread()
       : id_(1234),
@@ -270,7 +333,8 @@ class Thread {
         top_shb_(NULL),
         jni_env_(NULL),
         exception_(NULL),
-        suspend_count_(0) {
+        suspend_count_(0),
+        class_loader_override_(NULL) {
   }
 
   ~Thread() {
@@ -281,6 +345,9 @@ class Thread {
 
   // Managed thread id.
   uint32_t id_;
+
+  // FIXME: placeholder for the gc cardTable
+  uint32_t card_table_;
 
   // Top of the managed stack, written out prior to the state transition from
   // kRunnable to kNative. Uses include to give the starting point for scanning
@@ -318,6 +385,8 @@ class Thread {
   // A non-zero value is used to tell the current thread to enter a safe point
   // at the next poll.
   int suspend_count_;
+
+  Object* class_loader_override_;
 
   // The memory mapping of the stack for non-attached threads.
   scoped_ptr<MemMap> stack_;

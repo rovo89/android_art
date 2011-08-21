@@ -197,6 +197,10 @@ class Assembler {
  public:
   Assembler() : buffer_() {}
 
+  InstructionSet GetInstructionSet() const {
+    return kArm;
+  }
+
   // Data-processing instructions.
   void and_(Register rd, Register rn, ShifterOperand so, Condition cond = AL);
 

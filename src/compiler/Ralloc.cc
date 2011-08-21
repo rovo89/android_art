@@ -119,9 +119,9 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     }
 
     /* Figure out the frame size */
-    cUnit->numIns = cUnit->method->insSize;
-    cUnit->numRegs = cUnit->method->registersSize - cUnit->numIns;
-    cUnit->numOuts = cUnit->method->outsSize;
+    cUnit->numIns = cUnit->method->num_ins_;
+    cUnit->numRegs = cUnit->method->num_registers_ - cUnit->numIns;
+    cUnit->numOuts = cUnit->method->num_outs_;
     cUnit->numPadding = (STACK_ALIGN_WORDS -
         (cUnit->numSpills + cUnit->numRegs +
          cUnit->numOuts + 2)) & (STACK_ALIGN_WORDS-1);

@@ -4,31 +4,14 @@
 #include "file.h"
 #include "image.h"
 #include "image_writer.h"
-#include "os.h"
 #include "space.h"
+#include "utils.h"
 
 #include "gtest/gtest.h"
 
 namespace art {
 
 class ImageTest : public CommonTest {};
-
-std::string ReadFileToString(const char* file_name) {
-  scoped_ptr<File> file(OS::OpenFile(file_name, false));
-  CHECK(file != NULL);
-
-  std::string contents;
-  char buf[8 * KB];
-  while (true) {
-    int64_t n = file->Read(buf, sizeof(buf));
-    CHECK_NE(-1, n);
-    if (n == 0) {
-        break;
-    }
-    contents.append(buf, n);
-  }
-  return contents;
-}
 
 TEST_F(ImageTest, WriteRead) {
 

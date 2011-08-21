@@ -23,32 +23,29 @@ class JniCompilerTest : public CommonTest {
     CommonTest::SetUp();
     dex_.reset(OpenDexFileBase64(kMyClassNativesDex, "kMyClassNativesDex"));
     class_loader_ = AllocPathClassLoader(dex_.get());
+    Thread::Current()->SetClassLoaderOverride(class_loader_);
   }
 
   void SetupForTest(bool direct, const char* method_name,
                     const char* method_sig, void* native_fnptr) {
-    const char* class_name = "LMyClass;";
-    Class* klass = class_linker_->FindClass(class_name, class_loader_);
-    ASSERT_TRUE(klass != NULL);
+    env_ = Thread::Current()->GetJniEnv();
 
+    jklass_ = env_->FindClass("MyClass");
+    ASSERT_TRUE(jklass_ != NULL);
+
+    Class* c = class_linker_->FindClass("LMyClass;", class_loader_);
     Method* method;
     if (direct) {
-      method = klass->FindDirectMethod(method_name, method_sig);
+      method = c->FindDirectMethod(method_name, method_sig);
     } else {
-      method = klass->FindVirtualMethod(method_name, method_sig);
+      method = c->FindVirtualMethod(method_name, method_sig);
     }
     ASSERT_TRUE(method != NULL);
 
     // Compile the native method
     jni_compiler.Compile(&jni_asm, method);
+    ASSERT_TRUE(method->HasCode());
 
-    env_ = Thread::Current()->GetJniEnv();
-
-    // TODO: when we support class loaders - env->FindClass(class_name);
-    IndirectReferenceTable& locals = reinterpret_cast<JNIEnvExt*>(env_)->locals;
-    uint32_t cookie = IRT_FIRST_SEGMENT; // TODO
-    IndirectRef klass_ref = locals.Add(cookie, klass);
-    jklass_ = reinterpret_cast<jclass>(klass_ref);
     if (direct) {
       jmethod_ = env_->GetStaticMethodID(jklass_, method_name, method_sig);
     } else {

@@ -20,7 +20,9 @@ ART_C_INCLUDES := \
 	external/gtest/include \
 	external/icu4c/common \
 	external/icu4c/i18n \
-	external/zlib
+	external/zlib \
+	art/src \
+	dalvik/libdex
 
 ART_CFLAGS := \
 	-O0 \
@@ -84,7 +86,6 @@ LIBART_TARGET_SRC_FILES := \
 	src/compiler/codegen/arm/LocalOptimizations.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc \
-        src/compiler/HackStubs.cc \
 	src/assembler_arm.cc \
 	src/calling_convention_arm.cc \
 	src/jni_internal_arm.cc \
@@ -123,7 +124,8 @@ TEST_COMMON_SRC_FILES := \
 	src/runtime_test.cc \
 	src/space_test.cc \
 	src/utils_test.cc \
-	src/zip_archive_test.cc
+	src/zip_archive_test.cc \
+	src/compiler_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
