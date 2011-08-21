@@ -158,21 +158,35 @@ class Object {
     monitor_->Wait(timeout, nanos);
   }
 
-  const Object* GetFieldObject(size_t field_offset) const {
-    Object* that = const_cast<Object*>(this);
-    Object* other = that->GetFieldObject(field_offset);
-    return const_cast<const Object*>(other);
-  }
-
-  Object* GetFieldObject(size_t field_offset) {
-    byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset;
-    return *reinterpret_cast<Object**>(raw_addr);
+  Object* GetFieldObject(size_t field_offset) const {
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
+    return *reinterpret_cast<Object* const *>(raw_addr);
   }
 
   void SetFieldObject(size_t offset, Object* new_value) {
     byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
     *reinterpret_cast<Object**>(raw_addr) = new_value;
     // TODO: write barrier
+  }
+
+  uint32_t GetField32(size_t field_offset) const {
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
+    return *reinterpret_cast<const uint32_t*>(raw_addr);
+  }
+
+  void SetField32(size_t offset, uint32_t new_value) {
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
+    *reinterpret_cast<uint32_t*>(raw_addr) = new_value;
+  }
+
+  uint64_t GetField64(size_t field_offset) const {
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
+    return *reinterpret_cast<const uint64_t*>(raw_addr);
+  }
+
+  void SetField64(size_t offset, uint64_t new_value) {
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
+    *reinterpret_cast<uint64_t*>(raw_addr) = new_value;
   }
 
   bool IsClass() const;
@@ -186,6 +200,8 @@ class Object {
     DCHECK(IsClass());
     return down_cast<const Class*>(this);
   }
+
+  bool IsClassClass() const;
 
   bool IsObjectArray() const;
 
@@ -252,11 +268,21 @@ class Object {
     return down_cast<Method*>(this);
   }
 
+  const Method* AsMethod() const {
+    DCHECK(IsMethod());
+    return down_cast<const Method*>(this);
+  }
+
   bool IsField() const;
 
   Field* AsField() {
     DCHECK(IsField());
     return down_cast<Field*>(this);
+  }
+
+  const Field* AsField() const {
+    DCHECK(IsField());
+    return down_cast<const Field*>(this);
   }
 
  public:
@@ -335,28 +361,36 @@ class Field : public AccessibleObject {
     offset_ = num_bytes;
   }
 
-  // static field access
-  bool GetBoolean();
-  void SetBoolean(bool z);
-  int8_t GetByte();
-  void SetByte(int8_t b);
-  uint16_t GetChar();
-  void SetChar(uint16_t c);
-  uint16_t GetShort();
-  void SetShort(uint16_t s);
-  int32_t GetInt();
-  void SetInt(int32_t i);
-  int64_t GetLong();
-  void SetLong(int64_t j);
-  float GetFloat();
-  void SetFloat(float f);
-  double GetDouble();
-  void SetDouble(double d);
-  Object* GetObject();
-  const Object* GetObject() const;
-  void SetObject(Object* l);
+  // field access, null object for static fields
+  bool GetBoolean(const Object* object) const;
+  void SetBoolean(Object* object, bool z) const;
+  int8_t GetByte(const Object* object) const;
+  void SetByte(Object* object, int8_t b) const;
+  uint16_t GetChar(const Object* object) const;
+  void SetChar(Object* object, uint16_t c) const;
+  uint16_t GetShort(const Object* object) const;
+  void SetShort(Object* object, uint16_t s) const;
+  int32_t GetInt(const Object* object) const;
+  void SetInt(Object* object, int32_t i) const;
+  int64_t GetLong(const Object* object) const;
+  void SetLong(Object* object, int64_t j) const;
+  float GetFloat(const Object* object) const;
+  void SetFloat(Object* object, float f) const;
+  double GetDouble(const Object* object) const;
+  void SetDouble(Object* object, double d) const;
+  Object* GetObject(const Object* object) const;
+  void SetObject(Object* object, Object* l) const;
 
  public:  // TODO: private
+
+  // private implemention of field access using raw data
+  uint32_t Get32(const Object* object) const;
+  void Set32(Object* object, uint32_t new_value) const;
+  uint64_t Get64(const Object* object) const;
+  void Set64(Object* object, uint64_t new_value) const;
+  Object* GetObj(const Object* object) const;
+  void SetObj(Object* object, Object* new_value) const;
+
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class in which this field is declared.
   Class* declaring_class_;
@@ -445,11 +479,11 @@ class Method : public AccessibleObject {
   }
 
   // Number of argument registers required by the prototype.
-  uint32_t NumArgRegisters();
+  uint32_t NumArgRegisters() const;
 
   // Number of argument bytes required for densely packing the
   // arguments into an array of arguments.
-  size_t NumArgArrayBytes();
+  size_t NumArgArrayBytes() const;
 
  public:  // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
@@ -912,6 +946,10 @@ class Class : public Object {
     return descriptor_;
   }
 
+  size_t SizeOf() const {
+    return class_size_;
+  }
+
   Status GetStatus() const {
     return status_;
   }
@@ -1046,6 +1084,11 @@ class Class : public Object {
     return num_reference_instance_fields_;
   }
 
+  // Returns the number of static fields containing reference types.
+  size_t NumReferenceStaticFields() const {
+    return num_reference_static_fields_;
+  }
+
   // Finds the given instance field in this class or a superclass.
   Field* FindInstanceField(const StringPiece& name,
       const StringPiece& descriptor);
@@ -1084,12 +1127,20 @@ class Class : public Object {
     sfields_->Set(i, f);
   }
 
-  uint32_t GetReferenceOffsets() const {
-    return reference_offsets_;
+  uint32_t GetReferenceInstanceOffsets() const {
+    return reference_instance_offsets_;
   }
 
-  void SetReferenceOffsets(uint32_t new_reference_offsets) {
-    reference_offsets_ = new_reference_offsets;
+  void SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {
+    reference_instance_offsets_ = new_reference_offsets;
+  }
+
+  uint32_t GetReferenceStaticOffsets() const {
+    return reference_static_offsets_;
+  }
+
+  void SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
+    reference_static_offsets_ = new_reference_offsets;
   }
 
   size_t NumInterfaces() const {
@@ -1220,11 +1271,11 @@ class Class : public Object {
   // specifies the number of reference fields.
   ObjectArray<Field>* ifields_;
 
-  // number of fields that are object refs
+  // number of instance fields that are object refs
   size_t num_reference_instance_fields_;
 
   // Bitmap of offsets of ifields.
-  uint32_t reference_offsets_;
+  uint32_t reference_instance_offsets_;
 
   // source file name, if known.  Otherwise, NULL.
   const char* source_file_;
@@ -1232,18 +1283,17 @@ class Class : public Object {
   // Static fields
   ObjectArray<Field>* sfields_;
 
-  // static field storage
-  //
-  // Each static field is stored in one of three arrays:
-  //  o references are stored in static_references_
-  //  o doubles and longs are stored in static_64bit_primitives_
-  //  o everything else is in static_32bit_primitives_
-  // Static fields select their array using their type and their index using the
-  // Field->slot_ member. Storing static fields in arrays avoids the need for a
-  // special case in the GC.
-  ObjectArray<Object>* static_references_;
-  IntArray* static_32bit_primitives_;
-  LongArray* static_64bit_primitives_;
+  // number of static fields that are object refs
+  size_t num_reference_static_fields_;
+
+  // Bitmap of offsets of sfields.
+  uint32_t reference_static_offsets_;
+
+  // Total class size; used when allocating storage on gc heap.
+  size_t class_size_;
+
+  // Location of first static field.
+  uint32_t fields_[0];
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
@@ -1259,6 +1309,11 @@ inline bool Object::InstanceOf(const Class* klass) const {
 inline bool Object::IsClass() const {
   Class* java_lang_Class = klass_->klass_;
   return klass_ == java_lang_Class;
+}
+
+inline bool Object::IsClassClass() const {
+  Class* java_lang_Class = klass_->klass_;
+  return this == java_lang_Class;
 }
 
 inline bool Object::IsObjectArray() const {
@@ -1285,6 +1340,9 @@ inline size_t Object::SizeOf() const {
   if (IsArray()) {
     return AsArray()->SizeOf();
   }
+  if (IsClass()) {
+    return AsClass()->SizeOf();
+  }
   return klass_->object_size_;
 }
 
@@ -1292,8 +1350,47 @@ inline size_t Array::SizeOf() const {
   return SizeOf(GetLength(), klass_->GetComponentSize());
 }
 
+class ClassClass : public Class {
+ private:
+  // Padding to ensure the 64-bit serialVersionUID_ begins on a 8-byte boundary
+  int32_t padding_;
+  int64_t serialVersionUID_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);
+};
+
+class StringClass : public Class {
+ private:
+  CharArray* ASCII_;
+  Object* CASE_INSENSITIVE_ORDER_;
+  uint32_t REPLACEMENT_CHAR_;
+  int64_t serialVersionUID;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
+};
+
+class FieldClass : public Class {
+ private:
+  Object* ORDER_BY_NAME_AND_DECLARING_CLASS_;
+  uint32_t TYPE_BOOLEAN_;
+  uint32_t TYPE_BYTE_;
+  uint32_t TYPE_CHAR_;
+  uint32_t TYPE_DOUBLE_;
+  uint32_t TYPE_FLOAT_;
+  uint32_t TYPE_INTEGER_;
+  uint32_t TYPE_LONG_;
+  uint32_t TYPE_SHORT_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(FieldClass);
+};
+
+class MethodClass : public Class {
+ private:
+  int32_t DECLARED_;
+  int32_t PUBLIC_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MethodClass);
+};
+
 class DataObject : public Object {
  public:
+  // Location of first instance field.
   uint32_t fields_[0];
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(DataObject);

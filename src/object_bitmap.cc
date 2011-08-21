@@ -89,7 +89,7 @@ void HeapBitmap::Walk(HeapBitmap::Callback* callback, void* arg) {
       uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + base_;
       while (word != 0) {
         const int shift = CLZ(word);
-        Object* obj = (Object *)(ptr_base + shift * kAlignment);
+        Object* obj = (Object*) (ptr_base + shift * kAlignment);
         (*callback)(obj, arg);
         word &= ~(high_bit >> shift);
       }

@@ -161,128 +161,160 @@ bool Class::IsInSamePackage(const Class* that) const {
   return IsInSamePackage(klass1->descriptor_, klass2->descriptor_);
 }
 
-bool Field::GetBoolean() {
-  CHECK_EQ(GetType(), 'Z');
-  CHECK(IsStatic());
-  return declaring_class_->static_32bit_primitives_->Get(offset_);
+uint32_t Field::Get32(const Object* object) const {
+  CHECK((object == NULL) == IsStatic());
+  if (IsStatic()) {
+    object = declaring_class_;
+  }
+  return object->GetField32(GetOffset());
 }
 
-void Field::SetBoolean(bool z) {
-  CHECK_EQ(GetType(), 'Z');
-  CHECK(IsStatic());
-  declaring_class_->static_32bit_primitives_->Set(offset_, z);
+void Field::Set32(Object* object, uint32_t new_value) const {
+  CHECK((object == NULL) == IsStatic());
+  if (IsStatic()) {
+    object = declaring_class_;
+  }
+  object->SetField32(GetOffset(), new_value);
 }
 
-int8_t Field::GetByte() {
+uint64_t Field::Get64(const Object* object) const {
+  CHECK((object == NULL) == IsStatic());
+  if (IsStatic()) {
+    object = declaring_class_;
+  }
+  return object->GetField64(GetOffset());
+}
+
+void Field::Set64(Object* object, uint64_t new_value) const {
+  CHECK((object == NULL) == IsStatic());
+  if (IsStatic()) {
+    object = declaring_class_;
+  }
+  object->SetField64(GetOffset(), new_value);
+}
+
+Object* Field::GetObj(const Object* object) const {
+  CHECK((object == NULL) == IsStatic());
+  if (IsStatic()) {
+    object = declaring_class_;
+  }
+  return object->GetFieldObject(GetOffset());
+}
+
+void Field::SetObj(Object* object, Object* new_value) const {
+  CHECK((object == NULL) == IsStatic());
+  if (IsStatic()) {
+    object = declaring_class_;
+  }
+  object->SetFieldObject(GetOffset(), new_value);
+}
+
+bool Field::GetBoolean(const Object* object) const {
+  CHECK_EQ(GetType(), 'Z');
+  return Get32(object);
+}
+
+void Field::SetBoolean(Object* object, bool z) const {
+  CHECK_EQ(GetType(), 'Z');
+  Set32(object, z);
+}
+
+int8_t Field::GetByte(const Object* object) const {
+  CHECK_EQ(GetType(), 'B');
+  return Get32(object);
+}
+
+void Field::SetByte(Object* object, int8_t b) const {
   CHECK_EQ(GetType(), 'B');
   CHECK(IsStatic());
-  return declaring_class_->static_32bit_primitives_->Get(offset_);
+  Set32(object, b);
 }
 
-void Field::SetByte(int8_t b) {
-  CHECK_EQ(GetType(), 'B');
-  CHECK(IsStatic());
-  declaring_class_->static_32bit_primitives_->Set(offset_, b);
+uint16_t Field::GetChar(const Object* object) const {
+  CHECK_EQ(GetType(), 'C');
+  return Get32(object);
 }
 
-uint16_t Field::GetChar() {
+void Field::SetChar(Object* object, uint16_t c) const {
   CHECK_EQ(GetType(), 'C');
   CHECK(IsStatic());
-  return declaring_class_->static_32bit_primitives_->Get(offset_);
+  Set32(object, c);
 }
 
-void Field::SetChar(uint16_t c) {
-  CHECK_EQ(GetType(), 'C');
-  CHECK(IsStatic());
-  declaring_class_->static_32bit_primitives_->Set(offset_, c);
+uint16_t Field::GetShort(const Object* object) const {
+  CHECK_EQ(GetType(), 'S');
+  return Get32(object);
 }
 
-uint16_t Field::GetShort() {
+void Field::SetShort(Object* object, uint16_t s) const {
   CHECK_EQ(GetType(), 'S');
   CHECK(IsStatic());
-  return declaring_class_->static_32bit_primitives_->Get(offset_);
+  Set32(object, s);
 }
 
-void Field::SetShort(uint16_t s) {
-  CHECK_EQ(GetType(), 'S');
-  CHECK(IsStatic());
-  declaring_class_->static_32bit_primitives_->Set(offset_, s);
+int32_t Field::GetInt(const Object* object) const {
+  CHECK_EQ(GetType(), 'I');
+  return Get32(object);
 }
 
-int32_t Field::GetInt() {
+void Field::SetInt(Object* object, int32_t i) const {
   CHECK_EQ(GetType(), 'I');
   CHECK(IsStatic());
-  return declaring_class_->static_32bit_primitives_->Get(offset_);
+  Set32(object, i);
 }
 
-void Field::SetInt(int32_t i) {
-  CHECK_EQ(GetType(), 'I');
-  CHECK(IsStatic());
-  declaring_class_->static_32bit_primitives_->Set(offset_, i);
+int64_t Field::GetLong(const Object* object) const {
+  CHECK_EQ(GetType(), 'J');
+  return Get64(object);
 }
 
-int64_t Field::GetLong() {
+void Field::SetLong(Object* object, int64_t j) const {
   CHECK_EQ(GetType(), 'J');
   CHECK(IsStatic());
-  return declaring_class_->static_64bit_primitives_->Get(offset_);
+  Set64(object, j);
 }
 
-void Field::SetLong(int64_t j) {
-  CHECK_EQ(GetType(), 'J');
-  CHECK(IsStatic());
-  declaring_class_->static_64bit_primitives_->Set(offset_, j);
-}
-
-float Field::GetFloat() {
+float Field::GetFloat(const Object* object) const {
   CHECK_EQ(GetType(), 'F');
-  CHECK(IsStatic());
   JValue float_bits;
-  float_bits.i = declaring_class_->static_32bit_primitives_->Get(offset_);
+  float_bits.i = Get32(object);
   return float_bits.f;
 }
 
-void Field::SetFloat(float f) {
+void Field::SetFloat(Object* object, float f) const {
   CHECK_EQ(GetType(), 'F');
   CHECK(IsStatic());
   JValue float_bits;
   float_bits.f = f;
-  declaring_class_->static_32bit_primitives_->Set(offset_, float_bits.i);
+  Set32(object, float_bits.i);
 }
 
-double Field::GetDouble() {
+double Field::GetDouble(const Object* object) const {
   CHECK_EQ(GetType(), 'D');
-  CHECK(IsStatic());
   JValue double_bits;
-  double_bits.j = declaring_class_->static_64bit_primitives_->Get(offset_);
+  double_bits.j = Get64(object);
   return double_bits.d;
 }
 
-void Field::SetDouble(double d) {
+void Field::SetDouble(Object* object, double d) const {
   CHECK_EQ(GetType(), 'D');
   CHECK(IsStatic());
   JValue double_bits;
   double_bits.d = d;
-  declaring_class_->static_64bit_primitives_->Set(offset_, double_bits.j);
+  Set64(object, double_bits.j);
 }
 
-Object* Field::GetObject() {
+Object* Field::GetObject(const Object* object) const {
   CHECK(GetType() == 'L' || GetType() == '[');
-  CHECK(IsStatic());
-  return declaring_class_->static_references_->Get(offset_);
+  return GetObj(object);
 }
 
-const Object* Field::GetObject() const {
+void Field::SetObject(Object* object, Object* l) const {
   CHECK(GetType() == 'L' || GetType() == '[');
-  CHECK(IsStatic());
-  return declaring_class_->static_references_->Get(offset_);
+  SetObj(object, l);
 }
 
-void Field::SetObject(Object* l) {
-  CHECK(GetType() == 'L' || GetType() == '[');
-  declaring_class_->static_references_->Set(offset_, l);  // TODO: write barrier
-}
-
-uint32_t Method::NumArgRegisters() {
+uint32_t Method::NumArgRegisters() const {
   CHECK(shorty_ != NULL);
   uint32_t num_registers = 0;
   for (int i = 1; i < shorty_.length(); ++i) {
@@ -296,7 +328,7 @@ uint32_t Method::NumArgRegisters() {
   return num_registers;
 }
 
-size_t Method::NumArgArrayBytes() {
+size_t Method::NumArgArrayBytes() const {
   const StringPiece& shorty = GetShorty();
   size_t num_bytes = 0;
   for (int i = 1; i < shorty.size(); ++i) {

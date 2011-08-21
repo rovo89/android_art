@@ -65,14 +65,14 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK(!init_done_);
 
   // java_lang_Class comes first, its needed for AllocClass
-  Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(Class)));
+  Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(ClassClass)));
   CHECK(java_lang_Class != NULL);
-  java_lang_Class->object_size_ = sizeof(Class);
+  java_lang_Class->class_size_ = sizeof(ClassClass);
   java_lang_Class->klass_ = java_lang_Class;
   // AllocClass(Class*) can now be used
 
   // java_lang_Object comes next so that object_array_class can be created
-  Class* java_lang_Object = AllocClass(java_lang_Class);
+  Class* java_lang_Object = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(java_lang_Object != NULL);
   // backfill Object as the super class of Class
   java_lang_Class->super_class_ = java_lang_Object;
@@ -80,17 +80,17 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   java_lang_Object->primitive_type_ = Class::kPrimNot;
 
   // object_array_class is for root_classes to provide the storage for these classes
-  Class* object_array_class = AllocClass(java_lang_Class);
+  Class* object_array_class = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(object_array_class != NULL);
   object_array_class->component_type_ = java_lang_Object;
 
   // String and char[] are necessary so that FindClass can assign names to members
-  Class* java_lang_String = AllocClass(java_lang_Class);
+  Class* java_lang_String = AllocClass(java_lang_Class, sizeof(StringClass));
   CHECK(java_lang_String != NULL);
   CHECK_LT(java_lang_String->object_size_, sizeof(String));
   java_lang_String->object_size_ = sizeof(String);
   String::SetClass(java_lang_String);
-  Class* char_array_class = AllocClass(java_lang_Class);
+  Class* char_array_class = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(char_array_class != NULL);
   CharArray::SetArrayClass(char_array_class);
   // Now String::Alloc* can be used
@@ -102,23 +102,13 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   java_lang_String->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/String;");
   char_array_class->descriptor_ = String::AllocFromModifiedUtf8("[C");
 
-  // int[] and long[] are used for static field storage
-  Class* int_array_class = AllocClass(java_lang_Class);
-  CHECK(int_array_class != NULL);
-  int_array_class->descriptor_ = String::AllocFromModifiedUtf8("[I");
-  IntArray::SetArrayClass(int_array_class);
-  Class* long_array_class = AllocClass(java_lang_Class);
-  CHECK(long_array_class != NULL);
-  long_array_class->descriptor_ = String::AllocFromModifiedUtf8("[J");
-  LongArray::SetArrayClass(long_array_class);
-
   // Field and Method are necessary so that FindClass can link members
-  Class* java_lang_reflect_Field = AllocClass(java_lang_Class);
+  Class* java_lang_reflect_Field = AllocClass(java_lang_Class, sizeof(FieldClass));
   CHECK(java_lang_reflect_Field != NULL);
   java_lang_reflect_Field->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/reflect/Field;");
   CHECK_LT(java_lang_reflect_Field->object_size_, sizeof(Field));
   java_lang_reflect_Field->object_size_ = sizeof(Field);
-  Class* java_lang_reflect_Method = AllocClass(java_lang_Class);
+  Class* java_lang_reflect_Method = AllocClass(java_lang_Class, sizeof(MethodClass));
   java_lang_reflect_Method->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;");
   CHECK(java_lang_reflect_Method != NULL);
   CHECK_LT(java_lang_reflect_Method->object_size_, sizeof(Method));
@@ -131,8 +121,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   SetClassRoot(kObjectArrayClass, object_array_class);
   SetClassRoot(kJavaLangString, java_lang_String);
   SetClassRoot(kCharArrayClass, char_array_class);
-  SetClassRoot(kIntArrayClass, int_array_class);
-  SetClassRoot(kLongArrayClass, long_array_class);
   SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
   SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
@@ -225,10 +213,6 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // run char[], int[] and long[] through FindClass to complete initialization
   Class* found_char_array_class = FindSystemClass("[C");
   CHECK_EQ(char_array_class, found_char_array_class);
-  Class* found_int_array_class = FindSystemClass("[I");
-  CHECK_EQ(int_array_class, found_int_array_class);
-  Class* found_long_array_class = FindSystemClass("[J");
-  CHECK_EQ(long_array_class, found_long_array_class);
 
   // Initialize all the other primitive array types for PrimitiveArray::Alloc.
   // These are easy because everything we need has already been set up.
@@ -236,11 +220,15 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   SetClassRoot(kByteArrayClass, FindSystemClass("[B"));
   SetClassRoot(kDoubleArrayClass, FindSystemClass("[D"));
   SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
+  SetClassRoot(kIntArrayClass, FindSystemClass("[I"));
+  SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
   SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
   FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
+  IntArray::SetArrayClass(GetClassRoot(kIntArrayClass));
+  LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
   FinishInit();
@@ -343,7 +331,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path, Space* spac
   FinishInit();
 }
 
-void ClassLinker::InitCallback(Object *obj, void *arg) {
+void ClassLinker::InitCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   InitCallbackState* state = reinterpret_cast<InitCallbackState*>(arg);
@@ -410,12 +398,15 @@ DexCache* ClassLinker::AllocDexCache(const DexFile* dex_file) {
   return dex_cache;
 }
 
-Class* ClassLinker::AllocClass(Class* java_lang_Class) {
-  return java_lang_Class->NewInstance()->AsClass();
+Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
+  DCHECK_GE(class_size, sizeof(Class));
+  Class* klass = Heap::AllocObject(java_lang_Class, class_size)->AsClass();
+  klass->class_size_ = class_size;
+  return klass;
 }
 
-Class* ClassLinker::AllocClass() {
-  return AllocClass(GetClassRoot(kJavaLangClass));
+Class* ClassLinker::AllocClass(size_t class_size) {
+  return AllocClass(GetClassRoot(kJavaLangClass), class_size);
 }
 
 Field* ClassLinker::AllocField() {
@@ -476,10 +467,10 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
       } else if (descriptor == "Ljava/lang/reflect/Method;") {
         klass = GetClassRoot(kJavaLangReflectMethod);
       } else {
-        klass = AllocClass();
+        klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
       }
     } else {
-      klass = AllocClass();
+      klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
     }
     klass->dex_cache_ = dex_cache;
     LoadClass(dex_file, dex_class_def, klass, class_loader);
@@ -540,6 +531,53 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
   CHECK(klass->IsLinked());
   CHECK(!self->IsExceptionPending());
   return klass;
+}
+
+// Precomputes size that will be needed for Class, matching LinkStaticFields
+size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
+                                const DexFile::ClassDef& dex_class_def) {
+  const byte* class_data = dex_file.GetClassData(dex_class_def);
+  DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
+  size_t num_static_fields = header.static_fields_size_;
+  size_t num_ref = 0;
+  size_t num_32 = 0;
+  size_t num_64 = 0;
+  if (num_static_fields != 0) {
+    uint32_t last_idx = 0;
+    for (size_t i = 0; i < num_static_fields; ++i) {
+      DexFile::Field dex_field;
+      dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(dex_field.field_idx_);
+      const char* descriptor = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+      char c = descriptor[0];
+      if (c == 'L' || c == '[') {
+        num_ref++;
+      } else if (c == 'J' || c == 'D') {
+        num_64++;
+      } else {
+        num_32++;
+      }
+    }
+  }
+
+  // start with generic class data
+  size_t size = sizeof(Class);
+  // follow with reference fields which must be contiguous at start
+  size += (num_ref * sizeof(uint32_t));
+  // if there are 64-bit fields to add, make sure they are aligned
+  if (num_64 != 0 && size != RoundUp(size, 8)) { // for 64-bit alignment
+    if (num_32 != 0) {
+      // use an available 32-bit field for padding
+      num_32--;
+    }
+    size += sizeof(uint32_t);  // either way, we are adding a word
+    DCHECK_EQ(size, RoundUp(size, 8));
+  }
+  // tack on any 64-bit fields now that alignment is assured
+  size += (num_64 * sizeof(uint64_t));
+  // tack on any remaining 32-bit fields
+  size += (num_32 * sizeof(uint32_t));
+  return size;
 }
 
 void ClassLinker::LoadClass(const DexFile& dex_file,
@@ -750,7 +788,7 @@ DexCache* ClassLinker::FindDexCache(const DexFile* dex_file) const {
 }
 
 Class* ClassLinker::CreatePrimitiveClass(const char* descriptor) {
-  Class* klass = AllocClass();
+  Class* klass = AllocClass(sizeof(Class));
   CHECK(klass != NULL);
   klass->super_class_ = NULL;
   klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
@@ -849,14 +887,10 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
       new_class = GetClassRoot(kObjectArrayClass);
     } else if (descriptor == "[C") {
       new_class = GetClassRoot(kCharArrayClass);
-    } else if (descriptor == "[I") {
-      new_class = GetClassRoot(kIntArrayClass);
-    } else if (descriptor == "[J") {
-      new_class = GetClassRoot(kLongArrayClass);
     }
   }
   if (new_class == NULL) {
-    new_class = AllocClass();
+    new_class = AllocClass(sizeof(Class));
     if (new_class == NULL) {
       return NULL;
     }
@@ -1205,6 +1239,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
     return;
   }
   DexCache* dex_cache = klass->GetDexCache();
+  // TODO: this seems like the wrong check. do we really want !IsPrimitive && !IsArray?
   if (dex_cache == NULL) {
     return;
   }
@@ -1224,37 +1259,37 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
     DexFile::ValueType type = dex_file.ReadEncodedValue(&addr, &value);
     switch (type) {
       case DexFile::kByte:
-        field->SetByte(value.b);
+        field->SetByte(NULL, value.b);
         break;
       case DexFile::kShort:
-        field->SetShort(value.s);
+        field->SetShort(NULL, value.s);
         break;
       case DexFile::kChar:
-        field->SetChar(value.c);
+        field->SetChar(NULL, value.c);
         break;
       case DexFile::kInt:
-        field->SetInt(value.i);
+        field->SetInt(NULL, value.i);
         break;
       case DexFile::kLong:
-        field->SetLong(value.j);
+        field->SetLong(NULL, value.j);
         break;
       case DexFile::kFloat:
-        field->SetFloat(value.f);
+        field->SetFloat(NULL, value.f);
         break;
       case DexFile::kDouble:
-        field->SetDouble(value.d);
+        field->SetDouble(NULL, value.d);
         break;
       case DexFile::kString: {
         uint32_t string_idx = value.i;
         String* resolved = ResolveString(klass, string_idx, dex_file);
-        field->SetObject(resolved);
+        field->SetObject(NULL, resolved);
         break;
       }
       case DexFile::kBoolean:
-        field->SetBoolean(value.z);
+        field->SetBoolean(NULL, value.z);
         break;
       case DexFile::kNull:
-        field->SetObject(value.l);
+        field->SetObject(NULL, value.l);
         break;
       default:
         LOG(FATAL) << "Unknown type " << static_cast<int>(type);
@@ -1270,13 +1305,14 @@ bool ClassLinker::LinkClass(Class* klass, const DexFile& dex_file) {
   if (!LinkMethods(klass)) {
     return false;
   }
-  if (!LinkStaticFields(klass)) {
-    return false;
-  }
   if (!LinkInstanceFields(klass)) {
     return false;
   }
-  CreateReferenceOffsets(klass);
+  if (!LinkStaticFields(klass)) {
+    return false;
+  }
+  CreateReferenceInstanceOffsets(klass);
+  CreateReferenceStaticOffsets(klass);
   CHECK_EQ(Class::kStatusLoaded, klass->status_);
   klass->status_ = Class::kStatusResolved;
   return true;
@@ -1557,68 +1593,61 @@ void ClassLinker::LinkAbstractMethods(Class* klass) {
   }
 }
 
-// Each static field will be stored in one of three arrays: static_references_,
-// static_32bit_primitives_, or static_64bit_primitives_. This assigns each
-// field a slot in its array and create the arrays.
-bool ClassLinker::LinkStaticFields(Class* klass) {
-  size_t next_reference_slot = 0;
-  size_t next_32bit_primitive_slot = 0;
-  size_t next_64bit_primitive_slot = 0;
-
-  for (size_t i = 0; i < klass->NumStaticFields(); i++) {
-    Field* field = klass->GetStaticField(i);
-    char type = field->GetType();
-    if (type == '[' || type == 'L') {
-      field->offset_ = next_reference_slot++;
-    } else if (type == 'J' || type == 'D') {
-      field->offset_ = next_64bit_primitive_slot++;
-    } else {
-      field->offset_ = next_32bit_primitive_slot++;
-    }
-  }
-
-  if (next_reference_slot > 0) {
-    Class* array_class = GetClassRoot(kObjectArrayClass);
-    klass->static_references_ = ObjectArray<Object>::Alloc(array_class, next_reference_slot);
-  }
-  if (next_32bit_primitive_slot > 0) {
-    klass->static_32bit_primitives_ = IntArray::Alloc(next_32bit_primitive_slot);
-  }
-  if (next_64bit_primitive_slot > 0) {
-    klass->static_64bit_primitives_ = LongArray::Alloc(next_64bit_primitive_slot);
-  }
-
-  return true;
-}
-
 bool ClassLinker::LinkInstanceFields(Class* klass) {
-  int field_offset;
+  CHECK(klass != NULL);
+  size_t field_offset;
   if (klass->GetSuperClass() != NULL) {
     field_offset = klass->GetSuperClass()->object_size_;
   } else {
     field_offset = OFFSETOF_MEMBER(DataObject, fields_);
   }
+  return LinkFields(field_offset,
+                    klass->num_reference_instance_fields_,
+                    klass->NumInstanceFields(),
+                    klass->ifields_,
+                    klass->object_size_);
+}
+
+bool ClassLinker::LinkStaticFields(Class* klass) {
+  CHECK(klass != NULL);
+  size_t allocated_class_size = klass->class_size_;
+  size_t field_offset = OFFSETOF_MEMBER(Class, fields_);
+  bool success = LinkFields(field_offset,
+                            klass->num_reference_static_fields_,
+                            klass->NumStaticFields(),
+                            klass->sfields_,
+                            klass->class_size_);
+  CHECK_EQ(allocated_class_size, klass->class_size_);
+  return success;
+}
+
+bool ClassLinker::LinkFields(size_t field_offset,
+                             size_t& num_reference_fields,
+                             size_t num_fields,
+                             ObjectArray<Field>* fields,
+                             size_t& size) {
+  CHECK((num_fields == 0) == (fields == NULL));
   // Move references to the front.
-  klass->num_reference_instance_fields_ = 0;
+  num_reference_fields = 0;
   size_t i = 0;
-  for ( ; i < klass->NumInstanceFields(); i++) {
-    Field* pField = klass->GetInstanceField(i);
+  for ( ; i < num_fields; i++) {
+    Field* pField = fields->Get(i);
     char c = pField->GetType();
     if (c != '[' && c != 'L') {
-      for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
-        Field* refField = klass->GetInstanceField(j);
+      for (size_t j = num_fields - 1; j > i; j--) {
+        Field* refField = fields->Get(j);
         char rc = refField->GetType();
         if (rc == '[' || rc == 'L') {
-          klass->SetInstanceField(i, refField);
-          klass->SetInstanceField(j, pField);
+          fields->Set(i, refField);
+          fields->Set(j, pField);
           pField = refField;
           c = rc;
-          klass->num_reference_instance_fields_++;
+          num_reference_fields++;
           break;
         }
       }
     } else {
-      klass->num_reference_instance_fields_++;
+      num_reference_fields++;
     }
     if (c != '[' && c != 'L') {
       break;
@@ -1630,8 +1659,8 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
   // Now we want to pack all of the double-wide fields together.  If
   // we're not aligned, though, we want to shuffle one 32-bit field
   // into place.  If we can't find one, we'll have to pad it.
-  if (i != klass->NumInstanceFields() && (field_offset & 0x04) != 0) {
-    Field* pField = klass->GetInstanceField(i);
+  if (i != num_fields && (field_offset & 0x04) != 0) {
+    Field* pField = fields->Get(i);
     char c = pField->GetType();
 
     if (c != 'J' && c != 'D') {
@@ -1645,12 +1674,12 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
       // Next field is 64-bit, so search for a 32-bit field we can
       // swap into it.
       bool found = false;
-      for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
-        Field* singleField = klass->GetInstanceField(j);
+      for (size_t j = num_fields - 1; j > i; j--) {
+        Field* singleField = fields->Get(j);
         char rc = singleField->GetType();
         if (rc != 'J' && rc != 'D') {
-          klass->SetInstanceField(i, singleField);
-          klass->SetInstanceField(j, pField);
+          fields->Set(i, singleField);
+          fields->Set(j, pField);
           pField = singleField;
           pField->SetOffset(field_offset);
           field_offset += sizeof(uint32_t);
@@ -1667,17 +1696,17 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
 
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
-  DCHECK(i == klass->NumInstanceFields() || (field_offset & 0x04) == 0);
-  for ( ; i < klass->NumInstanceFields(); i++) {
-    Field* pField = klass->GetInstanceField(i);
+  DCHECK(i == num_fields || (field_offset & 0x04) == 0);
+  for ( ; i < num_fields; i++) {
+    Field* pField = fields->Get(i);
     char c = pField->GetType();
     if (c != 'D' && c != 'J') {
-      for (size_t j = klass->NumInstanceFields() - 1; j > i; j--) {
-        Field* doubleField = klass->GetInstanceField(j);
+      for (size_t j = num_fields - 1; j > i; j--) {
+        Field* doubleField = fields->Get(j);
         char rc = doubleField->GetType();
         if (rc == 'D' || rc == 'J') {
-          klass->SetInstanceField(i, doubleField);
-          klass->SetInstanceField(j, pField);
+          fields->Set(i, doubleField);
+          fields->Set(j, pField);
           pField = doubleField;
           c = rc;
           break;
@@ -1689,16 +1718,17 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
 
     pField->SetOffset(field_offset);
     field_offset += sizeof(uint32_t);
-    if (c == 'J' || c == 'D')
+    if (c == 'J' || c == 'D') {
       field_offset += sizeof(uint32_t);
+    }
   }
 
 #ifndef NDEBUG
   // Make sure that all reference fields appear before
   // non-reference fields, and all double-wide fields are aligned.
   bool seen_non_ref = false;
-  for (i = 0; i < klass->NumInstanceFields(); i++) {
-    Field *pField = klass->GetInstanceField(i);
+  for (i = 0; i < num_fields; i++) {
+    Field *pField = fields->Get(i);
     char c = pField->GetType();
 
     if (c == 'D' || c == 'J') {
@@ -1708,50 +1738,64 @@ bool ClassLinker::LinkInstanceFields(Class* klass) {
     if (c != '[' && c != 'L') {
       if (!seen_non_ref) {
         seen_non_ref = true;
-        DCHECK_EQ(klass->NumReferenceInstanceFields(), i);
+        DCHECK_EQ(num_reference_fields, i);
       }
     } else {
       DCHECK(!seen_non_ref);
     }
   }
   if (!seen_non_ref) {
-    DCHECK_EQ(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
+    DCHECK_EQ(num_fields, num_reference_fields);
   }
 #endif
-  klass->object_size_ = field_offset;
+  size = field_offset;
   return true;
 }
 
 //  Set the bitmap of reference offsets, refOffsets, from the ifields
 //  list.
-void ClassLinker::CreateReferenceOffsets(Class* klass) {
-  uint32_t reference_offsets = 0;
+void ClassLinker::CreateReferenceInstanceOffsets(Class* klass) {
+  klass->reference_instance_offsets_ = 0;
   if (klass->HasSuperClass()) {
-    reference_offsets = klass->GetSuperClass()->GetReferenceOffsets();
-  }
-  // If our superclass overflowed, we don't stand a chance.
-  if (reference_offsets != CLASS_WALK_SUPER) {
-    // All of the fields that contain object references are guaranteed
-    // to be at the beginning of the ifields list.
-    for (size_t i = 0; i < klass->NumReferenceInstanceFields(); ++i) {
-      // Note that, per the comment on struct InstField, f->byteOffset
-      // is the offset from the beginning of obj, not the offset into
-      // obj->instanceData.
-      const Field* field = klass->GetInstanceField(i);
-      size_t byte_offset = field->GetOffset();
-      CHECK_GE(byte_offset, CLASS_SMALLEST_OFFSET);
-      CHECK_EQ(byte_offset & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
-      if (CLASS_CAN_ENCODE_OFFSET(byte_offset)) {
-        uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset);
-        CHECK_NE(new_bit, 0U);
-        reference_offsets |= new_bit;
-      } else {
-        reference_offsets = CLASS_WALK_SUPER;
-        break;
-      }
+    klass->reference_instance_offsets_ = klass->GetSuperClass()->GetReferenceInstanceOffsets();
+    // If our superclass overflowed, we don't stand a chance.
+    if (klass->reference_instance_offsets_ == CLASS_WALK_SUPER) {
+      return;
     }
   }
-  klass->SetReferenceOffsets(reference_offsets);
+  CreateReferenceOffsets(klass->reference_instance_offsets_,
+                         klass->NumReferenceInstanceFields(),
+                         klass->ifields_);
+}
+
+void ClassLinker::CreateReferenceStaticOffsets(Class* klass) {
+  klass->reference_static_offsets_ = 0;
+  CreateReferenceOffsets(klass->reference_static_offsets_,
+                         klass->NumReferenceStaticFields(),
+                         klass->sfields_);
+}
+
+void ClassLinker::CreateReferenceOffsets(uint32_t& reference_offsets,
+                                         size_t num_reference_fields,
+                                         const ObjectArray<Field>* fields) {
+  // All of the fields that contain object references are guaranteed
+  // to be at the beginning of the fields list.
+  for (size_t i = 0; i < num_reference_fields; ++i) {
+    // Note that byte_offset is the offset from the beginning of
+    // object, not the offset into instance data
+    const Field* field = fields->Get(i);
+    size_t byte_offset = field->GetOffset();
+    CHECK_GE(byte_offset, CLASS_SMALLEST_OFFSET);
+    CHECK_EQ(byte_offset & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
+    if (CLASS_CAN_ENCODE_OFFSET(byte_offset)) {
+      uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset);
+      CHECK_NE(new_bit, 0U);
+      reference_offsets |= new_bit;
+    } else {
+      reference_offsets = CLASS_WALK_SUPER;
+      break;
+    }
+  }
 }
 
 Class* ClassLinker::ResolveClass(const Class* referrer,

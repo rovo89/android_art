@@ -46,16 +46,18 @@ class ImageWriter {
   }
 
   void CalculateNewObjectOffsets();
-  static void CalculateNewObjectOffsetsCallback(Object *obj, void *arg);
+  static void CalculateNewObjectOffsetsCallback(Object* obj, void *arg);
 
   void CopyAndFixupObjects();
-  static void CopyAndFixupObjectsCallback(Object *obj, void *arg);
-  void FixupClass(Class* orig, Class* copy);
-  void FixupMethod(Method* orig, Method* copy);
-  void FixupField(Field* orig, Field* copy);
-  void FixupObject(Object* orig, Object* copy);
-  void FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy);
-  void FixupInstanceFields(Object* orig, Object* copy);
+  static void CopyAndFixupObjectsCallback(Object* obj, void *arg);
+  void FixupClass(const Class* orig, Class* copy);
+  void FixupMethod(const Method* orig, Method* copy);
+  void FixupField(const Field* orig, Field* copy);
+  void FixupObject(const Object* orig, Object* copy);
+  void FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy);
+  void FixupInstanceFields(const Object* orig, Object* copy);
+  void FixupStaticFields(const Class* orig, Class* copy);
+  void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
 
   // memory mapped for generating the image
   scoped_ptr<MemMap> image_;

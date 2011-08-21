@@ -75,7 +75,7 @@ class ClassLinker {
 
   // Initialize class linker from pre-initialized space.
   void Init(const std::vector<DexFile*>& boot_class_path_, Space* space);
-  static void InitCallback(Object *obj, void *arg);
+  static void InitCallback(Object* obj, void *arg);
   struct InitCallbackState;
 
   void FinishInit();
@@ -83,12 +83,12 @@ class ClassLinker {
   bool InitializeClass(Class* klass);
 
   // For early bootstrapping by Init
-  Class* AllocClass(Class* java_lang_Class);
+  Class* AllocClass(Class* java_lang_Class, size_t class_size);
 
   // Alloc* convenience functions to avoid needing to pass in Class*
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
-  Class* AllocClass();
+  Class* AllocClass(size_t class_size);
   DexCache* AllocDexCache(const DexFile* dex_file);
   Field* AllocField();
   Method* AllocMethod();
@@ -107,6 +107,9 @@ class ClassLinker {
 
   void AppendToBootClassPath(const DexFile* dex_file);
   void AppendToBootClassPath(const DexFile* dex_file, DexCache* dex_cache);
+
+  size_t SizeOfClass(const DexFile& dex_file,
+                     const DexFile::ClassDef& dex_class_def);
 
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
@@ -170,10 +173,18 @@ class ClassLinker {
   void LinkAbstractMethods(Class* klass);
 
   bool LinkStaticFields(Class* klass);
-
   bool LinkInstanceFields(Class* klass);
+  bool LinkFields(size_t field_offset,
+                  size_t& num_reference_fields,
+                  size_t num_fields,
+                  ObjectArray<Field>* fields,
+                  size_t& size);
 
-  void CreateReferenceOffsets(Class* klass);
+  void CreateReferenceInstanceOffsets(Class* klass);
+  void CreateReferenceStaticOffsets(Class* klass);
+  void CreateReferenceOffsets(uint32_t& reference_offsets,
+                              size_t num_reference_fields,
+                              const ObjectArray<Field>* fields);
 
   std::vector<const DexFile*> boot_class_path_;
 

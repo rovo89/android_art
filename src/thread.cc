@@ -144,7 +144,7 @@ size_t Thread::NumShbHandles() {
 }
 
 bool Thread::ShbContains(jobject obj) {
-  Object **shb_entry = reinterpret_cast<Object**>(obj);
+  Object** shb_entry = reinterpret_cast<Object**>(obj);
   for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
     size_t num_refs = cur->NumberOfReferences();
     DCHECK_GT(num_refs, 0u); // A SHB should always have a jobject/jclass

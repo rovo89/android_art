@@ -70,6 +70,9 @@ class MarkSweep {
   // Grays references in static fields.
   void ScanStaticFields(const Class* klass);
 
+  // Used by ScanInstanceFields and ScanStaticFields
+  void ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static);
+
   // Grays interface class objects.
   void ScanInterfaces(const Class* klass);
 

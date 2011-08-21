@@ -126,8 +126,24 @@ void MarkSweep::Sweep() {
 // Scans instance fields.
 void MarkSweep::ScanInstanceFields(const Object* obj) {
   DCHECK(obj != NULL);
-  DCHECK(obj->GetClass() != NULL);
-  uint32_t ref_offsets = obj->GetClass()->GetReferenceOffsets();
+  Class* klass = obj->GetClass();
+  DCHECK(klass != NULL);
+  ScanFields(obj,
+             klass->GetReferenceInstanceOffsets(),
+             false);
+}
+
+// Scans static storage on a Class.
+void MarkSweep::ScanStaticFields(const Class* klass) {
+  DCHECK(klass != NULL);
+  ScanFields(klass,
+             klass->GetReferenceStaticOffsets(),
+             true);
+}
+
+void MarkSweep::ScanFields(const Object* obj,
+                           uint32_t ref_offsets,
+                           bool is_static) {
   if (ref_offsets != CLASS_WALK_SUPER) {
     // Found a reference offset bitmap.  Mark the specified offsets.
     while (ref_offsets != 0) {
@@ -138,30 +154,24 @@ void MarkSweep::ScanInstanceFields(const Object* obj) {
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
-    // There is no reference offset bitmap for this class.  Walk up
-    // the class inheritance hierarchy and find reference offsets the
-    // hard way.
-    for (Class *klass = obj->GetClass();
+    // There is no reference offset bitmap.  In the non-static case,
+    // walk up the class inheritance hierarchy and find reference
+    // offsets the hard way. In the static case, just consider this
+    // class.
+    for (const Class* klass = is_static ? obj->AsClass() : obj->GetClass();
          klass != NULL;
-         klass = klass->GetSuperClass()) {
-      for (size_t i = 0; i < klass->NumReferenceInstanceFields(); ++i) {
-        size_t field_offset = klass->GetInstanceField(i)->GetOffset();
+         klass = is_static ? NULL : klass->GetSuperClass()) {
+      size_t num_reference_fields = (is_static
+                                     ? klass->NumReferenceStaticFields()
+                                     : klass->NumReferenceInstanceFields());
+      for (size_t i = 0; i < num_reference_fields; ++i) {
+        Field* field = (is_static
+                        ? klass->GetStaticField(i)
+                        : klass->GetInstanceField(i));
+        size_t field_offset = field->GetOffset();
         const Object* ref = obj->GetFieldObject(field_offset);
         MarkObject(ref);
       }
-    }
-  }
-}
-
-// Scans the static fields of a class object.
-void MarkSweep::ScanStaticFields(const Class* klass) {
-  DCHECK(klass != NULL);
-  for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
-    const Field* static_field = klass->GetStaticField(i);
-    char ch = static_field->GetType();
-    if (ch == '[' || ch == 'L') {
-      const Object* obj = static_field->GetObject();
-      MarkObject(obj);
     }
   }
 }
@@ -198,7 +208,7 @@ void MarkSweep::ScanClass(const Object* obj) {
 
 // Scans the header of all array objects.  If the array object is
 // specialized to a reference type, scans the array data as well.
-void MarkSweep::ScanArray(const Object *obj) {
+void MarkSweep::ScanArray(const Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(obj->GetClass() != NULL);
   MarkObject(obj->GetClass());
@@ -219,7 +229,7 @@ void MarkSweep::EnqueuePendingReference(Object* ref, Object** list) {
     ref->SetFieldObject(offset, ref);
     *list = ref;
   } else {
-    Object *head = (*list)->GetFieldObject(offset);
+    Object* head = (*list)->GetFieldObject(offset);
     ref->SetFieldObject(offset, head);
     (*list)->SetFieldObject(offset, ref);
   }
@@ -235,7 +245,7 @@ Object* MarkSweep::DequeuePendingReference(Object** list) {
     ref = *list;
     *list = NULL;
   } else {
-    Object *next = head->GetFieldObject(offset);
+    Object* next = head->GetFieldObject(offset);
     (*list)->SetFieldObject(offset, next);
     ref = head;
   }
@@ -253,7 +263,7 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
   Object* pending = obj->GetFieldObject(reference_pendingNext_offset_);
   Object* referent = obj->GetFieldObject(reference_referent_offset_);
   if (pending == NULL && referent != NULL && !IsMarked(referent)) {
-    Object **list = NULL;
+    Object** list = NULL;
     if (obj->IsSoftReference()) {
       list = &soft_reference_list_;
     } else if (obj->IsWeakReference()) {
@@ -300,7 +310,7 @@ void MarkSweep::ScanObject(const Object* obj) {
 // anymore, so use a finger that points past the end of them.
 void MarkSweep::ProcessMarkStack() {
   while (!mark_stack_->IsEmpty()) {
-    const Object *obj = mark_stack_->Pop();
+    const Object* obj = mark_stack_->Pop();
     ScanObject(obj);
   }
 }
@@ -367,8 +377,8 @@ void MarkSweep::ClearWhiteReferences(Object** list) {
   DCHECK(list != NULL);
   size_t offset = reference_referent_offset_;
   while (*list != NULL) {
-    Object *ref = DequeuePendingReference(list);
-    Object *referent = ref->GetFieldObject(offset);
+    Object* ref = DequeuePendingReference(list);
+    Object* referent = ref->GetFieldObject(offset);
     if (referent != NULL && !IsMarked(referent)) {
       // Referent is white, clear it.
       ClearReference(ref);
@@ -456,7 +466,7 @@ void MarkSweep::EnqueueClearedReferences(Object** cleared) {
     // TODO: Method *meth = gDvm.methJavaLangRefReferenceQueueAdd;
     // DCHECK(meth != NULL);
     // JValue unused;
-    // Object *reference = *cleared;
+    // Object* reference = *cleared;
     // TODO: dvmCallMethod(self, meth, NULL, &unused, reference);
     UNIMPLEMENTED(FATAL);
     *cleared = NULL;

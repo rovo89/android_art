@@ -79,7 +79,7 @@ ObjectArray<Object>* CreateInternedArray() {
 
 } // namespace
 
-void ImageWriter::CalculateNewObjectOffsetsCallback(Object *obj, void *arg) {
+void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
@@ -116,14 +116,15 @@ void ImageWriter::CopyAndFixupObjects() {
   heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);
 }
 
-void ImageWriter::CopyAndFixupObjectsCallback(Object *obj, void *arg) {
-  DCHECK(obj != NULL);
+void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void *arg) {
+  DCHECK(object != NULL);
   DCHECK(arg != NULL);
+  const Object* obj = object;
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
 
   size_t offset = image_writer->GetImageOffset(obj);
   byte* dst = image_writer->image_->GetAddress() + offset;
-  byte* src = reinterpret_cast<byte*>(obj);
+  const byte* src = reinterpret_cast<const byte*>(obj);
   size_t n = obj->SizeOf();
   DCHECK_LT(offset + n, image_writer->image_->GetLength());
   memcpy(dst, src, n);
@@ -131,7 +132,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object *obj, void *arg) {
   image_writer->FixupObject(obj, copy);
 }
 
-void ImageWriter::FixupObject(Object* orig, Object* copy) {
+void ImageWriter::FixupObject(const Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   copy->klass_ = down_cast<Class*>(GetImageAddress(orig->klass_));
@@ -149,7 +150,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   }
 }
 
-void ImageWriter::FixupClass(Class* orig, Class* copy) {
+void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupInstanceFields(orig, copy);
   copy->descriptor_ = down_cast<String*>(GetImageAddress(orig->descriptor_));
   copy->dex_cache_ = down_cast<DexCache*>(GetImageAddress(orig->dex_cache_));
@@ -163,12 +164,13 @@ void ImageWriter::FixupClass(Class* orig, Class* copy) {
   copy->vtable_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->vtable_));
   // TODO: convert iftable_ to heap allocated storage
   copy->ifields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->ifields_));
+  // TODO: convert source_file_ to heap allocated storage
   copy->sfields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->sfields_));
-  copy->static_references_ = down_cast<ObjectArray<Object>*>(GetImageAddress(orig->static_references_));
+  FixupStaticFields(orig, copy);
 }
 
 // TODO: remove this slow path
-void ImageWriter::FixupMethod(Method* orig, Method* copy) {
+void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
   // TODO: remove need for this by adding "signature" to java.lang.reflect.Method
   copy->signature_ = down_cast<String*>(GetImageAddress(orig->signature_));
@@ -176,20 +178,42 @@ void ImageWriter::FixupMethod(Method* orig, Method* copy) {
   // TODO: convert shorty_ to heap allocated storage
 }
 
-void ImageWriter::FixupField(Field* orig, Field* copy) {
+void ImageWriter::FixupField(const Field* orig, Field* copy) {
   FixupInstanceFields(orig, copy);
   // TODO: convert descriptor_ to heap allocated storage
 }
 
-void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
+void ImageWriter::FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
   for (int32_t i = 0; i < orig->GetLength(); ++i) {
     const Object* element = orig->Get(i);
     copy->Set(i, GetImageAddress(element));
   }
 }
 
-void ImageWriter::FixupInstanceFields(Object* orig, Object* copy) {
-  uint32_t ref_offsets = orig->GetClass()->GetReferenceOffsets();
+void ImageWriter::FixupInstanceFields(const Object* orig, Object* copy) {
+  DCHECK(orig != NULL);
+  DCHECK(copy != NULL);
+  Class* klass = orig->GetClass();
+  DCHECK(klass != NULL);
+  FixupFields(orig,
+              copy,
+              klass->GetReferenceInstanceOffsets(),
+              false);
+}
+
+void ImageWriter::FixupStaticFields(const Class* orig, Class* copy) {
+  DCHECK(orig != NULL);
+  DCHECK(copy != NULL);
+  FixupFields(orig,
+              copy,
+              orig->GetReferenceStaticOffsets(),
+              true);
+}
+
+void ImageWriter::FixupFields(const Object* orig,
+                              Object* copy,
+                              uint32_t ref_offsets,
+                              bool is_static) {
   if (ref_offsets != CLASS_WALK_SUPER) {
     // Found a reference offset bitmap.  Fixup the specified offsets.
     while (ref_offsets != 0) {
@@ -200,14 +224,21 @@ void ImageWriter::FixupInstanceFields(Object* orig, Object* copy) {
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
-    // There is no reference offset bitmap for this class.  Walk up
-    // the class inheritance hierarchy and find reference offsets the
-    // hard way.
-    for (Class *klass = orig->GetClass();
+    // There is no reference offset bitmap.  In the non-static case,
+    // walk up the class inheritance hierarchy and find reference
+    // offsets the hard way. In the static case, just consider this
+    // class.
+    for (const Class *klass = is_static ? orig->AsClass() : orig->GetClass();
          klass != NULL;
-         klass = klass->GetSuperClass()) {
-      for (size_t i = 0; i < klass->NumReferenceInstanceFields(); ++i) {
-        size_t field_offset = klass->GetInstanceField(i)->GetOffset();
+         klass = is_static ? NULL : klass->GetSuperClass()) {
+      size_t num_reference_fields = (is_static
+                                     ? klass->NumReferenceStaticFields()
+                                     : klass->NumReferenceInstanceFields());
+      for (size_t i = 0; i < num_reference_fields; ++i) {
+        Field* field = (is_static
+                        ? klass->GetStaticField(i)
+                        : klass->GetInstanceField(i));
+        size_t field_offset = field->GetOffset();
         const Object* ref = orig->GetFieldObject(field_offset);
         copy->SetFieldObject(field_offset, GetImageAddress(ref));
       }

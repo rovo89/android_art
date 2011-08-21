@@ -198,7 +198,7 @@ class ClassLinkerTest : public CommonTest {
       total_num_reference_instance_fields += k->NumReferenceInstanceFields();
       k = k->GetSuperClass();
     }
-    EXPECT_EQ(klass->GetReferenceOffsets() == 0,
+    EXPECT_EQ(klass->GetReferenceInstanceOffsets() == 0,
               total_num_reference_instance_fields == 0);
   }
 
@@ -412,70 +412,70 @@ TEST_F(ClassLinkerTest, StaticFields) {
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kStatics, "kStatics"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* statics = class_linker_->FindClass("LStatics;", class_loader);
-  // class_linker_->InitializeClass(statics);  // TODO: uncomment this
+  class_linker_->EnsureInitialized(statics);
 
   EXPECT_EQ(10U, statics->NumStaticFields());
 
-  Field* s0 = statics->GetStaticField(0);
+  Field* s0 = statics->FindStaticField("s0", "Z");
   EXPECT_TRUE(s0->GetClass()->descriptor_->Equals("Ljava/lang/reflect/Field;"));
   EXPECT_EQ('Z', s0->GetType());
-//  EXPECT_EQ(true, s0->GetBoolean());  // TODO: uncomment this
-  s0->SetBoolean(false);
+  // EXPECT_EQ(true, s0->GetBoolean(NULL)); // TODO: needs clinit to be run?
+  s0->SetBoolean(NULL, false);
 
-  Field* s1 = statics->GetStaticField(1);
+  Field* s1 = statics->FindStaticField("s1", "B");
   EXPECT_EQ('B', s1->GetType());
-//  EXPECT_EQ(5, s1->GetByte());  // TODO: uncomment this
-  s1->SetByte(6);
+  // EXPECT_EQ(5, s1->GetByte(NULL));  // TODO: needs clinit to be run?
+  s1->SetByte(NULL, 6);
 
-  Field* s2 = statics->GetStaticField(2);
+  Field* s2 = statics->FindStaticField("s2", "C");
   EXPECT_EQ('C', s2->GetType());
-//  EXPECT_EQ('a', s2->GetChar());  // TODO: uncomment this
-  s2->SetChar('b');
+  // EXPECT_EQ('a', s2->GetChar(NULL));  // TODO: needs clinit to be run?
+  s2->SetChar(NULL, 'b');
 
-  Field* s3 = statics->GetStaticField(3);
+  Field* s3 = statics->FindStaticField("s3", "S");
   EXPECT_EQ('S', s3->GetType());
-//  EXPECT_EQ(65000, s3->GetShort());  // TODO: uncomment this
-  s3->SetShort(65001);
+  // EXPECT_EQ(65000, s3->GetShort(NULL));  // TODO: needs clinit to be run?
+  s3->SetShort(NULL, 65001);
 
-  Field* s4 = statics->GetStaticField(4);
+  Field* s4 = statics->FindStaticField("s4", "I");
   EXPECT_EQ('I', s4->GetType());
-//  EXPECT_EQ(2000000000, s4->GetInt());  // TODO: uncomment this
-  s4->SetInt(2000000001);
+  // EXPECT_EQ(2000000000, s4->GetInt(NULL));  // TODO: needs clinit to be run?
+  s4->SetInt(NULL, 2000000001);
 
-  Field* s5 = statics->GetStaticField(5);
+  Field* s5 = statics->FindStaticField("s5", "J");
   EXPECT_EQ('J', s5->GetType());
-//  EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong());  // TODO: uncomment this
-  s5->SetLong(0x34567890abcdef12LL);
+  // EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));  // TODO: needs clinit to be run?
+  s5->SetLong(NULL, 0x34567890abcdef12LL);
 
-  Field* s6 = statics->GetStaticField(6);
+  Field* s6 = statics->FindStaticField("s6", "F");
   EXPECT_EQ('F', s6->GetType());
-//  EXPECT_EQ(0.5, s6->GetFloat());  // TODO: uncomment this
-  s6->SetFloat(0.75);
+  // EXPECT_EQ(0.5, s6->GetFloat(NULL));  // TODO: needs clinit to be run?
+  s6->SetFloat(NULL, 0.75);
 
-  Field* s7 = statics->GetStaticField(7);
+  Field* s7 = statics->FindStaticField("s7", "D");
   EXPECT_EQ('D', s7->GetType());
-//  EXPECT_EQ(16777217, s7->GetDouble());  // TODO: uncomment this
-  s7->SetDouble(16777219);
+  // EXPECT_EQ(16777217, s7->GetDouble(NULL));  // TODO: needs clinit to be run?
+  s7->SetDouble(NULL, 16777219);
 
-  Field* s8 = statics->GetStaticField(8);
+  Field* s8 = statics->FindStaticField("s8", "Ljava/lang/Object;");
   EXPECT_EQ('L', s8->GetType());
-//  EXPECT_TRUE(s8->GetObject()->AsString()->Equals("android"));  // TODO: uncomment this
-  s8->SetObject(String::AllocFromModifiedUtf8("robot"));
+  // EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));  // TODO: needs clinit to be run?
+  s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
 
-  Field* s9 = statics->GetStaticField(9);
+  Field* s9 = statics->FindStaticField("s9", "[Ljava/lang/Object;");
   EXPECT_EQ('[', s9->GetType());
-//  EXPECT_EQ(NULL, s9->GetObject());  // TODO: uncomment this
-  s9->SetObject(NULL);
+  // EXPECT_EQ(NULL, s9->GetObject(NULL));  // TODO: needs clinit to be run?
+  s9->SetObject(NULL, NULL);
 
-  EXPECT_EQ(false,                s0->GetBoolean());
-  EXPECT_EQ(6,                    s1->GetByte());
-  EXPECT_EQ('b',                  s2->GetChar());
-  EXPECT_EQ(65001,                s3->GetShort());
-  EXPECT_EQ(2000000001,           s4->GetInt());
-  EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong());
-  EXPECT_EQ(0.75,                 s6->GetFloat());
-  EXPECT_EQ(16777219,             s7->GetDouble());
-  EXPECT_TRUE(s8->GetObject()->AsString()->Equals("robot"));
+  EXPECT_EQ(false,                s0->GetBoolean(NULL));
+  EXPECT_EQ(6,                    s1->GetByte(NULL));
+  EXPECT_EQ('b',                  s2->GetChar(NULL));
+  EXPECT_EQ(65001,                s3->GetShort(NULL));
+  EXPECT_EQ(2000000001,           s4->GetInt(NULL));
+  EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong(NULL));
+  EXPECT_EQ(0.75,                 s6->GetFloat(NULL));
+  EXPECT_EQ(16777219,             s7->GetDouble(NULL));
+  EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("robot"));
 }
 
 }  // namespace art
