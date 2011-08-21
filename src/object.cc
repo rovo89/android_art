@@ -14,6 +14,10 @@
 
 namespace art {
 
+Array* Array::Alloc(Class* array_class, size_t component_count) {
+  return Alloc(array_class, component_count, array_class->GetComponentSize());
+}
+
 bool Class::Implements(const Class* klass) const {
   DCHECK(klass != NULL);
   DCHECK(klass->IsInterface());

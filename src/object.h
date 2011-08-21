@@ -604,6 +604,10 @@ class Array : public Object {
     return sizeof(Array) + component_count * component_size;
   }
 
+  // A convenience for code that doesn't know the component size,
+  // and doesn't want to have to work it out itself.
+  static Array* Alloc(Class* array_class, size_t component_count);
+
   static Array* Alloc(Class* array_class,
                       size_t component_count,
                       size_t component_size) {

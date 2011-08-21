@@ -86,6 +86,20 @@ TEST_F(ObjectTest, AllocObjectArray) {
             oa->GetClass()->GetInterface(1));
 }
 
+TEST_F(ObjectTest, AllocArray) {
+  Class* c = class_linker_->FindSystemClass("[I");
+  Array* a = Array::Alloc(c, 1);
+  ASSERT_TRUE(c == a->GetClass());
+
+  c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+  a = Array::Alloc(c, 1);
+  ASSERT_TRUE(c == a->GetClass());
+
+  c = class_linker_->FindSystemClass("[[Ljava/lang/Object;");
+  a = Array::Alloc(c, 1);
+  ASSERT_TRUE(c == a->GetClass());
+}
+
 template<typename ArrayT>
 void TestPrimitiveArray(ClassLinker* cl) {
   typedef typename ArrayT::ElementType T;
