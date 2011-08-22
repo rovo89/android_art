@@ -697,6 +697,11 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
  */
 bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
+    if (PrettyMethod(method, false) != "Fibonacci.fibonacci") {
+        LOG(INFO) << "not compiling " << PrettyMethod(method, false);
+        return false;
+    }
+
     CompilationUnit cUnit;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
     const art::DexFile& dex_file = class_linker->FindDexFile(
