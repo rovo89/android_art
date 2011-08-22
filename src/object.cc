@@ -226,7 +226,6 @@ int8_t Field::GetByte(const Object* object) const {
 
 void Field::SetByte(Object* object, int8_t b) const {
   CHECK_EQ(GetType(), 'B');
-  CHECK(IsStatic());
   Set32(object, b);
 }
 
@@ -237,7 +236,6 @@ uint16_t Field::GetChar(const Object* object) const {
 
 void Field::SetChar(Object* object, uint16_t c) const {
   CHECK_EQ(GetType(), 'C');
-  CHECK(IsStatic());
   Set32(object, c);
 }
 
@@ -248,7 +246,6 @@ uint16_t Field::GetShort(const Object* object) const {
 
 void Field::SetShort(Object* object, uint16_t s) const {
   CHECK_EQ(GetType(), 'S');
-  CHECK(IsStatic());
   Set32(object, s);
 }
 
@@ -259,7 +256,6 @@ int32_t Field::GetInt(const Object* object) const {
 
 void Field::SetInt(Object* object, int32_t i) const {
   CHECK_EQ(GetType(), 'I');
-  CHECK(IsStatic());
   Set32(object, i);
 }
 
@@ -270,7 +266,6 @@ int64_t Field::GetLong(const Object* object) const {
 
 void Field::SetLong(Object* object, int64_t j) const {
   CHECK_EQ(GetType(), 'J');
-  CHECK(IsStatic());
   Set64(object, j);
 }
 
@@ -283,7 +278,6 @@ float Field::GetFloat(const Object* object) const {
 
 void Field::SetFloat(Object* object, float f) const {
   CHECK_EQ(GetType(), 'F');
-  CHECK(IsStatic());
   JValue float_bits;
   float_bits.f = f;
   Set32(object, float_bits.i);
@@ -298,7 +292,6 @@ double Field::GetDouble(const Object* object) const {
 
 void Field::SetDouble(Object* object, double d) const {
   CHECK_EQ(GetType(), 'D');
-  CHECK(IsStatic());
   JValue double_bits;
   double_bits.d = d;
   Set64(object, double_bits.j);

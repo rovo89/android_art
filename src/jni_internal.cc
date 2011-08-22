@@ -582,10 +582,10 @@ class JNI {
     return AddLocalReference<jobject>(ts, field);
   }
 
-  static jclass GetSuperclass(JNIEnv* env, jclass sub) {
+  static jclass GetSuperclass(JNIEnv* env, jclass java_class) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    Class* c = Decode<Class*>(ts, java_class);
+    return AddLocalReference<jclass>(ts, c->GetSuperClass());
   }
 
   static jboolean IsAssignableFrom(JNIEnv* env, jclass sub, jclass sup) {
@@ -749,10 +749,13 @@ class JNI {
     return 0;
   }
 
-  static jobject AllocObject(JNIEnv* env, jclass clazz) {
+  static jobject AllocObject(JNIEnv* env, jclass java_class) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    Class* c = Decode<Class*>(ts, java_class);
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
+      return NULL;
+    }
+    return AddLocalReference<jobject>(ts, c->NewInstance());
   }
 
   static jobject NewObject(JNIEnv* env, jclass clazz, jmethodID methodID, ...) {
@@ -764,23 +767,27 @@ class JNI {
     return result;
   }
 
-  static jobject NewObjectV(JNIEnv* env,
-      jclass clazz, jmethodID methodID, va_list args) {
+  static jobject NewObjectV(JNIEnv* env, jclass java_class, jmethodID methodID, va_list args) {
     ScopedJniThreadState ts(env);
-    Class* klass = Decode<Class*>(ts, clazz);
-    Object* result = klass->NewInstance();
+    Class* c = Decode<Class*>(ts, java_class);
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
+      return NULL;
+    }
+    Object* result = c->NewInstance();
     jobject local_result = AddLocalReference<jobject>(ts, result);
-    CallNonvirtualVoidMethodV(env, local_result, clazz, methodID, args);
+    CallNonvirtualVoidMethodV(env, local_result, java_class, methodID, args);
     return local_result;
   }
 
-  static jobject NewObjectA(JNIEnv* env,
-      jclass clazz, jmethodID methodID, jvalue* args) {
+  static jobject NewObjectA(JNIEnv* env, jclass java_class, jmethodID methodID, jvalue* args) {
     ScopedJniThreadState ts(env);
-    Class* klass = Decode<Class*>(ts, clazz);
-    Object* result = klass->NewInstance();
+    Class* c = Decode<Class*>(ts, java_class);
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
+      return NULL;
+    }
+    Object* result = c->NewInstance();
     jobject local_result = AddLocalReference<jobjectArray>(ts, result);
-    CallNonvirtualVoidMethodA(env, local_result, clazz, methodID, args);
+    CallNonvirtualVoidMethodA(env, local_result, java_class, methodID, args);
     return local_result;
   }
 
@@ -1245,103 +1252,172 @@ class JNI {
     return FindFieldID(ts, c, name, sig, true);
   }
 
-  static jobject GetObjectField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  static jobject GetObjectField(JNIEnv* env, jobject obj, jfieldID fid) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    Object* o = Decode<Object*>(ts, obj);
+    Field* f = DecodeField(ts, fid);
+    return AddLocalReference<jobject>(ts, f->GetObject(o));
   }
 
-  static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return JNI_FALSE;
+    Field* f = DecodeField(ts, fid);
+    return AddLocalReference<jobject>(ts, f->GetObject(NULL));
   }
 
-  static jbyte GetByteField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  static void SetObjectField(JNIEnv* env, jobject java_object, jfieldID fid, jobject java_value) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+    Object* o = Decode<Object*>(ts, java_object);
+    Object* v = Decode<Object*>(ts, java_value);
+    Field* f = DecodeField(ts, fid);
+    f->SetObject(o, v);
   }
 
-  static jchar GetCharField(JNIEnv* env, jobject obj, jfieldID fieldID) {
+  static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+    Object* v = Decode<Object*>(ts, java_value);
+    Field* f = DecodeField(ts, fid);
+    f->SetObject(NULL, v);
   }
 
-  static jshort GetShortField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+#define GET_PRIMITIVE_FIELD(fn, instance) \
+  ScopedJniThreadState ts(env); \
+  Object* o = Decode<Object*>(ts, instance); \
+  Field* f = DecodeField(ts, fid); \
+  return f->fn(o)
+
+#define SET_PRIMITIVE_FIELD(fn, instance, value) \
+  ScopedJniThreadState ts(env); \
+  Object* o = Decode<Object*>(ts, instance); \
+  Field* f = DecodeField(ts, fid); \
+  f->fn(o, value)
+
+  static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetBoolean, obj);
   }
 
-  static jint GetIntField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+  static jbyte GetByteField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetByte, obj);
   }
 
-  static jlong GetLongField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+  static jchar GetCharField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetChar, obj);
   }
 
-  static jfloat GetFloatField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+  static jshort GetShortField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetShort, obj);
   }
 
-  static jdouble GetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+  static jint GetIntField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetInt, obj);
   }
 
-  static void SetObjectField(JNIEnv* env, jobject obj, jfieldID fieldID, jobject val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jlong GetLongField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetLong, obj);
   }
 
-  static void SetBooleanField(JNIEnv* env, jobject obj, jfieldID fieldID, jboolean val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jfloat GetFloatField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetFloat, obj);
   }
 
-  static void SetByteField(JNIEnv* env, jobject obj, jfieldID fieldID, jbyte val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jdouble GetDoubleField(JNIEnv* env, jobject obj, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetDouble, obj);
   }
 
-  static void SetCharField(JNIEnv* env, jobject obj, jfieldID fieldID, jchar val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jboolean GetStaticBooleanField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetBoolean, NULL);
   }
 
-  static void SetShortField(JNIEnv* env, jobject obj, jfieldID fieldID, jshort val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jbyte GetStaticByteField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetByte, NULL);
   }
 
-  static void SetIntField(JNIEnv* env, jobject obj, jfieldID fieldID, jint val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jchar GetStaticCharField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetChar, NULL);
   }
 
-  static void SetLongField(JNIEnv* env, jobject obj, jfieldID fieldID, jlong val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jshort GetStaticShortField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetShort, NULL);
   }
 
-  static void SetFloatField(JNIEnv* env, jobject obj, jfieldID fieldID, jfloat val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jint GetStaticIntField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetInt, NULL);
   }
 
-  static void SetDoubleField(JNIEnv* env, jobject obj, jfieldID fieldID, jdouble val) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+  static jlong GetStaticLongField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetLong, NULL);
+  }
+
+  static jfloat GetStaticFloatField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetFloat, NULL);
+  }
+
+  static jdouble GetStaticDoubleField(JNIEnv* env, jclass clazz, jfieldID fid) {
+    GET_PRIMITIVE_FIELD(GetDouble, NULL);
+  }
+
+  static void SetBooleanField(JNIEnv* env, jobject obj, jfieldID fid, jboolean v) {
+    SET_PRIMITIVE_FIELD(SetBoolean, obj, v);
+  }
+
+  static void SetByteField(JNIEnv* env, jobject obj, jfieldID fid, jbyte v) {
+    SET_PRIMITIVE_FIELD(SetByte, obj, v);
+  }
+
+  static void SetCharField(JNIEnv* env, jobject obj, jfieldID fid, jchar v) {
+    SET_PRIMITIVE_FIELD(SetChar, obj, v);
+  }
+
+  static void SetFloatField(JNIEnv* env, jobject obj, jfieldID fid, jfloat v) {
+    SET_PRIMITIVE_FIELD(SetFloat, obj, v);
+  }
+
+  static void SetDoubleField(JNIEnv* env, jobject obj, jfieldID fid, jdouble v) {
+    SET_PRIMITIVE_FIELD(SetDouble, obj, v);
+  }
+
+  static void SetIntField(JNIEnv* env, jobject obj, jfieldID fid, jint v) {
+    SET_PRIMITIVE_FIELD(SetInt, obj, v);
+  }
+
+  static void SetLongField(JNIEnv* env, jobject obj, jfieldID fid, jlong v) {
+    SET_PRIMITIVE_FIELD(SetLong, obj, v);
+  }
+
+  static void SetShortField(JNIEnv* env, jobject obj, jfieldID fid, jshort v) {
+    SET_PRIMITIVE_FIELD(SetShort, obj, v);
+  }
+
+  static void SetStaticBooleanField(JNIEnv* env, jclass, jfieldID fid, jboolean v) {
+    SET_PRIMITIVE_FIELD(SetBoolean, NULL, v);
+  }
+
+  static void SetStaticByteField(JNIEnv* env, jclass, jfieldID fid, jbyte v) {
+    SET_PRIMITIVE_FIELD(SetByte, NULL, v);
+  }
+
+  static void SetStaticCharField(JNIEnv* env, jclass, jfieldID fid, jchar v) {
+    SET_PRIMITIVE_FIELD(SetChar, NULL, v);
+  }
+
+  static void SetStaticFloatField(JNIEnv* env, jclass, jfieldID fid, jfloat v) {
+    SET_PRIMITIVE_FIELD(SetFloat, NULL, v);
+  }
+
+  static void SetStaticDoubleField(JNIEnv* env, jclass, jfieldID fid, jdouble v) {
+    SET_PRIMITIVE_FIELD(SetDouble, NULL, v);
+  }
+
+  static void SetStaticIntField(JNIEnv* env, jclass, jfieldID fid, jint v) {
+    SET_PRIMITIVE_FIELD(SetInt, NULL, v);
+  }
+
+  static void SetStaticLongField(JNIEnv* env, jclass, jfieldID fid, jlong v) {
+    SET_PRIMITIVE_FIELD(SetLong, NULL, v);
+  }
+
+  static void SetStaticShortField(JNIEnv* env, jclass, jfieldID fid, jshort v) {
+    SET_PRIMITIVE_FIELD(SetShort, NULL, v);
   }
 
   static jobject CallStaticObjectMethod(JNIEnv* env,
@@ -1556,114 +1632,6 @@ class JNI {
       jclass cls, jmethodID methodID, jvalue* args) {
     ScopedJniThreadState ts(env);
     InvokeWithJValues(ts, NULL, methodID, args);
-  }
-
-  static jobject GetStaticObjectField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
-
-  static jboolean GetStaticBooleanField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return JNI_FALSE;
-  }
-
-  static jbyte GetStaticByteField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static jchar GetStaticCharField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static jshort GetStaticShortField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static jint GetStaticIntField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static jlong GetStaticLongField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static jfloat GetStaticFloatField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static jdouble GetStaticDoubleField(JNIEnv* env, jclass clazz, jfieldID fieldID) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static void SetStaticObjectField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jobject value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticBooleanField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jboolean value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticByteField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jbyte value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticCharField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jchar value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticShortField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jshort value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticIntField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jint value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticLongField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jlong value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticFloatField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jfloat value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void SetStaticDoubleField(JNIEnv* env,
-      jclass clazz, jfieldID fieldID, jdouble value) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
   }
 
   static jstring NewString(JNIEnv* env, const jchar* unicode, jsize len) {

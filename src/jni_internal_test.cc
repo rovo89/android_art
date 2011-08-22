@@ -19,6 +19,21 @@ class JniInternalTest : public CommonTest {
   JNIEnv* env_;
 };
 
+TEST_F(JniInternalTest, AllocObject) {
+  jclass c = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(c != NULL);
+  jobject o = env_->AllocObject(c);
+  ASSERT_TRUE(o != NULL);
+
+  // We have an instance of the class we asked for...
+  ASSERT_TRUE(env_->IsInstanceOf(o, c));
+  // ...whose fields haven't been initialized because
+  // we didn't call a constructor.
+  ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
+  ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "offset", "I")));
+  ASSERT_TRUE(env_->GetObjectField(o, env_->GetFieldID(c, "value", "[C")) == NULL);
+}
+
 TEST_F(JniInternalTest, GetVersion) {
   ASSERT_EQ(JNI_VERSION_1_6, env_->GetVersion());
 }
@@ -303,6 +318,15 @@ TEST_F(JniInternalTest, GetArrayLength) {
   // Already tested in NewObjectArray/NewPrimitiveArray.
 }
 
+TEST_F(JniInternalTest, GetSuperclass) {
+  jclass object_class = env_->FindClass("java/lang/Object");
+  ASSERT_TRUE(object_class != NULL);
+  jclass string_class = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(string_class != NULL);
+  ASSERT_TRUE(env_->IsSameObject(object_class, env_->GetSuperclass(string_class)));
+  ASSERT_TRUE(env_->GetSuperclass(object_class) == NULL);
+}
+
 TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_TRUE(env_->NewStringUTF(NULL) == NULL);
   EXPECT_TRUE(env_->NewStringUTF("") != NULL);
@@ -329,6 +353,87 @@ TEST_F(JniInternalTest, SetObjectArrayElement) {
   EXPECT_EXCEPTION(aioobe);
 
   // TODO: check ArrayStoreException thrown for bad types.
+}
+
+#define EXPECT_STATIC_PRIMITIVE_FIELD(type, field_name, sig, value1, value2) \
+  do { \
+    jfieldID fid = env_->GetStaticFieldID(c, field_name, sig); \
+    EXPECT_TRUE(fid != NULL); \
+    env_->SetStatic ## type ## Field(c, fid, value1); \
+    EXPECT_EQ(value1, env_->GetStatic ## type ## Field(c, fid)); \
+    env_->SetStatic ## type ## Field(c, fid, value2); \
+    EXPECT_EQ(value2, env_->GetStatic ## type ## Field(c, fid)); \
+  } while (false)
+
+#define EXPECT_PRIMITIVE_FIELD(instance, type, field_name, sig, value1, value2) \
+  do { \
+    jfieldID fid = env_->GetFieldID(c, field_name, sig); \
+    EXPECT_TRUE(fid != NULL); \
+    env_->Set ## type ## Field(instance, fid, value1); \
+    EXPECT_EQ(value1, env_->Get ## type ## Field(instance, fid)); \
+    env_->Set ## type ## Field(instance, fid, value2); \
+    EXPECT_EQ(value2, env_->Get ## type ## Field(instance, fid)); \
+  } while (false)
+
+
+TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kAllFields, "kAllFields"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  jclass c = env_->FindClass("AllFields");
+  ASSERT_TRUE(c != NULL);
+  jobject o = env_->AllocObject(c);
+  ASSERT_TRUE(o != NULL);
+
+  EXPECT_STATIC_PRIMITIVE_FIELD(Boolean, "sZ", "Z", true, false);
+  EXPECT_STATIC_PRIMITIVE_FIELD(Byte, "sB", "B", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(Char, "sC", "C", 'a', 'b');
+  EXPECT_STATIC_PRIMITIVE_FIELD(Double, "sD", "D", 1.0, 2.0);
+  EXPECT_STATIC_PRIMITIVE_FIELD(Float, "sF", "F", 1.0, 2.0);
+  EXPECT_STATIC_PRIMITIVE_FIELD(Int, "sI", "I", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(Long, "sJ", "J", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(Short, "sS", "S", 1, 2);
+
+  EXPECT_PRIMITIVE_FIELD(o, Boolean, "iZ", "Z", true, false);
+  EXPECT_PRIMITIVE_FIELD(o, Byte, "iB", "B", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(o, Char, "iC", "C", 'a', 'b');
+  EXPECT_PRIMITIVE_FIELD(o, Double, "iD", "D", 1.0, 2.0);
+  EXPECT_PRIMITIVE_FIELD(o, Float, "iF", "F", 1.0, 2.0);
+  EXPECT_PRIMITIVE_FIELD(o, Int, "iI", "I", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(o, Long, "iJ", "J", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(o, Short, "iS", "S", 1, 2);
+}
+
+TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kAllFields, "kAllFields"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  jclass c = env_->FindClass("AllFields");
+  ASSERT_TRUE(c != NULL);
+  jobject o = env_->AllocObject(c);
+  ASSERT_TRUE(o != NULL);
+
+  jstring s1 = env_->NewStringUTF("hello");
+  ASSERT_TRUE(s1 != NULL);
+  jstring s2 = env_->NewStringUTF("world");
+  ASSERT_TRUE(s2 != NULL);
+
+  jfieldID s_fid = env_->GetStaticFieldID(c, "sObject", "Ljava/lang/Object;");
+  ASSERT_TRUE(s_fid != NULL);
+  jfieldID i_fid = env_->GetFieldID(c, "iObject", "Ljava/lang/Object;");
+  ASSERT_TRUE(i_fid != NULL);
+
+  env_->SetStaticObjectField(c, s_fid, s1);
+  ASSERT_TRUE(env_->IsSameObject(s1, env_->GetStaticObjectField(c, s_fid)));
+  env_->SetStaticObjectField(c, s_fid, s2);
+  ASSERT_TRUE(env_->IsSameObject(s2, env_->GetStaticObjectField(c, s_fid)));
+
+  env_->SetObjectField(o, i_fid, s1);
+  ASSERT_TRUE(env_->IsSameObject(s1, env_->GetObjectField(o, i_fid)));
+  env_->SetObjectField(o, i_fid, s2);
+  ASSERT_TRUE(env_->IsSameObject(s2, env_->GetObjectField(o, i_fid)));
 }
 
 TEST_F(JniInternalTest, NewLocalRef_NULL) {

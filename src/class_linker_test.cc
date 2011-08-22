@@ -14,8 +14,12 @@ class ClassLinkerTest : public CommonTest {
  protected:
   void AssertNonExistentClass(const StringPiece& descriptor) {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor) == NULL);
-    EXPECT_TRUE(Thread::Current()->IsExceptionPending());
-    Thread::Current()->ClearException();
+    Thread* self = Thread::Current();
+    EXPECT_TRUE(self->IsExceptionPending());
+    Object* exception = self->GetException();
+    self->ClearException();
+    Class* exception_class = class_linker_->FindSystemClass("Ljava/lang/NoClassDefFoundError;");
+    EXPECT_TRUE(exception->InstanceOf(exception_class));
   }
 
   void AssertPrimitiveClass(const StringPiece& descriptor) {
