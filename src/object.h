@@ -544,6 +544,7 @@ class Method : public AccessibleObject {
     code_instruction_set_ = set;
     code_area_.reset(MemMap::Map(byte_count,
         PROT_READ | PROT_WRITE | PROT_EXEC));
+    CHECK(code_area_.get());
     byte* code = code_area_->GetAddress();
     memcpy(code, compiled_code, byte_count);
     __builtin___clear_cache(code, code + byte_count);

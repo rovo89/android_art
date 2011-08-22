@@ -553,7 +553,7 @@ class JNI {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     std::string descriptor(NormalizeJniClassDescriptor(name));
     // TODO: need to get the appropriate ClassLoader.
-    ClassLoader* cl = (ClassLoader*) ts.Self()->GetClassLoaderOverride(); // TODO: fix type in Thread
+    ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
     Class* c = class_linker->FindClass(descriptor, cl);
     return AddLocalReference<jclass>(ts, c);
   }

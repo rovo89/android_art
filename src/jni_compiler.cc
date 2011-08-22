@@ -292,7 +292,6 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   size_t cs = jni_asm->CodeSize();
   MemoryRegion code(AllocateCode(cs), cs);
   jni_asm->FinalizeInstructions(code);
-  // TODO: need to ask jni_asm what instruction set used
   native_method->SetCode(reinterpret_cast<byte*>(code.pointer()), cs,
       jni_asm->GetInstructionSet());
 }

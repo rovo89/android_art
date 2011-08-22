@@ -17,6 +17,7 @@
 
 namespace art {
 
+class ClassLoader;
 class Method;
 class Object;
 class Runtime;
@@ -317,11 +318,11 @@ class Thread {
     top_of_managed_stack_ = record.last_top_of_managed_stack;
   }
 
-  Object* GetClassLoaderOverride() {
+  ClassLoader* GetClassLoaderOverride() {
     return class_loader_override_;
   }
 
-  void SetClassLoaderOverride(Object* class_loader_override) {
+  void SetClassLoaderOverride(ClassLoader* class_loader_override) {
     class_loader_override_ = class_loader_override;
   }
 
@@ -386,7 +387,9 @@ class Thread {
   // at the next poll.
   int suspend_count_;
 
-  Object* class_loader_override_;
+  // Needed to get the right ClassLoader in JNI_OnLoad, but also
+  // useful for testing.
+  ClassLoader* class_loader_override_;
 
   // The memory mapping of the stack for non-attached threads.
   scoped_ptr<MemMap> stack_;
