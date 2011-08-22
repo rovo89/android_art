@@ -432,6 +432,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     if (klass != NULL) {
       return klass;
     }
+    Thread::Current()->ClearException();
   }
 
   Thread* self = Thread::Current();
@@ -447,7 +448,9 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     DexFile::ClassPath& class_path = ((class_loader != NULL) ? class_loader->GetClassPath() : boot_class_path_);
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
     if (pair.second == NULL) {
-      LG << "Class " << PrintableString(descriptor) << " not found in class loader " << class_loader;  // TODO: NoClassDefFoundError
+      std::string name(PrintableString(descriptor));
+      self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
+          "Class %s not found in class loader %p", name.c_str(), class_loader);
       return NULL;
     }
     const DexFile& dex_file = *pair.first;
@@ -515,7 +518,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
     if (!klass->IsLinked() && klass->clinit_thread_id_ == self->GetId()) {
-      LG << "Recursive link";  // TODO: ClassCircularityError
+      self->ThrowNewException("Ljava/lang/ClassCircularityError;", NULL); // TODO: detail
       return NULL;
     }
     // Wait for the pending initialization to complete.
@@ -971,13 +974,11 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
       return GetClassRoot(kPrimitiveBoolean);
     case 'V':
       return GetClassRoot(kPrimitiveVoid);
-    case 'L':
-    case '[':
-      LOG(ERROR) << "Not a primitive type " << PrintableChar(type);
-    default:
-      LOG(ERROR) << "Unknown primitive type " << PrintableChar(type);
   }
-  return NULL;  // Not reachable.
+  std::string printable_type(PrintableChar(type));
+  Thread::Current()->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
+      "Not a primitive type: %s", printable_type.c_str());
+  return NULL;
 }
 
 bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass) {

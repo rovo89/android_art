@@ -12,8 +12,10 @@ namespace art {
 
 class ClassLinkerTest : public CommonTest {
  protected:
-  void AssertNonExistantClass(const StringPiece& descriptor) {
+  void AssertNonExistentClass(const StringPiece& descriptor) {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor) == NULL);
+    EXPECT_TRUE(Thread::Current()->IsExceptionPending());
+    Thread::Current()->ClearException();
   }
 
   void AssertPrimitiveClass(const StringPiece& descriptor) {
@@ -218,10 +220,8 @@ class ClassLinkerTest : public CommonTest {
 };
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
-  Class* result1 = class_linker_->FindSystemClass("NoSuchClass;");
-  EXPECT_TRUE(result1 == NULL);
-  Class* result2 = class_linker_->FindSystemClass("LNoSuchClass;");
-  EXPECT_TRUE(result2 == NULL);
+  AssertNonExistentClass("NoSuchClass;");
+  AssertNonExistentClass("LNoSuchClass;");
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
@@ -247,7 +247,7 @@ TEST_F(ClassLinkerTest, FindClass) {
     char* s = reinterpret_cast<char*>(&ch);
     StringPiece descriptor(s, 1);
     if (expected.find(ch) == StringPiece::npos) {
-      AssertNonExistantClass(descriptor);
+      AssertNonExistentClass(descriptor);
     } else {
       AssertPrimitiveClass(descriptor);
     }
@@ -282,7 +282,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex, "kMyClassDex"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  EXPECT_TRUE(linker->FindSystemClass("LMyClass;") == NULL);
+  AssertNonExistentClass("LMyClass;");
   Class* MyClass = linker->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
@@ -319,7 +319,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   AssertArrayClass("[[C", 2, "C", NULL);
   AssertArrayClass("[[[LMyClass;", 3, "LMyClass;", class_loader);
   // or not available at all
-  AssertNonExistantClass("[[[[LNonExistantClass;");
+  AssertNonExistentClass("[[[[LNonExistentClass;");
 }
 
 TEST_F(ClassLinkerTest, LibCore) {

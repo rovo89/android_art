@@ -24,10 +24,13 @@ TEST_F(JniInternalTest, GetVersion) {
 }
 
 #define EXPECT_CLASS_FOUND(NAME) \
-  EXPECT_TRUE(env_->FindClass(NAME) != NULL)
+  EXPECT_TRUE(env_->FindClass(NAME) != NULL); \
+  EXPECT_FALSE(env_->ExceptionCheck())
 
 #define EXPECT_CLASS_NOT_FOUND(NAME) \
-  EXPECT_TRUE(env_->FindClass(NAME) == NULL)
+  EXPECT_TRUE(env_->FindClass(NAME) == NULL); \
+  EXPECT_TRUE(env_->ExceptionCheck()); \
+  env_->ExceptionClear()
 
 TEST_F(JniInternalTest, FindClass) {
   // TODO: when these tests start failing because you're calling FindClass
@@ -242,47 +245,62 @@ TEST_F(JniInternalTest, RegisterNatives) {
   EXPECT_FALSE(env_->ExceptionCheck());
 }
 
+#define EXPECT_PRIMITIVE_ARRAY(fn, size, expected_class_name) \
+  do { \
+    jarray a = env_->fn(size); \
+    EXPECT_TRUE(a != NULL); \
+    EXPECT_TRUE(env_->IsInstanceOf(a, \
+        env_->FindClass(expected_class_name))); \
+    EXPECT_EQ(size, env_->GetArrayLength(a)); \
+  } while (false)
+
 TEST_F(JniInternalTest, NewPrimitiveArray) {
   // TODO: death tests for negative array sizes.
 
-  // TODO: check returned array size.
+  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, 0, "[Z");
+  EXPECT_PRIMITIVE_ARRAY(NewByteArray, 0, "[B");
+  EXPECT_PRIMITIVE_ARRAY(NewCharArray, 0, "[C");
+  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, 0, "[D");
+  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, 0, "[F");
+  EXPECT_PRIMITIVE_ARRAY(NewIntArray, 0, "[I");
+  EXPECT_PRIMITIVE_ARRAY(NewLongArray, 0, "[J");
+  EXPECT_PRIMITIVE_ARRAY(NewShortArray, 0, "[S");
 
-  // TODO: check returned array class.
-
-  EXPECT_TRUE(env_->NewBooleanArray(0) != NULL);
-  EXPECT_TRUE(env_->NewByteArray(0) != NULL);
-  EXPECT_TRUE(env_->NewCharArray(0) != NULL);
-  EXPECT_TRUE(env_->NewDoubleArray(0) != NULL);
-  EXPECT_TRUE(env_->NewFloatArray(0) != NULL);
-  EXPECT_TRUE(env_->NewIntArray(0) != NULL);
-  EXPECT_TRUE(env_->NewLongArray(0) != NULL);
-  EXPECT_TRUE(env_->NewShortArray(0) != NULL);
-
-  EXPECT_TRUE(env_->NewBooleanArray(1) != NULL);
-  EXPECT_TRUE(env_->NewByteArray(1) != NULL);
-  EXPECT_TRUE(env_->NewCharArray(1) != NULL);
-  EXPECT_TRUE(env_->NewDoubleArray(1) != NULL);
-  EXPECT_TRUE(env_->NewFloatArray(1) != NULL);
-  EXPECT_TRUE(env_->NewIntArray(1) != NULL);
-  EXPECT_TRUE(env_->NewLongArray(1) != NULL);
-  EXPECT_TRUE(env_->NewShortArray(1) != NULL);
+  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, 1, "[Z");
+  EXPECT_PRIMITIVE_ARRAY(NewByteArray, 1, "[B");
+  EXPECT_PRIMITIVE_ARRAY(NewCharArray, 1, "[C");
+  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, 1, "[D");
+  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, 1, "[F");
+  EXPECT_PRIMITIVE_ARRAY(NewIntArray, 1, "[I");
+  EXPECT_PRIMITIVE_ARRAY(NewLongArray, 1, "[J");
+  EXPECT_PRIMITIVE_ARRAY(NewShortArray, 1, "[S");
 }
 
 TEST_F(JniInternalTest, NewObjectArray) {
   // TODO: death tests for negative array sizes.
 
-  // TODO: check returned array size.
-
-  // TODO: check returned array class.
-
   // TODO: check non-NULL initial elements.
 
-  jclass c = env_->FindClass("[Ljava/lang/String;");
-  ASSERT_TRUE(c != NULL);
+  jclass element_class = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(element_class != NULL);
+  jclass array_class = env_->FindClass("[Ljava/lang/String;");
+  ASSERT_TRUE(array_class != NULL);
 
-  EXPECT_TRUE(env_->NewObjectArray(0, c, NULL) != NULL);
+  jobjectArray a;
 
-  EXPECT_TRUE(env_->NewObjectArray(1, c, NULL) != NULL);
+  a = env_->NewObjectArray(0, element_class, NULL);
+  EXPECT_TRUE(a != NULL);
+  EXPECT_TRUE(env_->IsInstanceOf(a, array_class));
+  EXPECT_EQ(0, env_->GetArrayLength(a));
+
+  a = env_->NewObjectArray(1, element_class, NULL);
+  EXPECT_TRUE(a != NULL);
+  EXPECT_TRUE(env_->IsInstanceOf(a, array_class));
+  EXPECT_EQ(1, env_->GetArrayLength(a));
+}
+
+TEST_F(JniInternalTest, GetArrayLength) {
+  // Already tested in NewObjectArray/NewPrimitiveArray.
 }
 
 TEST_F(JniInternalTest, NewStringUTF) {

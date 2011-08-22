@@ -1715,10 +1715,12 @@ class JNI {
     UNIMPLEMENTED(FATAL);
   }
 
-  static jsize GetArrayLength(JNIEnv* env, jarray array) {
+  static jsize GetArrayLength(JNIEnv* env, jarray java_array) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+    Object* obj = Decode<Object*>(ts, java_array);
+    CHECK(obj->IsArray()); // TODO: ReportJniError
+    Array* array = obj->AsArray();
+    return array->GetLength();
   }
 
   static jobject GetObjectArrayElement(JNIEnv* env, jobjectArray array, jsize index) {
