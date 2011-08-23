@@ -13,12 +13,18 @@
 #include "object.h"
 #include "runtime.h"
 #include "utils.h"
+#include "runtime_support.h"
 
 namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
 void Thread::InitFunctionPointers() {
+#if defined(__arm__)
+  pShlLong = art_shl_long;
+  pShrLong = art_shr_long;
+  pUshrLong = art_ushr_long;
+#endif
   pArtAllocArrayByClass = Array::Alloc;
   pMemcpy = memcpy;
 #if 0

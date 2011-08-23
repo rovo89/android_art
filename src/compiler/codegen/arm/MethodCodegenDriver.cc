@@ -897,7 +897,8 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         case OP_CONST_WIDE:
             rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
             loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
-                                  0, mir->dalvikInsn.vB);
+                          mir->dalvikInsn.vB_wide & 0xffffffff,
+                          (mir->dalvikInsn.vB_wide >> 32) & 0xffffffff);
             storeValueWide(cUnit, rlDest, rlResult);
             break;
 

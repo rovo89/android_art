@@ -81,7 +81,6 @@ TEST_F(CompilerTest, ShiftTest1) {
 }
 #endif
 
-#if 0 // Fails, needs 64-bit shift helper functions
 TEST_F(CompilerTest, ShiftTest2) {
   scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,
                                "kIntMathDex"));
@@ -101,7 +100,6 @@ TEST_F(CompilerTest, ShiftTest2) {
 
   ASSERT_EQ(0, result);
 }
-#endif
 
 TEST_F(CompilerTest, UnsignedShiftTest) {
   scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,

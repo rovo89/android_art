@@ -170,6 +170,9 @@ class Thread {
 
   // Runtime support function pointers
   void* (*pMemcpy)(void*, const void*, size_t);
+  uint64_t (*pShlLong)(uint64_t, uint32_t);
+  uint64_t (*pShrLong)(uint64_t, uint32_t);
+  uint64_t (*pUshrLong)(uint64_t, uint32_t);
   float (*pI2f)(int);
   int (*pF2iz)(float);
   float (*pD2f)(double);

@@ -71,7 +71,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/thread.cc \
 	src/utf.cc \
 	src/utils.cc \
-	src/zip_archive.cc
+	src/zip_archive.cc \
+	src/runtime_support.S
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \

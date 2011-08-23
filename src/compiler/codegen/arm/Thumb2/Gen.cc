@@ -1324,34 +1324,32 @@ static bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc1,
                            RegLocation rlShift)
 {
-    /*
-     * Don't mess with the regsiters here as there is a particular calling
-     * convention to the out-of-line handler.
-     */
-    RegLocation rlResult;
+    int funcOffset;
 
-    loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-    loadValueDirect(cUnit, rlShift, r2);
     switch( mir->dalvikInsn.opcode) {
         case OP_SHL_LONG:
         case OP_SHL_LONG_2ADDR:
-            UNIMPLEMENTED(FATAL) << "Need SHL_LONG helper";
-            //genDispatchToHandler(cUnit, TEMPLATE_SHL_LONG);
+            funcOffset = OFFSETOF_MEMBER(Thread, pShlLong);
             break;
         case OP_SHR_LONG:
         case OP_SHR_LONG_2ADDR:
-            UNIMPLEMENTED(FATAL) << "Need SHR_LONG helper";
-            //genDispatchToHandler(cUnit, TEMPLATE_SHR_LONG);
+            funcOffset = OFFSETOF_MEMBER(Thread, pShrLong);
             break;
         case OP_USHR_LONG:
         case OP_USHR_LONG_2ADDR:
-            UNIMPLEMENTED(FATAL) << "Need USHR_LONG helper";
-            //genDispatchToHandler(cUnit, TEMPLATE_USHR_LONG);
+            funcOffset = OFFSETOF_MEMBER(Thread, pUshrLong);
             break;
         default:
+            LOG(FATAL) << "Unexpected case";
             return true;
     }
-    rlResult = oatGetReturnWide(cUnit);
+    oatFlushAllRegs(cUnit);   /* Send everything to home location */
+    loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+    loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+    loadValueDirect(cUnit, rlShift, r2);
+    opReg(cUnit, kOpBlx, rLR);
+    oatClobberCallRegs(cUnit);
+    RegLocation rlResult = oatGetReturnWide(cUnit);
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
 }
