@@ -532,6 +532,35 @@ JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
   return AddLocalReference<JniT>(ts, result);
 }
 
+void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize length, const char* identifier) {
+  std::string type(PrettyType(array));
+  ts.Self()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+      "%s offset=%d length=%d %s.length=%d",
+      type.c_str(), start, length, identifier, array->GetLength());
+}
+
+template <typename JavaArrayT, typename JavaT, typename ArrayT>
+static void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, JavaT* buf) {
+  ArrayT* array = Decode<ArrayT*>(ts, java_array);
+  if (start < 0 || length < 0 || start + length > array->GetLength()) {
+    ThrowAIOOBE(ts, array, start, length, "src");
+  } else {
+    JavaT* data = array->GetData();
+    memcpy(buf, data + start, length * sizeof(JavaT));
+  }
+}
+
+template <typename JavaArrayT, typename JavaT, typename ArrayT>
+static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, const JavaT* buf) {
+  ArrayT* array = Decode<ArrayT*>(ts, java_array);
+  if (start < 0 || length < 0 || start + length > array->GetLength()) {
+    ThrowAIOOBE(ts, array, start, length, "dst");
+  } else {
+    JavaT* data = array->GetData();
+    memcpy(data + start, buf, length * sizeof(JavaT));
+  }
+}
+
 }  // namespace
 
 class JNI {
@@ -1667,27 +1696,13 @@ class JNI {
     InvokeWithJValues(ts, NULL, methodID, args);
   }
 
-  static jstring NewString(JNIEnv* env, const jchar* unicode, jsize len) {
+  static jstring NewString(JNIEnv* env, const jchar* chars, jsize char_count) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
-
-  static jsize GetStringLength(JNIEnv* env, jstring str) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
-  }
-
-  static const jchar* GetStringChars(JNIEnv* env, jstring str, jboolean* isCopy) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
-
-  static void ReleaseStringChars(JNIEnv* env, jstring str, const jchar* chars) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    if (chars == NULL && char_count == 0) {
+      return NULL;
+    }
+    String* result = String::AllocFromUtf16(char_count, chars);
+    return AddLocalReference<jstring>(ts, result);
   }
 
   static jstring NewStringUTF(JNIEnv* env, const char* utf) {
@@ -1699,10 +1714,35 @@ class JNI {
     return AddLocalReference<jstring>(ts, result);
   }
 
-  static jsize GetStringUTFLength(JNIEnv* env, jstring str) {
+  static jsize GetStringLength(JNIEnv* env, jstring java_string) {
+    ScopedJniThreadState ts(env);
+    return Decode<String*>(ts, java_string)->GetLength();
+  }
+
+  static jsize GetStringUTFLength(JNIEnv* env, jstring java_string) {
+    ScopedJniThreadState ts(env);
+    return Decode<String*>(ts, java_string)->GetUtfLength();
+  }
+
+  static void GetStringRegion(JNIEnv* env, jstring str, jsize start, jsize len, jchar* buf) {
     ScopedJniThreadState ts(env);
     UNIMPLEMENTED(FATAL);
-    return 0;
+  }
+
+  static void GetStringUTFRegion(JNIEnv* env, jstring str, jsize start, jsize len, char* buf) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
+  }
+
+  static const jchar* GetStringChars(JNIEnv* env, jstring str, jboolean* isCopy) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
+    return NULL;
+  }
+
+  static void ReleaseStringChars(JNIEnv* env, jstring str, const jchar* chars) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
   }
 
   static const char* GetStringUTFChars(JNIEnv* env, jstring str, jboolean* isCopy) {
@@ -1724,10 +1764,10 @@ class JNI {
     return array->GetLength();
   }
 
-  static jobject GetObjectArrayElement(JNIEnv* env, jobjectArray array, jsize index) {
+  static jobject GetObjectArrayElement(JNIEnv* env, jobjectArray java_array, jsize index) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    ObjectArray<Object>* array = Decode<ObjectArray<Object>*>(ts, java_array);
+    return AddLocalReference<jobject>(ts, array->Get(index));
   }
 
   static void SetObjectArrayElement(JNIEnv* env,
@@ -1901,100 +1941,84 @@ class JNI {
     UNIMPLEMENTED(FATAL);
   }
 
-  static void GetBooleanArrayRegion(JNIEnv* env,
-      jbooleanArray array, jsize start, jsize l, jboolean* buf) {
+  static void GetBooleanArrayRegion(JNIEnv* env, jbooleanArray array, jsize start, jsize length, jboolean* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jbooleanArray, jboolean, BooleanArray>(ts, array, start, length, buf);
   }
 
-  static void GetByteArrayRegion(JNIEnv* env,
-      jbyteArray array, jsize start, jsize len, jbyte* buf) {
+  static void GetByteArrayRegion(JNIEnv* env, jbyteArray array, jsize start, jsize length, jbyte* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jbyteArray, jbyte, ByteArray>(ts, array, start, length, buf);
   }
 
-  static void GetCharArrayRegion(JNIEnv* env,
-      jcharArray array, jsize start, jsize len, jchar* buf) {
+  static void GetCharArrayRegion(JNIEnv* env, jcharArray array, jsize start, jsize length, jchar* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jcharArray, jchar, CharArray>(ts, array, start, length, buf);
   }
 
-  static void GetShortArrayRegion(JNIEnv* env,
-      jshortArray array, jsize start, jsize len, jshort* buf) {
+  static void GetDoubleArrayRegion(JNIEnv* env, jdoubleArray array, jsize start, jsize length, jdouble* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jdoubleArray, jdouble, DoubleArray>(ts, array, start, length, buf);
   }
 
-  static void GetIntArrayRegion(JNIEnv* env,
-      jintArray array, jsize start, jsize len, jint* buf) {
+  static void GetFloatArrayRegion(JNIEnv* env, jfloatArray array, jsize start, jsize length, jfloat* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jfloatArray, jfloat, FloatArray>(ts, array, start, length, buf);
   }
 
-  static void GetLongArrayRegion(JNIEnv* env,
-      jlongArray array, jsize start, jsize len, jlong* buf) {
+  static void GetIntArrayRegion(JNIEnv* env, jintArray array, jsize start, jsize length, jint* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jintArray, jint, IntArray>(ts, array, start, length, buf);
   }
 
-  static void GetFloatArrayRegion(JNIEnv* env,
-      jfloatArray array, jsize start, jsize len, jfloat* buf) {
+  static void GetLongArrayRegion(JNIEnv* env, jlongArray array, jsize start, jsize length, jlong* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jlongArray, jlong, LongArray>(ts, array, start, length, buf);
   }
 
-  static void GetDoubleArrayRegion(JNIEnv* env,
-      jdoubleArray array, jsize start, jsize len, jdouble* buf) {
+  static void GetShortArrayRegion(JNIEnv* env, jshortArray array, jsize start, jsize length, jshort* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    GetPrimitiveArrayRegion<jshortArray, jshort, ShortArray>(ts, array, start, length, buf);
   }
 
-  static void SetBooleanArrayRegion(JNIEnv* env,
-      jbooleanArray array, jsize start, jsize l, const jboolean* buf) {
+  static void SetBooleanArrayRegion(JNIEnv* env, jbooleanArray array, jsize start, jsize length, const jboolean* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jbooleanArray, jboolean, BooleanArray>(ts, array, start, length, buf);
   }
 
-  static void SetByteArrayRegion(JNIEnv* env,
-      jbyteArray array, jsize start, jsize len, const jbyte* buf) {
+  static void SetByteArrayRegion(JNIEnv* env, jbyteArray array, jsize start, jsize length, const jbyte* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jbyteArray, jbyte, ByteArray>(ts, array, start, length, buf);
   }
 
-  static void SetCharArrayRegion(JNIEnv* env,
-      jcharArray array, jsize start, jsize len, const jchar* buf) {
+  static void SetCharArrayRegion(JNIEnv* env, jcharArray array, jsize start, jsize length, const jchar* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jcharArray, jchar, CharArray>(ts, array, start, length, buf);
   }
 
-  static void SetShortArrayRegion(JNIEnv* env,
-      jshortArray array, jsize start, jsize len, const jshort* buf) {
+  static void SetDoubleArrayRegion(JNIEnv* env, jdoubleArray array, jsize start, jsize length, const jdouble* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jdoubleArray, jdouble, DoubleArray>(ts, array, start, length, buf);
   }
 
-  static void SetIntArrayRegion(JNIEnv* env,
-      jintArray array, jsize start, jsize len, const jint* buf) {
+  static void SetFloatArrayRegion(JNIEnv* env, jfloatArray array, jsize start, jsize length, const jfloat* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jfloatArray, jfloat, FloatArray>(ts, array, start, length, buf);
   }
 
-  static void SetLongArrayRegion(JNIEnv* env,
-      jlongArray array, jsize start, jsize len, const jlong* buf) {
+  static void SetIntArrayRegion(JNIEnv* env, jintArray array, jsize start, jsize length, const jint* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jintArray, jint, IntArray>(ts, array, start, length, buf);
   }
 
-  static void SetFloatArrayRegion(JNIEnv* env,
-      jfloatArray array, jsize start, jsize len, const jfloat* buf) {
+  static void SetLongArrayRegion(JNIEnv* env, jlongArray array, jsize start, jsize length, const jlong* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jlongArray, jlong, LongArray>(ts, array, start, length, buf);
   }
 
-  static void SetDoubleArrayRegion(JNIEnv* env,
-      jdoubleArray array, jsize start, jsize len, const jdouble* buf) {
+  static void SetShortArrayRegion(JNIEnv* env, jshortArray array, jsize start, jsize length, const jshort* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    SetPrimitiveArrayRegion<jshortArray, jshort, ShortArray>(ts, array, start, length, buf);
   }
 
   static jint RegisterNatives(JNIEnv* env,
@@ -2061,18 +2085,6 @@ class JNI {
       *vm = NULL;
     }
     return (*vm != NULL) ? JNI_OK : JNI_ERR;
-  }
-
-  static void GetStringRegion(JNIEnv* env,
-      jstring str, jsize start, jsize len, jchar* buf) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void GetStringUTFRegion(JNIEnv* env,
-      jstring str, jsize start, jsize len, char* buf) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
   }
 
   static void* GetPrimitiveArrayCritical(JNIEnv* env,
@@ -2549,7 +2561,7 @@ JavaVMExt::~JavaVMExt() {
  * human-readable description of the error or NULL if no detail is
  * available; ownership of the string is transferred to the caller.
  */
-bool JavaVMExt::LoadNativeLibrary(const std::string& path, Object* class_loader, char** detail) {
+bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, char** detail) {
   *detail = NULL;
 
   // See if we've already loaded this library.  If we have, and the class loader
@@ -2644,11 +2656,10 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, Object* class_loader,
       // loader, which will always be "null" since the stuff at the
       // top of the stack is around Runtime.loadLibrary().  (See
       // the comments in the JNI FindClass function.)
-      UNIMPLEMENTED(WARNING) << "need to override current class loader";
       typedef int (*JNI_OnLoadFn)(JavaVM*, void*);
       JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
-      //Object* prevOverride = self->classLoaderOverride;
-      //self->classLoaderOverride = classLoader;
+      ClassLoader* old_class_loader = self->GetClassLoaderOverride();
+      self->SetClassLoaderOverride(class_loader);
 
       old_state = self->GetState();
       self->SetState(Thread::kNative);
@@ -2658,8 +2669,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, Object* class_loader,
       int version = (*jni_on_load)(reinterpret_cast<JavaVM*>(this), NULL);
       self->SetState(old_state);
 
-      UNIMPLEMENTED(WARNING) << "need to restore current class loader";
-      //self->classLoaderOverride = prevOverride;
+      self->SetClassLoaderOverride(old_class_loader);;
 
       if (version != JNI_VERSION_1_2 &&
       version != JNI_VERSION_1_4 &&

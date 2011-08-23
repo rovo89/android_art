@@ -69,6 +69,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
 	src/thread.cc \
+	src/utf.cc \
 	src/utils.cc \
 	src/zip_archive.cc
 

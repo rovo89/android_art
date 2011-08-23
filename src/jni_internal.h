@@ -14,6 +14,7 @@
 
 namespace art {
 
+class ClassLoader;
 class Mutex;
 class Runtime;
 class SharedLibrary;
@@ -40,7 +41,7 @@ struct JavaVMExt {
    * human-readable description of the error or NULL if no detail is
    * available; ownership of the string is transferred to the caller.
    */
-  bool LoadNativeLibrary(const std::string& path, Object* class_loader, char** detail);
+  bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, char** detail);
 
   // Must be first to correspond with JNIEnv.
   const struct JNIInvokeInterface* fns;

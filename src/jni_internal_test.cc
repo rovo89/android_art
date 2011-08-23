@@ -15,8 +15,11 @@ class JniInternalTest : public CommonTest {
   virtual void SetUp() {
     CommonTest::SetUp();
     env_ = Thread::Current()->GetJniEnv();
+    aioobe_ = env_->FindClass("java/lang/ArrayIndexOutOfBoundsException");
+    CHECK(aioobe_ != NULL);
   }
   JNIEnv* env_;
+  jclass aioobe_;
 };
 
 TEST_F(JniInternalTest, AllocObject) {
@@ -260,35 +263,69 @@ TEST_F(JniInternalTest, RegisterNatives) {
   EXPECT_FALSE(env_->ExceptionCheck());
 }
 
-#define EXPECT_PRIMITIVE_ARRAY(fn, size, expected_class_descriptor) \
-  do { \
-    jarray a = env_->fn(size); \
-    EXPECT_TRUE(a != NULL); \
-    EXPECT_TRUE(env_->IsInstanceOf(a, \
-        env_->FindClass(expected_class_descriptor))); \
-    EXPECT_EQ(size, env_->GetArrayLength(a)); \
-  } while (false)
+#define EXPECT_PRIMITIVE_ARRAY(new_fn, get_region_fn, set_region_fn, scalar_type, expected_class_descriptor) \
+  jsize size = 4; \
+  /* Allocate an array and check it has the right type and length. */ \
+  scalar_type ## Array a = env_->new_fn(size); \
+  EXPECT_TRUE(a != NULL); \
+  EXPECT_TRUE(env_->IsInstanceOf(a, env_->FindClass(expected_class_descriptor))); \
+  EXPECT_EQ(size, env_->GetArrayLength(a)); \
+  /* AIOOBE for negative start offset. */ \
+  env_->get_region_fn(a, -1, 1, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  env_->set_region_fn(a, -1, 1, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  /* AIOOBE for negative length. */ \
+  env_->get_region_fn(a, 0, -1, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  env_->set_region_fn(a, 0, -1, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  /* AIOOBE for buffer overrun. */ \
+  env_->get_region_fn(a, size - 1, size, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  env_->set_region_fn(a, size - 1, size, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  /* Prepare a couple of buffers. */ \
+  scalar_type src_buf[size]; \
+  scalar_type dst_buf[size]; \
+  for (jsize i = 0; i < size; ++i) { src_buf[i] = scalar_type(i); } \
+  for (jsize i = 0; i < size; ++i) { dst_buf[i] = scalar_type(-1); } \
+  /* Copy all of src_buf onto the heap. */ \
+  env_->set_region_fn(a, 0, size, src_buf); \
+  /* Copy back only part. */ \
+  env_->get_region_fn(a, 1, size - 2, &dst_buf[1]); \
+  EXPECT_FALSE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "short copy equal"; \
+  /* Copy the missing pieces. */ \
+  env_->get_region_fn(a, 0, 1, dst_buf); \
+  env_->get_region_fn(a, size - 1, 1, &dst_buf[size - 1]); \
+  EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "fixed copy not equal"; \
+  /* Copy back the whole array. */ \
+  env_->get_region_fn(a, 0, size, dst_buf); \
+  EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "full copy not equal"
 
-TEST_F(JniInternalTest, NewPrimitiveArray) {
-  // TODO: death tests for negative array sizes.
-
-  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, 0, "[Z");
-  EXPECT_PRIMITIVE_ARRAY(NewByteArray, 0, "[B");
-  EXPECT_PRIMITIVE_ARRAY(NewCharArray, 0, "[C");
-  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, 0, "[D");
-  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, 0, "[F");
-  EXPECT_PRIMITIVE_ARRAY(NewIntArray, 0, "[I");
-  EXPECT_PRIMITIVE_ARRAY(NewLongArray, 0, "[J");
-  EXPECT_PRIMITIVE_ARRAY(NewShortArray, 0, "[S");
-
-  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, 1, "[Z");
-  EXPECT_PRIMITIVE_ARRAY(NewByteArray, 1, "[B");
-  EXPECT_PRIMITIVE_ARRAY(NewCharArray, 1, "[C");
-  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, 1, "[D");
-  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, 1, "[F");
-  EXPECT_PRIMITIVE_ARRAY(NewIntArray, 1, "[I");
-  EXPECT_PRIMITIVE_ARRAY(NewLongArray, 1, "[J");
-  EXPECT_PRIMITIVE_ARRAY(NewShortArray, 1, "[S");
+TEST_F(JniInternalTest, BooleanArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion, jboolean, "[Z");
+}
+TEST_F(JniInternalTest, ByteArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewByteArray, GetByteArrayRegion, SetByteArrayRegion, jbyte, "[B");
+}
+TEST_F(JniInternalTest, CharArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewCharArray, GetCharArrayRegion, SetCharArrayRegion, jchar, "[C");
+}
+TEST_F(JniInternalTest, DoubleArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, GetDoubleArrayRegion, SetDoubleArrayRegion, jdouble, "[D");
+}
+TEST_F(JniInternalTest, FloatArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, GetFloatArrayRegion, SetFloatArrayRegion, jfloat, "[F");
+}
+TEST_F(JniInternalTest, IntArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewIntArray, GetIntArrayRegion, SetIntArrayRegion, jint, "[I");
+}
+TEST_F(JniInternalTest, LongArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewLongArray, GetLongArrayRegion, SetLongArrayRegion, jlong, "[J");
+}
+TEST_F(JniInternalTest, ShortArrays) {
+  EXPECT_PRIMITIVE_ARRAY(NewShortArray, GetShortArrayRegion, SetShortArrayRegion, jshort, "[S");
 }
 
 TEST_F(JniInternalTest, NewObjectArray) {
@@ -353,28 +390,54 @@ TEST_F(JniInternalTest, IsAssignableFrom) {
 
 TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_TRUE(env_->NewStringUTF(NULL) == NULL);
-  EXPECT_TRUE(env_->NewStringUTF("") != NULL);
-  EXPECT_TRUE(env_->NewStringUTF("hello") != NULL);
+  jstring s;
+
+  s = env_->NewStringUTF("");
+  EXPECT_TRUE(s != NULL);
+  EXPECT_EQ(0, env_->GetStringLength(s));
+  EXPECT_EQ(0, env_->GetStringUTFLength(s));
+  s = env_->NewStringUTF("hello");
+  EXPECT_TRUE(s != NULL);
+  EXPECT_EQ(5, env_->GetStringLength(s));
+  EXPECT_EQ(5, env_->GetStringUTFLength(s));
+
   // TODO: check some non-ASCII strings.
 }
 
-TEST_F(JniInternalTest, SetObjectArrayElement) {
-  jclass aioobe = env_->FindClass("java/lang/ArrayIndexOutOfBoundsException");
+TEST_F(JniInternalTest, NewString) {
+  EXPECT_TRUE(env_->NewString(NULL, 0) == NULL);
+
+  jchar chars[] = { 'h', 'i' };
+  jstring s;
+  s = env_->NewString(chars, 0);
+  EXPECT_TRUE(s != NULL);
+  EXPECT_EQ(0, env_->GetStringLength(s));
+  EXPECT_EQ(0, env_->GetStringUTFLength(s));
+  s = env_->NewString(chars, 2);
+  EXPECT_TRUE(s != NULL);
+  EXPECT_EQ(2, env_->GetStringLength(s));
+  EXPECT_EQ(2, env_->GetStringUTFLength(s));
+
+  // TODO: check some non-ASCII strings.
+}
+
+TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
   jclass c = env_->FindClass("[Ljava/lang/Object;");
   ASSERT_TRUE(c != NULL);
 
   jobjectArray array = env_->NewObjectArray(1, c, NULL);
   EXPECT_TRUE(array != NULL);
+  EXPECT_TRUE(env_->GetObjectArrayElement(array, 0) == NULL);
   env_->SetObjectArrayElement(array, 0, c);
-  // TODO: check reading value back
+  EXPECT_TRUE(env_->IsSameObject(env_->GetObjectArrayElement(array, 0), c));
 
   // ArrayIndexOutOfBounds for negative index.
   env_->SetObjectArrayElement(array, -1, c);
-  EXPECT_EXCEPTION(aioobe);
+  EXPECT_EXCEPTION(aioobe_);
 
   // ArrayIndexOutOfBounds for too-large index.
   env_->SetObjectArrayElement(array, 1, c);
-  EXPECT_EXCEPTION(aioobe);
+  EXPECT_EXCEPTION(aioobe_);
 
   // TODO: check ArrayStoreException thrown for bad types.
 }

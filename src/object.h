@@ -3,15 +3,16 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
-#include "constants.h"
 #include "casts.h"
+#include "constants.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"
 #include "macros.h"
+#include "monitor.h"
 #include "offsets.h"
 #include "stringpiece.h"
-#include "monitor.h"
+#include "utf.h"
 
 namespace art {
 
@@ -1486,12 +1487,16 @@ class String : public Object {
     return hash_code_;
   }
 
-  uint32_t GetOffset() const {
+  int32_t GetOffset() const {
     return offset_;
   }
 
-  uint32_t GetLength() const {
+  int32_t GetLength() const {
     return count_;
+  }
+
+  int32_t GetUtfLength() const {
+    return CountUtf8Bytes(array_->GetData(), count_);
   }
 
   // TODO: do we need this? Equals is the only caller, and could
@@ -1508,19 +1513,23 @@ class String : public Object {
 
   static String* AllocFromUtf16(int32_t utf16_length,
                                 const uint16_t* utf16_data_in,
-                                int32_t hash_code) {
+                                int32_t hash_code = 0) {
     String* string = Alloc(GetJavaLangString(),
                            utf16_length);
     // TODO: use 16-bit wide memset variant
     for (int i = 0; i < utf16_length; i++ ) {
         string->array_->Set(i, utf16_data_in[i]);
     }
-    string->ComputeHashCode();
+    if (hash_code != 0) {
+      string->hash_code_ = hash_code;
+    } else {
+      string->ComputeHashCode();
+    }
     return string;
   }
 
   static String* AllocFromModifiedUtf8(const char* utf) {
-    size_t char_count = ModifiedUtf8Len(utf);
+    size_t char_count = CountModifiedUtf8Chars(utf);
     return AllocFromModifiedUtf8(char_count, utf);
   }
 
@@ -1536,94 +1545,15 @@ class String : public Object {
   static void SetClass(Class* java_lang_String);
   static void ResetClass();
 
-  static String* Alloc(Class* java_lang_String,
-                       int32_t utf16_length) {
+  static String* Alloc(Class* java_lang_String, int32_t utf16_length) {
     return Alloc(java_lang_String, CharArray::Alloc(utf16_length));
   }
 
-  static String* Alloc(Class* java_lang_String,
-                       CharArray* array) {
+  static String* Alloc(Class* java_lang_String, CharArray* array) {
     String* string = down_cast<String*>(java_lang_String->NewInstance());
     string->array_ = array;
     string->count_ = array->GetLength();
     return string;
-  }
-
-  // Convert Modified UTF-8 to UTF-16
-  // http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-  static void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_in) {
-    while (*utf8_data_in != '\0') {
-      *utf16_data_out++ = GetUtf16FromUtf8(&utf8_data_in);
-    }
-  }
-
-  // Retrieve the next UTF-16 character from a UTF-8 string.
-  //
-  // Advances "*pUtf8Ptr" to the start of the next character.
-  //
-  // WARNING: If a string is corrupted by dropping a '\0' in the middle
-  // of a 3-byte sequence, you can end up overrunning the buffer with
-  // reads (and possibly with the writes if the length was computed and
-  // cached before the damage). For performance reasons, this function
-  // assumes that the string being parsed is known to be valid (e.g., by
-  // already being verified). Most strings we process here are coming
-  // out of dex files or other internal translations, so the only real
-  // risk comes from the JNI NewStringUTF call.
-  static uint16_t GetUtf16FromUtf8(const char** utf8_data_in) {
-    uint8_t one = *(*utf8_data_in)++;
-    if ((one & 0x80) == 0) {
-      // one-byte encoding
-      return one;
-    }
-    // two- or three-byte encoding
-    uint8_t two = *(*utf8_data_in)++;
-    if ((one & 0x20) == 0) {
-      // two-byte encoding
-      return ((one & 0x1f) << 6) |
-              (two & 0x3f);
-    }
-    // three-byte encoding
-    uint8_t three = *(*utf8_data_in)++;
-    return ((one & 0x0f) << 12) |
-            ((two & 0x3f) << 6) |
-            (three & 0x3f);
-  }
-
-  // Like "strlen", but for strings encoded with "modified" UTF-8.
-  //
-  // The value returned is the number of characters, which may or may not
-  // be the same as the number of bytes.
-  //
-  // (If this needs optimizing, try: mask against 0xa0, shift right 5,
-  // get increment {1-3} from table of 8 values.)
-  static size_t ModifiedUtf8Len(const char* utf8) {
-    size_t len = 0;
-    int ic;
-    while ((ic = *utf8++) != '\0') {
-      len++;
-      if ((ic & 0x80) == 0) {
-        // one-byte encoding
-        continue;
-      }
-      // two- or three-byte encoding
-      utf8++;
-      if ((ic & 0x20) == 0) {
-        // two-byte encoding
-        continue;
-      }
-      // three-byte encoding
-      utf8++;
-    }
-    return len;
-  }
-
-  // The java/lang/String.computeHashCode() algorithm
-  static int32_t ComputeUtf16Hash(const uint16_t* string_data, size_t string_length) {
-    int32_t hash = 0;
-    while (string_length--) {
-      hash = hash * 31 + *string_data++;
-    }
-    return hash;
   }
 
   void ComputeHashCode() {
@@ -1632,7 +1562,7 @@ class String : public Object {
 
   // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const char* modified_utf8) const {
-    for (uint32_t i = 0; i < GetLength(); ++i) {
+    for (int32_t i = 0; i < GetLength(); ++i) {
       uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
       if (ch == '\0' || ch != CharAt(i)) {
         return false;
@@ -1652,7 +1582,7 @@ class String : public Object {
     if (this->GetLength() != that->GetLength()) {
       return false;
     }
-    for (uint32_t i = 0; i < that->GetLength(); ++i) {
+    for (int32_t i = 0; i < that->GetLength(); ++i) {
       if (this->CharAt(i) != that->CharAt(i)) {
         return false;
       }
@@ -1661,11 +1591,11 @@ class String : public Object {
   }
 
   // TODO: do we need this overload? give it a more intention-revealing name.
-  bool Equals(const uint16_t* that_chars, uint32_t that_offset, uint32_t that_length) const {
+  bool Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) const {
     if (this->GetLength() != that_length) {
       return false;
     }
-    for (uint32_t i = 0; i < that_length; ++i) {
+    for (int32_t i = 0; i < that_length; ++i) {
       if (this->CharAt(i) != that_chars[that_offset + i]) {
         return false;
       }
@@ -1676,7 +1606,7 @@ class String : public Object {
   // Create a modified UTF-8 encoded std::string from a java/lang/String object.
   std::string ToModifiedUtf8() const {
     std::string result;
-    for (uint32_t i = 0; i < GetLength(); i++) {
+    for (int32_t i = 0; i < GetLength(); i++) {
       uint16_t ch = CharAt(i);
       // The most common case is (ch > 0 && ch <= 0x7f).
       if (ch == 0 || ch > 0x7f) {
@@ -1694,7 +1624,6 @@ class String : public Object {
     }
     return result;
   }
-
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
