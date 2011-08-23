@@ -17,7 +17,7 @@ TEST_F(ImageTest, WriteRead) {
 
   // TODO: move the touching of classes and GC to the ImageWriter proper
   for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); i++) {
-    const DexFile::ClassDef class_def = java_lang_dex_file_->GetClassDef(i);
+    const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
     const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);
     ASSERT_TRUE(klass != NULL) << descriptor;
@@ -81,7 +81,7 @@ TEST_F(ImageTest, WriteRead) {
   byte* boot_base = boot_space->GetBase();
   byte* boot_limit = boot_space->GetLimit();
   for (size_t i = 0; i < dex->NumClassDefs(); i++) {
-    const DexFile::ClassDef class_def = dex->GetClassDef(i);
+    const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);
     EXPECT_TRUE(klass != NULL) << descriptor;

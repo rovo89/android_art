@@ -633,7 +633,6 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   // Load instance fields.
   DCHECK(klass->ifields_ == NULL);
   if (num_instance_fields != 0) {
-    // TODO: allocate on the object heap.
     klass->ifields_ = AllocObjectArray<Field>(num_instance_fields);
     uint32_t last_idx = 0;
     for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {

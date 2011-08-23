@@ -77,16 +77,22 @@ class DexFile {
     uint32_t class_defs_off_;
     uint32_t data_size_;
     uint32_t data_off_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Header);
   };
 
   // Raw string_id_item.
   struct StringId {
     uint32_t string_data_off_;  // offset in bytes from the base address
+   private:
+    DISALLOW_COPY_AND_ASSIGN(StringId);
   };
 
   // Raw type_id_item.
   struct TypeId {
     uint32_t descriptor_idx_;  // index into string_ids
+   private:
+    DISALLOW_COPY_AND_ASSIGN(TypeId);
   };
 
   // Raw field_id_item.
@@ -94,6 +100,8 @@ class DexFile {
     uint16_t class_idx_;  // index into type_ids_ list for defining class
     uint16_t type_idx_;  // index into type_ids_ for field type
     uint32_t name_idx_;  // index into string_ids_ for field name
+   private:
+    DISALLOW_COPY_AND_ASSIGN(FieldId);
   };
 
   // Raw method_id_item.
@@ -101,6 +109,8 @@ class DexFile {
     uint16_t class_idx_;  // index into type_ids_ list for defining class
     uint16_t proto_idx_;  // index into proto_ids_ for method prototype
     uint32_t name_idx_;  // index into string_ids_ for method name
+   private:
+    DISALLOW_COPY_AND_ASSIGN(MethodId);
   };
 
   // Raw proto_id_item.
@@ -108,6 +118,8 @@ class DexFile {
     uint32_t shorty_idx_;  // index into string_ids for shorty descriptor
     uint32_t return_type_idx_;  // index into type_ids list for return type
     uint32_t parameters_off_;  // file offset to type_list for parameter types
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ProtoId);
   };
 
   // Raw class_def_item.
@@ -120,11 +132,15 @@ class DexFile {
     uint32_t annotations_off_;  // file offset to annotations_directory_item
     uint32_t class_data_off_;  // file offset to class_data_item
     uint32_t static_values_off_;  // file offset to EncodedArray
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ClassDef);
   };
 
   // Raw type_item.
   struct TypeItem {
     uint16_t type_idx_;  // index into type_ids section
+   private:
+    DISALLOW_COPY_AND_ASSIGN(TypeItem);
   };
 
   // Raw type_list.
@@ -142,6 +158,7 @@ class DexFile {
    private:
     uint32_t size_;  // size of the list, in entries
     TypeItem list_[1];  // elements of the list
+    DISALLOW_COPY_AND_ASSIGN(TypeList);
   };
 
   class ParameterIterator {  // TODO: stream
@@ -184,6 +201,8 @@ class DexFile {
     uint32_t debug_info_off_;  // file offset to debug info stream
     uint32_t insns_size_;  // size of the insns array, in 2 byte code units
     uint16_t insns_[1];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(CodeItem);
   };
 
   struct CatchHandlerItem {
@@ -196,6 +215,8 @@ class DexFile {
     uint32_t start_addr_;
     uint16_t insn_count_;
     uint16_t handler_off_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(TryItem);
   };
 
   class CatchHandlerIterator {
@@ -268,6 +289,9 @@ class DexFile {
   struct Field {
     uint32_t field_idx_;  // index into the field_ids list for the identity of this field
     uint32_t access_flags_;  // access flags for the field
+    Field() {};
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Field);
   };
 
   // Decoded form of encoded_method.
@@ -275,6 +299,9 @@ class DexFile {
     uint32_t method_idx_;
     uint32_t access_flags_;
     uint32_t code_off_;
+    Method() {};
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Method);
   };
 
   typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
@@ -375,6 +402,11 @@ class DexFile {
   // Returns the class descriptor string of a class definition.
   const char* GetClassDescriptor(const ClassDef& class_def) const {
     return dexStringByTypeIdx(class_def.class_idx_);
+  }
+
+  // Returns the type descriptor string of a type id.
+  const char* GetTypeDescriptor(const TypeId& type_id) const {
+    return dexStringById(type_id.descriptor_idx_);
   }
 
   // Returns the StringId at the specified index.
@@ -691,6 +723,9 @@ class DexFile {
 
     // Is the local defined and live.
     bool is_live_;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(LocalInfo);
   };
 
   struct LineNumFromPcContext {
@@ -698,6 +733,8 @@ class DexFile {
                            address_(address), line_num_(line_num) {}
     uint32_t address_;
     uint32_t line_num_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(LineNumFromPcContext);
   };
 
   void InvokeLocalCbIfLive(void *cnxt, int reg, uint32_t end_address,

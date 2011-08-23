@@ -23,7 +23,10 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertPrimitiveClass(const StringPiece& descriptor) {
-    Class* primitive = class_linker_->FindSystemClass(descriptor);
+    AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor));
+  }
+
+  void AssertPrimitiveClass(const StringPiece& descriptor, const Class* primitive) {
     ASSERT_TRUE(primitive != NULL);
     ASSERT_TRUE(primitive->GetClass() != NULL);
     ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
@@ -56,6 +59,13 @@ class ClassLinkerTest : public CommonTest {
                         const StringPiece& component_type,
                         ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor, class_loader);
+    EXPECT_EQ(array_rank, array->array_rank_);
+    EXPECT_TRUE(array->GetComponentType()->GetDescriptor()->Equals(component_type));
+    EXPECT_EQ(class_loader, array->GetClassLoader());
+    AssertArrayClass(array_descriptor, array);
+  }
+
+  void AssertArrayClass(const StringPiece& array_descriptor, Class* array) {
     ASSERT_TRUE(array != NULL);
     ASSERT_TRUE(array->GetClass() != NULL);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
@@ -64,16 +74,14 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(array->GetSuperClass() != NULL);
     EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
     EXPECT_TRUE(array->HasSuperClass());
-    EXPECT_EQ(class_loader, array->GetClassLoader());
     ASSERT_TRUE(array->GetComponentType() != NULL);
     ASSERT_TRUE(array->GetComponentType()->GetDescriptor() != NULL);
-    EXPECT_TRUE(array->GetComponentType()->GetDescriptor()->Equals(component_type));
     EXPECT_TRUE(array->GetStatus() == Class::kStatusInitialized);
     EXPECT_FALSE(array->IsErroneous());
     EXPECT_TRUE(array->IsVerified());
     EXPECT_TRUE(array->IsLinked());
     EXPECT_TRUE(array->IsArray());
-    EXPECT_EQ(array_rank, array->array_rank_);
+    EXPECT_LE(1, array->array_rank_);
     EXPECT_FALSE(array->IsInterface());
     EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
     EXPECT_TRUE(array->IsFinal());
@@ -86,7 +94,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(2U, array->NumInterfaces());
   }
 
-  void AssertDexFileMethod(Class* klass, Method* method) {
+  void AssertMethod(Class* klass, Method* method) {
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetName() != NULL);
     EXPECT_TRUE(method->GetSignature() != NULL);
@@ -101,17 +109,14 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetFields(), method->dex_cache_fields_);
   }
 
-  void AssertDexFileField(Class* klass, Field* field) {
+  void AssertField(Class* klass, Field* field) {
     EXPECT_TRUE(field != NULL);
     EXPECT_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != NULL);
     EXPECT_TRUE(field->GetDescriptor() != NULL);
   }
 
-  void AssertDexFileClass(ClassLoader* class_loader, const char* descriptor) {
-    ASSERT_TRUE(descriptor != NULL);
-    Class* klass = class_linker_->FindSystemClass(descriptor);
-    ASSERT_TRUE(klass != NULL);
+  void AssertClass(const StringPiece& descriptor, Class* klass) {
     EXPECT_TRUE(klass->GetDescriptor()->Equals(descriptor));
     if (klass->descriptor_->Equals(String::AllocFromModifiedUtf8("Ljava/lang/Object;"))) {
       EXPECT_FALSE(klass->HasSuperClass());
@@ -119,7 +124,6 @@ class ClassLinkerTest : public CommonTest {
       EXPECT_TRUE(klass->HasSuperClass());
       EXPECT_TRUE(klass->GetSuperClass() != NULL);
     }
-    EXPECT_EQ(class_loader, klass->GetClassLoader());
     EXPECT_TRUE(klass->GetDexCache() != NULL);
     EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->GetComponentType() == NULL);
@@ -161,25 +165,25 @@ class ClassLinkerTest : public CommonTest {
 
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       Method* method = klass->GetDirectMethod(i);
-      AssertDexFileMethod(klass, method);
+      AssertMethod(klass, method);
       EXPECT_EQ(klass, method->GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
       Method* method = klass->GetVirtualMethod(i);
-      AssertDexFileMethod(klass, method);
+      AssertMethod(klass, method);
       EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass));
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      AssertDexFileField(klass, field);
+      AssertField(klass, field);
       EXPECT_FALSE(field->IsStatic());
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
       Field* field = klass->GetStaticField(i);
-      AssertDexFileField(klass, field);
+      AssertField(klass, field);
       EXPECT_TRUE(field->IsStatic());
    }
 
@@ -187,13 +191,15 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
+      Class* field_type = class_linker_->FindClass(field->GetDescriptor(),
+                                                   klass->GetClassLoader());
       ASSERT_TRUE(field_type != NULL);
       EXPECT_FALSE(field_type->IsPrimitive());
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      Class* field_type = class_linker_->FindClass(field->GetDescriptor(), class_loader);
+      Class* field_type = class_linker_->FindClass(field->GetDescriptor(),
+                                                   klass->GetClassLoader());
       ASSERT_TRUE(field_type != NULL);
       EXPECT_TRUE(field_type->IsPrimitive());
     }
@@ -208,18 +214,40 @@ class ClassLinkerTest : public CommonTest {
               total_num_reference_instance_fields == 0);
   }
 
-  static void TestRootVisitor(Object* root, void* arg) {
-    EXPECT_TRUE(root != NULL);
+  void AssertDexFileClass(ClassLoader* class_loader, const StringPiece& descriptor) {
+    ASSERT_TRUE(descriptor != NULL);
+    Class* klass = class_linker_->FindSystemClass(descriptor);
+    ASSERT_TRUE(klass != NULL);
+    EXPECT_TRUE(klass->GetDescriptor()->Equals(descriptor));
+    EXPECT_EQ(class_loader, klass->GetClassLoader());
+    if (klass->IsPrimitive()) {
+      AssertPrimitiveClass(descriptor, klass);
+    } else if (klass->IsArray()) {
+      AssertArrayClass(descriptor, klass);
+    } else {
+      AssertClass(descriptor, klass);
+    }
   }
 
   void AssertDexFile(const DexFile* dex, ClassLoader* class_loader) {
     ASSERT_TRUE(dex != NULL);
+    // Verify all the classes defined in this file
     for (size_t i = 0; i < dex->NumClassDefs(); i++) {
-      const DexFile::ClassDef class_def = dex->GetClassDef(i);
+      const DexFile::ClassDef& class_def = dex->GetClassDef(i);
       const char* descriptor = dex->GetClassDescriptor(class_def);
       AssertDexFileClass(class_loader, descriptor);
     }
+    // Verify all the types referened by this file
+    for (size_t i = 0; i < dex->NumTypeIds(); i++) {
+      const DexFile::TypeId& type_id = dex->GetTypeId(i);
+      const char* descriptor = dex->GetTypeDescriptor(type_id);
+      AssertDexFileClass(class_loader, descriptor);
+    }
     class_linker_->VisitRoots(TestRootVisitor, NULL);
+  }
+
+  static void TestRootVisitor(Object* root, void* arg) {
+    EXPECT_TRUE(root != NULL);
   }
 };
 
