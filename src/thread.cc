@@ -174,38 +174,24 @@ bool Thread::ShbContains(jobject obj) {
   return false;
 }
 
-void Thread::ThrowNewException(Class* exception_class, const char* msg) {
-  Object* exception = exception_class->NewInstance();
-  CHECK(exception != NULL);
-
-  String* java_msg = String::AllocFromModifiedUtf8(msg);
-  CHECK(java_msg != NULL);
-
-  // TODO: what if there's already a pending exception?
-  // TODO: support the other constructors.
-  Method* ctor = exception_class->FindDirectMethod("<init>", "(Ljava/lang/String;)V");
-  CHECK(ctor != NULL);
-
-  // TODO: need to *call* the constructor!
-  UNIMPLEMENTED(WARNING) << "can't call "
-                         << exception_class->GetDescriptor()->ToModifiedUtf8() << ".<init> "
-                         << "\"" << msg << "\"";
-
-  SetException(exception);
-}
-
-void Thread::ThrowNewException(const char* exception_class_name, const char* fmt, ...) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* exception_class = class_linker->FindSystemClass(exception_class_name);
-  CHECK(exception_class != NULL);
-
+void Thread::ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...) {
   std::string msg;
   va_list args;
   va_start(args, fmt);
   StringAppendV(&msg, fmt, args);
   va_end(args);
 
-  ThrowNewException(exception_class, msg.c_str());
+  // Convert "Ljava/lang/Exception;" into JNI-style "java/lang/Exception".
+  CHECK(exception_class_descriptor[0] == 'L');
+  std::string descriptor(exception_class_descriptor + 1);
+  CHECK(descriptor[descriptor.length() - 1] == ';');
+  descriptor.erase(descriptor.length() - 1);
+
+  JNIEnv* env = GetJniEnv();
+  jclass exception_class = env->FindClass(descriptor.c_str());
+  CHECK(exception_class != NULL) << "descriptor=\"" << descriptor << "\"";
+  int rc = env->ThrowNew(exception_class, msg.c_str());
+  CHECK_EQ(rc, JNI_OK);
 }
 
 Frame Thread::FindExceptionHandler(void* throw_pc, void** handler_pc) {
@@ -243,7 +229,7 @@ void* Thread::FindExceptionHandlerInMethod(const Method* method,
                                            void* throw_pc,
                                            const DexFile& dex_file,
                                            ClassLinker* class_linker) {
-  Object* exception_obj = exception_;
+  Throwable* exception_obj = exception_;
   exception_ = NULL;
 
   intptr_t dex_pc = -1;

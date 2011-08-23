@@ -25,6 +25,7 @@ class Runtime;
 class StackHandleBlock;
 class Thread;
 class ThreadList;
+class Throwable;
 
 class Mutex {
  public:
@@ -230,12 +231,10 @@ class Thread {
     return exception_ != NULL;
   }
 
-  // TODO: Throwable*
-  Object* GetException() const {
+  Throwable* GetException() const {
     return exception_;
   }
 
-  // TODO: Throwable*
   Frame GetTopOfStack() const {
     return top_of_managed_stack_;
   }
@@ -246,15 +245,13 @@ class Thread {
     top_of_managed_stack_.SetSP(reinterpret_cast<const Method**>(stack));
   }
 
-  void SetException(Object* new_exception) {
+  void SetException(Throwable* new_exception) {
     CHECK(new_exception != NULL);
     // TODO: CHECK(exception_ == NULL);
     exception_ = new_exception;  // TODO
   }
 
-  void ThrowNewException(Class* c, const char* msg);
-
-  void ThrowNewException(const char* exception_class_name, const char* fmt, ...)
+  void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));
 
   void ClearException() {
@@ -434,8 +431,7 @@ class Thread {
   Runtime* runtime_;
 
   // The pending exception or NULL.
-  // TODO: Throwable*
-  Object* exception_;
+  Throwable* exception_;
 
   // A non-zero value is used to tell the current thread to enter a safe point
   // at the next poll.

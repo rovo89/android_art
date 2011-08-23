@@ -260,12 +260,12 @@ TEST_F(JniInternalTest, RegisterNatives) {
   EXPECT_FALSE(env_->ExceptionCheck());
 }
 
-#define EXPECT_PRIMITIVE_ARRAY(fn, size, expected_class_name) \
+#define EXPECT_PRIMITIVE_ARRAY(fn, size, expected_class_descriptor) \
   do { \
     jarray a = env_->fn(size); \
     EXPECT_TRUE(a != NULL); \
     EXPECT_TRUE(env_->IsInstanceOf(a, \
-        env_->FindClass(expected_class_name))); \
+        env_->FindClass(expected_class_descriptor))); \
     EXPECT_EQ(size, env_->GetArrayLength(a)); \
   } while (false)
 

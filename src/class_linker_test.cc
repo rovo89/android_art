@@ -243,9 +243,7 @@ TEST_F(ClassLinkerTest, FindClassNested) {
   EXPECT_EQ(1U, inner->NumDirectMethods());
 }
 
-TEST_F(ClassLinkerTest, FindClass) {
-  ClassLinker* linker = class_linker_;
-
+TEST_F(ClassLinkerTest, FindClass_Primitives) {
   StringPiece expected = "BCDFIJSZV";
   for (int ch = 0; ch < 255; ch++) {
     char* s = reinterpret_cast<char*>(&ch);
@@ -256,8 +254,10 @@ TEST_F(ClassLinkerTest, FindClass) {
       AssertPrimitiveClass(descriptor);
     }
   }
+}
 
-  Class* JavaLangObject = linker->FindSystemClass("Ljava/lang/Object;");
+TEST_F(ClassLinkerTest, FindClass) {
+  Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
   ASSERT_TRUE(JavaLangObject != NULL);
   ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
   ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
@@ -283,11 +283,10 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
-
   scoped_ptr<DexFile> dex(OpenDexFileBase64(kMyClassDex, "kMyClassDex"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   AssertNonExistentClass("LMyClass;");
-  Class* MyClass = linker->FindClass("LMyClass;", class_loader);
+  Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
@@ -342,6 +341,14 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(string->GetInstanceField(1)->GetName()->Equals("hashCode"));
   EXPECT_TRUE(string->GetInstanceField(2)->GetName()->Equals("offset"));
   EXPECT_TRUE(string->GetInstanceField(3)->GetName()->Equals("count"));
+
+  Class* throwable = class_linker_->FindSystemClass( "Ljava/lang/Throwable;");
+  ASSERT_EQ(5U, throwable->NumInstanceFields());
+  EXPECT_TRUE(throwable->GetInstanceField(0)->GetName()->Equals("cause"));
+  EXPECT_TRUE(throwable->GetInstanceField(1)->GetName()->Equals("detailMessage"));
+  EXPECT_TRUE(throwable->GetInstanceField(2)->GetName()->Equals("stackState"));
+  EXPECT_TRUE(throwable->GetInstanceField(3)->GetName()->Equals("stackTrace"));
+  EXPECT_TRUE(throwable->GetInstanceField(4)->GetName()->Equals("suppressedExceptions"));
 
   Class* accessible_object = class_linker_->FindSystemClass("Ljava/lang/reflect/AccessibleObject;");
   ASSERT_EQ(1U, accessible_object->NumInstanceFields());

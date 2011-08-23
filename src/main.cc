@@ -77,7 +77,7 @@ static bool InvokeMain(JNIEnv* env, int argc, char** argv) {
   // Find [class].main(String[]).
 
   // Convert "com.android.Blah" to "com/android/Blah".
-  std::string class_name = argv[0];
+  std::string class_name(argv[0]);
   std::replace(class_name.begin(), class_name.end(), '.', '/');
 
   ScopedLocalRef<jclass> klass(env, env->FindClass(class_name.c_str()));

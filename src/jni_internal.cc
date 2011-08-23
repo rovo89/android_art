@@ -218,9 +218,9 @@ T AddLocalReference(ScopedJniThreadState& ts, Object* obj) {
   if (ts.Env()->check_jni) {
     size_t entry_count = locals.Capacity();
     if (entry_count > 16) {
-      std::string class_name(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
+      std::string class_descriptor(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
       LOG(WARNING) << "Warning: more than 16 JNI local references: "
-                   << entry_count << " (most recent was a " << class_name << ")";
+                   << entry_count << " (most recent was a " << class_descriptor << ")";
       locals.Dump();
       // TODO: dvmDumpThread(dvmThreadSelf(), false);
       // dvmAbort();
@@ -514,10 +514,10 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
 
   if (field == NULL) {
     Thread* self = Thread::Current();
-    std::string class_name(c->GetDescriptor()->ToModifiedUtf8());
+    std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
     self->ThrowNewException("Ljava/lang/NoSuchFieldError;",
         "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
-        name, class_name.c_str());
+        name, class_descriptor.c_str());
     return NULL;
   }
 
@@ -616,7 +616,7 @@ class JNI {
 
   static jint Throw(JNIEnv* env, jthrowable java_exception) {
     ScopedJniThreadState ts(env);
-    Object* exception = Decode<Object*>(ts, java_exception);
+    Throwable* exception = Decode<Throwable*>(ts, java_exception);
     if (exception == NULL) {
       return JNI_ERR;
     }
@@ -624,10 +624,32 @@ class JNI {
     return JNI_OK;
   }
 
-  static jint ThrowNew(JNIEnv* env, jclass java_class, const char* msg) {
+  static jint ThrowNew(JNIEnv* env, jclass c, const char* msg) {
     ScopedJniThreadState ts(env);
-    Class* c = Decode<Class*>(ts, java_class);
-    ts.Self()->ThrowNewException(c, msg);
+    // TODO: check for a pending exception to decide what constructor to call.
+    jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/String;)V");
+    if (mid == NULL) {
+      return JNI_ERR;
+    }
+    jstring s = env->NewStringUTF(msg);
+    if (s == NULL) {
+      return JNI_ERR;
+    }
+
+    jvalue args[1];
+    args[0].l = s;
+    jthrowable exception = reinterpret_cast<jthrowable>(env->NewObjectA(c, mid, args));
+    if (exception == NULL) {
+      return JNI_ERR;
+    }
+
+    LOG(INFO) << "Throwing " << PrettyType(Decode<Throwable*>(ts, exception))
+              << ": " << msg;
+    ts.Self()->SetException(Decode<Throwable*>(ts, exception));
+
+    env->DeleteLocalRef(exception);
+    env->DeleteLocalRef(s);
+
     return JNI_OK;
   }
 
@@ -1994,17 +2016,17 @@ class JNI {
       }
       if (method == NULL) {
         Thread* self = Thread::Current();
-        std::string class_name = klass->GetDescriptor()->ToModifiedUtf8();
+        std::string class_descriptor(klass->GetDescriptor()->ToModifiedUtf8());
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "no method \"%s.%s%s\"",
-            class_name.c_str(), name, sig);
+            class_descriptor.c_str(), name, sig);
         return JNI_ERR;
       } else if (!method->IsNative()) {
         Thread* self = Thread::Current();
-        std::string class_name = klass->GetDescriptor()->ToModifiedUtf8();
+        std::string class_descriptor(klass->GetDescriptor()->ToModifiedUtf8());
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "method \"%s.%s%s\" is not native",
-            class_name.c_str(), name, sig);
+            class_descriptor.c_str(), name, sig);
         return JNI_ERR;
       }
       method->RegisterNative(methods[i].fnPtr);

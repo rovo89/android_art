@@ -1715,6 +1715,18 @@ class String : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
+class Throwable : public Object {
+ private:
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  Throwable* cause_;
+  String* detail_message_;
+  Object* stack_state_; // Note this is Java volatile:
+  Object* stack_trace_;
+  Object* suppressed_exceptions_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Throwable);
+};
+
 inline bool Object::IsString() const {
   // TODO use "klass_ == String::GetJavaLangString()" instead?
   return klass_ == klass_->descriptor_->klass_;

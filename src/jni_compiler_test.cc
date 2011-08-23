@@ -367,7 +367,7 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
   EXPECT_EQ(1, gJava_MyClass_foo_calls);
   EXPECT_EQ(0, gExceptionHandler_calls);
   // TODO: create a real exception here
-  Thread::Current()->SetException(reinterpret_cast<Object*>(jobj_));
+  Thread::Current()->SetException(reinterpret_cast<Throwable*>(jobj_));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(2, gJava_MyClass_foo_calls);
   EXPECT_EQ(1, gExceptionHandler_calls);
