@@ -605,20 +605,20 @@ class Method : public AccessibleObject {
     code_ =  reinterpret_cast<void*>(address);
   }
 
-  void SetFrameSize(uint32_t frame_size) {
+  void SetFrameSize(size_t frame_size) {
     frame_size_ = frame_size;
   }
 
-  void SetPcOffset(uint32_t pc_offset) {
-    pc_offset_ = pc_offset;
+  void SetReturnPcOffset(size_t return_pc_offset) {
+    return_pc_offset_ = return_pc_offset;
   }
 
   size_t GetFrameSize() const {
     return frame_size_;
   }
 
-  size_t GetPcOffset() const {
-    return pc_offset_;
+  size_t GetReturnPcOffset() const {
+    return return_pc_offset_;
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
@@ -675,7 +675,7 @@ class Method : public AccessibleObject {
   uint16_t num_ins_;
 
   // Total size in bytes of the frame
-  uint32_t frame_size_;
+  size_t frame_size_;
 
   // Architecture-dependent register spill masks
   uint32_t core_spill_mask_;
@@ -702,7 +702,8 @@ class Method : public AccessibleObject {
   // The short-form method descriptor string.
   StringPiece shorty_;
 
-  // short cuts to declaring_class_->dex_cache_ members for fast compiled code access
+  // short cuts to declaring_class_->dex_cache_ members for fast compiled code
+  // access
   ObjectArray<String>* dex_cache_strings_;
   ObjectArray<Class>* dex_cache_classes_;
   ObjectArray<Method>* dex_cache_methods_;
@@ -718,8 +719,8 @@ class Method : public AccessibleObject {
   // Size in bytes of compiled code associated with this method
   const uint32_t code_size_;
 
-  // Offset of PC within compiled code (in bytes)
-  uint32_t pc_offset_;
+  // Offset of return PC within frame for compiled code (in bytes)
+  size_t return_pc_offset_;
 
   // Any native method registered with this method
   const void* native_method_;

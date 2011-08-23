@@ -57,7 +57,7 @@ void Frame::Next() {
 
 void* Frame::GetPC() const {
   byte* pc_addr = reinterpret_cast<byte*>(sp_) +
-      GetMethod()->GetPcOffset();
+      GetMethod()->GetReturnPcOffset();
   return reinterpret_cast<void*>(pc_addr);
 }
 

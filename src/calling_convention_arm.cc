@@ -78,6 +78,12 @@ size_t JniCallingConvention::FrameSize() {
   return RoundUp(frame_data_size + handle_area_size + SizeOfReturnValue(), 16);
 }
 
+size_t JniCallingConvention::ReturnPcOffset() {
+  // Link register is always the last value spilled, skip forward one word for
+  // the Method* then skip back one word to get the link register (ie +0)
+  return SpillAreaSize();
+}
+
 size_t JniCallingConvention::SpillAreaSize() {
   // Space for link register. For synchronized methods we need enough space to
   // save R1, R2 and R3 (R0 is the method register and always preserved)

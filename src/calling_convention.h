@@ -105,6 +105,8 @@ class JniCallingConvention : public CallingConvention {
   // always at the bottom of a frame, but this doesn't work for outgoing
   // native args). Includes alignment.
   size_t FrameSize();
+  // Offset within the frame of the return pc
+  size_t ReturnPcOffset();
   // Size of outgoing arguments, including alignment
   size_t OutArgSize();
   // Number of handles in stack handle block

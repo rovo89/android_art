@@ -294,6 +294,8 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   jni_asm->FinalizeInstructions(code);
   native_method->SetCode(reinterpret_cast<byte*>(code.pointer()), cs,
       jni_asm->GetInstructionSet());
+  native_method->SetFrameSize(frame_size);
+  native_method->SetReturnPcOffset(jni_conv.ReturnPcOffset());
 }
 
 // Copy a single parameter from the managed to the JNI calling convention
