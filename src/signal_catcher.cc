@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "heap.h"
+#include "runtime.h"
 #include "thread.h"
 #include "utils.h"
 

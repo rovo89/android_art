@@ -11,6 +11,7 @@
 #include "mem_map.h"
 #include "object.h"
 #include "os.h"
+#include "space.h"
 
 namespace art {
 

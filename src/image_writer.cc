@@ -8,6 +8,7 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "dex_cache.h"
 #include "file.h"
 #include "globals.h"
@@ -16,6 +17,7 @@
 #include "intern_table.h"
 #include "logging.h"
 #include "object.h"
+#include "runtime.h"
 #include "space.h"
 #include "utils.h"
 

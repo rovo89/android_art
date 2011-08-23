@@ -31,7 +31,7 @@ HeapBitmap* HeapBitmap::Create(byte* base, size_t length) {
 }
 
 // Initialize a HeapBitmap so that it points to a bitmap large enough
-// to cover a heap at <base> of <maxSize> bytes, where objects are
+// to cover a heap at <base> of <max_size> bytes, where objects are
 // guaranteed to be kAlignment-aligned.
 bool HeapBitmap::Init(const byte* base, size_t max_size) {
   CHECK(base != NULL);
@@ -107,14 +107,11 @@ void HeapBitmap::Walk(HeapBitmap::Callback* callback, void* arg) {
 // address will be visited by the traversal.  If the callback sets a
 // bit for an address below the finger, this address will not be
 // visited.
-void HeapBitmap::ScanWalk(uintptr_t base, uintptr_t max,
-                          ScanCallback* callback, void* arg) {
+void HeapBitmap::ScanWalk(uintptr_t base, ScanCallback* callback, void* arg) {
   CHECK(words_ != NULL);
   CHECK(callback != NULL);
-  CHECK(base <= max);
   CHECK(base >= base_);
-  CHECK(max <= max_);
-  uintptr_t end = HB_OFFSET_TO_INDEX(max - base);
+  uintptr_t end = HB_OFFSET_TO_INDEX(max_ - base);
   for (uintptr_t i = 0; i <= end; ++i) {
     unsigned long word = words_[i];
     if (word != 0) {
@@ -148,7 +145,7 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
   CHECK(callback != NULL);
   CHECK(base <= max);
   CHECK(base >= live_bitmap.base_);
-  CHECK(max <= live_bitmap.max_);
+  max = std::min(max-1, live_bitmap.max_);
   if (live_bitmap.max_ < live_bitmap.base_) {
     // Easy case; both are obviously empty.
     // TODO: this should never happen

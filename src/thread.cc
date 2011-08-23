@@ -62,7 +62,7 @@ void Thread::InitFunctionPointers() {
   pLmul = __aeabi_lmul;
 #endif
   pAllocFromCode = Array::AllocFromCode;
-  pNewInstanceFromCode = Class::NewInstanceFromCode;
+  pAllocObjectFromCode = Class::AllocObjectFromCode;
   pMemcpy = memcpy;
   pArtHandleFillArrayDataNoThrow = artHandleFillArrayDataNoThrow;
   pGet32Static = Field::Get32StaticFromCode;

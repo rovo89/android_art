@@ -18,6 +18,7 @@
 #include "CompilerInternals.h"
 #include "Dataflow.h"
 #include "constants.h"
+#include "runtime.h"
 
 static inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;

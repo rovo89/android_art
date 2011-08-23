@@ -383,4 +383,9 @@ bool Runtime::DetachCurrentThread() {
   return true;
 }
 
+void Runtime::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
+  GetClassLinker()->VisitRoots(root_visitor, arg);
+  UNIMPLEMENTED(WARNING) << "mark other roots including per thread state and thread stacks";
+}
+
 }  // namespace art

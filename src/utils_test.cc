@@ -4,8 +4,6 @@
 #include "common_test.h"
 #include "utils.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
 class UtilsTest : public CommonTest {

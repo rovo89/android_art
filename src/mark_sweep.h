@@ -15,7 +15,13 @@ class Object;
 class MarkSweep {
  public:
   MarkSweep() :
-      finger_(NULL), condemned_(NULL) {
+      finger_(NULL),
+      condemned_(NULL),
+      soft_reference_list_(NULL),
+      weak_reference_list_(NULL),
+      finalizer_reference_list_(NULL),
+      phantom_reference_list_(NULL),
+      cleared_reference_list_(NULL) {
   }
 
   ~MarkSweep();
@@ -47,6 +53,8 @@ class MarkSweep {
   bool IsMarked(const Object* object) const {
     return mark_bitmap_->Test(object);
   }
+
+  static void MarkObjectVisitor(Object* root, void* arg);
 
   // Marks an object.
   void MarkObject(const Object* obj);
@@ -139,16 +147,6 @@ class MarkSweep {
   Object* phantom_reference_list_;
 
   Object* cleared_reference_list_;
-
-  static size_t reference_referent_offset_;
-
-  static size_t reference_queue_offset_;
-
-  static size_t reference_queueNext_offset_;
-
-  static size_t reference_pendingNext_offset_;
-
-  static size_t finalizer_reference_zombie_offset_;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);
 };

@@ -6,20 +6,15 @@
 #include <algorithm>
 
 #include "class_linker.h"
+#include "class_loader.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"
 #include "dex_cache.h"
 #include "dex_file.h"
+#include "runtime.h"
 
 namespace art {
-
-const std::vector<const DexFile*>& ClassLoader::GetClassPath(const ClassLoader* class_loader) {
-  if (class_loader == NULL) {
-    return Runtime::Current()->GetClassLinker()->GetBootClassPath();
-  }
-  return class_loader->class_path_;
-}
 
 Array* Array::Alloc(Class* array_class, int32_t component_count, size_t component_size) {
   DCHECK_GE(component_count, 0);
@@ -50,7 +45,7 @@ Array* Array::AllocFromCode(uint32_t type_idx, Method* method, int32_t component
   return Array::Alloc(klass, component_count);
 }
 
-Object* Class::NewInstanceFromCode(uint32_t type_idx, Method* method) {
+Object* Class::AllocObjectFromCode(uint32_t type_idx, Method* method) {
   Class* klass = method->dex_cache_resolved_types_->Get(type_idx);
   if (klass == NULL) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
@@ -59,7 +54,12 @@ Object* Class::NewInstanceFromCode(uint32_t type_idx, Method* method) {
       return NULL;
     }
   }
-  return klass->NewInstance();
+  return klass->AllocObject();
+}
+
+Object* Class::AllocObject() {
+  DCHECK(!IsAbstract());
+  return Heap::AllocObject(this, this->object_size_);
 }
 
 bool Class::Implements(const Class* klass) const {
@@ -673,26 +673,6 @@ void String::SetClass(Class* java_lang_String) {
 void String::ResetClass() {
   CHECK(java_lang_String_ != NULL);
   java_lang_String_ = NULL;
-}
-
-// TODO: get global references for these
-Class* PathClassLoader::dalvik_system_PathClassLoader_ = NULL;
-
-const PathClassLoader* PathClassLoader::Alloc(std::vector<const DexFile*> dex_files) {
-  PathClassLoader* p = down_cast<PathClassLoader*>(dalvik_system_PathClassLoader_->NewInstance());
-  p->SetClassPath(dex_files);
-  return p;
-}
-
-void PathClassLoader::SetClass(Class* dalvik_system_PathClassLoader) {
-  CHECK(dalvik_system_PathClassLoader_ == NULL);
-  CHECK(dalvik_system_PathClassLoader != NULL);
-  dalvik_system_PathClassLoader_ = dalvik_system_PathClassLoader;
-}
-
-void PathClassLoader::ResetClass() {
-  CHECK(dalvik_system_PathClassLoader_ != NULL);
-  dalvik_system_PathClassLoader_ = NULL;
 }
 
 Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;

@@ -7,8 +7,6 @@
 #include "space.h"
 #include "utils.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
 class ImageTest : public CommonTest {};

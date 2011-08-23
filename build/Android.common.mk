@@ -43,6 +43,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/calling_convention.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
+	src/class_loader.cc \
 	src/compiler.cc \
 	src/compiler/Dataflow.cc \
 	src/compiler/Frontend.cc \
@@ -121,6 +122,7 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_verifier_test.cc \
 	src/exception_test.cc \
 	src/file_test.cc \
+	src/heap_test.cc \
 	src/image_test.cc \
 	src/indirect_reference_table_test.cc \
 	src/intern_table_test.cc \

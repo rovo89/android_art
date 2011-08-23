@@ -6,21 +6,20 @@
 #include <pthread.h>
 #include <list>
 
+#include "dex_file.h"
 #include "globals.h"
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
 #include "mem_map.h"
 #include "offsets.h"
-#include "runtime.h"
-
 
 namespace art {
 
 class Array;
 class Class;
+class ClassLinker;
 class ClassLoader;
-class JNIEnvExt;
 class Method;
 class Object;
 class Runtime;
@@ -202,7 +201,7 @@ class Thread {
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
   Array* (*pAllocFromCode)(uint32_t, Method*, int32_t);
-  Object* (*pNewInstanceFromCode)(uint32_t, Method*);
+  Object* (*pAllocObjectFromCode)(uint32_t, Method*);
   uint32_t (*pGet32Static)(uint32_t, const Method*);
   void (*pSet32Static)(uint32_t, const Method*, uint32_t);
   uint64_t (*pGet64Static)(uint32_t, const Method*);

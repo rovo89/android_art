@@ -1,14 +1,15 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "class_linker.h"
-#include "dex_file.h"
-#include "dex_instruction.h"
-#include "dex_instruction_visitor.h"
 #include "dex_verifier.h"
 
 #include <iostream>
 
+#include "class_linker.h"
+#include "dex_file.h"
+#include "dex_instruction.h"
+#include "dex_instruction_visitor.h"
 #include "logging.h"
+#include "runtime.h"
 #include "stringpiece.h"
 
 namespace art {

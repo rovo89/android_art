@@ -7,6 +7,7 @@
 
 #include "UniquePtr.h"
 #include "casts.h"
+#include "class_loader.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_verifier.h"
@@ -14,6 +15,7 @@
 #include "logging.h"
 #include "monitor.h"
 #include "object.h"
+#include "runtime.h"
 #include "space.h"
 #include "thread.h"
 #include "utils.h"
@@ -242,14 +244,44 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
   SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
   SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
-  SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
-  SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
   FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
+
+  // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
+  Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+  Class* java_lang_ref_PhantomReference = FindSystemClass("Ljava/lang/ref/PhantomReference;");
+  Class* java_lang_ref_SoftReference = FindSystemClass("Ljava/lang/ref/SoftReference;");
+  Class* java_lang_ref_WeakReference = FindSystemClass("Ljava/lang/ref/WeakReference;");
+  java_lang_ref_FinalizerReference->access_flags_ |= kAccClassIsReference | kAccClassIsFinalizerReference;
+  java_lang_ref_PhantomReference->access_flags_ |= kAccClassIsReference | kAccClassIsPhantomReference;
+  java_lang_ref_SoftReference->access_flags_ |= kAccClassIsReference;
+  java_lang_ref_WeakReference->access_flags_ |= kAccClassIsReference | kAccClassIsWeakReference;
+
+  // Let the heap know some key offsets into java.lang.ref instances
+  Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
+  Field* referent = java_lang_ref_Reference->FindDeclaredInstanceField(
+      "referent", "Ljava/lang/Object;");
+  Field* queue = java_lang_ref_Reference->FindDeclaredInstanceField(
+      "queue", "Ljava/lang/ref/ReferenceQueue;");
+  Field* queueNext = java_lang_ref_Reference->FindDeclaredInstanceField(
+      "queueNext", "Ljava/lang/ref/Reference;");
+  Field* pendingNext = java_lang_ref_Reference->FindDeclaredInstanceField(
+      "pendingNext", "Ljava/lang/ref/Reference;");
+  Field* zombie = java_lang_ref_FinalizerReference->FindDeclaredInstanceField(
+      "zombie", "Ljava/lang/Object;");
+  Heap::SetReferenceOffsets(referent->GetOffset(),
+                            queue->GetOffset(),
+                            queueNext->GetOffset(),
+                            pendingNext->GetOffset(),
+                            zombie->GetOffset());
+
+  // Optimization for quick stack trace allocation
+  SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
+  SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit();
@@ -455,11 +487,11 @@ Class* ClassLinker::AllocClass(size_t class_size) {
 }
 
 Field* ClassLinker::AllocField() {
-  return down_cast<Field*>(GetClassRoot(kJavaLangReflectField)->NewInstance());
+  return down_cast<Field*>(GetClassRoot(kJavaLangReflectField)->AllocObject());
 }
 
 Method* ClassLinker::AllocMethod() {
-  return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->NewInstance());
+  return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->AllocObject());
 }
 
 ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t length) {
@@ -649,6 +681,9 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   klass->primitive_type_ = Class::kPrimNot;
   klass->status_ = Class::kStatusIdx;
 
+  // Make sure the aren't any "bonus" flags set, since we use them for runtime state.
+  CHECK_EQ(klass->access_flags_ & ~kAccClassFlagsMask, 0U);
+
   klass->super_class_ = NULL;
   klass->super_class_type_idx_ = dex_class_def.superclass_idx_;
 
@@ -701,7 +736,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
       klass->SetDirectMethod(i, meth);
-      LoadMethod(dex_file, dex_method, klass, meth, true);
+      LoadMethod(dex_file, dex_method, klass, meth);
       // TODO: register maps
     }
   }
@@ -717,7 +752,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
       klass->SetVirtualMethod(i, meth);
-      LoadMethod(dex_file, dex_method, klass, meth, false);
+      LoadMethod(dex_file, dex_method, klass, meth);
       // TODO: register maps
     }
   }
@@ -754,8 +789,7 @@ void ClassLinker::LoadField(const DexFile& dex_file,
 void ClassLinker::LoadMethod(const DexFile& dex_file,
                              const DexFile::Method& src,
                              Class* klass,
-                             Method* dst,
-                             bool is_direct) {
+                             Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->declaring_class_ = klass;
   dst->name_ = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
@@ -775,8 +809,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->dex_cache_resolved_fields_ = klass->dex_cache_->GetResolvedFields();
   dst->dex_cache_code_and_direct_methods_ = klass->dex_cache_->GetCodeAndDirectMethods();
   dst->dex_cache_initialized_static_storage_ = klass->dex_cache_->GetInitializedStaticStorage();
-
-  dst->is_direct_ = is_direct;
 
   // TODO: check for finalize method
 

@@ -4,8 +4,10 @@
 
 #include "assembler.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "dex_cache.h"
 #include "jni_compiler.h"
+#include "runtime.h"
 
 extern bool oatCompileMethod(art::Method*, art::InstructionSet);
 

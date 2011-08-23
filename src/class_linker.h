@@ -18,6 +18,8 @@
 
 #include "gtest/gtest.h"
 
+class ClassLoader;
+
 namespace art {
 
 class ClassLinker {
@@ -192,8 +194,7 @@ class ClassLinker {
   void LoadMethod(const DexFile& dex_file,
                   const DexFile::Method& dex_method,
                   Class* klass,
-                  Method* dst,
-                  bool is_direct);
+                  Method* dst);
 
   Class* LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader);
 

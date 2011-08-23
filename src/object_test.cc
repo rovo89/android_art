@@ -10,7 +10,6 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "heap.h"
-#include "gtest/gtest.h"
 
 namespace art {
 
@@ -185,7 +184,7 @@ TEST_F(ObjectTest, AllocObjectFromCode) {
   Class* java_lang_Object = class_linker_->FindSystemClass("Ljava/lang/Object;");
   Method* toString = java_lang_Object->FindVirtualMethod("toString", "()Ljava/lang/String;");
   uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "Ljava/lang/String;");
-  Object* string = Class::NewInstanceFromCode(type_idx, toString);
+  Object* string = Class::AllocObjectFromCode(type_idx, toString);
   EXPECT_TRUE(string->IsString());
 }
 
@@ -334,8 +333,8 @@ TEST_F(ObjectTest, InstanceOf) {
   EXPECT_FALSE(Object::InstanceOf(NULL, X));
   EXPECT_FALSE(Object::InstanceOf(NULL, Y));
 
-  Object* x = X->NewInstance();
-  Object* y = Y->NewInstance();
+  Object* x = X->AllocObject();
+  Object* y = Y->AllocObject();
   ASSERT_TRUE(x != NULL);
   ASSERT_TRUE(y != NULL);
 

@@ -3,22 +3,26 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
+#include <vector>
+
 #include "UniquePtr.h"
 #include "casts.h"
 #include "constants.h"
 #include "globals.h"
-#include "heap.h"
 #include "logging.h"
 #include "macros.h"
 #include "monitor.h"
+#include "monitor.h"
 #include "offsets.h"
 #include "stringpiece.h"
+#include "thread.h"
 #include "utf.h"
 
 namespace art {
 
 class Array;
 class Class;
+class ClassLoader;
 class CodeAndDirectMethods;
 class DexCache;
 class Field;
@@ -76,6 +80,52 @@ static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources
 
 static const uint32_t kAccConstructor = 0x00010000;  // method (Dalvik only)
 static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik only)
+
+static const uint32_t kAccClassFlagsMask = (kAccPublic
+                                            | kAccFinal
+                                            | kAccInterface
+                                            | kAccAbstract
+                                            | kAccSynthetic
+                                            | kAccAnnotation
+                                            | kAccEnum);
+static const uint32_t kAccInnerClassFlagsMask = (kAccClassFlagsMask
+                                                 | kAccPrivate
+                                                 | kAccProtected
+                                                 | kAccStatic);
+static const uint32_t kAccFieldFlagsMask = (kAccPublic
+                                            | kAccPrivate
+                                            | kAccProtected
+                                            | kAccStatic
+                                            | kAccFinal
+                                            | kAccVolatile
+                                            | kAccTransient
+                                            | kAccSynthetic
+                                            | kAccEnum);
+static const uint32_t kAccMethodFlagsMask = (kAccPublic
+                                             | kAccPrivate
+                                             | kAccProtected
+                                             | kAccStatic
+                                             | kAccFinal
+                                             | kAccSynchronized
+                                             | kAccBridge
+                                             | kAccVarargs
+                                             | kAccNative
+                                             | kAccAbstract
+                                             | kAccStrict
+                                             | kAccSynthetic
+                                             | kAccConstructor
+                                             | kAccDeclaredSynchronized);
+
+// if only kAccClassIsReference is set, we have a soft reference
+static const uint32_t kAccClassIsReference          = 0x8000000;  // class is a soft/weak/phantom ref
+static const uint32_t kAccClassIsWeakReference      = 0x4000000;  // class is a weak reference
+static const uint32_t kAccClassIsFinalizerReference = 0x2000000;  // class is a finalizer reference
+static const uint32_t kAccClassIsPhantomReference   = 0x1000000;  // class is a phantom reference
+
+static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
+                                                | kAccClassIsWeakReference
+                                                | kAccClassIsFinalizerReference
+                                                | kAccClassIsPhantomReference);
 
 /*
  * Definitions for packing refOffsets in Class.
@@ -219,31 +269,6 @@ class Object {
   const ObjectArray<T>* AsObjectArray() const {
     DCHECK(IsObjectArray());
     return down_cast<const ObjectArray<T>*>(this);
-  }
-
-  bool IsReference() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
-  }
-
-  bool IsWeakReference() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
-  }
-
-  bool IsSoftReference() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
-  }
-
-  bool IsFinalizerReference() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
-  }
-
-  bool IsPhantomReference() const {
-    UNIMPLEMENTED(FATAL);
-    return true;
   }
 
   bool IsArrayInstance() const;
@@ -465,6 +490,16 @@ class Method : public AccessibleObject {
     return (access_flags_ & kAccStatic) != 0;
   }
 
+  // Returns true if the method is a constructor.
+  bool IsConstructor() const {
+    return (access_flags_ & kAccConstructor) != 0;
+  }
+
+  // Returns true if the method is static, private, or a constructor.
+  bool IsDirect() const {
+    return IsStatic() || IsPrivate() || IsConstructor();
+  }
+
   // Returns true if the method is declared synchronized.
   bool IsSynchronized() const {
     uint32_t synchonized = kAccSynchronized | kAccDeclaredSynchronized;
@@ -550,10 +585,6 @@ class Method : public AccessibleObject {
 
   bool IsReturnVoid() const {
     return shorty_[0] == 'V';
-  }
-
-  bool IsDirect() const {
-    return is_direct_;
   }
 
   // "Args" may refer to any of the 3 levels of "Args."
@@ -736,8 +767,6 @@ class Method : public AccessibleObject {
   CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
   ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
 
-  bool is_direct_;
-
  private:
   // Compiled code associated with this method
   UniquePtr<MemMap> code_area_;
@@ -870,45 +899,6 @@ class ObjectArray : public Array {
   DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
 };
 
-// ClassLoader objects.
-class ClassLoader : public Object {
- public:
-  static const std::vector<const DexFile*>& GetClassPath(const ClassLoader* class_loader);
-
-  void SetClassPath(std::vector<const DexFile*>& class_path) {
-    DCHECK_EQ(0U, class_path_.size());
-    class_path_ = class_path;
-  }
-
- private:
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  Object* packages_;
-  ClassLoader* parent_;
-
-  // TODO: remove once we can create a real PathClassLoader
-  std::vector<const DexFile*> class_path_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
-};
-
-class BaseDexClassLoader : public ClassLoader {
- private:
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  String* original_path_;
-  Object* path_list_;
-  DISALLOW_IMPLICIT_CONSTRUCTORS(BaseDexClassLoader);
-};
-
-class PathClassLoader : public BaseDexClassLoader {
- public:
-  static const PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);
-  static void SetClass(Class* dalvik_system_PathClassLoader);
-  static void ResetClass();
- private:
-  static Class* dalvik_system_PathClassLoader_;
-  DISALLOW_IMPLICIT_CONSTRUCTORS(PathClassLoader);
-};
-
 // Type for the InitializedStaticStorage table. Currently the Class
 // provides the static storage. However, this might change to improve
 // image sharing, so we use this type to avoid assumptions on the
@@ -962,12 +952,10 @@ class Class : public Object, public StaticStorageBase {
   // Given the context of a calling Method, use its DexCache to
   // resolve a type to a Class. If it cannot be resolved, throw an
   // error. If it can, use it to create an instance.
-  static Object* NewInstanceFromCode(uint32_t type_idx, Method* method);
+  static Object* AllocObjectFromCode(uint32_t type_idx, Method* method);
 
-  Object* NewInstance() {
-    DCHECK(!IsAbstract());
-    return Heap::AllocObject(this, this->object_size_);
-  }
+  // Creates a raw object instance but does not invoke the default constructor.
+  Object* AllocObject();
 
   Class* GetSuperClass() const {
     return super_class_;
@@ -1101,6 +1089,26 @@ class Class : public Object, public StaticStorageBase {
     return (access_flags_ & kAccSynthetic) != 0;
   }
 
+  bool IsReference() const {
+    return (access_flags_ & kAccClassIsReference) != 0;
+  }
+
+  bool IsWeakReference() const {
+    return (access_flags_ & kAccClassIsWeakReference) != 0;
+  }
+
+  bool IsSoftReference() const {
+    return (access_flags_ & ~kAccReferenceFlagsMask) == kAccClassIsReference;
+  }
+
+  bool IsFinalizerReference() const {
+    return (access_flags_ & kAccClassIsFinalizerReference) != 0;
+  }
+
+  bool IsPhantomReference() const {
+    return (access_flags_ & kAccClassIsPhantomReference) != 0;
+  }
+
   // Returns true if this class can access that class.
   bool CanAccess(const Class* that) const {
     return that->IsPublic() || this->IsInSamePackage(that);
@@ -1188,6 +1196,7 @@ class Class : public Object, public StaticStorageBase {
   Field* FindInstanceField(const StringPiece& name,
       const StringPiece& descriptor);
 
+  // Finds the given instance field in this class.
   Field* FindDeclaredInstanceField(const StringPiece& name,
       const StringPiece& descriptor);
 
@@ -1195,6 +1204,7 @@ class Class : public Object, public StaticStorageBase {
   Field* FindStaticField(const StringPiece& name,
       const StringPiece& descriptor);
 
+  // Finds the given static field in this class.
   Field* FindDeclaredStaticField(const StringPiece& name,
       const StringPiece& descriptor);
 
@@ -1616,7 +1626,7 @@ class String : public Object {
   }
 
   static String* Alloc(Class* java_lang_String, CharArray* array) {
-    String* string = down_cast<String*>(java_lang_String->NewInstance());
+    String* string = down_cast<String*>(java_lang_String->AllocObject());
     string->array_ = array;
     string->count_ = array->GetLength();
     return string;
@@ -1730,7 +1740,7 @@ class StackTraceElement : public Object {
 
   static StackTraceElement* Alloc(const String* declaring_class, const String* method_name,
                                   const String* file_name, int32_t line_number) {
-    StackTraceElement* trace = down_cast<StackTraceElement*>(GetStackTraceElement()->NewInstance());
+    StackTraceElement* trace = down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject());
     trace->declaring_class_ = declaring_class;
     trace->method_name_ = method_name;
     trace->file_name_ = file_name;

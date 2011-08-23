@@ -7,7 +7,6 @@
 #include "object.h"
 
 #include <stdio.h>
-#include "gtest/gtest.h"
 
 namespace art {
 

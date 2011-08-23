@@ -535,7 +535,7 @@ static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pNewInstanceFromCode), rLR);
+                 OFFSETOF_MEMBER(Thread, pAllocObjectFromCode), rLR);
     loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
     loadConstant(cUnit, r0, mir->dalvikInsn.vB);  // arg0 <- type_id
     opReg(cUnit, kOpBlx, rLR);

@@ -5,8 +5,6 @@
 #include "common_test.h"
 #include "object.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
 class InternTableTest : public CommonTest {};

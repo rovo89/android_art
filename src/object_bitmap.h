@@ -85,8 +85,7 @@ class HeapBitmap {
 
   void Walk(Callback* callback, void* arg);
 
-  void ScanWalk(uintptr_t base, uintptr_t max,
-                ScanCallback* thunk, void* arg);
+  void ScanWalk(uintptr_t base, ScanCallback* thunk, void* arg);
 
   static void SweepWalk(const HeapBitmap& live,
                         const HeapBitmap& mark,
@@ -131,7 +130,7 @@ class HeapBitmap {
 
   // The highest pointer value ever returned by an allocation from
   // this heap.  I.e., the highest address that may correspond to a
-  // set bit.  If there are no bits set, (max < base).
+  // set bit.  If there are no bits set, (max_ < base_).
   uintptr_t max_;
 
   const char* name_;

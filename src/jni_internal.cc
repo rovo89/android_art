@@ -14,6 +14,7 @@
 #include "UniquePtr.h"
 #include "assembler.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "jni.h"
 #include "logging.h"
 #include "object.h"
@@ -904,7 +905,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
       return NULL;
     }
-    return AddLocalReference<jobject>(ts, c->NewInstance());
+    return AddLocalReference<jobject>(ts, c->AllocObject());
   }
 
   static jobject NewObject(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
@@ -922,7 +923,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
       return NULL;
     }
-    Object* result = c->NewInstance();
+    Object* result = c->AllocObject();
     jobject local_result = AddLocalReference<jobject>(ts, result);
     CallNonvirtualVoidMethodV(env, local_result, java_class, mid, args);
     return local_result;
@@ -934,7 +935,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
       return NULL;
     }
-    Object* result = c->NewInstance();
+    Object* result = c->AllocObject();
     jobject local_result = AddLocalReference<jobjectArray>(ts, result);
     CallNonvirtualVoidMethodA(env, local_result, java_class, mid, args);
     return local_result;

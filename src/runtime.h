@@ -12,6 +12,7 @@
 
 #include <jni.h>
 
+#include "heap.h"
 #include "globals.h"
 #include "macros.h"
 #include "stringpiece.h"
@@ -92,6 +93,8 @@ class Runtime {
   JavaVMExt* GetJavaVM() const {
     return java_vm_;
   }
+
+  void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
  private:
   static void PlatformAbort(const char*, int);

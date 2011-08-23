@@ -4,7 +4,6 @@
 
 #include "UniquePtr.h"
 #include "common_test.h"
-#include "gtest/gtest.h"
 #include "os.h"
 
 namespace art {

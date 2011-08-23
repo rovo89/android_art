@@ -4,8 +4,6 @@
 
 #include "reference_table.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
 class ReferenceTableTest : public CommonTest {

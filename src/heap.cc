@@ -31,6 +31,12 @@ HeapBitmap* Heap::mark_bitmap_ = NULL;
 
 HeapBitmap* Heap::live_bitmap_ = NULL;
 
+size_t Heap::reference_referent_offset_ = 0;  // TODO
+size_t Heap::reference_queue_offset_ = 0;  // TODO
+size_t Heap::reference_queueNext_offset_ = 0;  // TODO
+size_t Heap::reference_pendingNext_offset_ = 0;  // TODO
+size_t Heap::finalizer_reference_zombie_offset_ = 0;  // TODO
+
 bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image_file_name) {
   Space* boot_space;
   byte* requested_base;

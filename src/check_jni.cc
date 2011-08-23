@@ -23,6 +23,7 @@
 #include "logging.h"
 #include "scoped_jni_thread_state.h"
 #include "thread.h"
+#include "runtime.h"
 
 namespace art {
 
