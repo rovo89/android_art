@@ -60,12 +60,16 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                     sReg = DECODE_REG(
                         oatConvertSSARegToDalvik(cUnit, ssaRep->defs[0]));
                     counts[sReg].doubleStart = true;
+                }
+                if (attrs & DF_DA_WIDE) {
                     cUnit->regLocation[ssaRep->defs[0]].wide = true;
                 }
                 if ((attrs & (DF_UA_WIDE|DF_FP_A)) == (DF_UA_WIDE|DF_FP_A)) {
                     sReg = DECODE_REG(
                         oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
                     counts[sReg].doubleStart = true;
+                }
+                if (attrs & DF_UA_WIDE) {
                     cUnit->regLocation[ssaRep->uses[first]].wide = true;
                     first += 2;
                 }
@@ -73,6 +77,8 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                     sReg = DECODE_REG(
                         oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
                     counts[sReg].doubleStart = true;
+                }
+                if (attrs & DF_UB_WIDE) {
                     cUnit->regLocation[ssaRep->uses[first]].wide = true;
                     first += 2;
                 }
@@ -80,6 +86,8 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                     sReg = DECODE_REG(
                         oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
                     counts[sReg].doubleStart = true;
+                }
+                if (attrs & DF_UC_WIDE) {
                     cUnit->regLocation[ssaRep->uses[first]].wide = true;
                 }
             }

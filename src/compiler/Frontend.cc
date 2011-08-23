@@ -697,9 +697,14 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
  */
 bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
-    if (PrettyMethod(method, false) != "Fibonacci.fibonacci") {
+    if ((method->GetName()->ToModifiedUtf8().find("init>") !=
+        std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("foo") !=
+        std::string::npos)) {
         LOG(INFO) << "not compiling " << PrettyMethod(method, false);
         return false;
+    } else {
+        LOG(INFO) << "Compiling " << PrettyMethod(method, false);
     }
 
     CompilationUnit cUnit;
@@ -724,17 +729,16 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     cUnit.insns = code_item->insns_;
     cUnit.insnsSize = code_item->insns_size_;
 #if 1
+    // TODO: Use command-line argument passing mechanism
     cUnit.printMe = true;
     cUnit.printMeVerbose = true;
-#endif
-#if 1
-      cUnit.disableOpt = 0 |
-           (1 << kLoadStoreElimination) |
-           (1 << kLoadHoisting) |
-           (1 << kTrackLiveTemps) |
-           (1 << kSuppressLoads) |
-           //(1 << kPromoteRegs) |:
-           0;
+    cUnit.disableOpt = 0 |
+         (1 << kLoadStoreElimination) |
+         (1 << kLoadHoisting) |
+         (1 << kTrackLiveTemps) |
+         (1 << kSuppressLoads) |
+         (1 << kPromoteRegs) |
+         0;
 #endif
 
     /* Initialize the block list */

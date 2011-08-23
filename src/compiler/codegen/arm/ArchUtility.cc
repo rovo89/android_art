@@ -308,8 +308,6 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     ArmLIR* lir = (ArmLIR*) arg;
     if (lir->flags.isNop)
         return;
-    char buf[256];
-    char opName[256];
     int offset = lir->generic.offset;
     int dest = lir->operands[0];
     const bool dumpNop = false;
@@ -361,16 +359,19 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
         default:
             if (lir->flags.isNop && !dumpNop) {
                 break;
+            } else {
+                // TODO: rewrite using string
+                char opOperands[256];
+                char opName[256];
+                buildInsnString(EncodingMap[lir->opcode].name, lir, opName,
+                                baseAddr, 256);
+                buildInsnString(EncodingMap[lir->opcode].fmt, lir, opOperands,
+                                baseAddr, 256);
+                char tBuf[256];
+                snprintf(tBuf, 256, "%p (%04x): %-8s%s%s", baseAddr + offset, offset,
+                         opName, opOperands, lir->flags.isNop ? "(nop)" : "");
+                LOG(INFO) << tBuf;
             }
-            buildInsnString(EncodingMap[lir->opcode].name, lir, opName,
-                            baseAddr, 256);
-            buildInsnString(EncodingMap[lir->opcode].fmt, lir, buf, baseAddr,
-                            256);
-            char buf[100];
-            snprintf(buf, 100, "%p (%04x): %-8s%s%s",
-                 baseAddr + offset, offset, opName, buf,
-                 lir->flags.isNop ? "(nop)" : "");
-            LOG(INFO) << buf;
             break;
     }
 
@@ -450,7 +451,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
     std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->
         ToModifiedUtf8();
 
-    char buf[100];
+    char buf[256];
     LOG(INFO) << "*/";
     sprintf(buf,"\n    u1 %s%s_%s_code[] = {", descriptor.c_str(),
             name.c_str(), signature.c_str());
@@ -458,8 +459,9 @@ void oatCodegenDump(CompilationUnit* cUnit)
         if (buf[i] == ';') buf[i] = '_';
     LOG(INFO) << buf;
     strcpy(buf,"        ");
-    for (int i = 0; i < cUnit->totalSize/2; i++) {
-        sprintf(buf+strlen(buf),"0x%04x,", cUnit->codeBuffer[i]);
+    u1* pLiterals = (u1*)&cUnit->codeBuffer[0];
+    for (int i = 0; i < cUnit->totalSize; i++) {
+        sprintf(buf+strlen(buf),"0x%02x,", pLiterals[i]);
         if (++linebreak == 8) {
             linebreak = 0;
             LOG(INFO) << buf;

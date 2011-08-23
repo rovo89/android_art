@@ -18,6 +18,51 @@ namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
+void Thread::InitFunctionPointers() {
+  pArtAllocArrayByClass = Array::Alloc;
+  pMemcpy = memcpy;
+#if 0
+//void* (Thread::*pMemcpy)(void*, const void*, size_t) /* = memcpy*/ ;
+float (Thread::*pI2f)(int);
+int (Thread::*pF2iz)(float);
+float (Thread::*pD2f)(double);
+double (Thread::*pF2d)(float);
+double (Thread::*pI2d)(int);
+int (Thread::*pD2iz)(double);
+float (Thread::*pL2f)(long);
+double (Thread::*pL2d)(long);
+long long (Thread::*pArtF2l)(float);
+long long (Thread::*pArtD2l)(double);
+float (Thread::*pFadd)(float, float);
+float (Thread::*pFsub)(float, float);
+float (Thread::*pFdiv)(float, float);
+float (Thread::*pFmul)(float, float);
+float (Thread::*pFmodf)(float, float);
+double (Thread::*pDadd)(double, double);
+double (Thread::*pDsub)(double, double);
+double (Thread::*pDdiv)(double, double);
+double (Thread::*pDmul)(double, double);
+double (Thread::*pFmod)(double, double);
+int (Thread::*pIdivmod)(int, int);
+int (Thread::*pIdiv)(int, int);
+long long (Thread::*pLdivmod)(long long, long long);
+bool (Thread::*pArtUnlockObject)(struct Thread*, struct Object*);
+bool (Thread::*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
+      const struct ClassObject*);
+int (Thread::*pArtInstanceofNonTrivialNoThrow)
+  (const struct ClassObject*, const struct ClassObject*);
+int (Thread::*pArtInstanceofNonTrivial) (const struct ClassObject*,
+     const struct ClassObject*);
+struct Method* (Thread::*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
+      const struct Method*, struct DvmDex*);
+bool (Thread::*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);
+void (Thread::*pArtLockObjectNoThrow)(struct Thread*, struct Object*);
+struct Object* (Thread::*pArtAllocObjectNoThrow)(struct ClassObject*, int);
+void (Thread::*pArtThrowException)(struct Thread*, struct Object*);
+bool (Thread::*pArtHandleFillArrayDataNoThrow)(struct ArrayObject*, const uint16_t*);
+#endif
+}
+
 Mutex* Mutex::Create(const char* name) {
   Mutex* mu = new Mutex(name);
   int result = pthread_mutex_init(&mu->lock_impl_, NULL);

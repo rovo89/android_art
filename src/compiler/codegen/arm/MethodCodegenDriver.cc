@@ -28,15 +28,16 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedClass(mir->dalvikInsn.vC);
     if (classPtr == NULL) {
-         LOG(FATAL) << "Unexpected null passPtr";
+         LOG(FATAL) << "Unexpected null classPtr";
     } else {
          loadValueDirectFixed(cUnit, rlSrc, r1);    /* get Len */
          loadConstant(cUnit, r0, (int)classPtr);
     }
-    // FIXME: need this to throw errNegativeArraySize
+    UNIMPLEMENTED(WARNING) << "Support for throwing errNegativeArraySize";
     genRegImmCheck(cUnit, kArmCondMi, r1, 0, mir->offset, NULL);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtAllocArrayByClass),
                  rLR);
+    UNIMPLEMENTED(WARNING) << "Need NoThrow wrapper";
     newLIR1(cUnit, kThumbBlxR, rLR); // (arrayClass, length, allocFlags)
     storeValue(cUnit, rlDest, retLoc);
 }
@@ -63,7 +64,7 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedClass(typeIndex);
     if (classPtr == NULL) {
-         LOG(FATAL) << "Unexpected null passPtr";
+         LOG(FATAL) << "Unexpected null classPtr";
     } else {
          loadConstant(cUnit, r0, (int)classPtr);
          loadConstant(cUnit, r1, elems);
@@ -897,7 +898,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
             loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
                                   0, mir->dalvikInsn.vB);
-            storeValue(cUnit, rlDest, rlResult);
+            storeValueWide(cUnit, rlDest, rlResult);
             break;
 
         case OP_CONST_WIDE_HIGH16:

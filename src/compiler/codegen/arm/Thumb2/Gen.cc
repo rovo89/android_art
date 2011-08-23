@@ -1335,18 +1335,18 @@ static bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
     switch( mir->dalvikInsn.opcode) {
         case OP_SHL_LONG:
         case OP_SHL_LONG_2ADDR:
+            UNIMPLEMENTED(FATAL) << "Need SHL_LONG helper";
             //genDispatchToHandler(cUnit, TEMPLATE_SHL_LONG);
-            assert(0);  // unimp
             break;
         case OP_SHR_LONG:
         case OP_SHR_LONG_2ADDR:
+            UNIMPLEMENTED(FATAL) << "Need SHR_LONG helper";
             //genDispatchToHandler(cUnit, TEMPLATE_SHR_LONG);
-            assert(0); // unimp
             break;
         case OP_USHR_LONG:
         case OP_USHR_LONG_2ADDR:
+            UNIMPLEMENTED(FATAL) << "Need USHR_LONG helper";
             //genDispatchToHandler(cUnit, TEMPLATE_USHR_LONG);
-            assert(0); // unimp
             break;
         default:
             return true;

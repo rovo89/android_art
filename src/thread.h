@@ -26,6 +26,8 @@ class StackHandleBlock;
 class Thread;
 class ThreadList;
 class Throwable;
+class Array;
+class Class;
 
 class Mutex {
  public:
@@ -166,7 +168,6 @@ class Thread {
 
   static const size_t kDefaultStackSize = 64 * KB;
 
-// TODO - needs to be redone properly, just hacked into place for now
   // Runtime support function pointers
   void* (*pMemcpy)(void*, const void*, size_t);
   float (*pI2f)(int);
@@ -194,21 +195,18 @@ class Thread {
   long long (*pLdivmod)(long long, long long);
   bool (*pArtUnlockObject)(struct Thread*, struct Object*);
   bool (*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
-        const struct ClassObject*);
-  int (*pArtInstanceofNonTrivialNoThrow)
-    (const struct ClassObject*, const struct ClassObject*);
-  int (*pArtInstanceofNonTrivial) (const struct ClassObject*,
-       const struct ClassObject*);
-  struct ArrayObject* (*pArtAllocArrayByClass)(struct ClassObject*,
-       size_t, int);
+                 const struct ClassObject*);
+  int (*pArtInstanceofNonTrivialNoThrow) (const struct ClassObject*,
+                const struct ClassObject*);
+  int (*pArtInstanceofNonTrivial) (const struct ClassObject*, const struct ClassObject*);
+  Array* (*pArtAllocArrayByClass)(Class*, size_t);
   struct Method* (*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
-        const struct Method*, struct DvmDex*);
+                           const struct Method*, struct DvmDex*);
   bool (*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);
   void (*pArtLockObjectNoThrow)(struct Thread*, struct Object*);
   struct Object* (*pArtAllocObjectNoThrow)(struct ClassObject*, int);
   void (*pArtThrowException)(struct Thread*, struct Object*);
   bool (*pArtHandleFillArrayDataNoThrow)(struct ArrayObject*, const uint16_t*);
-
 
   // Creates a new thread.
   static Thread* Create(const Runtime* runtime);
@@ -388,6 +386,7 @@ class Thread {
         exception_(NULL),
         suspend_count_(0),
         class_loader_override_(NULL) {
+    InitFunctionPointers();
   }
 
   ~Thread() {
@@ -395,6 +394,7 @@ class Thread {
   }
 
   void InitCpu();
+  void InitFunctionPointers();
 
   // Managed thread id.
   uint32_t id_;
