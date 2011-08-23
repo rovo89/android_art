@@ -14,6 +14,10 @@ class JniInternalTest : public CommonTest {
  protected:
   virtual void SetUp() {
     CommonTest::SetUp();
+
+    // Turn on -verbose:jni for the JNI tests.
+    Runtime::Current()->GetJavaVM()->verbose_jni = true;
+
     env_ = Thread::Current()->GetJniEnv();
     aioobe_ = env_->FindClass("java/lang/ArrayIndexOutOfBoundsException");
     CHECK(aioobe_ != NULL);
@@ -233,6 +237,10 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   ASSERT_TRUE(mid2 != NULL);
 }
 
+void BogusMethod() {
+  // You can't pass NULL function pointers to RegisterNatives.
+}
+
 TEST_F(JniInternalTest, RegisterNatives) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
@@ -257,10 +265,12 @@ TEST_F(JniInternalTest, RegisterNatives) {
 
   // Check that registering native methods is successful
   {
-    JNINativeMethod methods[] = {{"hashCode", "()I", NULL}};
+    JNINativeMethod methods[] = {{"hashCode", "()I", reinterpret_cast<void*>(BogusMethod)}};
     env_->RegisterNatives(jlobject, methods, 1);
   }
   EXPECT_FALSE(env_->ExceptionCheck());
+
+  env_->UnregisterNatives(jlobject);
 }
 
 #define EXPECT_PRIMITIVE_ARRAY(new_fn, get_region_fn, set_region_fn, scalar_type, expected_class_descriptor) \

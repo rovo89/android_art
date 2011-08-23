@@ -635,7 +635,12 @@ class Method : public AccessibleObject {
   }
 
   void RegisterNative(const void* native_method) {
+    CHECK(native_method != NULL);
     native_method_ = native_method;
+  }
+
+  void UnregisterNative() {
+    native_method_ = NULL;
   }
 
   static MemberOffset NativeMethodOffset() {

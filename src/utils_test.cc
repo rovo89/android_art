@@ -11,44 +11,51 @@ namespace art {
 class UtilsTest : public CommonTest {
 };
 
-TEST(PrettyDescriptorTest, ArrayReferences) {
-  EXPECT_EQ("java.lang.Class[]", PrettyDescriptor("[Ljava/lang/Class;"));
-  EXPECT_EQ("java.lang.Class[][]", PrettyDescriptor("[[Ljava/lang/Class;"));
+#define EXPECT_DESCRIPTOR(pretty_descriptor, descriptor) \
+  do { \
+    String* s = String::AllocFromModifiedUtf8(descriptor); \
+    std::string result(PrettyDescriptor(s)); \
+    EXPECT_EQ(pretty_descriptor, result); \
+  } while (false)
+
+TEST_F(UtilsTest, PrettyDescriptor_ArrayReferences) {
+  EXPECT_DESCRIPTOR("java.lang.Class[]", "[Ljava/lang/Class;");
+  EXPECT_DESCRIPTOR("java.lang.Class[][]", "[[Ljava/lang/Class;");
 }
 
-TEST(PrettyDescriptorTest, ScalarReferences) {
-  EXPECT_EQ("java.lang.String", PrettyDescriptor("Ljava.lang.String;"));
-  EXPECT_EQ("java.lang.String", PrettyDescriptor("Ljava/lang/String;"));
+TEST_F(UtilsTest, PrettyDescriptor_ScalarReferences) {
+  EXPECT_DESCRIPTOR("java.lang.String", "Ljava.lang.String;");
+  EXPECT_DESCRIPTOR("java.lang.String", "Ljava/lang/String;");
 }
 
-TEST(PrettyDescriptorTest, PrimitiveArrays) {
-  EXPECT_EQ("boolean[]", PrettyDescriptor("[Z"));
-  EXPECT_EQ("boolean[][]", PrettyDescriptor("[[Z"));
-  EXPECT_EQ("byte[]", PrettyDescriptor("[B"));
-  EXPECT_EQ("byte[][]", PrettyDescriptor("[[B"));
-  EXPECT_EQ("char[]", PrettyDescriptor("[C"));
-  EXPECT_EQ("char[][]", PrettyDescriptor("[[C"));
-  EXPECT_EQ("double[]", PrettyDescriptor("[D"));
-  EXPECT_EQ("double[][]", PrettyDescriptor("[[D"));
-  EXPECT_EQ("float[]", PrettyDescriptor("[F"));
-  EXPECT_EQ("float[][]", PrettyDescriptor("[[F"));
-  EXPECT_EQ("int[]", PrettyDescriptor("[I"));
-  EXPECT_EQ("int[][]", PrettyDescriptor("[[I"));
-  EXPECT_EQ("long[]", PrettyDescriptor("[J"));
-  EXPECT_EQ("long[][]", PrettyDescriptor("[[J"));
-  EXPECT_EQ("short[]", PrettyDescriptor("[S"));
-  EXPECT_EQ("short[][]", PrettyDescriptor("[[S"));
+TEST_F(UtilsTest, PrettyDescriptor_PrimitiveArrays) {
+  EXPECT_DESCRIPTOR("boolean[]", "[Z");
+  EXPECT_DESCRIPTOR("boolean[][]", "[[Z");
+  EXPECT_DESCRIPTOR("byte[]", "[B");
+  EXPECT_DESCRIPTOR("byte[][]", "[[B");
+  EXPECT_DESCRIPTOR("char[]", "[C");
+  EXPECT_DESCRIPTOR("char[][]", "[[C");
+  EXPECT_DESCRIPTOR("double[]", "[D");
+  EXPECT_DESCRIPTOR("double[][]", "[[D");
+  EXPECT_DESCRIPTOR("float[]", "[F");
+  EXPECT_DESCRIPTOR("float[][]", "[[F");
+  EXPECT_DESCRIPTOR("int[]", "[I");
+  EXPECT_DESCRIPTOR("int[][]", "[[I");
+  EXPECT_DESCRIPTOR("long[]", "[J");
+  EXPECT_DESCRIPTOR("long[][]", "[[J");
+  EXPECT_DESCRIPTOR("short[]", "[S");
+  EXPECT_DESCRIPTOR("short[][]", "[[S");
 }
 
-TEST(PrettyDescriptorTest, PrimitiveScalars) {
-  EXPECT_EQ("boolean", PrettyDescriptor("Z"));
-  EXPECT_EQ("byte", PrettyDescriptor("B"));
-  EXPECT_EQ("char", PrettyDescriptor("C"));
-  EXPECT_EQ("double", PrettyDescriptor("D"));
-  EXPECT_EQ("float", PrettyDescriptor("F"));
-  EXPECT_EQ("int", PrettyDescriptor("I"));
-  EXPECT_EQ("long", PrettyDescriptor("J"));
-  EXPECT_EQ("short", PrettyDescriptor("S"));
+TEST_F(UtilsTest, PrettyDescriptor_PrimitiveScalars) {
+  EXPECT_DESCRIPTOR("boolean", "Z");
+  EXPECT_DESCRIPTOR("byte", "B");
+  EXPECT_DESCRIPTOR("char", "C");
+  EXPECT_DESCRIPTOR("double", "D");
+  EXPECT_DESCRIPTOR("float", "F");
+  EXPECT_DESCRIPTOR("int", "I");
+  EXPECT_DESCRIPTOR("long", "J");
+  EXPECT_DESCRIPTOR("short", "S");
 }
 
 TEST_F(UtilsTest, PrettyType) {

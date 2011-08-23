@@ -25,9 +25,11 @@ std::string ReadFileToString(const char* file_name) {
   return contents;
 }
 
-std::string PrettyDescriptor(const StringPiece& descriptor) {
+std::string PrettyDescriptor(const String* java_descriptor) {
+  std::string descriptor(java_descriptor->ToModifiedUtf8());
+
   // Count the number of '['s to get the dimensionality.
-  const char* c = descriptor.data();
+  const char* c = descriptor.c_str();
   size_t dim = 0;
   while (*c == '[') {
     dim++;
@@ -51,7 +53,7 @@ std::string PrettyDescriptor(const StringPiece& descriptor) {
     case 'J': c = "long;"; break;
     case 'S': c = "short;"; break;
     case 'Z': c = "boolean;"; break;
-    default: return descriptor.ToString();
+    default: return descriptor;
     }
   }
 
@@ -78,7 +80,7 @@ std::string PrettyMethod(const Method* m, bool with_signature) {
     return "null";
   }
   Class* c = m->GetDeclaringClass();
-  std::string result(PrettyDescriptor(c->GetDescriptor()->ToModifiedUtf8()));
+  std::string result(PrettyDescriptor(c->GetDescriptor()));
   result += '.';
   result += m->GetName()->ToModifiedUtf8();
   if (with_signature) {
@@ -96,9 +98,9 @@ std::string PrettyType(const Object* obj) {
   if (obj->GetClass() == NULL) {
     return "(raw)";
   }
-  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()->ToModifiedUtf8()));
+  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
   if (obj->IsClass()) {
-    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()->ToModifiedUtf8()) + ">";
+    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
   }
   return result;
 }

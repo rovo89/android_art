@@ -57,6 +57,7 @@ public:
         jni_on_load_lock_(Mutex::Create("JNI_OnLoad lock")),
         jni_on_load_tid_(Thread::Current()->GetId()),
         jni_on_load_result_(kPending) {
+    pthread_cond_init(&jni_on_load_cond_, NULL);
   }
 
   ~SharedLibrary() {
@@ -81,8 +82,7 @@ public:
       return true;
     }
 
-    UNIMPLEMENTED(ERROR) << "need to pthread_cond_wait!";
-    // MutexLock mu(jni_on_load_lock_);
+    MutexLock mu(jni_on_load_lock_);
     while (jni_on_load_result_ == kPending) {
       if (vm->verbose_jni) {
         LOG(INFO) << "[" << *self << " waiting for \"" << path_ << "\" "
@@ -90,7 +90,7 @@ public:
       }
       Thread::State old_state = self->GetState();
       self->SetState(Thread::kWaiting); // TODO: VMWAIT
-      // pthread_cond_wait(&jni_on_load_cond_, &jni_on_load_lock_);
+      pthread_cond_wait(&jni_on_load_cond_, &(jni_on_load_lock_->lock_impl_));
       self->SetState(old_state);
     }
 
@@ -107,9 +107,8 @@ public:
     jni_on_load_tid_ = 0;
 
     // Broadcast a wakeup to anybody sleeping on the condition variable.
-    UNIMPLEMENTED(ERROR) << "missing pthread_cond_broadcast";
-    // MutexLock mu(library->jni_on_load_lock_);
-    // pthread_cond_broadcast(&library->jni_on_load_cond_);
+    MutexLock mu(jni_on_load_lock_);
+    pthread_cond_broadcast(&jni_on_load_cond_);
   }
 
  private:
@@ -2021,11 +2020,13 @@ class JNI {
     SetPrimitiveArrayRegion<jshortArray, jshort, ShortArray>(ts, array, start, length, buf);
   }
 
-  static jint RegisterNatives(JNIEnv* env,
-      jclass clazz, const JNINativeMethod* methods, jint nMethods) {
+  static jint RegisterNatives(JNIEnv* env, jclass java_class, const JNINativeMethod* methods, jint method_count) {
     ScopedJniThreadState ts(env);
-    Class* klass = Decode<Class*>(ts, clazz);
-    for(int i = 0; i < nMethods; i++) {
+    Class* c = Decode<Class*>(ts, java_class);
+
+    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+
+    for (int i = 0; i < method_count; i++) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
 
@@ -2034,34 +2035,60 @@ class JNI {
         ++sig;
       }
 
-      Method* method = klass->FindDirectMethod(name, sig);
-      if (method == NULL) {
-        method = klass->FindVirtualMethod(name, sig);
+      Method* m = c->FindDirectMethod(name, sig);
+      if (m == NULL) {
+        m = c->FindVirtualMethod(name, sig);
       }
-      if (method == NULL) {
+      if (m == NULL) {
         Thread* self = Thread::Current();
-        std::string class_descriptor(klass->GetDescriptor()->ToModifiedUtf8());
+        std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "no method \"%s.%s%s\"",
             class_descriptor.c_str(), name, sig);
         return JNI_ERR;
-      } else if (!method->IsNative()) {
+      } else if (!m->IsNative()) {
         Thread* self = Thread::Current();
-        std::string class_descriptor(klass->GetDescriptor()->ToModifiedUtf8());
+        std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
         self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "method \"%s.%s%s\" is not native",
             class_descriptor.c_str(), name, sig);
         return JNI_ERR;
       }
-      method->RegisterNative(methods[i].fnPtr);
+
+      if (vm->verbose_jni) {
+        LOG(INFO) << "[Registering JNI native method "
+                  << PrettyMethod(m, true) << "]";
+      }
+
+      m->RegisterNative(methods[i].fnPtr);
     }
     return JNI_OK;
   }
 
-  static jint UnregisterNatives(JNIEnv* env, jclass clazz) {
+  static jint UnregisterNatives(JNIEnv* env, jclass java_class) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+    Class* c = Decode<Class*>(ts, java_class);
+
+    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    if (vm->verbose_jni) {
+      LOG(INFO) << "[Unregistering JNI native methods for "
+                << PrettyDescriptor(c->GetDescriptor()) << "]";
+    }
+
+    for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+      Method* m = c->GetDirectMethod(i);
+      if (m->IsNative()) {
+        m->UnregisterNative();
+      }
+    }
+    for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+      Method* m = c->GetVirtualMethod(i);
+      if (m->IsNative()) {
+        m->UnregisterNative();
+      }
+    }
+
+    return JNI_OK;
   }
 
   static jint MonitorEnter(JNIEnv* env, jobject obj) {
@@ -2630,8 +2657,6 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 
   // Create a new entry.
   library = new SharedLibrary(path, handle, class_loader);
-  UNIMPLEMENTED(ERROR) << "missing pthread_cond_init";
-  // pthread_cond_init(&library->onLoadCond, NULL);
 
   libraries[path] = library;
 

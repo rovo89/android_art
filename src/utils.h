@@ -12,6 +12,7 @@ namespace art {
 
 class Method;
 class Object;
+class String;
 
 template<typename T>
 static inline bool IsPowerOfTwo(T x) {
@@ -139,7 +140,7 @@ static inline std::string PrintableString(const StringT& s) {
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
-std::string PrettyDescriptor(const StringPiece& descriptor);
+std::string PrettyDescriptor(const String* descriptor);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').

@@ -193,12 +193,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   parsed->boot_image_ = NULL;
 #ifdef NDEBUG
-  // -Xcheck:jni and -verbose:jni are off by default for regular builds...
+  // -Xcheck:jni is off by default for regular builds...
   parsed->check_jni_ = false;
 #else
   // ...but on by default in debug builds.
   parsed->check_jni_ = true;
-  parsed->verbose_.insert("jni");
 #endif
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;

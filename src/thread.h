@@ -55,6 +55,8 @@ class Mutex {
 
   pthread_mutex_t lock_impl_;
 
+  friend class SharedLibrary; // For lock_impl_.
+
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
