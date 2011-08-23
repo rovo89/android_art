@@ -610,20 +610,20 @@ class Method : public AccessibleObject {
     code_ =  reinterpret_cast<void*>(address);
   }
 
-  void SetFrameSize(size_t frame_size) {
-    frame_size_ = frame_size;
+  void SetFrameSizeInBytes(size_t frame_size_in_bytes) {
+    frame_size_in_bytes_ = frame_size_in_bytes;
   }
 
-  void SetReturnPcOffset(size_t return_pc_offset) {
-    return_pc_offset_ = return_pc_offset;
+  void SetReturnPcOffsetInBytes(size_t return_pc_offset_in_bytes) {
+    return_pc_offset_in_bytes_ = return_pc_offset_in_bytes;
   }
 
-  size_t GetFrameSize() const {
-    return frame_size_;
+  size_t GetFrameSizeInBytes() const {
+    return frame_size_in_bytes_;
   }
 
-  size_t GetReturnPcOffset() const {
-    return return_pc_offset_;
+  size_t GetReturnPcOffsetInBytes() const {
+    return return_pc_offset_in_bytes_;
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
@@ -685,7 +685,7 @@ class Method : public AccessibleObject {
   uint16_t num_ins_;
 
   // Total size in bytes of the frame
-  size_t frame_size_;
+  size_t frame_size_in_bytes_;
 
   // Architecture-dependent register spill masks
   uint32_t core_spill_mask_;
@@ -730,7 +730,8 @@ class Method : public AccessibleObject {
   const uint32_t code_size_;
 
   // Offset of return PC within frame for compiled code (in bytes)
-  size_t return_pc_offset_;
+  // Offset of PC within compiled code (in bytes)
+  size_t return_pc_offset_in_bytes_;
 
   // Any native method registered with this method
   const void* native_method_;

@@ -103,19 +103,19 @@ void Mutex::Unlock() {
 
 void Frame::Next() {
   byte* next_sp = reinterpret_cast<byte*>(sp_) +
-      GetMethod()->GetFrameSize();
+      GetMethod()->GetFrameSizeInBytes();
   sp_ = reinterpret_cast<const Method**>(next_sp);
 }
 
 void* Frame::GetPC() const {
   byte* pc_addr = reinterpret_cast<byte*>(sp_) +
-      GetMethod()->GetReturnPcOffset();
+      GetMethod()->GetReturnPcOffsetInBytes();
   return reinterpret_cast<void*>(pc_addr);
 }
 
 const Method* Frame::NextMethod() const {
   byte* next_sp = reinterpret_cast<byte*>(sp_) +
-      GetMethod()->GetFrameSize();
+      GetMethod()->GetFrameSizeInBytes();
   return reinterpret_cast<const Method*>(next_sp);
 }
 

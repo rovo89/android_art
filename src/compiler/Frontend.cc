@@ -897,7 +897,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 
     method->SetCode((const art::byte*)&cUnit.codeBuffer[0],
                     cUnit.codeBuffer.size() * 2, art::kThumb2);
-    method->SetFrameSize(cUnit.frameSize);
+    method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetCoreSpillMask(cUnit.coreSpillMask);
     method->SetFpSpillMask(cUnit.fpSpillMask);
     // TODO: Transmit mapping table to caller
