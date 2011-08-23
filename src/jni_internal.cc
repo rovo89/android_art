@@ -582,28 +582,68 @@ class JNI {
     return AddLocalReference<jobject>(ts, field);
   }
 
+  static jclass GetObjectClass(JNIEnv* env, jobject java_object) {
+    ScopedJniThreadState ts(env);
+    Object* o = Decode<Object*>(ts, java_object);
+    return AddLocalReference<jclass>(ts, o->GetClass());
+  }
+
   static jclass GetSuperclass(JNIEnv* env, jclass java_class) {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
     return AddLocalReference<jclass>(ts, c->GetSuperClass());
   }
 
-  static jboolean IsAssignableFrom(JNIEnv* env, jclass sub, jclass sup) {
+  static jboolean IsAssignableFrom(JNIEnv* env, jclass java_class1, jclass java_class2) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return JNI_FALSE;
+    Class* c1 = Decode<Class*>(ts, java_class1);
+    Class* c2 = Decode<Class*>(ts, java_class2);
+    return c1->IsAssignableFrom(c2) ? JNI_TRUE : JNI_FALSE;
   }
 
-  static jint Throw(JNIEnv* env, jthrowable obj) {
+  static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass clazz) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+    CHECK_NE(static_cast<jclass>(NULL), clazz);
+    if (jobj == NULL) {
+      // NB. JNI is different from regular Java instanceof in this respect
+      return JNI_TRUE;
+    } else {
+      Object* obj = Decode<Object*>(ts, jobj);
+      Class* klass = Decode<Class*>(ts, clazz);
+      return Object::InstanceOf(obj, klass) ? JNI_TRUE : JNI_FALSE;
+    }
   }
 
-  static jint ThrowNew(JNIEnv* env, jclass clazz, const char* msg) {
+  static jint Throw(JNIEnv* env, jthrowable java_exception) {
+    ScopedJniThreadState ts(env);
+    Object* exception = Decode<Object*>(ts, java_exception);
+    if (exception == NULL) {
+      return JNI_ERR;
+    }
+    ts.Self()->SetException(exception);
+    return JNI_OK;
+  }
+
+  static jint ThrowNew(JNIEnv* env, jclass java_class, const char* msg) {
+    ScopedJniThreadState ts(env);
+    Class* c = Decode<Class*>(ts, java_class);
+    ts.Self()->ThrowNewException(c, msg);
+    return JNI_OK;
+  }
+
+  static jboolean ExceptionCheck(JNIEnv* env) {
+    ScopedJniThreadState ts(env);
+    return ts.Self()->IsExceptionPending() ? JNI_TRUE : JNI_FALSE;
+  }
+
+  static void ExceptionClear(JNIEnv* env) {
+    ScopedJniThreadState ts(env);
+    ts.Self()->ClearException();
+  }
+
+  static void ExceptionDescribe(JNIEnv* env) {
     ScopedJniThreadState ts(env);
     UNIMPLEMENTED(FATAL);
-    return 0;
   }
 
   static jthrowable ExceptionOccurred(JNIEnv* env) {
@@ -625,16 +665,6 @@ class JNI {
       }
       return localException;
     }
-  }
-
-  static void ExceptionDescribe(JNIEnv* env) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static void ExceptionClear(JNIEnv* env) {
-    ScopedJniThreadState ts(env);
-    ts.Self()->ClearException();
   }
 
   static void FatalError(JNIEnv* env, const char* msg) {
@@ -789,25 +819,6 @@ class JNI {
     jobject local_result = AddLocalReference<jobjectArray>(ts, result);
     CallNonvirtualVoidMethodA(env, local_result, java_class, methodID, args);
     return local_result;
-  }
-
-  static jclass GetObjectClass(JNIEnv* env, jobject obj) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
-
-  static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass clazz) {
-    ScopedJniThreadState ts(env);
-    CHECK_NE(static_cast<jclass>(NULL), clazz);
-    if (jobj == NULL) {
-      // NB. JNI is different from regular Java instanceof in this respect
-      return JNI_TRUE;
-    } else {
-      Object* obj = Decode<Object*>(ts, jobj);
-      Class* klass = Decode<Class*>(ts, clazz);
-      return Object::InstanceOf(obj, klass) ? JNI_TRUE : JNI_FALSE;
-    }
   }
 
   static jmethodID GetMethodID(JNIEnv* env, jclass c, const char* name, const char* sig) {
@@ -2064,11 +2075,6 @@ class JNI {
   static void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
     ScopedJniThreadState ts(env);
     UNIMPLEMENTED(FATAL);
-  }
-
-  static jboolean ExceptionCheck(JNIEnv* env) {
-    ScopedJniThreadState ts(env);
-    return ts.Self()->IsExceptionPending() ? JNI_TRUE : JNI_FALSE;
   }
 
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {

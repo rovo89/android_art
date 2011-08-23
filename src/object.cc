@@ -166,6 +166,7 @@ uint32_t Field::Get32(const Object* object) const {
   if (IsStatic()) {
     object = declaring_class_;
   }
+  // TODO: volatile
   return object->GetField32(GetOffset());
 }
 
@@ -174,6 +175,7 @@ void Field::Set32(Object* object, uint32_t new_value) const {
   if (IsStatic()) {
     object = declaring_class_;
   }
+  // TODO: volatile
   object->SetField32(GetOffset(), new_value);
 }
 
@@ -182,6 +184,7 @@ uint64_t Field::Get64(const Object* object) const {
   if (IsStatic()) {
     object = declaring_class_;
   }
+  // TODO: volatile
   return object->GetField64(GetOffset());
 }
 
@@ -190,6 +193,7 @@ void Field::Set64(Object* object, uint64_t new_value) const {
   if (IsStatic()) {
     object = declaring_class_;
   }
+  // TODO: volatile
   object->SetField64(GetOffset(), new_value);
 }
 
@@ -198,6 +202,7 @@ Object* Field::GetObj(const Object* object) const {
   if (IsStatic()) {
     object = declaring_class_;
   }
+  // TODO: volatile
   return object->GetFieldObject(GetOffset());
 }
 
@@ -206,6 +211,7 @@ void Field::SetObj(Object* object, Object* new_value) const {
   if (IsStatic()) {
     object = declaring_class_;
   }
+  // TODO: volatile
   object->SetFieldObject(GetOffset(), new_value);
 }
 

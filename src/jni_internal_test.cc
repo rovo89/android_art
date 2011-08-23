@@ -318,6 +318,20 @@ TEST_F(JniInternalTest, GetArrayLength) {
   // Already tested in NewObjectArray/NewPrimitiveArray.
 }
 
+TEST_F(JniInternalTest, GetObjectClass) {
+  jclass string_class = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(string_class != NULL);
+  jclass class_class = env_->FindClass("java/lang/Class");
+  ASSERT_TRUE(class_class != NULL);
+
+  jstring s = env_->NewStringUTF("poop");
+  jclass c = env_->GetObjectClass(s);
+  ASSERT_TRUE(env_->IsSameObject(string_class, c));
+
+  jclass c2 = env_->GetObjectClass(c);
+  ASSERT_TRUE(env_->IsSameObject(class_class, env_->GetObjectClass(c2)));
+}
+
 TEST_F(JniInternalTest, GetSuperclass) {
   jclass object_class = env_->FindClass("java/lang/Object");
   ASSERT_TRUE(object_class != NULL);
@@ -325,6 +339,16 @@ TEST_F(JniInternalTest, GetSuperclass) {
   ASSERT_TRUE(string_class != NULL);
   ASSERT_TRUE(env_->IsSameObject(object_class, env_->GetSuperclass(string_class)));
   ASSERT_TRUE(env_->GetSuperclass(object_class) == NULL);
+}
+
+TEST_F(JniInternalTest, IsAssignableFrom) {
+  jclass object_class = env_->FindClass("java/lang/Object");
+  ASSERT_TRUE(object_class != NULL);
+  jclass string_class = env_->FindClass("java/lang/String");
+  ASSERT_TRUE(string_class != NULL);
+
+  ASSERT_TRUE(env_->IsAssignableFrom(object_class, string_class));
+  ASSERT_FALSE(env_->IsAssignableFrom(string_class, object_class));
 }
 
 TEST_F(JniInternalTest, NewStringUTF) {
@@ -1253,5 +1277,31 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   EXPECT_EQ(3.0, result.d);
 }
 #endif  // __arm__
+
+TEST_F(JniInternalTest, Throw) {
+  EXPECT_EQ(JNI_ERR, env_->Throw(NULL));
+
+  jclass exception_class = env_->FindClass("java/lang/RuntimeException");
+  ASSERT_TRUE(exception_class != NULL);
+  jthrowable exception = reinterpret_cast<jthrowable>(env_->AllocObject(exception_class));
+  ASSERT_TRUE(exception != NULL);
+
+  EXPECT_EQ(JNI_OK, env_->Throw(exception));
+  EXPECT_TRUE(env_->ExceptionCheck());
+  EXPECT_TRUE(env_->IsSameObject(exception, env_->ExceptionOccurred()));
+  env_->ExceptionClear();
+}
+
+TEST_F(JniInternalTest, ThrowNew) {
+  EXPECT_EQ(JNI_ERR, env_->Throw(NULL));
+
+  jclass exception_class = env_->FindClass("java/lang/RuntimeException");
+  ASSERT_TRUE(exception_class != NULL);
+
+  EXPECT_EQ(JNI_OK, env_->ThrowNew(exception_class, "hello world"));
+  EXPECT_TRUE(env_->ExceptionCheck());
+  EXPECT_TRUE(env_->IsInstanceOf(env_->ExceptionOccurred(), exception_class));
+  env_->ExceptionClear();
+}
 
 }

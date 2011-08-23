@@ -156,13 +156,7 @@ bool Thread::ShbContains(jobject obj) {
   return false;
 }
 
-void ThrowNewException(Thread* thread, const char* exception_class_name, const char* msg) {
-  CHECK(thread != NULL);
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* exception_class = class_linker->FindSystemClass(exception_class_name);
-  CHECK(exception_class != NULL);
-
+void Thread::ThrowNewException(Class* exception_class, const char* msg) {
   Object* exception = exception_class->NewInstance();
   CHECK(exception != NULL);
 
@@ -179,20 +173,21 @@ void ThrowNewException(Thread* thread, const char* exception_class_name, const c
                          << exception_class->GetDescriptor()->ToModifiedUtf8() << ".<init> "
                          << "\"" << msg << "\"";
 
-  thread->SetException(exception);
-}
-
-void ThrowNewExceptionV(Thread* thread, const char* exception_class_name, const char* fmt, va_list args) {
-  char msg[512];
-  vsnprintf(msg, sizeof(msg), fmt, args);
-  ThrowNewException(thread, exception_class_name, msg);
+  SetException(exception);
 }
 
 void Thread::ThrowNewException(const char* exception_class_name, const char* fmt, ...) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* exception_class = class_linker->FindSystemClass(exception_class_name);
+  CHECK(exception_class != NULL);
+
+  std::string msg;
   va_list args;
   va_start(args, fmt);
-  ThrowNewExceptionV(this, exception_class_name, fmt, args);
+  StringAppendV(&msg, fmt, args);
   va_end(args);
+
+  ThrowNewException(exception_class, msg.c_str());
 }
 
 static const char* kStateNames[] = {

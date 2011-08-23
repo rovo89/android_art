@@ -17,6 +17,7 @@
 
 namespace art {
 
+class Class;
 class ClassLoader;
 class Method;
 class Object;
@@ -195,15 +196,19 @@ class Thread {
     return exception_ != NULL;
   }
 
+  // TODO: Throwable*
   Object* GetException() const {
     return exception_;
   }
 
+  // TODO: Throwable*
   void SetException(Object* new_exception) {
     CHECK(new_exception != NULL);
     // TODO: CHECK(exception_ == NULL);
     exception_ = new_exception;  // TODO
   }
+
+  void ThrowNewException(Class* c, const char* msg);
 
   void ThrowNewException(const char* exception_class_name, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));
@@ -381,6 +386,7 @@ class Thread {
   Runtime* runtime_;
 
   // The pending exception or NULL.
+  // TODO: Throwable*
   Object* exception_;
 
   // A non-zero value is used to tell the current thread to enter a safe point
