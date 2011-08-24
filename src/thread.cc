@@ -9,6 +9,7 @@
 #include <list>
 
 #include "class_linker.h"
+#include "heap.h"
 #include "jni_internal.h"
 #include "object.h"
 #include "runtime.h"
@@ -204,25 +205,87 @@ bool Thread::Init() {
   return true;
 }
 
-size_t Thread::NumShbHandles() {
+size_t Thread::NumSirtReferences() {
   size_t count = 0;
-  for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
+  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
     count += cur->NumberOfReferences();
   }
   return count;
 }
 
-bool Thread::ShbContains(jobject obj) {
-  Object** shb_entry = reinterpret_cast<Object**>(obj);
-  for (StackHandleBlock* cur = top_shb_; cur; cur = cur->Link()) {
+bool Thread::SirtContains(jobject obj) {
+  Object** sirt_entry = reinterpret_cast<Object**>(obj);
+  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
     size_t num_refs = cur->NumberOfReferences();
-    DCHECK_GT(num_refs, 0u); // A SHB should always have a jobject/jclass
-    if ((&cur->Handles()[0] >= shb_entry) &&
-        (shb_entry <= (&cur->Handles()[num_refs-1]))) {
+    // A SIRT should always have a jobject/jclass as a native method is passed
+    // in a this pointer or a class
+    DCHECK_GT(num_refs, 0u);
+    if ((&cur->References()[0] >= sirt_entry) &&
+        (sirt_entry <= (&cur->References()[num_refs-1]))) {
       return true;
     }
   }
   return false;
+}
+
+Object* Thread::DecodeJObject(jobject obj) {
+  // TODO: Only allowed to hold Object* when in the runnable state
+  // DCHECK(state_ == kRunnable);
+  if (obj == NULL) {
+    return NULL;
+  }
+  IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
+  IndirectRefKind kind = GetIndirectRefKind(ref);
+  Object* result;
+  switch (kind) {
+  case kLocal:
+    {
+      JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(jni_env_);
+      IndirectReferenceTable& locals = env->locals;
+      result = locals.Get(ref);
+      break;
+    }
+  case kGlobal:
+    {
+      JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+      IndirectReferenceTable& globals = vm->globals;
+      MutexLock mu(vm->globals_lock);
+      result = globals.Get(ref);
+      break;
+    }
+  case kWeakGlobal:
+    {
+      JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+      IndirectReferenceTable& weak_globals = vm->weak_globals;
+      MutexLock mu(vm->weak_globals_lock);
+      result = weak_globals.Get(ref);
+      if (result == kClearedJniWeakGlobal) {
+        // This is a special case where it's okay to return NULL.
+        return NULL;
+      }
+      break;
+    }
+  case kSirtOrInvalid:
+  default:
+    // TODO: make stack indirect reference table lookup more efficient
+    // Check if this is a local reference in the SIRT
+    if (SirtContains(obj)) {
+      result = *reinterpret_cast<Object**>(obj); // Read from SIRT
+    } else if (false /*gDvmJni.workAroundAppJniBugs*/) { // TODO
+      // Assume an invalid local reference is actually a direct pointer.
+      result = reinterpret_cast<Object*>(obj);
+    } else {
+      LOG(FATAL) << "Invalid indirect reference " << obj;
+      result = reinterpret_cast<Object*>(kInvalidIndirectRefObject);
+    }
+  }
+
+  if (result == NULL) {
+    LOG(FATAL) << "JNI ERROR (app bug): use of deleted " << kind << ": "
+               << obj;
+  }
+  Heap::VerifyObject(result);
+  return result;
 }
 
 void Thread::ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...) {

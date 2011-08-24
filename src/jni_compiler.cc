@@ -38,55 +38,55 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   // TODO: implement computing the difference of the callee saves
   // and saving
 
-  // 3. Set up the StackHandleBlock
+  // 3. Set up the StackIndirectReferenceTable
   mr_conv.ResetIterator(FrameOffset(frame_size));
   jni_conv.ResetIterator(FrameOffset(0));
-  jni_asm->StoreImmediateToFrame(jni_conv.ShbNumRefsOffset(),
-                                 jni_conv.HandleCount(),
+  jni_asm->StoreImmediateToFrame(jni_conv.SirtNumRefsOffset(),
+                                 jni_conv.ReferenceCount(),
                                  mr_conv.InterproceduralScratchRegister());
-  jni_asm->CopyRawPtrFromThread(jni_conv.ShbLinkOffset(),
-                                Thread::TopShbOffset(),
+  jni_asm->CopyRawPtrFromThread(jni_conv.SirtLinkOffset(),
+                                Thread::TopSirtOffset(),
                                 mr_conv.InterproceduralScratchRegister());
-  jni_asm->StoreStackOffsetToThread(Thread::TopShbOffset(),
-                                    jni_conv.ShbOffset(),
+  jni_asm->StoreStackOffsetToThread(Thread::TopSirtOffset(),
+                                    jni_conv.SirtOffset(),
                                     mr_conv.InterproceduralScratchRegister());
 
-  // 4. Place incoming reference arguments into handle block
+  // 4. Place incoming reference arguments into SIRT
   jni_conv.Next();  // Skip JNIEnv*
   // 4.5. Create Class argument for static methods out of passed method
   if (is_static) {
-    FrameOffset handle_offset = jni_conv.CurrentParamHandleOffset();
-    // Check handle offset is within frame
-    CHECK_LT(handle_offset.Uint32Value(), frame_size);
+    FrameOffset sirt_offset = jni_conv.CurrentParamSirtEntryOffset();
+    // Check sirt offset is within frame
+    CHECK_LT(sirt_offset.Uint32Value(), frame_size);
     jni_asm->LoadRef(jni_conv.InterproceduralScratchRegister(),
                      mr_conv.MethodRegister(), Method::DeclaringClassOffset());
-    jni_asm->ValidateRef(jni_conv.InterproceduralScratchRegister(), false);
-    jni_asm->StoreRef(handle_offset, jni_conv.InterproceduralScratchRegister());
-    jni_conv.Next();  // handlerized so move to next argument
+    jni_asm->VerifyObject(jni_conv.InterproceduralScratchRegister(), false);
+    jni_asm->StoreRef(sirt_offset, jni_conv.InterproceduralScratchRegister());
+    jni_conv.Next();  // in SIRT so move to next argument
   }
   while (mr_conv.HasNext()) {
     CHECK(jni_conv.HasNext());
     bool ref_param = jni_conv.IsCurrentParamAReference();
     CHECK(!ref_param || mr_conv.IsCurrentParamAReference());
-    // References need handlerization and the handle address passing
+    // References need placing in SIRT and the entry value passing
     if (ref_param) {
-      // Compute handle offset, note null is handlerized but its boxed value
+      // Compute SIRT entry, note null is placed in the SIRT but its boxed value
       // must be NULL
-      FrameOffset handle_offset = jni_conv.CurrentParamHandleOffset();
-      // Check handle offset is within frame
-      CHECK_LT(handle_offset.Uint32Value(), frame_size);
+      FrameOffset sirt_offset = jni_conv.CurrentParamSirtEntryOffset();
+      // Check SIRT offset is within frame
+      CHECK_LT(sirt_offset.Uint32Value(), frame_size);
       bool input_in_reg = mr_conv.IsCurrentParamInRegister();
       bool input_on_stack = mr_conv.IsCurrentParamOnStack();
       CHECK(input_in_reg || input_on_stack);
 
       if (input_in_reg) {
         ManagedRegister in_reg  =  mr_conv.CurrentParamRegister();
-        jni_asm->ValidateRef(in_reg, mr_conv.IsCurrentUserArg());
-        jni_asm->StoreRef(handle_offset, in_reg);
+        jni_asm->VerifyObject(in_reg, mr_conv.IsCurrentUserArg());
+        jni_asm->StoreRef(sirt_offset, in_reg);
       } else if (input_on_stack) {
         FrameOffset in_off  = mr_conv.CurrentParamStackOffset();
-        jni_asm->ValidateRef(in_off, mr_conv.IsCurrentUserArg());
-        jni_asm->CopyRef(handle_offset, in_off,
+        jni_asm->VerifyObject(in_off, mr_conv.IsCurrentUserArg());
+        jni_asm->CopyRef(sirt_offset, in_off,
                          mr_conv.InterproceduralScratchRegister());
       }
     }
@@ -111,18 +111,18 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
     jni_conv.ResetIterator(FrameOffset(out_arg_size));
     jni_conv.Next();  // Skip JNIEnv*
-    // Get stack handle for 1st argument
+    // Get SIRT entry for 1st argument
     if (is_static) {
-      FrameOffset handle_offset = jni_conv.CurrentParamHandleOffset();
+      FrameOffset sirt_offset = jni_conv.CurrentParamSirtEntryOffset();
       if (jni_conv.IsCurrentParamOnStack()) {
         FrameOffset out_off = jni_conv.CurrentParamStackOffset();
-        jni_asm->CreateStackHandle(out_off, handle_offset,
-                                   mr_conv.InterproceduralScratchRegister(),
-                                   false);
+        jni_asm->CreateSirtEntry(out_off, sirt_offset,
+                                 mr_conv.InterproceduralScratchRegister(),
+                                 false);
       } else {
         ManagedRegister out_reg = jni_conv.CurrentParamRegister();
-        jni_asm->CreateStackHandle(out_reg, handle_offset,
-                                   ManagedRegister::NoRegister(), false);
+        jni_asm->CreateSirtEntry(out_reg, sirt_offset,
+                                 ManagedRegister::NoRegister(), false);
       }
     } else {
       CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
@@ -171,16 +171,16 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
     jni_conv.ResetIterator(FrameOffset(out_arg_size));
     jni_conv.Next();  // Skip JNIEnv*
-    FrameOffset handle_offset = jni_conv.CurrentParamHandleOffset();
+    FrameOffset sirt_offset = jni_conv.CurrentParamSirtEntryOffset();
     if (jni_conv.IsCurrentParamOnStack()) {
       FrameOffset out_off = jni_conv.CurrentParamStackOffset();
-      jni_asm->CreateStackHandle(out_off, handle_offset,
-                                 mr_conv.InterproceduralScratchRegister(),
-                                 false);
+      jni_asm->CreateSirtEntry(out_off, sirt_offset,
+                               mr_conv.InterproceduralScratchRegister(),
+                               false);
     } else {
       ManagedRegister out_reg = jni_conv.CurrentParamRegister();
-      jni_asm->CreateStackHandle(out_reg, handle_offset,
-                                 ManagedRegister::NoRegister(), false);
+      jni_asm->CreateSirtEntry(out_reg, sirt_offset,
+                               ManagedRegister::NoRegister(), false);
     }
   }
   // 9. Create 1st argument, the JNI environment ptr
@@ -214,18 +214,18 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     CHECK_LT(return_save_location.Uint32Value(), frame_size+out_arg_size);
     jni_asm->Store(return_save_location, jni_conv.ReturnRegister(),
                    jni_conv.SizeOfReturnValue());
-    // Get stack handle for 1st argument
+    // Get SIRT entry for 1st argument
     if (is_static) {
-      FrameOffset handle_offset = jni_conv.CurrentParamHandleOffset();
+      FrameOffset sirt_offset = jni_conv.CurrentParamSirtEntryOffset();
       if (jni_conv.IsCurrentParamOnStack()) {
         FrameOffset out_off = jni_conv.CurrentParamStackOffset();
-        jni_asm->CreateStackHandle(out_off, handle_offset,
-                                   mr_conv.InterproceduralScratchRegister(),
-                                   false);
+        jni_asm->CreateSirtEntry(out_off, sirt_offset,
+                                 mr_conv.InterproceduralScratchRegister(),
+                                 false);
       } else {
         ManagedRegister out_reg = jni_conv.CurrentParamRegister();
-        jni_asm->CreateStackHandle(out_reg, handle_offset,
-                                   ManagedRegister::NoRegister(), false);
+        jni_asm->CreateSirtEntry(out_reg, sirt_offset,
+                                 ManagedRegister::NoRegister(), false);
       }
     } else {
       CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
@@ -272,16 +272,18 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
                                   jni_conv.InterproceduralScratchRegister());
 
 
-  // 15. Place result in correct register possibly dehandlerizing
+  // 15. Place result in correct register possibly loading from indirect
+  //     reference table
   if (jni_conv.IsReturnAReference()) {
-    jni_asm->LoadReferenceFromStackHandle(mr_conv.ReturnRegister(),
-                                          jni_conv.ReturnRegister());
+    // TODO: load from local/global reference tables
+    jni_asm->LoadReferenceFromSirt(mr_conv.ReturnRegister(),
+                                   jni_conv.ReturnRegister());
   } else {
     jni_asm->Move(mr_conv.ReturnRegister(), jni_conv.ReturnRegister());
   }
 
-  // 16. Remove stack handle block from thread
-  jni_asm->CopyRawPtrToThread(Thread::TopShbOffset(), jni_conv.ShbLinkOffset(),
+  // 16. Remove SIRT from thread
+  jni_asm->CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv.SirtLinkOffset(),
                               jni_conv.InterproceduralScratchRegister());
 
   // 17. Remove activation
@@ -305,37 +307,36 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
                                 size_t frame_size, size_t out_arg_size) {
   bool input_in_reg = mr_conv->IsCurrentParamInRegister();
   bool output_in_reg = jni_conv->IsCurrentParamInRegister();
-  FrameOffset handle_offset(0);
+  FrameOffset sirt_offset(0);
   bool null_allowed = false;
   bool ref_param = jni_conv->IsCurrentParamAReference();
   CHECK(!ref_param || mr_conv->IsCurrentParamAReference());
   CHECK(input_in_reg || mr_conv->IsCurrentParamOnStack());
   CHECK(output_in_reg || jni_conv->IsCurrentParamOnStack());
-  // References need handlerization and the handle address passing
+  // References need placing in SIRT and the entry address passing
   if (ref_param) {
     null_allowed = mr_conv->IsCurrentUserArg();
-    // Compute handle offset. Note null is placed in the SHB but the jobject
-    // passed to the native code must be null (not a pointer into the SHB
+    // Compute SIRT offset. Note null is placed in the SIRT but the jobject
+    // passed to the native code must be null (not a pointer into the SIRT
     // as with regular references).
-    handle_offset = jni_conv->CurrentParamHandleOffset();
-    // Check handle offset is within frame.
-    CHECK_LT(handle_offset.Uint32Value(), (frame_size+out_arg_size));
+    sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
+    // Check SIRT offset is within frame.
+    CHECK_LT(sirt_offset.Uint32Value(), (frame_size+out_arg_size));
   }
   if (input_in_reg && output_in_reg) {
     ManagedRegister in_reg = mr_conv->CurrentParamRegister();
     ManagedRegister out_reg = jni_conv->CurrentParamRegister();
     if (ref_param) {
-      jni_asm->CreateStackHandle(out_reg, handle_offset, in_reg,
-                                 null_allowed);
+      jni_asm->CreateSirtEntry(out_reg, sirt_offset, in_reg, null_allowed);
     } else {
       jni_asm->Move(out_reg, in_reg);
     }
   } else if (!input_in_reg && !output_in_reg) {
     FrameOffset out_off = jni_conv->CurrentParamStackOffset();
     if (ref_param) {
-      jni_asm->CreateStackHandle(out_off, handle_offset,
-                                 mr_conv->InterproceduralScratchRegister(),
-                                 null_allowed);
+      jni_asm->CreateSirtEntry(out_off, sirt_offset,
+                               mr_conv->InterproceduralScratchRegister(),
+                               null_allowed);
     } else {
       FrameOffset in_off = mr_conv->CurrentParamStackOffset();
       size_t param_size = mr_conv->CurrentParamSize();
@@ -349,8 +350,8 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     // Check that incoming stack arguments are above the current stack frame.
     CHECK_GT(in_off.Uint32Value(), frame_size);
     if (ref_param) {
-      jni_asm->CreateStackHandle(out_reg, handle_offset,
-                                 ManagedRegister::NoRegister(), null_allowed);
+      jni_asm->CreateSirtEntry(out_reg, sirt_offset,
+                               ManagedRegister::NoRegister(), null_allowed);
     } else {
       unsigned int param_size = mr_conv->CurrentParamSize();
       CHECK_EQ(param_size, jni_conv->CurrentParamSize());
@@ -363,10 +364,10 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     // Check outgoing argument is within frame
     CHECK_LT(out_off.Uint32Value(), frame_size);
     if (ref_param) {
-      // TODO: recycle value in in_reg rather than reload from handle
-      jni_asm->CreateStackHandle(out_off, handle_offset,
-                                 mr_conv->InterproceduralScratchRegister(),
-                                 null_allowed);
+      // TODO: recycle value in in_reg rather than reload from SIRT
+      jni_asm->CreateSirtEntry(out_off, sirt_offset,
+                               mr_conv->InterproceduralScratchRegister(),
+                               null_allowed);
     } else {
       size_t param_size = mr_conv->CurrentParamSize();
       CHECK_EQ(param_size, jni_conv->CurrentParamSize());

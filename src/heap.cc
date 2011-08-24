@@ -112,6 +112,18 @@ Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
   return obj;
 }
 
+void Heap::VerifyObject(Object *obj) {
+  if (!IsAligned(obj, kObjectAlignment)) {
+    LOG(FATAL) << "Object isn't aligned: " << obj;
+  } else if (!live_bitmap_->Test(obj)) {
+    // TODO: we don't hold a lock here as it is assumed the live bit map
+    // isn't changing if the mutator is running.
+    LOG(FATAL) << "Object is dead: " << obj;
+  } else if(obj->GetClass() == NULL) {
+    LOG(FATAL) << "Object has no class: " << obj;
+  }
+}
+
 void Heap::RecordAllocation(Space* space, const Object* obj) {
   size_t size = space->AllocationSize(obj);
   DCHECK_NE(size, 0u);

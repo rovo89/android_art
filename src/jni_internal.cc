@@ -249,60 +249,7 @@ jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
 
 template<typename T>
 T Decode(ScopedJniThreadState& ts, jobject obj) {
-  if (obj == NULL) {
-    return NULL;
-  }
-
-  IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
-  IndirectRefKind kind = GetIndirectRefKind(ref);
-  Object* result;
-  switch (kind) {
-  case kLocal:
-    {
-      IndirectReferenceTable& locals = ts.Env()->locals;
-      result = locals.Get(ref);
-      break;
-    }
-  case kGlobal:
-    {
-      JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-      IndirectReferenceTable& globals = vm->globals;
-      MutexLock mu(vm->globals_lock);
-      result = globals.Get(ref);
-      break;
-    }
-  case kWeakGlobal:
-    {
-      JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-      IndirectReferenceTable& weak_globals = vm->weak_globals;
-      MutexLock mu(vm->weak_globals_lock);
-      result = weak_globals.Get(ref);
-      if (result == kClearedJniWeakGlobal) {
-        // This is a special case where it's okay to return NULL.
-        return NULL;
-      }
-      break;
-    }
-  case kInvalid:
-  default:
-    // TODO: make stack handle blocks more efficient
-    // Check if this is a local reference in a stack handle block
-    if (ts.Self()->ShbContains(obj)) {
-      return *reinterpret_cast<T*>(obj); // Read from stack handle block
-    }
-    if (false /*gDvmJni.workAroundAppJniBugs*/) { // TODO
-      // Assume an invalid local reference is actually a direct pointer.
-      return reinterpret_cast<T>(obj);
-    }
-    LOG(FATAL) << "Invalid indirect reference " << obj;
-    return reinterpret_cast<T>(kInvalidIndirectRefObject);
-  }
-
-  if (result == NULL) {
-    LOG(FATAL) << "JNI ERROR (app bug): use of deleted " << kind << ": "
-               << obj;
-  }
-  return reinterpret_cast<T>(result);
+  return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
 }
 
 Field* DecodeField(ScopedJniThreadState& ts, jfieldID fid) {

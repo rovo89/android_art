@@ -36,7 +36,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
 {
   CHECK_GT(initialCount, 0U);
   CHECK_LE(initialCount, maxCount);
-  CHECK_NE(desiredKind, kInvalid);
+  CHECK_NE(desiredKind, kSirtOrInvalid);
 
   table_ = reinterpret_cast<Object**>(malloc(initialCount * sizeof(Object*)));
   CHECK(table_ != NULL);
@@ -162,7 +162,7 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     LOG(WARNING) << "Attempt to look up NULL " << kind_;
     return false;
   }
-  if (GetIndirectRefKind(iref) == kInvalid) {
+  if (GetIndirectRefKind(iref) == kSirtOrInvalid) {
     LOG(ERROR) << "JNI ERROR (app bug): invalid " << kind_ << " " << iref;
     AbortMaybe();
     return false;
@@ -229,7 +229,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   int idx = ExtractIndex(iref);
   bool workAroundAppJniBugs = false;
 
-  if (GetIndirectRefKind(iref) == kInvalid /*&& gDvmJni.workAroundAppJniBugs*/) { // TODO
+  if (GetIndirectRefKind(iref) == kSirtOrInvalid /*&& gDvmJni.workAroundAppJniBugs*/) { // TODO
     idx = LinearScan(iref, bottomIndex, topIndex, table_);
     workAroundAppJniBugs = true;
     if (idx == -1) {
@@ -297,8 +297,8 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
 std::ostream& operator<<(std::ostream& os, IndirectRefKind rhs) {
   switch (rhs) {
-  case kInvalid:
-    os << "invalid reference";
+  case kSirtOrInvalid:
+    os << "stack indirect reference table or invalid reference";
     break;
   case kLocal:
     os << "local reference";

@@ -78,7 +78,7 @@ jobject JniCompilerTest::jobj_;
 
 int gJava_MyClass_foo_calls = 0;
 void Java_MyClass_foo(JNIEnv* env, jobject thisObj) {
-  EXPECT_EQ(1u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -98,7 +98,7 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 
 int gJava_MyClass_fooI_calls = 0;
 jint Java_MyClass_fooI(JNIEnv* env, jobject thisObj, jint x) {
-  EXPECT_EQ(1u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -122,7 +122,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 
 int gJava_MyClass_fooII_calls = 0;
 jint Java_MyClass_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
-  EXPECT_EQ(1u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -147,7 +147,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 
 int gJava_MyClass_fooDD_calls = 0;
 jdouble Java_MyClass_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
-  EXPECT_EQ(1u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -175,7 +175,7 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
 int gJava_MyClass_fooIOO_calls = 0;
 jobject Java_MyClass_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
                             jobject z) {
-  EXPECT_EQ(3u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(3u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -225,7 +225,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 int gJava_MyClass_fooSIOO_calls = 0;
 jobject Java_MyClass_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
-  EXPECT_EQ(3u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(3u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
@@ -276,7 +276,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
 int gJava_MyClass_fooSSIOO_calls = 0;
 jobject Java_MyClass_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
-  EXPECT_EQ(3u, Thread::Current()->NumShbHandles());
+  EXPECT_EQ(3u, Thread::Current()->NumSirtReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);

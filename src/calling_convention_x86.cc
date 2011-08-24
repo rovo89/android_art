@@ -53,10 +53,11 @@ FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 size_t JniCallingConvention::FrameSize() {
   // Return address and Method*
   size_t frame_data_size = 2 * kPointerSize;
-  // Handles plus 2 words for SHB header
-  size_t handle_area_size = (HandleCount() + 2) * kPointerSize;
+  // References plus 2 words for SIRT header
+  size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
   // Plus return value spill area size
-  return RoundUp(frame_data_size + handle_area_size + SizeOfReturnValue(), 16);
+  return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(),
+                 kStackAlignment);
 }
 
 size_t JniCallingConvention::ReturnPcOffset() {

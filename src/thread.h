@@ -22,7 +22,6 @@ class ClassLoader;
 class Method;
 class Object;
 class Runtime;
-class StackHandleBlock;
 class Thread;
 class ThreadList;
 class Throwable;
@@ -73,44 +72,44 @@ class MutexLock {
   DISALLOW_COPY_AND_ASSIGN(MutexLock);
 };
 
-// Stack handle blocks are allocated within the bridge frame between managed
-// and native code.
-class StackHandleBlock {
+// Stack allocated indirect reference table, allocated within the bridge frame
+// between managed and native code.
+class StackIndirectReferenceTable {
  public:
-  // Number of references contained within this SHB
+  // Number of references contained within this SIRT
   size_t NumberOfReferences() {
     return number_of_references_;
   }
 
-  // Link to previous SHB or NULL
-  StackHandleBlock* Link() {
+  // Link to previous SIRT or NULL
+  StackIndirectReferenceTable* Link() {
     return link_;
   }
 
-  Object** Handles() {
-    return handles_;
+  Object** References() {
+    return references_;
   }
 
-  // Offset of length within SHB, used by generated code
+  // Offset of length within SIRT, used by generated code
   static size_t NumberOfReferencesOffset() {
-    return OFFSETOF_MEMBER(StackHandleBlock, number_of_references_);
+    return OFFSETOF_MEMBER(StackIndirectReferenceTable, number_of_references_);
   }
 
-  // Offset of link within SHB, used by generated code
+  // Offset of link within SIRT, used by generated code
   static size_t LinkOffset() {
-    return OFFSETOF_MEMBER(StackHandleBlock, link_);
+    return OFFSETOF_MEMBER(StackIndirectReferenceTable, link_);
   }
 
  private:
-  StackHandleBlock() {}
+  StackIndirectReferenceTable() {}
 
   size_t number_of_references_;
-  StackHandleBlock* link_;
+  StackIndirectReferenceTable* link_;
 
   // Fake array, really allocated and filled in by jni_compiler.
-  Object* handles_[0];
+  Object* references_[0];
 
-  DISALLOW_COPY_AND_ASSIGN(StackHandleBlock);
+  DISALLOW_COPY_AND_ASSIGN(StackIndirectReferenceTable);
 };
 
 struct NativeToManagedRecord {
@@ -326,16 +325,20 @@ class Thread {
                         OFFSETOF_MEMBER(Frame, sp_));
   }
 
-  // Offset of top stack handle block within Thread, used by generated code
-  static ThreadOffset TopShbOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_shb_));
+  // Offset of top stack indirect reference table within Thread, used by
+  // generated code
+  static ThreadOffset TopSirtOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
 
-  // Number of references allocated in StackHandleBlocks on this thread
-  size_t NumShbHandles();
+  // Number of references allocated in SIRTs on this thread
+  size_t NumSirtReferences();
 
-  // Is the given obj in this thread's stack handle blocks?
-  bool ShbContains(jobject obj);
+  // Is the given obj in this thread's stack indirect reference table?
+  bool SirtContains(jobject obj);
+
+  // Convert a jobject into a Object*
+  Object* DecodeJObject(jobject obj);
 
   // Offset of exception_entry_point_ within Thread, used by generated code
   static ThreadOffset ExceptionEntryPointOffset() {
@@ -384,7 +387,7 @@ class Thread {
       : id_(1234),
         top_of_managed_stack_(),
         native_to_managed_record_(NULL),
-        top_shb_(NULL),
+        top_sirt_(NULL),
         jni_env_(NULL),
         exception_(NULL),
         suspend_count_(0),
@@ -414,8 +417,8 @@ class Thread {
   // native to managed code.
   NativeToManagedRecord* native_to_managed_record_;
 
-  // Top of linked list of stack handle blocks or NULL for none
-  StackHandleBlock* top_shb_;
+  // Top of linked list of stack indirect reference tables or NULL for none
+  StackIndirectReferenceTable* top_sirt_;
 
   // Every thread may have an associated JNI environment
   JNIEnv* jni_env_;

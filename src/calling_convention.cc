@@ -52,18 +52,18 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
 // JNI calling convention
 
 size_t JniCallingConvention::OutArgSize() {
-  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, 16);
+  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, kStackAlignment);
 }
 
-size_t JniCallingConvention::HandleCount() {
+size_t JniCallingConvention::ReferenceCount() {
   const Method* method = GetMethod();
   return method->NumReferenceArgs() + (method->IsStatic() ? 1 : 0);
 }
 
 FrameOffset JniCallingConvention::ReturnValueSaveLocation() {
-  size_t start_of_shb = ShbLinkOffset().Int32Value() +  kPointerSize;
-  size_t handle_size = kPointerSize * HandleCount();  // size excluding header
-  return FrameOffset(start_of_shb + handle_size);
+  size_t start_of_sirt = SirtLinkOffset().Int32Value() +  kPointerSize;
+  size_t references_size = kPointerSize * ReferenceCount();  // size excluding header
+  return FrameOffset(start_of_sirt + references_size);
 }
 
 bool JniCallingConvention::HasNext() {
@@ -101,12 +101,13 @@ bool JniCallingConvention::IsCurrentParamAReference() {
   }
 }
 
-// Return position of handle holding reference at the current iterator position
-FrameOffset JniCallingConvention::CurrentParamHandleOffset() {
+// Return position of SIRT entry holding reference at the current iterator
+// position
+FrameOffset JniCallingConvention::CurrentParamSirtEntryOffset() {
   CHECK(IsCurrentParamAReference());
-  CHECK_GT(ShbLinkOffset(), ShbNumRefsOffset());
-  // Address of 1st handle
-  int result = ShbLinkOffset().Int32Value() + kPointerSize;
+  CHECK_GT(SirtLinkOffset(), SirtNumRefsOffset());
+  // Address of 1st SIRT entry
+  int result = SirtLinkOffset().Int32Value() + kPointerSize;
   if (itr_args_ != kObjectOrClass) {
     const Method *method = GetMethod();
     int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
@@ -116,7 +117,7 @@ FrameOffset JniCallingConvention::CurrentParamHandleOffset() {
     }
     result += previous_refs * kPointerSize;
   }
-  CHECK_GT(result, ShbLinkOffset().Int32Value());
+  CHECK_GT(result, SirtLinkOffset().Int32Value());
   return FrameOffset(result);
 }
 

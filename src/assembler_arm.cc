@@ -1609,50 +1609,50 @@ void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
   }
 }
 
-void Assembler::CreateStackHandle(ManagedRegister out_reg,
-                                  FrameOffset handle_offset,
-                                  ManagedRegister in_reg, bool null_allowed) {
+void Assembler::CreateSirtEntry(ManagedRegister out_reg,
+                                FrameOffset sirt_offset,
+                                ManagedRegister in_reg, bool null_allowed) {
   CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister());
   CHECK(out_reg.IsCoreRegister());
   if (null_allowed) {
-    // Null values get a handle value of 0.  Otherwise, the handle value is
-    // the address in the stack handle block holding the reference.
+    // Null values get a SIRT entry value of 0.  Otherwise, the SIRT entry is
+    // the address in the SIRT holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
     if (in_reg.IsNoRegister()) {
       LoadFromOffset(kLoadWord, out_reg.AsCoreRegister(),
-                     SP, handle_offset.Int32Value());
+                     SP, sirt_offset.Int32Value());
       in_reg = out_reg;
     }
     cmp(in_reg.AsCoreRegister(), ShifterOperand(0));
     if (!out_reg.Equals(in_reg)) {
       LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
     }
-    AddConstant(out_reg.AsCoreRegister(), SP, handle_offset.Int32Value(), NE);
+    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offset.Int32Value(), NE);
   } else {
-    AddConstant(out_reg.AsCoreRegister(), SP, handle_offset.Int32Value(), AL);
+    AddConstant(out_reg.AsCoreRegister(), SP, sirt_offset.Int32Value(), AL);
   }
 }
 
-void Assembler::CreateStackHandle(FrameOffset out_off,
-                                  FrameOffset handle_offset,
-                                  ManagedRegister scratch, bool null_allowed) {
+void Assembler::CreateSirtEntry(FrameOffset out_off,
+                                FrameOffset sirt_offset,
+                                ManagedRegister scratch, bool null_allowed) {
   CHECK(scratch.IsCoreRegister());
   if (null_allowed) {
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP,
-                   handle_offset.Int32Value());
-    // Null values get a handle value of 0.  Otherwise, the handle value is
-    // the address in the stack handle block holding the reference.
-    // e.g. scratch = (handle == 0) ? 0 : (SP+handle_offset)
+                   sirt_offset.Int32Value());
+    // Null values get a SIRT entry value of 0.  Otherwise, the sirt entry is
+    // the address in the SIRT holding the reference.
+    // e.g. scratch = (scratch == 0) ? 0 : (SP+sirt_offset)
     cmp(scratch.AsCoreRegister(), ShifterOperand(0));
-    AddConstant(scratch.AsCoreRegister(), SP, handle_offset.Int32Value(), NE);
+    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value(), NE);
   } else {
-    AddConstant(scratch.AsCoreRegister(), SP, handle_offset.Int32Value(), AL);
+    AddConstant(scratch.AsCoreRegister(), SP, sirt_offset.Int32Value(), AL);
   }
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, out_off.Int32Value());
 }
 
-void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
-                                             ManagedRegister in_reg) {
+void Assembler::LoadReferenceFromSirt(ManagedRegister out_reg,
+                                      ManagedRegister in_reg) {
   CHECK(out_reg.IsCoreRegister());
   CHECK(in_reg.IsCoreRegister());
   Label null_arg;
@@ -1664,11 +1664,11 @@ void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
                  in_reg.AsCoreRegister(), 0, NE);
 }
 
-void Assembler::ValidateRef(ManagedRegister src, bool could_be_null) {
+void Assembler::VerifyObject(ManagedRegister src, bool could_be_null) {
   // TODO: not validating references
 }
 
-void Assembler::ValidateRef(FrameOffset src, bool could_be_null) {
+void Assembler::VerifyObject(FrameOffset src, bool could_be_null) {
   // TODO: not validating references
 }
 

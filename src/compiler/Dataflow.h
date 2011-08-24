@@ -111,7 +111,7 @@ typedef struct InductionVariableInfo {
     int basicSSAReg;
     int m;      // multiplier
     int c;      // constant
-    int inc;    // loop incriment
+    int inc;    // loop increment
 } InductionVariableInfo;
 
 typedef struct ArrayAccessInfo {

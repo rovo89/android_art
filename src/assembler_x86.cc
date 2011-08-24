@@ -1547,12 +1547,12 @@ void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
   }
 }
 
-void Assembler::CreateStackHandle(ManagedRegister out_reg,
-                                  FrameOffset handle_offset,
-                                  ManagedRegister in_reg, bool null_allowed) {
+void Assembler::CreateSirtEntry(ManagedRegister out_reg,
+                                FrameOffset sirt_offset,
+                                ManagedRegister in_reg, bool null_allowed) {
   CHECK(in_reg.IsCpuRegister());
   CHECK(out_reg.IsCpuRegister());
-  ValidateRef(in_reg, null_allowed);
+  VerifyObject(in_reg, null_allowed);
   if (null_allowed) {
     Label null_arg;
     if (!out_reg.Equals(in_reg)) {
@@ -1560,33 +1560,33 @@ void Assembler::CreateStackHandle(ManagedRegister out_reg,
     }
     testl(in_reg.AsCpuRegister(), in_reg.AsCpuRegister());
     j(kZero, &null_arg);
-    leal(out_reg.AsCpuRegister(), Address(ESP, handle_offset));
+    leal(out_reg.AsCpuRegister(), Address(ESP, sirt_offset));
     Bind(&null_arg);
   } else {
-    leal(out_reg.AsCpuRegister(), Address(ESP, handle_offset));
+    leal(out_reg.AsCpuRegister(), Address(ESP, sirt_offset));
   }
 }
 
-void Assembler::CreateStackHandle(FrameOffset out_off,
-                                  FrameOffset handle_offset,
-                                  ManagedRegister scratch, bool null_allowed) {
+void Assembler::CreateSirtEntry(FrameOffset out_off,
+                                FrameOffset sirt_offset,
+                                ManagedRegister scratch, bool null_allowed) {
   CHECK(scratch.IsCpuRegister());
   if (null_allowed) {
     Label null_arg;
-    movl(scratch.AsCpuRegister(), Address(ESP, handle_offset));
+    movl(scratch.AsCpuRegister(), Address(ESP, sirt_offset));
     testl(scratch.AsCpuRegister(), scratch.AsCpuRegister());
     j(kZero, &null_arg);
-    leal(scratch.AsCpuRegister(), Address(ESP, handle_offset));
+    leal(scratch.AsCpuRegister(), Address(ESP, sirt_offset));
     Bind(&null_arg);
   } else {
-    leal(scratch.AsCpuRegister(), Address(ESP, handle_offset));
+    leal(scratch.AsCpuRegister(), Address(ESP, sirt_offset));
   }
   Store(out_off, scratch, 4);
 }
 
-// Given a stack handle, load the associated reference.
-void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
-                                             ManagedRegister in_reg) {
+// Given a SIRT entry, load the associated reference.
+void Assembler::LoadReferenceFromSirt(ManagedRegister out_reg,
+                                      ManagedRegister in_reg) {
   CHECK(out_reg.IsCpuRegister());
   CHECK(in_reg.IsCpuRegister());
   Label null_arg;
@@ -1599,11 +1599,11 @@ void Assembler::LoadReferenceFromStackHandle(ManagedRegister out_reg,
   Bind(&null_arg);
 }
 
-void Assembler::ValidateRef(ManagedRegister src, bool could_be_null) {
+void Assembler::VerifyObject(ManagedRegister src, bool could_be_null) {
   // TODO: not validating references
 }
 
-void Assembler::ValidateRef(FrameOffset src, bool could_be_null) {
+void Assembler::VerifyObject(FrameOffset src, bool could_be_null) {
   // TODO: not validating references
 }
 

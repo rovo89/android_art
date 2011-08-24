@@ -457,17 +457,17 @@ class Assembler {
   void Move(ManagedRegister dest, ManagedRegister src);
   void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
             size_t size);
-  void CreateStackHandle(ManagedRegister out_reg, FrameOffset handle_offset,
-                         ManagedRegister in_reg, bool null_allowed);
+  void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset,
+                       ManagedRegister in_reg, bool null_allowed);
 
-  void CreateStackHandle(FrameOffset out_off, FrameOffset handle_offset,
-                         ManagedRegister scratch, bool null_allowed);
+  void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset,
+                       ManagedRegister scratch, bool null_allowed);
 
-  void LoadReferenceFromStackHandle(ManagedRegister dst, ManagedRegister src);
+  void LoadReferenceFromSirt(ManagedRegister dst, ManagedRegister src);
 
-  void ValidateRef(ManagedRegister src, bool could_be_null);
+  void VerifyObject(ManagedRegister src, bool could_be_null);
 
-  void ValidateRef(FrameOffset src, bool could_be_null);
+  void VerifyObject(FrameOffset src, bool could_be_null);
 
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch);
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch);

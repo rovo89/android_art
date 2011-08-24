@@ -35,6 +35,9 @@ const int kBitsPerInt = kIntSize * kBitsPerByte;
 // Required stack alignment
 const int kStackAlignment = 16;
 
+// Required object alignment
+const int kObjectAlignment = 8;
+
 // System page size.  Normally you're expected to get this from
 // sysconf(_SC_PAGESIZE) or some system-specific define (usually
 // PAGESIZE or PAGE_SIZE).  If we use a simple compile-time constant

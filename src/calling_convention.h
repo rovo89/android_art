@@ -87,8 +87,8 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // | incoming stack args    | <-- Prior SP
 // | { Return address }     |     (x86)
 // | { Return value spill } |     (live on return slow paths)
-// | { Stack Handle Block   |
-// |   ...                  |
+// | { Stack Indirect Ref.  |
+// |   Table...             |
 // |   num. refs./link }    |     (here to prior SP is frame size)
 // | { Spill area }         |     (ARM)
 // | Method*                | <-- Anchor SP written to thread
@@ -109,8 +109,8 @@ class JniCallingConvention : public CallingConvention {
   size_t ReturnPcOffset();
   // Size of outgoing arguments, including alignment
   size_t OutArgSize();
-  // Number of handles in stack handle block
-  size_t HandleCount();
+  // Number of references in stack indirect reference table
+  size_t ReferenceCount();
   // Size of area used to hold spilled registers
   size_t SpillAreaSize();
   // Location where the return value of a call can be squirreled if another
@@ -138,21 +138,21 @@ class JniCallingConvention : public CallingConvention {
   FrameOffset CurrentParamStackOffset();
 
   // Iterator interface extension for JNI
-  FrameOffset CurrentParamHandleOffset();
+  FrameOffset CurrentParamSirtEntryOffset();
 
-  // Position of stack handle block and interior fields
-  FrameOffset ShbOffset() {
+  // Position of SIRT and interior fields
+  FrameOffset SirtOffset() {
     return FrameOffset(displacement_.Int32Value() +
                        SpillAreaSize() +
                        kPointerSize);  // above Method*
   }
-  FrameOffset ShbNumRefsOffset() {
-    return FrameOffset(ShbOffset().Int32Value() +
-                       StackHandleBlock::NumberOfReferencesOffset());
+  FrameOffset SirtNumRefsOffset() {
+    return FrameOffset(SirtOffset().Int32Value() +
+                       StackIndirectReferenceTable::NumberOfReferencesOffset());
   }
-  FrameOffset ShbLinkOffset() {
-    return FrameOffset(ShbOffset().Int32Value() +
-                       StackHandleBlock::LinkOffset());
+  FrameOffset SirtLinkOffset() {
+    return FrameOffset(SirtOffset().Int32Value() +
+                       StackIndirectReferenceTable::LinkOffset());
   }
 
  private:
@@ -162,7 +162,7 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  // Number of stack slots for outgoing arguments, above which handles are
+  // Number of stack slots for outgoing arguments, above which the SIRT is
   // located
   size_t NumberOfOutgoingStackArgs();
 

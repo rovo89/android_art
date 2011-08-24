@@ -33,6 +33,9 @@ class Heap {
   // Allocates and initializes storage for an object instance.
   static Object* AllocObject(Class* klass, size_t num_bytes);
 
+  // Check sanity of given reference
+  static void VerifyObject(Object *obj);
+
   // Initiates an explicit garbage collection.
   static void CollectGarbage();
 
