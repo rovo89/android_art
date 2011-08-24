@@ -25,7 +25,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   JniCallingConvention jni_conv(native_method);
   ManagedRuntimeCallingConvention mr_conv(native_method);
   const bool is_static = native_method->IsStatic();
-  static Offset functions(OFFSETOF_MEMBER(JNIEnvExt, fns));
+  static Offset functions(OFFSETOF_MEMBER(JNIEnvExt, functions));
   static Offset monitor_enter(OFFSETOF_MEMBER(JNINativeInterface, MonitorEnter));
   static Offset monitor_exit(OFFSETOF_MEMBER(JNINativeInterface, MonitorExit));
 

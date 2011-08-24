@@ -7,26 +7,26 @@
 #include <list>
 
 #include "globals.h"
+#include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
 #include "mem_map.h"
 #include "offsets.h"
 #include "runtime.h"
 
-#include "jni.h"
 
 namespace art {
 
+class Array;
 class Class;
 class ClassLoader;
+class JNIEnvExt;
 class Method;
 class Object;
 class Runtime;
 class Thread;
 class ThreadList;
 class Throwable;
-class Array;
-class Class;
 
 class Mutex {
  public:
@@ -310,7 +310,7 @@ class Thread {
   }
 
   // JNI methods
-  JNIEnv* GetJniEnv() const {
+  JNIEnvExt* GetJniEnv() const {
     return jni_env_;
   }
 
@@ -421,7 +421,7 @@ class Thread {
   StackIndirectReferenceTable* top_sirt_;
 
   // Every thread may have an associated JNI environment
-  JNIEnv* jni_env_;
+  JNIEnvExt* jni_env_;
 
   State state_;
 

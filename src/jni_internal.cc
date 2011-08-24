@@ -2084,7 +2084,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     Runtime* runtime = Runtime::Current();
     if (runtime != NULL) {
-      *vm = reinterpret_cast<JavaVM*>(runtime->GetJavaVM());
+      *vm = runtime->GetJavaVM();
     } else {
       *vm = NULL;
     }
@@ -2383,12 +2383,12 @@ static const size_t kLocalsInitial = 64; // Arbitrary.
 static const size_t kLocalsMax = 512; // Arbitrary sanity check.
 
 JNIEnvExt::JNIEnvExt(Thread* self, bool check_jni)
-    : fns(&gNativeInterface),
-      self(self),
+    : self(self),
       check_jni(check_jni),
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax),
       locals(kLocalsInitial, kLocalsMax, kLocal) {
+  functions = &gNativeInterface;
 }
 
 // JNI Invocation interface.
@@ -2409,8 +2409,8 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
   if (runtime == NULL) {
     return JNI_ERR;
   } else {
-    *p_env = reinterpret_cast<JNIEnv*>(Thread::Current()->GetJniEnv());
-    *p_vm = reinterpret_cast<JavaVM*>(runtime->GetJavaVM());
+    *p_env = Thread::Current()->GetJniEnv();
+    *p_vm = runtime->GetJavaVM();
     return JNI_OK;
   }
 }
@@ -2421,7 +2421,7 @@ extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {
     *vm_count = 0;
   } else {
     *vm_count = 1;
-    vms[0] = reinterpret_cast<JavaVM*>(runtime->GetJavaVM());
+    vms[0] = runtime->GetJavaVM();
   }
   return JNI_OK;
 }
@@ -2532,8 +2532,7 @@ static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
 
 JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
-    : fns(&gInvokeInterface),
-      runtime(runtime),
+    : runtime(runtime),
       check_jni(check_jni),
       verbose_jni(verbose_jni),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
@@ -2541,6 +2540,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
       globals(kGlobalsInitial, kGlobalsMax, kGlobal),
       weak_globals_lock(Mutex::Create("JNI weak global reference table lock")),
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal) {
+  functions = &gInvokeInterface;
 }
 
 JavaVMExt::~JavaVMExt() {
@@ -2668,7 +2668,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       if (verbose_jni) {
         LOG(INFO) << "[Calling JNI_OnLoad in \"" << path << "\"]";
       }
-      int version = (*jni_on_load)(reinterpret_cast<JavaVM*>(this), NULL);
+      int version = (*jni_on_load)(this, NULL);
       self->SetState(old_state);
 
       self->SetClassLoaderOverride(old_class_loader);;

@@ -178,7 +178,7 @@ Thread* Thread::Attach(const Runtime* runtime) {
   JavaVMExt* vm = runtime->GetJavaVM();
   CHECK(vm != NULL);
   bool check_jni = vm->check_jni;
-  thread->jni_env_ = reinterpret_cast<JNIEnv*>(new JNIEnvExt(thread, check_jni));
+  thread->jni_env_ = new JNIEnvExt(thread, check_jni);
 
   return thread;
 }
@@ -240,8 +240,7 @@ Object* Thread::DecodeJObject(jobject obj) {
   switch (kind) {
   case kLocal:
     {
-      JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(jni_env_);
-      IndirectReferenceTable& locals = env->locals;
+      IndirectReferenceTable& locals = jni_env_->locals;
       result = locals.Get(ref);
       break;
     }

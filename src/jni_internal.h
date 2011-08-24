@@ -20,7 +20,7 @@ class Runtime;
 class SharedLibrary;
 class Thread;
 
-struct JavaVMExt {
+struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);
   ~JavaVMExt();
 
@@ -43,9 +43,6 @@ struct JavaVMExt {
    */
   bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, char** detail);
 
-  // Must be first to correspond with JNIEnv.
-  const struct JNIInvokeInterface* fns;
-
   Runtime* runtime;
 
   bool check_jni;
@@ -65,11 +62,8 @@ struct JavaVMExt {
   std::map<std::string, SharedLibrary*> libraries;
 };
 
-struct JNIEnvExt {
+struct JNIEnvExt : public JNIEnv {
   JNIEnvExt(Thread* self, bool check_jni);
-
-  // Must be first to correspond with JavaVM.
-  const struct JNINativeInterface* fns;
 
   Thread* self;
 
