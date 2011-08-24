@@ -710,7 +710,17 @@ static void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
                          OpKind secondOp, RegLocation rlDest,
                          RegLocation rlSrc1, RegLocation rlSrc2)
 {
+    /*
+     * NOTE:  This is the one place in the code in which we might have
+     * as many as six live temporary registers.  There are 5 in the normal
+     * set for Arm.  Until we have spill capabilities, temporarily add
+     * lr to the temp set.  It is safe to do this locally, but note that
+     * lr is used explicitly elsewhere in the code generator and cannot
+     * normally be used as a general temp register.
+     */
     RegLocation rlResult;
+    oatMarkTemp(cUnit, rLR);   // Add lr to the temp pool
+    oatFreeTemp(cUnit, rLR);   // and make it available
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
@@ -718,6 +728,8 @@ static void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
     opRegRegReg(cUnit, secondOp, rlResult.highReg, rlSrc1.highReg,
                 rlSrc2.highReg);
     storeValueWide(cUnit, rlDest, rlResult);
+    oatClobber(cUnit, rLR);
+    oatUnmarkTemp(cUnit, rLR);  // Remove lr from the temp pool
 }
 
 void oatInitializeRegAlloc(CompilationUnit* cUnit)

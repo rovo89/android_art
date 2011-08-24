@@ -2,6 +2,7 @@
 
 #include "class_linker.h"
 #include "common_test.h"
+#include "compiler_test.h"
 #include "dex_file.h"
 #include "heap.h"
 #include "object.h"
@@ -316,6 +317,108 @@ TEST_F(CompilerTest, LongShiftTest) {
   ASSERT_EQ(0, result);
 }
 #endif
+
+TEST_F(CompilerTest, SwitchTest1) {
+  scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,
+                               "kIntMathDex"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex_file.get());
+
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+
+  jclass c = env->FindClass("IntMath");
+  ASSERT_TRUE(c != NULL);
+
+  jmethodID m = env->GetStaticMethodID(c, "switchTest", "(I)I");
+  ASSERT_TRUE(m != NULL);
+
+  jint result = env->CallStaticIntMethod(c, m, 1);
+
+  ASSERT_EQ(1234, result);
+}
+
+TEST_F(CompilerTest, IntCompare) {
+  scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,
+                               "kIntMathDex"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex_file.get());
+
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+
+  jclass c = env->FindClass("IntMath");
+  ASSERT_TRUE(c != NULL);
+
+  jmethodID m = env->GetStaticMethodID(c, "testIntCompare", "(IIII)I");
+  ASSERT_TRUE(m != NULL);
+
+  jint result = env->CallStaticIntMethod(c, m, -5, 4, 4, 0);
+
+  ASSERT_EQ(1111, result);
+}
+
+TEST_F(CompilerTest, LongCompare) {
+  scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,
+                               "kIntMathDex"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex_file.get());
+
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+
+  jclass c = env->FindClass("IntMath");
+  ASSERT_TRUE(c != NULL);
+
+  jmethodID m = env->GetStaticMethodID(c, "testLongCompare", "(JJJJ)I");
+  ASSERT_TRUE(m != NULL);
+
+  jint result = env->CallStaticIntMethod(c, m, -5LL, -4294967287LL, 4LL, 8LL);
+
+  ASSERT_EQ(2222, result);
+}
+
+TEST_F(CompilerTest, FloatCompare) {
+  scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,
+                               "kIntMathDex"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex_file.get());
+
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+
+  jclass c = env->FindClass("IntMath");
+  ASSERT_TRUE(c != NULL);
+
+  jmethodID m = env->GetStaticMethodID(c, "testFloatCompare", "(FFFF)I");
+  ASSERT_TRUE(m != NULL);
+
+  jint result = env->CallStaticIntMethod(c, m, -5.0f, 4.0f, 4.0f,
+                                         (1.0f/0.0f) / (1.0f/0.0f));
+
+  ASSERT_EQ(3333, result);
+}
+
+TEST_F(CompilerTest, DoubleCompare) {
+  scoped_ptr<DexFile> dex_file(OpenDexFileBase64(kIntMathDex,
+                               "kIntMathDex"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex_file.get());
+
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+
+  jclass c = env->FindClass("IntMath");
+  ASSERT_TRUE(c != NULL);
+
+  jmethodID m = env->GetStaticMethodID(c, "testDoubleCompare", "(DDDD)I");
+  ASSERT_TRUE(m != NULL);
+
+  jint result = env->CallStaticIntMethod(c, m, -5.0, 4.0, 4.0,
+                                         (1.0/0.0) / (1.0/0.0));
+
+  ASSERT_EQ(4444, result);
+}
 
 #endif // Arm
 }  // namespace art

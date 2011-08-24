@@ -97,6 +97,8 @@ extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg);
 
 extern void oatMarkTemp(CompilationUnit* cUnit, int reg);
 
+extern void oatUnmarkTemp(CompilationUnit* cUnit, int reg);
+
 extern void oatMarkDirty(CompilationUnit* cUnit, RegLocation loc);
 
 extern void oatMarkPair(CompilationUnit* cUnit, int lowReg,
