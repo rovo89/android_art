@@ -6,6 +6,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/*
+ * All UTF-8 in art is actually modified UTF-8. Mostly, this distinction
+ * doesn't matter.
+ *
+ * See http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8 for the details.
+ */
 namespace art {
 
 /*
@@ -20,10 +26,17 @@ size_t CountModifiedUtf8Chars(const char* utf8);
 size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count);
 
 /*
- * Convert Modified UTF-8 to UTF-16.
- * http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+ * Convert from Modified UTF-8 to UTF-16.
  */
-void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_in);
+void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, const char* utf8_in);
+
+/*
+ * Convert from UTF-16 to Modified UTF-8. Note that the output is _not_
+ * NUL-terminated. You probably need to call CountUtf8Bytes before calling
+ * this anyway, so if you want a NUL-terminated string, you know where to
+ * put the NUL byte.
+ */
+void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t char_count);
 
 /*
  * The java.lang.String hashCode() algorithm.

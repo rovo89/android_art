@@ -81,4 +81,6 @@ struct JNIEnvExt : public JNIEnv {
 
 }  // namespace art
 
+std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs);
+
 #endif  // ART_SRC_JNI_INTERNAL_H_

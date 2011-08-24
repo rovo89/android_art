@@ -1619,23 +1619,10 @@ class String : public Object {
 
   // Create a modified UTF-8 encoded std::string from a java/lang/String object.
   std::string ToModifiedUtf8() const {
-    std::string result;
-    for (int32_t i = 0; i < GetLength(); i++) {
-      uint16_t ch = CharAt(i);
-      // The most common case is (ch > 0 && ch <= 0x7f).
-      if (ch == 0 || ch > 0x7f) {
-        if (ch > 0x07ff) {
-          result.push_back((ch >> 12) | 0xe0);
-          result.push_back(((ch >> 6) & 0x3f) | 0x80);
-          result.push_back((ch & 0x3f) | 0x80);
-        } else { // (ch > 0x7f || ch == 0)
-          result.push_back((ch >> 6) | 0xc0);
-          result.push_back((ch & 0x3f) | 0x80);
-        }
-      } else {
-        result.push_back(ch);
-      }
-    }
+    uint16_t* chars = array_->GetData() + offset_;
+    size_t byte_count(CountUtf8Bytes(chars, count_));
+    std::string result(byte_count, char(0));
+    ConvertUtf16ToModifiedUtf8(&result[0], chars, count_);
     return result;
   }
 

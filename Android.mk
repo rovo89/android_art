@@ -39,7 +39,7 @@ build-art: \
 test-art: test-art-host test-art-target
 
 define run-host-tests-with
-  $(foreach file,$(ART_HOST_TEST_EXECUTABLES),$(1) $(file) &&) true
+  $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
 # "mm test-art-host" to build and run all host tests
@@ -64,7 +64,7 @@ test-art-target: $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/fr
 	adb sync
 	adb shell touch /sdcard/test-art-target
 	adb shell rm /sdcard/test-art-target
-	adb shell sh -c "$(foreach file,$(ART_TARGET_TEST_EXECUTABLES), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target"
+	adb shell sh -c "$(foreach file,$(sort $(ART_TARGET_TEST_EXECUTABLES)), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target"
 	adb pull /sdcard/test-art-target /tmp/
 	rm /tmp/test-art-target
 

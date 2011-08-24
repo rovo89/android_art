@@ -125,7 +125,7 @@ template<typename StringT>
 static inline std::string PrintableString(const StringT& s) {
   std::string result;
   result += '"';
-  for (typename StringT::iterator it = s.begin(); it != s.end(); ++it) {
+  for (typename StringT::const_iterator it = s.begin(); it != s.end(); ++it) {
     char ch = *it;
     if (NeedsEscaping(ch)) {
       StringAppendF(&result, "\\x%02x", ch & 0xff);

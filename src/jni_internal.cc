@@ -503,6 +503,10 @@ void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize leng
       "%s offset=%d length=%d %s.length=%d",
       type.c_str(), start, length, identifier, array->GetLength());
 }
+void ThrowSIOOBE(ScopedJniThreadState& ts, jsize start, jsize length, jsize array_length) {
+  ts.Self()->ThrowNewException("Ljava/lang/StringIndexOutOfBoundsException;",
+      "offset=%d length=%d string.length()=%d", start, length, array_length);
+}
 
 template <typename JavaArrayT, typename JavaT, typename ArrayT>
 static void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, JavaT* buf) {
@@ -524,6 +528,17 @@ static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_ar
     JavaT* data = array->GetData();
     memcpy(data + start, buf, length * sizeof(JavaT));
   }
+}
+
+static jclass InitDirectByteBufferClass(JNIEnv* env) {
+  ScopedLocalRef<jclass> buffer_class(env, env->FindClass("java/nio/ReadWriteDirectByteBuffer"));
+  CHECK(buffer_class.get() != NULL);
+  return reinterpret_cast<jclass>(env->NewGlobalRef(buffer_class.get()));
+}
+
+static jclass GetDirectByteBufferClass(JNIEnv* env) {
+  static jclass buffer_class = InitDirectByteBufferClass(env);
+  return buffer_class;
 }
 
 }  // namespace
@@ -1700,14 +1715,26 @@ class JNI {
     return Decode<String*>(ts, java_string)->GetUtfLength();
   }
 
-  static void GetStringRegion(JNIEnv* env, jstring str, jsize start, jsize len, jchar* buf) {
+  static void GetStringRegion(JNIEnv* env, jstring java_string, jsize start, jsize length, jchar* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    String* s = Decode<String*>(ts, java_string);
+    if (start < 0 || length < 0 || start + length > s->GetLength()) {
+      ThrowSIOOBE(ts, start, length, s->GetLength());
+    } else {
+      const jchar* chars = s->GetCharArray()->GetData() + s->GetOffset();
+      memcpy(buf, chars + start, length * sizeof(jchar));
+    }
   }
 
-  static void GetStringUTFRegion(JNIEnv* env, jstring str, jsize start, jsize len, char* buf) {
+  static void GetStringUTFRegion(JNIEnv* env, jstring java_string, jsize start, jsize length, char* buf) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    String* s = Decode<String*>(ts, java_string);
+    if (start < 0 || length < 0 || start + length > s->GetLength()) {
+      ThrowSIOOBE(ts, start, length, s->GetLength());
+    } else {
+      const jchar* chars = s->GetCharArray()->GetData() + s->GetOffset();
+      ConvertUtf16ToModifiedUtf8(buf, chars + start, length);
+    }
   }
 
   static const jchar* GetStringChars(JNIEnv* env, jstring str, jboolean* isCopy) {
@@ -1728,6 +1755,17 @@ class JNI {
   }
 
   static void ReleaseStringUTFChars(JNIEnv* env, jstring str, const char* chars) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
+  }
+
+  static const jchar* GetStringCritical(JNIEnv* env, jstring s, jboolean* isCopy) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
+    return NULL;
+  }
+
+  static void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
     ScopedJniThreadState ts(env);
     UNIMPLEMENTED(FATAL);
   }
@@ -1815,6 +1853,17 @@ class JNI {
   static jshortArray NewShortArray(JNIEnv* env, jsize length) {
     ScopedJniThreadState ts(env);
     return NewPrimitiveArray<jshortArray, ShortArray>(ts, length);
+  }
+
+  static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray array, jboolean* isCopy) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
+    return NULL;
+  }
+
+  static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* carray, jint mode) {
+    ScopedJniThreadState ts(env);
+    UNIMPLEMENTED(FATAL);
   }
 
   static jboolean* GetBooleanArrayElements(JNIEnv* env,
@@ -2091,52 +2140,73 @@ class JNI {
     return (*vm != NULL) ? JNI_OK : JNI_ERR;
   }
 
-  static void* GetPrimitiveArrayCritical(JNIEnv* env,
-      jarray array, jboolean* isCopy) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
-
-  static void ReleasePrimitiveArrayCritical(JNIEnv* env,
-      jarray array, void* carray, jint mode) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
-  static const jchar* GetStringCritical(JNIEnv* env, jstring s, jboolean* isCopy) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
-
-  static void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
-    ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-  }
-
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+
+    // The address may not be NULL, and the capacity must be > 0.
+    CHECK(address != NULL);
+    CHECK_GT(capacity, 0);
+
+    jclass buffer_class = GetDirectByteBufferClass(env);
+    jmethodID mid = env->GetMethodID(buffer_class, "<init>", "(II)V");
+    if (mid == NULL) {
+      return NULL;
+    }
+
+    // At the moment, the Java side is limited to 32 bits.
+    CHECK_LE(reinterpret_cast<uintptr_t>(address), 0xffffffff);
+    CHECK_LE(capacity, 0xffffffff);
+    jint address_arg = reinterpret_cast<jint>(address);
+    jint capacity_arg = static_cast<jint>(capacity);
+
+    jobject result = env->NewObject(buffer_class, mid, address_arg, capacity_arg);
+    return ts.Self()->IsExceptionPending() ? NULL : result;
   }
 
-  static void* GetDirectBufferAddress(JNIEnv* env, jobject buf) {
+  static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    static jfieldID fid = env->GetFieldID(GetDirectByteBufferClass(env), "effectiveDirectAddress", "I");
+    return reinterpret_cast<void*>(env->GetIntField(java_buffer, fid));
   }
 
-  static jlong GetDirectBufferCapacity(JNIEnv* env, jobject buf) {
+  static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return 0;
+    static jfieldID fid = env->GetFieldID(GetDirectByteBufferClass(env), "capacity", "I");
+    return static_cast<jlong>(env->GetIntField(java_buffer, fid));
   }
 
-  static jobjectRefType GetObjectRefType(JNIEnv* env, jobject jobj) {
+  static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return JNIInvalidRefType;
+
+    CHECK(java_object != NULL);
+
+    // Do we definitely know what kind of reference this is?
+    IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
+    IndirectRefKind kind = GetIndirectRefKind(ref);
+    switch (kind) {
+    case kLocal:
+      return JNILocalRefType;
+    case kGlobal:
+      return JNIGlobalRefType;
+    case kWeakGlobal:
+      return JNIWeakGlobalRefType;
+    case kSirtOrInvalid:
+      // Is it in a stack IRT?
+      if (ts.Self()->SirtContains(java_object)) {
+        return JNILocalRefType;
+      }
+
+      // If we're handing out direct pointers, check whether it's a direct pointer
+      // to a local reference.
+      // TODO: replace 'false' with the replacement for gDvmJni.workAroundAppJniBugs
+      if (false && Decode<Object*>(ts, java_object) == reinterpret_cast<Object*>(java_object)) {
+        if (ts.Env()->locals.Contains(java_object)) {
+          return JNILocalRefType;
+        }
+      }
+
+      return JNIInvalidRefType;
+    }
   }
 };
 
@@ -2699,3 +2769,20 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 }
 
 }  // namespace art
+
+std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
+  switch (rhs) {
+  case JNIInvalidRefType:
+    os << "JNIInvalidRefType";
+    return os;
+  case JNILocalRefType:
+    os << "JNILocalRefType";
+    return os;
+  case JNIGlobalRefType:
+    os << "JNIGlobalRefType";
+    return os;
+  case JNIWeakGlobalRefType:
+    os << "JNIWeakGlobalRefType";
+    return os;
+  }
+}

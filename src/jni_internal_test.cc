@@ -19,11 +19,17 @@ class JniInternalTest : public CommonTest {
     Runtime::Current()->GetJavaVM()->verbose_jni = true;
 
     env_ = Thread::Current()->GetJniEnv();
+
     aioobe_ = env_->FindClass("java/lang/ArrayIndexOutOfBoundsException");
     CHECK(aioobe_ != NULL);
+
+    sioobe_ = env_->FindClass("java/lang/StringIndexOutOfBoundsException");
+    CHECK(sioobe_ != NULL);
   }
+
   JNIEnv* env_;
   jclass aioobe_;
+  jclass sioobe_;
 };
 
 TEST_F(JniInternalTest, AllocObject) {
@@ -398,6 +404,23 @@ TEST_F(JniInternalTest, IsAssignableFrom) {
   ASSERT_FALSE(env_->IsAssignableFrom(string_class, object_class));
 }
 
+TEST_F(JniInternalTest, GetObjectRefType) {
+  jclass local = env_->FindClass("java/lang/Object");
+  ASSERT_TRUE(local != NULL);
+  EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(local));
+
+  jobject global = env_->NewGlobalRef(local);
+  EXPECT_EQ(JNIGlobalRefType, env_->GetObjectRefType(global));
+
+  jweak weak_global = env_->NewWeakGlobalRef(local);
+  EXPECT_EQ(JNIWeakGlobalRefType, env_->GetObjectRefType(weak_global));
+
+  jobject invalid = reinterpret_cast<jobject>(this);
+  EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(invalid));
+
+  // TODO: invoke a native method and test that its arguments are considered local references.
+}
+
 TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_TRUE(env_->NewStringUTF(NULL) == NULL);
   jstring s;
@@ -429,6 +452,47 @@ TEST_F(JniInternalTest, NewString) {
   EXPECT_EQ(2, env_->GetStringUTFLength(s));
 
   // TODO: check some non-ASCII strings.
+}
+
+TEST_F(JniInternalTest, GetStringLength_GetStringUTFLength) {
+  // Already tested in the NewString/NewStringUTF tests.
+}
+
+TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
+  jstring s = env_->NewStringUTF("hello");
+  ASSERT_TRUE(s != NULL);
+
+  env_->GetStringRegion(s, -1, 0, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+  env_->GetStringRegion(s, 0, -1, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+  env_->GetStringRegion(s, 0, 10, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+  env_->GetStringRegion(s, 10, 1, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+
+  jchar chars[4] = { 'x', 'x', 'x', 'x' };
+  env_->GetStringRegion(s, 1, 2, &chars[1]);
+  EXPECT_EQ('x', chars[0]);
+  EXPECT_EQ('e', chars[1]);
+  EXPECT_EQ('l', chars[2]);
+  EXPECT_EQ('x', chars[3]);
+
+  env_->GetStringUTFRegion(s, -1, 0, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+  env_->GetStringUTFRegion(s, 0, -1, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+  env_->GetStringUTFRegion(s, 0, 10, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+  env_->GetStringUTFRegion(s, 10, 1, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+
+  char bytes[4] = { 'x', 'x', 'x', 'x' };
+  env_->GetStringUTFRegion(s, 1, 2, &bytes[1]);
+  EXPECT_EQ('x', bytes[0]);
+  EXPECT_EQ('e', bytes[1]);
+  EXPECT_EQ('l', bytes[2]);
+  EXPECT_EQ('x', bytes[3]);
 }
 
 TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
@@ -1375,6 +1439,19 @@ TEST_F(JniInternalTest, ThrowNew) {
   EXPECT_TRUE(env_->ExceptionCheck());
   EXPECT_TRUE(env_->IsInstanceOf(env_->ExceptionOccurred(), exception_class));
   env_->ExceptionClear();
+}
+
+// TODO: this test is DISABLED until we can actually run java.nio.Buffer's <init>.
+TEST_F(JniInternalTest, DISABLED_NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCapacity) {
+  jclass buffer_class = env_->FindClass("java/nio/Buffer");
+  ASSERT_TRUE(buffer_class != NULL);
+
+  char bytes[1024];
+  jobject buffer = env_->NewDirectByteBuffer(bytes, sizeof(bytes));
+  ASSERT_TRUE(buffer != NULL);
+  ASSERT_TRUE(env_->IsInstanceOf(buffer, buffer_class));
+  ASSERT_TRUE(env_->GetDirectBufferAddress(buffer) == bytes);
+  ASSERT_TRUE(env_->GetDirectBufferCapacity(buffer) == sizeof(bytes));
 }
 
 }
