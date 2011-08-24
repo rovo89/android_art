@@ -498,6 +498,10 @@ class Method : public AccessibleObject {
     return pc;
   }
 
+  size_t GetVtableIndex() const {
+    return method_index_;
+  }
+
  public:  // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // the class we are a part of
@@ -1103,6 +1107,10 @@ class Class : public Object {
   void SetVirtualMethod(uint32_t i, Method* f) {  // TODO: uint16_t
     DCHECK_NE(NumVirtualMethods(), 0U);
     virtual_methods_->Set(i, f);
+  }
+
+  Method* GetMethodByVtableIndex(size_t vtable_index) {
+    return vtable_->Get(vtable_index);
   }
 
   Method* FindDeclaredVirtualMethod(const StringPiece& name,
