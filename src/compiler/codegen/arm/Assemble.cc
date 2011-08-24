@@ -967,8 +967,8 @@ ArmEncodingMap EncodingMap[kArmLast] = {
 #define PADDING_MOV_R5_R5               0x1C2D
 
 static void pushWord(std::vector<short>&buf, int data) {
-    buf.push_back( (data >> 16) & 0xffff);
     buf.push_back( data & 0xffff);
+    buf.push_back( (data >> 16) & 0xffff);
 }
 
 void alignBuffer(std::vector<short>&buf, size_t offset) {
@@ -999,7 +999,7 @@ static void installSwitchTables(CompilationUnit* cUnit)
         alignBuffer(cUnit->codeBuffer, tabRec->offset);
         int bxOffset = tabRec->bxInst->generic.offset + 4;
         if (cUnit->printMe) {
-            LOG(INFO) << "Switch table for offset 0x" /*<< hex*/ << bxOffset;
+            LOG(INFO) << "Switch table for offset 0x" << std::hex << bxOffset;
         }
         if (tabRec->table[0] == kSparseSwitchSignature) {
             int* keys = (int*)&(tabRec->table[2]);

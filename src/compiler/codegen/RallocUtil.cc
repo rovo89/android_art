@@ -783,6 +783,12 @@ extern void oatMarkTemp(CompilationUnit* cUnit, int reg)
     info->isTemp = true;
 }
 
+extern void oatUnmarkTemp(CompilationUnit* cUnit, int reg)
+{
+    RegisterInfo* info = getRegInfo(cUnit, reg);
+    info->isTemp = false;
+}
+
 extern void oatMarkPair(CompilationUnit* cUnit, int lowReg, int highReg)
 {
     RegisterInfo* infoLo = getRegInfo(cUnit, lowReg);
