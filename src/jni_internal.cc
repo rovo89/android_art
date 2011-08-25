@@ -632,7 +632,7 @@ class Libraries {
   void* FindNativeMethod(const Method* m) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
-    ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
+    const ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
     for (It it = libraries_.begin(); it != libraries_.end(); ++it) {
       SharedLibrary* library = it->second;
       if (library->GetClassLoader() != declaring_class_loader) {
