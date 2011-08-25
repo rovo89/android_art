@@ -155,8 +155,8 @@ size_t ParseMemoryOption(const char *s, size_t div) {
 void LoadJniLibrary(JavaVMExt* vm, const char* name) {
   // TODO: OS_SHARED_LIB_FORMAT_STR
   std::string mapped_name(StringPrintf("lib%s.so", name));
-  char* reason = NULL;
-  if (!vm->LoadNativeLibrary(mapped_name, NULL, &reason)) {
+  std::string reason;
+  if (!vm->LoadNativeLibrary(mapped_name, NULL, reason)) {
     LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": "
                << reason;
   }
@@ -356,12 +356,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   return true;
 }
 
-bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv) {
-  return Thread::Attach(instance_) != NULL;
-}
-
-bool Runtime::AttachCurrentThreadAsDaemon(const char* name, JNIEnv** penv) {
-  // TODO: do something different for daemon threads.
+bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemon) {
+  if (as_daemon) {
+    UNIMPLEMENTED(WARNING) << "TODO: do something different for daemon threads";
+  }
   return Thread::Attach(instance_) != NULL;
 }
 

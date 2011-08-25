@@ -165,6 +165,10 @@ class ScopedJniThreadState {
     return self_;
   }
 
+  JavaVMExt* Vm() {
+    return env_->vm;
+  }
+
  private:
   static Thread* ThreadForEnv(JNIEnv* env) {
     // TODO: need replacement for gDvmJni.
@@ -240,7 +244,7 @@ jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
   if (obj == NULL) {
     return NULL;
   }
-  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  JavaVMExt* vm = ts.Vm();
   IndirectReferenceTable& weak_globals = vm->weak_globals;
   MutexLock mu(vm->weak_globals_lock);
   IndirectRef ref = weak_globals.Add(IRT_FIRST_SEGMENT, obj);
@@ -384,7 +388,7 @@ JValue InvokeWithVarArgs(ScopedJniThreadState& ts, jobject obj,
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 
-static Method* FindVirtualMethod(Object* receiver, Method* method) {
+Method* FindVirtualMethod(Object* receiver, Method* method) {
   return receiver->GetClass()->GetMethodByVtableIndex(method->GetVtableIndex());
 }
 
@@ -490,11 +494,41 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   return reinterpret_cast<jfieldID>(fid);
 }
 
+void PinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
+  JavaVMExt* vm = ts.Vm();
+  MutexLock mu(vm->pins_lock);
+  vm->pin_table.Add(array);
+}
+
+void UnpinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
+  JavaVMExt* vm = ts.Vm();
+  MutexLock mu(vm->pins_lock);
+  vm->pin_table.Remove(array);
+}
+
 template<typename JniT, typename ArtT>
 JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
   CHECK_GE(length, 0); // TODO: ReportJniError
   ArtT* result = ArtT::Alloc(length);
   return AddLocalReference<JniT>(ts, result);
+}
+
+template <typename ArrayT, typename CArrayT, typename ArtArrayT>
+CArrayT GetPrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jboolean* is_copy) {
+  ArtArrayT* array = Decode<ArtArrayT*>(ts, java_array);
+  PinPrimitiveArray(ts, array);
+  if (is_copy != NULL) {
+    *is_copy = JNI_FALSE;
+  }
+  return array->GetData();
+}
+
+template <typename ArrayT>
+void ReleasePrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jint mode) {
+  if (mode != JNI_COMMIT) {
+    Array* array = Decode<Array*>(ts, java_array);
+    UnpinPrimitiveArray(ts, array);
+  }
 }
 
 void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize length, const char* identifier) {
@@ -509,7 +543,7 @@ void ThrowSIOOBE(ScopedJniThreadState& ts, jsize start, jsize length, jsize arra
 }
 
 template <typename JavaArrayT, typename JavaT, typename ArrayT>
-static void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, JavaT* buf) {
+void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, JavaT* buf) {
   ArrayT* array = Decode<ArrayT*>(ts, java_array);
   if (start < 0 || length < 0 || start + length > array->GetLength()) {
     ThrowAIOOBE(ts, array, start, length, "src");
@@ -520,7 +554,7 @@ static void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_ar
 }
 
 template <typename JavaArrayT, typename JavaT, typename ArrayT>
-static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, const JavaT* buf) {
+void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, const JavaT* buf) {
   ArrayT* array = Decode<ArrayT*>(ts, java_array);
   if (start < 0 || length < 0 || start + length > array->GetLength()) {
     ThrowAIOOBE(ts, array, start, length, "dst");
@@ -530,15 +564,43 @@ static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_ar
   }
 }
 
-static jclass InitDirectByteBufferClass(JNIEnv* env) {
+jclass InitDirectByteBufferClass(JNIEnv* env) {
   ScopedLocalRef<jclass> buffer_class(env, env->FindClass("java/nio/ReadWriteDirectByteBuffer"));
   CHECK(buffer_class.get() != NULL);
   return reinterpret_cast<jclass>(env->NewGlobalRef(buffer_class.get()));
 }
 
-static jclass GetDirectByteBufferClass(JNIEnv* env) {
+jclass GetDirectByteBufferClass(JNIEnv* env) {
   static jclass buffer_class = InitDirectByteBufferClass(env);
   return buffer_class;
+}
+
+jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as_daemon) {
+  if (vm == NULL || p_env == NULL) {
+    return JNI_ERR;
+  }
+
+  JavaVMAttachArgs* in_args = static_cast<JavaVMAttachArgs*>(thr_args);
+  JavaVMAttachArgs args;
+  if (thr_args == NULL) {
+    // Allow the v1.1 calling convention.
+    args.version = JNI_VERSION_1_2;
+    args.name = NULL;
+    args.group = NULL; // TODO: get "main" thread group
+  } else {
+    args.version = in_args->version;
+    args.name = in_args->name;
+    if (in_args->group != NULL) {
+      UNIMPLEMENTED(WARNING) << "thr_args->group != NULL";
+      args.group = NULL; // TODO: decode in_args->group
+    } else {
+      args.group = NULL; // TODO: get "main" thread group
+    }
+  }
+  CHECK_GE(args.version, JNI_VERSION_1_2);
+
+  Runtime* runtime = reinterpret_cast<JavaVMExt*>(vm)->runtime;
+  return runtime->AttachCurrentThread(args.name, p_env, as_daemon) ? JNI_OK : JNI_ERR;
 }
 
 }  // namespace
@@ -612,7 +674,7 @@ class JNI {
 
   static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass clazz) {
     ScopedJniThreadState ts(env);
-    CHECK_NE(static_cast<jclass>(NULL), clazz);
+    CHECK_NE(static_cast<jclass>(NULL), clazz); // TODO: ReportJniError
     if (jobj == NULL) {
       // NB. JNI is different from regular Java instanceof in this respect
       return JNI_TRUE;
@@ -744,7 +806,7 @@ class JNI {
       return NULL;
     }
 
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    JavaVMExt* vm = ts.Vm();
     IndirectReferenceTable& globals = vm->globals;
     MutexLock mu(vm->globals_lock);
     IndirectRef ref = globals.Add(IRT_FIRST_SEGMENT, Decode<Object*>(ts, obj));
@@ -757,7 +819,7 @@ class JNI {
       return;
     }
 
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    JavaVMExt* vm = ts.Vm();
     IndirectReferenceTable& globals = vm->globals;
     MutexLock mu(vm->globals_lock);
 
@@ -778,7 +840,7 @@ class JNI {
       return;
     }
 
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    JavaVMExt* vm = ts.Vm();
     IndirectReferenceTable& weak_globals = vm->weak_globals;
     MutexLock mu(vm->weak_globals_lock);
 
@@ -1737,37 +1799,56 @@ class JNI {
     }
   }
 
-  static const jchar* GetStringChars(JNIEnv* env, jstring str, jboolean* isCopy) {
+  static const jchar* GetStringChars(JNIEnv* env, jstring java_string, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    String* s = Decode<String*>(ts, java_string);
+    const CharArray* chars = s->GetCharArray();
+    PinPrimitiveArray(ts, chars);
+    if (is_copy != NULL) {
+      *is_copy = JNI_FALSE;
+    }
+    return chars->GetData() + s->GetOffset();
   }
 
-  static void ReleaseStringChars(JNIEnv* env, jstring str, const jchar* chars) {
+  static void ReleaseStringChars(JNIEnv* env, jstring java_string, const jchar* chars) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    UnpinPrimitiveArray(ts, Decode<String*>(ts, java_string)->GetCharArray());
   }
 
-  static const char* GetStringUTFChars(JNIEnv* env, jstring str, jboolean* isCopy) {
+  static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetStringChars(env, java_string, is_copy);
   }
 
-  static void ReleaseStringUTFChars(JNIEnv* env, jstring str, const char* chars) {
+  static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    return ReleaseStringChars(env, java_string, chars);
   }
 
-  static const jchar* GetStringCritical(JNIEnv* env, jstring s, jboolean* isCopy) {
+  static const char* GetStringUTFChars(JNIEnv* env, jstring java_string, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    if (java_string == NULL) {
+      return NULL;
+    }
+    if (is_copy != NULL) {
+      *is_copy = JNI_TRUE;
+    }
+    String* s = Decode<String*>(ts, java_string);
+    size_t byte_count = s->GetUtfLength();
+    char* bytes = new char[byte_count + 1];
+    if (bytes == NULL) {
+      UNIMPLEMENTED(WARNING) << "need to Throw OOME";
+      return NULL;
+    }
+    const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
+    ConvertUtf16ToModifiedUtf8(bytes, chars, s->GetLength());
+    bytes[byte_count] = '\0';
+    return bytes;
   }
 
-  static void ReleaseStringCritical(JNIEnv* env, jstring s, const jchar* cstr) {
+  static void ReleaseStringUTFChars(JNIEnv* env, jstring, const char* chars) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    delete[] chars;
   }
 
   static jsize GetArrayLength(JNIEnv* env, jarray java_array) {
@@ -1838,15 +1919,20 @@ class JNI {
     descriptor += element_class->GetDescriptor()->ToModifiedUtf8();
 
     // Find the class.
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    // TODO: need to get the appropriate ClassLoader.
-    Class* array_class = class_linker->FindClass(descriptor, NULL);
-    if (array_class == NULL) {
+    ScopedLocalRef<jclass> java_array_class(env, FindClass(env, descriptor.c_str()));
+    if (java_array_class.get() == NULL) {
       return NULL;
     }
 
+    // Allocate and initialize if necessary.
+    Class* array_class = Decode<Class*>(ts, java_array_class.get());
     ObjectArray<Object>* result = ObjectArray<Object>::Alloc(array_class, length);
-    CHECK(initial_element == NULL);  // TODO: support initial_element
+    if (initial_element != NULL) {
+      Object* initial_object = Decode<Object*>(ts, initial_element);
+      for (jsize i = 0; i < length; ++i) {
+        result->Set(i, initial_object);
+      }
+    }
     return AddLocalReference<jobjectArray>(ts, result);
   }
 
@@ -1855,115 +1941,94 @@ class JNI {
     return NewPrimitiveArray<jshortArray, ShortArray>(ts, length);
   }
 
-  static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray array, jboolean* isCopy) {
+  static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jarray, jbyte*, ByteArray>(ts, array, is_copy);
   }
 
-  static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* carray, jint mode) {
+  static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static jboolean* GetBooleanArrayElements(JNIEnv* env,
-      jbooleanArray array, jboolean* isCopy) {
+  static jboolean* GetBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jbooleanArray, jboolean*, BooleanArray>(ts, array, is_copy);
   }
 
-  static jbyte* GetByteArrayElements(JNIEnv* env, jbyteArray array, jboolean* isCopy) {
+  static jbyte* GetByteArrayElements(JNIEnv* env, jbyteArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jbyteArray, jbyte*, ByteArray>(ts, array, is_copy);
   }
 
-  static jchar* GetCharArrayElements(JNIEnv* env, jcharArray array, jboolean* isCopy) {
+  static jchar* GetCharArrayElements(JNIEnv* env, jcharArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jcharArray, jchar*, CharArray>(ts, array, is_copy);
   }
 
-  static jshort* GetShortArrayElements(JNIEnv* env,
-      jshortArray array, jboolean* isCopy) {
+  static jdouble* GetDoubleArrayElements(JNIEnv* env, jdoubleArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jdoubleArray, jdouble*, DoubleArray>(ts, array, is_copy);
   }
 
-  static jint* GetIntArrayElements(JNIEnv* env, jintArray array, jboolean* isCopy) {
+  static jfloat* GetFloatArrayElements(JNIEnv* env, jfloatArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jfloatArray, jfloat*, FloatArray>(ts, array, is_copy);
   }
 
-  static jlong* GetLongArrayElements(JNIEnv* env, jlongArray array, jboolean* isCopy) {
+  static jint* GetIntArrayElements(JNIEnv* env, jintArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jintArray, jint*, IntArray>(ts, array, is_copy);
   }
 
-  static jfloat* GetFloatArrayElements(JNIEnv* env,
-      jfloatArray array, jboolean* isCopy) {
+  static jlong* GetLongArrayElements(JNIEnv* env, jlongArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jlongArray, jlong*, LongArray>(ts, array, is_copy);
   }
 
-  static jdouble* GetDoubleArrayElements(JNIEnv* env,
-      jdoubleArray array, jboolean* isCopy) {
+  static jshort* GetShortArrayElements(JNIEnv* env, jshortArray array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
-    return NULL;
+    return GetPrimitiveArray<jshortArray, jshort*, ShortArray>(ts, array, is_copy);
   }
 
-  static void ReleaseBooleanArrayElements(JNIEnv* env,
-      jbooleanArray array, jboolean* elems, jint mode) {
+  static void ReleaseBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseByteArrayElements(JNIEnv* env,
-      jbyteArray array, jbyte* elems, jint mode) {
+  static void ReleaseByteArrayElements(JNIEnv* env, jbyteArray array, jbyte* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseCharArrayElements(JNIEnv* env,
-      jcharArray array, jchar* elems, jint mode) {
+  static void ReleaseCharArrayElements(JNIEnv* env, jcharArray array, jchar* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseShortArrayElements(JNIEnv* env,
-      jshortArray array, jshort* elems, jint mode) {
+  static void ReleaseDoubleArrayElements(JNIEnv* env, jdoubleArray array, jdouble* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseIntArrayElements(JNIEnv* env,
-      jintArray array, jint* elems, jint mode) {
+  static void ReleaseFloatArrayElements(JNIEnv* env, jfloatArray array, jfloat* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseLongArrayElements(JNIEnv* env,
-      jlongArray array, jlong* elems, jint mode) {
+  static void ReleaseIntArrayElements(JNIEnv* env, jintArray array, jint* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseFloatArrayElements(JNIEnv* env,
-      jfloatArray array, jfloat* elems, jint mode) {
+  static void ReleaseLongArrayElements(JNIEnv* env, jlongArray array, jlong* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseDoubleArrayElements(JNIEnv* env,
-      jdoubleArray array, jdouble* elems, jint mode) {
+  static void ReleaseShortArrayElements(JNIEnv* env, jshortArray array, jshort* data, jint mode) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(FATAL);
+    ReleasePrimitiveArray(ts, array, mode);
   }
 
   static void GetBooleanArrayRegion(JNIEnv* env, jbooleanArray array, jsize start, jsize length, jboolean* buf) {
@@ -2050,8 +2115,6 @@ class JNI {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
 
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-
     for (int i = 0; i < method_count; i++) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
@@ -2081,7 +2144,7 @@ class JNI {
         return JNI_ERR;
       }
 
-      if (vm->verbose_jni) {
+      if (ts.Vm()->verbose_jni) {
         LOG(INFO) << "[Registering JNI native method "
                   << PrettyMethod(m, true) << "]";
       }
@@ -2095,8 +2158,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
 
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-    if (vm->verbose_jni) {
+    if (ts.Vm()->verbose_jni) {
       LOG(INFO) << "[Unregistering JNI native methods for "
                 << PrettyDescriptor(c->GetDescriptor()) << "]";
     }
@@ -2144,8 +2206,8 @@ class JNI {
     ScopedJniThreadState ts(env);
 
     // The address may not be NULL, and the capacity must be > 0.
-    CHECK(address != NULL);
-    CHECK_GT(capacity, 0);
+    CHECK(address != NULL); // TODO: ReportJniError
+    CHECK_GT(capacity, 0); // TODO: ReportJniError
 
     jclass buffer_class = GetDirectByteBufferClass(env);
     jmethodID mid = env->GetMethodID(buffer_class, "<init>", "(II)V");
@@ -2178,7 +2240,7 @@ class JNI {
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
     ScopedJniThreadState ts(env);
 
-    CHECK(java_object != NULL);
+    CHECK(java_object != NULL); // TODO: ReportJniError
 
     // Do we definitely know what kind of reference this is?
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
@@ -2452,9 +2514,10 @@ static const size_t kMonitorsMax = 4096; // Arbitrary sanity check.
 static const size_t kLocalsInitial = 64; // Arbitrary.
 static const size_t kLocalsMax = 512; // Arbitrary sanity check.
 
-JNIEnvExt::JNIEnvExt(Thread* self, bool check_jni)
+JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
     : self(self),
-      check_jni(check_jni),
+      vm(vm),
+      check_jni(vm->check_jni),
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax),
       locals(kLocalsInitial, kLocalsMax, kLocal) {
@@ -2514,43 +2577,11 @@ class JII {
   }
 
   static jint AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
-    if (vm == NULL || p_env == NULL) {
-      return JNI_ERR;
-    }
-    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
-    Runtime* runtime = raw_vm->runtime;
-    const char* name = NULL;
-    if (thr_args != NULL) {
-      // TODO: check version
-      name = static_cast<JavaVMAttachArgs*>(thr_args)->name;
-      // TODO: thread group
-    }
-    bool success = runtime->AttachCurrentThread(name, p_env);
-    if (!success) {
-      return JNI_ERR;
-    } else {
-      return JNI_OK;
-    }
+    return JII_AttachCurrentThread(vm, p_env, thr_args, false);
   }
 
   static jint AttachCurrentThreadAsDaemon(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
-    if (vm == NULL || p_env == NULL) {
-      return JNI_ERR;
-    }
-    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
-    Runtime* runtime = raw_vm->runtime;
-    const char* name = NULL;
-    if (thr_args != NULL) {
-      // TODO: check version
-      name = static_cast<JavaVMAttachArgs*>(thr_args)->name;
-      // TODO: thread group
-    }
-    bool success = runtime->AttachCurrentThreadAsDaemon(name, p_env);
-    if (!success) {
-      return JNI_ERR;
-    } else {
-      return JNI_OK;
-    }
+    return JII_AttachCurrentThread(vm, p_env, thr_args, true);
   }
 
   static jint DetachCurrentThread(JavaVM* vm) {
@@ -2605,6 +2636,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
     : runtime(runtime),
       check_jni(check_jni),
       verbose_jni(verbose_jni),
+      pins_lock(Mutex::Create("JNI pin table lock")),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
       globals_lock(Mutex::Create("JNI global reference table lock")),
       globals(kGlobalsInitial, kGlobalsMax, kGlobal),
@@ -2614,39 +2646,30 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
 }
 
 JavaVMExt::~JavaVMExt() {
+  delete pins_lock;
   delete globals_lock;
   delete weak_globals_lock;
 }
 
 /*
- * Load native code from the specified absolute pathname.  Per the spec,
- * if we've already loaded a library with the specified pathname, we
- * return without doing anything.
- *
- * TODO? for better results we should absolutify the pathname.  For fully
- * correct results we should stat to get the inode and compare that.  The
- * existing implementation is fine so long as everybody is using
- * System.loadLibrary.
- *
- * The library will be associated with the specified class loader.  The JNI
- * spec says we can't load the same library into more than one class loader.
- *
- * Returns "true" on success. On failure, sets *detail to a
- * human-readable description of the error or NULL if no detail is
- * available; ownership of the string is transferred to the caller.
  */
-bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, char** detail) {
-  *detail = NULL;
+bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail) {
+  detail.clear();
 
   // See if we've already loaded this library.  If we have, and the class loader
   // matches, return successfully without doing anything.
+  // TODO: for better results we should canonicalize the pathname (or even compare
+  // inodes). This implementation is fine if everybody is using System.loadLibrary.
   SharedLibrary* library = libraries[path];
   if (library != NULL) {
     if (library->GetClassLoader() != class_loader) {
-      LOG(WARNING) << "Shared library \"" << path << "\" already opened by "
-                   << "ClassLoader " << library->GetClassLoader() << "; "
-                   << "can't open in " << class_loader;
-      *detail = strdup("already opened by different ClassLoader");
+      // The library will be associated with class_loader. The JNI
+      // spec says we can't load the same library into more than one
+      // class loader.
+      StringAppendF(&detail, "Shared library \"%s\" already opened by "
+          "ClassLoader %p; can't open in ClassLoader %p",
+          path.c_str(), library->GetClassLoader(), class_loader);
+      LOG(WARNING) << detail;
       return false;
     }
     if (verbose_jni) {
@@ -2654,7 +2677,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
                 << "ClassLoader " << class_loader << "]";
     }
     if (!library->CheckOnLoadResult(this)) {
-      *detail = strdup("JNI_OnLoad failed before");
+      StringAppendF(&detail, "JNI_OnLoad failed on a previous attempt "
+          "to load \"%s\"", path.c_str());
       return false;
     }
     return true;
@@ -2698,7 +2722,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   }
 
   if (handle == NULL) {
-    *detail = strdup(dlerror());
+    detail = dlerror();
     return false;
   }
 

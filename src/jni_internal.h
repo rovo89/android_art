@@ -24,24 +24,13 @@ struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);
   ~JavaVMExt();
 
-  /*
-   * Load native code from the specified absolute pathname.  Per the spec,
-   * if we've already loaded a library with the specified pathname, we
-   * return without doing anything.
+  /**
+   * Loads the given shared library. 'path' is an absolute pathname.
    *
-   * TODO: for better results we should canonicalize the pathname.  For fully
-   * correct results we should stat to get the inode and compare that.  The
-   * existing implementation is fine so long as everybody is using
-   * System.loadLibrary.
-   *
-   * The library will be associated with the specified class loader.  The JNI
-   * spec says we can't load the same library into more than one class loader.
-   *
-   * Returns true on success. On failure, returns false and sets *detail to a
-   * human-readable description of the error or NULL if no detail is
-   * available; ownership of the string is transferred to the caller.
+   * Returns 'true' on success. On failure, sets 'detail' to a
+   * human-readable description of the error.
    */
-  bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, char** detail);
+  bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail);
 
   Runtime* runtime;
 
@@ -49,6 +38,7 @@ struct JavaVMExt : public JavaVM {
   bool verbose_jni;
 
   // Used to hold references to pinned primitive arrays.
+  Mutex* pins_lock;
   ReferenceTable pin_table;
 
   // JNI global references.
@@ -63,9 +53,10 @@ struct JavaVMExt : public JavaVM {
 };
 
 struct JNIEnvExt : public JNIEnv {
-  JNIEnvExt(Thread* self, bool check_jni);
+  JNIEnvExt(Thread* self, JavaVMExt* vm);
 
   Thread* self;
+  JavaVMExt* vm;
 
   bool check_jni;
 

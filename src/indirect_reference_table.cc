@@ -318,7 +318,7 @@ std::ostream& operator<<(std::ostream& os, IndirectRefKind rhs) {
 
 void IndirectReferenceTable::Dump() const {
   LOG(WARNING) << kind_ << " table dump:";
-  std::vector<Object*> entries(table_, table_ + Capacity());
+  std::vector<const Object*> entries(table_, table_ + Capacity());
   ReferenceTable::Dump(entries);
 }
 

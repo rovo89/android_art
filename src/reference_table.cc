@@ -29,7 +29,7 @@ ReferenceTable::ReferenceTable(const char* name,
   entries_.reserve(initial_size);
 }
 
-void ReferenceTable::Add(Object* obj) {
+void ReferenceTable::Add(const Object* obj) {
   DCHECK(obj != NULL);
   if (entries_.size() == max_size_) {
     LOG(FATAL) << "ReferenceTable '" << name_ << "' "
@@ -38,7 +38,7 @@ void ReferenceTable::Add(Object* obj) {
   entries_.push_back(obj);
 }
 
-void ReferenceTable::Remove(Object* obj) {
+void ReferenceTable::Remove(const Object* obj) {
   // We iterate backwards on the assumption that references are LIFO.
   for (int i = entries_.size() - 1; i >= 0; --i) {
     if (entries_[i] == obj) {
@@ -58,7 +58,7 @@ size_t GetElementCount(const Object* obj) {
 }
 
 struct ObjectComparator {
-  bool operator()(Object* obj1, Object* obj2){
+  bool operator()(const Object* obj1, const Object* obj2){
     // Ensure null references and cleared jweaks appear at the end.
     if (obj1 == NULL) {
       return true;
@@ -132,7 +132,7 @@ void ReferenceTable::Dump() const {
   Dump(entries_);
 }
 
-void ReferenceTable::Dump(const std::vector<Object*>& entries) {
+void ReferenceTable::Dump(const std::vector<const Object*>& entries) {
   if (entries.empty()) {
     LOG(WARNING) << "  (empty)";
     return;
@@ -192,7 +192,7 @@ void ReferenceTable::Dump(const std::vector<Object*>& entries) {
   }
 
   // Make a copy of the table and sort it.
-  std::vector<Object*> sorted_entries(entries.begin(), entries.end());
+  std::vector<const Object*> sorted_entries(entries.begin(), entries.end());
   std::sort(sorted_entries.begin(), sorted_entries.end(), ObjectComparator());
 
   // Remove any uninteresting stuff from the list. The sort moved them all to the end.
@@ -211,8 +211,8 @@ void ReferenceTable::Dump(const std::vector<Object*>& entries) {
   size_t equiv = 0;
   size_t identical = 0;
   for (size_t idx = 1; idx < count; idx++) {
-    Object* prev = sorted_entries[idx-1];
-    Object* current = sorted_entries[idx];
+    const Object* prev = sorted_entries[idx-1];
+    const Object* current = sorted_entries[idx];
     size_t elems = GetElementCount(prev);
     if (current == prev) {
       // Same reference, added more than once.

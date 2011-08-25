@@ -279,7 +279,7 @@ TEST_F(JniInternalTest, RegisterNatives) {
   env_->UnregisterNatives(jlobject);
 }
 
-#define EXPECT_PRIMITIVE_ARRAY(new_fn, get_region_fn, set_region_fn, scalar_type, expected_class_descriptor) \
+#define EXPECT_PRIMITIVE_ARRAY(new_fn, get_region_fn, set_region_fn, get_elements_fn, release_elements_fn, scalar_type, expected_class_descriptor) \
   jsize size = 4; \
   /* Allocate an array and check it has the right type and length. */ \
   scalar_type ## Array a = env_->new_fn(size); \
@@ -317,31 +317,40 @@ TEST_F(JniInternalTest, RegisterNatives) {
   EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "fixed copy not equal"; \
   /* Copy back the whole array. */ \
   env_->get_region_fn(a, 0, size, dst_buf); \
-  EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "full copy not equal"
+  EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "full copy not equal"; \
+  /* GetPrimitiveArrayCritical */ \
+  void* v = env_->GetPrimitiveArrayCritical(a, NULL); \
+  EXPECT_TRUE(memcmp(src_buf, v, sizeof(src_buf)) == 0) << "GetPrimitiveArrayCritical not equal"; \
+  env_->ReleasePrimitiveArrayCritical(a, v, 0); \
+  /* GetXArrayElements */ \
+  scalar_type* xs = env_->get_elements_fn(a, NULL); \
+  EXPECT_TRUE(memcmp(src_buf, xs, sizeof(src_buf)) == 0) << # get_elements_fn " not equal"; \
+  env_->release_elements_fn(a, xs, 0); \
+  EXPECT_EQ(reinterpret_cast<uintptr_t>(v), reinterpret_cast<uintptr_t>(xs))
 
 TEST_F(JniInternalTest, BooleanArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion, jboolean, "[Z");
+  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion, GetBooleanArrayElements, ReleaseBooleanArrayElements, jboolean, "[Z");
 }
 TEST_F(JniInternalTest, ByteArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewByteArray, GetByteArrayRegion, SetByteArrayRegion, jbyte, "[B");
+  EXPECT_PRIMITIVE_ARRAY(NewByteArray, GetByteArrayRegion, SetByteArrayRegion, GetByteArrayElements, ReleaseByteArrayElements, jbyte, "[B");
 }
 TEST_F(JniInternalTest, CharArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewCharArray, GetCharArrayRegion, SetCharArrayRegion, jchar, "[C");
+  EXPECT_PRIMITIVE_ARRAY(NewCharArray, GetCharArrayRegion, SetCharArrayRegion, GetCharArrayElements, ReleaseCharArrayElements, jchar, "[C");
 }
 TEST_F(JniInternalTest, DoubleArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, GetDoubleArrayRegion, SetDoubleArrayRegion, jdouble, "[D");
+  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, GetDoubleArrayRegion, SetDoubleArrayRegion, GetDoubleArrayElements, ReleaseDoubleArrayElements, jdouble, "[D");
 }
 TEST_F(JniInternalTest, FloatArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, GetFloatArrayRegion, SetFloatArrayRegion, jfloat, "[F");
+  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, GetFloatArrayRegion, SetFloatArrayRegion, GetFloatArrayElements, ReleaseFloatArrayElements, jfloat, "[F");
 }
 TEST_F(JniInternalTest, IntArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewIntArray, GetIntArrayRegion, SetIntArrayRegion, jint, "[I");
+  EXPECT_PRIMITIVE_ARRAY(NewIntArray, GetIntArrayRegion, SetIntArrayRegion, GetIntArrayElements, ReleaseIntArrayElements, jint, "[I");
 }
 TEST_F(JniInternalTest, LongArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewLongArray, GetLongArrayRegion, SetLongArrayRegion, jlong, "[J");
+  EXPECT_PRIMITIVE_ARRAY(NewLongArray, GetLongArrayRegion, SetLongArrayRegion, GetLongArrayElements, ReleaseLongArrayElements, jlong, "[J");
 }
 TEST_F(JniInternalTest, ShortArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewShortArray, GetShortArrayRegion, SetShortArrayRegion, jshort, "[S");
+  EXPECT_PRIMITIVE_ARRAY(NewShortArray, GetShortArrayRegion, SetShortArrayRegion, GetShortArrayElements, ReleaseShortArrayElements, jshort, "[S");
 }
 
 TEST_F(JniInternalTest, NewObjectArray) {
@@ -365,6 +374,15 @@ TEST_F(JniInternalTest, NewObjectArray) {
   EXPECT_TRUE(a != NULL);
   EXPECT_TRUE(env_->IsInstanceOf(a, array_class));
   EXPECT_EQ(1, env_->GetArrayLength(a));
+  EXPECT_TRUE(env_->IsSameObject(env_->GetObjectArrayElement(a, 0), NULL));
+
+  jstring s = env_->NewStringUTF("poop");
+  a = env_->NewObjectArray(2, element_class, s);
+  EXPECT_TRUE(a != NULL);
+  EXPECT_TRUE(env_->IsInstanceOf(a, array_class));
+  EXPECT_EQ(2, env_->GetArrayLength(a));
+  EXPECT_TRUE(env_->IsSameObject(env_->GetObjectArrayElement(a, 0), s));
+  EXPECT_TRUE(env_->IsSameObject(env_->GetObjectArrayElement(a, 1), s));
 }
 
 TEST_F(JniInternalTest, GetArrayLength) {
@@ -493,6 +511,71 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   EXPECT_EQ('e', bytes[1]);
   EXPECT_EQ('l', bytes[2]);
   EXPECT_EQ('x', bytes[3]);
+}
+
+TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {
+  EXPECT_TRUE(env_->GetStringUTFChars(NULL, NULL) == NULL);
+
+  jstring s = env_->NewStringUTF("hello");
+  ASSERT_TRUE(s != NULL);
+
+  const char* utf = env_->GetStringUTFChars(s, NULL);
+  EXPECT_STREQ("hello", utf);
+  env_->ReleaseStringUTFChars(s, utf);
+
+  jboolean is_copy = JNI_FALSE;
+  utf = env_->GetStringUTFChars(s, &is_copy);
+  EXPECT_EQ(JNI_TRUE, is_copy);
+  EXPECT_STREQ("hello", utf);
+  env_->ReleaseStringUTFChars(s, utf);
+}
+
+TEST_F(JniInternalTest, GetStringChars_ReleaseStringChars) {
+  jstring s = env_->NewStringUTF("hello");
+  ASSERT_TRUE(s != NULL);
+
+  jchar expected[] = { 'h', 'e', 'l', 'l', 'o' };
+  const jchar* chars = env_->GetStringChars(s, NULL);
+  EXPECT_EQ(expected[0], chars[0]);
+  EXPECT_EQ(expected[1], chars[1]);
+  EXPECT_EQ(expected[2], chars[2]);
+  EXPECT_EQ(expected[3], chars[3]);
+  EXPECT_EQ(expected[4], chars[4]);
+  env_->ReleaseStringChars(s, chars);
+
+  jboolean is_copy = JNI_FALSE;
+  chars = env_->GetStringChars(s, &is_copy);
+  EXPECT_EQ(JNI_FALSE, is_copy);
+  EXPECT_EQ(expected[0], chars[0]);
+  EXPECT_EQ(expected[1], chars[1]);
+  EXPECT_EQ(expected[2], chars[2]);
+  EXPECT_EQ(expected[3], chars[3]);
+  EXPECT_EQ(expected[4], chars[4]);
+  env_->ReleaseStringChars(s, chars);
+}
+
+TEST_F(JniInternalTest, GetStringCritical_ReleaseStringCritical) {
+  jstring s = env_->NewStringUTF("hello");
+  ASSERT_TRUE(s != NULL);
+
+  jchar expected[] = { 'h', 'e', 'l', 'l', 'o' };
+  const jchar* chars = env_->GetStringCritical(s, NULL);
+  EXPECT_EQ(expected[0], chars[0]);
+  EXPECT_EQ(expected[1], chars[1]);
+  EXPECT_EQ(expected[2], chars[2]);
+  EXPECT_EQ(expected[3], chars[3]);
+  EXPECT_EQ(expected[4], chars[4]);
+  env_->ReleaseStringCritical(s, chars);
+
+  jboolean is_copy = JNI_FALSE;
+  chars = env_->GetStringCritical(s, &is_copy);
+  EXPECT_EQ(JNI_FALSE, is_copy);
+  EXPECT_EQ(expected[0], chars[0]);
+  EXPECT_EQ(expected[1], chars[1]);
+  EXPECT_EQ(expected[2], chars[2]);
+  EXPECT_EQ(expected[3], chars[3]);
+  EXPECT_EQ(expected[4], chars[4]);
+  env_->ReleaseStringCritical(s, chars);
 }
 
 TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
