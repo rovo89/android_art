@@ -25,6 +25,7 @@ pid_t gettid() { return syscall(__NR_gettid);}
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
 : line_(line), severity_(severity), errno_(error)
 {
+  stream_state_ = stream().flags();
   const char* last_slash = strrchr(file, '/');
   file_ = (last_slash == NULL) ? file : last_slash + 1;
   stream() << StringPrintf("%c %5d %5d %s:%d] ",
@@ -36,6 +37,7 @@ LogMessage::~LogMessage() {
     stream() << ": " << strerror(errno_);
   }
   stream() << std::endl;
+  stream().flags(stream_state_);
   if (severity_ == FATAL) {
     art::Runtime::Abort(file_, line_);
   }

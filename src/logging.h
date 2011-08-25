@@ -124,6 +124,7 @@ class LogMessage {
 
  private:
   std::stringstream buffer_;
+  std::ios_base::fmtflags stream_state_;
   const char* file_;
   int line_;
   LogSeverity severity_;
