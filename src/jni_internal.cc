@@ -21,8 +21,6 @@
 #include "stringpiece.h"
 #include "thread.h"
 
-extern bool oatCompileMethod(art::Method*, art::InstructionSet);
-
 namespace art {
 
 // This is private API, but with two different implementations: ARM and x86.
@@ -263,10 +261,6 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
   CHECK(stub != NULL);
-
-  // Compile...
-  // TODO: not here!
-  oatCompileMethod(method, kThumb2);
 
   JValue result;
   if (method->HasCode()) {
@@ -686,7 +680,7 @@ class JNI {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     std::string descriptor(NormalizeJniClassDescriptor(name));
     // TODO: need to get the appropriate ClassLoader.
-    ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
+    const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
     Class* c = class_linker->FindClass(descriptor, cl);
     return AddLocalReference<jclass>(ts, c);
   }
@@ -2826,7 +2820,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     // the comments in the JNI FindClass function.)
     typedef int (*JNI_OnLoadFn)(JavaVM*, void*);
     JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
-    ClassLoader* old_class_loader = self->GetClassLoaderOverride();
+    const ClassLoader* old_class_loader = self->GetClassLoaderOverride();
     self->SetClassLoaderOverride(class_loader);
 
     old_state = self->GetState();

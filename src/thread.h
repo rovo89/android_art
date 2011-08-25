@@ -377,11 +377,11 @@ class Thread {
     top_of_managed_stack_.SetSP( reinterpret_cast<const Method**>(record.last_top_of_managed_stack) );
   }
 
-  ClassLoader* GetClassLoaderOverride() {
+  const ClassLoader* GetClassLoaderOverride() {
     return class_loader_override_;
   }
 
-  void SetClassLoaderOverride(ClassLoader* class_loader_override) {
+  void SetClassLoaderOverride(const ClassLoader* class_loader_override) {
     class_loader_override_ = class_loader_override;
   }
 
@@ -450,7 +450,7 @@ class Thread {
 
   // Needed to get the right ClassLoader in JNI_OnLoad, but also
   // useful for testing.
-  ClassLoader* class_loader_override_;
+  const ClassLoader* class_loader_override_;
 
   // The memory mapping of the stack for non-attached threads.
   scoped_ptr<MemMap> stack_;

@@ -10,7 +10,10 @@ namespace art {
 
 class Compiler {
  public:
-  void Compile(std::vector<const DexFile*> class_path);
+  // Compile the DexFiles on a classpath. Returns a ClassLoader for
+  // the path used by the classes that were compiled. This ClassLoader
+  // can be used with FindClass to lookup a compiled class by name.
+  const ClassLoader* Compile(std::vector<const DexFile*> class_path);
 
  private:
   // Attempt to resolve all type, methods, fields, and strings

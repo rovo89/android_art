@@ -12,14 +12,15 @@ extern bool oatCompileMethod(art::Method*, art::InstructionSet);
 namespace art {
 
 // TODO need to specify target
-void Compiler::Compile(std::vector<const DexFile*> class_path) {
-  ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
+const ClassLoader* Compiler::Compile(std::vector<const DexFile*> class_path) {
+  const ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
   Resolve(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
     CompileDexFile(class_loader, *dex_file);
   }
+  return class_loader;
 }
 
 void Compiler::Resolve(const ClassLoader* class_loader) {
@@ -77,20 +78,19 @@ void Compiler::CompileClass(Class* klass) {
 }
 
 void Compiler::CompileMethod(Method* method) {
-  // TODO remove this as various compilers come on line
-  if (true) {
-    return;
-  }
   if (method->IsNative()) {
+    // TODO note code will be unmapped when JniCompiler goes out of scope
     Assembler jni_asm;
     JniCompiler jni_compiler;
     jni_compiler.Compile(&jni_asm, method);
   } else if (method->IsAbstract()) {
-    // TODO setup precanned code to throw something like AbstractMethodError
+    // TODO: This might be also noted in the ClassLinker.
+    // Probably makes more sense to do here?
+    UNIMPLEMENTED(FATAL) << "compile stub to throw AbstractMethodError";
   } else {
     oatCompileMethod(method, kThumb2);
   }
-  CHECK(method->HasCode());
+  // CHECK(method->HasCode());  // TODO: enable this check ASAP
 }
 
 }  // namespace art

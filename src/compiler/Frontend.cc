@@ -697,14 +697,21 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
  */
 bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
-    if ((method->GetName()->ToModifiedUtf8().find("init>") !=
-        std::string::npos) ||
-        (method->GetName()->ToModifiedUtf8().find("foo") !=
-        std::string::npos)) {
-        LOG(INFO) << "not compiling " << PrettyMethod(method, false);
+    if (!method->IsStatic() ||
+        (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("init>") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("intOperTest") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("intShiftTest") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("lit16Test") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("lit8Test") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("longOperTest") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("longShiftTest") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("shiftTest1") != std::string::npos) ||
+        (method->GetName()->ToModifiedUtf8().find("main") != std::string::npos)) {
+        LOG(INFO) << "not compiling " << PrettyMethod(method, true);
         return false;
     } else {
-        LOG(INFO) << "Compiling " << PrettyMethod(method, false);
+        LOG(INFO) << "Compiling " << PrettyMethod(method, true);
     }
 
     CompilationUnit cUnit;
@@ -906,7 +913,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     oatDumpCFG(&cUnit, "/sdcard/cfg/");
 #endif
 
-    return false;
+    return true;
 }
 
 void oatInit(void)
