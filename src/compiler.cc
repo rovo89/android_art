@@ -2,13 +2,16 @@
 
 #include "compiler.h"
 
+#include "assembler.h"
 #include "class_linker.h"
 #include "dex_cache.h"
+#include "jni_compiler.h"
 
 extern bool oatCompileMethod(art::Method*, art::InstructionSet);
 
 namespace art {
 
+// TODO need to specify target
 void Compiler::Compile(std::vector<const DexFile*> class_path) {
   ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
   Resolve(class_loader);
@@ -74,10 +77,20 @@ void Compiler::CompileClass(Class* klass) {
 }
 
 void Compiler::CompileMethod(Method* method) {
-// TODO need to compile art/src/compiler for host as well as target
-#ifdef __arm__
-  oatCompileMethod(method, kThumb2);
-#endif
+  // TODO remove this as various compilers come on line
+  if (true) {
+    return;
+  }
+  if (method->IsNative()) {
+    Assembler jni_asm;
+    JniCompiler jni_compiler;
+    jni_compiler.Compile(&jni_asm, method);
+  } else if (method->IsAbstract()) {
+    // TODO setup precanned code to throw something like AbstractMethodError
+  } else {
+    oatCompileMethod(method, kThumb2);
+  }
+  CHECK(method->HasCode());
 }
 
 }  // namespace art

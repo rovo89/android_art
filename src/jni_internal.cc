@@ -264,11 +264,9 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
   const Method::InvokeStub* stub = method->GetInvokeStub();
   CHECK(stub != NULL);
 
-#ifdef __arm__
   // Compile...
   // TODO: not here!
   oatCompileMethod(method, kThumb2);
-#endif
 
   JValue result;
   if (method->HasCode()) {

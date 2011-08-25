@@ -43,6 +43,18 @@ LIBART_COMMON_SRC_FILES := \
 	src/calling_convention.cc \
 	src/class_linker.cc \
 	src/compiler.cc \
+	src/compiler/Dataflow.cc \
+	src/compiler/Frontend.cc \
+	src/compiler/IntermediateRep.cc \
+	src/compiler/Ralloc.cc \
+	src/compiler/SSATransformation.cc \
+	src/compiler/Utility.cc \
+	src/compiler/codegen/RallocUtil.cc \
+	src/compiler/codegen/arm/ArchUtility.cc \
+	src/compiler/codegen/arm/ArmRallocUtil.cc \
+	src/compiler/codegen/arm/Assemble.cc \
+	src/compiler/codegen/arm/LocalOptimizations.cc \
+	src/compiler/codegen/arm/armv7-a/Codegen.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
@@ -77,18 +89,6 @@ LIBART_COMMON_SRC_FILES := \
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
-	src/compiler/Utility.cc \
-	src/compiler/SSATransformation.cc \
-	src/compiler/Dataflow.cc \
-	src/compiler/IntermediateRep.cc \
-	src/compiler/Ralloc.cc \
-	src/compiler/Frontend.cc \
-	src/compiler/codegen/RallocUtil.cc \
-	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/ArchUtility.cc \
-	src/compiler/codegen/arm/LocalOptimizations.cc \
-	src/compiler/codegen/arm/ArmRallocUtil.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc \
 	src/assembler_arm.cc \
 	src/calling_convention_arm.cc \
 	src/jni_internal_arm.cc \
