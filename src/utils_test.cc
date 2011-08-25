@@ -74,4 +74,33 @@ TEST_F(UtilsTest, PrettyType) {
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyType(o->GetClass()));
 }
 
+TEST_F(UtilsTest, MangleForJni) {
+  EXPECT_EQ("hello_00024world", MangleForJni("hello$world"));
+  EXPECT_EQ("hello_000a9world", MangleForJni("hello\xc2\xa9world"));
+  EXPECT_EQ("hello_1world", MangleForJni("hello_world"));
+  EXPECT_EQ("Ljava_lang_String_2", MangleForJni("Ljava/lang/String;"));
+  EXPECT_EQ("_3C", MangleForJni("[C"));
+}
+
+TEST_F(UtilsTest, JniShortName_JniLongName) {
+  Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
+  ASSERT_TRUE(c != NULL);
+  Method* m;
+
+  m = c->FindVirtualMethod("charAt", "(I)C");
+  ASSERT_TRUE(m != NULL);
+  EXPECT_EQ("Java_java_lang_String_charAt", JniShortName(m));
+  EXPECT_EQ("Java_java_lang_String_charAt__I", JniLongName(m));
+
+  m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I");
+  ASSERT_TRUE(m != NULL);
+  EXPECT_EQ("Java_java_lang_String_indexOf", JniShortName(m));
+  EXPECT_EQ("Java_java_lang_String_indexOf__Ljava_lang_String_2I", JniLongName(m));
+
+  m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;");
+  ASSERT_TRUE(m != NULL);
+  EXPECT_EQ("Java_java_lang_String_copyValueOf", JniShortName(m));
+  EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", JniLongName(m));
+}
+
 }  // namespace art

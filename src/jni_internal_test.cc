@@ -791,7 +791,7 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   env_->DeleteWeakGlobalRef(o2);
 }
 
-bool EnsureInvokeStub(Method* method);
+void EnsureInvokeStub(Method* method);
 
 Method::InvokeStub* AllocateStub(Method* method,
                                  byte* code,

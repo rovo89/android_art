@@ -105,4 +105,69 @@ std::string PrettyType(const Object* obj) {
   return result;
 }
 
+std::string MangleForJni(const std::string& s) {
+  std::string result;
+  size_t char_count = CountModifiedUtf8Chars(s.c_str());
+  const char* cp = &s[0];
+  for (size_t i = 0; i < char_count; ++i) {
+    uint16_t ch = GetUtf16FromUtf8(&cp);
+    if (ch == '$' || ch > 127) {
+      StringAppendF(&result, "_0%04x", ch);
+    } else {
+      switch (ch) {
+      case '_':
+        result += "_1";
+        break;
+      case ';':
+        result += "_2";
+        break;
+      case '[':
+        result += "_3";
+        break;
+      case '/':
+        result += "_";
+        break;
+      default:
+        result.push_back(ch);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+std::string JniShortName(const Method* m) {
+  Class* declaring_class = m->GetDeclaringClass();
+
+  std::string class_name(declaring_class->GetDescriptor()->ToModifiedUtf8());
+  // Remove the leading 'L' and trailing ';'...
+  CHECK(class_name[0] == 'L') << class_name;
+  CHECK(class_name[class_name.size() - 1] == ';') << class_name;
+  class_name.erase(0, 1);
+  class_name.erase(class_name.size() - 1, 1);
+
+  std::string method_name(m->GetName()->ToModifiedUtf8());
+
+  std::string short_name;
+  short_name += "Java_";
+  short_name += MangleForJni(class_name);
+  short_name += "_";
+  short_name += MangleForJni(method_name);
+  return short_name;
+}
+
+std::string JniLongName(const Method* m) {
+  std::string long_name;
+  long_name += JniShortName(m);
+  long_name += "__";
+
+  std::string signature(m->GetSignature()->ToModifiedUtf8());
+  signature.erase(0, 1);
+  signature.erase(signature.begin() + signature.find(')'), signature.end());
+
+  long_name += MangleForJni(signature);
+
+  return long_name;
+}
+
 }  // namespace art
