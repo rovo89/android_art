@@ -27,7 +27,7 @@ const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
 DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
-                                                 ClassPath& class_path) {
+                                                 const ClassPath& class_path) {
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);

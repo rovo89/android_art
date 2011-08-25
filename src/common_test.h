@@ -444,10 +444,9 @@ class CommonTest : public testing::Test {
 
     java_lang_dex_file_.reset(GetLibCoreDex());
 
-    std::vector<const DexFile*> boot_class_path;
-    boot_class_path.push_back(java_lang_dex_file_.get());
+    boot_class_path_.push_back(java_lang_dex_file_.get());
 
-    runtime_.reset(Runtime::Create(boot_class_path));
+    runtime_.reset(Runtime::Create(boot_class_path_));
     ASSERT_TRUE(runtime_ != NULL);
     class_linker_ = runtime_->GetClassLinker();
   }
@@ -505,16 +504,18 @@ class CommonTest : public testing::Test {
   }
 
   PathClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
-    class_linker_->RegisterDexFile(dex_file);
+    CHECK(dex_file != NULL);
+    class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> dex_files;
     dex_files.push_back(dex_file);
-    return class_linker_->AllocPathClassLoader(dex_files);
+    return PathClassLoader::Alloc(dex_files);
   }
 
   bool is_host_;
   scoped_ptr_malloc<char> android_data_;
   std::string art_cache_;
   scoped_ptr<const DexFile> java_lang_dex_file_;
+  std::vector<const DexFile*> boot_class_path_;
   scoped_ptr<Runtime> runtime_;
   ClassLinker* class_linker_;
 };

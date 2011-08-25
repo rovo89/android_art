@@ -521,7 +521,7 @@ static void genConstClass(CompilationUnit* cUnit, MIR* mir,
                           RegLocation rlDest, RegLocation rlSrc)
 {
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedClass(mir->dalvikInsn.vB);
+        GetResolvedType(mir->dalvikInsn.vB);
 
     if (classPtr == NULL) {
         LOG(FATAL) << "Unexpected null class pointer";
@@ -554,7 +554,7 @@ static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest)
 {
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedClass(mir->dalvikInsn.vB);
+        GetResolvedType(mir->dalvikInsn.vB);
 
     if (classPtr == NULL) {
         /* Shouldn't happen */
@@ -590,7 +590,7 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
    // May generate a call - use explicit registers
     RegLocation rlResult;
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedClass(mir->dalvikInsn.vC);
+        GetResolvedType(mir->dalvikInsn.vC);
     if (classPtr == NULL) {
         /* Shouldn't happen */
         LOG(FATAL) << "Unexpected null class pointer";
@@ -625,7 +625,7 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedClass(mir->dalvikInsn.vB);
+        GetResolvedType(mir->dalvikInsn.vB);
     if (classPtr == NULL) {
         /* Shouldn't happen with our current model */
         LOG(FATAL) << "Unexpected null class pointer";

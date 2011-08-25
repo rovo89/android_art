@@ -309,7 +309,7 @@ class DexFile {
 
   // Search a collection of DexFiles for a descriptor
   static ClassPathEntry FindInClassPath(const StringPiece& descriptor,
-                                        ClassPath& class_path);
+                                        const ClassPath& class_path);
 
   // Opens a .dex file from the file system.
   static DexFile* OpenFile(const std::string& filename);

@@ -100,11 +100,11 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method->GetSignature() != NULL);
 
     EXPECT_TRUE(method->dex_cache_strings_ != NULL);
-    EXPECT_TRUE(method->dex_cache_classes_ != NULL);
+    EXPECT_TRUE(method->dex_cache_types_ != NULL);
     EXPECT_TRUE(method->dex_cache_methods_ != NULL);
     EXPECT_TRUE(method->dex_cache_fields_ != NULL);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetStrings(), method->dex_cache_strings_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetClasses(), method->dex_cache_classes_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetTypes(), method->dex_cache_types_);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetMethods(), method->dex_cache_methods_);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetFields(), method->dex_cache_fields_);
   }
@@ -231,13 +231,14 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertDexFile(const DexFile* dex, ClassLoader* class_loader) {
     ASSERT_TRUE(dex != NULL);
+
     // Verify all the classes defined in this file
     for (size_t i = 0; i < dex->NumClassDefs(); i++) {
       const DexFile::ClassDef& class_def = dex->GetClassDef(i);
       const char* descriptor = dex->GetClassDescriptor(class_def);
       AssertDexFileClass(class_loader, descriptor);
     }
-    // Verify all the types referened by this file
+    // Verify all the types referenced by this file
     for (size_t i = 0; i < dex->NumTypeIds(); i++) {
       const DexFile::TypeId& type_id = dex->GetTypeId(i);
       const char* descriptor = dex->GetTypeDescriptor(type_id);
@@ -354,9 +355,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 }
 
 TEST_F(ClassLinkerTest, LibCore) {
-  scoped_ptr<DexFile> libcore_dex_file(GetLibCoreDex());
-  EXPECT_TRUE(libcore_dex_file.get() != NULL);
-  AssertDexFile(libcore_dex_file.get(), NULL);
+  AssertDexFile(java_lang_dex_file_.get(), NULL);
 }
 
 // C++ fields must exactly match the fields in the Java classes. If this fails,

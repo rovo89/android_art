@@ -42,6 +42,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
 	src/calling_convention.cc \
 	src/class_linker.cc \
+	src/compiler.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \

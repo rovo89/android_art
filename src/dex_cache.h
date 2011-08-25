@@ -3,6 +3,7 @@
 #ifndef ART_SRC_DEX_CACHE_H_
 #define ART_SRC_DEX_CACHE_H_
 
+#include "dex_file.h"
 #include "globals.h"
 #include "macros.h"
 #include "object.h"
@@ -21,7 +22,7 @@ class DexCache : public ObjectArray<Object> {
   enum ArrayIndex {
     kLocation = 0,
     kStrings  = 1,
-    kClasses  = 2,
+    kTypes    = 2,
     kMethods  = 3,
     kFields   = 4,
     kMax      = 5,
@@ -29,7 +30,7 @@ class DexCache : public ObjectArray<Object> {
 
   void Init(String* location,
             ObjectArray<String>* strings,
-            ObjectArray<Class>* classes,
+            ObjectArray<Class>* types,
             ObjectArray<Method>* methods,
             ObjectArray<Field>* fields);
 
@@ -41,8 +42,8 @@ class DexCache : public ObjectArray<Object> {
     return GetStrings()->GetLength();
   }
 
-  size_t NumClasses() const {
-    return GetClasses()->GetLength();
+  size_t NumTypes() const {
+    return GetTypes()->GetLength();
   }
 
   size_t NumMethods() const {
@@ -61,12 +62,12 @@ class DexCache : public ObjectArray<Object> {
     GetStrings()->Set(string_idx, resolved);
   }
 
-  Class* GetResolvedClass(uint32_t class_idx) const {
-    return GetClasses()->Get(class_idx);
+  Class* GetResolvedType(uint32_t type_idx) const {
+    return GetTypes()->Get(type_idx);
   }
 
-  void SetResolvedClass(uint32_t class_idx, Class* resolved) {
-    GetClasses()->Set(class_idx, resolved);
+  void SetResolvedType(uint32_t type_idx, Class* resolved) {
+    GetTypes()->Set(type_idx, resolved);
   }
 
   Method* GetResolvedMethod(uint32_t method_idx) const {
@@ -88,8 +89,8 @@ class DexCache : public ObjectArray<Object> {
   ObjectArray<String>* GetStrings() const {
     return static_cast<ObjectArray<String>*>(GetNonNull(kStrings));
   }
-  ObjectArray<Class>* GetClasses() const {
-    return static_cast<ObjectArray<Class>*>(GetNonNull(kClasses));
+  ObjectArray<Class>* GetTypes() const {
+    return static_cast<ObjectArray<Class>*>(GetNonNull(kTypes));
   }
   ObjectArray<Method>* GetMethods() const {
     return static_cast<ObjectArray<Method>*>(GetNonNull(kMethods));

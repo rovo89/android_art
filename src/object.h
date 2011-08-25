@@ -715,7 +715,7 @@ class Method : public AccessibleObject {
   // short cuts to declaring_class_->dex_cache_ members for fast compiled code
   // access
   ObjectArray<String>* dex_cache_strings_;
-  ObjectArray<Class>* dex_cache_classes_;
+  ObjectArray<Class>* dex_cache_types_;
   ObjectArray<Method>* dex_cache_methods_;
   ObjectArray<Field>* dex_cache_fields_;
 
@@ -858,7 +858,7 @@ class ObjectArray : public Array {
 // ClassLoader objects.
 class ClassLoader : public Object {
  public:
-  std::vector<const DexFile*>& GetClassPath() {
+  const std::vector<const DexFile*>& GetClassPath() const {
     return class_path_;
   }
   void SetClassPath(std::vector<const DexFile*>& class_path) {
@@ -886,7 +886,12 @@ class BaseDexClassLoader : public ClassLoader {
 };
 
 class PathClassLoader : public BaseDexClassLoader {
+ public:
+  static PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);
+  static void SetClass(Class* dalvik_system_PathClassLoader);
+  static void ResetClass();
  private:
+  static Class* dalvik_system_PathClassLoader_;
   DISALLOW_IMPLICIT_CONSTRUCTORS(PathClassLoader);
 };
 
@@ -905,8 +910,9 @@ class Class : public Object {
   // kStatusIdx: LoadClass populates with Class with information from
   // the DexFile, moving the status to kStatusIdx, indicating that the
   // Class values in super_class_ and interfaces_ have not been
-  // populated based on super_class_idx_ and interfaces_idx_. The new
-  // Class can then be inserted into the classes table.
+  // populated based on super_class_type_idx_ and
+  // interfaces_type_idx_. The new Class can then be inserted into the
+  // classes table.
   //
   // kStatusLoaded: After taking a lock on Class, the ClassLinker will
   // attempt to move a kStatusIdx class forward to kStatusLoaded by
@@ -920,7 +926,7 @@ class Class : public Object {
   enum Status {
     kStatusError = -1,
     kStatusNotReady = 0,
-    kStatusIdx = 1,  // loaded, DEX idx in super_class_idx_ and interfaces_idx_
+    kStatusIdx = 1,  // loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_
     kStatusLoaded = 2,  // DEX idx values resolved
     kStatusResolved = 3,  // part of linking
     kStatusVerifying = 4,  // in the process of being verified
@@ -934,6 +940,7 @@ class Class : public Object {
   };
 
   Object* NewInstance() {
+    DCHECK(!IsAbstract());
     return Heap::AllocObject(this, this->object_size_);
   }
 
@@ -941,8 +948,8 @@ class Class : public Object {
     return super_class_;
   }
 
-  uint32_t GetSuperClassIdx() const {
-    return super_class_idx_;
+  uint32_t GetSuperClassTypeIdx() const {
+    return super_class_type_idx_;
   }
 
   bool HasSuperClass() const {
@@ -963,7 +970,7 @@ class Class : public Object {
     return klass->IsSubClass(this);
   }
 
-  ClassLoader* GetClassLoader() const {
+  const ClassLoader* GetClassLoader() const {
     return class_loader_;
   }
 
@@ -1090,10 +1097,10 @@ class Class : public Object {
   }
 
   Method* FindDeclaredDirectMethod(const StringPiece& name,
-                                   const StringPiece& descriptor);
+                                   const StringPiece& signature);
 
   Method* FindDirectMethod(const StringPiece& name,
-                           const StringPiece& descriptor);
+                           const StringPiece& signature);
 
   // Returns the number of non-inherited virtual methods.
   size_t NumVirtualMethods() const {
@@ -1257,10 +1264,10 @@ class Class : public Object {
   // The superclass, or NULL if this is java.lang.Object or a
   // primitive type.
   Class* super_class_;  // TODO: make an instance field
-  uint32_t super_class_idx_;
+  uint32_t super_class_type_idx_;
 
   // defining class loader, or NULL for the "bootstrap" system loader
-  ClassLoader* class_loader_;  // TODO: make an instance field
+  const ClassLoader* class_loader_;  // TODO: make an instance field
 
   // initiating class loader list
   // NOTE: for classes with low serialNumber, these are unused, and the
@@ -1269,7 +1276,7 @@ class Class : public Object {
 
   // array of interfaces this class implements directly
   ObjectArray<Class>* interfaces_;
-  uint32_t* interfaces_idx_;
+  uint32_t* interfaces_type_idx_;
 
   // static, private, and <init> methods
   ObjectArray<Method>* direct_methods_;

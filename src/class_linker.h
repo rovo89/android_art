@@ -23,25 +23,14 @@ namespace art {
 class ClassLinker {
  public:
   // Initializes the class linker using DexFile and an optional boot Space.
-  static ClassLinker* Create(const std::vector<DexFile*>& boot_class_path, Space* boot_space);
+  static ClassLinker* Create(const std::vector<const DexFile*>& boot_class_path, Space* boot_space);
 
-  ~ClassLinker() {
-    delete classes_lock_;
-    String::ResetClass();
-    BooleanArray::ResetArrayClass();
-    ByteArray::ResetArrayClass();
-    CharArray::ResetArrayClass();
-    DoubleArray::ResetArrayClass();
-    FloatArray::ResetArrayClass();
-    IntArray::ResetArrayClass();
-    LongArray::ResetArrayClass();
-    ShortArray::ResetArrayClass();
-  }
+  ~ClassLinker();
 
   // Finds a class by its descriptor name.
   // If class_loader is null, searches boot_class_path_.
   Class* FindClass(const StringPiece& descriptor,
-                   ClassLoader* class_loader);
+                   const ClassLoader* class_loader);
 
   Class* FindPrimitiveClass(char type);
 
@@ -49,11 +38,60 @@ class ClassLinker {
     return FindClass(descriptor, NULL);
   }
 
+  // Resolve a String with the given ID from the DexFile, storing the
+  // result in the DexCache.
+  String* ResolveString(const DexFile& dex_file,
+                        uint32_t string_idx,
+                        DexCache* dex_cache);
+
+  // Resolve a Type with the given ID from the DexFile, storing the
+  // result in the DexCache. The referrer is used to identity the
+  // target DexCache and ClassLoader to use for resolution.
+  Class* ResolveType(const DexFile& dex_file,
+                     uint32_t type_idx,
+                     const Class* referrer) {
+    return ResolveType(dex_file,
+                       type_idx,
+                       referrer->GetDexCache(),
+                       referrer->GetClassLoader());
+  }
+
+  // Resolve a type with the given ID from the DexFile, storing the
+  // result in DexCache. The ClassLoader is used to search for the
+  // type, since it may be referenced from but not contained within
+  // the given DexFile.
+  Class* ResolveType(const DexFile& dex_file,
+                     uint32_t type_idx,
+                     DexCache* dex_cache,
+                     const ClassLoader* class_loader);
+
+  // Resolve a method with a given ID from the DexFile, storing the
+  // result in DexCache. The ClassLinker and ClassLoader are used as
+  // in ResolveType. What is unique is the method type argument which
+  // is used to determine if this method is a direct, static, or
+  // virtual method.
+  Method* ResolveMethod(const DexFile& dex_file,
+                        uint32_t method_idx,
+                        DexCache* dex_cache,
+                        const ClassLoader* class_loader,
+                        /*MethodType*/ int method_type);
+
+  // Resolve a method with a given ID from the DexFile, storing the
+  // result in DexCache. The ClassLinker and ClassLoader are used as
+  // in ResolveType. What is unique is the is_static argument which is
+  // used to determine if we are resolving a static or non-static
+  // field.
+  Field* ResolveField(const DexFile& dex_file,
+                      uint32_t field_idx,
+                      DexCache* dex_cache,
+                      const ClassLoader* class_loader,
+                      bool is_static);
+
   // Returns true on success, false if there's an exception pending.
   bool EnsureInitialized(Class* c);
 
-  void RegisterDexFile(const DexFile* dex_file);
-  void RegisterDexFile(const DexFile* dex_file, DexCache* dex_cache);
+  void RegisterDexFile(const DexFile& dex_file);
+  void RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache);
 
   const InternTable& GetInternTable() {
     return intern_table_;
@@ -62,19 +100,16 @@ class ClassLinker {
   void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
+  DexCache* FindDexCache(const DexFile& dex_file) const;
 
  private:
-  ClassLinker()
-      : classes_lock_(Mutex::Create("ClassLinker::Lock")),
-        class_roots_(NULL),
-        init_done_(false) {
-  }
+  ClassLinker();
 
   // Initialize class linker from DexFile instances.
-  void Init(const std::vector<DexFile*>& boot_class_path_);
+  void Init(const std::vector<const DexFile*>& boot_class_path_);
 
   // Initialize class linker from pre-initialized space.
-  void Init(const std::vector<DexFile*>& boot_class_path_, Space* space);
+  void Init(const std::vector<const DexFile*>& boot_class_path_, Space* space);
   static void InitCallback(Object* obj, void *arg);
   struct InitCallbackState;
 
@@ -89,24 +124,21 @@ class ClassLinker {
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
   Class* AllocClass(size_t class_size);
-  DexCache* AllocDexCache(const DexFile* dex_file);
+  DexCache* AllocDexCache(const DexFile& dex_file);
   Field* AllocField();
   Method* AllocMethod();
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
   }
-  PathClassLoader* AllocPathClassLoader(std::vector<const DexFile*> dex_files);
 
   Class* CreatePrimitiveClass(const char* descriptor);
 
   Class* CreateArrayClass(const StringPiece& descriptor,
-                          ClassLoader* class_loader);
+                          const ClassLoader* class_loader);
 
-  DexCache* FindDexCache(const DexFile* dex_file) const;
-
-  void AppendToBootClassPath(const DexFile* dex_file);
-  void AppendToBootClassPath(const DexFile* dex_file, DexCache* dex_cache);
+  void AppendToBootClassPath(const DexFile& dex_file);
+  void AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_cache);
 
   size_t SizeOfClass(const DexFile& dex_file,
                      const DexFile::ClassDef& dex_class_def);
@@ -114,7 +146,7 @@ class ClassLinker {
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
                  Class* klass,
-                 ClassLoader* class_loader);
+                 const ClassLoader* class_loader);
 
   void LoadInterfaces(const DexFile& dex_file,
                       const DexFile::ClassDef& dex_class_def,
@@ -130,15 +162,7 @@ class ClassLinker {
                   Class* klass,
                   Method* dst);
 
-  Class* ResolveClass(const Class* referring,
-                      uint32_t class_idx,
-                      const DexFile& dex_file);
-
-  String* ResolveString(const Class* referring,
-                        uint32_t string_idx,
-                        const DexFile& dex_file);
-
-  Class* LookupClass(const StringPiece& descriptor, ClassLoader* class_loader);
+  Class* LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader);
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.

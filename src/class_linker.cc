@@ -49,7 +49,7 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
   "[S",
 };
 
-ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path, Space* space) {
+ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path, Space* space) {
   scoped_ptr<ClassLinker> class_linker(new ClassLinker);
   if (space == NULL) {
     class_linker->Init(boot_class_path);
@@ -60,8 +60,13 @@ ClassLinker* ClassLinker::Create(const std::vector<DexFile*>& boot_class_path, S
   return class_linker.release();
 }
 
+ClassLinker::ClassLinker()
+    : classes_lock_(Mutex::Create("ClassLinker::Lock")),
+      class_roots_(NULL),
+      init_done_(false) {
+}
 
-void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
+void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   CHECK(!init_done_);
 
   // java_lang_Class comes first, its needed for AllocClass
@@ -128,7 +133,9 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   // setup boot_class_path_ now that we can use AllocObjectArray to
   // create DexCache instances
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
-    AppendToBootClassPath(boot_class_path[i]);
+    const DexFile* dex_file = boot_class_path[i];
+    CHECK(dex_file != NULL);
+    AppendToBootClassPath(*dex_file);
   }
   // now we can use FindSystemClass, at least for non-arrays classes.
 
@@ -170,6 +177,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path) {
   CHECK(dalvik_system_PathClassLoader != NULL);
   CHECK_EQ(dalvik_system_PathClassLoader->object_size_, sizeof(PathClassLoader));
   SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
+  PathClassLoader::SetClass(dalvik_system_PathClassLoader);
 
   // Setup a single, global copy of "interfaces" and "iftable" for
   // reuse across array classes
@@ -267,7 +275,7 @@ struct ClassLinker::InitCallbackState {
   Set dex_caches;
 };
 
-void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path, Space* space) {
+void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space* space) {
   CHECK(!init_done_);
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
@@ -313,9 +321,10 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path, Space* spac
 
   // reinit boot_class_path with DexFile arguments and found DexCaches
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
-    DexFile* dex_file = boot_class_path[i];
+    const DexFile* dex_file = boot_class_path[i];
+    CHECK(dex_file != NULL);
     DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
-    AppendToBootClassPath(dex_file, dex_cache);
+    AppendToBootClassPath(*dex_file, dex_cache);
   }
 
   String::SetClass(GetClassRoot(kJavaLangString));
@@ -327,6 +336,7 @@ void ClassLinker::Init(const std::vector<DexFile*>& boot_class_path, Space* spac
   IntArray::SetArrayClass(GetClassRoot(kIntArrayClass));
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
+  PathClassLoader::SetClass(GetClassRoot(kDalvikSystemPathClassLoader));
 
   FinishInit();
 }
@@ -388,13 +398,27 @@ void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
   root_visitor(array_interfaces_, arg);
 }
 
-DexCache* ClassLinker::AllocDexCache(const DexFile* dex_file) {
+ClassLinker::~ClassLinker() {
+  delete classes_lock_;
+  String::ResetClass();
+  BooleanArray::ResetArrayClass();
+  ByteArray::ResetArrayClass();
+  CharArray::ResetArrayClass();
+  DoubleArray::ResetArrayClass();
+  FloatArray::ResetArrayClass();
+  IntArray::ResetArrayClass();
+  LongArray::ResetArrayClass();
+  ShortArray::ResetArrayClass();
+  PathClassLoader::ResetClass();
+}
+
+DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
   DexCache* dex_cache = down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::kMax));
-  dex_cache->Init(String::AllocFromModifiedUtf8(dex_file->GetLocation().c_str()),
-                  AllocObjectArray<String>(dex_file->NumStringIds()),
-                  AllocObjectArray<Class>(dex_file->NumTypeIds()),
-                  AllocObjectArray<Method>(dex_file->NumMethodIds()),
-                  AllocObjectArray<Field>(dex_file->NumFieldIds()));
+  dex_cache->Init(String::AllocFromModifiedUtf8(dex_file.GetLocation().c_str()),
+                  AllocObjectArray<String>(dex_file.NumStringIds()),
+                  AllocObjectArray<Class>(dex_file.NumTypeIds()),
+                  AllocObjectArray<Method>(dex_file.NumMethodIds()),
+                  AllocObjectArray<Field>(dex_file.NumFieldIds()));
   return dex_cache;
 }
 
@@ -417,15 +441,8 @@ Method* ClassLinker::AllocMethod() {
   return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->NewInstance());
 }
 
-// TODO: remove once we can use java.lang.Class.getSystemClassLoader
-PathClassLoader* ClassLinker::AllocPathClassLoader(std::vector<const DexFile*> dex_files) {
-  PathClassLoader* cl = down_cast<PathClassLoader*>(GetClassRoot(kDalvikSystemPathClassLoader)->NewInstance());
-  cl->SetClassPath(dex_files);
-  return cl;
-}
-
 Class* ClassLinker::FindClass(const StringPiece& descriptor,
-                              ClassLoader* class_loader) {
+                              const ClassLoader* class_loader) {
   // TODO: remove this contrived parent class loader check when we have a real ClassLoader.
   if (class_loader != NULL) {
     Class* klass = FindClass(descriptor, NULL);
@@ -445,7 +462,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     if (descriptor[0] == '[') {
       return CreateArrayClass(descriptor, class_loader);
     }
-    DexFile::ClassPath& class_path = ((class_loader != NULL) ? class_loader->GetClassPath() : boot_class_path_);
+    const DexFile::ClassPath& class_path = ((class_loader != NULL) ? class_loader->GetClassPath() : boot_class_path_);
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
     if (pair.second == NULL) {
       std::string name(PrintableString(descriptor));
@@ -455,7 +472,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     }
     const DexFile& dex_file = *pair.first;
     const DexFile::ClassDef& dex_class_def = *pair.second;
-    DexCache* dex_cache = FindDexCache(pair.first);
+    DexCache* dex_cache = FindDexCache(dex_file);
     // Load the class from the dex file.
     if (!init_done_) {
       // finish up init of hand crafted class_roots_
@@ -586,7 +603,7 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
 void ClassLinker::LoadClass(const DexFile& dex_file,
                             const DexFile::ClassDef& dex_class_def,
                             Class* klass,
-                            ClassLoader* class_loader) {
+                            const ClassLoader* class_loader) {
   CHECK(klass != NULL);
   CHECK(klass->dex_cache_ != NULL);
   CHECK_EQ(Class::kStatusNotReady, klass->status_);
@@ -604,7 +621,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   klass->status_ = Class::kStatusIdx;
 
   klass->super_class_ = NULL;
-  klass->super_class_idx_ = dex_class_def.superclass_idx_;
+  klass->super_class_type_idx_ = dex_class_def.superclass_idx_;
 
   size_t num_static_fields = header.static_fields_size_;
   size_t num_instance_fields = header.instance_fields_size_;
@@ -684,11 +701,11 @@ void ClassLinker::LoadInterfaces(const DexFile& dex_file,
   if (list != NULL) {
     DCHECK(klass->interfaces_ == NULL);
     klass->interfaces_ = AllocObjectArray<Class>(list->Size());
-    DCHECK(klass->interfaces_idx_ == NULL);
-    klass->interfaces_idx_ = new uint32_t[list->Size()];
+    DCHECK(klass->interfaces_type_idx_ == NULL);
+    klass->interfaces_type_idx_ = new uint32_t[list->Size()];
     for (size_t i = 0; i < list->Size(); ++i) {
       const DexFile::TypeItem& type_item = list->GetTypeItem(i);
-      klass->interfaces_idx_[i] = type_item.type_idx_;
+      klass->interfaces_type_idx_[i] = type_item.type_idx_;
     }
   }
 }
@@ -699,7 +716,7 @@ void ClassLinker::LoadField(const DexFile& dex_file,
                             Field* dst) {
   const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
   dst->declaring_class_ = klass;
-  dst->name_ = ResolveString(klass, field_id.name_idx_, dex_file);
+  dst->name_ = ResolveString(dex_file, field_id.name_idx_, klass->GetDexCache());
   dst->descriptor_.set(dex_file.dexStringByTypeIdx(field_id.type_idx_));
   // TODO: Assign dst->type_.
   dst->access_flags_ = src.access_flags_;
@@ -711,7 +728,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->declaring_class_ = klass;
-  dst->name_ = ResolveString(klass, method_id.name_idx_, dex_file);
+  dst->name_ = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
   {
     int32_t utf16_length;
     scoped_array<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
@@ -724,7 +741,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->access_flags_ = src.access_flags_;
 
   dst->dex_cache_strings_ = klass->dex_cache_->GetStrings();
-  dst->dex_cache_classes_ = klass->dex_cache_->GetClasses();
+  dst->dex_cache_types_ = klass->dex_cache_->GetTypes();
   dst->dex_cache_methods_ = klass->dex_cache_->GetMethods();
   dst->dex_cache_fields_ = klass->dex_cache_->GetFields();
 
@@ -745,27 +762,23 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   }
 }
 
-void ClassLinker::AppendToBootClassPath(const DexFile* dex_file) {
-  CHECK(dex_file != NULL);
+void ClassLinker::AppendToBootClassPath(const DexFile& dex_file) {
   AppendToBootClassPath(dex_file, AllocDexCache(dex_file));
 }
 
-void ClassLinker::AppendToBootClassPath(const DexFile* dex_file, DexCache* dex_cache) {
-  CHECK(dex_file != NULL);
+void ClassLinker::AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_cache) {
   CHECK(dex_cache != NULL);
-  boot_class_path_.push_back(dex_file);
+  boot_class_path_.push_back(&dex_file);
   RegisterDexFile(dex_file, dex_cache);
 }
 
-void ClassLinker::RegisterDexFile(const DexFile* dex_file) {
-  CHECK(dex_file != NULL);
+void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
   RegisterDexFile(dex_file, AllocDexCache(dex_file));
 }
 
-void ClassLinker::RegisterDexFile(const DexFile* dex_file, DexCache* dex_cache) {
-  CHECK(dex_file != NULL);
+void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) {
   CHECK(dex_cache != NULL);
-  dex_files_.push_back(dex_file);
+  dex_files_.push_back(&dex_file);
   dex_caches_.push_back(dex_cache);
 }
 
@@ -779,9 +792,9 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
   return *dex_files_[-1];
 }
 
-DexCache* ClassLinker::FindDexCache(const DexFile* dex_file) const {
+DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   for (size_t i = 0; i != dex_files_.size(); ++i) {
-    if (dex_files_[i] == dex_file) {
+    if (dex_files_[i] == &dex_file) {
         return dex_caches_[i];
     }
   }
@@ -815,7 +828,7 @@ Class* ClassLinker::CreatePrimitiveClass(const char* descriptor) {
 //
 // Returns NULL with an exception raised on failure.
 Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
-                                     ClassLoader* class_loader)
+                                     const ClassLoader* class_loader)
 {
   CHECK(descriptor[0] == '[');
 
@@ -987,7 +1000,7 @@ bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass) {
   return ((*it).second == klass);
 }
 
-Class* ClassLinker::LookupClass(const StringPiece& descriptor, ClassLoader* class_loader) {
+Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader) {
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
@@ -1281,7 +1294,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
         break;
       case DexFile::kString: {
         uint32_t string_idx = value.i;
-        String* resolved = ResolveString(klass, string_idx, dex_file);
+        String* resolved = ResolveString(dex_file, string_idx, klass->GetDexCache());
         field->SetObject(NULL, resolved);
         break;
       }
@@ -1320,8 +1333,8 @@ bool ClassLinker::LinkClass(Class* klass, const DexFile& dex_file) {
 
 bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) {
   CHECK_EQ(Class::kStatusIdx, klass->status_);
-  if (klass->super_class_idx_ != DexFile::kDexNoIndex) {
-    Class* super_class = ResolveClass(klass, klass->super_class_idx_, dex_file);
+  if (klass->super_class_type_idx_ != DexFile::kDexNoIndex) {
+    Class* super_class = ResolveType(dex_file, klass->super_class_type_idx_, klass);
     if (super_class == NULL) {
       LG << "Failed to resolve superclass";
       return false;
@@ -1330,8 +1343,8 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
   }
   if (klass->NumInterfaces() > 0) {
     for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
-      uint32_t idx = klass->interfaces_idx_[i];
-      klass->SetInterface(i, ResolveClass(klass, idx, dex_file));
+      uint32_t type_idx = klass->interfaces_type_idx_[i];
+      klass->SetInterface(i, ResolveType(dex_file, type_idx, klass));
       if (klass->GetInterface(i) == NULL) {
         LG << "Failed to resolve interface";
         return false;
@@ -1798,50 +1811,98 @@ void ClassLinker::CreateReferenceOffsets(uint32_t& reference_offsets,
   }
 }
 
-Class* ClassLinker::ResolveClass(const Class* referrer,
-                                 uint32_t class_idx,
-                                 const DexFile& dex_file) {
-  DexCache* dex_cache = referrer->GetDexCache();
-  Class* resolved = dex_cache->GetResolvedClass(class_idx);
+String* ClassLinker::ResolveString(const DexFile& dex_file,
+                                   uint32_t string_idx,
+                                   DexCache* dex_cache) {
+  String* resolved = dex_cache->GetResolvedString(string_idx);
   if (resolved != NULL) {
     return resolved;
   }
-  const char* descriptor = dex_file.dexStringByTypeIdx(class_idx);
+  const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
+  int32_t utf16_length = dex_file.GetStringLength(string_id);
+  const char* utf8_data = dex_file.GetStringData(string_id);
+  String* string = intern_table_.Intern(utf16_length, utf8_data);
+  dex_cache->SetResolvedString(string_idx, string);
+  return string;
+}
+
+Class* ClassLinker::ResolveType(const DexFile& dex_file,
+                                uint32_t type_idx,
+                                DexCache* dex_cache,
+                                const ClassLoader* class_loader) {
+  Class* resolved = dex_cache->GetResolvedType(type_idx);
+  if (resolved != NULL) {
+    return resolved;
+  }
+  const char* descriptor = dex_file.dexStringByTypeIdx(type_idx);
   if (descriptor[0] != '\0' && descriptor[1] == '\0') {
     resolved = FindPrimitiveClass(descriptor[0]);
   } else {
-    resolved = FindClass(descriptor, referrer->GetClassLoader());
+    resolved = FindClass(descriptor, class_loader);
   }
   if (resolved != NULL) {
     Class* check = resolved->IsArray() ? resolved->component_type_ : resolved;
-    if (referrer->GetDexCache() != check->GetDexCache()) {
+    if (dex_cache != check->GetDexCache()) {
       if (check->GetClassLoader() != NULL) {
         LG << "Class resolved by unexpected DEX";  // TODO: IllegalAccessError
         return NULL;
       }
     }
-    dex_cache->SetResolvedClass(class_idx, resolved);
+    dex_cache->SetResolvedType(type_idx, resolved);
   } else {
     DCHECK(Thread::Current()->IsExceptionPending());
   }
   return resolved;
 }
 
-Method* ResolveMethod(const Class* referrer, uint32_t method_idx,
-                      /*MethodType*/ int method_type) {
-  CHECK(false);
-  return NULL;
+Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
+                                   uint32_t method_idx,
+                                   DexCache* dex_cache,
+                                   const ClassLoader* class_loader,
+                                   /*MethodType*/ int method_type) {
+  Method* resolved = dex_cache->GetResolvedMethod(method_idx);
+  if (resolved != NULL) {
+    return resolved;
+  }
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+  Class* klass = ResolveType(dex_file, method_id.class_idx_, dex_cache, class_loader);
+  if (klass == NULL) {
+    return NULL;
+  }
+
+  // TODO resolve using class, method_id, and method type.
+  // resolved = ...
+  if (resolved != NULL) {
+    dex_cache->SetResolvedMethod(method_idx, resolved);
+  } else {
+    // DCHECK(Thread::Current()->IsExceptionPending());
+  }
+  return resolved;
 }
 
-String* ClassLinker::ResolveString(const Class* referring,
-                                   uint32_t string_idx,
-                                   const DexFile& dex_file) {
-  const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
-  int32_t utf16_length = dex_file.GetStringLength(string_id);
-  const char* utf8_data = dex_file.GetStringData(string_id);
-  String* string = intern_table_.Intern(utf16_length, utf8_data);
-  referring->GetDexCache()->SetResolvedString(string_idx, string);
-  return string;
+Field* ClassLinker::ResolveField(const DexFile& dex_file,
+                                 uint32_t field_idx,
+                                 DexCache* dex_cache,
+                                 const ClassLoader* class_loader,
+                                 bool is_static) {
+  Field* resolved = dex_cache->GetResolvedField(field_idx);
+  if (resolved != NULL) {
+    return resolved;
+  }
+  const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
+  Class* klass = ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader);
+  if (klass == NULL) {
+    return NULL;
+  }
+
+  // TODO resolve using class, field_id, and is_static.
+  // resolved = ...
+  if (resolved != NULL) {
+    dex_cache->SetResolvedfield(field_idx, resolved);
+  } else {
+    // DCHECK(Thread::Current()->IsExceptionPending());
+  }
+  return resolved;
 }
 
 }  // namespace art

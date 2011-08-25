@@ -2,7 +2,9 @@
 
 #include "class_linker.h"
 #include "common_test.h"
+#include "compiler.h"
 #include "compiler_test.h"
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
 #include "object.h"
@@ -16,6 +18,39 @@ namespace art {
 
 class CompilerTest : public CommonTest {
 };
+
+TEST_F(CompilerTest, CompileLibCore) {
+  Compiler compiler;
+  compiler.Compile(boot_class_path_);
+
+  // All libcore references should resolve
+  const DexFile* dex = java_lang_dex_file_.get();
+  DexCache* dex_cache = class_linker_->FindDexCache(*dex);
+  EXPECT_EQ(dex->NumStringIds(), dex_cache->NumStrings());
+  for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
+    String* string = dex_cache->GetResolvedString(i);
+    EXPECT_TRUE(string != NULL);
+  }
+  EXPECT_EQ(dex->NumTypeIds(), dex_cache->NumTypes());
+  for (size_t i = 0; i < dex_cache->NumTypes(); i++) {
+    Class* type = dex_cache->GetResolvedType(i);
+    EXPECT_TRUE(type != NULL);
+  }
+  EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumMethods());
+  for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
+    // TODO: ClassLinker::ResolveMethod
+    // Method* method = dex_cache->GetResolvedMethod(i);
+    // EXPECT_TRUE(method != NULL);
+  }
+  EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumFields());
+  for (size_t i = 0; i < dex_cache->NumFields(); i++) {
+    // TODO: ClassLinker::ResolveField
+    // Field* field = dex_cache->GetResolvedField(i);
+    // EXPECT_TRUE(field != NULL);
+  }
+
+}
+
 
 #if defined(__arm__)
 TEST_F(CompilerTest, BasicCodegen) {

@@ -176,7 +176,7 @@ DexFile* Open(const std::string& filename) {
 }
 
 void CreateBootClassPath(const char* boot_class_path_cstr,
-                         std::vector<DexFile*>& boot_class_path_vector) {
+                         std::vector<const DexFile*>& boot_class_path_vector) {
   CHECK(boot_class_path_cstr != NULL);
   std::vector<std::string> parsed;
   ParseClassPath(boot_class_path_cstr, parsed);
@@ -213,7 +213,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       boot_class_path = option.substr(strlen("-Xbootclasspath:")).data();
     } else if (option == "bootclasspath") {
       const void* dex_vector = options[i].second;
-      const std::vector<DexFile*>* v = reinterpret_cast<const std::vector<DexFile*>*>(dex_vector);
+      const std::vector<const DexFile*>* v
+          = reinterpret_cast<const std::vector<const DexFile*>*>(dex_vector);
       if (v == NULL) {
         if (ignore_unrecognized) {
           continue;

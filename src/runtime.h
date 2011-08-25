@@ -36,7 +36,7 @@ class Runtime {
     // returns null if problem parsing and ignore_unrecognized is false
     static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
 
-    std::vector<DexFile*> boot_class_path_;
+    std::vector<const DexFile*> boot_class_path_;
     const char* boot_image_;
     bool check_jni_;
     size_t heap_initial_size_;

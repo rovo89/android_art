@@ -26,7 +26,7 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 {
     oatFlushAllRegs(cUnit);  /* All temps to home location */
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedClass(mir->dalvikInsn.vC);
+        GetResolvedType(mir->dalvikInsn.vC);
     if (classPtr == NULL) {
          LOG(FATAL) << "Unexpected null classPtr";
     } else {
@@ -62,7 +62,7 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     }
     oatFlushAllRegs(cUnit);  /* All temps to home location */
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedClass(typeIndex);
+        GetResolvedType(typeIndex);
     if (classPtr == NULL) {
          LOG(FATAL) << "Unexpected null classPtr";
     } else {
