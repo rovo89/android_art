@@ -34,20 +34,20 @@ class ReferenceTable {
  public:
   ReferenceTable(const char* name, size_t initial_size, size_t max_size);
 
-  void Add(Object* obj);
+  void Add(const Object* obj);
 
-  void Remove(Object* obj);
+  void Remove(const Object* obj);
 
   size_t Size() const;
 
   void Dump() const;
 
  private:
-  static void Dump(const std::vector<Object*>& entries);
+  static void Dump(const std::vector<const Object*>& entries);
   friend class IndirectReferenceTable; // For Dump.
 
   std::string name_;
-  std::vector<Object*> entries_;
+  std::vector<const Object*> entries_;
   size_t max_size_;
 };
 

@@ -175,10 +175,7 @@ Thread* Thread::Attach(const Runtime* runtime) {
       PLOG(FATAL) << "pthread_setspecific failed";
   }
 
-  JavaVMExt* vm = runtime->GetJavaVM();
-  CHECK(vm != NULL);
-  bool check_jni = vm->check_jni;
-  thread->jni_env_ = new JNIEnvExt(thread, check_jni);
+  thread->jni_env_ = new JNIEnvExt(thread, runtime->GetJavaVM());
 
   return thread;
 }
