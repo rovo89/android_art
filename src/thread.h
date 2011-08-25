@@ -44,19 +44,19 @@ class Mutex {
 
   static Mutex* Create(const char* name);
 
- public:  // TODO: protected
-  void SetOwner(Thread* thread) { owner_ = thread; }
+  // TODO: only needed because we lack a condition variable abstraction.
+  pthread_mutex_t* GetImpl() { return &lock_impl_; }
 
  private:
   explicit Mutex(const char* name) : name_(name), owner_(NULL) {}
+
+  void SetOwner(Thread* thread) { owner_ = thread; }
 
   const char* name_;
 
   Thread* owner_;
 
   pthread_mutex_t lock_impl_;
-
-  friend class SharedLibrary; // For lock_impl_.
 
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
@@ -255,6 +255,9 @@ class Thread {
 
   void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));
+
+  // This exception is special, because we need to pre-allocate an instance.
+  void ThrowOutOfMemoryError();
 
   void ClearException() {
     exception_ = NULL;

@@ -304,6 +304,10 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
   CHECK_EQ(rc, JNI_OK);
 }
 
+void Thread::ThrowOutOfMemoryError() {
+  UNIMPLEMENTED(FATAL);
+}
+
 Frame Thread::FindExceptionHandler(void* throw_pc, void** handler_pc) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DCHECK(class_linker != NULL);

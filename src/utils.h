@@ -152,6 +152,15 @@ std::string PrettyMethod(const Method* m, bool with_signature);
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyType(const Object* obj);
 
+// Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
+// of the JNI spec.
+std::string MangleForJni(const std::string& s);
+
+// Returns the JNI native function name for the non-overloaded method 'm'.
+std::string JniShortName(const Method* m);
+// Returns the JNI native function name for the overloaded method 'm'.
+std::string JniLongName(const Method* m);
+
 std::string ReadFileToString(const char* file_name);
 
 }  // namespace art

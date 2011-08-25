@@ -9,15 +9,15 @@
 #include "macros.h"
 #include "reference_table.h"
 
-#include <map>
 #include <string>
 
 namespace art {
 
 class ClassLoader;
+class Libraries;
+class Method;
 class Mutex;
 class Runtime;
-class SharedLibrary;
 class Thread;
 
 struct JavaVMExt : public JavaVM {
@@ -31,6 +31,12 @@ struct JavaVMExt : public JavaVM {
    * human-readable description of the error.
    */
   bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail);
+
+  /**
+   * Returns a pointer to the code for the native method 'm', found
+   * using dlsym(3) on every native library that's been loaded so far.
+   */
+  void* FindCodeForNativeMethod(Method* m);
 
   Runtime* runtime;
 
@@ -49,7 +55,8 @@ struct JavaVMExt : public JavaVM {
   Mutex* weak_globals_lock;
   IndirectReferenceTable weak_globals;
 
-  std::map<std::string, SharedLibrary*> libraries;
+  Mutex* libraries_lock;
+  Libraries* libraries;
 };
 
 struct JNIEnvExt : public JNIEnv {
