@@ -43,6 +43,22 @@ class CompilerTest : public CommonTest {
     EXPECT_EQ(expected, result);
 #endif // __arm__
   }
+  void AssertStaticLongMethod(const char* klass, const char* method,
+                              const char* signature, jlong expected, ...) {
+    JNIEnv* env = Thread::Current()->GetJniEnv();
+    jclass c = env->FindClass(klass);
+    CHECK(c != NULL);
+    jmethodID m = env->GetStaticMethodID(c, method, signature);
+    CHECK(m != NULL);
+#if defined(__arm__)
+    va_list args;
+    va_start(args, expected);
+    jint result = env->CallStaticLongMethodV(c, m, args);
+    va_end(args);
+    LOG(INFO) << klass << "." << method << "(...) result is " << result;
+    EXPECT_EQ(expected, result);
+#endif // __arm__
+  }
  private:
   scoped_ptr<DexFile> dex_file_;
 };
@@ -95,12 +111,10 @@ TEST_F(CompilerTest, UnopTest) {
                         38);
 }
 
-#if 0 // Does filled array - needs load-time class resolution
 TEST_F(CompilerTest, ShiftTest1) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "shiftTest1", "()I", 0);
 }
-#endif
 
 TEST_F(CompilerTest, ShiftTest2) {
   CompileDex(kIntMathDex, "kIntMathDex");
@@ -112,65 +126,51 @@ TEST_F(CompilerTest, UnsignedShiftTest) {
   AssertStaticIntMethod("IntMath", "unsignedShiftTest", "()I", 0);
 }
 
-#if 0 // Fail subtest #3, long to int conversion w/ truncation.
 TEST_F(CompilerTest, ConvTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "convTest", "()I", 0);
 }
-#endif
 
 TEST_F(CompilerTest, CharSubTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "charSubTest", "()I", 0);
 }
 
-#if 0 // Needs array allocation & r9 to be set up with Thread*
 TEST_F(CompilerTest, IntOperTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "intOperTest", "(II)I", 0,
                         70000, -3);
 }
-#endif
 
-#if 0 // Needs array allocation & r9 to be set up with Thread*
 TEST_F(CompilerTest, Lit16Test) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "lit16Test", "(I)I", 0,
                         77777);
 }
-#endif
 
-#if 0 // Needs array allocation & r9 to be set up with Thread*
 TEST_F(CompilerTest, Lit8Test) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "lit8Test", "(I)I", 0,
                         -55555);
 }
-#endif
 
-#if 0 // Needs array allocation & r9 to be set up with Thread*
 TEST_F(CompilerTest, IntShiftTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "intShiftTest", "(II)I", 0,
                         0xff00aa01, 8);
 }
-#endif
 
-#if 0 // Needs array allocation & r9 to be set up with Thread*
 TEST_F(CompilerTest, LongOperTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "longOperTest", "(JJ)I", 0,
                         70000000000LL, 3);
 }
-#endif
 
-#if 0 // Needs array allocation & r9 to be set up with Thread*
 TEST_F(CompilerTest, LongShiftTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
-  AssertStaticIntMethod("IntMath", "longShiftTest", "(JJ)I", 0,
-                        0xd5aa96deff00aa01LL, 8);
+  AssertStaticLongMethod("IntMath", "longShiftTest", "(JI)J", 0,
+                         0xd5aa96deff00aa01LL, 8);
 }
-#endif
 
 TEST_F(CompilerTest, SwitchTest1) {
   CompileDex(kIntMathDex, "kIntMathDex");
