@@ -56,7 +56,7 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     // unknown if instance or static, try both
     Field* field = class_linker->ResolveField(dex_file, i, dex_cache, class_loader, false);
     if (field == NULL) {
-      class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, true);
+      class_linker->ResolveField(dex_file, i, dex_cache, class_loader, true);
     }
   }
 }
