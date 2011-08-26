@@ -4,6 +4,7 @@
 #define ART_SRC_DEX_FILE_H_
 
 #include <map>
+#include <string>
 #include <vector>
 
 #include "globals.h"
@@ -482,8 +483,7 @@ class DexFile {
     }
   }
 
-  char* CreateMethodDescriptor(uint32_t proto_idx,
-                               int32_t* unicode_length) const;
+  std::string CreateMethodDescriptor(uint32_t proto_idx, int32_t* unicode_length) const;
 
   const byte* GetEncodedArray(const ClassDef& class_def) const {
     if (class_def.static_values_off_ == 0) {

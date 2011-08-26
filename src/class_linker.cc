@@ -736,9 +736,8 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->name_ = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
   {
     int32_t utf16_length;
-    scoped_array<char> utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_,
-                                                          &utf16_length));
-    dst->signature_ = String::AllocFromModifiedUtf8(utf16_length, utf8.get());
+    std::string utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
+    dst->signature_ = String::AllocFromModifiedUtf8(utf16_length, utf8.c_str());
   }
   dst->proto_idx_ = method_id.proto_idx_;
   dst->code_off_ = src.code_off_;
@@ -1878,7 +1877,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   }
 
   const char* name = dex_file.dexStringById(method_id.name_idx_);
-  const char* signature = dex_file.CreateMethodDescriptor(method_id.proto_idx_, NULL);
+  std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, NULL));
   if (is_direct) {
     resolved = klass->FindDirectMethod(name, signature);
   } else {

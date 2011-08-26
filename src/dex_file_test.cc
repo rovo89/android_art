@@ -79,9 +79,8 @@ TEST(DexFileTest, CreateMethodDescriptor) {
     const char* name = raw->dexStringById(method_id.name_idx_);
     ASSERT_STREQ("<init>", name);
     int32_t length;
-    scoped_array<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
-        &length));
-    ASSERT_STREQ("()V", descriptor.get());
+    std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
+    ASSERT_EQ("()V", descriptor);
   }
 
   // Check both virtual methods.
@@ -98,9 +97,8 @@ TEST(DexFileTest, CreateMethodDescriptor) {
 
     uint32_t proto_idx = method_id.proto_idx_;
     int32_t length;
-    scoped_array<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
-        &length));
-    ASSERT_STREQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", descriptor.get());
+    std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
+    ASSERT_EQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", descriptor);
   }
 
   {
@@ -113,9 +111,8 @@ TEST(DexFileTest, CreateMethodDescriptor) {
 
     uint32_t proto_idx = method_id.proto_idx_;
     int32_t length;
-    scoped_array<const char> descriptor(raw->CreateMethodDescriptor(proto_idx,
-        &length));
-    ASSERT_STREQ("(ZSC)LCreateMethodDescriptor;", descriptor.get());
+    std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
+    ASSERT_EQ("(ZSC)LCreateMethodDescriptor;", descriptor);
   }
 
 }
