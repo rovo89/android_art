@@ -46,14 +46,18 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     class_linker->ResolveType(dex_file, i, dex_cache, class_loader);
   }
   for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
-    // TODO: move resolution into compiler proper where we will know method_type
-    int method_type = 0;
-    class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, method_type);
+    // unknown if direct or virtual, try both
+    Method* method = class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, false);
+    if (method == NULL) {
+      class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, true);
+    }
   }
   for (size_t i = 0; i < dex_cache->NumFields(); i++) {
-    // TODO: move resolution into compiler proper where we will know is_static
-    bool is_static = false;
-    class_linker->ResolveField(dex_file, i, dex_cache, class_loader, is_static);
+    // unknown if instance or static, try both
+    Field* field = class_linker->ResolveField(dex_file, i, dex_cache, class_loader, false);
+    if (field == NULL) {
+      class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, true);
+    }
   }
 }
 

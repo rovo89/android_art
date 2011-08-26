@@ -86,15 +86,13 @@ TEST_F(CompilerTest, CompileDexLibCore) {
   }
   EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumMethods());
   for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
-    // TODO: ClassLinker::ResolveMethod
-    // Method* method = dex_cache->GetResolvedMethod(i);
-    // EXPECT_TRUE(method != NULL);
+    Method* method = dex_cache->GetResolvedMethod(i);
+    EXPECT_TRUE(method != NULL);
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumFields());
   for (size_t i = 0; i < dex_cache->NumFields(); i++) {
-    // TODO: ClassLinker::ResolveField
-    // Field* field = dex_cache->GetResolvedField(i);
-    // EXPECT_TRUE(field != NULL);
+    Field* field = dex_cache->GetResolvedField(i);
+    EXPECT_TRUE(field != NULL);
   }
 
 }

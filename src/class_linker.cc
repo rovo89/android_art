@@ -1866,7 +1866,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                    uint32_t method_idx,
                                    DexCache* dex_cache,
                                    const ClassLoader* class_loader,
-                                   /*MethodType*/ int method_type) {
+                                   bool is_direct) {
   Method* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved != NULL) {
     return resolved;
@@ -1877,8 +1877,13 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
     return NULL;
   }
 
-  // TODO resolve using class, method_id, and method type.
-  // resolved = ...
+  const char* name = dex_file.dexStringById(method_id.name_idx_);
+  const char* signature = dex_file.CreateMethodDescriptor(method_id.proto_idx_, NULL);
+  if (is_direct) {
+    resolved = klass->FindDirectMethod(name, signature);
+  } else {
+    resolved = klass->FindVirtualMethod(name, signature);
+  }
   if (resolved != NULL) {
     dex_cache->SetResolvedMethod(method_idx, resolved);
   } else {
@@ -1902,8 +1907,13 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
     return NULL;
   }
 
-  // TODO resolve using class, field_id, and is_static.
-  // resolved = ...
+  const char* name = dex_file.dexStringById(field_id.name_idx_);
+  const char* type = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+  if (is_static) {
+    resolved = klass->FindStaticField(name, type);
+  } else {
+    resolved = klass->FindInstanceField(name, type);
+  }
   if (resolved != NULL) {
     dex_cache->SetResolvedfield(field_idx, resolved);
   } else {

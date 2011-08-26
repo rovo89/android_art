@@ -74,7 +74,7 @@ class ClassLinker {
                         uint32_t method_idx,
                         DexCache* dex_cache,
                         const ClassLoader* class_loader,
-                        /*MethodType*/ int method_type);
+                        bool is_direct);
 
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
