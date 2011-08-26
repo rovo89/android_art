@@ -717,7 +717,8 @@ extern void oatLockAllTemps(CompilationUnit* cUnit)
 {
     int i;
     for (i=0; i< cUnit->regPool->numCoreRegs; i++) {
-        oatLockTemp(cUnit, cUnit->regPool->coreRegs[i].reg);
+        if (cUnit->regPool->coreRegs[i].isTemp)
+            oatLockTemp(cUnit, cUnit->regPool->coreRegs[i].reg);
     }
 }
 

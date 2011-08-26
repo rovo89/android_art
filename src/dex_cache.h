@@ -38,6 +38,18 @@ class DexCache : public ObjectArray<Object> {
     return Get(kLocation)->AsString();
   }
 
+  static size_t StringsOffset() {
+    return kStrings * sizeof(Object*);
+  }
+
+  static size_t FieldsOffset() {
+    return kFields * sizeof(Object*);
+  }
+
+  static size_t MethodsOffset() {
+    return kMethods * sizeof(Object*);
+  }
+
   size_t NumStrings() const {
     return GetStrings()->GetLength();
   }

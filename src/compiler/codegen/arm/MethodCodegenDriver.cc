@@ -331,6 +331,45 @@ static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
     return state + 1;
 }
 
+// Slow path static & direct invoke launch sequence
+static int nextSDCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+                            DecodedInstruction* dInsn, int state)
+{
+    switch(state) {
+        case 0:  // Get the current Method* [sets r0]
+            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            break;
+        case 1:  // Get the current Method->DeclaringClass() [sets r0]
+            loadBaseDisp(cUnit, mir, r0,
+                         OFFSETOF_MEMBER(art::Method, declaring_class_),
+                         r0, kWord, INVALID_SREG);
+            break;
+        case 2:  // Method->DeclaringClass()->GetDexCache() [sets r0]
+            loadBaseDisp(cUnit, mir, r0,
+                         OFFSETOF_MEMBER(art::Class, dex_cache_), r0, kWord,
+                         INVALID_SREG);
+            break;
+        case 3:  // Method->DeclaringClass()->GetDexCache()->methodsObjectArr
+            loadBaseDisp(cUnit, mir, r0, art::DexCache::MethodsOffset(),
+                         r0, kWord, INVALID_SREG);
+            break;
+        case 4: // Skip past the object header
+            opRegImm(cUnit, kOpAdd, r0, art::Array::DataOffset().Int32Value());
+            break;
+        case 5: // Get the target Method* [uses r0, sets r0]
+            loadBaseDisp(cUnit, mir, r0, dInsn->vB * 4, r0,
+                         kWord, INVALID_SREG);
+            break;
+        case 6: // Get the target compiled code address [uses r0, sets rLR]
+            loadBaseDisp(cUnit, mir, r0, art::Method::GetCodeOffset(), rLR,
+                         kWord, INVALID_SREG);
+            break;
+        default:
+            return -1;
+    }
+    return state + 1;
+}
+
 /*
  * Bit of a hack here - in leiu of a real scheduling pass,
  * emit the next instruction in a virtual invoke sequence.
@@ -662,16 +701,26 @@ static void genInvokeStatic(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
+    /*
+     * TODO: check for/force resolution of target method
+     * note to bdc: you can find the method index in
+     * dInsn->vB.  If you need it, the calling method's
+     * Method* is cUnit->method.
+     */
+    int fastPath = false;  // TODO: set based on resolution results
+
+    NextCallInsn nextCallInsn = fastPath ? nextSDCallInsn : nextSDCallInsnSP;
+
     if (mir->dalvikInsn.opcode == OP_INVOKE_STATIC) {
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, NULL,
-                                         false, nextSDCallInsn);
+                                         false, nextCallInsn);
     } else {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, NULL,
-                                       nextSDCallInsn);
+                                       nextCallInsn);
     }
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
-        callState = nextSDCallInsn(cUnit, mir, dInsn, callState);
+        callState = nextCallInsn(cUnit, mir, dInsn, callState);
     }
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
