@@ -25,7 +25,7 @@ bool Class::Implements(const Class* klass) const {
   // recursively all super-interfaces of those interfaces, are listed
   // in iftable_, so we can just do a linear scan through that.
   for (size_t i = 0; i < iftable_count_; i++) {
-    if (iftable_[i].GetClass() == klass) {
+    if (iftable_[i].GetInterface() == klass) {
       return true;
     }
   }
@@ -432,6 +432,20 @@ size_t Method::ReturnSize() const {
 bool Method::HasSameNameAndDescriptor(const Method* that) const {
   return (this->GetName()->Equals(that->GetName()) &&
           this->GetSignature()->Equals(that->GetSignature()));
+}
+
+Method* Class::FindVirtualMethodForInterface(Method* method) {
+  Class* declaring_class = method->GetDeclaringClass();
+  DCHECK(declaring_class->IsInterface());
+  // TODO cache to improve lookup speed
+  for (size_t i = 0; i < iftable_count_; i++) {
+    InterfaceEntry& interface_entry = iftable_[i];
+    if (interface_entry.GetInterface() == declaring_class) {
+      return vtable_->Get(interface_entry.method_index_array_[method->method_index_]);
+    }
+  }
+  UNIMPLEMENTED(FATAL) << "Need to throw an error of some kind";
+  return NULL;
 }
 
 Method* Class::FindDeclaredDirectMethod(const StringPiece& name,

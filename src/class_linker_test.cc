@@ -516,4 +516,37 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("robot"));
 }
 
+TEST_F(ClassLinkerTest, Interfaces) {
+  scoped_ptr<DexFile> dex(OpenDexFileBase64(kInterfacesDex, "kInterfacesDex"));
+  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader);
+  Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader);
+  Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader);
+  EXPECT_TRUE(I->IsAssignableFrom(A));
+  EXPECT_TRUE(J->IsAssignableFrom(A));
+
+  Method* Ii = I->FindVirtualMethod("i", "()V");
+  Method* Jj1 = J->FindVirtualMethod("j1", "()V");
+  Method* Jj2 = J->FindVirtualMethod("j2", "()V");
+  Method* Ai = A->FindVirtualMethod("i", "()V");
+  Method* Aj1 = A->FindVirtualMethod("j1", "()V");
+  Method* Aj2 = A->FindVirtualMethod("j2", "()V");
+  ASSERT_TRUE(Ii != NULL);
+  ASSERT_TRUE(Jj1 != NULL);
+  ASSERT_TRUE(Jj2 != NULL);
+  ASSERT_TRUE(Ai != NULL);
+  ASSERT_TRUE(Aj1 != NULL);
+  ASSERT_TRUE(Aj2 != NULL);
+  ASSERT_TRUE(Ii != NULL);
+  EXPECT_NE(Ii, Ai);
+  EXPECT_NE(Jj1, Aj1);
+  EXPECT_NE(Jj2, Aj2);
+  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2));
+  EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
+}
+
 }  // namespace art

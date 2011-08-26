@@ -201,8 +201,8 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   // supers as well.  These interfaces don't have any methods, so we
   // don't have to worry about the ifviPool either.
   array_iftable_ = new InterfaceEntry[2];
-  array_iftable_[0].SetClass(array_interfaces_->Get(0));
-  array_iftable_[1].SetClass(array_interfaces_->Get(1));
+  array_iftable_[0].SetInterface(array_interfaces_->Get(0));
+  array_iftable_[1].SetInterface(array_interfaces_->Get(1));
   // now FindClass can be used for non-primitive array classes
 
   // run Object[] through FindClass to complete initialization
@@ -1153,7 +1153,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
   }
   for (size_t i = 0; i < klass->iftable_count_; ++i) {
     const InterfaceEntry* iftable = &klass->iftable_[i];
-    Class* interface = iftable->GetClass();
+    Class* interface = iftable->GetInterface();
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
         uint32_t vtable_index = iftable->method_index_array_[j];
@@ -1517,9 +1517,9 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       LG << "Class implements non-interface class";  // TODO: IncompatibleClassChangeError
       return false;
     }
-    klass->iftable_[idx++].SetClass(interf);
+    klass->iftable_[idx++].SetInterface(interf);
     for (size_t j = 0; j < interf->iftable_count_; j++) {
-      klass->iftable_[idx++].SetClass(interf->iftable_[j].GetClass());
+      klass->iftable_[idx++].SetInterface(interf->iftable_[j].GetInterface());
     }
   }
   CHECK_EQ(idx, ifcount);
@@ -1528,7 +1528,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     return true;
   }
   for (size_t i = super_ifcount; i < ifcount; i++) {
-    pool_size += klass->iftable_[i].GetClass()->NumVirtualMethods();
+    pool_size += klass->iftable_[i].GetInterface()->NumVirtualMethods();
   }
   if (pool_size == 0) {
     return true;
@@ -1538,7 +1538,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   std::vector<Method*> miranda_list;
   for (size_t i = super_ifcount; i < ifcount; ++i) {
     klass->iftable_[i].method_index_array_ = klass->ifvi_pool_ + pool_offset;
-    Class* interface = klass->iftable_[i].GetClass();
+    Class* interface = klass->iftable_[i].GetInterface();
     pool_offset += interface->NumVirtualMethods();    // end here
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
       Method* interface_method = interface->GetVirtualMethod(j);

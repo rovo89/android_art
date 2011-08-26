@@ -498,10 +498,6 @@ class Method : public AccessibleObject {
     return pc;
   }
 
-  size_t GetVtableIndex() const {
-    return method_index_;
-  }
-
  public:  // TODO: private
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // the class we are a part of
@@ -670,10 +666,10 @@ class Method : public AccessibleObject {
   uint32_t access_flags_;
 
   // For concrete virtual methods, this is the offset of the method
-  // in "vtable".
+  // in Class::vtable_.
   //
   // For abstract methods in an interface class, this is the offset
-  // of the method in "iftable[n]->methodIndexArray".
+  // of the method in "iftable_[n]->method_index_array_".
   uint16_t method_index_;
 
   // Method bounds; not needed for an abstract method.
@@ -1117,8 +1113,26 @@ class Class : public Object {
     virtual_methods_->Set(i, f);
   }
 
-  Method* GetMethodByVtableIndex(size_t vtable_index) {
-    return vtable_->Get(vtable_index);
+  // Given a method implemented by this class but potentially from a
+  // super class, return the specific implementation
+  // method for this class.
+  Method* FindVirtualMethodForVirtual(Method* method) {
+    DCHECK(!method->GetDeclaringClass()->IsInterface());
+    // The argument method may from a super class.
+    // Use the index to a potentially overriden one for this instance's class.
+    return vtable_->Get(method->method_index_);
+  }
+
+  // Given a method implemented by this class, but potentially from a
+  // super class or interface, return the specific implementation
+  // method for this class.
+  Method* FindVirtualMethodForInterface(Method* method);
+
+  Method* FindVirtualMethodForVirtualOrInterface(Method* method) {
+    if (method->GetDeclaringClass()->IsInterface()) {
+      return FindVirtualMethodForInterface(method);
+    }
+    return FindVirtualMethodForVirtual(method);
   }
 
   Method* FindDeclaredVirtualMethod(const StringPiece& name,
@@ -1289,7 +1303,7 @@ class Class : public Object {
   // our class either replace those from the super or are appended.
   ObjectArray<Method>* vtable_;
 
-  // Interface table (iftable), one entry per interface supported by
+  // Interface table (iftable_), one entry per interface supported by
   // this class.  That means one entry for each interface we support
   // directly, indirectly via superclass, or indirectly via
   // superinterface.  This will be null if neither we nor our
@@ -1303,12 +1317,14 @@ class Class : public Object {
   // For every interface a concrete class implements, we create a list
   // of virtualMethod indices for the methods in the interface.
   size_t iftable_count_;
+  // TODO convert to ObjectArray<?>
   InterfaceEntry* iftable_;
 
   // The interface vtable indices for iftable get stored here.  By
   // placing them all in a single pool for each class that implements
   // interfaces, we decrease the number of allocations.
   size_t ifvi_pool_count_;
+  // TODO convert to IntArray
   uint32_t* ifvi_pool_;
 
   // instance fields
@@ -1694,24 +1710,26 @@ inline bool Class::IsArray() const {
 
 class InterfaceEntry {
  public:
-  InterfaceEntry() : klass_(NULL), method_index_array_(NULL) {
+  InterfaceEntry() : interface_(NULL), method_index_array_(NULL) {
   }
 
-  Class* GetClass() const {
-    return klass_;
+  Class* GetInterface() const {
+    DCHECK(interface_ != NULL);
+    return interface_;
   }
 
-  void SetClass(Class* klass) {
-    klass_ = klass;
+  void SetInterface(Class* interface) {
+    DCHECK(interface->IsInterface());
+    interface_ = interface;
   }
 
  private:
   // Points to the interface class.
-  Class* klass_;
+  Class* interface_;
 
  public:  // TODO: private
   // Index into array of vtable offsets.  This points into the
-  // ifviPool, which holds the vtables for all interfaces declared by
+  // ifvi_pool_, which holds the vtables for all interfaces declared by
   // this class.
   uint32_t* method_index_array_;
 
