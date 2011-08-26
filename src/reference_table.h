@@ -33,6 +33,7 @@ class Object;
 class ReferenceTable {
  public:
   ReferenceTable(const char* name, size_t initial_size, size_t max_size);
+  ~ReferenceTable();
 
   void Add(const Object* obj);
 

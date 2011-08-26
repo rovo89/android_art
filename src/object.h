@@ -1276,7 +1276,7 @@ class Class : public Object {
 
   // array of interfaces this class implements directly
   ObjectArray<Class>* interfaces_;
-  uint32_t* interfaces_type_idx_;
+  IntArray* interfaces_type_idx_;
 
   // static, private, and <init> methods
   ObjectArray<Method>* direct_methods_;

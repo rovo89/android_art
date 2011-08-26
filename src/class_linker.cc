@@ -84,10 +84,13 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   // mark as non-primitive for object_array_class
   java_lang_Object->primitive_type_ = Class::kPrimNot;
 
-  // object_array_class is for root_classes to provide the storage for these classes
+  // Object[] is for DexCache and int[] is for various Class members.
   Class* object_array_class = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(object_array_class != NULL);
   object_array_class->component_type_ = java_lang_Object;
+  Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
+  CHECK(int_array_class != NULL);
+  IntArray::SetArrayClass(int_array_class);
 
   // String and char[] are necessary so that FindClass can assign names to members
   Class* java_lang_String = AllocClass(java_lang_Class, sizeof(StringClass));
@@ -106,6 +109,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   object_array_class->descriptor_ = String::AllocFromModifiedUtf8("[Ljava/lang/Object;");
   java_lang_String->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/String;");
   char_array_class->descriptor_ = String::AllocFromModifiedUtf8("[C");
+  int_array_class->descriptor_ = String::AllocFromModifiedUtf8("[I");
 
   // Field and Method are necessary so that FindClass can link members
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class, sizeof(FieldClass));
@@ -126,6 +130,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   SetClassRoot(kObjectArrayClass, object_array_class);
   SetClassRoot(kJavaLangString, java_lang_String);
   SetClassRoot(kCharArrayClass, char_array_class);
+  SetClassRoot(kIntArrayClass, int_array_class);
   SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
   SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
   // now that these are registered, we can use AllocClass() and AllocObjectArray
@@ -218,9 +223,11 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V"));
   // now we can use FindSystemClass for anything, including for "[C"
 
-  // run char[], int[] and long[] through FindClass to complete initialization
+  // run char[] and int[] through FindClass to complete initialization
   Class* found_char_array_class = FindSystemClass("[C");
   CHECK_EQ(char_array_class, found_char_array_class);
+  Class* found_int_array_class = FindSystemClass("[I");
+  CHECK_EQ(int_array_class, found_int_array_class);
 
   // Initialize all the other primitive array types for PrimitiveArray::Alloc.
   // These are easy because everything we need has already been set up.
@@ -228,14 +235,12 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   SetClassRoot(kByteArrayClass, FindSystemClass("[B"));
   SetClassRoot(kDoubleArrayClass, FindSystemClass("[D"));
   SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
-  SetClassRoot(kIntArrayClass, FindSystemClass("[I"));
   SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
   SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
   FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
-  IntArray::SetArrayClass(GetClassRoot(kIntArrayClass));
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
@@ -702,10 +707,10 @@ void ClassLinker::LoadInterfaces(const DexFile& dex_file,
     DCHECK(klass->interfaces_ == NULL);
     klass->interfaces_ = AllocObjectArray<Class>(list->Size());
     DCHECK(klass->interfaces_type_idx_ == NULL);
-    klass->interfaces_type_idx_ = new uint32_t[list->Size()];
+    klass->interfaces_type_idx_ = IntArray::Alloc(list->Size());
     for (size_t i = 0; i < list->Size(); ++i) {
       const DexFile::TypeItem& type_item = list->GetTypeItem(i);
-      klass->interfaces_type_idx_[i] = type_item.type_idx_;
+      klass->interfaces_type_idx_->Set(i, type_item.type_idx_);
     }
   }
 }
@@ -902,6 +907,8 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
       new_class = GetClassRoot(kObjectArrayClass);
     } else if (descriptor == "[C") {
       new_class = GetClassRoot(kCharArrayClass);
+    } else if (descriptor == "[I") {
+      new_class = GetClassRoot(kIntArrayClass);
     }
   }
   if (new_class == NULL) {
@@ -1343,7 +1350,7 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
   }
   if (klass->NumInterfaces() > 0) {
     for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
-      uint32_t type_idx = klass->interfaces_type_idx_[i];
+      uint32_t type_idx = klass->interfaces_type_idx_->Get(i);
       klass->SetInterface(i, ResolveType(dex_file, type_idx, klass));
       if (klass->GetInterface(i) == NULL) {
         LG << "Failed to resolve interface";

@@ -61,6 +61,7 @@ struct JavaVMExt : public JavaVM {
 
 struct JNIEnvExt : public JNIEnv {
   JNIEnvExt(Thread* self, JavaVMExt* vm);
+  ~JNIEnvExt();
 
   Thread* self;
   JavaVMExt* vm;

@@ -67,6 +67,7 @@ AssemblerBuffer::AssemblerBuffer() {
 
 
 AssemblerBuffer::~AssemblerBuffer() {
+  delete[] contents_;
 }
 
 

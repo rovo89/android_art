@@ -24,6 +24,7 @@ Runtime::~Runtime() {
   Heap::Destroy();
   delete thread_list_;
   delete java_vm_;
+  Thread::Shutdown();
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == NULL || instance_ == this);
   instance_ = NULL;
@@ -324,7 +325,7 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 }
 
 bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
-  CHECK_EQ(kPageSize, sysconf(_SC_PAGE_SIZE));
+  CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   scoped_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
   if (options == NULL) {
@@ -343,10 +344,12 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     return false;
   }
 
+  BlockSignals();
+
   bool verbose_jni = options->verbose_.find("jni") != options->verbose_.end();
   java_vm_ = new JavaVMExt(this, options->check_jni_, verbose_jni);
 
-  if (!Thread::Init()) {
+  if (!Thread::Startup()) {
     return false;
   }
   Thread* current_thread = Thread::Attach(this);
@@ -357,6 +360,25 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   return true;
 }
 
+void Runtime::BlockSignals() {
+  sigset_t sigset;
+  if (sigemptyset(&sigset) == -1) {
+    PLOG(FATAL) << "sigemptyset failed";
+  }
+  if (sigaddset(&sigset, SIGPIPE) == -1) {
+    PLOG(ERROR) << "sigaddset SIGPIPE failed";
+  }
+  // SIGQUIT is used to dump the runtime's state (including stack traces).
+  if (sigaddset(&sigset, SIGQUIT) == -1) {
+    PLOG(ERROR) << "sigaddset SIGQUIT failed";
+  }
+  // SIGUSR1 is used to initiate a heap dump.
+  if (sigaddset(&sigset, SIGUSR1) == -1) {
+    PLOG(ERROR) << "sigaddset SIGUSR1 failed";
+  }
+  CHECK_EQ(sigprocmask(SIG_BLOCK, &sigset, NULL), 0);
+}
+
 bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemon) {
   if (as_daemon) {
     UNIMPLEMENTED(WARNING) << "TODO: do something different for daemon threads";
@@ -365,7 +387,9 @@ bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemo
 }
 
 bool Runtime::DetachCurrentThread() {
-  UNIMPLEMENTED(WARNING);
+  Thread* self = Thread::Current();
+  thread_list_->Unregister(self);
+  delete self;
   return true;
 }
 

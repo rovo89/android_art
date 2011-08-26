@@ -29,6 +29,9 @@ ReferenceTable::ReferenceTable(const char* name,
   entries_.reserve(initial_size);
 }
 
+ReferenceTable::~ReferenceTable() {
+}
+
 void ReferenceTable::Add(const Object* obj) {
   DCHECK(obj != NULL);
   if (entries_.size() == max_size_) {

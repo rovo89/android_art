@@ -172,7 +172,7 @@ Thread* Thread::Attach(const Runtime* runtime) {
 
   errno = pthread_setspecific(Thread::pthread_key_self_, thread);
   if (errno != 0) {
-      PLOG(FATAL) << "pthread_setspecific failed";
+    PLOG(FATAL) << "pthread_setspecific failed";
   }
 
   thread->jni_env_ = new JNIEnvExt(thread, runtime->GetJavaVM());
@@ -184,9 +184,10 @@ static void ThreadExitCheck(void* arg) {
   LG << "Thread exit check";
 }
 
-bool Thread::Init() {
+bool Thread::Startup() {
   // Allocate a TLS slot.
-  if (pthread_key_create(&Thread::pthread_key_self_, ThreadExitCheck) != 0) {
+  errno = pthread_key_create(&Thread::pthread_key_self_, ThreadExitCheck);
+  if (errno != 0) {
     PLOG(WARNING) << "pthread_key_create failed";
     return false;
   }
@@ -200,6 +201,17 @@ bool Thread::Init() {
   // TODO: initialize other locks and condition variables
 
   return true;
+}
+
+void Thread::Shutdown() {
+  errno = pthread_key_delete(Thread::pthread_key_self_);
+  if (errno != 0) {
+    PLOG(WARNING) << "pthread_key_delete failed";
+  }
+}
+
+Thread::~Thread() {
+  delete jni_env_;
 }
 
 size_t Thread::NumSirtReferences() {
@@ -404,26 +416,33 @@ ThreadList::ThreadList() {
 }
 
 ThreadList::~ThreadList() {
-  // Make sure that all threads have exited and unregistered when we
+  if (Contains(Thread::Current())) {
+    Runtime::Current()->DetachCurrentThread();
+  }
+
+  // All threads should have exited and unregistered when we
   // reach this point. This means that all daemon threads had been
   // shutdown cleanly.
-  CHECK_LE(list_.size(), 1U);
-  // TODO: wait for all other threads to unregister
-  CHECK(list_.size() == 0 || list_.front() == Thread::Current());
-  // TODO: detach the current thread
+  // TODO: dump ThreadList if non-empty.
+  CHECK_EQ(list_.size(), 0U);
+
   delete lock_;
   lock_ = NULL;
 }
 
+bool ThreadList::Contains(Thread* thread) {
+  return find(list_.begin(), list_.end(), thread) != list_.end();
+}
+
 void ThreadList::Register(Thread* thread) {
   MutexLock mu(lock_);
-  CHECK(find(list_.begin(), list_.end(), thread) == list_.end());
+  CHECK(!Contains(thread));
   list_.push_front(thread);
 }
 
 void ThreadList::Unregister(Thread* thread) {
   MutexLock mu(lock_);
-  CHECK(find(list_.begin(), list_.end(), thread) != list_.end());
+  CHECK(Contains(thread));
   list_.remove(thread);
 }
 

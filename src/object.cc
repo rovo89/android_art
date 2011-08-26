@@ -538,6 +538,7 @@ Field* Class::FindStaticField(const StringPiece& name, const StringPiece& descri
 
 template<typename T>
 PrimitiveArray<T>* PrimitiveArray<T>::Alloc(size_t length) {
+  DCHECK(array_class_ != NULL);
   Array* raw_array = Array::Alloc(array_class_, length, sizeof(T));
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }
