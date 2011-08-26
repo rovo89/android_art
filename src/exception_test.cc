@@ -73,8 +73,12 @@ class ExceptionTest : public CommonTest {
     ASSERT_TRUE(my_klass_ != NULL);
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
+    method_f_->SetFrameSizeInBytes(8);
+    method_f_->SetReturnPcOffsetInBytes(4);
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
+    method_g_->SetFrameSizeInBytes(8);
+    method_g_->SetReturnPcOffsetInBytes(4);
   }
 
   DexFile::CatchHandlerItem FindCatchHandlerItem(Method* method,
@@ -131,5 +135,37 @@ TEST_F(ExceptionTest, FindCatchHandler) {
   iter = dex_->dexFindCatchHandler(*code_item, 11 /* Dex PC not in any try block */);
   ASSERT_EQ(true, iter.HasNext());
 }
+
+TEST_F(ExceptionTest, StackTraceElement) {
+  enum {STACK_SIZE = 1000};
+  uint32_t top_of_stack = 0;
+  uintptr_t fake_stack[STACK_SIZE];
+  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_g_);
+  fake_stack[top_of_stack++] = 3;
+  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);
+  fake_stack[top_of_stack++] = 3;
+
+  Thread* thread = Thread::Current();
+  thread->SetTopOfStack(fake_stack);
+
+  Thread::InternalStackTrace* traces = thread->GetStackTrace(2);
+  ObjectArray<StackTraceElement>* trace_array = thread->GetStackTraceElement(2, traces);
+  delete[] traces;
+
+  ASSERT_TRUE(trace_array->Get(0) != NULL);
+  EXPECT_STREQ("java.lang.MyClass", trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("MyClass.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("g", trace_array->Get(0)->GetMethodName()->ToModifiedUtf8().c_str());
+  EXPECT_EQ(22u, trace_array->Get(0)->GetLineNumber());
+
+  ASSERT_TRUE(trace_array->Get(1) != NULL);
+  EXPECT_STREQ("java.lang.MyClass", trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("MyClass.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
+  EXPECT_EQ(7u, trace_array->Get(1)->GetLineNumber());
+}
+
+// TODO: Test with native frame: For native frame, lineno should be -2 to
+// indicate it is native. That is how libcore tells from the StackTraceElement.
 
 }  // namespace art

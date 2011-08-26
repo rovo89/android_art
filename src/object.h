@@ -1681,6 +1681,53 @@ class Throwable : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Throwable);
 };
 
+class StackTraceElement : public Object {
+ public:
+  const String* GetDeclaringClass() const {
+    return declaring_class_;
+  }
+
+  const String* GetMethodName() const {
+    return method_name_;
+  }
+
+  const String* GetFileName() const {
+    return file_name_;
+  }
+
+  uint32_t GetLineNumber() const {
+    return line_number_;
+  }
+
+  static StackTraceElement* Alloc(const String* declaring_class, const String* method_name,
+                                  const String* file_name, uint32_t line_number) {
+    StackTraceElement* trace = down_cast<StackTraceElement*>(GetStackTraceElement()->NewInstance());
+    trace->declaring_class_ = declaring_class;
+    trace->method_name_ = method_name;
+    trace->file_name_ = file_name;
+    trace->line_number_ = line_number;
+    return trace;
+  }
+
+  static void SetClass(Class* java_lang_StackTraceElement);
+
+  static void ResetClass();
+
+ private:
+  const String* declaring_class_;
+  const String* method_name_;
+  const String* file_name_;
+  uint32_t line_number_;
+
+  static Class* GetStackTraceElement() {
+    DCHECK(java_lang_StackTraceElement_ != NULL);
+    return java_lang_StackTraceElement_;
+  }
+
+  static Class* java_lang_StackTraceElement_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);
+};
+
 inline bool Object::IsString() const {
   // TODO use "klass_ == String::GetJavaLangString()" instead?
   return klass_ == klass_->descriptor_->klass_;

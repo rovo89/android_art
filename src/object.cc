@@ -602,6 +602,19 @@ void PathClassLoader::ResetClass() {
   dalvik_system_PathClassLoader_ = NULL;
 }
 
+Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;
+
+void StackTraceElement::SetClass(Class* java_lang_StackTraceElement) {
+  CHECK(java_lang_StackTraceElement_ == NULL);
+  CHECK(java_lang_StackTraceElement != NULL);
+  java_lang_StackTraceElement_ = java_lang_StackTraceElement;
+}
+
+void StackTraceElement::ResetClass() {
+  CHECK(java_lang_StackTraceElement_ != NULL);
+  java_lang_StackTraceElement_ = NULL;
+}
+
 static const char* kClassStatusNames[] = {
   "Error",
   "NotReady",

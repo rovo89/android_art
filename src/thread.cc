@@ -119,10 +119,10 @@ void Frame::Next() {
   sp_ = reinterpret_cast<const Method**>(next_sp);
 }
 
-void* Frame::GetPC() const {
+uintptr_t Frame::GetPC() const {
   byte* pc_addr = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetReturnPcOffsetInBytes();
-  return reinterpret_cast<void*>(pc_addr);
+  return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 const Method* Frame::NextMethod() const {
@@ -307,6 +307,38 @@ Object* Thread::DecodeJObject(jobject obj) {
   }
   Heap::VerifyObject(result);
   return result;
+}
+
+// TODO: Replaces trace.method and trace.pc with IntArray nad
+// ObjectArray<Method>.
+Thread::InternalStackTrace* Thread::GetStackTrace(uint16_t length) {
+  Frame frame = Thread::Current()->GetTopOfStack();
+  InternalStackTrace *traces = new InternalStackTrace[length];
+  for (uint16_t i = 0; i < length && frame.HasNext(); ++i, frame.Next()) {
+    traces[i].method = frame.GetMethod();
+    traces[i].pc = frame.GetPC();
+  }
+  return traces;
+}
+
+ObjectArray<StackTraceElement>* Thread::GetStackTraceElement(uint16_t length, InternalStackTrace *raw_trace) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ObjectArray<StackTraceElement>* java_traces = class_linker->AllocStackTraceElementArray(length);
+
+  for (uint16_t i = 0; i < length; ++i) {
+    // Prepare parameter for StackTraceElement(String cls, String method, String file, int line)
+    const Method* method = raw_trace[i].method;
+    const Class* klass = method->GetDeclaringClass();
+    const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
+    String* readable_descriptor = String::AllocFromModifiedUtf8(PrettyDescriptor(klass->GetDescriptor()).c_str());
+
+    StackTraceElement* obj =
+        StackTraceElement::Alloc(readable_descriptor,
+                                 method->GetName(), String::AllocFromModifiedUtf8(klass->source_file_),
+                                 dex_file.GetLineNumFromPC(method, method->ToDexPC(raw_trace[i].pc)));
+    java_traces->Set(i, obj);
+  }
+  return java_traces;
 }
 
 void Thread::ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...) {

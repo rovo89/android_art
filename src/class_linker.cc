@@ -30,6 +30,7 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
   "Ljava/lang/ClassLoader;",
   "Ldalvik/system/BaseDexClassLoader;",
   "Ldalvik/system/PathClassLoader;",
+  "Ljava/lang/StackTraceElement;",
   "Z",
   "B",
   "C",
@@ -47,6 +48,7 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
   "[I",
   "[J",
   "[S",
+  "[Ljava/lang/StackTraceElement;",
 };
 
 ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path, Space* space) {
@@ -237,12 +239,15 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
   SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
   SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
+  SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
+  SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
   FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
+  StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit();
 }
@@ -342,6 +347,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
   PathClassLoader::SetClass(GetClassRoot(kDalvikSystemPathClassLoader));
+  StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit();
 }
@@ -415,6 +421,7 @@ ClassLinker::~ClassLinker() {
   LongArray::ResetArrayClass();
   ShortArray::ResetArrayClass();
   PathClassLoader::ResetClass();
+  StackTraceElement::ResetClass();
 }
 
 DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
@@ -444,6 +451,12 @@ Field* ClassLinker::AllocField() {
 
 Method* ClassLinker::AllocMethod() {
   return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->NewInstance());
+}
+
+ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t length) {
+  return ObjectArray<StackTraceElement>::Alloc(
+      GetClassRoot(kJavaLangStackTraceElementArrayClass),
+      length);
 }
 
 Class* ClassLinker::FindClass(const StringPiece& descriptor,

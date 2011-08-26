@@ -27,6 +27,8 @@ class Runtime;
 class Thread;
 class ThreadList;
 class Throwable;
+class StackTraceElement;
+template<class T> class ObjectArray;
 
 class Mutex {
  public:
@@ -131,7 +133,7 @@ class Frame {
 
   void Next();
 
-  void* GetPC() const;
+  uintptr_t GetPC() const;
 
   const Method** GetSP() const {
     return sp_;
@@ -387,6 +389,16 @@ class Thread {
   void SetClassLoaderOverride(const ClassLoader* class_loader_override) {
     class_loader_override_ = class_loader_override;
   }
+
+  struct InternalStackTrace {
+    const Method* method;
+    uintptr_t pc;
+  };
+
+  // Get the top length frames information
+  InternalStackTrace* GetStackTrace(uint16_t length);
+
+  ObjectArray<StackTraceElement>* GetStackTraceElement(uint16_t length, InternalStackTrace *raw_trace);
 
  private:
   Thread()

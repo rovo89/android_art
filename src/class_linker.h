@@ -104,6 +104,8 @@ class ClassLinker {
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
   DexCache* FindDexCache(const DexFile& dex_file) const;
 
+  ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
+
  private:
   ClassLinker();
 
@@ -239,6 +241,7 @@ class ClassLinker {
     kJavaLangClassLoader,
     kDalvikSystemBaseDexClassLoader,
     kDalvikSystemPathClassLoader,
+    kJavaLangStackTraceElement,
     kPrimitiveBoolean,
     kPrimitiveByte,
     kPrimitiveChar,
@@ -256,6 +259,7 @@ class ClassLinker {
     kIntArrayClass,
     kLongArrayClass,
     kShortArrayClass,
+    kJavaLangStackTraceElementArrayClass,
     kClassRootsMax,
   };
   ObjectArray<Class>* class_roots_;

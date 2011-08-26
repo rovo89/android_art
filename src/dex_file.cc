@@ -532,7 +532,10 @@ DexFile::ValueType DexFile::ReadEncodedValue(const byte** stream,
   return static_cast<ValueType>(type);
 }
 
-String* DexFile::dexArtStringById(uint32_t idx) const {
+String* DexFile::dexArtStringById(int32_t idx) const {
+  if (idx == -1) {
+    return NULL;
+  }
   return String::AllocFromModifiedUtf8(dexStringById(idx));
 }
 

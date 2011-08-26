@@ -535,7 +535,7 @@ class DexFile {
     return dexStringById(idx, &unicode_length);
   }
 
-  String* dexArtStringById(uint32_t idx) const;
+  String* dexArtStringById(int32_t idx) const;
 
   // Get the descriptor string associated with a given type index.
   const char* dexStringByTypeIdx(uint32_t idx, int32_t* unicode_length) const {
@@ -548,7 +548,7 @@ class DexFile {
     return dexStringById(type_id.descriptor_idx_);
   }
 
-  String* dexArtStringByTypeIdx(uint32_t idx) const {
+  String* dexArtStringByTypeIdx(int32_t idx) const {
     const TypeId& type_id = GetTypeId(idx);
     return dexArtStringById(type_id.descriptor_idx_);
   }
