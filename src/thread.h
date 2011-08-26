@@ -293,7 +293,8 @@ class Thread {
 
   void Resume();
 
-  static bool Init();
+  static bool Startup();
+  static void Shutdown();
 
   State GetState() const {
     return state_;
@@ -398,9 +399,8 @@ class Thread {
     InitFunctionPointers();
   }
 
-  ~Thread() {
-    delete jni_env_;
-  }
+  ~Thread();
+  friend class Runtime; // For ~Thread.
 
   void InitCpu();
   void InitFunctionPointers();
@@ -488,6 +488,8 @@ class ThreadList {
   void Register(Thread* thread);
 
   void Unregister(Thread* thread);
+
+  bool Contains(Thread* thread);
 
   void Lock() {
     lock_->Lock();

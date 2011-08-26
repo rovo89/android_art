@@ -163,9 +163,11 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   copy->virtual_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->virtual_methods_));
   copy->vtable_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->vtable_));
   // TODO: convert iftable_ to heap allocated storage
+  // TODO: convert ifvi_pool_ to heap allocated storage
   copy->ifields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->ifields_));
   // TODO: convert source_file_ to heap allocated storage
   copy->sfields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->sfields_));
+  copy->interfaces_type_idx_ = down_cast<IntArray*>(GetImageAddress(orig->interfaces_type_idx_));
   FixupStaticFields(orig, copy);
 }
 

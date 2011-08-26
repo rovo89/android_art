@@ -2580,6 +2580,9 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
   functions = &gNativeInterface;
 }
 
+JNIEnvExt::~JNIEnvExt() {
+}
+
 // JNI Invocation interface.
 
 extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {

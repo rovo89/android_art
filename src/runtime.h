@@ -95,7 +95,8 @@ class Runtime {
 
   Runtime() : stack_size_(0), thread_list_(NULL), class_linker_(NULL) {}
 
-  // Initializes a new uninitialized runtime.
+  void BlockSignals();
+
   bool Init(const Options& options, bool ignore_unrecognized);
 
   // The default stack size for managed threads created by the runtime.
