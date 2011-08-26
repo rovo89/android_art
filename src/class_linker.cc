@@ -1920,4 +1920,9 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   return resolved;
 }
 
+size_t ClassLinker::NumLoadedClasses() const {
+  MutexLock mu(classes_lock_);
+  return classes_.size();
+}
+
 }  // namespace art

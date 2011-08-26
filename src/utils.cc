@@ -25,6 +25,15 @@ std::string ReadFileToString(const char* file_name) {
   return contents;
 }
 
+std::string GetIsoDate() {
+  time_t now = time(NULL);
+  struct tm tmbuf;
+  struct tm* ptm = localtime_r(&now, &tmbuf);
+  return StringPrintf("%04d-%02d-%02d %02d:%02d:%02d",
+      ptm->tm_year + 1900, ptm->tm_mon+1, ptm->tm_mday,
+      ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+}
+
 std::string PrettyDescriptor(const String* java_descriptor) {
   std::string descriptor(java_descriptor->ToModifiedUtf8());
 

@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 
+#include <iosfwd>
 #include <string>
 #include <utility>
 #include <vector>
@@ -23,6 +24,7 @@ class ClassLinker;
 class DexFile;
 class Heap;
 class JavaVMExt;
+class SignalCatcher;
 class String;
 class ThreadList;
 
@@ -76,6 +78,8 @@ class Runtime {
   // Detaches the current native thread from the runtime.
   bool DetachCurrentThread();
 
+  void DumpStatistics(std::ostream& os);
+
   ~Runtime();
 
   size_t GetStackSize() const {
@@ -105,6 +109,8 @@ class Runtime {
   ThreadList* thread_list_;
 
   ClassLinker* class_linker_;
+
+  SignalCatcher* signal_catcher_;
 
   JavaVMExt* java_vm_;
 

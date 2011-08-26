@@ -78,6 +78,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/os_linux.cc \
 	src/reference_table.cc \
 	src/runtime.cc \
+	src/signal_catcher.cc \
 	src/space.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \

@@ -18,6 +18,18 @@
 
 namespace art {
 
+/* desktop Linux needs a little help with gettid() */
+#if !defined(HAVE_ANDROID_OS)
+#define __KERNEL__
+# include <linux/unistd.h>
+#ifdef _syscall0
+_syscall0(pid_t, gettid)
+#else
+pid_t gettid() { return syscall(__NR_gettid);}
+#endif
+#undef __KERNEL__
+#endif
+
 pthread_key_t Thread::pthread_key_self_;
 
 void Thread::InitFunctionPointers() {
@@ -126,33 +138,35 @@ void* ThreadStart(void *arg) {
 
 Thread* Thread::Create(const Runtime* runtime) {
   size_t stack_size = runtime->GetStackSize();
-  scoped_ptr<MemMap> stack(MemMap::Map(stack_size, PROT_READ | PROT_WRITE));
-  if (stack == NULL) {
-    LOG(FATAL) << "failed to allocate thread stack";
-    // notreached
-    return NULL;
-  }
 
   Thread* new_thread = new Thread;
   new_thread->InitCpu();
-  new_thread->stack_.reset(stack.release());
-  // Since stacks are assumed to grown downward the base is the limit and the limit is the base.
-  new_thread->stack_limit_ = stack->GetAddress();
-  new_thread->stack_base_ = stack->GetLimit();
 
   pthread_attr_t attr;
-  int result = pthread_attr_init(&attr);
-  CHECK_EQ(result, 0);
+  errno = pthread_attr_init(&attr);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_attr_init failed";
+  }
 
-  result = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-  CHECK_EQ(result, 0);
+  errno = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_attr_setdetachstate(PTHREAD_CREATE_DETACHED) failed";
+  }
 
-  pthread_t handle;
-  result = pthread_create(&handle, &attr, ThreadStart, new_thread);
-  CHECK_EQ(result, 0);
+  errno = pthread_attr_setstacksize(&attr, stack_size);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_attr_setstacksize(" << stack_size << ") failed";
+  }
 
-  result = pthread_attr_destroy(&attr);
-  CHECK_EQ(result, 0);
+  errno = pthread_create(&new_thread->handle_, &attr, ThreadStart, new_thread);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_create failed";
+  }
+
+  errno = pthread_attr_destroy(&attr);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_attr_destroy failed";
+  }
 
   return new_thread;
 }
@@ -160,11 +174,6 @@ Thread* Thread::Create(const Runtime* runtime) {
 Thread* Thread::Attach(const Runtime* runtime) {
   Thread* thread = new Thread;
   thread->InitCpu();
-  thread->stack_limit_ = reinterpret_cast<byte*>(-1);  // TODO: getrlimit
-  uintptr_t addr = reinterpret_cast<uintptr_t>(&thread);  // TODO: ask pthreads
-  uintptr_t stack_base = RoundUp(addr, kPageSize);
-  thread->stack_base_ = reinterpret_cast<byte*>(stack_base);
-  // TODO: set the stack size
 
   thread->handle_ = pthread_self();
 
@@ -178,6 +187,10 @@ Thread* Thread::Attach(const Runtime* runtime) {
   thread->jni_env_ = new JNIEnvExt(thread, runtime->GetJavaVM());
 
   return thread;
+}
+
+pid_t Thread::GetTid() const {
+  return gettid();
 }
 
 static void ThreadExitCheck(void* arg) {
@@ -401,9 +414,10 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   os << "Thread[" << &thread
-      << ",id=" << thread.GetId()
-      << ",tid=" << thread.GetNativeId()
-      << ",state=" << thread.GetState() << "]";
+     << ",pthread_t=" << thread.GetImpl()
+     << ",tid=" << thread.GetTid()
+     << ",id=" << thread.GetId()
+     << ",state=" << thread.GetState() << "]";
   return os;
 }
 

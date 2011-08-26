@@ -163,6 +163,9 @@ std::string JniLongName(const Method* m);
 
 std::string ReadFileToString(const char* file_name);
 
+// Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
+std::string GetIsoDate();
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_H_

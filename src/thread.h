@@ -225,8 +225,10 @@ class Thread {
     return id_;
   }
 
-  pid_t GetNativeId() const {
-    return native_id_;
+  pid_t GetTid() const;
+
+  pthread_t GetImpl() const {
+    return handle_;
   }
 
   bool IsExceptionPending() const {
@@ -428,9 +430,6 @@ class Thread {
 
   State state_;
 
-  // Native (kernel) thread id.
-  pid_t native_id_;
-
   // Native thread handle.
   pthread_t handle_;
 
@@ -451,15 +450,6 @@ class Thread {
   // Needed to get the right ClassLoader in JNI_OnLoad, but also
   // useful for testing.
   const ClassLoader* class_loader_override_;
-
-  // The memory mapping of the stack for non-attached threads.
-  scoped_ptr<MemMap> stack_;
-
-  // The inclusive base of the control stack.
-  byte* stack_base_;
-
-  // The exclusive limit of the control stack.
-  byte* stack_limit_;
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;

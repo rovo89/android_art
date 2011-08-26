@@ -38,6 +38,8 @@ class ClassLinker {
     return FindClass(descriptor, NULL);
   }
 
+  size_t NumLoadedClasses() const;
+
   // Resolve a String with the given ID from the DexFile, storing the
   // result in the DexCache.
   String* ResolveString(const DexFile& dex_file,

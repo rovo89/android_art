@@ -12,6 +12,7 @@
 #include "heap.h"
 #include "jni_internal.h"
 #include "scoped_ptr.h"
+#include "signal_catcher.h"
 #include "thread.h"
 
 namespace art {
@@ -22,6 +23,7 @@ Runtime::~Runtime() {
   // TODO: use smart pointers instead. (we'll need the pimpl idiom.)
   delete class_linker_;
   Heap::Destroy();
+  delete signal_catcher_;
   delete thread_list_;
   delete java_vm_;
   Thread::Shutdown();
@@ -321,6 +323,8 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   LoadJniLibrary(instance_->GetJavaVM(), "javacore");
   self->SetState(old_state);
 
+  instance_->signal_catcher_ = new SignalCatcher;
+
   return instance_;
 }
 
@@ -358,6 +362,18 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   class_linker_ = ClassLinker::Create(options->boot_class_path_, Heap::GetBootSpace());
 
   return true;
+}
+
+void Runtime::DumpStatistics(std::ostream& os) {
+  // TODO: dump other runtime statistics?
+  os << "Loaded classes: " << class_linker_->NumLoadedClasses() << "\n";
+  os << "Intern table size: " << class_linker_->GetInternTable().Size() << "\n";
+  // LOGV("VM stats: meth=%d ifld=%d sfld=%d linear=%d",
+  //    gDvm.numDeclaredMethods,
+  //    gDvm.numDeclaredInstFields,
+  //    gDvm.numDeclaredStaticFields,
+  //    gDvm.pBootLoaderAlloc->curOffset);
+  // LOGI("GC precise methods: %d", dvmPointerSetGetCount(gDvm.preciseMethods));
 }
 
 void Runtime::BlockSignals() {
