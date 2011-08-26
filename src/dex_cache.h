@@ -38,16 +38,19 @@ class DexCache : public ObjectArray<Object> {
     return Get(kLocation)->AsString();
   }
 
-  static size_t StringsOffset() {
-    return kStrings * sizeof(Object*);
+  static MemberOffset StringsOffset() {
+    return MemberOffset(DataOffset().Int32Value() +
+                        kStrings * sizeof(Object*));
   }
 
-  static size_t FieldsOffset() {
-    return kFields * sizeof(Object*);
+  static MemberOffset FieldsOffset() {
+    return MemberOffset(DataOffset().Int32Value() +
+                        kFields * sizeof(Object*));
   }
 
-  static size_t MethodsOffset() {
-    return kMethods * sizeof(Object*);
+  static MemberOffset MethodsOffset() {
+    return MemberOffset(DataOffset().Int32Value() +
+                        kMethods * sizeof(Object*));
   }
 
   size_t NumStrings() const {

@@ -204,12 +204,10 @@ TEST_F(CompilerTest, DoubleCompare) {
                                     (1.0/0.0) / (1.0/0.0));
 }
 
-#if 0 // Re-enable when method resolution in place
 TEST_F(CompilerTest, RecursiveFibonacci) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "fibonacci", "(I)I", 55,
                         10);
 }
-#endif
 
 }  // namespace art

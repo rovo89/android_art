@@ -350,8 +350,9 @@ static int nextSDCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                          INVALID_SREG);
             break;
         case 3:  // Method->DeclaringClass()->GetDexCache()->methodsObjectArr
-            loadBaseDisp(cUnit, mir, r0, art::DexCache::MethodsOffset(),
-                         r0, kWord, INVALID_SREG);
+            loadBaseDisp(cUnit, mir, r0,
+                         art::DexCache::MethodsOffset().Int32Value(), r0,
+                         kWord, INVALID_SREG);
             break;
         case 4: // Skip past the object header
             opRegImm(cUnit, kOpAdd, r0, art::Array::DataOffset().Int32Value());
