@@ -57,7 +57,7 @@ class Runtime {
     }
 
    private:
-    ParsedOptions() {};
+    ParsedOptions() {}
   };
 
   // Creates and initializes a new runtime.

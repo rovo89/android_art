@@ -2,6 +2,7 @@
 
 #include "class_linker.h"
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -69,6 +70,8 @@ ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_p
 ClassLinker::ClassLinker(InternTable* intern_table)
     : classes_lock_(Mutex::Create("ClassLinker::Lock")),
       class_roots_(NULL),
+      array_interfaces_(NULL),
+      array_iftable_(NULL),
       init_done_(false),
       intern_table_(intern_table) {
 }
@@ -77,72 +80,84 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   CHECK(!init_done_);
 
   // java_lang_Class comes first, its needed for AllocClass
-  Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(ClassClass)));
+  Class* java_lang_Class = down_cast<Class*>(
+      Heap::AllocObject(NULL, sizeof(ClassClass)));
   CHECK(java_lang_Class != NULL);
-  java_lang_Class->class_size_ = sizeof(ClassClass);
-  java_lang_Class->klass_ = java_lang_Class;
+  java_lang_Class->SetClass(java_lang_Class);
+  java_lang_Class->SetClassSize(sizeof(ClassClass));
   // AllocClass(Class*) can now be used
 
   // java_lang_Object comes next so that object_array_class can be created
   Class* java_lang_Object = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(java_lang_Object != NULL);
   // backfill Object as the super class of Class
-  java_lang_Class->super_class_ = java_lang_Object;
-  // mark as non-primitive for object_array_class
-  java_lang_Object->primitive_type_ = Class::kPrimNot;
+  java_lang_Class->SetSuperClass(java_lang_Object);
+  java_lang_Object->SetStatus(Class::kStatusLoaded);
 
-  // Object[] is for DexCache and int[] is for various Class members.
+  // Object[] next to hold class roots
   Class* object_array_class = AllocClass(java_lang_Class, sizeof(Class));
-  CHECK(object_array_class != NULL);
-  object_array_class->array_rank_ = 1;
-  object_array_class->component_type_ = java_lang_Object;
-  Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
-  CHECK(int_array_class != NULL);
-  int_array_class->array_rank_ = 1;
-  IntArray::SetArrayClass(int_array_class);
+  object_array_class->SetArrayRank(1);
+  object_array_class->SetComponentType(java_lang_Object);
 
-  // String and char[] are necessary so that FindClass can assign names to members
-  Class* java_lang_String = AllocClass(java_lang_Class, sizeof(StringClass));
-  CHECK(java_lang_String != NULL);
-  CHECK_LT(java_lang_String->object_size_, sizeof(String));
-  java_lang_String->object_size_ = sizeof(String);
-  String::SetClass(java_lang_String);
+
+  // Setup the char[] class to be used for String
   Class* char_array_class = AllocClass(java_lang_Class, sizeof(Class));
-  CHECK(char_array_class != NULL);
-  char_array_class->array_rank_ = 1;
+  char_array_class->SetArrayRank(1);
   CharArray::SetArrayClass(char_array_class);
-  // Now String::Alloc* can be used
 
-  // backfill Class descriptors missing until this point
-  java_lang_Class->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/Class;");
-  java_lang_Object->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/Object;");
-  object_array_class->descriptor_ = String::AllocFromModifiedUtf8("[Ljava/lang/Object;");
-  java_lang_String->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/String;");
-  char_array_class->descriptor_ = String::AllocFromModifiedUtf8("[C");
-  int_array_class->descriptor_ = String::AllocFromModifiedUtf8("[I");
+  // Setup String
+  Class* java_lang_String = AllocClass(java_lang_Class, sizeof(StringClass));
+  String::SetClass(java_lang_String);
+  java_lang_String->SetObjectSize(sizeof(String));
+  java_lang_String->SetStatus(Class::kStatusResolved);
 
-  // Field and Method are necessary so that FindClass can link members
-  Class* java_lang_reflect_Field = AllocClass(java_lang_Class, sizeof(FieldClass));
-  CHECK(java_lang_reflect_Field != NULL);
-  java_lang_reflect_Field->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/reflect/Field;");
-  CHECK_LT(java_lang_reflect_Field->object_size_, sizeof(Field));
-  java_lang_reflect_Field->object_size_ = sizeof(Field);
-  Class* java_lang_reflect_Method = AllocClass(java_lang_Class, sizeof(MethodClass));
-  java_lang_reflect_Method->descriptor_ = String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;");
-  CHECK(java_lang_reflect_Method != NULL);
-  CHECK_LT(java_lang_reflect_Method->object_size_, sizeof(Method));
-  java_lang_reflect_Method->object_size_ = sizeof(Method);
+  // Backfill Class descriptors missing until this point
+  // TODO: intern these strings
+  java_lang_Class->SetDescriptor(
+      String::AllocFromModifiedUtf8("Ljava/lang/Class;"));
+  java_lang_Object->SetDescriptor(
+      String::AllocFromModifiedUtf8("Ljava/lang/Object;"));
+  object_array_class->SetDescriptor(
+      String::AllocFromModifiedUtf8("[Ljava/lang/Object;"));
+  java_lang_String->SetDescriptor(
+      String::AllocFromModifiedUtf8("Ljava/lang/String;"));
+  char_array_class->SetDescriptor(String::AllocFromModifiedUtf8("[C"));
 
-  // create storage for root classes, save away our work so far
+  // Create storage for root classes, save away our work so far (requires
+  // descriptors)
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
   SetClassRoot(kJavaLangClass, java_lang_Class);
   SetClassRoot(kJavaLangObject, java_lang_Object);
   SetClassRoot(kObjectArrayClass, object_array_class);
-  SetClassRoot(kJavaLangString, java_lang_String);
   SetClassRoot(kCharArrayClass, char_array_class);
+  SetClassRoot(kJavaLangString, java_lang_String);
+
+  // Setup the primitive type classes.
+  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z", Class::kPrimBoolean));
+  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B", Class::kPrimByte));
+  SetClassRoot(kPrimitiveChar, CreatePrimitiveClass("C", Class::kPrimChar));
+  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S", Class::kPrimShort));
+  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I", Class::kPrimInt));
+  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J", Class::kPrimLong));
+  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass("F", Class::kPrimFloat));
+  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D", Class::kPrimDouble));
+  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V", Class::kPrimVoid));
+
+  // Backfill component type of char[]
+  char_array_class->SetComponentType(GetClassRoot(kPrimitiveChar));
+
+  // Create array interface entries to populate once we can load system classes
+  array_interfaces_ = AllocObjectArray<Class>(2);
+  array_iftable_ = new InterfaceEntry[2];
+
+  // Create int array type for AllocDexCache (done in AppendToBootClassPath)
+  Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
+  int_array_class->SetArrayRank(1);
+  int_array_class->SetDescriptor(String::AllocFromModifiedUtf8("[I"));
+  int_array_class->SetComponentType(GetClassRoot(kPrimitiveInt));
+  IntArray::SetArrayClass(int_array_class);
   SetClassRoot(kIntArrayClass, int_array_class);
-  SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
-  SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
+
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
   // setup boot_class_path_ now that we can use AllocObjectArray to
@@ -152,137 +167,174 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
     CHECK(dex_file != NULL);
     AppendToBootClassPath(*dex_file);
   }
-  // now we can use FindSystemClass, at least for non-arrays classes.
+
+  // Field and Method are necessary so that FindClass can link members
+  Class* java_lang_reflect_Field = AllocClass(java_lang_Class, sizeof(FieldClass));
+  CHECK(java_lang_reflect_Field != NULL);
+  java_lang_reflect_Field->SetDescriptor(String::AllocFromModifiedUtf8("Ljava/lang/reflect/Field;"));
+  java_lang_reflect_Field->SetObjectSize(sizeof(Field));
+  SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
+  java_lang_reflect_Field->SetStatus(Class::kStatusResolved);
+  Field::SetClass(java_lang_reflect_Field);
+
+  Class* java_lang_reflect_Method = AllocClass(java_lang_Class, sizeof(MethodClass));
+  java_lang_reflect_Method->SetDescriptor(String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;"));
+  CHECK(java_lang_reflect_Method != NULL);
+  java_lang_reflect_Method->SetObjectSize(sizeof(Method));
+  SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
+  java_lang_reflect_Method->SetStatus(Class::kStatusResolved);
+  Method::SetClass(java_lang_reflect_Method);
+
+  // now we can use FindSystemClass
+
+  // Object and String just need more minimal setup, since they do not have
+  // extra C++ fields.
+  java_lang_Object->SetStatus(Class::kStatusNotReady);
+  Class* Object_class = FindSystemClass("Ljava/lang/Object;");
+  CHECK_EQ(java_lang_Object, Object_class);
+  CHECK_EQ(java_lang_Object->GetObjectSize(), sizeof(Object));
+  java_lang_String->SetStatus(Class::kStatusNotReady);
+  Class* String_class = FindSystemClass("Ljava/lang/String;");
+  CHECK_EQ(java_lang_String, String_class);
+  CHECK_EQ(java_lang_String->GetObjectSize(), sizeof(String));
+
+  // Setup the primitive array type classes - can't be done until Object has
+  // a vtable
+  SetClassRoot(kBooleanArrayClass, FindSystemClass("[Z"));
+  BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
+
+  SetClassRoot(kByteArrayClass, FindSystemClass("[B"));
+  ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
+
+  Class* found_char_array_class = FindSystemClass("[C");
+  CHECK_EQ(char_array_class, found_char_array_class);
+
+  SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
+  ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
+
+  Class* found_int_array_class = FindSystemClass("[I");
+  CHECK_EQ(int_array_class, found_int_array_class);
+
+  SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
+  LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
+
+  SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
+  FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
+
+  SetClassRoot(kDoubleArrayClass, FindSystemClass("[D"));
+  DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
+
+  Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
+  CHECK_EQ(object_array_class, found_object_array_class);
+
+  // Setup the single, global copies of "interfaces" and "iftable"
+  Class* java_lang_Cloneable = FindSystemClass("Ljava/lang/Cloneable;");
+  CHECK(java_lang_Cloneable != NULL);
+  Class* java_io_Serializable = FindSystemClass("Ljava/io/Serializable;");
+  CHECK(java_io_Serializable != NULL);
+  CHECK(array_interfaces_ != NULL);
+  array_interfaces_->Set(0, java_lang_Cloneable);
+  array_interfaces_->Set(1, java_io_Serializable);
+  // We assume that Cloneable/Serializable don't have superinterfaces --
+  // normally we'd have to crawl up and explicitly list all of the
+  // supers as well.  These interfaces don't have any methods, so we
+  // don't have to worry about the ifviPool either.
+  array_iftable_[0].SetInterface(array_interfaces_->Get(0));
+  array_iftable_[1].SetInterface(array_interfaces_->Get(1));
+
+  // Sanity check Object[]'s interfaces
+  CHECK_EQ(java_lang_Cloneable, object_array_class->GetInterface(0));
+  CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
 
   // run Class, Field, and Method through FindSystemClass.
   // this initializes their dex_cache_ fields and register them in classes_.
   // we also override their object_size_ values to accommodate the extra C++ fields.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class, Class_class);
-  CHECK_LT(java_lang_Class->object_size_, sizeof(Class));
-  java_lang_Class->object_size_ = sizeof(Class);
+  // No sanity check on size as Class is variably sized
+
+  java_lang_reflect_Field->SetStatus(Class::kStatusNotReady);
   Class* Field_class = FindSystemClass("Ljava/lang/reflect/Field;");
   CHECK_EQ(java_lang_reflect_Field, Field_class);
-  CHECK_LT(java_lang_reflect_Field->object_size_, sizeof(Field));
-  java_lang_reflect_Field->object_size_ = sizeof(Field);
+  CHECK_LT(java_lang_reflect_Field->GetObjectSize(), sizeof(Field));
+  java_lang_reflect_Field->SetObjectSize(sizeof(Field));
+
+  java_lang_reflect_Method->SetStatus(Class::kStatusNotReady);
   Class* Method_class = FindSystemClass("Ljava/lang/reflect/Method;");
   CHECK_EQ(java_lang_reflect_Method, Method_class);
-  CHECK_LT(java_lang_reflect_Method->object_size_, sizeof(Method));
-  java_lang_reflect_Method->object_size_ = sizeof(Method);
-
-  // Object and String just need more minimal setup, since they do not have extra C++ fields.
-  Class* Object_class = FindSystemClass("Ljava/lang/Object;");
-  CHECK_EQ(java_lang_Object, Object_class);
-  CHECK_EQ(java_lang_Object->object_size_, sizeof(Object));
-  Class* String_class = FindSystemClass("Ljava/lang/String;");
-  CHECK_EQ(java_lang_String, String_class);
-  CHECK_EQ(java_lang_String->object_size_, sizeof(String));
-
-  // Setup the ClassLoaders, adjusting the object_size_ as necessary
-  Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
-  CHECK(java_lang_ClassLoader != NULL);
-  CHECK_LT(java_lang_ClassLoader->object_size_, sizeof(ClassLoader));
-  java_lang_ClassLoader->object_size_ = sizeof(ClassLoader);
-  SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
-  Class* dalvik_system_BaseDexClassLoader = FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
-  CHECK(dalvik_system_BaseDexClassLoader != NULL);
-  CHECK_EQ(dalvik_system_BaseDexClassLoader->object_size_, sizeof(BaseDexClassLoader));
-  SetClassRoot(kDalvikSystemBaseDexClassLoader, dalvik_system_BaseDexClassLoader);
-  Class* dalvik_system_PathClassLoader = FindSystemClass("Ldalvik/system/PathClassLoader;");
-  CHECK(dalvik_system_PathClassLoader != NULL);
-  CHECK_EQ(dalvik_system_PathClassLoader->object_size_, sizeof(PathClassLoader));
-  SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
-  PathClassLoader::SetClass(dalvik_system_PathClassLoader);
-
-  // Setup a single, global copy of "interfaces" and "iftable" for
-  // reuse across array classes
-  Class* java_lang_Cloneable = FindSystemClass("Ljava/lang/Cloneable;");
-  CHECK(java_lang_Cloneable != NULL);
-  Class* java_io_Serializable = FindSystemClass("Ljava/io/Serializable;");
-  CHECK(java_io_Serializable != NULL);
-
-  array_interfaces_ = AllocObjectArray<Class>(2);
-  CHECK(array_interfaces_ != NULL);
-  array_interfaces_->Set(0, java_lang_Cloneable);
-  array_interfaces_->Set(1, java_io_Serializable);
-
-  // We assume that Cloneable/Serializable don't have superinterfaces --
-  // normally we'd have to crawl up and explicitly list all of the
-  // supers as well.  These interfaces don't have any methods, so we
-  // don't have to worry about the ifviPool either.
-  array_iftable_ = new InterfaceEntry[2];
-  array_iftable_[0].SetInterface(array_interfaces_->Get(0));
-  array_iftable_[1].SetInterface(array_interfaces_->Get(1));
-  // now FindClass can be used for non-primitive array classes
-
-  // run Object[] through FindClass to complete initialization
-  Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
-  CHECK_EQ(object_array_class, found_object_array_class);
-  CHECK_EQ(java_lang_Cloneable, object_array_class->GetInterface(0));
-  CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
-
-  // Setup the primitive type classes.
-  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z"));
-  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B"));
-  SetClassRoot(kPrimitiveChar, CreatePrimitiveClass("C"));
-  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D"));
-  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass("F"));
-  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I"));
-  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J"));
-  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S"));
-  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V"));
-  // now we can use FindSystemClass for anything, including for "[C"
-
-  // run char[] and int[] through FindClass to complete initialization
-  Class* found_char_array_class = FindSystemClass("[C");
-  CHECK_EQ(char_array_class, found_char_array_class);
-  Class* found_int_array_class = FindSystemClass("[I");
-  CHECK_EQ(int_array_class, found_int_array_class);
-
-  // Initialize all the other primitive array types for PrimitiveArray::Alloc.
-  // These are easy because everything we need has already been set up.
-  SetClassRoot(kBooleanArrayClass, FindSystemClass("[Z"));
-  SetClassRoot(kByteArrayClass, FindSystemClass("[B"));
-  SetClassRoot(kDoubleArrayClass, FindSystemClass("[D"));
-  SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
-  SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
-  SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
-  BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
-  ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
-  DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
-  FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
-  LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
-  ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
+  CHECK_LT(java_lang_reflect_Method->GetObjectSize(), sizeof(Method));
+  java_lang_reflect_Method->SetObjectSize(sizeof(Method));
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+  java_lang_ref_FinalizerReference->SetAccessFlags(
+      java_lang_ref_FinalizerReference->GetAccessFlags() |
+          kAccClassIsReference | kAccClassIsFinalizerReference);
   Class* java_lang_ref_PhantomReference = FindSystemClass("Ljava/lang/ref/PhantomReference;");
+  java_lang_ref_PhantomReference->SetAccessFlags(
+      java_lang_ref_PhantomReference->GetAccessFlags() |
+          kAccClassIsReference | kAccClassIsPhantomReference);
   Class* java_lang_ref_SoftReference = FindSystemClass("Ljava/lang/ref/SoftReference;");
+  java_lang_ref_SoftReference->SetAccessFlags(
+      java_lang_ref_SoftReference->GetAccessFlags() | kAccClassIsReference);
   Class* java_lang_ref_WeakReference = FindSystemClass("Ljava/lang/ref/WeakReference;");
-  java_lang_ref_FinalizerReference->access_flags_ |= kAccClassIsReference | kAccClassIsFinalizerReference;
-  java_lang_ref_PhantomReference->access_flags_ |= kAccClassIsReference | kAccClassIsPhantomReference;
-  java_lang_ref_SoftReference->access_flags_ |= kAccClassIsReference;
-  java_lang_ref_WeakReference->access_flags_ |= kAccClassIsReference | kAccClassIsWeakReference;
+  java_lang_ref_WeakReference->SetAccessFlags(
+      java_lang_ref_WeakReference->GetAccessFlags() |
+          kAccClassIsReference | kAccClassIsWeakReference);
 
   // Let the heap know some key offsets into java.lang.ref instances
+  // NB we hard code the field indexes here rather than using FindInstanceField
+  // as the types of the field can't be resolved prior to the runtime being
+  // fully initialized
   Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
-  Field* referent = java_lang_ref_Reference->FindDeclaredInstanceField(
-      "referent", "Ljava/lang/Object;");
-  Field* queue = java_lang_ref_Reference->FindDeclaredInstanceField(
-      "queue", "Ljava/lang/ref/ReferenceQueue;");
-  Field* queueNext = java_lang_ref_Reference->FindDeclaredInstanceField(
-      "queueNext", "Ljava/lang/ref/Reference;");
-  Field* pendingNext = java_lang_ref_Reference->FindDeclaredInstanceField(
-      "pendingNext", "Ljava/lang/ref/Reference;");
-  Field* zombie = java_lang_ref_FinalizerReference->FindDeclaredInstanceField(
-      "zombie", "Ljava/lang/Object;");
+
+  Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
+  CHECK(pendingNext->GetName()->Equals("pendingNext"));
+  CHECK(ResolveType(pendingNext->GetTypeIdx(), pendingNext) ==
+        java_lang_ref_Reference);
+
+  Field* queue = java_lang_ref_Reference->GetInstanceField(1);
+  CHECK(queue->GetName()->Equals("queue"));
+  CHECK(ResolveType(queue->GetTypeIdx(), queue) ==
+        FindSystemClass("Ljava/lang/ref/ReferenceQueue;"));
+
+  Field* queueNext = java_lang_ref_Reference->GetInstanceField(2);
+  CHECK(queueNext->GetName()->Equals("queueNext"));
+  CHECK(ResolveType(queueNext->GetTypeIdx(), queueNext) ==
+        java_lang_ref_Reference);
+
+  Field* referent = java_lang_ref_Reference->GetInstanceField(3);
+  CHECK(referent->GetName()->Equals("referent"));
+  CHECK(ResolveType(referent->GetTypeIdx(), referent) ==
+        java_lang_Object);
+
+  Field* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
+  CHECK(zombie->GetName()->Equals("zombie"));
+  CHECK(ResolveType(zombie->GetTypeIdx(), zombie) ==
+        java_lang_Object);
+
   Heap::SetReferenceOffsets(referent->GetOffset(),
                             queue->GetOffset(),
                             queueNext->GetOffset(),
                             pendingNext->GetOffset(),
                             zombie->GetOffset());
 
-  // Optimization for quick stack trace allocation
+  // Setup the ClassLoaders, adjusting the object_size_ as necessary
+  Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
+  CHECK_LT(java_lang_ClassLoader->GetObjectSize(), sizeof(ClassLoader));
+  java_lang_ClassLoader->SetObjectSize(sizeof(ClassLoader));
+  SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
+
+  Class* dalvik_system_BaseDexClassLoader = FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
+  CHECK_EQ(dalvik_system_BaseDexClassLoader->GetObjectSize(), sizeof(BaseDexClassLoader));
+  SetClassRoot(kDalvikSystemBaseDexClassLoader, dalvik_system_BaseDexClassLoader);
+
+  Class* dalvik_system_PathClassLoader = FindSystemClass("Ldalvik/system/PathClassLoader;");
+  CHECK_EQ(dalvik_system_PathClassLoader->GetObjectSize(), sizeof(PathClassLoader));
+  SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
+  PathClassLoader::SetClass(dalvik_system_PathClassLoader);
+
+  // Set up java.lang.StackTraceElement as a convenience
   SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
   SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
@@ -296,7 +348,7 @@ void ClassLinker::FinishInit() {
     ClassRoot class_root = static_cast<ClassRoot>(i);
     Class* klass = GetClassRoot(class_root);
     CHECK(klass != NULL);
-    DCHECK(klass->IsArrayClass() || klass->IsPrimitive() || klass->dex_cache_ != NULL);
+    DCHECK(klass->IsArrayClass() || klass->IsPrimitive() || klass->GetDexCache() != NULL);
     // note SetClassRoot does additional validation.
     // if possible add new checks there to catch errors early
   }
@@ -316,7 +368,7 @@ struct ClassLinker::InitCallbackState {
 
   struct DexCacheHash {
     size_t operator()(art::DexCache* const& obj) const {
-     return reinterpret_cast<size_t>(&obj);
+      return reinterpret_cast<size_t>(&obj);
     }
   };
   typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;
@@ -355,12 +407,12 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space
   }
 
   // reinit array_interfaces_ from any array class instance, they should all be ==
-  array_interfaces_ = GetClassRoot(kObjectArrayClass)->interfaces_;
-  DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->interfaces_);
+  array_interfaces_ = GetClassRoot(kObjectArrayClass)->GetInterfaces();
+  DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->GetInterfaces());
 
   // build a map from location to DexCache to match up with DexFile::GetLocation
   std::tr1::unordered_map<std::string, DexCache*> location_to_dex_cache;
-  typedef InitCallbackState::Set::const_iterator It; // TODO: C++0x auto
+  typedef InitCallbackState::Set::const_iterator It;  // TODO: C++0x auto
   for (It it = state.dex_caches.begin(), end = state.dex_caches.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
     std::string location = dex_cache->GetLocation()->ToModifiedUtf8();
@@ -374,8 +426,9 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space
     DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
     AppendToBootClassPath(*dex_file, dex_cache);
   }
-
   String::SetClass(GetClassRoot(kJavaLangString));
+  Field::SetClass(GetClassRoot(kJavaLangReflectField));
+  Method::SetClass(GetClassRoot(kJavaLangReflectMethod));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   CharArray::SetArrayClass(GetClassRoot(kCharArrayClass));
@@ -399,7 +452,7 @@ void ClassLinker::InitCallback(Object* obj, void *arg) {
     return;
   }
   Class* klass = obj->AsClass();
-  CHECK(klass->class_loader_ == NULL);
+  CHECK(klass->GetClassLoader() == NULL);
 
   std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
 
@@ -415,7 +468,7 @@ void ClassLinker::InitCallback(Object* obj, void *arg) {
   }
 
   // check if this is a root, if so, register it
-  typedef InitCallbackState::Table::const_iterator It; // TODO: C++0x auto
+  typedef InitCallbackState::Table::const_iterator It;  // TODO: C++0x auto
   It it = state->descriptor_to_class_root.find(descriptor);
   if (it != state->descriptor_to_class_root.end()) {
     ClassRoot class_root = it->second;
@@ -435,7 +488,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 
   {
     MutexLock mu(classes_lock_);
-    typedef Table::const_iterator It; // TODO: C++0x auto
+    typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
     }
@@ -447,6 +500,8 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 ClassLinker::~ClassLinker() {
   delete classes_lock_;
   String::ResetClass();
+  Field::ResetClass();
+  Method::ResetClass();
   BooleanArray::ResetArrayClass();
   ByteArray::ResetArrayClass();
   CharArray::ResetArrayClass();
@@ -478,7 +533,8 @@ CodeAndDirectMethods* ClassLinker::AllocCodeAndDirectMethods(size_t length) {
 Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
   DCHECK_GE(class_size, sizeof(Class));
   Class* klass = Heap::AllocObject(java_lang_Class, class_size)->AsClass();
-  klass->class_size_ = class_size;
+  klass->SetPrimitiveType(Class::kPrimNot);  // default to not being primitive
+  klass->SetClassSize(class_size);
   return klass;
 }
 
@@ -553,27 +609,29 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     } else {
       klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
     }
-    klass->dex_cache_ = dex_cache;
-    LoadClass(dex_file, dex_class_def, klass, class_loader);
-    // Check for a pending exception during load
-    if (self->IsExceptionPending()) {
-      // TODO: free native allocations in klass
-      return NULL;
-    }
-    {
+    if (!klass->IsLinked()) {
+      klass->SetDexCache(dex_cache);
+      LoadClass(dex_file, dex_class_def, klass, class_loader);
+      // Check for a pending exception during load
+      if (self->IsExceptionPending()) {
+        // TODO: free native allocations in klass
+        return NULL;
+      }
       ObjectLock lock(klass);
-      klass->clinit_thread_id_ = self->GetId();
+      klass->SetClinitThreadId(self->GetId());
       // Add the newly loaded class to the loaded classes table.
       bool success = InsertClass(descriptor, klass);  // TODO: just return collision
       if (!success) {
         // We may fail to insert if we raced with another thread.
-        klass->clinit_thread_id_ = 0;
+        klass->SetClinitThreadId(0);
         // TODO: free native allocations in klass
         klass = LookupClass(descriptor, class_loader);
         CHECK(klass != NULL);
+        return klass;
       } else {
         // Finish loading (if necessary) by finding parents
-        if (!klass->IsLoaded() && !LoadSuperAndInterfaces(klass, dex_file)) {
+        CHECK(!klass->IsLoaded());
+        if (!LoadSuperAndInterfaces(klass, dex_file)) {
           // Loading failed.
           // TODO: CHECK(self->IsExceptionPending());
           lock.NotifyAll();
@@ -581,7 +639,8 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         }
         CHECK(klass->IsLoaded());
         // Link the class (if necessary)
-        if (!klass->IsLinked() && !LinkClass(klass, dex_file)) {
+        CHECK(!klass->IsLinked());
+        if (!LinkClass(klass)) {
           // Linking failed.
           // TODO: CHECK(self->IsExceptionPending());
           lock.NotifyAll();
@@ -595,7 +654,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
   if (!klass->IsLinked() && !klass->IsErroneous()) {
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
-    if (!klass->IsLinked() && klass->clinit_thread_id_ == self->GetId()) {
+    if (!klass->IsLinked() && klass->GetClinitThreadId() == self->GetId()) {
       self->ThrowNewException("Ljava/lang/ClassCircularityError;", NULL); // TODO: detail
       return NULL;
     }
@@ -666,43 +725,46 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
                             Class* klass,
                             const ClassLoader* class_loader) {
   CHECK(klass != NULL);
-  CHECK(klass->dex_cache_ != NULL);
-  CHECK_EQ(Class::kStatusNotReady, klass->status_);
+  CHECK(klass->GetDexCache() != NULL);
+  CHECK_EQ(Class::kStatusNotReady, klass->GetStatus());
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
 
   const char* descriptor = dex_file.GetClassDescriptor(dex_class_def);
   CHECK(descriptor != NULL);
 
-  klass->klass_ = GetClassRoot(kJavaLangClass);
-  klass->descriptor_ = String::AllocFromModifiedUtf8(descriptor);
-  klass->access_flags_ = dex_class_def.access_flags_;
-  klass->class_loader_ = class_loader;
-  klass->primitive_type_ = Class::kPrimNot;
-  klass->status_ = Class::kStatusIdx;
+  klass->SetClass(GetClassRoot(kJavaLangClass));
+  if (klass->GetDescriptor() != NULL) {
+    DCHECK(klass->GetDescriptor()->Equals(descriptor));
+  } else {
+    klass->SetDescriptor(String::AllocFromModifiedUtf8(descriptor));
+  }
+  uint32_t access_flags = dex_class_def.access_flags_;
+  // Make sure there aren't any "bonus" flags set, since we use them for runtime
+  // state.
+  CHECK_EQ(access_flags & ~kAccClassFlagsMask, 0U);
+  klass->SetAccessFlags(access_flags);
+  klass->SetClassLoader(class_loader);
+  DCHECK(klass->GetPrimitiveType() == Class::kPrimNot);
+  klass->SetStatus(Class::kStatusIdx);
 
-  // Make sure the aren't any "bonus" flags set, since we use them for runtime state.
-  CHECK_EQ(klass->access_flags_ & ~kAccClassFlagsMask, 0U);
-
-  klass->super_class_ = NULL;
-  klass->super_class_type_idx_ = dex_class_def.superclass_idx_;
+  klass->SetSuperClassTypeIdx(dex_class_def.superclass_idx_);
 
   size_t num_static_fields = header.static_fields_size_;
   size_t num_instance_fields = header.instance_fields_size_;
   size_t num_direct_methods = header.direct_methods_size_;
   size_t num_virtual_methods = header.virtual_methods_size_;
 
-  klass->source_file_ = dex_file.dexGetSourceFile(dex_class_def);
+  klass->SetSourceFile(dex_file.dexGetSourceFile(dex_class_def));
 
   // Load class interfaces.
   LoadInterfaces(dex_file, dex_class_def, klass);
 
   // Load static fields.
-  DCHECK(klass->sfields_ == NULL);
   if (num_static_fields != 0) {
-    klass->sfields_ = AllocObjectArray<Field>(num_static_fields);
+    klass->SetSFields(AllocObjectArray<Field>(num_static_fields));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
+    for (size_t i = 0; i < num_static_fields; ++i) {
       DexFile::Field dex_field;
       dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
       Field* sfield = AllocField();
@@ -712,11 +774,10 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   }
 
   // Load instance fields.
-  DCHECK(klass->ifields_ == NULL);
   if (num_instance_fields != 0) {
-    klass->ifields_ = AllocObjectArray<Field>(num_instance_fields);
+    klass->SetIFields(AllocObjectArray<Field>(num_instance_fields));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
+    for (size_t i = 0; i < num_instance_fields; ++i) {
       DexFile::Field dex_field;
       dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
       Field* ifield = AllocField();
@@ -726,12 +787,11 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   }
 
   // Load direct methods.
-  DCHECK(klass->direct_methods_ == NULL);
   if (num_direct_methods != 0) {
     // TODO: append direct methods to class object
-    klass->direct_methods_ = AllocObjectArray<Method>(num_direct_methods);
+    klass->SetDirectMethods(AllocObjectArray<Method>(num_direct_methods));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
+    for (size_t i = 0; i < num_direct_methods; ++i) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
@@ -742,12 +802,11 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   }
 
   // Load virtual methods.
-  DCHECK(klass->virtual_methods_ == NULL);
   if (num_virtual_methods != 0) {
     // TODO: append virtual methods to class object
-    klass->virtual_methods_ = AllocObjectArray<Method>(num_virtual_methods);
+    klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+    for (size_t i = 0; i < num_virtual_methods; ++i) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
@@ -763,13 +822,12 @@ void ClassLinker::LoadInterfaces(const DexFile& dex_file,
                                  Class* klass) {
   const DexFile::TypeList* list = dex_file.GetInterfacesList(dex_class_def);
   if (list != NULL) {
-    DCHECK(klass->interfaces_ == NULL);
-    klass->interfaces_ = AllocObjectArray<Class>(list->Size());
-    DCHECK(klass->interfaces_type_idx_ == NULL);
-    klass->interfaces_type_idx_ = IntArray::Alloc(list->Size());
+    klass->SetInterfaces(AllocObjectArray<Class>(list->Size()));
+    IntArray* interfaces_idx = IntArray::Alloc(list->Size());
+    klass->SetInterfacesTypeIdx(interfaces_idx);
     for (size_t i = 0; i < list->Size(); ++i) {
       const DexFile::TypeItem& type_item = list->GetTypeItem(i);
-      klass->interfaces_type_idx_->Set(i, type_item.type_idx_);
+      interfaces_idx->Set(i, type_item.type_idx_);
     }
   }
 }
@@ -779,11 +837,19 @@ void ClassLinker::LoadField(const DexFile& dex_file,
                             Class* klass,
                             Field* dst) {
   const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
-  dst->declaring_class_ = klass;
-  dst->name_ = ResolveString(dex_file, field_id.name_idx_, klass->GetDexCache());
-  dst->descriptor_.set(dex_file.dexStringByTypeIdx(field_id.type_idx_));
-  // TODO: Assign dst->type_.
-  dst->access_flags_ = src.access_flags_;
+  dst->SetDeclaringClass(klass);
+  dst->SetName(ResolveString(dex_file, field_id.name_idx_, klass->GetDexCache()));
+  dst->SetTypeIdx(field_id.type_idx_);
+  dst->SetAccessFlags(src.access_flags_);
+
+  // In order to access primitive types using GetTypeDuringLinking we need to
+  // ensure they are resolved into the dex cache
+  const char* descriptor = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+  if (descriptor[1] == '\0') {
+    // only the descriptors of primitive types should be 1 character long
+    Class* resolved = ResolveType(dex_file, field_id.type_idx_, klass);
+    DCHECK(resolved->IsPrimitive());
+  }
 }
 
 void ClassLinker::LoadMethod(const DexFile& dex_file,
@@ -791,38 +857,40 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Class* klass,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
-  dst->declaring_class_ = klass;
-  dst->name_ = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
+  dst->SetDeclaringClass(klass);
+  dst->SetName(ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache()));
   {
     int32_t utf16_length;
     std::string utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
-    dst->signature_ = String::AllocFromModifiedUtf8(utf16_length, utf8.c_str());
+    dst->SetSignature(String::AllocFromModifiedUtf8(utf16_length, utf8.c_str()));
   }
-  dst->proto_idx_ = method_id.proto_idx_;
-  dst->code_off_ = src.code_off_;
-  dst->shorty_ = dex_file.GetShorty(method_id.proto_idx_);
-  dst->access_flags_ = src.access_flags_;
+  dst->SetProtoIdx(method_id.proto_idx_);
+  dst->SetCodeItemOffset(src.code_off_);
+  const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
+  dst->SetShorty(shorty);
+  dst->SetAccessFlags(src.access_flags_);
+  dst->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
 
-  dst->dex_cache_strings_ = klass->dex_cache_->GetStrings();
-  dst->dex_cache_resolved_types_ = klass->dex_cache_->GetResolvedTypes();
-  dst->dex_cache_resolved_methods_ = klass->dex_cache_->GetResolvedMethods();
-  dst->dex_cache_resolved_fields_ = klass->dex_cache_->GetResolvedFields();
-  dst->dex_cache_code_and_direct_methods_ = klass->dex_cache_->GetCodeAndDirectMethods();
-  dst->dex_cache_initialized_static_storage_ = klass->dex_cache_->GetInitializedStaticStorage();
+  dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+  dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
+  dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
+  dst->SetDexCacheResolvedFields(klass->GetDexCache()->GetResolvedFields());
+  dst->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
+  dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 
   // TODO: check for finalize method
 
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(src);
   if (code_item != NULL) {
-    dst->num_registers_ = code_item->registers_size_;
-    dst->num_ins_ = code_item->ins_size_;
-    dst->num_outs_ = code_item->outs_size_;
+    dst->SetNumRegisters(code_item->registers_size_);
+    dst->SetNumIns(code_item->ins_size_);
+    dst->SetNumOuts(code_item->outs_size_);
   } else {
-    uint16_t num_args = dst->NumArgRegisters();
-    if (!dst->IsStatic()) {
+    uint16_t num_args = Method::NumArgRegisters(shorty);
+    if ((src.access_flags_ & kAccStatic) != 0) {
       ++num_args;
     }
-    dst->num_registers_ = dst->num_ins_ + num_args;
+    dst->SetNumRegisters(num_args);
     // TODO: native methods
   }
 }
@@ -867,13 +935,15 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   return NULL;
 }
 
-Class* ClassLinker::CreatePrimitiveClass(const char* descriptor) {
+Class* ClassLinker::CreatePrimitiveClass(const char* descriptor,
+                                         Class::PrimitiveType type) {
+  // TODO: deduce one argument from the other
   Class* klass = AllocClass(sizeof(Class));
   CHECK(klass != NULL);
-  klass->super_class_ = NULL;
-  klass->access_flags_ = kAccPublic | kAccFinal | kAccAbstract;
-  klass->descriptor_ = String::AllocFromModifiedUtf8(descriptor);
-  klass->status_ = Class::kStatusInitialized;
+  klass->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
+  klass->SetDescriptor(String::AllocFromModifiedUtf8(descriptor));
+  klass->SetPrimitiveType(type);
+  klass->SetStatus(Class::kStatusInitialized);
   bool success = InsertClass(descriptor, klass);
   CHECK(success) << "CreatePrimitiveClass(" << descriptor << ") failed";
   return klass;
@@ -893,36 +963,35 @@ Class* ClassLinker::CreatePrimitiveClass(const char* descriptor) {
 //
 // Returns NULL with an exception raised on failure.
 Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
-                                     const ClassLoader* class_loader)
-{
-  CHECK(descriptor[0] == '[');
+                                     const ClassLoader* class_loader) {
+  CHECK_EQ('[', descriptor[0]);
 
   // Identify the underlying element class and the array dimension depth.
-  Class* component_type_ = NULL;
+  Class* component_type = NULL;
   int array_rank;
   if (descriptor[1] == '[') {
     // array of arrays; keep descriptor and grab stuff from parent
     Class* outer = FindClass(descriptor.substr(1), class_loader);
     if (outer != NULL) {
-      // want the base class, not "outer", in our component_type_
-      component_type_ = outer->component_type_;
-      array_rank = outer->array_rank_ + 1;
+      // want the base class, not "outer", in our component_type
+      component_type = outer->GetComponentType();
+      array_rank = outer->GetArrayRank() + 1;
     } else {
-      DCHECK(component_type_ == NULL);  // make sure we fail
+      DCHECK(component_type == NULL);  // make sure we fail
     }
   } else {
     array_rank = 1;
     if (descriptor[1] == 'L') {
       // array of objects; strip off "[" and look up descriptor.
       const StringPiece subDescriptor = descriptor.substr(1);
-      component_type_ = FindClass(subDescriptor, class_loader);
+      component_type = FindClass(subDescriptor, class_loader);
     } else {
       // array of a primitive type
-      component_type_ = FindPrimitiveClass(descriptor[1]);
+      component_type = FindPrimitiveClass(descriptor[1]);
     }
   }
 
-  if (component_type_ == NULL) {
+  if (component_type == NULL) {
     // failed
     // DCHECK(Thread::Current()->IsExceptionPending());  // TODO
     return NULL;
@@ -939,14 +1008,14 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   // If we find it, the caller adds "loader" to the class' initiating
   // loader list, which should prevent us from going through this again.
   //
-  // This call is unnecessary if "loader" and "component_type_->class_loader_"
+  // This call is unnecessary if "loader" and "component_type->GetClassLoader()"
   // are the same, because our caller (FindClass) just did the
   // lookup.  (Even if we get this wrong we still have correct behavior,
   // because we effectively do this lookup again when we add the new
   // class to the hash table --- necessary because of possible races with
   // other threads.)
-  if (class_loader != component_type_->class_loader_) {
-    Class* new_class = LookupClass(descriptor, component_type_->class_loader_);
+  if (class_loader != component_type->GetClassLoader()) {
+    Class* new_class = LookupClass(descriptor, component_type->GetClassLoader());
     if (new_class != NULL) {
       return new_class;
     }
@@ -963,6 +1032,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
 
   Class* new_class = NULL;
   if (!init_done_) {
+    // Classes that were hand created, ie not by FindSystemClass
     if (descriptor == "[Ljava/lang/Object;") {
       new_class = GetClassRoot(kObjectArrayClass);
     } else if (descriptor == "[C") {
@@ -976,17 +1046,19 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     if (new_class == NULL) {
       return NULL;
     }
+    new_class->SetArrayRank(array_rank);
+    new_class->SetComponentType(component_type);
   }
-  new_class->descriptor_ = String::AllocFromModifiedUtf8(descriptor.ToString().c_str());
+  DCHECK_LE(1, new_class->GetArrayRank());
+  DCHECK(new_class->GetComponentType() != NULL);
+  new_class->SetDescriptor(String::AllocFromModifiedUtf8(descriptor.ToString().c_str()));
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
-  new_class->super_class_ = java_lang_Object;
-  new_class->vtable_ = java_lang_Object->vtable_;
-  new_class->primitive_type_ = Class::kPrimNot;
-  new_class->component_type_ = component_type_;
-  new_class->class_loader_ = component_type_->class_loader_;
-  new_class->array_rank_ = array_rank;
-  new_class->status_ = Class::kStatusInitialized;
-  // don't need to set new_class->object_size_
+  new_class->SetSuperClass(java_lang_Object);
+  new_class->SetVTable(java_lang_Object->GetVTable());
+  new_class->SetPrimitiveType(Class::kPrimNot);
+  new_class->SetClassLoader(component_type->GetClassLoader());
+  new_class->SetStatus(Class::kStatusInitialized);
+  // don't need to set new_class->SetObjectSize(..)
   // because Object::SizeOf delegates to Array::SizeOf
 
 
@@ -1002,21 +1074,19 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
 
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
-  DCHECK(array_interfaces_ != NULL);
-  new_class->interfaces_ = array_interfaces_;
-  new_class->iftable_count_ = 2;
-  DCHECK(array_iftable_ != NULL);
-  new_class->iftable_ = array_iftable_;
+  new_class->SetInterfaces(array_interfaces_);
+  new_class->SetIFTableCount(2);
+  new_class->SetIFTable(array_iftable_);
 
   // Inherit access flags from the component type.  Arrays can't be
   // used as a superclass or interface, so we want to add "final"
   // and remove "interface".
   //
   // Don't inherit any non-standard flags (e.g., kAccFinal)
-  // from component_type_.  We assume that the array class does not
+  // from component_type.  We assume that the array class does not
   // override finalize().
-  new_class->access_flags_ = ((new_class->component_type_->access_flags_ &
-                               ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask;
+  new_class->SetAccessFlags(((new_class->GetComponentType()->GetAccessFlags() &
+                             ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask);
 
   if (InsertClass(descriptor, new_class)) {
     return new_class;
@@ -1028,7 +1098,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   // (Yes, this happens.)
 
   // Grab the winning class.
-  Class* other_class = LookupClass(descriptor, component_type_->class_loader_);
+  Class* other_class = LookupClass(descriptor, component_type->GetClassLoader());
   DCHECK(other_class != NULL);
   return other_class;
 }
@@ -1070,10 +1140,10 @@ bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass) {
 Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader) {
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
-  typedef Table::const_iterator It; // TODO: C++0x auto
+  typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
-    if (klass->descriptor_->Equals(descriptor) && klass->class_loader_ == class_loader) {
+    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
       return klass;
     }
   }
@@ -1097,7 +1167,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
       CHECK(klass->GetStatus() == Class::kStatusResolved);
 
-      klass->status_ = Class::kStatusVerifying;
+      klass->SetStatus(Class::kStatusVerifying);
       if (!DexVerify::VerifyClass(klass)) {
         LG << "Verification failed";  // TODO: ThrowVerifyError
         Object* exception = self->GetException();
@@ -1109,13 +1179,13 @@ bool ClassLinker::InitializeClass(Class* klass) {
       klass->SetStatus(Class::kStatusVerified);
     }
 
-    if (klass->status_ == Class::kStatusInitialized) {
+    if (klass->GetStatus() == Class::kStatusInitialized) {
       return true;
     }
 
-    while (klass->status_ == Class::kStatusInitializing) {
+    while (klass->GetStatus() == Class::kStatusInitializing) {
       // we caught somebody else in the act; was it us?
-      if (klass->clinit_thread_id_ == self->GetId()) {
+      if (klass->GetClinitThreadId() == self->GetId()) {
         LG << "recursive <clinit>";
         return true;
       }
@@ -1161,10 +1231,10 @@ bool ClassLinker::InitializeClass(Class* klass) {
       return false;
     }
 
-    DCHECK(klass->status_ < Class::kStatusInitializing);
+    DCHECK(klass->GetStatus() < Class::kStatusInitializing);
 
-    klass->clinit_thread_id_ = self->GetId();
-    klass->status_ = Class::kStatusInitializing;
+    klass->SetClinitThreadId(self->GetId());
+    klass->SetStatus(Class::kStatusInitializing);
   }
 
   if (!InitializeSuperClass(klass)) {
@@ -1211,12 +1281,12 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       }
     }
   }
-  for (size_t i = 0; i < klass->iftable_count_; ++i) {
-    const InterfaceEntry* iftable = &klass->iftable_[i];
+  for (size_t i = 0; i < klass->GetIFTableCount(); ++i) {
+    const InterfaceEntry* iftable = &klass->GetIFTable()[i];
     Class* interface = iftable->GetInterface();
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        uint32_t vtable_index = iftable->method_index_array_[j];
+        uint32_t vtable_index = iftable->GetMethodIndexArray()[j];
         const Method* method = klass->GetVirtualMethod(vtable_index);
         if (!HasSameMethodDescriptorClasses(method, interface,
                                             method->GetClass())) {
@@ -1233,7 +1303,7 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
                                                  const Class* klass1,
                                                  const Class* klass2) {
   const DexFile& dex_file = FindDexFile(method->GetClass()->GetDexCache());
-  const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->proto_idx_);
+  const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
   DexFile::ParameterIterator *it;
   for (it = dex_file.GetParameterIterator(proto_id); it->HasNext(); it->Next()) {
     const char* descriptor = it->GetDescriptor();
@@ -1391,8 +1461,8 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   }
 }
 
-bool ClassLinker::LinkClass(Class* klass, const DexFile& dex_file) {
-  CHECK_EQ(Class::kStatusLoaded, klass->status_);
+bool ClassLinker::LinkClass(Class* klass) {
+  CHECK_EQ(Class::kStatusLoaded, klass->GetStatus());
   if (!LinkSuperClass(klass)) {
     return false;
   }
@@ -1407,44 +1477,43 @@ bool ClassLinker::LinkClass(Class* klass, const DexFile& dex_file) {
   }
   CreateReferenceInstanceOffsets(klass);
   CreateReferenceStaticOffsets(klass);
-  CHECK_EQ(Class::kStatusLoaded, klass->status_);
-  klass->status_ = Class::kStatusResolved;
+  CHECK_EQ(Class::kStatusLoaded, klass->GetStatus());
+  klass->SetStatus(Class::kStatusResolved);
   return true;
 }
 
 bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) {
-  CHECK_EQ(Class::kStatusIdx, klass->status_);
-  if (klass->super_class_type_idx_ != DexFile::kDexNoIndex) {
-    Class* super_class = ResolveType(dex_file, klass->super_class_type_idx_, klass);
+  CHECK_EQ(Class::kStatusIdx, klass->GetStatus());
+  if (klass->GetSuperClassTypeIdx() != DexFile::kDexNoIndex) {
+    Class* super_class = ResolveType(dex_file, klass->GetSuperClassTypeIdx(), klass);
     if (super_class == NULL) {
       LG << "Failed to resolve superclass";
       return false;
     }
-    klass->super_class_ = super_class;  // TODO: write barrier
+    klass->SetSuperClass(super_class);
   }
-  if (klass->NumInterfaces() > 0) {
-    for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
-      uint32_t type_idx = klass->interfaces_type_idx_->Get(i);
-      klass->SetInterface(i, ResolveType(dex_file, type_idx, klass));
-      if (klass->GetInterface(i) == NULL) {
-        LG << "Failed to resolve interface";
-        return false;
-      }
-      // Verify
-      if (!klass->CanAccess(klass->GetInterface(i))) {
-        LG << "Inaccessible interface";
-        return false;
-      }
+  for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
+    uint32_t idx = klass->GetInterfacesTypeIdx()->Get(i);
+    Class *interface = ResolveType(dex_file, idx, klass);
+    klass->SetInterface(i, interface);
+    if (interface == NULL) {
+      LG << "Failed to resolve interface";
+      return false;
+    }
+    // Verify
+    if (!klass->CanAccess(interface)) {
+      LG << "Inaccessible interface";
+      return false;
     }
   }
   // Mark the class as loaded.
-  klass->status_ = Class::kStatusLoaded;
+  klass->SetStatus(Class::kStatusLoaded);
   return true;
 }
 
 bool ClassLinker::LinkSuperClass(Class* klass) {
   CHECK(!klass->IsPrimitive());
-  const Class* super = klass->GetSuperClass();
+  Class* super = klass->GetSuperClass();
   if (klass->GetDescriptor()->Equals("Ljava/lang/Object;")) {
     if (super != NULL) {
       LG << "Superclass must not be defined";  // TODO: ClassFormatError
@@ -1459,21 +1528,28 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   }
   // Verify
   if (super->IsFinal()) {
-    LG << "Superclass " << super->descriptor_->ToModifiedUtf8() << " is declared final";  // TODO: IncompatibleClassChangeError
+    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is declared final";  // TODO: IncompatibleClassChangeError
     return false;
   }
   if (super->IsInterface()) {
-    LG << "Superclass " << super->descriptor_->ToModifiedUtf8() << " is an interface";  // TODO: IncompatibleClassChangeError
+    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is an interface";  // TODO: IncompatibleClassChangeError
     return false;
   }
   if (!klass->CanAccess(super)) {
-    LG << "Superclass " << super->descriptor_->ToModifiedUtf8() << " is  inaccessible";  // TODO: IllegalAccessError
+    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is  inaccessible";  // TODO: IllegalAccessError
     return false;
   }
+#ifndef NDEBUG
+  // Ensure super classes are fully resolved prior to resolving fields..
+  while (super != NULL) {
+    CHECK(super->IsLinked());
+    super = super->GetSuperClass();
+  }
+#endif
   return true;
 }
 
-// Populate the class vtable and itable.
+// Populate the class vtable and itable. Compute return type indices.
 bool ClassLinker::LinkMethods(Class* klass) {
   if (klass->IsInterface()) {
     // No vtable.
@@ -1483,7 +1559,7 @@ bool ClassLinker::LinkMethods(Class* klass) {
       return false;
     }
     for (size_t i = 0; i < count; ++i) {
-      klass->GetVirtualMethod(i)->method_index_ = i;
+      klass->GetVirtualMethodDuringLinking(i)->SetMethodIndex(i);
     }
   } else {
     // Link virtual method tables
@@ -1500,32 +1576,32 @@ bool ClassLinker::LinkMethods(Class* klass) {
 
 bool ClassLinker::LinkVirtualMethods(Class* klass) {
   if (klass->HasSuperClass()) {
-    uint32_t max_count = klass->NumVirtualMethods() + klass->GetSuperClass()->vtable_->GetLength();
-    size_t actual_count = klass->GetSuperClass()->vtable_->GetLength();
+    uint32_t max_count = klass->NumVirtualMethods() + klass->GetSuperClass()->GetVTable()->GetLength();
+    size_t actual_count = klass->GetSuperClass()->GetVTable()->GetLength();
     CHECK_LE(actual_count, max_count);
     // TODO: do not assign to the vtable field until it is fully constructed.
-    klass->vtable_ = klass->GetSuperClass()->vtable_->CopyOf(max_count);
+    ObjectArray<Method>* vtable = klass->GetSuperClass()->GetVTable()->CopyOf(max_count);
     // See if any of our virtual methods override the superclass.
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-      Method* local_method = klass->GetVirtualMethod(i);
+      Method* local_method = klass->GetVirtualMethodDuringLinking(i);
       size_t j = 0;
       for (; j < actual_count; ++j) {
-        Method* super_method = klass->vtable_->Get(j);
+        Method* super_method = vtable->Get(j);
         if (local_method->HasSameNameAndDescriptor(super_method)) {
           // Verify
           if (super_method->IsFinal()) {
             LG << "Method overrides final method";  // TODO: VirtualMachineError
             return false;
           }
-          klass->vtable_->Set(j, local_method);
-          local_method->method_index_ = j;
+          vtable->Set(j, local_method);
+          local_method->SetMethodIndex(j);
           break;
         }
       }
       if (j == actual_count) {
         // Not overriding, append.
-        klass->vtable_->Set(actual_count, local_method);
-        local_method->method_index_ = actual_count;
+        vtable->Set(actual_count, local_method);
+        local_method->SetMethodIndex(actual_count);
         actual_count += 1;
       }
     }
@@ -1533,11 +1609,12 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       LG << "Too many methods defined on class";  // TODO: VirtualMachineError
       return false;
     }
+    // Shrink vtable if possible
     CHECK_LE(actual_count, max_count);
     if (actual_count < max_count) {
-      // TODO: do not assign to the vtable field until it is fully constructed.
-      klass->vtable_ = klass->vtable_->CopyOf(actual_count);
+      vtable = vtable->CopyOf(actual_count);
     }
+    klass->SetVTable(vtable);
   } else {
     CHECK(klass->GetDescriptor()->Equals("Ljava/lang/Object;"));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
@@ -1545,12 +1622,13 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       LG << "Too many methods";  // TODO: VirtualMachineError
       return false;
     }
-    // TODO: do not assign to the vtable field until it is fully constructed.
-    klass->vtable_ = AllocObjectArray<Method>(num_virtual_methods);
+    ObjectArray<Method>* vtable = AllocObjectArray<Method>(num_virtual_methods);
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      klass->vtable_->Set(i, klass->GetVirtualMethod(i));
-      klass->GetVirtualMethod(i)->method_index_ = i & 0xFFFF;
+      Method* virtual_method = klass->GetVirtualMethodDuringLinking(i);
+      vtable->Set(i, virtual_method);
+      virtual_method->SetMethodIndex(i & 0xFFFF);
     }
+    klass->SetVTable(vtable);
   }
   return true;
 }
@@ -1562,24 +1640,25 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   int miranda_alloc = 0;
   size_t super_ifcount;
   if (klass->HasSuperClass()) {
-    super_ifcount = klass->GetSuperClass()->iftable_count_;
+    super_ifcount = klass->GetSuperClass()->GetIFTableCount();
   } else {
     super_ifcount = 0;
   }
   size_t ifcount = super_ifcount;
   ifcount += klass->NumInterfaces();
   for (size_t i = 0; i < klass->NumInterfaces(); i++) {
-    ifcount += klass->GetInterface(i)->iftable_count_;
+    ifcount += klass->GetInterface(i)->GetIFTableCount();
   }
   if (ifcount == 0) {
-    DCHECK(klass->iftable_count_ == 0);
-    DCHECK(klass->iftable_ == NULL);
+    // TODO: enable these asserts with klass status validation
+    // DCHECK(klass->GetIFTableCount() == 0);
+    // DCHECK(klass->GetIFTable() == NULL);
     return true;
   }
-  klass->iftable_ = new InterfaceEntry[ifcount * sizeof(InterfaceEntry)];
-  memset(klass->iftable_, 0x00, sizeof(InterfaceEntry) * ifcount);
+  InterfaceEntry* iftable = new InterfaceEntry[ifcount];
+  memset(iftable, 0x00, sizeof(InterfaceEntry) * ifcount);
   if (super_ifcount != 0) {
-    memcpy(klass->iftable_, klass->GetSuperClass()->iftable_,
+    memcpy(iftable, klass->GetSuperClass()->GetIFTable(),
            sizeof(InterfaceEntry) * super_ifcount);
   }
   // Flatten the interface inheritance hierarchy.
@@ -1591,40 +1670,43 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       LG << "Class implements non-interface class";  // TODO: IncompatibleClassChangeError
       return false;
     }
-    klass->iftable_[idx++].SetInterface(interf);
-    for (size_t j = 0; j < interf->iftable_count_; j++) {
-      klass->iftable_[idx++].SetInterface(interf->iftable_[j].GetInterface());
+    iftable[idx++].SetInterface(interf);
+    for (size_t j = 0; j < interf->GetIFTableCount(); j++) {
+      iftable[idx++].SetInterface(interf->GetIFTable()[j].GetInterface());
     }
   }
+  klass->SetIFTable(iftable);
   CHECK_EQ(idx, ifcount);
-  klass->iftable_count_ = ifcount;
+  klass->SetIFTableCount(ifcount);
   if (klass->IsInterface() || super_ifcount == ifcount) {
     return true;
   }
   for (size_t i = super_ifcount; i < ifcount; i++) {
-    pool_size += klass->iftable_[i].GetInterface()->NumVirtualMethods();
+    pool_size += iftable[i].GetInterface()->NumVirtualMethods();
   }
   if (pool_size == 0) {
     return true;
   }
-  klass->ifvi_pool_count_ = pool_size;
-  klass->ifvi_pool_ = new uint32_t[pool_size];
+  klass->SetIfviPoolCount(pool_size);
+  uint32_t* ifvi_pool = new uint32_t[pool_size];
+  klass->SetIfviPool(ifvi_pool);
   std::vector<Method*> miranda_list;
   for (size_t i = super_ifcount; i < ifcount; ++i) {
-    klass->iftable_[i].method_index_array_ = klass->ifvi_pool_ + pool_offset;
-    Class* interface = klass->iftable_[i].GetInterface();
+    iftable[i].SetMethodIndexArray(ifvi_pool + pool_offset);
+    Class* interface = iftable[i].GetInterface();
     pool_offset += interface->NumVirtualMethods();    // end here
+    ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
       Method* interface_method = interface->GetVirtualMethod(j);
       int k;  // must be signed
-      for (k = klass->vtable_->GetLength() - 1; k >= 0; --k) {
-        Method* vtable_method = klass->vtable_->Get(k);
+      for (k = vtable->GetLength() - 1; k >= 0; --k) {
+        Method* vtable_method = vtable->Get(k);
         if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
           if (!vtable_method->IsPublic()) {
             LG << "Implementation not public";
             return false;
           }
-          klass->iftable_[i].method_index_array_[j] = k;
+          iftable[i].GetMethodIndexArray()[j] = k;
           break;
         }
       }
@@ -1645,7 +1727,8 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
           }
         }
         // point the interface table at a phantom slot index
-        klass->iftable_[i].method_index_array_[j] = klass->vtable_->GetLength() + mir;
+        iftable[i].GetMethodIndexArray()[j] =
+            vtable->GetLength() + mir;
         if (mir == miranda_count) {
           miranda_list[miranda_count++] = interface_method;
         }
@@ -1655,30 +1738,33 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   if (miranda_count != 0) {
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_count;
-    klass->virtual_methods_ = klass->virtual_methods_->CopyOf(new_method_count);
+    klass->SetVirtualMethods(
+        klass->GetVirtualMethods()->CopyOf(new_method_count));
 
-    CHECK(klass->vtable_ != NULL);
-    int old_vtable_count = klass->vtable_->GetLength();
+    ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
+    CHECK(vtable != NULL);
+    int old_vtable_count = vtable->GetLength();
     int new_vtable_count = old_vtable_count + miranda_count;
-    // TODO: do not assign to the vtable field until it is fully constructed.
-    klass->vtable_ = klass->vtable_->CopyOf(new_vtable_count);
-
+    vtable = vtable->CopyOf(new_vtable_count);
     for (int i = 0; i < miranda_count; i++) {
       Method* meth = AllocMethod();
+      // TODO: this shouldn't be a memcpy
       memcpy(meth, miranda_list[i], sizeof(Method));
-      meth->klass_ = klass;
-      meth->access_flags_ |= kAccMiranda;
-      meth->method_index_ = 0xFFFF & (old_vtable_count + i);
+      meth->SetDeclaringClass(klass);
+      meth->SetAccessFlags(meth->GetAccessFlags() | kAccMiranda);
+      meth->SetMethodIndex(0xFFFF & (old_vtable_count + i));
       klass->SetVirtualMethod(old_method_count + i, meth);
-      klass->vtable_->Set(old_vtable_count + i, meth);
+      vtable->Set(old_vtable_count + i, meth);
     }
+    // TODO: do not assign to the vtable field until it is fully constructed.
+    klass->SetVTable(vtable);
   }
   return true;
 }
 
 void ClassLinker::LinkAbstractMethods(Class* klass) {
   for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-    Method* method = klass->GetVirtualMethod(i);
+    Method* method = klass->GetVirtualMethodDuringLinking(i);
     if (method->IsAbstract()) {
       LG << "AbstractMethodError";
       // TODO: throw AbstractMethodError
@@ -1688,53 +1774,64 @@ void ClassLinker::LinkAbstractMethods(Class* klass) {
 
 bool ClassLinker::LinkInstanceFields(Class* klass) {
   CHECK(klass != NULL);
-  size_t field_offset;
-  if (klass->GetSuperClass() != NULL) {
-    field_offset = klass->GetSuperClass()->object_size_;
-  } else {
-    field_offset = OFFSETOF_MEMBER(DataObject, fields_);
-  }
-  return LinkFields(field_offset,
-                    klass->num_reference_instance_fields_,
-                    klass->NumInstanceFields(),
-                    klass->ifields_,
-                    klass->object_size_);
+  return LinkFields(klass, true);
 }
 
 bool ClassLinker::LinkStaticFields(Class* klass) {
   CHECK(klass != NULL);
-  size_t allocated_class_size = klass->class_size_;
-  size_t field_offset = OFFSETOF_MEMBER(Class, fields_);
-  bool success = LinkFields(field_offset,
-                            klass->num_reference_static_fields_,
-                            klass->NumStaticFields(),
-                            klass->sfields_,
-                            klass->class_size_);
-  CHECK_EQ(allocated_class_size, klass->class_size_);
+  size_t allocated_class_size = klass->GetClassSize();
+  bool success = LinkFields(klass, false);
+  CHECK_EQ(allocated_class_size, klass->GetClassSize());
   return success;
 }
 
-bool ClassLinker::LinkFields(size_t field_offset,
-                             size_t& num_reference_fields,
-                             size_t num_fields,
-                             ObjectArray<Field>* fields,
-                             size_t& size) {
+bool ClassLinker::LinkFields(Class *klass, bool instance) {
+  size_t num_fields =
+      instance ? klass->NumInstanceFields() : klass->NumStaticFields();
+
+  ObjectArray<Field>* fields =
+      instance ? klass->GetIFields() : klass->GetSFields();
+  // Fields updated at end of LinkFields
+  size_t num_reference_fields;
+  size_t size;
+
+  // Initialize size and field_offset
+  MemberOffset field_offset = Class::FieldsOffset();
+  if (instance) {
+    Class* super_class = klass->GetSuperClass();
+    if (super_class != NULL) {
+      CHECK(super_class->IsLinked());
+      field_offset = MemberOffset(super_class->GetObjectSize());
+      if (field_offset.Uint32Value() == 0u) {
+        field_offset = OFFSET_OF_OBJECT_MEMBER(DataObject, fields_);
+      }
+    } else {
+      field_offset = OFFSET_OF_OBJECT_MEMBER(DataObject, fields_);
+    }
+    size = field_offset.Uint32Value();
+  } else {
+    size = klass->GetClassSize();
+  }
+  DCHECK_LE(CLASS_SMALLEST_OFFSET, size);
+
   CHECK((num_fields == 0) == (fields == NULL));
+
   // Move references to the front.
-  num_reference_fields = 0;
   size_t i = 0;
-  for ( ; i < num_fields; i++) {
-    Field* pField = fields->Get(i);
-    char c = pField->GetType();
-    if (c != '[' && c != 'L') {
+  num_reference_fields = 0;
+  for (; i < num_fields; i++) {
+    Field* field = fields->Get(i);
+    const Class* field_type = field->GetTypeDuringLinking();
+    // if a field's type at this point is NULL it isn't primitive
+    if (field_type != NULL && field_type->IsPrimitive()) {
       for (size_t j = num_fields - 1; j > i; j--) {
-        Field* refField = fields->Get(j);
-        char rc = refField->GetType();
-        if (rc == '[' || rc == 'L') {
-          fields->Set(i, refField);
-          fields->Set(j, pField);
-          pField = refField;
-          c = rc;
+        Field* ref_field = fields->Get(j);
+        const Class* ref_field_type = ref_field->GetTypeDuringLinking();
+        if (ref_field_type == NULL || !ref_field_type->IsPrimitive()) {
+          fields->Set(i, ref_field);
+          fields->Set(j, field);
+          field = ref_field;
+          field_type = ref_field_type;
           num_reference_fields++;
           break;
         }
@@ -1742,65 +1839,70 @@ bool ClassLinker::LinkFields(size_t field_offset,
     } else {
       num_reference_fields++;
     }
-    if (c != '[' && c != 'L') {
+    if (field_type != NULL && field_type->IsPrimitive()) {
       break;
     }
-    pField->SetOffset(field_offset);
-    field_offset += sizeof(uint32_t);
+    field->SetOffset(field_offset);
+    field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
   }
 
   // Now we want to pack all of the double-wide fields together.  If
   // we're not aligned, though, we want to shuffle one 32-bit field
   // into place.  If we can't find one, we'll have to pad it.
-  if (i != num_fields && (field_offset & 0x04) != 0) {
-    Field* pField = fields->Get(i);
-    char c = pField->GetType();
-
-    if (c != 'J' && c != 'D') {
+  if (i != num_fields && !IsAligned(field_offset.Uint32Value(), 8)) {
+    Field* field = fields->Get(i);
+    const Class* c = field->GetTypeDuringLinking();
+    CHECK(c != NULL);  // should only be working on primitive types
+    if (!c->IsPrimitiveLong() && !c->IsPrimitiveDouble()) {
       // The field that comes next is 32-bit, so just advance past it.
-      DCHECK(c != '[');
-      DCHECK(c != 'L');
-      pField->SetOffset(field_offset);
-      field_offset += sizeof(uint32_t);
+      DCHECK(c->IsPrimitive());
+      field->SetOffset(field_offset);
+      field_offset = MemberOffset(field_offset.Uint32Value() +
+                                  sizeof(uint32_t));
       i++;
     } else {
       // Next field is 64-bit, so search for a 32-bit field we can
       // swap into it.
       bool found = false;
       for (size_t j = num_fields - 1; j > i; j--) {
-        Field* singleField = fields->Get(j);
-        char rc = singleField->GetType();
-        if (rc != 'J' && rc != 'D') {
-          fields->Set(i, singleField);
-          fields->Set(j, pField);
-          pField = singleField;
-          pField->SetOffset(field_offset);
-          field_offset += sizeof(uint32_t);
+        Field* single_field = fields->Get(j);
+        const Class* rc = single_field->GetTypeDuringLinking();
+        CHECK(rc != NULL);  // should only be working on primitive types
+        if (!rc->IsPrimitiveLong() && !rc->IsPrimitiveDouble()) {
+          fields->Set(i, single_field);
+          fields->Set(j, field);
+          field = single_field;
+          field->SetOffset(field_offset);
+          field_offset = MemberOffset(field_offset.Uint32Value() +
+                                      sizeof(uint32_t));
           found = true;
           i++;
           break;
         }
       }
       if (!found) {
-        field_offset += sizeof(uint32_t);
+        field_offset = MemberOffset(field_offset.Uint32Value() +
+                                    sizeof(uint32_t));
       }
     }
   }
 
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
-  DCHECK(i == num_fields || (field_offset & 0x04) == 0);
+  DCHECK(i == num_fields || IsAligned(field_offset.Uint32Value(), 4));
   for ( ; i < num_fields; i++) {
-    Field* pField = fields->Get(i);
-    char c = pField->GetType();
-    if (c != 'D' && c != 'J') {
+    Field* field = fields->Get(i);
+    const Class* c = field->GetTypeDuringLinking();
+    CHECK(c != NULL);  // should only be working on primitive types
+    if (!c->IsPrimitiveDouble() && !c->IsPrimitiveLong()) {
       for (size_t j = num_fields - 1; j > i; j--) {
-        Field* doubleField = fields->Get(j);
-        char rc = doubleField->GetType();
-        if (rc == 'D' || rc == 'J') {
-          fields->Set(i, doubleField);
-          fields->Set(j, pField);
-          pField = doubleField;
+        Field* double_field = fields->Get(j);
+        const Class* rc = double_field->GetTypeDuringLinking();
+        CHECK(rc != NULL);  // should only be working on primitive types
+        if (rc->IsPrimitiveDouble() || rc->IsPrimitiveLong()) {
+          fields->Set(i, double_field);
+          fields->Set(j, field);
+          field = double_field;
           c = rc;
           break;
         }
@@ -1809,10 +1911,13 @@ bool ClassLinker::LinkFields(size_t field_offset,
       // This is a double-wide field, leave it be.
     }
 
-    pField->SetOffset(field_offset);
-    field_offset += sizeof(uint32_t);
-    if (c == 'J' || c == 'D') {
-      field_offset += sizeof(uint32_t);
+    field->SetOffset(field_offset);
+    if (c->IsPrimitiveLong() || c->IsPrimitiveDouble()) {
+      field_offset = MemberOffset(field_offset.Uint32Value() +
+                                  sizeof(uint64_t));
+    } else {
+      field_offset = MemberOffset(field_offset.Uint32Value() +
+                                  sizeof(uint32_t));
     }
   }
 
@@ -1821,14 +1926,9 @@ bool ClassLinker::LinkFields(size_t field_offset,
   // non-reference fields, and all double-wide fields are aligned.
   bool seen_non_ref = false;
   for (i = 0; i < num_fields; i++) {
-    Field *pField = fields->Get(i);
-    char c = pField->GetType();
-
-    if (c == 'D' || c == 'J') {
-      DCHECK_EQ(0U, pField->GetOffset() & 0x07);
-    }
-
-    if (c != '[' && c != 'L') {
+    Field* field = fields->Get(i);
+    const Class* c = field->GetTypeDuringLinking();
+    if (c != NULL && c->IsPrimitive()) {
       if (!seen_non_ref) {
         seen_non_ref = true;
         DCHECK_EQ(num_reference_fields, i);
@@ -1841,47 +1941,59 @@ bool ClassLinker::LinkFields(size_t field_offset,
     DCHECK_EQ(num_fields, num_reference_fields);
   }
 #endif
-  size = field_offset;
+  size = field_offset.Uint32Value();
+  DCHECK_LE(CLASS_SMALLEST_OFFSET, size);
+  // Update klass
+  if(instance) {
+    klass->SetNumReferenceInstanceFields(num_reference_fields);
+    if(!klass->IsVariableSize()) {
+      klass->SetObjectSize(size);
+    }
+  } else {
+    klass->SetNumReferenceStaticFields(num_reference_fields);
+    klass->SetClassSize(size);
+  }
   return true;
 }
 
 //  Set the bitmap of reference offsets, refOffsets, from the ifields
 //  list.
 void ClassLinker::CreateReferenceInstanceOffsets(Class* klass) {
-  klass->reference_instance_offsets_ = 0;
-  if (klass->HasSuperClass()) {
-    klass->reference_instance_offsets_ = klass->GetSuperClass()->GetReferenceInstanceOffsets();
+  uint32_t reference_offsets = 0;
+  Class* super_class = klass->GetSuperClass();
+  if (super_class != NULL) {
+    reference_offsets = super_class->GetReferenceInstanceOffsets();
     // If our superclass overflowed, we don't stand a chance.
-    if (klass->reference_instance_offsets_ == CLASS_WALK_SUPER) {
+    if (reference_offsets == CLASS_WALK_SUPER) {
+      klass->SetReferenceInstanceOffsets(reference_offsets);
       return;
     }
   }
-  CreateReferenceOffsets(klass->reference_instance_offsets_,
-                         klass->NumReferenceInstanceFields(),
-                         klass->ifields_);
+  CreateReferenceOffsets(klass, true, reference_offsets);
 }
 
 void ClassLinker::CreateReferenceStaticOffsets(Class* klass) {
-  klass->reference_static_offsets_ = 0;
-  CreateReferenceOffsets(klass->reference_static_offsets_,
-                         klass->NumReferenceStaticFields(),
-                         klass->sfields_);
+  CreateReferenceOffsets(klass, false, 0);
 }
 
-void ClassLinker::CreateReferenceOffsets(uint32_t& reference_offsets,
-                                         size_t num_reference_fields,
-                                         const ObjectArray<Field>* fields) {
+void ClassLinker::CreateReferenceOffsets(Class* klass, bool instance,
+                                         uint32_t reference_offsets) {
+  size_t num_reference_fields =
+      instance ? klass->NumReferenceInstanceFieldsDuringLinking()
+               : klass->NumReferenceStaticFieldsDuringLinking();
+  const ObjectArray<Field>* fields =
+      instance ? klass->GetIFields() : klass->GetSFields();
   // All of the fields that contain object references are guaranteed
   // to be at the beginning of the fields list.
   for (size_t i = 0; i < num_reference_fields; ++i) {
     // Note that byte_offset is the offset from the beginning of
     // object, not the offset into instance data
     const Field* field = fields->Get(i);
-    size_t byte_offset = field->GetOffset();
-    CHECK_GE(byte_offset, CLASS_SMALLEST_OFFSET);
-    CHECK_EQ(byte_offset & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
-    if (CLASS_CAN_ENCODE_OFFSET(byte_offset)) {
-      uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset);
+    MemberOffset byte_offset = field->GetOffsetDuringLinking();
+    CHECK_GE(byte_offset.Uint32Value(), CLASS_SMALLEST_OFFSET);
+    CHECK_EQ(byte_offset.Uint32Value() & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
+    if (CLASS_CAN_ENCODE_OFFSET(byte_offset.Uint32Value())) {
+      uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset.Uint32Value());
       CHECK_NE(new_bit, 0U);
       reference_offsets |= new_bit;
     } else {
@@ -1889,18 +2001,25 @@ void ClassLinker::CreateReferenceOffsets(uint32_t& reference_offsets,
       break;
     }
   }
+  // Update fields in klass
+  if (instance) {
+    klass->SetReferenceInstanceOffsets(reference_offsets);
+  } else {
+    klass->SetReferenceStaticOffsets(reference_offsets);
+  }
 }
 
-const String* ClassLinker::ResolveString(const DexFile& dex_file,
+String* ClassLinker::ResolveString(const DexFile& dex_file,
     uint32_t string_idx, DexCache* dex_cache) {
-  const String* resolved = dex_cache->GetResolvedString(string_idx);
+  String* resolved = dex_cache->GetResolvedString(string_idx);
   if (resolved != NULL) {
     return resolved;
   }
   const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
   int32_t utf16_length = dex_file.GetStringLength(string_id);
   const char* utf8_data = dex_file.GetStringData(string_id);
-  const String* string = intern_table_->InternStrong(utf16_length, utf8_data);
+  // TODO: remote the const_cast below
+  String* string = const_cast<String*>(intern_table_->InternStrong(utf16_length, utf8_data));
   dex_cache->SetResolvedString(string_idx, string);
   return string;
 }
@@ -1910,26 +2029,28 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
                                 DexCache* dex_cache,
                                 const ClassLoader* class_loader) {
   Class* resolved = dex_cache->GetResolvedType(type_idx);
-  if (resolved != NULL) {
-    return resolved;
-  }
-  const char* descriptor = dex_file.dexStringByTypeIdx(type_idx);
-  if (descriptor[0] != '\0' && descriptor[1] == '\0') {
-    resolved = FindPrimitiveClass(descriptor[0]);
-  } else {
-    resolved = FindClass(descriptor, class_loader);
-  }
-  if (resolved != NULL) {
-    Class* check = resolved->IsArrayClass() ? resolved->component_type_ : resolved;
-    if (dex_cache != check->GetDexCache()) {
-      if (check->GetClassLoader() != NULL) {
-        LG << "Class resolved by unexpected DEX";  // TODO: IllegalAccessError
-        return NULL;
+  if (resolved == NULL) {
+    const char* descriptor = dex_file.dexStringByTypeIdx(type_idx);
+    if (descriptor[1] == '\0') {
+      // only the descriptors of primitive types should be 1 character long
+      resolved = FindPrimitiveClass(descriptor[0]);
+    } else {
+      resolved = FindClass(descriptor, class_loader);
+    }
+    if (resolved != NULL) {
+      Class* check = resolved->IsArrayClass() ? resolved->GetComponentType() : resolved;
+      if (dex_cache != check->GetDexCache()) {
+        if (check->GetClassLoader() != NULL) {
+          LG << "Class resolved by unexpected DEX";  // TODO: IllegalAccessError
+          resolved = NULL;
+        }
       }
     }
-    dex_cache->SetResolvedType(type_idx, resolved);
-  } else {
-    DCHECK(Thread::Current()->IsExceptionPending());
+    if (resolved != NULL) {
+      dex_cache->SetResolvedType(type_idx, resolved);
+    } else {
+      DCHECK(Thread::Current()->IsExceptionPending());
+    }
   }
   return resolved;
 }
@@ -1980,16 +2101,18 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   }
 
   const char* name = dex_file.dexStringById(field_id.name_idx_);
-  const char* type = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+  Class* field_type = ResolveType(dex_file, field_id.type_idx_, dex_cache, class_loader);
+  // TODO: LinkageError?
+  CHECK(field_type != NULL);
   if (is_static) {
-    resolved = klass->FindStaticField(name, type);
+    resolved = klass->FindStaticField(name, field_type);
   } else {
-    resolved = klass->FindInstanceField(name, type);
+    resolved = klass->FindInstanceField(name, field_type);
   }
   if (resolved != NULL) {
     dex_cache->SetResolvedfield(field_idx, resolved);
   } else {
-    // DCHECK(Thread::Current()->IsExceptionPending());
+    // TODO: DCHECK(Thread::Current()->IsExceptionPending());
   }
   return resolved;
 }

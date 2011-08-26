@@ -109,11 +109,11 @@ class DexCache : public ObjectArray<Object> {
     return GetInitializedStaticStorage()->GetLength();
   }
 
-  const String* GetResolvedString(uint32_t string_idx) const {
+  String* GetResolvedString(uint32_t string_idx) const {
     return GetStrings()->Get(string_idx);
   }
 
-  void SetResolvedString(uint32_t string_idx, const String* resolved) {
+  void SetResolvedString(uint32_t string_idx, String* resolved) {
     GetStrings()->Set(string_idx, resolved);
   }
 
@@ -141,8 +141,8 @@ class DexCache : public ObjectArray<Object> {
     GetResolvedFields()->Set(field_idx, resolved);
   }
 
-  ObjectArray<const String>* GetStrings() const {
-    return static_cast<ObjectArray<const String>*>(GetNonNull(kStrings));
+  ObjectArray<String>* GetStrings() const {
+    return static_cast<ObjectArray<String>*>(GetNonNull(kStrings));
   }
   ObjectArray<Class>* GetResolvedTypes() const {
     return static_cast<ObjectArray<Class>*>(GetNonNull(kResolvedTypes));

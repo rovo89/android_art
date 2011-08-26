@@ -118,6 +118,8 @@ void ImageWriter::CalculateNewObjectOffsets() {
 void ImageWriter::CopyAndFixupObjects() {
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
+  // TODO: heap validation can't handle this fix up pass
+  Heap::DisableObjectValidation();
   heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);
 }
 
@@ -140,7 +142,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void *arg) {
 void ImageWriter::FixupObject(const Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
-  copy->klass_ = down_cast<Class*>(GetImageAddress(orig->klass_));
+  copy->SetClass(down_cast<Class*>(GetImageAddress(orig->GetClass())));
   // TODO: special case init of pointers to malloc data (or removal of these pointers)
   if (orig->IsClass()) {
     FixupClass(orig->AsClass(), down_cast<Class*>(copy));
@@ -182,6 +184,13 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   // TODO: remove need for this by adding "signature" to java.lang.reflect.Method
   copy->signature_ = down_cast<String*>(GetImageAddress(orig->signature_));
   DCHECK(copy->signature_ != NULL);
+  copy->dex_cache_strings_ = down_cast<ObjectArray<String>*>(GetImageAddress(orig->dex_cache_strings_));
+  copy->dex_cache_resolved_types_ = down_cast<ObjectArray<Class>*>(GetImageAddress(orig->dex_cache_resolved_types_));
+  copy->dex_cache_resolved_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->dex_cache_resolved_methods_));
+  copy->dex_cache_resolved_fields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->dex_cache_resolved_fields_));
+  copy->dex_cache_code_and_direct_methods_ = down_cast<CodeAndDirectMethods*>(GetImageAddress(orig->dex_cache_code_and_direct_methods_));
+  copy->dex_cache_initialized_static_storage_ = down_cast<ObjectArray<StaticStorageBase>*>(GetImageAddress(orig->dex_cache_initialized_static_storage_));
+
   // TODO: convert shorty_ to heap allocated storage
 }
 
@@ -193,7 +202,7 @@ void ImageWriter::FixupField(const Field* orig, Field* copy) {
 void ImageWriter::FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
   for (int32_t i = 0; i < orig->GetLength(); ++i) {
     const Object* element = orig->Get(i);
-    copy->Set(i, GetImageAddress(element));
+    copy->SetWithoutChecks(i, GetImageAddress(element));
   }
 }
 
@@ -225,9 +234,9 @@ void ImageWriter::FixupFields(const Object* orig,
     // Found a reference offset bitmap.  Fixup the specified offsets.
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
-      size_t byte_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      const Object* ref = orig->GetFieldObject(byte_offset);
-      copy->SetFieldObject(byte_offset, GetImageAddress(ref));
+      MemberOffset byte_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
+      const Object* ref = orig->GetFieldObject<const Object*>(byte_offset, false);
+      copy->SetFieldObject(byte_offset, GetImageAddress(ref), false);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
@@ -245,9 +254,9 @@ void ImageWriter::FixupFields(const Object* orig,
         Field* field = (is_static
                         ? klass->GetStaticField(i)
                         : klass->GetInstanceField(i));
-        size_t field_offset = field->GetOffset();
-        const Object* ref = orig->GetFieldObject(field_offset);
-        copy->SetFieldObject(field_offset, GetImageAddress(ref));
+        MemberOffset field_offset = field->GetOffset();
+        const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
+        copy->SetFieldObject(field_offset, GetImageAddress(ref), false);
       }
     }
   }

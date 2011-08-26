@@ -349,9 +349,12 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
 
 int gSuspendCounterHandler_calls;
 void SuspendCountHandler(Method** frame) {
+  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+  Thread::Current()->SetState(Thread::kRunnable);
   EXPECT_TRUE((*frame)->GetName()->Equals("fooI"));
   gSuspendCounterHandler_calls++;
   Thread::Current()->DecrementSuspendCount();
+  Thread::Current()->SetState(Thread::kNative);
 }
 
 TEST_F(JniCompilerTest, SuspendCountAcknowledgement) {
@@ -377,9 +380,12 @@ TEST_F(JniCompilerTest, SuspendCountAcknowledgement) {
 
 int gExceptionHandler_calls;
 void ExceptionHandler(Method** frame) {
+  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+  Thread::Current()->SetState(Thread::kRunnable);
   EXPECT_TRUE((*frame)->GetName()->Equals("throwException"));
   gExceptionHandler_calls++;
   Thread::Current()->ClearException();
+  Thread::Current()->SetState(Thread::kNative);
 }
 
 void Java_MyClass_throwException(JNIEnv* env, jobject) {
@@ -410,6 +416,8 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
 
 jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
   if (i <= 0) {
+    EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+    Thread::Current()->SetState(Thread::kRunnable);
     ObjectArray<StackTraceElement>* trace_array = Thread::Current()->AllocStackTrace();
     EXPECT_TRUE(trace_array != NULL);
     EXPECT_EQ(11, trace_array->GetLength());
@@ -420,6 +428,7 @@ jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
       EXPECT_STREQ("MyClass", trace_array->Get(i)->GetDeclaringClass()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("fooI", trace_array->Get(i)->GetMethodName()->ToModifiedUtf8().c_str());
     }
+    Thread::Current()->SetState(Thread::kNative);
     return 0;
   } else {
     jclass jklass = env->FindClass("MyClass");

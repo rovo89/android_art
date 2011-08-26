@@ -1,5 +1,8 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include <string>
+#include <vector>
+
 #include "common_test.h"
 #include "file.h"
 #include "image.h"
@@ -12,7 +15,6 @@ namespace art {
 class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
-
   // TODO: move the touching of classes and GC to the ImageWriter proper
   for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);

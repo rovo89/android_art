@@ -655,7 +655,7 @@ bool DexVerify::VerifyMethod(Method* method) {
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const DexFile::CodeItem *code_item = dex_file.GetCodeItem(method->code_off_);
+  const DexFile::CodeItem *code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
 
   /*
    * If there aren't any instructions, make sure that's expected, then
@@ -682,29 +682,26 @@ bool DexVerify::VerifyMethod(Method* method) {
   /*
    * Allocate and initialize an array to hold instruction data.
    */
-  uint32_t* insn_flags = new uint32_t[code_item->insns_size_]();
+  UniquePtr<uint32_t[]> insn_flags(new uint32_t[code_item->insns_size_]());
 
   /*
    * Run through the instructions and see if the width checks out.
    */
-  if (!CheckInsnWidth(code_item->insns_, code_item->insns_size_, insn_flags)) {
-    delete insn_flags;
+  if (!CheckInsnWidth(code_item->insns_, code_item->insns_size_, insn_flags.get())) {
     return false;
   }
 
   /*
    * Flag instructions guarded by a "try" block and check exception handlers.
    */
-  if (!ScanTryCatchBlocks(code_item, insn_flags)) {
-    delete insn_flags;
+  if (!ScanTryCatchBlocks(code_item, insn_flags.get())) {
     return false;
   }
 
   /*
    * Perform static instruction verification.
    */
-  if (!VerifyInstructions(&dex_file, code_item, insn_flags)) {
-    delete insn_flags;
+  if (!VerifyInstructions(&dex_file, code_item, insn_flags.get())) {
     return false;
   }
 
@@ -712,7 +709,6 @@ bool DexVerify::VerifyMethod(Method* method) {
    * TODO: Code flow analysis
    */
 
-  delete insn_flags;
   return true;
 }
 

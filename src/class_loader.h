@@ -10,13 +10,14 @@
 
 namespace art {
 
-// ClassLoader objects.
+// C++ mirror of java.lang.ClassLoader
 class ClassLoader : public Object {
  public:
   static const std::vector<const DexFile*>& GetClassPath(const ClassLoader* class_loader);
 
   void SetClassPath(std::vector<const DexFile*>& class_path) {
     DCHECK_EQ(0U, class_path_.size());
+    // TODO: use setter
     class_path_ = class_path;
   }
 
@@ -31,6 +32,7 @@ class ClassLoader : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 
+// C++ mirror of dalvik.system.BaseDexClassLoader
 class BaseDexClassLoader : public ClassLoader {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
@@ -39,6 +41,7 @@ class BaseDexClassLoader : public ClassLoader {
   DISALLOW_IMPLICIT_CONSTRUCTORS(BaseDexClassLoader);
 };
 
+// C++ mirror of dalvik.system.PathClassLoader
 class PathClassLoader : public BaseDexClassLoader {
  public:
   static const PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);

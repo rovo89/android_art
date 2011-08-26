@@ -2092,11 +2092,11 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
      * blocks.
      */
     bb->dataFlowInfo->dalvikToSSAMap =
-        (int *)oatNew(sizeof(int) * cUnit->method->num_registers_,
+        (int *)oatNew(sizeof(int) * cUnit->method->NumRegisters(),
                               false);
 
     memcpy(bb->dataFlowInfo->dalvikToSSAMap, cUnit->dalvikToSSAMap,
-           sizeof(int) * cUnit->method->num_registers_);
+           sizeof(int) * cUnit->method->NumRegisters());
     return true;
 }
 
@@ -2184,7 +2184,7 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
 void oatInitializeSSAConversion(CompilationUnit* cUnit)
 {
     int i;
-    int numDalvikReg = cUnit->method->num_registers_;
+    int numDalvikReg = cUnit->method->NumRegisters();
 
     cUnit->ssaToDalvikMap = (GrowableList *)oatNew(sizeof(GrowableList),
                                                            false);

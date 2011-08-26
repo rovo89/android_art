@@ -89,6 +89,8 @@ class CommonTest : public testing::Test {
     runtime_.reset(Runtime::Create(boot_class_path_));
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();
+
+    Heap::VerifyHeap();  // Check for heap corruption before the test
   }
 
   virtual void TearDown() {
@@ -127,6 +129,8 @@ class CommonTest : public testing::Test {
     CHECK(sym != NULL);
     IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
     (*icu_cleanup_fn)();
+
+    Heap::VerifyHeap();  // Check for heap corruption after the test
   }
 
   std::string GetLibCoreDexFileName() {

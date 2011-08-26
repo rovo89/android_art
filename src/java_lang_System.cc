@@ -183,7 +183,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
 
   // Neither class is primitive. Are the types trivially compatible?
   const int width = sizeof(Object*);
-  bool sameDimensions = srcArray->GetClass()->array_rank_ == dstArray->GetClass()->array_rank_;
+  bool sameDimensions = srcArray->GetClass()->GetArrayRank() == dstArray->GetClass()->GetArrayRank();
   if (sameDimensions && srcComponentType->InstanceOf(dstComponentType)) {
     // Yes. Bulk copy.
     move32(dstBytes + dstPos * width, srcBytes + srcPos * width, length * width);
@@ -207,7 +207,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   // race by modifying the source array after we check but before we copy,
   // and cause us to copy incompatible elements.
 
-  Object** srcObj = reinterpret_cast<ObjectArray<Object>*>(srcArray)->GetData() + srcPos;
+  Object* const * srcObj = reinterpret_cast<Object* const *>(srcBytes + srcPos * width);
   Class* dstClass = dstArray->GetClass();
 
   Class* initialElementClass = NULL;

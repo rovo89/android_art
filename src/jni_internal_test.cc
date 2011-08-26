@@ -2,8 +2,9 @@
 
 #include "jni_internal.h"
 
-#include <cmath>
 #include <sys/mman.h>
+
+#include <cmath>
 
 #include "common_test.h"
 
@@ -1560,4 +1561,4 @@ TEST_F(JniInternalTest, DISABLED_NewDirectBuffer_GetDirectBufferAddress_GetDirec
   ASSERT_TRUE(env_->GetDirectBufferCapacity(buffer) == sizeof(bytes));
 }
 
-}
+}  // namespace art

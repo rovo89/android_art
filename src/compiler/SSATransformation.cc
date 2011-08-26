@@ -107,8 +107,8 @@ static void computeDefBlockMatrix(CompilationUnit* cUnit)
      * Also set the incoming parameters as defs in the entry block.
      * Only need to handle the parameters for the outer method.
      */
-    int inReg = cUnit->method->num_registers_ - cUnit->method->num_ins_;
-    for (; inReg < cUnit->method->num_registers_; inReg++) {
+    int inReg = cUnit->method->NumRegisters() - cUnit->method->NumIns();
+    for (; inReg < cUnit->method->NumRegisters(); inReg++) {
         oatSetBit(cUnit->defBlockMatrix[inReg],
                           cUnit->entryBlock->id);
     }

@@ -49,7 +49,7 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   size_t reg_bytes = (method->IsStatic() ? 3 : 2) * kPointerSize;
   // Bytes passed by stack
   size_t stack_bytes;
-  if( method->NumArgArrayBytes() > reg_bytes){
+  if (method->NumArgArrayBytes() > reg_bytes) {
     stack_bytes = method->NumArgArrayBytes() - reg_bytes;
   } else {
     stack_bytes = 0;
@@ -61,7 +61,7 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   __ StoreToOffset(kStoreWord, IP, SP, 0);
 
   // Copy values by stack
-  for(size_t off = 0; off < stack_bytes; off += kPointerSize) {
+  for (size_t off = 0; off < stack_bytes; off += kPointerSize) {
     // we're displaced off of r3 by bytes that'll go in registers
     int r3_offset = reg_bytes + off;
     __ LoadFromOffset(kLoadWord, IP, R3, r3_offset);
@@ -93,7 +93,7 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   }
 
   // Load the code pointer we are about to call.
-  __ LoadFromOffset(kLoadWord, IP, R0, method->GetCodeOffset());
+  __ LoadFromOffset(kLoadWord, IP, R0, method->GetCodeOffset().Int32Value());
 
   // Do the call.
   __ blx(IP);

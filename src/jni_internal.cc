@@ -346,12 +346,26 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   }
 
   Field* field = NULL;
-  if (is_static) {
-    field = c->FindStaticField(name, sig);
+  Class* field_type;
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  if (sig[1] != '\0') {
+    // TODO: need to get the appropriate ClassLoader.
+    const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
+    field_type = class_linker->FindClass(sig, cl);
   } else {
-    field = c->FindInstanceField(name, sig);
+    field_type = class_linker->FindPrimitiveClass(*sig);
   }
-
+  if (field_type == NULL) {
+    // Failed to find type from the signature of the field.
+    // TODO: Linkage or NoSuchFieldError?
+    CHECK(ts.Self()->IsExceptionPending());
+    return NULL;
+  }
+  if (is_static) {
+    field = c->FindStaticField(name, field_type);
+  } else {
+    field = c->FindInstanceField(name, field_type);
+  }
   if (field == NULL) {
     Thread* self = Thread::Current();
     std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
@@ -360,7 +374,9 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
         name, class_descriptor.c_str());
     return NULL;
   }
-
+  // Check invariant that all jfieldIDs have resolved types (how else would
+  // the type equality in Find...Field hold?)
+  DCHECK(field->GetType() != NULL);
   jweak fid = AddWeakGlobalReference(ts, field);
   return reinterpret_cast<jfieldID>(fid);
 }

@@ -146,7 +146,7 @@ void Mutex::Unlock() {
 void Frame::Next() {
   byte* next_sp = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetFrameSizeInBytes();
-  sp_ = reinterpret_cast<const Method**>(next_sp);
+  sp_ = reinterpret_cast<Method**>(next_sp);
 }
 
 uintptr_t Frame::GetPC() const {
@@ -155,10 +155,10 @@ uintptr_t Frame::GetPC() const {
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
-const Method* Frame::NextMethod() const {
+Method* Frame::NextMethod() const {
   byte* next_sp = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetFrameSizeInBytes();
-  return *reinterpret_cast<const Method**>(next_sp);
+  return *reinterpret_cast<Method**>(next_sp);
 }
 
 void* ThreadStart(void *arg) {
@@ -285,8 +285,7 @@ bool Thread::SirtContains(jobject obj) {
 }
 
 Object* Thread::DecodeJObject(jobject obj) {
-  // TODO: Only allowed to hold Object* when in the runnable state
-  // DCHECK(state_ == kRunnable);
+  DCHECK(CanAccessDirectReferences());
   if (obj == NULL) {
     return NULL;
   }
@@ -325,7 +324,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     // TODO: make stack indirect reference table lookup more efficient
     // Check if this is a local reference in the SIRT
     if (SirtContains(obj)) {
-      result = *reinterpret_cast<Object**>(obj); // Read from SIRT
+      result = *reinterpret_cast<Object**>(obj);  // Read from SIRT
     } else if (jni_env_->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
       result = reinterpret_cast<Object*>(obj);
@@ -363,8 +362,8 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
 
 class BuildStackTraceVisitor : public Thread::StackVisitor {
  public:
-  BuildStackTraceVisitor(int depth) : count(0) {
-    method_trace = Runtime::Current()->GetClassLinker()->AllocObjectArray<const Method>(depth);
+  explicit BuildStackTraceVisitor(int depth) : count(0) {
+    method_trace = Runtime::Current()->GetClassLinker()->AllocObjectArray<Method>(depth);
     pc_trace = IntArray::Alloc(depth);
   }
 
@@ -389,7 +388,7 @@ class BuildStackTraceVisitor : public Thread::StackVisitor {
 
  private:
   uint32_t count;
-  ObjectArray<const Method>* method_trace;
+  ObjectArray<Method>* method_trace;
   IntArray* pc_trace;
 };
 
@@ -406,7 +405,7 @@ void Thread::WalkStack(StackVisitor* visitor) {
     if (record == NULL) {
       break;
     }
-    frame.SetSP(reinterpret_cast<const art::Method**>(record->last_top_of_managed_stack));  // last_tos should return Frame instead of sp?
+    frame.SetSP(reinterpret_cast<art::Method**>(record->last_top_of_managed_stack));  // last_tos should return Frame instead of sp?
     record = record->link;
   }
 }
@@ -429,13 +428,12 @@ ObjectArray<StackTraceElement>* Thread::AllocStackTrace() {
     const Class* klass = method->GetDeclaringClass();
     const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
     String* readable_descriptor = String::AllocFromModifiedUtf8(
-        PrettyDescriptor(klass->GetDescriptor()).c_str()
-        );
+        PrettyDescriptor(klass->GetDescriptor()).c_str());
 
     StackTraceElement* obj =
         StackTraceElement::Alloc(readable_descriptor,
                                  method->GetName(),
-                                 String::AllocFromModifiedUtf8(klass->source_file_),
+                                 String::AllocFromModifiedUtf8(klass->GetSourceFile()),
                                  dex_file.GetLineNumFromPC(method,
                                      method->ToDexPC(build_trace_visitor.GetPC(i))));
     java_traces->Set(i, obj);
@@ -451,9 +449,9 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
   va_end(args);
 
   // Convert "Ljava/lang/Exception;" into JNI-style "java/lang/Exception".
-  CHECK(exception_class_descriptor[0] == 'L');
+  CHECK_EQ('L', exception_class_descriptor[0]);
   std::string descriptor(exception_class_descriptor + 1);
-  CHECK(descriptor[descriptor.length() - 1] == ';');
+  CHECK_EQ(';', descriptor[descriptor.length() - 1]);
   descriptor.erase(descriptor.length() - 1);
 
   JNIEnv* env = GetJniEnv();
@@ -506,7 +504,7 @@ void* Thread::FindExceptionHandlerInMethod(const Method* method,
   exception_ = NULL;
 
   intptr_t dex_pc = -1;
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->code_off_);
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
   DexFile::CatchHandlerIterator iter;
   for (iter = dex_file.dexFindCatchHandler(*code_item,
                                            method->ToDexPC(reinterpret_cast<intptr_t>(throw_pc)));

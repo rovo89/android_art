@@ -60,7 +60,7 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   if (ch != 'V') {
     // Load the result JValue pointer.
     __ movl(EDI, Address(ESP, 24));
-    switch(ch) {
+    switch (ch) {
       case 'D':
         __ fstpl(Address(EDI, 0));
         break;
@@ -76,7 +76,7 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
         break;
     }
   }
-  __ popl(EDI); // restore EDI
+  __ popl(EDI);  // restore EDI
   __ ret();
 }
 

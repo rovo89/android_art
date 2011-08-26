@@ -6,9 +6,9 @@ namespace art {
 
 class HeapTest : public CommonTest {};
 
-TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
+TEST_F(HeapTest, DISABLED_GarbageCollectClassLinkerInit) {
   // garbage is created during ClassLinker::Init
   Heap::CollectGarbage();
 }
 
-} // namespace art
+}  // namespace art

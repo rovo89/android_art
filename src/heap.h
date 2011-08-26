@@ -7,6 +7,7 @@
 
 #include "globals.h"
 #include "object_bitmap.h"
+#include "offsets.h"
 
 namespace art {
 
@@ -35,6 +36,9 @@ class Heap {
 
   // Check sanity of given reference. Requires the heap lock.
   static void VerifyObject(const Object *obj);
+
+  // Check sanity of all live references. Requires the heap lock.
+  static void VerifyHeap();
 
   // A weaker test than VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
@@ -74,16 +78,16 @@ class Heap {
     return mark_bitmap_;
   }
 
-  static void SetReferenceOffsets(size_t reference_referent_offset,
-                                  size_t reference_queue_offset,
-                                  size_t reference_queueNext_offset,
-                                  size_t reference_pendingNext_offset,
-                                  size_t finalizer_reference_zombie_offset) {
-    CHECK_NE(reference_referent_offset, 0U);
-    CHECK_NE(reference_queue_offset, 0U);
-    CHECK_NE(reference_queueNext_offset, 0U);
-    CHECK_NE(reference_pendingNext_offset, 0U);
-    CHECK_NE(finalizer_reference_zombie_offset, 0U);
+  static void SetReferenceOffsets(MemberOffset reference_referent_offset,
+                                  MemberOffset reference_queue_offset,
+                                  MemberOffset reference_queueNext_offset,
+                                  MemberOffset reference_pendingNext_offset,
+                                  MemberOffset finalizer_reference_zombie_offset) {
+    CHECK_NE(reference_referent_offset.Uint32Value(), 0U);
+    CHECK_NE(reference_queue_offset.Uint32Value(), 0U);
+    CHECK_NE(reference_queueNext_offset.Uint32Value(), 0U);
+    CHECK_NE(reference_pendingNext_offset.Uint32Value(), 0U);
+    CHECK_NE(finalizer_reference_zombie_offset.Uint32Value(), 0U);
     reference_referent_offset_ = reference_referent_offset;
     reference_queue_offset_ = reference_queue_offset;
     reference_queueNext_offset_ = reference_queueNext_offset;
@@ -91,29 +95,34 @@ class Heap {
     finalizer_reference_zombie_offset_ = finalizer_reference_zombie_offset;
   }
 
-  static size_t GetReferenceReferentOffset() {
-    DCHECK_NE(reference_referent_offset_, 0U);
+  static MemberOffset GetReferenceReferentOffset() {
+    DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
     return reference_referent_offset_;
   }
 
-  static size_t GetReferenceQueueOffset() {
-    DCHECK_NE(reference_queue_offset_, 0U);
+  static MemberOffset GetReferenceQueueOffset() {
+    DCHECK_NE(reference_queue_offset_.Uint32Value(), 0U);
     return reference_queue_offset_;
   }
 
-  static size_t GetReferenceQueueNextOffset() {
-    DCHECK_NE(reference_queueNext_offset_, 0U);
+  static MemberOffset GetReferenceQueueNextOffset() {
+    DCHECK_NE(reference_queueNext_offset_.Uint32Value(), 0U);
     return reference_queueNext_offset_;
   }
 
-  static size_t GetReferencePendingNextOffset() {
-    DCHECK_NE(reference_pendingNext_offset_, 0U);
+  static MemberOffset GetReferencePendingNextOffset() {
+    DCHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
     return reference_pendingNext_offset_;
   }
 
-  static size_t GetFinalizerReferenceZombieOffset() {
-    DCHECK_NE(finalizer_reference_zombie_offset_, 0U);
+  static MemberOffset GetFinalizerReferenceZombieOffset() {
+    DCHECK_NE(finalizer_reference_zombie_offset_.Uint32Value(), 0U);
     return finalizer_reference_zombie_offset_;
+  }
+
+  static void DisableObjectValidation() {
+    // TODO: remove this hack necessary for image writing
+    verify_object_disabled_ = true;
   }
 
  private:
@@ -158,19 +167,21 @@ class Heap {
   static size_t num_objects_allocated_;
 
   // offset of java.lang.ref.Reference.referent
-  static size_t reference_referent_offset_;
+  static MemberOffset reference_referent_offset_;
 
   // offset of java.lang.ref.Reference.queue
-  static size_t reference_queue_offset_;
+  static MemberOffset reference_queue_offset_;
 
   // offset of java.lang.ref.Reference.queueNext
-  static size_t reference_queueNext_offset_;
+  static MemberOffset reference_queueNext_offset_;
 
   // offset of java.lang.ref.Reference.pendingNext
-  static size_t reference_pendingNext_offset_;
+  static MemberOffset reference_pendingNext_offset_;
 
   // offset of java.lang.ref.FinalizerReference.zombie
-  static size_t finalizer_reference_zombie_offset_;
+  static MemberOffset finalizer_reference_zombie_offset_;
+
+  static bool verify_object_disabled_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

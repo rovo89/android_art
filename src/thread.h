@@ -127,7 +127,7 @@ class Frame {
  public:
   Frame() : sp_(NULL) {}
 
-  const Method* GetMethod() const {
+  Method* GetMethod() const {
     return (sp_ != NULL) ? *sp_ : NULL;
   }
 
@@ -139,22 +139,22 @@ class Frame {
 
   uintptr_t GetPC() const;
 
-  const Method** GetSP() const {
+  Method** GetSP() const {
     return sp_;
   }
 
   // TODO: this is here for testing, remove when we have exception unit tests
   // that use the real stack
-  void SetSP(const Method** sp) {
+  void SetSP(Method** sp) {
     sp_ = sp;
   }
 
  private:
-  const Method* NextMethod() const;
+  Method* NextMethod() const;
 
   friend class Thread;
 
-  const Method** sp_;
+  Method** sp_;
 };
 
 class Thread {
@@ -221,7 +221,7 @@ class Thread {
 
   class StackVisitor {
    public:
-    virtual ~StackVisitor() {};
+    virtual ~StackVisitor() {}
     virtual bool VisitFrame(const Frame& frame) = 0;
   };
 
@@ -238,6 +238,20 @@ class Thread {
 
   void Dump(std::ostream& os) const;
 
+  State GetState() const {
+    return state_;
+  }
+
+  State SetState(State new_state) {
+    State old_state = state_;
+    state_ = new_state;
+    return old_state;
+  }
+
+  bool CanAccessDirectReferences() const {
+    return state_ == kRunnable;
+  }
+
   uint32_t GetId() const {
     return id_;
   }
@@ -248,18 +262,30 @@ class Thread {
     return handle_;
   }
 
+  // Returns the Method* for the current method.
+  // This is used by the JNI implementation for logging and diagnostic purposes.
+  const Method* GetCurrentMethod() const {
+    return top_of_managed_stack_.GetMethod();
+  }
+
   bool IsExceptionPending() const {
     return exception_ != NULL;
   }
 
   Throwable* GetException() const {
+    DCHECK(CanAccessDirectReferences());
     return exception_;
   }
 
-  // Returns the Method* for the current method.
-  // This is used by the JNI implementation for logging and diagnostic purposes.
-  const Method* GetCurrentMethod() const {
-    return top_of_managed_stack_.GetMethod();
+  void SetException(Throwable* new_exception) {
+    DCHECK(CanAccessDirectReferences());
+    CHECK(new_exception != NULL);
+    // TODO: CHECK(exception_ == NULL);
+    exception_ = new_exception;  // TODO
+  }
+
+  void ClearException() {
+    exception_ = NULL;
   }
 
   Frame GetTopOfStack() const {
@@ -269,13 +295,7 @@ class Thread {
   // TODO: this is here for testing, remove when we have exception unit tests
   // that use the real stack
   void SetTopOfStack(void* stack) {
-    top_of_managed_stack_.SetSP(reinterpret_cast<const Method**>(stack));
-  }
-
-  void SetException(Throwable* new_exception) {
-    CHECK(new_exception != NULL);
-    // TODO: CHECK(exception_ == NULL);
-    exception_ = new_exception;  // TODO
+    top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(stack));
   }
 
   void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
@@ -283,10 +303,6 @@ class Thread {
 
   // This exception is special, because we need to pre-allocate an instance.
   void ThrowOutOfMemoryError();
-
-  void ClearException() {
-    exception_ = NULL;
-  }
 
   Frame FindExceptionHandler(void* throw_pc, void** handler_pc);
 
@@ -320,16 +336,6 @@ class Thread {
 
   static bool Startup();
   static void Shutdown();
-
-  State GetState() const {
-    return state_;
-  }
-
-  State SetState(State new_state) {
-    State old_state = state_;
-    state_ = new_state;
-    return old_state;
-  }
 
   static ThreadOffset SuspendCountOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_));
@@ -402,10 +408,12 @@ class Thread {
   }
   void PopNativeToManagedRecord(const NativeToManagedRecord& record) {
     native_to_managed_record_ = record.link;
-    top_of_managed_stack_.SetSP( reinterpret_cast<const Method**>(record.last_top_of_managed_stack) );
+    top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack));
   }
 
   const ClassLoader* GetClassLoaderOverride() {
+    // TODO: need to place the class_loader_override_ in a handle
+    // DCHECK(CanAccessDirectReferences());
     return class_loader_override_;
   }
 
@@ -432,7 +440,7 @@ class Thread {
   }
 
   ~Thread();
-  friend class Runtime; // For ~Thread.
+  friend class Runtime;  // For ~Thread.
 
   void InitCpu();
   void InitFunctionPointers();

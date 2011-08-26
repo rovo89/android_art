@@ -9,11 +9,13 @@
 #include "casts.h"
 #include "constants.h"
 #include "globals.h"
+#include "heap.h"
 #include "logging.h"
 #include "macros.h"
 #include "monitor.h"
 #include "monitor.h"
 #include "offsets.h"
+#include "runtime.h"
 #include "stringpiece.h"
 #include "thread.h"
 #include "utf.h"
@@ -163,9 +165,13 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
  * Return an offset, given a bit number as returned from CLZ.
  */
 #define CLASS_OFFSET_FROM_CLZ(rshift) \
-   ((static_cast<int>(rshift) * CLASS_OFFSET_ALIGNMENT) + CLASS_SMALLEST_OFFSET)
+    MemberOffset((static_cast<int>(rshift) * CLASS_OFFSET_ALIGNMENT) + \
+                 CLASS_SMALLEST_OFFSET)
 
+#define OFFSET_OF_OBJECT_MEMBER(type, field) \
+    MemberOffset(OFFSETOF_MEMBER(type, field))
 
+// C++ mirror of java.lang.Object
 class Object {
  public:
   static bool InstanceOf(const Object* object, const Class* klass) {
@@ -175,10 +181,16 @@ class Object {
     return object->InstanceOf(klass);
   }
 
-  Class* GetClass() const {
-    DCHECK(klass_ != NULL);
-    return klass_;
+  static MemberOffset ClassOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Object, klass_);
   }
+
+  Class* GetClass() const {
+    return
+        GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Object, klass_), false);
+  }
+
+  void SetClass(Class* new_klass);
 
   bool InstanceOf(const Class* klass) const;
 
@@ -189,63 +201,46 @@ class Object {
     return NULL;
   }
 
+  static MemberOffset MonitorOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
+  }
+
+  Monitor* GetMonitor() const {
+    return GetFieldPtr<Monitor*>(
+        OFFSET_OF_OBJECT_MEMBER(Object, monitor_), false);
+  }
+
+  void SetMonitor(Monitor* monitor) {
+    // TODO: threading - compare-and-set
+    SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), monitor, false);
+  }
+
   void MonitorEnter() {
-    monitor_->Enter();
+    GetMonitor()->Enter();
   }
 
   void MonitorExit() {
-    monitor_->Exit();
+    GetMonitor()->Exit();
   }
 
   void Notify() {
-    monitor_->Notify();
+    GetMonitor()->Notify();
   }
 
   void NotifyAll() {
-    monitor_->NotifyAll();
+    GetMonitor()->NotifyAll();
   }
 
   void Wait() {
-    monitor_->Wait();
+    GetMonitor()->Wait();
   }
 
   void Wait(int64_t timeout) {
-    monitor_->Wait(timeout);
+    GetMonitor()->Wait(timeout);
   }
 
   void Wait(int64_t timeout, int32_t nanos) {
-    monitor_->Wait(timeout, nanos);
-  }
-
-  Object* GetFieldObject(size_t field_offset) const {
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
-    return *reinterpret_cast<Object* const *>(raw_addr);
-  }
-
-  void SetFieldObject(size_t offset, const Object* new_value) {
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
-    *reinterpret_cast<const Object**>(raw_addr) = new_value;
-    // TODO: write barrier
-  }
-
-  uint32_t GetField32(size_t field_offset) const {
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
-    return *reinterpret_cast<const uint32_t*>(raw_addr);
-  }
-
-  void SetField32(size_t offset, uint32_t new_value) {
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
-    *reinterpret_cast<uint32_t*>(raw_addr) = new_value;
-  }
-
-  uint64_t GetField64(size_t field_offset) const {
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset;
-    return *reinterpret_cast<const uint64_t*>(raw_addr);
-  }
-
-  void SetField64(size_t offset, uint64_t new_value) {
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
-    *reinterpret_cast<uint64_t*>(raw_addr) = new_value;
+    GetMonitor()->Wait(timeout, nanos);
   }
 
   bool IsClass() const;
@@ -319,12 +314,133 @@ class Object {
     return down_cast<const Field*>(this);
   }
 
- public:
+  bool IsReferenceInstance() const;
+
+  bool IsWeakReferenceInstance() const;
+
+  bool IsSoftReferenceInstance() const;
+
+  bool IsFinalizerReferenceInstance() const;
+
+  bool IsPhantomReferenceInstance() const;
+
+  // Accessors for Java type fields
+  template<class T>
+  T GetFieldObject(MemberOffset field_offset, bool is_volatile) const {
+    Heap::VerifyObject(this);
+    DCHECK(Thread::Current() == NULL ||
+           Thread::Current()->CanAccessDirectReferences());
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
+        field_offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    T result = *reinterpret_cast<T const *>(raw_addr);
+    Heap::VerifyObject(result);
+    return result;
+  }
+
+  void SetFieldObject(MemberOffset offset, const Object* new_value,
+                      bool is_volatile) {
+    // Avoid verifying this when initializing the Class*
+    if (offset.Int32Value() != ClassOffset().Int32Value()) {
+      Heap::VerifyObject(this);
+    }
+    Heap::VerifyObject(new_value);
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    *reinterpret_cast<const Object**>(raw_addr) = new_value;
+    // TODO: write barrier
+  }
+
+  uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
+    Heap::VerifyObject(this);
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
+        field_offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    return *reinterpret_cast<const uint32_t*>(raw_addr);
+  }
+
+  void SetField32(MemberOffset offset, uint32_t new_value, bool is_volatile) {
+    Heap::VerifyObject(this);
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    *reinterpret_cast<uint32_t*>(raw_addr) = new_value;
+  }
+
+  uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const {
+    Heap::VerifyObject(this);
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
+        field_offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    return *reinterpret_cast<const uint64_t*>(raw_addr);
+  }
+
+  void SetField64(MemberOffset offset, uint64_t new_value,
+                  bool is_volatile = false) {
+    Heap::VerifyObject(this);
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    *reinterpret_cast<uint64_t*>(raw_addr) = new_value;
+  }
+
+ protected:
+  // Accessors for non-Java type fields
+  uint16_t GetField16(MemberOffset field_offset, bool is_volatile) const {
+    Heap::VerifyObject(this);
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
+        field_offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    return *reinterpret_cast<const uint16_t*>(raw_addr);
+  }
+
+  void SetField16(MemberOffset offset, uint16_t new_value, bool is_volatile) {
+    Heap::VerifyObject(this);
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    *reinterpret_cast<uint16_t*>(raw_addr) = new_value;
+  }
+
+  template<class T>
+  T GetFieldPtr(MemberOffset field_offset, bool is_volatile) const {
+    Heap::VerifyObject(this);
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
+        field_offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    return *reinterpret_cast<T const *>(raw_addr);
+  }
+
+  template<typename T>
+  void SetFieldPtr(MemberOffset offset, T new_value, bool is_volatile) {
+    Heap::VerifyObject(this);
+    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    if (is_volatile) {
+      UNIMPLEMENTED(WARNING);
+    }
+    *reinterpret_cast<T*>(raw_addr) = new_value;
+  }
+
+ private:
   Class* klass_;
 
   Monitor* monitor_;
 
- private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
@@ -356,44 +472,53 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
+// C++ mirror of java.lang.reflect.AccessibleObject
 class AccessibleObject : public Object {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  uint32_t java_flag_;
+  uint32_t java_flag_;  // can accessibility checks be bypassed
 };
 
+// C++ mirror of java.lang.reflect.Field
 class Field : public AccessibleObject {
  public:
-  Class* GetDeclaringClass() const {
-    DCHECK(declaring_class_ != NULL);
-    return declaring_class_;
-  }
+  Class* GetDeclaringClass() const;
 
-  const String* GetName() const {
-    DCHECK(name_ != NULL);
-    return name_;
+  void SetDeclaringClass(Class *new_declaring_class);
+
+  const String* GetName() const;
+
+  void SetName(String* new_name);
+
+  uint32_t GetAccessFlags() const;
+
+  void SetAccessFlags(uint32_t new_access_flags) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), new_access_flags,
+               false);
   }
 
   bool IsStatic() const {
-    return (access_flags_ & kAccStatic) != 0;
+    return (GetAccessFlags() & kAccStatic) != 0;
   }
 
-  char GetType() const {  // TODO: return type
-    return GetDescriptor()[0];
-  }
+  uint32_t GetTypeIdx() const;
 
-  const StringPiece& GetDescriptor() const {
-    DCHECK_NE(0, descriptor_.size());
-    return descriptor_;
-  }
+  void SetTypeIdx(uint32_t type_idx);
 
-  uint32_t GetOffset() const {
-    return offset_;
-  }
+  // Gets type using type index and resolved types in the dex cache, may be null
+  // if type isn't yet resolved
+  Class* GetTypeDuringLinking() const;
 
-  void SetOffset(size_t num_bytes) {
-    offset_ = num_bytes;
-  }
+  // Performs full resolution, may return null and set exceptions if type cannot
+  // be resolved
+  Class* GetType() const;
+
+  // Offset to field within an Object
+  MemberOffset GetOffset() const;
+
+  MemberOffset GetOffsetDuringLinking() const;
+
+  void SetOffset(MemberOffset num_bytes);
 
   // field access, null object for static fields
   bool GetBoolean(const Object* object) const;
@@ -415,15 +540,33 @@ class Field : public AccessibleObject {
   Object* GetObject(const Object* object) const;
   void SetObject(Object* object, const Object* l) const;
 
-  // slow path routines for static field access when field was unresolved at compile time
-  static uint32_t Get32StaticFromCode(uint32_t field_idx, const Method* referrer);
-  static void Set32StaticFromCode(uint32_t field_idx, const Method* referrer, uint32_t new_value);
-  static uint64_t Get64StaticFromCode(uint32_t field_idx, const Method* referrer);
-  static void Set64StaticFromCode(uint32_t field_idx, const Method* referrer, uint64_t new_value);
-  static Object* GetObjStaticFromCode(uint32_t field_idx, const Method* referrer);
-  static void SetObjStaticFromCode(uint32_t field_idx, const Method* referrer, Object* new_value);
+  // Slow path routines for static field access when field was unresolved at
+  // compile time
+  static uint32_t Get32StaticFromCode(uint32_t field_idx,
+                                      const Method* referrer);
+  static void Set32StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                  uint32_t new_value);
+  static uint64_t Get64StaticFromCode(uint32_t field_idx,
+                                      const Method* referrer);
+  static void Set64StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                  uint64_t new_value);
+  static Object* GetObjStaticFromCode(uint32_t field_idx,
+                                      const Method* referrer);
+  static void SetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
+                                   Object* new_value);
 
- public:  // TODO: private
+  static Class* GetJavaLangReflectField() {
+    DCHECK(java_lang_reflect_Field_ != NULL);
+    return java_lang_reflect_Field_;
+  }
+
+  static void SetClass(Class* java_lang_reflect_Field);
+  static void ResetClass();
+
+ private:
+  bool IsVolatile() const {
+    return (GetAccessFlags() & kAccVolatile) != 0;
+  }
 
   // private implementation of field access using raw data
   uint32_t Get32(const Object* object) const;
@@ -439,18 +582,23 @@ class Field : public AccessibleObject {
   Object* generic_type_;
   uint32_t generic_types_are_initialized_;
   const String* name_;
+  // Offset of field within an instance or in the Class' static fields
   uint32_t offset_;
+  // Type of the field
+  // TODO: unused by ART (which uses the type_idx below), remove
   Class* type_;
 
-  // e.g. "I", "[C", "Landroid/os/Debug;"
-  StringPiece descriptor_;
-
+  // TODO: expose these fields in the Java version of this Object
   uint32_t access_flags_;
+  // Dex cache index of resolved type
+  uint32_t type_idx_;
 
- private:
+  static Class* java_lang_reflect_Field_;
+
   DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
 };
 
+// C++ mirror of java.lang.reflect.Method
 class Method : public AccessibleObject {
  public:
   // An function that invokes a method with an array of its arguments.
@@ -460,39 +608,54 @@ class Method : public AccessibleObject {
                           byte* args,
                           JValue* result);
 
-  // Returns the method name, e.g. "<init>" or "eatLunch"
-  const String* GetName() const {
-    DCHECK(name_ != NULL);
-    return name_;
-  }
+  Class* GetDeclaringClass() const;
 
-  const String* GetSignature() const {
-    DCHECK(signature_ != NULL);
-    return signature_;
-  }
-
-  Class* GetDeclaringClass() const {
-    DCHECK(declaring_class_ != NULL);
-    return declaring_class_;
-  }
+  void SetDeclaringClass(Class *new_declaring_class);
 
   static MemberOffset DeclaringClassOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Method, declaring_class_));
   }
 
+  // Returns the method name, e.g. "<init>" or "eatLunch"
+  const String* GetName() const;
+
+  void SetName(String* new_name);
+
+  const char* GetShorty() const;
+
+  void SetShorty(const char* new_shorty) {
+    DCHECK(NULL == GetFieldPtr<const char*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false));
+    DCHECK_LE(1u, strlen(new_shorty));
+    SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), new_shorty, false);
+  }
+
+  const String* GetSignature() const;
+
+  void SetSignature(String* new_signature);
+
+  bool HasSameNameAndDescriptor(const Method* that) const;
+
+  uint32_t GetAccessFlags() const;
+
+  void SetAccessFlags(uint32_t new_access_flags) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), new_access_flags,
+               false);
+  }
+
   // Returns true if the method is declared public.
   bool IsPublic() const {
-    return (access_flags_ & kAccPublic) != 0;
+    return (GetAccessFlags() & kAccPublic) != 0;
   }
 
   // Returns true if the method is declared private.
   bool IsPrivate() const {
-    return (access_flags_ & kAccPrivate) != 0;
+    return (GetAccessFlags() & kAccPrivate) != 0;
   }
 
   // Returns true if the method is declared static.
   bool IsStatic() const {
-    return (access_flags_ & kAccStatic) != 0;
+    return (GetAccessFlags() & kAccStatic) != 0;
   }
 
   // Returns true if the method is a constructor.
@@ -508,89 +671,125 @@ class Method : public AccessibleObject {
   // Returns true if the method is declared synchronized.
   bool IsSynchronized() const {
     uint32_t synchonized = kAccSynchronized | kAccDeclaredSynchronized;
-    return (access_flags_ & synchonized) != 0;
+    return (GetAccessFlags() & synchonized) != 0;
   }
 
   // Returns true if the method is declared final.
   bool IsFinal() const {
-    return (access_flags_ & kAccFinal) != 0;
+    return (GetAccessFlags() & kAccFinal) != 0;
   }
 
   // Returns true if the method is declared native.
   bool IsNative() const {
-    return (access_flags_ & kAccNative) != 0;
+    return (GetAccessFlags() & kAccNative) != 0;
   }
 
   // Returns true if the method is declared abstract.
   bool IsAbstract() const {
-    return (access_flags_ & kAccAbstract) != 0;
+    return (GetAccessFlags() & kAccAbstract) != 0;
   }
 
   bool IsSynthetic() const {
-    return (access_flags_ & kAccSynthetic) != 0;
+    return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
-  // Number of argument registers required by the prototype.
-  uint32_t NumArgRegisters() const;
+  uint16_t GetMethodIndex() const;
+
+  size_t GetVtableIndex() const {
+    return GetMethodIndex();
+  }
+
+  void SetMethodIndex(uint16_t new_method_index) {
+    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, method_index_),
+               new_method_index, false);
+  }
+
+  static MemberOffset MethodIndexOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
+  }
+
+  uint32_t GetCodeItemOffset() const {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, code_item_offset_), false);
+  }
+
+  void SetCodeItemOffset(uint32_t new_code_off) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, code_item_offset_),
+               new_code_off, false);
+  }
+
+  // Number of 32bit registers that would be required to hold all the arguments
+  static size_t NumArgRegisters(const StringPiece& shorty);
 
   // Number of argument bytes required for densely packing the
   // arguments into an array of arguments.
   size_t NumArgArrayBytes() const;
 
-  // Converts a native PC to a virtual PC.  TODO: this is a no-op
-  // until we associate a PC mapping table with each method.
-  uintptr_t ToDexPC(const uintptr_t pc) const {
-    return pc;
+  uint16_t NumRegisters() const;
+
+  void SetNumRegisters(uint16_t new_num_registers) {
+    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_),
+               new_num_registers, false);
   }
 
-  // Converts a virtual PC to a native PC.  TODO: this is a no-op
-  // until we associate a PC mapping table with each method.
-  uintptr_t ToNativePC(const uintptr_t pc) const {
-    return pc;
+  uint16_t NumIns() const;
+
+  void SetNumIns(uint16_t new_num_ins) {
+    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_),
+               new_num_ins, false);
   }
 
- public:  // TODO: private
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  // the class we are a part of
-  Class* declaring_class_;
-  ObjectArray<Class>* java_exception_types_;
-  Object* java_formal_type_parameters_;
-  Object* java_generic_exception_types_;
-  Object* java_generic_parameter_types_;
-  Object* java_generic_return_type_;
-  Class* java_return_type_;
-  const String* name_;
-  ObjectArray<Class>* java_parameter_types_;
-  uint32_t java_generic_types_are_initialized_;
-  uint32_t java_slot_;
+  uint16_t NumOuts() const;
 
-  const StringPiece& GetShorty() const {
-    return shorty_;
+  void SetNumOuts(uint16_t new_num_outs) {
+    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_),
+               new_num_outs, false);
   }
 
-  bool IsReturnAReference() const {
-    return (shorty_[0] == 'L') || (shorty_[0] == '[');
+  uint32_t GetProtoIdx() const;
+
+  void SetProtoIdx(uint32_t new_proto_idx) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, proto_idx_), new_proto_idx, false);
   }
+
+  ObjectArray<String>* GetDexCacheStrings() const;
+  void SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings);
+
+  static MemberOffset DexCacheStringsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_);
+  }
+
+  ObjectArray<Class>* GetDexCacheResolvedTypes() const;
+  void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types);
+
+  ObjectArray<Method>* GetDexCacheResolvedMethods() const;
+  void SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods);
+
+  ObjectArray<Field>* GetDexCacheResolvedFields() const;
+  void SetDexCacheResolvedFields(ObjectArray<Field>* new_dex_cache_fields);
+
+  CodeAndDirectMethods* GetDexCacheCodeAndDirectMethods() const;
+  void SetDexCacheCodeAndDirectMethods(CodeAndDirectMethods* new_value);
+
+  ObjectArray<StaticStorageBase>* GetDexCacheInitializedStaticStorage() const;
+  void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value);
+
+  void SetReturnTypeIdx(uint32_t new_return_type_idx);
+
+  Class* GetReturnType() const;
+
+  bool IsReturnAReference() const;
+
+  bool IsReturnAFloat() const;
+
+  bool IsReturnADouble() const;
 
   bool IsReturnAFloatOrDouble() const {
-    return (shorty_[0] == 'F') || (shorty_[0] == 'D');
+    return IsReturnAFloat() || IsReturnADouble();
   }
 
-  bool IsReturnAFloat() const {
-    return shorty_[0] == 'F';
-  }
+  bool IsReturnALong() const;
 
-  bool IsReturnADouble() const {
-    return shorty_[0] == 'D';
-  }
-
-  bool IsReturnALong() const {
-    return shorty_[0] == 'J';
-  }
-
-  bool IsReturnVoid() const {
-    return shorty_[0] == 'V';
-  }
+  bool IsReturnVoid() const;
 
   // "Args" may refer to any of the 3 levels of "Args."
   // To avoid confusion, our code will denote which "Args" clearly:
@@ -607,7 +806,7 @@ class Method : public AccessibleObject {
   size_t NumArgs() const {
     // "1 +" because the first in Args is the receiver.
     // "- 1" because we don't count the return type.
-    return (IsStatic() ? 0 : 1) + shorty_.length() - 1;
+    return (IsStatic() ? 0 : 1) + strlen(GetShorty()) - 1;
   }
 
   // The number of reference arguments to this method including implicit this
@@ -633,90 +832,137 @@ class Method : public AccessibleObject {
   // Size in bytes of the return value
   size_t ReturnSize() const;
 
-  bool HasCode() {
-    return code_ != NULL;
+  const void* GetCode() const {
+    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
   }
 
-  const void* GetCode() {
-    return code_;
+  bool HasCode() const {
+    return GetCode() != NULL;
   }
 
   void SetCode(const byte* compiled_code,
                size_t byte_count,
-               InstructionSet set) {
-    // Copy the code into an executable region.
-    code_instruction_set_ = set;
-    code_area_.reset(MemMap::Map(byte_count,
-        PROT_READ | PROT_WRITE | PROT_EXEC));
-    CHECK(code_area_.get());
-    byte* code = code_area_->GetAddress();
-    memcpy(code, compiled_code, byte_count);
-    __builtin___clear_cache(code, code + byte_count);
+               InstructionSet set);
 
-    uintptr_t address = reinterpret_cast<uintptr_t>(code);
-    if (code_instruction_set_ == kThumb2) {
-        // Set the low-order bit so a BLX will switch to Thumb mode
-        address |= 0x1;
-    }
-    code_ =  reinterpret_cast<void*>(address);
-  }
-
-  void SetFrameSizeInBytes(size_t frame_size_in_bytes) {
-    frame_size_in_bytes_ = frame_size_in_bytes;
-  }
-
-  void SetReturnPcOffsetInBytes(size_t return_pc_offset_in_bytes) {
-    return_pc_offset_in_bytes_ = return_pc_offset_in_bytes;
+  static MemberOffset GetCodeOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, code_);
   }
 
   size_t GetFrameSizeInBytes() const {
-    return frame_size_in_bytes_;
+    DCHECK(sizeof(size_t) == sizeof(uint32_t));
+    size_t result = GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_), false);
+    DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
+    return result;
+  }
+
+  void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
+    DCHECK(sizeof(size_t) == sizeof(uint32_t));
+    DCHECK_LE(static_cast<size_t>(kStackAlignment), new_frame_size_in_bytes);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_),
+               new_frame_size_in_bytes, false);
   }
 
   size_t GetReturnPcOffsetInBytes() const {
-    return return_pc_offset_in_bytes_;
+    DCHECK(sizeof(size_t) == sizeof(uint32_t));
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Method, return_pc_offset_in_bytes_), false);
   }
 
-  void SetCoreSpillMask(uint32_t core_spill_mask) {
-    core_spill_mask_ = core_spill_mask;
-  }
-
-  static size_t GetCodeOffset() {
-    return OFFSETOF_MEMBER(Method, code_);
-  }
-
-  void SetFpSpillMask(uint32_t fp_spill_mask) {
-    fp_spill_mask_ = fp_spill_mask;
+  void SetReturnPcOffsetInBytes(size_t return_pc_offset_in_bytes) {
+    DCHECK(sizeof(size_t) == sizeof(uint32_t));
+    DCHECK_LT(return_pc_offset_in_bytes, GetFrameSizeInBytes());
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, return_pc_offset_in_bytes_),
+               return_pc_offset_in_bytes, false);
   }
 
   void RegisterNative(const void* native_method) {
     CHECK(native_method != NULL);
-    native_method_ = native_method;
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+                             native_method, false);
   }
 
   void UnregisterNative() {
-    native_method_ = NULL;
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+                             NULL, false);
   }
 
   static MemberOffset NativeMethodOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Method, native_method_));
+    return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);
   }
 
+  // Native to managed invocation stub entry point
   InvokeStub* GetInvokeStub() const {
-    return invoke_stub_;
+    InvokeStub* result = GetFieldPtr<InvokeStub*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), false);
+    // TODO: DCHECK(result != NULL);  should be ahead of time compiled
+    return result;
   }
 
-  void SetInvokeStub(const InvokeStub* invoke_stub) {
-    invoke_stub_ = invoke_stub;
+  static MemberOffset GetInvokeStubOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_);
   }
 
-  static size_t GetInvokeStubOffset() {
-    return OFFSETOF_MEMBER(Method, invoke_stub_);
+  void SetInvokeStub(const InvokeStub* new_invoke_stub) {
+    SetFieldPtr<const InvokeStub*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), new_invoke_stub, false);
   }
 
-  bool HasSameNameAndDescriptor(const Method* that) const;
+  void SetFpSpillMask(uint32_t fp_spill_mask) {
+    // Computed during compilation
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_),
+               fp_spill_mask, false);
+  }
 
- public:  // TODO: private/const
+  void SetCoreSpillMask(uint32_t core_spill_mask) {
+    // Computed during compilation
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_),
+               core_spill_mask, false);
+  }
+
+  // Converts a native PC to a dex PC.  TODO: this is a no-op
+  // until we associate a PC mapping table with each method.
+  uintptr_t ToDexPC(const uintptr_t pc) const {
+    return pc;
+  }
+
+  // Converts a dex PC to a native PC.  TODO: this is a no-op
+  // until we associate a PC mapping table with each method.
+  uintptr_t ToNativePC(const uintptr_t pc) const {
+    return pc;
+  }
+
+  static Class* GetJavaLangReflectMethod() {
+    DCHECK(java_lang_reflect_Method_ != NULL);
+    return java_lang_reflect_Method_;
+  }
+
+  static void SetClass(Class* java_lang_reflect_Method);
+  static void ResetClass();
+
+ private:
+  uint32_t GetReturnTypeIdx() const;
+
+  // TODO: the image writer should know the offsets of these fields as they
+  // should appear in the libcore Java mirror
+  friend class ImageWriter;
+
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  // the class we are a part of
+  Class* declaring_class_;
+  ObjectArray<Class>* java_exception_types_;
+  Object* java_formal_type_parameters_;
+  Object* java_generic_exception_types_;
+  Object* java_generic_parameter_types_;
+  Object* java_generic_return_type_;
+  Class* java_return_type_;  // Unused by ART
+  String* name_;
+  ObjectArray<Class>* java_parameter_types_;
+  uint32_t java_generic_types_are_initialized_;
+  uint32_t java_slot_;
+
+  // TODO: start of non-Java mirror fields, place these in the Java piece
+
   // access flags; low 16 bits are defined by spec (could be uint16_t?)
   uint32_t access_flags_;
 
@@ -758,14 +1004,17 @@ class Method : public AccessibleObject {
   uint32_t proto_idx_;
 
   // Offset to the CodeItem.
-  uint32_t code_off_;
+  uint32_t code_item_offset_;
 
-  // The short-form method descriptor string.
-  StringPiece shorty_;
+  // Index of the return type
+  uint32_t java_return_type_idx_;
+
+  // The short-form method descriptor string. TODO: make String*
+  const char* shorty_;
 
   // short cuts to declaring_class_->dex_cache_ members for fast compiled code
   // access
-  ObjectArray<const String>* dex_cache_strings_;
+  ObjectArray<String>* dex_cache_strings_;
   ObjectArray<Class>* dex_cache_resolved_types_;
   ObjectArray<Method>* dex_cache_resolved_methods_;
   ObjectArray<Field>* dex_cache_resolved_fields_;
@@ -776,6 +1025,7 @@ class Method : public AccessibleObject {
   // Compiled code associated with this method
   UniquePtr<MemMap> code_area_;
   const void* code_;
+
   // Instruction set of the compiled code
   InstructionSet code_instruction_set_;
 
@@ -791,6 +1041,8 @@ class Method : public AccessibleObject {
 
   // Native invocation stub entry point.
   const InvokeStub* invoke_stub_;
+
+  static Class* java_lang_reflect_Method_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Method);
 };
@@ -816,19 +1068,20 @@ class Array : public Object {
   size_t SizeOf() const;
 
   int32_t GetLength() const {
-    return length_;
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Array, length_), false);
   }
 
-  void SetLength(uint32_t length) {
-    length_ = length;
+  void SetLength(int32_t length) {
+    CHECK_LE(0, length);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Array, length_), length, false);
   }
 
   static MemberOffset LengthOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Array, length_));
+    return OFFSET_OF_OBJECT_MEMBER(Array, length_);
   }
 
   static MemberOffset DataOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Array, first_element_));
+    return OFFSET_OF_OBJECT_MEMBER(Array, first_element_);
   }
 
   void* GetRawData() {
@@ -860,53 +1113,46 @@ class Array : public Object {
 template<class T>
 class ObjectArray : public Array {
  public:
-  static ObjectArray<T>* Alloc(Class* object_array_class,
-                               int32_t length) {
-    return Array::Alloc(object_array_class, length, sizeof(uint32_t))->AsObjectArray<T>();
-  }
+  static ObjectArray<T>* Alloc(Class* object_array_class, int32_t length);
 
-  T* const * GetData() const {
-    return reinterpret_cast<T* const *>(&elements_);
-  }
+  T* Get(int32_t i) const;
 
-  T** GetData() {
-    return reinterpret_cast<T**>(&elements_);
-  }
+  void Set(int32_t i, T* object);
 
-  T* Get(int32_t i) const {
-    if (!IsValidIndex(i)) {
-      return NULL;
-    }
-    return GetData()[i];
-  }
+  // Set element without bound and element type checks, to be used in limited
+  // circumstances, such as during boot image writing
+  void SetWithoutChecks(int32_t i, T* object);
 
-  void Set(int32_t i, T* object) {
-    if (IsValidIndex(i)) {
-      // TODO: ArrayStoreException
-      GetData()[i] = object;  // TODO: write barrier
-    }
-  }
-
-  static void Copy(ObjectArray<T>* src, int src_pos,
+  static void Copy(const ObjectArray<T>* src, int src_pos,
                    ObjectArray<T>* dst, int dst_pos,
-                   size_t length) {
-    for (size_t i = 0; i < length; i++) {
-      dst->Set(dst_pos + i, src->Get(src_pos + i));
-    }
-  }
+                   size_t length);
 
-  ObjectArray<T>* CopyOf(int32_t new_length) {
-    ObjectArray<T>* new_array = Alloc(klass_, new_length);
-    Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
-    return new_array;
-  }
+  ObjectArray<T>* CopyOf(int32_t new_length);
 
  private:
-  // Location of first element.
-  T* elements_[0];
-
   DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
 };
+
+template<class T>
+ObjectArray<T>* ObjectArray<T>::Alloc(Class* object_array_class, int32_t length) {
+  return Array::Alloc(object_array_class, length, sizeof(uint32_t))->AsObjectArray<T>();
+}
+
+template<class T>
+T* ObjectArray<T>::Get(int32_t i) const {
+  if (!IsValidIndex(i)) {
+    return NULL;
+  }
+  MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+  return GetFieldObject<T*>(data_offset, false);
+}
+
+template<class T>
+ObjectArray<T>* ObjectArray<T>::CopyOf(int32_t new_length) {
+  ObjectArray<T>* new_array = Alloc(GetClass(), new_length);
+  Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
+  return new_array;
+}
 
 // Type for the InitializedStaticStorage table. Currently the Class
 // provides the static storage. However, this might change to improve
@@ -914,7 +1160,7 @@ class ObjectArray : public Array {
 // current storage.
 class StaticStorageBase {};
 
-// Class objects.
+// C++ mirror of java.lang.Class
 class Class : public Object, public StaticStorageBase {
  public:
 
@@ -938,9 +1184,10 @@ class Class : public Object, public StaticStorageBase {
   // using ResolveClass to initialize the super_class_ and interfaces_.
   //
   // kStatusResolved: Still holding the lock on Class, the ClassLinker
-  // will use LinkClass to link all members, creating Field and Method
-  // objects, setting up the vtable, etc. On success, the class is
-  // marked kStatusResolved.
+  // shows linking is complete and fields of the Class populated by making
+  // it kStatusResolved. Java allows circularities of the form where a super
+  // class has a field that is of the type of the sub class. We need to be able
+  // to fully resolve super classes while resolving types for fields.
 
   enum Status {
     kStatusError = -1,
@@ -955,8 +1202,206 @@ class Class : public Object, public StaticStorageBase {
   };
 
   enum PrimitiveType {
-    kPrimNot = -1
+    kPrimNot = 0,
+    kPrimBoolean,
+    kPrimByte,
+    kPrimChar,
+    kPrimShort,
+    kPrimInt,
+    kPrimLong,
+    kPrimFloat,
+    kPrimDouble,
+    kPrimVoid,
   };
+
+  Status GetStatus() const {
+    CHECK(sizeof(Status) == sizeof(uint32_t));
+    return static_cast<Status>(
+        GetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), false));
+  }
+
+  void SetStatus(Status new_status);
+
+  // Returns true if the class has failed to link.
+  bool IsErroneous() const {
+    return GetStatus() == kStatusError;
+  }
+
+  // Returns true if the class has been loaded.
+  bool IsIdxLoaded() const {
+    return GetStatus() >= kStatusIdx;
+  }
+
+  // Returns true if the class has been loaded.
+  bool IsLoaded() const {
+    return GetStatus() >= kStatusLoaded;
+  }
+
+  // Returns true if the class has been linked.
+  bool IsLinked() const {
+    return GetStatus() >= kStatusResolved;
+  }
+
+  // Returns true if the class has been verified.
+  bool IsVerified() const {
+    return GetStatus() >= kStatusVerified;
+  }
+
+  // Returns true if the class is initialized.
+  bool IsInitialized() const {
+    return GetStatus() == kStatusInitialized;
+  }
+
+  uint32_t GetAccessFlags() const;
+
+  void SetAccessFlags(uint32_t new_access_flags) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags,
+               false);
+  }
+
+  // Returns true if the class is an interface.
+  bool IsInterface() const {
+    return (GetAccessFlags() & kAccInterface) != 0;
+  }
+
+  // Returns true if the class is declared public.
+  bool IsPublic() const {
+    return (GetAccessFlags() & kAccPublic) != 0;
+  }
+
+  // Returns true if the class is declared final.
+  bool IsFinal() const {
+    return (GetAccessFlags() & kAccFinal) != 0;
+  }
+
+  // Returns true if the class is abstract.
+  bool IsAbstract() const {
+    return (GetAccessFlags() & kAccAbstract) != 0;
+  }
+
+  // Returns true if the class is an annotation.
+  bool IsAnnotation() const {
+    return (GetAccessFlags() & kAccAnnotation) != 0;
+  }
+
+  // Returns true if the class is synthetic.
+  bool IsSynthetic() const {
+    return (GetAccessFlags() & kAccSynthetic) != 0;
+  }
+
+  bool IsReferenceClass() const {
+    return (GetAccessFlags() & kAccClassIsReference) != 0;
+  }
+
+  bool IsWeakReferenceClass() const {
+    return (GetAccessFlags() & kAccClassIsWeakReference) != 0;
+  }
+
+  bool IsSoftReferenceClass() const {
+    return (GetAccessFlags() & ~kAccReferenceFlagsMask) == kAccClassIsReference;
+  }
+
+  bool IsFinalizerReferenceClass() const {
+    return (GetAccessFlags() & kAccClassIsFinalizerReference) != 0;
+  }
+
+  bool IsPhantomReferenceClass() const {
+    return (GetAccessFlags() & kAccClassIsPhantomReference) != 0;
+  }
+
+  PrimitiveType GetPrimitiveType() const {
+    CHECK(sizeof(PrimitiveType) == sizeof(int32_t));
+    return static_cast<PrimitiveType>(
+        GetField32(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), false));
+  }
+
+  void SetPrimitiveType(PrimitiveType new_type) {
+    CHECK(sizeof(PrimitiveType) == sizeof(int32_t));
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type,
+               false);
+  }
+
+  // Returns true if the class is a primitive type.
+  bool IsPrimitive() const {
+    return GetPrimitiveType() != kPrimNot;
+  }
+
+  bool IsPrimitiveBoolean() const {
+    return GetPrimitiveType() == kPrimBoolean;
+  }
+
+  bool IsPrimitiveByte() const {
+    return GetPrimitiveType() == kPrimByte;
+  }
+
+  bool IsPrimitiveChar() const {
+    return GetPrimitiveType() == kPrimChar;
+  }
+
+  bool IsPrimitiveShort() const {
+    return GetPrimitiveType() == kPrimShort;
+  }
+
+  bool IsPrimitiveInt() const {
+    return GetPrimitiveType() == kPrimInt;
+  }
+
+  bool IsPrimitiveLong() const {
+    return GetPrimitiveType() == kPrimLong;
+  }
+
+  bool IsPrimitiveFloat() const {
+    return GetPrimitiveType() == kPrimFloat;
+  }
+
+  bool IsPrimitiveDouble() const {
+    return GetPrimitiveType() == kPrimDouble;
+  }
+
+  bool IsPrimitiveVoid() const {
+    return GetPrimitiveType() == kPrimVoid;
+  }
+
+  size_t PrimitiveSize() const;
+
+  bool IsArrayClass() const {
+    return GetArrayRank() != 0;
+  }
+
+  int32_t GetArrayRank() const {
+    int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, array_rank_),
+                                false);
+    return result;
+  }
+
+  void SetArrayRank(int32_t new_array_rank) {
+    DCHECK_EQ(0, GetArrayRank());
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, array_rank_), new_array_rank,
+               false);
+  }
+
+  Class* GetComponentType() const {
+    DCHECK(IsArrayClass());
+    return GetFieldObject<Class*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
+  }
+
+  void SetComponentType(Class* new_component_type) {
+    DCHECK(GetComponentType() == NULL);
+    DCHECK(new_component_type != NULL);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, component_type_),
+                   new_component_type, false);
+  }
+
+  size_t GetComponentSize() const {
+    return GetTypeSize(GetComponentType()->GetDescriptor());
+  }
+
+  bool IsObjectClass() const {
+    return !IsPrimitive() && GetSuperClass() == NULL;
+  }
+
+  static bool CanPutArrayElementFromCode(const Class* elementClass, const Class* arrayClass);
 
   // Given the context of a calling Method, use its DexCache to
   // resolve a type to a Class. If it cannot be resolved, throw an
@@ -966,92 +1411,54 @@ class Class : public Object, public StaticStorageBase {
   // Creates a raw object instance but does not invoke the default constructor.
   Object* AllocObject();
 
-  Class* GetSuperClass() const {
-    return super_class_;
-  }
-
-  uint32_t GetSuperClassTypeIdx() const {
-    return super_class_type_idx_;
-  }
-
-  bool HasSuperClass() const {
-    return super_class_ != NULL;
-  }
-
-  bool IsAssignableFrom(const Class* klass) const {
-    DCHECK(klass != NULL);
-    if (this == klass) {
-      return true;
-    }
-    if (IsInterface()) {
-      return klass->Implements(this);
-    }
-    if (klass->IsArrayClass()) {
-      return IsAssignableFromArray(klass);
-    }
-    return klass->IsSubClass(this);
-  }
-
-  const ClassLoader* GetClassLoader() const {
-    return class_loader_;
-  }
-
-  DexCache* GetDexCache() const {
-    return dex_cache_;
-  }
-
-  Class* GetComponentType() const {
-    return component_type_;
-  }
-
-  static size_t GetTypeSize(String* descriptor);
-
-  size_t GetComponentSize() const {
-    return GetTypeSize(component_type_->descriptor_);
-  }
+  static size_t GetTypeSize(const String* descriptor);
 
   const String* GetDescriptor() const {
-    DCHECK(descriptor_ != NULL);
-    // DCHECK_NE(0, descriptor_->GetLength());  // TODO: keep?
-    return descriptor_;
+    const String* result = GetFieldObject<const String*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, descriptor_), false);
+    // DCHECK(result != NULL);  // may be NULL prior to class linker initialization
+    // DCHECK_NE(0, result->GetLength());  // TODO: keep?
+    return result;
+  }
+
+  void SetDescriptor(String* new_descriptor);
+
+  bool IsVariableSize() const {
+    // Classes and arrays vary in size, and so the object_size_ field cannot
+    // be used to get their instance size
+    return IsClassClass() || IsArrayClass();
   }
 
   size_t SizeOf() const {
-    return class_size_;
+    CHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), false);
   }
 
-  Status GetStatus() const {
-    return status_;
+  size_t GetClassSize() const {
+    CHECK(sizeof(size_t) == sizeof(uint32_t));
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), false);
   }
 
-  void SetStatus(Status new_status) {
-    // TODO: validate transition
-    status_ = new_status;
+  void SetClassSize(size_t new_class_size) {
+    DCHECK_GE(new_class_size, GetClassSize());
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size,
+               false);
   }
 
-  // Returns true if the class has failed to link.
-  bool IsErroneous() const {
-    return GetStatus() == kStatusError;
+  size_t GetObjectSize() const {
+    CHECK(!IsVariableSize());
+    CHECK(sizeof(size_t) == sizeof(int32_t));
+    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_),
+                               false);
+    CHECK_GE(result, sizeof(Object));
+    return result;
   }
 
-  // Returns true if the class has been verified.
-  bool IsVerified() const {
-    return GetStatus() >= kStatusVerified;
-  }
-
-  // Returns true if the class has been linked.
-  bool IsLinked() const {
-    return GetStatus() >= kStatusResolved;
-  }
-
-  // Returns true if the class has been loaded.
-  bool IsLoaded() const {
-    return GetStatus() >= kStatusLoaded;
-  }
-
-  // Returns true if the class is initialized.
-  bool IsInitialized() const {
-    return GetStatus() == kStatusInitialized;
+  void SetObjectSize(size_t new_object_size) {
+    DCHECK(!IsVariableSize());
+    CHECK(sizeof(size_t) == sizeof(int32_t));
+    return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_),
+                      new_object_size, false);
   }
 
   // Returns true if this class is in the same packages as that class.
@@ -1060,105 +1467,157 @@ class Class : public Object, public StaticStorageBase {
   static bool IsInSamePackage(const String* descriptor1,
                               const String* descriptor2);
 
-  // Returns true if this class represents an array class.
-  bool IsArrayClass() const;
-
-  // Returns true if the class is an interface.
-  bool IsInterface() const {
-    return (access_flags_ & kAccInterface) != 0;
-  }
-
-  // Returns true if the class is declared public.
-  bool IsPublic() const {
-    return (access_flags_ & kAccPublic) != 0;
-  }
-
-  // Returns true if the class is declared final.
-  bool IsFinal() const {
-    return (access_flags_ & kAccFinal) != 0;
-  }
-
-  // Returns true if the class is abstract.
-  bool IsAbstract() const {
-    return (access_flags_ & kAccAbstract) != 0;
-  }
-
-  // Returns true if the class is an annotation.
-  bool IsAnnotation() const {
-    return (access_flags_ & kAccAnnotation) != 0;
-  }
-
-  // Returns true if the class is a primitive type.
-  bool IsPrimitive() const {
-    return primitive_type_ != kPrimNot;
-  }
-
-  // Returns true if the class is synthetic.
-  bool IsSynthetic() const {
-    return (access_flags_ & kAccSynthetic) != 0;
-  }
-
-  bool IsReference() const {
-    return (access_flags_ & kAccClassIsReference) != 0;
-  }
-
-  bool IsWeakReference() const {
-    return (access_flags_ & kAccClassIsWeakReference) != 0;
-  }
-
-  bool IsSoftReference() const {
-    return (access_flags_ & ~kAccReferenceFlagsMask) == kAccClassIsReference;
-  }
-
-  bool IsFinalizerReference() const {
-    return (access_flags_ & kAccClassIsFinalizerReference) != 0;
-  }
-
-  bool IsPhantomReference() const {
-    return (access_flags_ & kAccClassIsPhantomReference) != 0;
-  }
-
   // Returns true if this class can access that class.
   bool CanAccess(const Class* that) const {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
 
-  static bool CanPutArrayElementFromCode(const Class* elementClass, const Class* arrayClass);
+  bool IsAssignableFrom(const Class* klass) const {
+    DCHECK(klass != NULL);
+    if (this == klass) {
+      // Can always assign to things of the same type
+      return true;
+    } else if(IsObjectClass()) {
+      // Can assign any reference to java.lang.Object
+      return !klass->IsPrimitive();
+    } else if (IsInterface()) {
+      return klass->Implements(this);
+    } else if (klass->IsArrayClass()) {
+      return IsAssignableFromArray(klass);
+    } else {
+      return klass->IsSubClass(this);
+    }
+  }
 
-  // Returns the number of static, private, and constructor methods.
-  size_t NumDirectMethods() const {
-    return (direct_methods_ != NULL) ? direct_methods_->GetLength() : 0;
+  Class* GetSuperClass() const {
+    // Can only get super class for loaded classes (hack for when runtime is
+    // initializing)
+    DCHECK(IsLoaded() || Runtime::Current() == NULL);
+    return GetFieldObject<Class*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
+  }
+
+  void SetSuperClass(Class *new_super_class) {
+    // super class is assigned once, except during class linker initialization
+    Class* old_super_class = GetFieldObject<Class*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
+    DCHECK(old_super_class == NULL || old_super_class == new_super_class);
+    DCHECK(new_super_class != NULL);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, super_class_),
+        new_super_class, false);
+  }
+
+  bool HasSuperClass() const {
+    return GetSuperClass() != NULL;
+  }
+
+  uint32_t GetSuperClassTypeIdx() const {
+    DCHECK(IsIdxLoaded());
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, super_class_type_idx_),
+                      false);
+  }
+
+  void SetSuperClassTypeIdx(int32_t new_super_class_idx) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, super_class_type_idx_),
+               new_super_class_idx, false);
+  }
+
+  const ClassLoader* GetClassLoader() const;
+
+  void SetClassLoader(const ClassLoader* new_cl);
+
+  static MemberOffset DexCacheOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Class, dex_cache_));
+  }
+
+  DexCache* GetDexCache() const;
+
+  void SetDexCache(DexCache* new_dex_cache);
+
+  ObjectArray<Method>* GetDirectMethods() const {
+    DCHECK(IsLoaded());
+    return GetFieldObject<ObjectArray<Method>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
+  }
+
+  void SetDirectMethods(ObjectArray<Method>* new_direct_methods) {
+    DCHECK(NULL == GetFieldObject<ObjectArray<Method>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false));
+    DCHECK_NE(0, new_direct_methods->GetLength());
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_),
+                   new_direct_methods, false);
   }
 
   Method* GetDirectMethod(int32_t i) const {
-    DCHECK_NE(NumDirectMethods(), 0U);
-    return direct_methods_->Get(i);
+    return GetDirectMethods()->Get(i);
   }
 
   void SetDirectMethod(uint32_t i, Method* f) {  // TODO: uint16_t
-    DCHECK_NE(NumDirectMethods(), 0U);
-    direct_methods_->Set(i, f);
+    ObjectArray<Method>* direct_methods =
+        GetFieldObject<ObjectArray<Method>*>(
+            OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
+    direct_methods->Set(i, f);
   }
 
-  Method* FindDeclaredDirectMethod(const StringPiece& name,
-                                   const StringPiece& signature);
+  // Returns the number of static, private, and constructor methods.
+  size_t NumDirectMethods() const {
+    return (GetDirectMethods() != NULL) ? GetDirectMethods()->GetLength() : 0;
+  }
 
-  Method* FindDirectMethod(const StringPiece& name,
-                           const StringPiece& signature);
+  ObjectArray<Method>* GetVirtualMethods() const {
+    DCHECK(IsLoaded());
+    return GetFieldObject<ObjectArray<Method>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
+  }
+
+  void SetVirtualMethods(ObjectArray<Method>* new_virtual_methods) {
+    // TODO: we reassign virtual methods to grow the table for miranda
+    // methods.. they should really just be assigned once
+    DCHECK_NE(0, new_virtual_methods->GetLength());
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_),
+                   new_virtual_methods, false);
+  }
 
   // Returns the number of non-inherited virtual methods.
   size_t NumVirtualMethods() const {
-    return (virtual_methods_ != NULL) ? virtual_methods_->GetLength() : 0;
+    return (GetVirtualMethods() != NULL) ? GetVirtualMethods()->GetLength() : 0;
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
-    DCHECK_NE(NumVirtualMethods(), 0U);
-    return virtual_methods_->Get(i);
+    DCHECK(IsLinked());
+    return GetVirtualMethods()->Get(i);
+  }
+
+  Method* GetVirtualMethodDuringLinking(uint32_t i) const {
+    DCHECK(IsLoaded());
+    return GetVirtualMethods()->Get(i);
   }
 
   void SetVirtualMethod(uint32_t i, Method* f) {  // TODO: uint16_t
-    DCHECK_NE(NumVirtualMethods(), 0U);
-    virtual_methods_->Set(i, f);
+    ObjectArray<Method>* virtual_methods =
+        GetFieldObject<ObjectArray<Method>*>(
+            OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
+    virtual_methods->Set(i, f);
+  }
+
+  ObjectArray<Method>* GetVTable() const {
+    DCHECK(IsLinked());
+    return GetFieldObject<ObjectArray<Method>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
+  }
+
+  ObjectArray<Method>* GetVTableDuringLinking() const {
+    DCHECK(IsLoaded());
+    return GetFieldObject<ObjectArray<Method>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
+  }
+
+  void SetVTable(ObjectArray<Method>* new_vtable) {
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable, false);
+  }
+
+  static MemberOffset VTableOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, vtable_);
   }
 
   // Given a method implemented by this class but potentially from a
@@ -1167,8 +1626,8 @@ class Class : public Object, public StaticStorageBase {
   Method* FindVirtualMethodForVirtual(Method* method) {
     DCHECK(!method->GetDeclaringClass()->IsInterface());
     // The argument method may from a super class.
-    // Use the index to a potentially overriden one for this instance's class.
-    return vtable_->Get(method->method_index_);
+    // Use the index to a potentially overridden one for this instance's class.
+    return GetVTable()->Get(method->GetMethodIndex());
   }
 
   // Given a method implemented by this class, but potentially from a
@@ -1189,94 +1648,256 @@ class Class : public Object, public StaticStorageBase {
   Method* FindVirtualMethod(const StringPiece& name,
                             const StringPiece& descriptor);
 
-  size_t NumInstanceFields() const {
-    return (ifields_ != NULL) ? ifields_->GetLength() : 0;
-  }
+  Method* FindDeclaredDirectMethod(const StringPiece& name,
+                                   const StringPiece& signature);
 
-  // Returns the number of instance fields containing reference types.
-  size_t NumReferenceInstanceFields() const {
-    return num_reference_instance_fields_;
-  }
-
-  // Returns the number of static fields containing reference types.
-  size_t NumReferenceStaticFields() const {
-    return num_reference_static_fields_;
-  }
-
-  // Finds the given instance field in this class or a superclass.
-  Field* FindInstanceField(const StringPiece& name,
-      const StringPiece& descriptor);
-
-  // Finds the given instance field in this class.
-  Field* FindDeclaredInstanceField(const StringPiece& name,
-      const StringPiece& descriptor);
-
-  // Finds the given static field in this class or a superclass.
-  Field* FindStaticField(const StringPiece& name,
-      const StringPiece& descriptor);
-
-  // Finds the given static field in this class.
-  Field* FindDeclaredStaticField(const StringPiece& name,
-      const StringPiece& descriptor);
-
-  Field* GetInstanceField(uint32_t i) const {  // TODO: uint16_t
-    DCHECK_NE(NumInstanceFields(), 0U);
-    return ifields_->Get(i);
-  }
-
-  void SetInstanceField(uint32_t i, Field* f) {  // TODO: uint16_t
-    DCHECK_NE(NumInstanceFields(), 0U);
-    ifields_->Set(i, f);
-  }
-
-  size_t NumStaticFields() const {
-    return (sfields_ != NULL) ? sfields_->GetLength() : 0;
-  }
-
-  Field* GetStaticField(uint32_t i) const {  // TODO: uint16_t
-    DCHECK_NE(NumStaticFields(), 0U);
-    return sfields_->Get(i);
-  }
-
-  void SetStaticField(uint32_t i, Field* f) {  // TODO: uint16_t
-    DCHECK_NE(NumStaticFields(), 0U);
-    sfields_->Set(i, f);
-  }
-
-  uint32_t GetReferenceInstanceOffsets() const {
-    return reference_instance_offsets_;
-  }
-
-  void SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {
-    reference_instance_offsets_ = new_reference_offsets;
-  }
-
-  uint32_t GetReferenceStaticOffsets() const {
-    return reference_static_offsets_;
-  }
-
-  void SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
-    reference_static_offsets_ = new_reference_offsets;
-  }
+  Method* FindDirectMethod(const StringPiece& name,
+                           const StringPiece& signature);
 
   size_t NumInterfaces() const {
-    return (interfaces_ != NULL) ? interfaces_->GetLength() : 0;
+    CHECK(IsIdxLoaded()); // used during loading
+    ObjectArray<Class>* interfaces = GetFieldObject<ObjectArray<Class>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false);
+    return (interfaces != NULL) ? interfaces->GetLength() : 0;
   }
 
-  Class* GetInterface(uint32_t i) const {
-    DCHECK_NE(NumInterfaces(), 0U);
-    return interfaces_->Get(i);
+  IntArray* GetInterfacesTypeIdx() const {
+    CHECK(IsIdxLoaded());
+    return GetFieldObject<IntArray*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, interfaces_type_idx_), false);
+  }
+
+  void SetInterfacesTypeIdx(IntArray* new_interfaces_idx);
+
+  ObjectArray<Class>* GetInterfaces() const {
+    CHECK(IsLoaded());
+    return GetFieldObject<ObjectArray<Class>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false);
+  }
+
+  void SetInterfaces(ObjectArray<Class>* new_interfaces) {
+    DCHECK(NULL == GetFieldObject<Object*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false));
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, interfaces_),
+                   new_interfaces, false);
   }
 
   void SetInterface(uint32_t i, Class* f) {  // TODO: uint16_t
     DCHECK_NE(NumInterfaces(), 0U);
-    interfaces_->Set(i, f);
+    ObjectArray<Class>* interfaces =
+        GetFieldObject<ObjectArray<Class>*>(
+            OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false);
+    interfaces->Set(i, f);
+  }
+
+  Class* GetInterface(uint32_t i) const {
+    DCHECK_NE(NumInterfaces(), 0U);
+    return GetInterfaces()->Get(i);
+  }
+
+  size_t GetIFTableCount() const {
+    DCHECK(IsLinked());
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, iftable_count_), false);
+  }
+
+  void SetIFTableCount(size_t new_iftable_count) {
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, iftable_count_),
+               new_iftable_count, false);
+  }
+
+  InterfaceEntry* GetIFTable() const {
+    DCHECK(IsLinked());
+    return GetFieldPtr<InterfaceEntry*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
+  }
+
+  void SetIFTable(InterfaceEntry* new_iftable) {
+    SetFieldPtr<InterfaceEntry*>(OFFSET_OF_OBJECT_MEMBER(Class, iftable_),
+                                 new_iftable, false);
+  }
+
+  size_t GetIfviPoolCount() const {
+    DCHECK(IsLinked());
+    CHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_count_), false);
+  }
+
+  void SetIfviPoolCount(size_t new_count) {
+    CHECK(sizeof(size_t) == sizeof(int32_t));
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_count_), new_count,
+               false);
+  }
+
+  uint32_t* GetIfviPool() const {
+    DCHECK(IsLinked());
+    return GetFieldPtr<uint32_t*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_), false);
+  }
+
+  void SetIfviPool(uint32_t* new_pool) {
+    SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_), new_pool, false);
+  }
+
+  // Get instance fields
+  ObjectArray<Field>* GetIFields() const {
+    DCHECK(IsLoaded());
+    return GetFieldObject<ObjectArray<Field>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
+  }
+
+  void SetIFields(ObjectArray<Field>* new_ifields) {
+    DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false));
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, ifields_),
+                   new_ifields, false);
+  }
+
+  size_t NumInstanceFields() const {
+    return (GetIFields() != NULL) ? GetIFields()->GetLength() : 0;
+  }
+
+  Field* GetInstanceField(uint32_t i) const {  // TODO: uint16_t
+    DCHECK_NE(NumInstanceFields(), 0U);
+    return GetIFields()->Get(i);
+  }
+
+  void SetInstanceField(uint32_t i, Field* f) {  // TODO: uint16_t
+    ObjectArray<Field>* ifields= GetFieldObject<ObjectArray<Field>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
+    ifields->Set(i, f);
+  }
+
+  // Returns the number of instance fields containing reference types.
+  size_t NumReferenceInstanceFields() const {
+    DCHECK(IsLinked());
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
+  }
+
+  size_t NumReferenceInstanceFieldsDuringLinking() const {
+    DCHECK(IsLoaded());
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
+  }
+
+  void SetNumReferenceInstanceFields(size_t new_num) {
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_),
+               new_num, false);
+  }
+
+  uint32_t GetReferenceInstanceOffsets() const {
+    DCHECK(IsLinked());
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_), false);
+  }
+
+  void SetReferenceInstanceOffsets(uint32_t new_reference_offsets);
+
+  // Beginning of static field data
+  static MemberOffset FieldsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, fields_);
+  }
+
+  // Returns the number of static fields containing reference types.
+  size_t NumReferenceStaticFields() const {
+    DCHECK(IsLinked());
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
+  }
+
+  size_t NumReferenceStaticFieldsDuringLinking() const {
+    DCHECK(IsLoaded());
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
+  }
+
+  void SetNumReferenceStaticFields(size_t new_num) {
+    DCHECK(sizeof(size_t) == sizeof(int32_t));
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_),
+               new_num, false);
+  }
+
+  ObjectArray<Field>* GetSFields() const {
+    DCHECK(IsLoaded());
+    return GetFieldObject<ObjectArray<Field>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
+  }
+
+  void SetSFields(ObjectArray<Field>* new_sfields) {
+    DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false));
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, sfields_),
+                   new_sfields, false);
+  }
+
+  size_t NumStaticFields() const {
+    return (GetSFields() != NULL) ? GetSFields()->GetLength() : 0;
+  }
+
+  Field* GetStaticField(uint32_t i) const {  // TODO: uint16_t
+    return GetSFields()->Get(i);
+  }
+
+  void SetStaticField(uint32_t i, Field* f) {  // TODO: uint16_t
+    ObjectArray<Field>* sfields= GetFieldObject<ObjectArray<Field>*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
+    sfields->Set(i, f);
+  }
+
+  uint32_t GetReferenceStaticOffsets() const {
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_), false);
+  }
+
+  void SetReferenceStaticOffsets(uint32_t new_reference_offsets);
+
+  // Finds the given instance field in this class or a superclass.
+  Field* FindInstanceField(const StringPiece& name, Class* type);
+
+  Field* FindDeclaredInstanceField(const StringPiece& name, Class* type);
+
+  // Finds the given static field in this class or a superclass.
+  Field* FindStaticField(const StringPiece& name, Class* type);
+
+  Field* FindDeclaredStaticField(const StringPiece& name, Class* type);
+
+  uint32_t GetClinitThreadId() const {
+    DCHECK(IsIdxLoaded());
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), false);
+  }
+
+  void SetClinitThreadId(uint32_t new_clinit_thread_id) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_),
+               new_clinit_thread_id, false);
+  }
+
+  Class* GetVerifyErrorClass() const {
+    DCHECK(IsErroneous());
+    return GetFieldObject<Class*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
   }
 
   void SetVerifyErrorClass(Class* klass) {
-    // Note SetFieldObject is used rather than verify_error_class_ directly for the barrier
-    size_t field_offset = OFFSETOF_MEMBER(Class, verify_error_class_);
-    klass->SetFieldObject(field_offset, klass);
+    klass->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_),
+                          klass, false);
+  }
+
+  const char* GetSourceFile() const {
+    DCHECK(IsLoaded());
+    return GetFieldPtr<const char*>(
+        OFFSET_OF_OBJECT_MEMBER(Class, source_file_), false);
+  }
+
+  void SetSourceFile(const char* new_source_file) {
+    SetFieldPtr<const char*>(OFFSET_OF_OBJECT_MEMBER(Class, source_file_),
+                             new_source_file, false);
   }
 
  private:
@@ -1285,7 +1906,10 @@ class Class : public Object, public StaticStorageBase {
   bool IsAssignableFromArray(const Class* klass) const;
   bool IsSubClass(const Class* klass) const;
 
- public:  // TODO: private
+  // TODO: the image writer should know the offsets of these fields as they
+  // should appear in the libcore Java mirror
+  friend class ImageWriter;
+
   // descriptor for the class such as "java.lang.Class" or "[C"
   String* name_;  // TODO initialize
 
@@ -1416,56 +2040,210 @@ class Class : public Object, public StaticStorageBase {
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
 };
+
 std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
+
+inline void Object::SetClass(Class* new_klass) {
+  // new_klass may be NULL prior to class linker initialization
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false);
+}
 
 inline bool Object::InstanceOf(const Class* klass) const {
   DCHECK(klass != NULL);
-  DCHECK(klass_ != NULL);
-  return klass->IsAssignableFrom(klass_);
+  DCHECK(GetClass() != NULL);
+  return klass->IsAssignableFrom(GetClass());
 }
 
 inline bool Object::IsClass() const {
-  Class* java_lang_Class = klass_->klass_;
-  return klass_ == java_lang_Class;
+  Class* java_lang_Class = GetClass()->GetClass();
+  return GetClass() == java_lang_Class;
 }
 
 inline bool Object::IsClassClass() const {
-  Class* java_lang_Class = klass_->klass_;
+  Class* java_lang_Class = GetClass()->GetClass();
   return this == java_lang_Class;
 }
 
 inline bool Object::IsObjectArray() const {
-  return IsArrayInstance() && !klass_->component_type_->IsPrimitive();
+  return IsArrayInstance() && !GetClass()->GetComponentType()->IsPrimitive();
 }
 
 inline bool Object::IsArrayInstance() const {
-  return klass_->IsArrayClass();
+  return GetClass()->IsArrayClass();
 }
 
 inline bool Object::IsField() const {
   Class* java_lang_Class = klass_->klass_;
-  Class* java_lang_reflect_Field = java_lang_Class->GetInstanceField(0)->klass_;
-  return klass_ == java_lang_reflect_Field;
+  Class* java_lang_reflect_Field =
+      java_lang_Class->GetInstanceField(0)->GetClass();
+  return GetClass() == java_lang_reflect_Field;
 }
 
 inline bool Object::IsMethod() const {
-  Class* java_lang_Class = klass_->klass_;
-  Class* java_lang_reflect_Method = java_lang_Class->GetDirectMethod(0)->klass_;
-  return klass_ == java_lang_reflect_Method;
+  Class* java_lang_Class = GetClass()->GetClass();
+  Class* java_lang_reflect_Method =
+      java_lang_Class->GetDirectMethod(0)->GetClass();
+  return GetClass() == java_lang_reflect_Method;
+}
+
+inline bool Object::IsReferenceInstance() const {
+  return GetClass()->IsReferenceClass();
+}
+
+inline bool Object::IsWeakReferenceInstance() const {
+  return GetClass()->IsWeakReferenceClass();
+}
+
+inline bool Object::IsSoftReferenceInstance() const {
+  return GetClass()->IsSoftReferenceClass();
+}
+
+inline bool Object::IsFinalizerReferenceInstance() const {
+  return GetClass()->IsFinalizerReferenceClass();
+}
+
+inline bool Object::IsPhantomReferenceInstance() const {
+  return GetClass()->IsPhantomReferenceClass();
 }
 
 inline size_t Object::SizeOf() const {
+  size_t result;
   if (IsArrayInstance()) {
-    return AsArray()->SizeOf();
+    result = AsArray()->SizeOf();
+  } else if (IsClass()) {
+    result = AsClass()->SizeOf();
+  } else {
+    result = GetClass()->GetObjectSize();
   }
-  if (IsClass()) {
-    return AsClass()->SizeOf();
+  DCHECK(!IsField()  || result == sizeof(Field));
+  DCHECK(!IsMethod() || result == sizeof(Method));
+  return result;
+}
+
+inline void Field::SetOffset(MemberOffset num_bytes) {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK_LE(CLASS_SMALLEST_OFFSET, num_bytes.Uint32Value());
+ Class* type = GetTypeDuringLinking();
+  if (type != NULL && (type->IsPrimitiveDouble() || type->IsPrimitiveLong())) {
+    DCHECK(IsAligned(num_bytes.Uint32Value(), 8));
   }
-  return klass_->object_size_;
+  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_),
+             num_bytes.Uint32Value(), false);
+}
+
+inline Class* Field::GetDeclaringClass() const {
+  Class* result = GetFieldObject<Class*>(
+      OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), false);
+  DCHECK(result != NULL);
+  DCHECK(result->IsLoaded());
+  return result;
+}
+
+inline void Field::SetDeclaringClass(Class *new_declaring_class) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_),
+                 new_declaring_class, false);
+}
+
+inline Class* Method::GetDeclaringClass() const {
+  Class* result =
+      GetFieldObject<Class*>(
+          OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
+  DCHECK(result != NULL);
+  DCHECK(result->IsLoaded());
+  return result;
+}
+
+inline void Method::SetDeclaringClass(Class *new_declaring_class) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_),
+                 new_declaring_class, false);
+}
+
+inline uint32_t Method::GetReturnTypeIdx() const {
+  DCHECK(GetDeclaringClass()->IsLinked());
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_idx_),
+                    false);
+}
+
+inline bool Method::IsReturnAReference() const {
+  return !GetReturnType()->IsPrimitive();
+}
+
+inline bool Method::IsReturnAFloat() const {
+  return GetReturnType()->IsPrimitiveFloat();
+}
+
+inline bool Method::IsReturnADouble() const {
+  return GetReturnType()->IsPrimitiveDouble();
+}
+
+inline bool Method::IsReturnALong() const {
+  return GetReturnType()->IsPrimitiveLong();
+}
+
+inline bool Method::IsReturnVoid() const {
+  return GetReturnType()->IsPrimitiveVoid();
 }
 
 inline size_t Array::SizeOf() const {
-  return SizeOf(GetLength(), klass_->GetComponentSize());
+  return SizeOf(GetLength(), GetClass()->GetComponentSize());
+}
+
+template<class T>
+void ObjectArray<T>::Set(int32_t i, T* object) {
+  if (IsValidIndex(i)) {
+    if (object != NULL) {
+      Class* element_class = GetClass()->GetComponentType();
+      DCHECK(!element_class->IsPrimitive());
+      // TODO: ArrayStoreException
+      CHECK(object->InstanceOf(element_class));
+    }
+    MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+    SetFieldObject(data_offset, object, false);
+  }
+}
+
+template<class T>
+void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
+  DCHECK(IsValidIndex(i));
+  MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+  SetFieldObject(data_offset, object, false);
+}
+
+template<class T>
+void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
+                          ObjectArray<T>* dst, int dst_pos,
+                          size_t length) {
+  if (src->IsValidIndex(src_pos) &&
+      src->IsValidIndex(src_pos+length-1) &&
+      dst->IsValidIndex(dst_pos) &&
+      dst->IsValidIndex(dst_pos+length-1)) {
+    MemberOffset src_offset(DataOffset().Int32Value() +
+                            src_pos * sizeof(Object*));
+    MemberOffset dst_offset(DataOffset().Int32Value() +
+                            dst_pos * sizeof(Object*));
+    Class* array_class = dst->GetClass();
+    if (array_class == src->GetClass()) {
+      // No need for array store checks if arrays are of the same type
+      for (size_t i=0; i < length; i++) {
+        Object* object = src->GetFieldObject<Object*>(src_offset, false);
+        dst->SetFieldObject(dst_offset, object, false);
+        src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
+        dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
+      }
+    } else {
+      Class* element_class = array_class->GetComponentType();
+      CHECK(!element_class->IsPrimitive());
+      for (size_t i=0; i < length; i++) {
+        Object* object = src->GetFieldObject<Object*>(src_offset, false);
+        // TODO: ArrayStoreException
+        CHECK(object == NULL || object->InstanceOf(element_class));
+        dst->SetFieldObject(dst_offset, object, false);
+        src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
+        dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
+      }
+    }
+    // TODO: bulk write barrier
+  }
 }
 
 class ClassClass : public Class {
@@ -1563,145 +2341,105 @@ class PrimitiveArray : public Array {
   DISALLOW_IMPLICIT_CONSTRUCTORS(PrimitiveArray);
 };
 
+inline void Class::SetInterfacesTypeIdx(IntArray* new_interfaces_idx) {
+  DCHECK(NULL == GetFieldObject<IntArray*>(
+      OFFSET_OF_OBJECT_MEMBER(Class, interfaces_type_idx_), false));
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, interfaces_type_idx_),
+                 new_interfaces_idx, false);
+}
+
+// C++ mirror of java.lang.String
 class String : public Object {
  public:
   const CharArray* GetCharArray() const {
-    DCHECK(array_ != NULL);
-    return array_;
-  }
-
-  uint32_t GetHashCode() const {
-    return hash_code_;
+    const CharArray* result = GetFieldObject<const CharArray*>(
+        OFFSET_OF_OBJECT_MEMBER(String, array_), false);
+    DCHECK(result != NULL);
+    return result;
   }
 
   int32_t GetOffset() const {
-    return offset_;
+    int32_t result = GetField32(
+        OFFSET_OF_OBJECT_MEMBER(String, offset_), false);
+    DCHECK_LE(0, result);
+    return result;
   }
 
-  int32_t GetLength() const {
-    return count_;
+  int32_t GetLength() const;
+
+  int32_t GetHashCode() const;
+
+  void ComputeHashCode() {
+    SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
   }
 
   int32_t GetUtfLength() const {
-    return CountUtf8Bytes(array_->GetData(), count_);
+    return CountUtf8Bytes(GetCharArray()->GetData(), GetLength());
   }
 
-  // TODO: do we need this? Equals is the only caller, and could
-  // bounds check itself.
-  uint16_t CharAt(int32_t index) const {
-    if (index < 0 || index >= count_) {
-      Thread* self = Thread::Current();
-      self->ThrowNewException("Ljava/lang/StringIndexOutOfBoundsException;",
-          "length=%i; index=%i", count_, index);
-      return 0;
-    }
-    return GetCharArray()->Get(index + GetOffset());
-  }
+  uint16_t CharAt(int32_t index) const;
+
+  const String* Intern() const;
 
   static String* AllocFromUtf16(int32_t utf16_length,
                                 const uint16_t* utf16_data_in,
-                                int32_t hash_code = 0) {
-    String* string = Alloc(GetJavaLangString(),
-                           utf16_length);
-    // TODO: use 16-bit wide memset variant
-    for (int i = 0; i < utf16_length; i++ ) {
-        string->array_->Set(i, utf16_data_in[i]);
-    }
-    if (hash_code != 0) {
-      string->hash_code_ = hash_code;
-    } else {
-      string->ComputeHashCode();
-    }
-    return string;
-  }
+                                int32_t hash_code = 0);
 
-  static String* AllocFromModifiedUtf8(const char* utf) {
-    size_t char_count = CountModifiedUtf8Chars(utf);
-    return AllocFromModifiedUtf8(char_count, utf);
-  }
+  static String* AllocFromModifiedUtf8(const char* utf);
 
   static String* AllocFromModifiedUtf8(int32_t utf16_length,
-                                       const char* utf8_data_in) {
-    String* string = Alloc(GetJavaLangString(), utf16_length);
-    uint16_t* utf16_data_out = string->array_->GetData();
-    ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
-    string->ComputeHashCode();
-    return string;
+                                       const char* utf8_data_in);
+
+  static String* Alloc(Class* java_lang_String, int32_t utf16_length);
+
+  static String* Alloc(Class* java_lang_String, CharArray* array);
+
+  bool Equals(const char* modified_utf8) const;
+
+  // TODO: do we need this overload? give it a more intention-revealing name.
+  bool Equals(const StringPiece& modified_utf8) const;
+
+  bool Equals(const String* that) const;
+
+  // TODO: do we need this overload? give it a more intention-revealing name.
+  bool Equals(const uint16_t* that_chars, int32_t that_offset,
+              int32_t that_length) const;
+
+  // Create a modified UTF-8 encoded std::string from a java/lang/String object.
+  std::string ToModifiedUtf8() const;
+
+  static Class* GetJavaLangString() {
+    DCHECK(java_lang_String_ != NULL);
+    return java_lang_String_;
   }
 
   static void SetClass(Class* java_lang_String);
   static void ResetClass();
 
-  static String* Alloc(Class* java_lang_String, int32_t utf16_length) {
-    return Alloc(java_lang_String, CharArray::Alloc(utf16_length));
-  }
-
-  static String* Alloc(Class* java_lang_String, CharArray* array) {
-    String* string = down_cast<String*>(java_lang_String->AllocObject());
-    string->array_ = array;
-    string->count_ = array->GetLength();
-    return string;
-  }
-
-  void ComputeHashCode() {
-    hash_code_ = ComputeUtf16Hash(array_->GetData(), count_);
-  }
-
-  // TODO: do we need this overload? give it a more intention-revealing name.
-  bool Equals(const char* modified_utf8) const {
-    for (int32_t i = 0; i < GetLength(); ++i) {
-      uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
-      if (ch == '\0' || ch != CharAt(i)) {
-        return false;
-      }
-    }
-    return *modified_utf8 == '\0';
-  }
-
-  // TODO: do we need this overload? give it a more intention-revealing name.
-  bool Equals(const StringPiece& modified_utf8) const {
-    // TODO: do not assume C-string representation.
-    return Equals(modified_utf8.data());
-  }
-
-  bool Equals(const String* that) const {
-    // TODO: short circuit on hash_code_
-    if (this->GetLength() != that->GetLength()) {
-      return false;
-    }
-    for (int32_t i = 0; i < that->GetLength(); ++i) {
-      if (this->CharAt(i) != that->CharAt(i)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // TODO: do we need this overload? give it a more intention-revealing name.
-  bool Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) const {
-    if (this->GetLength() != that_length) {
-      return false;
-    }
-    for (int32_t i = 0; i < that_length; ++i) {
-      if (this->CharAt(i) != that_chars[that_offset + i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // Create a modified UTF-8 encoded std::string from a java/lang/String object.
-  std::string ToModifiedUtf8() const {
-    uint16_t* chars = array_->GetData() + offset_;
-    size_t byte_count(CountUtf8Bytes(chars, count_));
-    std::string result(byte_count, char(0));
-    ConvertUtf16ToModifiedUtf8(&result[0], chars, count_);
-    return result;
-  }
-
-  const String* Intern() const;
-
  private:
+  void SetHashCode(int32_t new_hash_code) {
+    DCHECK_EQ(0u,
+              GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false));
+    SetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_),
+               new_hash_code, false);
+  }
+
+  void SetCount(int32_t new_count) {
+    DCHECK_LE(0, new_count);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count, false);
+  }
+
+  void SetOffset(int32_t new_offset) {
+    DCHECK_LE(0, new_offset);
+    DCHECK_GE(GetLength(), new_offset);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
+  }
+
+  void SetArray(CharArray* new_array) {
+    DCHECK(new_array != NULL);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(String, array_), new_array, false);
+  }
+
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
 
@@ -1711,16 +2449,129 @@ class String : public Object {
 
   int32_t count_;
 
-  static Class* GetJavaLangString() {
-    DCHECK(java_lang_String_ != NULL);
-    return java_lang_String_;
-  }
-
   static Class* java_lang_String_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
+inline const String* Field::GetName() const {
+   DCHECK(GetDeclaringClass()->IsLoaded());
+   String* result =
+       GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Field, name_), false);
+   DCHECK(result != NULL);
+   return result;
+}
+
+inline void Field::SetName(String* new_name) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, name_),
+                 new_name, false);
+
+}
+
+inline uint32_t Field::GetAccessFlags() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), false);
+}
+
+inline uint32_t Field::GetTypeIdx() const {
+  DCHECK(GetDeclaringClass()->IsIdxLoaded());
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, type_idx_), false);
+}
+
+inline MemberOffset Field::GetOffset() const {
+  DCHECK(GetDeclaringClass()->IsLinked());
+  return MemberOffset(
+      GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
+}
+
+inline MemberOffset Field::GetOffsetDuringLinking() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return MemberOffset(
+      GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
+}
+
+inline const String* Method::GetName() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  const String* result =
+      GetFieldObject<const String*>(
+          OFFSET_OF_OBJECT_MEMBER(Method, name_), false);
+  DCHECK(result != NULL);
+  return result;
+}
+
+inline void Method::SetName(String* new_name) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, name_),
+                 new_name, false);
+
+}
+
+inline const char* Method::GetShorty() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetFieldPtr<const char*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false);
+}
+
+inline const String* Method::GetSignature() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  const String* result =
+      GetFieldObject<const String*>(
+          OFFSET_OF_OBJECT_MEMBER(Method, signature_), false);
+  DCHECK(result != NULL);
+  return result;
+}
+
+inline void Method::SetSignature(String* new_signature) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, signature_),
+                 new_signature, false);
+}
+
+inline uint32_t Class::GetAccessFlags() const {
+  // Check class is loaded or this is java.lang.String that has a
+  // circularity issue during loading the names of its members
+  DCHECK(IsLoaded() || this == String::GetJavaLangString() ||
+         this == Field::GetJavaLangReflectField() ||
+         this == Method::GetJavaLangReflectMethod());
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
+}
+
+inline void Class::SetDescriptor(String* new_descriptor) {
+  DCHECK(new_descriptor != NULL);
+  DCHECK_NE(0, new_descriptor->GetLength());
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, descriptor_),
+                 new_descriptor, false);
+}
+
+inline uint32_t Method::GetAccessFlags() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), false);
+}
+
+inline uint16_t Method::GetMethodIndex() const {
+  DCHECK(GetDeclaringClass()->IsLinked());
+  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), false);
+}
+
+inline uint16_t Method::NumRegisters() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_), false);
+}
+
+inline uint16_t Method::NumIns() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_), false);
+}
+
+inline uint16_t Method::NumOuts() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_), false);
+}
+
+inline uint32_t Method::GetProtoIdx() const {
+  DCHECK(GetDeclaringClass()->IsLoaded());
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, proto_idx_), false);
+}
+
+// C++ mirror of java.lang.Throwable
 class Throwable : public Object {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
@@ -1733,42 +2584,43 @@ class Throwable : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Throwable);
 };
 
+// C++ mirror of java.lang.StackTraceElement
 class StackTraceElement : public Object {
  public:
   const String* GetDeclaringClass() const {
-    return declaring_class_;
+    return GetFieldObject<const String*>(
+        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_), false);
   }
 
   const String* GetMethodName() const {
-    return method_name_;
+    return GetFieldObject<const String*>(
+        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_), false);
   }
 
   const String* GetFileName() const {
-    return file_name_;
+    return GetFieldObject<const String*>(
+        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_), false);
   }
 
   int32_t GetLineNumber() const {
-    return line_number_;
+    return GetField32(
+        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_), false);
   }
 
-  static StackTraceElement* Alloc(const String* declaring_class, const String* method_name,
-                                  const String* file_name, int32_t line_number) {
-    StackTraceElement* trace = down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject());
-    trace->declaring_class_ = declaring_class;
-    trace->method_name_ = method_name;
-    trace->file_name_ = file_name;
-    trace->line_number_ = line_number;
-    return trace;
-  }
+  static StackTraceElement* Alloc(const String* declaring_class,
+                                  const String* method_name,
+                                  const String* file_name,
+                                  int32_t line_number);
 
   static void SetClass(Class* java_lang_StackTraceElement);
 
   static void ResetClass();
 
  private:
+  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   const String* declaring_class_;
-  const String* method_name_;
   const String* file_name_;
+  const String* method_name_;
   int32_t line_number_;
 
   static Class* GetStackTraceElement() {
@@ -1779,33 +2631,6 @@ class StackTraceElement : public Object {
   static Class* java_lang_StackTraceElement_;
   DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);
 };
-
-inline bool Object::IsString() const {
-  // TODO use "klass_ == String::GetJavaLangString()" instead?
-  return klass_ == klass_->descriptor_->klass_;
-}
-
-inline size_t Class::GetTypeSize(String* descriptor) {
-  switch (descriptor->CharAt(0)) {
-  case 'B': return 1;  // byte
-  case 'C': return 2;  // char
-  case 'D': return 8;  // double
-  case 'F': return 4;  // float
-  case 'I': return 4;  // int
-  case 'J': return 8;  // long
-  case 'S': return 2;  // short
-  case 'Z': return 1;  // boolean
-  case 'L': return sizeof(Object*);
-  case '[': return sizeof(Array*);
-  default:
-    LOG(ERROR) << "Unknown type " << descriptor;
-    return 0;
-  }
-}
-
-inline bool Class::IsArrayClass() const {
-  return array_rank_ != 0;
-}
 
 class InterfaceEntry {
  public:
@@ -1822,17 +2647,23 @@ class InterfaceEntry {
     interface_ = interface;
   }
 
+  uint32_t* GetMethodIndexArray() const {
+    return method_index_array_;
+  }
+
+  void SetMethodIndexArray(uint32_t* new_mia) {
+    method_index_array_ = new_mia;
+  }
+
  private:
   // Points to the interface class.
   Class* interface_;
 
- public:  // TODO: private
   // Index into array of vtable offsets.  This points into the
   // ifvi_pool_, which holds the vtables for all interfaces declared by
   // this class.
   uint32_t* method_index_array_;
 
- private:
   DISALLOW_COPY_AND_ASSIGN(InterfaceEntry);
 };
 

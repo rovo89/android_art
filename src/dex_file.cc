@@ -543,11 +543,11 @@ String* DexFile::dexArtStringById(int32_t idx) const {
 int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
-  if (method->code_off_ == 0) {
+  if (method->GetCodeItemOffset() == 0) {
     return -2;
   }
 
-  const CodeItem* code_item = GetCodeItem(method->code_off_);
+  const CodeItem* code_item = GetCodeItem(method->GetCodeItemOffset());
   DCHECK(code_item != NULL);
 
   // A method with no line number info should return -1
@@ -573,7 +573,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
     arg_reg++;
   }
 
-  ParameterIterator *it = GetParameterIterator(GetProtoId(method->proto_idx_));
+  ParameterIterator *it = GetParameterIterator(GetProtoId(method->GetProtoIdx()));
   for (uint32_t i = 0; i < parameters_size && it->HasNext(); ++i, it->Next()) {
     if (arg_reg >= code_item->registers_size_) {
       LOG(FATAL) << "invalid stream";

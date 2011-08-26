@@ -407,7 +407,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
         " bytes, Dalvik size is " << insnsSize * 2;
     LOG(INFO) << "expansion factor: " <<
          (float)cUnit->totalSize / (float)(insnsSize * 2);
-    for (int i = 0; i < method->num_registers_; i++) {
+    for (int i = 0; i < method->NumRegisters(); i++) {
         RegLocation loc = cUnit->regLocation[i];
         char buf[100];
         if (loc.fpLocation == kLocPhysReg) {

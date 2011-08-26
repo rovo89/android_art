@@ -74,18 +74,18 @@ class ExceptionTest : public CommonTest {
     ASSERT_TRUE(my_klass_ != NULL);
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
-    method_f_->SetFrameSizeInBytes(8);
+    method_f_->SetFrameSizeInBytes(kStackAlignment);
     method_f_->SetReturnPcOffsetInBytes(4);
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
-    method_g_->SetFrameSizeInBytes(8);
+    method_g_->SetFrameSizeInBytes(kStackAlignment);
     method_g_->SetReturnPcOffsetInBytes(4);
   }
 
   DexFile::CatchHandlerItem FindCatchHandlerItem(Method* method,
                                                  const char exception_type[],
                                                  uint32_t addr) {
-    const DexFile::CodeItem* code_item = dex_->GetCodeItem(method->code_off_);
+    const DexFile::CodeItem* code_item = dex_->GetCodeItem(method->GetCodeItemOffset());
     for (DexFile::CatchHandlerIterator iter = dex_->dexFindCatchHandler(*code_item, addr);
          !iter.HasNext(); iter.Next()) {
       if (strcmp(exception_type, dex_->dexStringByTypeIdx(iter.Get().type_idx_)) == 0) {
@@ -105,7 +105,7 @@ class ExceptionTest : public CommonTest {
 };
 
 TEST_F(ExceptionTest, FindCatchHandler) {
-  const DexFile::CodeItem *code_item = dex_->GetCodeItem(method_f_->code_off_);
+  const DexFile::CodeItem *code_item = dex_->GetCodeItem(method_f_->GetCodeItemOffset());
 
   ASSERT_TRUE(code_item != NULL);
 
@@ -141,12 +141,23 @@ TEST_F(ExceptionTest, StackTraceElement) {
   enum {STACK_SIZE = 1000};
   uint32_t top_of_stack = 0;
   uintptr_t fake_stack[STACK_SIZE];
+  ASSERT_EQ(kStackAlignment, 16);
+  ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
+
+  // Create/push fake 16byte stack frame for method g
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_g_);
   fake_stack[top_of_stack++] = 3;
+  fake_stack[top_of_stack++] = 0;
+  fake_stack[top_of_stack++] = 0;
+
+  // Create/push fake 16byte stack frame for method f
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);
   fake_stack[top_of_stack++] = 3;
-  fake_stack[top_of_stack++] = NULL;
   fake_stack[top_of_stack++] = 0;
+  fake_stack[top_of_stack++] = 0;
+
+  // Pull Method* of NULL to terminate the trace
+  fake_stack[top_of_stack++] = NULL;
 
   Thread* thread = Thread::Current();
   thread->SetTopOfStack(fake_stack);

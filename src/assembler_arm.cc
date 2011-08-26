@@ -1419,7 +1419,7 @@ void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   CHECK_EQ(R0, method_reg.AsCoreRegister());
   AddConstant(SP, -frame_size);
   RegList spill_list = 1 << R0 | 1 << LR;
-  for(size_t i = 0; i < spill_regs.size(); i++) {
+  for (size_t i = 0; i < spill_regs.size(); i++) {
     Register reg = spill_regs.at(i).AsCoreRegister();
     // check assumption LR is the last register that gets spilled
     CHECK_LT(reg, LR);

@@ -404,12 +404,12 @@ static int nextSDCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 1:  // Get the current Method->DeclaringClass() [sets r0]
             loadBaseDisp(cUnit, mir, r0,
-                         OFFSETOF_MEMBER(art::Method, declaring_class_),
+                         art::Method::DeclaringClassOffset().Int32Value(),
                          r0, kWord, INVALID_SREG);
             break;
         case 2:  // Method->DeclaringClass()->GetDexCache() [sets r0]
             loadBaseDisp(cUnit, mir, r0,
-                         OFFSETOF_MEMBER(art::Class, dex_cache_), r0, kWord,
+                         art::Class::DexCacheOffset().Int32Value(), r0, kWord,
                          INVALID_SREG);
             break;
         case 3:  // Method->DeclaringClass()->GetDexCache()->methodsObjectArr
@@ -425,7 +425,8 @@ static int nextSDCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                          kWord, INVALID_SREG);
             break;
         case 6: // Get the target compiled code address [uses r0, sets rLR]
-            loadBaseDisp(cUnit, mir, r0, art::Method::GetCodeOffset(), rLR,
+            loadBaseDisp(cUnit, mir, r0,
+                         art::Method::GetCodeOffset().Int32Value(), rLR,
                          kWord, INVALID_SREG);
             break;
         default:
@@ -502,18 +503,19 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 1:  // Get the current Method->DeclaringClass() [uses/sets r0]
             loadBaseDisp(cUnit, mir, r0,
-                         OFFSETOF_MEMBER(art::Method, declaring_class_),
+                         art::Method::DeclaringClassOffset().Int32Value(),
                          r0, kWord, INVALID_SREG);
             break;
         case 2:  // Method->DeclaringClass()->GetDexCache() [uses/sets r0]
             loadBaseDisp(cUnit, mir, r0,
-                         OFFSETOF_MEMBER(art::Class, dex_cache_), r0, kWord,
+                         art::Class::DexCacheOffset().Int32Value(),
+                         r0, kWord,
                          INVALID_SREG);
             break;
         case 3:  // ...()->GetDexCache()->methodsObjectArr [uses/sets r0]
             loadBaseDisp(cUnit, mir, r0,
-                         art::DexCache::ResolvedMethodsOffset().Int32Value(), r0,
-                         kWord, INVALID_SREG);
+                         art::DexCache::ResolvedMethodsOffset().Int32Value(),
+                         r0, kWord, INVALID_SREG);
             // Load "this" [set r1]
             rlArg = oatGetSrc(cUnit, mir, 0);
             loadValueDirectFixed(cUnit, rlArg, r1);
@@ -524,17 +526,18 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             // Is "this" null? [use r1]
             genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir->offset, NULL);
             // get this->clazz [use r1, set rLR]
-            loadBaseDisp(cUnit, mir, r1, OFFSETOF_MEMBER(Object, klass_), rLR,
-                         kWord, INVALID_SREG);
+            loadBaseDisp(cUnit, mir, r1, Object::ClassOffset().Int32Value(),
+                         rLR, kWord, INVALID_SREG);
             // Get the base Method* [uses r0, sets r0]
             loadBaseDisp(cUnit, mir, r0, dInsn->vB * 4, r0,
                          kWord, INVALID_SREG);
             // get this->clazz->vtable [use rLR, set rLR]
             loadBaseDisp(cUnit, mir, rLR,
-                         OFFSETOF_MEMBER(Class, vtable_), rLR, kWord,
+                         Class::VTableOffset().Int32Value(), rLR, kWord,
                          INVALID_SREG);
             // Get the method index [use r0, set r12]
-            loadBaseDisp(cUnit, mir, r0, OFFSETOF_MEMBER(Method, method_index_),
+            loadBaseDisp(cUnit, mir, r0,
+                         Method::MethodIndexOffset().Int32Value(),
                          r12, kUnsignedHalf, INVALID_SREG);
             // Skip past the object header
             opRegImm(cUnit, kOpAdd, rLR, art::Array::DataOffset().Int32Value());
@@ -542,7 +545,8 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadBaseIndexed(cUnit, rLR, r12, r0, 2, kWord);
             break;
         case 5: // Get the target compiled code address [uses r0, sets rLR]
-            loadBaseDisp(cUnit, mir, r0, art::Method::GetCodeOffset(), rLR,
+            loadBaseDisp(cUnit, mir, r0,
+                         art::Method::GetCodeOffset().Int32Value(), rLR,
                          kWord, INVALID_SREG);
             break;
         default:
@@ -766,7 +770,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      * Dalvik vRegs and the ins.
      */
     int highestArg = oatGetSrc(cUnit, mir, numArgs-1).sRegLow;
-    int boundaryReg = cUnit->method->num_registers_ - cUnit->method->num_ins_;
+    int boundaryReg = cUnit->method->NumRegisters() - cUnit->method->NumIns();
     if ((firstArg < boundaryReg) && (highestArg >= boundaryReg)) {
         LOG(FATAL) << "Argument list spanned locals & args";
     }
@@ -1628,11 +1632,13 @@ static void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
  * home location */
 static void flushIns(CompilationUnit* cUnit)
 {
-    if (cUnit->method->num_ins_ == 0)
+    if (cUnit->method->NumIns() == 0)
         return;
-    int inRegs = (cUnit->method->num_ins_ > 2) ? 3 : cUnit->method->num_ins_;
+    int inRegs = (cUnit->method->NumIns() > 2) ? 3
+                                               : cUnit->method->NumIns();
     int startReg = r1;
-    int startLoc = cUnit->method->num_registers_ - cUnit->method->num_ins_;
+    int startLoc = cUnit->method->NumRegisters() -
+        cUnit->method->NumIns();
     for (int i = 0; i < inRegs; i++) {
         RegLocation loc = cUnit->regLocation[startLoc + i];
         //TUNING: be smarter about flushing ins to frame
@@ -1654,7 +1660,7 @@ static void flushIns(CompilationUnit* cUnit)
     }
 
     // Now, do initial assignment of all promoted arguments passed in frame
-    for (int i = inRegs; i < cUnit->method->num_ins_;) {
+    for (int i = inRegs; i < cUnit->method->NumIns();) {
         RegLocation loc = cUnit->regLocation[startLoc + i];
         if (loc.fpLocation == kLocPhysReg) {
             loc.location = kLocPhysReg;

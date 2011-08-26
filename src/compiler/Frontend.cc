@@ -733,7 +733,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     const art::DexFile& dex_file = class_linker->FindDexFile(
          method->GetDeclaringClass()->GetDexCache());
     const art::DexFile::CodeItem* code_item =
-         dex_file.GetCodeItem(method->code_off_);
+         dex_file.GetCodeItem(method->GetCodeItemOffset());
     const u2* codePtr = code_item->insns_;
     const u2* codeEnd = code_item->insns_ + code_item->insns_size_;
     int numBlocks = 0;
@@ -878,7 +878,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     }
 
     /* Adjust this value accordingly once inlining is performed */
-    cUnit.numDalvikRegisters = cUnit.method->num_registers_;
+    cUnit.numDalvikRegisters = cUnit.method->NumRegisters();
 
 
     /* Verify if all blocks are connected as claimed */

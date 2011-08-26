@@ -3,6 +3,7 @@
 #include "utf.h"
 
 #include "logging.h"
+#include "object.h"
 
 namespace art {
 
@@ -51,6 +52,15 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
   }
 }
 
+int32_t ComputeUtf16Hash(const CharArray* chars, int32_t offset,
+                         size_t char_count) {
+  int32_t hash = 0;
+  for (size_t i = 0; i < char_count; i++) {
+    hash = hash * 31 + chars->Get(offset + i);
+  }
+  return hash;
+}
+
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
   int32_t hash = 0;
   while (char_count--) {
@@ -58,6 +68,7 @@ int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
   }
   return hash;
 }
+
 
 uint16_t GetUtf16FromUtf8(const char** utf8_data_in) {
   uint8_t one = *(*utf8_data_in)++;

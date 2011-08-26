@@ -94,7 +94,7 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
             for (i=0; i< ssaRep->numUses; i++) {
                 int origSreg = DECODE_REG(
                     oatConvertSSARegToDalvik(cUnit, ssaRep->uses[i]));
-                assert(origSreg < cUnit->method->num_registers_);
+                assert(origSreg < cUnit->method->NumRegisters());
                 bool fpUse = ssaRep->fpUse ? ssaRep->fpUse[i] : false;
                 if (fp == fpUse) {
                     counts[origSreg].count++;
@@ -107,7 +107,7 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                 }
                 int origSreg = DECODE_REG(
                     oatConvertSSARegToDalvik(cUnit, ssaRep->defs[i]));
-                assert(origSreg < cUnit->method->num_registers_);
+                assert(origSreg < cUnit->method->NumRegisters());
                 bool fpDef = ssaRep->fpDef ? ssaRep->fpDef[i] : false;
                 if (fp == fpDef) {
                     counts[origSreg].count++;
@@ -139,8 +139,8 @@ static void dumpCounts(const RefCounts* arr, int size, const char* msg)
  */
 extern void oatDoPromotion(CompilationUnit* cUnit)
 {
-    int numRegs = cUnit->method->num_registers_;
-    int numIns = cUnit->method->num_ins_;
+    int numRegs = cUnit->method->NumRegisters();
+    int numIns = cUnit->method->NumIns();
 
     /*
      * Because ins don't have explicit definitions, we need to type

@@ -30,13 +30,13 @@ class ImageWriter {
   // we use the lock word to store the offset of the object in the image
   void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
-    DCHECK(object->monitor_ == NULL);  // should be no lock
+    DCHECK(object->GetMonitor() == NULL);  // should be no lock
     DCHECK_NE(0U, offset);
-    object->monitor_ = reinterpret_cast<Monitor*>(offset);
+    object->SetMonitor(reinterpret_cast<Monitor*>(offset));
   }
   size_t GetImageOffset(const Object* object) {
     DCHECK(object != NULL);
-    size_t offset = reinterpret_cast<size_t>(object->monitor_);
+    size_t offset = reinterpret_cast<size_t>(object->GetMonitor());
     DCHECK_NE(0U, offset);
     return offset;
   }

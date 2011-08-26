@@ -45,7 +45,7 @@ class ClassLinker {
 
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
-  const String* ResolveString(const DexFile& dex_file, uint32_t string_idx, DexCache* dex_cache);
+  String* ResolveString(const DexFile& dex_file, uint32_t string_idx, DexCache* dex_cache);
 
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
@@ -60,11 +60,21 @@ class ClassLinker {
   }
 
   // Resolve a Type with the given index from the DexFile, storing the
-  // result in the DexCache. The referrer is used to identity the
+  // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   Class* ResolveType(uint32_t type_idx, const Method* referrer) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
+    // TODO: we could check for a dex cache hit here
+    const ClassLoader* class_loader = declaring_class->GetClassLoader();
+    const DexFile& dex_file = FindDexFile(dex_cache);
+    return ResolveType(dex_file, type_idx, dex_cache, class_loader);
+  }
+
+  Class* ResolveType(uint32_t type_idx, const Field* referrer) {
+    Class* declaring_class = referrer->GetDeclaringClass();
+    DexCache* dex_cache = declaring_class->GetDexCache();
+    // TODO: we could check for a dex cache hit here
     const ClassLoader* class_loader = declaring_class->GetClassLoader();
     const DexFile& dex_file = FindDexFile(dex_cache);
     return ResolveType(dex_file, type_idx, dex_cache, class_loader);
@@ -96,6 +106,7 @@ class ClassLinker {
   Field* ResolveField(uint32_t field_idx, const Method* referrer) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
+    // TODO: we could check for a dex cache hit here
     const ClassLoader* class_loader = declaring_class->GetClassLoader();
     const DexFile& dex_file = FindDexFile(dex_cache);
     return ResolveField(dex_file, field_idx, dex_cache, class_loader, true);
@@ -161,7 +172,8 @@ class ClassLinker {
   Method* AllocMethod();
   CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
 
-  Class* CreatePrimitiveClass(const char* descriptor);
+  Class* CreatePrimitiveClass(const char* descriptor,
+                              Class::PrimitiveType type);
 
   Class* CreateArrayClass(const StringPiece& descriptor,
                           const ClassLoader* class_loader);
@@ -211,7 +223,7 @@ class ClassLinker {
                                       const Class* klass1,
                                       const Class* klass2);
 
-  bool LinkClass(Class* klass, const DexFile& dex_file);
+  bool LinkClass(Class* klass);
 
   bool LinkSuperClass(Class* klass);
 
@@ -227,17 +239,13 @@ class ClassLinker {
 
   bool LinkStaticFields(Class* klass);
   bool LinkInstanceFields(Class* klass);
-  bool LinkFields(size_t field_offset,
-                  size_t& num_reference_fields,
-                  size_t num_fields,
-                  ObjectArray<Field>* fields,
-                  size_t& size);
+  bool LinkFields(Class *klass, bool instance);
+
 
   void CreateReferenceInstanceOffsets(Class* klass);
   void CreateReferenceStaticOffsets(Class* klass);
-  void CreateReferenceOffsets(uint32_t& reference_offsets,
-                              size_t num_reference_fields,
-                              const ObjectArray<Field>* fields);
+  void CreateReferenceOffsets(Class *klass, bool instance,
+                              uint32_t reference_offsets);
 
   std::vector<const DexFile*> boot_class_path_;
 
@@ -298,9 +306,9 @@ class ClassLinker {
     DCHECK(!init_done_);
 
     DCHECK(klass != NULL);
-    DCHECK(klass->class_loader_ == NULL);
-    DCHECK(klass->descriptor_ != NULL);
-    DCHECK(klass->descriptor_->Equals(GetClassRootDescriptor(class_root)));
+    DCHECK(klass->GetClassLoader() == NULL);
+    DCHECK(klass->GetDescriptor() != NULL);
+    DCHECK(klass->GetDescriptor()->Equals(GetClassRootDescriptor(class_root)));
 
     DCHECK(class_roots_ != NULL);
     DCHECK(class_roots_->Get(class_root) == NULL);

@@ -389,7 +389,7 @@ static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
 #else
     bool isVolatile = false;
 #endif
-    int fieldOffset = fieldPtr->GetOffset();
+    int fieldOffset = fieldPtr->GetOffset().Int32Value();
     RegLocation rlResult;
     RegisterClass regClass = oatRegClassBySize(size);
     rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -418,7 +418,7 @@ static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
 #else
     bool isVolatile = false;
 #endif
-    int fieldOffset = fieldPtr->GetOffset();
+    int fieldOffset = fieldPtr->GetOffset().Int32Value();
     RegisterClass regClass = oatRegClassBySize(size);
     rlObj = loadValue(cUnit, rlObj, kCoreReg);
     rlSrc = loadValue(cUnit, rlSrc, regClass);
@@ -448,7 +448,7 @@ static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 #else
     bool isVolatile = false;
 #endif
-    int fieldOffset = fieldPtr->GetOffset();
+    int fieldOffset = fieldPtr->GetOffset().Int32Value();
     RegLocation rlResult;
     rlObj = loadValue(cUnit, rlObj, kCoreReg);
     int regPtr = oatAllocTemp(cUnit);
@@ -483,7 +483,7 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 #else
     bool isVolatile = false;
 #endif
-    int fieldOffset = fieldPtr->GetOffset();
+    int fieldOffset = fieldPtr->GetOffset().Int32Value();
 
     rlObj = loadValue(cUnit, rlObj, kCoreReg);
     int regPtr;
@@ -504,12 +504,12 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 static void genConstClass(CompilationUnit* cUnit, MIR* mir,
                           RegLocation rlDest, RegLocation rlSrc)
 {
-    art::Class* classPtr = cUnit->method->dex_cache_resolved_types_->
+    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
         Get(mir->dalvikInsn.vB);
     int mReg = loadCurrMethod(cUnit);
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadWordDisp(cUnit, mReg, OFFSETOF_MEMBER(Method, dex_cache_strings_),
+    loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(),
                  resReg);
     loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
                  (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
@@ -547,14 +547,14 @@ static void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
     /* All strings should be available at compile time */
-    const art::String* str = cUnit->method->dex_cache_strings_->
+    const art::String* str = cUnit->method->GetDexCacheStrings()->
         Get(mir->dalvikInsn.vB);
     DCHECK(str != NULL);
 
     int mReg = loadCurrMethod(cUnit);
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadWordDisp(cUnit, mReg, OFFSETOF_MEMBER(Method, dex_cache_strings_),
+    loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(),
                  resReg);
     loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
                  (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
@@ -605,8 +605,8 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     /* When taken r0 has NULL which can be used for store directly */
     ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
     /* r1 now contains object->clazz */
-    assert(OFFSETOF_MEMBER(Object, klass_) == 0);
-    loadWordDisp(cUnit, r0, OFFSETOF_MEMBER(Object, klass_), r1);
+    assert(Object::ClassOffset().Int32Value() == 0);
+    loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
     /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
@@ -647,7 +647,7 @@ static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
      *  with clazz.
      */
     /* r0 now contains object->clazz */
-    loadWordDisp(cUnit, rlSrc.lowReg, OFFSETOF_MEMBER(Object, klass_), r0);
+    loadWordDisp(cUnit, rlSrc.lowReg, Object::ClassOffset().Int32Value(), r0);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
     opRegReg(cUnit, kOpCmp, r0, r1);
@@ -799,7 +799,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir->offset, NULL);
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
     newLIR3(cUnit, kThumb2Ldrex, r2, r1,
-            OFFSETOF_MEMBER(Object, monitor_) >> 2); // Get object->lock
+            Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
     // Align owner
     opRegImm(cUnit, kOpLsl, r3, art::Monitor::kLwLockOwnerShift);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
@@ -809,7 +809,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
             art::Monitor::kLwLockOwnerShift - 1);
     hopBranch = newLIR2(cUnit, kThumb2Cbnz, r2, 0);
     newLIR4(cUnit, kThumb2Strex, r2, r3, r1,
-            OFFSETOF_MEMBER(Object, monitor_) >> 2);
+            Object::MonitorOffset().Int32Value() >> 2);
     oatGenMemBarrier(cUnit, kSY);
     branch = newLIR2(cUnit, kThumb2Cbz, r2, 0);
 
@@ -848,7 +848,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir->offset, NULL);
-    loadWordDisp(cUnit, r1, OFFSETOF_MEMBER(Object, monitor_), r2); // Get lock
+    loadWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r2); // Get lock
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
     opRegRegImm(cUnit, kOpAnd, r12, r2, (art::Monitor::kLwHashStateMask <<
@@ -860,7 +860,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     opRegReg(cUnit, kOpSub, r2, r3);
     hopBranch = opCondBranch(cUnit, kArmCondNe);
     oatGenMemBarrier(cUnit, kSY);
-    storeWordDisp(cUnit, r1, OFFSETOF_MEMBER(Object, monitor_), r12);
+    storeWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r12);
     branch = opNone(cUnit, kOpUncondBr);
 
     hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
@@ -1152,9 +1152,9 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pCanPutArrayElementFromCode), rLR);
     /* Get the array's clazz */
-    loadWordDisp(cUnit, r1, OFFSETOF_MEMBER(Object, klass_), r1);
+    loadWordDisp(cUnit, r1, Object::ClassOffset().Int32Value(), r1);
     /* Get the object's clazz */
-    loadWordDisp(cUnit, r0, OFFSETOF_MEMBER(Object, klass_), r0);
+    loadWordDisp(cUnit, r0, Object::ClassOffset().Int32Value(), r0);
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCallRegs(cUnit);
 

@@ -2,6 +2,8 @@
 
 #include "class_linker.h"
 
+#include <string>
+
 #include "UniquePtr.h"
 #include "common_test.h"
 #include "dex_cache.h"
@@ -35,14 +37,13 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetSuperClass() == NULL);
     EXPECT_FALSE(primitive->HasSuperClass());
     EXPECT_TRUE(primitive->GetClassLoader() == NULL);
-    EXPECT_TRUE(primitive->GetComponentType() == NULL);
     EXPECT_TRUE(primitive->GetStatus() == Class::kStatusInitialized);
     EXPECT_FALSE(primitive->IsErroneous());
     EXPECT_TRUE(primitive->IsVerified());
     EXPECT_TRUE(primitive->IsLinked());
     EXPECT_FALSE(primitive->IsArrayInstance());
     EXPECT_FALSE(primitive->IsArrayClass());
-    EXPECT_EQ(0, primitive->array_rank_);
+    EXPECT_EQ(0, primitive->GetArrayRank());
     EXPECT_FALSE(primitive->IsInterface());
     EXPECT_TRUE(primitive->IsPublic());
     EXPECT_TRUE(primitive->IsFinal());
@@ -60,7 +61,7 @@ class ClassLinkerTest : public CommonTest {
                         const StringPiece& component_type,
                         const ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor, class_loader);
-    EXPECT_EQ(array_rank, array->array_rank_);
+    EXPECT_EQ(array_rank, array->GetArrayRank());
     EXPECT_TRUE(array->GetComponentType()->GetDescriptor()->Equals(component_type));
     EXPECT_EQ(class_loader, array->GetClassLoader());
     AssertArrayClass(array_descriptor, array);
@@ -83,7 +84,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(array->IsLinked());
     EXPECT_FALSE(array->IsArrayInstance());
     EXPECT_TRUE(array->IsArrayClass());
-    EXPECT_LE(1, array->array_rank_);
+    EXPECT_LE(1, array->GetArrayRank());
     EXPECT_FALSE(array->IsInterface());
     EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
     EXPECT_TRUE(array->IsFinal());
@@ -101,49 +102,49 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method->GetName() != NULL);
     EXPECT_TRUE(method->GetSignature() != NULL);
 
-    EXPECT_TRUE(method->dex_cache_strings_ != NULL);
-    EXPECT_TRUE(method->dex_cache_resolved_types_ != NULL);
-    EXPECT_TRUE(method->dex_cache_resolved_methods_ != NULL);
-    EXPECT_TRUE(method->dex_cache_resolved_fields_ != NULL);
-    EXPECT_TRUE(method->dex_cache_code_and_direct_methods_ != NULL);
-    EXPECT_TRUE(method->dex_cache_initialized_static_storage_ != NULL);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetStrings(),
-              method->dex_cache_strings_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetResolvedTypes(),
-              method->dex_cache_resolved_types_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetResolvedMethods(),
-              method->dex_cache_resolved_methods_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetResolvedFields(),
-              method->dex_cache_resolved_fields_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetCodeAndDirectMethods(),
-              method->dex_cache_code_and_direct_methods_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetInitializedStaticStorage(),
-              method->dex_cache_initialized_static_storage_);
+    EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
+    EXPECT_TRUE(method->GetDexCacheResolvedTypes() != NULL);
+    EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
+    EXPECT_TRUE(method->GetDexCacheResolvedFields() != NULL);
+    EXPECT_TRUE(method->GetDexCacheCodeAndDirectMethods() != NULL);
+    EXPECT_TRUE(method->GetDexCacheInitializedStaticStorage() != NULL);
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
+              method->GetDexCacheStrings());
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
+              method->GetDexCacheResolvedTypes());
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
+              method->GetDexCacheResolvedMethods());
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedFields(),
+              method->GetDexCacheResolvedFields());
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetCodeAndDirectMethods(),
+              method->GetDexCacheCodeAndDirectMethods());
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetInitializedStaticStorage(),
+              method->GetDexCacheInitializedStaticStorage());
   }
 
   void AssertField(Class* klass, Field* field) {
     EXPECT_TRUE(field != NULL);
     EXPECT_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != NULL);
-    EXPECT_TRUE(field->GetDescriptor() != NULL);
+    EXPECT_TRUE(field->GetType() != NULL);
   }
 
   void AssertClass(const StringPiece& descriptor, Class* klass) {
     EXPECT_TRUE(klass->GetDescriptor()->Equals(descriptor));
-    if (klass->descriptor_->Equals(String::AllocFromModifiedUtf8("Ljava/lang/Object;"))) {
+    if (klass->GetDescriptor()->Equals(String::AllocFromModifiedUtf8("Ljava/lang/Object;"))) {
       EXPECT_FALSE(klass->HasSuperClass());
     } else {
       EXPECT_TRUE(klass->HasSuperClass());
       EXPECT_TRUE(klass->GetSuperClass() != NULL);
     }
     EXPECT_TRUE(klass->GetDexCache() != NULL);
-    EXPECT_TRUE(klass->GetComponentType() == NULL);
-    EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_EQ(Class::kStatusResolved, klass->GetStatus());
     EXPECT_FALSE(klass->IsErroneous());
     EXPECT_FALSE(klass->IsVerified());
     EXPECT_TRUE(klass->IsLinked());
     EXPECT_TRUE(klass->IsLoaded());
+    EXPECT_FALSE(klass->IsArrayClass());
+    EXPECT_EQ(0, klass->GetArrayRank());
     EXPECT_TRUE(klass->IsInSamePackage(klass));
     EXPECT_TRUE(Class::IsInSamePackage(klass->GetDescriptor(), klass->GetDescriptor()));
     if (klass->IsInterface()) {
@@ -206,15 +207,13 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      Class* field_type = class_linker_->FindClass(field->GetDescriptor(),
-                                                   klass->GetClassLoader());
+      Class* field_type = field->GetType();
       ASSERT_TRUE(field_type != NULL);
-      EXPECT_FALSE(field_type->IsPrimitive());
+      ASSERT_TRUE(!field_type->IsPrimitive());
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
-      Class* field_type = class_linker_->FindClass(field->GetDescriptor(),
-                                                   klass->GetClassLoader());
+      Class* field_type = field->GetType();
       ASSERT_TRUE(field_type != NULL);
       EXPECT_TRUE(field_type->IsPrimitive());
     }
@@ -310,13 +309,12 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
   EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
-  EXPECT_TRUE(JavaLangObject->GetComponentType() == NULL);
   EXPECT_FALSE(JavaLangObject->IsErroneous());
   EXPECT_FALSE(JavaLangObject->IsVerified());
   EXPECT_TRUE(JavaLangObject->IsLinked());
   EXPECT_FALSE(JavaLangObject->IsArrayInstance());
   EXPECT_FALSE(JavaLangObject->IsArrayClass());
-  EXPECT_EQ(0, JavaLangObject->array_rank_);
+  EXPECT_EQ(0, JavaLangObject->GetArrayRank());
   EXPECT_FALSE(JavaLangObject->IsInterface());
   EXPECT_TRUE(JavaLangObject->IsPublic());
   EXPECT_FALSE(JavaLangObject->IsFinal());
@@ -340,14 +338,13 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
   EXPECT_EQ(class_loader, MyClass->GetClassLoader());
-  EXPECT_TRUE(MyClass->GetComponentType() == NULL);
   EXPECT_TRUE(MyClass->GetStatus() == Class::kStatusResolved);
   EXPECT_FALSE(MyClass->IsErroneous());
   EXPECT_FALSE(MyClass->IsVerified());
   EXPECT_TRUE(MyClass->IsLinked());
   EXPECT_FALSE(MyClass->IsArrayInstance());
   EXPECT_FALSE(MyClass->IsArrayClass());
-  EXPECT_EQ(0, JavaLangObject->array_rank_);
+  EXPECT_EQ(0, JavaLangObject->GetArrayRank());
   EXPECT_FALSE(MyClass->IsInterface());
   EXPECT_FALSE(MyClass->IsPublic());
   EXPECT_FALSE(MyClass->IsFinal());
@@ -394,6 +391,13 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(throwable->GetInstanceField(3)->GetName()->Equals("stackTrace"));
   EXPECT_TRUE(throwable->GetInstanceField(4)->GetName()->Equals("suppressedExceptions"));
 
+  Class* stack_trace_element = class_linker_->FindSystemClass( "Ljava/lang/StackTraceElement;");
+  ASSERT_EQ(4U, stack_trace_element->NumInstanceFields());
+  EXPECT_TRUE(stack_trace_element->GetInstanceField(0)->GetName()->Equals("declaringClass"));
+  EXPECT_TRUE(stack_trace_element->GetInstanceField(1)->GetName()->Equals("fileName"));
+  EXPECT_TRUE(stack_trace_element->GetInstanceField(2)->GetName()->Equals("methodName"));
+  EXPECT_TRUE(stack_trace_element->GetInstanceField(3)->GetName()->Equals("lineNumber"));
+
   Class* accessible_object = class_linker_->FindSystemClass("Ljava/lang/reflect/AccessibleObject;");
   ASSERT_EQ(1U, accessible_object->NumInstanceFields());
   EXPECT_TRUE(accessible_object->GetInstanceField(0)->GetName()->Equals("flag"));
@@ -438,7 +442,8 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
   Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ObjectArray<String>* array = ObjectArray<String>::Alloc(array_class, 0);
   uint32_t array_offset = reinterpret_cast<uint32_t>(array);
-  uint32_t data_offset = reinterpret_cast<uint32_t>(array->GetData());
+  uint32_t data_offset =
+      array_offset + ObjectArray<String>::DataOffset().Uint32Value();
   EXPECT_EQ(16U, data_offset - array_offset);
 }
 
@@ -471,54 +476,54 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   EXPECT_EQ(10U, statics->NumStaticFields());
 
-  Field* s0 = statics->FindStaticField("s0", "Z");
-  EXPECT_TRUE(s0->GetClass()->descriptor_->Equals("Ljava/lang/reflect/Field;"));
-  EXPECT_EQ('Z', s0->GetType());
+  Field* s0 = statics->FindStaticField("s0", class_linker_->FindClass("Z", class_loader));
+  EXPECT_TRUE(s0->GetClass()->GetDescriptor()->Equals("Ljava/lang/reflect/Field;"));
+  EXPECT_TRUE(s0->GetType()->IsPrimitiveBoolean());
   // EXPECT_EQ(true, s0->GetBoolean(NULL)); // TODO: needs clinit to be run?
   s0->SetBoolean(NULL, false);
 
-  Field* s1 = statics->FindStaticField("s1", "B");
-  EXPECT_EQ('B', s1->GetType());
+  Field* s1 = statics->FindStaticField("s1", class_linker_->FindClass("B", class_loader));
+  EXPECT_TRUE(s1->GetType()->IsPrimitiveByte());
   // EXPECT_EQ(5, s1->GetByte(NULL));  // TODO: needs clinit to be run?
   s1->SetByte(NULL, 6);
 
-  Field* s2 = statics->FindStaticField("s2", "C");
-  EXPECT_EQ('C', s2->GetType());
+  Field* s2 = statics->FindStaticField("s2", class_linker_->FindClass("C", class_loader));
+  EXPECT_TRUE(s2->GetType()->IsPrimitiveChar());
   // EXPECT_EQ('a', s2->GetChar(NULL));  // TODO: needs clinit to be run?
   s2->SetChar(NULL, 'b');
 
-  Field* s3 = statics->FindStaticField("s3", "S");
-  EXPECT_EQ('S', s3->GetType());
+  Field* s3 = statics->FindStaticField("s3", class_linker_->FindClass("S", class_loader));
+  EXPECT_TRUE(s3->GetType()->IsPrimitiveShort());
   // EXPECT_EQ(65000, s3->GetShort(NULL));  // TODO: needs clinit to be run?
   s3->SetShort(NULL, 65001);
 
-  Field* s4 = statics->FindStaticField("s4", "I");
-  EXPECT_EQ('I', s4->GetType());
+  Field* s4 = statics->FindStaticField("s4", class_linker_->FindClass("I", class_loader));
+  EXPECT_TRUE(s4->GetType()->IsPrimitiveInt());
   // EXPECT_EQ(2000000000, s4->GetInt(NULL));  // TODO: needs clinit to be run?
   s4->SetInt(NULL, 2000000001);
 
-  Field* s5 = statics->FindStaticField("s5", "J");
-  EXPECT_EQ('J', s5->GetType());
+  Field* s5 = statics->FindStaticField("s5", class_linker_->FindClass("J", class_loader));
+  EXPECT_TRUE(s5->GetType()->IsPrimitiveLong());
   // EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));  // TODO: needs clinit to be run?
   s5->SetLong(NULL, 0x34567890abcdef12LL);
 
-  Field* s6 = statics->FindStaticField("s6", "F");
-  EXPECT_EQ('F', s6->GetType());
+  Field* s6 = statics->FindStaticField("s6", class_linker_->FindClass("F", class_loader));
+  EXPECT_TRUE(s6->GetType()->IsPrimitiveFloat());
   // EXPECT_EQ(0.5, s6->GetFloat(NULL));  // TODO: needs clinit to be run?
   s6->SetFloat(NULL, 0.75);
 
-  Field* s7 = statics->FindStaticField("s7", "D");
-  EXPECT_EQ('D', s7->GetType());
+  Field* s7 = statics->FindStaticField("s7", class_linker_->FindClass("D", class_loader));
+  EXPECT_TRUE(s7->GetType()->IsPrimitiveDouble());
   // EXPECT_EQ(16777217, s7->GetDouble(NULL));  // TODO: needs clinit to be run?
   s7->SetDouble(NULL, 16777219);
 
-  Field* s8 = statics->FindStaticField("s8", "Ljava/lang/Object;");
-  EXPECT_EQ('L', s8->GetType());
+  Field* s8 = statics->FindStaticField("s8", class_linker_->FindClass("Ljava/lang/Object;", class_loader));
+  EXPECT_FALSE(s8->GetType()->IsPrimitive());
   // EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));  // TODO: needs clinit to be run?
   s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
 
-  Field* s9 = statics->FindStaticField("s9", "[Ljava/lang/Object;");
-  EXPECT_EQ('[', s9->GetType());
+  Field* s9 = statics->FindStaticField("s9", class_linker_->FindClass("[Ljava/lang/Object;", class_loader));
+  EXPECT_TRUE(s9->GetType()->IsArrayClass());
   // EXPECT_EQ(NULL, s9->GetObject(NULL));  // TODO: needs clinit to be run?
   s9->SetObject(NULL, NULL);
 

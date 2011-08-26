@@ -31,11 +31,11 @@ HeapBitmap* Heap::mark_bitmap_ = NULL;
 
 HeapBitmap* Heap::live_bitmap_ = NULL;
 
-size_t Heap::reference_referent_offset_ = 0;  // TODO
-size_t Heap::reference_queue_offset_ = 0;  // TODO
-size_t Heap::reference_queueNext_offset_ = 0;  // TODO
-size_t Heap::reference_pendingNext_offset_ = 0;  // TODO
-size_t Heap::finalizer_reference_zombie_offset_ = 0;  // TODO
+MemberOffset Heap::reference_referent_offset_ = MemberOffset(0);
+MemberOffset Heap::reference_queue_offset_ = MemberOffset(0);
+MemberOffset Heap::reference_queueNext_offset_ = MemberOffset(0);
+MemberOffset Heap::reference_pendingNext_offset_ = MemberOffset(0);
+MemberOffset Heap::finalizer_reference_zombie_offset_ = MemberOffset(0);
 
 bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image_file_name) {
   Space* boot_space;
@@ -83,6 +83,9 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
   live_bitmap_ = live_bitmap.release();
   mark_bitmap_ = mark_bitmap.release();
 
+  num_bytes_allocated_ = 0;
+  num_objects_allocated_ = 0;
+
   // TODO: allocate the card table
 
   // Make objects in boot_space live (after live_bitmap_ is set)
@@ -108,26 +111,15 @@ void Heap::Destroy() {
 
 Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
   DCHECK(klass == NULL
-         || klass->descriptor_ == NULL
+         || klass->GetDescriptor() == NULL
          || (klass->IsClassClass() && num_bytes >= sizeof(Class))
-         || (klass->object_size_ == (klass->IsArrayClass() ? 0 : num_bytes)));
+         || (klass->IsVariableSize() || klass->GetObjectSize() == num_bytes));
+  DCHECK(num_bytes >= sizeof(Object));
   Object* obj = Allocate(num_bytes);
   if (obj != NULL) {
-    obj->klass_ = klass;
+    obj->SetClass(klass);
   }
   return obj;
-}
-
-void Heap::VerifyObject(const Object* obj) {
-  if (!IsAligned(obj, kObjectAlignment)) {
-    LOG(FATAL) << "Object isn't aligned: " << obj;
-  } else if (!live_bitmap_->Test(obj)) {
-    // TODO: we don't hold a lock here as it is assumed the live bit map
-    // isn't changing if the mutator is running.
-    LOG(FATAL) << "Object is dead: " << obj;
-  } else if(obj->GetClass() == NULL) {
-    LOG(FATAL) << "Object has no class: " << obj;
-  }
 }
 
 bool Heap::IsHeapAddress(const Object* obj) {
@@ -136,6 +128,52 @@ bool Heap::IsHeapAddress(const Object* obj) {
   }
   // TODO
   return true;
+}
+
+bool Heap::verify_object_disabled_;
+
+void Heap::VerifyObject(const Object* obj) {
+  if (obj != NULL && !verify_object_disabled_) {
+    if (!IsAligned(obj, kObjectAlignment)) {
+      LOG(FATAL) << "Object isn't aligned: " << obj;
+    } else if (!live_bitmap_->Test(obj)) {
+      // TODO: we don't hold a lock here as it is assumed the live bit map
+      // isn't changing if the mutator is running.
+      LOG(FATAL) << "Object is dead: " << obj;
+    }
+    // Ignore early dawn of the universe verifications
+    if(num_objects_allocated_ > 10) {
+      const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
+          Object::ClassOffset().Int32Value();
+      const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
+      if (c == NULL) {
+        LOG(FATAL) << "Null class" << " in object: " << obj;
+      } else if (!IsAligned(c, kObjectAlignment)) {
+        LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
+      } else if (!live_bitmap_->Test(c)) {
+        LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
+      }
+      // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
+      // NB we don't use the accessors here as they have internal sanity checks
+      // that we don't want to run
+      raw_addr = reinterpret_cast<const byte*>(c) +
+          Object::ClassOffset().Int32Value();
+      const Class* c_c = *reinterpret_cast<Class* const *>(raw_addr);
+      raw_addr = reinterpret_cast<const byte*>(c_c) +
+          Object::ClassOffset().Int32Value();
+      const Class* c_c_c = *reinterpret_cast<Class* const *>(raw_addr);
+      CHECK_EQ(c_c, c_c_c);
+    }
+  }
+}
+
+static void HeapVerifyCallback(Object* obj, void *arg) {
+  DCHECK(obj != NULL);
+  Heap::VerifyObject(obj);
+}
+
+void Heap::VerifyHeap() {
+  live_bitmap_->Walk(HeapVerifyCallback, NULL);
 }
 
 void Heap::RecordAllocation(Space* space, const Object* obj) {
@@ -163,12 +201,12 @@ void Heap::RecordFree(Space* space, const Object* obj) {
 void Heap::RecordImageAllocations(Space* space) {
   CHECK(space != NULL);
   CHECK(live_bitmap_ != NULL);
-  byte* current = space->GetBase() + RoundUp(sizeof(ImageHeader), 8);
+  byte* current = space->GetBase() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
   while (current < space->GetLimit()) {
-    DCHECK(IsAligned(current, 8));
+    DCHECK(IsAligned(current, kObjectAlignment));
     const Object* obj = reinterpret_cast<const Object*>(current);
     live_bitmap_->Set(obj);
-    current += RoundUp(obj->SizeOf(), 8);
+    current += RoundUp(obj->SizeOf(), kObjectAlignment);
   }
 }
 

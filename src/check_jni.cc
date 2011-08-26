@@ -360,34 +360,39 @@ public:
 
     ScopedJniThreadState ts(mEnv);
     Field* f = DecodeField(ts, fid);
-    if ((f->GetType() == 'L' || f->GetType() == '[') && java_object != NULL) {
-      Object* obj = Decode<Object*>(ts, java_object);
-      /*
-       * If java_object is a weak global ref whose referent has been cleared,
-       * obj will be NULL.  Otherwise, obj should always be non-NULL
-       * and valid.
-       */
-      if (obj != NULL && !Heap::IsHeapAddress(obj)) {
-        LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
-        JniAbort();
-        return;
-      } else {
-#if 0
-        Class* field_class = dvmFindLoadedClass(f->signature);
-        if (!obj->GetClass()->InstanceOf(field_class)) {
-          LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyType(java_object);
+    Class* field_type = f->GetType();
+    if (!field_type->IsPrimitive()) {
+      if (java_object != NULL) {
+        Object* obj = Decode<Object*>(ts, java_object);
+        /*
+         * If java_object is a weak global ref whose referent has been cleared,
+         * obj will be NULL.  Otherwise, obj should always be non-NULL
+         * and valid.
+         */
+        if (obj != NULL && !Heap::IsHeapAddress(obj)) {
+          LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
           JniAbort();
           return;
-        }
+        } else {
+#if 0
+          Class* field_class = dvmFindLoadedClass(f->signature);
+          if (!obj->GetClass()->InstanceOf(field_class)) {
+            LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyType(java_object);
+            JniAbort();
+            return;
+          }
 #else
-        UNIMPLEMENTED(WARNING) << "need way to get Class* for a given Field*'s type";
+          UNIMPLEMENTED(WARNING) << "need way to get Class* for a given Field*'s type";
 #endif
+        }
       }
-    } else if (f->GetType() != prim) {
+    } else if (field_type != Runtime::Current()->GetClassLinker()->FindPrimitiveClass(prim)) {
       LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << prim;
       JniAbort();
       return;
-    } else if (isStatic && !f->IsStatic()) {
+    }
+
+    if (isStatic && !f->IsStatic()) {
       if (isStatic) {
         LOG(ERROR) << "JNI ERROR: accessing non-static field " << PrettyField(f) << " as static";
       } else {
@@ -414,8 +419,11 @@ public:
     }
 
     Field* f = DecodeField(ts, fid);
+    Class* f_type = f->GetType();
+    // check invariant that all jfieldIDs have resovled types
+    DCHECK(f_type != NULL);
     Class* c = o->GetClass();
-    if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f->GetDescriptor()) == NULL) {
+    if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f_type) == NULL) {
       LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f) << " not valid for an object of class " << PrettyType(o);
       JniAbort();
     }

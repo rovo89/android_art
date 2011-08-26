@@ -4,6 +4,7 @@
 #include "jni_compiler.h"
 
 #include <sys/mman.h>
+#include <vector>
 
 #include "assembler.h"
 #include "calling_convention.h"
