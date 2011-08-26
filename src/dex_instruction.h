@@ -19,7 +19,7 @@ class Instruction {
   };
 
   enum Code {
-#define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a) cname = opcode,
+#define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = opcode,
 #include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
@@ -63,6 +63,33 @@ class Instruction {
     // TODO: kUnconditional
   };
 
+  enum VerifyFlag {
+    kVerifyNone            = 0x00000,
+    kVerifyRegA            = 0x00001,
+    kVerifyRegAWide        = 0x00002,
+    kVerifyRegB            = 0x00004,
+    kVerifyRegBField       = 0x00008,
+    kVerifyRegBMethod      = 0x00010,
+    kVerifyRegBNewInstance = 0x00020,
+    kVerifyRegBString      = 0x00040,
+    kVerifyRegBType        = 0x00080,
+    kVerifyRegBWide        = 0x00100,
+    kVerifyRegC            = 0x00200,
+    kVerifyRegCField       = 0x00400,
+    kVerifyRegCNewArray    = 0x00800,
+    kVerifyRegCType        = 0x01000,
+    kVerifyRegCWide        = 0x02000,
+    kVerifyArrayData       = 0x04000,
+    kVerifyBranchTarget    = 0x08000,
+    kVerifySwitchTargets   = 0x10000,
+    kVerifyVarArg          = 0x20000,
+    kVerifyVarArgRange     = 0x40000,
+    kVerifyError           = 0x80000,
+  };
+
+  // Decodes this instruction, populating its arguments.
+  void Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const;
+
   // Returns the size in bytes of this instruction.
   size_t Size() const;
 
@@ -78,9 +105,9 @@ class Instruction {
   Code Opcode() const;
 
   // Reads an instruction out of the stream at the specified address.
-  static Instruction* At(byte* code) {
+  static const Instruction* At(const byte* code) {
     CHECK(code != NULL);
-    return reinterpret_cast<Instruction*>(code);
+    return reinterpret_cast<const Instruction*>(code);
   }
 
   // Returns the format of the current instruction.
@@ -91,6 +118,16 @@ class Instruction {
   // Returns true if this instruction is a branch.
   bool IsBranch() const {
     return (kInstructionFlags[Opcode()] & kBranch) != 0;
+  }
+
+  // Returns true if this instruction is a switch.
+  bool IsSwitch() const {
+    return (kInstructionFlags[Opcode()] & kSwitch) != 0;
+  }
+
+  // Returns true if this instruction can throw.
+  bool IsThrow() const {
+    return (kInstructionFlags[Opcode()] & kThrow) != 0;
   }
 
   // Determine if the instruction is any of 'return' instructions.
@@ -108,10 +145,30 @@ class Instruction {
     return (kInstructionFlags[Opcode()] & kInvoke) != 0;
   }
 
+  int GetVerifyTypeArgumentA() const {
+    return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegA | kVerifyRegAWide));
+  }
+
+  int GetVerifyTypeArgumentB() const {
+    return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegB | kVerifyRegBField | kVerifyRegBMethod |
+             kVerifyRegBNewInstance | kVerifyRegBString | kVerifyRegBType | kVerifyRegBWide));
+  }
+
+  int GetVerifyTypeArgumentC() const {
+    return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegC | kVerifyRegCField |
+             kVerifyRegCNewArray | kVerifyRegBType | kVerifyRegBWide));
+  }
+
+  int GetVerifyExtraFlags() const {
+    return (kInstructionVerifyFlags[Opcode()] & (kVerifyArrayData | kVerifyBranchTarget |
+             kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
+  }
+
  private:
   static const char* const kInstructionNames[];
   static InstructionFormat const kInstructionFormats[];
   static int const kInstructionFlags[];
+  static int const kInstructionVerifyFlags[];
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instruction);
 };
 

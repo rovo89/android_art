@@ -229,7 +229,7 @@ class DexFile {
 
       CatchHandlerIterator(const byte* handler_data) {
         current_data_ = handler_data;
-        remaining_count_ = DecodeUnsignedLeb128(&current_data_);
+        remaining_count_ = DecodeSignedLeb128(&current_data_);
 
         // If remaining_count_ is non-positive, then it is the negative of
         // the number of catch types, and the catches are followed by a
@@ -245,6 +245,10 @@ class DexFile {
 
       const CatchHandlerItem& Get() const {
         return handler_;
+      }
+
+      const byte* GetData() const {
+        return current_data_;
       }
 
       void Next() {
@@ -570,14 +574,14 @@ class DexFile {
     *last_idx = idx;
   }
 
-  const TryItem* dexGetTryItems(const CodeItem& code_item, uint32_t offset) const {
+  static const TryItem* dexGetTryItems(const CodeItem& code_item, uint32_t offset) {
     const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_];
     return reinterpret_cast<const TryItem*>
         (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
   }
 
   // Get the base of the encoded data for the given DexCode.
-  const byte* dexGetCatchHandlerData(const CodeItem& code_item, uint32_t offset) const {
+  static const byte* dexGetCatchHandlerData(const CodeItem& code_item, uint32_t offset) {
     const byte* handler_data = reinterpret_cast<const byte*>
         (dexGetTryItems(code_item, code_item.tries_size_));
     return handler_data + offset;
@@ -586,7 +590,7 @@ class DexFile {
   // Find the handler associated with a given address, if any.
   // Initializes the given iterator and returns true if a match is
   // found. Returns end if there is no applicable handler.
-  CatchHandlerIterator dexFindCatchHandler(const CodeItem& code_item, uint32_t address) const {
+  static CatchHandlerIterator dexFindCatchHandler(const CodeItem& code_item, uint32_t address) {
     CatchHandlerItem handler;
     handler.address_ = -1;
     int32_t offset = -1;
@@ -619,9 +623,9 @@ class DexFile {
     return CatchHandlerIterator();
   }
 
-  int32_t dexFindCatchHandlerOffset0(const CodeItem &code_item,
-                                     int32_t tries_size,
-                                     uint32_t address) const {
+  static int32_t dexFindCatchHandlerOffset0(const CodeItem &code_item,
+                                            int32_t tries_size,
+                                            uint32_t address) {
     // Note: Signed type is important for max and min.
     int32_t min = 0;
     int32_t max = tries_size - 1;

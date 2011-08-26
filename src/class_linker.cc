@@ -1606,7 +1606,6 @@ void ClassLinker::LinkAbstractMethods(Class* klass) {
     Method* method = klass->GetVirtualMethod(i);
     if (method->IsAbstract()) {
       LG << "AbstractMethodError";
-      method->code_off_ = 0xFFFFFFFF;
       // TODO: throw AbstractMethodError
     }
   }
