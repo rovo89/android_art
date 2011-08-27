@@ -84,6 +84,16 @@ std::string PrettyDescriptor(const String* java_descriptor) {
   return result;
 }
 
+std::string PrettyField(const Field* f) {
+  if (f == NULL) {
+    return "null";
+  }
+  std::string result(PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor()));
+  result += '.';
+  result += f->GetName()->ToModifiedUtf8();
+  return result;
+}
+
 std::string PrettyMethod(const Method* m, bool with_signature) {
   if (m == NULL) {
     return "null";

@@ -10,6 +10,7 @@
 
 namespace art {
 
+class Field;
 class Method;
 class Object;
 class String;
@@ -141,6 +142,9 @@ static inline std::string PrintableString(const StringT& s) {
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
 std::string PrettyDescriptor(const String* descriptor);
+
+// Returns a human-readable signature for 'f'. Something like "a.b.C.f".
+std::string PrettyField(const Field* f);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').

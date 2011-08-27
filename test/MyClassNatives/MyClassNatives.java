@@ -1,6 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 class MyClass {
+    native void throwException();
     native void foo();
     native int fooI(int x);
     native int fooII(int x, int y);

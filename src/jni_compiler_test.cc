@@ -353,26 +353,34 @@ TEST_F(JniCompilerTest, SuspendCountAcknowledgement) {
 
 int gExceptionHandler_calls;
 void ExceptionHandler(Method** frame) {
-  EXPECT_TRUE((*frame)->GetName()->Equals("foo"));
+  EXPECT_TRUE((*frame)->GetName()->Equals("throwException"));
   gExceptionHandler_calls++;
   Thread::Current()->ClearException();
 }
 
-TEST_F(JniCompilerTest, ExceptionHandling) {
-  SetupForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClass_foo));
-  Thread::Current()->RegisterExceptionEntryPoint(&ExceptionHandler);
+void Java_MyClass_throwException(JNIEnv* env, jobject) {
+  jclass c = env->FindClass("java/lang/RuntimeException");
+  env->ThrowNew(c, "hello");
+}
 
+TEST_F(JniCompilerTest, ExceptionHandling) {
+  Thread::Current()->RegisterExceptionEntryPoint(&ExceptionHandler);
+  gExceptionHandler_calls = 0;
   gJava_MyClass_foo_calls = 0;
+
+  SetupForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClass_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(1, gJava_MyClass_foo_calls);
   EXPECT_EQ(0, gExceptionHandler_calls);
-  // TODO: create a real exception here
-  Thread::Current()->SetException(reinterpret_cast<Throwable*>(jobj_));
+
+  SetupForTest(false, "throwException", "()V", reinterpret_cast<void*>(&Java_MyClass_throwException));
+  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
+  EXPECT_EQ(1, gJava_MyClass_foo_calls);
+  EXPECT_EQ(1, gExceptionHandler_calls);
+
+  SetupForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClass_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(2, gJava_MyClass_foo_calls);
-  EXPECT_EQ(1, gExceptionHandler_calls);
-  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
-  EXPECT_EQ(3, gJava_MyClass_foo_calls);
   EXPECT_EQ(1, gExceptionHandler_calls);
 }
 

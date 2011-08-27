@@ -303,16 +303,18 @@ Object* Thread::DecodeJObject(jobject obj) {
       // Assume an invalid local reference is actually a direct pointer.
       result = reinterpret_cast<Object*>(obj);
     } else {
-      LOG(FATAL) << "Invalid indirect reference " << obj;
-      result = reinterpret_cast<Object*>(kInvalidIndirectRefObject);
+      result = kInvalidIndirectRefObject;
     }
   }
 
   if (result == NULL) {
-    LOG(FATAL) << "JNI ERROR (app bug): use of deleted " << kind << ": "
-               << obj;
+    LOG(ERROR) << "JNI ERROR (app bug): use of deleted " << kind << ": " << obj;
+    JniAbort(NULL);
+  } else {
+    if (result != kInvalidIndirectRefObject) {
+      Heap::VerifyObject(result);
+    }
   }
-  Heap::VerifyObject(result);
   return result;
 }
 
