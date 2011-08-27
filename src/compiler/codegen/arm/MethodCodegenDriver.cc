@@ -428,6 +428,66 @@ static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
     return state + 1;
 }
 
+// Slow path sequence for virtual calls
+static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+                           DecodedInstruction* dInsn, int state)
+{
+    RegLocation rlArg;
+    switch(state) {
+        case 0:  // Get the current Method* [sets r0]
+            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            break;
+        case 1:  // Get the current Method->DeclaringClass() [uses/sets r0]
+            loadBaseDisp(cUnit, mir, r0,
+                         OFFSETOF_MEMBER(art::Method, declaring_class_),
+                         r0, kWord, INVALID_SREG);
+            break;
+        case 2:  // Method->DeclaringClass()->GetDexCache() [uses/sets r0]
+            loadBaseDisp(cUnit, mir, r0,
+                         OFFSETOF_MEMBER(art::Class, dex_cache_), r0, kWord,
+                         INVALID_SREG);
+            break;
+        case 3:  // ...()->GetDexCache()->methodsObjectArr [uses/sets r0]
+            loadBaseDisp(cUnit, mir, r0,
+                         art::DexCache::MethodsOffset().Int32Value(), r0,
+                         kWord, INVALID_SREG);
+            // Load "this" [set r1]
+            rlArg = oatGetSrc(cUnit, mir, 0);
+            loadValueDirectFixed(cUnit, rlArg, r1);
+            // Skip past the object header
+            opRegImm(cUnit, kOpAdd, r0, art::Array::DataOffset().Int32Value());
+            break;
+        case 4:
+            // Is "this" null? [use r1]
+            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir->offset, NULL);
+            // get this->clazz [use r1, set rLR]
+            loadBaseDisp(cUnit, mir, r1, OFFSETOF_MEMBER(Object, klass_), rLR,
+                         kWord, INVALID_SREG);
+            // Get the base Method* [uses r0, sets r0]
+            loadBaseDisp(cUnit, mir, r0, dInsn->vB * 4, r0,
+                         kWord, INVALID_SREG);
+            // get this->clazz->vtable [use rLR, set rLR]
+            loadBaseDisp(cUnit, mir, rLR,
+                         OFFSETOF_MEMBER(Class, vtable_), rLR, kWord,
+                         INVALID_SREG);
+            // Get the method index [use r0, set r12]
+            loadBaseDisp(cUnit, mir, r0, OFFSETOF_MEMBER(Method, method_index_),
+                         r12, kUnsignedHalf, INVALID_SREG);
+            // Skip past the object header
+            opRegImm(cUnit, kOpAdd, rLR, art::Array::DataOffset().Int32Value());
+            // Get target Method*
+            loadBaseIndexed(cUnit, rLR, r12, r0, 2, kWord);
+            break;
+        case 5: // Get the target compiled code address [uses r0, sets rLR]
+            loadBaseDisp(cUnit, mir, r0, art::Method::GetCodeOffset(), rLR,
+                         kWord, INVALID_SREG);
+            break;
+        default:
+            return -1;
+    }
+    return state + 1;
+}
+
 /* Load up to 3 arguments in r1..r3 */
 static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
                        DecodedInstruction* dInsn, int callState,
@@ -702,12 +762,6 @@ static void genInvokeStatic(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
-    /*
-     * TODO: check for/force resolution of target method
-     * note to bdc: you can find the method index in
-     * dInsn->vB.  If you need it, the calling method's
-     * Method* is cUnit->method.
-     */
     int fastPath = false;  // TODO: set based on resolution results
 
     NextCallInsn nextCallInsn = fastPath ? nextSDCallInsn : nextSDCallInsnSP;
@@ -731,15 +785,18 @@ static void genInvokeDirect(CompilationUnit* cUnit, MIR* mir)
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* nullCk;
+    int fastPath = false;  // TODO: set based on resolution results
+
+    NextCallInsn nextCallInsn = fastPath ? nextSDCallInsn : nextSDCallInsnSP;
     if (mir->dalvikInsn.opcode == OP_INVOKE_DIRECT)
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
-                                         false, nextSDCallInsn);
+                                         false, nextCallInsn);
     else
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextSDCallInsn);
+                                       nextCallInsn);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
-        callState = nextSDCallInsn(cUnit, mir, dInsn, callState);
+        callState = nextCallInsn(cUnit, mir, dInsn, callState);
     }
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
@@ -788,16 +845,19 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* nullCk;
-// FIXME - redundantly loading arg0/r1 ("this")
+    int fastPath = false;  // TODO: set based on resolution results
+
+    NextCallInsn nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
+    // TODO - redundantly loading arg0/r1 ("this")
     if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL)
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
-                                         false, nextVCallInsn);
+                                         false, nextCallInsn);
     else
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextVCallInsn);
+                                       nextCallInsn);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
-        callState = nextVCallInsn(cUnit, mir, dInsn, callState);
+        callState = nextCallInsn(cUnit, mir, dInsn, callState);
     }
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
@@ -956,7 +1016,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
             loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
                                   0, mir->dalvikInsn.vB << 16);
-            storeValue(cUnit, rlDest, rlResult);
+            storeValueWide(cUnit, rlDest, rlResult);
             break;
 
         case OP_MONITOR_ENTER:
@@ -986,6 +1046,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         case OP_ARRAY_LENGTH:
             int lenOffset;
             lenOffset = Array::LengthOffset().Int32Value();
+            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
             genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg,
                          mir->offset, NULL);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);

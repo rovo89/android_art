@@ -1358,6 +1358,11 @@ static bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
     oatFlushAllRegs(cUnit);   /* Send everything to home location */
     loadWordDisp(cUnit, rSELF, funcOffset, rLR);
     loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+    if (rlShift.wide) {
+        LOG(WARNING) << "Invalid RegLocation size - dataflow problem";
+        LOG(WARNING) << "   sReg[" << rlShift.sRegLow << "]";
+        rlShift.wide = false;
+    }
     loadValueDirect(cUnit, rlShift, r2);
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCallRegs(cUnit);

@@ -23,7 +23,7 @@
  * Float/double conversion requires clamping to min and max of integer form.  If
  * target doesn't support this normally, use these.
  */
-s8 artD2L(double d)
+int64_t artD2L(double d)
 {
     static const double kMaxLong = (double)(s8)0x7fffffffffffffffULL;
     static const double kMinLong = (double)(s8)0x8000000000000000ULL;
@@ -37,7 +37,7 @@ s8 artD2L(double d)
         return (s8)d;
 }
 
-s8 artF2L(float f)
+int64_t artF2L(float f)
 {
     static const float kMaxLong = (float)(s8)0x7fffffffffffffffULL;
     static const float kMinLong = (float)(s8)0x8000000000000000ULL;

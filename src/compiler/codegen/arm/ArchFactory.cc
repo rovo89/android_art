@@ -53,6 +53,8 @@ static TGT_LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
                              int dOffset, TGT_LIR* pcrLabel)
 {
     /* This particular Dalvik register has been null-checked */
+    UNIMPLEMENTED(WARNING) << "Need null check & throw support";
+    return pcrLabel;
     if (oatIsBitSet(cUnit->regPool->nullCheckedRegs, sReg)) {
         return pcrLabel;
     }
