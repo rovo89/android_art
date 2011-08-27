@@ -62,6 +62,7 @@ void Thread::InitFunctionPointers() {
 #endif
   pArtAllocArrayByClass = Array::Alloc;
   pMemcpy = memcpy;
+  pArtHandleFillArrayDataNoThrow = artHandleFillArrayDataNoThrow;
 #if 0
 bool (Thread::*pArtUnlockObject)(struct Thread*, struct Object*);
 bool (Thread::*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,

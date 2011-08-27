@@ -50,3 +50,29 @@ int64_t artF2L(float f)
     else
         return (s8)f;
 }
+
+/*
+ * Temporary placeholder.  Should include run-time checks for size
+ * of fill data <= size of array.  If not, throw arrayOutOfBoundsException.
+ * As with other new "NoThrow" routines, this should return to the caller
+ * only if no exception has been thrown.
+ *
+ * NOTE: When dealing with a raw dex file, the data to be copied uses
+ * little-endian ordering.  Require that oat2dex do any required swapping
+ * so this routine can get by with a memcpy().
+ *
+ * Format of the data:
+ *  ushort ident = 0x0300   magic value
+ *  ushort width            width of each element in the table
+ *  uint   size             number of elements in the table
+ *  ubyte  data[size*width] table of data values (may contain a single-byte
+ *                          padding at the end)
+ */
+void artHandleFillArrayDataNoThrow(Array* array, const uint16_t* table)
+{
+    uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
+    uint32_t size_in_bytes = size * table[1];
+    UNIMPLEMENTED(WARNING) << "Need to check if array.length() <= size";
+    memcpy((char*)array + art::Array::DataOffset().Int32Value(),
+           (char*)&table[4], size_in_bytes);
+}

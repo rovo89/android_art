@@ -120,12 +120,10 @@ TEST_F(CompilerTest, UnopTest) {
                         38);
 }
 
-#if 0 // Needs artFillArrayDataNoThrow() helper function
 TEST_F(CompilerTest, ShiftTest1) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "shiftTest1", "()I", 0);
 }
-#endif
 
 TEST_F(CompilerTest, ShiftTest2) {
   CompileDex(kIntMathDex, "kIntMathDex");
@@ -201,14 +199,12 @@ TEST_F(CompilerTest, LongCompare) {
                         -5LL, -4294967287LL, 4LL, 8LL);
 }
 
-#if 0 // Weird NaN failure.  Needs investigation
 TEST_F(CompilerTest, FloatCompare) {
   CompileDex(kIntMathDex, "kIntMathDex");
-  AssertStaticIntMethod("IntMath", "testFloatCompare", "(FFFF)I", 3333
+  AssertStaticIntMethod("IntMath", "testFloatCompare", "(FFFF)I", 3333,
                         -5.0f, 4.0f, 4.0f,
                         (1.0f/0.0f) / (1.0f/0.0f));
 }
-#endif
 
 TEST_F(CompilerTest, DoubleCompare) {
   CompileDex(kIntMathDex, "kIntMathDex");

@@ -44,4 +44,6 @@ extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
 
 #endif
 
+  extern void artHandleFillArrayDataNoThrow(art::Array*, const uint16_t*);
+
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

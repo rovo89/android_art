@@ -210,7 +210,7 @@ class Thread {
   void (*pArtLockObjectNoThrow)(struct Thread*, struct Object*);
   struct Object* (*pArtAllocObjectNoThrow)(struct ClassObject*, int);
   void (*pArtThrowException)(struct Thread*, struct Object*);
-  bool (*pArtHandleFillArrayDataNoThrow)(struct ArrayObject*, const uint16_t*);
+  void (*pArtHandleFillArrayDataNoThrow)(Array*, const uint16_t*);
 
   // Creates a new thread.
   static Thread* Create(const Runtime* runtime);

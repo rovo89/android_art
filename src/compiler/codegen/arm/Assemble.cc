@@ -1039,9 +1039,9 @@ static void installFillArrayData(CompilationUnit* cUnit)
              &iterator);
         if (tabRec == NULL) break;
         alignBuffer(cUnit->codeBuffer, tabRec->offset);
-        cUnit->codeBuffer.reserve(cUnit->codeBuffer.size() + (tabRec->size/2));
-        memcpy(&cUnit->codeBuffer[tabRec->offset/2],
-              (char*)tabRec->table, tabRec->size);
+        for (int i = 0; i < (tabRec->size / 2) ; i++) {
+            cUnit->codeBuffer.push_back( tabRec->table[i]);
+        }
     }
 }
 

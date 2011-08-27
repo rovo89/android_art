@@ -1455,15 +1455,12 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             genArithOpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
             break;
 
-        case OP_SHL_LONG_2ADDR:
-        case OP_SHR_LONG_2ADDR:
-        case OP_USHR_LONG_2ADDR:
-            genShiftOpLong(cUnit,mir, rlDest, rlSrc[0], rlSrc[0]);
-            break;
-
         case OP_SHL_LONG:
         case OP_SHR_LONG:
         case OP_USHR_LONG:
+        case OP_SHL_LONG_2ADDR:
+        case OP_SHR_LONG_2ADDR:
+        case OP_USHR_LONG_2ADDR:
             genShiftOpLong(cUnit,mir, rlDest, rlSrc[0], rlSrc[1]);
             break;
 
