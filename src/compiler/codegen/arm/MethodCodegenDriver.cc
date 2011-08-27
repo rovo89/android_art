@@ -25,6 +25,11 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
     oatFlushAllRegs(cUnit);  /* All temps to home location */
+    UNIMPLEMENTED(WARNING) << "Need to handle unresolved";
+    /*
+     * Need new routine that passes Method*, type index, length.
+     * This is unconditional - always go this way.
+     */
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedType(mir->dalvikInsn.vC);
     if (classPtr == NULL) {

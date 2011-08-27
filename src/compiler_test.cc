@@ -172,7 +172,7 @@ TEST_F(CompilerTest, IntShiftTest) {
 TEST_F(CompilerTest, LongOperTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "longOperTest", "(JJ)I", 0,
-                        70000000000LL, 3);
+                        70000000000LL, -3LL);
 }
 
 TEST_F(CompilerTest, LongShiftTest) {
@@ -235,7 +235,7 @@ TEST_F(CompilerTest, ManyArgs) {
                         19, 20LL, 21LL, 22, 23, 24, 25, 26);
 }
 
-#if 0 // White-list needs some work, must allow some virtual methods through
+#if 0 // Need bdc's new Alloc(Method*, type_idx, [length])
 TEST_F(CompilerTest, VirtualCall) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "staticCall", "(I)I", 6,

@@ -556,6 +556,10 @@ static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedType(mir->dalvikInsn.vB);
 
+    /*
+     * Need new routine that passes Method*, type index.
+     * Call unconditionally.
+     */
     if (classPtr == NULL) {
         /* Shouldn't happen */
         LOG(FATAL) << "Unexpected null class pointer";
@@ -678,32 +682,13 @@ static void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest,
     storeValueWide(cUnit, rlDest, rlResult);
 }
 
-/*
- * To avoid possible conflicts, we use a lot of temps here.  Note that
- * our usage of Thumb2 instruction forms avoids the problems with register
- * reuse for multiply instructions prior to arm6.
- */
-static void genMulLong(CompilationUnit* cUnit, RegLocation rlDest,
-                       RegLocation rlSrc1, RegLocation rlSrc2)
+static void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
+                        RegLocation rlFree)
 {
-    RegLocation rlResult;
-    int resLo = oatAllocTemp(cUnit);
-    int resHi = oatAllocTemp(cUnit);
-    int tmp1 = oatAllocTemp(cUnit);
-
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-
-    newLIR3(cUnit, kThumb2MulRRR, tmp1, rlSrc2.lowReg, rlSrc1.highReg);
-    newLIR4(cUnit, kThumb2Umull, resLo, resHi, rlSrc2.lowReg, rlSrc1.lowReg);
-    newLIR4(cUnit, kThumb2Mla, tmp1, rlSrc1.lowReg, rlSrc2.highReg, tmp1);
-    newLIR4(cUnit, kThumb2AddRRR, resHi, tmp1, resHi, 0);
-    oatFreeTemp(cUnit, tmp1);
-
-    rlResult = oatGetReturnWide(cUnit);
-    rlResult.lowReg = resLo;
-    rlResult.highReg = resHi;
-    storeValueWide(cUnit, rlDest, rlResult);
+    if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg))
+        oatFreeTemp(cUnit, rlFree.lowReg);
+    if ((rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg))
+        oatFreeTemp(cUnit, rlFree.lowReg);
 }
 
 static void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
@@ -727,6 +712,15 @@ static void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
     opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
     opRegRegReg(cUnit, secondOp, rlResult.highReg, rlSrc1.highReg,
                 rlSrc2.highReg);
+    /*
+     * NOTE: If rlDest refers to a frame variable in a large frame, the
+     * following storeValueWide might need to allocate a temp register.
+     * To further work around the lack of a spill capability, explicitly
+     * free any temps from rlSrc1 & rlSrc2 that aren't still live in rlResult.
+     * Remove when spill is functional.
+     */
+    freeRegLocTemps(cUnit, rlResult, rlSrc1);
+    freeRegLocTemps(cUnit, rlResult, rlSrc2);
     storeValueWide(cUnit, rlDest, rlResult);
     oatClobber(cUnit, rLR);
     oatUnmarkTemp(cUnit, rLR);  // Remove lr from the temp pool
@@ -1398,8 +1392,10 @@ static bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
             break;
         case OP_MUL_LONG:
         case OP_MUL_LONG_2ADDR:
-            genMulLong(cUnit, rlDest, rlSrc1, rlSrc2);
-            return false;
+            callOut = true;
+            retReg = r0;
+            funcOffset = OFFSETOF_MEMBER(Thread, pLmul);
+            break;
         case OP_DIV_LONG:
         case OP_DIV_LONG_2ADDR:
             callOut = true;

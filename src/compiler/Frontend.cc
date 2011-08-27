@@ -697,15 +697,19 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
  */
 bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
-    if (!method->IsStatic() ||
-        (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) ||
-        (method->GetName()->ToModifiedUtf8().find("init>") != std::string::npos) ||
-        (method->GetName()->ToModifiedUtf8().find("longOperTest") != std::string::npos) ||
+    bool compiling = true;
+    if (!method->IsStatic()) {
+        compiling = false;
+    } else if ( (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) ||
         (method->GetName()->ToModifiedUtf8().find("main") != std::string::npos)) {
+        compiling = false;
+    }
+
+    if (compiling) {
+        LOG(INFO) << "Compiling " << PrettyMethod(method, true);
+    } else {
         LOG(INFO) << "not compiling " << PrettyMethod(method, true);
         return false;
-    } else {
-        LOG(INFO) << "Compiling " << PrettyMethod(method, true);
     }
 
     CompilationUnit cUnit;

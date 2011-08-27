@@ -59,6 +59,7 @@ void Thread::InitFunctionPointers() {
   pArtF2l = artF2L;
   pArtD2l = artD2L;
   pLdivmod = __aeabi_ldivmod;
+  pLmul = __aeabi_lmul;
 #endif
   pArtAllocArrayByClass = Array::Alloc;
   pMemcpy = memcpy;

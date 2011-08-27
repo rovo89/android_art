@@ -41,6 +41,7 @@
 
 /* Long long arithmetics - OP_REM_LONG[_2ADDR] & OP_DIV_LONG[_2ADDR] */
 extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
+extern "C" long long __aeabi_lmul(long long op1, long long op2);
 
 #endif
 

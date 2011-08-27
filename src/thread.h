@@ -196,6 +196,7 @@ class Thread {
   double (*pFmod)(double, double);
   int (*pIdivmod)(int, int);
   int (*pIdiv)(int, int);
+  long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
   bool (*pArtUnlockObject)(struct Thread*, struct Object*);
   bool (*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
