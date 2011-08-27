@@ -425,13 +425,18 @@ ClassLinker::~ClassLinker() {
 }
 
 DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
-  DexCache* dex_cache = down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::kMax));
+  DexCache* dex_cache = down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::LengthAsArray()));
   dex_cache->Init(String::AllocFromModifiedUtf8(dex_file.GetLocation().c_str()),
                   AllocObjectArray<String>(dex_file.NumStringIds()),
                   AllocObjectArray<Class>(dex_file.NumTypeIds()),
                   AllocObjectArray<Method>(dex_file.NumMethodIds()),
-                  AllocObjectArray<Field>(dex_file.NumFieldIds()));
+                  AllocObjectArray<Field>(dex_file.NumFieldIds()),
+                  AllocCodeAndMethods(dex_file.NumMethodIds()));
   return dex_cache;
+}
+
+CodeAndMethods* ClassLinker::AllocCodeAndMethods(size_t length) {
+  return down_cast<CodeAndMethods*>(IntArray::Alloc(CodeAndMethods::LengthAsArray(length)));
 }
 
 Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
@@ -761,6 +766,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->dex_cache_types_ = klass->dex_cache_->GetTypes();
   dst->dex_cache_methods_ = klass->dex_cache_->GetMethods();
   dst->dex_cache_fields_ = klass->dex_cache_->GetFields();
+  dst->dex_cache_code_and_methods_ = klass->dex_cache_->GetCodeAndMethods();
 
   // TODO: check for finalize method
 

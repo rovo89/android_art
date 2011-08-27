@@ -22,9 +22,15 @@ class Compiler {
   void Resolve(const ClassLoader* class_loader);
   void ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 
+  void Compile(const ClassLoader* class_loader);
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(Class* klass);
   void CompileMethod(Method* klass);
+
+  // After compiling, walk all the DexCaches and set the code and
+  // method pointers of CodeAndMethod entries in the DexCaches.
+  void SetCodeAndMethod(const ClassLoader* class_loader);
+  void SetCodeAndMethodDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 };
 
 }  // namespace art

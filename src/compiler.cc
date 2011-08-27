@@ -15,11 +15,9 @@ namespace art {
 const ClassLoader* Compiler::Compile(std::vector<const DexFile*> class_path) {
   const ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
   Resolve(class_loader);
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
-    CHECK(dex_file != NULL);
-    CompileDexFile(class_loader, *dex_file);
-  }
+  // TODO add verification step
+  Compile(class_loader);
+  SetCodeAndMethod(class_loader);
   return class_loader;
 }
 
@@ -61,6 +59,15 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   }
 }
 
+void Compiler::Compile(const ClassLoader* class_loader) {
+  const std::vector<const DexFile*>& class_path = class_loader->GetClassPath();
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    CHECK(dex_file != NULL);
+    CompileDexFile(class_loader, *dex_file);
+  }
+}
+
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
@@ -95,6 +102,27 @@ void Compiler::CompileMethod(Method* method) {
     oatCompileMethod(method, kThumb2);
   }
   // CHECK(method->HasCode());  // TODO: enable this check ASAP
+}
+
+void Compiler::SetCodeAndMethod(const ClassLoader* class_loader) {
+  const std::vector<const DexFile*>& class_path = class_loader->GetClassPath();
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    CHECK(dex_file != NULL);
+    SetCodeAndMethodDexFile(class_loader, *dex_file);
+  }
+}
+
+void Compiler::SetCodeAndMethodDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  DexCache* dex_cache = class_linker->FindDexCache(dex_file);
+  CodeAndMethods* code_and_methods = dex_cache->GetCodeAndMethods();
+  for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
+    Method* method = dex_cache->GetResolvedMethod(i);
+    if (method != NULL) {
+      code_and_methods->SetResolvedMethod(i, method);
+    }
+  }
 }
 
 }  // namespace art

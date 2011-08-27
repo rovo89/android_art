@@ -16,23 +16,43 @@ class Method;
 class String;
 union JValue;
 
-class DexCache : public ObjectArray<Object> {
+class CodeAndMethods : public IntArray {
  public:
+  Method* GetResolvedCode(uint32_t method_idx) const {
+    return reinterpret_cast<Method*>(Get(method_idx * kMax + kCode));
+  }
+  void* GetResolvedMethod(uint32_t method_idx) const {
+    return reinterpret_cast<byte*>(Get(method_idx * kMax + kMethod));
+  }
 
-  enum ArrayIndex {
-    kLocation = 0,
-    kStrings  = 1,
-    kTypes    = 2,
-    kMethods  = 3,
-    kFields   = 4,
-    kMax      = 5,
+  void SetResolvedMethod(uint32_t method_idx, Method* method) {
+    CHECK(method != NULL);
+    // CHECK(method->GetCode() != NULL);  // TODO enable when all code is compiling
+    Set(method_idx * kMax + kCode,   reinterpret_cast<int32_t>(method->GetCode()));
+    Set(method_idx * kMax + kMethod, reinterpret_cast<int32_t>(method));
+  }
+
+ static size_t LengthAsArray(size_t elements) {
+   return kMax * elements;
+ }
+
+ private:
+  enum TupleIndex {
+    kCode   = 0,
+    kMethod = 1,
+    kMax    = 2,
   };
 
+};
+
+class DexCache : public ObjectArray<Object> {
+ public:
   void Init(String* location,
             ObjectArray<String>* strings,
             ObjectArray<Class>* types,
             ObjectArray<Method>* methods,
-            ObjectArray<Field>* fields);
+            ObjectArray<Field>* fields,
+            CodeAndMethods* code_and_methods);
 
   String* GetLocation() const {
     return Get(kLocation)->AsString();
@@ -67,6 +87,10 @@ class DexCache : public ObjectArray<Object> {
 
   size_t NumFields() const {
     return GetFields()->GetLength();
+  }
+
+  size_t NumCodeAndMethods() const {
+    return GetCodeAndMethods()->GetLength();
   }
 
   String* GetResolvedString(uint32_t string_idx) const {
@@ -113,8 +137,26 @@ class DexCache : public ObjectArray<Object> {
   ObjectArray<Field>* GetFields() const {
     return static_cast<ObjectArray<Field>*>(GetNonNull(kFields));
   }
+  CodeAndMethods* GetCodeAndMethods() const {
+    return static_cast<CodeAndMethods*>(GetNonNull(kCodeAndMethods));
+  }
+
+ static size_t LengthAsArray() {
+   return kMax;
+ }
 
  private:
+
+  enum ArrayIndex {
+    kLocation       = 0,
+    kStrings        = 1,
+    kTypes          = 2,
+    kMethods        = 3,
+    kFields         = 4,
+    kCodeAndMethods = 5,
+    kMax            = 6,
+  };
+
   Object* GetNonNull(ArrayIndex array_index) const {
     Object* obj = Get(array_index);
     DCHECK(obj != NULL);

@@ -135,6 +135,7 @@ class ClassLinker {
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
   }
+  CodeAndMethods* AllocCodeAndMethods(size_t length);
 
   Class* CreatePrimitiveClass(const char* descriptor);
 

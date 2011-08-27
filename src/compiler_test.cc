@@ -95,6 +95,17 @@ TEST_F(CompilerTest, CompileDexLibCore) {
     EXPECT_TRUE(field != NULL);
   }
 
+  // TODO check Class::IsVerified for all classes
+
+  // TODO: check that all Method::GetCode() values are non-null
+
+  EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumCodeAndMethods());
+  CodeAndMethods* code_and_methods = dex_cache->GetCodeAndMethods();
+  for (size_t i = 0; i < dex_cache->NumCodeAndMethods(); i++) {
+    Method* method = dex_cache->GetResolvedMethod(i);
+    EXPECT_EQ(method->GetCode(), code_and_methods->GetResolvedCode(i));
+    EXPECT_EQ(method,            code_and_methods->GetResolvedMethod(i));
+  }
 }
 
 TEST_F(CompilerTest, BasicCodegen) {

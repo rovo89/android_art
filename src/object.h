@@ -18,6 +18,7 @@ namespace art {
 
 class Array;
 class Class;
+class CodeAndMethods;
 class DexCache;
 class Field;
 class InterfaceEntry;
@@ -586,6 +587,10 @@ class Method : public AccessibleObject {
     return code_ != NULL;
   }
 
+  const void* GetCode() {
+    return code_;
+  }
+
   void SetCode(const byte* compiled_code,
                size_t byte_count,
                InstructionSet set) {
@@ -714,12 +719,13 @@ class Method : public AccessibleObject {
   ObjectArray<Class>* dex_cache_types_;
   ObjectArray<Method>* dex_cache_methods_;
   ObjectArray<Field>* dex_cache_fields_;
+  CodeAndMethods* dex_cache_code_and_methods_;
 
  private:
   // Compiled code associated with this method
   scoped_ptr<MemMap> code_area_;
-  void* code_;
-  // Instruction set of the coompiled code
+  const void* code_;
+  // Instruction set of the compiled code
   InstructionSet code_instruction_set_;
 
   // Size in bytes of compiled code associated with this method
