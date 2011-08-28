@@ -316,33 +316,44 @@ Object* Thread::DecodeJObject(jobject obj) {
   return result;
 }
 
-// TODO: Replaces trace.method and trace.pc with IntArray nad
-// ObjectArray<Method>.
-Thread::InternalStackTrace* Thread::GetStackTrace(uint16_t length) {
+// TODO: Compute length
+bool Thread::WalkStack(uint16_t length,
+                       ObjectArray<Method>* method_trace,
+                       IntArray* pc_trace) {
   Frame frame = Thread::Current()->GetTopOfStack();
-  InternalStackTrace *traces = new InternalStackTrace[length];
+
   for (uint16_t i = 0; i < length && frame.HasNext(); ++i, frame.Next()) {
-    traces[i].method = frame.GetMethod();
-    traces[i].pc = frame.GetPC();
+    method_trace->Set(i, (Method*) frame.GetMethod());
+    pc_trace->Set(i, frame.GetPC());
   }
-  return traces;
+  return true;
 }
 
-ObjectArray<StackTraceElement>* Thread::GetStackTraceElement(uint16_t length, InternalStackTrace *raw_trace) {
+ObjectArray<StackTraceElement>* Thread::AllocStackTrace(uint16_t length) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  ObjectArray<Method>* method_trace = class_linker->AllocObjectArray<Method>(length);
+  IntArray* pc_trace = IntArray::Alloc(length);
+
+  WalkStack(length, method_trace, pc_trace);
+
   ObjectArray<StackTraceElement>* java_traces = class_linker->AllocStackTraceElementArray(length);
 
   for (uint16_t i = 0; i < length; ++i) {
     // Prepare parameter for StackTraceElement(String cls, String method, String file, int line)
-    const Method* method = raw_trace[i].method;
+    const Method* method = method_trace->Get(i);
     const Class* klass = method->GetDeclaringClass();
     const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
-    String* readable_descriptor = String::AllocFromModifiedUtf8(PrettyDescriptor(klass->GetDescriptor()).c_str());
+    String* readable_descriptor = String::AllocFromModifiedUtf8(
+        PrettyDescriptor(klass->GetDescriptor()).c_str()
+        );
 
     StackTraceElement* obj =
         StackTraceElement::Alloc(readable_descriptor,
-                                 method->GetName(), String::AllocFromModifiedUtf8(klass->source_file_),
-                                 dex_file.GetLineNumFromPC(method, method->ToDexPC(raw_trace[i].pc)));
+                                 method->GetName(),
+                                 String::AllocFromModifiedUtf8(klass->source_file_),
+                                 dex_file.GetLineNumFromPC(method,
+                                                           method->ToDexPC(pc_trace->Get(i))));
     java_traces->Set(i, obj);
   }
   return java_traces;

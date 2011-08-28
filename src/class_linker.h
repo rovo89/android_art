@@ -126,6 +126,11 @@ class ClassLinker {
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
   DexCache* FindDexCache(const DexFile& dex_file) const;
 
+  template <class T>
+  ObjectArray<T>* AllocObjectArray(size_t length) {
+    return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
+  }
+
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
 
  private:
@@ -153,10 +158,6 @@ class ClassLinker {
   DexCache* AllocDexCache(const DexFile& dex_file);
   Field* AllocField();
   Method* AllocMethod();
-  template <class T>
-  ObjectArray<T>* AllocObjectArray(size_t length) {
-    return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
-  }
   CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
 
   Class* CreatePrimitiveClass(const char* descriptor);

@@ -148,18 +148,18 @@ TEST_F(ExceptionTest, StackTraceElement) {
   Thread* thread = Thread::Current();
   thread->SetTopOfStack(fake_stack);
 
-  Thread::InternalStackTrace* traces = thread->GetStackTrace(2);
-  ObjectArray<StackTraceElement>* trace_array = thread->GetStackTraceElement(2, traces);
-  delete[] traces;
+  ObjectArray<StackTraceElement>* trace_array = thread->AllocStackTrace(2);
 
   ASSERT_TRUE(trace_array->Get(0) != NULL);
-  EXPECT_STREQ("java.lang.MyClass", trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("java.lang.MyClass",
+               trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("MyClass.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("g", trace_array->Get(0)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22u, trace_array->Get(0)->GetLineNumber());
 
   ASSERT_TRUE(trace_array->Get(1) != NULL);
-  EXPECT_STREQ("java.lang.MyClass", trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("java.lang.MyClass",
+               trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("MyClass.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(7u, trace_array->Get(1)->GetLineNumber());

@@ -29,6 +29,8 @@ class ThreadList;
 class Throwable;
 class StackTraceElement;
 template<class T> class ObjectArray;
+template<class T> class PrimitiveArray;
+typedef PrimitiveArray<int32_t> IntArray;
 
 class Mutex {
  public:
@@ -398,15 +400,8 @@ class Thread {
     class_loader_override_ = class_loader_override;
   }
 
-  struct InternalStackTrace {
-    const Method* method;
-    uintptr_t pc;
-  };
-
-  // Get the top length frames information
-  InternalStackTrace* GetStackTrace(uint16_t length);
-
-  ObjectArray<StackTraceElement>* GetStackTraceElement(uint16_t length, InternalStackTrace *raw_trace);
+  // Allocate stack trace
+  ObjectArray<StackTraceElement>* AllocStackTrace(uint16_t length);
 
  private:
   Thread()
@@ -426,6 +421,8 @@ class Thread {
 
   void InitCpu();
   void InitFunctionPointers();
+
+  bool WalkStack(uint16_t length, ObjectArray<Method>* method_trace, IntArray* pc_trace);
 
   // Managed thread id.
   uint32_t id_;
