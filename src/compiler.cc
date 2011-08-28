@@ -40,17 +40,17 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   }
 
   // Class derived values are more complicated, they require the linker and loader
-  for (size_t i = 0; i < dex_cache->NumTypes(); i++) {
+  for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
     class_linker->ResolveType(dex_file, i, dex_cache, class_loader);
   }
-  for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
+  for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     // unknown if direct or virtual, try both
     Method* method = class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, false);
     if (method == NULL) {
       class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, true);
     }
   }
-  for (size_t i = 0; i < dex_cache->NumFields(); i++) {
+  for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
     // unknown if instance or static, try both
     Field* field = class_linker->ResolveField(dex_file, i, dex_cache, class_loader, false);
     if (field == NULL) {
@@ -117,7 +117,7 @@ void Compiler::SetCodeAndDirectMethodsDexFile(const ClassLoader* class_loader, c
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
-  for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
+  for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
     if (method == NULL) {
       code_and_direct_methods->SetResolvedDirectMethodTrampoline(i);

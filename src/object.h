@@ -25,6 +25,7 @@ class InterfaceEntry;
 class Monitor;
 class Method;
 class Object;
+class StaticStorageBase;
 class String;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
@@ -720,10 +721,11 @@ class Method : public AccessibleObject {
   // short cuts to declaring_class_->dex_cache_ members for fast compiled code
   // access
   ObjectArray<String>* dex_cache_strings_;
-  ObjectArray<Class>* dex_cache_types_;
-  ObjectArray<Method>* dex_cache_methods_;
-  ObjectArray<Field>* dex_cache_fields_;
+  ObjectArray<Class>* dex_cache_resolved_types_;
+  ObjectArray<Method>* dex_cache_resolved_methods_;
+  ObjectArray<Field>* dex_cache_resolved_fields_;
   CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
+  ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
 
   bool is_direct_;
 
@@ -899,8 +901,14 @@ class PathClassLoader : public BaseDexClassLoader {
   DISALLOW_IMPLICIT_CONSTRUCTORS(PathClassLoader);
 };
 
+// Type for the InitializedStaticStorage table. Currently the Class
+// provides the static storage. However, this might change to improve
+// image sharing, so we use this type to avoid assumptions on the
+// current storage.
+class StaticStorageBase {};
+
 // Class objects.
-class Class : public Object {
+class Class : public Object, public StaticStorageBase {
  public:
 
   // Class Status

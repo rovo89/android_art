@@ -31,7 +31,8 @@ Array* Array::Alloc(Class* array_class, int32_t component_count) {
 }
 
 Array* Array::AllocFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
-  Class* klass = method->dex_cache_types_->Get(type_idx);
+  // TODO: throw on negative component_count
+  Class* klass = method->dex_cache_resolved_types_->Get(type_idx);
   if (klass == NULL) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL || !klass->IsArrayClass()) {
@@ -43,7 +44,7 @@ Array* Array::AllocFromCode(uint32_t type_idx, Method* method, int32_t component
 }
 
 Object* Class::NewInstanceFromCode(uint32_t type_idx, Method* method) {
-  Class* klass = method->dex_cache_types_->Get(type_idx);
+  Class* klass = method->dex_cache_resolved_types_->Get(type_idx);
   if (klass == NULL) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {

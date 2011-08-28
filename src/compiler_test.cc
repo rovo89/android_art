@@ -79,18 +79,18 @@ TEST_F(CompilerTest, CompileDexLibCore) {
     String* string = dex_cache->GetResolvedString(i);
     EXPECT_TRUE(string != NULL);
   }
-  EXPECT_EQ(dex->NumTypeIds(), dex_cache->NumTypes());
-  for (size_t i = 0; i < dex_cache->NumTypes(); i++) {
+  EXPECT_EQ(dex->NumTypeIds(), dex_cache->NumResolvedTypes());
+  for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
     Class* type = dex_cache->GetResolvedType(i);
     EXPECT_TRUE(type != NULL);
   }
-  EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumMethods());
-  for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
+  EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumResolvedMethods());
+  for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
     EXPECT_TRUE(method != NULL);
   }
-  EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumFields());
-  for (size_t i = 0; i < dex_cache->NumFields(); i++) {
+  EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
+  for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
     Field* field = dex_cache->GetResolvedField(i);
     EXPECT_TRUE(field != NULL);
   }

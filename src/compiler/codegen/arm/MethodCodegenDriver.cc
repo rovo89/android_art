@@ -346,7 +346,7 @@ static int nextSDCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3:  // Method->DeclaringClass()->GetDexCache()->methodsObjectArr
             loadBaseDisp(cUnit, mir, r0,
-                         art::DexCache::MethodsOffset().Int32Value(), r0,
+                         art::DexCache::ResolvedMethodsOffset().Int32Value(), r0,
                          kWord, INVALID_SREG);
             break;
         case 4: // Skip past the object header
@@ -444,7 +444,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3:  // ...()->GetDexCache()->methodsObjectArr [uses/sets r0]
             loadBaseDisp(cUnit, mir, r0,
-                         art::DexCache::MethodsOffset().Int32Value(), r0,
+                         art::DexCache::ResolvedMethodsOffset().Int32Value(), r0,
                          kWord, INVALID_SREG);
             // Load "this" [set r1]
             rlArg = oatGetSrc(cUnit, mir, 0);

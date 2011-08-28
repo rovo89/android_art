@@ -43,6 +43,10 @@ class CodeAndDirectMethods : public IntArray {
    return kMax * elements;
  }
 
+ size_t NumCodeAndDirectMethods() const {
+   return GetLength() / kMax;
+ }
+
  private:
   enum TupleIndex {
     kCode   = 0,
@@ -59,7 +63,8 @@ class DexCache : public ObjectArray<Object> {
             ObjectArray<Class>* types,
             ObjectArray<Method>* methods,
             ObjectArray<Field>* fields,
-            CodeAndDirectMethods* code_and_direct_methods);
+            CodeAndDirectMethods* code_and_direct_methods,
+            ObjectArray<StaticStorageBase>* initialized_static_storage);
 
   String* GetLocation() const {
     return Get(kLocation)->AsString();
@@ -70,34 +75,38 @@ class DexCache : public ObjectArray<Object> {
                         kStrings * sizeof(Object*));
   }
 
-  static MemberOffset FieldsOffset() {
+  static MemberOffset ResolvedFieldsOffset() {
     return MemberOffset(DataOffset().Int32Value() +
-                        kFields * sizeof(Object*));
+                        kResolvedFields * sizeof(Object*));
   }
 
-  static MemberOffset MethodsOffset() {
+  static MemberOffset ResolvedMethodsOffset() {
     return MemberOffset(DataOffset().Int32Value() +
-                        kMethods * sizeof(Object*));
+                        kResolvedMethods * sizeof(Object*));
   }
 
   size_t NumStrings() const {
     return GetStrings()->GetLength();
   }
 
-  size_t NumTypes() const {
-    return GetTypes()->GetLength();
+  size_t NumResolvedTypes() const {
+    return GetResolvedTypes()->GetLength();
   }
 
-  size_t NumMethods() const {
-    return GetMethods()->GetLength();
+  size_t NumResolvedMethods() const {
+    return GetResolvedMethods()->GetLength();
   }
 
-  size_t NumFields() const {
-    return GetFields()->GetLength();
+  size_t NumResolvedFields() const {
+    return GetResolvedFields()->GetLength();
   }
 
   size_t NumCodeAndDirectMethods() const {
-    return GetCodeAndDirectMethods()->GetLength();
+    return GetCodeAndDirectMethods()->NumCodeAndDirectMethods();
+  }
+
+  size_t NumInitializedStaticStorage() const {
+    return GetInitializedStaticStorage()->GetLength();
   }
 
   String* GetResolvedString(uint32_t string_idx) const {
@@ -109,43 +118,46 @@ class DexCache : public ObjectArray<Object> {
   }
 
   Class* GetResolvedType(uint32_t type_idx) const {
-    return GetTypes()->Get(type_idx);
+    return GetResolvedTypes()->Get(type_idx);
   }
 
   void SetResolvedType(uint32_t type_idx, Class* resolved) {
-    GetTypes()->Set(type_idx, resolved);
+    GetResolvedTypes()->Set(type_idx, resolved);
   }
 
   Method* GetResolvedMethod(uint32_t method_idx) const {
-    return GetMethods()->Get(method_idx);
+    return GetResolvedMethods()->Get(method_idx);
   }
 
   void SetResolvedMethod(uint32_t method_idx, Method* resolved) {
-    GetMethods()->Set(method_idx, resolved);
+    GetResolvedMethods()->Set(method_idx, resolved);
   }
 
   Field* GetResolvedField(uint32_t field_idx) const {
-    return GetFields()->Get(field_idx);
+    return GetResolvedFields()->Get(field_idx);
   }
 
   void SetResolvedfield(uint32_t field_idx, Field* resolved) {
-    GetFields()->Set(field_idx, resolved);
+    GetResolvedFields()->Set(field_idx, resolved);
   }
 
   ObjectArray<String>* GetStrings() const {
     return static_cast<ObjectArray<String>*>(GetNonNull(kStrings));
   }
-  ObjectArray<Class>* GetTypes() const {
-    return static_cast<ObjectArray<Class>*>(GetNonNull(kTypes));
+  ObjectArray<Class>* GetResolvedTypes() const {
+    return static_cast<ObjectArray<Class>*>(GetNonNull(kResolvedTypes));
   }
-  ObjectArray<Method>* GetMethods() const {
-    return static_cast<ObjectArray<Method>*>(GetNonNull(kMethods));
+  ObjectArray<Method>* GetResolvedMethods() const {
+    return static_cast<ObjectArray<Method>*>(GetNonNull(kResolvedMethods));
   }
-  ObjectArray<Field>* GetFields() const {
-    return static_cast<ObjectArray<Field>*>(GetNonNull(kFields));
+  ObjectArray<Field>* GetResolvedFields() const {
+    return static_cast<ObjectArray<Field>*>(GetNonNull(kResolvedFields));
   }
   CodeAndDirectMethods* GetCodeAndDirectMethods() const {
     return static_cast<CodeAndDirectMethods*>(GetNonNull(kCodeAndDirectMethods));
+  }
+  ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const {
+    return static_cast<ObjectArray<StaticStorageBase>*>(GetNonNull(kInitializedStaticStorage));
   }
 
  static size_t LengthAsArray() {
@@ -155,13 +167,14 @@ class DexCache : public ObjectArray<Object> {
  private:
 
   enum ArrayIndex {
-    kLocation             = 0,
-    kStrings              = 1,
-    kTypes                = 2,
-    kMethods              = 3,
-    kFields               = 4,
-    kCodeAndDirectMethods = 5,
-    kMax                  = 6,
+    kLocation                 = 0,
+    kStrings                  = 1,
+    kResolvedTypes            = 2,
+    kResolvedMethods          = 3,
+    kResolvedFields           = 4,
+    kCodeAndDirectMethods     = 5,
+    kInitializedStaticStorage = 6,
+    kMax                      = 7,
   };
 
   Object* GetNonNull(ArrayIndex array_index) const {

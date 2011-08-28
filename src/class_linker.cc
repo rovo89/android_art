@@ -434,7 +434,8 @@ DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
                   AllocObjectArray<Class>(dex_file.NumTypeIds()),
                   AllocObjectArray<Method>(dex_file.NumMethodIds()),
                   AllocObjectArray<Field>(dex_file.NumFieldIds()),
-                  AllocCodeAndDirectMethods(dex_file.NumMethodIds()));
+                  AllocCodeAndDirectMethods(dex_file.NumMethodIds()),
+                  AllocObjectArray<StaticStorageBase>(dex_file.NumTypeIds()));
   return dex_cache;
 }
 
@@ -767,10 +768,11 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->access_flags_ = src.access_flags_;
 
   dst->dex_cache_strings_ = klass->dex_cache_->GetStrings();
-  dst->dex_cache_types_ = klass->dex_cache_->GetTypes();
-  dst->dex_cache_methods_ = klass->dex_cache_->GetMethods();
-  dst->dex_cache_fields_ = klass->dex_cache_->GetFields();
+  dst->dex_cache_resolved_types_ = klass->dex_cache_->GetResolvedTypes();
+  dst->dex_cache_resolved_methods_ = klass->dex_cache_->GetResolvedMethods();
+  dst->dex_cache_resolved_fields_ = klass->dex_cache_->GetResolvedFields();
   dst->dex_cache_code_and_direct_methods_ = klass->dex_cache_->GetCodeAndDirectMethods();
+  dst->dex_cache_initialized_static_storage_ = klass->dex_cache_->GetInitializedStaticStorage();
 
   dst->is_direct_ = is_direct;
 
@@ -1275,6 +1277,19 @@ bool ClassLinker::EnsureInitialized(Class* c) {
   InitializeClass(c);
   c->MonitorEnter();
   return !Thread::Current()->IsExceptionPending();
+}
+
+StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* klass = class_linker->ResolveType(type_idx, referrer);
+  if (klass == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw exception due to unresolved class";
+  }
+  if (!class_linker->EnsureInitialized(klass)) {
+    CHECK(Thread::Current()->IsExceptionPending());
+    UNIMPLEMENTED(FATAL) << "throw exception due to class initializtion problem";
+  }
+  return klass;
 }
 
 void ClassLinker::InitializeStaticFields(Class* klass) {

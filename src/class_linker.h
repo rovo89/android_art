@@ -78,6 +78,8 @@ class ClassLinker {
                      DexCache* dex_cache,
                      const ClassLoader* class_loader);
 
+  static StaticStorageBase* InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer);
+
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
   // in ResolveType. What is unique is the method type argument which

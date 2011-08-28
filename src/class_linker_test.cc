@@ -102,16 +102,23 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method->GetSignature() != NULL);
 
     EXPECT_TRUE(method->dex_cache_strings_ != NULL);
-    EXPECT_TRUE(method->dex_cache_types_ != NULL);
-    EXPECT_TRUE(method->dex_cache_methods_ != NULL);
-    EXPECT_TRUE(method->dex_cache_fields_ != NULL);
+    EXPECT_TRUE(method->dex_cache_resolved_types_ != NULL);
+    EXPECT_TRUE(method->dex_cache_resolved_methods_ != NULL);
+    EXPECT_TRUE(method->dex_cache_resolved_fields_ != NULL);
     EXPECT_TRUE(method->dex_cache_code_and_direct_methods_ != NULL);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetStrings(), method->dex_cache_strings_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetTypes(), method->dex_cache_types_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetMethods(), method->dex_cache_methods_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetFields(), method->dex_cache_fields_);
+    EXPECT_TRUE(method->dex_cache_initialized_static_storage_ != NULL);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetStrings(),
+              method->dex_cache_strings_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetResolvedTypes(),
+              method->dex_cache_resolved_types_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetResolvedMethods(),
+              method->dex_cache_resolved_methods_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetResolvedFields(),
+              method->dex_cache_resolved_fields_);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetCodeAndDirectMethods(),
               method->dex_cache_code_and_direct_methods_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetInitializedStaticStorage(),
+              method->dex_cache_initialized_static_storage_);
   }
 
   void AssertField(Class* klass, Field* field) {
