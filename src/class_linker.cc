@@ -434,12 +434,12 @@ DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
                   AllocObjectArray<Class>(dex_file.NumTypeIds()),
                   AllocObjectArray<Method>(dex_file.NumMethodIds()),
                   AllocObjectArray<Field>(dex_file.NumFieldIds()),
-                  AllocCodeAndMethods(dex_file.NumMethodIds()));
+                  AllocCodeAndDirectMethods(dex_file.NumMethodIds()));
   return dex_cache;
 }
 
-CodeAndMethods* ClassLinker::AllocCodeAndMethods(size_t length) {
-  return down_cast<CodeAndMethods*>(IntArray::Alloc(CodeAndMethods::LengthAsArray(length)));
+CodeAndDirectMethods* ClassLinker::AllocCodeAndDirectMethods(size_t length) {
+  return down_cast<CodeAndDirectMethods*>(IntArray::Alloc(CodeAndDirectMethods::LengthAsArray(length)));
 }
 
 Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
@@ -698,7 +698,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
       klass->SetDirectMethod(i, meth);
-      LoadMethod(dex_file, dex_method, klass, meth);
+      LoadMethod(dex_file, dex_method, klass, meth, true);
       // TODO: register maps
     }
   }
@@ -714,7 +714,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
       klass->SetVirtualMethod(i, meth);
-      LoadMethod(dex_file, dex_method, klass, meth);
+      LoadMethod(dex_file, dex_method, klass, meth, false);
       // TODO: register maps
     }
   }
@@ -751,7 +751,8 @@ void ClassLinker::LoadField(const DexFile& dex_file,
 void ClassLinker::LoadMethod(const DexFile& dex_file,
                              const DexFile::Method& src,
                              Class* klass,
-                             Method* dst) {
+                             Method* dst,
+                             bool is_direct) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->declaring_class_ = klass;
   dst->name_ = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
@@ -769,7 +770,9 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->dex_cache_types_ = klass->dex_cache_->GetTypes();
   dst->dex_cache_methods_ = klass->dex_cache_->GetMethods();
   dst->dex_cache_fields_ = klass->dex_cache_->GetFields();
-  dst->dex_cache_code_and_methods_ = klass->dex_cache_->GetCodeAndMethods();
+  dst->dex_cache_code_and_direct_methods_ = klass->dex_cache_->GetCodeAndDirectMethods();
+
+  dst->is_direct_ = is_direct;
 
   // TODO: check for finalize method
 

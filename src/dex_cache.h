@@ -16,7 +16,7 @@ class Method;
 class String;
 union JValue;
 
-class CodeAndMethods : public IntArray {
+class CodeAndDirectMethods : public IntArray {
  public:
   Method* GetResolvedCode(uint32_t method_idx) const {
     return reinterpret_cast<Method*>(Get(method_idx * kMax + kCode));
@@ -25,8 +25,15 @@ class CodeAndMethods : public IntArray {
     return reinterpret_cast<byte*>(Get(method_idx * kMax + kMethod));
   }
 
-  void SetResolvedMethod(uint32_t method_idx, Method* method) {
+  void SetResolvedDirectMethodTrampoline(uint32_t method_idx) {
+    UNIMPLEMENTED(FATAL) << "need to install a trampoline to resolve the method_idx at runtime";
+    Set(method_idx * kMax + kCode,   0xffffffff);
+    Set(method_idx * kMax + kMethod, method_idx);
+  }
+
+  void SetResolvedDirectMethod(uint32_t method_idx, Method* method) {
     CHECK(method != NULL);
+    CHECK(method->IsDirect());
     // CHECK(method->GetCode() != NULL);  // TODO enable when all code is compiling
     Set(method_idx * kMax + kCode,   reinterpret_cast<int32_t>(method->GetCode()));
     Set(method_idx * kMax + kMethod, reinterpret_cast<int32_t>(method));
@@ -52,7 +59,7 @@ class DexCache : public ObjectArray<Object> {
             ObjectArray<Class>* types,
             ObjectArray<Method>* methods,
             ObjectArray<Field>* fields,
-            CodeAndMethods* code_and_methods);
+            CodeAndDirectMethods* code_and_direct_methods);
 
   String* GetLocation() const {
     return Get(kLocation)->AsString();
@@ -89,8 +96,8 @@ class DexCache : public ObjectArray<Object> {
     return GetFields()->GetLength();
   }
 
-  size_t NumCodeAndMethods() const {
-    return GetCodeAndMethods()->GetLength();
+  size_t NumCodeAndDirectMethods() const {
+    return GetCodeAndDirectMethods()->GetLength();
   }
 
   String* GetResolvedString(uint32_t string_idx) const {
@@ -137,8 +144,8 @@ class DexCache : public ObjectArray<Object> {
   ObjectArray<Field>* GetFields() const {
     return static_cast<ObjectArray<Field>*>(GetNonNull(kFields));
   }
-  CodeAndMethods* GetCodeAndMethods() const {
-    return static_cast<CodeAndMethods*>(GetNonNull(kCodeAndMethods));
+  CodeAndDirectMethods* GetCodeAndDirectMethods() const {
+    return static_cast<CodeAndDirectMethods*>(GetNonNull(kCodeAndDirectMethods));
   }
 
  static size_t LengthAsArray() {
@@ -148,13 +155,13 @@ class DexCache : public ObjectArray<Object> {
  private:
 
   enum ArrayIndex {
-    kLocation       = 0,
-    kStrings        = 1,
-    kTypes          = 2,
-    kMethods        = 3,
-    kFields         = 4,
-    kCodeAndMethods = 5,
-    kMax            = 6,
+    kLocation             = 0,
+    kStrings              = 1,
+    kTypes                = 2,
+    kMethods              = 3,
+    kFields               = 4,
+    kCodeAndDirectMethods = 5,
+    kMax                  = 6,
   };
 
   Object* GetNonNull(ArrayIndex array_index) const {

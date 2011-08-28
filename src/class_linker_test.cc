@@ -105,13 +105,13 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method->dex_cache_types_ != NULL);
     EXPECT_TRUE(method->dex_cache_methods_ != NULL);
     EXPECT_TRUE(method->dex_cache_fields_ != NULL);
-    EXPECT_TRUE(method->dex_cache_code_and_methods_ != NULL);
+    EXPECT_TRUE(method->dex_cache_code_and_direct_methods_ != NULL);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetStrings(), method->dex_cache_strings_);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetTypes(), method->dex_cache_types_);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetMethods(), method->dex_cache_methods_);
     EXPECT_EQ(method->declaring_class_->dex_cache_->GetFields(), method->dex_cache_fields_);
-    EXPECT_EQ(method->declaring_class_->dex_cache_->GetCodeAndMethods(),
-              method->dex_cache_code_and_methods_);
+    EXPECT_EQ(method->declaring_class_->dex_cache_->GetCodeAndDirectMethods(),
+              method->dex_cache_code_and_direct_methods_);
   }
 
   void AssertField(Class* klass, Field* field) {
@@ -143,6 +143,7 @@ class ClassLinkerTest : public CommonTest {
       EXPECT_TRUE(klass->IsAbstract());
       if (klass->NumDirectMethods() == 1) {
         EXPECT_TRUE(klass->GetDirectMethod(0)->GetName()->Equals("<clinit>"));
+        EXPECT_TRUE(klass->GetDirectMethod(0)->IsDirect());
       } else {
         EXPECT_EQ(0U, klass->NumDirectMethods());
       }
@@ -171,12 +172,14 @@ class ClassLinkerTest : public CommonTest {
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       Method* method = klass->GetDirectMethod(i);
       AssertMethod(klass, method);
+      EXPECT_TRUE(method->IsDirect());
       EXPECT_EQ(klass, method->GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
       Method* method = klass->GetVirtualMethod(i);
       AssertMethod(klass, method);
+      EXPECT_FALSE(method->IsDirect());
       EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass));
     }
 

@@ -17,7 +17,7 @@ const ClassLoader* Compiler::Compile(std::vector<const DexFile*> class_path) {
   Resolve(class_loader);
   // TODO add verification step
   Compile(class_loader);
-  SetCodeAndMethod(class_loader);
+  SetCodeAndDirectMethods(class_loader);
   return class_loader;
 }
 
@@ -104,23 +104,28 @@ void Compiler::CompileMethod(Method* method) {
   // CHECK(method->HasCode());  // TODO: enable this check ASAP
 }
 
-void Compiler::SetCodeAndMethod(const ClassLoader* class_loader) {
+void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {
   const std::vector<const DexFile*>& class_path = class_loader->GetClassPath();
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
-    SetCodeAndMethodDexFile(class_loader, *dex_file);
+    SetCodeAndDirectMethodsDexFile(class_loader, *dex_file);
   }
 }
 
-void Compiler::SetCodeAndMethodDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::SetCodeAndDirectMethodsDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-  CodeAndMethods* code_and_methods = dex_cache->GetCodeAndMethods();
+  CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
   for (size_t i = 0; i < dex_cache->NumMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
-    if (method != NULL) {
-      code_and_methods->SetResolvedMethod(i, method);
+    if (method == NULL) {
+      code_and_direct_methods->SetResolvedDirectMethodTrampoline(i);
+    } else if (method->IsDirect()) {
+      code_and_direct_methods->SetResolvedDirectMethod(i, method);
+    } else {
+      // TODO: we currently leave the entry blank for resolved
+      // non-direct methods.  we could put in an error stub.
     }
   }
 }

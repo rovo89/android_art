@@ -146,7 +146,7 @@ class ClassLinker {
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
   }
-  CodeAndMethods* AllocCodeAndMethods(size_t length);
+  CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
 
   Class* CreatePrimitiveClass(const char* descriptor);
 
@@ -176,7 +176,8 @@ class ClassLinker {
   void LoadMethod(const DexFile& dex_file,
                   const DexFile::Method& dex_method,
                   Class* klass,
-                  Method* dst);
+                  Method* dst,
+                  bool is_direct);
 
   Class* LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader);
 

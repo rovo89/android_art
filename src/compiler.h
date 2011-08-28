@@ -28,9 +28,9 @@ class Compiler {
   void CompileMethod(Method* klass);
 
   // After compiling, walk all the DexCaches and set the code and
-  // method pointers of CodeAndMethod entries in the DexCaches.
-  void SetCodeAndMethod(const ClassLoader* class_loader);
-  void SetCodeAndMethodDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  // method pointers of CodeAndDirectMethods entries in the DexCaches.
+  void SetCodeAndDirectMethods(const ClassLoader* class_loader);
+  void SetCodeAndDirectMethodsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 };
 
 }  // namespace art

@@ -14,19 +14,19 @@ void DexCache::Init(String* location,
                     ObjectArray<Class>* types,
                     ObjectArray<Method>* methods,
                     ObjectArray<Field>* fields,
-                    CodeAndMethods* code_and_methods) {
+                    CodeAndDirectMethods* code_and_direct_methods) {
   CHECK(location != NULL);
   CHECK(strings != NULL);
   CHECK(types != NULL);
   CHECK(methods != NULL);
   CHECK(fields != NULL);
-  CHECK(code_and_methods != NULL);
+  CHECK(code_and_direct_methods != NULL);
   Set(kLocation,       location);
   Set(kStrings,        strings);
   Set(kTypes,          types);
   Set(kMethods,        methods);
   Set(kFields,         fields);
-  Set(kCodeAndMethods, code_and_methods);
+  Set(kCodeAndDirectMethods, code_and_direct_methods);
 }
 
 }  // namespace art

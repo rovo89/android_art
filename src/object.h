@@ -18,7 +18,7 @@ namespace art {
 
 class Array;
 class Class;
-class CodeAndMethods;
+class CodeAndDirectMethods;
 class DexCache;
 class Field;
 class InterfaceEntry;
@@ -542,6 +542,10 @@ class Method : public AccessibleObject {
     return shorty_[0] == 'V';
   }
 
+  bool IsDirect() const {
+    return is_direct_;
+  }
+
   // "Args" may refer to any of the 3 levels of "Args."
   // To avoid confusion, our code will denote which "Args" clearly:
   //  1. UserArgs: Args that a user see.
@@ -719,7 +723,9 @@ class Method : public AccessibleObject {
   ObjectArray<Class>* dex_cache_types_;
   ObjectArray<Method>* dex_cache_methods_;
   ObjectArray<Field>* dex_cache_fields_;
-  CodeAndMethods* dex_cache_code_and_methods_;
+  CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
+
+  bool is_direct_;
 
  private:
   // Compiled code associated with this method
