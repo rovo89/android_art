@@ -89,9 +89,11 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   // Object[] is for DexCache and int[] is for various Class members.
   Class* object_array_class = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(object_array_class != NULL);
+  object_array_class->array_rank_ = 1;
   object_array_class->component_type_ = java_lang_Object;
   Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(int_array_class != NULL);
+  int_array_class->array_rank_ = 1;
   IntArray::SetArrayClass(int_array_class);
 
   // String and char[] are necessary so that FindClass can assign names to members
@@ -102,6 +104,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
   String::SetClass(java_lang_String);
   Class* char_array_class = AllocClass(java_lang_Class, sizeof(Class));
   CHECK(char_array_class != NULL);
+  char_array_class->array_rank_ = 1;
   CharArray::SetArrayClass(char_array_class);
   // Now String::Alloc* can be used
 
@@ -258,7 +261,7 @@ void ClassLinker::FinishInit() {
     ClassRoot class_root = static_cast<ClassRoot>(i);
     Class* klass = GetClassRoot(class_root);
     CHECK(klass != NULL);
-    DCHECK(klass->IsArray() || klass->IsPrimitive() || klass->dex_cache_ != NULL);
+    DCHECK(klass->IsArrayClass() || klass->IsPrimitive() || klass->dex_cache_ != NULL);
     // note SetClassRoot does additional validation.
     // if possible add new checks there to catch errors early
   }
@@ -373,7 +376,7 @@ void ClassLinker::InitCallback(Object* obj, void *arg) {
   if (dex_cache != NULL) {
     state->dex_caches.insert(dex_cache);
   } else {
-    DCHECK(klass->IsArray() || klass->IsPrimitive());
+    DCHECK(klass->IsArrayClass() || klass->IsPrimitive());
   }
 
   // check if this is a root, if so, register it
@@ -1865,7 +1868,7 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
     resolved = FindClass(descriptor, class_loader);
   }
   if (resolved != NULL) {
-    Class* check = resolved->IsArray() ? resolved->component_type_ : resolved;
+    Class* check = resolved->IsArrayClass() ? resolved->component_type_ : resolved;
     if (dex_cache != check->GetDexCache()) {
       if (check->GetClassLoader() != NULL) {
         LG << "Class resolved by unexpected DEX";  // TODO: IllegalAccessError

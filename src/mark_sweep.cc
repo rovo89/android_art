@@ -190,7 +190,7 @@ void MarkSweep::ScanClass(const Object* obj) {
   DCHECK(obj->IsClass());
   const Class* klass = obj->AsClass();
   MarkObject(klass->GetClass());
-  if (klass->IsArray()) {
+  if (klass->IsArrayClass()) {
     MarkObject(klass->GetComponentType());
   }
   if (klass->IsLoaded()) {
@@ -299,7 +299,7 @@ void MarkSweep::ScanObject(const Object* obj) {
   DCHECK(IsMarked(obj));
   if (obj->IsClass()) {
     ScanClass(obj);
-  } else if (obj->IsArray()) {
+  } else if (obj->IsArrayInstance()) {
     ScanArray(obj);
   } else {
     ScanOther(obj);

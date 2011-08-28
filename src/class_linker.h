@@ -40,13 +40,13 @@ class ClassLinker {
 
   size_t NumLoadedClasses() const;
 
-  // Resolve a String with the given ID from the DexFile, storing the
+  // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
   String* ResolveString(const DexFile& dex_file,
                         uint32_t string_idx,
                         DexCache* dex_cache);
 
-  // Resolve a Type with the given ID from the DexFile, storing the
+  // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
   Class* ResolveType(const DexFile& dex_file,
@@ -56,6 +56,17 @@ class ClassLinker {
                        type_idx,
                        referrer->GetDexCache(),
                        referrer->GetClassLoader());
+  }
+
+  // Resolve a Type with the given index from the DexFile, storing the
+  // result in the DexCache. The referrer is used to identity the
+  // target DexCache and ClassLoader to use for resolution.
+  Class* ResolveType(uint32_t type_idx, Method* referrer) {
+    Class* declaring_class = referrer->GetDeclaringClass();
+    DexCache* dex_cache = declaring_class->GetDexCache();
+    const ClassLoader* class_loader = declaring_class->GetClassLoader();
+    const DexFile& dex_file = FindDexFile(dex_cache);
+    return ResolveType(dex_file, type_idx, dex_cache, class_loader);
   }
 
   // Resolve a type with the given ID from the DexFile, storing the

@@ -40,7 +40,8 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_FALSE(primitive->IsErroneous());
     EXPECT_TRUE(primitive->IsVerified());
     EXPECT_TRUE(primitive->IsLinked());
-    EXPECT_FALSE(primitive->IsArray());
+    EXPECT_FALSE(primitive->IsArrayInstance());
+    EXPECT_FALSE(primitive->IsArrayClass());
     EXPECT_EQ(0, primitive->array_rank_);
     EXPECT_FALSE(primitive->IsInterface());
     EXPECT_TRUE(primitive->IsPublic());
@@ -80,7 +81,8 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_FALSE(array->IsErroneous());
     EXPECT_TRUE(array->IsVerified());
     EXPECT_TRUE(array->IsLinked());
-    EXPECT_TRUE(array->IsArray());
+    EXPECT_FALSE(array->IsArrayInstance());
+    EXPECT_TRUE(array->IsArrayClass());
     EXPECT_LE(1, array->array_rank_);
     EXPECT_FALSE(array->IsInterface());
     EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
@@ -225,7 +227,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(class_loader, klass->GetClassLoader());
     if (klass->IsPrimitive()) {
       AssertPrimitiveClass(descriptor, klass);
-    } else if (klass->IsArray()) {
+    } else if (klass->IsArrayClass()) {
       AssertArrayClass(descriptor, klass);
     } else {
       AssertClass(descriptor, klass);
@@ -302,7 +304,8 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(JavaLangObject->IsErroneous());
   EXPECT_FALSE(JavaLangObject->IsVerified());
   EXPECT_TRUE(JavaLangObject->IsLinked());
-  EXPECT_FALSE(JavaLangObject->IsArray());
+  EXPECT_FALSE(JavaLangObject->IsArrayInstance());
+  EXPECT_FALSE(JavaLangObject->IsArrayClass());
   EXPECT_EQ(0, JavaLangObject->array_rank_);
   EXPECT_FALSE(JavaLangObject->IsInterface());
   EXPECT_TRUE(JavaLangObject->IsPublic());
@@ -332,7 +335,8 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(MyClass->IsErroneous());
   EXPECT_FALSE(MyClass->IsVerified());
   EXPECT_TRUE(MyClass->IsLinked());
-  EXPECT_FALSE(MyClass->IsArray());
+  EXPECT_FALSE(MyClass->IsArrayInstance());
+  EXPECT_FALSE(MyClass->IsArrayClass());
   EXPECT_EQ(0, JavaLangObject->array_rank_);
   EXPECT_FALSE(MyClass->IsInterface());
   EXPECT_FALSE(MyClass->IsPublic());

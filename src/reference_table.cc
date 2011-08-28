@@ -54,7 +54,7 @@ void ReferenceTable::Remove(const Object* obj) {
 // If "obj" is an array, return the number of elements in the array.
 // Otherwise, return zero.
 size_t GetElementCount(const Object* obj) {
-  if (obj == NULL || obj == kClearedJniWeakGlobal || !obj->IsArray()) {
+  if (obj == NULL || obj == kClearedJniWeakGlobal || !obj->IsArrayInstance()) {
     return 0;
   }
   return obj->AsArray()->GetLength();

@@ -244,15 +244,15 @@ class Object {
     return true;
   }
 
-  bool IsArray() const;
+  bool IsArrayInstance() const;
 
   Array* AsArray() {
-    DCHECK(IsArray());
+    DCHECK(IsArrayInstance());
     return down_cast<Array*>(this);
   }
 
   const Array* AsArray() const {
-    DCHECK(IsArray());
+    DCHECK(IsArrayInstance());
     return down_cast<const Array*>(this);
   }
 
@@ -751,20 +751,16 @@ class Array : public Object {
     return sizeof(Array) + component_count * component_size;
   }
 
+  // Given the context of a calling Method, use its DexCache to
+  // resolve a type to an array Class. If it cannot be resolved, throw
+  // an error. If it can, use it to create an array.
+  static Array* AllocFromCode(uint32_t type_idx, Method* method, int32_t component_count);
+
   // A convenience for code that doesn't know the component size,
   // and doesn't want to have to work it out itself.
-  static Array* Alloc(Class* array_class, size_t component_count);
+  static Array* Alloc(Class* array_class, int32_t component_count);
 
-  static Array* Alloc(Class* array_class,
-                      size_t component_count,
-                      size_t component_size) {
-    size_t size = SizeOf(component_count, component_size);
-    Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
-    if (array != NULL) {
-      array->SetLength(component_count);
-    }
-    return array;
-  }
+  static Array* Alloc(Class* array_class, int32_t component_count, size_t component_size);
 
   size_t SizeOf() const;
 
@@ -810,7 +806,7 @@ template<class T>
 class ObjectArray : public Array {
  public:
   static ObjectArray<T>* Alloc(Class* object_array_class,
-                               size_t length) {
+                               int32_t length) {
     return Array::Alloc(object_array_class, length, sizeof(uint32_t))->AsObjectArray<T>();
   }
 
@@ -941,6 +937,11 @@ class Class : public Object {
     kPrimNot = -1
   };
 
+  // Given the context of a calling Method, use its DexCache to
+  // resolve a type to a Class. If it cannot be resolved, throw an
+  // error. If it can, use it to create an instance.
+  static Object* NewInstanceFromCode(uint32_t type_idx, Method* method);
+
   Object* NewInstance() {
     DCHECK(!IsAbstract());
     return Heap::AllocObject(this, this->object_size_);
@@ -966,7 +967,7 @@ class Class : public Object {
     if (IsInterface()) {
       return klass->Implements(this);
     }
-    if (klass->IsArray()) {
+    if (klass->IsArrayClass()) {
       return IsAssignableFromArray(klass);
     }
     return klass->IsSubClass(this);
@@ -1041,7 +1042,7 @@ class Class : public Object {
                               const String* descriptor2);
 
   // Returns true if this class represents an array class.
-  bool IsArray() const;
+  bool IsArrayClass() const;
 
   // Returns true if the class is an interface.
   bool IsInterface() const {
@@ -1391,11 +1392,11 @@ inline bool Object::IsClassClass() const {
 }
 
 inline bool Object::IsObjectArray() const {
-  return IsArray() && !klass_->component_type_->IsPrimitive();
+  return IsArrayInstance() && !klass_->component_type_->IsPrimitive();
 }
 
-inline bool Object::IsArray() const {
-  return klass_->IsArray();
+inline bool Object::IsArrayInstance() const {
+  return klass_->IsArrayClass();
 }
 
 inline bool Object::IsField() const {
@@ -1411,7 +1412,7 @@ inline bool Object::IsMethod() const {
 }
 
 inline size_t Object::SizeOf() const {
-  if (IsArray()) {
+  if (IsArrayInstance()) {
     return AsArray()->SizeOf();
   }
   if (IsClass()) {
@@ -1757,8 +1758,8 @@ inline size_t Class::GetTypeSize(String* descriptor) {
   }
 }
 
-inline bool Class::IsArray() const {
-  return GetDescriptor()->CharAt(0) == '[';  // TODO: avoid parsing the descriptor
+inline bool Class::IsArrayClass() const {
+  return array_rank_ != 0;
 }
 
 class InterfaceEntry {

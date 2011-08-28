@@ -14,8 +14,44 @@
 
 namespace art {
 
-Array* Array::Alloc(Class* array_class, size_t component_count) {
+Array* Array::Alloc(Class* array_class, int32_t component_count, size_t component_size) {
+  DCHECK_GE(component_count, 0);
+  DCHECK(array_class->IsArrayClass());
+  size_t size = SizeOf(component_count, component_size);
+  Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
+  if (array != NULL) {
+    DCHECK(array->IsArrayInstance());
+    array->SetLength(component_count);
+  }
+  return array;
+}
+
+Array* Array::Alloc(Class* array_class, int32_t component_count) {
   return Alloc(array_class, component_count, array_class->GetComponentSize());
+}
+
+Array* Array::AllocFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
+  Class* klass = method->dex_cache_types_->Get(type_idx);
+  if (klass == NULL) {
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL || !klass->IsArrayClass()) {
+      UNIMPLEMENTED(FATAL) << "throw an error";
+      return NULL;
+    }
+  }
+  return Array::Alloc(klass, component_count);
+}
+
+Object* Class::NewInstanceFromCode(uint32_t type_idx, Method* method) {
+  Class* klass = method->dex_cache_types_->Get(type_idx);
+  if (klass == NULL) {
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {
+      UNIMPLEMENTED(FATAL) << "throw an error";
+      return NULL;
+    }
+  }
+  return klass->NewInstance();
 }
 
 bool Class::Implements(const Class* klass) const {
@@ -52,8 +88,8 @@ bool Class::Implements(const Class* klass) const {
 //   int[] instanceof Object[]     --> false
 //
 bool Class::IsArrayAssignableFromArray(const Class* klass) const {
-  DCHECK(IsArray());
-  DCHECK(klass->IsArray());
+  DCHECK(IsArrayClass());
+  DCHECK(klass->IsArrayClass());
   DCHECK_GT(array_rank_, 0);
   DCHECK_GT(klass->array_rank_, 0);
   DCHECK(component_type_ != NULL);
@@ -87,8 +123,8 @@ bool Class::IsArrayAssignableFromArray(const Class* klass) const {
 
 bool Class::IsAssignableFromArray(const Class* klass) const {
   DCHECK(!IsInterface());  // handled first in IsAssignableFrom
-  DCHECK(klass->IsArray());
-  if (!IsArray()) {
+  DCHECK(klass->IsArrayClass());
+  if (!IsArrayClass()) {
     // If "this" is not also an array, it must be Object.
     // klass's super should be java_lang_Object, since it is an array.
     Class* java_lang_Object = klass->GetSuperClass();
@@ -101,7 +137,7 @@ bool Class::IsAssignableFromArray(const Class* klass) const {
 
 bool Class::IsSubClass(const Class* klass) const {
   DCHECK(!IsInterface());
-  DCHECK(!klass->IsArray());
+  DCHECK(!klass->IsArrayClass());
   const Class* current = this;
   do {
     if (current == klass) {
@@ -151,10 +187,10 @@ bool Class::IsInSamePackage(const Class* that) const {
     return false;
   }
   // Arrays are in the same package when their element classes are.
-  if (klass1->IsArray()) {
+  if (klass1->IsArrayClass()) {
     klass1 = klass1->GetComponentType();
   }
-  if (klass2->IsArray()) {
+  if (klass2->IsArrayClass()) {
     klass2 = klass2->GetComponentType();
   }
   // Compare the package part of the descriptor string.

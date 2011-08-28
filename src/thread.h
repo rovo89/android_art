@@ -204,7 +204,7 @@ class Thread {
   int (*pArtInstanceofNonTrivialNoThrow) (const struct ClassObject*,
                 const struct ClassObject*);
   int (*pArtInstanceofNonTrivial) (const struct ClassObject*, const struct ClassObject*);
-  Array* (*pArtAllocArrayByClass)(Class*, size_t);
+  Array* (*pArtAllocArrayByClass)(Class*, int32_t);
   struct Method* (*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
                            const struct Method*, struct DvmDex*);
   bool (*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);

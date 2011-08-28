@@ -1910,7 +1910,7 @@ class JNI {
   static jsize GetArrayLength(JNIEnv* env, jarray java_array) {
     ScopedJniThreadState ts(env);
     Object* obj = Decode<Object*>(ts, java_array);
-    CHECK(obj->IsArray()); // TODO: ReportJniError
+    CHECK(obj->IsArrayInstance()); // TODO: ReportJniError
     Array* array = obj->AsArray();
     return array->GetLength();
   }

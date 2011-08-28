@@ -37,6 +37,18 @@ class ObjectTest : public CommonTest {
     }
     EXPECT_EQ(hash_expected, string->GetHashCode());
   }
+
+  uint32_t FindTypeIdxByDescriptor(const DexFile& dex_file, const StringPiece& descriptor) {
+    for (size_t i = 0; i < dex_file.NumTypeIds(); i++) {
+      const DexFile::TypeId& type_id = dex_file.GetTypeId(i);
+      if (descriptor == dex_file.GetTypeDescriptor(type_id)) {
+        return i;
+      }
+    }
+    CHECK(false) << "Could not find type index for " << descriptor;
+    return 0;
+  }
+
 };
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -152,6 +164,27 @@ TEST_F(ObjectTest, PrimitiveArray_Long_Alloc) {
 }
 TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
   TestPrimitiveArray<ShortArray>(class_linker_);
+}
+
+TEST_F(ObjectTest, AllocObjectFromCode) {
+  // pretend we are trying to call 'new String' from Object.toString
+  Class* java_lang_Object = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  Method* toString = java_lang_Object->FindVirtualMethod("toString", "()Ljava/lang/String;");
+  uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "Ljava/lang/String;");
+  Object* string = Class::NewInstanceFromCode(type_idx, toString);
+  EXPECT_TRUE(string->IsString());
+}
+
+TEST_F(ObjectTest, AllocArrayFromCode) {
+  // pretend we are trying to call 'new char[3]' from String.toCharArray
+  Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
+  Method* toCharArray = java_lang_String->FindVirtualMethod("toCharArray", "()[C");
+  uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "[C");
+  Object* array = Array::AllocFromCode(type_idx, toCharArray, 3);
+  EXPECT_TRUE(array->IsArrayInstance());
+  EXPECT_EQ(3, array->AsArray()->GetLength());
+  EXPECT_TRUE(array->GetClass()->IsArrayClass());
+  EXPECT_TRUE(array->GetClass()->GetComponentType()->IsPrimitive());
 }
 
 TEST_F(ObjectTest, String) {
