@@ -703,6 +703,12 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
         if (PrettyMethod(method).find("virtualCall") != std::string::npos) {
             compiling = true;
         }
+        if (PrettyMethod(method).find("getFoo") != std::string::npos) {
+            compiling = true;
+        }
+        if (PrettyMethod(method).find("setFoo") != std::string::npos) {
+            compiling = true;
+        }
         if (PrettyMethod(method).find("IntMath.<init>") != std::string::npos) {
             compiling = true;
         }
