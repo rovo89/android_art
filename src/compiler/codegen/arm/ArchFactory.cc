@@ -23,6 +23,20 @@
  */
 
 /*
+ * Utiltiy to load the current Method*.  Broken out
+ * to allow easy change between placing the current Method* in a
+ * dedicated register or its home location in the frame.
+ */
+static void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
+{
+#if defined(METHOD_IN_REG)
+    genRegCopy(cUnit, rTgt, rMETHOD);
+#else
+    loadWordDisp(cUnit, rSP, 0, rTgt);
+#endif
+}
+
+/*
  * Perform a "reg cmp imm" operation and jump to the PCR region if condition
  * satisfies.
  */

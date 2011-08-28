@@ -21,30 +21,24 @@ static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
 static const RegLocation retLoc = LOC_DALVIK_RETURN_VAL;
 static const RegLocation retLocWide = LOC_DALVIK_RETURN_VAL_WIDE;
 
+/*
+ * Let helper function take care of everything.  Will call
+ * Array::AllocFromCode(type_idx, method, count);
+ * Note: AllocFromCode will handle checks for errNegativeArraySize.
+ */
 static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
-    oatFlushAllRegs(cUnit);  /* All temps to home location */
-    UNIMPLEMENTED(WARNING) << "Need to handle unresolved";
-    /*
-     * Need new routine that passes Method*, type index, length.
-     * This is unconditional - always go this way.
-     */
-    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedType(mir->dalvikInsn.vC);
-    if (classPtr == NULL) {
-         LOG(FATAL) << "Unexpected null classPtr";
-    } else {
-         loadValueDirectFixed(cUnit, rlSrc, r1);    /* get Len */
-         loadConstant(cUnit, r0, (int)classPtr);
-    }
-    UNIMPLEMENTED(WARNING) << "Support for throwing errNegativeArraySize";
-    genRegImmCheck(cUnit, kArmCondMi, r1, 0, mir->offset, NULL);
-    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtAllocArrayByClass),
-                 rLR);
-    UNIMPLEMENTED(WARNING) << "Need NoThrow wrapper";
-    newLIR1(cUnit, kThumbBlxR, rLR); // (arrayClass, length, allocFlags)
-    storeValue(cUnit, rlDest, retLoc);
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
+    loadWordDisp(cUnit, rSELF,
+                 OFFSETOF_MEMBER(Thread, pAllocFromCode), rLR);
+    loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
+    loadConstant(cUnit, r0, mir->dalvikInsn.vC);  // arg0 <- type_id
+    loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
+    opReg(cUnit, kOpBlx, rLR);
+    oatClobberCallRegs(cUnit);
+    RegLocation rlResult = oatGetReturn(cUnit);
+    storeValue(cUnit, rlDest, rlResult);
 }
 
 /*
@@ -57,36 +51,32 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int elems;
-    int typeIndex;
+    int typeId;
     if (isRange) {
         elems = dInsn->vA;
-        typeIndex = dInsn->vB;
+        typeId = dInsn->vB;
     } else {
         elems = dInsn->vB;
-        typeIndex = dInsn->vC;
+        typeId = dInsn->vC;
     }
-    oatFlushAllRegs(cUnit);  /* All temps to home location */
-    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedType(typeIndex);
-    if (classPtr == NULL) {
-         LOG(FATAL) << "Unexpected null classPtr";
-    } else {
-         loadConstant(cUnit, r0, (int)classPtr);
-         loadConstant(cUnit, r1, elems);
-    }
-    if (elems < 0) {
-        LOG(FATAL) << "Unexpected empty array";
-    }
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
+    // TODO: Alloc variant that checks types (see header comment) */
+    UNIMPLEMENTED(WARNING) << "Need AllocFromCode variant w/ extra checks";
+    loadWordDisp(cUnit, rSELF,
+                 OFFSETOF_MEMBER(Thread, pAllocFromCode), rLR);
+    loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
+    loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
+    loadConstant(cUnit, r2, elems);               // arg2 <- count
+    opReg(cUnit, kOpBlx, rLR);
     /*
-     * FIXME: Need a new NoThrow allocator that checks for and handles
-     * the above mentioned bad cases of 'D', 'J' or !('L' | '[' | 'I').
-     * That will keep us from wasting space generating an inline check here.
+     * NOTE: the implicit target for OP_FILLED_NEW_ARRAY is the
+     * return region.  Because AllocFromCode placed the new array
+     * in r0, we'll just lock it into place.  When debugger support is
+     * added, it may be necessary to additionally copy all return
+     * values to a home location in thread-local storage
      */
-    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtAllocArrayByClass),
-                 rLR);
-    newLIR1(cUnit, kThumbBlxR, rLR); // (arrayClass, length, allocFlags)
-    // Reserve ret0 (r0) - we'll use it in place.
     oatLockTemp(cUnit, r0);
+
     // Having a range of 0 is legal
     if (isRange && (dInsn->vA > 0)) {
         /*
@@ -313,7 +303,7 @@ static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
 #if 0
     switch(state) {
         case 0:  // Get the current Method* [sets r0]
-            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            loadCurrMethodDirect(cUnit, r0);
             break;
         case 1:  // Get the pResMethods pointer [uses r0, sets r0]
             UNIMPLEMENTED(FATAL) << "Update with new cache";
@@ -342,7 +332,7 @@ static int nextSDCallInsnSP(CompilationUnit* cUnit, MIR* mir,
 {
     switch(state) {
         case 0:  // Get the current Method* [sets r0]
-            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            loadCurrMethodDirect(cUnit, r0);
             break;
         case 1:  // Get the current Method->DeclaringClass() [sets r0]
             loadBaseDisp(cUnit, mir, r0,
@@ -391,7 +381,7 @@ static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
     RegLocation rlArg;
     switch(state) {
         case 0:  // Get the current Method* [set r0]
-            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            loadCurrMethodDirect(cUnit, r0);
             // Load "this" [set r1]
             rlArg = oatGetSrc(cUnit, mir, 0);
             loadValueDirectFixed(cUnit, rlArg, r1);
@@ -440,7 +430,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
     RegLocation rlArg;
     switch(state) {
         case 0:  // Get the current Method* [sets r0]
-            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            loadCurrMethodDirect(cUnit, r0);
             break;
         case 1:  // Get the current Method->DeclaringClass() [uses/sets r0]
             loadBaseDisp(cUnit, mir, r0,
@@ -530,7 +520,7 @@ static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
             rlArg = oatGetSrc(cUnit, mir, 0);
             loadValueDirectFixed(cUnit, rlArg, r12);
             // Get the current Method* [set arg2]
-            loadBaseDisp(cUnit, mir, rSP, 0, r2, kWord, INVALID_SREG);
+            loadCurrMethodDirect(cUnit, r2);
             // Is "this" null? [use r12]
             genNullCheck(cUnit, oatSSASrc(mir,0), r12,
                            mir->offset, NULL);
@@ -576,7 +566,7 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
     switch(state) {
         case 0:
             // Get the current Method* [set r0]
-            loadBaseDisp(cUnit, mir, rSP, 0, r0, kWord, INVALID_SREG);
+            loadCurrMethodDirect(cUnit, r0);
             // Load "this" [set r1]
             rlArg = oatGetSrc(cUnit, mir, 0);
             loadValueDirectFixed(cUnit, rlArg, r1);
@@ -1554,7 +1544,8 @@ static void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
 
 /* If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.
- * Note: at this pointCopy any ins that are passed in register to their home location */
+ * Note: at this pointCopy any ins that are passed in register to their
+ * home location */
 static void flushIns(CompilationUnit* cUnit)
 {
     if (cUnit->method->num_ins_ == 0)
@@ -1564,11 +1555,10 @@ static void flushIns(CompilationUnit* cUnit)
     int startLoc = cUnit->method->num_registers_ - cUnit->method->num_ins_;
     for (int i = 0; i < inRegs; i++) {
         RegLocation loc = cUnit->regLocation[startLoc + i];
+        //TUNING: be smarter about flushing ins to frame
+        storeBaseDisp(cUnit, rSP, loc.spOffset, startReg + i, kWord);
         if (loc.location == kLocPhysReg) {
             genRegCopy(cUnit, loc.lowReg, startReg + i);
-        } else {
-            assert(loc.location == kLocDalvikFrame);
-            storeBaseDisp(cUnit, rSP, loc.spOffset, startReg + i, kWord);
         }
     }
 

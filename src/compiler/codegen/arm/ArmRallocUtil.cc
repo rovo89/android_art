@@ -248,12 +248,12 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
             if (base->fpLocation == kLocPhysReg) {
                 if (curr->wide) {
                     /* TUNING: consider alignment during allocation */
-                    if (base->fpLowReg & 1) {
-                        // Pair must start on even reg - don't promote
-                        continue;
-                    }
-                    /* Make sure upper half is also in reg or skip */
-                    if (baseNext->fpLocation != kLocPhysReg) {
+                    if ((base->fpLowReg & 1) ||
+                        (baseNext->fpLocation != kLocPhysReg)) {
+                        /* Half-promoted or bad alignment - demote */
+                        curr->location = kLocDalvikFrame;
+                        curr->lowReg = INVALID_REG;
+                        curr->highReg = INVALID_REG;
                         continue;
                     }
                     curr->highReg = baseNext->fpLowReg;
@@ -268,6 +268,10 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
                 if (curr->wide) {
                     /* Make sure upper half is also in reg or skip */
                     if (baseNext->location != kLocPhysReg) {
+                        /* Only half promoted; demote to frame */
+                        curr->location = kLocDalvikFrame;
+                        curr->lowReg = INVALID_REG;
+                        curr->highReg = INVALID_REG;
                         continue;
                     }
                     curr->highReg = baseNext->lowReg;

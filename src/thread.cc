@@ -61,7 +61,8 @@ void Thread::InitFunctionPointers() {
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
 #endif
-  pArtAllocArrayByClass = Array::Alloc;
+  pAllocFromCode = Array::AllocFromCode;
+  pNewInstanceFromCode = Class::NewInstanceFromCode;
   pMemcpy = memcpy;
   pArtHandleFillArrayDataNoThrow = artHandleFillArrayDataNoThrow;
 #if 0

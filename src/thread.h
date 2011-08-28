@@ -198,13 +198,14 @@ class Thread {
   int (*pIdiv)(int, int);
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
+  Array* (*pAllocFromCode)(uint32_t, Method*, int32_t);
+  Object* (*pNewInstanceFromCode)(uint32_t, Method*);
   bool (*pArtUnlockObject)(struct Thread*, struct Object*);
   bool (*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
                  const struct ClassObject*);
   int (*pArtInstanceofNonTrivialNoThrow) (const struct ClassObject*,
                 const struct ClassObject*);
   int (*pArtInstanceofNonTrivial) (const struct ClassObject*, const struct ClassObject*);
-  Array* (*pArtAllocArrayByClass)(Class*, int32_t);
   struct Method* (*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
                            const struct Method*, struct DvmDex*);
   bool (*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);

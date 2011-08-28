@@ -316,7 +316,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     switch(lir->opcode) {
         case kArmPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
-                art::PrettyMethod(cUnit->method, true);
+                art::PrettyMethod(cUnit->method);
             break;
         case kArmPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
@@ -390,8 +390,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
 {
     const Method *method = cUnit->method;
     LOG(INFO) << "/*";
-    LOG(INFO) << "Dumping LIR insns for " <<
-        art::PrettyMethod(cUnit->method, true);
+    LOG(INFO) << "Dumping LIR insns for " << art::PrettyMethod(cUnit->method);
     LIR* lirInsn;
     ArmLIR* armLIR;
     int insnsSize = cUnit->insnsSize;

@@ -49,7 +49,7 @@ static void inferTypes(CompilationUnit* cUnit, BasicBlock* bb)
 
 static const char* storageName[] = {" Frame ", "PhysReg", " Spill "};
 
-static void dumpRegLocTable(RegLocation* table, int count)
+void oatDumpRegLocTable(RegLocation* table, int count)
 {
     for (int i = 0; i < count; i++) {
         char buf[100];
@@ -115,7 +115,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
 
     if (cUnit->printMe && !(cUnit->disableOpt & (1 << kPromoteRegs))) {
         LOG(INFO) << "After Promotion";
-        dumpRegLocTable(cUnit->regLocation, cUnit->numSSARegs);
+        oatDumpRegLocTable(cUnit->regLocation, cUnit->numSSARegs);
     }
 
     /* Figure out the frame size */

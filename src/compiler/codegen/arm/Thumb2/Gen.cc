@@ -550,29 +550,18 @@ static void genConstString(CompilationUnit* cUnit, MIR* mir,
     storeValue(cUnit, rlDest, rlResult);
 }
 
+/*
+ * Let helper function take care of everything.  Will
+ * call Class::NewInstanceFromCode(type_idx, method);
+ */
 static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest)
 {
-    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedType(mir->dalvikInsn.vB);
-
-    /*
-     * Need new routine that passes Method*, type index.
-     * Call unconditionally.
-     */
-    if (classPtr == NULL) {
-        /* Shouldn't happen */
-        LOG(FATAL) << "Unexpected null class pointer";
-    }
-
-    // Verifier should have already rejected abstract/interface
-    assert((classPtr->access_flags_ &
-           (art::kAccInterface|art::kAccAbstract)) == 0);
-    oatFlushAllRegs(cUnit);   /* Everything to home location */
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pArtAllocObjectNoThrow), rLR);
-    loadConstant(cUnit, r0, (int) classPtr);
-    UNIMPLEMENTED(WARNING) << "Need NewWorld dvmAllocObject";
+                 OFFSETOF_MEMBER(Thread, pNewInstanceFromCode), rLR);
+    loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
+    loadConstant(cUnit, r0, mir->dalvikInsn.vB);  // arg0 <- type_id
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCallRegs(cUnit);
     RegLocation rlResult = oatGetReturn(cUnit);

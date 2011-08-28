@@ -187,7 +187,7 @@ static BasicBlock *findBlock(CompilationUnit* cUnit,
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 {
     FILE* file;
-    std::string name = art::PrettyMethod(cUnit->method, true);
+    std::string name = art::PrettyMethod(cUnit->method);
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
     char* fileName = (char *) oatNew(
@@ -699,16 +699,25 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
     bool compiling = true;
     if (!method->IsStatic()) {
-        compiling = false;
+        compiling = false;  // assume skip
+        if (PrettyMethod(method).find("virtualCall") != std::string::npos) {
+            compiling = true;
+        }
+        if (PrettyMethod(method).find("IntMath.<init>") != std::string::npos) {
+            compiling = true;
+        }
+        if (PrettyMethod(method).find("java.lang.Object.<init>") != std::string::npos) {
+            compiling = true;
+        }
     } else if ( (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) ||
         (method->GetName()->ToModifiedUtf8().find("main") != std::string::npos)) {
         compiling = false;
     }
 
     if (compiling) {
-        LOG(INFO) << "Compiling " << PrettyMethod(method, true);
+        LOG(INFO) << "Compiling " << PrettyMethod(method);
     } else {
-        LOG(INFO) << "not compiling " << PrettyMethod(method, true);
+        LOG(INFO) << "not compiling " << PrettyMethod(method);
         return false;
     }
 
