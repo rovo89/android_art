@@ -49,6 +49,19 @@ class ObjectTest : public CommonTest {
     return 0;
   }
 
+  uint32_t FindFieldIdxByDescriptorAndName(const DexFile& dex_file,
+                                           const StringPiece& class_descriptor,
+                                           const StringPiece& field_name) {
+    for (size_t i = 0; i < dex_file.NumFieldIds(); i++) {
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(i);
+      if (class_descriptor == dex_file.GetFieldClassDescriptor(field_id)
+          && field_name == dex_file.GetFieldName(field_id)) {
+        return i;
+      }
+    }
+    CHECK(false) << "Could not find field index for " << class_descriptor << " " << field_name;
+    return 0;
+  }
 };
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -185,6 +198,25 @@ TEST_F(ObjectTest, AllocArrayFromCode) {
   EXPECT_EQ(3, array->AsArray()->GetLength());
   EXPECT_TRUE(array->GetClass()->IsArrayClass());
   EXPECT_TRUE(array->GetClass()->GetComponentType()->IsPrimitive());
+}
+
+TEST_F(ObjectTest, StaticFieldFromCode) {
+  // pretend we are trying to call 'new String' from Object.toString
+  Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
+  Method* clinit = java_lang_String->FindDirectMethod("<clinit>", "()V");
+  uint32_t field_idx = FindFieldIdxByDescriptorAndName(*java_lang_dex_file_.get(),
+                                                       "Ljava/lang/String;", "ASCII");
+  Object* ASCII = Field::GetObjStaticFromCode(field_idx, clinit);
+  EXPECT_EQ(NULL, ASCII);
+
+  CharArray* char_array = CharArray::Alloc(0);
+  Field::SetObjStaticFromCode(field_idx, clinit, char_array);
+  EXPECT_EQ(char_array, Field::GetObjStaticFromCode(field_idx, clinit));
+
+  Field::SetObjStaticFromCode(field_idx, clinit, NULL);
+  EXPECT_EQ(NULL, Field::GetObjStaticFromCode(field_idx, clinit));
+  
+  // TODO: more exhaustive tests of all 6 cases of Field::*FromCode
 }
 
 TEST_F(ObjectTest, String) {

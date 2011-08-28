@@ -61,7 +61,7 @@ class ClassLinker {
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
-  Class* ResolveType(uint32_t type_idx, Method* referrer) {
+  Class* ResolveType(uint32_t type_idx, const Method* referrer) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
     const ClassLoader* class_loader = declaring_class->GetClassLoader();
@@ -78,7 +78,8 @@ class ClassLinker {
                      DexCache* dex_cache,
                      const ClassLoader* class_loader);
 
-  static StaticStorageBase* InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer);
+  static StaticStorageBase* InitializeStaticStorageFromCode(uint32_t type_idx,
+                                                            const Method* referrer);
 
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -90,6 +91,14 @@ class ClassLinker {
                         DexCache* dex_cache,
                         const ClassLoader* class_loader,
                         bool is_direct);
+
+  Field* ResolveField(uint32_t field_idx, const Method* referrer) {
+    Class* declaring_class = referrer->GetDeclaringClass();
+    DexCache* dex_cache = declaring_class->GetDexCache();
+    const ClassLoader* class_loader = declaring_class->GetClassLoader();
+    const DexFile& dex_file = FindDexFile(dex_cache);
+    return ResolveField(dex_file, field_idx, dex_cache, class_loader, true);
+  }
 
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as

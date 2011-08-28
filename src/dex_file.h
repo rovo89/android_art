@@ -414,6 +414,17 @@ class DexFile {
     return dexStringById(type_id.descriptor_idx_);
   }
 
+  // Returns the class descriptor string of a field id.
+  const char* GetFieldClassDescriptor(const FieldId& field_id) const {
+    const DexFile::TypeId& type_id = GetTypeId(field_id.class_idx_);
+    return GetTypeDescriptor(type_id);
+  }
+
+  // Returns the name of a field id.
+  const char* GetFieldName(const FieldId& field_id) const {
+    return dexStringById(field_id.name_idx_);
+  }
+
   // Returns the StringId at the specified index.
   const StringId& GetStringId(uint32_t idx) const {
     CHECK_LT(idx, NumStringIds());

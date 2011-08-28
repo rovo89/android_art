@@ -1279,7 +1279,8 @@ bool ClassLinker::EnsureInitialized(Class* c) {
   return !Thread::Current()->IsExceptionPending();
 }
 
-StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer) {
+StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx,
+                                                                const Method* referrer) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* klass = class_linker->ResolveType(type_idx, referrer);
   if (klass == NULL) {

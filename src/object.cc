@@ -198,6 +198,55 @@ bool Class::IsInSamePackage(const Class* that) const {
   return IsInSamePackage(klass1->descriptor_, klass2->descriptor_);
 }
 
+uint32_t Field::Get32StaticFromCode(uint32_t field_idx, const Method* referrer) {
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
+  if (field == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw an error";
+    return 0;
+  }
+  return field->Get32(NULL);
+}
+void Field::Set32StaticFromCode(uint32_t field_idx, const Method* referrer, uint32_t new_value) {
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
+  if (field == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw an error";
+    return;
+  }
+  field->Set32(NULL, new_value);
+}
+uint64_t Field::Get64StaticFromCode(uint32_t field_idx, const Method* referrer) {
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
+  if (field == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw an error";
+    return 0;
+  }
+  return field->Get64(NULL);
+}
+void Field::Set64StaticFromCode(uint32_t field_idx, const Method* referrer, uint64_t new_value) {
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
+  if (field == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw an error";
+    return;
+  }
+  field->Set64(NULL, new_value);
+}
+Object* Field::GetObjStaticFromCode(uint32_t field_idx, const Method* referrer) {
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
+  if (field == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw an error";
+    return 0;
+  }
+  return field->GetObj(NULL);
+}
+void Field::SetObjStaticFromCode(uint32_t field_idx, const Method* referrer, Object* new_value) {
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
+  if (field == NULL) {
+    UNIMPLEMENTED(FATAL) << "throw an error";
+    return;
+  }
+  field->SetObj(NULL, new_value);
+}
+
 uint32_t Field::Get32(const Object* object) const {
   CHECK((object == NULL) == IsStatic());
   if (IsStatic()) {

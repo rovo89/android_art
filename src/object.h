@@ -384,6 +384,14 @@ class Field : public AccessibleObject {
   Object* GetObject(const Object* object) const;
   void SetObject(Object* object, Object* l) const;
 
+  // slow path routines for static field access when field was unresolved at compile time
+  static uint32_t Get32StaticFromCode(uint32_t field_idx, const Method* referrer);
+  static void Set32StaticFromCode(uint32_t field_idx, const Method* referrer, uint32_t new_value);
+  static uint64_t Get64StaticFromCode(uint32_t field_idx, const Method* referrer);
+  static void Set64StaticFromCode(uint32_t field_idx, const Method* referrer, uint64_t new_value);
+  static Object* GetObjStaticFromCode(uint32_t field_idx, const Method* referrer);
+  static void SetObjStaticFromCode(uint32_t field_idx, const Method* referrer, Object* new_value);
+
  public:  // TODO: private
 
   // private implemention of field access using raw data
