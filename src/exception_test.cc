@@ -94,7 +94,7 @@ class ExceptionTest : public CommonTest {
     return DexFile::CatchHandlerItem();
   }
 
-  scoped_ptr<DexFile> dex_;
+  scoped_ptr<const DexFile> dex_;
 
   Method* method_f_;
   Method* method_g_;

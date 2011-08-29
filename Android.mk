@@ -42,24 +42,27 @@ define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_DEX_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_DEX_FILES)
+
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
+test-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,)
 
 # "mm valgrind-art-host" to build and run all host tests under valgrind.
 .PHONY: valgrind-art-host
-valgrind-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
+valgrind-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,"valgrind")
 
 # "mm tsan-art-host" to build and run all host tests under tsan.
 .PHONY: tsan-art-host
-tsan-art-host: $(ART_HOST_TEST_EXECUTABLES) $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
+tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,"tsan")
 
 # "mm test-art-device" to build and run all target tests
 .PHONY: test-art-target
-test-art-target: $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar
+test-art-target: $(ART_TARGET_TEST_DEPENDENCIES)
 	adb remount
 	adb sync
 	adb shell touch /sdcard/test-art-target

@@ -165,7 +165,7 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
   }
 }
 
-DexFile* Open(const std::string& filename) {
+const DexFile* Open(const std::string& filename) {
   if (filename.size() < 4) {
     LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
     return NULL;
@@ -184,7 +184,7 @@ void CreateBootClassPath(const char* boot_class_path_cstr,
   std::vector<std::string> parsed;
   ParseClassPath(boot_class_path_cstr, parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
-    DexFile* dex_file = Open(parsed[i]);
+    const DexFile* dex_file = Open(parsed[i]);
     if (dex_file != NULL) {
       boot_class_path_vector.push_back(dex_file);
     }

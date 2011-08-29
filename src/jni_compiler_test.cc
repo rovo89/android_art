@@ -21,7 +21,7 @@ class JniCompilerTest : public CommonTest {
  protected:
   virtual void SetUp() {
     CommonTest::SetUp();
-    dex_.reset(OpenDexFileBase64(kMyClassNativesDex, "kMyClassNativesDex"));
+    dex_.reset(OpenTestDexFile("MyClassNatives"));
     class_loader_ = AllocPathClassLoader(dex_.get());
     Thread::Current()->SetClassLoaderOverride(class_loader_);
   }
@@ -65,7 +65,7 @@ class JniCompilerTest : public CommonTest {
   static jclass jklass_;
   static jobject jobj_;
  protected:
-  scoped_ptr<DexFile> dex_;
+  scoped_ptr<const DexFile> dex_;
   PathClassLoader* class_loader_;
   Assembler jni_asm;
   JniCompiler jni_compiler;

@@ -201,7 +201,7 @@ TEST_F(ObjectTest, AllocArrayFromCode) {
 }
 
 TEST_F(ObjectTest, StaticFieldFromCode) {
-  // pretend we are trying to call 'new String' from Object.toString
+  // pretend we are trying to access 'String.ASCII' from String.<clinit>
   Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
   Method* clinit = java_lang_String->FindDirectMethod("<clinit>", "()V");
   uint32_t field_idx = FindFieldIdxByDescriptorAndName(*java_lang_dex_file_.get(),
@@ -215,8 +215,9 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Field::SetObjStaticFromCode(field_idx, clinit, NULL);
   EXPECT_EQ(NULL, Field::GetObjStaticFromCode(field_idx, clinit));
-  
+
   // TODO: more exhaustive tests of all 6 cases of Field::*FromCode
+  // TODO: test should not assume private internals such as String.ASCII field.
 }
 
 TEST_F(ObjectTest, String) {
@@ -273,9 +274,9 @@ TEST_F(ObjectTest, StringEquals) {
 TEST_F(ObjectTest, DescriptorCompare) {
   ClassLinker* linker = class_linker_;
 
-  scoped_ptr<DexFile> proto1_dex_file(OpenDexFileBase64(kProtoCompareDex, "kProtoCompareDex"));
+  scoped_ptr<const DexFile> proto1_dex_file(OpenTestDexFile("ProtoCompare"));
   PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
-  scoped_ptr<DexFile> proto2_dex_file(OpenDexFileBase64(kProtoCompare2Dex, "kProtoCompare2Dex"));
+  scoped_ptr<const DexFile> proto2_dex_file(OpenTestDexFile("ProtoCompare2"));
   PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
 
   Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
@@ -322,7 +323,7 @@ TEST_F(ObjectTest, StringHashCode) {
 }
 
 TEST_F(ObjectTest, InstanceOf) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY, "kXandY"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("XandY"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
@@ -349,7 +350,7 @@ TEST_F(ObjectTest, InstanceOf) {
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY, "kXandY"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("XandY"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
@@ -361,7 +362,7 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kXandY, "kXandY"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("XandY"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);

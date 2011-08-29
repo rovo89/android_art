@@ -54,7 +54,7 @@ DexFile::MmapCloser::~MmapCloser() {
 DexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
 DexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
 
-DexFile* DexFile::OpenFile(const std::string& filename) {
+const DexFile* DexFile::OpenFile(const std::string& filename) {
   int fd = open(filename.c_str(), O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
     PLOG(ERROR) << "open(\"" << filename << "\", O_RDONLY) failed";
@@ -137,7 +137,7 @@ class TmpFile {
 };
 
 // Open classes.dex from within a .zip, .jar, .apk, ...
-DexFile* DexFile::OpenZip(const std::string& filename) {
+const DexFile* DexFile::OpenZip(const std::string& filename) {
 
   // First, look for a ".dex" alongside the jar file.  It will have
   // the same name/path except for the extension.
@@ -153,7 +153,7 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
                                 ".dex");
   // Example adjacent_dex_filename = dir/foo.dex
   if (OS::FileExists(adjacent_dex_filename.c_str())) {
-    DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
+    const DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
     if (adjacent_dex_file != NULL) {
       // We don't verify anything in this case, because we aren't in
       // the cache and typically the file is in the readonly /system
@@ -200,7 +200,7 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
 
   while (true) {
     if (OS::FileExists(cache_path.c_str())) {
-      DexFile* cached_dex_file = DexFile::OpenFile(cache_path);
+      const DexFile* cached_dex_file = DexFile::OpenFile(cache_path);
       if (cached_dex_file != NULL) {
         return cached_dex_file;
       }
@@ -294,14 +294,14 @@ DexFile* DexFile::OpenZip(const std::string& filename) {
   // NOTREACHED
 }
 
-DexFile* DexFile::OpenPtr(byte* ptr, size_t length, const std::string& location) {
+const DexFile* DexFile::OpenPtr(byte* ptr, size_t length, const std::string& location) {
   CHECK(ptr != NULL);
   DexFile::Closer* closer = new PtrCloser(ptr);
   return Open(ptr, length, location, closer);
 }
 
-DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
-                       const std::string& location, Closer* closer) {
+const DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
+                             const std::string& location, Closer* closer) {
   scoped_ptr<DexFile> dex_file(new DexFile(dex_bytes, length, location, closer));
   if (!dex_file->Init()) {
     return NULL;

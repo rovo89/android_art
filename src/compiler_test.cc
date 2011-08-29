@@ -3,7 +3,6 @@
 #include "class_linker.h"
 #include "common_test.h"
 #include "compiler.h"
-#include "compiler_test.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
@@ -17,8 +16,8 @@ namespace art {
 
 class CompilerTest : public CommonTest {
  protected:
-  void CompileDex(const char* base64_dex, const char* base64_name) {
-    dex_file_.reset(OpenDexFileBase64(base64_dex, base64_name));
+  void CompileDex(const char* name) {
+    dex_file_.reset(OpenTestDexFile(name));
     class_linker_->RegisterDexFile(*dex_file_.get());
     std::vector<const DexFile*> class_path;
     class_path.push_back(dex_file_.get());
@@ -60,7 +59,7 @@ class CompilerTest : public CommonTest {
 #endif // __arm__
   }
  private:
-  scoped_ptr<DexFile> dex_file_;
+  scoped_ptr<const DexFile> dex_file_;
 };
 
 TEST_F(CompilerTest, CompileDexLibCore) {
@@ -109,131 +108,131 @@ TEST_F(CompilerTest, CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, BasicCodegen) {
-  CompileDex(kFibonacciDex, "kFibonacciDex");
+  CompileDex("Fibonacci");
   AssertStaticIntMethod("Fibonacci", "fibonacci", "(I)I", 55,
                         10);
 }
 
 TEST_F(CompilerTest, StaticFieldTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "staticFieldTest", "(I)I", 1404,
                         404);
 }
 
 TEST_F(CompilerTest, UnopTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "unopTest", "(I)I", 37,
                         38);
 }
 
 TEST_F(CompilerTest, ShiftTest1) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "shiftTest1", "()I", 0);
 }
 
 TEST_F(CompilerTest, ShiftTest2) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "shiftTest2", "()I", 0);
 }
 
 TEST_F(CompilerTest, UnsignedShiftTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "unsignedShiftTest", "()I", 0);
 }
 
 TEST_F(CompilerTest, ConvTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "convTest", "()I", 0);
 }
 
 TEST_F(CompilerTest, CharSubTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "charSubTest", "()I", 0);
 }
 
 TEST_F(CompilerTest, IntOperTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "intOperTest", "(II)I", 0,
                         70000, -3);
 }
 
 TEST_F(CompilerTest, Lit16Test) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "lit16Test", "(I)I", 0,
                         77777);
 }
 
 TEST_F(CompilerTest, Lit8Test) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "lit8Test", "(I)I", 0,
                         -55555);
 }
 
 TEST_F(CompilerTest, IntShiftTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "intShiftTest", "(II)I", 0,
                         0xff00aa01, 8);
 }
 
 TEST_F(CompilerTest, LongOperTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "longOperTest", "(JJ)I", 0,
                         70000000000LL, -3LL);
 }
 
 TEST_F(CompilerTest, LongShiftTest) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticLongMethod("IntMath", "longShiftTest", "(JI)J",
                          0x96deff00aa010000LL, 0xd5aa96deff00aa01LL, 16);
 }
 
 TEST_F(CompilerTest, SwitchTest1) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "switchTest", "(I)I", 1234,
                         1);
 }
 
 TEST_F(CompilerTest, IntCompare) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "testIntCompare", "(IIII)I", 1111,
                         -5, 4, 4, 0);
 }
 
 TEST_F(CompilerTest, LongCompare) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "testLongCompare", "(JJJJ)I", 2222,
                         -5LL, -4294967287LL, 4LL, 8LL);
 }
 
 TEST_F(CompilerTest, FloatCompare) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "testFloatCompare", "(FFFF)I", 3333,
                         -5.0f, 4.0f, 4.0f,
                         (1.0f/0.0f) / (1.0f/0.0f));
 }
 
 TEST_F(CompilerTest, DoubleCompare) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "testDoubleCompare", "(DDDD)I", 4444,
                                     -5.0, 4.0, 4.0,
                                     (1.0/0.0) / (1.0/0.0));
 }
 
 TEST_F(CompilerTest, RecursiveFibonacci) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "fibonacci", "(I)I", 55,
                         10);
 }
 
 #if 0 // Need to complete try/catch block handling
 TEST_F(CompilerTest, ThrowAndCatch) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "throwAndCatch", "()I", 4);
 }
 #endif
 
 TEST_F(CompilerTest, ManyArgs) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "manyArgs",
                         "(IJIJIJIIDFDSICIIBZIIJJIIIII)I", -1,
                         0, 1LL, 2, 3LL, 4, 5LL, 6, 7, 8.0, 9.0f, 10.0,
@@ -242,13 +241,13 @@ TEST_F(CompilerTest, ManyArgs) {
 }
 
 TEST_F(CompilerTest, VirtualCall) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "staticCall", "(I)I", 6,
                         3);
 }
 
 TEST_F(CompilerTest, TestIGetPut) {
-  CompileDex(kIntMathDex, "kIntMathDex");
+  CompileDex("IntMath");
   AssertStaticIntMethod("IntMath", "testIGetPut", "(I)I", 333,
                         111);
 }

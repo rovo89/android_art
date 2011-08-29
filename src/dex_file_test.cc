@@ -5,17 +5,44 @@
 #include "scoped_ptr.h"
 
 #include <stdio.h>
-#include "gtest/gtest.h"
 
 namespace art {
 
-TEST(DexFileTest, Open) {
-  scoped_ptr<const DexFile> dex(OpenDexFileBase64(kNestedDex, "kNestedDex"));
+class DexFileTest : public CommonTest {};
+
+TEST_F(DexFileTest, Open) {
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("Nested"));
   ASSERT_TRUE(dex != NULL);
 }
 
-TEST(DexFileTest, Header) {
-  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kNestedDex, "kNestedDex"));
+// Although this is the same content logically as the Nested test dex,
+// the DexFileHeader test is sensitive to subtle changes in the
+// contents due to the checksum etc, so we embed the exact input here.
+//
+// class Nested {
+//     class Inner {
+//     }
+// }
+static const char kRawDex[] =
+  "ZGV4CjAzNQAQedgAe7gM1B/WHsWJ6L7lGAISGC7yjD2IAwAAcAAAAHhWNBIAAAAAAAAAAMQCAAAP"
+  "AAAAcAAAAAcAAACsAAAAAgAAAMgAAAABAAAA4AAAAAMAAADoAAAAAgAAAAABAABIAgAAQAEAAK4B"
+  "AAC2AQAAvQEAAM0BAADXAQAA+wEAABsCAAA+AgAAUgIAAF8CAABiAgAAZgIAAHMCAAB5AgAAgQIA"
+  "AAIAAAADAAAABAAAAAUAAAAGAAAABwAAAAkAAAAJAAAABgAAAAAAAAAKAAAABgAAAKgBAAAAAAEA"
+  "DQAAAAAAAQAAAAAAAQAAAAAAAAAFAAAAAAAAAAAAAAAAAAAABQAAAAAAAAAIAAAAiAEAAKsCAAAA"
+  "AAAAAQAAAAAAAAAFAAAAAAAAAAgAAACYAQAAuAIAAAAAAAACAAAAlAIAAJoCAAABAAAAowIAAAIA"
+  "AgABAAAAiAIAAAYAAABbAQAAcBACAAAADgABAAEAAQAAAI4CAAAEAAAAcBACAAAADgBAAQAAAAAA"
+  "AAAAAAAAAAAATAEAAAAAAAAAAAAAAAAAAAEAAAABAAY8aW5pdD4ABUlubmVyAA5MTmVzdGVkJElu"
+  "bmVyOwAITE5lc3RlZDsAIkxkYWx2aWsvYW5ub3RhdGlvbi9FbmNsb3NpbmdDbGFzczsAHkxkYWx2"
+  "aWsvYW5ub3RhdGlvbi9Jbm5lckNsYXNzOwAhTGRhbHZpay9hbm5vdGF0aW9uL01lbWJlckNsYXNz"
+  "ZXM7ABJMamF2YS9sYW5nL09iamVjdDsAC05lc3RlZC5qYXZhAAFWAAJWTAALYWNjZXNzRmxhZ3MA"
+  "BG5hbWUABnRoaXMkMAAFdmFsdWUAAgEABw4AAQAHDjwAAgIBDhgBAgMCCwQADBcBAgQBDhwBGAAA"
+  "AQEAAJAgAICABNQCAAABAAGAgATwAgAAEAAAAAAAAAABAAAAAAAAAAEAAAAPAAAAcAAAAAIAAAAH"
+  "AAAArAAAAAMAAAACAAAAyAAAAAQAAAABAAAA4AAAAAUAAAADAAAA6AAAAAYAAAACAAAAAAEAAAMQ"
+  "AAACAAAAQAEAAAEgAAACAAAAVAEAAAYgAAACAAAAiAEAAAEQAAABAAAAqAEAAAIgAAAPAAAArgEA"
+  "AAMgAAACAAAAiAIAAAQgAAADAAAAlAIAAAAgAAACAAAAqwIAAAAQAAABAAAAxAIAAA==";
+
+TEST_F(DexFileTest, Header) {
+  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, "kRawDex"));
   ASSERT_TRUE(raw != NULL);
 
   const DexFile::Header& header = raw->GetHeader();
@@ -42,8 +69,8 @@ TEST(DexFileTest, Header) {
   EXPECT_EQ(320U, header.data_off_);
 }
 
-TEST(DexFileTest, ClassDefs) {
-  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kNestedDex, "kNestedDex"));
+TEST_F(DexFileTest, ClassDefs) {
+  scoped_ptr<const DexFile> raw(OpenTestDexFile("Nested"));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(2U, raw->NumClassDefs());
 
@@ -54,8 +81,8 @@ TEST(DexFileTest, ClassDefs) {
   EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
 }
 
-TEST(DexFileTest, CreateMethodDescriptor) {
-  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kCreateMethodDescriptorDex, "kCreateMethodDescriptorDex"));
+TEST_F(DexFileTest, CreateMethodDescriptor) {
+  scoped_ptr<const DexFile> raw(OpenTestDexFile("CreateMethodDescriptor"));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 

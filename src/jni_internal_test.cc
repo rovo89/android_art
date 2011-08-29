@@ -621,7 +621,7 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kAllFields, "kAllFields"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("AllFields"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Thread::Current()->SetClassLoaderOverride(class_loader);
 
@@ -650,7 +650,7 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kAllFields, "kAllFields"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("AllFields"));
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Thread::Current()->SetClassLoaderOverride(class_loader);
 
@@ -806,7 +806,7 @@ Method::InvokeStub* AllocateStub(Method* method,
 
 #if defined(__arm__)
 TEST_F(JniInternalTest, StaticMainMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kMainDex, "kMainDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("Main"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -832,7 +832,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -857,7 +857,7 @@ TEST_F(JniInternalTest, StaticNopMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -903,7 +903,7 @@ TEST_F(JniInternalTest, StaticIdentityByteMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -949,7 +949,7 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -996,7 +996,7 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1054,7 +1054,7 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1119,7 +1119,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1190,7 +1190,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1268,7 +1268,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1327,7 +1327,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1379,7 +1379,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);
@@ -1436,7 +1436,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
-  scoped_ptr<DexFile> dex(OpenDexFileBase64(kStaticLeafMethodsDex, "kStaticLeafMethodsDex"));
+  scoped_ptr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
 
   PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   ASSERT_TRUE(class_loader != NULL);

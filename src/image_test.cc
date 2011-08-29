@@ -51,7 +51,7 @@ TEST_F(ImageTest, WriteRead) {
   // lucky by pointers that happen to work referencing the earlier
   // dex.
   delete java_lang_dex_file_.release();
-  scoped_ptr<DexFile> dex(GetLibCoreDex());
+  scoped_ptr<const DexFile> dex(GetLibCoreDex());
   ASSERT_TRUE(dex != NULL);
 
   std::vector<const DexFile*> boot_class_path;

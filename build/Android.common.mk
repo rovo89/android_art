@@ -141,3 +141,20 @@ TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
 	src/assembler_x86_test.cc \
 	src/managed_register_x86_test.cc
+
+# subdirectories of test/
+TEST_DEX_DIRECTORIES := \
+	AllFields \
+	CreateMethodDescriptor \
+	Fibonacci \
+	IntMath \
+	Interfaces \
+	Main \
+	MyClass \
+	MyClassNatives \
+	Nested \
+	ProtoCompare \
+	ProtoCompare2 \
+	StaticLeafMethods \
+	Statics \
+	XandY

@@ -317,17 +317,17 @@ class DexFile {
                                         const ClassPath& class_path);
 
   // Opens a .dex file from the file system.
-  static DexFile* OpenFile(const std::string& filename);
+  static const DexFile* OpenFile(const std::string& filename);
 
   // Opens a .jar, .zip, or .apk file from the file system.
-  static DexFile* OpenZip(const std::string& filename);
+  static const DexFile* OpenZip(const std::string& filename);
 
   // Opens a .dex file from a new allocated pointer.  location is used
   // to identify the source, for example "/system/framework/core.jar"
   // or "contrived-test-42". When initializing a ClassLinker from an
   // image, the location is used to match DexCaches the image to their
   // corresponding DexFiles.N
-  static DexFile* OpenPtr(byte* ptr, size_t length, const std::string& location);
+  static const DexFile* OpenPtr(byte* ptr, size_t length, const std::string& location);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -830,8 +830,11 @@ class DexFile {
     byte* addr_;
   };
 
-  // Opens a .dex file at a the given address.
-  static DexFile* Open(const byte* dex_file, size_t length, const std::string& location, Closer* closer);
+  // Opens a .dex file at the given address.
+  static const DexFile* Open(const byte* dex_file,
+                             size_t length,
+                             const std::string& location,
+                             Closer* closer);
 
   DexFile(const byte* addr, size_t length, const std::string& location, Closer* closer)
       : base_(addr),

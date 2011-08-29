@@ -47,7 +47,6 @@ define build-art-test
     ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   else
     ART_HOST_TEST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
-    LOCAL_LDFLAGS += -ldl -lpthread
   endif
 endef
 
@@ -55,3 +54,18 @@ $(foreach file,$(TEST_TARGET_SRC_FILES), $(eval $(call build-art-test,target,$(f
 ifeq ($(WITH_HOST_DALVIK),true)
   $(foreach file,$(TEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file))))
 endif
+
+ART_TEST_DEX_FILES :=
+
+# $(1): directory
+define build-art-test-dex
+  include $(CLEAR_VARS)
+  LOCAL_MODULE := art-test-dex-$(1)
+  LOCAL_MODULE_TAGS := optional
+  LOCAL_SRC_FILES := $(call all-java-files-under, test/$(1))
+  # TODO: remove --core-library when separate compilation works
+  LOCAL_DX_FLAGS := --core-library
+  include $(BUILD_JAVA_LIBRARY)
+  ART_TEST_DEX_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/$$(LOCAL_MODULE).jar
+endef
+$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,$(dir))))
