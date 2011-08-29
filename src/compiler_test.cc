@@ -114,6 +114,12 @@ TEST_F(CompilerTest, BasicCodegen) {
                         10);
 }
 
+TEST_F(CompilerTest, StaticFieldTest) {
+  CompileDex(kIntMathDex, "kIntMathDex");
+  AssertStaticIntMethod("IntMath", "staticFieldTest", "(I)I", 1404,
+                        404);
+}
+
 TEST_F(CompilerTest, UnopTest) {
   CompileDex(kIntMathDex, "kIntMathDex");
   AssertStaticIntMethod("IntMath", "unopTest", "(I)I", 37,

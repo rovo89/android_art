@@ -90,9 +90,6 @@ extern RegLocation oatUpdateLoc(CompilationUnit* cUnit,
 extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
                                             RegLocation loc);
 
-/* Clobber all of the temps that might be used by a handler. */
-extern void oatClobberHandlerRegs(CompilationUnit* cUnit);
-
 extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg);
 
 extern void oatMarkTemp(CompilationUnit* cUnit, int reg);

@@ -303,16 +303,6 @@ extern void oatClobberCallRegs(CompilationUnit *cUnit)
     oatClobber(cUnit, r14lr);
 }
 
-/* Clobber all of the temps that might be used by a handler. */
-extern void oatClobberHandlerRegs(CompilationUnit* cUnit)
-{
-    //TUNING: reduce the set of regs used by handlers.  Only a few need lots.
-    oatClobberCallRegs(cUnit);
-    oatClobber(cUnit, r7);
-    oatClobber(cUnit, r8);
-    oatClobber(cUnit, r10);
-}
-
 extern RegLocation oatGetReturnWide(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN_WIDE;

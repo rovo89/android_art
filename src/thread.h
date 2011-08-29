@@ -200,6 +200,12 @@ class Thread {
   long long (*pLdivmod)(long long, long long);
   Array* (*pAllocFromCode)(uint32_t, Method*, int32_t);
   Object* (*pNewInstanceFromCode)(uint32_t, Method*);
+  uint32_t (*pGet32Static)(uint32_t, const Method*);
+  void (*pSet32Static)(uint32_t, const Method*, uint32_t);
+  uint64_t (*pGet64Static)(uint32_t, const Method*);
+  void (*pSet64Static)(uint32_t, const Method*, uint64_t);
+  Object* (*pGetObjStatic)(uint32_t, const Method*);
+  void (*pSetObjStatic)(uint32_t, const Method*, Object*);
   bool (*pArtUnlockObject)(struct Thread*, struct Object*);
   bool (*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
                  const struct ClassObject*);

@@ -139,7 +139,26 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 
 static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(FATAL) << "Must update for new world";
+    bool slow_path = true;
+    bool isObject = ((mir->dalvikInsn.opcode == OP_SPUT_OBJECT) ||
+                     (mir->dalvikInsn.opcode == OP_SPUT_OBJECT_VOLATILE));
+    UNIMPLEMENTED(WARNING) << "Implement sput fast path";
+    int funcOffset;
+    if (slow_path) {
+        if (isObject) {
+            funcOffset = OFFSETOF_MEMBER(Thread, pSetObjStatic);
+        } else {
+            funcOffset = OFFSETOF_MEMBER(Thread, pSet32Static);
+        }
+        oatFlushAllRegs(cUnit);
+        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
+        loadCurrMethodDirect(cUnit, r1);
+        loadValueDirect(cUnit, rlSrc, r2);
+        opReg(cUnit, kOpBlx, rLR);
+        oatClobberCallRegs(cUnit);
+    } else {
+        UNIMPLEMENTED(FATAL) << "Must update for new world";
 #if 0
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     int tReg = oatAllocTemp(cUnit);
@@ -188,11 +207,25 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         oatFreeTemp(cUnit, objHead);
     }
 #endif
+    }
 }
 
 static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(FATAL) << "Must update for new world";
+    bool slow_path = true;
+    UNIMPLEMENTED(WARNING) << "Implement sput-wide fast path";
+    int funcOffset;
+    if (slow_path) {
+        funcOffset = OFFSETOF_MEMBER(Thread, pSet64Static);
+        oatFlushAllRegs(cUnit);
+        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
+        loadCurrMethodDirect(cUnit, r1);
+        loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
+        opReg(cUnit, kOpBlx, rLR);
+        oatClobberCallRegs(cUnit);
+    } else {
+        UNIMPLEMENTED(FATAL) << "Must update for new world";
 #if 0
     int tReg = oatAllocTemp(cUnit);
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
@@ -212,6 +245,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     storePair(cUnit, tReg, rlSrc.lowReg, rlSrc.highReg);
 #endif
+    }
 }
 
 
@@ -219,7 +253,20 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
                  RegLocation rlResult, RegLocation rlDest)
 {
-    UNIMPLEMENTED(FATAL) << "Must update for new world";
+    bool slow_path = true;
+    UNIMPLEMENTED(WARNING) << "Implement sget-wide fast path";
+    int funcOffset;
+    if (slow_path) {
+        funcOffset = OFFSETOF_MEMBER(Thread, pGet64Static);
+        oatFlushAllRegs(cUnit);
+        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
+        loadCurrMethodDirect(cUnit, r1);
+        opReg(cUnit, kOpBlx, rLR);
+        RegLocation rlResult = oatGetReturnWide(cUnit);
+        storeValueWide(cUnit, rlDest, rlResult);
+    } else {
+        UNIMPLEMENTED(FATAL) << "Must update for new world";
 #if 0
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     const Method *method = (mir->OptimizationFlags & MIR_CALLEE) ?
@@ -241,12 +288,32 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
 
     storeValueWide(cUnit, rlDest, rlResult);
 #endif
+    }
 }
 
 static void genSget(CompilationUnit* cUnit, MIR* mir,
              RegLocation rlResult, RegLocation rlDest)
 {
-    UNIMPLEMENTED(FATAL) << "Must update for new world";
+    bool slow_path = true;
+    bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
+                     (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
+    UNIMPLEMENTED(WARNING) << "Implement sget fast path";
+    int funcOffset;
+    if (slow_path) {
+        if (isObject) {
+            funcOffset = OFFSETOF_MEMBER(Thread, pGetObjStatic);
+        } else {
+            funcOffset = OFFSETOF_MEMBER(Thread, pGet32Static);
+        }
+        oatFlushAllRegs(cUnit);
+        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
+        loadCurrMethodDirect(cUnit, r1);
+        opReg(cUnit, kOpBlx, rLR);
+        RegLocation rlResult = oatGetReturn(cUnit);
+        storeValue(cUnit, rlDest, rlResult);
+    } else {
+        UNIMPLEMENTED(FATAL) << "Must update for new world";
 #if 0
     int valOffset = OFFSETOF_MEMBER(StaticField, value);
     int tReg = oatAllocTemp(cUnit);
@@ -288,6 +355,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
 
     storeValue(cUnit, rlDest, rlResult);
 #endif
+    }
 }
 
 typedef int (*NextCallInsn)(CompilationUnit*, MIR*, DecodedInstruction*, int);

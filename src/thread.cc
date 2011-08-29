@@ -65,6 +65,12 @@ void Thread::InitFunctionPointers() {
   pNewInstanceFromCode = Class::NewInstanceFromCode;
   pMemcpy = memcpy;
   pArtHandleFillArrayDataNoThrow = artHandleFillArrayDataNoThrow;
+  pGet32Static = Field::Get32StaticFromCode;
+  pSet32Static = Field::Set32StaticFromCode;
+  pGet64Static = Field::Get64StaticFromCode;
+  pSet64Static = Field::Set64StaticFromCode;
+  pGetObjStatic = Field::GetObjStaticFromCode;
+  pSetObjStatic = Field::SetObjStaticFromCode;
 #if 0
 bool (Thread::*pArtUnlockObject)(struct Thread*, struct Object*);
 bool (Thread::*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
