@@ -1724,12 +1724,12 @@ class StackTraceElement : public Object {
     return file_name_;
   }
 
-  uint32_t GetLineNumber() const {
+  int32_t GetLineNumber() const {
     return line_number_;
   }
 
   static StackTraceElement* Alloc(const String* declaring_class, const String* method_name,
-                                  const String* file_name, uint32_t line_number) {
+                                  const String* file_name, int32_t line_number) {
     StackTraceElement* trace = down_cast<StackTraceElement*>(GetStackTraceElement()->NewInstance());
     trace->declaring_class_ = declaring_class;
     trace->method_name_ = method_name;
@@ -1746,7 +1746,7 @@ class StackTraceElement : public Object {
   const String* declaring_class_;
   const String* method_name_;
   const String* file_name_;
-  uint32_t line_number_;
+  int32_t line_number_;
 
   static Class* GetStackTraceElement() {
     DCHECK(java_lang_StackTraceElement_ != NULL);

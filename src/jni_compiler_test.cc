@@ -376,4 +376,34 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
   EXPECT_EQ(1, gExceptionHandler_calls);
 }
 
+jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
+  if (i <= 0) {
+    ObjectArray<StackTraceElement>* trace_array = Thread::Current()->AllocStackTrace();
+    EXPECT_TRUE(trace_array != NULL);
+    EXPECT_EQ(11, trace_array->GetLength());
+
+    for (int32_t i = 0; i < trace_array->GetLength(); ++i) {
+      EXPECT_EQ(-2, trace_array->Get(i)->GetLineNumber());
+      EXPECT_STREQ("MyClassNatives.java", trace_array->Get(i)->GetFileName()->ToModifiedUtf8().c_str());
+      EXPECT_STREQ("MyClass", trace_array->Get(i)->GetDeclaringClass()->ToModifiedUtf8().c_str());
+      EXPECT_STREQ("fooI", trace_array->Get(i)->GetMethodName()->ToModifiedUtf8().c_str());
+    }
+    return 0;
+  } else {
+    jclass jklass = env->FindClass("MyClass");
+    EXPECT_TRUE(jklass != NULL);
+    jmethodID jmethod = env->GetMethodID(jklass, "fooI", "(I)I");
+    EXPECT_TRUE(jmethod != NULL);
+
+    jint result = env->CallNonvirtualIntMethod(thisObj, jklass, jmethod, i - 1);
+    return i + result;
+  }
+}
+
+TEST_F(JniCompilerTest, NativeStackTraceElement) {
+  SetupForTest(false, "fooI", "(I)I", reinterpret_cast<void*>(&Java_MyClass_nativeUpCall));
+  jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 10);
+  EXPECT_EQ(55, result);
+}
+
 }  // namespace art

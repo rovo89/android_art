@@ -540,6 +540,12 @@ String* DexFile::dexArtStringById(int32_t idx) const {
 }
 
 int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const {
+  // For native method, lineno should be -2 to indicate it is native. Note that
+  // "line number == -2" is how libcore tells from StackTraceElement.
+  if (method->code_off_ == 0) {
+    return -2;
+  }
+
   const CodeItem* code_item = GetCodeItem(method->code_off_);
   DCHECK(code_item != NULL);
 
