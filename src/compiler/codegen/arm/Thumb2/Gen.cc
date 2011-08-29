@@ -374,13 +374,7 @@ static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedField(mir->dalvikInsn.vC);
     if (fieldPtr == NULL) {
-        /*
-         * With current scheme, we should never be in a situation
-         * in which the fieldPtr is null here.  If something changes
-         * and we need to handle it, generate code to load the field
-         * pointer at run-time.
-         */
-        LOG(FATAL) << "Unexpected null field pointer";
+        UNIMPLEMENTED(FATAL) << "Need to handle unresolved field";
     }
 #if ANDROID_SMP != 0
     bool isVolatile = dvmIsVolatileField(fieldPtr);
@@ -409,13 +403,7 @@ static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedField(mir->dalvikInsn.vC);
     if (fieldPtr == NULL) {
-        /*
-         * With current scheme, we should never be in a situation
-         * in which the fieldPtr is null here.  If something changes
-         * and we need to handle it, generate code to load the field
-         * pointer at run-time.
-         */
-        LOG(FATAL) << "Unexpected null field pointer";
+        UNIMPLEMENTED(FATAL) << "Need to handle unresolved field";
     }
 #if ANDROID_SMP != 0
     bool isVolatile = dvmIsVolatileField(fieldPtr);
@@ -445,13 +433,7 @@ static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedField(mir->dalvikInsn.vC);
     if (fieldPtr == NULL) {
-        /*
-         * With current scheme, we should never be in a situation
-         * in which the fieldPtr is null here.  If something changes
-         * and we need to handle it, generate code to load the field
-         * pointer at run-time.
-         */
-        LOG(FATAL) << "Unexpected null field pointer";
+        UNIMPLEMENTED(FATAL) << "Need to handle unresolved field";
     }
 #if ANDROID_SMP != 0
     bool isVolatile = dvmIsVolatileField(fieldPtr);
@@ -486,13 +468,7 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedField(mir->dalvikInsn.vC);
     if (fieldPtr == NULL) {
-        /*
-         * With current scheme, we should never be in a situation
-         * in which the fieldPtr is null here.  If something changes
-         * and we need to handle it, generate code to load the field
-         * pointer at run-time.
-         */
-        LOG(FATAL) << "Unexpected null field pointer";
+        UNIMPLEMENTED(FATAL) << "Need to handle unresolved field";
     }
 #if ANDROID_SMP != 0
     bool isVolatile = dvmIsVolatileField(fieldPtr);

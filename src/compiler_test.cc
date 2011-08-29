@@ -241,4 +241,10 @@ TEST_F(CompilerTest, VirtualCall) {
                         3);
 }
 
+TEST_F(CompilerTest, TestIGetPut) {
+  CompileDex(kIntMathDex, "kIntMathDex");
+  AssertStaticIntMethod("IntMath", "testIGetPut", "(I)I", 333,
+                        111);
+}
+
 }  // namespace art
