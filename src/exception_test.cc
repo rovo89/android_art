@@ -144,11 +144,13 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack[top_of_stack++] = 3;
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);
   fake_stack[top_of_stack++] = 3;
+  fake_stack[top_of_stack++] = NULL;
+  fake_stack[top_of_stack++] = 0;
 
   Thread* thread = Thread::Current();
   thread->SetTopOfStack(fake_stack);
 
-  ObjectArray<StackTraceElement>* trace_array = thread->AllocStackTrace(2);
+  ObjectArray<StackTraceElement>* trace_array = thread->AllocStackTrace();
 
   ASSERT_TRUE(trace_array->Get(0) != NULL);
   EXPECT_STREQ("java.lang.MyClass",

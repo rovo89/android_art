@@ -123,6 +123,7 @@ struct NativeToManagedRecord {
 
 // Iterator over managed frames up to the first native-to-managed transition
 class Frame {
+ public:
   Frame() : sp_(NULL) {}
 
   const Method* GetMethod() const {
@@ -221,6 +222,12 @@ class Thread {
   struct Object* (*pArtAllocObjectNoThrow)(struct ClassObject*, int);
   void (*pArtThrowException)(struct Thread*, struct Object*);
   void (*pArtHandleFillArrayDataNoThrow)(Array*, const uint16_t*);
+
+  class StackVisitor {
+   public:
+    virtual ~StackVisitor() {};
+    virtual bool VisitFrame(const Frame& frame) = 0;
+  };
 
   // Creates a new thread.
   static Thread* Create(const Runtime* runtime);
@@ -401,7 +408,7 @@ class Thread {
   }
 
   // Allocate stack trace
-  ObjectArray<StackTraceElement>* AllocStackTrace(uint16_t length);
+  ObjectArray<StackTraceElement>* AllocStackTrace();
 
  private:
   Thread()
@@ -422,7 +429,7 @@ class Thread {
   void InitCpu();
   void InitFunctionPointers();
 
-  bool WalkStack(uint16_t length, ObjectArray<Method>* method_trace, IntArray* pc_trace);
+  void WalkStack(StackVisitor* visitor);
 
   // Managed thread id.
   uint32_t id_;

@@ -135,7 +135,7 @@ uintptr_t Frame::GetPC() const {
 const Method* Frame::NextMethod() const {
   byte* next_sp = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetFrameSizeInBytes();
-  return reinterpret_cast<const Method*>(next_sp);
+  return *reinterpret_cast<const Method**>(next_sp);
 }
 
 void* ThreadStart(void *arg) {
@@ -316,32 +316,87 @@ Object* Thread::DecodeJObject(jobject obj) {
   return result;
 }
 
-// TODO: Compute length
-bool Thread::WalkStack(uint16_t length,
-                       ObjectArray<Method>* method_trace,
-                       IntArray* pc_trace) {
-  Frame frame = Thread::Current()->GetTopOfStack();
-
-  for (uint16_t i = 0; i < length && frame.HasNext(); ++i, frame.Next()) {
-    method_trace->Set(i, (Method*) frame.GetMethod());
-    pc_trace->Set(i, frame.GetPC());
+class CountStackDepthVisitor : public Thread::StackVisitor {
+ public:
+  CountStackDepthVisitor() : depth(0) {}
+  virtual bool VisitFrame(const Frame&) {
+    ++depth;
+    return true;
   }
-  return true;
+
+  int GetDepth() const {
+    return depth;
+  }
+
+ private:
+  uint32_t depth;
+};
+
+class BuildStackTraceVisitor : public Thread::StackVisitor {
+ public:
+  BuildStackTraceVisitor(int depth) : count(0) {
+    method_trace = Runtime::Current()->GetClassLinker()->AllocObjectArray<const Method>(depth);
+    pc_trace = IntArray::Alloc(depth);
+  }
+
+  virtual ~BuildStackTraceVisitor() {}
+
+  virtual bool VisitFrame(const Frame& frame) {
+    method_trace->Set(count, frame.GetMethod());
+    pc_trace->Set(count, frame.GetPC());
+    ++count;
+    return true;
+  }
+
+  const Method* GetMethod(uint32_t i) {
+    DCHECK(i < count);
+    return method_trace->Get(i);
+  }
+
+  uintptr_t GetPC(uint32_t i) {
+    DCHECK(i < count);
+    return pc_trace->Get(i);
+  }
+
+ private:
+  uint32_t count;
+  ObjectArray<const Method>* method_trace;
+  IntArray* pc_trace;
+};
+
+void Thread::WalkStack(StackVisitor* visitor) {
+  Frame frame = Thread::Current()->GetTopOfStack();
+  // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
+  // CHECK(native_to_managed_record_ != NULL);
+  NativeToManagedRecord* record = native_to_managed_record_;
+
+  while (frame.GetSP()) {
+    for ( ; frame.GetMethod() != 0; frame.Next()) {
+      visitor->VisitFrame(frame);
+    }
+    if (record == NULL) {
+      break;
+    }
+    frame.SetSP(reinterpret_cast<const art::Method**>(record->last_top_of_managed_stack));  // last_tos should return Frame instead of sp?
+    record = record->link;
+  }
 }
 
-ObjectArray<StackTraceElement>* Thread::AllocStackTrace(uint16_t length) {
+ObjectArray<StackTraceElement>* Thread::AllocStackTrace() {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
-  ObjectArray<Method>* method_trace = class_linker->AllocObjectArray<Method>(length);
-  IntArray* pc_trace = IntArray::Alloc(length);
+  CountStackDepthVisitor count_visitor;
+  WalkStack(&count_visitor);
+  int32_t depth = count_visitor.GetDepth();
 
-  WalkStack(length, method_trace, pc_trace);
+  BuildStackTraceVisitor build_trace_visitor(depth);
+  WalkStack(&build_trace_visitor);
 
-  ObjectArray<StackTraceElement>* java_traces = class_linker->AllocStackTraceElementArray(length);
+  ObjectArray<StackTraceElement>* java_traces = class_linker->AllocStackTraceElementArray(depth);
 
-  for (uint16_t i = 0; i < length; ++i) {
+  for (int32_t i = 0; i < depth; ++i) {
     // Prepare parameter for StackTraceElement(String cls, String method, String file, int line)
-    const Method* method = method_trace->Get(i);
+    const Method* method = build_trace_visitor.GetMethod(i);
     const Class* klass = method->GetDeclaringClass();
     const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
     String* readable_descriptor = String::AllocFromModifiedUtf8(
@@ -353,7 +408,7 @@ ObjectArray<StackTraceElement>* Thread::AllocStackTrace(uint16_t length) {
                                  method->GetName(),
                                  String::AllocFromModifiedUtf8(klass->source_file_),
                                  dex_file.GetLineNumFromPC(method,
-                                                           method->ToDexPC(pc_trace->Get(i))));
+                                     method->ToDexPC(build_trace_visitor.GetPC(i))));
     java_traces->Set(i, obj);
   }
   return java_traces;
