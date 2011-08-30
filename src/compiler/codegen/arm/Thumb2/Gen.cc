@@ -760,7 +760,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     oatFlushAllRegs(cUnit);
     assert(art::Monitor::kLwShapeThin == 0);
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
-    oatLockAllTemps(cUnit);  // Prepare for explicit register usage
+    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir->offset, NULL);
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
     newLIR3(cUnit, kThumb2Ldrex, r2, r1,
@@ -811,7 +811,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     assert(art::Monitor::kLwShapeThin == 0);
     oatFlushAllRegs(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
-    oatLockAllTemps(cUnit);  // Prepare for explicit register usage
+    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir->offset, NULL);
     loadWordDisp(cUnit, r1, OFFSETOF_MEMBER(Object, monitor_), r2); // Get lock
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);

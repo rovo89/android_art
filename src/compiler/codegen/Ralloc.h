@@ -168,7 +168,7 @@ extern void oatKillNullCheckedLoc(CompilationUnit* cUnit,
 extern RegisterInfo *oatIsLive(CompilationUnit* cUnit, int reg);
 
 /* To be used when explicitly managing register use */
-extern void oatLockAllTemps(CompilationUnit* cUnit);
+extern void oatLockCallTemps(CompilationUnit* cUnit);
 
 extern void oatFlushAllRegs(CompilationUnit* cUnit);
 

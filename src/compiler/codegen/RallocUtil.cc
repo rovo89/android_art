@@ -713,13 +713,13 @@ extern void oatClobberAllRegs(CompilationUnit* cUnit)
 }
 
 /* To be used when explicitly managing register use */
-extern void oatLockAllTemps(CompilationUnit* cUnit)
+extern void oatLockCallTemps(CompilationUnit* cUnit)
 {
-    int i;
-    for (i=0; i< cUnit->regPool->numCoreRegs; i++) {
-        if (cUnit->regPool->coreRegs[i].isTemp)
-            oatLockTemp(cUnit, cUnit->regPool->coreRegs[i].reg);
-    }
+    //TODO: Arm specific - move to target dependent code
+    oatLockTemp(cUnit, r0);
+    oatLockTemp(cUnit, r1);
+    oatLockTemp(cUnit, r2);
+    oatLockTemp(cUnit, r3);
 }
 
 // Make sure nothing is live and dirty
