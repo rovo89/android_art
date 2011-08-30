@@ -63,6 +63,8 @@ define build-art-test-dex
   LOCAL_MODULE := art-test-dex-$(1)
   LOCAL_MODULE_TAGS := optional
   LOCAL_SRC_FILES := $(call all-java-files-under, test/$(1))
+  LOCAL_JAVA_LIBRARIES := core
+  LOCAL_NO_STANDARD_LIBRARIES := true
   include $(BUILD_JAVA_LIBRARY)
   ART_TEST_DEX_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/$$(LOCAL_MODULE).jar
 endef
