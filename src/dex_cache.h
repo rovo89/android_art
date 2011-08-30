@@ -26,7 +26,7 @@ class CodeAndDirectMethods : public IntArray {
   }
 
   void SetResolvedDirectMethodTrampoline(uint32_t method_idx) {
-    UNIMPLEMENTED(FATAL) << "need to install a trampoline to resolve the method_idx at runtime";
+    UNIMPLEMENTED(WARNING) << "need to install a trampoline to resolve the method_idx at runtime";
     Set(method_idx * kMax + kCode,   0xffffffff);
     Set(method_idx * kMax + kMethod, method_idx);
   }

@@ -489,7 +489,9 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     if (descriptor[0] == '[') {
       return CreateArrayClass(descriptor, class_loader);
     }
-    const DexFile::ClassPath& class_path = ((class_loader != NULL) ? class_loader->GetClassPath() : boot_class_path_);
+    const DexFile::ClassPath& class_path = ((class_loader != NULL)
+                                            ? ClassLoader::GetClassPath(class_loader)
+                                            : boot_class_path_);
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
     if (pair.second == NULL) {
       std::string name(PrintableString(descriptor));

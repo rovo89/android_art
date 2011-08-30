@@ -872,9 +872,8 @@ class ObjectArray : public Array {
 // ClassLoader objects.
 class ClassLoader : public Object {
  public:
-  const std::vector<const DexFile*>& GetClassPath() const {
-    return class_path_;
-  }
+  static const std::vector<const DexFile*>& GetClassPath(const ClassLoader* class_loader);
+
   void SetClassPath(std::vector<const DexFile*>& class_path) {
     DCHECK_EQ(0U, class_path_.size());
     class_path_ = class_path;
@@ -901,7 +900,7 @@ class BaseDexClassLoader : public ClassLoader {
 
 class PathClassLoader : public BaseDexClassLoader {
  public:
-  static PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);
+  static const PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);
   static void SetClass(Class* dalvik_system_PathClassLoader);
   static void ResetClass();
  private:

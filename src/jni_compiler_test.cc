@@ -66,7 +66,7 @@ class JniCompilerTest : public CommonTest {
   static jobject jobj_;
  protected:
   scoped_ptr<const DexFile> dex_;
-  PathClassLoader* class_loader_;
+  const PathClassLoader* class_loader_;
   Assembler jni_asm;
   JniCompiler jni_compiler;
   JNIEnv* env_;

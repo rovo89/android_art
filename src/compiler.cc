@@ -12,17 +12,23 @@ extern bool oatCompileMethod(art::Method*, art::InstructionSet);
 namespace art {
 
 // TODO need to specify target
-const ClassLoader* Compiler::Compile(std::vector<const DexFile*> class_path) {
-  const ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
+void Compiler::CompileAll(const ClassLoader* class_loader) {
   Resolve(class_loader);
   // TODO add verification step
   Compile(class_loader);
   SetCodeAndDirectMethods(class_loader);
-  return class_loader;
+}
+
+void Compiler::CompileOne(Method* method) {
+  const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
+  Resolve(class_loader);
+  // TODO add verification step
+  CompileMethod(method);
+  SetCodeAndDirectMethods(class_loader);
 }
 
 void Compiler::Resolve(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = class_loader->GetClassPath();
+  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
@@ -60,7 +66,7 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
 }
 
 void Compiler::Compile(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = class_loader->GetClassPath();
+  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
@@ -105,15 +111,15 @@ void Compiler::CompileMethod(Method* method) {
 }
 
 void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = class_loader->GetClassPath();
+  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
-    SetCodeAndDirectMethodsDexFile(class_loader, *dex_file);
+    SetCodeAndDirectMethodsDexFile(*dex_file);
   }
 }
 
-void Compiler::SetCodeAndDirectMethodsDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::SetCodeAndDirectMethodsDexFile(const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();

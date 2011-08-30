@@ -67,7 +67,7 @@ class ExceptionTest : public CommonTest {
 
     dex_.reset(OpenDexFileBase64(kMyClassExceptionHandleDex, "kMyClassExceptionHandleDex"));
     ASSERT_TRUE(dex_ != NULL);
-    PathClassLoader* class_loader = AllocPathClassLoader(dex_.get());
+    const PathClassLoader* class_loader = AllocPathClassLoader(dex_.get());
     ASSERT_TRUE(class_loader != NULL);
     my_klass_ = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
     ASSERT_TRUE(my_klass_ != NULL);

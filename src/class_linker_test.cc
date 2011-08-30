@@ -58,7 +58,7 @@ class ClassLinkerTest : public CommonTest {
   void AssertArrayClass(const StringPiece& array_descriptor,
                         int32_t array_rank,
                         const StringPiece& component_type,
-                        ClassLoader* class_loader) {
+                        const ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor, class_loader);
     EXPECT_EQ(array_rank, array->array_rank_);
     EXPECT_TRUE(array->GetComponentType()->GetDescriptor()->Equals(component_type));
@@ -274,7 +274,7 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 
 TEST_F(ClassLinkerTest, FindClassNested) {
   scoped_ptr<const DexFile> dex(OpenTestDexFile("Nested"));
-  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
 
   Class* outer = class_linker_->FindClass("LNested;", class_loader);
   ASSERT_TRUE(outer != NULL);
@@ -329,7 +329,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
   scoped_ptr<const DexFile> dex(OpenTestDexFile("MyClass"));
-  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   AssertNonExistentClass("LMyClass;");
   Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(MyClass != NULL);
@@ -453,8 +453,8 @@ TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   scoped_ptr<const DexFile> dex_1(OpenTestDexFile("MyClass"));
   scoped_ptr<const DexFile> dex_2(OpenTestDexFile("MyClass"));
-  PathClassLoader* class_loader_1 = AllocPathClassLoader(dex_1.get());
-  PathClassLoader* class_loader_2 = AllocPathClassLoader(dex_2.get());
+  const PathClassLoader* class_loader_1 = AllocPathClassLoader(dex_1.get());
+  const PathClassLoader* class_loader_2 = AllocPathClassLoader(dex_2.get());
   Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1);
   Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2);
   EXPECT_TRUE(MyClass_1 != NULL);
@@ -465,7 +465,7 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 TEST_F(ClassLinkerTest, StaticFields) {
   // TODO: uncomment expectations of initial values when InitializeClass works
   scoped_ptr<const DexFile> dex(OpenTestDexFile("Statics"));
-  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* statics = class_linker_->FindClass("LStatics;", class_loader);
   class_linker_->EnsureInitialized(statics);
 
@@ -535,7 +535,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
 TEST_F(ClassLinkerTest, Interfaces) {
   scoped_ptr<const DexFile> dex(OpenTestDexFile("Interfaces"));
-  PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader);
   Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader);
   Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader);

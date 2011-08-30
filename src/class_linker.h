@@ -117,6 +117,10 @@ class ClassLinker {
   void RegisterDexFile(const DexFile& dex_file);
   void RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache);
 
+  const std::vector<const DexFile*>& GetBootClassPath() {
+    return boot_class_path_;
+  }
+
   const InternTable& GetInternTable() {
     return intern_table_;
   }

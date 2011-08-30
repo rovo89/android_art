@@ -14,6 +14,13 @@
 
 namespace art {
 
+const std::vector<const DexFile*>& ClassLoader::GetClassPath(const ClassLoader* class_loader) {
+  if (class_loader == NULL) {
+    return Runtime::Current()->GetClassLinker()->GetBootClassPath();
+  }
+  return class_loader->class_path_;
+}
+
 Array* Array::Alloc(Class* array_class, int32_t component_count, size_t component_size) {
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
@@ -671,7 +678,7 @@ void String::ResetClass() {
 // TODO: get global references for these
 Class* PathClassLoader::dalvik_system_PathClassLoader_ = NULL;
 
-PathClassLoader* PathClassLoader::Alloc(std::vector<const DexFile*> dex_files) {
+const PathClassLoader* PathClassLoader::Alloc(std::vector<const DexFile*> dex_files) {
   PathClassLoader* p = down_cast<PathClassLoader*>(dalvik_system_PathClassLoader_->NewInstance());
   p->SetClassPath(dex_files);
   return p;

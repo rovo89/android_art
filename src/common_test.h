@@ -148,7 +148,7 @@ class CommonTest : public testing::Test {
     return DexFile::OpenZip(libcore_dex_file_name);
   }
 
-  PathClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
+  const PathClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
     CHECK(dex_file != NULL);
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> dex_files;

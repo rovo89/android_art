@@ -10,10 +10,11 @@ namespace art {
 
 class Compiler {
  public:
-  // Compile the DexFiles on a classpath. Returns a ClassLoader for
-  // the path used by the classes that were compiled. This ClassLoader
-  // can be used with FindClass to lookup a compiled class by name.
-  const ClassLoader* Compile(std::vector<const DexFile*> class_path);
+  // Compile all Methods of all the Classes of all the DexFiles that are part of a ClassLoader.
+  void CompileAll(const ClassLoader* class_loader);
+
+  // Compile a single Method
+  void CompileOne(Method* method);
 
  private:
   // Attempt to resolve all type, methods, fields, and strings
@@ -30,7 +31,7 @@ class Compiler {
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.
   void SetCodeAndDirectMethods(const ClassLoader* class_loader);
-  void SetCodeAndDirectMethodsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  void SetCodeAndDirectMethodsDexFile(const DexFile& dex_file);
 };
 
 }  // namespace art
