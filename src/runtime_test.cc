@@ -4,65 +4,8 @@
 #include "common_test.h"
 
 namespace art {
-void ParseClassPath(const char* class_path, std::vector<std::string>& vec);
 
 class RuntimeTest : public CommonTest {};
-
-TEST_F(RuntimeTest, ParseClassPath) {
-  std::vector<std::string> vec;
-
-  art::ParseClassPath("", vec);
-  EXPECT_EQ(0U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":", vec);
-  EXPECT_EQ(0U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":foo", vec);
-  EXPECT_EQ(1U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath("foo:", vec);
-  EXPECT_EQ(1U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":foo:", vec);
-  EXPECT_EQ(1U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath("foo:bar", vec);
-  EXPECT_EQ(2U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":foo:bar", vec);
-  EXPECT_EQ(2U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath("foo:bar:", vec);
-  EXPECT_EQ(2U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":foo:bar:", vec);
-  EXPECT_EQ(2U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath("foo:bar:baz", vec);
-  EXPECT_EQ(3U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":foo:bar:baz", vec);
-  EXPECT_EQ(3U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath("foo:bar:baz:", vec);
-  EXPECT_EQ(3U, vec.size());
-  vec.clear();
-
-  art::ParseClassPath(":foo:bar:baz:", vec);
-  EXPECT_EQ(3U, vec.size());
-  vec.clear();
-}
 
 TEST_F(RuntimeTest, ParsedOptions) {
   void* test_vfprintf = reinterpret_cast<void*>(0xa);

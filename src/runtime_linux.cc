@@ -6,7 +6,6 @@
 #include <execinfo.h>
 
 #include "logging.h"
-#include "scoped_ptr.h"
 #include "stringprintf.h"
 
 namespace art {
@@ -18,9 +17,11 @@ std::string Demangle(const std::string& mangled_name) {
 
   // http://gcc.gnu.org/onlinedocs/libstdc++/manual/ext_demangling.html
   int status;
-  scoped_ptr_malloc<char> result(abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status));
-  if (result != NULL) {
-    return result.get();
+  char* name(abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status));
+  if (name != NULL) {
+    std::string result(name);
+    free(name);
+    return result;
   }
 
   return mangled_name + "()";
@@ -35,7 +36,7 @@ void Runtime::PlatformAbort(const char* file, int line) {
   size_t frame_count = backtrace(frames, MAX_STACK_FRAMES);
 
   // Turn them into something human-readable with symbols.
-  scoped_ptr_malloc<char*> symbols(backtrace_symbols(frames, frame_count));
+  char** symbols = backtrace_symbols(frames, frame_count);
   if (symbols == NULL) {
     PLOG(ERROR) << "backtrace_symbols failed";
     return;
@@ -48,7 +49,7 @@ void Runtime::PlatformAbort(const char* file, int line) {
   // libartd.so:-1] 	#00 art::Runtime::PlatformAbort(char const*, int) +0x15b [0xf770dd51]
 
   for (size_t i = 0; i < frame_count; ++i) {
-    std::string text(symbols.get()[i]);
+    std::string text(symbols[i]);
 
     size_t index = text.find('(');
     std::string filename(text.substr(0, index));
@@ -63,6 +64,8 @@ void Runtime::PlatformAbort(const char* file, int line) {
     std::string log_line(StringPrintf("\t#%02d ", i) + function_name + text);
     LogMessage(filename.c_str(), -1, ERROR, -1).stream() << log_line;
   }
+
+  free(symbols);
 }
 
 }  // namespace art

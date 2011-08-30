@@ -61,34 +61,6 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
-// Splits a C string using the given delimiter characters into a vector of
-// strings. Empty strings will be omitted.
-void Split(const char* str, const char* delim, std::vector<std::string>& vec) {
-  DCHECK(str != NULL);
-  DCHECK(delim != NULL);
-  scoped_ptr_malloc<char> tmp(strdup(str));
-  char* full = tmp.get();
-  char* p = full;
-  while (p != NULL) {
-    p = strpbrk(full, delim);
-    if (p != NULL) {
-      p[0] = '\0';
-    }
-    if (full[0] != '\0') {
-      vec.push_back(std::string(full));
-    }
-    if (p != NULL) {
-      full = p + 1;
-    }
-  }
-}
-
-// Splits a colon delimited list of pathname elements into a vector of
-// strings.  Empty strings will be omitted.
-void ParseClassPath(const char* class_path, std::vector<std::string>& vec) {
-  Split(class_path, ":", vec);
-}
-
 // Parse a string of the form /[0-9]+[kKmMgG]?/, which is used to specify
 // memory sizes.  [kK] indicates kilobytes, [mM] megabytes, and
 // [gG] gigabytes.
@@ -182,7 +154,7 @@ void CreateBootClassPath(const char* boot_class_path_cstr,
                          std::vector<const DexFile*>& boot_class_path_vector) {
   CHECK(boot_class_path_cstr != NULL);
   std::vector<std::string> parsed;
-  ParseClassPath(boot_class_path_cstr, parsed);
+  Split(boot_class_path_cstr, ':', parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
     const DexFile* dex_file = Open(parsed[i]);
     if (dex_file != NULL) {
@@ -268,7 +240,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->properties_.push_back(option.substr(strlen("-D")).data());
     } else if (option.starts_with("-verbose:")) {
       std::vector<std::string> verbose_options;
-      Split(option.substr(strlen("-verbose:")).data(), ",", verbose_options);
+      Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         parsed->verbose_.insert(verbose_options[i]);
       }

@@ -33,24 +33,21 @@ static inline const DexFile* OpenDexFileBase64(const char* base64,
 class ScratchFile {
  public:
   ScratchFile() {
-    std::string filename_template;
-    filename_template = getenv("ANDROID_DATA");
-    filename_template += "/TmpFile-XXXXXX";
-    filename_.reset(strdup(filename_template.c_str()));
-    CHECK(filename_ != NULL);
-    fd_ = mkstemp(filename_.get());
+    filename_ = getenv("ANDROID_DATA");
+    filename_ += "/TmpFile-XXXXXX";
+    fd_ = mkstemp(&filename_[0]);
     CHECK_NE(-1, fd_);
   }
 
   ~ScratchFile() {
-    int unlink_result = unlink(filename_.get());
+    int unlink_result = unlink(filename_.c_str());
     CHECK_EQ(0, unlink_result);
     int close_result = close(fd_);
     CHECK_EQ(0, close_result);
   }
 
   const char* GetFilename() const {
-    return filename_.get();
+    return filename_.c_str();
   }
 
   int GetFd() const {
@@ -58,7 +55,7 @@ class ScratchFile {
   }
 
  private:
-  scoped_ptr_malloc<char> filename_;
+  std::string filename_;
   int fd_;
 };
 
@@ -76,13 +73,10 @@ class CommonTest : public testing::Test {
       setenv("ANDROID_ROOT", root.c_str(), 1);
     }
 
-    android_data_.reset(strdup(is_host_ ? "/tmp/art-data-XXXXXX" : "/sdcard/art-data-XXXXXX"));
-    ASSERT_TRUE(android_data_ != NULL);
-    const char* android_data_modified = mkdtemp(android_data_.get());
-    // note that mkdtemp side effects android_data_ as well
-    ASSERT_TRUE(android_data_modified != NULL);
-    setenv("ANDROID_DATA", android_data_modified, 1);
-    art_cache_.append(android_data_.get());
+    android_data_ = (is_host_ ? "/tmp/art-data-XXXXXX" : "/sdcard/art-data-XXXXXX");
+    ASSERT_TRUE(mkdtemp(&android_data_[0]) != NULL);
+    setenv("ANDROID_DATA", android_data_.c_str(), 1);
+    art_cache_.append(android_data_.c_str());
     art_cache_.append("/art-cache");
     int mkdir_result = mkdir(art_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
@@ -121,7 +115,7 @@ class CommonTest : public testing::Test {
     closedir(dir);
     int rmdir_cache_result = rmdir(art_cache_.c_str());
     ASSERT_EQ(0, rmdir_cache_result);
-    int rmdir_data_result = rmdir(android_data_.get());
+    int rmdir_data_result = rmdir(android_data_.c_str());
     ASSERT_EQ(0, rmdir_data_result);
 
     // icu4c has a fixed 10-element array "gCommonICUDataArray".
@@ -172,7 +166,7 @@ class CommonTest : public testing::Test {
   }
 
   bool is_host_;
-  scoped_ptr_malloc<char> android_data_;
+  std::string android_data_;
   std::string art_cache_;
   scoped_ptr<const DexFile> java_lang_dex_file_;
   std::vector<const DexFile*> boot_class_path_;
@@ -181,3 +175,21 @@ class CommonTest : public testing::Test {
 };
 
 }  // namespace art
+
+namespace std {
+
+// TODO: isn't gtest supposed to be able to print STL types for itself?
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& rhs) {
+  os << "[";
+  for (size_t i = 0; i < rhs.size(); ++i) {
+    os << rhs[i];
+    if (i < rhs.size() - 1) {
+      os << ", ";
+    }
+  }
+  os << "]";
+  return os;
+}
+
+}  // namespace std

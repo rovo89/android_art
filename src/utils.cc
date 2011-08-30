@@ -189,4 +189,20 @@ std::string JniLongName(const Method* m) {
   return long_name;
 }
 
+void Split(const std::string& s, char delim, std::vector<std::string>& result) {
+  const char* p = s.data();
+  const char* end = p + s.size();
+  while (p != end) {
+    if (*p == delim) {
+      ++p;
+    } else {
+      const char* start = p;
+      while (++p != end && *p != delim) {
+        // Skip to the next occurrence of the delimiter.
+      }
+      result.push_back(std::string(start, p - start));
+    }
+  }
+}
+
 }  // namespace art

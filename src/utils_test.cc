@@ -103,4 +103,70 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
   EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", JniLongName(m));
 }
 
+TEST_F(UtilsTest, Split) {
+  std::vector<std::string> actual;
+  std::vector<std::string> expected;
+
+  expected.clear();
+
+  actual.clear();
+  Split("", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split(":", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  expected.clear();
+  expected.push_back("foo");
+
+  actual.clear();
+  Split(":foo", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split("foo:", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split(":foo:", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  expected.push_back("bar");
+
+  actual.clear();
+  Split("foo:bar", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split(":foo:bar", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split("foo:bar:", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split(":foo:bar:", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  expected.push_back("baz");
+
+  actual.clear();
+  Split("foo:bar:baz", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split(":foo:bar:baz", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split("foo:bar:baz:", ':', actual);
+  EXPECT_EQ(expected, actual);
+
+  actual.clear();
+  Split(":foo:bar:baz:", ':', actual);
+  EXPECT_EQ(expected, actual);
+}
+
 }  // namespace art
