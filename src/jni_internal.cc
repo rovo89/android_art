@@ -41,7 +41,7 @@ void EnsureInvokeStub(Method* method) {
   size_t length = assembler.CodeSize();
   void* addr = mmap(NULL, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (addr == MAP_FAILED) {
-    PLOG(FATAL) << "mmap failed for " << PrettyMethod(method, true);
+    PLOG(FATAL) << "mmap failed for " << PrettyMethod(method);
   }
   MemoryRegion region(addr, length);
   assembler.FinalizeInstructions(region);
@@ -267,7 +267,7 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
     (*stub)(method, receiver, self, args, &result);
   } else {
     LOG(WARNING) << "Not invoking method with no associated code: "
-                 << PrettyMethod(method, true);
+                 << PrettyMethod(method);
     result.j = 0;
   }
 
@@ -354,7 +354,7 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
 
   if (method == NULL || method->IsStatic() != is_static) {
     Thread* self = Thread::Current();
-    std::string method_name(PrettyMethod(method, true));
+    std::string method_name(PrettyMethod(method));
     // TODO: try searching for the opposite kind of method from is_static
     // for better diagnostics?
     self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
@@ -640,7 +640,7 @@ class Libraries {
       }
       if (fn != NULL) {
         if (Runtime::Current()->GetJavaVM()->verbose_jni) {
-          LOG(INFO) << "[Found native code for " << PrettyMethod(m, true)
+          LOG(INFO) << "[Found native code for " << PrettyMethod(m)
                     << " in \"" << library->GetPath() << "\"]";
         }
         return fn;
@@ -648,7 +648,7 @@ class Libraries {
     }
     std::string detail;
     detail += "No implementation found for ";
-    detail += PrettyMethod(m, true);
+    detail += PrettyMethod(m);
     LOG(ERROR) << detail;
     Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;",
         "%s", detail.c_str());
@@ -2201,8 +2201,7 @@ class JNI {
       }
 
       if (ts.Vm()->verbose_jni) {
-        LOG(INFO) << "[Registering JNI native method "
-                  << PrettyMethod(m, true) << "]";
+        LOG(INFO) << "[Registering JNI native method " << PrettyMethod(m) << "]";
       }
 
       m->RegisterNative(methods[i].fnPtr);
@@ -2328,7 +2327,7 @@ class JNI {
   }
 };
 
-static const struct JNINativeInterface gNativeInterface = {
+const JNINativeInterface gNativeInterface = {
   NULL,  // reserved0.
   NULL,  // reserved1.
   NULL,  // reserved2.
@@ -2577,7 +2576,10 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax),
       locals(kLocalsInitial, kLocalsMax, kLocal) {
-  functions = &gNativeInterface;
+  functions = unchecked_functions = &gNativeInterface;
+  if (check_jni) {
+    functions = GetCheckJniNativeInterface();
+  }
 }
 
 JNIEnvExt::~JNIEnvExt() {
@@ -2671,7 +2673,7 @@ class JII {
   }
 };
 
-struct JNIInvokeInterface gInvokeInterface = {
+const JNIInvokeInterface gInvokeInterface = {
   NULL,  // reserved0
   NULL,  // reserved1
   NULL,  // reserved2
@@ -2693,8 +2695,10 @@ static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
 
 JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
     : runtime(runtime),
+      check_jni_abort_hook(NULL),
       check_jni(check_jni),
       verbose_jni(verbose_jni),
+      force_copy(false), // TODO
       pins_lock(Mutex::Create("JNI pin table lock")),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
       globals_lock(Mutex::Create("JNI global reference table lock")),
@@ -2703,7 +2707,10 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
       libraries_lock(Mutex::Create("JNI shared libraries map lock")),
       libraries(new Libraries) {
-  functions = &gInvokeInterface;
+  functions = unchecked_functions = &gInvokeInterface;
+  if (check_jni) {
+    functions = GetCheckJniInvokeInterface();
+  }
 }
 
 JavaVMExt::~JavaVMExt() {

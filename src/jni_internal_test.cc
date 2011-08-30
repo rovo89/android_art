@@ -15,8 +15,10 @@ class JniInternalTest : public CommonTest {
   virtual void SetUp() {
     CommonTest::SetUp();
 
+    vm_ = Runtime::Current()->GetJavaVM();
+
     // Turn on -verbose:jni for the JNI tests.
-    Runtime::Current()->GetJavaVM()->verbose_jni = true;
+    vm_->verbose_jni = true;
 
     env_ = Thread::Current()->GetJniEnv();
 
@@ -27,7 +29,8 @@ class JniInternalTest : public CommonTest {
     CHECK(sioobe_ != NULL);
   }
 
-  JNIEnv* env_;
+  JavaVMExt* vm_;
+  JNIEnvExt* env_;
   jclass aioobe_;
   jclass sioobe_;
 };
@@ -60,29 +63,39 @@ TEST_F(JniInternalTest, GetVersion) {
   EXPECT_TRUE(env_->ExceptionCheck()); \
   env_->ExceptionClear()
 
+std::string gCheckJniAbortMessage;
+void TestCheckJniAbortHook(const std::string& reason) {
+  gCheckJniAbortMessage = reason;
+}
+
 TEST_F(JniInternalTest, FindClass) {
   // TODO: when these tests start failing because you're calling FindClass
   // with a pending exception, fix EXPECT_CLASS_NOT_FOUND to assert that an
   // exception was thrown and clear the exception.
 
-  // TODO: . is only allowed as an alternative to / if CheckJNI is off.
-
   // Reference types...
-  // You can't include the "L;" in a JNI class descriptor.
   EXPECT_CLASS_FOUND("java/lang/String");
-  EXPECT_CLASS_NOT_FOUND("Ljava/lang/String;");
-  // We support . as well as / for compatibility.
-  EXPECT_CLASS_FOUND("java.lang.String");
-  EXPECT_CLASS_NOT_FOUND("Ljava.lang.String;");
   // ...for arrays too, where you must include "L;".
   EXPECT_CLASS_FOUND("[Ljava/lang/String;");
-  EXPECT_CLASS_NOT_FOUND("[java/lang/String");
+
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
+  // We support . as well as / for compatibility, if -Xcheck:jni is off.
+  EXPECT_CLASS_FOUND("java.lang.String");
+  EXPECT_CLASS_NOT_FOUND("Ljava.lang.String;");
   EXPECT_CLASS_FOUND("[Ljava.lang.String;");
   EXPECT_CLASS_NOT_FOUND("[java.lang.String");
 
+  // You can't include the "L;" in a JNI class descriptor.
+  EXPECT_CLASS_NOT_FOUND("Ljava/lang/String;");
+  // But you must include it for an array of any reference type.
+  EXPECT_CLASS_NOT_FOUND("[java/lang/String");
+  vm_->check_jni_abort_hook = NULL;
+
   // Primitive arrays are okay (if the primitive type is valid)...
   EXPECT_CLASS_FOUND("[C");
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
   EXPECT_CLASS_NOT_FOUND("[K");
+  vm_->check_jni_abort_hook = NULL;
   // But primitive types aren't allowed...
   EXPECT_CLASS_NOT_FOUND("C");
   EXPECT_CLASS_NOT_FOUND("K");
@@ -93,8 +106,8 @@ TEST_F(JniInternalTest, FindClass) {
     EXPECT_TRUE(env_->ExceptionCheck()); \
     jthrowable exception = env_->ExceptionOccurred(); \
     EXPECT_NE(static_cast<jthrowable>(NULL), exception); \
-    EXPECT_TRUE(env_->IsInstanceOf(exception, exception_class)); \
     env_->ExceptionClear(); \
+    EXPECT_TRUE(env_->IsInstanceOf(exception, exception_class)); \
   } while (false)
 
 TEST_F(JniInternalTest, GetFieldID) {
@@ -514,7 +527,10 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
 }
 
 TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
+  // Passing in a NULL jstring is ignored normally, but caught by -Xcheck:jni.
   EXPECT_TRUE(env_->GetStringUTFChars(NULL, NULL) == NULL);
+  vm_->check_jni_abort_hook = NULL;
 
   jstring s = env_->NewStringUTF("hello");
   ASSERT_TRUE(s != NULL);
@@ -704,7 +720,9 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
   env_->DeleteLocalRef(s);
 
   // Currently, deleting an already-deleted reference is just a warning.
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
   env_->DeleteLocalRef(s);
+  vm_->check_jni_abort_hook = NULL;
 
   s = env_->NewStringUTF("");
   ASSERT_TRUE(s != NULL);
@@ -741,8 +759,10 @@ TEST_F(JniInternalTest, DeleteGlobalRef) {
   ASSERT_TRUE(o != NULL);
   env_->DeleteGlobalRef(o);
 
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
   // Currently, deleting an already-deleted reference is just a warning.
   env_->DeleteGlobalRef(o);
+  vm_->check_jni_abort_hook = NULL;
 
   jobject o1 = env_->NewGlobalRef(s);
   ASSERT_TRUE(o1 != NULL);
@@ -779,8 +799,10 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   ASSERT_TRUE(o != NULL);
   env_->DeleteWeakGlobalRef(o);
 
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
   // Currently, deleting an already-deleted reference is just a warning.
   env_->DeleteWeakGlobalRef(o);
+  vm_->check_jni_abort_hook = NULL;
 
   jobject o1 = env_->NewWeakGlobalRef(s);
   ASSERT_TRUE(o1 != NULL);
@@ -1508,8 +1530,9 @@ TEST_F(JniInternalTest, Throw) {
 
   EXPECT_EQ(JNI_OK, env_->Throw(exception));
   EXPECT_TRUE(env_->ExceptionCheck());
-  EXPECT_TRUE(env_->IsSameObject(exception, env_->ExceptionOccurred()));
+  jthrowable thrown_exception = env_->ExceptionOccurred();
   env_->ExceptionClear();
+  EXPECT_TRUE(env_->IsSameObject(exception, thrown_exception));
 }
 
 TEST_F(JniInternalTest, ThrowNew) {
@@ -1520,8 +1543,9 @@ TEST_F(JniInternalTest, ThrowNew) {
 
   EXPECT_EQ(JNI_OK, env_->ThrowNew(exception_class, "hello world"));
   EXPECT_TRUE(env_->ExceptionCheck());
-  EXPECT_TRUE(env_->IsInstanceOf(env_->ExceptionOccurred(), exception_class));
+  jthrowable thrown_exception = env_->ExceptionOccurred();
   env_->ExceptionClear();
+  EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, exception_class));
 }
 
 // TODO: this test is DISABLED until we can actually run java.nio.Buffer's <init>.

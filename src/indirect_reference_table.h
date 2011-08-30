@@ -95,7 +95,7 @@ class Object;
  */
 typedef void* IndirectRef;
 
-/* magic failure values; must not pass dvmIsHeapAddress() */
+/* Magic failure values; must not pass Heap::ValidateObject() or Heap::IsHeapAddress(). */
 static Object* const kInvalidIndirectRefObject = reinterpret_cast<Object*>(0xdead4321);
 static Object* const kClearedJniWeakGlobal = reinterpret_cast<Object*>(0xdead1234);
 

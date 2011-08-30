@@ -15,20 +15,21 @@
  */
 
 #include "indirect_reference_table.h"
+#include "jni_internal.h"
 #include "reference_table.h"
+#include "runtime.h"
 #include "utils.h"
 
 #include <cstdlib>
 
 namespace art {
 
-// TODO: implement this for art. (only needed for non-CheckJNI operation.)
 static void AbortMaybe() {
-  // If CheckJNI is on, it'll give a more detailed error before aborting.
-  // Otherwise, we want to abort rather than hand back a bad reference.
-//  if (!gDvmJni.useCheckJni) {
-//    LOG(FATAL) << "bye!";
-//  }
+  // If -Xcheck:jni is on, it'll give a more detailed error before aborting.
+  if (!Runtime::Current()->GetJavaVM()->check_jni) {
+    // Otherwise, we want to abort rather than hand back a bad reference.
+    LOG(FATAL) << "JNI ERROR (app bug): see above.";
+  }
 }
 
 IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,

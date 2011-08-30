@@ -20,6 +20,8 @@ class Mutex;
 class Runtime;
 class Thread;
 
+void JniAbort(const char* jni_function_name);
+
 struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);
   ~JavaVMExt();
@@ -40,8 +42,12 @@ struct JavaVMExt : public JavaVM {
 
   Runtime* runtime;
 
+  // Used for testing. By default, we'll LOG(FATAL) the reason.
+  void (*check_jni_abort_hook)(const std::string& reason);
+
   bool check_jni;
   bool verbose_jni;
+  bool force_copy;
 
   // Used to hold references to pinned primitive arrays.
   Mutex* pins_lock;
@@ -57,6 +63,9 @@ struct JavaVMExt : public JavaVM {
 
   Mutex* libraries_lock;
   Libraries* libraries;
+
+  // Used by -Xcheck:jni.
+  const JNIInvokeInterface* unchecked_functions;
 };
 
 struct JNIEnvExt : public JNIEnv {
@@ -68,15 +77,21 @@ struct JNIEnvExt : public JNIEnv {
 
   bool check_jni;
 
-  // Are we in a "critical" JNI call?
-  bool critical;
+  // How many nested "critical" JNI calls are we in?
+  int critical;
 
   // Entered JNI monitors, for bulk exit on thread detach.
   ReferenceTable  monitors;
 
   // JNI local references.
   IndirectReferenceTable locals;
+
+  // Used by -Xcheck:jni.
+  const JNINativeInterface* unchecked_functions;
 };
+
+const JNINativeInterface* GetCheckJniNativeInterface();
+const JNIInvokeInterface* GetCheckJniInvokeInterface();
 
 }  // namespace art
 

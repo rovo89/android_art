@@ -33,8 +33,13 @@ class Heap {
   // Allocates and initializes storage for an object instance.
   static Object* AllocObject(Class* klass, size_t num_bytes);
 
-  // Check sanity of given reference
+  // Check sanity of given reference. Requires the heap lock.
   static void VerifyObject(Object *obj);
+
+  // A weaker test than VerifyObject that doesn't require the heap lock,
+  // and doesn't abort on error, allowing the caller to report more
+  // meaningful diagnostics.
+  static bool IsHeapAddress(Object* obj);
 
   // Initiates an explicit garbage collection.
   static void CollectGarbage();

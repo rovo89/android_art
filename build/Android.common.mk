@@ -41,6 +41,7 @@ AEXEC_SRC_FILES := \
 LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
 	src/calling_convention.cc \
+	src/check_jni.cc \
 	src/class_linker.cc \
 	src/compiler.cc \
 	src/compiler/Dataflow.cc \
