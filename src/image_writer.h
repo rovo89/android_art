@@ -3,13 +3,14 @@
 #ifndef ART_SRC_IMAGE_WRITER_H_
 #define ART_SRC_IMAGE_WRITER_H_
 
-#include <cstddef>
 #include <stdint.h>
 
+#include <cstddef>
+
+#include "UniquePtr.h"
 #include "mem_map.h"
 #include "object.h"
 #include "os.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
@@ -60,7 +61,7 @@ class ImageWriter {
   void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
 
   // memory mapped for generating the image
-  scoped_ptr<MemMap> image_;
+  UniquePtr<MemMap> image_;
 
   // Offset to the free space in image_
   size_t image_top_;

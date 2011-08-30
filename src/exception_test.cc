@@ -2,14 +2,15 @@
 
 #include <sys/mman.h>
 
+#include "UniquePtr.h"
 #include "assembler.h"
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
+#include "gtest/gtest.h"
 #include "jni_compiler.h"
 #include "runtime.h"
 #include "thread.h"
-#include "gtest/gtest.h"
 
 namespace art {
 
@@ -66,7 +67,7 @@ class ExceptionTest : public CommonTest {
     CommonTest::SetUp();
 
     dex_.reset(OpenDexFileBase64(kMyClassExceptionHandleDex, "kMyClassExceptionHandleDex"));
-    ASSERT_TRUE(dex_ != NULL);
+    ASSERT_TRUE(dex_.get() != NULL);
     const PathClassLoader* class_loader = AllocPathClassLoader(dex_.get());
     ASSERT_TRUE(class_loader != NULL);
     my_klass_ = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
@@ -94,7 +95,7 @@ class ExceptionTest : public CommonTest {
     return DexFile::CatchHandlerItem();
   }
 
-  scoped_ptr<const DexFile> dex_;
+  UniquePtr<const DexFile> dex_;
 
   Method* method_f_;
   Method* method_g_;

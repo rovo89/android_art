@@ -1,16 +1,15 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "logging.h"
-
-#include "runtime.h"
-#include "scoped_ptr.h"
-#include "stringprintf.h"
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <sys/types.h>
-#include <unistd.h>
+
+#include "logging.h"
+#include "runtime.h"
+#include "stringprintf.h"
 
 // glibc doesn't expose gettid(2).
 #define __KERNEL__

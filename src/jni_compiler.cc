@@ -387,7 +387,7 @@ JniCompiler::JniCompiler() {
   // TODO: this shouldn't be managed by the JniCompiler, we should have a
   // code cache.
   jni_code_.reset(MemMap::Map(kPageSize, PROT_READ | PROT_WRITE | PROT_EXEC));
-  CHECK(jni_code_ !=  NULL);
+  CHECK(jni_code_.get() !=  NULL);
   jni_code_top_ = jni_code_->GetAddress();
 }
 

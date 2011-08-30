@@ -1,28 +1,30 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "zip_archive.h"
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "UniquePtr.h"
 #include "common_test.h"
-#include "os.h"
-#include "zip_archive.h"
 #include "gtest/gtest.h"
+#include "os.h"
 
 namespace art {
 
 class ZipArchiveTest : public CommonTest {};
 
 TEST_F(ZipArchiveTest, FindAndExtract) {
-  scoped_ptr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName()));
-  ASSERT_TRUE(zip_archive != false);
-  scoped_ptr<ZipEntry> zip_entry(zip_archive->Find("classes.dex"));
-  ASSERT_TRUE(zip_entry != false);
+  UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName()));
+  ASSERT_TRUE(zip_archive.get() != false);
+  UniquePtr<ZipEntry> zip_entry(zip_archive->Find("classes.dex"));
+  ASSERT_TRUE(zip_entry.get() != false);
 
   ScratchFile tmp;
   ASSERT_NE(-1, tmp.GetFd());
-  scoped_ptr<File> file(OS::FileFromFd(tmp.GetFilename(), tmp.GetFd()));
-  ASSERT_TRUE(file != NULL);
+  UniquePtr<File> file(OS::FileFromFd(tmp.GetFilename(), tmp.GetFd()));
+  ASSERT_TRUE(file.get() != NULL);
   bool success = zip_entry->Extract(*file);
   ASSERT_TRUE(success);
   close(tmp.GetFd());

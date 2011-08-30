@@ -1,19 +1,20 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "jni_compiler.h"
+
 #include <sys/mman.h>
 
+#include "UniquePtr.h"
 #include "assembler.h"
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
+#include "gtest/gtest.h"
 #include "indirect_reference_table.h"
-#include "jni_compiler.h"
 #include "jni_internal.h"
 #include "mem_map.h"
 #include "runtime.h"
-#include "scoped_ptr.h"
 #include "thread.h"
-#include "gtest/gtest.h"
 
 namespace art {
 
@@ -65,7 +66,7 @@ class JniCompilerTest : public CommonTest {
   static jclass jklass_;
   static jobject jobj_;
  protected:
-  scoped_ptr<const DexFile> dex_;
+  UniquePtr<const DexFile> dex_;
   const PathClassLoader* class_loader_;
   Assembler jni_asm;
   JniCompiler jni_compiler;

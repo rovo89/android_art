@@ -1,12 +1,13 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "dex_verifier.h"
+
+#include <stdio.h>
+
+#include "UniquePtr.h"
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
-#include "dex_verifier.h"
-#include "scoped_ptr.h"
-
-#include <stdio.h>
 
 namespace art {
 
@@ -38,7 +39,7 @@ TEST_F(DexVerifierTest, LibCore) {
 }
 
 TEST_F(DexVerifierTest, IntMath) {
-  scoped_ptr<const DexFile> dex(OpenTestDexFile("IntMath"));
+  UniquePtr<const DexFile> dex(OpenTestDexFile("IntMath"));
   const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* klass = class_linker_->FindClass("LIntMath;", class_loader);
   ASSERT_TRUE(DexVerify::VerifyClass(klass));

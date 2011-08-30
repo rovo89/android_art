@@ -1,16 +1,17 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "compiler.h"
+
+#include <stdint.h>
+#include <stdio.h>
+
+#include "UniquePtr.h"
 #include "class_linker.h"
 #include "common_test.h"
-#include "compiler.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
 #include "object.h"
-#include "scoped_ptr.h"
-
-#include <stdint.h>
-#include <stdio.h>
 
 namespace art {
 
@@ -114,7 +115,7 @@ class CompilerTest : public CommonTest {
 #endif // __arm__
   }
  private:
-  scoped_ptr<const DexFile> dex_file_;
+  UniquePtr<const DexFile> dex_file_;
 };
 
 // TODO renenable when compiler can handle libcore

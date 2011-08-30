@@ -1,18 +1,19 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "common_test.h"
 #include "dex_file.h"
-#include "scoped_ptr.h"
 
 #include <stdio.h>
+
+#include "UniquePtr.h"
+#include "common_test.h"
 
 namespace art {
 
 class DexFileTest : public CommonTest {};
 
 TEST_F(DexFileTest, Open) {
-  scoped_ptr<const DexFile> dex(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(dex != NULL);
+  UniquePtr<const DexFile> dex(OpenTestDexFile("Nested"));
+  ASSERT_TRUE(dex.get() != NULL);
 }
 
 // Although this is the same content logically as the Nested test dex,
@@ -42,8 +43,8 @@ static const char kRawDex[] =
   "AAMgAAACAAAAiAIAAAQgAAADAAAAlAIAAAAgAAACAAAAqwIAAAAQAAABAAAAxAIAAA==";
 
 TEST_F(DexFileTest, Header) {
-  scoped_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, "kRawDex"));
-  ASSERT_TRUE(raw != NULL);
+  UniquePtr<const DexFile> raw(OpenDexFileBase64(kRawDex, "kRawDex"));
+  ASSERT_TRUE(raw.get() != NULL);
 
   const DexFile::Header& header = raw->GetHeader();
   // TODO: header.magic_
@@ -70,8 +71,8 @@ TEST_F(DexFileTest, Header) {
 }
 
 TEST_F(DexFileTest, ClassDefs) {
-  scoped_ptr<const DexFile> raw(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(raw != NULL);
+  UniquePtr<const DexFile> raw(OpenTestDexFile("Nested"));
+  ASSERT_TRUE(raw.get() != NULL);
   EXPECT_EQ(2U, raw->NumClassDefs());
 
   const DexFile::ClassDef& c0 = raw->GetClassDef(0);
@@ -82,8 +83,8 @@ TEST_F(DexFileTest, ClassDefs) {
 }
 
 TEST_F(DexFileTest, CreateMethodDescriptor) {
-  scoped_ptr<const DexFile> raw(OpenTestDexFile("CreateMethodDescriptor"));
-  ASSERT_TRUE(raw != NULL);
+  UniquePtr<const DexFile> raw(OpenTestDexFile("CreateMethodDescriptor"));
+  ASSERT_TRUE(raw.get() != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const DexFile::ClassDef& class_def = raw->GetClassDef(0);

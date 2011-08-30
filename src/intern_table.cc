@@ -2,7 +2,7 @@
 
 #include "intern_table.h"
 
-#include "scoped_ptr.h"
+#include "UniquePtr.h"
 #include "utf.h"
 
 namespace art {
@@ -28,7 +28,7 @@ void InternTable::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
 }
 
 String* InternTable::Intern(int32_t utf16_length, const char* utf8_data_in) {
-  scoped_array<uint16_t> utf16_data_out(new uint16_t[utf16_length]);
+  UniquePtr<uint16_t[]> utf16_data_out(new uint16_t[utf16_length]);
   ConvertModifiedUtf8ToUtf16(utf16_data_out.get(), utf8_data_in);
   int32_t hash_code = ComputeUtf16Hash(utf16_data_out.get(), utf16_length);
   {

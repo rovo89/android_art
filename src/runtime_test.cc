@@ -1,6 +1,8 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "runtime.h"
+
+#include "UniquePtr.h"
 #include "common_test.h"
 
 namespace art {
@@ -29,8 +31,8 @@ TEST_F(RuntimeTest, ParsedOptions) {
   options.push_back(std::make_pair("vfprintf", test_vfprintf));
   options.push_back(std::make_pair("abort", test_abort));
   options.push_back(std::make_pair("exit", test_exit));
-  scoped_ptr<Runtime::ParsedOptions> parsed(Runtime::ParsedOptions::Create(options, false));
-  ASSERT_TRUE(parsed != NULL);
+  UniquePtr<Runtime::ParsedOptions> parsed(Runtime::ParsedOptions::Create(options, false));
+  ASSERT_TRUE(parsed.get() != NULL);
 
   EXPECT_EQ(1U, parsed->boot_class_path_.size());  // bootclasspath overrides -Xbootclasspath
   EXPECT_STREQ("boot_image", parsed->boot_image_);

@@ -7,13 +7,15 @@
 #include <limits>
 #include <vector>
 
-#include "JniConstants.h"
+#include "UniquePtr.h"
 #include "class_linker.h"
 #include "heap.h"
 #include "jni_internal.h"
-#include "scoped_ptr.h"
 #include "signal_catcher.h"
 #include "thread.h"
+
+// TODO: this drags in cutil/log.h, which conflicts with our logging.h.
+#include "JniConstants.h"
 
 namespace art {
 
@@ -164,7 +166,7 @@ void CreateBootClassPath(const char* boot_class_path_cstr,
 }
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
-  scoped_ptr<ParsedOptions> parsed(new ParsedOptions());
+  UniquePtr<ParsedOptions> parsed(new ParsedOptions());
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   parsed->boot_image_ = NULL;
 #ifdef NDEBUG
@@ -279,7 +281,7 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   if (Runtime::instance_ != NULL) {
     return NULL;
   }
-  scoped_ptr<Runtime> runtime(new Runtime());
+  UniquePtr<Runtime> runtime(new Runtime());
   bool success = runtime->Init(options, ignore_unrecognized);
   if (!success) {
     return NULL;
@@ -303,8 +305,8 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
-  scoped_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
-  if (options == NULL) {
+  UniquePtr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
+  if (options.get() == NULL) {
     return false;
   }
   vfprintf_ = options->hook_vfprintf_;

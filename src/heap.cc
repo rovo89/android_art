@@ -4,11 +4,11 @@
 
 #include <vector>
 
+#include "UniquePtr.h"
 #include "image.h"
 #include "mark_sweep.h"
 #include "object.h"
 #include "space.h"
-#include "scoped_ptr.h"
 #include "stl_util.h"
 
 namespace art {
@@ -60,14 +60,14 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
   size_t num_bytes = limit - base;
 
   // Allocate the initial live bitmap.
-  scoped_ptr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
-  if (live_bitmap == NULL) {
+  UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
+  if (live_bitmap.get() == NULL) {
     return false;
   }
 
   // Allocate the initial mark bitmap.
-  scoped_ptr<HeapBitmap> mark_bitmap(HeapBitmap::Create(base, num_bytes));
-  if (mark_bitmap == NULL) {
+  UniquePtr<HeapBitmap> mark_bitmap(HeapBitmap::Create(base, num_bytes));
+  if (mark_bitmap.get() == NULL) {
     return false;
   }
 

@@ -3,11 +3,11 @@
 #ifndef ART_SRC_SPACE_H_
 #define ART_SRC_SPACE_H_
 
+#include "UniquePtr.h"
 #include "globals.h"
 #include "image.h"
 #include "macros.h"
 #include "mem_map.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
@@ -88,7 +88,7 @@ class Space {
   // TODO: have a Space subclass for image Spaces with image_header_
   ImageHeader* image_header_;
 
-  scoped_ptr<MemMap> mem_map_;
+  UniquePtr<MemMap> mem_map_;
 
   byte* base_;
 

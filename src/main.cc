@@ -1,15 +1,17 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include <cstring>
-#include <cstdio>
 #include <signal.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <string>
 
+#include "ScopedLocalRef.h"
+#include "UniquePtr.h"
 #include "jni.h"
 #include "logging.h"
-#include "scoped_ptr.h"
 #include "toStringArray.h"
-#include "ScopedLocalRef.h"
 
 // Determine whether or not the specified method is public.
 static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
@@ -103,7 +105,7 @@ int main(int argc, char** argv) {
   // We're over-allocating, because this includes the options to the VM
   // plus the options to the program.
   int option_count = argc;
-  scoped_array<JavaVMOption> options(new JavaVMOption[option_count]());
+  UniquePtr<JavaVMOption[]> options(new JavaVMOption[option_count]());
 
   // Copy options over.  Everything up to the name of the class starts
   // with a '-' (the function hook stuff is strictly internal).

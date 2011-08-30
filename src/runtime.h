@@ -14,7 +14,6 @@
 
 #include "globals.h"
 #include "macros.h"
-#include "scoped_ptr.h"
 #include "stringpiece.h"
 #include "unordered_set.h"
 

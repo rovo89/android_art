@@ -36,8 +36,8 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(success);
 
   {
-    scoped_ptr<File> file(OS::OpenFile(tmp.GetFilename(), false));
-    ASSERT_TRUE(file != NULL);
+    UniquePtr<File> file(OS::OpenFile(tmp.GetFilename(), false));
+    ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
     ASSERT_TRUE(image_header.IsValid());
@@ -51,8 +51,8 @@ TEST_F(ImageTest, WriteRead) {
   // lucky by pointers that happen to work referencing the earlier
   // dex.
   delete java_lang_dex_file_.release();
-  scoped_ptr<const DexFile> dex(GetLibCoreDex());
-  ASSERT_TRUE(dex != NULL);
+  UniquePtr<const DexFile> dex(GetLibCoreDex());
+  ASSERT_TRUE(dex.get() != NULL);
 
   std::vector<const DexFile*> boot_class_path;
   boot_class_path.push_back(dex.get());
@@ -64,7 +64,7 @@ TEST_F(ImageTest, WriteRead) {
   options.push_back(std::make_pair(boot_image.c_str(), reinterpret_cast<void*>(NULL)));
 
   runtime_.reset(Runtime::Create(options, false));
-  ASSERT_TRUE(runtime_ != NULL);
+  ASSERT_TRUE(runtime_.get() != NULL);
   class_linker_ = runtime_->GetClassLinker();
 
   ASSERT_EQ(2U, Heap::GetSpaces().size());

@@ -3,9 +3,10 @@
 #ifndef ART_SRC_DEX_VERIFY_H_
 #define ART_SRC_DEX_VERIFY_H_
 
+#include "dex_file.h"
+#include "dex_instruction.h"
 #include "macros.h"
 #include "object.h"
-#include "dex_instruction.h"
 
 namespace art {
 

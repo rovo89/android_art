@@ -71,11 +71,9 @@ size_t JniCallingConvention::SpillAreaSize() {
   return 0;
 }
 
-std::vector<ManagedRegister>* JniCallingConvention::ComputeRegsToSpillPreCall()
-{
+void JniCallingConvention::ComputeRegsToSpillPreCall(std::vector<ManagedRegister>& regs) {
   // No live values in registers (everything is on the stack) so never anything
   // to preserve.
-  return  new std::vector<ManagedRegister>();
 }
 
 bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {

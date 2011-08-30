@@ -3,11 +3,11 @@
 #ifndef ART_SRC_JNI_COMPILER_H_
 #define ART_SRC_JNI_COMPILER_H_
 
+#include "UniquePtr.h"
 #include "calling_convention.h"
 #include "globals.h"
 #include "macros.h"
 #include "mem_map.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
@@ -34,7 +34,7 @@ class JniCompiler {
   void* AllocateCode(size_t size);
 
   // Allocated code
-  scoped_ptr<MemMap> jni_code_;
+  UniquePtr<MemMap> jni_code_;
 
   // Pointer to the free space
   byte* jni_code_top_;

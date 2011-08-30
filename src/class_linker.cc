@@ -2,18 +2,18 @@
 
 #include "class_linker.h"
 
-#include <vector>
 #include <utility>
+#include <vector>
 
+#include "UniquePtr.h"
 #include "casts.h"
 #include "dex_cache.h"
+#include "dex_file.h"
 #include "dex_verifier.h"
 #include "heap.h"
 #include "logging.h"
 #include "monitor.h"
 #include "object.h"
-#include "dex_file.h"
-#include "scoped_ptr.h"
 #include "space.h"
 #include "thread.h"
 #include "utils.h"
@@ -52,7 +52,7 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
 };
 
 ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path, Space* space) {
-  scoped_ptr<ClassLinker> class_linker(new ClassLinker);
+  UniquePtr<ClassLinker> class_linker(new ClassLinker);
   if (space == NULL) {
     class_linker->Init(boot_class_path);
   } else {

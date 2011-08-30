@@ -1,14 +1,15 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "object.h"
+
+#include <stdint.h>
+#include <stdio.h>
+
+#include "UniquePtr.h"
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
 #include "heap.h"
-#include "object.h"
-#include "scoped_ptr.h"
-
-#include <stdint.h>
-#include <stdio.h>
 #include "gtest/gtest.h"
 
 namespace art {
@@ -274,9 +275,9 @@ TEST_F(ObjectTest, StringEquals) {
 TEST_F(ObjectTest, DescriptorCompare) {
   ClassLinker* linker = class_linker_;
 
-  scoped_ptr<const DexFile> proto1_dex_file(OpenTestDexFile("ProtoCompare"));
+  UniquePtr<const DexFile> proto1_dex_file(OpenTestDexFile("ProtoCompare"));
   const PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
-  scoped_ptr<const DexFile> proto2_dex_file(OpenTestDexFile("ProtoCompare2"));
+  UniquePtr<const DexFile> proto2_dex_file(OpenTestDexFile("ProtoCompare2"));
   const PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
 
   Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
@@ -323,7 +324,7 @@ TEST_F(ObjectTest, StringHashCode) {
 }
 
 TEST_F(ObjectTest, InstanceOf) {
-  scoped_ptr<const DexFile> dex(OpenTestDexFile("XandY"));
+  UniquePtr<const DexFile> dex(OpenTestDexFile("XandY"));
   const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
@@ -350,7 +351,7 @@ TEST_F(ObjectTest, InstanceOf) {
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {
-  scoped_ptr<const DexFile> dex(OpenTestDexFile("XandY"));
+  UniquePtr<const DexFile> dex(OpenTestDexFile("XandY"));
   const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
@@ -362,7 +363,7 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {
-  scoped_ptr<const DexFile> dex(OpenTestDexFile("XandY"));
+  UniquePtr<const DexFile> dex(OpenTestDexFile("XandY"));
   const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);

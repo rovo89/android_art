@@ -1,9 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "dex_instruction_visitor.h"
-#include "scoped_ptr.h"
 
 #include <iostream>
+
+#include "UniquePtr.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -11,7 +12,7 @@ namespace art {
 class TestVisitor : public DexInstructionVisitor<TestVisitor> {};
 
 TEST(InstructionTest, Init) {
-  scoped_ptr<TestVisitor> visitor(new TestVisitor);
+  UniquePtr<TestVisitor> visitor(new TestVisitor);
 }
 
 class CountVisitor : public DexInstructionVisitor<CountVisitor> {

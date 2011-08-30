@@ -11,13 +11,13 @@
 #include <vector>
 
 #include "ScopedLocalRef.h"
+#include "UniquePtr.h"
 #include "assembler.h"
 #include "class_linker.h"
 #include "jni.h"
 #include "logging.h"
 #include "object.h"
 #include "runtime.h"
-#include "scoped_ptr.h"
 #include "stringpiece.h"
 #include "thread.h"
 
@@ -176,7 +176,7 @@ Method* DecodeMethod(ScopedJniThreadState& ts, jmethodID mid) {
 
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
   size_t num_bytes = method->NumArgArrayBytes();
-  scoped_array<byte> arg_array(new byte[num_bytes]);
+  UniquePtr<byte[]> arg_array(new byte[num_bytes]);
   const StringPiece& shorty = method->GetShorty();
   for (int i = 1, offset = 0; i < shorty.size(); ++i) {
     switch (shorty[i]) {
@@ -213,7 +213,7 @@ byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
 
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, jvalue* args) {
   size_t num_bytes = method->NumArgArrayBytes();
-  scoped_array<byte> arg_array(new byte[num_bytes]);
+  UniquePtr<byte[]> arg_array(new byte[num_bytes]);
   const StringPiece& shorty = method->GetShorty();
   for (int i = 1, offset = 0; i < shorty.size(); ++i) {
     switch (shorty[i]) {
@@ -280,7 +280,7 @@ JValue InvokeWithJValues(ScopedJniThreadState& ts, jobject obj,
                          jmethodID mid, jvalue* args) {
   Object* receiver = Decode<Object*>(ts, obj);
   Method* method = DecodeMethod(ts, mid);
-  scoped_array<byte> arg_array(CreateArgArray(ts, method, args));
+  UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 
@@ -288,7 +288,7 @@ JValue InvokeWithVarArgs(ScopedJniThreadState& ts, jobject obj,
                          jmethodID mid, va_list args) {
   Object* receiver = Decode<Object*>(ts, obj);
   Method* method = DecodeMethod(ts, mid);
-  scoped_array<byte> arg_array(CreateArgArray(ts, method, args));
+  UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 
@@ -299,14 +299,14 @@ Method* FindVirtualMethod(Object* receiver, Method* method) {
 JValue InvokeVirtualOrInterfaceWithJValues(ScopedJniThreadState& ts, jobject obj, jmethodID mid, jvalue* args) {
   Object* receiver = Decode<Object*>(ts, obj);
   Method* method = FindVirtualMethod(receiver, DecodeMethod(ts, mid));
-  scoped_array<byte> arg_array(CreateArgArray(ts, method, args));
+  UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 
 JValue InvokeVirtualOrInterfaceWithVarArgs(ScopedJniThreadState& ts, jobject obj, jmethodID mid, va_list args) {
   Object* receiver = Decode<Object*>(ts, obj);
   Method* method = FindVirtualMethod(receiver, DecodeMethod(ts, mid));
-  scoped_array<byte> arg_array(CreateArgArray(ts, method, args));
+  UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 

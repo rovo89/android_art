@@ -5,17 +5,16 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "UniquePtr.h"
 #include "base64.h"
-#include "heap.h"
-#include "thread.h"
-#include "stringprintf.h"
 #include "class_linker.h"
 #include "dex_file.h"
-
+#include "heap.h"
+#include "gtest/gtest.h"
+#include "stringprintf.h"
+#include "thread.h"
 #include "unicode/uclean.h"
 #include "unicode/uvernum.h"
-
-#include "gtest/gtest.h"
 
 namespace art {
 
@@ -86,7 +85,7 @@ class CommonTest : public testing::Test {
     boot_class_path_.push_back(java_lang_dex_file_.get());
 
     runtime_.reset(Runtime::Create(boot_class_path_));
-    ASSERT_TRUE(runtime_ != NULL);
+    ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();
   }
 
@@ -168,9 +167,9 @@ class CommonTest : public testing::Test {
   bool is_host_;
   std::string android_data_;
   std::string art_cache_;
-  scoped_ptr<const DexFile> java_lang_dex_file_;
+  UniquePtr<const DexFile> java_lang_dex_file_;
   std::vector<const DexFile*> boot_class_path_;
-  scoped_ptr<Runtime> runtime_;
+  UniquePtr<Runtime> runtime_;
   ClassLinker* class_linker_;
 };
 

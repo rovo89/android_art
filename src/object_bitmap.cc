@@ -16,13 +16,13 @@
 
 #include <sys/mman.h>
 
+#include "UniquePtr.h"
 #include "logging.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
 HeapBitmap* HeapBitmap::Create(byte* base, size_t length) {
-  scoped_ptr<HeapBitmap> bitmap(new HeapBitmap(base, length));
+  UniquePtr<HeapBitmap> bitmap(new HeapBitmap(base, length));
   if (!bitmap->Init(base, length)) {
     return NULL;
   } else {
@@ -37,7 +37,7 @@ bool HeapBitmap::Init(const byte* base, size_t max_size) {
   CHECK(base != NULL);
   size_t length = HB_OFFSET_TO_INDEX(max_size) * kWordSize;
   mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE));
-  if (mem_map_ == NULL) {
+  if (mem_map_.get() == NULL) {
     return false;
   }
   words_ = reinterpret_cast<word*>(mem_map_->GetAddress());

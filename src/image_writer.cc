@@ -3,10 +3,12 @@
 #include "image_writer.h"
 
 #include <sys/mman.h>
+
 #include <vector>
 
-#include "dex_cache.h"
+#include "UniquePtr.h"
 #include "class_linker.h"
+#include "dex_cache.h"
 #include "file.h"
 #include "globals.h"
 #include "heap.h"
@@ -27,8 +29,8 @@ bool ImageWriter::Write(Space* space, const char* filename, byte* image_base) {
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 
-  scoped_ptr<File> file(OS::OpenFile(filename, true));
-  if (file == NULL) {
+  UniquePtr<File> file(OS::OpenFile(filename, true));
+  if (file.get() == NULL) {
     return false;
   }
   return file->WriteFully(image_->GetAddress(), image_top_);
@@ -39,7 +41,7 @@ bool ImageWriter::Init(Space* space) {
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
   image_.reset(MemMap::Map(length, prot));
-  if (image_ == NULL) {
+  if (image_.get() == NULL) {
     return false;
   }
   return true;

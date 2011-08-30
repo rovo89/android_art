@@ -3,6 +3,7 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
+#include "UniquePtr.h"
 #include "casts.h"
 #include "constants.h"
 #include "globals.h"
@@ -739,7 +740,7 @@ class Method : public AccessibleObject {
 
  private:
   // Compiled code associated with this method
-  scoped_ptr<MemMap> code_area_;
+  UniquePtr<MemMap> code_area_;
   const void* code_;
   // Instruction set of the compiled code
   InstructionSet code_instruction_set_;

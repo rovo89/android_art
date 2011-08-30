@@ -5,31 +5,31 @@
 #include "gtest/gtest.h"
 
 #include "globals.h"
-#include "scoped_ptr.h"
+#include "UniquePtr.h"
 
 namespace art {
 
 TEST(SpaceTest, Init) {
   {
     // Less than
-    scoped_ptr<Space> space(Space::Create(16 * MB, 32 * MB, NULL));
-    EXPECT_TRUE(space != NULL);
+    UniquePtr<Space> space(Space::Create(16 * MB, 32 * MB, NULL));
+    EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Equal to
-    scoped_ptr<Space> space(Space::Create(16 * MB, 16 * MB, NULL));
-    EXPECT_TRUE(space != NULL);
+    UniquePtr<Space> space(Space::Create(16 * MB, 16 * MB, NULL));
+    EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Greater than
-    scoped_ptr<Space> space(Space::Create(32 * MB, 16 * MB, NULL));
-    EXPECT_TRUE(space == NULL);
+    UniquePtr<Space> space(Space::Create(32 * MB, 16 * MB, NULL));
+    EXPECT_TRUE(space.get() == NULL);
   }
 }
 
 TEST(SpaceTest, AllocAndFree) {
-  scoped_ptr<Space> space(Space::Create(4 * MB, 16 * MB, NULL));
-  ASSERT_TRUE(space != NULL);
+  UniquePtr<Space> space(Space::Create(4 * MB, 16 * MB, NULL));
+  ASSERT_TRUE(space.get() != NULL);
 
   // Succeeds, fits without adjusting the max allowed footprint.
   void* ptr1 = space->AllocWithoutGrowth(1 * MB);

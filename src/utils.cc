@@ -1,6 +1,7 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: enh@google.com (Elliott Hughes)
 
+#include "UniquePtr.h"
 #include "file.h"
 #include "object.h"
 #include "os.h"
@@ -9,8 +10,8 @@
 namespace art {
 
 std::string ReadFileToString(const char* file_name) {
-  scoped_ptr<File> file(OS::OpenFile(file_name, false));
-  CHECK(file != NULL);
+  UniquePtr<File> file(OS::OpenFile(file_name, false));
+  CHECK(file.get() != NULL);
 
   std::string contents;
   char buf[8 * KB];

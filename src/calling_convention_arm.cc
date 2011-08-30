@@ -91,17 +91,14 @@ size_t JniCallingConvention::SpillAreaSize() {
   return GetMethod()->IsSynchronized() ? (4 * kPointerSize) : kPointerSize;
 }
 
-std::vector<ManagedRegister>* JniCallingConvention::ComputeRegsToSpillPreCall()
-{
+void JniCallingConvention::ComputeRegsToSpillPreCall(std::vector<ManagedRegister>& regs) {
   // A synchronized method will call monitor enter clobbering R1, R2 and R3
   // unless they are spilled.
-  std::vector<ManagedRegister>* result = new std::vector<ManagedRegister>();
   if (GetMethod()->IsSynchronized()) {
-    result->push_back(ManagedRegister::FromCoreRegister(R1));
-    result->push_back(ManagedRegister::FromCoreRegister(R2));
-    result->push_back(ManagedRegister::FromCoreRegister(R3));
+    regs.push_back(ManagedRegister::FromCoreRegister(R1));
+    regs.push_back(ManagedRegister::FromCoreRegister(R2));
+    regs.push_back(ManagedRegister::FromCoreRegister(R3));
   }
-  return result;
 }
 
 // Will reg be crushed by an outgoing argument?

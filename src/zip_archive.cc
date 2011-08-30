@@ -21,6 +21,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "UniquePtr.h"
+
 namespace art {
 
 // Get 2 little-endian bytes.
@@ -160,13 +162,13 @@ class ZStream {
 
 static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t compressed_length) {
   const size_t kBufSize = 32768;
-  scoped_array<uint8_t> read_buf(new uint8_t[kBufSize]);
-  scoped_array<uint8_t> write_buf(new uint8_t[kBufSize]);
-  if (read_buf == NULL || write_buf == NULL) {
+  UniquePtr<uint8_t[]> read_buf(new uint8_t[kBufSize]);
+  UniquePtr<uint8_t[]> write_buf(new uint8_t[kBufSize]);
+  if (read_buf.get() == NULL || write_buf.get() == NULL) {
     return false;
   }
 
-  scoped_ptr<ZStream> zstream(new ZStream(write_buf.get(), kBufSize));
+  UniquePtr<ZStream> zstream(new ZStream(write_buf.get(), kBufSize));
 
   // Use the undocumented "negative window bits" feature to tell zlib
   // that there's no zlib header waiting for it.
@@ -263,8 +265,8 @@ ZipArchive* ZipArchive::Open(const std::string& filename) {
     PLOG(WARNING) << "Unable to open '" << filename << "'";
     return NULL;
   }
-  scoped_ptr<ZipArchive> zip_archive(new ZipArchive(fd));
-  if (zip_archive == NULL) {
+  UniquePtr<ZipArchive> zip_archive(new ZipArchive(fd));
+  if (zip_archive.get() == NULL) {
       return NULL;
   }
   if (!zip_archive->MapCentralDirectory()) {
@@ -327,8 +329,8 @@ bool ZipArchive::MapCentralDirectory() {
       read_amount = file_length;
   }
 
-  scoped_array<uint8_t> scan_buf(new uint8_t[read_amount]);
-  if (scan_buf == NULL) {
+  UniquePtr<uint8_t[]> scan_buf(new uint8_t[read_amount]);
+  if (scan_buf.get() == NULL) {
     return false;
   }
 
@@ -385,7 +387,7 @@ bool ZipArchive::MapCentralDirectory() {
 
   // It all looks good.  Create a mapping for the CD.
   dir_map_.reset(MemMap::Map(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset));
-  if (dir_map_ == NULL) {
+  if (dir_map_.get() == NULL) {
     return false;
   }
 

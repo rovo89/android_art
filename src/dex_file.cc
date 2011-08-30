@@ -3,7 +3,6 @@
 #include "dex_file.h"
 
 #include <fcntl.h>
-#include <map>
 #include <stdio.h>
 #include <string.h>
 #include <sys/file.h>
@@ -11,11 +10,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <map>
+
+#include "UniquePtr.h"
 #include "globals.h"
 #include "logging.h"
 #include "object.h"
 #include "os.h"
-#include "scoped_ptr.h"
 #include "stringprintf.h"
 #include "thread.h"
 #include "utils.h"
@@ -184,13 +185,13 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
   std::string cache_path_tmp = StringPrintf("%s/art-cache/%s", data_root, cache_file.c_str());
   // Example cache_path_tmp = /data/art-cache/parent@dir@foo.jar@classes.dex
 
-  scoped_ptr<ZipArchive> zip_archive(ZipArchive::Open(filename));
-  if (zip_archive == NULL) {
+  UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
+  if (zip_archive.get() == NULL) {
     LOG(WARNING) << "Could not open " << filename << " when looking for classes.dex";
     return NULL;
   }
-  scoped_ptr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
-  if (zip_entry == NULL) {
+  UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
+  if (zip_entry.get() == NULL) {
     LOG(WARNING) << "Could not find classes.dex within " << filename;
     return NULL;
   }
@@ -218,11 +219,11 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
         old = current_thread->GetState();
         current_thread->SetState(Thread::kNative);
     }
-    scoped_ptr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
+    UniquePtr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
     if (current_thread != NULL) {
         current_thread->SetState(old);
     }
-    if (fd == NULL) {
+    if (fd.get() == NULL) {
       return NULL;
     }
 
@@ -248,8 +249,8 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
 
     // We have the correct file open and locked. Extract classes.dex
     TmpFile tmp_file(cache_path_tmp);
-    scoped_ptr<File> file(OS::FileFromFd(cache_path_tmp.c_str(), fd->GetFd()));
-    if (file == NULL) {
+    UniquePtr<File> file(OS::FileFromFd(cache_path_tmp.c_str(), fd->GetFd()));
+    if (file.get() == NULL) {
       return NULL;
     }
     bool success = zip_entry->Extract(*file);
@@ -265,8 +266,8 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
       return NULL;
     }
     const size_t kBufSize = 32768;
-    scoped_array<uint8_t> buf(new uint8_t[kBufSize]);
-    if (buf == NULL) {
+    UniquePtr<uint8_t[]> buf(new uint8_t[kBufSize]);
+    if (buf.get() == NULL) {
       return NULL;
     }
     uint32_t computed_crc = crc32(0L, Z_NULL, 0);
@@ -302,7 +303,7 @@ const DexFile* DexFile::OpenPtr(byte* ptr, size_t length, const std::string& loc
 
 const DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
                              const std::string& location, Closer* closer) {
-  scoped_ptr<DexFile> dex_file(new DexFile(dex_bytes, length, location, closer));
+  UniquePtr<DexFile> dex_file(new DexFile(dex_bytes, length, location, closer));
   if (!dex_file->Init()) {
     return NULL;
   } else {

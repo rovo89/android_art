@@ -4,14 +4,14 @@
 
 #include <sys/mman.h>
 
+#include "UniquePtr.h"
 #include "globals.h"
 #include "logging.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
 MarkStack* MarkStack::Create() {
-  scoped_ptr<MarkStack> mark_stack(new MarkStack());
+  UniquePtr<MarkStack> mark_stack(new MarkStack);
   bool success = mark_stack->Init();
   if (!success) {
     return NULL;
@@ -23,7 +23,7 @@ MarkStack* MarkStack::Create() {
 bool MarkStack::Init() {
   size_t length = 64 * MB;
   mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE));
-  if (mem_map_ == NULL) {
+  if (mem_map_.get() == NULL) {
     return false;
   }
   byte* addr = mem_map_->GetAddress();

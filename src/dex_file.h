@@ -7,10 +7,10 @@
 #include <string>
 #include <vector>
 
+#include "UniquePtr.h"
 #include "globals.h"
 #include "leb128.h"
 #include "logging.h"
-#include "scoped_ptr.h"
 #include "stringpiece.h"
 #include "strutil.h"
 #include "utils.h"
@@ -885,7 +885,7 @@ class DexFile {
   const std::string location_;
 
   // Helper object to free the underlying allocation.
-  scoped_ptr<Closer> closer_;
+  UniquePtr<Closer> closer_;
 
   // Points to the header section.
   const Header* header_;

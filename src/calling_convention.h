@@ -97,9 +97,10 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // | Native frame           |
 class JniCallingConvention : public CallingConvention {
  public:
-  explicit JniCallingConvention(Method* native_method) :
-                      CallingConvention(native_method),
-                      spill_regs_(ComputeRegsToSpillPreCall()) {}
+  explicit JniCallingConvention(Method* native_method)
+      : CallingConvention(native_method) {
+    ComputeRegsToSpillPreCall(spill_regs_);
+  }
 
   // Size of frame excluding space for outgoing args (its assumed Method* is
   // always at the bottom of a frame, but this doesn't work for outgoing
@@ -120,7 +121,7 @@ class JniCallingConvention : public CallingConvention {
   // Registers that must be spilled (due to clobbering) before the call into
   // the native routine
   const std::vector<ManagedRegister>& RegsToSpillPreCall() {
-    return *spill_regs_.get();
+    return spill_regs_;
   }
 
   // Returns true if the register will be clobbered by an outgoing
@@ -167,10 +168,10 @@ class JniCallingConvention : public CallingConvention {
   size_t NumberOfOutgoingStackArgs();
 
   // Compute registers for RegsToSpillPreCall
-  std::vector<ManagedRegister>* ComputeRegsToSpillPreCall();
+  void ComputeRegsToSpillPreCall(std::vector<ManagedRegister>& regs);
 
   // Extra registers to spill before the call into native
-  const scoped_ptr<std::vector<ManagedRegister> > spill_regs_;
+  std::vector<ManagedRegister> spill_regs_;
 
   static size_t NumberOfExtraArgumentsForJni(const Method* method);
   DISALLOW_COPY_AND_ASSIGN(JniCallingConvention);

@@ -3,10 +3,10 @@
 #ifndef ART_SRC_MARK_STACK_H_
 #define ART_SRC_MARK_STACK_H_
 
+#include "UniquePtr.h"
 #include "logging.h"
 #include "macros.h"
 #include "mem_map.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
@@ -44,7 +44,7 @@ class MarkStack {
   bool Init();
 
   // Memory mapping of the mark stack.
-  scoped_ptr<MemMap> mem_map_;
+  UniquePtr<MemMap> mem_map_;
 
   // Base of the mark stack.
   const Object* const* base_;

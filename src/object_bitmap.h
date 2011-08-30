@@ -18,10 +18,10 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include "UniquePtr.h"
 #include "globals.h"
 #include "logging.h"
 #include "mem_map.h"
-#include "scoped_ptr.h"
 
 namespace art {
 
@@ -119,7 +119,7 @@ class HeapBitmap {
 
   bool Init(const byte* base, size_t length);
 
-  scoped_ptr<MemMap> mem_map_;
+  UniquePtr<MemMap> mem_map_;
 
   word* words_;
 

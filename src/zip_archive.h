@@ -17,16 +17,17 @@
 #ifndef ART_SRC_ZIP_ARCHIVE_H_
 #define ART_SRC_ZIP_ARCHIVE_H_
 
-#include <map>
 #include <stdint.h>
 #include <sys/mman.h>
 #include <zlib.h>
 
+#include <map>
+
+#include "UniquePtr.h"
 #include "file.h"
 #include "globals.h"
 #include "logging.h"
 #include "mem_map.h"
-#include "scoped_ptr.h"
 #include "stringpiece.h"
 #include "unordered_map.h"
 
@@ -118,7 +119,7 @@ class ZipArchive {
   int fd_;
   uint16_t num_entries_;
   off_t dir_offset_;
-  scoped_ptr<MemMap> dir_map_;
+  UniquePtr<MemMap> dir_map_;
   typedef std::tr1::unordered_map<StringPiece, const byte*, StringPieceHash> DirEntries;
   DirEntries dir_entries_;
 

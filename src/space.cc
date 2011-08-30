@@ -4,18 +4,18 @@
 
 #include <sys/mman.h>
 
+#include "UniquePtr.h"
 #include "file.h"
 #include "image.h"
 #include "logging.h"
 #include "mspace.h"
 #include "os.h"
-#include "scoped_ptr.h"
 #include "utils.h"
 
 namespace art {
 
 Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_base) {
-  scoped_ptr<Space> space(new Space());
+  UniquePtr<Space> space(new Space());
   bool success = space->Init(initial_size, maximum_size, requested_base);
   if (!success) {
     return NULL;
@@ -26,7 +26,7 @@ Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_b
 
 Space* Space::Create(const char* image_file_name) {
   CHECK(image_file_name != NULL);
-  scoped_ptr<Space> space(new Space());
+  UniquePtr<Space> space(new Space());
   bool success = space->Init(image_file_name);
   if (!success) {
     return NULL;
@@ -63,8 +63,8 @@ bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base)
   }
   size_t length = RoundUp(maximum_size, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
-  scoped_ptr<MemMap> mem_map(MemMap::Map(requested_base, length, prot));
-  if (mem_map == NULL) {
+  UniquePtr<MemMap> mem_map(MemMap::Map(requested_base, length, prot));
+  if (mem_map.get() == NULL) {
     return false;
   }
   Init(mem_map.release());
@@ -81,8 +81,8 @@ void Space::Init(MemMap* mem_map) {
 
 
 bool Space::Init(const char* image_file_name) {
-  scoped_ptr<File> file(OS::OpenFile(image_file_name, false));
-  if (file == NULL) {
+  UniquePtr<File> file(OS::OpenFile(image_file_name, false));
+  if (file.get() == NULL) {
     return false;
   }
   ImageHeader image_header;
@@ -90,13 +90,10 @@ bool Space::Init(const char* image_file_name) {
   if (!success || !image_header.IsValid()) {
     return false;
   }
-  scoped_ptr<MemMap> map(MemMap::Map(image_header.GetBaseAddr(),
-                                     file->Length(),
-                                     PROT_READ | PROT_WRITE,
-                                     MAP_PRIVATE | MAP_FIXED,
-                                     file->Fd(),
-                                     0));
-  if (map == NULL) {
+  UniquePtr<MemMap> map(MemMap::Map(image_header.GetBaseAddr(),
+      file->Length(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED,
+      file->Fd(), 0));
+  if (map.get() == NULL) {
     return false;
   }
   CHECK_EQ(image_header.GetBaseAddr(), map->GetAddress());

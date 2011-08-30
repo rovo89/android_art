@@ -1,9 +1,9 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "globals.h"
-#include "scoped_ptr.h"
-
 #include <vector>
+
+#include "UniquePtr.h"
+#include "globals.h"
 
 namespace art {
 
@@ -65,7 +65,7 @@ byte* DecodeBase64(const char* src, size_t* dst_size) {
   if (y != 0) {
     return NULL;
   }
-  scoped_ptr<byte> dst(new byte[tmp.size()]);
+  UniquePtr<byte[]> dst(new byte[tmp.size()]);
   if (dst_size != NULL) {
     *dst_size = tmp.size();
   }

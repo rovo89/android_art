@@ -5,7 +5,6 @@
 #include "dex_cache.h"
 #include "heap.h"
 #include "object.h"
-#include "scoped_ptr.h"
 
 #include <stdio.h>
 #include "gtest/gtest.h"
