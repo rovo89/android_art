@@ -693,7 +693,7 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     if (dInsn->vA == 0)
         return callState;
 
-    oatLockAllTemps(cUnit);
+    oatLockCallTemps(cUnit);
     callState = nextCallInsn(cUnit, mir, dInsn, callState);
 
     /*
@@ -816,7 +816,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
 
     // Finally, deal with the register arguments
     // We'll be using fixed registers here
-    oatLockAllTemps(cUnit);
+    oatLockCallTemps(cUnit);
     callState = nextCallInsn(cUnit, mir, dInsn, callState);
     return callState;
 }
