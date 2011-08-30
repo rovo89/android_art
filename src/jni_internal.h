@@ -49,6 +49,9 @@ struct JavaVMExt : public JavaVM {
   bool verbose_jni;
   bool force_copy;
 
+  // Used to provide compatibility for apps that assumed direct references.
+  bool work_around_app_jni_bugs;
+
   // Used to hold references to pinned primitive arrays.
   Mutex* pins_lock;
   ReferenceTable pin_table;
@@ -75,7 +78,9 @@ struct JNIEnvExt : public JNIEnv {
   Thread* self;
   JavaVMExt* vm;
 
+  // Frequently-accessed fields cached from JavaVM.
   bool check_jni;
+  bool work_around_app_jni_bugs;
 
   // How many nested "critical" JNI calls are we in?
   int critical;

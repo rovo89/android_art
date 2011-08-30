@@ -21,6 +21,7 @@
 
 #include "class_linker.h"
 #include "logging.h"
+#include "scoped_jni_thread_state.h"
 #include "thread.h"
 
 namespace art {
@@ -51,50 +52,6 @@ void JniAbort(const char* jni_function_name) {
  *      JNI function helpers
  * ===========================================================================
  */
-
-// TODO: remove this ODR violation!
-class ScopedJniThreadState {
- public:
-  explicit ScopedJniThreadState(JNIEnv* env)
-  : env_(reinterpret_cast<JNIEnvExt*>(env)) {
-    self_ = ThreadForEnv(env);
-    self_->SetState(Thread::kRunnable);
-  }
-
-  ~ScopedJniThreadState() {
-    self_->SetState(Thread::kNative);
-  }
-
-  JNIEnvExt* Env() {
-    return env_;
-  }
-
-  Thread* Self() {
-    return self_;
-  }
-
-  JavaVMExt* Vm() {
-    return env_->vm;
-  }
-
- private:
-  static Thread* ThreadForEnv(JNIEnv* env) {
-    // TODO: need replacement for gDvmJni.
-    bool workAroundAppJniBugs = true;
-    Thread* env_self = reinterpret_cast<JNIEnvExt*>(env)->self;
-    Thread* self = workAroundAppJniBugs ? Thread::Current() : env_self;
-    if (self != env_self) {
-      LOG(ERROR) << "JNI ERROR: JNIEnv for " << *env_self
-                 << " used on " << *self;
-      // TODO: dump stack
-    }
-    return self;
-  }
-
-  JNIEnvExt* env_;
-  Thread* self_;
-  DISALLOW_COPY_AND_ASSIGN(ScopedJniThreadState);
-};
 
 template<typename T>
 T Decode(ScopedJniThreadState& ts, jobject obj) {
@@ -802,7 +759,7 @@ private:
 
     Object* o = Decode<Object*>(ts, java_object);
     if (o != NULL && !Heap::IsHeapAddress(o)) {
-      // TODO: when we remove workAroundAppJniBugs, this should be impossible.
+      // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
       LOG(ERROR) << "JNI ERROR: native code passing in reference to invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
       JniAbort();
     }
@@ -837,7 +794,7 @@ private:
     if (mEnv != threadEnv) {
       LOG(ERROR) << "JNI ERROR: thread " << *self << " using JNIEnv* from thread " << *mEnv->self;
       // If we're keeping broken code limping along, we need to suppress the abort...
-      if (true/* TODO: !gDvmJni.workAroundAppJniBugs*/) {
+      if (!mEnv->work_around_app_jni_bugs) {
         JniAbort();
         return;
       }

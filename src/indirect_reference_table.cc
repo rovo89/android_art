@@ -228,11 +228,10 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   DCHECK_GE(segmentState.parts.numHoles, prevState.parts.numHoles);
 
   int idx = ExtractIndex(iref);
-  bool workAroundAppJniBugs = false;
 
-  if (GetIndirectRefKind(iref) == kSirtOrInvalid /*&& gDvmJni.workAroundAppJniBugs*/) { // TODO
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  if (GetIndirectRefKind(iref) == kSirtOrInvalid || vm->work_around_app_jni_bugs) {
     idx = LinearScan(iref, bottomIndex, topIndex, table_);
-    workAroundAppJniBugs = true;
     if (idx == -1) {
       LOG(WARNING) << "trying to work around app JNI bugs, but didn't find " << iref << " in table!";
       return false;
@@ -253,7 +252,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   if (idx == topIndex-1) {
     // Top-most entry.  Scan up and consume holes.
 
-    if (workAroundAppJniBugs == false && !CheckEntry("remove", iref, idx)) {
+    if (!vm->work_around_app_jni_bugs && !CheckEntry("remove", iref, idx)) {
       return false;
     }
 
@@ -284,7 +283,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       LOG(INFO) << "--- WEIRD: removing null entry " << idx;
       return false;
     }
-    if (workAroundAppJniBugs == false && !CheckEntry("remove", iref, idx)) {
+    if (!vm->work_around_app_jni_bugs && !CheckEntry("remove", iref, idx)) {
       return false;
     }
 

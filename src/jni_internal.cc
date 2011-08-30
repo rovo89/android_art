@@ -18,6 +18,7 @@
 #include "logging.h"
 #include "object.h"
 #include "runtime.h"
+#include "scoped_jni_thread_state.h"
 #include "stringpiece.h"
 #include "thread.h"
 
@@ -49,54 +50,6 @@ void EnsureInvokeStub(Method* method) {
 }
 
 namespace {
-
-// Entry/exit processing for all JNI calls.
-//
-// This performs the necessary thread state switching, lets us amortize the
-// cost of working out the current thread, and lets us check (and repair) apps
-// that are using a JNIEnv on the wrong thread.
-class ScopedJniThreadState {
- public:
-  explicit ScopedJniThreadState(JNIEnv* env)
-      : env_(reinterpret_cast<JNIEnvExt*>(env)) {
-    self_ = ThreadForEnv(env);
-    self_->SetState(Thread::kRunnable);
-  }
-
-  ~ScopedJniThreadState() {
-    self_->SetState(Thread::kNative);
-  }
-
-  JNIEnvExt* Env() {
-    return env_;
-  }
-
-  Thread* Self() {
-    return self_;
-  }
-
-  JavaVMExt* Vm() {
-    return env_->vm;
-  }
-
- private:
-  static Thread* ThreadForEnv(JNIEnv* env) {
-    // TODO: need replacement for gDvmJni.
-    bool workAroundAppJniBugs = true;
-    Thread* env_self = reinterpret_cast<JNIEnvExt*>(env)->self;
-    Thread* self = workAroundAppJniBugs ? Thread::Current() : env_self;
-    if (self != env_self) {
-      LOG(ERROR) << "JNI ERROR: JNIEnv for " << *env_self
-          << " used on " << *self;
-      // TODO: dump stack
-    }
-    return self;
-  }
-
-  JNIEnvExt* env_;
-  Thread* self_;
-  DISALLOW_COPY_AND_ASSIGN(ScopedJniThreadState);
-};
 
 /*
  * Add a local reference for an object to the current stack frame.  When
@@ -142,7 +95,7 @@ T AddLocalReference(ScopedJniThreadState& ts, Object* obj) {
   }
 #endif
 
-  if (false /*gDvmJni.workAroundAppJniBugs*/) { // TODO
+  if (ts.Env()->work_around_app_jni_bugs) {
     // Hand out direct pointers to support broken old apps.
     return reinterpret_cast<T>(obj);
   }
@@ -2313,10 +2266,13 @@ class JNI {
         return JNILocalRefType;
       }
 
+      if (!ts.Env()->work_around_app_jni_bugs) {
+        return JNIInvalidRefType;
+      }
+
       // If we're handing out direct pointers, check whether it's a direct pointer
       // to a local reference.
-      // TODO: replace 'false' with the replacement for gDvmJni.workAroundAppJniBugs
-      if (false && Decode<Object*>(ts, java_object) == reinterpret_cast<Object*>(java_object)) {
+      if (Decode<Object*>(ts, java_object) == reinterpret_cast<Object*>(java_object)) {
         if (ts.Env()->locals.Contains(java_object)) {
           return JNILocalRefType;
         }
@@ -2573,6 +2529,7 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
     : self(self),
       vm(vm),
       check_jni(vm->check_jni),
+      work_around_app_jni_bugs(vm->work_around_app_jni_bugs),
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax),
       locals(kLocalsInitial, kLocalsMax, kLocal) {
@@ -2698,7 +2655,8 @@ JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
       check_jni_abort_hook(NULL),
       check_jni(check_jni),
       verbose_jni(verbose_jni),
-      force_copy(false), // TODO
+      force_copy(false), // TODO: add a way to enable this
+      work_around_app_jni_bugs(false), // TODO: add a way to enable this
       pins_lock(Mutex::Create("JNI pin table lock")),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
       globals_lock(Mutex::Create("JNI global reference table lock")),

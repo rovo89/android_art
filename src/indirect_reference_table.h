@@ -275,7 +275,7 @@ class IndirectReferenceTable {
     return table_[ExtractIndex(iref)];
   }
 
-  // TODO: only used for workAroundAppJniBugs support.
+  // TODO: remove when we remove work_around_app_jni_bugs support.
   bool Contains(IndirectRef iref) const;
 
   /*
