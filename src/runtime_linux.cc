@@ -2,6 +2,7 @@
 
 #include "runtime.h"
 
+#include <cxxabi.h>
 #include <execinfo.h>
 
 #include "logging.h"
@@ -9,6 +10,21 @@
 #include "stringprintf.h"
 
 namespace art {
+
+std::string Demangle(const std::string& mangled_name) {
+  if (mangled_name.empty()) {
+    return "??";
+  }
+
+  // http://gcc.gnu.org/onlinedocs/libstdc++/manual/ext_demangling.html
+  int status;
+  scoped_ptr_malloc<char> result(abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status));
+  if (result != NULL) {
+    return result.get();
+  }
+
+  return mangled_name + "()";
+}
 
 void Runtime::PlatformAbort(const char* file, int line) {
   // On the host, we don't have debuggerd to dump a stack for us.
@@ -19,17 +35,33 @@ void Runtime::PlatformAbort(const char* file, int line) {
   size_t frame_count = backtrace(frames, MAX_STACK_FRAMES);
 
   // Turn them into something human-readable with symbols.
-  // TODO: in practice, we may find that we should use backtrace_symbols_fd
-  // to avoid allocation, rather than use our own custom formatting.
   scoped_ptr_malloc<char*> symbols(backtrace_symbols(frames, frame_count));
   if (symbols == NULL) {
     PLOG(ERROR) << "backtrace_symbols failed";
     return;
   }
 
+  // backtrace_symbols(3) gives us lines like this:
+  // "/usr/local/google/home/enh/a1/out/host/linux-x86/bin/../lib/libartd.so(_ZN3art7Runtime13PlatformAbortEPKci+0x15b) [0xf76c5af3]"
+
+  // We extract the pieces and demangle, so we can produce output like this:
+  // libartd.so:-1] 	#00 art::Runtime::PlatformAbort(char const*, int) +0x15b [0xf770dd51]
+
   for (size_t i = 0; i < frame_count; ++i) {
-    LogMessage(file, line, ERROR, -1).stream()
-        << StringPrintf("\t#%02d %s", i, symbols.get()[i]);
+    std::string text(symbols.get()[i]);
+
+    size_t index = text.find('(');
+    std::string filename(text.substr(0, index));
+    text.erase(0, index + 1);
+
+    index = text.find_first_of("+)");
+    std::string function_name(Demangle(text.substr(0, index)));
+    text.erase(0, index);
+    index = text.find(')');
+    text.erase(index, 1);
+
+    std::string log_line(StringPrintf("\t#%02d ", i) + function_name + text);
+    LogMessage(filename.c_str(), -1, ERROR, -1).stream() << log_line;
   }
 }
 
