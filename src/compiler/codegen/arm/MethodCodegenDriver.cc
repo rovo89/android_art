@@ -559,6 +559,8 @@ static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
     for (int i = 0; i < 3; i++) {
         if (args[i] != INVALID_REG) {
             RegLocation rlArg = oatGetSrc(cUnit, mir, i);
+            // Arguments are treated as a series of untyped 32-bit values.
+            rlArg.wide = false;
             loadValueDirectFixed(cUnit, rlArg, r1 + i);
             callState = nextCallInsn(cUnit, mir, dInsn, callState);
         }
@@ -579,7 +581,7 @@ static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
 static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
                                  DecodedInstruction* dInsn, int state)
 {
-    UNIMPLEMENTED(FATAL) << "Update with new cache model";
+    UNIMPLEMENTED(FATAL) << "Need findInterfaceMethodInCache";
 #if 0
     RegLocation rlArg;
     switch(state) {
@@ -628,7 +630,7 @@ static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
 static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
                              DecodedInstruction* dInsn, int state)
 {
-    UNIMPLEMENTED(FATAL) << "Update with new cache model";
+    UNIMPLEMENTED(FATAL) << "Need INVOKE_SUPER implementation";
 #if 0
     RegLocation rlArg;
     switch(state) {
@@ -763,10 +765,10 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      * Make sure range list doesn't span the break between in normal
      * Dalvik vRegs and the ins.
      */
-    int highestVreg = oatGetSrc(cUnit, mir, numArgs-1).sRegLow;
-    if (highestVreg >= cUnit->method->num_registers_ -
-        cUnit->method->num_ins_) {
-        LOG(FATAL) << "Wide argument spanned locals & args";
+    int highestArg = oatGetSrc(cUnit, mir, numArgs-1).sRegLow;
+    int boundaryReg = cUnit->method->num_registers_ - cUnit->method->num_ins_;
+    if ((firstArg < boundaryReg) && (highestArg >= boundaryReg)) {
+        LOG(FATAL) << "Argument list spanned locals & args";
     }
 
     /*
@@ -777,11 +779,21 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      */
     // Scan the rest of the args - if in physReg flush to memory
     for (int i = 4; i < numArgs; i++) {
-        RegLocation loc = oatUpdateLoc(cUnit,
-            oatGetSrc(cUnit, mir, i));
-        if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
-            storeBaseDisp(cUnit, rSP, loc.spOffset, loc.lowReg, kWord);
-            callState = nextCallInsn(cUnit, mir, dInsn, callState);
+        RegLocation loc = oatGetSrc(cUnit, mir, i);
+        //TODO: generic loc flushing routine
+        if (loc.wide) {
+            loc = oatUpdateLocWide(cUnit, loc);
+            if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
+                storeBaseDispWide(cUnit, rSP, loc.spOffset, loc.lowReg,
+                                  loc.highReg);
+                callState = nextCallInsn(cUnit, mir, dInsn, callState);
+            }
+        } else {
+            loc = oatUpdateLoc(cUnit, loc);
+            if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
+                storeBaseDisp(cUnit, rSP, loc.spOffset, loc.lowReg, kWord);
+                callState = nextCallInsn(cUnit, mir, dInsn, callState);
+            }
         }
     }
 
@@ -799,11 +811,11 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         int regsLeft = std::min(numArgs - 3, 16);
         callState = nextCallInsn(cUnit, mir, dInsn, callState);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, startOffset);
-        newLIR3(cUnit, kThumb2Vldms, r3, fr0 & FP_REG_MASK, regsLeft);
+        newLIR3(cUnit, kThumb2Vldms, r3, fr0, regsLeft);
         callState = nextCallInsn(cUnit, mir, dInsn, callState);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, 4 /* Method* */ + (3 * 4));
         callState = nextCallInsn(cUnit, mir, dInsn, callState);
-        newLIR3(cUnit, kThumb2Vstms, r3, fr0 & FP_REG_MASK, regsLeft);
+        newLIR3(cUnit, kThumb2Vstms, r3, fr0, regsLeft);
         callState = nextCallInsn(cUnit, mir, dInsn, callState);
     }
 
@@ -1287,7 +1299,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             genArrayPut(cUnit, mir, kWord, rlSrc[1], rlSrc[2], rlSrc[0], 2);
             break;
         case OP_APUT_OBJECT:
-            genArrayPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
+            genArrayObjPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
             break;
         case OP_APUT_SHORT:
         case OP_APUT_CHAR:

@@ -17,13 +17,14 @@
 #include "Dalvik.h"
 #include "CompilerInternals.h"
 
+namespace art {
 /* FIXME - codegen helper functions, move to art runtime proper */
 
 /*
  * Float/double conversion requires clamping to min and max of integer form.  If
  * target doesn't support this normally, use these.
  */
-int64_t artD2L(double d)
+int64_t D2L(double d)
 {
     static const double kMaxLong = (double)(s8)0x7fffffffffffffffULL;
     static const double kMinLong = (double)(s8)0x8000000000000000ULL;
@@ -37,7 +38,7 @@ int64_t artD2L(double d)
         return (s8)d;
 }
 
-int64_t artF2L(float f)
+int64_t F2L(float f)
 {
     static const float kMaxLong = (float)(s8)0x7fffffffffffffffULL;
     static const float kMinLong = (float)(s8)0x8000000000000000ULL;
@@ -54,7 +55,7 @@ int64_t artF2L(float f)
 /*
  * Temporary placeholder.  Should include run-time checks for size
  * of fill data <= size of array.  If not, throw arrayOutOfBoundsException.
- * As with other new "NoThrow" routines, this should return to the caller
+ * As with other new "FromCode" routines, this should return to the caller
  * only if no exception has been thrown.
  *
  * NOTE: When dealing with a raw dex file, the data to be copied uses
@@ -68,7 +69,7 @@ int64_t artF2L(float f)
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-void artHandleFillArrayDataNoThrow(Array* array, const uint16_t* table)
+void HandleFillArrayDataFromCode(Array* array, const uint16_t* table)
 {
     uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
     uint32_t size_in_bytes = size * table[1];
@@ -76,3 +77,5 @@ void artHandleFillArrayDataNoThrow(Array* array, const uint16_t* table)
     memcpy((char*)array + art::Array::DataOffset().Int32Value(),
            (char*)&table[4], size_in_bytes);
 }
+
+} // namespace art

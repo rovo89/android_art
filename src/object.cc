@@ -63,7 +63,7 @@ Object* Class::AllocObject() {
   return Heap::AllocObject(this, this->object_size_);
 }
 
-bool Class::CanPutArrayElementNoThrow(const Class* elementClass, const Class* arrayClass) {
+bool Class::CanPutArrayElementFromCode(const Class* elementClass, const Class* arrayClass) {
   UNIMPLEMENTED(FATAL);
   return false;
 }

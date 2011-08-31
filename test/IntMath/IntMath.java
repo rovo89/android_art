@@ -23,6 +23,26 @@ class IntMath {
         foo_ = 123;
     }
 
+    static int constStringTest(int x) {
+        /* TODO: flesh this test out when we can call string library */
+        String str = "Hello World!";
+        return x * 2;
+    }
+
+    static void throwNullPointerException() {
+        throw new NullPointerException();
+    }
+
+    static int catchBlock(int x) {
+        try {
+            x += 123;
+            throwNullPointerException();
+        } catch (NullPointerException npe) {
+            x += 456;
+        }
+        return x;
+    }
+
     static int staticFieldTest(int x) {
         mBoolean1 = true;
         mBoolean2 = false;
@@ -800,6 +820,13 @@ class IntMath {
             System.out.printf("staticFieldTest PASSED\n");
         } else {
             System.out.printf("staticFieldTest FAILED: %d\n", res);
+        }
+
+        res = catchBlock(1000);
+        if (res == 1579) {
+            System.out.printf("catchBlock PASSED\n");
+        } else {
+            System.out.printf("catchBlock FAILED: %d\n", res);
         }
     }
 }

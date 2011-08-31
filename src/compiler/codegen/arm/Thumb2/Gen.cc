@@ -40,6 +40,14 @@ static inline s4 s4FromSwitchData(const void* switchData) {
 }
 #endif
 
+/* Generate unconditional branch instructions */
+static ArmLIR* genUnconditionalBranch(CompilationUnit* cUnit, ArmLIR* target)
+{
+    ArmLIR* branch = opNone(cUnit, kOpUncondBr);
+    branch->generic.target = (LIR*) target;
+    return branch;
+}
+
 /*
  * Generate a Thumb2 IT instruction, which can nullify up to
  * four subsequent instructions based on a condition and its
@@ -341,7 +349,7 @@ static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
     oatFlushAllRegs(cUnit);   /* Everything to home location */
     loadValueDirectFixed(cUnit, rlSrc, r0);
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pArtHandleFillArrayDataNoThrow), rLR);
+                 OFFSETOF_MEMBER(Thread, pHandleFillArrayDataFromCode), rLR);
     // Materialize a pointer to the fill data image
     newLIR3(cUnit, kThumb2AdrST, r1, 0, (intptr_t)tabRec);
     opReg(cUnit, kOpBlx, rLR);
@@ -496,33 +504,60 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 static void genConstClass(CompilationUnit* cUnit, MIR* mir,
                           RegLocation rlDest, RegLocation rlSrc)
 {
-    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedType(mir->dalvikInsn.vB);
-
-    if (classPtr == NULL) {
-        LOG(FATAL) << "Unexpected null class pointer";
-    }
-
-    UNIMPLEMENTED(WARNING) << "Not position independent.  Fix";
+    art::Class* classPtr = cUnit->method->dex_cache_resolved_types_->
+        Get(mir->dalvikInsn.vB);
+    int mReg = loadCurrMethod(cUnit);
+    int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadConstantNoClobber(cUnit, rlResult.lowReg, (int) classPtr );
-    storeValue(cUnit, rlDest, rlResult);
+    loadWordDisp(cUnit, mReg, OFFSETOF_MEMBER(Method, dex_cache_strings_),
+                 resReg);
+    loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
+                 (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
+    if (classPtr != NULL) {
+        // Fast path, we're done - just store result
+        storeValue(cUnit, rlDest, rlResult);
+    } else {
+        // Slow path.  Must test at runtime
+        ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, rlResult.lowReg,
+                                          0);
+        // Resolved, store and hop over following code
+        storeValue(cUnit, rlDest, rlResult);
+        ArmLIR* branch2 = genUnconditionalBranch(cUnit,0);
+        // TUNING: move slow path to end & remove unconditional branch
+        ArmLIR* target1 = newLIR0(cUnit, kArmPseudoTargetLabel);
+        target1->defMask = ENCODE_ALL;
+        // Call out to helper, which will return resolved type in r0
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
+        genRegCopy(cUnit, r1, mReg);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
+        opReg(cUnit, kOpBlx, rLR); // resolveTypeFromCode(idx, method)
+        oatClobberCallRegs(cUnit);
+        RegLocation rlResult = oatGetReturn(cUnit);
+        storeValue(cUnit, rlDest, rlResult);
+        // Rejoin code paths
+        ArmLIR* target2 = newLIR0(cUnit, kArmPseudoTargetLabel);
+        target2->defMask = ENCODE_ALL;
+        branch1->generic.target = (LIR*)target1;
+        branch2->generic.target = (LIR*)target2;
+    }
 }
 
 static void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
-    const String* strPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedString(mir->dalvikInsn.vB);
+    /* All strings should be available at compile time */
+    const art::String* str = cUnit->method->dex_cache_strings_->
+        Get(mir->dalvikInsn.vB);
+    DCHECK(str != NULL);
 
-    if (strPtr == NULL) {
-        /* Shouldn't happen */
-        LOG(FATAL) << "Unexpected null const string pointer";
-    }
-
-    UNIMPLEMENTED(WARNING) << "Not position indendent.  Fix";
+    int mReg = loadCurrMethod(cUnit);
+    int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadConstantNoClobber(cUnit, rlResult.lowReg, (int) strPtr );
+    loadWordDisp(cUnit, mReg, OFFSETOF_MEMBER(Method, dex_cache_strings_),
+                 resReg);
+    loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
+                 (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
     storeValue(cUnit, rlDest, rlResult);
 }
 
@@ -547,10 +582,10 @@ static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
 void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pArtAllocObjectNoThrow), rLR);
-    loadValueDirectFixed(cUnit, rlSrc, r1);  /* Exception object */
+                 OFFSETOF_MEMBER(Thread, pThrowException), rLR);
+    loadValueDirectFixed(cUnit, rlSrc, r1);  // Get exception object
     genRegCopy(cUnit, r0, rSELF);
-    opReg(cUnit, kOpBlx, rLR);
+    opReg(cUnit, kOpBlx, rLR); // artThrowException(thread, exception);
 }
 
 static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
@@ -574,7 +609,7 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadWordDisp(cUnit, r0, OFFSETOF_MEMBER(Object, klass_), r1);
     /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pArtInstanceofNonTrivial), rLR);
+                 OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
     loadConstant(cUnit, r0, 1);                /* Assume true */
     opRegReg(cUnit, kOpCmp, r1, r2);
     ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq);
@@ -614,7 +649,7 @@ static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     /* r0 now contains object->clazz */
     loadWordDisp(cUnit, rlSrc.lowReg, OFFSETOF_MEMBER(Object, klass_), r0);
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pArtInstanceofNonTrivialNoThrow), rLR);
+                 OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
     opRegReg(cUnit, kOpCmp, r0, r1);
     ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq);
     // Assume success - if not, artInstanceOfNonTrivial will handle throw
@@ -782,8 +817,8 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     hopTarget->defMask = ENCODE_ALL;
     hopBranch->generic.target = (LIR*)hopTarget;
 
-    // Go expensive route - artLockObjectNoThrow(self, obj);
-    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtLockObjectNoThrow),
+    // Go expensive route - artLockObjectFromCode(self, obj);
+    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pLockObjectFromCode),
                  rLR);
     genRegCopy(cUnit, r0, rSELF);
     newLIR1(cUnit, kThumbBlxR, rLR);
@@ -832,8 +867,8 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     hopTarget->defMask = ENCODE_ALL;
     hopBranch->generic.target = (LIR*)hopTarget;
 
-    // Go expensive route - artUnlockObjectNoThrow(self, obj);
-    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pArtUnlockObjectNoThrow),
+    // Go expensive route - UnlockObjectFromCode(self, obj);
+    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode),
                  rLR);
     genRegCopy(cUnit, r0, rSELF);
     newLIR1(cUnit, kThumbBlxR, rLR);
@@ -1057,13 +1092,13 @@ static bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
                                      2, 1);
         case OP_FLOAT_TO_LONG:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread,
-                                     pArtF2l), 1, 2);
+                                     pF2l), 1, 2);
         case OP_LONG_TO_FLOAT:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pL2f),
                                      2, 1);
         case OP_DOUBLE_TO_LONG:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread,
-                                     pArtD2l), 2, 2);
+                                     pD2l), 2, 2);
         case OP_LONG_TO_DOUBLE:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pL2d),
                                      2, 2);
@@ -1095,9 +1130,9 @@ static inline ArmLIR* genTrap(CompilationUnit* cUnit, int dOffset,
  * Generate array store
  *
  */
-static void genArrayPut(CompilationUnit* cUnit, MIR* mir,
-                              RegLocation rlArray, RegLocation rlIndex,
-                              RegLocation rlSrc, int scale)
+static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
+                           RegLocation rlArray, RegLocation rlIndex,
+                           RegLocation rlSrc, int scale)
 {
     RegisterClass regClass = oatRegClassBySize(kWord);
     int lenOffset = Array::LengthOffset().Int32Value();
@@ -1115,7 +1150,7 @@ static void genArrayPut(CompilationUnit* cUnit, MIR* mir,
                                 mir->offset, NULL);
     }
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pArtCanPutArrayElementNoThrow), rLR);
+                 OFFSETOF_MEMBER(Thread, pCanPutArrayElementFromCode), rLR);
     /* Get the array's clazz */
     loadWordDisp(cUnit, r1, OFFSETOF_MEMBER(Object, klass_), r1);
     /* Get the object's clazz */
@@ -1544,14 +1579,6 @@ static bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
         storeValue(cUnit, rlDest, rlResult);
     }
     return false;
-}
-
-/* Generate unconditional branch instructions */
-static ArmLIR* genUnconditionalBranch(CompilationUnit* cUnit, ArmLIR* target)
-{
-    ArmLIR* branch = opNone(cUnit, kOpUncondBr);
-    branch->generic.target = (LIR*) target;
-    return branch;
 }
 
 /*

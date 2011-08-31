@@ -1123,7 +1123,7 @@ class Class : public Object, public StaticStorageBase {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
 
-  static bool CanPutArrayElementNoThrow(const Class* elementClass, const Class* arrayClass);
+  static bool CanPutArrayElementFromCode(const Class* elementClass, const Class* arrayClass);
 
   // Returns the number of static, private, and constructor methods.
   size_t NumDirectMethods() const {

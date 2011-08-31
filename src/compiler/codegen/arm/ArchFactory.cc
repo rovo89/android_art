@@ -36,6 +36,17 @@ static void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 #endif
 }
 
+static int loadCurrMethod(CompilationUnit *cUnit)
+{
+#if defined(METHOD_IN_REG)
+    return rMETHOD;
+#else
+    int mReg = oatAllocTemp(cUnit);
+    loadCurrMethodDirect(cUnit, mReg);
+    return mReg;
+#endif
+}
+
 /*
  * Perform a "reg cmp imm" operation and jump to the PCR region if condition
  * satisfies.

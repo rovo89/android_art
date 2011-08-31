@@ -165,6 +165,20 @@ TEST_F(CompilerTest, BasicCodegen) {
                         10);
 }
 
+TEST_F(CompilerTest, ConstStringTest) {
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constStringTest",
+                                "(I)I", 2468, 1234);
+}
+
+TEST_F(CompilerTest, DISABLED_CatchTest) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  CompileDirectMethod(NULL, "java.lang.NullPointerException", "<init>", "()V");
+  const ClassLoader* class_loader = LoadDex("IntMath");
+  CompileDirectMethod(class_loader, "IntMath", "throwNullPointerException", "()V");
+  AssertStaticIntMethod(class_loader, "IntMath", "catchBlock", "(I)I", 1579,
+                        1000);
+}
+
 TEST_F(CompilerTest, StaticFieldTest) {
   AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticFieldTest", "(I)I", 1404,
                         404);

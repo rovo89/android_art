@@ -184,8 +184,8 @@ class Thread {
   int (*pD2iz)(double);
   float (*pL2f)(long);
   double (*pL2d)(long);
-  long long (*pArtF2l)(float);
-  long long (*pArtD2l)(double);
+  long long (*pF2l)(float);
+  long long (*pD2l)(double);
   float (*pFadd)(float, float);
   float (*pFsub)(float, float);
   float (*pFdiv)(float, float);
@@ -208,16 +208,14 @@ class Thread {
   void (*pSet64Static)(uint32_t, const Method*, uint64_t);
   Object* (*pGetObjStatic)(uint32_t, const Method*);
   void (*pSetObjStatic)(uint32_t, const Method*, Object*);
-  bool (*pArtUnlockObject)(Thread*, Object*);
-  bool (*pArtCanPutArrayElementNoThrow)(const Class*, const Class*);
-  int (*pArtInstanceofNonTrivialNoThrow) (const Class*, const Class*);
-  int (*pArtInstanceofNonTrivial) (const Class*, const Class*);
-  Method* (*pArtFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
-  bool (*pArtUnlockObjectNoThrow)(Thread*, Object*);
-  void (*pArtLockObjectNoThrow)(Thread*, Object*);
-  Object* (*pArtAllocObjectNoThrow)(Class*, int);
-  void (*pArtThrowException)(Thread*, Object*);
-  void (*pArtHandleFillArrayDataNoThrow)(Array*, const uint16_t*);
+  bool (*pCanPutArrayElementFromCode)(const Class*, const Class*);
+  int (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
+  Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
+  bool (*pUnlockObjectFromCode)(Thread*, Object*);
+  void (*pLockObjectFromCode)(Thread*, Object*);
+  void (*pThrowException)(Thread*, Throwable*);
+  void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
+  Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
 
   class StackVisitor {
    public:

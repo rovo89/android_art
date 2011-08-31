@@ -32,6 +32,30 @@ pid_t gettid() { return syscall(__NR_gettid);}
 
 pthread_key_t Thread::pthread_key_self_;
 
+// TODO: placeholder.  This is what generated code will call to throw
+static void ThrowException(Thread* thread, Throwable* exception) {
+    /*
+     * exception may be NULL, in which case this routine should
+     * throw NPE.  NOTE: this is a convenience for generated code,
+     * which previuosly did the null check inline and constructed
+     * and threw a NPE if NULL.  This routine responsible for setting
+     * exception_ in thread.
+     */
+    UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
+}
+
+// TODO: placeholder.  Helper function to type
+static Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
+  /*
+   * Should initialize & fix up method->dex_cache_resolved_types_[].
+   * Returns initialized type.  Does not return normally if an exception
+   * is thrown, but instead initiates the catch.  Should be similar to
+   * ClassLinker::InitializeStaticStorageFromCode.
+   */
+  UNIMPLEMENTED(FATAL);
+  return NULL;
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -56,32 +80,33 @@ void Thread::InitFunctionPointers() {
   pDdiv = __aeabi_ddiv;
   pDmul = __aeabi_dmul;
   pFmod = fmod;
-  pArtF2l = artF2L;
-  pArtD2l = artD2L;
+  pF2l = F2L;
+  pD2l = D2L;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
 #endif
   pAllocFromCode = Array::AllocFromCode;
   pAllocObjectFromCode = Class::AllocObjectFromCode;
   pMemcpy = memcpy;
-  pArtHandleFillArrayDataNoThrow = artHandleFillArrayDataNoThrow;
+  pHandleFillArrayDataFromCode = HandleFillArrayDataFromCode;
   pGet32Static = Field::Get32StaticFromCode;
   pSet32Static = Field::Set32StaticFromCode;
   pGet64Static = Field::Get64StaticFromCode;
   pSet64Static = Field::Set64StaticFromCode;
   pGetObjStatic = Field::GetObjStaticFromCode;
   pSetObjStatic = Field::SetObjStaticFromCode;
-  pArtCanPutArrayElementNoThrow = Class::CanPutArrayElementNoThrow;
+  pCanPutArrayElementFromCode = Class::CanPutArrayElementFromCode;
+  pThrowException = ThrowException;
+  pInitializeTypeFromCode = InitializeTypeFromCode;
 #if 0
-bool (Thread::*pArtUnlockObject)(Thread*, Object*);
-int (Thread::*pArtInstanceofNonTrivialNoThrow)(const Class*, const Class*);
-int (Thread::*pArtInstanceofNonTrivial) (const Class*, const Class*);
-Method* (Thread::*pArtFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, DvmDex*);
-bool (Thread::*pArtUnlockObjectNoThrow)(Thread*, Object*);
-void (Thread::*pArtLockObjectNoThrow)(Thread*, Object*);
-Object* (Thread::*pArtAllocObjectNoThrow)(Class*, int);
-void (Thread::*pArtThrowException)(Thread*, Object*);
-bool (Thread::*pArtHandleFillArrayDataNoThrow)(Array*, const uint16_t*);
+bool (Thread::*pUnlockObject)(Thread*, Object*);
+int (Thread::*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
+Method* (Thread::*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, DvmDex*);
+bool (Thread::*pUnlockObjectFromCode)(Thread*, Object*);
+void (Thread::*pLockObjectFromCode)(Thread*, Object*);
+Object* (Thread::*pAllocObjectFromCode)(Class*, int);
+void (Thread::*pThrowException)(Thread*, Object*);
+bool (Thread::*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
 #endif
 }
 
