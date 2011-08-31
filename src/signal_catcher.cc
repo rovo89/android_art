@@ -74,6 +74,24 @@ void SignalCatcher::HandleSigUsr1() {
   Heap::CollectGarbage();
 }
 
+int WaitForSignal(Thread* thread, sigset_t& mask) {
+  ScopedThreadStateChange tsc(thread, Thread::kWaiting); // TODO: VMWAIT
+
+  // Signals for sigwait() must be blocked but not ignored.  We
+  // block signals like SIGQUIT for all threads, so the condition
+  // is met.  When the signal hits, we wake up, without any signal
+  // handlers being invoked.
+
+  // Sleep in sigwait() until a signal arrives. gdb causes EINTR failures.
+  int signal_number;
+  int rc = TEMP_FAILURE_RETRY(sigwait(&mask, &signal_number));
+  if (rc != 0) {
+    PLOG(FATAL) << "sigwait failed";
+  }
+
+  return signal_number;
+}
+
 void* SignalCatcher::Run(void*) {
   CHECK(Runtime::Current()->AttachCurrentThread("Signal Catcher", NULL, true));
   Thread* self = Thread::Current();
@@ -88,31 +106,12 @@ void* SignalCatcher::Run(void*) {
   sigaddset(&mask, SIGUSR1);
 
   while (true) {
-    self->SetState(Thread::kWaiting); // TODO: VMWAIT
-
-    // Signals for sigwait() must be blocked but not ignored.  We
-    // block signals like SIGQUIT for all threads, so the condition
-    // is met.  When the signal hits, we wake up, without any signal
-    // handlers being invoked.
-
-    // Sleep in sigwait() until a signal arrives. gdb causes EINTR failures.
-    int signal_number;
-    int rc = TEMP_FAILURE_RETRY(sigwait(&mask, &signal_number));
-    if (rc != 0) {
-      PLOG(FATAL) << "sigwait failed";
-    }
-
-    if (!halt_) {
-      LOG(INFO) << *self << ": reacting to signal " << signal_number;
-    }
-
-    // Set our status to runnable, self-suspending if GC in progress.
-    self->SetState(Thread::kRunnable);
-
+    int signal_number = WaitForSignal(self, mask);
     if (halt_) {
       return NULL;
     }
 
+    LOG(INFO) << *self << ": reacting to signal " << signal_number;
     switch (signal_number) {
     case SIGQUIT:
       HandleSigQuit();

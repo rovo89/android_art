@@ -283,7 +283,7 @@ TEST_F(JniInternalTest, RegisterNatives) {
 
   // Check that registering native methods is successful
   {
-    JNINativeMethod methods[] = {{"hashCode", "()I", reinterpret_cast<void*>(BogusMethod)}};
+    JNINativeMethod methods[] = {{"getClass", "()Ljava/lang/Class;", reinterpret_cast<void*>(BogusMethod)}};
     env_->RegisterNatives(jlobject, methods, 1);
   }
   EXPECT_FALSE(env_->ExceptionCheck());

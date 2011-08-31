@@ -104,6 +104,8 @@ class Runtime {
   void BlockSignals();
 
   bool Init(const Options& options, bool ignore_unrecognized);
+  void InitLibraries();
+  void RegisterRuntimeNativeMethods(JNIEnv*);
 
   // The default stack size for managed threads created by the runtime.
   size_t stack_size_;

@@ -217,8 +217,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
     Thread* current_thread = Thread::Current();
     Thread::State old;
     if (current_thread != NULL) {
-        old = current_thread->GetState();
-        current_thread->SetState(Thread::kNative);
+        old = current_thread->SetState(Thread::kNative);
     }
     UniquePtr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
     if (current_thread != NULL) {

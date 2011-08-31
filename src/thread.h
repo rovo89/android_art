@@ -320,8 +320,10 @@ class Thread {
     return state_;
   }
 
-  void SetState(State new_state) {
+  State SetState(State new_state) {
+    State old_state = state_;
     state_ = new_state;
+    return old_state;
   }
 
   static ThreadOffset SuspendCountOffset() {
@@ -531,8 +533,7 @@ class ThreadListLock {
     }
     Thread::State old_state;
     if (current_thread != NULL) {
-      old_state = current_thread->GetState();
-      current_thread->SetState(Thread::kWaiting);  // TODO: VMWAIT
+      old_state = current_thread->SetState(Thread::kWaiting);  // TODO: VMWAIT
     } else {
       // happens during VM shutdown
       old_state = Thread::kUnknown;  // TODO: something else
@@ -551,6 +552,22 @@ class ThreadListLock {
   ThreadList* thread_list_;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadListLock);
+};
+
+class ScopedThreadStateChange {
+ public:
+  ScopedThreadStateChange(Thread* thread, Thread::State new_state) : thread_(thread) {
+    old_thread_state_ = thread_->SetState(new_state);
+  }
+
+  ~ScopedThreadStateChange() {
+    thread_->SetState(old_thread_state_);
+  }
+
+ private:
+  Thread* thread_;
+  Thread::State old_thread_state_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedThreadStateChange);
 };
 
 }  // namespace art

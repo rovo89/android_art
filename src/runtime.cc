@@ -288,15 +288,7 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   }
   instance_ = runtime.release();
 
-  // Most JNI libraries can just use System.loadLibrary, but you can't
-  // if you're the library that implements System.loadLibrary!
-  Thread* self = Thread::Current();
-  Thread::State old_state = self->GetState();
-  self->SetState(Thread::kNative);
-  JniConstants::init(self->GetJniEnv());
-  LoadJniLibrary(instance_->GetJavaVM(), "javacore");
-  self->SetState(old_state);
-
+  instance_->InitLibraries();
   instance_->signal_catcher_ = new SignalCatcher;
 
   return instance_;
@@ -336,6 +328,52 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   class_linker_ = ClassLinker::Create(options->boot_class_path_, Heap::GetBootSpace());
 
   return true;
+}
+
+void Runtime::InitLibraries() {
+  Thread* self = Thread::Current();
+  JNIEnv* env = self->GetJniEnv();
+
+  // Must be in the kNative state for JNI-based method registration.
+  ScopedThreadStateChange tsc(self, Thread::kNative);
+
+  // First set up the native methods provided by the runtime itself.
+  RegisterRuntimeNativeMethods(env);
+
+  // Now set up libcore, which is just a JNI library with a JNI_OnLoad.
+  // Most JNI libraries can just use System.loadLibrary, but you can't
+  // if you're the library that implements System.loadLibrary!
+  JniConstants::init(env);
+  LoadJniLibrary(instance_->GetJavaVM(), "javacore");
+}
+
+void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
+#define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
+  //REGISTER(register_dalvik_bytecode_OpcodeInfo);
+  //REGISTER(register_dalvik_system_DexFile);
+  //REGISTER(register_dalvik_system_VMDebug);
+  //REGISTER(register_dalvik_system_VMRuntime);
+  //REGISTER(register_dalvik_system_VMStack);
+  //REGISTER(register_dalvik_system_Zygote);
+  //REGISTER(register_java_lang_Class);
+  //REGISTER(register_java_lang_Object);
+  //REGISTER(register_java_lang_Runtime);
+  //REGISTER(register_java_lang_String);
+  //REGISTER(register_java_lang_System_); // The _ avoids collision with libcore.
+  //REGISTER(register_java_lang_Thread);
+  //REGISTER(register_java_lang_Throwable);
+  //REGISTER(register_java_lang_VMClassLoader);
+  //REGISTER(register_java_lang_reflect_AccessibleObject);
+  //REGISTER(register_java_lang_reflect_Array);
+  //REGISTER(register_java_lang_reflect_Constructor);
+  //REGISTER(register_java_lang_reflect_Field);
+  //REGISTER(register_java_lang_reflect_Method);
+  //REGISTER(register_java_lang_reflect_Proxy);
+  //REGISTER(register_java_util_concurrent_atomic_AtomicLong);
+  //REGISTER(register_org_apache_harmony_dalvik_ddmc_DdmServer);
+  //REGISTER(register_org_apache_harmony_dalvik_ddmc_DdmVmInternal);
+  //REGISTER(register_sun_misc_Unsafe);
+#undef REGISTER
 }
 
 void Runtime::DumpStatistics(std::ostream& os) {

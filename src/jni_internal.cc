@@ -500,10 +500,8 @@ class SharedLibrary {
         LOG(INFO) << "[" << *self << " waiting for \"" << path_ << "\" "
                   << "JNI_OnLoad...]";
       }
-      Thread::State old_state = self->GetState();
-      self->SetState(Thread::kWaiting); // TODO: VMWAIT
+      ScopedThreadStateChange tsc(self, Thread::kWaiting); // TODO: VMWAIT
       pthread_cond_wait(&jni_on_load_cond_, jni_on_load_lock_->GetImpl());
-      self->SetState(old_state);
     }
 
     bool okay = (jni_on_load_result_ == kOkay);
@@ -2744,10 +2742,11 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   // want to switch from RUNNING to VMWAIT while it executes.  This allows
   // the GC to ignore us.
   Thread* self = Thread::Current();
-  Thread::State old_state = self->GetState();
-  self->SetState(Thread::kWaiting); // TODO: VMWAIT
-  void* handle = dlopen(path.c_str(), RTLD_LAZY);
-  self->SetState(old_state);
+  void* handle = NULL;
+  {
+    ScopedThreadStateChange tsc(self, Thread::kWaiting); // TODO: VMWAIT
+    handle = dlopen(path.c_str(), RTLD_LAZY);
+  }
 
   if (verbose_jni) {
     LOG(INFO) << "[Call to dlopen(\"" << path << "\") returned " << handle << "]";
@@ -2792,13 +2791,14 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     const ClassLoader* old_class_loader = self->GetClassLoaderOverride();
     self->SetClassLoaderOverride(class_loader);
 
-    old_state = self->GetState();
-    self->SetState(Thread::kNative);
-    if (verbose_jni) {
-      LOG(INFO) << "[Calling JNI_OnLoad in \"" << path << "\"]";
+    int version = 0;
+    {
+      ScopedThreadStateChange tsc(self, Thread::kNative);
+      if (verbose_jni) {
+        LOG(INFO) << "[Calling JNI_OnLoad in \"" << path << "\"]";
+      }
+      version = (*jni_on_load)(this, NULL);
     }
-    int version = (*jni_on_load)(this, NULL);
-    self->SetState(old_state);
 
     self->SetClassLoaderOverride(old_class_loader);;
 
