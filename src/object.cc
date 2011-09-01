@@ -9,6 +9,7 @@
 #include "class_loader.h"
 #include "globals.h"
 #include "heap.h"
+#include "intern_table.h"
 #include "logging.h"
 #include "dex_cache.h"
 #include "dex_file.h"
@@ -304,7 +305,7 @@ Object* Field::GetObj(const Object* object) const {
   return object->GetFieldObject(GetOffset());
 }
 
-void Field::SetObj(Object* object, Object* new_value) const {
+void Field::SetObj(Object* object, const Object* new_value) const {
   CHECK((object == NULL) == IsStatic());
   if (IsStatic()) {
     object = declaring_class_;
@@ -406,7 +407,7 @@ Object* Field::GetObject(const Object* object) const {
   return GetObj(object);
 }
 
-void Field::SetObject(Object* object, Object* l) const {
+void Field::SetObject(Object* object, const Object* l) const {
   CHECK(GetType() == 'L' || GetType() == '[');
   SetObj(object, l);
 }
@@ -678,6 +679,10 @@ void String::SetClass(Class* java_lang_String) {
 void String::ResetClass() {
   CHECK(java_lang_String_ != NULL);
   java_lang_String_ = NULL;
+}
+
+const String* String::Intern() const {
+  return Runtime::Current()->GetInternTable()->InternWeak(this);
 }
 
 Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;

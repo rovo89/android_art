@@ -126,7 +126,7 @@ static inline IndirectRefKind GetIndirectRefKind(IndirectRef iref) {
 static const size_t kIRTPrevCount = 4;
 struct IndirectRefSlot {
   uint32_t serial;
-  Object* previous[kIRTPrevCount];
+  const Object* previous[kIRTPrevCount];
 };
 
 /* use as initial value for "cookie", and when table has only one segment */
@@ -209,7 +209,7 @@ union IRTSegmentState {
 
 class IrtIterator {
  public:
-  explicit IrtIterator(Object** table, size_t i, size_t capacity)
+  explicit IrtIterator(const Object** table, size_t i, size_t capacity)
       : table_(table), i_(i), capacity_(capacity) {
     SkipNullsAndTombstones();
   }
@@ -220,7 +220,7 @@ class IrtIterator {
     return *this;
   }
 
-  Object** operator*() {
+  const Object** operator*() {
     return &table_[i_];
   }
 
@@ -236,7 +236,7 @@ class IrtIterator {
     }
   }
 
-  Object** table_;
+  const Object** table_;
   size_t i_;
   size_t capacity_;
 };
@@ -261,14 +261,14 @@ class IndirectReferenceTable {
    * Returns NULL if the table is full (max entries reached, or alloc
    * failed during expansion).
    */
-  IndirectRef Add(uint32_t cookie, Object* obj);
+  IndirectRef Add(uint32_t cookie, const Object* obj);
 
   /*
    * Given an IndirectRef in the table, return the Object it refers to.
    *
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
-  Object* Get(IndirectRef iref) const {
+  const Object* Get(IndirectRef iref) const {
     if (!GetChecked(iref)) {
       return kInvalidIndirectRefObject;
     }
@@ -320,7 +320,7 @@ class IndirectReferenceTable {
    * The object pointer itself is subject to relocation in some GC
    * implementations, so we shouldn't really be using it here.
    */
-  IndirectRef ToIndirectRef(Object* obj, uint32_t tableIndex) const {
+  IndirectRef ToIndirectRef(const Object* obj, uint32_t tableIndex) const {
     DCHECK_LT(tableIndex, 65536U);
     uint32_t serialChunk = slot_data_[tableIndex].serial;
     uint32_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;
@@ -333,7 +333,7 @@ class IndirectReferenceTable {
    * We advance the serial number, invalidating any outstanding references to
    * this slot.
    */
-  void UpdateSlotAdd(Object* obj, int slot) {
+  void UpdateSlotAdd(const Object* obj, int slot) {
     if (slot_data_ != NULL) {
       IndirectRefSlot* pSlot = &slot_data_[slot];
       pSlot->serial++;
@@ -349,7 +349,7 @@ class IndirectReferenceTable {
   IRTSegmentState segmentState;
 
   /* bottom of the stack */
-  Object** table_;
+  const Object** table_;
   /* bit mask, ORed into all irefs */
   IndirectRefKind kind_;
   /* extended debugging info */

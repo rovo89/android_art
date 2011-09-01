@@ -266,7 +266,7 @@ Object* Thread::DecodeJObject(jobject obj) {
   case kLocal:
     {
       IndirectReferenceTable& locals = jni_env_->locals;
-      result = locals.Get(ref);
+      result = const_cast<Object*>(locals.Get(ref));
       break;
     }
   case kGlobal:
@@ -274,7 +274,7 @@ Object* Thread::DecodeJObject(jobject obj) {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& globals = vm->globals;
       MutexLock mu(vm->globals_lock);
-      result = globals.Get(ref);
+      result = const_cast<Object*>(globals.Get(ref));
       break;
     }
   case kWeakGlobal:
@@ -282,7 +282,7 @@ Object* Thread::DecodeJObject(jobject obj) {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& weak_globals = vm->weak_globals;
       MutexLock mu(vm->weak_globals_lock);
-      result = weak_globals.Get(ref);
+      result = const_cast<Object*>(weak_globals.Get(ref));
       if (result == kClearedJniWeakGlobal) {
         // This is a special case where it's okay to return NULL.
         return NULL;

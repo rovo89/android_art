@@ -222,9 +222,9 @@ class Object {
     return *reinterpret_cast<Object* const *>(raw_addr);
   }
 
-  void SetFieldObject(size_t offset, Object* new_value) {
+  void SetFieldObject(size_t offset, const Object* new_value) {
     byte* raw_addr = reinterpret_cast<byte*>(this) + offset;
-    *reinterpret_cast<Object**>(raw_addr) = new_value;
+    *reinterpret_cast<const Object**>(raw_addr) = new_value;
     // TODO: write barrier
   }
 
@@ -413,7 +413,7 @@ class Field : public AccessibleObject {
   double GetDouble(const Object* object) const;
   void SetDouble(Object* object, double d) const;
   Object* GetObject(const Object* object) const;
-  void SetObject(Object* object, Object* l) const;
+  void SetObject(Object* object, const Object* l) const;
 
   // slow path routines for static field access when field was unresolved at compile time
   static uint32_t Get32StaticFromCode(uint32_t field_idx, const Method* referrer);
@@ -425,20 +425,20 @@ class Field : public AccessibleObject {
 
  public:  // TODO: private
 
-  // private implemention of field access using raw data
+  // private implementation of field access using raw data
   uint32_t Get32(const Object* object) const;
   void Set32(Object* object, uint32_t new_value) const;
   uint64_t Get64(const Object* object) const;
   void Set64(Object* object, uint64_t new_value) const;
   Object* GetObj(const Object* object) const;
-  void SetObj(Object* object, Object* new_value) const;
+  void SetObj(Object* object, const Object* new_value) const;
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class in which this field is declared.
   Class* declaring_class_;
   Object* generic_type_;
   uint32_t generic_types_are_initialized_;
-  String* name_;
+  const String* name_;
   uint32_t offset_;
   Class* type_;
 
@@ -559,7 +559,7 @@ class Method : public AccessibleObject {
   Object* java_generic_parameter_types_;
   Object* java_generic_return_type_;
   Class* java_return_type_;
-  String* name_;
+  const String* name_;
   ObjectArray<Class>* java_parameter_types_;
   uint32_t java_generic_types_are_initialized_;
   uint32_t java_slot_;
@@ -765,7 +765,7 @@ class Method : public AccessibleObject {
 
   // short cuts to declaring_class_->dex_cache_ members for fast compiled code
   // access
-  ObjectArray<String>* dex_cache_strings_;
+  ObjectArray<const String>* dex_cache_strings_;
   ObjectArray<Class>* dex_cache_resolved_types_;
   ObjectArray<Method>* dex_cache_resolved_methods_;
   ObjectArray<Field>* dex_cache_resolved_fields_;
@@ -1699,10 +1699,7 @@ class String : public Object {
     return result;
   }
 
-  String* Intern() const {
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
+  const String* Intern() const;
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

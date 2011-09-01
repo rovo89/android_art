@@ -49,7 +49,7 @@ class ImageHeader {
   // required base address for mapping the image.
   uint32_t base_addr_;
 
-  // absolute address of an Object[] of Strings to InternTable::Register
+  // absolute address of an Object[] of Strings to InternTable::RegisterStrong.
   uint32_t intern_addr_;
 };
 

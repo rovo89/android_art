@@ -22,7 +22,7 @@ class Heap {
 
   static const size_t kMaximumSize = 64 * MB;
 
-  typedef void (RootVistor)(Object* root, void* arg);
+  typedef void (RootVistor)(const Object* root, void* arg);
 
   // Create a heap with the requested sizes. optional boot image may
   // be NULL, otherwise it is an image filename created by ImageWriter.
@@ -34,12 +34,12 @@ class Heap {
   static Object* AllocObject(Class* klass, size_t num_bytes);
 
   // Check sanity of given reference. Requires the heap lock.
-  static void VerifyObject(Object *obj);
+  static void VerifyObject(const Object *obj);
 
   // A weaker test than VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
-  static bool IsHeapAddress(Object* obj);
+  static bool IsHeapAddress(const Object* obj);
 
   // Initiates an explicit garbage collection.
   static void CollectGarbage();

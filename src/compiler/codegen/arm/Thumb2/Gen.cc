@@ -512,7 +512,7 @@ static void genConstClass(CompilationUnit* cUnit, MIR* mir,
 static void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
-    String* strPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
+    const String* strPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedString(mir->dalvikInsn.vB);
 
     if (strPtr == NULL) {

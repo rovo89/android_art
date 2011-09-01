@@ -23,7 +23,7 @@ class Thread;
 void JniAbort(const char* jni_function_name);
 
 template<typename T> T Decode(JNIEnv*, jobject);
-template<typename T> T AddLocalReference(JNIEnv*, Object*);
+template<typename T> T AddLocalReference(JNIEnv*, const Object*);
 
 struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);

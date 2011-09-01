@@ -39,10 +39,10 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   CHECK_LE(initialCount, maxCount);
   CHECK_NE(desiredKind, kSirtOrInvalid);
 
-  table_ = reinterpret_cast<Object**>(malloc(initialCount * sizeof(Object*)));
+  table_ = reinterpret_cast<const Object**>(malloc(initialCount * sizeof(const Object*)));
   CHECK(table_ != NULL);
 #ifndef NDEBUG
-  memset(table_, 0xd1, initialCount * sizeof(Object*));
+  memset(table_, 0xd1, initialCount * sizeof(const Object*));
 #endif
 
   slot_data_ = reinterpret_cast<IndirectRefSlot*>(calloc(initialCount, sizeof(IndirectRefSlot)));
@@ -66,7 +66,7 @@ IndirectReferenceTable::~IndirectReferenceTable() {
  * Make sure that the entry at "idx" is correctly paired with "iref".
  */
 bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
-  Object* obj = table_[idx];
+  const Object* obj = table_[idx];
   IndirectRef checkRef = ToIndirectRef(obj, idx);
   if (checkRef != iref) {
     LOG(ERROR) << "JNI ERROR (app bug): attempt to " << what
@@ -78,7 +78,7 @@ bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int 
   return true;
 }
 
-IndirectRef IndirectReferenceTable::Add(uint32_t cookie, Object* obj) {
+IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
   IRTSegmentState prevState;
   prevState.all = cookie;
   size_t topIndex = segmentState.parts.topIndex;
@@ -105,7 +105,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, Object* obj) {
     }
     DCHECK_GT(newSize, alloc_entries_);
 
-    table_ = (Object**) realloc(table_, newSize * sizeof(Object*));
+    table_ = (const Object**) realloc(table_, newSize * sizeof(const Object*));
     slot_data_ = (IndirectRefSlot*) realloc(slot_data_, newSize * sizeof(IndirectRefSlot));
     if (table_ == NULL || slot_data_ == NULL) {
       LOG(ERROR) << "JNI ERROR (app bug): unable to expand "
@@ -132,7 +132,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, Object* obj) {
   if (numHoles > 0) {
     DCHECK_GT(topIndex, 1U);
     /* find the first hole; likely to be near the end of the list */
-    Object** pScan = &table_[topIndex - 1];
+    const Object** pScan = &table_[topIndex - 1];
     DCHECK(*pScan != NULL);
     while (*--pScan != NULL) {
       DCHECK_GE(pScan, table_ + prevState.parts.topIndex);
@@ -191,9 +191,9 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   return true;
 }
 
-static int LinearScan(IndirectRef iref, int bottomIndex, int topIndex, Object** table) {
+static int LinearScan(IndirectRef iref, int bottomIndex, int topIndex, const Object** table) {
   for (int i = bottomIndex; i < topIndex; ++i) {
-    if (table[i] == reinterpret_cast<Object*>(iref)) {
+    if (table[i] == reinterpret_cast<const Object*>(iref)) {
       return i;
     }
   }

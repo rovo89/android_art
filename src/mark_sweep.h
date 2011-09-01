@@ -54,7 +54,7 @@ class MarkSweep {
     return mark_bitmap_->Test(object);
   }
 
-  static void MarkObjectVisitor(Object* root, void* arg);
+  static void MarkObjectVisitor(const Object* root, void* arg);
 
   // Marks an object.
   void MarkObject(const Object* obj);

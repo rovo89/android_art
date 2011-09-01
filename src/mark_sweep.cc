@@ -61,7 +61,7 @@ void MarkSweep::MarkObject(const Object* obj) {
   }
 }
 
-void MarkSweep::MarkObjectVisitor(Object* root, void* arg) {
+void MarkSweep::MarkObjectVisitor(const Object* root, void* arg) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
@@ -108,7 +108,10 @@ void MarkSweep::ReMarkRoots() {
 }
 
 void MarkSweep::SweepSystemWeaks() {
+  //Runtime::Current()->GetInternTable().RemoveWeakIf(isUnmarkedObject);
   UNIMPLEMENTED(FATAL);
+  //dvmSweepMonitorList(&gDvm.monitorList, isUnmarkedObject);
+  //sweepWeakJniGlobals();
 }
 
 void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {

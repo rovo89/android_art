@@ -12,6 +12,7 @@
 #include "dex_file.h"
 #include "dex_verifier.h"
 #include "heap.h"
+#include "intern_table.h"
 #include "logging.h"
 #include "monitor.h"
 #include "object.h"
@@ -53,8 +54,9 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
   "[Ljava/lang/StackTraceElement;",
 };
 
-ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path, Space* space) {
-  UniquePtr<ClassLinker> class_linker(new ClassLinker);
+ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path,
+    InternTable* intern_table, Space* space) {
+  UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
   if (space == NULL) {
     class_linker->Init(boot_class_path);
   } else {
@@ -64,10 +66,11 @@ ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_p
   return class_linker.release();
 }
 
-ClassLinker::ClassLinker()
+ClassLinker::ClassLinker(InternTable* intern_table)
     : classes_lock_(Mutex::Create("ClassLinker::Lock")),
       class_roots_(NULL),
-      init_done_(false) {
+      init_done_(false),
+      intern_table_(intern_table) {
 }
 
 void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
@@ -344,11 +347,11 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space
     SetClassRoot(class_root, state.class_roots[class_root]);
   }
 
-  // reinit intern_table_
+  // reinit intern table
   ObjectArray<Object>* interned_array = space->GetImageHeader().GetInternedArray();
   for (int32_t i = 0; i < interned_array->GetLength(); i++) {
     String* string = interned_array->Get(i)->AsString();
-    intern_table_.Register(string);
+    intern_table_->RegisterStrong(string);
   }
 
   // reinit array_interfaces_ from any array class instance, they should all be ==
@@ -439,7 +442,7 @@ void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
     }
   }
 
-  intern_table_.VisitRoots(root_visitor, arg);
+  intern_table_->VisitRoots(root_visitor, arg);
 
   root_visitor(array_interfaces_, arg);
 }
@@ -1375,7 +1378,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
         break;
       case DexFile::kString: {
         uint32_t string_idx = value.i;
-        String* resolved = ResolveString(dex_file, string_idx, klass->GetDexCache());
+        const String* resolved = ResolveString(dex_file, string_idx, klass->GetDexCache());
         field->SetObject(NULL, resolved);
         break;
       }
@@ -1891,17 +1894,16 @@ void ClassLinker::CreateReferenceOffsets(uint32_t& reference_offsets,
   }
 }
 
-String* ClassLinker::ResolveString(const DexFile& dex_file,
-                                   uint32_t string_idx,
-                                   DexCache* dex_cache) {
-  String* resolved = dex_cache->GetResolvedString(string_idx);
+const String* ClassLinker::ResolveString(const DexFile& dex_file,
+    uint32_t string_idx, DexCache* dex_cache) {
+  const String* resolved = dex_cache->GetResolvedString(string_idx);
   if (resolved != NULL) {
     return resolved;
   }
   const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
   int32_t utf16_length = dex_file.GetStringLength(string_id);
   const char* utf8_data = dex_file.GetStringData(string_id);
-  String* string = intern_table_.Intern(utf16_length, utf8_data);
+  const String* string = intern_table_->InternStrong(utf16_length, utf8_data);
   dex_cache->SetResolvedString(string_idx, string);
   return string;
 }

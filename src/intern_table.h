@@ -10,24 +10,51 @@
 
 namespace art {
 
+/**
+ * Used to intern strings.
+ *
+ * There are actually two tables: one that holds strong references to its strings, and one that
+ * holds weak references. The former is used for string literals, for which there is an effective
+ * reference from the constant pool. The latter is used for strings interned at runtime via
+ * String.intern. Some code (XML parsers being a prime example) relies on being able to intern
+ * arbitrarily many strings for the duration of a parse without permanently increasing the memory
+ * footprint.
+ */
 class InternTable {
  public:
   InternTable();
   ~InternTable();
 
-  // intern a potentially new string
-  String* Intern(int32_t utf16_length, const char* utf8_data);
+  // Interns a potentially new string in the 'strong' table. (See above.)
+  const String* InternStrong(int32_t utf16_length, const char* utf8_data);
 
-  // register a String trusting that it is safe to intern.
-  // used when reinitializing InternTable from an image.
-  void Register(String* string);
+  // Interns a potentially new string in the 'weak' table. (See above.)
+  const String* InternWeak(const String* s);
+
+  // Register a String trusting that it is safe to intern.
+  // Used when reinitializing InternTable from an image.
+  void RegisterStrong(const String* s);
+
+  // Removes all weak interns for which 'predicate' is true.
+  void RemoveWeakIf(bool (*predicate)(const String*));
+
+  bool ContainsWeak(const String* s);
 
   size_t Size() const;
+
   void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
  private:
-  typedef std::tr1::unordered_multimap<int32_t, String*> Table;
-  Table intern_table_;
+  typedef std::tr1::unordered_multimap<int32_t, const String*> Table;
+
+  const String* Insert(const String* s, bool is_strong);
+
+  const String* Lookup(Table& table, const String* s, uint32_t hash_code);
+  const String* Insert(Table& table, const String* s, uint32_t hash_code);
+  void Remove(Table& table, const String* s, uint32_t hash_code);
+
+  Table strong_interns_;
+  Table weak_interns_;
   Mutex* intern_table_lock_;
 };
 

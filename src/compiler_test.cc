@@ -128,7 +128,7 @@ TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
   DexCache* dex_cache = class_linker_->FindDexCache(*dex);
   EXPECT_EQ(dex->NumStringIds(), dex_cache->NumStrings());
   for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
-    String* string = dex_cache->GetResolvedString(i);
+    const String* string = dex_cache->GetResolvedString(i);
     EXPECT_TRUE(string != NULL);
   }
   EXPECT_EQ(dex->NumTypeIds(), dex_cache->NumResolvedTypes());

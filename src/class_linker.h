@@ -9,7 +9,6 @@
 
 #include "dex_file.h"
 #include "heap.h"
-#include "intern_table.h"
 #include "macros.h"
 #include "object.h"
 #include "thread.h"
@@ -18,14 +17,16 @@
 
 #include "gtest/gtest.h"
 
-class ClassLoader;
-
 namespace art {
+
+class ClassLoader;
+class InternTable;
 
 class ClassLinker {
  public:
   // Initializes the class linker using DexFile and an optional boot Space.
-  static ClassLinker* Create(const std::vector<const DexFile*>& boot_class_path, Space* boot_space);
+  static ClassLinker* Create(const std::vector<const DexFile*>& boot_class_path,
+      InternTable* intern_table, Space* boot_space);
 
   ~ClassLinker();
 
@@ -44,9 +45,7 @@ class ClassLinker {
 
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
-  String* ResolveString(const DexFile& dex_file,
-                        uint32_t string_idx,
-                        DexCache* dex_cache);
+  const String* ResolveString(const DexFile& dex_file, uint32_t string_idx, DexCache* dex_cache);
 
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
@@ -123,10 +122,6 @@ class ClassLinker {
     return boot_class_path_;
   }
 
-  const InternTable& GetInternTable() {
-    return intern_table_;
-  }
-
   void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
 
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
@@ -140,7 +135,7 @@ class ClassLinker {
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
 
  private:
-  ClassLinker();
+  ClassLinker(InternTable*);
 
   // Initialize class linker from DexFile instances.
   void Init(const std::vector<const DexFile*>& boot_class_path_);
@@ -257,8 +252,6 @@ class ClassLinker {
   Table classes_;
   Mutex* classes_lock_;
 
-  InternTable intern_table_;
-
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.
   enum ClassRoot {
@@ -326,6 +319,8 @@ class ClassLinker {
   InterfaceEntry* array_iftable_;
 
   bool init_done_;
+
+  InternTable* intern_table_;
 
   friend class CommonTest;
   FRIEND_TEST(DexCacheTest, Open);

@@ -262,7 +262,7 @@ class ClassLinkerTest : public CommonTest {
     class_linker_->VisitRoots(TestRootVisitor, NULL);
   }
 
-  static void TestRootVisitor(Object* root, void* arg) {
+  static void TestRootVisitor(const Object* root, void* arg) {
     EXPECT_TRUE(root != NULL);
   }
 };

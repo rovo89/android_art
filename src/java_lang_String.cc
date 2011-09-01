@@ -148,8 +148,8 @@ jint String_fastIndexOf(JNIEnv* env, jobject javaThis, jint ch, jint start) {
 }
 
 jstring String_intern(JNIEnv* env, jobject javaThis) {
-  String* s = Decode<String*>(env, javaThis);
-  String* result = s->Intern();
+  const String* s = Decode<String*>(env, javaThis);
+  const String* result = s->Intern();
   return AddLocalReference<jstring>(env, result);
 }
 

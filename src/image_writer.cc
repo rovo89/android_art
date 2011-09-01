@@ -53,24 +53,25 @@ namespace {
 
 struct InternTableVisitorState {
   int index;
-  ObjectArray<Object>* interned_array;
+  ObjectArray<const Object>* interned_array;
 };
 
-void InternTableVisitor(Object* obj, void* arg) {
+void InternTableVisitor(const Object* obj, void* arg) {
   InternTableVisitorState* state = reinterpret_cast<InternTableVisitorState*>(arg);
   state->interned_array->Set(state->index++, obj);
 }
 
-ObjectArray<Object>* CreateInternedArray() {
+ObjectArray<const Object>* CreateInternedArray() {
   // build a Object[] of the interned strings for reinit
   // TODO: avoid creating this future garbage
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const InternTable& intern_table = class_linker->GetInternTable();
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  const InternTable& intern_table = *runtime->GetInternTable();
   size_t size = intern_table.Size();
   CHECK_NE(0U, size);
 
   Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
-  ObjectArray<Object>* interned_array = ObjectArray<Object>::Alloc(object_array_class, size);
+  ObjectArray<const Object>* interned_array = ObjectArray<const Object>::Alloc(object_array_class, size);
 
   InternTableVisitorState state;
   state.index = 0;
@@ -93,7 +94,7 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
 }
 
 void ImageWriter::CalculateNewObjectOffsets() {
-  ObjectArray<Object>* interned_array = CreateInternedArray();
+  ObjectArray<const Object>* interned_array = CreateInternedArray();
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);

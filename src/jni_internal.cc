@@ -63,7 +63,10 @@ void EnsureInvokeStub(Method* method) {
  * passed in), or NULL on failure.
  */
 template<typename T>
-T AddLocalReference(JNIEnv* public_env, Object* obj) {
+T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
+  // The jobject type hierarchy has no notion of const, so it's not worth carrying through.
+  Object* obj = const_cast<Object*>(const_obj);
+
   if (obj == NULL) {
     return NULL;
   }

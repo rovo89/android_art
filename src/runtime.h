@@ -23,6 +23,7 @@ namespace art {
 class ClassLinker;
 class DexFile;
 class Heap;
+class InternTable;
 class JavaVMExt;
 class SignalCatcher;
 class String;
@@ -92,6 +93,10 @@ class Runtime {
     return class_linker_;
   }
 
+  InternTable* GetInternTable() const {
+    return intern_table_;
+  }
+
   JavaVMExt* GetJavaVM() const {
     return java_vm_;
   }
@@ -101,7 +106,7 @@ class Runtime {
  private:
   static void PlatformAbort(const char*, int);
 
-  Runtime() : stack_size_(0), thread_list_(NULL), class_linker_(NULL) {}
+  Runtime() : stack_size_(0), thread_list_(NULL), intern_table_(NULL), class_linker_(NULL) {}
 
   void BlockSignals();
 
@@ -113,6 +118,8 @@ class Runtime {
   size_t stack_size_;
 
   ThreadList* thread_list_;
+
+  InternTable* intern_table_;
 
   ClassLinker* class_linker_;
 

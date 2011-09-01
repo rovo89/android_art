@@ -118,7 +118,7 @@ Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
   return obj;
 }
 
-void Heap::VerifyObject(Object* obj) {
+void Heap::VerifyObject(const Object* obj) {
   if (!IsAligned(obj, kObjectAlignment)) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
   } else if (!live_bitmap_->Test(obj)) {
@@ -130,7 +130,7 @@ void Heap::VerifyObject(Object* obj) {
   }
 }
 
-bool Heap::IsHeapAddress(Object* obj) {
+bool Heap::IsHeapAddress(const Object* obj) {
   if (!IsAligned(obj, kObjectAlignment)) {
     return false;
   }

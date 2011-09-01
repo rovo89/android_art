@@ -10,6 +10,7 @@
 #include "UniquePtr.h"
 #include "class_linker.h"
 #include "heap.h"
+#include "intern_table.h"
 #include "jni_internal.h"
 #include "signal_catcher.h"
 #include "thread.h"
@@ -27,6 +28,7 @@ Runtime::~Runtime() {
   Heap::Destroy();
   delete signal_catcher_;
   delete thread_list_;
+  delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();
   // TODO: acquire a static mutex on Runtime to avoid racing.
@@ -316,6 +318,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   stack_size_ = options->stack_size_;
   thread_list_ = ThreadList::Create();
 
+  intern_table_ = new InternTable;
+
   if (!Heap::Init(options->heap_initial_size_,
                   options->heap_maximum_size_,
                   options->boot_image_)) {
@@ -333,7 +337,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread* current_thread = Thread::Attach(this);
   thread_list_->Register(current_thread);
 
-  class_linker_ = ClassLinker::Create(options->boot_class_path_, Heap::GetBootSpace());
+  class_linker_ = ClassLinker::Create(options->boot_class_path_, intern_table_, Heap::GetBootSpace());
 
   return true;
 }
@@ -387,7 +391,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 void Runtime::DumpStatistics(std::ostream& os) {
   // TODO: dump other runtime statistics?
   os << "Loaded classes: " << class_linker_->NumLoadedClasses() << "\n";
-  os << "Intern table size: " << class_linker_->GetInternTable().Size() << "\n";
+  os << "Intern table size: " << GetInternTable()->Size() << "\n";
   // LOGV("VM stats: meth=%d ifld=%d sfld=%d linear=%d",
   //    gDvm.numDeclaredMethods,
   //    gDvm.numDeclaredInstFields,
