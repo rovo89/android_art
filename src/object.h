@@ -184,6 +184,11 @@ class Object {
 
   size_t SizeOf() const;
 
+  Object* Clone() {
+    UNIMPLEMENTED(FATAL);
+    return NULL;
+  }
+
   void MonitorEnter() {
     monitor_->Enter();
   }
@@ -826,6 +831,10 @@ class Array : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Array, first_element_));
   }
 
+  void* GetRawData() {
+    return reinterpret_cast<void*>(first_element_);
+  }
+
  protected:
   bool IsValidIndex(int32_t index) const {
     if (index < 0 || index >= length_) {
@@ -1113,6 +1122,8 @@ class Class : public Object, public StaticStorageBase {
   bool CanAccess(const Class* that) const {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
+
+  static bool CanPutArrayElementNoThrow(const Class* elementClass, const Class* arrayClass);
 
   // Returns the number of static, private, and constructor methods.
   size_t NumDirectMethods() const {
@@ -1686,6 +1697,11 @@ class String : public Object {
     std::string result(byte_count, char(0));
     ConvertUtf16ToModifiedUtf8(&result[0], chars, count_);
     return result;
+  }
+
+  String* Intern() const {
+    UNIMPLEMENTED(FATAL);
+    return NULL;
   }
 
  private:

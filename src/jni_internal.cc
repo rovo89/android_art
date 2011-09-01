@@ -50,8 +50,6 @@ void EnsureInvokeStub(Method* method) {
   method->SetInvokeStub(reinterpret_cast<Method::InvokeStub*>(region.pointer()));
 }
 
-namespace {
-
 /*
  * Add a local reference for an object to the current stack frame.  When
  * the native function returns, the reference will be discarded.
@@ -65,12 +63,13 @@ namespace {
  * passed in), or NULL on failure.
  */
 template<typename T>
-T AddLocalReference(ScopedJniThreadState& ts, Object* obj) {
+T AddLocalReference(JNIEnv* public_env, Object* obj) {
   if (obj == NULL) {
     return NULL;
   }
 
-  IndirectReferenceTable& locals = ts.Env()->locals;
+  JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
+  IndirectReferenceTable& locals = env->locals;
 
   uint32_t cookie = IRT_FIRST_SEGMENT; // TODO
   IndirectRef ref = locals.Add(cookie, obj);
@@ -83,7 +82,7 @@ T AddLocalReference(ScopedJniThreadState& ts, Object* obj) {
   }
 
 #if 0 // TODO: fix this to understand PushLocalFrame, so we can turn it on.
-  if (ts.Env()->check_jni) {
+  if (env->check_jni) {
     size_t entry_count = locals.Capacity();
     if (entry_count > 16) {
       std::string class_descriptor(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
@@ -96,13 +95,27 @@ T AddLocalReference(ScopedJniThreadState& ts, Object* obj) {
   }
 #endif
 
-  if (ts.Env()->work_around_app_jni_bugs) {
+  if (env->work_around_app_jni_bugs) {
     // Hand out direct pointers to support broken old apps.
     return reinterpret_cast<T>(obj);
   }
 
   return reinterpret_cast<T>(ref);
 }
+
+// For external use.
+template<typename T>
+T Decode(JNIEnv* public_env, jobject obj) {
+  JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
+  return reinterpret_cast<T>(env->self->DecodeJObject(obj));
+}
+// Explicit instantiations.
+template Class* Decode<Class*>(JNIEnv*, jobject);
+template ClassLoader* Decode<ClassLoader*>(JNIEnv*, jobject);
+template Object* Decode<Object*>(JNIEnv*, jobject);
+template String* Decode<String*>(JNIEnv*, jobject);
+
+namespace {
 
 jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
   if (obj == NULL) {
@@ -115,6 +128,7 @@ jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
   return reinterpret_cast<jweak>(ref);
 }
 
+// For internal use.
 template<typename T>
 T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
@@ -364,7 +378,7 @@ template<typename JniT, typename ArtT>
 JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
   CHECK_GE(length, 0); // TODO: ReportJniError
   ArtT* result = ArtT::Alloc(length);
-  return AddLocalReference<JniT>(ts, result);
+  return AddLocalReference<JniT>(ts.Env(), result);
 }
 
 template <typename ArrayT, typename CArrayT, typename ArtArrayT>
@@ -634,7 +648,7 @@ class JNI {
     // TODO: need to get the appropriate ClassLoader.
     const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
     Class* c = class_linker->FindClass(descriptor, cl);
-    return AddLocalReference<jclass>(ts, c);
+    return AddLocalReference<jclass>(env, c);
   }
 
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject java_method) {
@@ -652,25 +666,25 @@ class JNI {
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
     ScopedJniThreadState ts(env);
     Method* method = DecodeMethod(ts, mid);
-    return AddLocalReference<jobject>(ts, method);
+    return AddLocalReference<jobject>(env, method);
   }
 
   static jobject ToReflectedField(JNIEnv* env, jclass, jfieldID fid, jboolean) {
     ScopedJniThreadState ts(env);
     Field* field = DecodeField(ts, fid);
-    return AddLocalReference<jobject>(ts, field);
+    return AddLocalReference<jobject>(env, field);
   }
 
   static jclass GetObjectClass(JNIEnv* env, jobject java_object) {
     ScopedJniThreadState ts(env);
     Object* o = Decode<Object*>(ts, java_object);
-    return AddLocalReference<jclass>(ts, o->GetClass());
+    return AddLocalReference<jclass>(env, o->GetClass());
   }
 
   static jclass GetSuperclass(JNIEnv* env, jclass java_class) {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
-    return AddLocalReference<jclass>(ts, c->GetSuperClass());
+    return AddLocalReference<jclass>(env, c->GetSuperClass());
   }
 
   static jboolean IsAssignableFrom(JNIEnv* env, jclass java_class1, jclass java_class2) {
@@ -746,7 +760,7 @@ class JNI {
     Throwable* original_exception = self->GetException();
     self->ClearException();
 
-    ScopedLocalRef<jthrowable> exception(env, AddLocalReference<jthrowable>(ts, original_exception));
+    ScopedLocalRef<jthrowable> exception(env, AddLocalReference<jthrowable>(env, original_exception));
     ScopedLocalRef<jclass> exception_class(env, env->GetObjectClass(exception.get()));
     jmethodID mid = env->GetMethodID(exception_class.get(), "printStackTrace", "()V");
     if (mid == NULL) {
@@ -772,7 +786,7 @@ class JNI {
     } else {
       // TODO: if adding a local reference failing causes the VM to abort
       // then the following check will never occur.
-      jthrowable localException = AddLocalReference<jthrowable>(ts, exception);
+      jthrowable localException = AddLocalReference<jthrowable>(env, exception);
       if (localException == NULL) {
         // We were unable to add a new local reference, and threw a new
         // exception.  We can't return "exception", because it's not a
@@ -903,7 +917,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c)) {
       return NULL;
     }
-    return AddLocalReference<jobject>(ts, c->AllocObject());
+    return AddLocalReference<jobject>(env, c->AllocObject());
   }
 
   static jobject NewObject(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
@@ -922,7 +936,7 @@ class JNI {
       return NULL;
     }
     Object* result = c->AllocObject();
-    jobject local_result = AddLocalReference<jobject>(ts, result);
+    jobject local_result = AddLocalReference<jobject>(env, result);
     CallNonvirtualVoidMethodV(env, local_result, java_class, mid, args);
     return local_result;
   }
@@ -934,7 +948,7 @@ class JNI {
       return NULL;
     }
     Object* result = c->AllocObject();
-    jobject local_result = AddLocalReference<jobjectArray>(ts, result);
+    jobject local_result = AddLocalReference<jobjectArray>(env, result);
     CallNonvirtualVoidMethodA(env, local_result, java_class, mid, args);
     return local_result;
   }
@@ -955,19 +969,19 @@ class JNI {
     va_start(ap, mid);
     JValue result = InvokeVirtualOrInterfaceWithVarArgs(ts, obj, mid, ap);
     va_end(ap);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallObjectMethodV(JNIEnv* env, jobject obj, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeVirtualOrInterfaceWithVarArgs(ts, obj, mid, args);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallObjectMethodA(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeVirtualOrInterfaceWithJValues(ts, obj, mid, args);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jboolean CallBooleanMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -1146,7 +1160,7 @@ class JNI {
     va_list ap;
     va_start(ap, mid);
     JValue result = InvokeWithVarArgs(ts, obj, mid, ap);
-    jobject local_result = AddLocalReference<jobject>(ts, result.l);
+    jobject local_result = AddLocalReference<jobject>(env, result.l);
     va_end(ap);
     return local_result;
   }
@@ -1155,14 +1169,14 @@ class JNI {
       jobject obj, jclass clazz, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithVarArgs(ts, obj, mid, args);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallNonvirtualObjectMethodA(JNIEnv* env,
       jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithJValues(ts, obj, mid, args);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jboolean CallNonvirtualBooleanMethod(JNIEnv* env,
@@ -1379,13 +1393,13 @@ class JNI {
     ScopedJniThreadState ts(env);
     Object* o = Decode<Object*>(ts, obj);
     Field* f = DecodeField(ts, fid);
-    return AddLocalReference<jobject>(ts, f->GetObject(o));
+    return AddLocalReference<jobject>(env, f->GetObject(o));
   }
 
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
     ScopedJniThreadState ts(env);
     Field* f = DecodeField(ts, fid);
-    return AddLocalReference<jobject>(ts, f->GetObject(NULL));
+    return AddLocalReference<jobject>(env, f->GetObject(NULL));
   }
 
   static void SetObjectField(JNIEnv* env, jobject java_object, jfieldID fid, jobject java_value) {
@@ -1549,7 +1563,7 @@ class JNI {
     va_list ap;
     va_start(ap, mid);
     JValue result = InvokeWithVarArgs(ts, NULL, mid, ap);
-    jobject local_result = AddLocalReference<jobject>(ts, result.l);
+    jobject local_result = AddLocalReference<jobject>(env, result.l);
     va_end(ap);
     return local_result;
   }
@@ -1558,14 +1572,14 @@ class JNI {
       jclass clazz, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithVarArgs(ts, NULL, mid, args);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallStaticObjectMethodA(JNIEnv* env,
       jclass clazz, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithJValues(ts, NULL, mid, args);
-    return AddLocalReference<jobject>(ts, result.l);
+    return AddLocalReference<jobject>(env, result.l);
   }
 
   static jboolean CallStaticBooleanMethod(JNIEnv* env,
@@ -1763,7 +1777,7 @@ class JNI {
       return NULL;
     }
     String* result = String::AllocFromUtf16(char_count, chars);
-    return AddLocalReference<jstring>(ts, result);
+    return AddLocalReference<jstring>(env, result);
   }
 
   static jstring NewStringUTF(JNIEnv* env, const char* utf) {
@@ -1772,7 +1786,7 @@ class JNI {
       return NULL;
     }
     String* result = String::AllocFromModifiedUtf8(utf);
-    return AddLocalReference<jstring>(ts, result);
+    return AddLocalReference<jstring>(env, result);
   }
 
   static jsize GetStringLength(JNIEnv* env, jstring java_string) {
@@ -1870,7 +1884,7 @@ class JNI {
   static jobject GetObjectArrayElement(JNIEnv* env, jobjectArray java_array, jsize index) {
     ScopedJniThreadState ts(env);
     ObjectArray<Object>* array = Decode<ObjectArray<Object>*>(ts, java_array);
-    return AddLocalReference<jobject>(ts, array->Get(index));
+    return AddLocalReference<jobject>(env, array->Get(index));
   }
 
   static void SetObjectArrayElement(JNIEnv* env,
@@ -1941,7 +1955,7 @@ class JNI {
         result->Set(i, initial_object);
       }
     }
-    return AddLocalReference<jobjectArray>(ts, result);
+    return AddLocalReference<jobjectArray>(env, result);
   }
 
   static jshortArray NewShortArray(JNIEnv* env, jsize length) {

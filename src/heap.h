@@ -44,6 +44,13 @@ class Heap {
   // Initiates an explicit garbage collection.
   static void CollectGarbage();
 
+  // Implements java.lang.Runtime.maxMemory.
+  static int64_t GetMaxMemory();
+  // Implements java.lang.Runtime.totalMemory.
+  static int64_t GetTotalMemory();
+  // Implements java.lang.Runtime.freeMemory.
+  static int64_t GetFreeMemory();
+
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();
 

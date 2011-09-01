@@ -75,6 +75,8 @@ class Runtime {
   // Attaches the current native thread to the runtime.
   bool AttachCurrentThread(const char* name, JNIEnv** jni_env, bool as_daemon);
 
+  void CallExitHook(jint status);
+
   // Detaches the current native thread from the runtime.
   bool DetachCurrentThread();
 

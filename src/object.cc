@@ -62,6 +62,11 @@ Object* Class::AllocObject() {
   return Heap::AllocObject(this, this->object_size_);
 }
 
+bool Class::CanPutArrayElementNoThrow(const Class* elementClass, const Class* arrayClass) {
+  UNIMPLEMENTED(FATAL);
+  return false;
+}
+
 bool Class::Implements(const Class* klass) const {
   DCHECK(klass != NULL);
   DCHECK(klass->IsInterface());

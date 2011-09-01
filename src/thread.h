@@ -208,18 +208,15 @@ class Thread {
   void (*pSet64Static)(uint32_t, const Method*, uint64_t);
   Object* (*pGetObjStatic)(uint32_t, const Method*);
   void (*pSetObjStatic)(uint32_t, const Method*, Object*);
-  bool (*pArtUnlockObject)(struct Thread*, struct Object*);
-  bool (*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
-                 const struct ClassObject*);
-  int (*pArtInstanceofNonTrivialNoThrow) (const struct ClassObject*,
-                const struct ClassObject*);
-  int (*pArtInstanceofNonTrivial) (const struct ClassObject*, const struct ClassObject*);
-  struct Method* (*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
-                           const struct Method*, struct DvmDex*);
-  bool (*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);
-  void (*pArtLockObjectNoThrow)(struct Thread*, struct Object*);
-  struct Object* (*pArtAllocObjectNoThrow)(struct ClassObject*, int);
-  void (*pArtThrowException)(struct Thread*, struct Object*);
+  bool (*pArtUnlockObject)(Thread*, Object*);
+  bool (*pArtCanPutArrayElementNoThrow)(const Class*, const Class*);
+  int (*pArtInstanceofNonTrivialNoThrow) (const Class*, const Class*);
+  int (*pArtInstanceofNonTrivial) (const Class*, const Class*);
+  Method* (*pArtFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
+  bool (*pArtUnlockObjectNoThrow)(Thread*, Object*);
+  void (*pArtLockObjectNoThrow)(Thread*, Object*);
+  Object* (*pArtAllocObjectNoThrow)(Class*, int);
+  void (*pArtThrowException)(Thread*, Object*);
   void (*pArtHandleFillArrayDataNoThrow)(Array*, const uint16_t*);
 
   class StackVisitor {

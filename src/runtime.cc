@@ -63,6 +63,14 @@ void Runtime::Abort(const char* file, int line) {
   // notreached
 }
 
+void Runtime::CallExitHook(jint status) {
+  if (exit_ != NULL) {
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kNative);
+    exit_(status);
+    LOG(WARNING) << "Exit hook returned instead of exiting!";
+  }
+}
+
 // Parse a string of the form /[0-9]+[kKmMgG]?/, which is used to specify
 // memory sizes.  [kK] indicates kilobytes, [mM] megabytes, and
 // [gG] gigabytes.
@@ -356,10 +364,10 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   //REGISTER(register_dalvik_system_VMStack);
   //REGISTER(register_dalvik_system_Zygote);
   //REGISTER(register_java_lang_Class);
-  //REGISTER(register_java_lang_Object);
-  //REGISTER(register_java_lang_Runtime);
-  //REGISTER(register_java_lang_String);
-  //REGISTER(register_java_lang_System_); // The _ avoids collision with libcore.
+  REGISTER(register_java_lang_Object);
+  REGISTER(register_java_lang_Runtime);
+  REGISTER(register_java_lang_String);
+  REGISTER(register_java_lang_System);
   //REGISTER(register_java_lang_Thread);
   //REGISTER(register_java_lang_Throwable);
   //REGISTER(register_java_lang_VMClassLoader);
@@ -369,7 +377,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   //REGISTER(register_java_lang_reflect_Field);
   //REGISTER(register_java_lang_reflect_Method);
   //REGISTER(register_java_lang_reflect_Proxy);
-  //REGISTER(register_java_util_concurrent_atomic_AtomicLong);
+  REGISTER(register_java_util_concurrent_atomic_AtomicLong);
   //REGISTER(register_org_apache_harmony_dalvik_ddmc_DdmServer);
   //REGISTER(register_org_apache_harmony_dalvik_ddmc_DdmVmInternal);
   //REGISTER(register_sun_misc_Unsafe);

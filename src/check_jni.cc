@@ -1196,7 +1196,7 @@ void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy
 
   Array* a = Decode<Array*>(ts, java_array);
   size_t byte_count = a->GetLength() * a->GetClass()->GetComponentSize();
-  void* result = GuardedCopy::create(reinterpret_cast<ByteArray*>(a)->GetData(), byte_count, true);
+  void* result = GuardedCopy::create(a->GetRawData(), byte_count, true);
   if (isCopy != NULL) {
     *isCopy = JNI_TRUE;
   }
@@ -1219,7 +1219,7 @@ void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mod
 
   if (mode != JNI_ABORT) {
     size_t len = GuardedCopy::fromData(dataBuf)->originalLen;
-    memcpy(reinterpret_cast<ByteArray*>(a)->GetData(), dataBuf, len);
+    memcpy(a->GetRawData(), dataBuf, len);
   }
   if (mode != JNI_COMMIT) {
     GuardedCopy::destroy(dataBuf);

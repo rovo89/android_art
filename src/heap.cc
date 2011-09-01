@@ -251,6 +251,21 @@ Object* Heap::Allocate(Space* space, size_t size) {
   return NULL;
 }
 
+int64_t Heap::GetMaxMemory() {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
+int64_t Heap::GetTotalMemory() {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
+int64_t Heap::GetFreeMemory() {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
 void Heap::CollectGarbage() {
   CollectGarbageInternal();
 }

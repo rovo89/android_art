@@ -71,21 +71,17 @@ void Thread::InitFunctionPointers() {
   pSet64Static = Field::Set64StaticFromCode;
   pGetObjStatic = Field::GetObjStaticFromCode;
   pSetObjStatic = Field::SetObjStaticFromCode;
+  pArtCanPutArrayElementNoThrow = Class::CanPutArrayElementNoThrow;
 #if 0
-bool (Thread::*pArtUnlockObject)(struct Thread*, struct Object*);
-bool (Thread::*pArtCanPutArrayElementNoThrow)(const struct ClassObject*,
-      const struct ClassObject*);
-int (Thread::*pArtInstanceofNonTrivialNoThrow)
-  (const struct ClassObject*, const struct ClassObject*);
-int (Thread::*pArtInstanceofNonTrivial) (const struct ClassObject*,
-     const struct ClassObject*);
-struct Method* (Thread::*pArtFindInterfaceMethodInCache)(ClassObject*, uint32_t,
-      const struct Method*, struct DvmDex*);
-bool (Thread::*pArtUnlockObjectNoThrow)(struct Thread*, struct Object*);
-void (Thread::*pArtLockObjectNoThrow)(struct Thread*, struct Object*);
-struct Object* (Thread::*pArtAllocObjectNoThrow)(struct ClassObject*, int);
-void (Thread::*pArtThrowException)(struct Thread*, struct Object*);
-bool (Thread::*pArtHandleFillArrayDataNoThrow)(struct ArrayObject*, const uint16_t*);
+bool (Thread::*pArtUnlockObject)(Thread*, Object*);
+int (Thread::*pArtInstanceofNonTrivialNoThrow)(const Class*, const Class*);
+int (Thread::*pArtInstanceofNonTrivial) (const Class*, const Class*);
+Method* (Thread::*pArtFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, DvmDex*);
+bool (Thread::*pArtUnlockObjectNoThrow)(Thread*, Object*);
+void (Thread::*pArtLockObjectNoThrow)(Thread*, Object*);
+Object* (Thread::*pArtAllocObjectNoThrow)(Class*, int);
+void (Thread::*pArtThrowException)(Thread*, Object*);
+bool (Thread::*pArtHandleFillArrayDataNoThrow)(Array*, const uint16_t*);
 #endif
 }
 
