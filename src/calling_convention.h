@@ -26,6 +26,8 @@ class CallingConvention {
   // Register reserved for scratch usage during procedure calls
   ManagedRegister InterproceduralScratchRegister();
 
+  ManagedRegister ThreadRegister();
+
   // Offset of Method within the frame
   FrameOffset MethodStackOffset();
 
@@ -38,6 +40,7 @@ class CallingConvention {
     displacement_ = displacement;
     itr_slots_ = 0;
     itr_args_ = 0;
+    itr_refs_ = 0;
     itr_longs_and_doubles_ = 0;
   }
 
@@ -49,6 +52,7 @@ class CallingConvention {
   // The slot number for current calling_convention argument.
   // Note that each slot is 32-bit. When the current argument is bigger
   // than 32 bits, return the first slot number for this argument.
+  unsigned int itr_refs_;
   unsigned int itr_slots_;
   // The argument number along argument list for current argument
   unsigned int itr_args_;

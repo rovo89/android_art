@@ -29,6 +29,9 @@ void ManagedRuntimeCallingConvention::Next() {
     itr_longs_and_doubles_++;
     itr_slots_++;
   }
+  if (IsCurrentParamAReference()) {
+    itr_refs_++;
+  }
   itr_args_++;
   itr_slots_++;
 }
@@ -84,6 +87,9 @@ void JniCallingConvention::Next() {
       itr_slots_++;
     }
   }
+  if (IsCurrentParamAReference()) {
+    itr_refs_++;
+  }
   itr_args_++;
   itr_slots_++;
 }
@@ -108,15 +114,7 @@ FrameOffset JniCallingConvention::CurrentParamSirtEntryOffset() {
   CHECK_GT(SirtLinkOffset(), SirtNumRefsOffset());
   // Address of 1st SIRT entry
   int result = SirtLinkOffset().Int32Value() + kPointerSize;
-  if (itr_args_ != kObjectOrClass) {
-    const Method *method = GetMethod();
-    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
-    int previous_refs = GetMethod()->NumReferenceArgsBefore(arg_pos);
-    if (method->IsStatic()) {
-      previous_refs++;  // account for jclass
-    }
-    result += previous_refs * kPointerSize;
-  }
+  result += itr_refs_ * kPointerSize;
   CHECK_GT(result, SirtLinkOffset().Int32Value());
   return FrameOffset(result);
 }

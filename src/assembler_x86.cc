@@ -1619,6 +1619,21 @@ void Assembler::Call(FrameOffset base, Offset offset,
   UNIMPLEMENTED(FATAL);
 }
 
+void Assembler::Call(uintptr_t addr,
+                     ManagedRegister scratch) {
+  leal(scratch.AsCpuRegister(), Address::Absolute(addr));
+  call(scratch.AsCpuRegister());
+}
+
+void Assembler::GetCurrentThread(ManagedRegister tr) {
+  fs()->movl(tr.AsCpuRegister(), Address::Absolute(Thread::SelfOffset()));
+}
+
+void Assembler::GetCurrentThread(FrameOffset offset, ManagedRegister scratch) {
+  fs()->movl(scratch.AsCpuRegister(), Address::Absolute(Thread::SelfOffset()));
+  movl(Address(ESP, offset), scratch.AsCpuRegister());
+}
+
 void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
                             FrameOffset return_save_location,
                             size_t return_size) {

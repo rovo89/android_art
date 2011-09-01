@@ -482,6 +482,10 @@ class Assembler {
 
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch);
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch);
+  void Call(uintptr_t addr, ManagedRegister scratch);
+
+  void GetCurrentThread(ManagedRegister tr);
+  void GetCurrentThread(FrameOffset offset, ManagedRegister scratch);
 
   // Generate code to check if Thread::Current()->suspend_count_ is non-zero
   // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue

@@ -9,6 +9,10 @@ ManagedRegister CallingConvention::MethodRegister() {
   return ManagedRegister::FromCoreRegister(R0);
 }
 
+ManagedRegister CallingConvention::ThreadRegister() {
+  return ManagedRegister::FromCoreRegister(TR);
+}
+
 ManagedRegister CallingConvention::InterproceduralScratchRegister() {
   return ManagedRegister::FromCoreRegister(R12);
 }

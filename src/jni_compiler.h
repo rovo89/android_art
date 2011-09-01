@@ -30,6 +30,10 @@ class JniCompiler {
                      JniCallingConvention* jni_conv,
                      size_t frame_size, size_t out_arg_size);
 
+  void SetNativeParameter(Assembler *jni_asm,
+                          JniCallingConvention *jni_conv,
+                          ManagedRegister in_reg);
+
   // A poor man's code cache
   void* AllocateCode(size_t size);
 

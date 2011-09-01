@@ -1694,6 +1694,23 @@ void Assembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
+void Assembler::Call(uintptr_t addr,
+                     ManagedRegister scratch) {
+  CHECK(scratch.IsCoreRegister());
+  CHECK(sizeof(uintptr_t) == sizeof(int32_t));
+  LoadImmediate(scratch.AsCoreRegister(), static_cast<int32_t>(addr));
+  blx(scratch.AsCoreRegister());
+  // TODO: place reference map on call
+}
+
+void Assembler::GetCurrentThread(ManagedRegister tr) {
+  mov(tr.AsCoreRegister(), ShifterOperand(TR));
+}
+
+void Assembler::GetCurrentThread(FrameOffset offset, ManagedRegister scratch) {
+  StoreToOffset(kStoreWord, TR, SP, offset.Int32Value(), AL);
+}
+
 void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
                             FrameOffset return_save_location,
                             size_t return_size) {

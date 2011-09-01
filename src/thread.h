@@ -313,6 +313,9 @@ class Thread {
                                      void* throw_pc,
                                      const DexFile& dex_file,
                                      ClassLinker* class_linker);
+  static ThreadOffset SelfOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, self_));
+  }
 
   // Offset of exception within Thread, used by generated code
   static ThreadOffset ExceptionOffset() {

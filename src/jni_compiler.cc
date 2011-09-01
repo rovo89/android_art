@@ -16,6 +16,10 @@
 
 namespace art {
 
+static Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
+  return thread->DecodeJObject(obj);
+}
+
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
 //   registers, a reference to the method object is supplied as part of this
@@ -128,21 +132,14 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     } else {
       CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
     }
-    // Generate JNIEnv* in place and leave a copy in jni_env_register
+    // Generate JNIEnv* in place and leave a copy in jni_fns_register
     jni_conv.ResetIterator(FrameOffset(out_arg_size));
-    ManagedRegister jni_env_register =
+    ManagedRegister jni_fns_register =
         jni_conv.InterproceduralScratchRegister();
-    if (jni_conv.IsCurrentParamInRegister()) {
-      jni_env_register = jni_conv.CurrentParamRegister();
-    }
-    jni_asm->LoadRawPtrFromThread(jni_env_register, Thread::JniEnvOffset());
-    if (!jni_conv.IsCurrentParamInRegister()) {
-      FrameOffset out_off = jni_conv.CurrentParamStackOffset();
-      jni_asm->StoreRawPtr(out_off, jni_env_register);
-    }
+    jni_asm->LoadRawPtrFromThread(jni_fns_register, Thread::JniEnvOffset());
+    SetNativeParameter(jni_asm, &jni_conv, jni_fns_register);
     // Call JNIEnv->MonitorEnter(object)
-    ManagedRegister jni_fns_register = jni_conv.InterproceduralScratchRegister();
-    jni_asm->LoadRawPtr(jni_fns_register, jni_env_register, functions);
+    jni_asm->LoadRawPtr(jni_fns_register, jni_fns_register, functions);
     jni_asm->Call(jni_fns_register, monitor_enter,
                   jni_conv.InterproceduralScratchRegister());
     jni_asm->FillFromSpillArea(spill_regs, out_arg_size);
@@ -247,30 +244,23 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     jni_conv.ResetIterator(FrameOffset(out_arg_size));
     ManagedRegister jni_env_register =
         jni_conv.InterproceduralScratchRegister();
-    if (jni_conv.IsCurrentParamInRegister()) {
-      jni_env_register = jni_conv.CurrentParamRegister();
-    }
     jni_asm->LoadRawPtrFromThread(jni_env_register, Thread::JniEnvOffset());
-    if (!jni_conv.IsCurrentParamInRegister()) {
-      FrameOffset out_off = jni_conv.CurrentParamStackOffset();
-      jni_asm->StoreRawPtr(out_off, jni_env_register);
-    }
+    SetNativeParameter(jni_asm, &jni_conv, jni_env_register);
     // Call JNIEnv->MonitorExit(object)
-    ManagedRegister jni_fns_register = jni_conv.InterproceduralScratchRegister();
-    jni_asm->LoadRawPtr(jni_fns_register, jni_env_register, functions);
-    jni_asm->Call(jni_fns_register, monitor_exit,
+    jni_asm->LoadRawPtr(jni_env_register, jni_env_register, functions);
+    jni_asm->Call(jni_env_register, monitor_exit,
                   jni_conv.InterproceduralScratchRegister());
     // Reload return value
     jni_asm->Load(jni_conv.ReturnRegister(), return_save_location,
                   jni_conv.SizeOfReturnValue());
   }
 
-  // 11. Release outgoing argument area
+  // 12. Release outgoing argument area
   jni_asm->DecreaseFrameSize(out_arg_size);
   mr_conv.ResetIterator(FrameOffset(frame_size));
   jni_conv.ResetIterator(FrameOffset(0));
 
-  // 12. Transition from being in native to managed code, possibly entering a
+  // 13. Transition from being in native to managed code, possibly entering a
   //     safepoint
   CHECK(!jni_conv.InterproceduralScratchRegister()
                  .Equals(jni_conv.ReturnRegister()));  // don't clobber result
@@ -285,24 +275,40 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
                                   jni_conv.InterproceduralScratchRegister());
 
 
-  // 15. Place result in correct register possibly loading from indirect
+  // 14. Place result in correct register possibly loading from indirect
   //     reference table
   if (jni_conv.IsReturnAReference()) {
-    // TODO: load from local/global reference tables
-    jni_asm->LoadReferenceFromSirt(mr_conv.ReturnRegister(),
-                                   jni_conv.ReturnRegister());
-  } else {
-    jni_asm->Move(mr_conv.ReturnRegister(), jni_conv.ReturnRegister());
-  }
+    jni_asm->IncreaseFrameSize(kStackAlignment);
+    jni_conv.ResetIterator(FrameOffset(kStackAlignment));
 
-  // 16. Remove SIRT from thread
+    jni_conv.Next();
+    SetNativeParameter(jni_asm, &jni_conv, jni_conv.ReturnRegister());
+
+    jni_conv.ResetIterator(FrameOffset(kStackAlignment));
+
+    if (jni_conv.IsCurrentParamInRegister()) {
+      jni_asm->GetCurrentThread(jni_conv.CurrentParamRegister());
+    } else {
+      jni_asm->GetCurrentThread(jni_conv.CurrentParamStackOffset(),
+                                jni_conv.InterproceduralScratchRegister());
+    }
+
+    jni_asm->Call(reinterpret_cast<uintptr_t>(DecodeJObjectInThread),
+                  jni_conv.InterproceduralScratchRegister());
+
+    jni_asm->DecreaseFrameSize(kStackAlignment);
+    jni_conv.ResetIterator(FrameOffset(0));
+  }
+  jni_asm->Move(mr_conv.ReturnRegister(), jni_conv.ReturnRegister());
+
+  // 15. Remove SIRT from thread
   jni_asm->CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv.SirtLinkOffset(),
                               jni_conv.InterproceduralScratchRegister());
 
-  // 17. Remove activation
+  // 16. Remove activation
   jni_asm->RemoveFrame(frame_size, spill_regs);
 
-  // 18. Finalize code generation
+  // 17. Finalize code generation
   jni_asm->EmitSlowPaths();
   size_t cs = jni_asm->CodeSize();
   MemoryRegion code(AllocateCode(cs), cs);
@@ -311,6 +317,19 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
       jni_asm->GetInstructionSet());
   native_method->SetFrameSizeInBytes(frame_size);
   native_method->SetReturnPcOffsetInBytes(jni_conv.ReturnPcOffset());
+}
+
+void JniCompiler::SetNativeParameter(Assembler *jni_asm,
+                                     JniCallingConvention *jni_conv,
+                                     ManagedRegister in_reg) {
+  if (jni_conv->IsCurrentParamOnStack()) {
+    FrameOffset dest = jni_conv->CurrentParamStackOffset();
+    jni_asm->StoreRawPtr(dest, in_reg);
+  } else {
+    if (!jni_conv->CurrentParamRegister().Equals(in_reg)) {
+      jni_asm->Move(jni_conv->CurrentParamRegister(), in_reg);
+    }
+  }
 }
 
 // Copy a single parameter from the managed to the JNI calling convention
