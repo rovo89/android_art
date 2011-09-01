@@ -447,4 +447,16 @@ TEST_F(JniCompilerTest, NativeStackTraceElement) {
   EXPECT_EQ(55, result);
 }
 
+jobject Java_MyClass_fooL(JNIEnv* env, jobject thisObj, jobject x) {
+  return env->NewGlobalRef(x);
+}
+
+TEST_F(JniCompilerTest, DecodeJObject) {
+  SetupForTest(false, "fooL", "(Ljava/lang/Object;)Ljava/lang/Object;",
+               reinterpret_cast<void*>(&Java_MyClass_fooL));
+  jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, jobj_);
+  EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(result));
+  EXPECT_TRUE(env_->IsSameObject(result, jobj_));
+}
+
 }  // namespace art
