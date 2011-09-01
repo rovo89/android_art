@@ -155,17 +155,29 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   //    NB. we do this prior to materializing the JNIEnv* and static's jclass to
   //    give as many free registers for the shuffle as possible
   mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
-  jni_conv.ResetIterator(FrameOffset(out_arg_size));
-  jni_conv.Next();  // Skip JNIEnv*
-  if (is_static) {
-    jni_conv.Next();  // Skip Class for now
-  }
+  uint32_t args_count = 0;
   while (mr_conv.HasNext()) {
-    CHECK(jni_conv.HasNext());
-    CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
+    args_count++;
     mr_conv.Next();
-    jni_conv.Next();
   }
+
+  // Do a backward pass over arguments, so that the generated code will be "mov
+  // R2, R3; mov R1, R2" instead of "mov R1, R2; mov R2, R3."
+  // TODO: A reverse iterator to improve readability.
+  for (uint32_t i = 0; i < args_count; ++i) {
+    mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));
+    jni_conv.ResetIterator(FrameOffset(out_arg_size));
+    jni_conv.Next();  // Skip JNIEnv*
+    if (is_static) {
+      jni_conv.Next();  // Skip Class for now
+    }
+    for (uint32_t j = 0; j < args_count - i - 1; ++j) {
+      mr_conv.Next();
+      jni_conv.Next();
+    }
+    CopyParameter(jni_asm, &mr_conv, &jni_conv, frame_size, out_arg_size);
+  }
+
   if (is_static) {
     // Create argument for Class
     mr_conv.ResetIterator(FrameOffset(frame_size+out_arg_size));

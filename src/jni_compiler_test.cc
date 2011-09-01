@@ -223,6 +223,29 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
   EXPECT_EQ(7, gJava_MyClass_fooIOO_calls);
 }
 
+int gJava_MyClass_fooSII_calls = 0;
+jint Java_MyClass_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(klass != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
+  gJava_MyClass_fooSII_calls++;
+  return x + y;
+}
+
+
+TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
+  SetupForTest(true, "fooSII",
+               "(II)I",
+               reinterpret_cast<void*>(&Java_MyClass_fooSII));
+
+  EXPECT_EQ(0, gJava_MyClass_fooSII_calls);
+  jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 20, 30);
+  EXPECT_EQ(50, result);
+  EXPECT_EQ(1, gJava_MyClass_fooSII_calls);
+}
+
 int gJava_MyClass_fooSIOO_calls = 0;
 jobject Java_MyClass_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
