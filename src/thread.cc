@@ -245,8 +245,8 @@ bool Thread::SirtContains(jobject obj) {
     // A SIRT should always have a jobject/jclass as a native method is passed
     // in a this pointer or a class
     DCHECK_GT(num_refs, 0u);
-    if ((&cur->References()[0] >= sirt_entry) &&
-        (sirt_entry <= (&cur->References()[num_refs-1]))) {
+    if ((&cur->References()[0] <= sirt_entry) &&
+        (sirt_entry <= (&cur->References()[num_refs - 1]))) {
       return true;
     }
   }
