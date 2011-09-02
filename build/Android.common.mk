@@ -131,8 +131,8 @@ TEST_COMMON_SRC_FILES := \
 	src/image_test.cc \
 	src/indirect_reference_table_test.cc \
 	src/intern_table_test.cc \
-	src/jni_internal_test.cc.arm \
-	src/jni_compiler_test.cc.arm \
+	src/jni_internal_test.cc \
+	src/jni_compiler_test.cc \
 	src/object_test.cc \
 	src/reference_table_test.cc \
 	src/runtime_test.cc \
