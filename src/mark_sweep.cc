@@ -5,12 +5,14 @@
 #include <climits>
 #include <vector>
 
+#include "class_loader.h"
 #include "heap.h"
+#include "indirect_reference_table.h"
+#include "intern_table.h"
 #include "logging.h"
 #include "macros.h"
 #include "mark_stack.h"
 #include "object.h"
-#include "class_loader.h"
 #include "runtime.h"
 #include "space.h"
 #include "thread.h"
@@ -107,11 +109,38 @@ void MarkSweep::ReMarkRoots() {
   UNIMPLEMENTED(FATAL);
 }
 
-void MarkSweep::SweepSystemWeaks() {
-  //Runtime::Current()->GetInternTable().RemoveWeakIf(isUnmarkedObject);
+void MarkSweep::SweepJniWeakGlobals() {
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  MutexLock mu(vm->weak_globals_lock);
+  IndirectReferenceTable* table = &vm->weak_globals;
+  typedef IndirectReferenceTable::iterator It; // TODO: C++0x auto
+  for (It it = table->begin(), end = table->end(); it != end; ++it) {
+    const Object** entry = *it;
+    if (!IsMarked(*entry)) {
+      *entry = kClearedJniWeakGlobal;
+    }
+  }
+}
+
+struct InternTableEntryIsUnmarked : public InternTable::Predicate {
+  InternTableEntryIsUnmarked(MarkSweep* ms) : ms_(ms) { }
+
+  bool operator()(const String* s) const {
+    return !ms_->IsMarked(s);
+  }
+
+  MarkSweep* ms_;
+};
+
+void MarkSweep::SweepMonitorList() {
   UNIMPLEMENTED(FATAL);
   //dvmSweepMonitorList(&gDvm.monitorList, isUnmarkedObject);
-  //sweepWeakJniGlobals();
+}
+
+void MarkSweep::SweepSystemWeaks() {
+  Runtime::Current()->GetInternTable()->RemoveWeakIf(InternTableEntryIsUnmarked(this));
+  SweepMonitorList();
+  SweepJniWeakGlobals();
 }
 
 void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {

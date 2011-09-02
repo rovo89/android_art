@@ -522,6 +522,15 @@ void* Thread::FindExceptionHandlerInMethod(const Method* method,
   }
 }
 
+void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  //(*visitor)(&thread->threadObj, threadId, ROOT_THREAD_OBJECT, arg);
+  //(*visitor)(&thread->exception, threadId, ROOT_NATIVE_STACK, arg);
+  jni_env_->locals.VisitRoots(visitor, arg);
+  jni_env_->monitors.VisitRoots(visitor, arg);
+  // visitThreadStack(visitor, thread, arg);
+  UNIMPLEMENTED(WARNING) << "some per-Thread roots not visited";
+}
+
 static const char* kStateNames[] = {
   "New",
   "Runnable",
@@ -586,6 +595,14 @@ void ThreadList::Unregister(Thread* thread) {
   MutexLock mu(lock_);
   CHECK(Contains(thread));
   list_.remove(thread);
+}
+
+void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  MutexLock mu(lock_);
+  typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    (*it)->VisitRoots(visitor, arg);
+  }
 }
 
 }  // namespace

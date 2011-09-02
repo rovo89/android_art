@@ -127,6 +127,8 @@ class MarkSweep {
                          Object** phantom_references);
 
   void SweepSystemWeaks();
+  void SweepMonitorList();
+  void SweepJniWeakGlobals();
 
   MarkStack* mark_stack_;
 
@@ -147,6 +149,8 @@ class MarkSweep {
   Object* phantom_reference_list_;
 
   Object* cleared_reference_list_;
+
+  friend class InternTableEntryIsUnmarked;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);
 };

@@ -36,20 +36,33 @@ TEST_F(InternTableTest, Size) {
   EXPECT_EQ(2U, t.Size());
 }
 
-std::vector<const String*> gExpectedWeakStrings;
-bool TestPredicate(const String* s) {
-  bool erased = false;
-  typedef std::vector<const String*>::iterator It; // TODO: C++0x auto
-  for (It it = gExpectedWeakStrings.begin(), end = gExpectedWeakStrings.end(); it != end; ++it) {
-    if (*it == s) {
-      gExpectedWeakStrings.erase(it);
-      erased = true;
-      break;
+class TestPredicate : public InternTable::Predicate {
+ public:
+  bool operator()(const String* s) const {
+    bool erased = false;
+    typedef std::vector<const String*>::iterator It; // TODO: C++0x auto
+    for (It it = expected_.begin(), end = expected_.end(); it != end; ++it) {
+      if (*it == s) {
+        expected_.erase(it);
+        erased = true;
+        break;
+      }
     }
+    EXPECT_TRUE(erased);
+    return true;
   }
-  EXPECT_TRUE(erased);
-  return true;
-}
+
+  void Expect(const String* s) {
+    expected_.push_back(s);
+  }
+
+  ~TestPredicate() {
+    EXPECT_EQ(0U, expected_.size());
+  }
+
+ private:
+  mutable std::vector<const String*> expected_;
+};
 
 TEST_F(InternTableTest, RemoveWeakIf) {
   InternTable t;
@@ -61,11 +74,10 @@ TEST_F(InternTableTest, RemoveWeakIf) {
   EXPECT_EQ(4U, t.Size());
 
   // We should traverse only the weaks...
-  gExpectedWeakStrings.clear();
-  gExpectedWeakStrings.push_back(s0);
-  gExpectedWeakStrings.push_back(s1);
-  t.RemoveWeakIf(TestPredicate);
-  EXPECT_EQ(0U, gExpectedWeakStrings.size());
+  TestPredicate p;
+  p.Expect(s0);
+  p.Expect(s1);
+  t.RemoveWeakIf(p);
 
   EXPECT_EQ(2U, t.Size());
 

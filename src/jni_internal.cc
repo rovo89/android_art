@@ -2862,6 +2862,18 @@ void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
   return libraries->FindNativeMethod(m);
 }
 
+void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  {
+    MutexLock mu(globals_lock);
+    globals.VisitRoots(visitor, arg);
+  }
+  {
+    MutexLock mu(pins_lock);
+    pin_table.VisitRoots(visitor, arg);
+  }
+  // The weak_globals table is visited by the GC itself (because it mutates the table).
+}
+
 }  // namespace art
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {

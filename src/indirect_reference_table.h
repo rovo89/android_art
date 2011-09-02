@@ -17,6 +17,7 @@
 #ifndef ART_SRC_INDIRECT_REFERENCE_TABLE_H_
 #define ART_SRC_INDIRECT_REFERENCE_TABLE_H_
 
+#include "heap.h"
 #include "logging.h"
 
 #include <iosfwd>
@@ -306,6 +307,8 @@ class IndirectReferenceTable {
   iterator end() {
     return iterator(table_, Capacity(), Capacity());
   }
+
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
  private:
   /*

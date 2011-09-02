@@ -433,9 +433,16 @@ bool Runtime::DetachCurrentThread() {
   return true;
 }
 
-void Runtime::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
-  GetClassLinker()->VisitRoots(root_visitor, arg);
-  UNIMPLEMENTED(WARNING) << "mark other roots including per thread state and thread stacks";
+void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  class_linker_->VisitRoots(visitor, arg);
+  intern_table_->VisitRoots(visitor, arg);
+  java_vm_->VisitRoots(visitor, arg);
+  thread_list_->VisitRoots(visitor, arg);
+
+  //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
+  //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);
+  //(*visitor)(&gDvm.noClassDefFoundErrorObj, 0, ROOT_VM_INTERNAL, arg);
+  UNIMPLEMENTED(WARNING) << "some roots not marked";
 }
 
 }  // namespace art

@@ -20,11 +20,11 @@ size_t InternTable::Size() const {
   return strong_interns_.size() + weak_interns_.size();
 }
 
-void InternTable::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
+void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   MutexLock mu(intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = strong_interns_.begin(), end = strong_interns_.end(); it != end; ++it) {
-    root_visitor(it->second, arg);
+    visitor(it->second, arg);
   }
   // Note: we deliberately don't visit the weak_interns_ table.
 }
@@ -116,7 +116,7 @@ bool InternTable::ContainsWeak(const String* s) {
   return found == s;
 }
 
-void InternTable::RemoveWeakIf(bool (*predicate)(const String*)) {
+void InternTable::RemoveWeakIf(const Predicate& predicate) {
   MutexLock mu(intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {

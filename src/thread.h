@@ -406,6 +406,8 @@ class Thread {
   // Allocate stack trace
   ObjectArray<StackTraceElement>* AllocStackTrace();
 
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
+
  private:
   Thread()
       : id_(1234),
@@ -508,6 +510,8 @@ class ThreadList {
   void Unlock() {
     lock_->Unlock();
   };
+
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
  private:
   ThreadList();

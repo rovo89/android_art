@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "heap.h"
+
 namespace art {
 
 class Object;
@@ -43,12 +45,15 @@ class ReferenceTable {
 
   void Dump() const;
 
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+
  private:
-  static void Dump(const std::vector<const Object*>& entries);
+  typedef std::vector<const Object*> Table;
+  static void Dump(const Table& entries);
   friend class IndirectReferenceTable; // For Dump.
 
   std::string name_;
-  std::vector<const Object*> entries_;
+  Table entries_;
   size_t max_size_;
 };
 

@@ -35,14 +35,20 @@ class InternTable {
   // Used when reinitializing InternTable from an image.
   void RegisterStrong(const String* s);
 
-  // Removes all weak interns for which 'predicate' is true.
-  void RemoveWeakIf(bool (*predicate)(const String*));
+  // Removes all weak interns for which the predicate functor 'p' returns true.
+  // (We use an explicit Predicate type rather than a template to keep implementation
+  // out of the header file.)
+  struct Predicate {
+    virtual ~Predicate() {}
+    virtual bool operator()(const String*) const = 0;
+  };
+  void RemoveWeakIf(const Predicate& p);
 
   bool ContainsWeak(const String* s);
 
   size_t Size() const;
 
-  void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
  private:
   typedef std::tr1::unordered_multimap<int32_t, const String*> Table;

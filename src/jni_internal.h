@@ -5,6 +5,7 @@
 
 #include "jni.h"
 
+#include "heap.h"
 #include "indirect_reference_table.h"
 #include "macros.h"
 #include "reference_table.h"
@@ -42,6 +43,8 @@ struct JavaVMExt : public JavaVM {
    * using dlsym(3) on every native library that's been loaded so far.
    */
   void* FindCodeForNativeMethod(Method* m);
+
+  void VisitRoots(Heap::RootVisitor*, void*);
 
   Runtime* runtime;
 

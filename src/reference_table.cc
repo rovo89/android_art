@@ -135,7 +135,7 @@ void ReferenceTable::Dump() const {
   Dump(entries_);
 }
 
-void ReferenceTable::Dump(const std::vector<const Object*>& entries) {
+void ReferenceTable::Dump(const Table& entries) {
   if (entries.empty()) {
     LOG(WARNING) << "  (empty)";
     return;
@@ -195,7 +195,7 @@ void ReferenceTable::Dump(const std::vector<const Object*>& entries) {
   }
 
   // Make a copy of the table and sort it.
-  std::vector<const Object*> sorted_entries(entries.begin(), entries.end());
+  Table sorted_entries(entries.begin(), entries.end());
   std::sort(sorted_entries.begin(), sorted_entries.end(), ObjectComparator());
 
   // Remove any uninteresting stuff from the list. The sort moved them all to the end.
@@ -231,6 +231,13 @@ void ReferenceTable::Dump(const std::vector<const Object*>& entries) {
   }
   // Handle the last entry.
   LogSummaryLine(sorted_entries.back(), GetElementCount(sorted_entries.back()), identical, equiv);
+}
+
+void ReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  typedef Table::const_iterator It; // TODO: C++0x auto
+  for (It it = entries_.begin(), end = entries_.end(); it != end; ++it) {
+    visitor(*it, arg);
+  }
 }
 
 }  // namespace art

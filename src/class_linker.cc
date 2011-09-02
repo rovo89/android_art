@@ -426,25 +426,22 @@ void ClassLinker::InitCallback(Object* obj, void *arg) {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(Heap::RootVistor* root_visitor, void* arg) const {
-
-  root_visitor(class_roots_, arg);
+void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  visitor(class_roots_, arg);
 
   for (size_t i = 0; i < dex_caches_.size(); i++) {
-      root_visitor(dex_caches_[i], arg);
+    visitor(dex_caches_[i], arg);
   }
 
   {
     MutexLock mu(classes_lock_);
     typedef Table::const_iterator It; // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
-        root_visitor(it->second, arg);
+      visitor(it->second, arg);
     }
   }
 
-  intern_table_->VisitRoots(root_visitor, arg);
-
-  root_visitor(array_interfaces_, arg);
+  visitor(array_interfaces_, arg);
 }
 
 ClassLinker::~ClassLinker() {

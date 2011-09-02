@@ -7,11 +7,11 @@
 
 #include "globals.h"
 #include "object_bitmap.h"
-#include "thread.h"
 
 namespace art {
 
 class Class;
+class Mutex;
 class Object;
 class Space;
 class HeapBitmap;
@@ -22,7 +22,7 @@ class Heap {
 
   static const size_t kMaximumSize = 64 * MB;
 
-  typedef void (RootVistor)(const Object* root, void* arg);
+  typedef void (RootVisitor)(const Object* root, void* arg);
 
   // Create a heap with the requested sizes. optional boot image may
   // be NULL, otherwise it is an image filename created by ImageWriter.
@@ -173,19 +173,6 @@ class Heap {
   static size_t finalizer_reference_zombie_offset_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
-};
-
-class HeapLock {
- public:
-  HeapLock(Heap* heap) : lock_(heap->GetLock()) {
-    lock_->Lock();
-  }
-  ~HeapLock() {
-    lock_->Unlock();
-  }
- private:
-  Mutex* lock_;
-  DISALLOW_COPY_AND_ASSIGN(HeapLock);
 };
 
 }  // namespace art

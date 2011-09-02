@@ -101,7 +101,7 @@ class Runtime {
     return java_vm_;
   }
 
-  void VisitRoots(Heap::RootVistor* root_visitor, void* arg) const;
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
  private:
   static void PlatformAbort(const char*, int);
