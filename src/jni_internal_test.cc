@@ -121,6 +121,11 @@ TEST_F(JniInternalTest, GetFieldID) {
   EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
   EXPECT_EXCEPTION(jlnsfe);
 
+  // Wrong type where type doesn't exist.
+  fid = env_->GetFieldID(c, "count", "Lrod/jane/freddy;");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+
   // Wrong name.
   fid = env_->GetFieldID(c, "Count", "I");
   EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
@@ -153,6 +158,11 @@ TEST_F(JniInternalTest, GetStaticFieldID) {
 
   // Wrong type.
   jfieldID fid = env_->GetStaticFieldID(c, "CASE_INSENSITIVE_ORDER", "J");
+  EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
+  EXPECT_EXCEPTION(jlnsfe);
+
+  // Wrong type where type doesn't exist.
+  fid = env_->GetStaticFieldID(c, "CASE_INSENSITIVE_ORDER", "Lrod/jane/freddy;");
   EXPECT_EQ(static_cast<jfieldID>(NULL), fid);
   EXPECT_EXCEPTION(jlnsfe);
 
