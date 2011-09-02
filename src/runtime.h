@@ -42,6 +42,7 @@ class Runtime {
     std::vector<const DexFile*> boot_class_path_;
     const char* boot_image_;
     bool check_jni_;
+    std::string jni_trace_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t stack_size_;
@@ -50,6 +51,10 @@ class Runtime {
     void (*hook_abort_)();
     std::tr1::unordered_set<std::string> verbose_;
     std::vector<std::string> properties_;
+
+    bool IsVerbose(const std::string& key) const {
+      return verbose_.find(key) != verbose_.end();
+    }
 
    private:
     ParsedOptions() {};

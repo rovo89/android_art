@@ -9,6 +9,7 @@
 #include "indirect_reference_table.h"
 #include "macros.h"
 #include "reference_table.h"
+#include "runtime.h"
 
 #include <string>
 
@@ -18,7 +19,6 @@ class ClassLoader;
 class Libraries;
 class Method;
 class Mutex;
-class Runtime;
 class Thread;
 
 void JniAbort(const char* jni_function_name);
@@ -27,7 +27,7 @@ template<typename T> T Decode(JNIEnv*, jobject);
 template<typename T> T AddLocalReference(JNIEnv*, const Object*);
 
 struct JavaVMExt : public JavaVM {
-  JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni);
+  JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);
   ~JavaVMExt();
 
   /**
@@ -51,9 +51,14 @@ struct JavaVMExt : public JavaVM {
   // Used for testing. By default, we'll LOG(FATAL) the reason.
   void (*check_jni_abort_hook)(const std::string& reason);
 
+  // Extra checking.
   bool check_jni;
-  bool verbose_jni;
   bool force_copy;
+
+  // Extra diagnostics.
+  bool verbose_jni;
+  bool log_third_party_jni;
+  std::string trace;
 
   // Used to provide compatibility for apps that assumed direct references.
   bool work_around_app_jni_bugs;

@@ -2666,12 +2666,14 @@ static const size_t kGlobalsMax = 51200; // Arbitrary sanity check.
 static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
 
-JavaVMExt::JavaVMExt(Runtime* runtime, bool check_jni, bool verbose_jni)
+JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
     : runtime(runtime),
       check_jni_abort_hook(NULL),
-      check_jni(check_jni),
-      verbose_jni(verbose_jni),
+      check_jni(options->check_jni_),
       force_copy(false), // TODO: add a way to enable this
+      verbose_jni(options->IsVerbose("jni")),
+      log_third_party_jni(options->IsVerbose("third-party-jni")),
+      trace(options->jni_trace_),
       work_around_app_jni_bugs(false), // TODO: add a way to enable this
       pins_lock(Mutex::Create("JNI pin table lock")),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),

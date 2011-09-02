@@ -4,6 +4,8 @@
 #define ART_SRC_THREAD_H_
 
 #include <pthread.h>
+
+#include <iosfwd>
 #include <list>
 
 #include "dex_file.h"
@@ -126,7 +128,7 @@ class Frame {
   Frame() : sp_(NULL) {}
 
   const Method* GetMethod() const {
-    return *sp_;
+    return (sp_ != NULL) ? *sp_ : NULL;
   }
 
   bool HasNext() const {
@@ -234,6 +236,8 @@ class Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
+  void Dump(std::ostream& os) const;
+
   uint32_t GetId() const {
     return id_;
   }
@@ -250,6 +254,12 @@ class Thread {
 
   Throwable* GetException() const {
     return exception_;
+  }
+
+  // Returns the Method* for the current method.
+  // This is used by the JNI implementation for logging and diagnostic purposes.
+  const Method* GetCurrentMethod() const {
+    return top_of_managed_stack_.GetMethod();
   }
 
   Frame GetTopOfStack() const {

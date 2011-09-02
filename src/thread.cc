@@ -4,8 +4,10 @@
 
 #include <pthread.h>
 #include <sys/mman.h>
+
 #include <algorithm>
 #include <cerrno>
+#include <iostream>
 #include <list>
 
 #include "class_linker.h"
@@ -13,8 +15,8 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "runtime.h"
-#include "utils.h"
 #include "runtime_support.h"
+#include "utils.h"
 
 namespace art {
 
@@ -215,6 +217,10 @@ Thread* Thread::Attach(const Runtime* runtime) {
   thread->jni_env_ = new JNIEnvExt(thread, runtime->GetJavaVM());
 
   return thread;
+}
+
+void Thread::Dump(std::ostream& os) const {
+  os << "UNIMPLEMENTED: Thread::Dump\n";
 }
 
 pid_t Thread::GetTid() const {

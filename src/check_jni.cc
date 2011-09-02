@@ -28,17 +28,21 @@
 namespace art {
 
 void JniAbort(const char* jni_function_name) {
-  std::stringstream os;
+  Thread* self = Thread::Current();
+  const Method* current_method = self->GetCurrentMethod();
 
-  // dvmDumpThread(dvmThreadSelf(), false);
+  std::stringstream os;
   os << "JNI app bug detected";
 
   if (jni_function_name != NULL) {
     os << "\n             in call to " << jni_function_name;
   }
-  // TODO: say what native method we're in...
-  //const Method* method = dvmGetCurrentJNIMethod();
-  //os << "\n             in " << PrettyMethod(method);
+  // TODO: is this useful given that we're about to dump the calling thread's stack?
+  if (current_method != NULL) {
+    os << "\n             from " << PrettyMethod(current_method);
+  }
+  os << "\n";
+  self->Dump(os);
 
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   if (vm->check_jni_abort_hook != NULL) {
@@ -267,17 +271,53 @@ bool IsValidClassName(const char* s, bool isClassName, bool dotSeparator) {
 
 #define kFlag_Invocation    0x8000      /* Part of the invocation interface (JavaVM*) */
 
+static const char* gBuiltInPrefixes[] = {
+  "Landroid/",
+  "Lcom/android/",
+  "Lcom/google/android/",
+  "Ldalvik/",
+  "Ljava/",
+  "Ljavax/",
+  "Llibcore/",
+  "Lorg/apache/harmony/",
+  NULL
+};
+
+bool ShouldTrace(JavaVMExt* vm, const Method* method) {
+  // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
+  // when a native method that matches the -Xjnitrace argument calls a JNI function
+  // such as NewByteArray.
+  // If -verbose:third-party-jni is on, we want to log any JNI function calls
+  // made by a third-party native method.
+  std::string classNameStr(method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8());
+  if (!vm->trace.empty() && classNameStr.find(vm->trace) != std::string::npos) {
+    return true;
+  }
+  if (vm->log_third_party_jni) {
+    // Return true if we're trying to log all third-party JNI activity and 'method' doesn't look
+    // like part of Android.
+    StringPiece className(classNameStr);
+    for (size_t i = 0; gBuiltInPrefixes[i] != NULL; ++i) {
+      if (className.starts_with(gBuiltInPrefixes[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 class ScopedCheck {
 public:
   // For JNIEnv* functions.
   explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName) {
-    init(env, flags, functionName, true);
+    init(env, reinterpret_cast<JNIEnvExt*>(env)->vm, flags, functionName, true);
     checkThread(flags);
   }
 
   // For JavaVM* functions.
-  explicit ScopedCheck(bool hasMethod, const char* functionName) {
-    init(NULL, kFlag_Invocation, functionName, hasMethod);
+  explicit ScopedCheck(JavaVM* vm, bool hasMethod, const char* functionName) {
+    init(NULL, vm, kFlag_Invocation, functionName, hasMethod);
   }
 
   bool forceCopy() {
@@ -501,31 +541,17 @@ public:
   void check(bool entry, const char* fmt0, ...) {
     va_list ap;
 
-    bool shouldTrace = false;
-    const Method* method = NULL;
-#if 0
-    if ((gDvm.jniTrace || gDvmJni.logThirdPartyJni) && mHasMethod) {
+    const Method* traceMethod = NULL;
+    if ((!mVm->trace.empty() || mVm->log_third_party_jni) && mHasMethod) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
-      if ((mFlags & kFlag_Invocation) == 0 || dvmThreadSelf() != NULL) {
-        method = dvmGetCurrentJNIMethod();
+      Thread* self = Thread::Current();
+      if ((mFlags & kFlag_Invocation) == 0 || self != NULL) {
+        traceMethod = self->GetCurrentMethod();
       }
     }
-    if (method != NULL) {
-      // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
-      // when a native method that matches the Xjnitrace argument calls a JNI function
-      // such as NewByteArray.
-      if (gDvm.jniTrace && strstr(method->clazz->descriptor, gDvm.jniTrace) != NULL) {
-        shouldTrace = true;
-      }
-      // If -Xjniopts:logThirdPartyJni is on, we want to log any JNI function calls
-      // made by a third-party native method.
-      if (gDvmJni.logThirdPartyJni) {
-        shouldTrace |= method->shouldTrace;
-      }
-    }
-#endif
-    if (shouldTrace) {
+
+    if (traceMethod != NULL && ShouldTrace(mVm, traceMethod)) {
       va_start(ap, fmt0);
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
@@ -644,7 +670,7 @@ public:
 
       if (entry) {
         if (mHasMethod) {
-          std::string methodName(PrettyMethod(method, false));
+          std::string methodName(PrettyMethod(traceMethod, false));
           LOG(INFO) << "JNI: " << methodName << " -> " << mFunctionName << "(" << msg << ")";
           mIndent = methodName.size() + 1;
         } else {
@@ -704,8 +730,9 @@ private:
     return Decode<Method*>(ts, reinterpret_cast<jweak>(mid));
   }
 
-  void init(JNIEnv* env, int flags, const char* functionName, bool hasMethod) {
+  void init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
     mEnv = reinterpret_cast<JNIEnvExt*>(env);
+    mVm = reinterpret_cast<JavaVMExt*>(vm);
     mFlags = flags;
     mFunctionName = functionName;
 
@@ -989,6 +1016,7 @@ private:
   }
 
   JNIEnvExt* mEnv;
+  JavaVMExt* mVm;
   const char* mFunctionName;
   int mFlags;
   bool mHasMethod;
@@ -2140,31 +2168,31 @@ const JNINativeInterface* GetCheckJniNativeInterface() {
 class CheckJII {
 public:
   static jint DestroyJavaVM(JavaVM* vm) {
-    ScopedCheck sc(false, __FUNCTION__);
+    ScopedCheck sc(vm, false, __FUNCTION__);
     sc.check(true, "v", vm);
     return CHECK_JNI_EXIT("I", baseVm(vm)->DestroyJavaVM(vm));
   }
 
   static jint AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
-    ScopedCheck sc(false, __FUNCTION__);
+    ScopedCheck sc(vm, false, __FUNCTION__);
     sc.check(true, "vpp", vm, p_env, thr_args);
     return CHECK_JNI_EXIT("I", baseVm(vm)->AttachCurrentThread(vm, p_env, thr_args));
   }
 
   static jint AttachCurrentThreadAsDaemon(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
-    ScopedCheck sc(false, __FUNCTION__);
+    ScopedCheck sc(vm, false, __FUNCTION__);
     sc.check(true, "vpp", vm, p_env, thr_args);
     return CHECK_JNI_EXIT("I", baseVm(vm)->AttachCurrentThreadAsDaemon(vm, p_env, thr_args));
   }
 
   static jint DetachCurrentThread(JavaVM* vm) {
-    ScopedCheck sc(true, __FUNCTION__);
+    ScopedCheck sc(vm, true, __FUNCTION__);
     sc.check(true, "v", vm);
     return CHECK_JNI_EXIT("I", baseVm(vm)->DetachCurrentThread(vm));
   }
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {
-    ScopedCheck sc(true, __FUNCTION__);
+    ScopedCheck sc(vm, true, __FUNCTION__);
     sc.check(true, "v", vm);
     return CHECK_JNI_EXIT("I", baseVm(vm)->GetEnv(vm, env, version));
   }

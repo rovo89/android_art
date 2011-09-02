@@ -44,23 +44,27 @@ void Runtime::PlatformAbort(const char* file, int line) {
 
   // backtrace_symbols(3) gives us lines like this:
   // "/usr/local/google/home/enh/a1/out/host/linux-x86/bin/../lib/libartd.so(_ZN3art7Runtime13PlatformAbortEPKci+0x15b) [0xf76c5af3]"
+  // "[0xf7b62057]"
 
   // We extract the pieces and demangle, so we can produce output like this:
   // libartd.so:-1] 	#00 art::Runtime::PlatformAbort(char const*, int) +0x15b [0xf770dd51]
 
   for (size_t i = 0; i < frame_count; ++i) {
     std::string text(symbols[i]);
+    std::string filename("??");
+    std::string function_name;
 
     size_t index = text.find('(');
-    std::string filename(text.substr(0, index));
-    text.erase(0, index + 1);
+    if (index != std::string::npos) {
+      filename = text.substr(0, index);
+      text.erase(0, index + 1);
 
-    index = text.find_first_of("+)");
-    std::string function_name(Demangle(text.substr(0, index)));
-    text.erase(0, index);
-    index = text.find(')');
-    text.erase(index, 1);
-
+      index = text.find_first_of("+)");
+      function_name = Demangle(text.substr(0, index));
+      text.erase(0, index);
+      index = text.find(')');
+      text.erase(index, 1);
+    }
     std::string log_line(StringPrintf("\t#%02d ", i) + function_name + text);
     LogMessage(filename.c_str(), -1, ERROR, -1).stream() << log_line;
   }

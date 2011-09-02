@@ -250,6 +250,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->stack_size_ = size;
     } else if (option.starts_with("-D")) {
       parsed->properties_.push_back(option.substr(strlen("-D")).data());
+    } else if (option.starts_with("-Xjnitrace:")) {
+      parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
     } else if (option.starts_with("-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);
@@ -328,8 +330,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   BlockSignals();
 
-  bool verbose_jni = options->verbose_.find("jni") != options->verbose_.end();
-  java_vm_ = new JavaVMExt(this, options->check_jni_, verbose_jni);
+  java_vm_ = new JavaVMExt(this, options.get());
 
   if (!Thread::Startup()) {
     return false;
