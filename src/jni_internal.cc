@@ -357,8 +357,12 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   }
   if (field_type == NULL) {
     // Failed to find type from the signature of the field.
-    // TODO: Linkage or NoSuchFieldError?
-    CHECK(ts.Self()->IsExceptionPending());
+    DCHECK(ts.Self()->IsExceptionPending());
+    ts.Self()->ClearException();
+    std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
+    ts.Self()->ThrowNewException("Ljava/lang/NoSuchFieldError;",
+        "no type \"%s\" found and so no field \"%s\" could be found in class "
+        "\"%s\" or its superclasses", sig, name, class_descriptor.c_str());
     return NULL;
   }
   if (is_static) {
@@ -367,9 +371,8 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
     field = c->FindInstanceField(name, field_type);
   }
   if (field == NULL) {
-    Thread* self = Thread::Current();
     std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-    self->ThrowNewException("Ljava/lang/NoSuchFieldError;",
+    ts.Self()->ThrowNewException("Ljava/lang/NoSuchFieldError;",
         "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
         name, class_descriptor.c_str());
     return NULL;
