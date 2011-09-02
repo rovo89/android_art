@@ -23,6 +23,15 @@ class IntMath {
         foo_ = 123;
     }
 
+    static int constClassTest(int x) {
+        Class c = String.class;
+        if (c != null) {
+           return x * 2;
+        } else {
+           return x;
+       }
+    }
+
     static int constStringTest(int x) {
         /* TODO: flesh this test out when we can call string library */
         String str = "Hello World!";

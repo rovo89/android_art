@@ -58,6 +58,18 @@ static Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
   return NULL;
 }
 
+// TODO: placeholder.  Helper function to resolve virtual method
+static void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
+    /*
+     * Slow-path handler on invoke virtual method path in which
+     * base method is unresolved at compile-time.  Doesn't need to
+     * return anything - just either ensure that
+     * method->dex_cache_resolved_methods_(method_idx) != NULL or
+     * throw and unwind.  The caller will restart call sequence
+     * from the beginning.
+     */
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -100,6 +112,7 @@ void Thread::InitFunctionPointers() {
   pCanPutArrayElementFromCode = Class::CanPutArrayElementFromCode;
   pThrowException = ThrowException;
   pInitializeTypeFromCode = InitializeTypeFromCode;
+  pResolveMethodFromCode = ResolveMethodFromCode;
 #if 0
 bool (Thread::*pUnlockObject)(Thread*, Object*);
 int (Thread::*pInstanceofNonTrivialFromCode)(const Class*, const Class*);

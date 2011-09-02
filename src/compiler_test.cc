@@ -170,6 +170,11 @@ TEST_F(CompilerTest, ConstStringTest) {
                                 "(I)I", 2468, 1234);
 }
 
+TEST_F(CompilerTest, ConstClassTest) {
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constClassTest",
+                                "(I)I", 2222, 1111);
+}
+
 TEST_F(CompilerTest, DISABLED_CatchTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
   CompileDirectMethod(NULL, "java.lang.NullPointerException", "<init>", "()V");

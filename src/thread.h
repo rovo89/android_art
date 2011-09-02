@@ -218,6 +218,7 @@ class Thread {
   void (*pThrowException)(Thread*, Throwable*);
   void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
+  void (*pResolveMethodFromCode)(Method*, uint32_t);
 
   class StackVisitor {
    public:

@@ -903,6 +903,18 @@ class Method : public AccessibleObject {
     return OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_);
   }
 
+  static MemberOffset GetDexCacheCodeAndDirectMethodsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_);
+  }
+
+  static MemberOffset GetDexCacheResolvedMethodsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_);
+  }
+
+  static MemberOffset GetMethodIndexOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
+  }
+
   void SetInvokeStub(const InvokeStub* new_invoke_stub) {
     SetFieldPtr<const InvokeStub*>(
         OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), new_invoke_stub, false);

@@ -39,9 +39,21 @@ class CodeAndDirectMethods : public IntArray {
     Set(method_idx * kMax + kMethod, reinterpret_cast<int32_t>(method));
   }
 
- static size_t LengthAsArray(size_t elements) {
-   return kMax * elements;
- }
+  static size_t LengthAsArray(size_t elements) {
+    return kMax * elements;
+  }
+
+  // Offset of resolved method entry from start of code_and_direct_methods_
+  static size_t MethodOffsetInBytes(uint32_t method_idx) {
+    return ((method_idx * kMax + kMethod) * sizeof(ElementType) +
+             Array::DataOffset().Int32Value());
+  }
+
+  // Offset of resolved method's code_ from start of code_and_direct_methods_
+  static size_t CodeOffsetInBytes(uint32_t method_idx) {
+    return ((method_idx * kMax + kCode) * sizeof(ElementType) +
+             Array::DataOffset().Int32Value());
+  }
 
  size_t NumCodeAndDirectMethods() const {
    return GetLength() / kMax;
