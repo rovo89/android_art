@@ -7,6 +7,7 @@
 #include "class_loader.h"
 #include "dex_cache.h"
 #include "jni_compiler.h"
+#include "jni_internal.h"
 #include "runtime.h"
 
 extern bool oatCompileMethod(art::Method*, art::InstructionSet);
@@ -96,9 +97,31 @@ void Compiler::CompileClass(Class* klass) {
   }
 }
 
+// This is private API, but with two different implementations: ARM and x86.
+void CreateInvokeStub(Assembler* assembler, Method* method);
+
+namespace {
+
+void CompileInvokeStub(Method* method) {
+  if (method->GetInvokeStub() != NULL) {
+    return;
+  }
+  // TODO: use signature to find a matching stub
+  // TODO: failed, acquire a lock on the stub table
+  Assembler assembler;
+  art::CreateInvokeStub(&assembler, method);
+  // TODO: store native_entry in the stub table
+  ByteArray* code = ByteArray::Alloc(assembler.CodeSize());
+  MemoryRegion region(code->GetData(), code->GetLength());
+  assembler.FinalizeInstructions(region);
+  method->SetInvokeStub(code);
+  CHECK(method->GetInvokeStub() != NULL);
+}
+
+} // namespace
+
 void Compiler::CompileMethod(Method* method) {
   if (method->IsNative()) {
-    // TODO note code will be unmapped when JniCompiler goes out of scope
     Assembler jni_asm;
     JniCompiler jni_compiler;
     jni_compiler.Compile(&jni_asm, method);
@@ -110,6 +133,9 @@ void Compiler::CompileMethod(Method* method) {
     oatCompileMethod(method, kThumb2);
   }
   // CHECK(method->HasCode());  // TODO: enable this check ASAP
+
+  CompileInvokeStub(method);
+  CHECK(method->GetInvokeStub() != NULL);
 }
 
 void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {

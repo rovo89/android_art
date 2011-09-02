@@ -272,8 +272,7 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("Nested"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("Nested");
 
   Class* outer = class_linker_->FindClass("LNested;", class_loader);
   ASSERT_TRUE(outer != NULL);
@@ -326,8 +325,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
-  UniquePtr<const DexFile> dex(OpenTestDexFile("MyClass"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("MyClass");
   AssertNonExistentClass("LMyClass;");
   Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
   ASSERT_TRUE(MyClass != NULL);
@@ -456,10 +454,8 @@ TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
-  UniquePtr<const DexFile> dex_1(OpenTestDexFile("MyClass"));
-  UniquePtr<const DexFile> dex_2(OpenTestDexFile("MyClass"));
-  const PathClassLoader* class_loader_1 = AllocPathClassLoader(dex_1.get());
-  const PathClassLoader* class_loader_2 = AllocPathClassLoader(dex_2.get());
+  const ClassLoader* class_loader_1 = LoadDex("MyClass");
+  const ClassLoader* class_loader_2 = LoadDex("MyClass");
   Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1);
   Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2);
   EXPECT_TRUE(MyClass_1 != NULL);
@@ -469,8 +465,7 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 
 TEST_F(ClassLinkerTest, StaticFields) {
   // TODO: uncomment expectations of initial values when InitializeClass works
-  UniquePtr<const DexFile> dex(OpenTestDexFile("Statics"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("Statics");
   Class* statics = class_linker_->FindClass("LStatics;", class_loader);
   class_linker_->EnsureInitialized(statics);
 
@@ -539,8 +534,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
 }
 
 TEST_F(ClassLinkerTest, Interfaces) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("Interfaces"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("Interfaces");
   Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader);
   Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader);
   Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader);

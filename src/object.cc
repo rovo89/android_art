@@ -462,24 +462,25 @@ bool Method::HasSameNameAndDescriptor(const Method* that) const {
           this->GetSignature()->Equals(that->GetSignature()));
 }
 
-void Method::SetCode(const byte* compiled_code,
-                     size_t byte_count,
-                     InstructionSet set) {
-  // Copy the code into an executable region.
-  code_instruction_set_ = set;
-  code_area_.reset(MemMap::Map(byte_count,
-                               PROT_READ | PROT_WRITE | PROT_EXEC));
-  CHECK(code_area_.get());
-  byte* code = code_area_->GetAddress();
-  memcpy(code, compiled_code, byte_count);
-  __builtin___clear_cache(code, code + byte_count);
-
+void Method::SetCode(ByteArray* code_array,
+                     InstructionSet instruction_set) {
+  CHECK(!HasCode() || IsNative());
+  SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
+  int8_t* code = code_array->GetData();
   uintptr_t address = reinterpret_cast<uintptr_t>(code);
-  if (code_instruction_set_ == kThumb2) {
+  if (instruction_set == kThumb2) {
     // Set the low-order bit so a BLX will switch to Thumb mode
     address |= 0x1;
   }
   SetFieldPtr<uintptr_t>(OFFSET_OF_OBJECT_MEMBER(Method, code_), address, false);
+}
+
+void Method::SetInvokeStub(const ByteArray* invoke_stub_array) {
+  const InvokeStub* invoke_stub = reinterpret_cast<InvokeStub*>(invoke_stub_array->GetData());
+  SetFieldPtr<const ByteArray*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_array_), invoke_stub_array, false);
+  SetFieldPtr<const InvokeStub*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), invoke_stub, false);
 }
 
 void Class::SetStatus(Status new_status) {

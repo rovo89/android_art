@@ -18,6 +18,7 @@
 #include "CompilerInternals.h"
 #include "Dataflow.h"
 #include "constants.h"
+#include "object.h"
 #include "runtime.h"
 
 static inline bool contentIsInsn(const u2* codePtr) {
@@ -716,8 +717,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
         if (PrettyMethod(method).find("java.lang.Object.<init>") != std::string::npos) {
             compiling = true;
         }
-    } else if ( (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) ||
-        (method->GetName()->ToModifiedUtf8().find("main") != std::string::npos)) {
+    } else if (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) {
         compiling = false;
     }
 
@@ -916,8 +916,11 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
         }
     }
 
-    method->SetCode((const art::byte*)&cUnit.codeBuffer[0],
-                    cUnit.codeBuffer.size() * 2, art::kThumb2);
+    art::ByteArray* managed_code = art::ByteArray::Alloc(cUnit.codeBuffer.size() * 2);
+    memcpy(managed_code->GetData(),
+           reinterpret_cast<const int8_t*>(&cUnit.codeBuffer[0]),
+           managed_code->GetLength());
+    method->SetCode(managed_code, art::kThumb2);
     method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetCoreSpillMask(cUnit.coreSpillMask);
     method->SetFpSpillMask(cUnit.fpSpillMask);

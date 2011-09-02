@@ -9,6 +9,7 @@
 #include "base64.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "compiler.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
@@ -61,6 +62,29 @@ class ScratchFile {
 };
 
 class CommonTest : public testing::Test {
+ public:
+  static void LogMaps() {
+    const char* maps_file = "/proc/self/maps";
+    std::string contents;
+    CHECK(ReadFileToString(maps_file, &contents));
+    // logcat can't handle it all at once
+    std::vector<std::string> lines;
+    Split(contents, '\n', lines);
+    LOG(INFO) << maps_file << ":";
+    for (size_t i = 0; i < lines.size(); i++) {
+      LOG(INFO) << "    " << lines[i];
+    }
+  }
+
+  static void MakeExecutable(const ByteArray* byte_array) {
+    uintptr_t data = reinterpret_cast<uintptr_t>(byte_array->GetData());
+    uintptr_t base = RoundDown(data, kPageSize);
+    uintptr_t limit = RoundUp(data + byte_array->GetLength(), kPageSize);
+    uintptr_t len = limit - base;
+    int result = mprotect(reinterpret_cast<void*>(base), len, PROT_READ | PROT_WRITE | PROT_EXEC);
+    CHECK_EQ(result, 0);
+  }
+
  protected:
   virtual void SetUp() {
     is_host_ = getenv("ANDROID_BUILD_TOP") != NULL;
@@ -170,6 +194,60 @@ class CommonTest : public testing::Test {
     return dex_file;
   }
 
+  const ClassLoader* LoadDex(const char* dex_name) {
+    const DexFile* dex_file = OpenTestDexFile(dex_name);
+    CHECK(dex_file != NULL);
+    loaded_dex_files_.push_back(dex_file);
+    class_linker_->RegisterDexFile(*dex_file);
+    std::vector<const DexFile*> class_path;
+    class_path.push_back(dex_file);
+    const ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
+    CHECK(class_loader != NULL);
+    Thread::Current()->SetClassLoaderOverride(class_loader);
+    return class_loader;
+  }
+
+  std::string ConvertClassNameToClassDescriptor(const char* class_name) {
+    std::string desc;
+    desc += "L";
+    desc += class_name;
+    desc += ";";
+    std::replace(desc.begin(), desc.end(), '.', '/');
+    return desc;
+  }
+
+  void CompileMethod(Method* method) {
+    CHECK(method != NULL);
+    Compiler compiler;
+    compiler.CompileOne(method);
+    MakeExecutable(method->GetCodeArray());
+    MakeExecutable(method->GetInvokeStubArray());
+  }
+
+  void CompileDirectMethod(const ClassLoader* class_loader,
+                           const char* class_name,
+                           const char* method_name,
+                           const char* signature) {
+    std::string class_descriptor = ConvertClassNameToClassDescriptor(class_name);
+    Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
+    CHECK(klass != NULL) << "Class not found " << class_name;
+    Method* method = klass->FindDirectMethod(method_name, signature);
+    CHECK(method != NULL) << "Method not found " << method_name;
+    CompileMethod(method);
+  }
+
+  void CompileVirtualMethod(const ClassLoader* class_loader,
+                            const char* class_name,
+                            const char* method_name,
+                            const char* signature) {
+    std::string class_descriptor = ConvertClassNameToClassDescriptor(class_name);
+    Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
+    CHECK(klass != NULL) << "Class not found " << class_name;
+    Method* method = klass->FindVirtualMethod(method_name, signature);
+    CHECK(method != NULL) << "Method not found " << method_name;
+    CompileMethod(method);
+  }
+
   bool is_host_;
   std::string android_data_;
   std::string art_cache_;
@@ -177,6 +255,9 @@ class CommonTest : public testing::Test {
   std::vector<const DexFile*> boot_class_path_;
   UniquePtr<Runtime> runtime_;
   ClassLinker* class_linker_;
+
+ private:
+  std::vector<const DexFile*> loaded_dex_files_;
 };
 
 }  // namespace art

@@ -828,6 +828,10 @@ class Method : public AccessibleObject {
   // Size in bytes of the return value
   size_t ReturnSize() const;
 
+  const ByteArray* GetCodeArray() const {
+    return GetFieldPtr<const ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), false);
+  }
+
   const void* GetCode() const {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
   }
@@ -836,9 +840,7 @@ class Method : public AccessibleObject {
     return GetCode() != NULL;
   }
 
-  void SetCode(const byte* compiled_code,
-               size_t byte_count,
-               InstructionSet set);
+  void SetCode(ByteArray* code_array, InstructionSet instruction_set);
 
   static MemberOffset GetCodeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, code_);
@@ -873,18 +875,27 @@ class Method : public AccessibleObject {
   }
 
   void RegisterNative(const void* native_method) {
+    CHECK(IsNative());
     CHECK(native_method != NULL);
     SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
                              native_method, false);
   }
 
   void UnregisterNative() {
+    CHECK(IsNative());
     SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
                              NULL, false);
   }
 
   static MemberOffset NativeMethodOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);
+  }
+
+  ByteArray* GetInvokeStubArray() const {
+    ByteArray* result = GetFieldPtr<ByteArray*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_array_), false);
+    // TODO: DCHECK(result != NULL);  should be ahead of time compiled
+    return result;
   }
 
   // Native to managed invocation stub entry point
@@ -911,10 +922,7 @@ class Method : public AccessibleObject {
     return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
   }
 
-  void SetInvokeStub(const InvokeStub* new_invoke_stub) {
-    SetFieldPtr<const InvokeStub*>(
-        OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), new_invoke_stub, false);
-  }
+  void SetInvokeStub(const ByteArray* invoke_stub_array);
 
   void SetFpSpillMask(uint32_t fp_spill_mask) {
     // Computed during compilation
@@ -1030,24 +1038,23 @@ class Method : public AccessibleObject {
   ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
 
  private:
-  // Compiled code associated with this method
-  UniquePtr<MemMap> code_area_;
+  // Storage for code_
+  const ByteArray* code_array_;
+
+  // Compiled code associated with this method for callers from managed code.
+  // May be compiled managed code or a bridge for invoking a native method.
   const void* code_;
 
-  // Instruction set of the compiled code
-  InstructionSet code_instruction_set_;
-
-  // Size in bytes of compiled code associated with this method
-  const uint32_t code_size_;
-
   // Offset of return PC within frame for compiled code (in bytes)
-  // Offset of PC within compiled code (in bytes)
   size_t return_pc_offset_in_bytes_;
 
-  // Any native method registered with this method
+  // The target native method registered with this method
   const void* native_method_;
 
-  // Native invocation stub entry point.
+  // Storage for invoke_stub_
+  const ByteArray* invoke_stub_array_;
+
+  // Native invocation stub entry point for calling from native to managed code.
   const InvokeStub* invoke_stub_;
 
   static Class* java_lang_reflect_Method_;

@@ -18,66 +18,6 @@ namespace art {
 class CompilerTest : public CommonTest {
  protected:
 
-  const ClassLoader* LoadDex(const char* dex_name) {
-    dex_file_.reset(OpenTestDexFile(dex_name));
-    class_linker_->RegisterDexFile(*dex_file_.get());
-    std::vector<const DexFile*> class_path;
-    class_path.push_back(dex_file_.get());
-    const ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
-    Thread::Current()->SetClassLoaderOverride(class_loader);
-    return class_loader;
-  }
-
-
-  void CompileDex(const char* dex_name) {
-    Compile(LoadDex(dex_name));
-  }
-
-  void CompileSystem() {
-    Compile(NULL);
-  }
-
-  void Compile(const ClassLoader* class_loader) {
-    Compiler compiler;
-    compiler.CompileAll(NULL);
-  }
-
-  std::string ConvertClassNameToClassDescriptor(const char* class_name) {
-    std::string desc;
-    desc += "L";
-    desc += class_name;
-    desc += ";";
-    std::replace(desc.begin(), desc.end(), '.', '/');
-    return desc;
-  }
-
-
-  void CompileDirectMethod(const ClassLoader* class_loader,
-                           const char* class_name,
-                           const char* method_name,
-                           const char* signature) {
-    std::string class_descriptor = ConvertClassNameToClassDescriptor(class_name);
-    Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
-    CHECK(klass != NULL) << "Class not found " << class_name;
-    Method* method = klass->FindDirectMethod(method_name, signature);
-    CHECK(method != NULL) << "Method not found " << method_name;
-    Compiler compiler;
-    compiler.CompileOne(method);
-  }
-
-  void CompileVirtualMethod(const ClassLoader* class_loader,
-                            const char* class_name,
-                            const char* method_name,
-                            const char* signature) {
-    std::string class_descriptor = ConvertClassNameToClassDescriptor(class_name);
-    Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
-    CHECK(klass != NULL) << "Class not found " << class_name;
-    Method* method = klass->FindVirtualMethod(method_name, signature);
-    CHECK(method != NULL) << "Method not found " << method_name;
-    Compiler compiler;
-    compiler.CompileOne(method);
-  }
-
   void AssertStaticIntMethod(const ClassLoader* class_loader,
                              const char* klass, const char* method, const char* signature,
                              jint expected, ...) {
@@ -114,8 +54,6 @@ class CompilerTest : public CommonTest {
     EXPECT_EQ(expected, result);
 #endif // __arm__
   }
- private:
-  UniquePtr<const DexFile> dex_file_;
 };
 
 // TODO renenable when compiler can handle libcore

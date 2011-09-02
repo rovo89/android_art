@@ -16,7 +16,10 @@ class Object;
 // A space contains memory allocated for managed objects.
 class Space {
  public:
-  // create a Space with the requested sizes requesting a specific base address.
+  // Create a Space with the requested sizes. The requested
+  // base address is not guaranteed to be granted, if it is required,
+  // the caller should call GetBase on the returned space to confirm
+  // the request was granted.
   static Space* Create(size_t initial_size, size_t maximum_size, byte* requested_base);
 
   // create a Space from an image file. cannot be used for future allocation or collected.

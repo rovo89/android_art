@@ -39,8 +39,7 @@ TEST_F(DexVerifierTest, LibCore) {
 }
 
 TEST_F(DexVerifierTest, IntMath) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("IntMath"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("IntMath");
   Class* klass = class_linker_->FindClass("LIntMath;", class_loader);
   ASSERT_TRUE(DexVerify::VerifyClass(klass));
 }

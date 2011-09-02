@@ -274,10 +274,8 @@ TEST_F(ObjectTest, StringEquals) {
 TEST_F(ObjectTest, DescriptorCompare) {
   ClassLinker* linker = class_linker_;
 
-  UniquePtr<const DexFile> proto1_dex_file(OpenTestDexFile("ProtoCompare"));
-  const PathClassLoader* class_loader_1 = AllocPathClassLoader(proto1_dex_file.get());
-  UniquePtr<const DexFile> proto2_dex_file(OpenTestDexFile("ProtoCompare2"));
-  const PathClassLoader* class_loader_2 = AllocPathClassLoader(proto2_dex_file.get());
+  const ClassLoader* class_loader_1 = LoadDex("ProtoCompare");
+  const ClassLoader* class_loader_2 = LoadDex("ProtoCompare2");
 
   Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
   ASSERT_TRUE(klass1 != NULL);
@@ -323,8 +321,7 @@ TEST_F(ObjectTest, StringHashCode) {
 }
 
 TEST_F(ObjectTest, InstanceOf) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("XandY"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("XandY");
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
   ASSERT_TRUE(X != NULL);
@@ -350,8 +347,7 @@ TEST_F(ObjectTest, InstanceOf) {
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("XandY"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("XandY");
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
 
@@ -362,8 +358,7 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("XandY"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
+  const ClassLoader* class_loader = LoadDex("XandY");
   Class* X = class_linker_->FindClass("LX;", class_loader);
   Class* Y = class_linker_->FindClass("LY;", class_loader);
   ASSERT_TRUE(X != NULL);

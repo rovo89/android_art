@@ -22,9 +22,7 @@ class JniCompilerTest : public CommonTest {
  protected:
   virtual void SetUp() {
     CommonTest::SetUp();
-    dex_.reset(OpenTestDexFile("MyClassNatives"));
-    class_loader_ = AllocPathClassLoader(dex_.get());
-    Thread::Current()->SetClassLoaderOverride(class_loader_);
+    class_loader_ = LoadDex("MyClassNatives");
   }
 
   void SetupForTest(bool direct, const char* method_name,
@@ -44,7 +42,7 @@ class JniCompilerTest : public CommonTest {
     ASSERT_TRUE(method != NULL);
 
     // Compile the native method
-    jni_compiler.Compile(&jni_asm, method);
+    CompileMethod(method);
     ASSERT_TRUE(method->HasCode());
 
     if (direct) {
@@ -66,10 +64,9 @@ class JniCompilerTest : public CommonTest {
   static jclass jklass_;
   static jobject jobj_;
  protected:
-  UniquePtr<const DexFile> dex_;
-  const PathClassLoader* class_loader_;
-  Assembler jni_asm;
-  JniCompiler jni_compiler;
+  const ClassLoader* class_loader_;
+  Assembler jni_asm_;
+  JniCompiler jni_compiler_;
   JNIEnv* env_;
   jmethodID jmethod_;
 };

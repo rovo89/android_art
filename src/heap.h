@@ -21,9 +21,9 @@ class HeapBitmap;
 
 class Heap {
  public:
-  static const size_t kInitialSize = 16 * MB;
+  static const size_t kInitialSize = 64 * MB;  // TODO: lower to 4
 
-  static const size_t kMaximumSize = 64 * MB;
+  static const size_t kMaximumSize = 64 * MB;  // TODO: lower to 16
 
   typedef void (RootVisitor)(const Object* root, void* arg);
 

@@ -311,10 +311,11 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   // 17. Finalize code generation
   jni_asm->EmitSlowPaths();
   size_t cs = jni_asm->CodeSize();
-  MemoryRegion code(AllocateCode(cs), cs);
+  ByteArray* managed_code = ByteArray::Alloc(cs);
+  CHECK(managed_code != NULL);
+  MemoryRegion code(managed_code->GetData(), managed_code->GetLength());
   jni_asm->FinalizeInstructions(code);
-  native_method->SetCode(reinterpret_cast<byte*>(code.pointer()), cs,
-      jni_asm->GetInstructionSet());
+  native_method->SetCode(managed_code, jni_asm->GetInstructionSet());
   native_method->SetFrameSizeInBytes(frame_size);
   native_method->SetReturnPcOffsetInBytes(jni_conv.ReturnPcOffset());
 }
@@ -408,20 +409,7 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
   }
 }
 
-void* JniCompiler::AllocateCode(size_t size) {
-  CHECK_LT(((jni_code_top_ - jni_code_->GetAddress()) + size), jni_code_->GetLength());
-  void *result = jni_code_top_;
-  jni_code_top_ += size;
-  return result;
-}
-
-JniCompiler::JniCompiler() {
-  // TODO: this shouldn't be managed by the JniCompiler, we should have a
-  // code cache.
-  jni_code_.reset(MemMap::Map(kPageSize, PROT_READ | PROT_WRITE | PROT_EXEC));
-  CHECK(jni_code_.get() !=  NULL);
-  jni_code_top_ = jni_code_->GetAddress();
-}
+JniCompiler::JniCompiler() {}
 
 JniCompiler::~JniCompiler() {}
 

@@ -647,9 +647,7 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("AllFields"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  Thread::Current()->SetClassLoaderOverride(class_loader);
+  LoadDex("AllFields");
 
   jclass c = env_->FindClass("AllFields");
   ASSERT_TRUE(c != NULL);
@@ -676,9 +674,7 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("AllFields"));
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  Thread::Current()->SetClassLoaderOverride(class_loader);
+  LoadDex("AllFields");
 
   jclass c = env_->FindClass("AllFields");
   ASSERT_TRUE(c != NULL);
@@ -823,25 +819,10 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   env_->DeleteWeakGlobalRef(o2);
 }
 
-void EnsureInvokeStub(Method* method);
-
-Method::InvokeStub* AllocateStub(Method* method,
-                                 byte* code,
-                                 size_t length) {
-  CHECK(method->GetInvokeStub() == NULL);
-  EnsureInvokeStub(method);
-  Method::InvokeStub* stub = method->GetInvokeStub();
-  CHECK(stub != NULL);
-  method->SetCode(code, length, kThumb2);
-  return stub;
-}
-
 #if defined(__arm__)
 TEST_F(JniInternalTest, StaticMainMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("Main"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("Main");
+  CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
 
   Class* klass = class_linker_->FindClass("LMain;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -849,14 +830,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   Method* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
   ASSERT_TRUE(method != NULL);
 
-  byte main_LV_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8, 0x00, 0x00,
-    0xcd, 0xf8, 0x14, 0x10, 0x03, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          main_LV_code,
-                                          sizeof(main_LV_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   Object* arg = NULL;
 
@@ -864,10 +838,8 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "nop", "()V");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -875,24 +847,14 @@ TEST_F(JniInternalTest, StaticNopMethod) {
   Method* method = klass->FindDirectMethod("nop", "()V");
   ASSERT_TRUE(method != NULL);
 
-  byte nop_V_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0x03, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          nop_V_code,
-                                          sizeof(nop_V_code));
-  ASSERT_TRUE(stub);
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   (*stub)(method, NULL, NULL, NULL, NULL);
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "identity", "(B)B");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -900,15 +862,7 @@ TEST_F(JniInternalTest, StaticIdentityByteMethod) {
   Method* method = klass->FindDirectMethod("identity", "(B)B");
   ASSERT_TRUE(method != NULL);
 
-  byte identity_BB_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0x05, 0x98,
-    0x03, 0xb0, 0xbd, 0xe8, 0x00, 0x80, 0x00, 0x00,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          identity_BB_code,
-                                          sizeof(identity_BB_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   int arg;
   JValue result;
@@ -935,10 +889,8 @@ TEST_F(JniInternalTest, StaticIdentityByteMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "identity", "(I)I");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -946,15 +898,7 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
   Method* method = klass->FindDirectMethod("identity", "(I)I");
   ASSERT_TRUE(method != NULL);
 
-  byte identity_II_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0x05, 0x98,
-    0x03, 0xb0, 0xbd, 0xe8, 0x00, 0x80, 0x00, 0x00,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          identity_II_code,
-                                          sizeof(identity_II_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   int arg;
   JValue result;
@@ -981,10 +925,8 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "identity", "(D)D");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -992,16 +934,7 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
   Method* method = klass->FindDirectMethod("identity", "(D)D");
   ASSERT_TRUE(method != NULL);
 
-  byte identity_DD_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0xcd, 0xf8,
-    0x18, 0x20, 0x05, 0x98, 0x06, 0x99, 0x03, 0xb0,
-    0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          identity_DD_code,
-                                          sizeof(identity_DD_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   double arg;
   JValue result;
@@ -1028,10 +961,8 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(II)I");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1039,17 +970,7 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
   Method* method = klass->FindDirectMethod("sum", "(II)I");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_III_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0xcd, 0xf8,
-    0x18, 0x20, 0x05, 0x98, 0x06, 0x99, 0x42, 0x18,
-    0xcd, 0xf8, 0x04, 0x20, 0x01, 0x98, 0x03, 0xb0,
-    0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_III_code,
-                                          sizeof(sum_III_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   int args[2];
   JValue result;
@@ -1086,10 +1007,8 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(III)I");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1097,19 +1016,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
   Method* method = klass->FindDirectMethod("sum", "(III)I");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_IIII_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0xcd, 0xf8,
-    0x18, 0x20, 0xcd, 0xf8, 0x1c, 0x30, 0x05, 0x98,
-    0x06, 0x99, 0x42, 0x18, 0xcd, 0xf8, 0x04, 0x20,
-    0x01, 0x9b, 0xdd, 0xf8, 0x1c, 0xc0, 0x13, 0xeb,
-    0x0c, 0x03, 0xcd, 0xf8, 0x04, 0x30, 0x01, 0x98,
-    0x03, 0xb0, 0xbd, 0xe8, 0x00, 0x80, 0x00, 0x00,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_IIII_code,
-                                          sizeof(sum_IIII_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   int args[3];
   JValue result;
@@ -1151,10 +1058,8 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(IIII)I");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1162,20 +1067,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   Method* method = klass->FindDirectMethod("sum", "(IIII)I");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_IIIII_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0xcd, 0xf8,
-    0x18, 0x20, 0xcd, 0xf8, 0x1c, 0x30, 0x05, 0x98,
-    0x06, 0x99, 0x42, 0x18, 0xcd, 0xf8, 0x04, 0x20,
-    0x01, 0x9b, 0xdd, 0xf8, 0x1c, 0xc0, 0x13, 0xeb,
-    0x0c, 0x03, 0xcd, 0xf8, 0x04, 0x30, 0x01, 0x98,
-    0x08, 0x99, 0x40, 0x18, 0xcd, 0xf8, 0x04, 0x00,
-    0x01, 0x98, 0x03, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_IIIII_code,
-                                          sizeof(sum_IIIII_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   int args[4];
   JValue result;
@@ -1222,10 +1114,8 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(IIIII)I");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1233,22 +1123,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   Method* method = klass->FindDirectMethod("sum", "(IIIII)I");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_IIIIII_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x83, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x14, 0x10, 0xcd, 0xf8,
-    0x18, 0x20, 0xcd, 0xf8, 0x1c, 0x30, 0x05, 0x98,
-    0x06, 0x99, 0x42, 0x18, 0xcd, 0xf8, 0x04, 0x20,
-    0x01, 0x9b, 0xdd, 0xf8, 0x1c, 0xc0, 0x13, 0xeb,
-    0x0c, 0x03, 0xcd, 0xf8, 0x04, 0x30, 0x01, 0x98,
-    0x08, 0x99, 0x40, 0x18, 0xcd, 0xf8, 0x04, 0x00,
-    0x01, 0x9a, 0x09, 0x9b, 0xd2, 0x18, 0xcd, 0xf8,
-    0x04, 0x20, 0x01, 0x98, 0x03, 0xb0, 0xbd, 0xe8,
-    0x00, 0x80, 0x00, 0x00,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_IIIIII_code,
-                                          sizeof(sum_IIIIII_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   int args[5];
   JValue result;
@@ -1300,10 +1175,8 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DD)D");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1311,18 +1184,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
   Method* method = klass->FindDirectMethod("sum", "(DD)D");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_DDD_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x87, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x24, 0x10, 0xcd, 0xf8,
-    0x28, 0x20, 0xcd, 0xf8, 0x2c, 0x30, 0x9d, 0xed,
-    0x09, 0x0b, 0x9d, 0xed, 0x0b, 0x1b, 0x30, 0xee,
-    0x01, 0x2b, 0x8d, 0xed, 0x04, 0x2b, 0x04, 0x98,
-    0x05, 0x99, 0x07, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_DDD_code,
-                                          sizeof(sum_DDD_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   double args[2];
   JValue result;
@@ -1359,10 +1221,8 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DDD)D");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1370,20 +1230,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
   Method* method = klass->FindDirectMethod("sum", "(DDD)D");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_DDDD_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x87, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x24, 0x10, 0xcd, 0xf8,
-    0x28, 0x20, 0xcd, 0xf8, 0x2c, 0x30, 0x9d, 0xed,
-    0x09, 0x0b, 0x9d, 0xed, 0x0b, 0x1b, 0x30, 0xee,
-    0x01, 0x2b, 0x8d, 0xed, 0x04, 0x2b, 0x9d, 0xed,
-    0x04, 0x3b, 0x9d, 0xed, 0x0d, 0x4b, 0x33, 0xee,
-    0x04, 0x3b, 0x8d, 0xed, 0x04, 0x3b, 0x04, 0x98,
-    0x05, 0x99, 0x07, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_DDDD_code,
-                                          sizeof(sum_DDDD_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   double args[3];
   JValue result;
@@ -1411,10 +1258,8 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DDDD)D");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1422,22 +1267,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
   Method* method = klass->FindDirectMethod("sum", "(DDDD)D");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_DDDDD_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x87, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x24, 0x10, 0xcd, 0xf8,
-    0x28, 0x20, 0xcd, 0xf8, 0x2c, 0x30, 0x9d, 0xed,
-    0x09, 0x0b, 0x9d, 0xed, 0x0b, 0x1b, 0x30, 0xee,
-    0x01, 0x2b, 0x8d, 0xed, 0x04, 0x2b, 0x9d, 0xed,
-    0x04, 0x3b, 0x9d, 0xed, 0x0d, 0x4b, 0x33, 0xee,
-    0x04, 0x3b, 0x8d, 0xed, 0x04, 0x3b, 0x9d, 0xed,
-    0x04, 0x5b, 0x9d, 0xed, 0x0f, 0x6b, 0x35, 0xee,
-    0x06, 0x5b, 0x8d, 0xed, 0x04, 0x5b, 0x04, 0x98,
-    0x05, 0x99, 0x07, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_DDDDD_code,
-                                          sizeof(sum_DDDDD_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   double args[4];
   JValue result;
@@ -1468,10 +1298,8 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("StaticLeafMethods"));
-
-  const PathClassLoader* class_loader = AllocPathClassLoader(dex.get());
-  ASSERT_TRUE(class_loader != NULL);
+  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
+  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DDDDD)D");
 
   Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
   ASSERT_TRUE(klass != NULL);
@@ -1479,24 +1307,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   Method* method = klass->FindDirectMethod("sum", "(DDDDD)D");
   ASSERT_TRUE(method != NULL);
 
-  byte sum_DDDDDD_code[] = {
-    0x2d, 0xe9, 0x00, 0x40, 0x87, 0xb0, 0xcd, 0xf8,
-    0x00, 0x00, 0xcd, 0xf8, 0x24, 0x10, 0xcd, 0xf8,
-    0x28, 0x20, 0xcd, 0xf8, 0x2c, 0x30, 0x9d, 0xed,
-    0x09, 0x0b, 0x9d, 0xed, 0x0b, 0x1b, 0x30, 0xee,
-    0x01, 0x2b, 0x8d, 0xed, 0x04, 0x2b, 0x9d, 0xed,
-    0x04, 0x3b, 0x9d, 0xed, 0x0d, 0x4b, 0x33, 0xee,
-    0x04, 0x3b, 0x8d, 0xed, 0x04, 0x3b, 0x9d, 0xed,
-    0x04, 0x5b, 0x9d, 0xed, 0x0f, 0x6b, 0x35, 0xee,
-    0x06, 0x5b, 0x8d, 0xed, 0x04, 0x5b, 0x9d, 0xed,
-    0x04, 0x7b, 0x9d, 0xed, 0x11, 0x0b, 0x37, 0xee,
-    0x00, 0x7b, 0x8d, 0xed, 0x04, 0x7b, 0x04, 0x98,
-    0x05, 0x99, 0x07, 0xb0, 0xbd, 0xe8, 0x00, 0x80,
-  };
-
-  Method::InvokeStub* stub = AllocateStub(method,
-                                          sum_DDDDDD_code,
-                                          sizeof(sum_DDDDDD_code));
+  Method::InvokeStub* stub = method->GetInvokeStub();
 
   double args[5];
   JValue result;

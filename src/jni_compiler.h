@@ -34,15 +34,6 @@ class JniCompiler {
                           JniCallingConvention *jni_conv,
                           ManagedRegister in_reg);
 
-  // A poor man's code cache
-  void* AllocateCode(size_t size);
-
-  // Allocated code
-  UniquePtr<MemMap> jni_code_;
-
-  // Pointer to the free space
-  byte* jni_code_top_;
-
   DISALLOW_COPY_AND_ASSIGN(JniCompiler);
 };
 

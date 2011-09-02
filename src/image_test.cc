@@ -73,10 +73,8 @@ TEST_F(ImageTest, WriteRead) {
 
   // enable to display maps to debug boot_base and boot_limit checking problems below
   if (false) {
-    const char* maps_file = "/proc/self/maps";
-    std::string contents;
-    CHECK(ReadFileToString(maps_file, &contents));
-    LG << maps_file << ":\n" << contents;
+    // TODO: switch to sending kill -3 to self
+    LogMaps();
   }
 
   byte* boot_base = boot_space->GetBase();

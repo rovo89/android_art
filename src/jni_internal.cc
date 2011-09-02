@@ -25,31 +25,6 @@
 
 namespace art {
 
-// This is private API, but with two different implementations: ARM and x86.
-void CreateInvokeStub(Assembler* assembler, Method* method);
-
-// TODO: this should be in our anonymous namespace, but is currently needed
-// for testing in "jni_internal_test.cc".
-void EnsureInvokeStub(Method* method) {
-  if (method->GetInvokeStub() != NULL) {
-    return;
-  }
-  // TODO: use signature to find a matching stub
-  // TODO: failed, acquire a lock on the stub table
-  Assembler assembler;
-  CreateInvokeStub(&assembler, method);
-  // TODO: store native_entry in the stub table
-  int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
-  size_t length = assembler.CodeSize();
-  void* addr = mmap(NULL, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (addr == MAP_FAILED) {
-    PLOG(FATAL) << "mmap failed for " << PrettyMethod(method);
-  }
-  MemoryRegion region(addr, length);
-  assembler.FinalizeInstructions(region);
-  method->SetInvokeStub(reinterpret_cast<Method::InvokeStub*>(region.pointer()));
-}
-
 /*
  * Add a local reference for an object to the current stack frame.  When
  * the native function returns, the reference will be discarded.
@@ -231,10 +206,8 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
   // Call the invoke stub associated with the method
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
-  CHECK(stub != NULL);
-
   JValue result;
-  if (method->HasCode()) {
+  if (method->HasCode() && stub != NULL) {
     (*stub)(method, receiver, self, args, &result);
   } else {
     LOG(WARNING) << "Not invoking method with no associated code: "
@@ -333,8 +306,6 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
         method_name.c_str());
     return NULL;
   }
-
-  EnsureInvokeStub(method);
 
   return reinterpret_cast<jmethodID>(AddWeakGlobalReference(ts, method));
 }
