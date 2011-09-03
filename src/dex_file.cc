@@ -42,6 +42,19 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
+const DexFile* DexFile::Open(const std::string& filename) {
+  if (filename.size() < 4) {
+    LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
+    return NULL;
+  }
+  std::string suffix(filename.substr(filename.size() - 4));
+  if (suffix == ".zip" || suffix == ".jar" || suffix == ".apk") {
+    return DexFile::OpenZip(filename);
+  } else {
+    return DexFile::OpenFile(filename);
+  }
+}
+
 DexFile::Closer::~Closer() {}
 
 DexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
@@ -89,7 +102,7 @@ class LockedFd {
    static LockedFd* CreateAndLock(std::string& name, mode_t mode) {
     int fd = open(name.c_str(), O_CREAT | O_RDWR, mode);
     if (fd == -1) {
-      PLOG(ERROR) << "Can't open file '" << name << "'";
+      PLOG(ERROR) << "Failed to open file '" << name << "'";
       return NULL;
     }
     fchmod(fd, mode);
@@ -101,7 +114,7 @@ class LockedFd {
         result = flock(fd, LOCK_EX);
     }
     if (result == -1 ) {
-      PLOG(ERROR) << "Can't lock file '" << name << "'";
+      PLOG(ERROR) << "Failed to lock file '" << name << "'";
       close(fd);
       return NULL;
     }
@@ -149,6 +162,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
   size_t found = adjacent_dex_filename.find_last_of(".");
   if (found == std::string::npos) {
     LOG(WARNING) << "No . in filename" << filename;
+    return NULL;
   }
   adjacent_dex_filename.replace(adjacent_dex_filename.begin() + found,
                                 adjacent_dex_filename.end(),
@@ -168,7 +182,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
   char resolved[PATH_MAX];
   char* absolute_path = realpath(filename.c_str(), resolved);
   if (absolute_path == NULL) {
-      LOG(WARNING) << "Could not create absolute path for " << filename
+      LOG(WARNING) << "Failed to create absolute path for " << filename
                    << " when looking for classes.dex";
       return NULL;
   }
@@ -180,7 +194,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
 
   const char* data_root = getenv("ANDROID_DATA");
   if (data_root == NULL) {
-      data_root = "/data";
+    data_root = "/data";
   }
 
   std::string cache_path_tmp = StringPrintf("%s/art-cache/%s", data_root, cache_file.c_str());
@@ -188,12 +202,12 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
 
   UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
   if (zip_archive.get() == NULL) {
-    LOG(WARNING) << "Could not open " << filename << " when looking for classes.dex";
+    LOG(WARNING) << "Failed to open " << filename << " when looking for classes.dex";
     return NULL;
   }
   UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
   if (zip_entry.get() == NULL) {
-    LOG(WARNING) << "Could not find classes.dex within " << filename;
+    LOG(WARNING) << "Failed to find classes.dex within " << filename;
     return NULL;
   }
 
@@ -235,7 +249,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
     struct stat fd_stat;
     int fd_stat_result = fstat(fd->GetFd(), &fd_stat);
     if (fd_stat_result == -1) {
-      PLOG(ERROR) << "Can't stat open file '" << cache_path_tmp << "'";
+      PLOG(ERROR) << "Failed to stat open file '" << cache_path_tmp << "'";
       return NULL;
     }
     struct stat file_stat;
@@ -287,7 +301,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
     }
     int rename_result = rename(cache_path_tmp.c_str(), cache_path.c_str());
     if (rename_result == -1) {
-      PLOG(ERROR) << "Can't install dex cache file '" << cache_path << "'"
+      PLOG(ERROR) << "Failed to install dex cache file '" << cache_path << "'"
                   << " from '" << cache_path_tmp << "'";
       unlink(cache_path.c_str());
     }

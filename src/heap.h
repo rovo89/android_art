@@ -27,9 +27,12 @@ class Heap {
 
   typedef void (RootVisitor)(const Object* root, void* arg);
 
-  // Create a heap with the requested sizes. optional boot image may
+  // Create a heap with the requested sizes. The optional boot image may
   // be NULL, otherwise it is an image filename created by ImageWriter.
-  static bool Init(size_t starting_size, size_t maximum_size, const char* boot_image_file_name);
+  // image_file_names specifies application images to load.
+  static bool Init(size_t starting_size, size_t maximum_size,
+                   const char* boot_image_file_name,
+                   std::vector<const char*>& image_file_names);
 
   static void Destroy();
 
@@ -149,6 +152,7 @@ class Heap {
   static std::vector<Space*> spaces_;
 
   // Space loaded from an image
+  // TODO: remove after intern_addr is removed
   static Space* boot_space_;
 
   // default Space for allocations

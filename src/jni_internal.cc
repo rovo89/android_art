@@ -207,6 +207,7 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
   // Pass everything as arguments
   const Method::InvokeStub* stub = method->GetInvokeStub();
   JValue result;
+
   if (method->HasCode() && stub != NULL) {
     (*stub)(method, receiver, self, args, &result);
   } else {
@@ -2566,11 +2567,11 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
   Runtime* runtime = Runtime::Create(options, ignore_unrecognized);
   if (runtime == NULL) {
     return JNI_ERR;
-  } else {
-    *p_env = Thread::Current()->GetJniEnv();
-    *p_vm = runtime->GetJavaVM();
-    return JNI_OK;
   }
+  runtime->Start();
+  *p_env = Thread::Current()->GetJniEnv();
+  *p_vm = runtime->GetJavaVM();
+  return JNI_OK;
 }
 
 extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {

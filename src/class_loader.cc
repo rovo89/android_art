@@ -18,6 +18,7 @@ const std::vector<const DexFile*>& ClassLoader::GetClassPath(const ClassLoader* 
 Class* PathClassLoader::dalvik_system_PathClassLoader_ = NULL;
 
 const PathClassLoader* PathClassLoader::Alloc(std::vector<const DexFile*> dex_files) {
+  DCHECK(dalvik_system_PathClassLoader_ != NULL);
   PathClassLoader* p = down_cast<PathClassLoader*>(dalvik_system_PathClassLoader_->AllocObject());
   p->SetClassPath(dex_files);
   return p;

@@ -2494,7 +2494,6 @@ inline const String* Field::GetName() const {
 inline void Field::SetName(String* new_name) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, name_),
                  new_name, false);
-
 }
 
 inline uint32_t Field::GetAccessFlags() const {
@@ -2602,6 +2601,12 @@ inline uint32_t Method::GetProtoIdx() const {
 
 // C++ mirror of java.lang.Throwable
 class Throwable : public Object {
+ public:
+  void SetDetailMessage(String* new_detail_message) {
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_),
+                   new_detail_message, false);
+  }
+
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   Throwable* cause_;

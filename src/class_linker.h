@@ -26,7 +26,8 @@ class ClassLinker {
  public:
   // Initializes the class linker using DexFile and an optional boot Space.
   static ClassLinker* Create(const std::vector<const DexFile*>& boot_class_path,
-      InternTable* intern_table, Space* boot_space);
+                             const std::vector<const DexFile*>& class_path,
+                             InternTable* intern_table, Space* boot_space);
 
   ~ClassLinker();
 
@@ -149,10 +150,13 @@ class ClassLinker {
   ClassLinker(InternTable*);
 
   // Initialize class linker from DexFile instances.
-  void Init(const std::vector<const DexFile*>& boot_class_path_);
+  void Init(const std::vector<const DexFile*>& boot_class_path_,
+            const std::vector<const DexFile*>& class_path_);
 
   // Initialize class linker from pre-initialized space.
-  void Init(const std::vector<const DexFile*>& boot_class_path_, Space* space);
+  void Init(const std::vector<const DexFile*>& boot_class_path_,
+            const std::vector<const DexFile*>& class_path_,
+            Space* space);
   static void InitCallback(Object* obj, void *arg);
   struct InitCallbackState;
 

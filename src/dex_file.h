@@ -316,6 +316,9 @@ class DexFile {
   static ClassPathEntry FindInClassPath(const StringPiece& descriptor,
                                         const ClassPath& class_path);
 
+  // Opens .dex file, guessing the format based on file extension
+  static const DexFile* Open(const std::string& filename);
+
   // Opens a .dex file from the file system.
   static const DexFile* OpenFile(const std::string& filename);
 

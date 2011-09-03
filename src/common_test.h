@@ -85,7 +85,8 @@ class CommonTest : public testing::Test {
       setenv("ANDROID_ROOT", root.c_str(), 1);
     }
 
-    android_data_ = (is_host_ ? "/tmp/art-data-XXXXXX" : "/mnt/sdcard/art-data-XXXXXX");
+    // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of art-cache
+    android_data_ = (is_host_ ? "/tmp/art-data-XXXXXX" : "/data/art-cache/art-data-XXXXXX");
     if (mkdtemp(&android_data_[0]) == NULL) {
       PLOG(FATAL) << "mkdtemp(\"" << &android_data_[0] << "\") failed";
     }
@@ -99,8 +100,12 @@ class CommonTest : public testing::Test {
 
     boot_class_path_.push_back(java_lang_dex_file_.get());
 
-    runtime_.reset(Runtime::Create(boot_class_path_));
+    Runtime::Options options;
+    options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
+    options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
+    runtime_.reset(Runtime::Create(options, false));
     ASSERT_TRUE(runtime_.get() != NULL);
+    runtime_->Start();
     class_linker_ = runtime_->GetClassLinker();
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
@@ -167,7 +172,7 @@ class CommonTest : public testing::Test {
         return i;
       }
     }
-    CHECK(false) << "Could not find type index for " << descriptor;
+    CHECK(false) << "Failed to find type index for " << descriptor;
     return 0;
   }
 
@@ -181,11 +186,11 @@ class CommonTest : public testing::Test {
         return i;
       }
     }
-    CHECK(false) << "Could not find field index for " << class_descriptor << " " << field_name;
+    CHECK(false) << "Failed to find field index for " << class_descriptor << " " << field_name;
     return 0;
   }
 
-  const PathClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
+  const ClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
     CHECK(dex_file != NULL);
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> dex_files;
@@ -204,7 +209,7 @@ class CommonTest : public testing::Test {
     filename += name;
     filename += ".jar";
     const DexFile* dex_file = DexFile::OpenZip(filename);
-    CHECK(dex_file != NULL) << "Could not open " << filename;
+    CHECK(dex_file != NULL) << "Failed to open " << filename;
     return dex_file;
   }
 

@@ -12,31 +12,32 @@ namespace art {
 
 class Class;
 class Field;
+class ImageWriter;
 class Method;
 class String;
 union JValue;
 
 class CodeAndDirectMethods : public IntArray {
  public:
-  Method* GetResolvedCode(uint32_t method_idx) const {
-    return reinterpret_cast<Method*>(Get(method_idx * kMax + kCode));
+  void* GetResolvedCode(uint32_t method_idx) const {
+    return reinterpret_cast<byte*>(Get(CodeIndex(method_idx)));
   }
-  void* GetResolvedMethod(uint32_t method_idx) const {
-    return reinterpret_cast<byte*>(Get(method_idx * kMax + kMethod));
+  Method* GetResolvedMethod(uint32_t method_idx) const {
+    return reinterpret_cast<Method*>(Get(MethodIndex(method_idx)));
   }
 
   void SetResolvedDirectMethodTrampoline(uint32_t method_idx) {
     UNIMPLEMENTED(WARNING) << "need to install a trampoline to resolve the method_idx at runtime";
-    Set(method_idx * kMax + kCode,   0xffffffff);
-    Set(method_idx * kMax + kMethod, method_idx);
+    Set(CodeIndex(method_idx),   0xffffffff);
+    Set(MethodIndex(method_idx), method_idx);
   }
 
   void SetResolvedDirectMethod(uint32_t method_idx, Method* method) {
     CHECK(method != NULL);
     CHECK(method->IsDirect());
     // CHECK(method->GetCode() != NULL);  // TODO enable when all code is compiling
-    Set(method_idx * kMax + kCode,   reinterpret_cast<int32_t>(method->GetCode()));
-    Set(method_idx * kMax + kMethod, reinterpret_cast<int32_t>(method));
+    Set(CodeIndex(method_idx),   reinterpret_cast<int32_t>(method->GetCode()));
+    Set(MethodIndex(method_idx), reinterpret_cast<int32_t>(method));
   }
 
   static size_t LengthAsArray(size_t elements) {
@@ -45,14 +46,12 @@ class CodeAndDirectMethods : public IntArray {
 
   // Offset of resolved method entry from start of code_and_direct_methods_
   static size_t MethodOffsetInBytes(uint32_t method_idx) {
-    return ((method_idx * kMax + kMethod) * sizeof(ElementType) +
-             Array::DataOffset().Int32Value());
+    return (MethodIndex(method_idx) * sizeof(ElementType) + Array::DataOffset().Int32Value());
   }
 
   // Offset of resolved method's code_ from start of code_and_direct_methods_
   static size_t CodeOffsetInBytes(uint32_t method_idx) {
-    return ((method_idx * kMax + kCode) * sizeof(ElementType) +
-             Array::DataOffset().Int32Value());
+    return (CodeIndex(method_idx) * sizeof(ElementType) + Array::DataOffset().Int32Value());
   }
 
  size_t NumCodeAndDirectMethods() const {
@@ -66,6 +65,17 @@ class CodeAndDirectMethods : public IntArray {
     kMax    = 2,
   };
 
+  static size_t CodeIndex(uint32_t method_idx) {
+    return method_idx * kMax + kCode;
+  }
+  static size_t MethodIndex(uint32_t method_idx) {
+    return method_idx * kMax + kMethod;
+  }
+
+  // grant friend status to ImageWriter fixup code that needs to know internal layout
+  friend class ImageWriter;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(CodeAndDirectMethods);
 };
 
 class DexCache : public ObjectArray<Object> {
@@ -195,6 +205,12 @@ class DexCache : public ObjectArray<Object> {
     return obj;
   }
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
+};
+
+struct DexCacheHash {
+  size_t operator()(art::DexCache* const& obj) const {
+    return reinterpret_cast<size_t>(&obj);
+  }
 };
 
 }  // namespace art

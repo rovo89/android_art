@@ -23,9 +23,16 @@
 
 namespace art {
 
-bool ImageWriter::Write(Space* space, const char* filename, byte* image_base) {
-  image_base_ = image_base;
-  if (!Init(space)) {
+bool ImageWriter::Write(const char* filename, uintptr_t image_base) {
+  CHECK_NE(image_base, 0U);
+  image_base_ = reinterpret_cast<byte*>(image_base);
+
+  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  // currently just write the last space, assuming it is the space that was being used for allocation
+  CHECK_GE(spaces.size(), 1U);
+  source_space_ = spaces[spaces.size()-1];
+
+  if (!Init()) {
     return false;
   }
   CalculateNewObjectOffsets();
@@ -38,8 +45,8 @@ bool ImageWriter::Write(Space* space, const char* filename, byte* image_base) {
   return file->WriteFully(image_->GetAddress(), image_top_);
 }
 
-bool ImageWriter::Init(Space* space) {
-  size_t size = space->Size();
+bool ImageWriter::Init() {
+  size_t size = source_space_->Size();
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
   image_.reset(MemMap::Map(length, prot));
@@ -88,9 +95,23 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
+  if (!image_writer->InSourceSpace(obj)) {
+    return;
+  }
   image_writer->SetImageOffset(obj, image_writer->image_top_);
   image_writer->image_top_ += RoundUp(obj->SizeOf(), 8);  // 64-bit alignment
   DCHECK_LT(image_writer->image_top_, image_writer->image_->GetLength());
+
+  // sniff out the DexCaches on this pass for use on the next pass
+  if (obj->IsClass()) {
+    Class* klass = obj->AsClass();
+    DexCache* dex_cache = klass->GetDexCache();
+    if (dex_cache != NULL) {
+      image_writer->dex_caches_.insert(dex_cache);
+    } else {
+      DCHECK(klass->IsArrayClass() || klass->IsPrimitive());
+    }
+  }
 }
 
 void ImageWriter::CalculateNewObjectOffsets() {
@@ -104,7 +125,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // know where interned_array is going to end up
   image_top_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
-  heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);
+  heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
   DCHECK_LT(image_top_, image_->GetLength());
 
   // return to write header at start of image with future location of interned_array
@@ -120,7 +141,8 @@ void ImageWriter::CopyAndFixupObjects() {
   DCHECK(heap_bitmap != NULL);
   // TODO: heap validation can't handle this fix up pass
   Heap::DisableObjectValidation();
-  heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);
+  heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);  // TODO: add Space-limited Walk
+  FixupDexCaches();
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void *arg) {
@@ -128,7 +150,11 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void *arg) {
   DCHECK(arg != NULL);
   const Object* obj = object;
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
+  if (!image_writer->InSourceSpace(object)) {
+    return;
+  }
 
+  // see GetLocalAddress for similar computation
   size_t offset = image_writer->GetImageOffset(obj);
   byte* dst = image_writer->image_->GetAddress() + offset;
   const byte* src = reinterpret_cast<const byte*>(obj);
@@ -136,6 +162,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void *arg) {
   DCHECK_LT(offset + n, image_writer->image_->GetLength());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
+  ResetImageOffset(copy);
   image_writer->FixupObject(obj, copy);
 }
 
@@ -178,20 +205,36 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupStaticFields(orig, copy);
 }
 
+const void* FixupCode(const ByteArray* copy_code_array, const void* orig_code) {
+  // TODO: change to DCHECK when all code compiling
+  if (copy_code_array == NULL) {
+    return NULL;
+  }
+  const void* copy_code = copy_code_array->GetData();
+  // TODO: remember InstructionSet with each code array so we know if we need to do thumb fixup?
+  if ((reinterpret_cast<uintptr_t>(orig_code) % 2) == 1) {
+      return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(copy_code) + 1);
+  }
+  return copy_code;
+}
+
 // TODO: remove this slow path
 void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
   // TODO: remove need for this by adding "signature" to java.lang.reflect.Method
   copy->signature_ = down_cast<String*>(GetImageAddress(orig->signature_));
   DCHECK(copy->signature_ != NULL);
+  // TODO: convert shorty_ to heap allocated storage
   copy->dex_cache_strings_ = down_cast<ObjectArray<String>*>(GetImageAddress(orig->dex_cache_strings_));
   copy->dex_cache_resolved_types_ = down_cast<ObjectArray<Class>*>(GetImageAddress(orig->dex_cache_resolved_types_));
   copy->dex_cache_resolved_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->dex_cache_resolved_methods_));
   copy->dex_cache_resolved_fields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->dex_cache_resolved_fields_));
   copy->dex_cache_code_and_direct_methods_ = down_cast<CodeAndDirectMethods*>(GetImageAddress(orig->dex_cache_code_and_direct_methods_));
   copy->dex_cache_initialized_static_storage_ = down_cast<ObjectArray<StaticStorageBase>*>(GetImageAddress(orig->dex_cache_initialized_static_storage_));
-
-  // TODO: convert shorty_ to heap allocated storage
+  copy->code_array_ = down_cast<ByteArray*>(GetImageAddress(orig->code_array_));
+  copy->code_ = FixupCode(copy->code_array_, orig->code_);
+  copy->invoke_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig->invoke_stub_array_));
+  copy->invoke_stub_ = reinterpret_cast<Method::InvokeStub*>(FixupCode(copy->invoke_stub_array_, reinterpret_cast<void*>(orig->invoke_stub_)));
 }
 
 void ImageWriter::FixupField(const Field* orig, Field* copy) {
@@ -258,6 +301,36 @@ void ImageWriter::FixupFields(const Object* orig,
         const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
         copy->SetFieldObject(field_offset, GetImageAddress(ref), false);
       }
+    }
+  }
+}
+
+void ImageWriter::FixupDexCaches() {
+  typedef Set::const_iterator It;  // TODO: C++0x auto
+  for (It it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
+    DexCache* orig = *it;
+    DexCache* copy = down_cast<DexCache*>(GetLocalAddress(orig));
+    FixupDexCache(orig, copy);
+  }
+}
+
+void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
+  CHECK(orig != NULL);
+  CHECK(copy != NULL);
+
+  CodeAndDirectMethods* orig_cadms = orig->GetCodeAndDirectMethods();
+  CodeAndDirectMethods* copy_cadms = down_cast<CodeAndDirectMethods*>(GetLocalAddress(orig_cadms));
+  for (size_t i = 0; i < orig->NumResolvedMethods(); i++) {
+    Method* orig_method = orig->GetResolvedMethod(i);
+    // if it was resolved in the original, resolve it in the copy
+    if (orig_method != NULL
+        && InSourceSpace(orig_method)
+        && orig_method == orig_cadms->GetResolvedMethod(i)) {
+      Method* copy_method = down_cast<Method*>(GetLocalAddress(orig_method));
+      copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i),
+                      reinterpret_cast<int32_t>(copy_method->code_));
+      copy_cadms->Set(CodeAndDirectMethods::MethodIndex(i),
+                      reinterpret_cast<int32_t>(GetImageAddress(orig_method)));
     }
   }
 }

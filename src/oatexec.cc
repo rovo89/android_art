@@ -29,6 +29,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     fprintf(stderr, "Unable to find class Method\n");
     return false;
   }
+#if 0 // TODO: try restoring once iftable_ moved to managed heap
   jmethodID get_modifiers = env->GetMethodID(method.get(),
                                              "getModifiers",
                                              "()I");
@@ -36,6 +37,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     fprintf(stderr, "Unable to find reflect.Method.getModifiers\n");
     return false;
   }
+#endif
   static const int PUBLIC = 0x0001;   // java.lang.reflect.Modifiers.PUBLIC
 #if 0 // CallIntMethod not yet implemented
   int modifiers = env->CallIntMethod(reflected.get(), get_modifiers);

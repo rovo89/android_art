@@ -35,8 +35,11 @@ ART_CFLAGS := \
 	-fno-align-jumps \
 	-fstrict-aliasing
 
-AEXEC_SRC_FILES := \
-	src/main.cc
+DEX2OAT_SRC_FILES := \
+	src/dex2oat.cc
+
+OATEXEC_SRC_FILES := \
+	src/oatexec.cc
 
 LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
@@ -156,6 +159,7 @@ TEST_DEX_DIRECTORIES := \
 	AllFields \
 	CreateMethodDescriptor \
 	Fibonacci \
+	HelloWorld \
 	IntMath \
 	Interfaces \
 	Main \

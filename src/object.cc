@@ -1047,7 +1047,8 @@ bool String::Equals(const char* modified_utf8) const {
 }
 
 bool String::Equals(const StringPiece& modified_utf8) const {
-  // TODO: do not assume C-string representation.
+  // TODO: do not assume C-string representation. For now DCHECK.
+  DCHECK_EQ(modified_utf8.data()[modified_utf8.size()], 0);
   return Equals(modified_utf8.data());
 }
 

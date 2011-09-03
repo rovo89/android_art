@@ -37,7 +37,9 @@ MemberOffset Heap::reference_queueNext_offset_ = MemberOffset(0);
 MemberOffset Heap::reference_pendingNext_offset_ = MemberOffset(0);
 MemberOffset Heap::finalizer_reference_zombie_offset_ = MemberOffset(0);
 
-bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image_file_name) {
+bool Heap::Init(size_t initial_size, size_t maximum_size,
+                const char* boot_image_file_name,
+                std::vector<const char*>& image_file_names) {
   Space* boot_space;
   byte* requested_base;
   if (boot_image_file_name == NULL) {
@@ -46,14 +48,28 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
   } else {
     boot_space = Space::Create(boot_image_file_name);
     if (boot_space == NULL) {
+      LOG(WARNING) << "Failed to create space from " << boot_image_file_name;
       return false;
     }
     spaces_.push_back(boot_space);
     requested_base = boot_space->GetBase() + RoundUp(boot_space->Size(), kPageSize);
   }
 
+  std::vector<Space*> image_spaces;
+  for (size_t i = 0; i < image_file_names.size(); i++) {
+    Space* space = Space::Create(image_file_names[i]);
+    if (space == NULL) {
+      LOG(WARNING) << "Failed to create space from " << image_file_names[i];
+      return false;
+    }
+    image_spaces.push_back(space);
+    spaces_.push_back(space);
+    requested_base = space->GetBase() + RoundUp(space->Size(), kPageSize);
+  }
+
   Space* space = Space::Create(initial_size, maximum_size, requested_base);
   if (space == NULL) {
+    LOG(WARNING) << "Failed to create alloc space";
     return false;
   }
 
@@ -68,12 +84,14 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
   // Allocate the initial live bitmap.
   UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
   if (live_bitmap.get() == NULL) {
+    LOG(WARNING) << "Failed to create live bitmap";
     return false;
   }
 
   // Allocate the initial mark bitmap.
   UniquePtr<HeapBitmap> mark_bitmap(HeapBitmap::Create(base, num_bytes));
   if (mark_bitmap.get() == NULL) {
+    LOG(WARNING) << "Failed to create mark bitmap";
     return false;
   }
 
@@ -92,6 +110,9 @@ bool Heap::Init(size_t initial_size, size_t maximum_size, const char* boot_image
   if (boot_image_file_name != NULL) {
     boot_space_ = boot_space;
     RecordImageAllocations(boot_space);
+  }
+  for (size_t i = 0; i < image_spaces.size(); i++) {
+    RecordImageAllocations(image_spaces[i]);
   }
 
   return true;

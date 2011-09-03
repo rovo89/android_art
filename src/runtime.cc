@@ -149,42 +149,35 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
   }
 }
 
-const DexFile* Open(const std::string& filename) {
-  if (filename.size() < 4) {
-    LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
-    return NULL;
-  }
-  std::string suffix(filename.substr(filename.size() - 4));
-  if (suffix == ".zip" || suffix == ".jar" || suffix == ".apk") {
-    return DexFile::OpenZip(filename);
-  } else {
-    return DexFile::OpenFile(filename);
-  }
-}
-
-void CreateBootClassPath(const char* boot_class_path_cstr,
-                         std::vector<const DexFile*>& boot_class_path_vector) {
-  CHECK(boot_class_path_cstr != NULL);
+void CreateClassPath(const char* class_path_cstr,
+                     std::vector<const DexFile*>& class_path_vector) {
+  CHECK(class_path_cstr != NULL);
   std::vector<std::string> parsed;
-  Split(boot_class_path_cstr, ':', parsed);
+  Split(class_path_cstr, ':', parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
-    const DexFile* dex_file = Open(parsed[i]);
+    const DexFile* dex_file = DexFile::Open(parsed[i]);
     if (dex_file != NULL) {
-      boot_class_path_vector.push_back(dex_file);
+      class_path_vector.push_back(dex_file);
     }
   }
 }
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
-  const char* boot_class_path = getenv("BOOTCLASSPATH");
+  const char* boot_class_path = NULL;
+  const char* class_path = NULL;
   parsed->boot_image_ = NULL;
 #ifdef NDEBUG
   // -Xcheck:jni is off by default for regular builds...
   parsed->check_jni_ = false;
 #else
   // ...but on by default in debug builds.
+#if 0 // TODO: disabled for oatexec until the shorty's used by check_jni are managed heap allocated.
+      // Instead we turn on -Xcheck_jni in common_test.
   parsed->check_jni_ = true;
+#else
+  parsed->check_jni_ = false;
+#endif
 #endif
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
@@ -207,12 +200,25 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           continue;
         }
         // TODO: usage
-        LOG(FATAL) << "Could not parse " << option;
+        LOG(FATAL) << "Failed to parse " << option;
         return NULL;
       }
       parsed->boot_class_path_ = *v;
+    } else if (option == "-classpath" || option == "-cp") {
+      // TODO: support -Djava.class.path
+      i++;
+      if (i == options.size()) {
+        // TODO: usage
+        LOG(FATAL) << "Missing required class path value for " << option;
+        return NULL;
+      }
+      const StringPiece& value = options[i].first;
+      class_path = value.data();
     } else if (option.starts_with("-Xbootimage:")) {
+      // TODO: remove when intern_addr_ is removed, just use -Ximage:
       parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
+    } else if (option.starts_with("-Ximage:")) {
+      parsed->images_.push_back(option.substr(strlen("-Ximage:")).data());
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (option.starts_with("-Xms")) {
@@ -222,7 +228,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           continue;
         }
         // TODO: usage
-        LOG(FATAL) << "Could not parse " << option;
+        LOG(FATAL) << "Failed to parse " << option;
         return NULL;
       }
       parsed->heap_initial_size_ = size;
@@ -233,7 +239,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           continue;
         }
         // TODO: usage
-        LOG(FATAL) << "Could not parse " << option;
+        LOG(FATAL) << "Failed to parse " << option;
         return NULL;
       }
       parsed->heap_maximum_size_ = size;
@@ -244,7 +250,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           continue;
         }
         // TODO: usage
-        LOG(FATAL) << "Could not parse " << option;
+        LOG(FATAL) << "Failed to parse " << option;
         return NULL;
       }
       parsed->stack_size_ = size;
@@ -273,19 +279,33 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     }
   }
 
-  if (boot_class_path == NULL) {
-    boot_class_path = "";
+  // consider it an error if both bootclasspath and -Xbootclasspath: are supplied.
+  // TODO: remove bootclasspath which is only mostly just used by tests?
+  if (!parsed->boot_class_path_.empty() && boot_class_path != NULL) {
+    // TODO: usage
+    LOG(FATAL) << "bootclasspath and -Xbootclasspath: are mutually exclusive options.";
+    return NULL;
   }
-  if (parsed->boot_class_path_.size() == 0) {
-    CreateBootClassPath(boot_class_path, parsed->boot_class_path_);
+  if (parsed->boot_class_path_.empty()) {
+    if (boot_class_path == NULL) {
+      boot_class_path = getenv("BOOTCLASSPATH");
+      if (boot_class_path == NULL) {
+        boot_class_path = "";
+      }
+    }
+    CreateClassPath(boot_class_path, parsed->boot_class_path_);
   }
-  return parsed.release();
-}
 
-Runtime* Runtime::Create(const std::vector<const DexFile*>& boot_class_path) {
-  Runtime::Options options;
-  options.push_back(std::make_pair("bootclasspath", &boot_class_path));
-  return Runtime::Create(options, false);
+  if (class_path == NULL) {
+    class_path = getenv("CLASSPATH");
+    if (class_path == NULL) {
+      class_path = "";
+    }
+  }
+  CHECK_EQ(parsed->class_path_.size(), 0U);
+  CreateClassPath(class_path, parsed->class_path_);
+
+  return parsed.release();
 }
 
 Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
@@ -299,11 +319,12 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
     return NULL;
   }
   instance_ = runtime.release();
+  return instance_;
+}
 
+void Runtime::Start() {
   instance_->InitLibraries();
   instance_->signal_catcher_ = new SignalCatcher;
-
-  return instance_;
 }
 
 bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
@@ -311,6 +332,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   UniquePtr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
   if (options.get() == NULL) {
+    LOG(WARNING) << "Failed to parse options";
     return false;
   }
   vfprintf_ = options->hook_vfprintf_;
@@ -324,7 +346,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   if (!Heap::Init(options->heap_initial_size_,
                   options->heap_maximum_size_,
-                  options->boot_image_)) {
+                  options->boot_image_,
+                  options->images_)) {
+    LOG(WARNING) << "Failed to create heap";
     return false;
   }
 
@@ -333,12 +357,16 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   java_vm_ = new JavaVMExt(this, options.get());
 
   if (!Thread::Startup()) {
+    LOG(WARNING) << "Failed to startup threads";
     return false;
   }
 
   thread_list_->Register(Thread::Attach(this));
 
-  class_linker_ = ClassLinker::Create(options->boot_class_path_, intern_table_, Heap::GetBootSpace());
+  class_linker_ = ClassLinker::Create(options->boot_class_path_,
+                                      options->class_path_,
+                                      intern_table_,
+                                      Heap::GetBootSpace());
 
   return true;
 }

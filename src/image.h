@@ -50,6 +50,7 @@ class ImageHeader {
   uint32_t base_addr_;
 
   // absolute address of an Object[] of Strings to InternTable::RegisterStrong.
+  // TODO: remove after interning all Strings in image
   uint32_t intern_addr_;
 };
 

@@ -14,13 +14,22 @@ TEST_F(RuntimeTest, ParsedOptions) {
   void* test_abort = reinterpret_cast<void*>(0xb);
   void* test_exit = reinterpret_cast<void*>(0xc);
   void* null = reinterpret_cast<void*>(NULL);
-  std::vector<const DexFile*> boot_class_path;
-  boot_class_path.push_back(java_lang_dex_file_.get());
+
+  std::string lib_core = GetLibCoreDexFileName();
+
+  std::string boot_class_path;
+  boot_class_path += "-Xbootclasspath:";
+  boot_class_path += lib_core;
 
   Runtime::Options options;
-  options.push_back(std::make_pair("-Xbootclasspath:class_path_foo:class_path_bar", null));
-  options.push_back(std::make_pair("bootclasspath", &boot_class_path));
+  options.push_back(std::make_pair(boot_class_path.c_str(), null));
+  options.push_back(std::make_pair("-classpath", null));
+  options.push_back(std::make_pair(lib_core.c_str(), null));
+  options.push_back(std::make_pair("-cp", null));
+  options.push_back(std::make_pair(lib_core.c_str(), null));
   options.push_back(std::make_pair("-Xbootimage:boot_image", null));
+  options.push_back(std::make_pair("-Ximage:image_1", null));
+  options.push_back(std::make_pair("-Ximage:image_2", null));
   options.push_back(std::make_pair("-Xcheck:jni", null));
   options.push_back(std::make_pair("-Xms2048", null));
   options.push_back(std::make_pair("-Xmx4k", null));
@@ -34,8 +43,12 @@ TEST_F(RuntimeTest, ParsedOptions) {
   UniquePtr<Runtime::ParsedOptions> parsed(Runtime::ParsedOptions::Create(options, false));
   ASSERT_TRUE(parsed.get() != NULL);
 
-  EXPECT_EQ(1U, parsed->boot_class_path_.size());  // bootclasspath overrides -Xbootclasspath
+  EXPECT_EQ(1U, parsed->boot_class_path_.size());
+  EXPECT_EQ(1U, parsed->class_path_.size());
   EXPECT_STREQ("boot_image", parsed->boot_image_);
+  EXPECT_EQ(2U, parsed->images_.size());
+  EXPECT_STREQ("image_1", parsed->images_[0]);
+  EXPECT_STREQ("image_2", parsed->images_[1]);
   EXPECT_EQ(true, parsed->check_jni_);
   EXPECT_EQ(2048U, parsed->heap_initial_size_);
   EXPECT_EQ(4 * KB, parsed->heap_maximum_size_);

@@ -25,15 +25,10 @@ TEST_F(ImageTest, WriteRead) {
   }
   // TODO: Heap::CollectGarbage before writing
 
-  const std::vector<Space*>& spaces = Heap::GetSpaces();
-  // can't currently deal with writing a space that might have pointers between spaces
-  ASSERT_EQ(1U, spaces.size());
-  Space* space = spaces[0];
-
   ImageWriter writer;
   ScratchFile tmp;
-  const int image_base = 0x50000000;
-  bool success = writer.Write(space, tmp.GetFilename(), reinterpret_cast<byte*>(image_base));
+  const uintptr_t image_base = 0x50000000;
+  bool success = writer.Write(tmp.GetFilename(), image_base);
   ASSERT_TRUE(success);
 
   {
@@ -42,6 +37,10 @@ TEST_F(ImageTest, WriteRead) {
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
     ASSERT_TRUE(image_header.IsValid());
+
+    ASSERT_EQ(1U, Heap::GetSpaces().size());
+    Space* space = Heap::GetSpaces()[0];
+    ASSERT_TRUE(space != NULL);
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
   }
 
@@ -69,7 +68,7 @@ TEST_F(ImageTest, WriteRead) {
   class_linker_ = runtime_->GetClassLinker();
 
   ASSERT_EQ(2U, Heap::GetSpaces().size());
-  Space* boot_space = Heap::GetSpaces()[0];
+  Space* boot_space = Heap::GetBootSpace();
   ASSERT_TRUE(boot_space != NULL);
 
   // enable to display maps to debug boot_base and boot_limit checking problems below
@@ -87,6 +86,7 @@ TEST_F(ImageTest, WriteRead) {
     EXPECT_TRUE(klass != NULL) << descriptor;
     EXPECT_LT(boot_base, reinterpret_cast<byte*>(klass)) << descriptor;
     EXPECT_LT(reinterpret_cast<byte*>(klass), boot_limit) << descriptor;
+    EXPECT_TRUE(klass->GetMonitor() == NULL);  // address should have been removed from monitor
   }
 }
 

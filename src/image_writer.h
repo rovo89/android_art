@@ -8,6 +8,7 @@
 #include <cstddef>
 
 #include "UniquePtr.h"
+#include "dex_cache.h"
 #include "mem_map.h"
 #include "object.h"
 #include "os.h"
@@ -19,32 +20,52 @@ namespace art {
 class ImageWriter {
 
  public:
-  ImageWriter() : image_top_(0), image_base_(NULL) {};
-  bool Write(Space* space, const char* filename, byte* image_base);
+  ImageWriter() : source_space_(NULL), image_top_(0), image_base_(NULL) {};
+  bool Write(const char* filename, uintptr_t image_base);
   ~ImageWriter() {};
 
  private:
 
-  bool Init(Space* space);
+  bool Init();
 
   // we use the lock word to store the offset of the object in the image
-  void SetImageOffset(Object* object, size_t offset) {
+  static void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
     DCHECK(object->GetMonitor() == NULL);  // should be no lock
     DCHECK_NE(0U, offset);
     object->SetMonitor(reinterpret_cast<Monitor*>(offset));
   }
-  size_t GetImageOffset(const Object* object) {
+  static size_t GetImageOffset(const Object* object) {
     DCHECK(object != NULL);
     size_t offset = reinterpret_cast<size_t>(object->GetMonitor());
     DCHECK_NE(0U, offset);
     return offset;
   }
+  static void ResetImageOffset(Object* object) {
+    DCHECK(object != NULL);
+    DCHECK(object->GetMonitor() != NULL);  // should be an offset
+    object->SetMonitor(reinterpret_cast<Monitor*>(0));
+  }
+
+  bool InSourceSpace(const Object* object) {
+    DCHECK(source_space_ != NULL);
+    const byte* o = reinterpret_cast<const byte*>(object);
+    return (o >= source_space_->GetBase() && o < source_space_->GetLimit());
+  }
   Object* GetImageAddress(const Object* object) {
     if (object == NULL) {
       return NULL;
     }
+    // if object outside the relocating source_space_, assume unchanged
+    if (!InSourceSpace(object)) {
+      return const_cast<Object*>(object);
+    }
     return reinterpret_cast<Object*>(image_base_ + GetImageOffset(object));
+  }
+  Object* GetLocalAddress(const Object* object) {
+    size_t offset = GetImageOffset(object);
+    byte* dst = image_->GetAddress() + offset;
+    return reinterpret_cast<Object*>(dst);
   }
 
   void CalculateNewObjectOffsets();
@@ -61,6 +82,12 @@ class ImageWriter {
   void FixupStaticFields(const Class* orig, Class* copy);
   void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
 
+  void FixupDexCaches();
+  void FixupDexCache(const DexCache* orig, DexCache* copy);
+
+  // Space we are writing objects from
+  const Space* source_space_;
+
   // memory mapped for generating the image
   UniquePtr<MemMap> image_;
 
@@ -69,6 +96,10 @@ class ImageWriter {
 
   // Target base address for the output image
   byte* image_base_;
+
+  // DexCaches seen while scanning for fixing up CodeAndDirectMethods
+  typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;
+  Set dex_caches_;
 };
 
 }  // namespace art

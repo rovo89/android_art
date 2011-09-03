@@ -56,12 +56,14 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
 };
 
 ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path,
-    InternTable* intern_table, Space* space) {
+                                 const std::vector<const DexFile*>& class_path,
+                                 InternTable* intern_table, Space* space) {
+  CHECK_NE(boot_class_path.size(), 0U);
   UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
   if (space == NULL) {
-    class_linker->Init(boot_class_path);
+    class_linker->Init(boot_class_path, class_path);
   } else {
-    class_linker->Init(boot_class_path, space);
+    class_linker->Init(boot_class_path, class_path, space);
   }
   // TODO: check for failure during initialization
   return class_linker.release();
@@ -76,7 +78,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       intern_table_(intern_table) {
 }
 
-void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
+void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
+                       const std::vector<const DexFile*>& class_path) {
   CHECK(!init_done_);
 
   // java_lang_Class comes first, its needed for AllocClass
@@ -160,12 +163,17 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path) {
 
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
-  // setup boot_class_path_ now that we can use AllocObjectArray to
-  // create DexCache instances
+  // setup boot_class_path_ and register class_path now that we can
+  // use AllocObjectArray to create DexCache instances
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
     AppendToBootClassPath(*dex_file);
+  }
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    CHECK(dex_file != NULL);
+    RegisterDexFile(*dex_file);
   }
 
   // Field and Method are necessary so that FindClass can link members
@@ -366,16 +374,13 @@ struct ClassLinker::InitCallbackState {
   typedef std::tr1::unordered_map<std::string, ClassRoot> Table;
   Table descriptor_to_class_root;
 
-  struct DexCacheHash {
-    size_t operator()(art::DexCache* const& obj) const {
-      return reinterpret_cast<size_t>(&obj);
-    }
-  };
   typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;
   Set dex_caches;
 };
 
-void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space* space) {
+void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
+                       const std::vector<const DexFile*>& class_path,
+                       Space* space) {
   CHECK(!init_done_);
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
@@ -400,6 +405,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space
   }
 
   // reinit intern table
+  // TODO: remove interned_array, make all strings in image interned (and remove space argument)
   ObjectArray<Object>* interned_array = space->GetImageHeader().GetInternedArray();
   for (int32_t i = 0; i < interned_array->GetLength(); i++) {
     String* string = interned_array->Get(i)->AsString();
@@ -418,14 +424,27 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path, Space
     std::string location = dex_cache->GetLocation()->ToModifiedUtf8();
     location_to_dex_cache[location] = dex_cache;
   }
+  CHECK_EQ(boot_class_path.size() + class_path.size(),
+           location_to_dex_cache.size());
 
   // reinit boot_class_path with DexFile arguments and found DexCaches
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
     DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
+    CHECK(dex_cache != NULL) << dex_file->GetLocation();
     AppendToBootClassPath(*dex_file, dex_cache);
   }
+
+  // register class_path with DexFile arguments and found DexCaches
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    CHECK(dex_file != NULL);
+    DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
+    CHECK(dex_cache != NULL) << dex_file->GetLocation();
+    RegisterDexFile(*dex_file, dex_cache);
+  }
+
   String::SetClass(GetClassRoot(kJavaLangString));
   Field::SetClass(GetClassRoot(kJavaLangReflectField));
   Method::SetClass(GetClassRoot(kJavaLangReflectMethod));
@@ -452,10 +471,15 @@ void ClassLinker::InitCallback(Object* obj, void *arg) {
     return;
   }
   Class* klass = obj->AsClass();
-  CHECK(klass->GetClassLoader() == NULL);
+  // TODO: restore ClassLoader's list of DexFiles after image load
+  // CHECK(klass->GetClassLoader() == NULL);
+  const ClassLoader* class_loader = klass->GetClassLoader();
+  if (class_loader != NULL) {
+    // TODO: replace this hack with something based on command line arguments
+    Thread::Current()->SetClassLoaderOverride(class_loader);
+  }
 
   std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
-
   // restore class to ClassLinker::classes_ table
   state->class_linker->InsertClass(descriptor, klass);
 
@@ -900,7 +924,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file) {
 }
 
 void ClassLinker::AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_cache) {
-  CHECK(dex_cache != NULL);
+  CHECK(dex_cache != NULL) << dex_file.GetLocation();
   boot_class_path_.push_back(&dex_file);
   RegisterDexFile(dex_file, dex_cache);
 }
@@ -910,7 +934,8 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) {
-  CHECK(dex_cache != NULL);
+  CHECK(dex_cache != NULL) << dex_file.GetLocation();
+  CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_files_.push_back(&dex_file);
   dex_caches_.push_back(dex_cache);
 }
@@ -921,7 +946,7 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
         return *dex_files_[i];
     }
   }
-  CHECK(false) << "Could not find DexFile";
+  CHECK(false) << "Failed to find DexFile for DexCache " << dex_cache->GetLocation()->ToModifiedUtf8();
   return *dex_files_[-1];
 }
 
@@ -931,7 +956,7 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
         return dex_caches_[i];
     }
   }
-  CHECK(false) << "Could not find DexCache";
+  CHECK(false) << "Failed to find DexCache for DexFile " << dex_file.GetLocation();
   return NULL;
 }
 
@@ -1544,7 +1569,7 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
     return false;
   }
   if (!klass->CanAccess(super)) {
-    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is  inaccessible";  // TODO: IllegalAccessError
+    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is inaccessible";  // TODO: IllegalAccessError
     return false;
   }
 #ifndef NDEBUG

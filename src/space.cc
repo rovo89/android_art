@@ -59,18 +59,25 @@ void* Space::CreateMallocSpace(void* base,
 
 bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base) {
   if (!(initial_size <= maximum_size)) {
+    LOG(WARNING) << "Failed to create space with initial size > maximum size ("
+                 << initial_size << ">" << maximum_size << ")";
     return false;
   }
   size_t length = RoundUp(maximum_size, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
   UniquePtr<MemMap> mem_map(MemMap::Map(requested_base, length, prot));
   if (mem_map.get() == NULL) {
+    LOG(WARNING) << "Failed to allocate " << length << " bytes for space";
     return false;
   }
   Init(mem_map.release());
   maximum_size_ = maximum_size;
   mspace_ = CreateMallocSpace(base_, initial_size, maximum_size);
-  return (mspace_ != NULL);
+  if (mspace_ == NULL) {
+    LOG(WARNING) << "Failed to create mspace for space";
+    return false;
+  }
+  return true;
 }
 
 void Space::Init(MemMap* mem_map) {
@@ -83,17 +90,24 @@ void Space::Init(MemMap* mem_map) {
 bool Space::Init(const char* image_file_name) {
   UniquePtr<File> file(OS::OpenFile(image_file_name, false));
   if (file.get() == NULL) {
+    LOG(WARNING) << "Failed to open " << image_file_name;
     return false;
   }
   ImageHeader image_header;
   bool success = file->ReadFully(&image_header, sizeof(image_header));
   if (!success || !image_header.IsValid()) {
+    LOG(WARNING) << "Invalid image header " << image_file_name;
     return false;
   }
   UniquePtr<MemMap> map(MemMap::Map(image_header.GetBaseAddr(),
-      file->Length(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED,
-      file->Fd(), 0));
+                                    file->Length(),
+                                    // TODO: selectively PROT_EXEC when image contains a code space
+                                    PROT_READ | PROT_WRITE | PROT_EXEC,
+                                    MAP_PRIVATE | MAP_FIXED,
+                                    file->Fd(),
+                                    0));
   if (map.get() == NULL) {
+    LOG(WARNING) << "Failed to map " << image_file_name;
     return false;
   }
   CHECK_EQ(image_header.GetBaseAddr(), map->GetAddress());

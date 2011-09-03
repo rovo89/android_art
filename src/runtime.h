@@ -40,7 +40,9 @@ class Runtime {
     static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
 
     std::vector<const DexFile*> boot_class_path_;
+    std::vector<const DexFile*> class_path_;
     const char* boot_image_;
+    std::vector<const char*> images_;
     bool check_jni_;
     std::string jni_trace_;
     size_t heap_initial_size_;
@@ -62,7 +64,9 @@ class Runtime {
 
   // Creates and initializes a new runtime.
   static Runtime* Create(const Options& options, bool ignore_unrecognized);
-  static Runtime* Create(const std::vector<const DexFile*>& boot_class_path);
+
+  // Starts a runtime, which may cause threads to be started and code to run.
+  void Start();
 
   static Runtime* Current() {
     return instance_;
@@ -115,7 +119,8 @@ class Runtime {
  private:
   static void PlatformAbort(const char*, int);
 
-  Runtime() : stack_size_(0), thread_list_(NULL), intern_table_(NULL), class_linker_(NULL) {}
+  Runtime() : stack_size_(0), thread_list_(NULL), intern_table_(NULL), class_linker_(NULL),
+    signal_catcher_(NULL) {}
 
   void BlockSignals();
 

@@ -21,7 +21,7 @@ build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 
 include $(build_path)/Android.libart.mk
-include $(build_path)/Android.aexec.mk
+include $(build_path)/Android.executable.mk
 
 include $(build_path)/Android.libarttest.mk
 include $(build_path)/Android.test.mk
@@ -29,9 +29,9 @@ include $(build_path)/Android.test.mk
 # "m build-art" for quick minimal build
 .PHONY: build-art
 build-art: \
-    $(TARGET_OUT_EXECUTABLES)/aexec \
+    $(ART_TARGET_EXECUTABLES) \
     $(ART_TARGET_TEST_EXECUTABLES) \
-    $(HOST_OUT_EXECUTABLES)/aexec \
+    $(ART_HOST_EXECUTABLES) \
     $(ART_HOST_TEST_EXECUTABLES)
 
 # "mm test-art" to build and run all tests on host and device

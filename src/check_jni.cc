@@ -447,7 +447,7 @@ public:
     ScopedJniThreadState ts(mEnv);
     const Method* m = DecodeMethod(ts, mid);
     if (*expectedType != m->GetShorty()[0]) {
-      LOG(ERROR) << "JNI ERROR: expected return type '%s' calling " << PrettyMethod(m);
+      LOG(ERROR) << "JNI ERROR: expected return type '" << *expectedType << "' calling " << PrettyMethod(m);
       JniAbort();
     } else if (isStatic && !m->IsStatic()) {
       if (isStatic) {
