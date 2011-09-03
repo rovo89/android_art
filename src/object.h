@@ -816,10 +816,6 @@ class Method : public AccessibleObject {
   // The number of long or double arguments.
   size_t NumLongOrDoubleArgs() const;
 
-  // The number of reference arguments to this method before the given
-  // parameter index
-  size_t NumReferenceArgsBefore(unsigned int param) const;
-
   // Is the given method parameter a reference?
   bool IsParamAReference(unsigned int param) const;
 

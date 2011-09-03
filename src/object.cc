@@ -410,21 +410,6 @@ size_t Method::NumLongOrDoubleArgs() const {
   return result;
 }
 
-// The number of reference arguments to this method before the given parameter
-// index
-size_t Method::NumReferenceArgsBefore(unsigned int param) const {
-  const StringPiece& shorty = GetShorty();
-  CHECK_LT(param, NumArgs());
-  unsigned int result = IsStatic() ? 0 : 1;
-  for (unsigned int i = 1; (i < (unsigned int)shorty.length()) &&
-                           (i < (param + 1)); i++) {
-    if (shorty[i] == 'L') {
-      result++;
-    }
-  }
-  return result;
-}
-
 // Is the given method parameter a reference?
 bool Method::IsParamAReference(unsigned int param) const {
   CHECK_LT(param, NumArgs());
