@@ -132,6 +132,7 @@ bool Heap::IsHeapAddress(const Object* obj) {
 
 bool Heap::verify_object_disabled_;
 
+#if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
   if (obj != NULL && !verify_object_disabled_) {
     if (!IsAligned(obj, kObjectAlignment)) {
@@ -166,6 +167,7 @@ void Heap::VerifyObject(const Object* obj) {
     }
   }
 }
+#endif
 
 static void HeapVerifyCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);

@@ -9,6 +9,8 @@
 #include "object_bitmap.h"
 #include "offsets.h"
 
+#define VERIFY_OBJECT_ENABLED 0
+
 namespace art {
 
 class Class;
@@ -35,7 +37,11 @@ class Heap {
   static Object* AllocObject(Class* klass, size_t num_bytes);
 
   // Check sanity of given reference. Requires the heap lock.
+#if VERIFY_OBJECT_ENABLED
   static void VerifyObject(const Object *obj);
+#else
+  static void VerifyObject(const Object *obj) {}
+#endif
 
   // Check sanity of all live references. Requires the heap lock.
   static void VerifyHeap();
