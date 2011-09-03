@@ -14,10 +14,7 @@ enum InstructionSet {
 
 }  // namespace art
 
-#if defined(__i386__)
 #include "constants_x86.h"
-#elif defined(__arm__)
 #include "constants_arm.h"
-#endif
 
 #endif  // ART_SRC_CONSTANTS_H_

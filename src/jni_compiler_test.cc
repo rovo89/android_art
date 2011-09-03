@@ -65,8 +65,6 @@ class JniCompilerTest : public CommonTest {
   static jobject jobj_;
  protected:
   const ClassLoader* class_loader_;
-  Assembler jni_asm_;
-  JniCompiler jni_compiler_;
   JNIEnv* env_;
   jmethodID jmethod_;
 };

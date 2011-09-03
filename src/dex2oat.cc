@@ -162,7 +162,7 @@ int dex2oat(int argc, char** argv) {
     class_loader = PathClassLoader::Alloc(dex_files);
   }
 
-  Compiler compiler;
+  Compiler compiler(kThumb2);
   if (method_names.empty()) {
     compiler.CompileAll(class_loader);
   } else {

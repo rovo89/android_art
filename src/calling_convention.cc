@@ -1,6 +1,9 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 #include "calling_convention.h"
+
+#include "calling_convention_arm.h"
+#include "calling_convention_x86.h"
 #include "logging.h"
 #include "utils.h"
 
@@ -13,9 +16,18 @@ FrameOffset CallingConvention::MethodStackOffset() {
 
 // Managed runtime calling convention
 
+ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
+    Method* native_method, InstructionSet instruction_set) {
+  if (instruction_set == kX86) {
+    return new x86::X86ManagedRuntimeCallingConvention(native_method);
+  } else {
+    CHECK(instruction_set == kArm || instruction_set == kThumb2);
+    return new arm::ArmManagedRuntimeCallingConvention(native_method);
+  }
+}
+
 size_t ManagedRuntimeCallingConvention::FrameSize() {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return GetMethod()->GetFrameSizeInBytes();
 }
 
 bool ManagedRuntimeCallingConvention::HasNext() {
@@ -54,6 +66,16 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
 }
 
 // JNI calling convention
+
+JniCallingConvention* JniCallingConvention::Create(Method* native_method,
+                                               InstructionSet instruction_set) {
+  if (instruction_set == kX86) {
+    return new x86::X86JniCallingConvention(native_method);
+  } else {
+    CHECK(instruction_set == kArm || instruction_set == kThumb2);
+    return new arm::ArmJniCallingConvention(native_method);
+  }
+}
 
 size_t JniCallingConvention::ReferenceCount() {
   const Method* method = GetMethod();
@@ -125,11 +147,10 @@ size_t JniCallingConvention::CurrentParamSize() {
   }
 }
 
-size_t JniCallingConvention::NumberOfExtraArgumentsForJni(
-    const Method* method) {
+size_t JniCallingConvention::NumberOfExtraArgumentsForJni(Method* method) {
   // The first argument is the JNIEnv*.
   // Static methods have an extra argument which is the jclass.
-  return (method->IsStatic() ? 2 : 1);
+  return method->IsStatic() ? 2 : 1;
 }
 
 }  // namespace art

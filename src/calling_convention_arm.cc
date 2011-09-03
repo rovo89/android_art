@@ -1,44 +1,55 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "calling_convention.h"
+#include "calling_convention_arm.h"
 #include "logging.h"
+#include "managed_register_arm.h"
 
 namespace art {
+namespace arm {
 
-ManagedRegister CallingConvention::MethodRegister() {
-  return ManagedRegister::FromCoreRegister(R0);
+// Calling convention
+
+ManagedRegister ArmManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
+  return ArmManagedRegister::FromCoreRegister(IP);  // R12
 }
 
-ManagedRegister CallingConvention::ThreadRegister() {
-  return ManagedRegister::FromCoreRegister(TR);
+ManagedRegister ArmJniCallingConvention::InterproceduralScratchRegister() {
+  return ArmManagedRegister::FromCoreRegister(IP);  // R12
 }
 
-ManagedRegister CallingConvention::InterproceduralScratchRegister() {
-  return ManagedRegister::FromCoreRegister(R12);
-}
-
-ManagedRegister CallingConvention::ReturnRegister() {
-  const Method *method = GetMethod();
-  if (GetMethod()->IsReturnAFloat()) {
-    return ManagedRegister::FromCoreRegister(R0);
-  } else if (GetMethod()->IsReturnADouble()) {
-    return ManagedRegister::FromRegisterPair(R0_R1);
+static ManagedRegister ReturnRegisterForMethod(Method* method) {
+  if (method->IsReturnAFloat()) {
+    return ArmManagedRegister::FromCoreRegister(R0);
+  } else if (method->IsReturnADouble()) {
+    return ArmManagedRegister::FromRegisterPair(R0_R1);
   } else if (method->IsReturnALong()) {
-    return ManagedRegister::FromRegisterPair(R0_R1);
+    return ArmManagedRegister::FromRegisterPair(R0_R1);
   } else if (method->IsReturnVoid()) {
-    return ManagedRegister::NoRegister();
+    return ArmManagedRegister::NoRegister();
   } else {
-    return ManagedRegister::FromCoreRegister(R0);
+    return ArmManagedRegister::FromCoreRegister(R0);
   }
+}
+
+ManagedRegister ArmManagedRuntimeCallingConvention::ReturnRegister() {
+  return ReturnRegisterForMethod(GetMethod());
+}
+
+ManagedRegister ArmJniCallingConvention::ReturnRegister() {
+  return ReturnRegisterForMethod(GetMethod());
 }
 
 // Managed runtime calling convention
 
-bool ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
+ManagedRegister ArmManagedRuntimeCallingConvention::MethodRegister() {
+  return ArmManagedRegister::FromCoreRegister(R0);
+}
+
+bool ArmManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
   return itr_slots_ < 3;
 }
 
-bool ManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
+bool ArmManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
   if (itr_slots_ < 2) {
     return false;
   } else if (itr_slots_ > 2) {
@@ -52,26 +63,26 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
 static const Register kManagedArgumentRegisters[] = {
   R1, R2, R3
 };
-ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
+ManagedRegister ArmManagedRuntimeCallingConvention::CurrentParamRegister() {
   CHECK(IsCurrentParamInRegister());
   const Method* method = GetMethod();
   if (method->IsParamALongOrDouble(itr_args_)) {
     if (itr_slots_ == 0) {
-      return ManagedRegister::FromRegisterPair(R1_R2);
+      return ArmManagedRegister::FromRegisterPair(R1_R2);
     } else if (itr_slots_ == 1) {
-      return ManagedRegister::FromRegisterPair(R2_R3);
+      return ArmManagedRegister::FromRegisterPair(R2_R3);
     } else {
       // This is a long/double split between registers and the stack
-      return ManagedRegister::FromCoreRegister(
+      return ArmManagedRegister::FromCoreRegister(
         kManagedArgumentRegisters[itr_slots_]);
     }
   } else {
     return
-      ManagedRegister::FromCoreRegister(kManagedArgumentRegisters[itr_slots_]);
+      ArmManagedRegister::FromCoreRegister(kManagedArgumentRegisters[itr_slots_]);
   }
 }
 
-FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
+FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   CHECK(IsCurrentParamOnStack());
   FrameOffset result =
       FrameOffset(displacement_.Int32Value() +   // displacement
@@ -88,7 +99,18 @@ FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
-size_t JniCallingConvention::FrameSize() {
+ArmJniCallingConvention::ArmJniCallingConvention(Method* method) :
+    JniCallingConvention(method) {
+  // A synchronized method will call monitor enter clobbering R1, R2 and R3
+  // unless they are spilled.
+  if (method->IsSynchronized()) {
+    spill_regs_.push_back(ArmManagedRegister::FromCoreRegister(R1));
+    spill_regs_.push_back(ArmManagedRegister::FromCoreRegister(R2));
+    spill_regs_.push_back(ArmManagedRegister::FromCoreRegister(R3));
+  }
+}
+
+size_t ArmJniCallingConvention::FrameSize() {
   // Method* and spill area size
   size_t frame_data_size = kPointerSize + SpillAreaSize();
   // References plus 2 words for SIRT header
@@ -98,7 +120,7 @@ size_t JniCallingConvention::FrameSize() {
                  kStackAlignment);
 }
 
-size_t JniCallingConvention::OutArgSize() {
+size_t ArmJniCallingConvention::OutArgSize() {
   const Method* method = GetMethod();
   size_t padding;  // padding to ensure longs and doubles are not split in AAPCS
   if (method->IsStatic()) {
@@ -112,32 +134,22 @@ size_t JniCallingConvention::OutArgSize() {
                  kStackAlignment);
 }
 
-size_t JniCallingConvention::ReturnPcOffset() {
+size_t ArmJniCallingConvention::ReturnPcOffset() {
   // Link register is always the last value spilled, skip forward one word for
   // the Method* then skip back one word to get the link register (ie +0)
   return SpillAreaSize();
 }
 
-size_t JniCallingConvention::SpillAreaSize() {
+size_t ArmJniCallingConvention::SpillAreaSize() {
   // Space for link register. For synchronized methods we need enough space to
   // save R1, R2 and R3 (R0 is the method register and always preserved)
   return GetMethod()->IsSynchronized() ? (4 * kPointerSize) : kPointerSize;
 }
 
-void JniCallingConvention::ComputeRegsToSpillPreCall(std::vector<ManagedRegister>& regs) {
-  // A synchronized method will call monitor enter clobbering R1, R2 and R3
-  // unless they are spilled.
-  if (GetMethod()->IsSynchronized()) {
-    regs.push_back(ManagedRegister::FromCoreRegister(R1));
-    regs.push_back(ManagedRegister::FromCoreRegister(R2));
-    regs.push_back(ManagedRegister::FromCoreRegister(R3));
-  }
-}
-
 // Will reg be crushed by an outgoing argument?
-bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {
-  // R0 holds the method register and will be crushed by the JNIEnv*
-  return true;
+bool ArmJniCallingConvention::IsOutArgRegister(ManagedRegister mreg) {
+  Register reg = mreg.AsArm().AsCoreRegister();
+  return reg >= R0 && reg <= R3;
 }
 
 // JniCallingConvention ABI follows AAPCS
@@ -146,9 +158,9 @@ bool JniCallingConvention::IsOutArgRegister(ManagedRegister) {
 // or IsCurrentParamOnStack() will be called first.
 // Both functions will ensure that we conform to AAPCS.
 //
-bool JniCallingConvention::IsCurrentParamInRegister() {
+bool ArmJniCallingConvention::IsCurrentParamInRegister() {
   // AAPCS processing
-  const Method* method = GetMethod();
+  Method* method = GetMethod();
   int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
   if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
     // itr_slots_ needs to be an even number, according to AAPCS.
@@ -160,34 +172,34 @@ bool JniCallingConvention::IsCurrentParamInRegister() {
   return itr_slots_ < 4;
 }
 
-bool JniCallingConvention::IsCurrentParamOnStack() {
+bool ArmJniCallingConvention::IsCurrentParamOnStack() {
   return !IsCurrentParamInRegister();
 }
 
 static const Register kJniArgumentRegisters[] = {
   R0, R1, R2, R3
 };
-ManagedRegister JniCallingConvention::CurrentParamRegister() {
+ManagedRegister ArmJniCallingConvention::CurrentParamRegister() {
   CHECK_LT(itr_slots_, 4u);
-  const Method* method = GetMethod();
+  Method* method = GetMethod();
   int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
   if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
     CHECK_EQ(itr_slots_, 2u);
-    return ManagedRegister::FromRegisterPair(R2_R3);
+    return ArmManagedRegister::FromRegisterPair(R2_R3);
   } else {
     return
-      ManagedRegister::FromCoreRegister(kJniArgumentRegisters[itr_slots_]);
+      ArmManagedRegister::FromCoreRegister(kJniArgumentRegisters[itr_slots_]);
   }
 }
 
-FrameOffset JniCallingConvention::CurrentParamStackOffset() {
+FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 4u);
   return FrameOffset(displacement_.Int32Value() - OutArgSize()
                + ((itr_slots_ - 4) * kPointerSize));
 }
 
-size_t JniCallingConvention::NumberOfOutgoingStackArgs() {
-  const Method* method = GetMethod();
+size_t ArmJniCallingConvention::NumberOfOutgoingStackArgs() {
+  Method* method = GetMethod();
   size_t static_args = method->IsStatic() ? 1 : 0;  // count jclass
   // regular argument parameters and this
   size_t param_args = method->NumArgs() +
@@ -196,4 +208,5 @@ size_t JniCallingConvention::NumberOfOutgoingStackArgs() {
   return static_args + param_args + 1 - 4;
 }
 
+}  // namespace arm
 }  // namespace art

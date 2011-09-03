@@ -4,8 +4,10 @@
 #define ART_SRC_MANAGED_REGISTER_X86_H_
 
 #include "constants_x86.h"
+#include "managed_register.h"
 
 namespace art {
+namespace x86 {
 
 // Values for register pairs.
 // The registers in kReservedCpuRegistersArray in x86.cc are not used in pairs.
@@ -69,18 +71,8 @@ const int kNumberOfAllocIds = kNumberOfCpuAllocIds + kNumberOfXmmAllocIds +
 // (enum RegisterPair).
 // 'ManagedRegister::NoRegister()' provides an invalid register.
 // There is a one-to-one mapping between ManagedRegister and register id.
-class ManagedRegister {
+class X86ManagedRegister : public ManagedRegister {
  public:
-  // ManagedRegister is a value class. There exists no method to change the
-  // internal state. We therefore allow a copy constructor and an
-  // assignment-operator.
-  ManagedRegister(const ManagedRegister& other) : id_(other.id_) { }
-
-  ManagedRegister& operator=(const ManagedRegister& other) {
-    id_ = other.id_;
-    return *this;
-  }
-
   Register AsCpuRegister() const {
     CHECK(IsCpuRegister());
     return static_cast<Register>(id_);
@@ -133,52 +125,35 @@ class ManagedRegister {
     return (0 <= test) && (test < kNumberOfPairRegIds);
   }
 
-  bool IsNoRegister() const {
-    return id_ == kNoRegister;
-  }
-
   void Print(std::ostream& os) const;
-
-  // It is valid to invoke Equals on and with a NoRegister.
-  bool Equals(const ManagedRegister& other) const {
-    return id_ == other.id_;
-  }
 
   // Returns true if the two managed-registers ('this' and 'other') overlap.
   // Either managed-register may be the NoRegister. If both are the NoRegister
   // then false is returned.
-  bool Overlaps(const ManagedRegister& other) const;
+  bool Overlaps(const X86ManagedRegister& other) const;
 
-  static ManagedRegister NoRegister() {
-    return ManagedRegister();
-  }
-
-  static ManagedRegister FromCpuRegister(Register r) {
+  static X86ManagedRegister FromCpuRegister(Register r) {
     CHECK_NE(r, kNoRegister);
     return FromRegId(r);
   }
 
-  static ManagedRegister FromXmmRegister(XmmRegister r) {
+  static X86ManagedRegister FromXmmRegister(XmmRegister r) {
     CHECK_NE(r, kNoXmmRegister);
     return FromRegId(r + kNumberOfCpuRegIds);
   }
 
-  static ManagedRegister FromX87Register(X87Register r) {
+  static X86ManagedRegister FromX87Register(X87Register r) {
     CHECK_NE(r, kNoX87Register);
     return FromRegId(r + kNumberOfCpuRegIds + kNumberOfXmmRegIds);
   }
 
-  static ManagedRegister FromRegisterPair(RegisterPair r) {
+  static X86ManagedRegister FromRegisterPair(RegisterPair r) {
     CHECK_NE(r, kNoRegisterPair);
     return FromRegId(r + (kNumberOfCpuRegIds + kNumberOfXmmRegIds +
                           kNumberOfX87RegIds));
   }
 
  private:
-  static const int kNoRegister = -1;
-
-  ManagedRegister() : id_(kNoRegister) { }
-
   bool IsValidManagedRegister() const {
     return (0 <= id_) && (id_ < kNumberOfRegIds);
   }
@@ -197,17 +172,26 @@ class ManagedRegister {
   int AllocIdLow() const;
   int AllocIdHigh() const;
 
-  static ManagedRegister FromRegId(int reg_id) {
-    ManagedRegister reg;
-    reg.id_ = reg_id;
+  friend class ManagedRegister;
+
+  X86ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+
+  static X86ManagedRegister FromRegId(int reg_id) {
+    X86ManagedRegister reg(reg_id);
     CHECK(reg.IsValidManagedRegister());
     return reg;
   }
-
-  int id_;
 };
 
-std::ostream& operator<<(std::ostream& os, const ManagedRegister& reg);
+std::ostream& operator<<(std::ostream& os, const X86ManagedRegister& reg);
+
+}  // namespace x86
+
+inline x86::X86ManagedRegister ManagedRegister::AsX86() const {
+  x86::X86ManagedRegister reg(id_);
+  CHECK(reg.IsNoRegister() || reg.IsValidManagedRegister());
+  return reg;
+}
 
 }  // namespace art
 

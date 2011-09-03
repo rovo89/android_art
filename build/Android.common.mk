@@ -43,7 +43,11 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
+	src/assembler_arm.cc \
+	src/assembler_x86.cc \
 	src/calling_convention.cc \
+	src/calling_convention_arm.cc \
+	src/calling_convention_x86.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/class_loader.cc \
@@ -79,9 +83,13 @@ LIBART_COMMON_SRC_FILES := \
 	src/java_util_concurrent_atomic_AtomicLong.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
+	src/jni_internal_arm.cc \
+	src/jni_internal_x86.cc \
 	src/logging.cc \
 	src/mark_stack.cc \
 	src/mark_sweep.cc \
+	src/managed_register_arm.cc \
+	src/managed_register_x86.cc \
 	src/memory_region.cc \
 	src/mspace.c \
 	src/object.cc \
@@ -102,21 +110,13 @@ LIBART_COMMON_SRC_FILES := \
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
-	src/assembler_arm.cc \
-	src/calling_convention_arm.cc \
-	src/jni_internal_arm.cc \
 	src/logging_android.cc \
-	src/managed_register_arm.cc \
 	src/runtime_android.cc \
 	src/thread_arm.cc
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
-	src/assembler_x86.cc \
-	src/calling_convention_x86.cc \
-	src/jni_internal_x86.cc \
 	src/logging_linux.cc \
-	src/managed_register_x86.cc \
 	src/runtime_linux.cc \
 	src/thread_x86.cc
 
@@ -137,6 +137,8 @@ TEST_COMMON_SRC_FILES := \
 	src/intern_table_test.cc \
 	src/jni_internal_test.cc \
 	src/jni_compiler_test.cc \
+	src/managed_register_arm_test.cc \
+	src/managed_register_x86_test.cc \
 	src/object_test.cc \
 	src/reference_table_test.cc \
 	src/runtime_test.cc \
@@ -146,13 +148,11 @@ TEST_COMMON_SRC_FILES := \
 	src/compiler_test.cc
 
 TEST_TARGET_SRC_FILES := \
-	$(TEST_COMMON_SRC_FILES) \
-	src/managed_register_arm_test.cc
+	$(TEST_COMMON_SRC_FILES)
 
 TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
-	src/assembler_x86_test.cc \
-	src/managed_register_x86_test.cc
+	src/assembler_x86_test.cc
 
 # subdirectories of test/
 TEST_DEX_DIRECTORIES := \

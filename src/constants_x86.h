@@ -9,6 +9,7 @@
 #include "macros.h"
 
 namespace art {
+namespace x86 {
 
 enum Register {
   EAX = 0,
@@ -120,6 +121,7 @@ class Instr {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instr);
 };
 
+}  // namespace x86
 }  // namespace art
 
 #endif  // ART_SRC_CONSTANTS_X86_H_

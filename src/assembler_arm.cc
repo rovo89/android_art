@@ -1,12 +1,14 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-#include "assembler.h"
+#include "assembler_arm.h"
+
 #include "logging.h"
 #include "offsets.h"
 #include "thread.h"
 #include "utils.h"
 
 namespace art {
+namespace arm {
 
 // Instruction encoding bits.
 enum {
@@ -111,20 +113,19 @@ std::ostream& operator<<(std::ostream& os, const Condition& rhs) {
   return os;
 }
 
-
-void Assembler::Emit(int32_t value) {
+void ArmAssembler::Emit(int32_t value) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   buffer_.Emit<int32_t>(value);
 }
 
 
-void Assembler::EmitType01(Condition cond,
-                           int type,
-                           Opcode opcode,
-                           int set_cc,
-                           Register rn,
-                           Register rd,
-                           ShifterOperand so) {
+void ArmAssembler::EmitType01(Condition cond,
+                              int type,
+                              Opcode opcode,
+                              int set_cc,
+                              Register rn,
+                              Register rd,
+                              ShifterOperand so) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
@@ -138,20 +139,20 @@ void Assembler::EmitType01(Condition cond,
 }
 
 
-void Assembler::EmitType5(Condition cond, int offset, bool link) {
+void ArmAssembler::EmitType5(Condition cond, int offset, bool link) {
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
                      5 << kTypeShift |
                      (link ? 1 : 0) << kLinkShift;
-  Emit(Assembler::EncodeBranchOffset(offset, encoding));
+  Emit(ArmAssembler::EncodeBranchOffset(offset, encoding));
 }
 
 
-void Assembler::EmitMemOp(Condition cond,
-                          bool load,
-                          bool byte,
-                          Register rd,
-                          Address ad) {
+void ArmAssembler::EmitMemOp(Condition cond,
+                             bool load,
+                             bool byte,
+                             Register rd,
+                             Address ad) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
@@ -164,10 +165,10 @@ void Assembler::EmitMemOp(Condition cond,
 }
 
 
-void Assembler::EmitMemOpAddressMode3(Condition cond,
-                                      int32_t mode,
-                                      Register rd,
-                                      Address ad) {
+void ArmAssembler::EmitMemOpAddressMode3(Condition cond,
+                                         int32_t mode,
+                                         Register rd,
+                                         Address ad) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
@@ -179,11 +180,11 @@ void Assembler::EmitMemOpAddressMode3(Condition cond,
 }
 
 
-void Assembler::EmitMultiMemOp(Condition cond,
-                               BlockAddressMode am,
-                               bool load,
-                               Register base,
-                               RegList regs) {
+void ArmAssembler::EmitMultiMemOp(Condition cond,
+                                  BlockAddressMode am,
+                                  bool load,
+                                  Register base,
+                                  RegList regs) {
   CHECK_NE(base, kNoRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
@@ -196,11 +197,11 @@ void Assembler::EmitMultiMemOp(Condition cond,
 }
 
 
-void Assembler::EmitShiftImmediate(Condition cond,
-                                   Shift opcode,
-                                   Register rd,
-                                   Register rm,
-                                   ShifterOperand so) {
+void ArmAssembler::EmitShiftImmediate(Condition cond,
+                                      Shift opcode,
+                                      Register rd,
+                                      Register rm,
+                                      ShifterOperand so) {
   CHECK_NE(cond, kNoCondition);
   CHECK_EQ(so.type(), 1U);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
@@ -213,11 +214,11 @@ void Assembler::EmitShiftImmediate(Condition cond,
 }
 
 
-void Assembler::EmitShiftRegister(Condition cond,
-                                  Shift opcode,
-                                  Register rd,
-                                  Register rm,
-                                  ShifterOperand so) {
+void ArmAssembler::EmitShiftRegister(Condition cond,
+                                     Shift opcode,
+                                     Register rd,
+                                     Register rm,
+                                     ShifterOperand so) {
   CHECK_NE(cond, kNoCondition);
   CHECK_EQ(so.type(), 0U);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
@@ -231,7 +232,7 @@ void Assembler::EmitShiftRegister(Condition cond,
 }
 
 
-void Assembler::EmitBranch(Condition cond, Label* label, bool link) {
+void ArmAssembler::EmitBranch(Condition cond, Label* label, bool link) {
   if (label->IsBound()) {
     EmitType5(cond, label->Position() - buffer_.Size(), link);
   } else {
@@ -242,131 +243,131 @@ void Assembler::EmitBranch(Condition cond, Label* label, bool link) {
   }
 }
 
-void Assembler::and_(Register rd, Register rn, ShifterOperand so,
-                     Condition cond) {
+void ArmAssembler::and_(Register rd, Register rn, ShifterOperand so,
+                        Condition cond) {
   EmitType01(cond, so.type(), AND, 0, rn, rd, so);
 }
 
 
-void Assembler::eor(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::eor(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), EOR, 0, rn, rd, so);
 }
 
 
-void Assembler::sub(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::sub(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), SUB, 0, rn, rd, so);
 }
 
-void Assembler::rsb(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::rsb(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), RSB, 0, rn, rd, so);
 }
 
-void Assembler::rsbs(Register rd, Register rn, ShifterOperand so,
-                     Condition cond) {
+void ArmAssembler::rsbs(Register rd, Register rn, ShifterOperand so,
+                        Condition cond) {
   EmitType01(cond, so.type(), RSB, 1, rn, rd, so);
 }
 
 
-void Assembler::add(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::add(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), ADD, 0, rn, rd, so);
 }
 
 
-void Assembler::adds(Register rd, Register rn, ShifterOperand so,
-                     Condition cond) {
+void ArmAssembler::adds(Register rd, Register rn, ShifterOperand so,
+                        Condition cond) {
   EmitType01(cond, so.type(), ADD, 1, rn, rd, so);
 }
 
 
-void Assembler::subs(Register rd, Register rn, ShifterOperand so,
-                     Condition cond) {
+void ArmAssembler::subs(Register rd, Register rn, ShifterOperand so,
+                        Condition cond) {
   EmitType01(cond, so.type(), SUB, 1, rn, rd, so);
 }
 
 
-void Assembler::adc(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::adc(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), ADC, 0, rn, rd, so);
 }
 
 
-void Assembler::sbc(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::sbc(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), SBC, 0, rn, rd, so);
 }
 
 
-void Assembler::rsc(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::rsc(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), RSC, 0, rn, rd, so);
 }
 
 
-void Assembler::tst(Register rn, ShifterOperand so, Condition cond) {
+void ArmAssembler::tst(Register rn, ShifterOperand so, Condition cond) {
   CHECK_NE(rn, PC);  // Reserve tst pc instruction for exception handler marker.
   EmitType01(cond, so.type(), TST, 1, rn, R0, so);
 }
 
 
-void Assembler::teq(Register rn, ShifterOperand so, Condition cond) {
+void ArmAssembler::teq(Register rn, ShifterOperand so, Condition cond) {
   CHECK_NE(rn, PC);  // Reserve teq pc instruction for exception handler marker.
   EmitType01(cond, so.type(), TEQ, 1, rn, R0, so);
 }
 
 
-void Assembler::cmp(Register rn, ShifterOperand so, Condition cond) {
+void ArmAssembler::cmp(Register rn, ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), CMP, 1, rn, R0, so);
 }
 
 
-void Assembler::cmn(Register rn, ShifterOperand so, Condition cond) {
+void ArmAssembler::cmn(Register rn, ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), CMN, 1, rn, R0, so);
 }
 
 
-void Assembler::orr(Register rd, Register rn,
+void ArmAssembler::orr(Register rd, Register rn,
                     ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), ORR, 0, rn, rd, so);
 }
 
 
-void Assembler::orrs(Register rd, Register rn,
-                     ShifterOperand so, Condition cond) {
+void ArmAssembler::orrs(Register rd, Register rn,
+                        ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), ORR, 1, rn, rd, so);
 }
 
 
-void Assembler::mov(Register rd, ShifterOperand so, Condition cond) {
+void ArmAssembler::mov(Register rd, ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), MOV, 0, R0, rd, so);
 }
 
 
-void Assembler::movs(Register rd, ShifterOperand so, Condition cond) {
+void ArmAssembler::movs(Register rd, ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), MOV, 1, R0, rd, so);
 }
 
 
-void Assembler::bic(Register rd, Register rn, ShifterOperand so,
-                    Condition cond) {
+void ArmAssembler::bic(Register rd, Register rn, ShifterOperand so,
+                       Condition cond) {
   EmitType01(cond, so.type(), BIC, 0, rn, rd, so);
 }
 
 
-void Assembler::mvn(Register rd, ShifterOperand so, Condition cond) {
+void ArmAssembler::mvn(Register rd, ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), MVN, 0, R0, rd, so);
 }
 
 
-void Assembler::mvns(Register rd, ShifterOperand so, Condition cond) {
+void ArmAssembler::mvns(Register rd, ShifterOperand so, Condition cond) {
   EmitType01(cond, so.type(), MVN, 1, R0, rd, so);
 }
 
 
-void Assembler::clz(Register rd, Register rm, Condition cond) {
+void ArmAssembler::clz(Register rd, Register rm, Condition cond) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(rm, kNoRegister);
   CHECK_NE(cond, kNoCondition);
@@ -380,7 +381,7 @@ void Assembler::clz(Register rd, Register rm, Condition cond) {
 }
 
 
-void Assembler::movw(Register rd, uint16_t imm16, Condition cond) {
+void ArmAssembler::movw(Register rd, uint16_t imm16, Condition cond) {
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
                      B25 | B24 | ((imm16 >> 12) << 16) |
@@ -389,7 +390,7 @@ void Assembler::movw(Register rd, uint16_t imm16, Condition cond) {
 }
 
 
-void Assembler::movt(Register rd, uint16_t imm16, Condition cond) {
+void ArmAssembler::movt(Register rd, uint16_t imm16, Condition cond) {
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = static_cast<int32_t>(cond) << kConditionShift |
                      B25 | B24 | B22 | ((imm16 >> 12) << 16) |
@@ -398,9 +399,9 @@ void Assembler::movt(Register rd, uint16_t imm16, Condition cond) {
 }
 
 
-void Assembler::EmitMulOp(Condition cond, int32_t opcode,
-                          Register rd, Register rn,
-                          Register rm, Register rs) {
+void ArmAssembler::EmitMulOp(Condition cond, int32_t opcode,
+                             Register rd, Register rn,
+                             Register rm, Register rs) {
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(rn, kNoRegister);
   CHECK_NE(rm, kNoRegister);
@@ -417,103 +418,102 @@ void Assembler::EmitMulOp(Condition cond, int32_t opcode,
 }
 
 
-void Assembler::mul(Register rd, Register rn,
-                    Register rm, Condition cond) {
+void ArmAssembler::mul(Register rd, Register rn, Register rm, Condition cond) {
   // Assembler registers rd, rn, rm are encoded as rn, rm, rs.
   EmitMulOp(cond, 0, R0, rd, rn, rm);
 }
 
 
-void Assembler::mla(Register rd, Register rn,
-                    Register rm, Register ra, Condition cond) {
+void ArmAssembler::mla(Register rd, Register rn, Register rm, Register ra,
+                       Condition cond) {
   // Assembler registers rd, rn, rm, ra are encoded as rn, rm, rs, rd.
   EmitMulOp(cond, B21, ra, rd, rn, rm);
 }
 
 
-void Assembler::mls(Register rd, Register rn,
-                    Register rm, Register ra, Condition cond) {
+void ArmAssembler::mls(Register rd, Register rn, Register rm, Register ra,
+                       Condition cond) {
   // Assembler registers rd, rn, rm, ra are encoded as rn, rm, rs, rd.
   EmitMulOp(cond, B22 | B21, ra, rd, rn, rm);
 }
 
 
-void Assembler::umull(Register rd_lo, Register rd_hi,
-                      Register rn, Register rm, Condition cond) {
+void ArmAssembler::umull(Register rd_lo, Register rd_hi, Register rn,
+                         Register rm, Condition cond) {
   // Assembler registers rd_lo, rd_hi, rn, rm are encoded as rd, rn, rm, rs.
   EmitMulOp(cond, B23, rd_lo, rd_hi, rn, rm);
 }
 
 
-void Assembler::ldr(Register rd, Address ad, Condition cond) {
+void ArmAssembler::ldr(Register rd, Address ad, Condition cond) {
   EmitMemOp(cond, true, false, rd, ad);
 }
 
 
-void Assembler::str(Register rd, Address ad, Condition cond) {
+void ArmAssembler::str(Register rd, Address ad, Condition cond) {
   EmitMemOp(cond, false, false, rd, ad);
 }
 
 
-void Assembler::ldrb(Register rd, Address ad, Condition cond) {
+void ArmAssembler::ldrb(Register rd, Address ad, Condition cond) {
   EmitMemOp(cond, true, true, rd, ad);
 }
 
 
-void Assembler::strb(Register rd, Address ad, Condition cond) {
+void ArmAssembler::strb(Register rd, Address ad, Condition cond) {
   EmitMemOp(cond, false, true, rd, ad);
 }
 
 
-void Assembler::ldrh(Register rd, Address ad, Condition cond) {
+void ArmAssembler::ldrh(Register rd, Address ad, Condition cond) {
   EmitMemOpAddressMode3(cond, L | B7 | H | B4, rd, ad);
 }
 
 
-void Assembler::strh(Register rd, Address ad, Condition cond) {
+void ArmAssembler::strh(Register rd, Address ad, Condition cond) {
   EmitMemOpAddressMode3(cond, B7 | H | B4, rd, ad);
 }
 
 
-void Assembler::ldrsb(Register rd, Address ad, Condition cond) {
+void ArmAssembler::ldrsb(Register rd, Address ad, Condition cond) {
   EmitMemOpAddressMode3(cond, L | B7 | B6 | B4, rd, ad);
 }
 
 
-void Assembler::ldrsh(Register rd, Address ad, Condition cond) {
+void ArmAssembler::ldrsh(Register rd, Address ad, Condition cond) {
   EmitMemOpAddressMode3(cond, L | B7 | B6 | H | B4, rd, ad);
 }
 
 
-void Assembler::ldrd(Register rd, Address ad, Condition cond) {
+void ArmAssembler::ldrd(Register rd, Address ad, Condition cond) {
   CHECK_EQ(rd % 2, 0);
   EmitMemOpAddressMode3(cond, B7 | B6 | B4, rd, ad);
 }
 
 
-void Assembler::strd(Register rd, Address ad, Condition cond) {
+void ArmAssembler::strd(Register rd, Address ad, Condition cond) {
   CHECK_EQ(rd % 2, 0);
   EmitMemOpAddressMode3(cond, B7 | B6 | B5 | B4, rd, ad);
 }
 
 
-void Assembler::ldm(BlockAddressMode am,
-                    Register base,
-                    RegList regs,
-                    Condition cond) {
+void ArmAssembler::ldm(BlockAddressMode am,
+                       Register base,
+                       RegList regs,
+                       Condition cond) {
   EmitMultiMemOp(cond, am, true, base, regs);
 }
 
 
-void Assembler::stm(BlockAddressMode am,
-                    Register base,
-                    RegList regs,
-                    Condition cond) {
+void ArmAssembler::stm(BlockAddressMode am,
+                       Register base,
+                       RegList regs,
+                       Condition cond) {
   EmitMultiMemOp(cond, am, false, base, regs);
 }
 
 
-void Assembler::ldrex(Register rt, Register rn, Condition cond) {
+void ArmAssembler::ldrex(Register rt, Register rn, Condition cond) {
   CHECK_NE(rn, kNoRegister);
   CHECK_NE(rt, kNoRegister);
   CHECK_NE(cond, kNoCondition);
@@ -528,10 +528,10 @@ void Assembler::ldrex(Register rt, Register rn, Condition cond) {
 }
 
 
-void Assembler::strex(Register rd,
-                      Register rt,
-                      Register rn,
-                      Condition cond) {
+void ArmAssembler::strex(Register rd,
+                         Register rt,
+                         Register rn,
+                         Condition cond) {
   CHECK_NE(rn, kNoRegister);
   CHECK_NE(rd, kNoRegister);
   CHECK_NE(rt, kNoRegister);
@@ -547,14 +547,14 @@ void Assembler::strex(Register rd,
 }
 
 
-void Assembler::clrex() {
+void ArmAssembler::clrex() {
   int32_t encoding = (kSpecialCondition << kConditionShift) |
                      B26 | B24 | B22 | B21 | B20 | (0xff << 12) | B4 | 0xf;
   Emit(encoding);
 }
 
 
-void Assembler::nop(Condition cond) {
+void ArmAssembler::nop(Condition cond) {
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
                      B25 | B24 | B21 | (0xf << 12);
@@ -562,7 +562,7 @@ void Assembler::nop(Condition cond) {
 }
 
 
-void Assembler::vmovsr(SRegister sn, Register rt, Condition cond) {
+void ArmAssembler::vmovsr(SRegister sn, Register rt, Condition cond) {
   CHECK_NE(sn, kNoSRegister);
   CHECK_NE(rt, kNoRegister);
   CHECK_NE(rt, SP);
@@ -577,7 +577,7 @@ void Assembler::vmovsr(SRegister sn, Register rt, Condition cond) {
 }
 
 
-void Assembler::vmovrs(Register rt, SRegister sn, Condition cond) {
+void ArmAssembler::vmovrs(Register rt, SRegister sn, Condition cond) {
   CHECK_NE(sn, kNoSRegister);
   CHECK_NE(rt, kNoRegister);
   CHECK_NE(rt, SP);
@@ -592,8 +592,8 @@ void Assembler::vmovrs(Register rt, SRegister sn, Condition cond) {
 }
 
 
-void Assembler::vmovsrr(SRegister sm, Register rt, Register rt2,
-                        Condition cond) {
+void ArmAssembler::vmovsrr(SRegister sm, Register rt, Register rt2,
+                           Condition cond) {
   CHECK_NE(sm, kNoSRegister);
   CHECK_NE(sm, S31);
   CHECK_NE(rt, kNoRegister);
@@ -613,8 +613,8 @@ void Assembler::vmovsrr(SRegister sm, Register rt, Register rt2,
 }
 
 
-void Assembler::vmovrrs(Register rt, Register rt2, SRegister sm,
-                        Condition cond) {
+void ArmAssembler::vmovrrs(Register rt, Register rt2, SRegister sm,
+                           Condition cond) {
   CHECK_NE(sm, kNoSRegister);
   CHECK_NE(sm, S31);
   CHECK_NE(rt, kNoRegister);
@@ -635,8 +635,8 @@ void Assembler::vmovrrs(Register rt, Register rt2, SRegister sm,
 }
 
 
-void Assembler::vmovdrr(DRegister dm, Register rt, Register rt2,
-                        Condition cond) {
+void ArmAssembler::vmovdrr(DRegister dm, Register rt, Register rt2,
+                           Condition cond) {
   CHECK_NE(dm, kNoDRegister);
   CHECK_NE(rt, kNoRegister);
   CHECK_NE(rt, SP);
@@ -655,8 +655,8 @@ void Assembler::vmovdrr(DRegister dm, Register rt, Register rt2,
 }
 
 
-void Assembler::vmovrrd(Register rt, Register rt2, DRegister dm,
-                              Condition cond) {
+void ArmAssembler::vmovrrd(Register rt, Register rt2, DRegister dm,
+                           Condition cond) {
   CHECK_NE(dm, kNoDRegister);
   CHECK_NE(rt, kNoRegister);
   CHECK_NE(rt, SP);
@@ -676,7 +676,7 @@ void Assembler::vmovrrd(Register rt, Register rt2, DRegister dm,
 }
 
 
-void Assembler::vldrs(SRegister sd, Address ad, Condition cond) {
+void ArmAssembler::vldrs(SRegister sd, Address ad, Condition cond) {
   CHECK_NE(sd, kNoSRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
@@ -688,7 +688,7 @@ void Assembler::vldrs(SRegister sd, Address ad, Condition cond) {
 }
 
 
-void Assembler::vstrs(SRegister sd, Address ad, Condition cond) {
+void ArmAssembler::vstrs(SRegister sd, Address ad, Condition cond) {
   CHECK_NE(static_cast<Register>(ad.encoding_ & (0xf << kRnShift)), PC);
   CHECK_NE(sd, kNoSRegister);
   CHECK_NE(cond, kNoCondition);
@@ -701,7 +701,7 @@ void Assembler::vstrs(SRegister sd, Address ad, Condition cond) {
 }
 
 
-void Assembler::vldrd(DRegister dd, Address ad, Condition cond) {
+void ArmAssembler::vldrd(DRegister dd, Address ad, Condition cond) {
   CHECK_NE(dd, kNoDRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
@@ -713,7 +713,7 @@ void Assembler::vldrd(DRegister dd, Address ad, Condition cond) {
 }
 
 
-void Assembler::vstrd(DRegister dd, Address ad, Condition cond) {
+void ArmAssembler::vstrd(DRegister dd, Address ad, Condition cond) {
   CHECK_NE(static_cast<Register>(ad.encoding_ & (0xf << kRnShift)), PC);
   CHECK_NE(dd, kNoDRegister);
   CHECK_NE(cond, kNoCondition);
@@ -726,8 +726,8 @@ void Assembler::vstrd(DRegister dd, Address ad, Condition cond) {
 }
 
 
-void Assembler::EmitVFPsss(Condition cond, int32_t opcode,
-                           SRegister sd, SRegister sn, SRegister sm) {
+void ArmAssembler::EmitVFPsss(Condition cond, int32_t opcode,
+                              SRegister sd, SRegister sn, SRegister sm) {
   CHECK_NE(sd, kNoSRegister);
   CHECK_NE(sn, kNoSRegister);
   CHECK_NE(sm, kNoSRegister);
@@ -744,8 +744,8 @@ void Assembler::EmitVFPsss(Condition cond, int32_t opcode,
 }
 
 
-void Assembler::EmitVFPddd(Condition cond, int32_t opcode,
-                           DRegister dd, DRegister dn, DRegister dm) {
+void ArmAssembler::EmitVFPddd(Condition cond, int32_t opcode,
+                              DRegister dd, DRegister dn, DRegister dm) {
   CHECK_NE(dd, kNoDRegister);
   CHECK_NE(dn, kNoDRegister);
   CHECK_NE(dm, kNoDRegister);
@@ -762,17 +762,17 @@ void Assembler::EmitVFPddd(Condition cond, int32_t opcode,
 }
 
 
-void Assembler::vmovs(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vmovs(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vmovd(DRegister dd, DRegister dm, Condition cond) {
+void ArmAssembler::vmovd(DRegister dd, DRegister dm, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B6, dd, D0, dm);
 }
 
 
-bool Assembler::vmovs(SRegister sd, float s_imm, Condition cond) {
+bool ArmAssembler::vmovs(SRegister sd, float s_imm, Condition cond) {
   uint32_t imm32 = bit_cast<uint32_t, float>(s_imm);
   if (((imm32 & ((1 << 19) - 1)) == 0) &&
       ((((imm32 >> 25) & ((1 << 6) - 1)) == (1 << 5)) ||
@@ -787,7 +787,7 @@ bool Assembler::vmovs(SRegister sd, float s_imm, Condition cond) {
 }
 
 
-bool Assembler::vmovd(DRegister dd, double d_imm, Condition cond) {
+bool ArmAssembler::vmovd(DRegister dd, double d_imm, Condition cond) {
   uint64_t imm64 = bit_cast<uint64_t, double>(d_imm);
   if (((imm64 & ((1LL << 48) - 1)) == 0) &&
       ((((imm64 >> 54) & ((1 << 9) - 1)) == (1 << 8)) ||
@@ -802,109 +802,109 @@ bool Assembler::vmovd(DRegister dd, double d_imm, Condition cond) {
 }
 
 
-void Assembler::vadds(SRegister sd, SRegister sn, SRegister sm,
-                      Condition cond) {
+void ArmAssembler::vadds(SRegister sd, SRegister sn, SRegister sm,
+                         Condition cond) {
   EmitVFPsss(cond, B21 | B20, sd, sn, sm);
 }
 
 
-void Assembler::vaddd(DRegister dd, DRegister dn, DRegister dm,
-                      Condition cond) {
+void ArmAssembler::vaddd(DRegister dd, DRegister dn, DRegister dm,
+                         Condition cond) {
   EmitVFPddd(cond, B21 | B20, dd, dn, dm);
 }
 
 
-void Assembler::vsubs(SRegister sd, SRegister sn, SRegister sm,
-                      Condition cond) {
+void ArmAssembler::vsubs(SRegister sd, SRegister sn, SRegister sm,
+                         Condition cond) {
   EmitVFPsss(cond, B21 | B20 | B6, sd, sn, sm);
 }
 
 
-void Assembler::vsubd(DRegister dd, DRegister dn, DRegister dm,
-                      Condition cond) {
+void ArmAssembler::vsubd(DRegister dd, DRegister dn, DRegister dm,
+                         Condition cond) {
   EmitVFPddd(cond, B21 | B20 | B6, dd, dn, dm);
 }
 
 
-void Assembler::vmuls(SRegister sd, SRegister sn, SRegister sm,
-                      Condition cond) {
+void ArmAssembler::vmuls(SRegister sd, SRegister sn, SRegister sm,
+                         Condition cond) {
   EmitVFPsss(cond, B21, sd, sn, sm);
 }
 
 
-void Assembler::vmuld(DRegister dd, DRegister dn, DRegister dm,
-                      Condition cond) {
+void ArmAssembler::vmuld(DRegister dd, DRegister dn, DRegister dm,
+                         Condition cond) {
   EmitVFPddd(cond, B21, dd, dn, dm);
 }
 
 
-void Assembler::vmlas(SRegister sd, SRegister sn, SRegister sm,
-                      Condition cond) {
+void ArmAssembler::vmlas(SRegister sd, SRegister sn, SRegister sm,
+                         Condition cond) {
   EmitVFPsss(cond, 0, sd, sn, sm);
 }
 
 
-void Assembler::vmlad(DRegister dd, DRegister dn, DRegister dm,
-                      Condition cond) {
+void ArmAssembler::vmlad(DRegister dd, DRegister dn, DRegister dm,
+                         Condition cond) {
   EmitVFPddd(cond, 0, dd, dn, dm);
 }
 
 
-void Assembler::vmlss(SRegister sd, SRegister sn, SRegister sm,
-                      Condition cond) {
+void ArmAssembler::vmlss(SRegister sd, SRegister sn, SRegister sm,
+                         Condition cond) {
   EmitVFPsss(cond, B6, sd, sn, sm);
 }
 
 
-void Assembler::vmlsd(DRegister dd, DRegister dn, DRegister dm,
-                      Condition cond) {
+void ArmAssembler::vmlsd(DRegister dd, DRegister dn, DRegister dm,
+                         Condition cond) {
   EmitVFPddd(cond, B6, dd, dn, dm);
 }
 
 
-void Assembler::vdivs(SRegister sd, SRegister sn, SRegister sm,
-                      Condition cond) {
+void ArmAssembler::vdivs(SRegister sd, SRegister sn, SRegister sm,
+                         Condition cond) {
   EmitVFPsss(cond, B23, sd, sn, sm);
 }
 
 
-void Assembler::vdivd(DRegister dd, DRegister dn, DRegister dm,
-                      Condition cond) {
+void ArmAssembler::vdivd(DRegister dd, DRegister dn, DRegister dm,
+                         Condition cond) {
   EmitVFPddd(cond, B23, dd, dn, dm);
 }
 
 
-void Assembler::vabss(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vabss(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B7 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vabsd(DRegister dd, DRegister dm, Condition cond) {
+void ArmAssembler::vabsd(DRegister dd, DRegister dm, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B7 | B6, dd, D0, dm);
 }
 
 
-void Assembler::vnegs(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vnegs(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B16 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vnegd(DRegister dd, DRegister dm, Condition cond) {
+void ArmAssembler::vnegd(DRegister dd, DRegister dm, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B16 | B6, dd, D0, dm);
 }
 
 
-void Assembler::vsqrts(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vsqrts(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B16 | B7 | B6, sd, S0, sm);
 }
 
-void Assembler::vsqrtd(DRegister dd, DRegister dm, Condition cond) {
+void ArmAssembler::vsqrtd(DRegister dd, DRegister dm, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B16 | B7 | B6, dd, D0, dm);
 }
 
 
-void Assembler::EmitVFPsd(Condition cond, int32_t opcode,
-                          SRegister sd, DRegister dm) {
+void ArmAssembler::EmitVFPsd(Condition cond, int32_t opcode,
+                             SRegister sd, DRegister dm) {
   CHECK_NE(sd, kNoSRegister);
   CHECK_NE(dm, kNoDRegister);
   CHECK_NE(cond, kNoCondition);
@@ -918,8 +918,8 @@ void Assembler::EmitVFPsd(Condition cond, int32_t opcode,
 }
 
 
-void Assembler::EmitVFPds(Condition cond, int32_t opcode,
-                          DRegister dd, SRegister sm) {
+void ArmAssembler::EmitVFPds(Condition cond, int32_t opcode,
+                             DRegister dd, SRegister sm) {
   CHECK_NE(dd, kNoDRegister);
   CHECK_NE(sm, kNoSRegister);
   CHECK_NE(cond, kNoCondition);
@@ -933,77 +933,77 @@ void Assembler::EmitVFPds(Condition cond, int32_t opcode,
 }
 
 
-void Assembler::vcvtsd(SRegister sd, DRegister dm, Condition cond) {
+void ArmAssembler::vcvtsd(SRegister sd, DRegister dm, Condition cond) {
   EmitVFPsd(cond, B23 | B21 | B20 | B18 | B17 | B16 | B8 | B7 | B6, sd, dm);
 }
 
 
-void Assembler::vcvtds(DRegister dd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtds(DRegister dd, SRegister sm, Condition cond) {
   EmitVFPds(cond, B23 | B21 | B20 | B18 | B17 | B16 | B7 | B6, dd, sm);
 }
 
 
-void Assembler::vcvtis(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtis(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B19 | B18 | B16 | B7 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vcvtid(SRegister sd, DRegister dm, Condition cond) {
+void ArmAssembler::vcvtid(SRegister sd, DRegister dm, Condition cond) {
   EmitVFPsd(cond, B23 | B21 | B20 | B19 | B18 | B16 | B8 | B7 | B6, sd, dm);
 }
 
 
-void Assembler::vcvtsi(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtsi(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B19 | B7 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vcvtdi(DRegister dd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtdi(DRegister dd, SRegister sm, Condition cond) {
   EmitVFPds(cond, B23 | B21 | B20 | B19 | B8 | B7 | B6, dd, sm);
 }
 
 
-void Assembler::vcvtus(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtus(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B19 | B18 | B7 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vcvtud(SRegister sd, DRegister dm, Condition cond) {
+void ArmAssembler::vcvtud(SRegister sd, DRegister dm, Condition cond) {
   EmitVFPsd(cond, B23 | B21 | B20 | B19 | B18 | B8 | B7 | B6, sd, dm);
 }
 
 
-void Assembler::vcvtsu(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtsu(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B19 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vcvtdu(DRegister dd, SRegister sm, Condition cond) {
+void ArmAssembler::vcvtdu(DRegister dd, SRegister sm, Condition cond) {
   EmitVFPds(cond, B23 | B21 | B20 | B19 | B8 | B6, dd, sm);
 }
 
 
-void Assembler::vcmps(SRegister sd, SRegister sm, Condition cond) {
+void ArmAssembler::vcmps(SRegister sd, SRegister sm, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B18 | B6, sd, S0, sm);
 }
 
 
-void Assembler::vcmpd(DRegister dd, DRegister dm, Condition cond) {
+void ArmAssembler::vcmpd(DRegister dd, DRegister dm, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B18 | B6, dd, D0, dm);
 }
 
 
-void Assembler::vcmpsz(SRegister sd, Condition cond) {
+void ArmAssembler::vcmpsz(SRegister sd, Condition cond) {
   EmitVFPsss(cond, B23 | B21 | B20 | B18 | B16 | B6, sd, S0, S0);
 }
 
 
-void Assembler::vcmpdz(DRegister dd, Condition cond) {
+void ArmAssembler::vcmpdz(DRegister dd, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B18 | B16 | B6, dd, D0, D0);
 }
 
 
-void Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
+void ArmAssembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
                      B27 | B26 | B25 | B23 | B22 | B21 | B20 | B16 |
@@ -1013,31 +1013,31 @@ void Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
 }
 
 
-void Assembler::svc(uint32_t imm24) {
+void ArmAssembler::svc(uint32_t imm24) {
   CHECK(IsUint(24, imm24));
   int32_t encoding = (AL << kConditionShift) | B27 | B26 | B25 | B24 | imm24;
   Emit(encoding);
 }
 
 
-void Assembler::bkpt(uint16_t imm16) {
+void ArmAssembler::bkpt(uint16_t imm16) {
   int32_t encoding = (AL << kConditionShift) | B24 | B21 |
                      ((imm16 >> 4) << 8) | B6 | B5 | B4 | (imm16 & 0xf);
   Emit(encoding);
 }
 
 
-void Assembler::b(Label* label, Condition cond) {
+void ArmAssembler::b(Label* label, Condition cond) {
   EmitBranch(cond, label, false);
 }
 
 
-void Assembler::bl(Label* label, Condition cond) {
+void ArmAssembler::bl(Label* label, Condition cond) {
   EmitBranch(cond, label, true);
 }
 
 
-void Assembler::blx(Register rm, Condition cond) {
+void ArmAssembler::blx(Register rm, Condition cond) {
   CHECK_NE(rm, kNoRegister);
   CHECK_NE(cond, kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
@@ -1047,7 +1047,7 @@ void Assembler::blx(Register rm, Condition cond) {
 }
 
 
-void Assembler::MarkExceptionHandler(Label* label) {
+void ArmAssembler::MarkExceptionHandler(Label* label) {
   EmitType01(AL, 1, TST, 1, PC, R0, ShifterOperand(0));
   Label l;
   b(&l);
@@ -1056,21 +1056,21 @@ void Assembler::MarkExceptionHandler(Label* label) {
 }
 
 
-void Assembler::Bind(Label* label) {
+void ArmAssembler::Bind(Label* label) {
   CHECK(!label->IsBound());
   int bound_pc = buffer_.Size();
   while (label->IsLinked()) {
     int32_t position = label->Position();
     int32_t next = buffer_.Load<int32_t>(position);
-    int32_t encoded = Assembler::EncodeBranchOffset(bound_pc - position, next);
+    int32_t encoded = ArmAssembler::EncodeBranchOffset(bound_pc - position, next);
     buffer_.Store<int32_t>(position, encoded);
-    label->position_ = Assembler::DecodeBranchOffset(next);
+    label->position_ = ArmAssembler::DecodeBranchOffset(next);
   }
   label->BindTo(bound_pc);
 }
 
 
-void Assembler::EncodeUint32InTstInstructions(uint32_t data) {
+void ArmAssembler::EncodeUint32InTstInstructions(uint32_t data) {
   // TODO: Consider using movw ip, <16 bits>.
   while (!IsUint(8, data)) {
     tst(R0, ShifterOperand(data & 0xFF), VS);
@@ -1080,7 +1080,7 @@ void Assembler::EncodeUint32InTstInstructions(uint32_t data) {
 }
 
 
-int32_t Assembler::EncodeBranchOffset(int offset, int32_t inst) {
+int32_t ArmAssembler::EncodeBranchOffset(int offset, int32_t inst) {
   // The offset is off by 8 due to the way the ARM CPUs read PC.
   offset -= 8;
   CHECK(IsAligned(offset, 4));
@@ -1093,18 +1093,18 @@ int32_t Assembler::EncodeBranchOffset(int offset, int32_t inst) {
 }
 
 
-int Assembler::DecodeBranchOffset(int32_t inst) {
+int ArmAssembler::DecodeBranchOffset(int32_t inst) {
   // Sign-extend, left-shift by 2, then add 8.
   return ((((inst & kBranchOffsetMask) << 8) >> 6) + 8);
 }
 
-void Assembler::AddConstant(Register rd, int32_t value, Condition cond) {
+void ArmAssembler::AddConstant(Register rd, int32_t value, Condition cond) {
   AddConstant(rd, rd, value, cond);
 }
 
 
-void Assembler::AddConstant(Register rd, Register rn, int32_t value,
-                            Condition cond) {
+void ArmAssembler::AddConstant(Register rd, Register rn, int32_t value,
+                               Condition cond) {
   if (value == 0) {
     if (rd != rn) {
       mov(rd, ShifterOperand(rn), cond);
@@ -1139,8 +1139,8 @@ void Assembler::AddConstant(Register rd, Register rn, int32_t value,
 }
 
 
-void Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
-                                    Condition cond) {
+void ArmAssembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
+                                       Condition cond) {
   ShifterOperand shifter_op;
   if (ShifterOperand::CanHold(value, &shifter_op)) {
     adds(rd, rn, shifter_op, cond);
@@ -1166,7 +1166,7 @@ void Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
 }
 
 
-void Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
+void ArmAssembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;
   if (ShifterOperand::CanHold(value, &shifter_op)) {
     mov(rd, shifter_op, cond);
@@ -1222,7 +1222,7 @@ bool Address::CanHoldStoreOffset(StoreOperandType type, int offset) {
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffset.
-void Assembler::LoadFromOffset(LoadOperandType type,
+void ArmAssembler::LoadFromOffset(LoadOperandType type,
                                Register reg,
                                Register base,
                                int32_t offset,
@@ -1261,10 +1261,10 @@ void Assembler::LoadFromOffset(LoadOperandType type,
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffset, as expected by JIT::GuardedLoadFromOffset.
-void Assembler::LoadSFromOffset(SRegister reg,
-                                Register base,
-                                int32_t offset,
-                                Condition cond) {
+void ArmAssembler::LoadSFromOffset(SRegister reg,
+                                   Register base,
+                                   int32_t offset,
+                                   Condition cond) {
   if (!Address::CanHoldLoadOffset(kLoadSWord, offset)) {
     CHECK_NE(base, IP);
     LoadImmediate(IP, offset, cond);
@@ -1278,10 +1278,10 @@ void Assembler::LoadSFromOffset(SRegister reg,
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffset, as expected by JIT::GuardedLoadFromOffset.
-void Assembler::LoadDFromOffset(DRegister reg,
-                                Register base,
-                                int32_t offset,
-                                Condition cond) {
+void ArmAssembler::LoadDFromOffset(DRegister reg,
+                                   Register base,
+                                   int32_t offset,
+                                   Condition cond) {
   if (!Address::CanHoldLoadOffset(kLoadDWord, offset)) {
     CHECK_NE(base, IP);
     LoadImmediate(IP, offset, cond);
@@ -1295,11 +1295,11 @@ void Assembler::LoadDFromOffset(DRegister reg,
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldStoreOffset.
-void Assembler::StoreToOffset(StoreOperandType type,
-                              Register reg,
-                              Register base,
-                              int32_t offset,
-                              Condition cond) {
+void ArmAssembler::StoreToOffset(StoreOperandType type,
+                                 Register reg,
+                                 Register base,
+                                 int32_t offset,
+                                 Condition cond) {
   if (!Address::CanHoldStoreOffset(type, offset)) {
     CHECK(reg != IP);
     CHECK(base != IP);
@@ -1329,10 +1329,10 @@ void Assembler::StoreToOffset(StoreOperandType type,
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldStoreOffset, as expected by JIT::GuardedStoreToOffset.
-void Assembler::StoreSToOffset(SRegister reg,
-                               Register base,
-                               int32_t offset,
-                               Condition cond) {
+void ArmAssembler::StoreSToOffset(SRegister reg,
+                                  Register base,
+                                  int32_t offset,
+                                  Condition cond) {
   if (!Address::CanHoldStoreOffset(kStoreSWord, offset)) {
     CHECK_NE(base, IP);
     LoadImmediate(IP, offset, cond);
@@ -1346,10 +1346,10 @@ void Assembler::StoreSToOffset(SRegister reg,
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldStoreOffset, as expected by JIT::GuardedStoreSToOffset.
-void Assembler::StoreDToOffset(DRegister reg,
-                               Register base,
-                               int32_t offset,
-                               Condition cond) {
+void ArmAssembler::StoreDToOffset(DRegister reg,
+                                  Register base,
+                                  int32_t offset,
+                                  Condition cond) {
   if (!Address::CanHoldStoreOffset(kStoreDWord, offset)) {
     CHECK_NE(base, IP);
     LoadImmediate(IP, offset, cond);
@@ -1361,66 +1361,66 @@ void Assembler::StoreDToOffset(DRegister reg,
   vstrd(reg, Address(base, offset), cond);
 }
 
-void Assembler::Push(Register rd, Condition cond) {
+void ArmAssembler::Push(Register rd, Condition cond) {
   str(rd, Address(SP, -kRegisterSize, Address::PreIndex), cond);
 }
 
-void Assembler::Pop(Register rd, Condition cond) {
+void ArmAssembler::Pop(Register rd, Condition cond) {
   ldr(rd, Address(SP, kRegisterSize, Address::PostIndex), cond);
 }
 
-void Assembler::PushList(RegList regs, Condition cond) {
+void ArmAssembler::PushList(RegList regs, Condition cond) {
   stm(DB_W, SP, regs, cond);
 }
 
-void Assembler::PopList(RegList regs, Condition cond) {
+void ArmAssembler::PopList(RegList regs, Condition cond) {
   ldm(IA_W, SP, regs, cond);
 }
 
-void Assembler::Mov(Register rd, Register rm, Condition cond) {
+void ArmAssembler::Mov(Register rd, Register rm, Condition cond) {
   if (rd != rm) {
     mov(rd, ShifterOperand(rm), cond);
   }
 }
 
-void Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
-                    Condition cond) {
+void ArmAssembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
+                       Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
   mov(rd, ShifterOperand(rm, LSL, shift_imm), cond);
 }
 
-void Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
-                    Condition cond) {
+void ArmAssembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
+                       Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   mov(rd, ShifterOperand(rm, LSR, shift_imm), cond);
 }
 
-void Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
-                    Condition cond) {
+void ArmAssembler::Asr(Register rd, Register rm, uint32_t shift_imm,
+                       Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   mov(rd, ShifterOperand(rm, ASR, shift_imm), cond);
 }
 
-void Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
-                    Condition cond) {
+void ArmAssembler::Ror(Register rd, Register rm, uint32_t shift_imm,
+                       Condition cond) {
   CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
   mov(rd, ShifterOperand(rm, ROR, shift_imm), cond);
 }
 
-void Assembler::Rrx(Register rd, Register rm, Condition cond) {
+void ArmAssembler::Rrx(Register rd, Register rm, Condition cond) {
   mov(rd, ShifterOperand(rm, ROR, 0), cond);
 }
 
-void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                           const std::vector<ManagedRegister>& spill_regs) {
+void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                              const std::vector<ManagedRegister>& spill_regs) {
   CHECK(IsAligned(frame_size, kStackAlignment));
-  CHECK_EQ(R0, method_reg.AsCoreRegister());
+  CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
   AddConstant(SP, -frame_size);
   RegList spill_list = 1 << R0 | 1 << LR;
   for (size_t i = 0; i < spill_regs.size(); i++) {
-    Register reg = spill_regs.at(i).AsCoreRegister();
+    Register reg = spill_regs.at(i).AsArm().AsCoreRegister();
     // check assumption LR is the last register that gets spilled
     CHECK_LT(reg, LR);
     spill_list |= 1 << reg;
@@ -1430,8 +1430,8 @@ void Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   stm(IA, SP, spill_list, AL);
 }
 
-void Assembler::RemoveFrame(size_t frame_size,
-                            const std::vector<ManagedRegister>& spill_regs) {
+void ArmAssembler::RemoveFrame(size_t frame_size,
+                              const std::vector<ManagedRegister>& spill_regs) {
   CHECK(IsAligned(frame_size, kStackAlignment));
   // Reload LR. TODO: reload any saved callee saves from spill_regs
   LoadFromOffset(kLoadWord, LR, SP, (spill_regs.size() + 1) * kPointerSize);
@@ -1439,25 +1439,26 @@ void Assembler::RemoveFrame(size_t frame_size,
   mov(PC, ShifterOperand(LR));
 }
 
-void Assembler::FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
-                                  size_t displacement) {
+void ArmAssembler::FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
+                                     size_t displacement) {
   for(size_t i = 0; i < spill_regs.size(); i++) {
-    Register reg = spill_regs.at(i).AsCoreRegister();
+    Register reg = spill_regs.at(i).AsArm().AsCoreRegister();
     LoadFromOffset(kLoadWord, reg, SP, displacement + ((i + 1) * kPointerSize));
   }
 }
 
-void Assembler::IncreaseFrameSize(size_t adjust) {
+void ArmAssembler::IncreaseFrameSize(size_t adjust) {
   CHECK(IsAligned(adjust, kStackAlignment));
   AddConstant(SP, -adjust);
 }
 
-void Assembler::DecreaseFrameSize(size_t adjust) {
+void ArmAssembler::DecreaseFrameSize(size_t adjust) {
   CHECK(IsAligned(adjust, kStackAlignment));
   AddConstant(SP, adjust);
 }
 
-void Assembler::Store(FrameOffset dest, ManagedRegister src, size_t size) {
+void ArmAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
+  ArmManagedRegister src = msrc.AsArm();
   if (src.IsNoRegister()) {
     CHECK_EQ(0u, size);
   } else if (src.IsCoreRegister()) {
@@ -1476,58 +1477,75 @@ void Assembler::Store(FrameOffset dest, ManagedRegister src, size_t size) {
   }
 }
 
-void Assembler::StoreRef(FrameOffset dest, ManagedRegister src) {
+void ArmAssembler::StoreRef(FrameOffset dest, ManagedRegister msrc) {
+  ArmManagedRegister src = msrc.AsArm();
   CHECK(src.IsCoreRegister());
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void Assembler::StoreRawPtr(FrameOffset dest, ManagedRegister src) {
+void ArmAssembler::StoreRawPtr(FrameOffset dest, ManagedRegister msrc) {
+  ArmManagedRegister src = msrc.AsArm();
   CHECK(src.IsCoreRegister());
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void Assembler::StoreSpanning(FrameOffset dest, ManagedRegister src,
-                              FrameOffset in_off, ManagedRegister scratch) {
+void ArmAssembler::StoreSpanning(FrameOffset dest, ManagedRegister msrc,
+                              FrameOffset in_off, ManagedRegister mscratch) {
+  ArmManagedRegister src = msrc.AsArm();
+  ArmManagedRegister scratch = mscratch.AsArm();
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, in_off.Int32Value());
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value() + 4);
 }
 
-void Assembler::CopyRef(FrameOffset dest, FrameOffset src,
-                        ManagedRegister scratch) {
+void ArmAssembler::CopyRef(FrameOffset dest, FrameOffset src,
+                        ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void Assembler::LoadRef(ManagedRegister dest, ManagedRegister base,
-                        MemberOffset offs) {
+void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
+                           MemberOffset offs) {
+  ArmManagedRegister dest = mdest.AsArm();
   CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
-                 base.AsCoreRegister(), offs.Int32Value());
+                 base.AsArm().AsCoreRegister(), offs.Int32Value());
 }
 
-void Assembler::LoadRawPtr(ManagedRegister dest, ManagedRegister base,
+void ArmAssembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {
+  ArmManagedRegister dest = mdest.AsArm();
+   CHECK(dest.IsCoreRegister());
+   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
+                  SP, src.Int32Value());
+ }
+
+void ArmAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
                            Offset offs) {
+  ArmManagedRegister dest = mdest.AsArm();
   CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
-                 base.AsCoreRegister(), offs.Int32Value());
+                 base.AsArm().AsCoreRegister(), offs.Int32Value());
 }
 
-void Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
-                                      ManagedRegister scratch) {
+void ArmAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
+                                      ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   LoadImmediate(scratch.AsCoreRegister(), imm);
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void Assembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
-                                       ManagedRegister scratch) {
+void ArmAssembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
+                                       ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   LoadImmediate(scratch.AsCoreRegister(), imm);
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), TR, dest.Int32Value());
 }
 
-void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
+void ArmAssembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
+  ArmManagedRegister dest = mdest.AsArm();
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size);
   } else if (dest.IsCoreRegister()) {
@@ -1546,14 +1564,18 @@ void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
   }
 }
 
-void Assembler::LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset offs) {
+void ArmAssembler::LoadRawPtrFromThread(ManagedRegister mdest,
+                                        ThreadOffset offs) {
+  ArmManagedRegister dest = mdest.AsArm();
   CHECK(dest.IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
                  TR, offs.Int32Value());
 }
 
-void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
-                                     ManagedRegister scratch) {
+void ArmAssembler::CopyRawPtrFromThread(FrameOffset fr_offs,
+                                        ThreadOffset thr_offs,
+                                        ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, thr_offs.Int32Value());
@@ -1561,8 +1583,10 @@ void Assembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
                 SP, fr_offs.Int32Value());
 }
 
-void Assembler::CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
-                                   ManagedRegister scratch) {
+void ArmAssembler::CopyRawPtrToThread(ThreadOffset thr_offs,
+                                      FrameOffset fr_offs,
+                                      ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  SP, fr_offs.Int32Value());
@@ -1570,20 +1594,23 @@ void Assembler::CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
                 TR, thr_offs.Int32Value());
 }
 
-void Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
-                                         FrameOffset fr_offs,
-                                         ManagedRegister scratch) {
+void ArmAssembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
+                                            FrameOffset fr_offs,
+                                            ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   AddConstant(scratch.AsCoreRegister(), SP, fr_offs.Int32Value(), AL);
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
                 TR, thr_offs.Int32Value());
 }
 
-void Assembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
+void ArmAssembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
-void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
+void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc) {
+  ArmManagedRegister dest = mdest.AsArm();
+  ArmManagedRegister src = msrc.AsArm();
   if (!dest.Equals(src)) {
     if (dest.IsCoreRegister()) {
       CHECK(src.IsCoreRegister());
@@ -1609,8 +1636,9 @@ void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
   }
 }
 
-void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
-                     size_t size) {
+void ArmAssembler::Copy(FrameOffset dest, FrameOffset src,
+                        ManagedRegister mscratch, size_t size) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   CHECK(size == 4 || size == 8);
   if (size == 4) {
@@ -1630,9 +1658,11 @@ void Assembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
   }
 }
 
-void Assembler::CreateSirtEntry(ManagedRegister out_reg,
-                                FrameOffset sirt_offset,
-                                ManagedRegister in_reg, bool null_allowed) {
+void ArmAssembler::CreateSirtEntry(ManagedRegister mout_reg,
+                                   FrameOffset sirt_offset,
+                                   ManagedRegister min_reg, bool null_allowed) {
+  ArmManagedRegister out_reg = mout_reg.AsArm();
+  ArmManagedRegister in_reg = min_reg.AsArm();
   CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister());
   CHECK(out_reg.IsCoreRegister());
   if (null_allowed) {
@@ -1654,9 +1684,11 @@ void Assembler::CreateSirtEntry(ManagedRegister out_reg,
   }
 }
 
-void Assembler::CreateSirtEntry(FrameOffset out_off,
-                                FrameOffset sirt_offset,
-                                ManagedRegister scratch, bool null_allowed) {
+void ArmAssembler::CreateSirtEntry(FrameOffset out_off,
+                                   FrameOffset sirt_offset,
+                                   ManagedRegister mscratch,
+                                   bool null_allowed) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   if (null_allowed) {
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP,
@@ -1672,8 +1704,10 @@ void Assembler::CreateSirtEntry(FrameOffset out_off,
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, out_off.Int32Value());
 }
 
-void Assembler::LoadReferenceFromSirt(ManagedRegister out_reg,
-                                      ManagedRegister in_reg) {
+void ArmAssembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
+                                         ManagedRegister min_reg) {
+  ArmManagedRegister out_reg = mout_reg.AsArm();
+  ArmManagedRegister in_reg = min_reg.AsArm();
   CHECK(out_reg.IsCoreRegister());
   CHECK(in_reg.IsCoreRegister());
   Label null_arg;
@@ -1685,16 +1719,18 @@ void Assembler::LoadReferenceFromSirt(ManagedRegister out_reg,
                  in_reg.AsCoreRegister(), 0, NE);
 }
 
-void Assembler::VerifyObject(ManagedRegister src, bool could_be_null) {
+void ArmAssembler::VerifyObject(ManagedRegister src, bool could_be_null) {
   // TODO: not validating references
 }
 
-void Assembler::VerifyObject(FrameOffset src, bool could_be_null) {
+void ArmAssembler::VerifyObject(FrameOffset src, bool could_be_null) {
   // TODO: not validating references
 }
 
-void Assembler::Call(ManagedRegister base, Offset offset,
-                     ManagedRegister scratch) {
+void ArmAssembler::Call(ManagedRegister mbase, Offset offset,
+                        ManagedRegister mscratch) {
+  ArmManagedRegister base = mbase.AsArm();
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(base.IsCoreRegister());
   CHECK(scratch.IsCoreRegister());
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -1703,8 +1739,9 @@ void Assembler::Call(ManagedRegister base, Offset offset,
   // TODO: place reference map on call
 }
 
-void Assembler::Call(FrameOffset base, Offset offset,
-                     ManagedRegister scratch) {
+void ArmAssembler::Call(FrameOffset base, Offset offset,
+                        ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   // Call *(*(SP + base) + offset)
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -1715,8 +1752,8 @@ void Assembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
-void Assembler::Call(uintptr_t addr,
-                     ManagedRegister scratch) {
+void ArmAssembler::Call(uintptr_t addr, ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   CHECK(sizeof(uintptr_t) == sizeof(int32_t));
   LoadImmediate(scratch.AsCoreRegister(), static_cast<int32_t>(addr));
@@ -1724,20 +1761,23 @@ void Assembler::Call(uintptr_t addr,
   // TODO: place reference map on call
 }
 
-void Assembler::GetCurrentThread(ManagedRegister tr) {
-  mov(tr.AsCoreRegister(), ShifterOperand(TR));
+void ArmAssembler::GetCurrentThread(ManagedRegister tr) {
+  mov(tr.AsArm().AsCoreRegister(), ShifterOperand(TR));
 }
 
-void Assembler::GetCurrentThread(FrameOffset offset, ManagedRegister scratch) {
+void ArmAssembler::GetCurrentThread(FrameOffset offset,
+                                    ManagedRegister scratch) {
   StoreToOffset(kStoreWord, TR, SP, offset.Int32Value(), AL);
 }
 
-void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
-                            FrameOffset return_save_location,
-                            size_t return_size) {
-  SuspendCountSlowPath* slow = new SuspendCountSlowPath(return_reg,
-                                                        return_save_location,
-                                                        return_size);
+void ArmAssembler::SuspendPoll(ManagedRegister mscratch,
+                               ManagedRegister return_reg,
+                               FrameOffset return_save_location,
+                               size_t return_size) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  ArmSuspendCountSlowPath* slow =
+      new ArmSuspendCountSlowPath(return_reg.AsArm(), return_save_location,
+                                  return_size);
   buffer_.EnqueueSlowPath(slow);
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, Thread::SuspendCountOffset().Int32Value());
@@ -1746,23 +1786,27 @@ void Assembler::SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
   Bind(slow->Continuation());
 }
 
-void SuspendCountSlowPath::Emit(Assembler* sp_asm) {
-  sp_asm->Bind(&entry_);
+void ArmSuspendCountSlowPath::Emit(Assembler* sasm) {
+  ArmAssembler* sp_asm = down_cast<ArmAssembler*>(sasm);
+#define __ sp_asm->
+  __ Bind(&entry_);
   // Save return value
-  sp_asm->Store(return_save_location_, return_register_, return_size_);
+  __ Store(return_save_location_, return_register_, return_size_);
   // Pass top of stack as argument
-  sp_asm->mov(R0, ShifterOperand(SP));
-  sp_asm->LoadFromOffset(kLoadWord, R12, TR,
+  __ mov(R0, ShifterOperand(SP));
+  __ LoadFromOffset(kLoadWord, R12, TR,
                          Thread::SuspendCountEntryPointOffset().Int32Value());
   // Note: assume that link register will be spilled/filled on method entry/exit
-  sp_asm->blx(R12);
+  __ blx(R12);
   // Reload return value
-  sp_asm->Load(return_register_, return_save_location_, return_size_);
-  sp_asm->b(&continuation_);
+  __ Load(return_register_, return_save_location_, return_size_);
+  __ b(&continuation_);
+#undef __
 }
 
-void Assembler::ExceptionPoll(ManagedRegister scratch) {
-  ExceptionSlowPath* slow = new ExceptionSlowPath();
+void ArmAssembler::ExceptionPoll(ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  ArmExceptionSlowPath* slow = new ArmExceptionSlowPath();
   buffer_.EnqueueSlowPath(slow);
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, Thread::ExceptionOffset().Int32Value());
@@ -1771,17 +1815,21 @@ void Assembler::ExceptionPoll(ManagedRegister scratch) {
   Bind(slow->Continuation());
 }
 
-void ExceptionSlowPath::Emit(Assembler* sp_asm) {
-  sp_asm->Bind(&entry_);
+void ArmExceptionSlowPath::Emit(Assembler* sasm) {
+  ArmAssembler* sp_asm = down_cast<ArmAssembler*>(sasm);
+#define __ sp_asm->
+  __ Bind(&entry_);
   // Pass top of stack as argument
-  sp_asm->mov(R0, ShifterOperand(SP));
-  sp_asm->LoadFromOffset(kLoadWord, R12, TR,
+  __ mov(R0, ShifterOperand(SP));
+  __ LoadFromOffset(kLoadWord, R12, TR,
                          Thread::ExceptionEntryPointOffset().Int32Value());
   // Note: assume that link register will be spilled/filled on method entry/exit
-  sp_asm->blx(R12);
+  __ blx(R12);
   // TODO: this call should never return as it should make a long jump to
   // the appropriate catch block
-  sp_asm->b(&continuation_);
+  __ b(&continuation_);
+#undef __
 }
 
+}  // namespace arm
 }  // namespace art

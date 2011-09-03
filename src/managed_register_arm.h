@@ -5,8 +5,10 @@
 
 #include "constants.h"
 #include "logging.h"
+#include "managed_register.h"
 
 namespace art {
+namespace arm {
 
 // Values for register pairs.
 enum RegisterPair {
@@ -66,18 +68,8 @@ const int kNumberOfAllocIds =
 // (enum SRegister), or a VFP double precision register (enum DRegister).
 // 'ManagedRegister::NoRegister()' returns an invalid ManagedRegister.
 // There is a one-to-one mapping between ManagedRegister and register id.
-class ManagedRegister {
+class ArmManagedRegister : public ManagedRegister {
  public:
-  // ManagedRegister is a value class. There exists no method to change the
-  // internal state. We therefore allow a copy constructor and an
-  // assignment-operator.
-  ManagedRegister(const ManagedRegister& other) : id_(other.id_) { }
-
-  ManagedRegister& operator=(const ManagedRegister& other) {
-    id_ = other.id_;
-    return *this;
-  }
-
   Register AsCoreRegister() const {
     CHECK(IsCoreRegister());
     return static_cast<Register>(id_);
@@ -158,7 +150,7 @@ class ManagedRegister {
     return (0 <= test) && (test < kNumberOfPairRegIds);
   }
 
-  bool IsSameType(ManagedRegister test) const {
+  bool IsSameType(ArmManagedRegister test) const {
     CHECK(IsValidManagedRegister() && test.IsValidManagedRegister());
     return
       (IsCoreRegister() && test.IsCoreRegister()) ||
@@ -167,49 +159,37 @@ class ManagedRegister {
       (IsRegisterPair() && test.IsRegisterPair());
   }
 
-  bool IsNoRegister() const {
-    return id_ == kNoRegister;
-  }
-
-  // It is valid to invoke Equals on and with a NoRegister.
-  bool Equals(const ManagedRegister& other) const {
-    return id_ == other.id_;
-  }
 
   // Returns true if the two managed-registers ('this' and 'other') overlap.
   // Either managed-register may be the NoRegister. If both are the NoRegister
   // then false is returned.
-  bool Overlaps(const ManagedRegister& other) const;
+  bool Overlaps(const ArmManagedRegister& other) const;
 
   void Print(std::ostream& os) const;
 
-  static ManagedRegister NoRegister() {
-    return ManagedRegister();
-  }
-
-  static ManagedRegister FromCoreRegister(Register r) {
+  static ArmManagedRegister FromCoreRegister(Register r) {
     CHECK_NE(r, kNoRegister);
     return FromRegId(r);
   }
 
-  static ManagedRegister FromSRegister(SRegister r) {
+  static ArmManagedRegister FromSRegister(SRegister r) {
     CHECK_NE(r, kNoSRegister);
     return FromRegId(r + kNumberOfCoreRegIds);
   }
 
-  static ManagedRegister FromDRegister(DRegister r) {
+  static ArmManagedRegister FromDRegister(DRegister r) {
     CHECK_NE(r, kNoDRegister);
     return FromRegId(r + (kNumberOfCoreRegIds + kNumberOfSRegIds));
   }
 
-  static ManagedRegister FromRegisterPair(RegisterPair r) {
+  static ArmManagedRegister FromRegisterPair(RegisterPair r) {
     CHECK_NE(r, kNoRegisterPair);
     return FromRegId(r + (kNumberOfCoreRegIds +
                           kNumberOfSRegIds + kNumberOfDRegIds));
   }
 
   // Return a RegisterPair consisting of Register r_low and r_low + 1.
-  static ManagedRegister FromCoreRegisterPair(Register r_low) {
+  static ArmManagedRegister FromCoreRegisterPair(Register r_low) {
     if (r_low != R1) {  // not the dalvik special case
       CHECK_NE(r_low, kNoRegister);
       CHECK_EQ(0, (r_low % 2));
@@ -222,7 +202,7 @@ class ManagedRegister {
   }
 
   // Return a DRegister overlapping SRegister r_low and r_low + 1.
-  static ManagedRegister FromSRegisterPair(SRegister r_low) {
+  static ArmManagedRegister FromSRegisterPair(SRegister r_low) {
     CHECK_NE(r_low, kNoSRegister);
     CHECK_EQ(0, (r_low % 2));
     const int r = r_low / 2;
@@ -231,10 +211,6 @@ class ManagedRegister {
   }
 
  private:
-  static const int kNoRegister = -1;
-
-  ManagedRegister() : id_(kNoRegister) { }
-
   bool IsValidManagedRegister() const {
     return (0 <= id_) && (id_ < kNumberOfRegIds);
   }
@@ -258,17 +234,26 @@ class ManagedRegister {
   int AllocIdLow() const;
   int AllocIdHigh() const;
 
-  static ManagedRegister FromRegId(int reg_id) {
-    ManagedRegister reg;
-    reg.id_ = reg_id;
+  friend class ManagedRegister;
+
+  ArmManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+
+  static ArmManagedRegister FromRegId(int reg_id) {
+    ArmManagedRegister reg(reg_id);
     CHECK(reg.IsValidManagedRegister());
     return reg;
   }
-
-  int id_;
 };
 
-std::ostream& operator<<(std::ostream& os, const ManagedRegister& reg);
+std::ostream& operator<<(std::ostream& os, const ArmManagedRegister& reg);
+
+}  // namespace arm
+
+inline arm::ArmManagedRegister ManagedRegister::AsArm() const {
+  arm::ArmManagedRegister reg(id_);
+  CHECK(reg.IsNoRegister() || reg.IsValidManagedRegister());
+  return reg;
+}
 
 }  // namespace art
 

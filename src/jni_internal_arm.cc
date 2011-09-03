@@ -7,9 +7,8 @@
 #include "assembler.h"
 #include "object.h"
 
-#define __ assembler->
-
 namespace art {
+namespace arm {
 
 // Creates a function which invokes a managed method with an array of
 // arguments.
@@ -28,7 +27,10 @@ namespace art {
 // register and transfer arguments from the array into register and on
 // the stack, if needed.  On return, the thread register must be
 // shuffled and the return value must be store into the result JValue.
-void CreateInvokeStub(Assembler* assembler, Method* method) {
+void ArmCreateInvokeStub(Method* method) {
+  UniquePtr<ArmAssembler> assembler(
+      down_cast<ArmAssembler*>(Assembler::Create(kArm)));
+#define __ assembler->
   // Size of frame - spill of R9/LR + Method* + possible receiver + arg array
   size_t unpadded_frame_size = (3 * kPointerSize) +
                                (method->IsStatic() ? 0 : kPointerSize) +
@@ -115,6 +117,14 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
 
   // Pop R9 and the LR into PC
   __ PopList(save | (1 << PC));
+  // TODO: store native_entry in the stub table
+  ByteArray* code = ByteArray::Alloc(assembler->CodeSize());
+  MemoryRegion region(code->GetData(), code->GetLength());
+  assembler->FinalizeInstructions(region);
+  method->SetInvokeStub(code);
+  CHECK(method->GetInvokeStub() != NULL);
+#undef __
 }
 
+}  // namespace arm
 }  // namespace art

@@ -3,13 +3,18 @@
 #ifndef ART_SRC_COMPILER_H_
 #define ART_SRC_COMPILER_H_
 
+#include "constants.h"
 #include "dex_file.h"
+#include "jni_compiler.h"
 #include "object.h"
 
 namespace art {
 
 class Compiler {
  public:
+  explicit Compiler(InstructionSet insns) : instruction_set_(insns),
+      jni_compiler_(insns) {}
+
   // Compile all Methods of all the Classes of all the DexFiles that are part of a ClassLoader.
   void CompileAll(const ClassLoader* class_loader);
 
@@ -32,6 +37,11 @@ class Compiler {
   // method pointers of CodeAndDirectMethods entries in the DexCaches.
   void SetCodeAndDirectMethods(const ClassLoader* class_loader);
   void SetCodeAndDirectMethodsDexFile(const DexFile& dex_file);
+
+  InstructionSet instruction_set_;
+  JniCompiler jni_compiler_;
+
+  DISALLOW_COPY_AND_ASSIGN(Compiler);
 };
 
 }  // namespace art

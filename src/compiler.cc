@@ -14,7 +14,6 @@ extern bool oatCompileMethod(art::Method*, art::InstructionSet);
 
 namespace art {
 
-// TODO need to specify target
 void Compiler::CompileAll(const ClassLoader* class_loader) {
   Resolve(class_loader);
   // TODO add verification step
@@ -97,34 +96,16 @@ void Compiler::CompileClass(Class* klass) {
   }
 }
 
-// This is private API, but with two different implementations: ARM and x86.
-void CreateInvokeStub(Assembler* assembler, Method* method);
-
-namespace {
-
-void CompileInvokeStub(Method* method) {
-  if (method->GetInvokeStub() != NULL) {
-    return;
-  }
-  // TODO: use signature to find a matching stub
-  // TODO: failed, acquire a lock on the stub table
-  Assembler assembler;
-  art::CreateInvokeStub(&assembler, method);
-  // TODO: store native_entry in the stub table
-  ByteArray* code = ByteArray::Alloc(assembler.CodeSize());
-  MemoryRegion region(code->GetData(), code->GetLength());
-  assembler.FinalizeInstructions(region);
-  method->SetInvokeStub(code);
-  CHECK(method->GetInvokeStub() != NULL);
+namespace arm {
+  void ArmCreateInvokeStub(Method* method);
 }
-
-} // namespace
+namespace x86 {
+  void X86CreateInvokeStub(Method* method);
+}
 
 void Compiler::CompileMethod(Method* method) {
   if (method->IsNative()) {
-    Assembler jni_asm;
-    JniCompiler jni_compiler;
-    jni_compiler.Compile(&jni_asm, method);
+    jni_compiler_.Compile(method);
   } else if (method->IsAbstract()) {
     // TODO: This might be also noted in the ClassLinker.
     // Probably makes more sense to do here?
@@ -134,7 +115,13 @@ void Compiler::CompileMethod(Method* method) {
   }
   // CHECK(method->HasCode());  // TODO: enable this check ASAP
 
-  CompileInvokeStub(method);
+  if (instruction_set_ == kX86) {
+    art::x86::X86CreateInvokeStub(method);
+  } else {
+    CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
+    // Generates invocation stub using ARM instruction set
+    art::arm::ArmCreateInvokeStub(method);
+  }
   CHECK(method->GetInvokeStub() != NULL);
 }
 

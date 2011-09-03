@@ -13,20 +13,14 @@ namespace art {
 // Top-level abstraction for different calling conventions
 class CallingConvention {
  public:
-  CallingConvention* GetCallingConvention(Method* method);
-
   bool IsReturnAReference() const { return method_->IsReturnAReference(); }
 
   size_t SizeOfReturnValue() const { return method_->ReturnSize(); }
 
-  // Register that holds the incoming method argument
-  ManagedRegister MethodRegister();
   // Register that holds result of this method
-  ManagedRegister ReturnRegister();
+  virtual ManagedRegister ReturnRegister() = 0;
   // Register reserved for scratch usage during procedure calls
-  ManagedRegister InterproceduralScratchRegister();
-
-  ManagedRegister ThreadRegister();
+  virtual ManagedRegister InterproceduralScratchRegister() = 0;
 
   // Offset of Method within the frame
   FrameOffset MethodStackOffset();
@@ -44,10 +38,13 @@ class CallingConvention {
     itr_longs_and_doubles_ = 0;
   }
 
+  virtual ~CallingConvention() {}
+
  protected:
   explicit CallingConvention(Method* method) : displacement_(0),
                                                method_(method) {}
-  const Method* GetMethod() const { return method_; }
+
+  Method* GetMethod() const { return method_; }
 
   // The slot number for current calling_convention argument.
   // Note that each slot is 32-bit. When the current argument is bigger
@@ -63,30 +60,37 @@ class CallingConvention {
   FrameOffset displacement_;
 
  private:
-  const Method* method_;
+  Method* method_;
 };
 
 // Abstraction for managed code's calling conventions
 class ManagedRuntimeCallingConvention : public CallingConvention {
  public:
-  explicit ManagedRuntimeCallingConvention(Method* method) :
-                                          CallingConvention(method) {}
+  static ManagedRuntimeCallingConvention* Create(Method* native_method,
+                                                InstructionSet instruction_set);
 
   size_t FrameSize();
+
+  // Register that holds the incoming method argument
+  virtual ManagedRegister MethodRegister() = 0;
 
   // Iterator interface
   bool HasNext();
   void Next();
   bool IsCurrentParamAReference();
-  bool IsCurrentParamInRegister();
-  bool IsCurrentParamOnStack();
   bool IsCurrentArgExplicit();  // ie a non-implict argument such as this
   bool IsCurrentArgPossiblyNull();
   size_t CurrentParamSize();
-  ManagedRegister CurrentParamRegister();
-  FrameOffset CurrentParamStackOffset();
+  virtual bool IsCurrentParamInRegister() = 0;
+  virtual bool IsCurrentParamOnStack() = 0;
+  virtual ManagedRegister CurrentParamRegister() = 0;
+  virtual FrameOffset CurrentParamStackOffset() = 0;
 
-  DISALLOW_COPY_AND_ASSIGN(ManagedRuntimeCallingConvention);
+  virtual ~ManagedRuntimeCallingConvention() {}
+
+ protected:
+  explicit ManagedRuntimeCallingConvention(Method* method) :
+                                          CallingConvention(method) {}
 };
 
 // Abstraction for JNI calling conventions
@@ -103,23 +107,21 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // | Native frame           |
 class JniCallingConvention : public CallingConvention {
  public:
-  explicit JniCallingConvention(Method* native_method)
-      : CallingConvention(native_method) {
-    ComputeRegsToSpillPreCall(spill_regs_);
-  }
+  static JniCallingConvention* Create(Method* native_method,
+                                      InstructionSet instruction_set);
 
   // Size of frame excluding space for outgoing args (its assumed Method* is
   // always at the bottom of a frame, but this doesn't work for outgoing
   // native args). Includes alignment.
-  size_t FrameSize();
+  virtual size_t FrameSize() = 0;
   // Offset within the frame of the return pc
-  size_t ReturnPcOffset();
+  virtual size_t ReturnPcOffset() = 0;
   // Size of outgoing arguments, including alignment
-  size_t OutArgSize();
+  virtual size_t OutArgSize() = 0;
+  // Size of area used to hold spilled registers
+  virtual size_t SpillAreaSize() = 0;
   // Number of references in stack indirect reference table
   size_t ReferenceCount();
-  // Size of area used to hold spilled registers
-  size_t SpillAreaSize();
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
   FrameOffset ReturnValueSaveLocation();
@@ -132,17 +134,17 @@ class JniCallingConvention : public CallingConvention {
 
   // Returns true if the register will be clobbered by an outgoing
   // argument value.
-  bool IsOutArgRegister(ManagedRegister reg);
+  virtual bool IsOutArgRegister(ManagedRegister reg) = 0;
 
   // Iterator interface
   bool HasNext();
   void Next();
   bool IsCurrentParamAReference();
-  bool IsCurrentParamInRegister();
-  bool IsCurrentParamOnStack();
   size_t CurrentParamSize();
-  ManagedRegister CurrentParamRegister();
-  FrameOffset CurrentParamStackOffset();
+  virtual bool IsCurrentParamInRegister() = 0;
+  virtual bool IsCurrentParamOnStack() = 0;
+  virtual ManagedRegister CurrentParamRegister() = 0;
+  virtual FrameOffset CurrentParamStackOffset() = 0;
 
   // Iterator interface extension for JNI
   FrameOffset CurrentParamSirtEntryOffset();
@@ -162,25 +164,27 @@ class JniCallingConvention : public CallingConvention {
                        StackIndirectReferenceTable::LinkOffset());
   }
 
- private:
+  virtual ~JniCallingConvention() {}
+
+ protected:
   // Named iterator positions
   enum IteratorPos {
     kJniEnv = 0,
     kObjectOrClass = 1
   };
 
+  explicit JniCallingConvention(Method* native_method) :
+      CallingConvention(native_method) {}
+
   // Number of stack slots for outgoing arguments, above which the SIRT is
   // located
-  size_t NumberOfOutgoingStackArgs();
+  virtual size_t NumberOfOutgoingStackArgs() = 0;
 
-  // Compute registers for RegsToSpillPreCall
-  void ComputeRegsToSpillPreCall(std::vector<ManagedRegister>& regs);
+ protected:
+  static size_t NumberOfExtraArgumentsForJni(Method* method);
 
   // Extra registers to spill before the call into native
   std::vector<ManagedRegister> spill_regs_;
-
-  static size_t NumberOfExtraArgumentsForJni(const Method* method);
-  DISALLOW_COPY_AND_ASSIGN(JniCallingConvention);
 };
 
 }  // namespace art

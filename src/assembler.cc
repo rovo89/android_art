@@ -1,8 +1,12 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "assembler.h"
+
 #include <algorithm>
 #include <vector>
-#include "assembler.h"
+
+#include "assembler_arm.h"
+#include "assembler_x86.h"
 #include "globals.h"
 #include "memory_region.h"
 
@@ -116,6 +120,16 @@ void AssemblerBuffer::ExtendCapacity() {
   // Verify internal state.
   CHECK_EQ(Capacity(), new_capacity);
   CHECK_EQ(Size(), old_size);
+}
+
+
+Assembler* Assembler::Create(InstructionSet instruction_set) {
+  if (instruction_set == kX86) {
+    return new x86::X86Assembler();
+  } else {
+    CHECK(instruction_set == kArm || instruction_set == kThumb2);
+    return new arm::ArmAssembler();
+  }
 }
 
 }  // namespace art

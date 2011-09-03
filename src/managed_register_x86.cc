@@ -1,10 +1,12 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "managed_register_x86.h"
+
 #include "globals.h"
 #include "calling_convention.h"
-#include "managed_register.h"
 
 namespace art {
+namespace x86 {
 
 // These cpu registers are never available for allocation.
 static const Register kReservedCpuRegistersArray[] = { EBP, ESP };
@@ -48,11 +50,11 @@ static const RegisterPairDescriptor kRegisterPairs[] = {
 };
 
 std::ostream& operator<<(std::ostream& os, const RegisterPair& reg) {
-  os << ManagedRegister::FromRegisterPair(reg);
+  os << X86ManagedRegister::FromRegisterPair(reg);
   return os;
 }
 
-bool ManagedRegister::Overlaps(const ManagedRegister& other) const {
+bool X86ManagedRegister::Overlaps(const X86ManagedRegister& other) const {
   if (IsNoRegister() || other.IsNoRegister()) return false;
   CHECK(IsValidManagedRegister());
   CHECK(other.IsValidManagedRegister());
@@ -60,8 +62,8 @@ bool ManagedRegister::Overlaps(const ManagedRegister& other) const {
   if (IsRegisterPair()) {
     Register low = AsRegisterPairLow();
     Register high = AsRegisterPairHigh();
-    return ManagedRegister::FromCpuRegister(low).Overlaps(other) ||
-        ManagedRegister::FromCpuRegister(high).Overlaps(other);
+    return X86ManagedRegister::FromCpuRegister(low).Overlaps(other) ||
+        X86ManagedRegister::FromCpuRegister(high).Overlaps(other);
   }
   if (other.IsRegisterPair()) {
     return other.Overlaps(*this);
@@ -70,7 +72,7 @@ bool ManagedRegister::Overlaps(const ManagedRegister& other) const {
 }
 
 
-int ManagedRegister::AllocIdLow() const {
+int X86ManagedRegister::AllocIdLow() const {
   CHECK(IsRegisterPair());
   const int r = RegId() - (kNumberOfCpuRegIds + kNumberOfXmmRegIds +
                            kNumberOfX87RegIds);
@@ -79,7 +81,7 @@ int ManagedRegister::AllocIdLow() const {
 }
 
 
-int ManagedRegister::AllocIdHigh() const {
+int X86ManagedRegister::AllocIdHigh() const {
   CHECK(IsRegisterPair());
   const int r = RegId() - (kNumberOfCpuRegIds + kNumberOfXmmRegIds +
                            kNumberOfX87RegIds);
@@ -88,7 +90,7 @@ int ManagedRegister::AllocIdHigh() const {
 }
 
 
-void ManagedRegister::Print(std::ostream& os) const {
+void X86ManagedRegister::Print(std::ostream& os) const {
   if (!IsValidManagedRegister()) {
     os << "No Register";
   } else if (IsXmmRegister()) {
@@ -104,9 +106,10 @@ void ManagedRegister::Print(std::ostream& os) const {
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const ManagedRegister& reg) {
+std::ostream& operator<<(std::ostream& os, const X86ManagedRegister& reg) {
   reg.Print(os);
   return os;
 }
 
+}  // namespace x86
 }  // namespace art

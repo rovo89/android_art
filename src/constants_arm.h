@@ -10,6 +10,7 @@
 #include "logging.h"
 
 namespace art {
+namespace arm {
 
 // Defines constants and accessor classes to assemble, disassemble and
 // simulate ARM instructions.
@@ -548,6 +549,7 @@ class Instr {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instr);
 };
 
+}  // namespace arm
 }  // namespace art
 
 #endif  // ART_SRC_CONSTANTS_ARM_H_

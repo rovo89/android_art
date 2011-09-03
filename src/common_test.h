@@ -10,6 +10,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
+#include "constants.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
@@ -108,6 +109,14 @@ class CommonTest : public testing::Test {
     runtime_->Start();
     class_linker_ = runtime_->GetClassLinker();
 
+#if defined(__i386__)
+    compiler_ = new Compiler(kX86);
+#elif defined(__arm__)
+    compiler_ = new Compiler(kThumb2);
+#else
+    compiler_ = new Compiler(kNone);
+#endif
+
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }
 
@@ -147,6 +156,8 @@ class CommonTest : public testing::Test {
     CHECK(sym != NULL);
     IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
     (*icu_cleanup_fn)();
+
+    delete compiler_;
 
     Heap::VerifyHeap();  // Check for heap corruption after the test
   }
@@ -237,8 +248,7 @@ class CommonTest : public testing::Test {
 
   void CompileMethod(Method* method) {
     CHECK(method != NULL);
-    Compiler compiler;
-    compiler.CompileOne(method);
+    compiler_->CompileOne(method);
     MakeExecutable(method->GetCodeArray());
     MakeExecutable(method->GetInvokeStubArray());
   }
@@ -276,6 +286,7 @@ class CommonTest : public testing::Test {
   std::vector<const DexFile*> boot_class_path_;
   UniquePtr<Runtime> runtime_;
   ClassLinker* class_linker_;
+  Compiler* compiler_;
 
  private:
   std::vector<const DexFile*> loaded_dex_files_;

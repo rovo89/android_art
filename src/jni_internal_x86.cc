@@ -6,9 +6,7 @@
 #include "object.h"
 
 namespace art {
-
-
-#define __ assembler->
+namespace x86 {
 
 // Creates a function which invokes a managed method with an array of
 // arguments.
@@ -26,7 +24,10 @@ namespace art {
 // "running" state the remaining responsibilities of this routine are
 // to save the native registers and set up the managed registers. On
 // return, the return value must be store into the result JValue.
-void CreateInvokeStub(Assembler* assembler, Method* method) {
+void X86CreateInvokeStub(Method* method) {
+  UniquePtr<X86Assembler> assembler(
+      down_cast<X86Assembler*>(Assembler::Create(kX86)));
+#define __ assembler->
   // Size of frame - spill of EDI + Method* + possible receiver + arg array
   size_t frame_size = (2 * kPointerSize) +
                       (method->IsStatic() ? 0 : kPointerSize) +
@@ -78,6 +79,14 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
   }
   __ popl(EDI);  // restore EDI
   __ ret();
+  // TODO: store native_entry in the stub table
+  ByteArray* code = ByteArray::Alloc(assembler->CodeSize());
+  MemoryRegion region(code->GetData(), code->GetLength());
+  assembler->FinalizeInstructions(region);
+  method->SetInvokeStub(code);
+  CHECK(method->GetInvokeStub() != NULL);
+#undef __
 }
 
+}  // namespace x86
 }  // namespace art

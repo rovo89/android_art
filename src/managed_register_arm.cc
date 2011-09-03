@@ -1,10 +1,12 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
+#include "managed_register_arm.h"
+
 #include "globals.h"
 #include "calling_convention.h"
-#include "managed_register.h"
 
 namespace art {
+namespace arm {
 
 // We need all registers for caching of locals.
 // Register R9 .. R15 are reserved.
@@ -17,14 +19,14 @@ static const int kNumberOfAvailableRegisterPairs = kNumberOfRegisterPairs;
 
 
 // Returns true if this managed-register overlaps the other managed-register.
-bool ManagedRegister::Overlaps(const ManagedRegister& other) const {
+bool ArmManagedRegister::Overlaps(const ArmManagedRegister& other) const {
   if (IsNoRegister() || other.IsNoRegister()) return false;
   if (Equals(other)) return true;
   if (IsRegisterPair()) {
     Register low = AsRegisterPairLow();
     Register high = AsRegisterPairHigh();
-    return ManagedRegister::FromCoreRegister(low).Overlaps(other) ||
-        ManagedRegister::FromCoreRegister(high).Overlaps(other);
+    return ArmManagedRegister::FromCoreRegister(low).Overlaps(other) ||
+        ArmManagedRegister::FromCoreRegister(high).Overlaps(other);
   }
   if (IsOverlappingDRegister()) {
     if (other.IsDRegister()) return Equals(other);
@@ -43,7 +45,7 @@ bool ManagedRegister::Overlaps(const ManagedRegister& other) const {
 }
 
 
-int ManagedRegister::AllocIdLow() const {
+int ArmManagedRegister::AllocIdLow() const {
   CHECK(IsOverlappingDRegister() || IsRegisterPair());
   const int r = RegId() - (kNumberOfCoreRegIds + kNumberOfSRegIds);
   int low;
@@ -62,12 +64,12 @@ int ManagedRegister::AllocIdLow() const {
 }
 
 
-int ManagedRegister::AllocIdHigh() const {
+int ArmManagedRegister::AllocIdHigh() const {
   return AllocIdLow() + 1;
 }
 
 
-void ManagedRegister::Print(std::ostream& os) const {
+void ArmManagedRegister::Print(std::ostream& os) const {
   if (!IsValidManagedRegister()) {
     os << "No Register";
   } else if (IsCoreRegister()) {
@@ -84,14 +86,15 @@ void ManagedRegister::Print(std::ostream& os) const {
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const ManagedRegister& reg) {
+std::ostream& operator<<(std::ostream& os, const ArmManagedRegister& reg) {
   reg.Print(os);
   return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const RegisterPair& r) {
-  os << ManagedRegister::FromRegisterPair(r);
+  os << ArmManagedRegister::FromRegisterPair(r);
   return os;
 }
 
+}  // namespace arm
 }  // namespace art

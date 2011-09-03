@@ -1,0 +1,59 @@
+// Copyright 2011 Google Inc. All Rights Reserved.
+
+#ifndef ART_SRC_CALLING_CONVENTION_X86_H_
+#define ART_SRC_CALLING_CONVENTION_X86_H_
+
+#include "calling_convention.h"
+
+namespace art {
+namespace x86 {
+
+class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
+ public:
+  explicit X86ManagedRuntimeCallingConvention(Method* method) :
+                                     ManagedRuntimeCallingConvention(method) {}
+  virtual ~X86ManagedRuntimeCallingConvention() {}
+  // Calling convention
+  virtual ManagedRegister ReturnRegister();
+  virtual ManagedRegister InterproceduralScratchRegister();
+  // Managed runtime calling convention
+  virtual ManagedRegister MethodRegister();
+  virtual bool IsCurrentParamInRegister();
+  virtual bool IsCurrentParamOnStack();
+  virtual ManagedRegister CurrentParamRegister();
+  virtual FrameOffset CurrentParamStackOffset();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(X86ManagedRuntimeCallingConvention);
+};
+
+class X86JniCallingConvention : public JniCallingConvention {
+ public:
+  explicit X86JniCallingConvention(Method* method) :
+                                   JniCallingConvention(method) {}
+  virtual ~X86JniCallingConvention() {}
+  // Calling convention
+  virtual ManagedRegister ReturnRegister();
+  virtual ManagedRegister InterproceduralScratchRegister();
+  // JNI calling convention
+  virtual size_t FrameSize();
+  virtual size_t ReturnPcOffset();
+  virtual size_t OutArgSize();
+  virtual size_t SpillAreaSize();
+  virtual bool IsOutArgRegister(ManagedRegister reg);
+  virtual bool IsCurrentParamInRegister();
+  virtual bool IsCurrentParamOnStack();
+  virtual ManagedRegister CurrentParamRegister();
+  virtual FrameOffset CurrentParamStackOffset();
+
+ protected:
+  virtual size_t NumberOfOutgoingStackArgs();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(X86JniCallingConvention);
+};
+
+}  // namespace x86
+}  // namespace art
+
+#endif  // ART_SRC_CALLING_CONVENTION_X86_H_

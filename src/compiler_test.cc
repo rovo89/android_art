@@ -58,8 +58,7 @@ class CompilerTest : public CommonTest {
 
 // Disabled due to 10 second runtime on host
 TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
-  Compiler compiler;
-  compiler.CompileAll(NULL);
+  compiler_->CompileAll(NULL);
 
   // All libcore references should resolve
   const DexFile* dex = java_lang_dex_file_.get();

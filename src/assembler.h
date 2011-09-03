@@ -3,6 +3,9 @@
 #ifndef ART_SRC_ASSEMBLER_H_
 #define ART_SRC_ASSEMBLER_H_
 
+#include <vector>
+
+#include "constants.h"
 #include "logging.h"
 #include "macros.h"
 #include "managed_register.h"
@@ -14,6 +17,13 @@ namespace art {
 class Assembler;
 class AssemblerBuffer;
 class AssemblerFixup;
+
+namespace arm {
+  class ArmAssembler;
+}
+namespace x86 {
+  class X86Assembler;
+}
 
 class Label {
  public:
@@ -59,7 +69,9 @@ class Label {
     CHECK(IsLinked());
   }
 
-  friend class Assembler;
+  friend class arm::ArmAssembler;
+  friend class x86::X86Assembler;
+
   DISALLOW_COPY_AND_ASSIGN(Label);
 };
 
@@ -106,30 +118,6 @@ class SlowPath {
 
   friend class AssemblerBuffer;
   DISALLOW_COPY_AND_ASSIGN(SlowPath);
-};
-
-// Slowpath entered when Thread::Current()->_exception is non-null
-class ExceptionSlowPath : public SlowPath {
- public:
-  ExceptionSlowPath() {}
-  virtual void Emit(Assembler *sp_asm);
-};
-
-// Slowpath entered when Thread::Current()->_suspend_count is non-zero
-class SuspendCountSlowPath : public SlowPath {
- public:
-  SuspendCountSlowPath(ManagedRegister return_reg,
-                       FrameOffset return_save_location,
-                       size_t return_size) :
-     return_register_(return_reg), return_save_location_(return_save_location),
-     return_size_(return_size) {}
-  virtual void Emit(Assembler *sp_asm);
-
- private:
-  // Remember how to save the return value
-  const ManagedRegister return_register_;
-  const FrameOffset return_save_location_;
-  const size_t return_size_;
 };
 
 class AssemblerBuffer {
@@ -297,12 +285,140 @@ class AssemblerBuffer {
   friend class AssemblerFixup;
 };
 
+class Assembler {
+ public:
+  static Assembler* Create(InstructionSet instruction_set);
+
+  // Emit slow paths queued during assembly
+  void EmitSlowPaths() { buffer_.EmitSlowPaths(this); }
+
+  // Size of generated code
+  size_t CodeSize() const { return buffer_.Size(); }
+
+  // Copy instructions out of assembly buffer into the given region of memory
+  void FinalizeInstructions(const MemoryRegion& region) {
+    buffer_.FinalizeInstructions(region);
+  }
+
+  // Emit code that will create an activation on the stack
+  virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                          const std::vector<ManagedRegister>& spill_regs) = 0;
+
+  // Emit code that will remove an activation from the stack
+  virtual void RemoveFrame(size_t frame_size,
+                           const std::vector<ManagedRegister>& spill_regs) = 0;
+
+  // Fill list of registers from spill area
+  virtual void FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
+                                 size_t displacement) = 0;
+
+  virtual void IncreaseFrameSize(size_t adjust) = 0;
+  virtual void DecreaseFrameSize(size_t adjust) = 0;
+
+  // Store routines
+  virtual void Store(FrameOffset offs, ManagedRegister src, size_t size) = 0;
+  virtual void StoreRef(FrameOffset dest, ManagedRegister src) = 0;
+  virtual void StoreRawPtr(FrameOffset dest, ManagedRegister src) = 0;
+
+  virtual void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
+                                     ManagedRegister scratch) = 0;
+
+  virtual void StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
+                                      ManagedRegister scratch) = 0;
+
+  virtual void StoreStackOffsetToThread(ThreadOffset thr_offs,
+                                        FrameOffset fr_offs,
+                                        ManagedRegister scratch) = 0;
+
+  virtual void StoreStackPointerToThread(ThreadOffset thr_offs) = 0;
+
+  virtual void StoreSpanning(FrameOffset dest, ManagedRegister src,
+                             FrameOffset in_off, ManagedRegister scratch) = 0;
+
+  // Load routines
+  virtual void Load(ManagedRegister dest, FrameOffset src, size_t size) = 0;
+
+  virtual void LoadRef(ManagedRegister dest, FrameOffset  src) = 0;
+
+  virtual void LoadRef(ManagedRegister dest, ManagedRegister base,
+                       MemberOffset offs) = 0;
+
+  virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base,
+                          Offset offs) = 0;
+
+  virtual void LoadRawPtrFromThread(ManagedRegister dest,
+                                    ThreadOffset offs) = 0;
+
+  // Copying routines
+  virtual void Move(ManagedRegister dest, ManagedRegister src) = 0;
+
+  virtual void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
+                                    ManagedRegister scratch) = 0;
+
+  virtual void CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
+                                  ManagedRegister scratch) = 0;
+
+  virtual void CopyRef(FrameOffset dest, FrameOffset src,
+                       ManagedRegister scratch) = 0;
+
+  virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
+                    unsigned int size) = 0;
+
+  // Exploit fast access in managed code to Thread::Current()
+  virtual void GetCurrentThread(ManagedRegister tr) = 0;
+  virtual void GetCurrentThread(FrameOffset dest_offset,
+                                ManagedRegister scratch) = 0;
+
+  // Set up out_reg to hold a Object** into the SIRT, or to be NULL if the
+  // value is null and null_allowed. in_reg holds a possibly stale reference
+  // that can be used to avoid loading the SIRT entry to see if the value is
+  // NULL.
+  virtual void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset,
+                               ManagedRegister in_reg, bool null_allowed) = 0;
+
+  // Set up out_off to hold a Object** into the SIRT, or to be NULL if the
+  // value is null and null_allowed.
+  virtual void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset,
+                               ManagedRegister scratch, bool null_allowed) = 0;
+
+  // src holds a SIRT entry (Object**) load this into dst
+  virtual void LoadReferenceFromSirt(ManagedRegister dst,
+                                     ManagedRegister src) = 0;
+
+  // Heap::VerifyObject on src. In some cases (such as a reference to this) we
+  // know that src may not be null.
+  virtual void VerifyObject(ManagedRegister src, bool could_be_null) = 0;
+  virtual void VerifyObject(FrameOffset src, bool could_be_null) = 0;
+
+  // Call to address held at [base+offset]
+  virtual void Call(ManagedRegister base, Offset offset,
+                    ManagedRegister scratch) = 0;
+  virtual void Call(FrameOffset base, Offset offset,
+                    ManagedRegister scratch) = 0;
+  virtual void Call(uintptr_t addr, ManagedRegister scratch) = 0;
+
+  // Generate code to check if Thread::Current()->suspend_count_ is non-zero
+  // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
+  // at the next instruction.
+  virtual void SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
+                           FrameOffset return_save_location,
+                           size_t return_size) = 0;
+
+  // Generate code to check if Thread::Current()->exception_ is non-null
+  // and branch to a ExceptionSlowPath if it is.
+  virtual void ExceptionPoll(ManagedRegister scratch) = 0;
+
+  virtual ~Assembler() {}
+
+ protected:
+  Assembler() : buffer_() {}
+
+  AssemblerBuffer buffer_;
+};
+
 }  // namespace art
 
-#if defined(__i386__)
 #include "assembler_x86.h"
-#elif defined(__arm__)
 #include "assembler_arm.h"
-#endif
 
 #endif  // ART_SRC_ASSEMBLER_H_
