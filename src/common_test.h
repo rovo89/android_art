@@ -90,6 +90,7 @@ class CommonTest : public testing::Test {
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();
 
+    //Heap::DisableObjectValidation();
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }
 
