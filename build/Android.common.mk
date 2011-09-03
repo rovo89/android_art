@@ -25,7 +25,7 @@ ART_C_INCLUDES := \
 	dalvik/libdex
 
 ART_CFLAGS := \
-	-O2 \
+	-O0 \
 	-ggdb3 \
 	-Wall \
 	-Werror \
