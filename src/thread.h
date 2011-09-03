@@ -174,6 +174,7 @@ class Thread {
   static const size_t kDefaultStackSize = 64 * KB;
 
   // Runtime support function pointers
+  void (*pDebugMe)(Method*, uint32_t);
   void* (*pMemcpy)(void*, const void*, size_t);
   uint64_t (*pShlLong)(uint64_t, uint32_t);
   uint64_t (*pShrLong)(uint64_t, uint32_t);
@@ -219,6 +220,7 @@ class Thread {
   void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
+  void (*pInvokeInterfaceTrampoline)(void*, void*, void*, void*);
 
   class StackVisitor {
    public:

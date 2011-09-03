@@ -1512,6 +1512,10 @@ class Class : public Object, public StaticStorageBase {
         OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
   }
 
+  static MemberOffset SuperClassOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Class, super_class_));
+  }
+
   void SetSuperClass(Class *new_super_class) {
     // super class is assigned once, except during class linker initialization
     Class* old_super_class = GetFieldObject<Class*>(

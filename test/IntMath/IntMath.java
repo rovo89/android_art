@@ -1,6 +1,6 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-class IntMath {
+class IntMath extends IntMathBase {
 
     public static boolean mBoolean1, mBoolean2;
     public static byte mByte1, mByte2;
@@ -16,11 +16,26 @@ class IntMath {
     private int foo_;
 
     public IntMath(int stuff) {
+        super();
         foo_ = stuff;
     }
 
     public IntMath() {
+        super();
         foo_ = 123;
+    }
+
+    int tryThing() {
+        int val = super.tryThing();
+        return val + 10;
+    }
+
+    static int superTest(int x) {
+        IntMath instance = new IntMath();
+        IntMath base = instance;
+        int val1 = instance.tryThing();
+        int val2 = base.tryThing();
+        return val1 + val2 + x;
     }
 
     static int constClassTest(int x) {
@@ -837,5 +852,21 @@ class IntMath {
         } else {
             System.out.printf("catchBlock FAILED: %d\n", res);
         }
+
+        res = superTest(4141);
+        if (res == 4175) {
+            System.out.printf("superTest PASSED\n");
+        } else {
+            System.out.printf("superTest FAILED: %d\n", res);
+        }
+    }
+}
+
+class IntMathBase {
+    IntMathBase() {
+    }
+
+    int tryThing() {
+        return 7;
     }
 }

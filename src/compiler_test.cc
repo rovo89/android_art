@@ -103,6 +103,19 @@ TEST_F(CompilerTest, BasicCodegen) {
                         10);
 }
 
+// TODO: Need invoke-interface test
+
+TEST_F(CompilerTest, SuperTest) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  const ClassLoader* class_loader = LoadDex("IntMath");
+  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
+  CompileVirtualMethod(class_loader, "IntMathBase", "tryThing", "()I");
+  CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
+  CompileVirtualMethod(class_loader, "IntMath", "tryThing", "()I");
+  AssertStaticIntMethod(class_loader, "IntMath", "superTest", "(I)I", 4175,
+                        4141);
+}
+
 TEST_F(CompilerTest, ConstStringTest) {
   AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constStringTest",
                                 "(I)I", 2468, 1234);
@@ -231,6 +244,7 @@ TEST_F(CompilerTest, ManyArgs) {
 TEST_F(CompilerTest, VirtualCall) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
   const ClassLoader* class_loader = LoadDex("IntMath");
+  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
   CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
   CompileVirtualMethod(class_loader, "IntMath", "virtualCall", "(I)I");
   AssertStaticIntMethod(class_loader, "IntMath", "staticCall", "(I)I", 6,
@@ -240,6 +254,7 @@ TEST_F(CompilerTest, VirtualCall) {
 TEST_F(CompilerTest, TestIGetPut) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
   const ClassLoader* class_loader = LoadDex("IntMath");
+  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
   CompileDirectMethod(class_loader, "IntMath", "<init>", "(I)V");
   CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
   CompileVirtualMethod(class_loader, "IntMath", "getFoo", "()I");
@@ -247,5 +262,6 @@ TEST_F(CompilerTest, TestIGetPut) {
   AssertStaticIntMethod(class_loader, "IntMath", "testIGetPut", "(I)I", 333,
                         111);
 }
+
 
 }  // namespace art

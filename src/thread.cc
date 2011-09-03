@@ -34,6 +34,42 @@ pid_t gettid() { return syscall(__NR_gettid);}
 
 pthread_key_t Thread::pthread_key_self_;
 
+// Temporary debugging hook for compiler.
+static void DebugMe(Method* method, uint32_t info) {
+    LOG(INFO) << "DebugMe";
+    if (method != NULL)
+        LOG(INFO) << PrettyMethod(method);
+    LOG(INFO) << "Info: " << info;
+}
+
+/*
+ * TODO: placeholder for a method that can be called by the
+ * invoke-interface trampoline to unwind and handle exception.  The
+ * trampoline will arrange it so that the caller appears to be the
+ * callsite of the failed invoke-interface.  See comments in
+ * compiler/runtime_support.S
+ */
+extern "C" void artFailedInvokeInterface()
+{
+    UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
+}
+
+// TODO: placeholder.  See comments in compiler/runtime_support.S
+extern "C" uint64_t artFindInterfaceMethodInCache(uint32_t method_idx,
+     Object* this_object , Method* caller_method)
+{
+    /*
+     * Note: this_object has not yet been null-checked.  To match
+     * the old-world state, nullcheck this_object and load
+     * Class* this_class = this_object->GetClass().
+     * See comments and possible thrown exceptions in old-world
+     * Interp.cpp:dvmInterpFindInterfaceMethod, and complete with
+     * new-world FindVirtualMethodForInterface.
+     */
+    UNIMPLEMENTED(FATAL) << "Unimplemented invoke interface";
+    return 0LL;
+}
+
 // TODO: placeholder.  This is what generated code will call to throw
 static void ThrowException(Thread* thread, Throwable* exception) {
     /*
@@ -98,6 +134,7 @@ void Thread::InitFunctionPointers() {
   pD2l = D2L;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
+  pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
 #endif
   pAllocFromCode = Array::AllocFromCode;
   pAllocObjectFromCode = Class::AllocObjectFromCode;
@@ -113,15 +150,12 @@ void Thread::InitFunctionPointers() {
   pThrowException = ThrowException;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
+  pDebugMe = DebugMe;
 #if 0
 bool (Thread::*pUnlockObject)(Thread*, Object*);
 int (Thread::*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
-Method* (Thread::*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, DvmDex*);
 bool (Thread::*pUnlockObjectFromCode)(Thread*, Object*);
 void (Thread::*pLockObjectFromCode)(Thread*, Object*);
-Object* (Thread::*pAllocObjectFromCode)(Class*, int);
-void (Thread::*pThrowException)(Thread*, Object*);
-bool (Thread::*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
 #endif
 }
 

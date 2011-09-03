@@ -705,6 +705,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
         if (PrettyMethod(method).find("virtualCall") != std::string::npos) {
             compiling = true;
         }
+        if (PrettyMethod(method).find("tryThing") != std::string::npos) {
+            compiling = true;
+        }
         if (PrettyMethod(method).find("getFoo") != std::string::npos) {
             compiling = true;
         }
@@ -712,6 +715,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
             compiling = true;
         }
         if (PrettyMethod(method).find("IntMath.<init>") != std::string::npos) {
+            compiling = true;
+        }
+        if (PrettyMethod(method).find("IntMathBase.<init>") != std::string::npos) {
             compiling = true;
         }
         if (PrettyMethod(method).find("java.lang.Object.<init>") != std::string::npos) {
