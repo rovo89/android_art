@@ -256,7 +256,9 @@ class Thread {
     return id_;
   }
 
-  pid_t GetTid() const;
+  pid_t GetTid() const {
+    return tid_;
+  }
 
   pthread_t GetImpl() const {
     return handle_;
@@ -442,6 +444,9 @@ class Thread {
   ~Thread();
   friend class Runtime;  // For ~Thread.
 
+  void DumpState(std::ostream& os) const;
+  void DumpStack(std::ostream& os) const;
+
   void InitCpu();
   void InitFunctionPointers();
 
@@ -449,6 +454,12 @@ class Thread {
 
   // Managed thread id.
   uint32_t id_;
+
+  // System thread id.
+  pid_t tid_;
+
+  // Native thread handle.
+  pthread_t handle_;
 
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;
@@ -469,9 +480,6 @@ class Thread {
   JNIEnvExt* jni_env_;
 
   State state_;
-
-  // Native thread handle.
-  pthread_t handle_;
 
   // Initialized to "this". On certain architectures (such as x86) reading
   // off of Thread::Current is easy but getting the address of Thread::Current
@@ -514,6 +522,8 @@ class ThreadList {
   static ThreadList* Create();
 
   ~ThreadList();
+
+  void Dump(std::ostream& os);
 
   void Register(Thread* thread);
 

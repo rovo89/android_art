@@ -215,7 +215,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
     // Note that current_thread can be NULL if we're parsing the bootclasspath
     // during JNI_CreateJavaVM.
     Thread* current_thread = Thread::Current();
-    Thread::State old;
+    Thread::State old(Thread::kUnknown);
     if (current_thread != NULL) {
         old = current_thread->SetState(Thread::kNative);
     }

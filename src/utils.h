@@ -168,7 +168,7 @@ std::string JniShortName(const Method* m);
 // Returns the JNI native function name for the overloaded method 'm'.
 std::string JniLongName(const Method* m);
 
-std::string ReadFileToString(const char* file_name);
+bool ReadFileToString(const std::string& file_name, std::string* result);
 
 // Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
 std::string GetIsoDate();

@@ -206,6 +206,7 @@ Thread* Thread::Attach(const Runtime* runtime) {
   thread->InitCpu();
 
   thread->handle_ = pthread_self();
+  thread->tid_ = gettid();
 
   thread->state_ = kRunnable;
 
@@ -220,11 +221,151 @@ Thread* Thread::Attach(const Runtime* runtime) {
 }
 
 void Thread::Dump(std::ostream& os) const {
-  os << "UNIMPLEMENTED: Thread::Dump\n";
+  /*
+   * Get the java.lang.Thread object.  This function gets called from
+   * some weird debug contexts, so it's possible that there's a GC in
+   * progress on some other thread.  To decrease the chances of the
+   * thread object being moved out from under us, we add the reference
+   * to the tracked allocation list, which pins it in place.
+   *
+   * If threadObj is NULL, the thread is still in the process of being
+   * attached to the VM, and there's really nothing interesting to
+   * say about it yet.
+   */
+  os << "TODO: pin Thread before dumping\n";
+#if 0
+  if (java_thread_ == NULL) {
+    LOGI("Can't dump thread %d: threadObj not set", threadId);
+    return;
+  }
+  dvmAddTrackedAlloc(java_thread_, NULL);
+#endif
+
+  DumpState(os);
+  DumpStack(os);
+
+#if 0
+  dvmReleaseTrackedAlloc(java_thread_, NULL);
+#endif
 }
 
-pid_t Thread::GetTid() const {
-  return gettid();
+std::string GetSchedulerGroup(pid_t tid) {
+  // /proc/<pid>/group looks like this:
+  // 2:devices:/
+  // 1:cpuacct,cpu:/
+  // We want the third field from the line whose second field contains the "cpu" token.
+  std::string cgroup_file;
+  if (!ReadFileToString("/proc/self/cgroup", &cgroup_file)) {
+    return "";
+  }
+  std::vector<std::string> cgroup_lines;
+  Split(cgroup_file, '\n', cgroup_lines);
+  for (size_t i = 0; i < cgroup_lines.size(); ++i) {
+    std::vector<std::string> cgroup_fields;
+    Split(cgroup_lines[i], ':', cgroup_fields);
+    std::vector<std::string> cgroups;
+    Split(cgroup_fields[1], ',', cgroups);
+    for (size_t i = 0; i < cgroups.size(); ++i) {
+      if (cgroups[i] == "cpu") {
+        return cgroup_fields[2].substr(1); // Skip the leading slash.
+      }
+    }
+  }
+  return "";
+}
+
+void Thread::DumpState(std::ostream& os) const {
+  std::string thread_name("unknown");
+  int priority = -1;
+  bool is_daemon = false;
+#if 0 // TODO
+  nameStr = (StringObject*) dvmGetFieldObject(threadObj, gDvm.offJavaLangThread_name);
+  threadName = dvmCreateCstrFromString(nameStr);
+  priority = dvmGetFieldInt(threadObj, gDvm.offJavaLangThread_priority);
+  is_daemon = dvmGetFieldBoolean(threadObj, gDvm.offJavaLangThread_daemon);
+#else
+  thread_name = "TODO";
+  priority = -1;
+  is_daemon = false;
+#endif
+
+  int policy;
+  sched_param sp;
+  errno = pthread_getschedparam(handle_, &policy, &sp);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_getschedparam failed";
+  }
+
+  std::string scheduler_group(GetSchedulerGroup(GetTid()));
+  if (scheduler_group.empty()) {
+    scheduler_group = "default";
+  }
+
+  std::string group_name("(null; initializing?)");
+#if 0
+  groupObj = (Object*) dvmGetFieldObject(threadObj, gDvm.offJavaLangThread_group);
+  if (groupObj != NULL) {
+    nameStr = (StringObject*) dvmGetFieldObject(groupObj, gDvm.offJavaLangThreadGroup_name);
+    groupName = dvmCreateCstrFromString(nameStr);
+  }
+#else
+  group_name = "TODO";
+#endif
+
+  os << '"' << thread_name << '"';
+  if (is_daemon) {
+    os << " daemon";
+  }
+  os << " prio=" << priority
+     << " tid=" << GetId()
+     << " " << state_ << "\n";
+
+  int suspend_count = 0; // TODO
+  int debug_suspend_count = 0; // TODO
+  void* java_thread_ = NULL; // TODO
+  os << "  | group=\"" << group_name << "\""
+     << " sCount=" << suspend_count
+     << " dsCount=" << debug_suspend_count
+     << " obj=" << reinterpret_cast<void*>(java_thread_)
+     << " self=" << reinterpret_cast<const void*>(this) << "\n";
+  os << "  | sysTid=" << GetTid()
+     << " nice=" << getpriority(PRIO_PROCESS, GetTid())
+     << " sched=" << policy << "/" << sp.sched_priority
+     << " cgrp=" << scheduler_group
+     << " handle=" << GetImpl() << "\n";
+
+  // Grab the scheduler stats for this thread.
+  std::string scheduler_stats;
+  if (ReadFileToString(StringPrintf("/proc/self/task/%d/schedstat", GetTid()).c_str(), &scheduler_stats)) {
+    scheduler_stats.resize(scheduler_stats.size() - 1); // Lose the trailing '\n'.
+  } else {
+    scheduler_stats = "0 0 0";
+  }
+
+  int utime = 0;
+  int stime = 0;
+  int task_cpu = 0;
+  std::string stats;
+  if (ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
+    // Skip the command, which may contain spaces.
+    stats = stats.substr(stats.find(')') + 2);
+    // Extract the three fields we care about.
+    std::vector<std::string> fields;
+    Split(stats, ' ', fields);
+    utime = strtoull(fields[11].c_str(), NULL, 10);
+    stime = strtoull(fields[12].c_str(), NULL, 10);
+    task_cpu = strtoull(fields[36].c_str(), NULL, 10);
+  }
+
+  os << "  | schedstat=( " << scheduler_stats << " )"
+     << " utm=" << utime
+     << " stm=" << stime
+     << " core=" << task_cpu
+     << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
+}
+
+void Thread::DumpStack(std::ostream& os) const {
+  os << "UNIMPLEMENTED: Thread::DumpStack\n";
 }
 
 static void ThreadExitCheck(void* arg) {
@@ -589,13 +730,24 @@ bool ThreadList::Contains(Thread* thread) {
   return find(list_.begin(), list_.end(), thread) != list_.end();
 }
 
+void ThreadList::Dump(std::ostream& os) {
+  MutexLock mu(lock_);
+  os << "DALVIK THREADS (" << list_.size() << "):\n";
+  typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    (*it)->Dump(os);
+  }
+}
+
 void ThreadList::Register(Thread* thread) {
+  //LOG(INFO) << "ThreadList::Register() " << *thread;
   MutexLock mu(lock_);
   CHECK(!Contains(thread));
   list_.push_front(thread);
 }
 
 void ThreadList::Unregister(Thread* thread) {
+  //LOG(INFO) << "ThreadList::Unregister() " << *thread;
   MutexLock mu(lock_);
   CHECK(Contains(thread));
   list_.remove(thread);

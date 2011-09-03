@@ -335,8 +335,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   if (!Thread::Startup()) {
     return false;
   }
-  Thread* current_thread = Thread::Attach(this);
-  thread_list_->Register(current_thread);
+
+  thread_list_->Register(Thread::Attach(this));
 
   class_linker_ = ClassLinker::Create(options->boot_class_path_, intern_table_, Heap::GetBootSpace());
 
@@ -420,18 +420,18 @@ void Runtime::BlockSignals() {
   CHECK_EQ(sigprocmask(SIG_BLOCK, &sigset, NULL), 0);
 }
 
-bool Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemon) {
+void Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemon) {
   if (as_daemon) {
     UNIMPLEMENTED(WARNING) << "TODO: do something different for daemon threads";
   }
-  return Thread::Attach(instance_) != NULL;
+  Thread* t = Thread::Attach(instance_);
+  thread_list_->Register(t);
 }
 
-bool Runtime::DetachCurrentThread() {
+void Runtime::DetachCurrentThread() {
   Thread* self = Thread::Current();
   thread_list_->Unregister(self);
   delete self;
-  return true;
 }
 
 void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {

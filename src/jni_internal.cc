@@ -490,7 +490,8 @@ jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as
   CHECK_GE(args.version, JNI_VERSION_1_2);
 
   Runtime* runtime = reinterpret_cast<JavaVMExt*>(vm)->runtime;
-  return runtime->AttachCurrentThread(args.name, p_env, as_daemon) ? JNI_OK : JNI_ERR;
+  runtime->AttachCurrentThread(args.name, p_env, as_daemon);
+  return JNI_OK;
 }
 
 class SharedLibrary {

@@ -917,7 +917,7 @@ private:
    * to "running" mode before doing the checks.
    */
   void checkInstance(InstanceKind kind, jobject java_object) {
-    const char* what;
+    const char* what = NULL;
     switch (kind) {
     case kClass:
       what = "jclass";

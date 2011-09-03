@@ -9,21 +9,23 @@
 
 namespace art {
 
-std::string ReadFileToString(const char* file_name) {
-  UniquePtr<File> file(OS::OpenFile(file_name, false));
-  CHECK(file.get() != NULL);
+bool ReadFileToString(const std::string& file_name, std::string* result) {
+  UniquePtr<File> file(OS::OpenFile(file_name.c_str(), false));
+  if (file.get() == NULL) {
+    return false;
+  }
 
-  std::string contents;
   char buf[8 * KB];
   while (true) {
     int64_t n = file->Read(buf, sizeof(buf));
-    CHECK_NE(-1, n);
-    if (n == 0) {
-        break;
+    if (n == -1) {
+      return false;
     }
-    contents.append(buf, n);
+    if (n == 0) {
+      return true;
+    }
+    result->append(buf, n);
   }
-  return contents;
 }
 
 std::string GetIsoDate() {

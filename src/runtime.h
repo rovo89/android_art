@@ -79,12 +79,12 @@ class Runtime {
   static void Abort(const char* file, int line);
 
   // Attaches the current native thread to the runtime.
-  bool AttachCurrentThread(const char* name, JNIEnv** jni_env, bool as_daemon);
+  void AttachCurrentThread(const char* name, JNIEnv** jni_env, bool as_daemon);
 
   void CallExitHook(jint status);
 
   // Detaches the current native thread from the runtime.
-  bool DetachCurrentThread();
+  void DetachCurrentThread();
 
   void DumpStatistics(std::ostream& os);
 
@@ -104,6 +104,10 @@ class Runtime {
 
   JavaVMExt* GetJavaVM() const {
     return java_vm_;
+  }
+
+  ThreadList* GetThreadList() const {
+    return thread_list_;
   }
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;

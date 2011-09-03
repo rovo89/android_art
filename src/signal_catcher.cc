@@ -50,23 +50,31 @@ SignalCatcher::~SignalCatcher() {
 void SignalCatcher::HandleSigQuit() {
   // TODO: suspend all threads
 
-  std::stringstream buffer;
-  buffer << "\n"
-         << "\n"
-         << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n"
-         << "Cmd line: " << ReadFileToString("/proc/self/cmdline") << "\n";
+  std::stringstream os;
+  os << "\n"
+     << "\n"
+     << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
-  Runtime::Current()->DumpStatistics(buffer);
+  std::string cmdline;
+  if (ReadFileToString("/proc/self/cmdline", &cmdline)) {
+    std::replace(cmdline.begin(), cmdline.end(), '\0', ' ');
+    os << "Cmd line: " << cmdline << "\n";
+  }
 
-  // TODO: dump all threads.
-  // dvmDumpAllThreadsEx(&target, true);
+  Runtime* runtime = Runtime::Current();
+  runtime->DumpStatistics(os);
+  runtime->GetThreadList()->Dump(os);
 
-  buffer << "/proc/self/maps:\n" << ReadFileToString("/proc/self/maps");
-  buffer << "----- end " << getpid() << " -----";
+  std::string maps;
+  if (ReadFileToString("/proc/self/maps", &maps)) {
+    os << "/proc/self/maps:\n" << maps;
+  }
+
+  os << "----- end " << getpid() << " -----";
 
   // TODO: resume all threads
 
-  LOG(INFO) << buffer.str();
+  LOG(INFO) << os.str();
 }
 
 void SignalCatcher::HandleSigUsr1() {
@@ -93,11 +101,9 @@ int WaitForSignal(Thread* thread, sigset_t& mask) {
 }
 
 void* SignalCatcher::Run(void*) {
-  CHECK(Runtime::Current()->AttachCurrentThread("Signal Catcher", NULL, true));
+  Runtime::Current()->AttachCurrentThread("Signal Catcher", NULL, true);
   Thread* self = Thread::Current();
   CHECK(self != NULL);
-
-  LOG(INFO) << "Signal catcher thread started " << *self;
 
   // Set up mask with signals we want to handle.
   sigset_t mask;
@@ -108,6 +114,7 @@ void* SignalCatcher::Run(void*) {
   while (true) {
     int signal_number = WaitForSignal(self, mask);
     if (halt_) {
+      Runtime::Current()->DetachCurrentThread();
       return NULL;
     }
 
