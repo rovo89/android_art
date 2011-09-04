@@ -37,31 +37,6 @@ class ObjectTest : public CommonTest {
     }
     EXPECT_EQ(expected_hash, string->GetHashCode());
   }
-
-  uint32_t FindTypeIdxByDescriptor(const DexFile& dex_file, const StringPiece& descriptor) {
-    for (size_t i = 0; i < dex_file.NumTypeIds(); i++) {
-      const DexFile::TypeId& type_id = dex_file.GetTypeId(i);
-      if (descriptor == dex_file.GetTypeDescriptor(type_id)) {
-        return i;
-      }
-    }
-    CHECK(false) << "Could not find type index for " << descriptor;
-    return 0;
-  }
-
-  uint32_t FindFieldIdxByDescriptorAndName(const DexFile& dex_file,
-                                           const StringPiece& class_descriptor,
-                                           const StringPiece& field_name) {
-    for (size_t i = 0; i < dex_file.NumFieldIds(); i++) {
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(i);
-      if (class_descriptor == dex_file.GetFieldClassDescriptor(field_id)
-          && field_name == dex_file.GetFieldName(field_id)) {
-        return i;
-      }
-    }
-    CHECK(false) << "Could not find field index for " << class_descriptor << " " << field_name;
-    return 0;
-  }
 };
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -201,13 +176,16 @@ TEST_F(ObjectTest, AllocArrayFromCode) {
 }
 
 TEST_F(ObjectTest, StaticFieldFromCode) {
-  // pretend we are trying to access 'String.ASCII' from String.<clinit>
-  Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
-  Method* clinit = java_lang_String->FindDirectMethod("<clinit>", "()V");
-  uint32_t field_idx = FindFieldIdxByDescriptorAndName(*java_lang_dex_file_.get(),
-                                                       "Ljava/lang/String;", "ASCII");
-  Object* ASCII = Field::GetObjStaticFromCode(field_idx, clinit);
-  EXPECT_EQ(NULL, ASCII);
+  // pretend we are trying to access 'Static.s8' from Statics.<clinit>
+  const ClassLoader* class_loader = LoadDex("Statics");
+  const DexFile* dex_file = ClassLoader::GetClassPath(class_loader)[0];
+  CHECK(dex_file != NULL);
+
+  Class* Statics = class_linker_->FindClass("LStatics;", class_loader);
+  Method* clinit = Statics->FindDirectMethod("<clinit>", "()V");
+  uint32_t field_idx = FindFieldIdxByDescriptorAndName(*dex_file, "LStatics;", "s8");
+  Object* s8 = Field::GetObjStaticFromCode(field_idx, clinit);
+  EXPECT_EQ(NULL, s8);
 
   CharArray* char_array = CharArray::Alloc(0);
   Field::SetObjStaticFromCode(field_idx, clinit, char_array);
@@ -217,7 +195,6 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   EXPECT_EQ(NULL, Field::GetObjStaticFromCode(field_idx, clinit));
 
   // TODO: more exhaustive tests of all 6 cases of Field::*FromCode
-  // TODO: test should not assume private internals such as String.ASCII field.
 }
 
 TEST_F(ObjectTest, String) {
