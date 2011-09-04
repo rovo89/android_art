@@ -2114,10 +2114,10 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
 
   const char* name = dex_file.dexStringById(method_id.name_idx_);
   std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, NULL));
-  if (klass->IsInterface()) {
-    resolved = klass->FindInterfaceMethod(name, signature);
-  } else if (is_direct) {
+  if (is_direct) {
     resolved = klass->FindDirectMethod(name, signature);
+  } else if (klass->IsInterface()) {
+    resolved = klass->FindInterfaceMethod(name, signature);
   } else {
     resolved = klass->FindVirtualMethod(name, signature);
   }

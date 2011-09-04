@@ -428,6 +428,17 @@ class DexFile {
     return dexStringById(field_id.name_idx_);
   }
 
+  // Returns the class descriptor string of a method id.
+  const char* GetMethodClassDescriptor(const MethodId& method_id) const {
+    const DexFile::TypeId& type_id = GetTypeId(method_id.class_idx_);
+    return GetTypeDescriptor(type_id);
+  }
+
+  // Returns the name of a method id.
+  const char* GetMethodName(const MethodId& method_id) const {
+    return dexStringById(method_id.name_idx_);
+  }
+
   // Returns the StringId at the specified index.
   const StringId& GetStringId(uint32_t idx) const {
     CHECK_LT(idx, NumStringIds());
