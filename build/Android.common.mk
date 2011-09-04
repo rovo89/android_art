@@ -165,4 +165,5 @@ TEST_DEX_DIRECTORIES := \
 	ProtoCompare2 \
 	StaticLeafMethods \
 	Statics \
+	SystemMethods \
 	XandY

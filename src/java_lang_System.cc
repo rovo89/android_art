@@ -213,14 +213,14 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   Class* initialElementClass = NULL;
   if (length > 0 && srcObj[0] != NULL) {
     initialElementClass = srcObj[0]->GetClass();
-    if (!Class::CanPutArrayElementFromCode(initialElementClass, dstClass)) {
+    if (!Class::CanPutArrayElement(initialElementClass, dstClass)) {
       initialElementClass = NULL;
     }
   }
 
   int copyCount;
   for (copyCount = 0; copyCount < length; copyCount++) {
-    if (srcObj[copyCount] != NULL && srcObj[copyCount]->GetClass() != initialElementClass && !Class::CanPutArrayElementFromCode(srcObj[copyCount]->GetClass(), dstClass)) {
+    if (srcObj[copyCount] != NULL && srcObj[copyCount]->GetClass() != initialElementClass && !Class::CanPutArrayElement(srcObj[copyCount]->GetClass(), dstClass)) {
       // Can't put this element into the array.
       // We'll copy up to this point, then throw.
       break;

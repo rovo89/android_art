@@ -214,7 +214,7 @@ class Thread {
   void (*pSet64Static)(uint32_t, const Method*, uint64_t);
   Object* (*pGetObjStatic)(uint32_t, const Method*);
   void (*pSetObjStatic)(uint32_t, const Method*, Object*);
-  bool (*pCanPutArrayElementFromCode)(const Class*, const Class*);
+  void (*pCanPutArrayElementFromCode)(const Class*, const Class*);
   int (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
   bool (*pUnlockObjectFromCode)(Thread*, Object*);

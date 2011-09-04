@@ -595,9 +595,20 @@ bool Class::Implements(const Class* klass) const {
   return false;
 }
 
-bool Class::CanPutArrayElementFromCode(const Class* elementClass, const Class* arrayClass) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Class::CanPutArrayElement(const Class* object_class, const Class* array_class) {
+  if (object_class->IsArrayClass()) {
+    return array_class->IsArrayAssignableFromArray(object_class);
+  } else {
+    return array_class->GetComponentType()->IsAssignableFrom(object_class);
+  }
+}
+
+void Class::CanPutArrayElementFromCode(const Class* object_class, const Class* array_class) {
+  if (!CanPutArrayElement(object_class, array_class)) {
+    LOG(ERROR) << "Can't put a " << PrettyDescriptor(object_class->GetDescriptor())
+               << " into a " << PrettyDescriptor(array_class->GetDescriptor());
+    UNIMPLEMENTED(FATAL) << "need to throw ArrayStoreException and unwind stack";
+  }
 }
 
 // Determine whether "this" is assignable from "klazz", where both of these
@@ -617,7 +628,7 @@ bool Class::CanPutArrayElementFromCode(const Class* elementClass, const Class* a
 //   Serializable[][] = Y[][] --> false (unless Y is Serializable)
 //
 // Don't forget about primitive types.
-//   int[] instanceof Object[]     --> false
+//   Object[]         = int[] --> false
 //
 bool Class::IsArrayAssignableFromArray(const Class* klass) const {
   DCHECK(IsArrayClass());
@@ -854,6 +865,7 @@ Field* Class::FindStaticField(const StringPiece& name, Class* type) {
 }
 
 Array* Array::Alloc(Class* array_class, int32_t component_count, size_t component_size) {
+  DCHECK(array_class != NULL);
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
   size_t size = SizeOf(component_count, component_size);

@@ -176,7 +176,7 @@ void (Thread::*pLockObjectFromCode)(Thread*, Object*);
 Mutex* Mutex::Create(const char* name) {
   Mutex* mu = new Mutex(name);
   int result = pthread_mutex_init(&mu->lock_impl_, NULL);
-  CHECK_EQ(0, result);
+  CHECK_EQ(result, 0);
   return mu;
 }
 

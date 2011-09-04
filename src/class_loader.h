@@ -16,7 +16,7 @@ class ClassLoader : public Object {
   static const std::vector<const DexFile*>& GetClassPath(const ClassLoader* class_loader);
 
   void SetClassPath(std::vector<const DexFile*>& class_path) {
-    DCHECK_EQ(0U, class_path_.size());
+    DCHECK_EQ(class_path_.size(), 0U);
     // TODO: use setter
     class_path_ = class_path;
   }

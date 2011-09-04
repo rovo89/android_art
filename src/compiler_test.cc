@@ -26,7 +26,7 @@ class CompilerTest : public CommonTest {
     jclass c = env->FindClass(klass);
     CHECK(c != NULL) << "Class not found " << klass;
     jmethodID m = env->GetStaticMethodID(c, method, signature);
-    CHECK(m != NULL) << "Method not found " << method;
+    CHECK(m != NULL) << "Method not found: " << klass << "." << method << signature;
 #if defined(__arm__)
     va_list args;
     va_start(args, expected);
@@ -44,7 +44,7 @@ class CompilerTest : public CommonTest {
     jclass c = env->FindClass(klass);
     CHECK(c != NULL) << "Class not found " << klass;
     jmethodID m = env->GetStaticMethodID(c, method, signature);
-    CHECK(m != NULL) << "Method not found " << method;
+    CHECK(m != NULL) << "Method not found: " << klass << "." << method << signature;
 #if defined(__arm__)
     va_list args;
     va_start(args, expected);
@@ -261,6 +261,42 @@ TEST_F(CompilerTest, TestIGetPut) {
   CompileVirtualMethod(class_loader, "IntMath", "setFoo", "(I)V");
   AssertStaticIntMethod(class_loader, "IntMath", "testIGetPut", "(I)I", 333,
                         111);
+}
+
+TEST_F(CompilerTest, SystemMethodsTest) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+
+  CompileDirectMethod(NULL, "java.lang.String", "<clinit>", "()V");
+  CompileDirectMethod(NULL, "java.lang.String", "<init>", "(II[C)V");
+  CompileDirectMethod(NULL, "java.lang.String", "<init>", "([CII)V");
+  CompileVirtualMethod(NULL, "java.lang.String", "charAt", "(I)C");
+  CompileVirtualMethod(NULL, "java.lang.String", "length", "()I");
+  CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
+
+  CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "<init>", "(I)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(Ljava/lang/String;)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(C)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "appendNull", "()V");
+  CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "enlargeBuffer", "(I)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "toString", "()Ljava/lang/String;");
+
+  CompileDirectMethod(NULL, "java.lang.StringBuilder", "<init>", "(I)V");
+  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
+  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(C)Ljava/lang/StringBuilder;");
+  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "toString", "()Ljava/lang/String;");
+
+  // TODO: we can't compile these yet.
+  //  CompileDirectMethod(NULL, "java.lang.Long", "toString", "(JI)Ljava/lang/String;");
+  //  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(JI)Ljava/lang/String;");
+
+  CompileDirectMethod(NULL, "java.lang.System", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
+  CompileDirectMethod(NULL, "java.lang.System", "log", "(CLjava/lang/String;Ljava/lang/Throwable;)V");
+  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
+  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;)V");
+  CompileDirectMethod(NULL, "java.lang.System", "currentTimeMillis", "()J");
+
+  const ClassLoader* class_loader = LoadDex("SystemMethods");
+  AssertStaticIntMethod(class_loader, "SystemMethods", "test2", "()I", 123);
 }
 
 

@@ -98,8 +98,10 @@ class CommonTest : public testing::Test {
       setenv("ANDROID_ROOT", root.c_str(), 1);
     }
 
-    android_data_ = (is_host_ ? "/tmp/art-data-XXXXXX" : "/sdcard/art-data-XXXXXX");
-    ASSERT_TRUE(mkdtemp(&android_data_[0]) != NULL);
+    android_data_ = (is_host_ ? "/tmp/art-data-XXXXXX" : "/mnt/sdcard/art-data-XXXXXX");
+    if (mkdtemp(&android_data_[0]) == NULL) {
+      PLOG(FATAL) << "mkdtemp(\"" << &android_data_[0] << "\") failed";
+    }
     setenv("ANDROID_DATA", android_data_.c_str(), 1);
     art_cache_.append(android_data_.c_str());
     art_cache_.append("/art-cache");
@@ -257,7 +259,8 @@ class CommonTest : public testing::Test {
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     Method* method = klass->FindDirectMethod(method_name, signature);
-    CHECK(method != NULL) << "Method not found " << method_name;
+    CHECK(method != NULL) << "Direct method not found: "
+                          << class_name << "." << method_name << signature;
     CompileMethod(method);
   }
 
@@ -269,7 +272,8 @@ class CommonTest : public testing::Test {
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     Method* method = klass->FindVirtualMethod(method_name, signature);
-    CHECK(method != NULL) << "Method not found " << method_name;
+    CHECK(method != NULL) << "Virtual method not found: "
+                          << class_name << "." << method_name << signature;
     CompileMethod(method);
   }
 

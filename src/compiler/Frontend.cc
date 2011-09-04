@@ -699,40 +699,7 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
  */
 bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
-    bool compiling = true;
-    if (!method->IsStatic()) {
-        compiling = false;  // assume skip
-        if (PrettyMethod(method).find("virtualCall") != std::string::npos) {
-            compiling = true;
-        }
-        if (PrettyMethod(method).find("tryThing") != std::string::npos) {
-            compiling = true;
-        }
-        if (PrettyMethod(method).find("getFoo") != std::string::npos) {
-            compiling = true;
-        }
-        if (PrettyMethod(method).find("setFoo") != std::string::npos) {
-            compiling = true;
-        }
-        if (PrettyMethod(method).find("IntMath.<init>") != std::string::npos) {
-            compiling = true;
-        }
-        if (PrettyMethod(method).find("IntMathBase.<init>") != std::string::npos) {
-            compiling = true;
-        }
-        if (PrettyMethod(method).find("java.lang.Object.<init>") != std::string::npos) {
-            compiling = true;
-        }
-    } else if (method->GetName()->ToModifiedUtf8().find("foo") != std::string::npos) {
-        compiling = false;
-    }
-
-    if (compiling) {
-        LOG(INFO) << "Compiling " << PrettyMethod(method);
-    } else {
-        LOG(INFO) << "not compiling " << PrettyMethod(method);
-        return false;
-    }
+    LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
 
     CompilationUnit cUnit;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
@@ -930,6 +897,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetCoreSpillMask(cUnit.coreSpillMask);
     method->SetFpSpillMask(cUnit.fpSpillMask);
+    LOG(INFO) << "Compiled " << PrettyMethod(method)
+              << " code at " << reinterpret_cast<void*>(managed_code->GetData())
+              << " (" << managed_code->GetLength() << " bytes)";
     // TODO: Transmit mapping table to caller
 
 #if 0

@@ -361,6 +361,9 @@ static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
  */
 static void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
+#if 1
+  UNIMPLEMENTED(WARNING);
+#else
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
     ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondEq, valReg, 0);
@@ -374,6 +377,7 @@ static void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
     branchOver->generic.target = (LIR*)target;
     oatFreeTemp(cUnit, regCardBase);
     oatFreeTemp(cUnit, regCardNo);
+#endif
 }
 
 static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,

@@ -1092,7 +1092,7 @@ class Array : public Object {
   }
 
   void SetLength(int32_t length) {
-    CHECK_LE(0, length);
+    CHECK_GE(length, 0);
     SetField32(OFFSET_OF_OBJECT_MEMBER(Array, length_), length, false);
   }
 
@@ -1421,7 +1421,12 @@ class Class : public StaticStorageBase {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
 
-  static bool CanPutArrayElementFromCode(const Class* elementClass, const Class* arrayClass);
+  // Tests whether an element of type 'object_class' can be
+  // assigned into an array of type 'array_class'.
+  static bool CanPutArrayElement(const Class* object_class, const Class* array_class);
+  // Like CanPutArrayElement, but throws an exception and
+  // unwinds the stack instead of returning false.
+  static void CanPutArrayElementFromCode(const Class* object_class, const Class* array_class);
 
   // Given the context of a calling Method, use its DexCache to
   // resolve a type to a Class. If it cannot be resolved, throw an
