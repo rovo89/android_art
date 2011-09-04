@@ -565,4 +565,20 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
 }
 
+TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
+  // pretend we are trying to ensure we have initilized storage for Static from Statics.<clinit>
+  const ClassLoader* class_loader = LoadDex("Statics");
+  const DexFile* dex_file = ClassLoader::GetClassPath(class_loader)[0];
+  CHECK(dex_file != NULL);
+
+  Class* Statics = class_linker_->FindClass("LStatics;", class_loader);
+  Method* clinit = Statics->FindDirectMethod("<clinit>", "()V");
+  uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStatics;");
+
+  EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
+  StaticStorageBase* storage = class_linker_->InitializeStaticStorageFromCode(type_idx, clinit);
+  EXPECT_TRUE(storage != NULL);
+  EXPECT_EQ(storage, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
+}
+
 }  // namespace art

@@ -171,6 +171,31 @@ class CommonTest : public testing::Test {
     return DexFile::OpenZip(libcore_dex_file_name);
   }
 
+  uint32_t FindTypeIdxByDescriptor(const DexFile& dex_file, const StringPiece& descriptor) {
+    for (size_t i = 0; i < dex_file.NumTypeIds(); i++) {
+      const DexFile::TypeId& type_id = dex_file.GetTypeId(i);
+      if (descriptor == dex_file.GetTypeDescriptor(type_id)) {
+        return i;
+      }
+    }
+    CHECK(false) << "Could not find type index for " << descriptor;
+    return 0;
+  }
+
+  uint32_t FindFieldIdxByDescriptorAndName(const DexFile& dex_file,
+                                           const StringPiece& class_descriptor,
+                                           const StringPiece& field_name) {
+    for (size_t i = 0; i < dex_file.NumFieldIds(); i++) {
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(i);
+      if (class_descriptor == dex_file.GetFieldClassDescriptor(field_id)
+          && field_name == dex_file.GetFieldName(field_id)) {
+        return i;
+      }
+    }
+    CHECK(false) << "Could not find field index for " << class_descriptor << " " << field_name;
+    return 0;
+  }
+
   const PathClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
     CHECK(dex_file != NULL);
     class_linker_->RegisterDexFile(*dex_file);

@@ -1170,13 +1170,13 @@ ObjectArray<T>* ObjectArray<T>::CopyOf(int32_t new_length) {
 }
 
 // Type for the InitializedStaticStorage table. Currently the Class
-// provides the static storage. However, this might change to improve
-// image sharing, so we use this type to avoid assumptions on the
-// current storage.
-class StaticStorageBase {};
+// provides the static storage. However, this might change to an Array
+// to improve image sharing, so we use this type to avoid assumptions
+// on the current storage.
+class StaticStorageBase : public Object {};
 
 // C++ mirror of java.lang.Class
-class Class : public Object, public StaticStorageBase {
+class Class : public StaticStorageBase {
  public:
 
   // Class Status

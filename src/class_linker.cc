@@ -1394,6 +1394,7 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
     CHECK(Thread::Current()->IsExceptionPending());
     UNIMPLEMENTED(FATAL) << "throw exception due to class initializtion problem";
   }
+  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
   return klass;
 }
 
