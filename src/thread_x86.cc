@@ -13,10 +13,12 @@ namespace art {
 void Thread::InitCpu() {
   // Read LDT
   CHECK_EQ((size_t)LDT_ENTRY_SIZE, sizeof(uint64_t));
-  uint64_t ldt_[LDT_ENTRIES];
-  syscall(SYS_modify_ldt, 0, ldt_, sizeof(ldt_));
+  uint64_t ldt[LDT_ENTRIES];
+  memset(ldt, 0, sizeof(ldt));
+  syscall(SYS_modify_ldt, 0, ldt, sizeof(ldt));
   // Create empty slot to point at current Thread*
-  struct user_desc ldt_entry;
+  user_desc ldt_entry;
+  memset(&ldt_entry, 0, sizeof(ldt_entry));
   ldt_entry.entry_number = -1;
   ldt_entry.base_addr = (unsigned int)this;
   ldt_entry.limit = kPageSize;
@@ -27,7 +29,7 @@ void Thread::InitCpu() {
   ldt_entry.seg_not_present = 0;
   ldt_entry.useable = 1;
   for (int i = 0; i < LDT_ENTRIES; i++) {
-    if (ldt_[i] == 0) {
+    if (ldt[i] == 0) {
       ldt_entry.entry_number = i;
       break;
     }
@@ -42,7 +44,7 @@ void Thread::InitCpu() {
   uint16_t rpl = 3;  // Requested privilege level
   uint16_t selector = (ldt_entry.entry_number << 3) | table_indicator | rpl;
   // TODO: use our assembler to generate code
-  asm("movw %w0, %%fs"
+  asm volatile("movw %w0, %%fs"
       :    // output
       : "q"(selector)  // input
       :);  // clobber
@@ -51,7 +53,7 @@ void Thread::InitCpu() {
   // Sanity check reads from FS goes to this Thread*
   Thread* self_check;
   // TODO: use our assembler to generate code
-  asm("movl %%fs:(%1), %0"
+  asm volatile("movl %%fs:(%1), %0"
       : "=r"(self_check)  // output
       : "r"(OFFSETOF_MEMBER(Thread, self_))  // input
       :);  // clobber
