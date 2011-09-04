@@ -143,6 +143,32 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
   EXPECT_EQ(2, gJava_MyClass_fooII_calls);
 }
 
+int gJava_MyClass_fooJJ_calls = 0;
+jlong Java_MyClass_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  gJava_MyClass_fooJJ_calls++;
+  return x - y;  // non-commutative operator
+}
+
+TEST_F(JniCompilerTest, CompileAndRunLongLongMethod) {
+  SetupForTest(false, "fooJJ", "(JJ)J",
+               reinterpret_cast<void*>(&Java_MyClass_fooJJ));
+
+  EXPECT_EQ(0, gJava_MyClass_fooJJ_calls);
+  jlong a = 0x1234567890ABCDEFll;
+  jlong b = 0xFEDCBA0987654321ll;
+  jlong result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a - b, result);
+  EXPECT_EQ(1, gJava_MyClass_fooJJ_calls);
+  result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, b, a);
+  EXPECT_EQ(b - a, result);
+  EXPECT_EQ(2, gJava_MyClass_fooJJ_calls);
+}
+
 int gJava_MyClass_fooDD_calls = 0;
 jdouble Java_MyClass_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
   EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
@@ -444,13 +470,13 @@ TEST_F(JniCompilerTest, NativeStackTraceElement) {
   EXPECT_EQ(55, result);
 }
 
-jobject Java_MyClass_fooL(JNIEnv* env, jobject thisObj, jobject x) {
+jobject Java_MyClass_fooO(JNIEnv* env, jobject thisObj, jobject x) {
   return env->NewGlobalRef(x);
 }
 
 TEST_F(JniCompilerTest, DecodeJObject) {
-  SetupForTest(false, "fooL", "(Ljava/lang/Object;)Ljava/lang/Object;",
-               reinterpret_cast<void*>(&Java_MyClass_fooL));
+  SetupForTest(false, "fooO", "(Ljava/lang/Object;)Ljava/lang/Object;",
+               reinterpret_cast<void*>(&Java_MyClass_fooO));
   jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, jobj_);
   EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(result));
   EXPECT_TRUE(env_->IsSameObject(result, jobj_));

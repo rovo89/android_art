@@ -1410,6 +1410,11 @@ void Assembler::Store(FrameOffset offs, ManagedRegister src, size_t size) {
   } else if (src.IsCpuRegister()) {
     CHECK_EQ(4u, size);
     movl(Address(ESP, offs), src.AsCpuRegister());
+  } else if (src.IsRegisterPair()) {
+    CHECK_EQ(8u, size);
+    movl(Address(ESP, offs), src.AsRegisterPairLow());
+    movl(Address(ESP, FrameOffset(offs.Int32Value()+4)),
+         src.AsRegisterPairHigh());
   } else if (src.IsX87Register()) {
     if (size == 4) {
       fstps(Address(ESP, offs));
@@ -1459,6 +1464,10 @@ void Assembler::Load(ManagedRegister dest, FrameOffset src, size_t size) {
   } else if (dest.IsCpuRegister()) {
     CHECK_EQ(4u, size);
     movl(dest.AsCpuRegister(), Address(ESP, src));
+  } else if (dest.IsRegisterPair()) {
+    CHECK_EQ(8u, size);
+    movl(dest.AsRegisterPairLow(), Address(ESP, src));
+    movl(dest.AsRegisterPairHigh(), Address(ESP, FrameOffset(src.Int32Value()+4)));
   } else if (dest.IsX87Register()) {
     if (size == 4) {
       flds(Address(ESP, src));
