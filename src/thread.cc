@@ -106,6 +106,18 @@ static void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
      */
 }
 
+// TODO: placeholder.  Helper function to alloc array for OP_FILLED_NEW_ARRAY
+static Array* CheckAndAllocFromCode(uint32_t type_index, Method* method,
+                                    int32_t component_count)
+{
+    /*
+     * Just a wrapper around Array::AllocFromCode() that additionally
+     * throws a runtime exception "bad Filled array req" for 'D' and 'J'.
+     */
+    UNIMPLEMENTED(WARNING) << "Need check that not 'D' or 'J'";
+    return Array::AllocFromCode(type_index, method, component_count);
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -137,6 +149,7 @@ void Thread::InitFunctionPointers() {
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
 #endif
   pAllocFromCode = Array::AllocFromCode;
+  pCheckAndAllocFromCode = CheckAndAllocFromCode;
   pAllocObjectFromCode = Class::AllocObjectFromCode;
   pMemcpy = memcpy;
   pHandleFillArrayDataFromCode = HandleFillArrayDataFromCode;
@@ -150,6 +163,7 @@ void Thread::InitFunctionPointers() {
   pThrowException = ThrowException;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
+  pInitializeStaticStorage = ClassLinker::InitializeStaticStorageFromCode;
   pDebugMe = DebugMe;
 #if 0
 bool (Thread::*pUnlockObject)(Thread*, Object*);

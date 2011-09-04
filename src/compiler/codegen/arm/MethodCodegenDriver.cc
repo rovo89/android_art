@@ -60,10 +60,8 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         typeId = dInsn->vC;
     }
     oatFlushAllRegs(cUnit);    /* Everything to home location */
-    // TODO: Alloc variant that checks types (see header comment) */
-    UNIMPLEMENTED(WARNING) << "Need AllocFromCode variant w/ extra checks";
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pAllocFromCode), rLR);
+                 OFFSETOF_MEMBER(Thread, pCheckAndAllocFromCode), rLR);
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
     loadConstant(cUnit, r2, elems);               // arg2 <- count
@@ -139,17 +137,14 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 
 static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    bool slow_path = true;
     bool isObject = ((mir->dalvikInsn.opcode == OP_SPUT_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SPUT_OBJECT_VOLATILE));
-    UNIMPLEMENTED(WARNING) << "Implement sput fast path";
-    int funcOffset;
-    if (slow_path) {
-        if (isObject) {
-            funcOffset = OFFSETOF_MEMBER(Thread, pSetObjStatic);
-        } else {
-            funcOffset = OFFSETOF_MEMBER(Thread, pSet32Static);
-        }
+    int fieldIdx = mir->dalvikInsn.vB;
+    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
+    if (field == NULL) {
+        // Slow path
+        int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pSetObjStatic)
+                                  : OFFSETOF_MEMBER(Thread, pSet32Static);
         oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
@@ -158,153 +153,171 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         opReg(cUnit, kOpBlx, rLR);
         oatClobberCallRegs(cUnit);
     } else {
-        UNIMPLEMENTED(FATAL) << "Must update for new world";
-#if 0
-    int valOffset = OFFSETOF_MEMBER(StaticField, value);
-    int tReg = oatAllocTemp(cUnit);
-    int objHead;
-    bool isVolatile;
-    bool isSputObject;
-    const Method *method = (mir->OptimizationFlags & MIR_CALLEE) ?
-        mir->meta.calleeMethod : cUnit->method;
-    void* fieldPtr = (void*)
-      (method->clazz->pDvmDex->pResFields[mir->dalvikInsn.vB]);
-    Opcode opcode = mir->dalvikInsn.opcode;
-
-    if (fieldPtr == NULL) {
-        // FIXME: need to handle this case for oat();
-        UNIMPLEMENTED(FATAL);
-    }
-
+        // fast path
+        int fieldOffset = field->GetOffset().Int32Value();
+        art::ClassLinker* class_linker = art::Runtime::Current()->
+            GetClassLinker();
+        const art::DexFile& dex_file = class_linker->
+            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
+        int typeIdx = field_id.class_idx_;
+        // Using fixed register to sync with slow path
+        int rMethod = r1;
+        oatLockTemp(cUnit, rMethod);
+        loadCurrMethodDirect(cUnit, rMethod);
+        int rBase = r0;
+        oatLockTemp(cUnit, rBase);
+        loadWordDisp(cUnit, rMethod,
+            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+            rBase);
+        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+                      sizeof(int32_t*)* typeIdx, rBase);
+        // TUNING: fast path should fall through
+        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
+        loadConstant(cUnit, r0, typeIdx);
+        opReg(cUnit, kOpBlx, rLR);
+        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+        skipTarget->defMask = ENCODE_ALL;
+        branchOver->generic.target = (LIR*)skipTarget;
+        rlSrc = oatGetSrc(cUnit, mir, 0);
+        rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
+        storeWordDisp(cUnit, rBase, fieldOffset, rlSrc.lowReg);
 #if ANDROID_SMP != 0
-    isVolatile = (opcode == OP_SPUT_VOLATILE) ||
-                 (opcode == OP_SPUT_VOLATILE_JUMBO) ||
-                 (opcode == OP_SPUT_OBJECT_VOLATILE) ||
-                 (opcode == OP_SPUT_OBJECT_VOLATILE_JUMBO);
-    assert(isVolatile == artIsVolatileField((Field *) fieldPtr));
-#else
-    isVolatile = artIsVolatileField((Field *) fieldPtr);
+        if (field->IsVolatile()) {
+            oatGenMemBarrier(cUnit, kSY);
+        }
 #endif
-
-    isSputObject = (opcode == OP_SPUT_OBJECT) ||
-                   (opcode == OP_SPUT_OBJECT_VOLATILE);
-
-    rlSrc = oatGetSrc(cUnit, mir, 0);
-    rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
-    loadConstant(cUnit, tReg,  (int) fieldPtr);
-    if (isSputObject) {
-        objHead = oatAllocTemp(cUnit);
-        loadWordDisp(cUnit, tReg, OFFSETOF_MEMBER(Field, clazz), objHead);
-    }
-    storeWordDisp(cUnit, tReg, valOffset ,rlSrc.lowReg);
-    oatFreeTemp(cUnit, tReg);
-    if (isVolatile) {
-        oatGenMemBarrier(cUnit, kSY);
-    }
-    if (isSputObject) {
-        /* NOTE: marking card based sfield->clazz */
-        markGCCard(cUnit, rlSrc.lowReg, objHead);
-        oatFreeTemp(cUnit, objHead);
-    }
-#endif
+        if (isObject) {
+            markGCCard(cUnit, rlSrc.lowReg, rBase);
+        }
+        oatFreeTemp(cUnit, rBase);
     }
 }
 
 static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    bool slow_path = true;
-    UNIMPLEMENTED(WARNING) << "Implement sput-wide fast path";
-    int funcOffset;
-    if (slow_path) {
-        funcOffset = OFFSETOF_MEMBER(Thread, pSet64Static);
+    int fieldIdx = mir->dalvikInsn.vB;
+    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
+    if (field == NULL) {
         oatFlushAllRegs(cUnit);
-        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
         opReg(cUnit, kOpBlx, rLR);
         oatClobberCallRegs(cUnit);
     } else {
-        UNIMPLEMENTED(FATAL) << "Must update for new world";
-#if 0
-    int tReg = oatAllocTemp(cUnit);
-    int valOffset = OFFSETOF_MEMBER(StaticField, value);
-    const Method *method = (mir->OptimizationFlags & MIR_CALLEE) ?
-        mir->meta.calleeMethod : cUnit->method;
-    void* fieldPtr = (void*)
-      (method->clazz->pDvmDex->pResFields[mir->dalvikInsn.vB]);
-
-    if (fieldPtr == NULL) {
-        // FIXME: need to handle this case for oat();
-        UNIMPLEMENTED(FATAL);
-    }
-
-    rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
-    rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
-    loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
-
-    storePair(cUnit, tReg, rlSrc.lowReg, rlSrc.highReg);
+        // fast path
+        int fieldOffset = field->GetOffset().Int32Value();
+        art::ClassLinker* class_linker = art::Runtime::Current()->
+            GetClassLinker();
+        const art::DexFile& dex_file = class_linker->
+            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
+        int typeIdx = field_id.class_idx_;
+        // Using fixed register to sync with slow path
+        int rMethod = r1;
+        oatLockTemp(cUnit, rMethod);
+        loadCurrMethodDirect(cUnit, r1);
+        int rBase = r0;
+        oatLockTemp(cUnit, rBase);
+        loadWordDisp(cUnit, rMethod,
+            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+            rBase);
+        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+                      sizeof(int32_t*)* typeIdx, rBase);
+        // TUNING: fast path should fall through
+        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
+        loadConstant(cUnit, r0, typeIdx);
+        opReg(cUnit, kOpBlx, rLR);
+        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+        skipTarget->defMask = ENCODE_ALL;
+        branchOver->generic.target = (LIR*)skipTarget;
+        rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+        rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
+        storeBaseDispWide(cUnit, rBase, fieldOffset, rlSrc.lowReg,
+                          rlSrc.highReg);
+#if ANDROID_SMP != 0
+        if (field->IsVolatile()) {
+            oatGenMemBarrier(cUnit, kSY);
+        }
 #endif
+        oatFreeTemp(cUnit, rBase);
     }
 }
-
 
 
 static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
                  RegLocation rlResult, RegLocation rlDest)
 {
-    bool slow_path = true;
-    UNIMPLEMENTED(WARNING) << "Implement sget-wide fast path";
-    int funcOffset;
-    if (slow_path) {
-        funcOffset = OFFSETOF_MEMBER(Thread, pGet64Static);
+    int fieldIdx = mir->dalvikInsn.vB;
+    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
+    if (field == NULL) {
         oatFlushAllRegs(cUnit);
-        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         opReg(cUnit, kOpBlx, rLR);
         RegLocation rlResult = oatGetReturnWide(cUnit);
         storeValueWide(cUnit, rlDest, rlResult);
     } else {
-        UNIMPLEMENTED(FATAL) << "Must update for new world";
-#if 0
-    int valOffset = OFFSETOF_MEMBER(StaticField, value);
-    const Method *method = (mir->OptimizationFlags & MIR_CALLEE) ?
-        mir->meta.calleeMethod : cUnit->method;
-    void* fieldPtr = (void*)
-      (method->clazz->pDvmDex->pResFields[mir->dalvikInsn.vB]);
-
-    if (fieldPtr == NULL) {
-        // FIXME: need to handle this case for oat();
-        UNIMPLEMENTED(FATAL);
-    }
-
-    int tReg = oatAllocTemp(cUnit);
-    rlDest = oatGetDestWide(cUnit, mir, 0, 1);
-    rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-    loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
-
-    loadPair(cUnit, tReg, rlResult.lowReg, rlResult.highReg);
-
-    storeValueWide(cUnit, rlDest, rlResult);
+        // Fast path
+        int fieldOffset = field->GetOffset().Int32Value();
+        art::ClassLinker* class_linker = art::Runtime::Current()->
+            GetClassLinker();
+        const art::DexFile& dex_file = class_linker->
+            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
+        int typeIdx = field_id.class_idx_;
+        // Using fixed register to sync with slow path
+        int rMethod = r1;
+        oatLockTemp(cUnit, rMethod);
+        loadCurrMethodDirect(cUnit, rMethod);
+        int rBase = r0;
+        oatLockTemp(cUnit, rBase);
+        loadWordDisp(cUnit, rMethod,
+            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+            rBase);
+        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+                      sizeof(int32_t*)* typeIdx, rBase);
+        // TUNING: fast path should fall through
+        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
+        loadConstant(cUnit, r0, typeIdx);
+        opReg(cUnit, kOpBlx, rLR);
+        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+        skipTarget->defMask = ENCODE_ALL;
+        branchOver->generic.target = (LIR*)skipTarget;
+        rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+        RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
+#if ANDROID_SMP != 0
+        if (isVolatile) {
+            oatGenMemBarrier(cUnit, kSY);
+        }
 #endif
+        loadBaseDispWide(cUnit, NULL, rBase, fieldOffset, rlResult.lowReg,
+                         rlResult.highReg, INVALID_SREG);
+        oatFreeTemp(cUnit, rBase);
+        storeValueWide(cUnit, rlDest, rlResult);
     }
 }
 
 static void genSget(CompilationUnit* cUnit, MIR* mir,
              RegLocation rlResult, RegLocation rlDest)
 {
-    bool slow_path = true;
+    int fieldIdx = mir->dalvikInsn.vB;
+    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
     bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
-    UNIMPLEMENTED(WARNING) << "Implement sget fast path";
-    int funcOffset;
-    if (slow_path) {
-        if (isObject) {
-            funcOffset = OFFSETOF_MEMBER(Thread, pGetObjStatic);
-        } else {
-            funcOffset = OFFSETOF_MEMBER(Thread, pGet32Static);
-        }
+    if (field == NULL) {
+        // Slow path
+        int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
+                                  : OFFSETOF_MEMBER(Thread, pGet32Static);
         oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
@@ -313,48 +326,44 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         RegLocation rlResult = oatGetReturn(cUnit);
         storeValue(cUnit, rlDest, rlResult);
     } else {
-        UNIMPLEMENTED(FATAL) << "Must update for new world";
-#if 0
-    int valOffset = OFFSETOF_MEMBER(StaticField, value);
-    int tReg = oatAllocTemp(cUnit);
-    bool isVolatile;
-    const Method *method = cUnit->method;
-    void* fieldPtr = (void*)
-      (method->clazz->pDvmDex->pResFields[mir->dalvikInsn.vB]);
-
-    if (fieldPtr == NULL) {
-        // FIXME: need to handle this case for oat();
-        UNIMPLEMENTED(FATAL);
-    }
-
-    /*
-     * On SMP systems, Dalvik opcodes found to be referencing
-     * volatile fields are rewritten to their _VOLATILE variant.
-     * However, this does not happen on non-SMP systems. The compiler
-     * still needs to know about volatility to avoid unsafe
-     * optimizations so we determine volatility based on either
-     * the opcode or the field access flags.
-     */
+        // Fast path
+        int fieldOffset = field->GetOffset().Int32Value();
+        art::ClassLinker* class_linker = art::Runtime::Current()->
+            GetClassLinker();
+        const art::DexFile& dex_file = class_linker->
+            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
+        int typeIdx = field_id.class_idx_;
+        // Using fixed register to sync with slow path
+        int rMethod = r1;
+        oatLockTemp(cUnit, rMethod);
+        loadCurrMethodDirect(cUnit, rMethod);
+        int rBase = r0;
+        oatLockTemp(cUnit, rBase);
+        loadWordDisp(cUnit, rMethod,
+            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+            rBase);
+        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+                      sizeof(int32_t*)* typeIdx, rBase);
+        // TUNING: fast path should fall through
+        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
+        loadConstant(cUnit, r0, typeIdx);
+        opReg(cUnit, kOpBlx, rLR);
+        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+        skipTarget->defMask = ENCODE_ALL;
+        branchOver->generic.target = (LIR*)skipTarget;
+        rlDest = oatGetDest(cUnit, mir, 0);
+        rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
 #if ANDROID_SMP != 0
-    Opcode opcode = mir->dalvikInsn.opcode;
-    isVolatile = (opcode == OP_SGET_VOLATILE) ||
-                 (opcode == OP_SGET_OBJECT_VOLATILE);
-    assert(isVolatile == artIsVolatileField((Field *) fieldPtr));
-#else
-    isVolatile = artIsVolatileField((Field *) fieldPtr);
+        if (isVolatile) {
+            oatGenMemBarrier(cUnit, kSY);
+        }
 #endif
-
-    rlDest = oatGetDest(cUnit, mir, 0);
-    rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-    loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
-
-    if (isVolatile) {
-        oatGenMemBarrier(cUnit, kSY);
-    }
-    loadWordDisp(cUnit, tReg, 0, rlResult.lowReg);
-
-    storeValue(cUnit, rlDest, rlResult);
-#endif
+        loadWordDisp(cUnit, rBase, fieldOffset, rlResult.lowReg);
+        oatFreeTemp(cUnit, rBase);
+        storeValue(cUnit, rlDest, rlResult);
     }
 }
 
@@ -694,7 +703,8 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
 static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                                 DecodedInstruction* dInsn, int callState,
                                 ArmLIR** pcrLabel, bool isRange,
-                                NextCallInsn nextCallInsn, ArmLIR* rollback)
+                                NextCallInsn nextCallInsn, ArmLIR* rollback,
+                                bool skipThis)
 {
     RegLocation rlArg;
     int registerArgs[3];
@@ -726,7 +736,7 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     }
 
     /* Load register arguments r1..r3 */
-    for (unsigned int i = 0; i < 3; i++) {
+    for (unsigned int i = skipThis ? 1 : 0; i < 3; i++) {
         if (i < dInsn->vA)
             registerArgs[i] = (isRange) ? dInsn->vC + i : i;
         else
@@ -761,7 +771,7 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
 static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
                               DecodedInstruction* dInsn, int callState,
                               ArmLIR** pcrLabel, NextCallInsn nextCallInsn,
-                              ArmLIR* rollback)
+                              ArmLIR* rollback, bool skipThis)
 {
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
@@ -769,7 +779,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     // If we can treat it as non-range (Jumbo ops will use range form)
     if (numArgs <= 5)
         return genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pcrLabel,
-                                    true, nextCallInsn, rollback);
+                                    true, nextCallInsn, rollback, skipThis);
     /*
      * Make sure range list doesn't span the break between in normal
      * Dalvik vRegs and the ins.
@@ -789,7 +799,6 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     // Scan the rest of the args - if in physReg flush to memory
     for (int i = 4; i < numArgs; i++) {
         RegLocation loc = oatGetSrc(cUnit, mir, i);
-        //TODO: generic loc flushing routine
         if (loc.wide) {
             loc = oatUpdateLocWide(cUnit, loc);
             if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
@@ -831,7 +840,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     }
 
     // Handle the 1st 3 in r1, r2 & r3
-    for (unsigned int i = 0; i < dInsn->vA && i < 3; i++) {
+    for (unsigned int i = skipThis? 1 : 0; i < dInsn->vA && i < 3; i++) {
         RegLocation loc = oatGetSrc(cUnit, mir, firstArg + i);
         loadValueDirectFixed(cUnit, loc, r1 + i);
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
@@ -856,10 +865,10 @@ static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
 
     if (range) {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
-                                       nextCallInsn, NULL);
+                                       nextCallInsn, NULL, false);
     } else {
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
-                                         false, nextCallInsn, NULL);
+                                         false, nextCallInsn, NULL, false);
     }
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
@@ -881,10 +890,11 @@ static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
     if (mir->dalvikInsn.opcode == OP_INVOKE_INTERFACE)
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
-                                         false, nextInterfaceCallInsn, NULL);
+                                         false, nextInterfaceCallInsn, NULL,
+                                         true);
     else
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextInterfaceCallInsn, NULL);
+                                       nextInterfaceCallInsn, NULL, true);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
         callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
@@ -925,13 +935,12 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
         rollback = newLIR0(cUnit, kArmPseudoTargetLabel);
         rollback->defMask = -1;
     }
-// TODO - redundantly loading arg0/r1 ("this")
     if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER)
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
-                                         false, nextCallInsn, rollback);
+                                         false, nextCallInsn, rollback, true);
     else
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextCallInsn, rollback);
+                                       nextCallInsn, rollback, true);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
         callState = nextSuperCallInsn(cUnit, mir, dInsn, callState, NULL);
@@ -960,13 +969,12 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
         nextCallInsn = nextVCallInsn;
         rollback = NULL;
     }
-    // TODO - redundantly loading arg0/r1 ("this")
     if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL)
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
-                                         false, nextCallInsn, rollback);
+                                         false, nextCallInsn, rollback, true);
     else
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextCallInsn, rollback);
+                                       nextCallInsn, rollback, true);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
@@ -974,7 +982,6 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
 
-// TODO: break out the case handlers.  Might make it easier to support x86
 static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
                                      BasicBlock* bb, ArmLIR* labelList)
 {
@@ -1058,7 +1065,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
              * formation in storeValueWide.
              */
             assert(retLocWide.lowReg == r0);
-            assert(retLocWide.lowReg == r1);
+            assert(retLocWide.highReg == r1);
             oatLockTemp(cUnit, retLocWide.lowReg);
             oatLockTemp(cUnit, retLocWide.highReg);
             storeValueWide(cUnit, rlDest, retLocWide);

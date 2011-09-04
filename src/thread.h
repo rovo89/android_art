@@ -29,6 +29,8 @@ class Thread;
 class ThreadList;
 class Throwable;
 class StackTraceElement;
+class StaticStorageBase;
+
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<int32_t> IntArray;
@@ -204,6 +206,7 @@ class Thread {
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
   Array* (*pAllocFromCode)(uint32_t, Method*, int32_t);
+  Array* (*pCheckAndAllocFromCode)(uint32_t, Method*, int32_t);
   Object* (*pAllocObjectFromCode)(uint32_t, Method*);
   uint32_t (*pGet32Static)(uint32_t, const Method*);
   void (*pSet32Static)(uint32_t, const Method*, uint32_t);
@@ -221,6 +224,7 @@ class Thread {
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
   void (*pInvokeInterfaceTrampoline)(void*, void*, void*, void*);
+  StaticStorageBase* (*pInitializeStaticStorage)(uint32_t, const Method*);
 
   class StackVisitor {
    public:

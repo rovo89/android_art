@@ -596,8 +596,7 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedType(mir->dalvikInsn.vC);
     if (classPtr == NULL) {
-        /* Shouldn't happen */
-        LOG(FATAL) << "Unexpected null class pointer";
+        UNIMPLEMENTED(FATAL) << "Handle null class pointer";
     }
     oatFlushAllRegs(cUnit);   /* Everything to home location */
     loadValueDirectFixed(cUnit, rlSrc, r0);  /* Ref */
@@ -631,8 +630,7 @@ static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedType(mir->dalvikInsn.vB);
     if (classPtr == NULL) {
-        /* Shouldn't happen with our current model */
-        LOG(FATAL) << "Unexpected null class pointer";
+        UNIMPLEMENTED(FATAL) << "Unimplemented null class pointer";
     }
     oatFlushAllRegs(cUnit);   /* Everything to home location */
     loadConstant(cUnit, r1, (int) classPtr );

@@ -712,107 +712,107 @@ class IntMath extends IntMathBase {
     public static void main(String[] args) {
         int res = unopTest(38);
         if (res == 37) {
-            System.out.printf("unopTest PASSED\n");
+            System.out.println("unopTest PASSED");
         } else {
-            System.out.printf("unopTest FAILED: %d\n", res);
+            System.out.println("unopTest FAILED: " + res);
         }
         res = shiftTest1();
         if (res == 0) {
-            System.out.printf("shiftTest1 PASSED\n");
+            System.out.println("shiftTest1 PASSED");
         } else {
-            System.out.printf("shiftTest1 FAILED: %d\n", res);
+            System.out.println("shiftTest1 FAILED: " + res);
         }
         res = shiftTest2();
         if (res == 0) {
-            System.out.printf("shiftTest2 PASSED\n");
+            System.out.println("shiftTest2 PASSED");
         } else {
-            System.out.printf("shiftTest2 FAILED: %d\n", res);
+            System.out.println("shiftTest2 FAILED: " + res);
         }
         res = unsignedShiftTest();
         if (res == 0) {
-            System.out.printf("unsignedShiftTest PASSED\n");
+            System.out.println("unsignedShiftTest PASSED");
         } else {
-            System.out.printf("unsignedShiftTest FAILED: %d\n", res);
+            System.out.println("unsignedShiftTest FAILED: " + res);
         }
         res = convTest();
         if (res == 0) {
-            System.out.printf("convTest PASSED\n");
+            System.out.println("convTest PASSED");
         } else {
-            System.out.printf("convTest FAILED: %d\n", res);
+            System.out.println("convTest FAILED: " + res);
         }
         res = charSubTest();
         if (res == 0) {
-            System.out.printf("charSubTest PASSED\n");
+            System.out.println("charSubTest PASSED");
         } else {
-            System.out.printf("charSubTest FAILED: %d\n", res);
+            System.out.println("charSubTest FAILED: " + res);
         }
         res = intOperTest(70000, -3);
         if (res == 0) {
-            System.out.printf("intOperTest PASSED\n");
+            System.out.println("intOperTest PASSED");
         } else {
-            System.out.printf("intOperTest FAILED: %d\n", res);
+            System.out.println("intOperTest FAILED: " + res);
         }
         res = longOperTest(70000000000L, -3L);
         if (res == 0) {
-            System.out.printf("longOperTest PASSED\n");
+            System.out.println("longOperTest PASSED");
         } else {
-            System.out.printf("longOperTest FAILED: %d\n", res);
+            System.out.println("longOperTest FAILED: " + res);
         }
         long lres = longShiftTest(0xd5aa96deff00aa01L, 16);
         if (lres == 0x96deff00aa010000L) {
-            System.out.printf("longShiftTest PASSED\n");
+            System.out.println("longShiftTest PASSED");
         } else {
-            System.out.printf("longShiftTest FAILED: %d\n", res);
+            System.out.println("longShiftTest FAILED: " + res);
         }
 
         res = switchTest(1);
         if (res == 1234) {
-            System.out.printf("switchTest PASSED\n");
+            System.out.println("switchTest PASSED");
         } else {
-            System.out.printf("switchTest FAILED: %d\n", res);
+            System.out.println("switchTest FAILED: " + res);
         }
 
         res = testIntCompare(-5, 4, 4, 0);
         if (res == 1111) {
-            System.out.printf("testIntCompare PASSED\n");
+            System.out.println("testIntCompare PASSED");
         } else {
-            System.out.printf("testIntCompare FAILED: %d\n", res);
+            System.out.println("testIntCompare FAILED: " + res);
         }
 
         res = testLongCompare(-5L, -4294967287L, 4L, 8L);
         if (res == 2222) {
-            System.out.printf("testLongCompare PASSED\n");
+            System.out.println("testLongCompare PASSED");
         } else {
-            System.out.printf("testLongCompare FAILED: %d\n", res);
+            System.out.println("testLongCompare FAILED: " + res);
         }
 
         res = testFloatCompare(-5.0f, 4.0f, 4.0f, (1.0f/0.0f) / (1.0f/0.0f));
         if (res == 3333) {
-            System.out.printf("testFloatCompare PASSED\n");
+            System.out.println("testFloatCompare PASSED");
         } else {
-            System.out.printf("testFloatCompare FAILED: %d\n", res);
+            System.out.println("testFloatCompare FAILED: " + res);
         }
 
         res = testDoubleCompare(-5.0, 4.0, 4.0, (1.0/0.0) / (1.0/0.0));
         if (res == 4444) {
-            System.out.printf("testDoubleCompare PASSED\n");
+            System.out.println("testDoubleCompare PASSED");
         } else {
-            System.out.printf("testDoubleCompare FAILED: %d\n", res);
+            System.out.println("testDoubleCompare FAILED: " + res);
         }
 
         res = fibonacci(10);
         if (res == 55) {
-            System.out.printf("fibonacci PASSED\n");
+            System.out.println("fibonacci PASSED");
         } else {
-            System.out.printf("fibonacci FAILED: %d\n", res);
+            System.out.println("fibonacci FAILED: " + res);
         }
 
         /*
           res = throwAndCatch();
           if (res == 0) {
-          System.out.printf("throwAndCatch PASSED\n");
+          System.out.println("throwAndCatch PASSED");
           } else {
-          System.out.printf("throwAndCatch FAILED: %d\n", res);
+          System.out.println("throwAndCatch FAILED: " + res);
           }
         */
 
@@ -820,44 +820,44 @@ class IntMath extends IntMathBase {
                        (short)11, 12, (char)13, 14, 15, (byte)-16, true, 18,
                        19, 20L, 21L, 22, 23, 24, 25, 26);
         if (res == -1) {
-            System.out.printf("manyArgs PASSED\n");
+            System.out.println("manyArgs PASSED");
         } else {
-            System.out.printf("manyArgs FAILED: %d\n", res);
+            System.out.println("manyArgs FAILED: " + res);
         }
 
         res = staticCall(3);
         if (res == 6) {
-            System.out.printf("virtualCall PASSED\n");
+            System.out.println("virtualCall PASSED");
         } else {
-            System.out.printf("virtualCall FAILED: %d\n", res);
+            System.out.println("virtualCall FAILED: " + res);
         }
 
         res = testIGetPut(111);
         if (res == 333) {
-            System.out.printf("testGetPut PASSED\n");
+            System.out.println("testGetPut PASSED");
         } else {
-            System.out.printf("testGetPut FAILED: %d\n", res);
+            System.out.println("testGetPut FAILED: " + res);
         }
 
         res = staticFieldTest(404);
         if (res == 1404) {
-            System.out.printf("staticFieldTest PASSED\n");
+            System.out.println("staticFieldTest PASSED");
         } else {
-            System.out.printf("staticFieldTest FAILED: %d\n", res);
+            System.out.println("staticFieldTest FAILED: " + res);
         }
 
         res = catchBlock(1000);
         if (res == 1579) {
-            System.out.printf("catchBlock PASSED\n");
+            System.out.println("catchBlock PASSED");
         } else {
-            System.out.printf("catchBlock FAILED: %d\n", res);
+            System.out.println("catchBlock FAILED: " + res);
         }
 
         res = superTest(4141);
         if (res == 4175) {
-            System.out.printf("superTest PASSED\n");
+            System.out.println("superTest PASSED");
         } else {
-            System.out.printf("superTest FAILED: %d\n", res);
+            System.out.println("superTest FAILED: " + res);
         }
     }
 }

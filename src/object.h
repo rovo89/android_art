@@ -563,11 +563,11 @@ class Field : public AccessibleObject {
   static void SetClass(Class* java_lang_reflect_Field);
   static void ResetClass();
 
- private:
   bool IsVolatile() const {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
+ private:
   // private implementation of field access using raw data
   uint32_t Get32(const Object* object) const;
   void Set32(Object* object, uint32_t new_value) const;
@@ -756,6 +756,11 @@ class Method : public AccessibleObject {
 
   static MemberOffset DexCacheStringsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_);
+  }
+
+  static MemberOffset DexCacheInitializedStaticStorageOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method,
+        dex_cache_initialized_static_storage_);
   }
 
   ObjectArray<Class>* GetDexCacheResolvedTypes() const;
