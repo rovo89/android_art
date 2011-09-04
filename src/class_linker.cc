@@ -1390,9 +1390,16 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
   if (klass == NULL) {
     UNIMPLEMENTED(FATAL) << "throw exception due to unresolved class";
   }
+  // If we are the <clinit> of this class, just return our storage.
+  //
+  // Do not set the DexCache InitializedStaticStorage, since that
+  // implies <clinit> has finished running.
+  if (klass == referrer->GetDeclaringClass() && referrer->GetName()->Equals("<clinit>")) {
+    return klass;
+  }
   if (!class_linker->EnsureInitialized(klass)) {
     CHECK(Thread::Current()->IsExceptionPending());
-    UNIMPLEMENTED(FATAL) << "throw exception due to class initializtion problem";
+    UNIMPLEMENTED(FATAL) << "throw exception due to class initialization problem";
   }
   referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
   return klass;

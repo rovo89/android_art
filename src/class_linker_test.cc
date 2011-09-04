@@ -566,19 +566,27 @@ TEST_F(ClassLinkerTest, Interfaces) {
 }
 
 TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
-  // pretend we are trying to ensure we have initilized storage for Static from Statics.<clinit>
+  // pretend we are trying to get the static storage for the Statics class.
+
+  // case 1, get the uninitialized storage from Statics.<clinit>
+  // case 2, get the initialized storage from Statics.getS8
+
   const ClassLoader* class_loader = LoadDex("Statics");
   const DexFile* dex_file = ClassLoader::GetClassPath(class_loader)[0];
   CHECK(dex_file != NULL);
 
   Class* Statics = class_linker_->FindClass("LStatics;", class_loader);
   Method* clinit = Statics->FindDirectMethod("<clinit>", "()V");
+  Method* getS8 = Statics->FindDirectMethod("getS8", "()Ljava/lang/Object;");
   uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStatics;");
 
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* storage = class_linker_->InitializeStaticStorageFromCode(type_idx, clinit);
-  EXPECT_TRUE(storage != NULL);
-  EXPECT_EQ(storage, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
+  StaticStorageBase* uninit = class_linker_->InitializeStaticStorageFromCode(type_idx, clinit);
+  EXPECT_TRUE(uninit != NULL);
+  EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
+  StaticStorageBase* init = class_linker_->InitializeStaticStorageFromCode(type_idx, getS8);
+  EXPECT_TRUE(init != NULL);
+  EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
 }
 
 }  // namespace art
