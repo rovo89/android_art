@@ -292,9 +292,8 @@ TEST_F(CompilerTest, SystemMethodsTest) {
   CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(C)Ljava/lang/StringBuilder;");
   CompileVirtualMethod(NULL, "java.lang.StringBuilder", "toString", "()Ljava/lang/String;");
 
-  // TODO: we can't compile these yet.
-  //  CompileDirectMethod(NULL, "java.lang.Long", "toString", "(JI)Ljava/lang/String;");
-  //  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(JI)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.Long", "toString", "(JI)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(JI)Ljava/lang/String;");
 
   CompileDirectMethod(NULL, "java.lang.System", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
   CompileDirectMethod(NULL, "java.lang.System", "log", "(CLjava/lang/String;Ljava/lang/Throwable;)V");
@@ -303,6 +302,8 @@ TEST_F(CompilerTest, SystemMethodsTest) {
   CompileDirectMethod(NULL, "java.lang.System", "currentTimeMillis", "()J");
 
   const ClassLoader* class_loader = LoadDex("SystemMethods");
+  AssertStaticIntMethod(class_loader, "SystemMethods", "test0", "()I", 123);
+  AssertStaticIntMethod(class_loader, "SystemMethods", "test1", "()I", 123);
   AssertStaticIntMethod(class_loader, "SystemMethods", "test2", "()I", 123);
 }
 

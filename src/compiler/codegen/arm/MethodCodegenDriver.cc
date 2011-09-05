@@ -667,14 +667,13 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             // Load curMethod->declaring_class_ [uses r0, sets r0]
             loadWordDisp(cUnit, r0, Method::DeclaringClassOffset().Int32Value(),
                          r0);
-        case 4: // Get method->declaring_class_->super_class [usr r0, set r0]
+            // Null this?
+            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir->offset, NULL);
+            // Get method->declaring_class_->super_class [usr r0, set r0]
             loadWordDisp(cUnit, r0, Class::SuperClassOffset().Int32Value(), r0);
             break;
-        case 5: // Get ...->super_class_->vtable [u/s r0]
+        case 4: // Get ...->super_class_->vtable [u/s r0]
             loadWordDisp(cUnit, r0, Class::VTableOffset().Int32Value(), r0);
-            // In load shadow fold vtable_ object header size into method_index_
-            opRegImm(cUnit, kOpAdd, rLR,
-                     art::Array::DataOffset().Int32Value() / 4);
             if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
                 // Range check, throw NSM on failure
                 tReg = oatAllocTemp(cUnit);
@@ -683,10 +682,12 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                 genBoundsCheck(cUnit, tReg, rLR, mir->offset, NULL);
                 oatFreeTemp(cUnit, tReg);
             }
+            // Adjust vtable_ base past object header
+            opRegImm(cUnit, kOpAdd, r0, art::Array::DataOffset().Int32Value());
             // Get target Method*
-            loadBaseIndexed(cUnit, r0, r0, rLR, 2, kWord);
+            loadBaseIndexed(cUnit, r0, rLR, r0, 2, kWord);
             break;
-        case 6: // Get the target compiled code address [uses r0, sets rLR]
+        case 5: // Get the target compiled code address [uses r0, sets rLR]
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
             break;
         default:
@@ -710,8 +711,6 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
 {
     RegLocation rlArg;
     int registerArgs[3];
-
-skipThis = false;
 
     /* If no arguments, just return */
     if (dInsn->vA == 0)
@@ -751,6 +750,7 @@ skipThis = false;
     callState = loadArgRegs(cUnit, mir, dInsn, callState, registerArgs,
                             nextCallInsn, rollback);
 
+    //TODO: better to move this into CallInsn lists
     // Load direct & need a "this" null check?
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1,
@@ -782,8 +782,6 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
     int registerArgs[3];
-
-skipThis = false;
 
     // If we can treat it as non-range (Jumbo ops will use range form)
     if (numArgs <= 5)
@@ -927,7 +925,7 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
         Get(dInsn->vB);
     NextCallInsn nextCallInsn;
     bool fastPath = true;
-    if (baseMethod == NULL) {
+    if (FORCE_SLOW || baseMethod == NULL) {
         fastPath = false;
     } else {
         Class* superClass = cUnit->method->GetDeclaringClass()->GetSuperClass();
@@ -958,7 +956,7 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
                                        nextCallInsn, rollback, true);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
-        callState = nextSuperCallInsn(cUnit, mir, dInsn, callState, NULL);
+        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
