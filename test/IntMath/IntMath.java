@@ -67,6 +67,15 @@ class IntMath extends IntMathBase {
         return x;
     }
 
+    static int catchBlockNoThrow(int x) {
+        try {
+            x += 123;
+        } catch (NullPointerException npe) {
+            x += 456;
+        }
+        return x;
+    }
+
     static int staticFieldTest(int x) {
         mBoolean1 = true;
         mBoolean2 = false;
@@ -627,20 +636,14 @@ class IntMath extends IntMathBase {
         }
     }
 
-    /*
-      static void throwNullPointerException() {
-      throw new NullPointerException("first throw");
-      }
-
-      static int throwAndCatch() {
+    static int throwAndCatch() {
       try {
-      throwNullPointerException();
-      return 1;
+        throwNullPointerException();
+        return 1;
       } catch (NullPointerException npe) {
-      return 0;
+        return 0;
       }
-      }
-    */
+    }
 
     static int manyArgs(int a0, long a1, int a2, long a3, int a4, long a5,
                         int a6, int a7, double a8, float a9, double a10, short a11, int a12,
@@ -807,14 +810,12 @@ class IntMath extends IntMathBase {
             System.out.println("fibonacci FAILED: " + res);
         }
 
-        /*
-          res = throwAndCatch();
-          if (res == 0) {
+        res = throwAndCatch();
+        if (res == 0) {
           System.out.println("throwAndCatch PASSED");
-          } else {
+        } else {
           System.out.println("throwAndCatch FAILED: " + res);
-          }
-        */
+        }
 
         res = manyArgs(0, 1L, 2, 3L, 4, 5L, 6, 7, 8.0, 9.0f, 10.0,
                        (short)11, 12, (char)13, 14, 15, (byte)-16, true, 18,
@@ -851,6 +852,13 @@ class IntMath extends IntMathBase {
             System.out.println("catchBlock PASSED");
         } else {
             System.out.println("catchBlock FAILED: " + res);
+        }
+
+        res = catchBlockNoThrow(1000);
+        if (res == 1123) {
+            System.out.println("catchBlockNoThrow PASSED");
+        } else {
+            System.out.println("catchBlockNoThrow FAILED: " + res);
         }
 
         res = superTest(4141);

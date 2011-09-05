@@ -90,11 +90,65 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     GrowableListIterator iterator;
 
     oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
+
     /* Do type inference pass */
     while (true) {
         BasicBlock *bb = (BasicBlock *) oatGrowableListIteratorNext(&iterator);
         if (bb == NULL) break;
         inferTypes(cUnit, bb);
+    }
+    /* Add types of incoming arguments based on signature */
+    int numRegs = cUnit->method->NumRegisters();
+    int numIns = cUnit->method->NumIns();
+    if (numIns > 0) {
+        int sReg = numRegs - numIns;
+        if (!cUnit->method->IsStatic()) {
+            // Skip past "this"
+            sReg++;
+        }
+        const art::StringPiece& shorty = cUnit->method->GetShorty();
+        for (int i = 1; i < shorty.size(); i++) {
+            char arg = shorty[i];
+            // Is it wide?
+            if ((arg == 'D') || (arg == 'J')) {
+                cUnit->regLocation[sReg].wide = true;
+                cUnit->regLocation[sReg+1].fp = cUnit->regLocation[sReg].fp;
+                sReg++;  // Skip to next
+            }
+            sReg++;
+        }
+    }
+
+    /* Mark wide use/defs */
+    oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
+
+    /* Do size inference pass */
+    while (true) {
+        BasicBlock *bb = (BasicBlock *) oatGrowableListIteratorNext(&iterator);
+        if (bb == NULL) break;
+        for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
+            SSARepresentation* ssaRep = mir->ssaRep;
+            if (ssaRep == NULL) {
+                continue;
+            }
+            // TODO: special formats?
+            int attrs = oatDataFlowAttributes[mir->dalvikInsn.opcode];
+            int next = 0;
+            if (attrs & DF_DA_WIDE) {
+                cUnit->regLocation[ssaRep->defs[0]].wide = true;
+            }
+            if (attrs & DF_UA_WIDE) {
+                cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                next += 2;
+            }
+            if (attrs & DF_UB_WIDE) {
+                cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                next += 2;
+            }
+            if (attrs & DF_UC_WIDE) {
+                cUnit->regLocation[ssaRep->uses[next]].wide = true;
+            }
+        }
     }
 
     /*

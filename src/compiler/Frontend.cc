@@ -394,63 +394,44 @@ static bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 /* Identify code range in try blocks and set up the empty catch blocks */
 static void processTryCatchBlocks(CompilationUnit* cUnit)
 {
-
-    UNIMPLEMENTED(WARNING) << "Need to finish processTryCatchBlocks()";
-#if 0
-    const Method* meth = cUnit->method;
-    const DexCode *pCode = dvmGetMethodCode(meth);
-    int triesSize = pCode->triesSize;
-    int i;
+    const Method* method = cUnit->method;
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    const art::DexFile& dex_file = class_linker->FindDexFile(
+         method->GetDeclaringClass()->GetDexCache());
+    const art::DexFile::CodeItem* code_item =
+         dex_file.GetCodeItem(method->GetCodeItemOffset());
+    int triesSize = code_item->tries_size_;
     int offset;
 
     if (triesSize == 0) {
         return;
     }
 
-    const DexTry* pTries = dexGetTries(pCode);
     ArenaBitVector* tryBlockAddr = cUnit->tryBlockAddr;
 
-    /* Mark all the insn offsets in Try blocks */
-    for (i = 0; i < triesSize; i++) {
-        const DexTry* pTry = &pTries[i];
-        /* all in 16-bit units */
-        int startOffset = pTry->startAddr;
-        int endOffset = startOffset + pTry->insnCount;
-
+    for (int i = 0; i < triesSize; i++) {
+        const art::DexFile::TryItem* pTry =
+            art::DexFile::dexGetTryItems(*code_item, i);
+        int startOffset = pTry->start_addr_;
+        int endOffset = startOffset + pTry->insn_count_;
         for (offset = startOffset; offset < endOffset; offset++) {
             oatSetBit(tryBlockAddr, offset);
         }
     }
 
-    /* Iterate over each of the handlers to enqueue the empty Catch blocks */
-    offset = dexGetFirstHandlerOffset(pCode);
-    int handlersSize = dexGetHandlersSize(pCode);
+    // Iterate over each of the handlers to enqueue the empty Catch blocks
+    const art::byte* handlers_ptr =
+        art::DexFile::dexGetCatchHandlerData(*code_item, 0);
+    uint32_t handlers_size = art::DecodeUnsignedLeb128(&handlers_ptr);
+    for (uint32_t idx = 0; idx < handlers_size; idx++) {
+        art::DexFile::CatchHandlerIterator iterator(handlers_ptr);
 
-    for (i = 0; i < handlersSize; i++) {
-        DexCatchIterator iterator;
-        dexCatchIteratorInit(&iterator, pCode, offset);
-
-        for (;;) {
-            DexCatchHandler* handler = dexCatchIteratorNext(&iterator);
-
-            if (handler == NULL) {
-                break;
-            }
-
-            /*
-             * Create dummy catch blocks first. Since these are created before
-             * other blocks are processed, "split" is specified as false.
-             */
-            findBlock(cUnit, handler->address,
-                      /* split */
-                      false,
-                      /* create */
-                      true);
+        for (; !iterator.HasNext(); iterator.Next()) {
+            uint32_t address = iterator.Get().address_;
+            findBlock(cUnit, address, false /* split */, true /*create*/);
         }
-
-        offset = dexCatchIteratorGetEndOffset(&iterator, pCode);
+        handlers_ptr = iterator.GetData();
     }
-#endif
 }
 
 /* Process instructions with the kInstrCanBranch flag */
@@ -613,45 +594,36 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                             ArenaBitVector* tryBlockAddr, const u2* codePtr,
                             const u2* codeEnd)
 {
-    UNIMPLEMENTED(WARNING) << "Need to complete processCanThrow";
-#if 0
+
     const Method* method = cUnit->method;
-    const DexCode* dexCode = dvmGetMethodCode(method);
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    const art::DexFile& dex_file = class_linker->FindDexFile(
+         method->GetDeclaringClass()->GetDexCache());
+    const art::DexFile::CodeItem* code_item =
+         dex_file.GetCodeItem(method->GetCodeItemOffset());
 
     /* In try block */
     if (oatIsBitSet(tryBlockAddr, curOffset)) {
-        DexCatchIterator iterator;
+        art::DexFile::CatchHandlerIterator iterator =
+            art::DexFile::dexFindCatchHandler(*code_item, curOffset);
 
-        if (!dexFindCatchHandler(&iterator, dexCode, curOffset)) {
-            LOG(FATAL) << "Catch block not found in dexfile for insn " <<
-                curOffset << " in " << method->name;
-
-        }
         if (curBlock->successorBlockList.blockListType != kNotUsed) {
             LOG(FATAL) << "Successor block list already in use: " <<
                  (int)curBlock->successorBlockList.blockListType;
         }
+
         curBlock->successorBlockList.blockListType = kCatch;
         oatInitGrowableList(&curBlock->successorBlockList.blocks, 2);
 
-        for (;;) {
-            DexCatchHandler* handler = dexCatchIteratorNext(&iterator);
-
-            if (handler == NULL) {
-                break;
-            }
-
-            BasicBlock *catchBlock = findBlock(cUnit, handler->address,
-                                               /* split */
-                                               false,
-                                               /* create */
-                                               false);
-
+        for (;!iterator.HasNext(); iterator.Next()) {
+            BasicBlock *catchBlock = findBlock(cUnit, iterator.Get().address_,
+                                               false /* split*/,
+                                               false /* creat */);
             SuccessorBlockInfo *successorBlockInfo =
-              (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
-                                                    false);
+                  (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
+                  false);
             successorBlockInfo->block = catchBlock;
-            successorBlockInfo->key = handler->typeIdx;
+            successorBlockInfo->key = iterator.Get().type_idx_;
             oatInsertGrowableList(&curBlock->successorBlockList.blocks,
                                   (intptr_t) successorBlockInfo);
             oatSetBit(catchBlock->predecessors, curBlock->id);
@@ -691,7 +663,6 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
             }
         }
     }
-#endif
 }
 
 /*
@@ -724,8 +695,8 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     cUnit.insnsSize = code_item->insns_size_;
 #if 1
     // TODO: Use command-line argument passing mechanism
-    cUnit.printMe = true;
-    cUnit.printMeVerbose = true;
+    cUnit.printMe = false;
+    cUnit.printMeVerbose = false;
     cUnit.disableOpt = 0 |
          (1 << kLoadStoreElimination) |
          (1 << kLoadHoisting) |

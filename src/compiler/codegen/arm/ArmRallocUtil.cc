@@ -35,10 +35,7 @@ typedef struct RefCounts {
     bool doubleStart;   // Starting vReg for a double
 } RefCounts;
 
-/*
- * USE SSA names to count references of base Dalvik vRegs.  Also,
- * mark "wide" in the first of wide SSA locationRec pairs.
- */
+/* USE SSA names to count references of base Dalvik vRegs. */
 static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                       RefCounts* counts, bool fp)
 {
@@ -61,16 +58,12 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                         oatConvertSSARegToDalvik(cUnit, ssaRep->defs[0]));
                     counts[sReg].doubleStart = true;
                 }
-                if (attrs & DF_DA_WIDE) {
-                    cUnit->regLocation[ssaRep->defs[0]].wide = true;
-                }
                 if ((attrs & (DF_UA_WIDE|DF_FP_A)) == (DF_UA_WIDE|DF_FP_A)) {
                     sReg = DECODE_REG(
                         oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
                     counts[sReg].doubleStart = true;
                 }
                 if (attrs & DF_UA_WIDE) {
-                    cUnit->regLocation[ssaRep->uses[first]].wide = true;
                     first += 2;
                 }
                 if ((attrs & (DF_UB_WIDE|DF_FP_B)) == (DF_UB_WIDE|DF_FP_B)) {
@@ -79,16 +72,12 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                     counts[sReg].doubleStart = true;
                 }
                 if (attrs & DF_UB_WIDE) {
-                    cUnit->regLocation[ssaRep->uses[first]].wide = true;
                     first += 2;
                 }
                 if ((attrs & (DF_UC_WIDE|DF_FP_C)) == (DF_UC_WIDE|DF_FP_C)) {
                     sReg = DECODE_REG(
                         oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
                     counts[sReg].doubleStart = true;
-                }
-                if (attrs & DF_UC_WIDE) {
-                    cUnit->regLocation[ssaRep->uses[first]].wide = true;
                 }
             }
             for (i=0; i< ssaRep->numUses; i++) {
@@ -140,26 +129,7 @@ static void dumpCounts(const RefCounts* arr, int size, const char* msg)
 extern void oatDoPromotion(CompilationUnit* cUnit)
 {
     int numRegs = cUnit->method->NumRegisters();
-    int numIns = cUnit->method->NumIns();
 
-    /*
-     * Because ins don't have explicit definitions, we need to type
-     * them based on the signature.
-     */
-    if (numIns > 0) {
-        int sReg = numRegs - numIns;
-        const art::StringPiece& shorty = cUnit->method->GetShorty();
-        for (int i = 1; i < shorty.size(); i++) {
-            char arg = shorty[i];
-            // Is it wide?
-            if ((arg == 'D') || (arg == 'J')) {
-                cUnit->regLocation[sReg].wide = true;
-                cUnit->regLocation[sReg+1].fp = cUnit->regLocation[sReg].fp;
-                sReg++;  // Skip to next
-            }
-            sReg++;
-        }
-    }
     /*
      * TUNING: is leaf?  Can't just use "hasInvoke" to determine as some
      * instructions might call out to C/assembly helper functions.  Until

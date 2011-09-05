@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define FORCE_SLOW 1
+
 static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
                                    kLocDalvikFrame, INVALID_REG, INVALID_REG,
@@ -200,7 +202,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     int fieldIdx = mir->dalvikInsn.vB;
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
-    if (field == NULL) {
+    if (FORCE_SLOW || field == NULL) {
         oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
@@ -256,7 +258,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
 {
     int fieldIdx = mir->dalvikInsn.vB;
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
-    if (field == NULL) {
+    if (FORCE_SLOW || field == NULL) {
         oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
@@ -314,7 +316,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
     bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
-    if (field == NULL) {
+    if (FORCE_SLOW || field == NULL) {
         // Slow path
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pGet32Static);
@@ -527,8 +529,8 @@ static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
 {
     for (int i = 0; i < 3; i++) {
         if (args[i] != INVALID_REG) {
-            RegLocation rlArg = oatGetSrc(cUnit, mir, i);
             // Arguments are treated as a series of untyped 32-bit values.
+            RegLocation rlArg = oatGetRawSrc(cUnit, mir, i);
             rlArg.wide = false;
             loadValueDirectFixed(cUnit, rlArg, r1 + i);
             callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
@@ -709,6 +711,8 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     RegLocation rlArg;
     int registerArgs[3];
 
+skipThis = false;
+
     /* If no arguments, just return */
     if (dInsn->vA == 0)
         return callState;
@@ -722,8 +726,7 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
      */
     for (unsigned int i=3; i < dInsn->vA; i++) {
         int reg;
-        int arg = (isRange) ? dInsn->vC + i : i;
-        rlArg = oatUpdateLoc(cUnit, oatGetSrc(cUnit, mir, arg));
+        rlArg = oatUpdateLoc(cUnit, oatGetSrc(cUnit, mir, i));
         if (rlArg.location == kLocPhysReg) {
             reg = rlArg.lowReg;
         } else {
@@ -736,11 +739,14 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     }
 
     /* Load register arguments r1..r3 */
-    for (unsigned int i = skipThis ? 1 : 0; i < 3; i++) {
+    for (unsigned int i = 0; i < 3; i++) {
         if (i < dInsn->vA)
             registerArgs[i] = (isRange) ? dInsn->vC + i : i;
         else
             registerArgs[i] = INVALID_REG;
+    }
+    if (skipThis) {
+        registerArgs[0] = INVALID_REG;
     }
     callState = loadArgRegs(cUnit, mir, dInsn, callState, registerArgs,
                             nextCallInsn, rollback);
@@ -775,6 +781,9 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
 {
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
+    int registerArgs[3];
+
+skipThis = false;
 
     // If we can treat it as non-range (Jumbo ops will use range form)
     if (numArgs <= 5)
@@ -798,7 +807,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      */
     // Scan the rest of the args - if in physReg flush to memory
     for (int i = 4; i < numArgs; i++) {
-        RegLocation loc = oatGetSrc(cUnit, mir, i);
+        RegLocation loc = oatGetRawSrc(cUnit, mir, i);
         if (loc.wide) {
             loc = oatUpdateLocWide(cUnit, loc);
             if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
@@ -840,11 +849,17 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     }
 
     // Handle the 1st 3 in r1, r2 & r3
-    for (unsigned int i = skipThis? 1 : 0; i < dInsn->vA && i < 3; i++) {
-        RegLocation loc = oatGetSrc(cUnit, mir, firstArg + i);
-        loadValueDirectFixed(cUnit, loc, r1 + i);
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+    for (unsigned int i = 0; i < 3; i++) {
+       if (i < dInsn->vA)
+            registerArgs[i] = dInsn->vC + i;
+        else
+            registerArgs[i] = INVALID_REG;
     }
+    if (skipThis) {
+        registerArgs[0] = INVALID_REG;
+    }
+    callState = loadArgRegs(cUnit, mir, dInsn, callState, registerArgs,
+                            nextCallInsn, rollback);
 
     // Finally, deal with the register arguments
     // We'll be using fixed registers here
@@ -958,9 +973,7 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
         Get(dInsn->vB);
     NextCallInsn nextCallInsn;
 
-    method = NULL; // TODO
-    UNIMPLEMENTED(WARNING) << "the genInvokeVirtual fast path generates bad code (r0/r9 mixup?)";
-    if (method == NULL) {
+    if (FORCE_SLOW || method == NULL) {
         // Slow path
         nextCallInsn = nextVCallInsnSP;
         // If we need a slow-path callout, we'll restart here

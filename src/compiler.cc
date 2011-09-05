@@ -128,7 +128,7 @@ void Compiler::CompileMethod(Method* method) {
   } else if (method->IsAbstract()) {
     // TODO: This might be also noted in the ClassLinker.
     // Probably makes more sense to do here?
-    UNIMPLEMENTED(FATAL) << "compile stub to throw AbstractMethodError";
+    UNIMPLEMENTED(WARNING) << "compile stub to throw AbstractMethodError";
   } else {
     oatCompileMethod(method, kThumb2);
   }

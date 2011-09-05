@@ -132,6 +132,7 @@ extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir,
                                   int low, int high);
 // Get the LocRecord associated with an SSA name use.
 extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num);
+extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num);
 
 // Get the LocRecord associated with an SSA name def.
 extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num);

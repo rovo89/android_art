@@ -1000,24 +1000,56 @@ extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
     return loc;
 }
 
+/*
+ * There's currently a problem in SSA renaming.  So long as register promotion
+ * is disabled, a bad renaming will have no effect.  Work around the problem
+ * here to make progress while the fix is being identified.
+ */
+#define SSA_WORKAROUND
+
 extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num)
 {
-    return cUnit->regLocation[mir->ssaRep->defs[num]];
+    RegLocation res = cUnit->regLocation[mir->ssaRep->defs[num]];
+#ifdef SSA_WORKAROUND
+    res.wide = false;
+#endif
+    assert(!res.wide);
+    return res;
 }
 extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
-    return cUnit->regLocation[mir->ssaRep->uses[num]];
+    RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
+#ifdef SSA_WORKAROUND
+    res.wide = false;
+#endif
+    assert(!res.wide);
+    return res;
+}
+extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
+{
+    RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
+    return res;
 }
 extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir,
                                   int low, int high)
 {
-    return oatGetDest(cUnit, mir, low);
+    RegLocation res = cUnit->regLocation[mir->ssaRep->defs[low]];
+#ifdef SSA_WORKAROUND
+    res.wide = true;
+#endif
+    assert(res.wide);
+    return res;
 }
 
 extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
                                  int low, int high)
 {
-    return oatGetSrc(cUnit, mir, low);
+    RegLocation res = cUnit->regLocation[mir->ssaRep->uses[low]];
+#ifdef SSA_WORKAROUND
+    res.wide = true;
+#endif
+    assert(res.wide);
+    return res;
 }
 
 /* Kill the corresponding bit in the null-checked register list */

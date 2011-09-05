@@ -135,6 +135,13 @@ TEST_F(CompilerTest, DISABLED_CatchTest) {
                         1000);
 }
 
+TEST_F(CompilerTest, CatchTestNoThrow) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  const ClassLoader* class_loader = LoadDex("IntMath");
+  AssertStaticIntMethod(class_loader, "IntMath", "catchBlockNoThrow", "(I)I",
+                        1123, 1000);
+}
+
 TEST_F(CompilerTest, StaticFieldTest) {
   AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticFieldTest", "(I)I", 1404,
                         404);

@@ -1232,6 +1232,7 @@ static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         /* regPtr -> array data */
         opRegRegImm(cUnit, kOpAdd, regPtr, rlArray.lowReg, dataOffset);
     }
+    oatFreeTemp(cUnit, rlArray.lowReg);
     if ((size == kLong) || (size == kDouble)) {
         if (scale) {
             int rNewIndex = oatAllocTemp(cUnit);
@@ -1241,6 +1242,7 @@ static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         } else {
             opRegReg(cUnit, kOpAdd, regPtr, rlIndex.lowReg);
         }
+        oatFreeTemp(cUnit, rlIndex.lowReg);
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
 
         loadPair(cUnit, regPtr, rlResult.lowReg, rlResult.highReg);
