@@ -256,7 +256,8 @@ class Thread {
   }
 
   bool CanAccessDirectReferences() const {
-    return state_ == kRunnable;
+    // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
+    return true;
   }
 
   uint32_t GetId() const {

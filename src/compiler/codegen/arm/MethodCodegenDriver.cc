@@ -958,6 +958,8 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
         Get(dInsn->vB);
     NextCallInsn nextCallInsn;
 
+    method = NULL; // TODO
+    UNIMPLEMENTED(WARNING) << "the genInvokeVirtual fast path generates bad code (r0/r9 mixup?)";
     if (method == NULL) {
         // Slow path
         nextCallInsn = nextVCallInsnSP;
