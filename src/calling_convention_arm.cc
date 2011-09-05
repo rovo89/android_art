@@ -68,7 +68,9 @@ ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
 
 FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 3u);
-  return FrameOffset(displacement_.Int32Value() + (itr_slots_ * kPointerSize));
+  return FrameOffset(displacement_.Int32Value() +   // displacement
+                     kPointerSize +                 // Method*
+                     (itr_slots_ * kPointerSize));  // offset into in args
 }
 
 // JNI calling convention
