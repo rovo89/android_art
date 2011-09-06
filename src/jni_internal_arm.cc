@@ -67,8 +67,8 @@ void CreateInvokeStub(Assembler* assembler, Method* method) {
     __ LoadFromOffset(kLoadWord, IP, R3, r3_offset);
 
     // we're displaced off of the arguments by the spill space for the incoming
-    // arguments and the Method*
-    int sp_offset = reg_bytes + kPointerSize + off;
+    // arguments, the Method* and possibly the receiver
+    int sp_offset = reg_bytes + (method->IsStatic() ? 1 : 2) * kPointerSize + off;
     __ StoreToOffset(kStoreWord, IP, SP, sp_offset);
   }
 
