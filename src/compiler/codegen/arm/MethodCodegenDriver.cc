@@ -716,7 +716,6 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     if (dInsn->vA == 0)
         return callState;
 
-    oatLockCallTemps(cUnit);
     callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
 
     /*
@@ -729,8 +728,9 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         if (rlArg.location == kLocPhysReg) {
             reg = rlArg.lowReg;
         } else {
-            reg = r1;
-            loadValueDirectFixed(cUnit, rlArg, r1);
+            // r3 is the last arg register loaded, so can safely be used here
+            reg = r3;
+            loadValueDirectFixed(cUnit, rlArg, reg);
             callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
         }
         storeBaseDisp(cUnit, rSP, (i + 1) * 4, reg, kWord);
@@ -859,9 +859,6 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     callState = loadArgRegs(cUnit, mir, dInsn, callState, registerArgs,
                             nextCallInsn, rollback);
 
-    // Finally, deal with the register arguments
-    // We'll be using fixed registers here
-    oatLockCallTemps(cUnit);
     callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     return callState;
 }
@@ -873,8 +870,10 @@ static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     int callState = 0;
     ArmLIR* nullCk;
     ArmLIR** pNullCk = direct ? &nullCk : NULL;
-
     NextCallInsn nextCallInsn = nextSDCallInsn;
+
+    // Explicit register usage
+    oatLockCallTemps(cUnit);
 
     if (range) {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
@@ -899,6 +898,9 @@ static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* nullCk;
+
+    // Explicit register usage
+    oatLockCallTemps(cUnit);
     /* Note: must call nextInterfaceCallInsn() prior to 1st argument load */
     callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
     if (mir->dalvikInsn.opcode == OP_INVOKE_INTERFACE)
@@ -925,6 +927,9 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
         Get(dInsn->vB);
     NextCallInsn nextCallInsn;
     bool fastPath = true;
+
+    // Explicit register usage
+    oatLockCallTemps(cUnit);
     if (FORCE_SLOW || baseMethod == NULL) {
         fastPath = false;
     } else {
@@ -971,6 +976,8 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
         Get(dInsn->vB);
     NextCallInsn nextCallInsn;
 
+    // Explicit register usage
+    oatLockCallTemps(cUnit);
     if (FORCE_SLOW || method == NULL) {
         // Slow path
         nextCallInsn = nextVCallInsnSP;

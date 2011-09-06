@@ -167,4 +167,5 @@ TEST_DEX_DIRECTORIES := \
 	StaticLeafMethods \
 	Statics \
 	SystemMethods \
+	Invoke \
 	XandY

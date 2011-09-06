@@ -270,6 +270,26 @@ TEST_F(CompilerTest, TestIGetPut) {
                         111);
 }
 
+TEST_F(CompilerTest, InvokeTest) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  const ClassLoader* class_loader = LoadDex("Invoke");
+  CompileDirectMethod(class_loader, "Invoke", "<init>", "()V");
+  CompileVirtualMethod(class_loader, "Invoke", "virI_I", "(I)I");
+  CompileVirtualMethod(class_loader, "Invoke", "virI_II", "(II)I");
+  CompileVirtualMethod(class_loader, "Invoke", "virI_III", "(III)I");
+  CompileVirtualMethod(class_loader, "Invoke", "virI_IIII", "(IIII)I");
+  CompileVirtualMethod(class_loader, "Invoke", "virI_IIIII", "(IIIII)I");
+  CompileVirtualMethod(class_loader, "Invoke", "virI_IIIIII", "(IIIIII)I");
+  CompileDirectMethod(class_loader, "Invoke", "statI_I", "(I)I");
+  CompileDirectMethod(class_loader, "Invoke", "statI_II", "(II)I");
+  CompileDirectMethod(class_loader, "Invoke", "statI_III", "(III)I");
+  CompileDirectMethod(class_loader, "Invoke", "statI_IIII", "(IIII)I");
+  CompileDirectMethod(class_loader, "Invoke", "statI_IIIII", "(IIIII)I");
+  CompileDirectMethod(class_loader, "Invoke", "statI_IIIIII", "(IIIIII)I");
+  AssertStaticIntMethod(class_loader, "Invoke", "test0", "(I)I", 20664,
+                        912);
+}
+
 TEST_F(CompilerTest, SystemMethodsTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
 
