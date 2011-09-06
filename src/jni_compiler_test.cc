@@ -474,12 +474,28 @@ jobject Java_MyClass_fooO(JNIEnv* env, jobject thisObj, jobject x) {
   return env->NewGlobalRef(x);
 }
 
-TEST_F(JniCompilerTest, DecodeJObject) {
+TEST_F(JniCompilerTest, ReturnGlobalRef) {
   SetupForTest(false, "fooO", "(Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClass_fooO));
   jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, jobj_);
   EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(result));
   EXPECT_TRUE(env_->IsSameObject(result, jobj_));
+}
+
+void my_arraycopy(JNIEnv* env, jclass klass, jobject src, jint src_pos, jobject dst, jint dst_pos, jint length) {
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, klass));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, dst));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, src));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, src));
+  EXPECT_EQ(1234, src_pos);
+  EXPECT_EQ(5678, dst_pos);
+  EXPECT_EQ(9876, length);
+}
+
+TEST_F(JniCompilerTest, JavaLangSystemArrayCopy) {
+  SetupForTest(true, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V",
+               reinterpret_cast<void*>(&my_arraycopy));
+  env_->CallStaticVoidMethod(jklass_, jmethod_, jklass_, 1234, jklass_, 5678, 9876);
 }
 
 }  // namespace art
