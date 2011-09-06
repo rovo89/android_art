@@ -485,8 +485,7 @@ TEST_F(JniCompilerTest, ReturnGlobalRef) {
 void my_arraycopy(JNIEnv* env, jclass klass, jobject src, jint src_pos, jobject dst, jint dst_pos, jint length) {
   EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, klass));
   EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, dst));
-  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, src));
-  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, src));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, src));
   EXPECT_EQ(1234, src_pos);
   EXPECT_EQ(5678, dst_pos);
   EXPECT_EQ(9876, length);
@@ -495,7 +494,7 @@ void my_arraycopy(JNIEnv* env, jclass klass, jobject src, jint src_pos, jobject 
 TEST_F(JniCompilerTest, JavaLangSystemArrayCopy) {
   SetupForTest(true, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                reinterpret_cast<void*>(&my_arraycopy));
-  env_->CallStaticVoidMethod(jklass_, jmethod_, jklass_, 1234, jklass_, 5678, 9876);
+  env_->CallStaticVoidMethod(jklass_, jmethod_, jobj_, 1234, jklass_, 5678, 9876);
 }
 
 }  // namespace art
