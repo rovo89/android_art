@@ -105,6 +105,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/space.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
+	src/stub_arm.cc \
+	src/stub_x86.cc \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/utf.cc \
@@ -127,7 +129,8 @@ LIBART_HOST_SRC_FILES := \
 	src/thread_x86.cc
 
 LIBARTTEST_COMMON_SRC_FILES := \
-	src/base64.cc
+	src/base64.cc \
+	src/jni_tests.cc
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \

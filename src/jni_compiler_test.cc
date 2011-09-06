@@ -52,8 +52,10 @@ class JniCompilerTest : public CommonTest {
     }
     ASSERT_TRUE(jmethod_ != NULL);
 
-    JNINativeMethod methods[] = {{method_name, method_sig, native_fnptr}};
-    ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1));
+    if (native_fnptr) {
+      JNINativeMethod methods[] = {{method_name, method_sig, native_fnptr}};
+      ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1));
+    }
 
     jmethodID constructor = env_->GetMethodID(jklass_, "<init>", "()V");
     jobj_ = env_->NewObject(jklass_, constructor);
@@ -90,6 +92,22 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
   EXPECT_EQ(1, gJava_MyClass_foo_calls);
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(2, gJava_MyClass_foo_calls);
+}
+
+TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
+  SetupForTest(false,
+               "bar",
+               "(I)I",
+               NULL /* dlsym will find &Java_MyClass_bar later */);
+
+  std::string path("libarttest.so");
+  std::string reason;
+  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary(
+      path, const_cast<ClassLoader*>(class_loader_), reason))
+      << path << ": " << reason;
+
+  jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
+  EXPECT_EQ(25, result);
 }
 
 int gJava_MyClass_fooI_calls = 0;

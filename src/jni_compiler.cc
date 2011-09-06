@@ -17,7 +17,15 @@
 
 namespace art {
 
-JniCompiler::JniCompiler(InstructionSet insns) {
+namespace arm {
+ByteArray* CreateJniStub();
+}
+
+namespace x86 {
+ByteArray* CreateJniStub();
+}
+
+JniCompiler::JniCompiler(InstructionSet insns) : jni_stub_(NULL) {
   if (insns == kThumb2) {
     // currently only ARM code generation is supported
     instruction_set_ = kArm;
@@ -60,6 +68,17 @@ void JniCompiler::Compile(Method* native_method) {
   // Cache of IsStatic as we call it often enough
   const bool is_static = native_method->IsStatic();
 
+  // 0. native_method->RegisterNative(jni_stub_ stuff). Note that jni_stub_ will invoke dlsym.
+  if (jni_stub_ == NULL) {
+    if (instruction_set_ == kArm) {
+      jni_stub_ = arm::CreateJniStub();
+    } else {
+      jni_stub_ = x86::CreateJniStub();
+    }
+  }
+  native_method->RegisterNative(jni_stub_->GetData());
+  // TODO: Need to make sure that the stub is copied into the image. I.e.,
+  // ByteArray* needs to be reachable either as a root or from the object graph.
 
   // 1. Build the frame
   const size_t frame_size(jni_conv->FrameSize());

@@ -5,6 +5,7 @@
 
 #include "constants.h"
 #include "macros.h"
+#include "object.h"
 
 namespace art {
 
@@ -36,6 +37,8 @@ class JniCompiler {
                           ManagedRegister in_reg);
 
   InstructionSet instruction_set_;
+
+  ByteArray* jni_stub_;  // Stub to perform native method symbol lookup
 
   DISALLOW_COPY_AND_ASSIGN(JniCompiler);
 };

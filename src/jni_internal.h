@@ -22,6 +22,7 @@ class Method;
 class Thread;
 
 void JniAbort(const char* jni_function_name);
+void* FindNativeMethod(Thread* thread);
 
 template<typename T> T Decode(JNIEnv*, jobject);
 template<typename T> T AddLocalReference(JNIEnv*, const Object*);
