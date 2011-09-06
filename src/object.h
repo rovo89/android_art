@@ -140,7 +140,6 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
  * fields followed by 2 ref instance fields.]
  */
 #define CLASS_WALK_SUPER ((unsigned int)(3))
-#define CLASS_SMALLEST_OFFSET (sizeof(struct Object))
 #define CLASS_BITS_PER_WORD (sizeof(unsigned long int) * 8)
 #define CLASS_OFFSET_ALIGNMENT 4
 #define CLASS_HIGH_BIT ((unsigned int)1 << (CLASS_BITS_PER_WORD - 1))
@@ -149,7 +148,7 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
  * Local use only.
  */
 #define _CLASS_BIT_NUMBER_FROM_OFFSET(byteOffset) \
-    (((unsigned int)(byteOffset) - CLASS_SMALLEST_OFFSET) / \
+    ((unsigned int)(byteOffset) / \
      CLASS_OFFSET_ALIGNMENT)
 /*
  * Is the given offset too large to be encoded?
@@ -166,8 +165,7 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
  * Return an offset, given a bit number as returned from CLZ.
  */
 #define CLASS_OFFSET_FROM_CLZ(rshift) \
-    MemberOffset((static_cast<int>(rshift) * CLASS_OFFSET_ALIGNMENT) + \
-                 CLASS_SMALLEST_OFFSET)
+    MemberOffset((static_cast<int>(rshift) * CLASS_OFFSET_ALIGNMENT))
 
 #define OFFSET_OF_OBJECT_MEMBER(type, field) \
     MemberOffset(OFFSETOF_MEMBER(type, field))
@@ -444,6 +442,7 @@ class Object {
 
   Monitor* monitor_;
 
+  friend struct ObjectOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
@@ -480,6 +479,8 @@ class AccessibleObject : public Object {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   uint32_t java_flag_;  // can accessibility checks be bypassed
+  friend struct AccessibleObjectOffsets;  // for verifying offset information
+  DISALLOW_IMPLICIT_CONSTRUCTORS(AccessibleObject);
 };
 
 // C++ mirror of java.lang.reflect.Field
@@ -584,24 +585,32 @@ class Field : public AccessibleObject {
   void SetObj(Object* object, const Object* new_value) const;
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+
   // The class in which this field is declared.
   Class* declaring_class_;
+
   Object* generic_type_;
-  uint32_t generic_types_are_initialized_;
-  const String* name_;
-  // Offset of field within an instance or in the Class' static fields
-  uint32_t offset_;
+
   // Type of the field
-  // TODO: unused by ART (which uses the type_idx below), remove
   Class* type_;
 
-  // TODO: expose these fields in the Java version of this Object
+  const String* name_;
+
   uint32_t access_flags_;
+
+  // Offset of field within an instance or in the Class' static fields
+  uint32_t offset_;
+
   // Dex cache index of resolved type
   uint32_t type_idx_;
 
+  int32_t slot_;
+
+  uint32_t generic_types_are_initialized_;
+
   static Class* java_lang_reflect_Field_;
 
+  friend struct FieldOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
 };
 
@@ -978,10 +987,6 @@ class Method : public AccessibleObject {
  private:
   uint32_t GetReturnTypeIdx() const;
 
-  // TODO: the image writer should know the offsets of these fields as they
-  // should appear in the libcore Java mirror
-  friend class ImageWriter;
-
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // the class we are a part of
   Class* declaring_class_;
@@ -990,38 +995,6 @@ class Method : public AccessibleObject {
   Object* java_generic_exception_types_;
   Object* java_generic_parameter_types_;
   Object* java_generic_return_type_;
-  Class* java_return_type_;  // Unused by ART
-  String* name_;
-  ObjectArray<Class>* java_parameter_types_;
-  uint32_t java_generic_types_are_initialized_;
-  uint32_t java_slot_;
-
-  // TODO: start of non-Java mirror fields, place these in the Java piece
-
-  // access flags; low 16 bits are defined by spec (could be uint16_t?)
-  uint32_t access_flags_;
-
-  // For concrete virtual methods, this is the offset of the method
-  // in Class::vtable_.
-  //
-  // For abstract methods in an interface class, this is the offset
-  // of the method in "iftable_[n]->method_index_array_".
-  uint16_t method_index_;
-
-  // Method bounds; not needed for an abstract method.
-  //
-  // For a native method, we compute the size of the argument list, and
-  // set "insSize" and "registerSize" equal to it.
-  uint16_t num_registers_;  // ins + locals
-  uint16_t num_outs_;
-  uint16_t num_ins_;
-
-  // Total size in bytes of the frame
-  size_t frame_size_in_bytes_;
-
-  // Architecture-dependent register spill masks
-  uint32_t core_spill_mask_;
-  uint32_t fp_spill_mask_;
 
   // The method descriptor.  This represents the parameters a method
   // takes and value it returns.  This string is a list of the type
@@ -1035,52 +1008,99 @@ class Method : public AccessibleObject {
   //   (IDLjava/lang/Thread;)Ljava/lang/Object;
   String* signature_;
 
-  // Method prototype descriptor string (return and argument types).
-  uint32_t proto_idx_;
+  String* name_;
+
+  ObjectArray<Class>* java_parameter_types_;
+
+  Class* java_return_type_;  // Unused by ART
+
+  // Storage for mapping_table_
+  const ByteArray* mapping_table_;
+
+  // Storage for invoke_stub_
+  const ByteArray* invoke_stub_array_;
+
+  // Storage for code_
+  const ByteArray* code_array_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<String>* dex_cache_strings_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<Class>* dex_cache_resolved_types_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<Field>* dex_cache_resolved_fields_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<Method>* dex_cache_resolved_methods_;
+
+  // Architecture-dependent register spill mask
+  uint32_t core_spill_mask_;
 
   // Offset to the CodeItem.
   uint32_t code_item_offset_;
 
-  // Index of the return type
-  uint32_t java_return_type_idx_;
+  // Architecture-dependent register spill mask
+  uint32_t fp_spill_mask_;
 
-  // The short-form method descriptor string. TODO: make String*
-  const char* shorty_;
+  // Total size in bytes of the frame
+  size_t frame_size_in_bytes_;
 
-  // short cuts to declaring_class_->dex_cache_ members for fast compiled code
-  // access
-  ObjectArray<String>* dex_cache_strings_;
-  ObjectArray<Class>* dex_cache_resolved_types_;
-  ObjectArray<Method>* dex_cache_resolved_methods_;
-  ObjectArray<Field>* dex_cache_resolved_fields_;
-  CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
-  ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
-
- private:
-  // Storage for code_
-  const ByteArray* code_array_;
-
-  // Storage for mapping_table_
-  const ByteArray* mapping_table_;
+  // Native invocation stub entry point for calling from native to managed code.
+  const InvokeStub* invoke_stub_;
 
   // Compiled code associated with this method for callers from managed code.
   // May be compiled managed code or a bridge for invoking a native method.
   const void* code_;
 
-  // Offset of return PC within frame for compiled code (in bytes)
-  size_t return_pc_offset_in_bytes_;
+  // Index of the return type
+  uint32_t java_return_type_idx_;
+
+  // access flags; low 16 bits are defined by spec (could be uint16_t?)
+  uint32_t access_flags_;
+
+  // For concrete virtual methods, this is the offset of the method
+  // in Class::vtable_.
+  //
+  // For abstract methods in an interface class, this is the offset
+  // of the method in "iftable_[n]->method_index_array_".
+  uint32_t method_index_;  // (could be uint16_t)
 
   // The target native method registered with this method
   const void* native_method_;
 
-  // Storage for invoke_stub_
-  const ByteArray* invoke_stub_array_;
+  // Method bounds; not needed for an abstract method.
+  //
+  // For a native method, we compute the size of the argument list, and
+  // set "insSize" and "registerSize" equal to it.
+  uint32_t num_ins_;  // (could be uint16_t)
+  uint32_t num_outs_;  // (could be uint16_t)
+  uint32_t num_registers_;  // ins + locals  // (could be uint16_t)
 
-  // Native invocation stub entry point for calling from native to managed code.
-  const InvokeStub* invoke_stub_;
+  // Method prototype descriptor string (return and argument types).
+  uint32_t proto_idx_;
+
+  // Offset of return PC within frame for compiled code (in bytes)
+  size_t return_pc_offset_in_bytes_;
+
+  // The short-form method descriptor string. TODO: make String*
+  const char* shorty_;
+
+  uint32_t java_generic_types_are_initialized_;
+
+  uint32_t java_slot_;
 
   static Class* java_lang_reflect_Method_;
 
+  friend class ImageWriter;  // for relocating code_ and invoke_stub_
+  friend struct MethodOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Method);
 };
 
@@ -1928,7 +1948,7 @@ class Class : public StaticStorageBase {
   }
 
   Class* GetVerifyErrorClass() const {
-    DCHECK(IsErroneous());
+    // DCHECK(IsErroneous());
     return GetFieldObject<Class*>(
         OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
   }
@@ -1955,76 +1975,100 @@ class Class : public StaticStorageBase {
   bool IsAssignableFromArray(const Class* klass) const;
   bool IsSubClass(const Class* klass) const;
 
-  // TODO: the image writer should know the offsets of these fields as they
-  // should appear in the libcore Java mirror
-  friend class ImageWriter;
-
   // descriptor for the class such as "java.lang.Class" or "[C"
   String* name_;  // TODO initialize
 
-  // descriptor for the class such as "Ljava/lang/Class;" or "[C"
-  String* descriptor_;
+  // Virtual method table (vtable), for use by "invoke-virtual".  The
+  // vtable from the superclass is copied in, and virtual methods from
+  // our class either replace those from the super or are appended.
+  ObjectArray<Method>* vtable_;
 
-  // access flags; low 16 bits are defined by VM spec
-  uint32_t access_flags_;  // TODO: make an instance field?
+  // virtual methods defined in this class; invoked through vtable
+  ObjectArray<Method>* virtual_methods_;
 
-  // DexCache of resolved constant pool entries
-  // (will be NULL for VM-generated, e.g. arrays and primitive classes)
-  DexCache* dex_cache_;
-
-  // state of class initialization
-  Status status_;
+  // defining class loader, or NULL for the "bootstrap" system loader
+  const ClassLoader* class_loader_;  // TODO: make an instance field
 
   // If class verify fails, we must return same error on subsequent tries.
   // Update with SetVerifyErrorClass to ensure a write barrier is used.
   const Class* verify_error_class_;
 
-  // threadId, used to check for recursive <clinit> invocation
-  pid_t clinit_thread_id_;
-
-  // Total object size; used when allocating storage on gc heap.  (For
-  // interfaces and abstract classes this will be zero.)
-  size_t object_size_;
+  // The superclass, or NULL if this is java.lang.Object or a
+  // primitive type.
+  // see also super_class_type_idx_;
+  Class* super_class_;
 
   // For array classes, the class object for base element, for
   // instanceof/checkcast (for String[][][], this will be String).
   // Otherwise, NULL.
   Class* component_type_;  // TODO: make an instance field
 
-  // For array classes, the number of array dimensions, e.g. int[][]
-  // is 2.  Otherwise 0.
-  int32_t array_rank_;
+  // descriptor for the class such as "Ljava/lang/Class;" or "[C"
+  String* descriptor_;
 
-  // primitive type index, or kPrimNot (0); set for generated prim classes
-  PrimitiveType primitive_type_;
-
-  // The superclass, or NULL if this is java.lang.Object or a
-  // primitive type.
-  Class* super_class_;  // TODO: make an instance field
-  uint32_t super_class_type_idx_;
-
-  // defining class loader, or NULL for the "bootstrap" system loader
-  const ClassLoader* class_loader_;  // TODO: make an instance field
-
-  // initiating class loader list
-  // NOTE: for classes with low serialNumber, these are unused, and the
-  // values are kept in a table in gDvm.
-  // InitiatingLoaderList initiating_loader_list_;
-
-  // array of interfaces this class implements directly
-  ObjectArray<Class>* interfaces_;
-  IntArray* interfaces_type_idx_;
+  // DexCache of resolved constant pool entries
+  // (will be NULL for VM-generated, e.g. arrays and primitive classes)
+  DexCache* dex_cache_;
 
   // static, private, and <init> methods
   ObjectArray<Method>* direct_methods_;
 
-  // virtual methods defined in this class; invoked through vtable
-  ObjectArray<Method>* virtual_methods_;
+  // instance fields
+  //
+  // These describe the layout of the contents of an Object.
+  // Note that only the fields directly declared by this class are
+  // listed in ifields; fields declared by a superclass are listed in
+  // the superclass's Class.ifields.
+  //
+  // All instance fields that refer to objects are guaranteed to be at
+  // the beginning of the field list.  num_reference_instance_fields_
+  // specifies the number of reference fields.
+  ObjectArray<Field>* ifields_;
 
-  // Virtual method table (vtable), for use by "invoke-virtual".  The
-  // vtable from the superclass is copied in, and virtual methods from
-  // our class either replace those from the super or are appended.
-  ObjectArray<Method>* vtable_;
+  // Static fields
+  ObjectArray<Field>* sfields_;
+
+  // array of type_idx's for interfaces this class implements directly
+  // see also interfaces_
+  IntArray* interfaces_type_idx_;
+
+  // array of interfaces this class implements directly
+  // see also interfaces_type_idx_
+  ObjectArray<Class>* interfaces_;
+
+  // size of ifvi_pool_
+  size_t ifvi_pool_count_;
+
+  // The interface vtable indices for iftable get stored here.  By
+  // placing them all in a single pool for each class that implements
+  // interfaces, we decrease the number of allocations.
+  //
+  // see also ifvi_pool_count_
+  //
+  // TODO convert to IntArray
+  uint32_t* ifvi_pool_;
+
+  // size of iftable_
+  size_t iftable_count_;
+
+  // number of instance fields that are object refs
+  size_t num_reference_instance_fields_;
+
+  // number of static fields that are object refs
+  size_t num_reference_static_fields_;
+
+  // Total object size; used when allocating storage on gc heap.
+  // (For interfaces and abstract classes this will be zero.)
+  size_t object_size_;
+
+  // primitive type index, or kPrimNot (0); set for generated prim classes
+  PrimitiveType primitive_type_;
+
+  // Bitmap of offsets of ifields.
+  uint32_t reference_instance_offsets_;
+
+  // Bitmap of offsets of sfields.
+  uint32_t reference_static_offsets_;
 
   // Interface table (iftable_), one entry per interface supported by
   // this class.  That means one entry for each interface we support
@@ -2039,54 +2083,45 @@ class Class : public StaticStorageBase {
   //
   // For every interface a concrete class implements, we create a list
   // of virtualMethod indices for the methods in the interface.
-  size_t iftable_count_;
+  //
+  // see also iftable_count_;
   // TODO convert to ObjectArray<?>
+  //
   InterfaceEntry* iftable_;
-
-  // The interface vtable indices for iftable get stored here.  By
-  // placing them all in a single pool for each class that implements
-  // interfaces, we decrease the number of allocations.
-  size_t ifvi_pool_count_;
-  // TODO convert to IntArray
-  uint32_t* ifvi_pool_;
-
-  // instance fields
-  //
-  // These describe the layout of the contents of a
-  // DataObject-compatible Object.  Note that only the fields directly
-  // declared by this class are listed in ifields; fields declared by
-  // a superclass are listed in the superclass's Class.ifields.
-  //
-  // All instance fields that refer to objects are guaranteed to be at
-  // the beginning of the field list.  num_reference_instance_fields_
-  // specifies the number of reference fields.
-  ObjectArray<Field>* ifields_;
-
-  // number of instance fields that are object refs
-  size_t num_reference_instance_fields_;
-
-  // Bitmap of offsets of ifields.
-  uint32_t reference_instance_offsets_;
 
   // source file name, if known.  Otherwise, NULL.
   const char* source_file_;
 
-  // Static fields
-  ObjectArray<Field>* sfields_;
+  // state of class initialization
+  Status status_;
 
-  // number of static fields that are object refs
-  size_t num_reference_static_fields_;
+  // threadId, used to check for recursive <clinit> invocation
+  uint32_t clinit_thread_id_;
 
-  // Bitmap of offsets of sfields.
-  uint32_t reference_static_offsets_;
+  // Set in LoadClass, used to LinkClass
+  // see also super_class_
+  uint32_t super_class_type_idx_;
 
   // Total class size; used when allocating storage on gc heap.
   size_t class_size_;
 
+  // For array classes, the number of array dimensions, e.g. int[][]
+  // is 2.  Otherwise 0.
+  int32_t array_rank_;
+
+  // access flags; low 16 bits are defined by VM spec
+  uint32_t access_flags_;
+
+  // TODO: ?
+  // initiating class loader list
+  // NOTE: for classes with low serialNumber, these are unused, and the
+  // values are kept in a table in gDvm.
+  // InitiatingLoaderList initiating_loader_list_;
+
   // Location of first static field.
   uint32_t fields_[0];
 
- private:
+  friend struct ClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
 };
 
@@ -2171,8 +2206,7 @@ inline size_t Object::SizeOf() const {
 
 inline void Field::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded());
-  DCHECK_LE(CLASS_SMALLEST_OFFSET, num_bytes.Uint32Value());
- Class* type = GetTypeDuringLinking();
+  Class* type = GetTypeDuringLinking();
   if (type != NULL && (type->IsPrimitiveDouble() || type->IsPrimitiveLong())) {
     DCHECK(IsAligned(num_bytes.Uint32Value(), 8));
   }
@@ -2331,14 +2365,6 @@ class MethodClass : public Class {
   int32_t DECLARED_;
   int32_t PUBLIC_;
   DISALLOW_IMPLICIT_CONSTRUCTORS(MethodClass);
-};
-
-class DataObject : public Object {
- public:
-  // Location of first instance field.
-  uint32_t fields_[0];
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(DataObject);
 };
 
 template<class T>
@@ -2500,6 +2526,7 @@ class String : public Object {
 
   static Class* java_lang_String_;
 
+  friend struct StringOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
@@ -2583,6 +2610,7 @@ inline uint32_t Class::GetAccessFlags() const {
 }
 
 inline void Class::SetDescriptor(String* new_descriptor) {
+  DCHECK(GetDescriptor() == NULL);
   DCHECK(new_descriptor != NULL);
   DCHECK_NE(0, new_descriptor->GetLength());
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, descriptor_),
@@ -2635,6 +2663,7 @@ class Throwable : public Object {
   Object* stack_trace_;
   Object* suppressed_exceptions_;
 
+  friend struct ThrowableOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Throwable);
 };
 
@@ -2683,6 +2712,8 @@ class StackTraceElement : public Object {
   }
 
   static Class* java_lang_StackTraceElement_;
+
+  friend struct StackTraceElementOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);
 };
 

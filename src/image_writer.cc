@@ -35,6 +35,7 @@ bool ImageWriter::Write(const char* filename, uintptr_t image_base) {
   if (!Init()) {
     return false;
   }
+  Heap::CollectGarbage();
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 
@@ -173,10 +174,6 @@ void ImageWriter::FixupObject(const Object* orig, Object* copy) {
   // TODO: special case init of pointers to malloc data (or removal of these pointers)
   if (orig->IsClass()) {
     FixupClass(orig->AsClass(), down_cast<Class*>(copy));
-  } else if (orig->IsMethod()) {
-    FixupMethod(orig->AsMethod(), down_cast<Method*>(copy));
-  } else if (orig->IsField()) {
-    FixupField(orig->AsField(), down_cast<Field*>(copy));
   } else if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
   } else {
@@ -186,22 +183,6 @@ void ImageWriter::FixupObject(const Object* orig, Object* copy) {
 
 void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupInstanceFields(orig, copy);
-  copy->descriptor_ = down_cast<String*>(GetImageAddress(orig->descriptor_));
-  copy->dex_cache_ = down_cast<DexCache*>(GetImageAddress(orig->dex_cache_));
-  copy->verify_error_class_ = down_cast<Class*>(GetImageAddress(orig->verify_error_class_));
-  copy->component_type_ = down_cast<Class*>(GetImageAddress(orig->component_type_));
-  copy->super_class_ = down_cast<Class*>(GetImageAddress(orig->super_class_));
-  copy->class_loader_ = down_cast<ClassLoader*>(GetImageAddress(orig->class_loader_));
-  copy->interfaces_ = down_cast<ObjectArray<Class>*>(GetImageAddress(orig->interfaces_));
-  copy->direct_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->direct_methods_));
-  copy->virtual_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->virtual_methods_));
-  copy->vtable_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->vtable_));
-  // TODO: convert iftable_ to heap allocated storage
-  // TODO: convert ifvi_pool_ to heap allocated storage
-  copy->ifields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->ifields_));
-  // TODO: convert source_file_ to heap allocated storage
-  copy->sfields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->sfields_));
-  copy->interfaces_type_idx_ = down_cast<IntArray*>(GetImageAddress(orig->interfaces_type_idx_));
   FixupStaticFields(orig, copy);
 }
 
@@ -218,28 +199,11 @@ const void* FixupCode(const ByteArray* copy_code_array, const void* orig_code) {
   return copy_code;
 }
 
-// TODO: remove this slow path
 void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
-  // TODO: remove need for this by adding "signature" to java.lang.reflect.Method
-  copy->signature_ = down_cast<String*>(GetImageAddress(orig->signature_));
-  DCHECK(copy->signature_ != NULL);
   // TODO: convert shorty_ to heap allocated storage
-  copy->dex_cache_strings_ = down_cast<ObjectArray<String>*>(GetImageAddress(orig->dex_cache_strings_));
-  copy->dex_cache_resolved_types_ = down_cast<ObjectArray<Class>*>(GetImageAddress(orig->dex_cache_resolved_types_));
-  copy->dex_cache_resolved_methods_ = down_cast<ObjectArray<Method>*>(GetImageAddress(orig->dex_cache_resolved_methods_));
-  copy->dex_cache_resolved_fields_ = down_cast<ObjectArray<Field>*>(GetImageAddress(orig->dex_cache_resolved_fields_));
-  copy->dex_cache_code_and_direct_methods_ = down_cast<CodeAndDirectMethods*>(GetImageAddress(orig->dex_cache_code_and_direct_methods_));
-  copy->dex_cache_initialized_static_storage_ = down_cast<ObjectArray<StaticStorageBase>*>(GetImageAddress(orig->dex_cache_initialized_static_storage_));
-  copy->code_array_ = down_cast<ByteArray*>(GetImageAddress(orig->code_array_));
   copy->code_ = FixupCode(copy->code_array_, orig->code_);
-  copy->invoke_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig->invoke_stub_array_));
   copy->invoke_stub_ = reinterpret_cast<Method::InvokeStub*>(FixupCode(copy->invoke_stub_array_, reinterpret_cast<void*>(orig->invoke_stub_)));
-}
-
-void ImageWriter::FixupField(const Field* orig, Field* copy) {
-  FixupInstanceFields(orig, copy);
-  // TODO: convert descriptor_ to heap allocated storage
 }
 
 void ImageWriter::FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy) {

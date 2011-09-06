@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "class_loader.h"
+#include "dex_cache.h"
 #include "heap.h"
 #include "indirect_reference_table.h"
 #include "intern_table.h"
@@ -148,6 +149,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {
   Space* space = static_cast<Space*>(arg);
   for (size_t i = 0; i < num_ptrs; ++i) {
     Object* obj = static_cast<Object*>(ptrs[i]);
+    Heap::RecordFree(space, obj);
     space->Free(obj);
   }
   // TODO, unlock heap if concurrent
@@ -219,13 +221,6 @@ void MarkSweep::ScanFields(const Object* obj,
   }
 }
 
-void MarkSweep::ScanInterfaces(const Class* klass) {
-  DCHECK(klass != NULL);
-  for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
-    MarkObject(klass->GetInterface(i));
-  }
-}
-
 // Scans the header, static field references, and interface pointers
 // of a class object.
 void MarkSweep::ScanClass(const Object* obj) {
@@ -233,6 +228,10 @@ void MarkSweep::ScanClass(const Object* obj) {
   DCHECK(obj->IsClass());
   const Class* klass = obj->AsClass();
   MarkObject(klass->GetClass());
+  ScanInstanceFields(obj);
+  MarkObject(klass->GetDescriptor());
+  MarkObject(klass->GetDexCache());
+  MarkObject(klass->GetVerifyErrorClass());
   if (klass->IsArrayClass()) {
     MarkObject(klass->GetComponentType());
   }
@@ -240,13 +239,14 @@ void MarkSweep::ScanClass(const Object* obj) {
     MarkObject(klass->GetSuperClass());
   }
   MarkObject(klass->GetClassLoader());
-  ScanInstanceFields(obj);
-  ScanStaticFields(klass);
-  // TODO: scan methods
-  // TODO: scan instance fields
   if (klass->IsLoaded()) {
-    ScanInterfaces(klass);
+    MarkObject(klass->GetInterfaces());
+    MarkObject(klass->GetDirectMethods());
+    MarkObject(klass->GetVirtualMethods());
+    MarkObject(klass->GetIFields());
+    MarkObject(klass->GetSFields());
   }
+  ScanStaticFields(klass);
 }
 
 // Scans the header of all array objects.  If the array object is

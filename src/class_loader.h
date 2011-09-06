@@ -29,6 +29,7 @@ class ClassLoader : public Object {
   // TODO: remove once we can create a real PathClassLoader
   std::vector<const DexFile*> class_path_;
 
+  friend struct ClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 
@@ -38,6 +39,8 @@ class BaseDexClassLoader : public ClassLoader {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   String* original_path_;
   Object* path_list_;
+
+  friend struct BaseDexClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(BaseDexClassLoader);
 };
 
@@ -49,6 +52,7 @@ class PathClassLoader : public BaseDexClassLoader {
   static void ResetClass();
  private:
   static Class* dalvik_system_PathClassLoader_;
+  friend struct PathClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(PathClassLoader);
 };
 

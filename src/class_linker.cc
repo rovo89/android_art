@@ -102,7 +102,6 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   object_array_class->SetArrayRank(1);
   object_array_class->SetComponentType(java_lang_Object);
 
-
   // Setup the char[] class to be used for String
   Class* char_array_class = AllocClass(java_lang_Class, sizeof(Class));
   char_array_class->SetArrayRank(1);
@@ -256,7 +255,6 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
 
   // run Class, Field, and Method through FindSystemClass.
   // this initializes their dex_cache_ fields and register them in classes_.
-  // we also override their object_size_ values to accommodate the extra C++ fields.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class, Class_class);
   // No sanity check on size as Class is variably sized
@@ -264,14 +262,10 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   java_lang_reflect_Field->SetStatus(Class::kStatusNotReady);
   Class* Field_class = FindSystemClass("Ljava/lang/reflect/Field;");
   CHECK_EQ(java_lang_reflect_Field, Field_class);
-  CHECK_LT(java_lang_reflect_Field->GetObjectSize(), sizeof(Field));
-  java_lang_reflect_Field->SetObjectSize(sizeof(Field));
 
   java_lang_reflect_Method->SetStatus(Class::kStatusNotReady);
   Class* Method_class = FindSystemClass("Ljava/lang/reflect/Method;");
   CHECK_EQ(java_lang_reflect_Method, Method_class);
-  CHECK_LT(java_lang_reflect_Method->GetObjectSize(), sizeof(Method));
-  java_lang_reflect_Method->SetObjectSize(sizeof(Method));
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
@@ -1076,7 +1070,11 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   }
   DCHECK_LE(1, new_class->GetArrayRank());
   DCHECK(new_class->GetComponentType() != NULL);
-  new_class->SetDescriptor(String::AllocFromModifiedUtf8(descriptor.ToString().c_str()));
+  if (new_class->GetDescriptor() != NULL) {
+    DCHECK(new_class->GetDescriptor()->Equals(descriptor));
+  } else {
+    new_class->SetDescriptor(String::AllocFromModifiedUtf8(descriptor.ToString().c_str()));
+  }
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);
   new_class->SetVTable(java_lang_Object->GetVTable());
@@ -1844,26 +1842,21 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
       instance ? klass->GetIFields() : klass->GetSFields();
   // Fields updated at end of LinkFields
   size_t num_reference_fields;
-  size_t size;
 
   // Initialize size and field_offset
-  MemberOffset field_offset = Class::FieldsOffset();
+  size_t size;
+  MemberOffset field_offset(0);
   if (instance) {
     Class* super_class = klass->GetSuperClass();
     if (super_class != NULL) {
       CHECK(super_class->IsResolved());
       field_offset = MemberOffset(super_class->GetObjectSize());
-      if (field_offset.Uint32Value() == 0u) {
-        field_offset = OFFSET_OF_OBJECT_MEMBER(DataObject, fields_);
-      }
-    } else {
-      field_offset = OFFSET_OF_OBJECT_MEMBER(DataObject, fields_);
     }
     size = field_offset.Uint32Value();
   } else {
     size = klass->GetClassSize();
+    field_offset = Class::FieldsOffset();
   }
-  DCHECK_LE(CLASS_SMALLEST_OFFSET, size);
 
   CHECK((num_fields == 0) == (fields == NULL));
 
@@ -1993,7 +1986,6 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
   }
 #endif
   size = field_offset.Uint32Value();
-  DCHECK_LE(CLASS_SMALLEST_OFFSET, size);
   // Update klass
   if(instance) {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
@@ -2041,7 +2033,6 @@ void ClassLinker::CreateReferenceOffsets(Class* klass, bool instance,
     // object, not the offset into instance data
     const Field* field = fields->Get(i);
     MemberOffset byte_offset = field->GetOffsetDuringLinking();
-    CHECK_GE(byte_offset.Uint32Value(), CLASS_SMALLEST_OFFSET);
     CHECK_EQ(byte_offset.Uint32Value() & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
     if (CLASS_CAN_ENCODE_OFFSET(byte_offset.Uint32Value())) {
       uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset.Uint32Value());

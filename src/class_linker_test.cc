@@ -320,7 +320,10 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(JavaLangObject->IsSynthetic());
   EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
   EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
-  EXPECT_EQ(0U, JavaLangObject->NumInstanceFields());
+  EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());
+  EXPECT_TRUE(JavaLangObject->GetInstanceField(0)->GetName()->Equals("shadow$_klass_"));
+  EXPECT_TRUE(JavaLangObject->GetInstanceField(1)->GetName()->Equals("shadow$_monitor_"));
+
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
@@ -369,68 +372,265 @@ TEST_F(ClassLinkerTest, LibCore) {
   AssertDexFile(java_lang_dex_file_.get(), NULL);
 }
 
+struct CheckOffset {
+  size_t cpp_offset;
+  const char* java_name;
+  CheckOffset(size_t c, const char* j) : cpp_offset(c), java_name(j) {}
+};
+
+struct CheckOffsets {
+  size_t s;
+  std::string c;
+  std::vector<CheckOffset> o;
+
+  bool Check() {
+    Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(c);
+    CHECK(klass != NULL) << c;
+
+    bool error = false;
+
+    if (!klass->IsClassClass())
+      if (s != klass->GetObjectSize()) {
+        LG << "Class size mismatch:"
+           << " class=" << c
+           << " Java=" << klass->GetObjectSize()
+           << " C++=" << s;
+      error = true;
+    }
+
+    CHECK_EQ(o.size(), klass->NumInstanceFields());
+    for (size_t i = 0; i < o.size(); i++) {
+      Field* field = klass->GetInstanceField(i);
+      if (!field->GetName()->Equals(o[i].java_name)) {
+        error = true;
+      }
+    }
+    if (error) {
+      for (size_t i = 0; i < o.size(); i++) {
+        CheckOffset& offset = o[i];
+        Field* field = klass->GetInstanceField(i);
+        if (!field->GetName()->Equals(o[i].java_name)) {
+          LG << "JAVA FIELD ORDER MISMATCH NEXT LINE:";
+        }
+        LG << "Java field order:"
+           << " i=" << i << " class=" << c
+           << " Java=" << field->GetName()->ToModifiedUtf8()
+           << " CheckOffsets=" << offset.java_name;
+      }
+    }
+
+    for (size_t i = 0; i < o.size(); i++) {
+      CheckOffset& offset = o[i];
+      Field* field = klass->GetInstanceField(i);
+      if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
+        error = true;
+      }
+    }
+    if (error) {
+      for (size_t i = 0; i < o.size(); i++) {
+        CheckOffset& offset = o[i];
+        Field* field = klass->GetInstanceField(i);
+        if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
+          LG << "OFFSET MISMATCH NEXT LINE:";
+        }
+        LG << "Offset: class=" << c << " field=" << offset.java_name
+           << " Java=" << field->GetOffset().Uint32Value() << " C++=" << offset.cpp_offset;
+      }
+    }
+
+    return !error;
+  };
+};
+
+struct ObjectOffsets : public CheckOffsets {
+  ObjectOffsets() {
+    s = sizeof(Object);
+    c = "Ljava/lang/Object;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Object, klass_),   "shadow$_klass_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Object, monitor_), "shadow$_monitor_"));
+  };
+};
+
+struct AccessibleObjectOffsets : public CheckOffsets {
+  AccessibleObjectOffsets() {
+    s = sizeof(AccessibleObject);
+    c = "Ljava/lang/reflect/AccessibleObject;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(AccessibleObject, java_flag_), "flag"));
+  };
+};
+
+struct FieldOffsets : public CheckOffsets {
+  FieldOffsets() {
+    s = sizeof(Field);
+    c = "Ljava/lang/reflect/Field;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, declaring_class_),               "declaringClass"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_type_),                  "genericType"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, type_),                          "type"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, name_),                          "name"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, access_flags_),                  "shadow$_access_flags_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, offset_),                        "shadow$_offset_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, type_idx_),                      "shadow$_type_idx_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, slot_),                          "slot"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_types_are_initialized_), "genericTypesAreInitialized"));
+  };
+};
+
+struct MethodOffsets : public CheckOffsets {
+  MethodOffsets() {
+    s = sizeof(Method);
+    c = "Ljava/lang/reflect/Method;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_exception_types_),                 "exceptionTypes"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_formal_type_parameters_),          "formalTypeParameters"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_exception_types_),         "genericExceptionTypes"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_parameter_types_),         "genericParameterTypes"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_return_type_),             "genericReturnType"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, name_),                                 "name"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_parameter_types_),                 "parameterTypes"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_),                     "returnType"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_array_),                    "shadow$_invoke_stub_array_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_array_),                           "shadow$_code_array_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "shadow$_dex_cache_resolved_types_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_code_and_direct_methods_),    "shadow$_dex_cache_code_and_direct_methods_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "shadow$_dex_cache_initialized_static_storage_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_fields_),            "shadow$_dex_cache_resolved_fields_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "shadow$_dex_cache_resolved_methods_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, core_spill_mask_),                      "shadow$_core_spill_mask_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_item_offset_),                     "shadow$_code_item_offset_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, fp_spill_mask_),                        "shadow$_fp_spill_mask_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_),                  "shadow$_frame_size_in_bytes_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),                          "shadow$_invoke_stub_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_),                                 "shadow$_code_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_idx_),                 "shadow$_java_return_type_idx_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, access_flags_),                         "shadow$_access_flags_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_index_),                         "shadow$_method_index_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_method_),                        "shadow$_native_method_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_ins_),                              "shadow$_num_ins_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_outs_),                             "shadow$_num_outs_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_registers_),                        "shadow$_num_registers_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, proto_idx_),                            "shadow$_proto_idx_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, return_pc_offset_in_bytes_),            "shadow$_return_pc_offset_in_bytes_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_types_are_initialized_),   "genericTypesAreInitialized"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_slot_),                            "slot"));
+  };
+};
+
+struct ClassOffsets : public CheckOffsets {
+  ClassOffsets() {
+    s = sizeof(Class);
+    c = "Ljava/lang/Class;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, vtable_),                        "shadow$_vtable_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "shadow$_virtual_methods_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "shadow$_class_loader_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "shadow$_verify_error_class_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "shadow$_super_class_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, component_type_),                "shadow$_component_type_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, descriptor_),                    "shadow$_descriptor_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "shadow$_dex_cache_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "shadow$_direct_methods_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "shadow$_ifields_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "shadow$_sfields_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_type_idx_),           "shadow$_interfaces_type_idx_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_),                    "shadow$_interfaces_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_count_),               "shadow$_ifvi_pool_count_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_),                     "shadow$_ifvi_pool_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_count_),                 "shadow$_iftable_count_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "shadow$_num_reference_static_fields_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "shadow$_object_size_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "shadow$_primitive_type_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "shadow$_reference_instance_offsets_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "shadow$_reference_static_offsets_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "shadow$_iftable_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, source_file_),                   "shadow$_source_file_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "shadow$_status_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_type_idx_),          "shadow$_super_class_type_idx_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, array_rank_),                    "shadow$_array_rank_"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "shadow$_access_flags_"));
+  };
+};
+
+struct StringOffsets : public CheckOffsets {
+  StringOffsets() {
+    s = sizeof(String);
+    c = "Ljava/lang/String;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, array_),     "value"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, hash_code_), "hashCode"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, offset_),    "offset"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, count_),     "count"));
+  };
+};
+
+struct ThrowableOffsets : public CheckOffsets {
+  ThrowableOffsets() {
+    s = sizeof(Throwable);
+    c = "Ljava/lang/Throwable;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, cause_),                 "cause"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, detail_message_),        "detailMessage"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_state_),           "stackState"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_trace_),           "stackTrace"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, suppressed_exceptions_), "suppressedExceptions"));
+  };
+};
+
+struct StackTraceElementOffsets : public CheckOffsets {
+  StackTraceElementOffsets() {
+    s = sizeof(StackTraceElement);
+    c = "Ljava/lang/StackTraceElement;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, declaring_class_), "declaringClass"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, file_name_),       "fileName"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, method_name_),     "methodName"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, line_number_),     "lineNumber"));
+  };
+};
+
+struct ClassLoaderOffsets : public CheckOffsets {
+  ClassLoaderOffsets() {
+    s = sizeof(ClassLoader);
+    c = "Ljava/lang/ClassLoader;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),   "parent"));
+  };
+};
+
+struct BaseDexClassLoaderOffsets : public CheckOffsets {
+  BaseDexClassLoaderOffsets() {
+    s = sizeof(BaseDexClassLoader);
+    c = "Ldalvik/system/BaseDexClassLoader;";
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_), "originalPath"));
+    o.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),   "pathList"));
+  };
+};
+
+struct PathClassLoaderOffsets : public CheckOffsets {
+  PathClassLoaderOffsets() {
+    s = sizeof(PathClassLoader);
+    c = "Ldalvik/system/PathClassLoader;";
+  };
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
-// ClassLinker::LinkInstanceFields.
+// ClassLinker::LinkFields.
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
-  Class* string = class_linker_->FindSystemClass( "Ljava/lang/String;");
-  ASSERT_EQ(4U, string->NumInstanceFields());
-  EXPECT_TRUE(string->GetInstanceField(0)->GetName()->Equals("value"));
-  EXPECT_TRUE(string->GetInstanceField(1)->GetName()->Equals("hashCode"));
-  EXPECT_TRUE(string->GetInstanceField(2)->GetName()->Equals("offset"));
-  EXPECT_TRUE(string->GetInstanceField(3)->GetName()->Equals("count"));
-
-  Class* throwable = class_linker_->FindSystemClass( "Ljava/lang/Throwable;");
-  ASSERT_EQ(5U, throwable->NumInstanceFields());
-  EXPECT_TRUE(throwable->GetInstanceField(0)->GetName()->Equals("cause"));
-  EXPECT_TRUE(throwable->GetInstanceField(1)->GetName()->Equals("detailMessage"));
-  EXPECT_TRUE(throwable->GetInstanceField(2)->GetName()->Equals("stackState"));
-  EXPECT_TRUE(throwable->GetInstanceField(3)->GetName()->Equals("stackTrace"));
-  EXPECT_TRUE(throwable->GetInstanceField(4)->GetName()->Equals("suppressedExceptions"));
-
-  Class* stack_trace_element = class_linker_->FindSystemClass( "Ljava/lang/StackTraceElement;");
-  ASSERT_EQ(4U, stack_trace_element->NumInstanceFields());
-  EXPECT_TRUE(stack_trace_element->GetInstanceField(0)->GetName()->Equals("declaringClass"));
-  EXPECT_TRUE(stack_trace_element->GetInstanceField(1)->GetName()->Equals("fileName"));
-  EXPECT_TRUE(stack_trace_element->GetInstanceField(2)->GetName()->Equals("methodName"));
-  EXPECT_TRUE(stack_trace_element->GetInstanceField(3)->GetName()->Equals("lineNumber"));
-
-  Class* accessible_object = class_linker_->FindSystemClass("Ljava/lang/reflect/AccessibleObject;");
-  ASSERT_EQ(1U, accessible_object->NumInstanceFields());
-  EXPECT_TRUE(accessible_object->GetInstanceField(0)->GetName()->Equals("flag"));
-
-  Class* field = class_linker_->FindSystemClass("Ljava/lang/reflect/Field;");
-  ASSERT_EQ(6U, field->NumInstanceFields());
-  EXPECT_TRUE(field->GetInstanceField(0)->GetName()->Equals("declaringClass"));
-  EXPECT_TRUE(field->GetInstanceField(1)->GetName()->Equals("genericType"));
-  EXPECT_TRUE(field->GetInstanceField(2)->GetName()->Equals("type"));
-  EXPECT_TRUE(field->GetInstanceField(3)->GetName()->Equals("name"));
-  EXPECT_TRUE(field->GetInstanceField(4)->GetName()->Equals("slot"));
-  EXPECT_TRUE(field->GetInstanceField(5)->GetName()->Equals("genericTypesAreInitialized"));
-
-  Class* method = class_linker_->FindSystemClass("Ljava/lang/reflect/Method;");
-  ASSERT_EQ(11U, method->NumInstanceFields());
-  EXPECT_TRUE(method->GetInstanceField( 0)->GetName()->Equals("declaringClass"));
-  EXPECT_TRUE(method->GetInstanceField( 1)->GetName()->Equals("exceptionTypes"));
-  EXPECT_TRUE(method->GetInstanceField( 2)->GetName()->Equals("formalTypeParameters"));
-  EXPECT_TRUE(method->GetInstanceField( 3)->GetName()->Equals("genericExceptionTypes"));
-  EXPECT_TRUE(method->GetInstanceField( 4)->GetName()->Equals("genericParameterTypes"));
-  EXPECT_TRUE(method->GetInstanceField( 5)->GetName()->Equals("genericReturnType"));
-  EXPECT_TRUE(method->GetInstanceField( 6)->GetName()->Equals("returnType"));
-  EXPECT_TRUE(method->GetInstanceField( 7)->GetName()->Equals("name"));
-  EXPECT_TRUE(method->GetInstanceField( 8)->GetName()->Equals("parameterTypes"));
-  EXPECT_TRUE(method->GetInstanceField( 9)->GetName()->Equals("genericTypesAreInitialized"));
-  EXPECT_TRUE(method->GetInstanceField(10)->GetName()->Equals("slot"));
-
-  Class* class_loader = class_linker_->FindSystemClass("Ljava/lang/ClassLoader;");
-  ASSERT_EQ(2U, class_loader->NumInstanceFields());
-  EXPECT_TRUE(class_loader->GetInstanceField(0)->GetName()->Equals("packages"));
-  EXPECT_TRUE(class_loader->GetInstanceField(1)->GetName()->Equals("parent"));
-
-  Class* dex_base_class_loader = class_linker_->FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
-  ASSERT_EQ(2U, dex_base_class_loader->NumInstanceFields());
-  EXPECT_TRUE(dex_base_class_loader->GetInstanceField(0)->GetName()->Equals("originalPath"));
-  EXPECT_TRUE(dex_base_class_loader->GetInstanceField(1)->GetName()->Equals("pathList"));
+  EXPECT_TRUE(ObjectOffsets().Check());
+  EXPECT_TRUE(AccessibleObjectOffsets().Check());
+  EXPECT_TRUE(FieldOffsets().Check());
+  EXPECT_TRUE(MethodOffsets().Check());
+  EXPECT_TRUE(ClassOffsets().Check());
+  EXPECT_TRUE(StringOffsets().Check());
+  EXPECT_TRUE(ThrowableOffsets().Check());
+  EXPECT_TRUE(StackTraceElementOffsets().Check());
+  EXPECT_TRUE(ClassLoaderOffsets().Check());
+  EXPECT_TRUE(BaseDexClassLoaderOffsets().Check());
+  EXPECT_TRUE(PathClassLoaderOffsets().Check());
 }
 
 // The first reference array element must be a multiple of 8 bytes from the

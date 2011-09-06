@@ -6,7 +6,7 @@ namespace art {
 
 class HeapTest : public CommonTest {};
 
-TEST_F(HeapTest, DISABLED_GarbageCollectClassLinkerInit) {
+TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
   // garbage is created during ClassLinker::Init
   Heap::CollectGarbage();
 }

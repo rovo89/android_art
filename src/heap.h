@@ -134,13 +134,14 @@ class Heap {
     verify_object_disabled_ = true;
   }
 
+  static void RecordFree(Space* space, const Object* object);
+
  private:
   // Allocates uninitialized storage.
   static Object* Allocate(size_t num_bytes);
   static Object* Allocate(Space* space, size_t num_bytes);
 
   static void RecordAllocation(Space* space, const Object* object);
-  static void RecordFree(Space* space, const Object* object);
   static void RecordImageAllocations(Space* space);
 
   static void CollectGarbageInternal();
