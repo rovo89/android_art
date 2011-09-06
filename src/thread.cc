@@ -20,18 +20,6 @@
 
 namespace art {
 
-/* desktop Linux needs a little help with gettid() */
-#if !defined(HAVE_ANDROID_OS)
-#define __KERNEL__
-# include <linux/unistd.h>
-#ifdef _syscall0
-_syscall0(pid_t, gettid)
-#else
-pid_t gettid() { return syscall(__NR_gettid);}
-#endif
-#undef __KERNEL__
-#endif
-
 pthread_key_t Thread::pthread_key_self_;
 
 // Temporary debugging hook for compiler.
@@ -267,7 +255,7 @@ Thread* Thread::Attach(const Runtime* runtime) {
   thread->InitCpu();
 
   thread->handle_ = pthread_self();
-  thread->tid_ = gettid();
+  thread->tid_ = ::art::GetTid();
 
   thread->state_ = kRunnable;
 
@@ -798,6 +786,7 @@ void ThreadList::Dump(std::ostream& os) {
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
   }
+  os << "\n";
 }
 
 void ThreadList::Register(Thread* thread) {

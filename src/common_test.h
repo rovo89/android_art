@@ -63,19 +63,6 @@ class ScratchFile {
 
 class CommonTest : public testing::Test {
  public:
-  static void LogMaps() {
-    const char* maps_file = "/proc/self/maps";
-    std::string contents;
-    CHECK(ReadFileToString(maps_file, &contents));
-    // logcat can't handle it all at once
-    std::vector<std::string> lines;
-    Split(contents, '\n', lines);
-    LOG(INFO) << maps_file << ":";
-    for (size_t i = 0; i < lines.size(); i++) {
-      LOG(INFO) << "    " << lines[i];
-    }
-  }
-
   static void MakeExecutable(const ByteArray* byte_array) {
     uintptr_t data = reinterpret_cast<uintptr_t>(byte_array->GetData());
     uintptr_t base = RoundDown(data, kPageSize);

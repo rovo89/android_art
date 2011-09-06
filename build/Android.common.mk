@@ -76,6 +76,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/java_util_concurrent_atomic_AtomicLong.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
+	src/logging.cc \
 	src/mark_stack.cc \
 	src/mark_sweep.cc \
 	src/memory_region.cc \

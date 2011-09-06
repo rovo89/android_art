@@ -399,6 +399,7 @@ void Runtime::DumpStatistics(std::ostream& os) {
   //    gDvm.numDeclaredStaticFields,
   //    gDvm.pBootLoaderAlloc->curOffset);
   // LOGI("GC precise methods: %d", dvmPointerSetGetCount(gDvm.preciseMethods));
+  os << "\n";
 }
 
 void Runtime::BlockSignals() {

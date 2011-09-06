@@ -34,9 +34,10 @@ class SignalCatcher {
   SignalCatcher();
   ~SignalCatcher();
 
+  static void HandleSigQuit();
+
  private:
   static void* Run(void* arg);
-  static void HandleSigQuit();
   static void HandleSigUsr1();
 
   static bool halt_;

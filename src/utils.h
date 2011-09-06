@@ -177,6 +177,9 @@ std::string GetIsoDate();
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char delim, std::vector<std::string>& result);
 
+// Returns the calling thread's tid. (The C libraries don't expose this.)
+pid_t GetTid();
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_H_

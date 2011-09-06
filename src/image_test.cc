@@ -7,6 +7,7 @@
 #include "file.h"
 #include "image.h"
 #include "image_writer.h"
+#include "signal_catcher.h"
 #include "space.h"
 #include "utils.h"
 
@@ -72,9 +73,9 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(boot_space != NULL);
 
   // enable to display maps to debug boot_base and boot_limit checking problems below
-  if (false) {
-    // TODO: switch to sending kill -3 to self
-    LogMaps();
+  // TODO: why does this dump show two attached threads?
+  if (true) {
+    SignalCatcher::HandleSigQuit();
   }
 
   byte* boot_base = boot_space->GetBase();

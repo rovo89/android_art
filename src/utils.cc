@@ -1,11 +1,16 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: enh@google.com (Elliott Hughes)
 
+#include "utils.h"
+
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "UniquePtr.h"
 #include "file.h"
 #include "object.h"
 #include "os.h"
-#include "utils.h"
 
 namespace art {
 
@@ -209,3 +214,15 @@ void Split(const std::string& s, char delim, std::vector<std::string>& result) {
 }
 
 }  // namespace art
+
+// Neither bionic nor glibc exposes gettid(2).
+#define __KERNEL__
+#include <linux/unistd.h>
+namespace art {
+#ifdef _syscall0
+_syscall0(pid_t, GetTid)
+#else
+pid_t GetTid() { return syscall(__NR_gettid); }
+#endif
+}  // namespace art
+#undef __KERNEL__

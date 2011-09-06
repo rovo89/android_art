@@ -1,4 +1,18 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -8,40 +22,17 @@
 #include <iostream>
 
 #include "logging.h"
-#include "runtime.h"
 #include "stringprintf.h"
-
-// glibc doesn't expose gettid(2).
-#define __KERNEL__
-# include <linux/unistd.h>
-#ifdef _syscall0
-_syscall0(pid_t,gettid)
-#else
-pid_t gettid() { return syscall(__NR_gettid);}
-#endif
-#undef __KERNEL__
+#include "utils.h"
 
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
-: line_(line), severity_(severity), errno_(error)
+: line_number_(line), severity_(severity), errno_(error)
 {
-  stream_state_ = stream().flags();
   const char* last_slash = strrchr(file, '/');
   file_ = (last_slash == NULL) ? file : last_slash + 1;
-  stream() << StringPrintf("%c %5d %5d %s:%d] ",
-      "IWEF"[severity], getpid(), gettid(), file_, line);
 }
 
-LogMessage::~LogMessage() {
-  if (errno_ != -1) {
-    stream() << ": " << strerror(errno_);
-  }
-  stream() << std::endl;
-  stream().flags(stream_state_);
-  if (severity_ == FATAL) {
-    art::Runtime::Abort(file_, line_);
-  }
-}
-
-std::ostream& LogMessage::stream() {
-  return std::cerr;
+void LogMessage::LogLine(const char* line) {
+  std::cerr << "IWEF"[severity_] << ' ' << StringPrintf("%5d %5d", getpid(), ::art::GetTid()) << ' '
+            << file_ << ':' << line_number_ << "] " << line << std::endl;
 }
