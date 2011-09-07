@@ -22,12 +22,12 @@ class CompilerTest : public CommonTest {
                              const char* klass, const char* method, const char* signature,
                              jint expected, ...) {
     CompileDirectMethod(class_loader, klass, method, signature);
+#if defined(__arm__)
     JNIEnv* env = Thread::Current()->GetJniEnv();
     jclass c = env->FindClass(klass);
     CHECK(c != NULL) << "Class not found " << klass;
     jmethodID m = env->GetStaticMethodID(c, method, signature);
     CHECK(m != NULL) << "Method not found: " << klass << "." << method << signature;
-#if defined(__arm__)
     va_list args;
     va_start(args, expected);
     jint result = env->CallStaticIntMethodV(c, m, args);
@@ -40,12 +40,12 @@ class CompilerTest : public CommonTest {
                               const char* klass, const char* method, const char* signature,
                               jlong expected, ...) {
     CompileDirectMethod(class_loader, klass, method, signature);
+#if defined(__arm__)
     JNIEnv* env = Thread::Current()->GetJniEnv();
     jclass c = env->FindClass(klass);
     CHECK(c != NULL) << "Class not found " << klass;
     jmethodID m = env->GetStaticMethodID(c, method, signature);
     CHECK(m != NULL) << "Method not found: " << klass << "." << method << signature;
-#if defined(__arm__)
     va_list args;
     va_start(args, expected);
     jlong result = env->CallStaticLongMethodV(c, m, args);
