@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define FORCE_SLOW 1
+#define FORCE_SLOW 0
 
 static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
@@ -804,7 +804,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      * frame backing storage.
      */
     // Scan the rest of the args - if in physReg flush to memory
-    for (int i = 4; i < numArgs; i++) {
+    for (int i = 3; i < numArgs; i++) {
         RegLocation loc = oatGetRawSrc(cUnit, mir, i);
         if (loc.wide) {
             loc = oatUpdateLocWide(cUnit, loc);
