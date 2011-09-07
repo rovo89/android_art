@@ -52,8 +52,9 @@ class CallingConvention {
   // The slot number for current calling_convention argument.
   // Note that each slot is 32-bit. When the current argument is bigger
   // than 32 bits, return the first slot number for this argument.
-  unsigned int itr_refs_;
   unsigned int itr_slots_;
+  // The number of references iterated past
+  unsigned int itr_refs_;
   // The argument number along argument list for current argument
   unsigned int itr_args_;
   // Number of longs and doubles seen along argument list
@@ -79,7 +80,8 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   bool IsCurrentParamAReference();
   bool IsCurrentParamInRegister();
   bool IsCurrentParamOnStack();
-  bool IsCurrentUserArg();
+  bool IsCurrentArgExplicit();  // ie a non-implict argument such as this
+  bool IsCurrentArgPossiblyNull();
   size_t CurrentParamSize();
   ManagedRegister CurrentParamRegister();
   FrameOffset CurrentParamStackOffset();

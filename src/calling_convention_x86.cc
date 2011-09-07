@@ -60,6 +60,10 @@ size_t JniCallingConvention::FrameSize() {
                  kStackAlignment);
 }
 
+size_t JniCallingConvention::OutArgSize() {
+  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, kStackAlignment);
+}
+
 size_t JniCallingConvention::ReturnPcOffset() {
   // Return PC is pushed at the top of the frame by the call into the method
   return FrameSize() - kPointerSize;
@@ -99,7 +103,11 @@ FrameOffset JniCallingConvention::CurrentParamStackOffset() {
 }
 
 size_t JniCallingConvention::NumberOfOutgoingStackArgs() {
-  return GetMethod()->NumArgs() + GetMethod()->NumLongOrDoubleArgs();
+  size_t static_args = GetMethod()->IsStatic() ? 1 : 0;  // count jclass
+  // regular argument parameters and this
+  size_t param_args = GetMethod()->NumArgs() +
+                      GetMethod()->NumLongOrDoubleArgs();
+  return static_args + param_args + 1;  // count JNIEnv*
 }
 
 }  // namespace art

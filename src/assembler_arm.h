@@ -432,6 +432,8 @@ class Assembler {
   void Store(FrameOffset dest, ManagedRegister src, size_t size);
   void StoreRef(FrameOffset dest, ManagedRegister src);
   void StoreRawPtr(FrameOffset dest, ManagedRegister src);
+  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
+                     ManagedRegister scratch);
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch);
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs);

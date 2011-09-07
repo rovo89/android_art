@@ -86,11 +86,11 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
 
       if (input_in_reg) {
         ManagedRegister in_reg  =  mr_conv.CurrentParamRegister();
-        jni_asm->VerifyObject(in_reg, mr_conv.IsCurrentUserArg());
+        jni_asm->VerifyObject(in_reg, mr_conv.IsCurrentArgPossiblyNull());
         jni_asm->StoreRef(sirt_offset, in_reg);
       } else if (input_on_stack) {
         FrameOffset in_off  = mr_conv.CurrentParamStackOffset();
-        jni_asm->VerifyObject(in_off, mr_conv.IsCurrentUserArg());
+        jni_asm->VerifyObject(in_off, mr_conv.IsCurrentArgPossiblyNull());
         jni_asm->CopyRef(sirt_offset, in_off,
                          mr_conv.InterproceduralScratchRegister());
       }
@@ -278,14 +278,15 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
   // 14. Place result in correct register possibly loading from indirect
   //     reference table
   if (jni_conv.IsReturnAReference()) {
-    jni_asm->IncreaseFrameSize(kStackAlignment);
-    jni_conv.ResetIterator(FrameOffset(kStackAlignment));
+    jni_asm->IncreaseFrameSize(out_arg_size);
+    jni_conv.ResetIterator(FrameOffset(out_arg_size));
 
-    jni_conv.Next();
+    jni_conv.Next();  // Skip Thread* argument
+    // Pass result as arg2
     SetNativeParameter(jni_asm, &jni_conv, jni_conv.ReturnRegister());
 
-    jni_conv.ResetIterator(FrameOffset(kStackAlignment));
-
+    // Pass Thread*
+    jni_conv.ResetIterator(FrameOffset(out_arg_size));
     if (jni_conv.IsCurrentParamInRegister()) {
       jni_asm->GetCurrentThread(jni_conv.CurrentParamRegister());
     } else {
@@ -296,7 +297,7 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     jni_asm->Call(reinterpret_cast<uintptr_t>(DecodeJObjectInThread),
                   jni_conv.InterproceduralScratchRegister());
 
-    jni_asm->DecreaseFrameSize(kStackAlignment);
+    jni_asm->DecreaseFrameSize(out_arg_size);
     jni_conv.ResetIterator(FrameOffset(0));
   }
   jni_asm->Move(mr_conv.ReturnRegister(), jni_conv.ReturnRegister());
@@ -344,11 +345,16 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
   bool null_allowed = false;
   bool ref_param = jni_conv->IsCurrentParamAReference();
   CHECK(!ref_param || mr_conv->IsCurrentParamAReference());
+  // input may be in register, on stack or both - but not none!
   CHECK(input_in_reg || mr_conv->IsCurrentParamOnStack());
-  CHECK(output_in_reg || jni_conv->IsCurrentParamOnStack());
+  if (output_in_reg) {  // output shouldn't straddle registers and stack
+    CHECK(!jni_conv->IsCurrentParamOnStack());
+  } else {
+    CHECK(jni_conv->IsCurrentParamOnStack());
+  }
   // References need placing in SIRT and the entry address passing
   if (ref_param) {
-    null_allowed = mr_conv->IsCurrentUserArg();
+    null_allowed = mr_conv->IsCurrentArgPossiblyNull();
     // Compute SIRT offset. Note null is placed in the SIRT but the jobject
     // passed to the native code must be null (not a pointer into the SIRT
     // as with regular references).
@@ -362,7 +368,12 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     if (ref_param) {
       jni_asm->CreateSirtEntry(out_reg, sirt_offset, in_reg, null_allowed);
     } else {
-      jni_asm->Move(out_reg, in_reg);
+      if (!mr_conv->IsCurrentParamOnStack()) {
+        // regular non-straddling move
+        jni_asm->Move(out_reg, in_reg);
+      } else {
+        UNIMPLEMENTED(FATAL);  // we currently don't expect to see this case
+      }
     }
   } else if (!input_in_reg && !output_in_reg) {
     FrameOffset out_off = jni_conv->CurrentParamStackOffset();
@@ -404,7 +415,16 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     } else {
       size_t param_size = mr_conv->CurrentParamSize();
       CHECK_EQ(param_size, jni_conv->CurrentParamSize());
-      jni_asm->Store(out_off, in_reg, param_size);
+      if (!mr_conv->IsCurrentParamOnStack()) {
+        // regular non-straddling store
+        jni_asm->Store(out_off, in_reg, param_size);
+      } else {
+        // store where input straddles registers and stack
+        CHECK_EQ(param_size, 8u);
+        FrameOffset in_off = mr_conv->CurrentParamStackOffset();
+        jni_asm->StoreSpanning(out_off, in_reg, in_off,
+                               mr_conv->InterproceduralScratchRegister());
+      }
     }
   }
 }

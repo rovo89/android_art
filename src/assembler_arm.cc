@@ -1486,6 +1486,13 @@ void Assembler::StoreRawPtr(FrameOffset dest, ManagedRegister src) {
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
 }
 
+void Assembler::StoreSpanning(FrameOffset dest, ManagedRegister src,
+                              FrameOffset in_off, ManagedRegister scratch) {
+  StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
+  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, in_off.Int32Value());
+  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value() + 4);
+}
+
 void Assembler::CopyRef(FrameOffset dest, FrameOffset src,
                         ManagedRegister scratch) {
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
@@ -1581,9 +1588,23 @@ void Assembler::Move(ManagedRegister dest, ManagedRegister src) {
     if (dest.IsCoreRegister()) {
       CHECK(src.IsCoreRegister());
       mov(dest.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
+    } else if (dest.IsDRegister()) {
+      CHECK(src.IsDRegister());
+      vmovd(dest.AsDRegister(), src.AsDRegister());
+    } else if (dest.IsSRegister()) {
+      CHECK(src.IsSRegister());
+      vmovs(dest.AsSRegister(), src.AsSRegister());
     } else {
-      // TODO: VFP
-      UNIMPLEMENTED(FATAL) << ": VFP";
+      CHECK(dest.IsRegisterPair());
+      CHECK(src.IsRegisterPair());
+      // Ensure that the first move doesn't clobber the input of the second
+      if (src.AsRegisterPairHigh() != dest.AsRegisterPairLow()) {
+        mov(dest.AsRegisterPairLow(), ShifterOperand(src.AsRegisterPairLow()));
+        mov(dest.AsRegisterPairHigh(), ShifterOperand(src.AsRegisterPairHigh()));
+      } else {
+        mov(dest.AsRegisterPairHigh(), ShifterOperand(src.AsRegisterPairHigh()));
+        mov(dest.AsRegisterPairLow(), ShifterOperand(src.AsRegisterPairLow()));
+      }
     }
   }
 }

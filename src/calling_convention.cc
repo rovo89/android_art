@@ -24,7 +24,7 @@ bool ManagedRuntimeCallingConvention::HasNext() {
 
 void ManagedRuntimeCallingConvention::Next() {
   CHECK(HasNext());
-  if (IsCurrentUserArg() &&
+  if (IsCurrentArgExplicit() &&  // don't query parameter type of implicit args
       GetMethod()->IsParamALongOrDouble(itr_args_)) {
     itr_longs_and_doubles_++;
     itr_slots_++;
@@ -36,12 +36,13 @@ void ManagedRuntimeCallingConvention::Next() {
   itr_slots_++;
 }
 
-bool ManagedRuntimeCallingConvention::IsCurrentUserArg() {
-  if (GetMethod()->IsStatic()) {
-    return true;
-  }
-  // For a virtual method, "this" should never be NULL.
-  return (itr_args_ != 0);
+bool ManagedRuntimeCallingConvention::IsCurrentArgExplicit() {
+  // Static methods have no implicit arguments, others implicitly pass this
+  return GetMethod()->IsStatic() || (itr_args_ != 0);
+}
+
+bool ManagedRuntimeCallingConvention::IsCurrentArgPossiblyNull() {
+  return IsCurrentArgExplicit();  // any user parameter may be null
 }
 
 size_t ManagedRuntimeCallingConvention::CurrentParamSize() {
@@ -53,10 +54,6 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
 }
 
 // JNI calling convention
-
-size_t JniCallingConvention::OutArgSize() {
-  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, kStackAlignment);
-}
 
 size_t JniCallingConvention::ReferenceCount() {
   const Method* method = GetMethod();

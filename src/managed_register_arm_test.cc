@@ -221,6 +221,18 @@ TEST(ManagedRegister, Pair) {
   EXPECT_EQ(R1, reg.AsRegisterPairHigh());
   EXPECT_TRUE(reg.Equals(ManagedRegister::FromCoreRegisterPair(R0)));
 
+  reg = ManagedRegister::FromRegisterPair(R1_R2);
+  EXPECT_TRUE(!reg.IsNoRegister());
+  EXPECT_TRUE(!reg.IsCoreRegister());
+  EXPECT_TRUE(!reg.IsSRegister());
+  EXPECT_TRUE(!reg.IsDRegister());
+  EXPECT_TRUE(!reg.IsOverlappingDRegister());
+  EXPECT_TRUE(reg.IsRegisterPair());
+  EXPECT_EQ(R1_R2, reg.AsRegisterPair());
+  EXPECT_EQ(R1, reg.AsRegisterPairLow());
+  EXPECT_EQ(R2, reg.AsRegisterPairHigh());
+  EXPECT_TRUE(reg.Equals(ManagedRegister::FromCoreRegisterPair(R1)));
+
   reg = ManagedRegister::FromRegisterPair(R2_R3);
   EXPECT_TRUE(!reg.IsNoRegister());
   EXPECT_TRUE(!reg.IsCoreRegister());
