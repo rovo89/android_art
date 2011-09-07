@@ -24,7 +24,6 @@ class SystemMethods {
     String[] digits = new String[] {
       "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f",
     };
-    System.logI("hello world");
     long t = System.currentTimeMillis();
     for (int i = 7; i >= 0; --i) {
       int b = ((int) (t >> (i * 8))) & 0xff;
@@ -34,31 +33,63 @@ class SystemMethods {
     return 123;
   }
 
+  private static String[] STRING_DIGITS = new String[] {
+    "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f",
+  };
+
   public static int test2() {
-    System.logI("creating char[]...");
     char[] cs = new char[20];
-    System.logI("...created char[]");
-    String[] digits = new String[] {
-      "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f",
-    };
     long t = System.currentTimeMillis();
-    System.logI("creating StringBuilder...");
     StringBuilder sb = new StringBuilder(20);
-    System.logI("...created StringBuilder");
     for (int i = 7; i >= 0; --i) {
       int b = ((int) (t >> (i * 8))) & 0xff;
-      // TODO: StringBuilder.append(C) works, but StringBuilder.append(Ljava/lang/String;) doesn't.
-      System.logI("calling append...");
-      sb.append(digits[(b >> 4) & 0xf].charAt(0));
-      System.logI("...called append");
-      System.logI("calling append...");
-      sb.append(digits[b & 0xf].charAt(0));
-      System.logI("...called append");
+      sb.append(STRING_DIGITS[(b >> 4) & 0xf]);
+      sb.append(STRING_DIGITS[b & 0xf]);
     }
-    System.logI("calling toString...");
     String result = sb.toString();
-    System.logI("...called toString");
     System.logI(result);
+    return 123;
+  }
+
+  private static char[] DIGITS = new char[] {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+    'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+    'u', 'v', 'w', 'x', 'y', 'z'
+  };
+
+  public static int test3() {
+    long t = System.currentTimeMillis();
+
+    long v = t;
+    //        int i = (int) v;
+    //        if (v >= 0 && i == v) {
+    //            return intToHexString(i, false, 0);
+    //        }
+
+    int bufLen = 16;  // Max number of hex digits in a long
+    char[] buf = new char[bufLen];
+    int cursor = bufLen;
+
+    do {
+      buf[--cursor] = DIGITS[((int) v) & 0xF];
+    } while ((v >>>= 4) != 0);
+
+    String s = new String(buf, cursor, bufLen - cursor);
+    System.logI(s);
+
+    System.logI(IntegralToString.longToHexString(t));
+    System.logI(Long.toHexString(t));
+    System.logI(Long.toString(t));
+    return 123;
+  }
+
+  private static int i = 4;
+  private static long j = 0x0123456789abcdefL;
+
+  public static int test4() {
+    String s = "int=" + i + " long=" + j;
+    System.logI(s);
     return 123;
   }
 }

@@ -196,28 +196,8 @@ byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, jvalue* args) {
 
 JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
                           Method* method, byte* args) {
-  Thread* self = ts.Self();
-
-  // Push a transition back into managed code onto the linked list in thread
-  CHECK_EQ(Thread::kRunnable, self->GetState());
-  NativeToManagedRecord record;
-  self->PushNativeToManagedRecord(&record);
-
-  // Call the invoke stub associated with the method
-  // Pass everything as arguments
-  const Method::InvokeStub* stub = method->GetInvokeStub();
   JValue result;
-
-  if (method->HasCode() && stub != NULL) {
-    (*stub)(method, receiver, self, args, &result);
-  } else {
-    LOG(WARNING) << "Not invoking method with no associated code: "
-                 << PrettyMethod(method);
-    result.j = 0;
-  }
-
-  // Pop transition
-  self->PopNativeToManagedRecord(record);
+  method->Invoke(ts.Self(), receiver, args, &result);
   return result;
 }
 

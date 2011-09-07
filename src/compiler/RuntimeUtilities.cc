@@ -73,7 +73,9 @@ void HandleFillArrayDataFromCode(Array* array, const uint16_t* table)
 {
     uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
     uint32_t size_in_bytes = size * table[1];
-    UNIMPLEMENTED(WARNING) << "Need to check if array.length() <= size";
+    if (static_cast<int32_t>(size) > array->GetLength()) {
+      UNIMPLEMENTED(FATAL) << "need to throw AIOOBE and unwind";
+    }
     memcpy((char*)array + art::Array::DataOffset().Int32Value(),
            (char*)&table[4], size_in_bytes);
 }

@@ -56,57 +56,48 @@ Class* Field::GetType() const {
   return Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
 }
 
-uint32_t Field::Get32StaticFromCode(uint32_t field_idx, const Method* referrer) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
-  if (field == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw an error";
-    return 0;
+Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Field* f = class_linker->ResolveField(field_idx, referrer);
+  if (f != NULL) {
+    Class* c = f->GetDeclaringClass();
+    // If the class is already initializing, we must be inside <clinit>, or
+    // we'd still be waiting for the lock.
+    if (c->GetStatus() == Class::kStatusInitializing || class_linker->EnsureInitialized(c)) {
+      return f;
+    }
   }
+  UNIMPLEMENTED(FATAL) << "throw an error and unwind";
+  return NULL;
+}
+
+uint32_t Field::Get32StaticFromCode(uint32_t field_idx, const Method* referrer) {
+  Field* field = FindFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int32_t));
   return field->Get32(NULL);
 }
 void Field::Set32StaticFromCode(uint32_t field_idx, const Method* referrer, uint32_t new_value) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
-  if (field == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw an error";
-    return;
-  }
+  Field* field = FindFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int32_t));
   field->Set32(NULL, new_value);
 }
 uint64_t Field::Get64StaticFromCode(uint32_t field_idx, const Method* referrer) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
-  if (field == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw an error";
-    return 0;
-  }
+  Field* field = FindFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int64_t));
   return field->Get64(NULL);
 }
 void Field::Set64StaticFromCode(uint32_t field_idx, const Method* referrer, uint64_t new_value) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
-  if (field == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw an error";
-    return;
-  }
+  Field* field = FindFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int64_t));
   field->Set64(NULL, new_value);
 }
 Object* Field::GetObjStaticFromCode(uint32_t field_idx, const Method* referrer) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
-  if (field == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw an error";
-    return 0;
-  }
+  Field* field = FindFieldFromCode(field_idx, referrer);
   DCHECK(!field->GetType()->IsPrimitive());
   return field->GetObj(NULL);
 }
 void Field::SetObjStaticFromCode(uint32_t field_idx, const Method* referrer, Object* new_value) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, referrer);
-  if (field == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw an error";
-    return;
-  }
+  Field* field = FindFieldFromCode(field_idx, referrer);
   DCHECK(!field->GetType()->IsPrimitive());
   field->SetObj(NULL, new_value);
 }
@@ -481,6 +472,28 @@ void Method::SetInvokeStub(const ByteArray* invoke_stub_array) {
       OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_array_), invoke_stub_array, false);
   SetFieldPtr<const InvokeStub*>(
       OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), invoke_stub, false);
+}
+
+void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) const {
+  // Push a transition back into managed code onto the linked list in thread.
+  CHECK_EQ(Thread::kRunnable, self->GetState());
+  NativeToManagedRecord record;
+  self->PushNativeToManagedRecord(&record);
+
+  // Call the invoke stub associated with the method.
+  // Pass everything as arguments.
+  const Method::InvokeStub* stub = GetInvokeStub();
+  if (HasCode() && stub != NULL) {
+    (*stub)(this, receiver, self, args, result);
+  } else {
+    LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);
+    if (result != NULL) {
+      result->j = 0;
+    }
+  }
+
+  // Pop transition.
+  self->PopNativeToManagedRecord(record);
 }
 
 void Class::SetStatus(Status new_status) {

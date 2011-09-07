@@ -1177,7 +1177,7 @@ Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader
 
 bool ClassLinker::InitializeClass(Class* klass) {
   CHECK(klass->GetStatus() == Class::kStatusResolved ||
-        klass->GetStatus() == Class::kStatusError);
+      klass->GetStatus() == Class::kStatusError) << klass->GetStatus();
 
   Thread* self = Thread::Current();
 
@@ -1270,9 +1270,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
   Method* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
   if (clinit != NULL) {
-    // JValue unused;
-    // TODO: dvmCallMethod(self, method, NULL, &unused);
-    // UNIMPLEMENTED(FATAL);
+    clinit->Invoke(self, NULL, NULL, NULL);
   }
 
   {

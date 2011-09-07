@@ -296,35 +296,63 @@ TEST_F(CompilerTest, SystemMethodsTest) {
   CompileDirectMethod(NULL, "java.lang.String", "<clinit>", "()V");
   CompileDirectMethod(NULL, "java.lang.String", "<init>", "(II[C)V");
   CompileDirectMethod(NULL, "java.lang.String", "<init>", "([CII)V");
+  CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
   CompileVirtualMethod(NULL, "java.lang.String", "charAt", "(I)C");
   CompileVirtualMethod(NULL, "java.lang.String", "length", "()I");
-  CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
 
+  CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "<init>", "()V");
   CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "<init>", "(I)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(Ljava/lang/String;)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(C)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "appendNull", "()V");
   CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "enlargeBuffer", "(I)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(C)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(Ljava/lang/String;)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "([CII)V");
+  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "appendNull", "()V");
   CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "toString", "()Ljava/lang/String;");
 
+  CompileDirectMethod(NULL, "java.lang.StringBuilder", "<init>", "()V");
   CompileDirectMethod(NULL, "java.lang.StringBuilder", "<init>", "(I)V");
-  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
   CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(C)Ljava/lang/StringBuilder;");
+  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(I)Ljava/lang/StringBuilder;");
+  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(J)Ljava/lang/StringBuilder;");
+  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
   CompileVirtualMethod(NULL, "java.lang.StringBuilder", "toString", "()Ljava/lang/String;");
 
+  CompileDirectMethod(NULL, "java.lang.ThreadLocal", "<init>", "()V");
+  CompileVirtualMethod(NULL, "java.lang.ThreadLocal", "get", "()Ljava/lang/Object;");
+
+  CompileDirectMethod(NULL, "java.lang.Long", "toHexString", "(J)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.Long", "toString", "(J)Ljava/lang/String;");
   CompileDirectMethod(NULL, "java.lang.Long", "toString", "(JI)Ljava/lang/String;");
+
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "<clinit>", "()V");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "appendInt", "(Ljava/lang/AbstractStringBuilder;I)V");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "appendLong", "(Ljava/lang/AbstractStringBuilder;J)V");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "convertInt", "(Ljava/lang/AbstractStringBuilder;I)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "convertLong", "(Ljava/lang/AbstractStringBuilder;J)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "intIntoCharArray", "([CII)I");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "intToHexString", "(IZI)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToHexString", "(J)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(J)Ljava/lang/String;");
   CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(JI)Ljava/lang/String;");
+  CompileDirectMethod(NULL, "java.lang.IntegralToString", "stringOf", "([C)Ljava/lang/String;");
 
   CompileDirectMethod(NULL, "java.lang.System", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
-  CompileDirectMethod(NULL, "java.lang.System", "log", "(CLjava/lang/String;Ljava/lang/Throwable;)V");
-  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
-  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;)V");
   CompileDirectMethod(NULL, "java.lang.System", "currentTimeMillis", "()J");
+  CompileDirectMethod(NULL, "java.lang.System", "log", "(CLjava/lang/String;Ljava/lang/Throwable;)V");
+  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;)V");
+  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
+
+  CompileDirectMethod(NULL, "java.util.Arrays", "checkOffsetAndCount", "(III)V");
 
   const ClassLoader* class_loader = LoadDex("SystemMethods");
+
+  CompileDirectMethod(class_loader, "SystemMethods", "<clinit>", "()V");
+
   AssertStaticIntMethod(class_loader, "SystemMethods", "test0", "()I", 123);
   AssertStaticIntMethod(class_loader, "SystemMethods", "test1", "()I", 123);
   AssertStaticIntMethod(class_loader, "SystemMethods", "test2", "()I", 123);
+  AssertStaticIntMethod(class_loader, "SystemMethods", "test3", "()I", 123);
+  AssertStaticIntMethod(class_loader, "SystemMethods", "test4", "()I", 123);
 }
 
 

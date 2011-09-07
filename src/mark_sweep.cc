@@ -511,11 +511,11 @@ void MarkSweep::EnqueueClearedReferences(Object** cleared) {
   if (*cleared != NULL) {
     Thread* self = Thread::Current();
     DCHECK(self != NULL);
-    // TODO: Method *meth = gDvm.methJavaLangRefReferenceQueueAdd;
-    // DCHECK(meth != NULL);
-    // JValue unused;
+    // TODO: Method* m = gDvm.methJavaLangRefReferenceQueueAdd;
+    // DCHECK(m != NULL);
     // Object* reference = *cleared;
-    // TODO: dvmCallMethod(self, meth, NULL, &unused, reference);
+    // args = {reference}
+    // TODO: m->Invoke(self, NULL, args, NULL);
     UNIMPLEMENTED(FATAL);
     *cleared = NULL;
   }

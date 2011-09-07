@@ -602,7 +602,7 @@ class Field : public AccessibleObject {
 class Method : public AccessibleObject {
  public:
   // An function that invokes a method with an array of its arguments.
-  typedef void InvokeStub(Method* method,
+  typedef void InvokeStub(const Method* method,
                           Object* obj,
                           Thread* thread,
                           byte* args,
@@ -832,6 +832,8 @@ class Method : public AccessibleObject {
 
   // Size in bytes of the return value
   size_t ReturnSize() const;
+
+  void Invoke(Thread* self, Object* receiver, byte* args, JValue* result) const;
 
   const ByteArray* GetCodeArray() const {
     return GetFieldPtr<const ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), false);
