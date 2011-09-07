@@ -236,7 +236,7 @@ class Thread {
   static Thread* Create(const Runtime* runtime);
 
   // Creates a new thread from the calling thread.
-  static Thread* Attach(const Runtime* runtime);
+  static Thread* Attach(const Runtime* runtime, const char* name, bool as_daemon);
 
   static Thread* Current() {
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
@@ -260,8 +260,8 @@ class Thread {
     return true;
   }
 
-  uint32_t GetId() const {
-    return id_;
+  uint32_t GetThinLockId() const {
+    return thin_lock_id_;
   }
 
   pid_t GetTid() const {
@@ -324,14 +324,14 @@ class Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, self_));
   }
 
-  // Offset of exception within Thread, used by generated code
+  // Offset of exception_ within Thread, used by generated code
   static ThreadOffset ExceptionOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
   }
 
-  // Offset of id within Thread, used by generated code
+  // Offset of thin_lock_id_ within Thread, used by generated code
   static ThreadOffset IdOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, id_));
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_id_));
   }
 
   // Offset of card_table within Thread, used by generated code
@@ -440,18 +440,7 @@ class Thread {
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
  private:
-  Thread()
-      : id_(1234),
-        top_of_managed_stack_(),
-        native_to_managed_record_(NULL),
-        top_sirt_(NULL),
-        jni_env_(NULL),
-        exception_(NULL),
-        suspend_count_(0),
-        class_loader_override_(NULL) {
-    InitFunctionPointers();
-  }
-
+  Thread();
   ~Thread();
   friend class Runtime;  // For ~Thread.
 
@@ -463,14 +452,23 @@ class Thread {
 
   void WalkStack(StackVisitor* visitor);
 
-  // Managed thread id.
-  uint32_t id_;
+  // Thin lock thread id. This is a small integer used by the thin lock implementation.
+  // This is not to be confused with the native thread's tid, nor is it the value returned
+  // by java.lang.Thread.getId --- this is a distinct value, used only for locking. One
+  // important difference between this id and the ids visible to managed code is that these
+  // ones get reused (to ensure that they fit in the number of bits available).
+  uint32_t thin_lock_id_;
 
   // System thread id.
   pid_t tid_;
 
   // Native thread handle.
   pthread_t handle_;
+
+  bool is_daemon_;
+
+  // Our managed peer (an instance of java.lang.Thread).
+  Object* peer_;
 
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;

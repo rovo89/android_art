@@ -642,7 +642,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         return NULL;
       }
       ObjectLock lock(klass);
-      klass->SetClinitThreadId(self->GetId());
+      klass->SetClinitThreadId(self->GetTid());
       // Add the newly loaded class to the loaded classes table.
       bool success = InsertClass(descriptor, klass);  // TODO: just return collision
       if (!success) {
@@ -678,7 +678,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
   if (!klass->IsLinked() && !klass->IsErroneous()) {
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
-    if (!klass->IsLinked() && klass->GetClinitThreadId() == self->GetId()) {
+    if (!klass->IsLinked() && klass->GetClinitThreadId() == self->GetTid()) {
       self->ThrowNewException("Ljava/lang/ClassCircularityError;", NULL); // TODO: detail
       return NULL;
     }
@@ -1210,7 +1210,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
     while (klass->GetStatus() == Class::kStatusInitializing) {
       // we caught somebody else in the act; was it us?
-      if (klass->GetClinitThreadId() == self->GetId()) {
+      if (klass->GetClinitThreadId() == self->GetTid()) {
         LG << "recursive <clinit>";
         return true;
       }
@@ -1258,7 +1258,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
     DCHECK(klass->GetStatus() < Class::kStatusInitializing);
 
-    klass->SetClinitThreadId(self->GetId());
+    klass->SetClinitThreadId(self->GetTid());
     klass->SetStatus(Class::kStatusInitializing);
   }
 

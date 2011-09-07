@@ -68,6 +68,8 @@ class Runtime {
   // Starts a runtime, which may cause threads to be started and code to run.
   void Start();
 
+  bool IsStarted();
+
   static Runtime* Current() {
     return instance_;
   }
@@ -119,8 +121,7 @@ class Runtime {
  private:
   static void PlatformAbort(const char*, int);
 
-  Runtime() : stack_size_(0), thread_list_(NULL), intern_table_(NULL), class_linker_(NULL),
-    signal_catcher_(NULL) {}
+  Runtime();
 
   void BlockSignals();
 
@@ -140,6 +141,8 @@ class Runtime {
   SignalCatcher* signal_catcher_;
 
   JavaVMExt* java_vm_;
+
+  bool started_;
 
   // Hooks supported by JNI_CreateJavaVM
   jint (*vfprintf_)(FILE* stream, const char* format, va_list ap);

@@ -22,6 +22,19 @@ namespace art {
 
 Runtime* Runtime::instance_ = NULL;
 
+Runtime::Runtime()
+    : stack_size_(0),
+      thread_list_(NULL),
+      intern_table_(NULL),
+      class_linker_(NULL),
+      signal_catcher_(NULL),
+      java_vm_(NULL),
+      started_(false),
+      vfprintf_(NULL),
+      exit_(NULL),
+      abort_(NULL) {
+}
+
 Runtime::~Runtime() {
   // TODO: use smart pointers instead. (we'll need the pimpl idiom.)
   delete class_linker_;
@@ -313,18 +326,22 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   if (Runtime::instance_ != NULL) {
     return NULL;
   }
-  UniquePtr<Runtime> runtime(new Runtime());
-  bool success = runtime->Init(options, ignore_unrecognized);
-  if (!success) {
-    return NULL;
+  instance_ = new Runtime;
+  if (!instance_->Init(options, ignore_unrecognized)) {
+    delete instance_;
+    instance_ = NULL;
   }
-  instance_ = runtime.release();
   return instance_;
 }
 
 void Runtime::Start() {
+  started_ = true;
   instance_->InitLibraries();
   instance_->signal_catcher_ = new SignalCatcher;
+}
+
+bool Runtime::IsStarted() {
+  return started_;
 }
 
 bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
@@ -361,7 +378,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     return false;
   }
 
-  thread_list_->Register(Thread::Attach(this));
+  thread_list_->Register(Thread::Attach(this, "main", false));
 
   class_linker_ = ClassLinker::Create(options->boot_class_path_,
                                       options->class_path_,
@@ -450,10 +467,7 @@ void Runtime::BlockSignals() {
 }
 
 void Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemon) {
-  if (as_daemon) {
-    UNIMPLEMENTED(WARNING) << "TODO: do something different for daemon threads";
-  }
-  Thread* t = Thread::Attach(instance_);
+  Thread* t = Thread::Attach(instance_, name, as_daemon);
   thread_list_->Register(t);
 }
 

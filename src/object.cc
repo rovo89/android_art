@@ -50,7 +50,7 @@ Class* Field::GetTypeDuringLinking() const {
 }
 
 Class* Field::GetType() const {
-  DCHECK(Runtime::Current() != NULL)
+  DCHECK(Runtime::Current()->IsStarted())
       << "Can't call GetType without an initialized runtime";
   // Do full linkage (which sets dex cache value to speed next call)
   return Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
@@ -498,7 +498,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
 
 void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError ||
-        Runtime::Current() == NULL);  // no runtime implies we're not initialized
+      !Runtime::Current()->IsStarted());
   CHECK(sizeof(Status) == sizeof(uint32_t));
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_),
                     new_status, false);
