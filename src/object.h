@@ -1519,7 +1519,7 @@ class Class : public StaticStorageBase {
   Class* GetSuperClass() const {
     // Can only get super class for loaded classes (hack for when runtime is
     // initializing)
-    DCHECK(IsLoaded() || Runtime::Current() == NULL);
+    DCHECK(IsLoaded() || !Runtime::Current()->IsStarted());
     return GetFieldObject<Class*>(
         OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
   }
@@ -1899,12 +1899,12 @@ class Class : public StaticStorageBase {
 
   Field* FindDeclaredStaticField(const StringPiece& name, Class* type);
 
-  uint32_t GetClinitThreadId() const {
+  pid_t GetClinitThreadId() const {
     DCHECK(IsIdxLoaded());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), false);
   }
 
-  void SetClinitThreadId(uint32_t new_clinit_thread_id) {
+  void SetClinitThreadId(pid_t new_clinit_thread_id) {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_),
                new_clinit_thread_id, false);
   }
@@ -1962,7 +1962,7 @@ class Class : public StaticStorageBase {
   const Class* verify_error_class_;
 
   // threadId, used to check for recursive <clinit> invocation
-  uint32_t clinit_thread_id_;
+  pid_t clinit_thread_id_;
 
   // Total object size; used when allocating storage on gc heap.  (For
   // interfaces and abstract classes this will be zero.)

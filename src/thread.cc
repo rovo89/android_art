@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 
 #include <algorithm>
+#include <bitset>
 #include <cerrno>
 #include <iostream>
 #include <list>
@@ -216,6 +217,8 @@ void* ThreadStart(void *arg) {
 }
 
 Thread* Thread::Create(const Runtime* runtime) {
+  UNIMPLEMENTED(FATAL) << "need to pass in a java.lang.Thread";
+
   size_t stack_size = runtime->GetStackSize();
 
   Thread* new_thread = new Thread;
@@ -247,17 +250,47 @@ Thread* Thread::Create(const Runtime* runtime) {
     PLOG(FATAL) << "pthread_attr_destroy failed";
   }
 
+  // TODO: get the "daemon" field from the java.lang.Thread.
+  // new_thread->is_daemon_ = dvmGetFieldBoolean(threadObj, gDvm.offJavaLangThread_daemon);
+
   return new_thread;
 }
 
-Thread* Thread::Attach(const Runtime* runtime) {
+static const uint32_t kMaxThreadId = ((1 << 16) - 1);
+std::bitset<kMaxThreadId> gAllocatedThreadIds;
+
+uint32_t AllocThreadId() {
+  Runtime::Current()->GetThreadList()->Lock();
+  for (size_t i = 0; i < gAllocatedThreadIds.size(); ++i) {
+    if (!gAllocatedThreadIds[i]) {
+      gAllocatedThreadIds.set(i);
+      Runtime::Current()->GetThreadList()->Unlock();
+      return i + 1; // Zero is reserved to mean "invalid".
+    }
+  }
+  LOG(FATAL) << "Out of internal thread ids";
+  return 0;
+}
+
+void ReleaseThreadId(uint32_t id) {
+  Runtime::Current()->GetThreadList()->Lock();
+  CHECK(gAllocatedThreadIds[id]);
+  gAllocatedThreadIds.reset(id);
+  Runtime::Current()->GetThreadList()->Unlock();
+}
+
+Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
   Thread* thread = new Thread;
   thread->InitCpu();
 
-  thread->handle_ = pthread_self();
+  thread->thin_lock_id_ = AllocThreadId();
   thread->tid_ = ::art::GetTid();
+  thread->handle_ = pthread_self();
+  thread->is_daemon_ = as_daemon;
 
   thread->state_ = kRunnable;
+
+  SetThreadName(name);
 
   errno = pthread_setspecific(Thread::pthread_key_self_, thread);
   if (errno != 0) {
@@ -283,18 +316,19 @@ void Thread::Dump(std::ostream& os) const {
    */
   os << "TODO: pin Thread before dumping\n";
 #if 0
-  if (java_thread_ == NULL) {
+  // TODO: dalvikvm had this limitation, but we probably still want to do our best.
+  if (peer_ == NULL) {
     LOGI("Can't dump thread %d: threadObj not set", threadId);
     return;
   }
-  dvmAddTrackedAlloc(java_thread_, NULL);
+  dvmAddTrackedAlloc(peer_, NULL);
 #endif
 
   DumpState(os);
   DumpStack(os);
 
 #if 0
-  dvmReleaseTrackedAlloc(java_thread_, NULL);
+  dvmReleaseTrackedAlloc(peer_, NULL);
 #endif
 }
 
@@ -326,16 +360,22 @@ std::string GetSchedulerGroup(pid_t tid) {
 void Thread::DumpState(std::ostream& os) const {
   std::string thread_name("unknown");
   int priority = -1;
-  bool is_daemon = false;
+
 #if 0 // TODO
   nameStr = (StringObject*) dvmGetFieldObject(threadObj, gDvm.offJavaLangThread_name);
   threadName = dvmCreateCstrFromString(nameStr);
   priority = dvmGetFieldInt(threadObj, gDvm.offJavaLangThread_priority);
-  is_daemon = dvmGetFieldBoolean(threadObj, gDvm.offJavaLangThread_daemon);
 #else
-  thread_name = "TODO";
+  {
+    // TODO: this may be truncated; we should use the java.lang.Thread 'name' field instead.
+    std::string stats;
+    if (ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
+      size_t start = stats.find('(') + 1;
+      size_t end = stats.find(')') - start;
+      thread_name = stats.substr(start, end);
+    }
+  }
   priority = -1;
-  is_daemon = false;
 #endif
 
   int policy;
@@ -362,20 +402,20 @@ void Thread::DumpState(std::ostream& os) const {
 #endif
 
   os << '"' << thread_name << '"';
-  if (is_daemon) {
+  if (is_daemon_) {
     os << " daemon";
   }
   os << " prio=" << priority
-     << " tid=" << GetId()
+     << " tid=" << GetThinLockId()
      << " " << state_ << "\n";
 
   int suspend_count = 0; // TODO
   int debug_suspend_count = 0; // TODO
-  void* java_thread_ = NULL; // TODO
+  void* peer_ = NULL; // TODO
   os << "  | group=\"" << group_name << "\""
      << " sCount=" << suspend_count
      << " dsCount=" << debug_suspend_count
-     << " obj=" << reinterpret_cast<void*>(java_thread_)
+     << " obj=" << reinterpret_cast<void*>(peer_)
      << " self=" << reinterpret_cast<const void*>(this) << "\n";
   os << "  | sysTid=" << GetTid()
      << " nice=" << getpriority(PRIO_PROCESS, GetTid())
@@ -445,6 +485,19 @@ void Thread::Shutdown() {
   if (errno != 0) {
     PLOG(WARNING) << "pthread_key_delete failed";
   }
+}
+
+Thread::Thread()
+    : thin_lock_id_(0),
+      peer_(NULL),
+      top_of_managed_stack_(),
+      native_to_managed_record_(NULL),
+      top_sirt_(NULL),
+      jni_env_(NULL),
+      exception_(NULL),
+      suspend_count_(0),
+      class_loader_override_(NULL) {
+  InitFunctionPointers();
 }
 
 Thread::~Thread() {
@@ -747,7 +800,7 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   os << "Thread[" << &thread
      << ",pthread_t=" << thread.GetImpl()
      << ",tid=" << thread.GetTid()
-     << ",id=" << thread.GetId()
+     << ",id=" << thread.GetThinLockId()
      << ",state=" << thread.GetState() << "]";
   return os;
 }
@@ -785,15 +838,15 @@ void ThreadList::Dump(std::ostream& os) {
   typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
+    os << "\n";
   }
-  os << "\n";
 }
 
 void ThreadList::Register(Thread* thread) {
   //LOG(INFO) << "ThreadList::Register() " << *thread;
   MutexLock mu(lock_);
   CHECK(!Contains(thread));
-  list_.push_front(thread);
+  list_.push_back(thread);
 }
 
 void ThreadList::Unregister(Thread* thread) {

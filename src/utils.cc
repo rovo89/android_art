@@ -12,6 +12,10 @@
 #include "object.h"
 #include "os.h"
 
+#if defined(HAVE_PRCTL)
+#include <sys/prctl.h>
+#endif
+
 namespace art {
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
@@ -211,6 +215,40 @@ void Split(const std::string& s, char delim, std::vector<std::string>& result) {
       result.push_back(std::string(start, p - start));
     }
   }
+}
+
+void SetThreadName(const char *threadName) {
+  int hasAt = 0;
+  int hasDot = 0;
+  const char *s = threadName;
+  while (*s) {
+    if (*s == '.') {
+      hasDot = 1;
+    } else if (*s == '@') {
+      hasAt = 1;
+    }
+    s++;
+  }
+  int len = s - threadName;
+  if (len < 15 || hasAt || !hasDot) {
+    s = threadName;
+  } else {
+    s = threadName + len - 15;
+  }
+#if defined(HAVE_ANDROID_PTHREAD_SETNAME_NP)
+  /* pthread_setname_np fails rather than truncating long strings */
+  char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded into bionic
+  strncpy(buf, s, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = '\0';
+  errno = pthread_setname_np(pthread_self(), buf);
+  if (errno != 0) {
+    PLOG(WARNING) << "Unable to set the name of current thread to '" << buf << "'";
+  }
+#elif defined(HAVE_PRCTL)
+  prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
+#else
+#error no implementation for SetThreadName
+#endif
 }
 
 }  // namespace art

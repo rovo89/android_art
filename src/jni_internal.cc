@@ -452,7 +452,7 @@ class SharedLibrary {
       : path_(path),
         handle_(handle),
         jni_on_load_lock_(Mutex::Create("JNI_OnLoad lock")),
-        jni_on_load_tid_(Thread::Current()->GetId()),
+        jni_on_load_thread_id_(Thread::Current()->GetThinLockId()),
         jni_on_load_result_(kPending) {
     pthread_cond_init(&jni_on_load_cond_, NULL);
   }
@@ -475,7 +475,7 @@ class SharedLibrary {
    */
   bool CheckOnLoadResult(JavaVMExt* vm) {
     Thread* self = Thread::Current();
-    if (jni_on_load_tid_ == self->GetId()) {
+    if (jni_on_load_thread_id_ == self->GetThinLockId()) {
       // Check this so we don't end up waiting for ourselves.  We need
       // to return "true" so the caller can continue.
       LOG(INFO) << *self << " recursive attempt to load library "
@@ -503,7 +503,7 @@ class SharedLibrary {
 
   void SetResult(bool result) {
     jni_on_load_result_ = result ? kOkay : kFailed;
-    jni_on_load_tid_ = 0;
+    jni_on_load_thread_id_ = 0;
 
     // Broadcast a wakeup to anybody sleeping on the condition variable.
     MutexLock mu(jni_on_load_lock_);
@@ -535,7 +535,7 @@ class SharedLibrary {
   // Wait for JNI_OnLoad in other thread.
   pthread_cond_t jni_on_load_cond_;
   // Recursive invocation guard.
-  uint32_t jni_on_load_tid_;
+  uint32_t jni_on_load_thread_id_;
   // Result of earlier JNI_OnLoad call.
   JNI_OnLoadState jni_on_load_result_;
 };

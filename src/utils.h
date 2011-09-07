@@ -180,6 +180,10 @@ void Split(const std::string& s, char delim, std::vector<std::string>& result);
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();
 
+// Sets the name of the current thread. The name may be truncated to an
+// implementation-defined limit.
+void SetThreadName(const char* name);
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_H_
