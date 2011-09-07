@@ -221,9 +221,12 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     jni_conv.Next();  // Skip JNIEnv*
     // Save return value
     FrameOffset return_save_location = jni_conv.ReturnValueSaveLocation();
-    CHECK_LT(return_save_location.Uint32Value(), frame_size+out_arg_size);
-    jni_asm->Store(return_save_location, jni_conv.ReturnRegister(),
-                   jni_conv.SizeOfReturnValue());
+    if (jni_conv.SizeOfReturnValue() != 0) {
+      FrameOffset return_save_location = jni_conv.ReturnValueSaveLocation();
+      CHECK_LT(return_save_location.Uint32Value(), frame_size+out_arg_size);
+      jni_asm->Store(return_save_location, jni_conv.ReturnRegister(),
+                     jni_conv.SizeOfReturnValue());
+    }
     // Get SIRT entry for 1st argument
     if (is_static) {
       FrameOffset sirt_offset = jni_conv.CurrentParamSirtEntryOffset();
@@ -251,8 +254,10 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
     jni_asm->Call(jni_env_register, monitor_exit,
                   jni_conv.InterproceduralScratchRegister());
     // Reload return value
-    jni_asm->Load(jni_conv.ReturnRegister(), return_save_location,
-                  jni_conv.SizeOfReturnValue());
+    if (jni_conv.SizeOfReturnValue() != 0) {
+      jni_asm->Load(jni_conv.ReturnRegister(), return_save_location,
+                    jni_conv.SizeOfReturnValue());
+    }
   }
 
   // 12. Release outgoing argument area
@@ -266,7 +271,8 @@ void JniCompiler::Compile(Assembler* jni_asm, Method* native_method) {
                  .Equals(jni_conv.ReturnRegister()));  // don't clobber result
   // Location to preserve result on slow path, ensuring its within the frame
   FrameOffset return_save_location = jni_conv.ReturnValueSaveLocation();
-  CHECK_LT(return_save_location.Uint32Value(), frame_size);
+  CHECK(return_save_location.Uint32Value() < frame_size ||
+        jni_conv.SizeOfReturnValue() == 0);
   jni_asm->SuspendPoll(jni_conv.InterproceduralScratchRegister(),
                        jni_conv.ReturnRegister(), return_save_location,
                        jni_conv.SizeOfReturnValue());
