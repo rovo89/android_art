@@ -1939,9 +1939,8 @@ class Class : public StaticStorageBase {
                              new_source_file, false);
   }
 
-  bool Implements(const Class* klass) const;
-
  private:
+  bool Implements(const Class* klass) const;
   bool IsArrayAssignableFromArray(const Class* klass) const;
   bool IsAssignableFromArray(const Class* klass) const;
   bool IsSubClass(const Class* klass) const;

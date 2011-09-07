@@ -4406,10 +4406,10 @@ Class* DexVerifier::FindCommonSuperclass(Class* c1, Class* c2) {
   if (c1 == c2)
     return c1;
 
-  if (c1->IsInterface() && c2->Implements(c1)) {
+  if (c1->IsInterface() && c1->IsAssignableFrom(c2)) {
     return c1;
   }
-  if (c2->IsInterface() && c1->Implements(c2)) {
+  if (c2->IsInterface() && c2->IsAssignableFrom(c1)) {
     return c2;
   }
   if (c1->IsArrayClass() && c2->IsArrayClass()) {
@@ -4980,13 +4980,6 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   }
 
   if (res_method == NULL) {
-    /* failed; print a meaningful failure message */
-    //const DexFile::MethodId method_id = dex_file->GetMethodId(dec_insn->vB_);
-    //const char* method_name = dex_file->dexStringById(method_id.name_idx_);
-    //const char* class_name = dex_file->dexStringByTypeIdx(method_id.class_idx_);
-
-    //LOG(ERROR) << "VFY: unable to resolve " << (int) method_type << " method "
-               //<< dec_insn->vB_ << ": " << class_name << "." << method_name;
     LOG(ERROR) << "VFY: unable to resolve called method";
     *failure = VERIFY_ERROR_NO_METHOD;
     return NULL;
@@ -5112,7 +5105,6 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
    * have been verified, so we can't assume it's properly formed.
    */
   for (sig_offset = 1; sig_offset < sig.size(); sig_offset++) {
-  //while (*sig != '\0' && *sig != ')') {
     if (sig[sig_offset] == ')')
       break;
 

@@ -8,9 +8,17 @@ class Interfaces {
         public void j1();
         public void j2();
     }
+    interface K extends J {
+        public void k();
+    }
     class A implements I, J {
         public void i() {};
         public void j1() {};
         public void j2() {};
+    }
+    class B implements K {
+        public void j1() {};
+        public void j2() {};
+        public void k() {};
     }
 }
