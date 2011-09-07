@@ -640,26 +640,16 @@ extern RegLocation oatWideToNarrow(CompilationUnit* cUnit,
     if (rl.location == kLocPhysReg) {
         RegisterInfo* infoLo = getRegInfo(cUnit, rl.lowReg);
         RegisterInfo* infoHi = getRegInfo(cUnit, rl.highReg);
-        if (!infoLo->pair) {
-            dumpRegPool(cUnit->regPool->coreRegs,
-                        cUnit->regPool->numCoreRegs);
-            assert(infoLo->pair);
+        if (infoLo->isTemp) {
+            infoLo->pair = false;
+            infoLo->defStart = NULL;
+            infoLo->defEnd = NULL;
         }
-        if (!infoHi->pair) {
-            dumpRegPool(cUnit->regPool->coreRegs,
-                        cUnit->regPool->numCoreRegs);
-            assert(infoHi->pair);
+        if (infoHi->isTemp) {
+            infoHi->pair = false;
+            infoHi->defStart = NULL;
+            infoHi->defEnd = NULL;
         }
-        assert(infoLo->pair);
-        assert(infoHi->pair);
-        assert(infoLo->partner == infoHi->reg);
-        assert(infoHi->partner == infoLo->reg);
-        infoLo->pair = false;
-        infoHi->pair = false;
-        infoLo->defStart = NULL;
-        infoLo->defEnd = NULL;
-        infoHi->defStart = NULL;
-        infoHi->defEnd = NULL;
     }
     rl.wide = false;
     return rl;
