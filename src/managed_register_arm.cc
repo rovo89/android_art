@@ -53,6 +53,10 @@ int ManagedRegister::AllocIdLow() const {
   } else {
     CHECK(IsRegisterPair());
     low = (r - kNumberOfDRegIds) * 2;  // Return a Register.
+    if (low > 6) {
+      // we didn't got a pair higher than R6_R7, must be the dalvik special case
+      low = 1;
+    }
   }
   return low;
 }

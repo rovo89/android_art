@@ -39,20 +39,25 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
-  return !IsCurrentParamInRegister();
+  if (itr_slots_ < 2) {
+    return false;
+  } else if (itr_slots_ > 2) {
+    return true;
+  } else {
+    // handle funny case of a long/double straddling registers and the stack
+    return GetMethod()->IsParamALongOrDouble(itr_args_);
+  }
 }
 
 static const Register kManagedArgumentRegisters[] = {
   R1, R2, R3
 };
 ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
-  CHECK_LT(itr_slots_, 3u); // Otherwise, should have gone through stack
+  CHECK(IsCurrentParamInRegister());
   const Method* method = GetMethod();
   if (method->IsParamALongOrDouble(itr_args_)) {
     if (itr_slots_ == 0) {
-      // return R1 to denote R1_R2
-      return ManagedRegister::FromCoreRegister(kManagedArgumentRegisters
-                                               [itr_slots_]);
+      return ManagedRegister::FromRegisterPair(R1_R2);
     } else if (itr_slots_ == 1) {
       return ManagedRegister::FromRegisterPair(R2_R3);
     } else {
@@ -67,10 +72,18 @@ ManagedRegister ManagedRuntimeCallingConvention::CurrentParamRegister() {
 }
 
 FrameOffset ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
-  CHECK_GE(itr_slots_, 3u);
-  return FrameOffset(displacement_.Int32Value() +   // displacement
-                     kPointerSize +                 // Method*
-                     (itr_slots_ * kPointerSize));  // offset into in args
+  CHECK(IsCurrentParamOnStack());
+  FrameOffset result =
+      FrameOffset(displacement_.Int32Value() +   // displacement
+                  kPointerSize +                 // Method*
+                  (itr_slots_ * kPointerSize));  // offset into in args
+  if (itr_slots_ == 2) {
+    // the odd spanning case, bump the offset to skip the first half of the
+    // input which is in a register
+    CHECK(IsCurrentParamInRegister());
+    result = FrameOffset(result.Int32Value() + 4);
+  }
+  return result;
 }
 
 // JNI calling convention
@@ -82,6 +95,20 @@ size_t JniCallingConvention::FrameSize() {
   size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
   // Plus return value spill area size
   return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(),
+                 kStackAlignment);
+}
+
+size_t JniCallingConvention::OutArgSize() {
+  const Method* method = GetMethod();
+  size_t padding;  // padding to ensure longs and doubles are not split in AAPCS
+  if (method->IsStatic()) {
+    padding = (method->NumArgs() > 1) && !method->IsParamALongOrDouble(0) &&
+              method->IsParamALongOrDouble(1) ? 4 : 0;
+  } else {
+    padding = (method->NumArgs() > 2) && !method->IsParamALongOrDouble(1) &&
+              method->IsParamALongOrDouble(2) ? 4 : 0;
+  }
+  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize + padding,
                  kStackAlignment);
 }
 
@@ -160,7 +187,13 @@ FrameOffset JniCallingConvention::CurrentParamStackOffset() {
 }
 
 size_t JniCallingConvention::NumberOfOutgoingStackArgs() {
-  return GetMethod()->NumArgs() + GetMethod()->NumLongOrDoubleArgs() - 2;
+  const Method* method = GetMethod();
+  size_t static_args = method->IsStatic() ? 1 : 0;  // count jclass
+  // regular argument parameters and this
+  size_t param_args = method->NumArgs() +
+                      method->NumLongOrDoubleArgs();
+  // count JNIEnv* less arguments in registers
+  return static_args + param_args + 1 - 4;
 }
 
 }  // namespace art

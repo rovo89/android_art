@@ -435,6 +435,10 @@ class Assembler {
   void Store(FrameOffset offs, ManagedRegister src, size_t size);
   void StoreRef(FrameOffset dest, ManagedRegister src);
   void StoreRawPtr(FrameOffset dest, ManagedRegister src);
+  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
+                     ManagedRegister scratch) {
+    UNIMPLEMENTED(FATAL);  // this case only currently exists for ARM
+  }
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch);
 

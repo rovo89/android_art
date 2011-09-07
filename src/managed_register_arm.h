@@ -14,7 +14,8 @@ enum RegisterPair {
   R2_R3 = 1,
   R4_R5 = 2,
   R6_R7 = 3,
-  kNumberOfRegisterPairs = 4,
+  R1_R2 = 4,  // Dalvik style passing
+  kNumberOfRegisterPairs = 5,
   kNoRegisterPair = -1,
 };
 
@@ -107,7 +108,11 @@ class ManagedRegister {
   RegisterPair AsRegisterPair() const {
     CHECK(IsRegisterPair());
     Register reg_low = AsRegisterPairLow();
-    return static_cast<RegisterPair>(reg_low / 2);
+    if (reg_low == R1) {
+      return R1_R2;
+    } else {
+      return static_cast<RegisterPair>(reg_low / 2);
+    }
   }
 
   Register AsRegisterPairLow() const {
@@ -205,11 +210,15 @@ class ManagedRegister {
 
   // Return a RegisterPair consisting of Register r_low and r_low + 1.
   static ManagedRegister FromCoreRegisterPair(Register r_low) {
-    CHECK_NE(r_low, kNoRegister);
-    CHECK_EQ(0, (r_low % 2));
-    const int r = r_low / 2;
-    CHECK_LT(r, kNumberOfPairRegIds);
-    return FromRegisterPair(static_cast<RegisterPair>(r));
+    if (r_low != R1) {  // not the dalvik special case
+      CHECK_NE(r_low, kNoRegister);
+      CHECK_EQ(0, (r_low % 2));
+      const int r = r_low / 2;
+      CHECK_LT(r, kNumberOfPairRegIds);
+      return FromRegisterPair(static_cast<RegisterPair>(r));
+    } else {
+      return FromRegisterPair(R1_R2);
+    }
   }
 
   // Return a DRegister overlapping SRegister r_low and r_low + 1.

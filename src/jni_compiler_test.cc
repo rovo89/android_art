@@ -257,7 +257,6 @@ jint Java_MyClass_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
   return x + y;
 }
 
-
 TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
   SetupForTest(true, "fooSII",
                "(II)I",
@@ -267,6 +266,32 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 20, 30);
   EXPECT_EQ(50, result);
   EXPECT_EQ(1, gJava_MyClass_fooSII_calls);
+}
+
+int gJava_MyClass_fooSDD_calls = 0;
+jdouble Java_MyClass_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble y) {
+  EXPECT_EQ(1u, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(klass != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
+  gJava_MyClass_fooSDD_calls++;
+  return x - y;  // non-commutative operator
+}
+
+TEST_F(JniCompilerTest, CompileAndRunStaticDoubleDoubleMethod) {
+  SetupForTest(true, "fooSDD", "(DD)D",
+               reinterpret_cast<void*>(&Java_MyClass_fooSDD));
+
+  EXPECT_EQ(0, gJava_MyClass_fooSDD_calls);
+  jdouble result = env_->CallStaticDoubleMethod(jklass_, jmethod_, 99.0, 10.0);
+  EXPECT_EQ(99.0 - 10.0, result);
+  EXPECT_EQ(1, gJava_MyClass_fooSDD_calls);
+  jdouble a = 3.14159265358979323846;
+  jdouble b = 0.69314718055994530942;
+  result = env_->CallStaticDoubleMethod(jklass_, jmethod_, a, b);
+  EXPECT_EQ(a - b, result);
+  EXPECT_EQ(2, gJava_MyClass_fooSDD_calls);
 }
 
 int gJava_MyClass_fooSIOO_calls = 0;
