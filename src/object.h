@@ -82,6 +82,7 @@ static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources
 
 static const uint32_t kAccConstructor = 0x00010000;  // method (Dalvik only)
 static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik only)
+static const uint32_t kAccWritable = 0x80000000; // method (Dalvik only)
 
 static const uint32_t kAccClassFlagsMask = (kAccPublic
                                             | kAccFinal
@@ -499,6 +500,10 @@ class Field : public AccessibleObject {
 
   bool IsStatic() const {
     return (GetAccessFlags() & kAccStatic) != 0;
+  }
+
+  bool IsFinal() const {
+    return (access_flags_ & kAccFinal) != 0;
   }
 
   uint32_t GetTypeIdx() const;
@@ -1666,6 +1671,9 @@ class Class : public StaticStorageBase {
   // method for this class.
   Method* FindVirtualMethodForInterface(Method* method);
 
+  Method* FindInterfaceMethod(const StringPiece& name,
+                              const StringPiece& descriptor);
+
   Method* FindVirtualMethodForVirtualOrInterface(Method* method) {
     if (method->GetDeclaringClass()->IsInterface()) {
       return FindVirtualMethodForInterface(method);
@@ -1931,8 +1939,9 @@ class Class : public StaticStorageBase {
                              new_source_file, false);
   }
 
- private:
   bool Implements(const Class* klass) const;
+
+ private:
   bool IsArrayAssignableFromArray(const Class* klass) const;
   bool IsAssignableFromArray(const Class* klass) const;
   bool IsSubClass(const Class* klass) const;
@@ -1977,7 +1986,7 @@ class Class : public StaticStorageBase {
   // is 2.  Otherwise 0.
   int32_t array_rank_;
 
-  // primitive type index, or PRIM_NOT (-1); set for generated prim classes
+  // primitive type index, or kPrimNot (0); set for generated prim classes
   PrimitiveType primitive_type_;
 
   // The superclass, or NULL if this is java.lang.Object or a

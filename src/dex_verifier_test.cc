@@ -18,7 +18,7 @@ class DexVerifierTest : public CommonTest {
     Class* klass = class_linker_->FindSystemClass(descriptor);
 
     // Verify the class
-    ASSERT_TRUE(DexVerify::VerifyClass(klass));
+    ASSERT_TRUE(DexVerifier::VerifyClass(klass));
   }
 
   void VerifyDexFile(const DexFile* dex, ClassLoader* class_loader) {
@@ -41,7 +41,7 @@ TEST_F(DexVerifierTest, LibCore) {
 TEST_F(DexVerifierTest, IntMath) {
   const ClassLoader* class_loader = LoadDex("IntMath");
   Class* klass = class_linker_->FindClass("LIntMath;", class_loader);
-  ASSERT_TRUE(DexVerify::VerifyClass(klass));
+  ASSERT_TRUE(DexVerifier::VerifyClass(klass));
 }
 
 }  // namespace art

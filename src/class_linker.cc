@@ -1193,7 +1193,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
       CHECK(klass->GetStatus() == Class::kStatusResolved);
 
       klass->SetStatus(Class::kStatusVerifying);
-      if (!DexVerify::VerifyClass(klass)) {
+      if (!DexVerifier::VerifyClass(klass)) {
         LG << "Verification failed";  // TODO: ThrowVerifyError
         Object* exception = self->GetException();
         klass->SetVerifyErrorClass(exception->GetClass());
@@ -1592,6 +1592,8 @@ bool ClassLinker::LinkMethods(Class* klass) {
     for (size_t i = 0; i < count; ++i) {
       klass->GetVirtualMethodDuringLinking(i)->SetMethodIndex(i);
     }
+    // Link interface method tables
+    LinkInterfaceMethods(klass);
   } else {
     // Link virtual method tables
     LinkVirtualMethods(klass);
@@ -2103,7 +2105,9 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
 
   const char* name = dex_file.dexStringById(method_id.name_idx_);
   std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, NULL));
-  if (is_direct) {
+  if (klass->IsInterface()) {
+    resolved = klass->FindInterfaceMethod(name, signature);
+  } else if (is_direct) {
     resolved = klass->FindDirectMethod(name, signature);
   } else {
     resolved = klass->FindVirtualMethod(name, signature);

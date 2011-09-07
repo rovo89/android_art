@@ -87,6 +87,23 @@ class Instruction {
     kVerifyError           = 0x80000,
   };
 
+  /*
+   * Holds the contents of a decoded instruction.
+   */
+  struct DecodedInstruction {
+    uint32_t vA_;
+    uint32_t vB_;
+    uint64_t vB_wide_;        /* for kFmt51l */
+    uint32_t vC_;
+    uint32_t arg_[5];         /* vC/D/E/F/G in invoke or filled-new-array */
+    Code     opcode_;
+
+    DecodedInstruction(const Instruction* inst) {
+      inst->Decode(vA_, vB_, vB_wide_, vC_, arg_);
+      opcode_ = inst->Opcode();
+    }
+  };
+
   // Decodes this instruction, populating its arguments.
   void Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const;
 
@@ -113,6 +130,11 @@ class Instruction {
   // Returns the format of the current instruction.
   InstructionFormat Format() const {
     return kInstructionFormats[Opcode()];
+  }
+
+  // Returns the flags for the current instruction.
+  int Flag() const {
+    return kInstructionFlags[Opcode()];
   }
 
   // Returns true if this instruction is a branch.

@@ -774,6 +774,24 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
   return NULL;
 }
 
+Method* Class::FindInterfaceMethod(const StringPiece& name,
+                                   const StringPiece& signature) {
+  // Check the current class before checking the interfaces.
+  Method* method = FindVirtualMethod(name, signature);
+  if (method != NULL) {
+    return method;
+  }
+
+  InterfaceEntry* iftable = GetIFTable();
+  for (size_t i = 0; i < GetIFTableCount(); i++) {
+    method = iftable[i].GetInterface()->FindVirtualMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
                                         const StringPiece& signature) {
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
