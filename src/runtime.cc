@@ -472,9 +472,7 @@ void Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemo
 }
 
 void Runtime::DetachCurrentThread() {
-  Thread* self = Thread::Current();
-  thread_list_->Unregister(self);
-  delete self;
+  thread_list_->Unregister();
 }
 
 void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {

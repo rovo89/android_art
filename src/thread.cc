@@ -187,10 +187,14 @@ bool Mutex::TryLock() {
 }
 
 void Mutex::Unlock() {
-  CHECK(GetOwner() == Thread::Current());
+  DCHECK(HaveLock());
   int result = pthread_mutex_unlock(&lock_impl_);
   CHECK_EQ(result, 0);
   SetOwner(NULL);
+}
+
+bool Mutex::HaveLock() {
+  return owner_ == Thread::Current();
 }
 
 void Frame::Next() {
@@ -256,34 +260,10 @@ Thread* Thread::Create(const Runtime* runtime) {
   return new_thread;
 }
 
-static const uint32_t kMaxThreadId = ((1 << 16) - 1);
-std::bitset<kMaxThreadId> gAllocatedThreadIds;
-
-uint32_t AllocThreadId() {
-  Runtime::Current()->GetThreadList()->Lock();
-  for (size_t i = 0; i < gAllocatedThreadIds.size(); ++i) {
-    if (!gAllocatedThreadIds[i]) {
-      gAllocatedThreadIds.set(i);
-      Runtime::Current()->GetThreadList()->Unlock();
-      return i + 1; // Zero is reserved to mean "invalid".
-    }
-  }
-  LOG(FATAL) << "Out of internal thread ids";
-  return 0;
-}
-
-void ReleaseThreadId(uint32_t id) {
-  Runtime::Current()->GetThreadList()->Lock();
-  CHECK(gAllocatedThreadIds[id]);
-  gAllocatedThreadIds.reset(id);
-  Runtime::Current()->GetThreadList()->Unlock();
-}
-
 Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
   Thread* thread = new Thread;
   thread->InitCpu();
 
-  thread->thin_lock_id_ = AllocThreadId();
   thread->tid_ = ::art::GetTid();
   thread->handle_ = pthread_self();
   thread->is_daemon_ = as_daemon;
@@ -488,8 +468,7 @@ void Thread::Shutdown() {
 }
 
 Thread::Thread()
-    : thin_lock_id_(0),
-      peer_(NULL),
+    : peer_(NULL),
       top_of_managed_stack_(),
       native_to_managed_record_(NULL),
       top_sirt_(NULL),
@@ -497,11 +476,50 @@ Thread::Thread()
       exception_(NULL),
       suspend_count_(0),
       class_loader_override_(NULL) {
+  {
+    ThreadListLock mu;
+    thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
+  }
   InitFunctionPointers();
 }
 
+void MonitorExitVisitor(const Object* object, void*) {
+  Object* entered_monitor = const_cast<Object*>(object);
+  entered_monitor->MonitorExit();;
+}
+
 Thread::~Thread() {
+  // TODO: check we're not calling the JNI DetachCurrentThread function from
+  // a call stack that includes managed frames. (It's only valid if the stack is all-native.)
+
+  // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
+  jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
+
+  if (IsExceptionPending()) {
+    UNIMPLEMENTED(FATAL) << "threadExitUncaughtException()";
+  }
+
+  // TODO: ThreadGroup.removeThread(this);
+
+  // TODO: this.vmData = 0;
+
+  // TODO: say "bye" to the debugger.
+  //if (gDvm.debuggerConnected) {
+  //   dvmDbgPostThreadDeath(self);
+  //}
+
+  // Thread.join() is implemented as an Object.wait() on the Thread.lock
+  // object. Signal anyone who is waiting.
+  //Object* lock = dvmGetFieldObject(self->threadObj, gDvm.offJavaLangThread_lock);
+  //dvmLockObject(self, lock);
+  //dvmObjectNotifyAll(self, lock);
+  //dvmUnlockObject(self, lock);
+  //lock = NULL;
+
   delete jni_env_;
+  jni_env_ = NULL;
+
+  SetState(Thread::kTerminated);
 }
 
 size_t Thread::NumSirtReferences() {
@@ -849,11 +867,15 @@ void ThreadList::Register(Thread* thread) {
   list_.push_back(thread);
 }
 
-void ThreadList::Unregister(Thread* thread) {
-  //LOG(INFO) << "ThreadList::Unregister() " << *thread;
+void ThreadList::Unregister() {
+  //LOG(INFO) << "ThreadList::Unregister() " << *Thread::Current();
   MutexLock mu(lock_);
-  CHECK(Contains(thread));
-  list_.remove(thread);
+  Thread* self = Thread::Current();
+  CHECK(Contains(self));
+  list_.remove(self);
+  uint32_t thin_lock_id = self->thin_lock_id_;
+  delete self;
+  ReleaseThreadId(thin_lock_id);
 }
 
 void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
@@ -862,6 +884,25 @@ void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->VisitRoots(visitor, arg);
   }
+}
+
+uint32_t ThreadList::AllocThreadId() {
+  DCHECK(lock_->HaveLock());
+  for (size_t i = 0; i < allocated_ids_.size(); ++i) {
+    if (!allocated_ids_[i]) {
+      allocated_ids_.set(i);
+      return i + 1; // Zero is reserved to mean "invalid".
+    }
+  }
+  LOG(FATAL) << "Out of internal thread ids";
+  return 0;
+}
+
+void ThreadList::ReleaseThreadId(uint32_t id) {
+  DCHECK(lock_->HaveLock());
+  --id; // Zero is reserved to mean "invalid".
+  DCHECK(allocated_ids_[id]) << id;
+  allocated_ids_.reset(id);
 }
 
 }  // namespace
