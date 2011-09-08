@@ -151,7 +151,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {
   Space* space = static_cast<Space*>(arg);
   for (size_t i = 0; i < num_ptrs; ++i) {
     Object* obj = static_cast<Object*>(ptrs[i]);
-    Heap::RecordFree(space, obj);
+    Heap::RecordFreeLocked(space, obj);
     space->Free(obj);
   }
   // TODO, unlock heap if concurrent

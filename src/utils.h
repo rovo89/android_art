@@ -8,6 +8,7 @@
 #include "stringpiece.h"
 #include "stringprintf.h"
 
+#include <pthread.h>
 #include <string>
 #include <vector>
 
@@ -179,6 +180,9 @@ void Split(const std::string& s, char delim, std::vector<std::string>& result);
 
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();
+
+// Returns the tid of the thread that owns the given pthread mutex, or 0.
+pid_t GetOwner(pthread_mutex_t* mutex);
 
 // Sets the name of the current thread. The name may be truncated to an
 // implementation-defined limit.

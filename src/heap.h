@@ -67,9 +67,9 @@ class Heap {
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();
 
-  static Mutex* GetLock() {
-    return lock_;
-  }
+  static void Lock();
+
+  static void Unlock();
 
   static const std::vector<Space*>& GetSpaces() {
     return spaces_;
@@ -134,19 +134,24 @@ class Heap {
     verify_object_disabled_ = true;
   }
 
-  static void RecordFree(Space* space, const Object* object);
+  // Callers must hold the heap lock.
+  static void RecordFreeLocked(Space* space, const Object* object);
 
  private:
   // Allocates uninitialized storage.
-  static Object* Allocate(size_t num_bytes);
-  static Object* Allocate(Space* space, size_t num_bytes);
+  static Object* AllocateLocked(size_t num_bytes);
+  static Object* AllocateLocked(Space* space, size_t num_bytes);
 
-  static void RecordAllocation(Space* space, const Object* object);
+  static void RecordAllocationLocked(Space* space, const Object* object);
   static void RecordImageAllocations(Space* space);
 
   static void CollectGarbageInternal();
 
   static void GrowForUtilization();
+
+  static void VerifyObjectLocked(const Object *obj);
+
+  static void VerificationCallback(Object* obj, void *arg);
 
   static Mutex* lock_;
 

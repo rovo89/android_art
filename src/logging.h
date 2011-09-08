@@ -72,7 +72,19 @@
 #define DCHECK_STREQ(s1, s2) CHECK_STREQ(s1, s2)
 #define DCHECK_STRNE(s1, s2) CHECK_STRNE(s1, s2)
 
+  // These require "utils.h" and only work with bionic (not glibc).
+#ifdef __BIONIC__
+#define DCHECK_LOCK_HELD(l) CHECK_EQ(art::GetOwner(l->GetImpl()), art::GetTid())
+#define DCHECK_LOCK_NOT_HELD(l) CHECK_NE(art::GetOwner(l->GetImpl()), art::GetTid())
+#else
+#define DCHECK_LOCK_HELD(l)
+#define DCHECK_LOCK_NOT_HELD(l)
+#endif
+
 #else  // NDEBUG
+
+#define DCHECK_LOCK_HELD(l)
+#define DCHECK_LOCK_NOT_HELD(l)
 
 #define DCHECK(condition) \
   while (false) \

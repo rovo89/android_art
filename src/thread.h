@@ -48,23 +48,14 @@ class Mutex {
 
   const char* GetName() { return name_; }
 
-  Thread* GetOwner() { return owner_; }
-
-  bool HaveLock();
-
   static Mutex* Create(const char* name);
 
-  // TODO: only needed because we lack a condition variable abstraction.
   pthread_mutex_t* GetImpl() { return &lock_impl_; }
 
  private:
-  explicit Mutex(const char* name) : name_(name), owner_(NULL) {}
-
-  void SetOwner(Thread* thread) { owner_ = thread; }
+  explicit Mutex(const char* name) : name_(name) {}
 
   const char* name_;
-
-  Thread* owner_;
 
   pthread_mutex_t lock_impl_;
 

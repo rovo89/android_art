@@ -193,53 +193,59 @@ void Thread::InitFunctionPointers() {
 
 Mutex* Mutex::Create(const char* name) {
   Mutex* mu = new Mutex(name);
-  int result = pthread_mutex_init(&mu->lock_impl_, NULL);
-  CHECK_EQ(result, 0);
+#ifndef NDEBUG
+  pthread_mutexattr_t debug_attributes;
+  errno = pthread_mutexattr_init(&debug_attributes);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_mutexattr_init failed";
+  }
+  errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_ERRORCHECK);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_mutexattr_settype failed";
+  }
+  errno = pthread_mutex_init(&mu->lock_impl_, &debug_attributes);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_mutex_init failed";
+  }
+  errno = pthread_mutexattr_destroy(&debug_attributes);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_mutexattr_destroy failed";
+  }
+#else
+  errno = pthread_mutex_init(&mu->lock_impl_, NULL);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_mutex_init failed";
+  }
+#endif
   return mu;
 }
 
 void Mutex::Lock() {
   int result = pthread_mutex_lock(&lock_impl_);
-  CHECK_EQ(result, 0);
-  SetOwner(Thread::Current());
+  if (result != 0) {
+    errno = result;
+    PLOG(FATAL) << "pthread_mutex_lock failed";
+  }
 }
 
 bool Mutex::TryLock() {
-  int result = pthread_mutex_lock(&lock_impl_);
+  int result = pthread_mutex_trylock(&lock_impl_);
   if (result == EBUSY) {
     return false;
-  } else {
-    CHECK_EQ(result, 0);
-    SetOwner(Thread::Current());
-    return true;
   }
+  if (result != 0) {
+    errno = result;
+    PLOG(FATAL) << "pthread_mutex_trylock failed";
+  }
+  return true;
 }
 
 void Mutex::Unlock() {
-#ifndef NDEBUG
-  Thread* self = Thread::Current();
-  std::stringstream os;
-  os << "owner=";
-  if (owner_ != NULL) {
-    os << *owner_;
-  } else {
-    os << "NULL";
-  }
-  os << " self=";
-  if (self != NULL) {
-    os << *self;
-  } else {
-    os << "NULL";
-  }
-  DCHECK(HaveLock()) << os.str();
-#endif
-  SetOwner(NULL);
   int result = pthread_mutex_unlock(&lock_impl_);
-  CHECK_EQ(result, 0);
-}
-
-bool Mutex::HaveLock() {
-  return owner_ == Thread::Current();
+  if (result != 0) {
+    errno = result;
+    PLOG(FATAL) << "pthread_mutex_unlock failed";
+  }
 }
 
 void Frame::Next() {
@@ -933,14 +939,14 @@ void ThreadList::Dump(std::ostream& os) {
 }
 
 void ThreadList::Register(Thread* thread) {
-  //LOG(INFO) << "ThreadList::Register() " << *thread;
+  LOG(INFO) << "ThreadList::Register() " << *thread;
   MutexLock mu(lock_);
   CHECK(!Contains(thread));
   list_.push_back(thread);
 }
 
 void ThreadList::Unregister() {
-  //LOG(INFO) << "ThreadList::Unregister() " << *Thread::Current();
+  LOG(INFO) << "ThreadList::Unregister() " << *Thread::Current();
   MutexLock mu(lock_);
   Thread* self = Thread::Current();
   CHECK(Contains(self));
@@ -959,7 +965,7 @@ void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 uint32_t ThreadList::AllocThreadId() {
-  DCHECK(lock_->HaveLock());
+  DCHECK_LOCK_HELD(lock_);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);
@@ -971,7 +977,7 @@ uint32_t ThreadList::AllocThreadId() {
 }
 
 void ThreadList::ReleaseThreadId(uint32_t id) {
-  DCHECK(lock_->HaveLock());
+  DCHECK_LOCK_HELD(lock_);
   --id; // Zero is reserved to mean "invalid".
   DCHECK(allocated_ids_[id]) << id;
   allocated_ids_.reset(id);

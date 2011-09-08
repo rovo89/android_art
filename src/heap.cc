@@ -37,6 +37,19 @@ MemberOffset Heap::reference_queueNext_offset_ = MemberOffset(0);
 MemberOffset Heap::reference_pendingNext_offset_ = MemberOffset(0);
 MemberOffset Heap::finalizer_reference_zombie_offset_ = MemberOffset(0);
 
+Mutex* Heap::lock_ = NULL;
+
+class ScopedHeapLock {
+ public:
+  ScopedHeapLock() {
+    Heap::Lock();
+  }
+
+  ~ScopedHeapLock() {
+    Heap::Unlock();
+  }
+};
+
 bool Heap::Init(size_t initial_size, size_t maximum_size,
                 const char* boot_image_file_name,
                 std::vector<const char*>& image_file_names) {
@@ -115,10 +128,16 @@ bool Heap::Init(size_t initial_size, size_t maximum_size,
     RecordImageAllocations(image_spaces[i]);
   }
 
+  // It's still to early to take a lock because there are no threads yet,
+  // but we can create the heap lock now. We don't create it earlier to
+  // make it clear that you can't use locks during heap initialization.
+  lock_ = Mutex::Create("Heap lock");
+
   return true;
 }
 
 void Heap::Destroy() {
+  ScopedHeapLock lock;
   STLDeleteElements(&spaces_);
   if (mark_bitmap_ != NULL) {
     delete mark_bitmap_;
@@ -131,12 +150,13 @@ void Heap::Destroy() {
 }
 
 Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
+  ScopedHeapLock lock;
   DCHECK(klass == NULL
          || klass->GetDescriptor() == NULL
          || (klass->IsClassClass() && num_bytes >= sizeof(Class))
          || (klass->IsVariableSize() || klass->GetObjectSize() == num_bytes));
   DCHECK(num_bytes >= sizeof(Object));
-  Object* obj = Allocate(num_bytes);
+  Object* obj = AllocateLocked(num_bytes);
   if (obj != NULL) {
     obj->SetClass(klass);
   }
@@ -144,6 +164,8 @@ Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
 }
 
 bool Heap::IsHeapAddress(const Object* obj) {
+  // Note: we deliberately don't take the lock here, and mustn't test anything that would
+  // require taking the lock.
   if (!IsAligned(obj, kObjectAlignment)) {
     return false;
   }
@@ -155,6 +177,13 @@ bool Heap::verify_object_disabled_;
 
 #if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
+  ScopedHeapLock lock;
+  Heap::VerifyObjectLocked(obj);
+}
+#endif
+
+void Heap::VerifyObjectLocked(const Object* obj) {
+  DCHECK_LOCK_HELD(lock_);
   if (obj != NULL && !verify_object_disabled_) {
     if (!IsAligned(obj, kObjectAlignment)) {
       LOG(FATAL) << "Object isn't aligned: " << obj;
@@ -188,18 +217,23 @@ void Heap::VerifyObject(const Object* obj) {
     }
   }
 }
-#endif
 
-static void HeapVerifyCallback(Object* obj, void *arg) {
+void Heap::VerificationCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);
-  Heap::VerifyObject(obj);
+  Heap::VerifyObjectLocked(obj);
 }
 
 void Heap::VerifyHeap() {
-  live_bitmap_->Walk(HeapVerifyCallback, NULL);
+  ScopedHeapLock lock;
+  live_bitmap_->Walk(Heap::VerificationCallback, NULL);
 }
 
-void Heap::RecordAllocation(Space* space, const Object* obj) {
+void Heap::RecordAllocationLocked(Space* space, const Object* obj) {
+#ifndef NDEBUG
+  if (Runtime::Current()->IsStarted()) {
+    DCHECK_LOCK_HELD(lock_);
+  }
+#endif
   size_t size = space->AllocationSize(obj);
   DCHECK_NE(size, 0u);
   num_bytes_allocated_ += size;
@@ -207,7 +241,8 @@ void Heap::RecordAllocation(Space* space, const Object* obj) {
   live_bitmap_->Set(obj);
 }
 
-void Heap::RecordFree(Space* space, const Object* obj) {
+void Heap::RecordFreeLocked(Space* space, const Object* obj) {
+  DCHECK_LOCK_HELD(lock_);
   size_t size = space->AllocationSize(obj);
   DCHECK_NE(size, 0u);
   if (size < num_bytes_allocated_) {
@@ -222,6 +257,7 @@ void Heap::RecordFree(Space* space, const Object* obj) {
 }
 
 void Heap::RecordImageAllocations(Space* space) {
+  DCHECK(!Runtime::Current()->IsStarted());
   CHECK(space != NULL);
   CHECK(live_bitmap_ != NULL);
   byte* current = space->GetBase() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
@@ -233,17 +269,20 @@ void Heap::RecordImageAllocations(Space* space) {
   }
 }
 
-Object* Heap::Allocate(size_t size) {
+Object* Heap::AllocateLocked(size_t size) {
+  DCHECK_LOCK_HELD(lock_);
   DCHECK(alloc_space_ != NULL);
   Space* space = alloc_space_;
-  Object* obj = Allocate(space, size);
+  Object* obj = AllocateLocked(space, size);
   if (obj != NULL) {
-    RecordAllocation(space, obj);
+    RecordAllocationLocked(space, obj);
   }
   return obj;
 }
 
-Object* Heap::Allocate(Space* space, size_t size) {
+Object* Heap::AllocateLocked(Space* space, size_t size) {
+  DCHECK_LOCK_HELD(lock_);
+
   // Fail impossible allocations.  TODO: collect soft references.
   if (size > maximum_size_) {
     return NULL;
@@ -328,11 +367,12 @@ int64_t Heap::GetFreeMemory() {
 }
 
 void Heap::CollectGarbage() {
+  ScopedHeapLock lock;
   CollectGarbageInternal();
 }
 
 void Heap::CollectGarbageInternal() {
-  // TODO: check that heap lock is held
+  DCHECK_LOCK_HELD(lock_);
 
   // TODO: Suspend all threads
   {
@@ -369,13 +409,25 @@ void Heap::CollectGarbageInternal() {
 }
 
 void Heap::WaitForConcurrentGcToComplete() {
+  DCHECK_LOCK_HELD(lock_);
 }
 
 // Given the current contents of the active heap, increase the allowed
 // heap footprint to match the target utilization ratio.  This should
 // only be called immediately after a full garbage collection.
 void Heap::GrowForUtilization() {
+  DCHECK_LOCK_HELD(lock_);
   UNIMPLEMENTED(ERROR);
+}
+
+void Heap::Lock() {
+  // TODO: grab the lock, but put ourselves into THREAD_VMWAIT if it looks like
+  // we're going to have to wait on the mutex.
+  lock_->Lock();
+}
+
+void Heap::Unlock() {
+  lock_->Unlock();
 }
 
 }  // namespace art

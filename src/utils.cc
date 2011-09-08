@@ -3,6 +3,7 @@
 
 #include "utils.h"
 
+#include <pthread.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -248,6 +249,15 @@ void SetThreadName(const char *threadName) {
   prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
 #else
 #error no implementation for SetThreadName
+#endif
+}
+
+pid_t GetOwner(pthread_mutex_t* mutex) {
+#ifdef __BIONIC__
+  return static_cast<pid_t>(((mutex)->value >> 16) & 0xffff);
+#else
+  UNIMPLEMENTED(FATAL);
+  return 0;
 #endif
 }
 
