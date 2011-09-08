@@ -56,7 +56,7 @@ Class* Field::GetType() const {
   return Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
 }
 
-Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer) {
+Field* Field::FindFieldFromCode(uint32_t field_idx, const Method* referrer) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* f = class_linker->ResolveField(field_idx, referrer);
   if (f != NULL) {

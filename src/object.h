@@ -524,6 +524,12 @@ class Field : public AccessibleObject {
   // Offset to field within an Object
   MemberOffset GetOffset() const;
 
+  static MemberOffset OffsetOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Field, offset_));
+  }
+
+  static Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer);
+
   MemberOffset GetOffsetDuringLinking() const;
 
   void SetOffset(MemberOffset num_bytes);
@@ -776,6 +782,10 @@ class Method : public AccessibleObject {
 
   static MemberOffset DexCacheResolvedTypesOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_);
+  }
+
+  static MemberOffset DexCacheResolvedFieldsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_fields_);
   }
 
   static MemberOffset DexCacheInitializedStaticStorageOffset() {

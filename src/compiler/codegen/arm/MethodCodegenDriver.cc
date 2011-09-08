@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#define FORCE_SLOW 0
-#define DISPLAY_MISSING_TARGETS
-
 static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
                                    kLocDalvikFrame, INVALID_REG, INVALID_REG,
@@ -146,6 +143,8 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
     if (field == NULL) {
         // Slow path
+        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
+            << " unresolved at compile time";
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pSetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pSet32Static);
         oatFlushAllRegs(cUnit);
@@ -203,7 +202,9 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     int fieldIdx = mir->dalvikInsn.vB;
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
-    if (FORCE_SLOW || field == NULL) {
+    if (SLOW_FIELD_PATH || field == NULL) {
+        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
+            << " unresolved at compile time";
         oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
@@ -259,7 +260,9 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
 {
     int fieldIdx = mir->dalvikInsn.vB;
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
-    if (FORCE_SLOW || field == NULL) {
+    if (SLOW_FIELD_PATH || field == NULL) {
+        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
+            << " unresolved at compile time";
         oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
@@ -317,7 +320,9 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
     Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
     bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
-    if (FORCE_SLOW || field == NULL) {
+    if (SLOW_FIELD_PATH || field == NULL) {
+        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
+            << " unresolved at compile time";
         // Slow path
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pGet32Static);
@@ -950,7 +955,7 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
-    if (FORCE_SLOW || baseMethod == NULL) {
+    if (SLOW_INVOKE_PATH || baseMethod == NULL) {
         fastPath = false;
     } else {
         Class* superClass = cUnit->method->GetDeclaringClass()->GetSuperClass();
@@ -1001,7 +1006,7 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
-    if (FORCE_SLOW || method == NULL) {
+    if (SLOW_INVOKE_PATH || method == NULL) {
         // Slow path
         nextCallInsn = nextVCallInsnSP;
         // If we need a slow-path callout, we'll restart here

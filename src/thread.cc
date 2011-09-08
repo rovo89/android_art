@@ -177,6 +177,7 @@ void Thread::InitFunctionPointers() {
   pCheckCastFromCode = CheckCastFromCode;
   pLockObjectFromCode = LockObjectFromCode;
   pUnlockObjectFromCode = UnlockObjectFromCode;
+  pFindFieldFromCode = Field::FindFieldFromCode;
   pDebugMe = DebugMe;
 }
 
