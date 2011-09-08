@@ -119,13 +119,12 @@ static void CheckCastFromCode(const Class* a, const Class* b) {
 static void UnlockObjectFromCode(Thread* thread, Object* obj) {
     // TODO: throw and unwind if lock not held
     // TODO: throw and unwind on NPE
-    obj->MonitorExit();
+    obj->MonitorExit(thread);
 }
 
 // TODO: placeholder
 static void LockObjectFromCode(Thread* thread, Object* obj) {
-    // Need thread for ownership?
-    obj->MonitorEnter();
+    obj->MonitorEnter(thread);
 }
 
 void Thread::InitFunctionPointers() {

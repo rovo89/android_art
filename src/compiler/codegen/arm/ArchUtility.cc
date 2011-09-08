@@ -473,21 +473,17 @@ void oatCodegenDump(CompilationUnit* cUnit)
     LOG(INFO) << "    };\n\n";
 
     // Dump mapping table
-    if (cUnit->mappingTableSize > 0) {
-        MappingTable *table = cUnit->mappingTable;
-        if (!table) {
-            LOG(FATAL) << "Null table";
-        }
+    if (cUnit->mappingTable.size() > 0) {
         sprintf(buf,"\n    MappingTable %s%s_%s_mappingTable[%d] = {",
                 descriptor.c_str(), name.c_str(), signature.c_str(),
-                cUnit->mappingTableSize);
+                cUnit->mappingTable.size());
         for (unsigned int i = 0; i < strlen(buf); i++)
             if (buf[i] == ';') buf[i] = '_';
         LOG(INFO) << buf;
         strcpy(buf,"       ");
-        for (int i = 0; i < cUnit->mappingTableSize; i++) {
+        for (uint32_t i = 0; i < cUnit->mappingTable.size(); i+=2) {
             sprintf(buf+strlen(buf)," {0x%08x, 0x%04x},",
-                    table[i].targetOffset, table[i].dalvikOffset);
+                cUnit->mappingTable[i], cUnit->mappingTable[i+1]);
             LOG(INFO) << buf;
             strcpy(buf,"       ");
         }

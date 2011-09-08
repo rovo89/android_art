@@ -1429,11 +1429,10 @@ static int assignLiteralOffsetCommon(LIR* lir, int offset)
     return offset;
 }
 
-static int createMappingTable(CompilationUnit* cUnit, MappingTable** pTable)
+static void createMappingTable(CompilationUnit* cUnit)
 {
     ArmLIR* armLIR;
     int currentDalvikOffset = -1;
-    int count = 0;
 
     for (armLIR = (ArmLIR *) cUnit->firstLIRInsn;
          armLIR;
@@ -1441,17 +1440,11 @@ static int createMappingTable(CompilationUnit* cUnit, MappingTable** pTable)
         if ((armLIR->opcode >= 0) && !armLIR->flags.isNop &&
             (currentDalvikOffset != armLIR->generic.dalvikOffset)) {
             // Changed - need to emit a record
-            if (pTable) {
-                MappingTable *table = *pTable;
-                assert(table);
-                table[count].targetOffset = armLIR->generic.offset;
-                table[count].dalvikOffset = armLIR->generic.dalvikOffset;
-            }
-            count++;
+            cUnit->mappingTable.push_back(armLIR->generic.offset);
+            cUnit->mappingTable.push_back(armLIR->generic.dalvikOffset);
             currentDalvikOffset = armLIR->generic.dalvikOffset;
         }
     }
-    return count;
 }
 
 /* Determine the offset of each literal field */
@@ -1577,8 +1570,5 @@ void oatAssembleLIR(CompilationUnit* cUnit)
     /*
      * Create the mapping table
      */
-    cUnit->mappingTableSize = createMappingTable(cUnit, NULL /* just count */);
-    cUnit->mappingTable = (MappingTable*)oatNew(
-        cUnit->mappingTableSize * sizeof(*cUnit->mappingTable), true);
-    createMappingTable(cUnit, &cUnit->mappingTable);
+    createMappingTable(cUnit);
 }

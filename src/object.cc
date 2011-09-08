@@ -453,10 +453,12 @@ bool Method::HasSameNameAndDescriptor(const Method* that) const {
           this->GetSignature()->Equals(that->GetSignature()));
 }
 
-void Method::SetCode(ByteArray* code_array,
-                     InstructionSet instruction_set) {
+void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
+                     ByteArray* mapping_table) {
   CHECK(!HasCode() || IsNative());
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
+  SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
+       mapping_table, false);
   int8_t* code = code_array->GetData();
   uintptr_t address = reinterpret_cast<uintptr_t>(code);
   if (instruction_set == kThumb2) {

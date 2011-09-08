@@ -861,19 +861,25 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
         }
     }
 
-    art::ByteArray* managed_code = art::ByteArray::Alloc(cUnit.codeBuffer.size() * 2);
+    art::ByteArray* managed_code =
+        art::ByteArray::Alloc(cUnit.codeBuffer.size() *
+        sizeof(cUnit.codeBuffer[0]));
     memcpy(managed_code->GetData(),
            reinterpret_cast<const int8_t*>(&cUnit.codeBuffer[0]),
            managed_code->GetLength());
-    method->SetCode(managed_code, art::kThumb2);
+    art::ByteArray* mapping_table =
+        art::ByteArray::Alloc(cUnit.mappingTable.size() *
+        sizeof(cUnit.mappingTable[0]));
+    memcpy(mapping_table->GetData(),
+           reinterpret_cast<const int8_t*>(&cUnit.mappingTable[0]),
+           mapping_table->GetLength());
+    method->SetCode(managed_code, art::kThumb2, mapping_table);
     method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetCoreSpillMask(cUnit.coreSpillMask);
     method->SetFpSpillMask(cUnit.fpSpillMask);
     LOG(INFO) << "Compiled " << PrettyMethod(method)
               << " code at " << reinterpret_cast<void*>(managed_code->GetData())
               << " (" << managed_code->GetLength() << " bytes)";
-    // TODO: Transmit mapping table to caller
-
 #if 0
     oatDumpCFG(&cUnit, "/sdcard/cfg/");
 #endif

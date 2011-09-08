@@ -176,11 +176,6 @@ typedef enum AssemblerStatus {
     kRetryHalve
 } AssemblerStatus;
 
-typedef struct MappingTable {
-    int targetOffset;
-    int dalvikOffset;
-} MappingTable;
-
 typedef struct CompilationUnit {
     int numInsts;
     int numBlocks;
@@ -198,7 +193,8 @@ typedef struct CompilationUnit {
     int totalSize;                      // header + code size
     AssemblerStatus assemblerStatus;    // Success or fix and retry
     int assemblerRetries;
-    std::vector<short>codeBuffer;
+    std::vector<short> codeBuffer;
+    std::vector<uint32_t> mappingTable;
     bool printMe;
     bool printMeVerbose;
     bool hasClassLiterals;              // Contains class ptrs used as literals
@@ -279,8 +275,6 @@ typedef struct CompilationUnit {
      */
      int currentDalvikOffset;
      GrowableList switchTables;
-     int mappingTableSize;
-     MappingTable* mappingTable;
      GrowableList fillArrayData;
      const u2* insns;
      u4 insnsSize;

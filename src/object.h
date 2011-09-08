@@ -216,11 +216,13 @@ class Object {
     SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), monitor, false);
   }
 
-  void MonitorEnter() {
+  void MonitorEnter(Thread* thread = NULL) {
+    // TODO: use thread to get lock id
     GetMonitor()->Enter();
   }
 
-  void MonitorExit() {
+  void MonitorExit(Thread* thread = NULL) {
+    // TODO: use thread to get lock id
     GetMonitor()->Exit();
   }
 
@@ -856,7 +858,8 @@ class Method : public AccessibleObject {
     return GetCode() != NULL;
   }
 
-  void SetCode(ByteArray* code_array, InstructionSet instruction_set);
+  void SetCode(ByteArray* code_array, InstructionSet instruction_set,
+               ByteArray* mapping_table = NULL);
 
   static MemberOffset GetCodeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, code_);
@@ -1056,6 +1059,9 @@ class Method : public AccessibleObject {
  private:
   // Storage for code_
   const ByteArray* code_array_;
+
+  // Storage for mapping_table_
+  const ByteArray* mapping_table_;
 
   // Compiled code associated with this method for callers from managed code.
   // May be compiled managed code or a bridge for invoking a native method.
