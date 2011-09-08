@@ -218,9 +218,10 @@ class Thread {
   Object* (*pGetObjStatic)(uint32_t, const Method*);
   void (*pSetObjStatic)(uint32_t, const Method*, Object*);
   void (*pCanPutArrayElementFromCode)(const Class*, const Class*);
-  int (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
+  bool (*pInstanceofNonTrivialFromCode) (const Object*, const Class*);
+  void (*pCheckCastFromCode) (const Class*, const Class*);
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
-  bool (*pUnlockObjectFromCode)(Thread*, Object*);
+  void (*pUnlockObjectFromCode)(Thread*, Object*);
   void (*pLockObjectFromCode)(Thread*, Object*);
   void (*pThrowException)(Thread*, Throwable*);
   void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);

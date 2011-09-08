@@ -107,6 +107,27 @@ static Array* CheckAndAllocFromCode(uint32_t type_index, Method* method,
     return Array::AllocFromCode(type_index, method, component_count);
 }
 
+// TODO: placeholder (throw on failure)
+static void CheckCastFromCode(const Class* a, const Class* b) {
+    if (a->IsAssignableFrom(b)) {
+        return;
+    }
+    UNIMPLEMENTED(FATAL);
+}
+
+// TODO: placeholder
+static void UnlockObjectFromCode(Thread* thread, Object* obj) {
+    // TODO: throw and unwind if lock not held
+    // TODO: throw and unwind on NPE
+    obj->MonitorExit();
+}
+
+// TODO: placeholder
+static void LockObjectFromCode(Thread* thread, Object* obj) {
+    // Need thread for ownership?
+    obj->MonitorEnter();
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -153,13 +174,11 @@ void Thread::InitFunctionPointers() {
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pInitializeStaticStorage = ClassLinker::InitializeStaticStorageFromCode;
+  pInstanceofNonTrivialFromCode = Object::InstanceOf;
+  pCheckCastFromCode = CheckCastFromCode;
+  pLockObjectFromCode = LockObjectFromCode;
+  pUnlockObjectFromCode = UnlockObjectFromCode;
   pDebugMe = DebugMe;
-#if 0
-bool (Thread::*pUnlockObject)(Thread*, Object*);
-int (Thread::*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
-bool (Thread::*pUnlockObjectFromCode)(Thread*, Object*);
-void (Thread::*pLockObjectFromCode)(Thread*, Object*);
-#endif
 }
 
 Mutex* Mutex::Create(const char* name) {

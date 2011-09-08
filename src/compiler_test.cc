@@ -103,6 +103,17 @@ TEST_F(CompilerTest, BasicCodegen) {
                         10);
 }
 
+// TODO: need stub for InstanceofNonTrivialFromCode
+TEST_F(CompilerTest, InstanceTest) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  const ClassLoader* class_loader = LoadDex("IntMath");
+  CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
+  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
+  AssertStaticIntMethod(class_loader, "IntMath", "instanceTest", "(I)I", 1352, 10);
+}
+
+// TODO: need check-cast test (when stub complete & we can throw/catch
+
 // TODO: Need invoke-interface test
 
 TEST_F(CompilerTest, SuperTest) {
@@ -117,8 +128,14 @@ TEST_F(CompilerTest, SuperTest) {
 }
 
 TEST_F(CompilerTest, ConstStringTest) {
+  CompileDirectMethod(NULL, "java.lang.String", "<clinit>", "()V");
+  CompileDirectMethod(NULL, "java.lang.String", "<init>", "(II[C)V");
+  CompileDirectMethod(NULL, "java.lang.String", "<init>", "([CII)V");
+  CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
+  CompileVirtualMethod(NULL, "java.lang.String", "charAt", "(I)C");
+  CompileVirtualMethod(NULL, "java.lang.String", "length", "()I");
   AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constStringTest",
-                                "(I)I", 2468, 1234);
+                                "(I)I", 1246, 1234);
 }
 
 TEST_F(CompilerTest, ConstClassTest) {
@@ -126,9 +143,18 @@ TEST_F(CompilerTest, ConstClassTest) {
                                 "(I)I", 2222, 1111);
 }
 
+// TODO: Need native nativeFillInStackTrace()
 TEST_F(CompilerTest, DISABLED_CatchTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
   CompileDirectMethod(NULL, "java.lang.NullPointerException", "<init>", "()V");
+  CompileDirectMethod(NULL, "java.lang.RuntimeException", "<init>", "()V");
+  CompileDirectMethod(NULL, "java.lang.Exception", "<init>", "()V");
+  CompileDirectMethod(NULL, "java.lang.Throwable","<init>", "()V");
+  CompileDirectMethod(NULL, "java.util.ArrayList","<init>","()V");
+  CompileDirectMethod(NULL, "java.util.AbstractList","<init>","()V");
+  CompileDirectMethod(NULL, "java.util.AbstractCollection","<init>","()V");
+  CompileVirtualMethod(NULL, "java.lang.Throwable","fillInStackTrace","()Ljava/lang/Throwable;");
+  CompileDirectMethod(NULL, "java.lang.Throwable","nativeFillInStackTrace","()Ljava/lang/Object;");
   const ClassLoader* class_loader = LoadDex("IntMath");
   CompileDirectMethod(class_loader, "IntMath", "throwNullPointerException", "()V");
   AssertStaticIntMethod(class_loader, "IntMath", "catchBlock", "(I)I", 1579,

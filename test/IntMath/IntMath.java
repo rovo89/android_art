@@ -25,6 +25,28 @@ class IntMath extends IntMathBase {
         foo_ = 123;
     }
 
+    static int instanceTest(int x) {
+        IntMathBase a = new IntMathBase();
+        IntMath b = new IntMath();
+
+        if (a instanceof IntMathBase) {
+            x = x * 2;
+        }
+
+        if (a instanceof IntMath) {
+            x = x + 13;
+        }
+
+        if (b instanceof IntMathBase) {
+            x = x -1;
+        }
+
+        if (b instanceof IntMath) {
+            x = x + 1333;
+        }
+        return x;
+    }
+
     int tryThing() {
         int val = super.tryThing();
         return val + 10;
@@ -48,9 +70,8 @@ class IntMath extends IntMathBase {
     }
 
     static int constStringTest(int x) {
-        /* TODO: flesh this test out when we can call string library */
         String str = "Hello World!";
-        return x * 2;
+        return x + str.length();
     }
 
     static void throwNullPointerException() {
@@ -866,6 +887,20 @@ class IntMath extends IntMathBase {
             System.out.println("superTest PASSED");
         } else {
             System.out.println("superTest FAILED: " + res);
+        }
+
+        res = constStringTest(10);
+        if (res == 22) {
+            System.out.println("stringTest PASSED");
+        } else {
+            System.out.println("stringTest FAILED: " + res);
+        }
+
+        res = instanceTest(10);
+        if (res == 1352) {
+            System.out.println("instanceTest PASSED");
+        } else {
+            System.out.println("instanceTest FAILED: " + res);
         }
     }
 }

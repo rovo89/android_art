@@ -15,6 +15,7 @@
  */
 
 #define FORCE_SLOW 0
+#define DISPLAY_MISSING_TARGETS
 
 static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
@@ -863,6 +864,19 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     return callState;
 }
 
+#ifdef DISPLAY_MISSING_TARGETS
+// Debugging routine - if null target, branch to DebugMe
+static void genShowTarget(CompilationUnit* cUnit)
+{
+    ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
+    loadWordDisp(cUnit, rSELF,
+                 OFFSETOF_MEMBER(Thread, pDebugMe), rLR);
+    ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
+    target->defMask = -1;
+    branchOver->generic.target = (LIR*)target;
+}
+#endif
+
 static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
                                   bool direct, bool range)
 {
@@ -886,6 +900,9 @@ static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, NULL);
     }
+#ifdef DISPLAY_MISSING_TARGETS
+    genShowTarget(cUnit);
+#endif
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
 
@@ -914,6 +931,9 @@ static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     while (callState >= 0) {
         callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
     }
+#ifdef DISPLAY_MISSING_TARGETS
+    genShowTarget(cUnit);
+#endif
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
 
@@ -963,6 +983,9 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
+#ifdef DISPLAY_MISSING_TARGETS
+    genShowTarget(cUnit);
+#endif
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
 
@@ -999,6 +1022,9 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
+#ifdef DISPLAY_MISSING_TARGETS
+    genShowTarget(cUnit);
+#endif
     newLIR1(cUnit, kThumbBlxR, rLR);
 }
 

@@ -763,6 +763,10 @@ class Method : public AccessibleObject {
     return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_);
   }
 
+  static MemberOffset DexCacheResolvedTypesOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_);
+  }
+
   static MemberOffset DexCacheInitializedStaticStorageOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method,
         dex_cache_initialized_static_storage_);

@@ -513,7 +513,7 @@ static void genConstClass(CompilationUnit* cUnit, MIR* mir,
     int mReg = loadCurrMethod(cUnit);
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(),
+    loadWordDisp(cUnit, mReg, Method::DexCacheResolvedTypesOffset().Int32Value(),
                  resReg);
     loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
                  (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
@@ -595,35 +595,52 @@ void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                           RegLocation rlSrc)
 {
-   // May generate a call - use explicit registers
-    RegLocation rlResult;
-    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedType(mir->dalvikInsn.vC);
+    // May generate a call - use explicit registers
+    oatLockCallTemps(cUnit);
+    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
+        Get(mir->dalvikInsn.vC);
+    int classReg = r2;   // Fixed usage
+    loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
+    loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(),
+                 classReg);
+    loadWordDisp(cUnit, classReg, Array::DataOffset().Int32Value() +
+                 (sizeof(String*) * mir->dalvikInsn.vC), classReg);
     if (classPtr == NULL) {
-        UNIMPLEMENTED(FATAL) << "Handle null class pointer";
+        // Generate a runtime test
+        ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
+        // Not resolved
+        // Call out to helper, which will return resolved type in r0
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vC);
+        opReg(cUnit, kOpBlx, rLR); // resolveTypeFromCode(idx, method)
+        genRegCopy(cUnit, r2, r0); // Align usage with fast path
+        // Rejoin code paths
+        ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+        hopTarget->defMask = ENCODE_ALL;
+        hopBranch->generic.target = (LIR*)hopTarget;
     }
-    oatFlushAllRegs(cUnit);   /* Everything to home location */
-    loadValueDirectFixed(cUnit, rlSrc, r0);  /* Ref */
-    loadConstant(cUnit, r2, (int) classPtr );
+    // At this point, r2 has class
+    loadValueDirectFixed(cUnit, rlSrc, r3);  /* Ref */
     /* When taken r0 has NULL which can be used for store directly */
-    ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
-    /* r1 now contains object->clazz */
+    ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r3, 0);
+    /* load object->clazz */
     assert(Object::ClassOffset().Int32Value() == 0);
-    loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
+    loadWordDisp(cUnit, r3,  Object::ClassOffset().Int32Value(), r1);
     /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
     loadConstant(cUnit, r0, 1);                /* Assume true */
     opRegReg(cUnit, kOpCmp, r1, r2);
     ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq);
-    genRegCopy(cUnit, r0, r1);
+    genRegCopy(cUnit, r0, r3);
     genRegCopy(cUnit, r1, r2);
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCallRegs(cUnit);
     /* branch target here */
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
-    rlResult = oatGetReturn(cUnit);
+    RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
     branch1->generic.target = (LIR*)target;
     branch2->generic.target = (LIR*)target;
@@ -631,32 +648,48 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 
 static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    Class* classPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedType(mir->dalvikInsn.vB);
+    // May generate a call - use explicit registers
+    oatLockCallTemps(cUnit);
+    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
+        Get(mir->dalvikInsn.vB);
+    int classReg = r2;   // Fixed usage
+    loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
+    loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(),
+                 classReg);
+    loadWordDisp(cUnit, classReg, Array::DataOffset().Int32Value() +
+                 (sizeof(String*) * mir->dalvikInsn.vB), classReg);
     if (classPtr == NULL) {
-        UNIMPLEMENTED(FATAL) << "Unimplemented null class pointer";
+        // Generate a runtime test
+        ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
+        // Not resolved
+        // Call out to helper, which will return resolved type in r0
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
+        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
+        opReg(cUnit, kOpBlx, rLR); // resolveTypeFromCode(idx, method)
+        genRegCopy(cUnit, r2, r0); // Align usage with fast path
+        // Rejoin code paths
+        ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+        hopTarget->defMask = ENCODE_ALL;
+        hopBranch->generic.target = (LIR*)hopTarget;
     }
-    oatFlushAllRegs(cUnit);   /* Everything to home location */
-    loadConstant(cUnit, r1, (int) classPtr );
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-    /* Null? */
-    ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq,
-                                      rlSrc.lowReg, 0);
-    /*
-     *  rlSrc.lowReg now contains object->clazz.  Note that
-     *  it could have been allocated r0, but we're okay so long
-     *  as we don't do anything desctructive until r0 is loaded
-     *  with clazz.
-     */
-    /* r0 now contains object->clazz */
-    loadWordDisp(cUnit, rlSrc.lowReg, Object::ClassOffset().Int32Value(), r0);
+    // At this point, r2 has class
+    loadValueDirectFixed(cUnit, rlSrc, r0);  /* Ref */
+    /* Null is OK - continue */
+    ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
+    /* load object->clazz */
+    assert(Object::ClassOffset().Int32Value() == 0);
+    loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
+    /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
-    opRegReg(cUnit, kOpCmp, r0, r1);
-    ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq);
-    // Assume success - if not, artInstanceOfNonTrivial will handle throw
+                 OFFSETOF_MEMBER(Thread, pCheckCastFromCode), rLR);
+    opRegReg(cUnit, kOpCmp, r1, r2);
+    ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq); /* If equal, trivial yes */
+    genRegCopy(cUnit, r0, r1);
+    genRegCopy(cUnit, r1, r2);
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCallRegs(cUnit);
+    /* branch target here */
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     branch1->generic.target = (LIR*)target;

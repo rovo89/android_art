@@ -671,6 +671,7 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 {
     LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
+    oatArenaReset();
 
     CompilationUnit cUnit;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
