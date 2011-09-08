@@ -448,6 +448,9 @@ class Thread {
   ~Thread();
   friend class ThreadList;  // For ~Thread.
 
+  void CreatePeer(const char* name, bool as_daemon);
+  friend class Runtime; // For CreatePeer.
+
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const;
 
@@ -528,9 +531,9 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state);
 
 class ThreadList {
  public:
-  static const int kMaxThreadId = 0xFFFF;
-  static const int kInvalidId = 0;
-  static const int kMainId = 1;
+  static const uint32_t kMaxThreadId = 0xFFFF;
+  static const uint32_t kInvalidId = 0;
+  static const uint32_t kMainId = 1;
 
   static ThreadList* Create();
 

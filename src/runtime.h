@@ -85,7 +85,7 @@ class Runtime {
   static void Abort(const char* file, int line);
 
   // Attaches the current native thread to the runtime.
-  void AttachCurrentThread(const char* name, JNIEnv** jni_env, bool as_daemon);
+  void AttachCurrentThread(const char* name, bool as_daemon);
 
   void CallExitHook(jint status);
 

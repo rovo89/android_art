@@ -205,10 +205,26 @@ bool Mutex::TryLock() {
 }
 
 void Mutex::Unlock() {
-  DCHECK(HaveLock());
+#ifndef NDEBUG
+  Thread* self = Thread::Current();
+  std::stringstream os;
+  os << "owner=";
+  if (owner_ != NULL) {
+    os << *owner_;
+  } else {
+    os << "NULL";
+  }
+  os << " self=";
+  if (self != NULL) {
+    os << *self;
+  } else {
+    os << "NULL";
+  }
+  DCHECK(HaveLock()) << os.str();
+#endif
+  SetOwner(NULL);
   int result = pthread_mutex_unlock(&lock_impl_);
   CHECK_EQ(result, 0);
-  SetOwner(NULL);
 }
 
 bool Mutex::HaveLock() {
@@ -244,7 +260,6 @@ Thread* Thread::Create(const Runtime* runtime) {
   size_t stack_size = runtime->GetStackSize();
 
   Thread* new_thread = new Thread;
-  new_thread->InitCpu();
 
   pthread_attr_t attr;
   errno = pthread_attr_init(&attr);
@@ -279,25 +294,52 @@ Thread* Thread::Create(const Runtime* runtime) {
 }
 
 Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
-  Thread* thread = new Thread;
-  thread->InitCpu();
+  Thread* self = new Thread;
 
-  thread->tid_ = ::art::GetTid();
-  thread->handle_ = pthread_self();
-  thread->is_daemon_ = as_daemon;
+  self->tid_ = ::art::GetTid();
+  self->handle_ = pthread_self();
+  self->is_daemon_ = as_daemon;
 
-  thread->state_ = kRunnable;
+  self->state_ = kRunnable;
 
   SetThreadName(name);
 
-  errno = pthread_setspecific(Thread::pthread_key_self_, thread);
+  errno = pthread_setspecific(Thread::pthread_key_self_, self);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_setspecific failed";
   }
 
-  thread->jni_env_ = new JNIEnvExt(thread, runtime->GetJavaVM());
+  self->jni_env_ = new JNIEnvExt(self, runtime->GetJavaVM());
 
-  return thread;
+  runtime->GetThreadList()->Register(self);
+
+  // If we're the main thread, ClassLinker won't be created until after we're attached,
+  // so that thread needs a two-stage attach. Regular threads don't need this hack.
+  if (self->thin_lock_id_ != ThreadList::kMainId) {
+    self->CreatePeer(name, as_daemon);
+  }
+
+  return self;
+}
+
+void Thread::CreatePeer(const char* name, bool as_daemon) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kNative);
+
+  JNIEnv* env = jni_env_;
+
+  jobject thread_group = NULL;
+  jobject thread_name = env->NewStringUTF(name);
+  jint thread_priority = 123;
+  jboolean thread_is_daemon = as_daemon;
+
+  jclass c = env->FindClass("java/lang/Thread");
+  LOG(INFO) << "java/lang/Thread=" << (void*)c;
+  jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
+  LOG(INFO) << "java/lang/Thread.<init>=" << (void*)mid;
+  jobject o = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
+  LOG(INFO) << "Created new java.lang.Thread " << (void*) o << " decoded=" << (void*) DecodeJObject(o);
+
+  peer_ = DecodeJObject(o);
 }
 
 void Thread::Dump(std::ostream& os) const {
@@ -494,6 +536,7 @@ Thread::Thread()
       exception_(NULL),
       suspend_count_(0),
       class_loader_override_(NULL) {
+  InitCpu();
   {
     ThreadListLock mu;
     thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();

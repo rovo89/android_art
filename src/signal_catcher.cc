@@ -29,11 +29,12 @@
 
 namespace art {
 
-bool SignalCatcher::halt_ = false;
-
 SignalCatcher::SignalCatcher() {
+  lock_ = Mutex::Create("SignalCatcher lock");
+  SetHaltFlag(false);
+
   // Create a raw pthread; its start routine will attach to the runtime.
-  errno = pthread_create(&thread_, NULL, &Run, NULL);
+  errno = pthread_create(&thread_, NULL, &Run, this);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_create failed for signal catcher thread";
   }
@@ -42,9 +43,19 @@ SignalCatcher::SignalCatcher() {
 SignalCatcher::~SignalCatcher() {
   // Since we know the thread is just sitting around waiting for signals
   // to arrive, send it one.
-  halt_ = true;
+  SetHaltFlag(true);
   pthread_kill(thread_, SIGQUIT);
   pthread_join(thread_, NULL);
+}
+
+void SignalCatcher::SetHaltFlag(bool new_value) {
+  MutexLock mu(lock_);
+  halt_ = new_value;
+}
+
+bool SignalCatcher::ShouldHalt() {
+  MutexLock mu(lock_);
+  return halt_;
 }
 
 void SignalCatcher::HandleSigQuit() {
@@ -100,8 +111,11 @@ int WaitForSignal(Thread* thread, sigset_t& mask) {
   return signal_number;
 }
 
-void* SignalCatcher::Run(void*) {
-  Runtime::Current()->AttachCurrentThread("Signal Catcher", NULL, true);
+void* SignalCatcher::Run(void* arg) {
+  SignalCatcher* signal_catcher = reinterpret_cast<SignalCatcher*>(arg);
+  CHECK(signal_catcher != NULL);
+
+  Runtime::Current()->AttachCurrentThread("Signal Catcher", true);
   Thread* self = Thread::Current();
   CHECK(self != NULL);
 
@@ -113,7 +127,7 @@ void* SignalCatcher::Run(void*) {
 
   while (true) {
     int signal_number = WaitForSignal(self, mask);
-    if (halt_) {
+    if (signal_catcher->ShouldHalt()) {
       Runtime::Current()->DetachCurrentThread();
       return NULL;
     }

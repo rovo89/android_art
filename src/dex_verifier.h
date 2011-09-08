@@ -7,6 +7,7 @@
 #include "dex_instruction.h"
 #include "macros.h"
 #include "object.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -235,32 +236,21 @@ class DexVerifier {
    * to the GC).
    */
   struct RegisterLine {
-    RegType*        reg_types_;
-    MonitorEntries* monitor_entries_;
-    uint32_t*       monitor_stack_;
-    uint32_t        monitor_stack_top_;
+    UniquePtr<RegType[]> reg_types_;
+    UniquePtr<MonitorEntries[]> monitor_entries_;
+    UniquePtr<uint32_t[]> monitor_stack_;
+    uint32_t monitor_stack_top_;
 
-    /* Default constructor. */
-    RegisterLine() {
-      reg_types_ = NULL;
-      monitor_entries_ = NULL;
-      monitor_stack_ = NULL;
-      monitor_stack_top_ = 0;
-    }
-
-    /* Default destructor. */
-    ~RegisterLine() {
-      delete reg_types_;
-      delete monitor_entries_;
-      delete monitor_stack_;
+    RegisterLine()
+        : reg_types_(NULL), monitor_entries_(NULL), monitor_stack_(NULL), monitor_stack_top_(0) {
     }
 
     /* Allocate space for the fields. */
     void Alloc(size_t size, bool track_monitors) {
-      reg_types_ = new RegType[size]();
+      reg_types_.reset(new RegType[size]());
       if (track_monitors) {
-        monitor_entries_ = new MonitorEntries[size];
-        monitor_stack_ = new uint32_t[kMaxMonitorStackDepth];
+        monitor_entries_.reset(new MonitorEntries[size]);
+        monitor_stack_.reset(new uint32_t[kMaxMonitorStackDepth]);
       }
     }
   };
@@ -272,7 +262,7 @@ class DexVerifier {
      * set the pointers for certain addresses, based on instruction widths
      * and what we're trying to accomplish.
      */
-    RegisterLine* register_lines_;
+    UniquePtr<RegisterLine[]> register_lines_;
 
     /*
      * Number of registers we track for each instruction.  This is equal
@@ -286,15 +276,7 @@ class DexVerifier {
     /* Storage for a register line we're saving for later. */
     RegisterLine saved_line_;
 
-    /* Default constructor. */
-    RegisterTable() {
-      register_lines_ = NULL;
-      insn_reg_count_plus_ = 0;
-    }
-
-    /* Default destructor. */
-    ~RegisterTable() {
-      delete [] register_lines_;
+    RegisterTable() : register_lines_(NULL), insn_reg_count_plus_(0) {
     }
   };
 
@@ -313,17 +295,11 @@ class DexVerifier {
    */
   struct UninitInstanceMap {
     int num_entries_;
-    UninitInstanceMapEntry* map_;
+    UniquePtr<UninitInstanceMapEntry[]> map_;
 
-    /* Basic constructor */
-    UninitInstanceMap(int num_entries) {
-      num_entries_ = num_entries;
-      map_ = new UninitInstanceMapEntry[num_entries]();
-    }
-
-    /* Default destructor */
-    ~UninitInstanceMap() {
-      delete map_;
+    UninitInstanceMap(int num_entries)
+        : num_entries_(num_entries),
+          map_(new UninitInstanceMapEntry[num_entries]()) {
     }
   };
   #define kUninitThisArgAddr  (-1)
@@ -341,13 +317,13 @@ class DexVerifier {
     const DexFile::CodeItem* code_item_;
 
     /* Instruction widths and flags, one entry per code unit. */
-    InsnFlags* insn_flags_;
+    UniquePtr<InsnFlags[]> insn_flags_;
 
     /*
      * Uninitialized instance map, used for tracking the movement of
      * objects that have been allocated but not initialized.
      */
-    UninitInstanceMap* uninit_map_;
+    UniquePtr<UninitInstanceMap> uninit_map_;
 
     /*
      * Array of RegisterLine structs, one entry per code unit.  We only need
@@ -361,7 +337,6 @@ class DexVerifier {
     size_t new_instance_count_;
     size_t monitor_enter_count_;
 
-    /* Basic constructor. */
     VerifierData(Method* method, const DexFile* dex_file,
         const DexFile::CodeItem* code_item)
         : method_(method), dex_file_(dex_file), code_item_(code_item),
@@ -461,9 +436,9 @@ class DexVerifier {
   }
 
   /* Get the class object at the specified index. */
-  static inline Class* GetUninitInstance(const UninitInstanceMap* uninit_map,
-      int idx) {
-    assert(idx >= 0 && idx < uninit_map->num_entries_);
+  static inline Class* GetUninitInstance(const UninitInstanceMap* uninit_map, int idx) {
+    DCHECK_GE(idx, 0);
+    DCHECK_LT(idx, uninit_map->num_entries_);
     return uninit_map->map_[idx].klass_;
   }
 
@@ -483,7 +458,7 @@ class DexVerifier {
    * (does not expect uninit ref types or "zero").
    */
   static Class* RegTypeInitializedReferenceToClass(RegType type) {
-    assert(RegTypeIsReference(type) && type != kRegTypeZero);
+    DCHECK(RegTypeIsReference(type) && type != kRegTypeZero);
     if ((type & 0x01) == 0) {
       return (Class*) type;
     } else {
@@ -494,16 +469,16 @@ class DexVerifier {
 
   /* Extract the index into the uninitialized instance map table. */
   static inline int RegTypeToUninitIndex(RegType type) {
-    assert(RegTypeIsUninitReference(type));
+    DCHECK(RegTypeIsUninitReference(type));
     return (type & ~kRegTypeUninitMask) >> kRegTypeUninitShift;
   }
 
   /* Convert the reference "type" to a Class pointer. */
   static Class* RegTypeReferenceToClass(RegType type,
       const UninitInstanceMap* uninit_map) {
-    assert(RegTypeIsReference(type) && type != kRegTypeZero);
+    DCHECK(RegTypeIsReference(type) && type != kRegTypeZero);
     if (RegTypeIsUninitReference(type)) {
-      assert(uninit_map != NULL);
+      DCHECK(uninit_map != NULL);
       return GetUninitInstance(uninit_map, RegTypeToUninitIndex(type));
     } else {
         return (Class*) type;
@@ -755,15 +730,15 @@ class DexVerifier {
   /* Copy a register line. */
   static inline void CopyRegisterLine(RegisterLine* dst,
       const RegisterLine* src, size_t num_regs) {
-    memcpy(dst->reg_types_, src->reg_types_, num_regs * sizeof(RegType));
+    memcpy(dst->reg_types_.get(), src->reg_types_.get(), num_regs * sizeof(RegType));
 
-    assert((src->monitor_entries_ == NULL && dst->monitor_entries_ == NULL) ||
-           (src->monitor_entries_ != NULL && dst->monitor_entries_ != NULL));
-    if (dst->monitor_entries_ != NULL) {
-      assert(dst->monitor_stack_ != NULL);
-      memcpy(dst->monitor_entries_, src->monitor_entries_,
+    DCHECK((src->monitor_entries_.get() == NULL && dst->monitor_entries_.get() == NULL) ||
+        (src->monitor_entries_.get() != NULL && dst->monitor_entries_.get() != NULL));
+    if (dst->monitor_entries_.get() != NULL) {
+      DCHECK(dst->monitor_stack_.get() != NULL);
+      memcpy(dst->monitor_entries_.get(), src->monitor_entries_.get(),
           num_regs * sizeof(MonitorEntries));
-      memcpy(dst->monitor_stack_, src->monitor_stack_,
+      memcpy(dst->monitor_stack_.get(), src->monitor_stack_.get(),
           kMaxMonitorStackDepth * sizeof(uint32_t));
       dst->monitor_stack_top_ = src->monitor_stack_top_;
     }
@@ -773,7 +748,7 @@ class DexVerifier {
   static inline void CopyLineToTable(RegisterTable* reg_table, int insn_idx,
       const RegisterLine* src) {
     RegisterLine* dst = GetRegisterLine(reg_table, insn_idx);
-    assert(dst->reg_types_ != NULL);
+    DCHECK(dst->reg_types_.get() != NULL);
     CopyRegisterLine(dst, src, reg_table->insn_reg_count_plus_);
   }
 
@@ -781,7 +756,7 @@ class DexVerifier {
   static inline void CopyLineFromTable(RegisterLine* dst,
       const RegisterTable* reg_table, int insn_idx) {
     RegisterLine* src = GetRegisterLine(reg_table, insn_idx);
-    assert(src->reg_types_ != NULL);
+    DCHECK(src->reg_types_.get() != NULL);
     CopyRegisterLine(dst, src, reg_table->insn_reg_count_plus_);
   }
 
@@ -795,12 +770,12 @@ class DexVerifier {
   static inline int CompareLineToTable(const RegisterTable* reg_table,
       int insn_idx, const RegisterLine* line2) {
     const RegisterLine* line1 = GetRegisterLine(reg_table, insn_idx);
-    if (line1->monitor_entries_ != NULL) {
+    if (line1->monitor_entries_.get() != NULL) {
       int result;
 
-      if (line2->monitor_entries_ == NULL)
+      if (line2->monitor_entries_.get() == NULL)
         return 1;
-      result = memcmp(line1->monitor_entries_, line2->monitor_entries_,
+      result = memcmp(line1->monitor_entries_.get(), line2->monitor_entries_.get(),
           reg_table->insn_reg_count_plus_ * sizeof(MonitorEntries));
       if (result != 0) {
         LOG(ERROR) << "monitor_entries_ mismatch";
@@ -811,14 +786,14 @@ class DexVerifier {
         LOG(ERROR) << "monitor_stack_top_ mismatch";
         return result;
       }
-      result = memcmp(line1->monitor_stack_, line2->monitor_stack_,
+      result = memcmp(line1->monitor_stack_.get(), line2->monitor_stack_.get(),
             line1->monitor_stack_top_);
       if (result != 0) {
         LOG(ERROR) << "monitor_stack_ mismatch";
         return result;
       }
     }
-    return memcmp(line1->reg_types_, line2->reg_types_,
+    return memcmp(line1->reg_types_.get(), line2->reg_types_.get(),
         reg_table->insn_reg_count_plus_ * sizeof(RegType));
   }
 #endif

@@ -12,7 +12,6 @@
 #include "logging.h"
 #include "runtime.h"
 #include "stringpiece.h"
-#include "UniquePtr.h"
 
 namespace art {
 
@@ -125,7 +124,7 @@ bool DexVerifier::VerifyMethod(Method* method) {
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const DexFile::CodeItem *code_item =
+  const DexFile::CodeItem* code_item =
       dex_file.GetCodeItem(method->GetCodeItemOffset());
 
   /*
@@ -158,8 +157,7 @@ bool DexVerifier::VerifyMethod(Method* method) {
   /*
    * Allocate and initialize an array to hold instruction data.
    */
-  UniquePtr<InsnFlags> insn_flags(new InsnFlags[code_item->insns_size_]());
-  vdata.insn_flags_ = insn_flags.get();
+  vdata.insn_flags_.reset(new InsnFlags[code_item->insns_size_]());
 
   /*
    * Run through the instructions and see if the width checks out.
@@ -194,7 +192,7 @@ bool DexVerifier::VerifyMethod(Method* method) {
 
 bool DexVerifier::VerifyInstructions(VerifierData* vdata) {
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   const byte* ptr = reinterpret_cast<const byte*>(code_item->insns_);
   const Instruction* inst = Instruction::At(ptr);
 
@@ -227,7 +225,7 @@ bool DexVerifier::VerifyInstruction(VerifierData* vdata,
     const Instruction* inst, uint32_t code_offset) {
   const DexFile* dex_file = vdata->dex_file_;
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   Instruction::DecodedInstruction dec_insn(inst);
   bool result = true;
 
@@ -330,14 +328,13 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
     return false;
   }
 
-  vdata->register_lines_ = reg_table.register_lines_;
+  vdata->register_lines_ = reg_table.register_lines_.get();
 
   /* Allocate a map to hold the classes of uninitialized instances. */
-  UniquePtr<UninitInstanceMap> uninit_map(CreateUninitInstanceMap(vdata));
-  vdata->uninit_map_ = uninit_map.get();
+  vdata->uninit_map_.reset(CreateUninitInstanceMap(vdata));
 
   /* Initialize register types of method arguments. */
-  if (!SetTypesFromSignature(vdata, reg_table.register_lines_[0].reg_types_)) {
+  if (!SetTypesFromSignature(vdata, reg_table.register_lines_[0].reg_types_.get())) {
     LOG(ERROR) << "VFY: bad signature '"
                << method->GetSignature()->ToModifiedUtf8() << "' for "
                << method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
@@ -359,7 +356,7 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
 bool DexVerifier::ComputeWidthsAndCountOps(VerifierData* vdata) {
   const uint16_t* insns = vdata->code_item_->insns_;
   uint32_t insns_size = vdata->code_item_->insns_size_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   const byte* ptr = reinterpret_cast<const byte*>(insns);
   const Instruction* inst = Instruction::At(ptr);
   size_t new_instance_count = 0;
@@ -392,7 +389,7 @@ bool DexVerifier::ComputeWidthsAndCountOps(VerifierData* vdata) {
 
 bool DexVerifier::ScanTryCatchBlocks(VerifierData* vdata) {
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   uint32_t insns_size = code_item->insns_size_;
   uint32_t tries_size = code_item->tries_size_;
 
@@ -821,7 +818,7 @@ bool DexVerifier::CheckBranchTarget(const DexFile::CodeItem* code_item,
 bool DexVerifier::InitRegisterTable(VerifierData* vdata,
     RegisterTable* reg_table, RegisterTrackingMode track_regs_for) {
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   uint16_t registers_size = code_item->registers_size_;
   uint32_t insns_size = code_item->insns_size_;
   uint32_t i;
@@ -832,7 +829,7 @@ bool DexVerifier::InitRegisterTable(VerifierData* vdata,
    * indirection.
    */
   reg_table->insn_reg_count_plus_ = registers_size + kExtraRegs;
-  reg_table->register_lines_ = new RegisterLine[insns_size]();
+  reg_table->register_lines_.reset(new RegisterLine[insns_size]());
 
   assert(insns_size > 0);
 
@@ -1050,7 +1047,7 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
   Method* method = vdata->method_;
   const DexFile* dex_file = vdata->dex_file_;
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  UninitInstanceMap* uninit_map = vdata->uninit_map_;
+  UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
 
   int arg_start = code_item->registers_size_ - code_item->ins_size_;
   int expected_args = code_item->ins_size_;   /* long/double count as two */
@@ -1243,7 +1240,7 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
     RegisterTable* reg_table) {
   const Method* method = vdata->method_;
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   const uint16_t* insns = code_item->insns_;
   uint32_t insns_size = code_item->insns_size_;
   size_t insn_idx, start_guess;
@@ -1296,7 +1293,7 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
        * a full table) and make sure it actually matches.
        */
       RegisterLine* register_line = GetRegisterLine(reg_table, insn_idx);
-      if (register_line->reg_types_ != NULL && CompareLineToTable(reg_table,
+      if (register_line->reg_types_.get() != NULL && CompareLineToTable(reg_table,
           insn_idx, &reg_table->work_line_) != 0) {
         Class* klass = method->GetDeclaringClass();
         LOG(ERROR) << "HUH? work_line diverged in "
@@ -1378,9 +1375,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
   const Method* method = vdata->method_;
   Class* klass = method->GetDeclaringClass();
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  InsnFlags* insn_flags = vdata->insn_flags_;
+  InsnFlags* insn_flags = vdata->insn_flags_.get();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  UninitInstanceMap* uninit_map = vdata->uninit_map_;
+  UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
   const uint16_t* insns = code_item->insns_ + insn_idx;
   uint32_t insns_size = code_item->insns_size_;
   uint32_t registers_size = code_item->registers_size_;
@@ -1437,7 +1434,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         reg_table->insn_reg_count_plus_);
   } else {
 #ifndef NDEBUG
-    memset(reg_table->saved_line_.reg_types_, 0xdd,
+    memset(reg_table->saved_line_.reg_types_.get(), 0xdd,
         reg_table->insn_reg_count_plus_ * sizeof(RegType));
 #endif
   }
@@ -1681,7 +1678,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
        * we skip them here); if we can't, then the code path could be
        * "live" so we still need to check it.
        */
-      if (work_line->monitor_entries_ != NULL)
+      if (work_line->monitor_entries_.get() != NULL)
         opcode_flag &= ~Instruction::kThrow;
       HandleMonitorExit(work_line, dec_insn.vA_, insn_idx, &failure);
       break;
@@ -3450,7 +3447,7 @@ sput_1nr_common:
     if (!CheckMoveException(code_item->insns_, insn_idx + insn_width))
       return false;
 
-    if (GetRegisterLine(reg_table, insn_idx + insn_width)->reg_types_ != NULL) {
+    if (GetRegisterLine(reg_table, insn_idx + insn_width)->reg_types_.get() != NULL) {
       /*
        * Merge registers into what we have for the next instruction,
        * and set the "changed" flag if needed.
@@ -3732,7 +3729,7 @@ void DexVerifier::HandleMonitorEnter(RegisterLine* work_line, uint32_t reg_idx,
     return;
   }
 
-  if (work_line->monitor_entries_ == NULL) {
+  if (work_line->monitor_entries_.get() == NULL) {
     return;
   }
 
@@ -3760,7 +3757,7 @@ void DexVerifier::HandleMonitorExit(RegisterLine* work_line, uint32_t reg_idx,
     return;
   }
 
-  if (work_line->monitor_entries_ == NULL) {
+  if (work_line->monitor_entries_.get() == NULL) {
     return;
   }
 
@@ -3801,7 +3798,7 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
     int field_idx, VerifyError* failure) {
   Method* method = vdata->method_;
   const DexFile* dex_file = vdata->dex_file_;
-  UninitInstanceMap* uninit_map = vdata->uninit_map_;
+  UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const ClassLoader* class_loader =
@@ -4013,7 +4010,7 @@ DexVerifier::RegType DexVerifier::GetInvocationThis(
 
 void DexVerifier::SetRegisterType(RegisterLine* register_line, uint32_t vdst,
     RegType new_type) {
-  RegType* insn_regs = register_line->reg_types_;
+  RegType* insn_regs = register_line->reg_types_.get();
 
   switch (new_type) {
     case kRegTypeUnknown:
@@ -4077,13 +4074,13 @@ void DexVerifier::SetRegisterType(RegisterLine* register_line, uint32_t vdst,
   /*
    * Clear the monitor entry bits for this register.
    */
-  if (register_line->monitor_entries_ != NULL)
+  if (register_line->monitor_entries_.get() != NULL)
     register_line->monitor_entries_[vdst] = 0;
 }
 
 void DexVerifier::VerifyRegisterType(RegisterLine* register_line, uint32_t vsrc,
     RegType check_type, VerifyError* failure) {
-  const RegType* insn_regs = register_line->reg_types_;
+  const RegType* insn_regs = register_line->reg_types_.get();
   RegType src_type = insn_regs[vsrc];
 
   switch (check_type) {
@@ -4189,7 +4186,7 @@ void DexVerifier::SetResultRegisterType(RegisterLine* register_line,
 void DexVerifier::MarkRefsAsInitialized(RegisterLine* register_line,
     int insn_reg_count, UninitInstanceMap* uninit_map, RegType uninit_type,
     VerifyError* failure) {
-  RegType* insn_regs = register_line->reg_types_;
+  RegType* insn_regs = register_line->reg_types_.get();
   Class* klass = GetUninitInstance(uninit_map,
       RegTypeToUninitIndex(uninit_type));
 
@@ -4216,12 +4213,12 @@ void DexVerifier::MarkRefsAsInitialized(RegisterLine* register_line,
 
 void DexVerifier::MarkUninitRefsAsInvalid(RegisterLine* register_line,
     int insn_reg_count, UninitInstanceMap* uninit_map, RegType uninit_type) {
-  RegType* insn_regs = register_line->reg_types_;
+  RegType* insn_regs = register_line->reg_types_.get();
 
   for (int i = 0; i < insn_reg_count; i++) {
     if (insn_regs[i] == uninit_type) {
       insn_regs[i] = kRegTypeConflict;
-      if (register_line->monitor_entries_ != NULL)
+      if (register_line->monitor_entries_.get() != NULL)
         register_line->monitor_entries_[i] = 0;
     }
   }
@@ -4237,7 +4234,7 @@ void DexVerifier::CopyRegister1(RegisterLine* register_line, uint32_t vdst,
                << " cat=" << (int) cat;
   } else {
     SetRegisterType(register_line, vdst, type);
-    if (cat == kTypeCategoryRef && register_line->monitor_entries_ != NULL) {
+    if (cat == kTypeCategoryRef && register_line->monitor_entries_.get() != NULL) {
       register_line->monitor_entries_[vdst] =
           register_line->monitor_entries_[vsrc];
     }
@@ -4489,7 +4486,7 @@ bool DexVerifier::UpdateRegisters(InsnFlags* insn_flags,
     RegisterTable* reg_table, int next_insn, const RegisterLine* work_line) {
   const size_t insn_reg_count_plus = reg_table->insn_reg_count_plus_;
   assert(work_line != NULL);
-  const RegType* work_regs = work_line->reg_types_;
+  const RegType* work_regs = work_line->reg_types_.get();
 
   if (!InsnIsVisitedOrChanged(insn_flags, next_insn)) {
     /*
@@ -4504,9 +4501,9 @@ bool DexVerifier::UpdateRegisters(InsnFlags* insn_flags,
   } else {
     /* Merge registers, set Changed only if different */
     RegisterLine* target_line = GetRegisterLine(reg_table, next_insn);
-    RegType* target_regs = target_line->reg_types_;
-    MonitorEntries* work_mon_ents = work_line->monitor_entries_;
-    MonitorEntries* target_mon_ents = target_line->monitor_entries_;
+    RegType* target_regs = target_line->reg_types_.get();
+    MonitorEntries* work_mon_ents = work_line->monitor_entries_.get();
+    MonitorEntries* target_mon_ents = target_line->monitor_entries_.get();
     bool changed = false;
     unsigned int idx;
 
@@ -4520,7 +4517,7 @@ bool DexVerifier::UpdateRegisters(InsnFlags* insn_flags,
                    << std::hex << next_insn << std::dec;
         return false;
       }
-      if (memcmp(target_line->monitor_stack_, work_line->monitor_stack_,
+      if (memcmp(target_line->monitor_stack_.get(), work_line->monitor_stack_.get(),
                  target_line->monitor_stack_top_ * sizeof(uint32_t)) != 0) {
          LOG(ERROR) << "VFY: mismatched monitor stacks at 0x" << std::hex
                     << next_insn << std::dec;
@@ -4667,7 +4664,7 @@ void DexVerifier::CheckArrayIndexType(const Method* method, RegType reg_type,
 
 bool DexVerifier::CheckConstructorReturn(const Method* method,
     const RegisterLine* register_line, const int insn_reg_count) {
-  const RegType* insn_regs = register_line->reg_types_;
+  const RegType* insn_regs = register_line->reg_types_.get();
 
   if (!IsInitMethod(method))
     return true;
@@ -4955,7 +4952,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   Method* method = vdata->method_;
   const DexFile* dex_file = vdata->dex_file_;
   const DexFile::CodeItem* code_item = vdata->code_item_;
-  UninitInstanceMap* uninit_map = vdata->uninit_map_;
+  UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const ClassLoader* class_loader =

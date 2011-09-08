@@ -40,7 +40,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetStatus() == Class::kStatusInitialized);
     EXPECT_FALSE(primitive->IsErroneous());
     EXPECT_TRUE(primitive->IsVerified());
-    EXPECT_TRUE(primitive->IsLinked());
+    EXPECT_TRUE(primitive->IsResolved());
     EXPECT_FALSE(primitive->IsArrayInstance());
     EXPECT_FALSE(primitive->IsArrayClass());
     EXPECT_EQ(0, primitive->GetArrayRank());
@@ -81,7 +81,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(array->GetStatus() == Class::kStatusInitialized);
     EXPECT_FALSE(array->IsErroneous());
     EXPECT_TRUE(array->IsVerified());
-    EXPECT_TRUE(array->IsLinked());
+    EXPECT_TRUE(array->IsResolved());
     EXPECT_FALSE(array->IsArrayInstance());
     EXPECT_TRUE(array->IsArrayClass());
     EXPECT_LE(1, array->GetArrayRank());
@@ -138,10 +138,9 @@ class ClassLinkerTest : public CommonTest {
       EXPECT_TRUE(klass->GetSuperClass() != NULL);
     }
     EXPECT_TRUE(klass->GetDexCache() != NULL);
-    EXPECT_EQ(Class::kStatusResolved, klass->GetStatus());
+    EXPECT_TRUE(klass->IsResolved());
     EXPECT_FALSE(klass->IsErroneous());
-    EXPECT_FALSE(klass->IsVerified());
-    EXPECT_TRUE(klass->IsLinked());
+    EXPECT_TRUE(klass->IsResolved());
     EXPECT_TRUE(klass->IsLoaded());
     EXPECT_FALSE(klass->IsArrayClass());
     EXPECT_EQ(0, klass->GetArrayRank());
@@ -309,8 +308,8 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
   EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
   EXPECT_FALSE(JavaLangObject->IsErroneous());
-  EXPECT_FALSE(JavaLangObject->IsVerified());
-  EXPECT_TRUE(JavaLangObject->IsLinked());
+  EXPECT_TRUE(JavaLangObject->IsVerified());
+  EXPECT_TRUE(JavaLangObject->IsResolved());
   EXPECT_FALSE(JavaLangObject->IsArrayInstance());
   EXPECT_FALSE(JavaLangObject->IsArrayClass());
   EXPECT_EQ(0, JavaLangObject->GetArrayRank());
@@ -339,7 +338,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(MyClass->GetStatus() == Class::kStatusResolved);
   EXPECT_FALSE(MyClass->IsErroneous());
   EXPECT_FALSE(MyClass->IsVerified());
-  EXPECT_TRUE(MyClass->IsLinked());
+  EXPECT_TRUE(MyClass->IsResolved());
   EXPECT_FALSE(MyClass->IsArrayInstance());
   EXPECT_FALSE(MyClass->IsArrayClass());
   EXPECT_EQ(0, JavaLangObject->GetArrayRank());

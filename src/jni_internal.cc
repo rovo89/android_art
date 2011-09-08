@@ -442,7 +442,8 @@ jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as
   CHECK_GE(args.version, JNI_VERSION_1_2);
 
   Runtime* runtime = reinterpret_cast<JavaVMExt*>(vm)->runtime;
-  runtime->AttachCurrentThread(args.name, p_env, as_daemon);
+  runtime->AttachCurrentThread(args.name, as_daemon);
+  *p_env = Thread::Current()->GetJniEnv();
   return JNI_OK;
 }
 
@@ -618,11 +619,17 @@ class JNI {
 
   static jclass FindClass(JNIEnv* env, const char* name) {
     ScopedJniThreadState ts(env);
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Runtime* runtime = Runtime::Current();
+    ClassLinker* class_linker = runtime->GetClassLinker();
     std::string descriptor(NormalizeJniClassDescriptor(name));
-    // TODO: need to get the appropriate ClassLoader.
-    const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
-    Class* c = class_linker->FindClass(descriptor, cl);
+    Class* c = NULL;
+    if (runtime->IsStarted()) {
+      // TODO: need to get the appropriate ClassLoader.
+      const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
+      c = class_linker->FindClass(descriptor, cl);
+    } else {
+      c = class_linker->FindSystemClass(descriptor);
+    }
     return AddLocalReference<jclass>(env, c);
   }
 

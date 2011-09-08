@@ -1275,7 +1275,7 @@ class Class : public StaticStorageBase {
   }
 
   // Returns true if the class has been linked.
-  bool IsLinked() const {
+  bool IsResolved() const {
     return GetStatus() >= kStatusResolved;
   }
 
@@ -1630,7 +1630,7 @@ class Class : public StaticStorageBase {
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     return GetVirtualMethods()->Get(i);
   }
 
@@ -1647,7 +1647,7 @@ class Class : public StaticStorageBase {
   }
 
   ObjectArray<Method>* GetVTable() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     return GetFieldObject<ObjectArray<Method>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
   }
@@ -1745,7 +1745,7 @@ class Class : public StaticStorageBase {
   }
 
   size_t GetIFTableCount() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, iftable_count_), false);
   }
@@ -1757,7 +1757,7 @@ class Class : public StaticStorageBase {
   }
 
   InterfaceEntry* GetIFTable() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     return GetFieldPtr<InterfaceEntry*>(
         OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
   }
@@ -1768,7 +1768,7 @@ class Class : public StaticStorageBase {
   }
 
   size_t GetIfviPoolCount() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     CHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_count_), false);
   }
@@ -1780,7 +1780,7 @@ class Class : public StaticStorageBase {
   }
 
   uint32_t* GetIfviPool() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     return GetFieldPtr<uint32_t*>(
         OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_), false);
   }
@@ -1820,7 +1820,7 @@ class Class : public StaticStorageBase {
 
   // Returns the number of instance fields containing reference types.
   size_t NumReferenceInstanceFields() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
@@ -1840,7 +1840,7 @@ class Class : public StaticStorageBase {
   }
 
   uint32_t GetReferenceInstanceOffsets() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_), false);
   }
@@ -1854,7 +1854,7 @@ class Class : public StaticStorageBase {
 
   // Returns the number of static fields containing reference types.
   size_t NumReferenceStaticFields() const {
-    DCHECK(IsLinked());
+    DCHECK(IsResolved());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
@@ -2208,7 +2208,7 @@ inline void Method::SetDeclaringClass(Class *new_declaring_class) {
 }
 
 inline uint32_t Method::GetReturnTypeIdx() const {
-  DCHECK(GetDeclaringClass()->IsLinked());
+  DCHECK(GetDeclaringClass()->IsResolved());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_idx_),
                     false);
 }
@@ -2527,7 +2527,7 @@ inline uint32_t Field::GetTypeIdx() const {
 }
 
 inline MemberOffset Field::GetOffset() const {
-  DCHECK(GetDeclaringClass()->IsLinked());
+  DCHECK(GetDeclaringClass()->IsResolved());
   return MemberOffset(
       GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
 }
@@ -2595,7 +2595,7 @@ inline uint32_t Method::GetAccessFlags() const {
 }
 
 inline uint16_t Method::GetMethodIndex() const {
-  DCHECK(GetDeclaringClass()->IsLinked());
+  DCHECK(GetDeclaringClass()->IsResolved());
   return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), false);
 }
 

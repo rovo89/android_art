@@ -21,6 +21,7 @@
 
 namespace art {
 
+class Mutex;
 class Runtime;
 class Thread;
 
@@ -40,7 +41,11 @@ class SignalCatcher {
   static void* Run(void* arg);
   static void HandleSigUsr1();
 
-  static bool halt_;
+  void SetHaltFlag(bool new_value);
+  bool ShouldHalt();
+
+  Mutex* lock_;
+  bool halt_;
   pthread_t thread_;
 };
 

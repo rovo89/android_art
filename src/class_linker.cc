@@ -633,7 +633,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     } else {
       klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
     }
-    if (!klass->IsLinked()) {
+    if (!klass->IsResolved()) {
       klass->SetDexCache(dex_cache);
       LoadClass(dex_file, dex_class_def, klass, class_loader);
       // Check for a pending exception during load
@@ -663,27 +663,27 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         }
         CHECK(klass->IsLoaded());
         // Link the class (if necessary)
-        CHECK(!klass->IsLinked());
+        CHECK(!klass->IsResolved());
         if (!LinkClass(klass)) {
           // Linking failed.
           // TODO: CHECK(self->IsExceptionPending());
           lock.NotifyAll();
           return NULL;
         }
-        CHECK(klass->IsLinked());
+        CHECK(klass->IsResolved());
       }
     }
   }
   // Link the class if it has not already been linked.
-  if (!klass->IsLinked() && !klass->IsErroneous()) {
+  if (!klass->IsResolved() && !klass->IsErroneous()) {
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
-    if (!klass->IsLinked() && klass->GetClinitThreadId() == self->GetTid()) {
+    if (!klass->IsResolved() && klass->GetClinitThreadId() == self->GetTid()) {
       self->ThrowNewException("Ljava/lang/ClassCircularityError;", NULL); // TODO: detail
       return NULL;
     }
     // Wait for the pending initialization to complete.
-    while (!klass->IsLinked() && !klass->IsErroneous()) {
+    while (!klass->IsResolved() && !klass->IsErroneous()) {
       lock.Wait();
     }
   }
@@ -692,7 +692,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     return NULL;
   }
   // Return the loaded class.  No exceptions should be pending.
-  CHECK(klass->IsLinked());
+  CHECK(klass->IsResolved());
   CHECK(!self->IsExceptionPending());
   return klass;
 }
@@ -1428,6 +1428,19 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
   return klass;
 }
 
+void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+    Class* c, std::map<int, Field*>& field_map) {
+  const ClassLoader* cl = c->GetClassLoader();
+  const byte* class_data = dex_file.GetClassData(dex_class_def);
+  DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
+  uint32_t last_idx = 0;
+  for (size_t i = 0; i < header.static_fields_size_; ++i) {
+    DexFile::Field dex_field;
+    dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
+    field_map[i] = ResolveField(dex_file, dex_field.field_idx_, c->GetDexCache(), cl, true);
+  }
+}
+
 void ClassLinker::InitializeStaticFields(Class* klass) {
   size_t num_static_fields = klass->NumStaticFields();
   if (num_static_fields == 0) {
@@ -1442,6 +1455,11 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   const DexFile& dex_file = FindDexFile(dex_cache);
   const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
   CHECK(dex_class_def != NULL);
+
+  // We reordered the fields, so we need to be able to map the field indexes to the right fields.
+  std::map<int, Field*> field_map;
+  ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
+
   const byte* addr = dex_file.GetEncodedArray(*dex_class_def);
   if (addr == NULL) {
     // All this class' static fields have default values.
@@ -1449,7 +1467,7 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   }
   size_t array_size = DecodeUnsignedLeb128(&addr);
   for (size_t i = 0; i < array_size; ++i) {
-    Field* field = klass->GetStaticField(i);
+    Field* field = field_map[i];
     JValue value;
     DexFile::ValueType type = dex_file.ReadEncodedValue(&addr, &value);
     switch (type) {
@@ -1573,7 +1591,7 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
 #ifndef NDEBUG
   // Ensure super classes are fully resolved prior to resolving fields..
   while (super != NULL) {
-    CHECK(super->IsLinked());
+    CHECK(super->IsResolved());
     super = super->GetSuperClass();
   }
 #endif
@@ -1818,7 +1836,7 @@ bool ClassLinker::LinkStaticFields(Class* klass) {
   return success;
 }
 
-bool ClassLinker::LinkFields(Class *klass, bool instance) {
+bool ClassLinker::LinkFields(Class* klass, bool instance) {
   size_t num_fields =
       instance ? klass->NumInstanceFields() : klass->NumStaticFields();
 
@@ -1833,7 +1851,7 @@ bool ClassLinker::LinkFields(Class *klass, bool instance) {
   if (instance) {
     Class* super_class = klass->GetSuperClass();
     if (super_class != NULL) {
-      CHECK(super_class->IsLinked());
+      CHECK(super_class->IsResolved());
       field_offset = MemberOffset(super_class->GetObjectSize());
       if (field_offset.Uint32Value() == 0u) {
         field_offset = OFFSET_OF_OBJECT_MEMBER(DataObject, fields_);

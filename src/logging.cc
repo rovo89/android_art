@@ -17,26 +17,43 @@
 #include "logging.h"
 
 #include "runtime.h"
+#include "thread.h"
 #include "utils.h"
 
+namespace {
+
+art::Mutex* GetLoggingLock() {
+  static art::Mutex* lock = art::Mutex::Create("LogMessage lock");
+  return lock;
+}
+
+}
+
 LogMessage::~LogMessage() {
+  // Finish constructing the message.
   if (errno_ != -1) {
     buffer_ << ": " << strerror(errno_);
   }
   std::string msg(buffer_.str());
-  if (msg.find('\n') == std::string::npos) {
-    LogLine(msg.c_str());
-  } else {
-    msg += '\n';
-    size_t i = 0;
-    while (i < msg.size()) {
-      size_t nl = msg.find('\n', i);
-      msg[nl] = '\0';
-      LogLine(&msg[i]);
-      i = nl + 1;
+
+  // Do the actual logging with the lock held.
+  {
+    art::MutexLock mu(GetLoggingLock());
+    if (msg.find('\n') == std::string::npos) {
+      LogLine(msg.c_str());
+    } else {
+      msg += '\n';
+      size_t i = 0;
+      while (i < msg.size()) {
+        size_t nl = msg.find('\n', i);
+        msg[nl] = '\0';
+        LogLine(&msg[i]);
+        i = nl + 1;
+      }
     }
   }
 
+  // Abort if necessary.
   if (severity_ == FATAL) {
     art::Runtime::Abort(file_, line_number_);
   }

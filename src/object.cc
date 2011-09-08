@@ -196,7 +196,7 @@ int32_t Field::GetInt(const Object* object) const {
 }
 
 void Field::SetInt(Object* object, int32_t i) const {
-  DCHECK(GetType()->IsPrimitiveInt());
+  DCHECK(GetType()->IsPrimitiveInt()) << PrettyField(this);
   Set32(object, i);
 }
 
@@ -273,7 +273,7 @@ void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
 }
 
 Class* Method::GetReturnType() const {
-  DCHECK(GetDeclaringClass()->IsLinked());
+  DCHECK(GetDeclaringClass()->IsResolved());
   // Short-cut
   Class* result = GetDexCacheResolvedTypes()->Get(GetReturnTypeIdx());
   if (result == NULL) {

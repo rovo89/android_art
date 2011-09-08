@@ -36,10 +36,11 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
-  // TODO: use smart pointers instead. (we'll need the pimpl idiom.)
+  // Make sure our internal threads are dead before we start tearing down things they're using.
+  delete signal_catcher_;
+
   delete class_linker_;
   Heap::Destroy();
-  delete signal_catcher_;
   delete thread_list_;
   delete intern_table_;
   delete java_vm_;
@@ -336,6 +337,11 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 
 void Runtime::Start() {
   started_ = true;
+
+  // Finish attaching the main thread.
+  Thread* main_thread = Thread::Current();
+  main_thread->CreatePeer("main", false);
+
   instance_->InitLibraries();
   instance_->signal_catcher_ = new SignalCatcher;
 }
@@ -378,7 +384,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     return false;
   }
 
-  thread_list_->Register(Thread::Attach(this, "main", false));
+  // ClassLinker needs an attached thread, but we can't fully attach a thread
+  // without creating objects.
+  Thread::Attach(this, "main", false);
 
   class_linker_ = ClassLinker::Create(options->boot_class_path_,
                                       options->class_path_,
@@ -466,9 +474,8 @@ void Runtime::BlockSignals() {
   CHECK_EQ(sigprocmask(SIG_BLOCK, &sigset, NULL), 0);
 }
 
-void Runtime::AttachCurrentThread(const char* name, JNIEnv** penv, bool as_daemon) {
-  Thread* t = Thread::Attach(instance_, name, as_daemon);
-  thread_list_->Register(t);
+void Runtime::AttachCurrentThread(const char* name, bool as_daemon) {
+  Thread::Attach(instance_, name, as_daemon);
 }
 
 void Runtime::DetachCurrentThread() {

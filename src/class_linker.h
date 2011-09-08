@@ -185,6 +185,9 @@ class ClassLinker {
   void AppendToBootClassPath(const DexFile& dex_file);
   void AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_cache);
 
+  void ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+      Class* c, std::map<int, Field*>& field_map);
+
   size_t SizeOfClass(const DexFile& dex_file,
                      const DexFile::ClassDef& dex_class_def);
 
