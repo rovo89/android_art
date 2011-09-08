@@ -5,6 +5,7 @@
 
 #include <pthread.h>
 
+#include <bitset>
 #include <iosfwd>
 #include <list>
 
@@ -48,6 +49,8 @@ class Mutex {
   const char* GetName() { return name_; }
 
   Thread* GetOwner() { return owner_; }
+
+  bool HaveLock();
 
   static Mutex* Create(const char* name);
 
@@ -442,7 +445,7 @@ class Thread {
  private:
   Thread();
   ~Thread();
-  friend class Runtime;  // For ~Thread.
+  friend class ThreadList;  // For ~Thread.
 
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const;
@@ -524,7 +527,7 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state);
 
 class ThreadList {
  public:
-  static const int kMaxId = 0xFFFF;
+  static const int kMaxThreadId = 0xFFFF;
   static const int kInvalidId = 0;
   static const int kMainId = 1;
 
@@ -536,9 +539,17 @@ class ThreadList {
 
   void Register(Thread* thread);
 
-  void Unregister(Thread* thread);
+  void Unregister();
 
   bool Contains(Thread* thread);
+
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
+
+ private:
+  ThreadList();
+
+  uint32_t AllocThreadId();
+  void ReleaseThreadId(uint32_t id);
 
   void Lock() {
     lock_->Lock();
@@ -546,47 +557,44 @@ class ThreadList {
 
   void Unlock() {
     lock_->Unlock();
-  };
-
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
-
- private:
-  ThreadList();
-
-  std::list<Thread*> list_;
+  }
 
   Mutex* lock_;
+
+  std::bitset<kMaxThreadId> allocated_ids_;
+  std::list<Thread*> list_;
+
+  friend class Thread;
+  friend class ThreadListLock;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };
 
 class ThreadListLock {
  public:
-  ThreadListLock(ThreadList* thread_list, Thread* current_thread)
-      : thread_list_(thread_list) {
-    if (current_thread == NULL) {  // try to get it from TLS
-      current_thread = Thread::Current();
+  ThreadListLock(Thread* self = NULL) {
+    if (self == NULL) {
+      // Try to get it from TLS.
+      self = Thread::Current();
     }
     Thread::State old_state;
-    if (current_thread != NULL) {
-      old_state = current_thread->SetState(Thread::kWaiting);  // TODO: VMWAIT
+    if (self != NULL) {
+      old_state = self->SetState(Thread::kWaiting);  // TODO: VMWAIT
     } else {
-      // happens during VM shutdown
-      old_state = Thread::kUnknown;  // TODO: something else
+      // This happens during VM shutdown.
+      old_state = Thread::kUnknown;
     }
-    thread_list_->Lock();
-    if (current_thread != NULL) {
-      current_thread->SetState(old_state);
+    Runtime::Current()->GetThreadList()->Lock();
+    if (self != NULL) {
+      self->SetState(old_state);
     }
   }
 
   ~ThreadListLock() {
-    thread_list_->Unlock();
+    Runtime::Current()->GetThreadList()->Unlock();
   }
 
  private:
-  ThreadList* thread_list_;
-
   DISALLOW_COPY_AND_ASSIGN(ThreadListLock);
 };
 

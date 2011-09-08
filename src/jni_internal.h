@@ -97,7 +97,7 @@ struct JNIEnvExt : public JNIEnv {
   int critical;
 
   // Entered JNI monitors, for bulk exit on thread detach.
-  ReferenceTable  monitors;
+  ReferenceTable monitors;
 
   // JNI local references.
   IndirectReferenceTable locals;

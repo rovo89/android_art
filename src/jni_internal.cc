@@ -2183,7 +2183,7 @@ class JNI {
 
   static jint MonitorExit(JNIEnv* env, jobject java_object) {
     ScopedJniThreadState ts(env);
-    Decode<Object*>(ts, java_object)->MonitorEnter();
+    Decode<Object*>(ts, java_object)->MonitorExit();
     return ts.Self()->IsExceptionPending() ? JNI_ERR : JNI_OK;
   }
 
