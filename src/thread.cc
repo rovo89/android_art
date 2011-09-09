@@ -373,7 +373,6 @@ void Thread::InitStackHwm() {
     PLOG(FATAL) << "pthread_getattr_np failed";
   }
 
-  // stack_base is the "lowest addressable byte" of the stack.
   void* stack_base;
   size_t stack_size;
   errno = pthread_attr_getstack(&attributes, &stack_base, &stack_size);
@@ -385,7 +384,15 @@ void Thread::InitStackHwm() {
   if (stack_size <= kStackOverflowReservedBytes) {
     LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size << " bytes)";
   }
-  stack_hwm_ = reinterpret_cast<byte*>(stack_base) + stack_size - kStackOverflowReservedBytes;
+
+  // stack_base is the "lowest addressable byte" of the stack.
+  // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
+  // to throw a StackOverflowError.
+  stack_end_ = reinterpret_cast<byte*>(stack_base) - kStackOverflowReservedBytes;
+
+  // Sanity check.
+  int stack_variable;
+  CHECK_GT(&stack_variable, (void*) stack_end_);
 
   errno = pthread_attr_destroy(&attributes);
   if (errno != 0) {

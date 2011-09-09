@@ -410,8 +410,8 @@ class Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
   }
 
-  static ThreadOffset StackHwmOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, stack_hwm_));
+  static ThreadOffset StackEndOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, stack_end_));
   }
 
   static ThreadOffset JniEnvOffset() {
@@ -475,8 +475,9 @@ class Thread {
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;
 
-  // The high water mark for this thread's stack.
-  byte* stack_hwm_;
+  // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
+  // We leave extra space so there's room for the code that throws StackOverflowError.
+  byte* stack_end_;
 
   // Top of the managed stack, written out prior to the state transition from
   // kRunnable to kNative. Uses include to give the starting point for scanning
