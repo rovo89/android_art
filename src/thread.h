@@ -38,7 +38,7 @@ typedef PrimitiveArray<int32_t> IntArray;
 
 class Mutex {
  public:
-  virtual ~Mutex() {}
+  ~Mutex();
 
   void Lock();
 
@@ -50,14 +50,14 @@ class Mutex {
 
   static Mutex* Create(const char* name);
 
-  pthread_mutex_t* GetImpl() { return &lock_impl_; }
+  pthread_mutex_t* GetImpl() { return &mutex_; }
 
  private:
   explicit Mutex(const char* name) : name_(name) {}
 
   const char* name_;
 
-  pthread_mutex_t lock_impl_;
+  pthread_mutex_t mutex_;
 
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
@@ -266,7 +266,7 @@ class Thread {
   }
 
   pthread_t GetImpl() const {
-    return handle_;
+    return pthread_;
   }
 
   // Returns the Method* for the current method.
@@ -317,24 +317,6 @@ class Thread {
                                      void* throw_pc,
                                      const DexFile& dex_file,
                                      ClassLinker* class_linker);
-  static ThreadOffset SelfOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, self_));
-  }
-
-  // Offset of exception_ within Thread, used by generated code
-  static ThreadOffset ExceptionOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
-  }
-
-  // Offset of thin_lock_id_ within Thread, used by generated code
-  static ThreadOffset IdOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_id_));
-  }
-
-  // Offset of card_table within Thread, used by generated code
-  static ThreadOffset CardTableOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, card_table_));
-  }
 
   void SetName(const char* name);
 
@@ -344,38 +326,12 @@ class Thread {
 
   void Resume();
 
-  static bool Startup();
+  static void Startup();
   static void Shutdown();
-
-  static ThreadOffset SuspendCountOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_));
-  }
-
-  // Offset of state within Thread, used by generated code
-  static ThreadOffset StateOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
-  }
 
   // JNI methods
   JNIEnvExt* GetJniEnv() const {
     return jni_env_;
-  }
-
-  // Offset of JNI environment within Thread, used by generated code
-  static ThreadOffset JniEnvOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, jni_env_));
-  }
-
-  // Offset of top of managed stack address, used by generated code
-  static ThreadOffset TopOfManagedStackOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_) +
-                        OFFSETOF_MEMBER(Frame, sp_));
-  }
-
-  // Offset of top stack indirect reference table within Thread, used by
-  // generated code
-  static ThreadOffset TopSirtOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
 
   // Number of references allocated in SIRTs on this thread
@@ -387,18 +343,8 @@ class Thread {
   // Convert a jobject into a Object*
   Object* DecodeJObject(jobject obj);
 
-  // Offset of exception_entry_point_ within Thread, used by generated code
-  static ThreadOffset ExceptionEntryPointOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_entry_point_));
-  }
-
   void RegisterExceptionEntryPoint(void (*handler)(Method**)) {
     exception_entry_point_ = handler;
-  }
-
-  // Offset of suspend_count_entry_point_ within Thread, used by generated code
-  static ThreadOffset SuspendCountEntryPointOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_entry_point_));
   }
 
   void RegisterSuspendCountEntryPoint(void (*handler)(Method**)) {
@@ -436,6 +382,59 @@ class Thread {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
+  //
+  // Offsets of various members of native Thread class, used by compiled code.
+  //
+
+  static ThreadOffset SelfOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, self_));
+  }
+
+  static ThreadOffset ExceptionOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
+  }
+
+  static ThreadOffset IdOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_id_));
+  }
+
+  static ThreadOffset CardTableOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, card_table_));
+  }
+
+  static ThreadOffset SuspendCountOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_));
+  }
+
+  static ThreadOffset StateOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
+  }
+
+  static ThreadOffset StackHwmOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, stack_hwm_));
+  }
+
+  static ThreadOffset JniEnvOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, jni_env_));
+  }
+
+  static ThreadOffset TopOfManagedStackOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_) +
+        OFFSETOF_MEMBER(Frame, sp_));
+  }
+
+  static ThreadOffset TopSirtOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
+  }
+
+  static ThreadOffset ExceptionEntryPointOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_entry_point_));
+  }
+
+  static ThreadOffset SuspendCountEntryPointOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_entry_point_));
+  }
+
  private:
   Thread();
   ~Thread();
@@ -449,6 +448,9 @@ class Thread {
 
   void InitCpu();
   void InitFunctionPointers();
+  void InitStackHwm();
+
+  static void ThreadExitCallback(void* arg);
 
   void WalkStack(StackVisitor* visitor);
 
@@ -463,7 +465,7 @@ class Thread {
   pid_t tid_;
 
   // Native thread handle.
-  pthread_t handle_;
+  pthread_t pthread_;
 
   bool is_daemon_;
 
@@ -472,6 +474,9 @@ class Thread {
 
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;
+
+  // The high water mark for this thread's stack.
+  byte* stack_hwm_;
 
   // Top of the managed stack, written out prior to the state transition from
   // kRunnable to kNative. Uses include to give the starting point for scanning

@@ -30,7 +30,7 @@ class Heap {
   // Create a heap with the requested sizes. The optional boot image may
   // be NULL, otherwise it is an image filename created by ImageWriter.
   // image_file_names specifies application images to load.
-  static bool Init(size_t starting_size, size_t maximum_size,
+  static void Init(size_t starting_size, size_t maximum_size,
                    const char* boot_image_file_name,
                    std::vector<const char*>& image_file_names);
 

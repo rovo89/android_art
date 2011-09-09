@@ -50,7 +50,7 @@ class ScopedHeapLock {
   }
 };
 
-bool Heap::Init(size_t initial_size, size_t maximum_size,
+void Heap::Init(size_t initial_size, size_t maximum_size,
                 const char* boot_image_file_name,
                 std::vector<const char*>& image_file_names) {
   Space* boot_space;
@@ -61,8 +61,7 @@ bool Heap::Init(size_t initial_size, size_t maximum_size,
   } else {
     boot_space = Space::Create(boot_image_file_name);
     if (boot_space == NULL) {
-      LOG(WARNING) << "Failed to create space from " << boot_image_file_name;
-      return false;
+      LOG(FATAL) << "Failed to create space from " << boot_image_file_name;
     }
     spaces_.push_back(boot_space);
     requested_base = boot_space->GetBase() + RoundUp(boot_space->Size(), kPageSize);
@@ -72,8 +71,7 @@ bool Heap::Init(size_t initial_size, size_t maximum_size,
   for (size_t i = 0; i < image_file_names.size(); i++) {
     Space* space = Space::Create(image_file_names[i]);
     if (space == NULL) {
-      LOG(WARNING) << "Failed to create space from " << image_file_names[i];
-      return false;
+      LOG(FATAL) << "Failed to create space from " << image_file_names[i];
     }
     image_spaces.push_back(space);
     spaces_.push_back(space);
@@ -82,8 +80,7 @@ bool Heap::Init(size_t initial_size, size_t maximum_size,
 
   Space* space = Space::Create(initial_size, maximum_size, requested_base);
   if (space == NULL) {
-    LOG(WARNING) << "Failed to create alloc space";
-    return false;
+    LOG(FATAL) << "Failed to create alloc space";
   }
 
   if (boot_space == NULL) {
@@ -97,15 +94,13 @@ bool Heap::Init(size_t initial_size, size_t maximum_size,
   // Allocate the initial live bitmap.
   UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
   if (live_bitmap.get() == NULL) {
-    LOG(WARNING) << "Failed to create live bitmap";
-    return false;
+    LOG(FATAL) << "Failed to create live bitmap";
   }
 
   // Allocate the initial mark bitmap.
   UniquePtr<HeapBitmap> mark_bitmap(HeapBitmap::Create(base, num_bytes));
   if (mark_bitmap.get() == NULL) {
-    LOG(WARNING) << "Failed to create mark bitmap";
-    return false;
+    LOG(FATAL) << "Failed to create mark bitmap";
   }
 
   alloc_space_ = space;
@@ -132,8 +127,6 @@ bool Heap::Init(size_t initial_size, size_t maximum_size,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
   lock_ = Mutex::Create("Heap lock");
-
-  return true;
 }
 
 void Heap::Destroy() {

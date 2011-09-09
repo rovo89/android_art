@@ -96,8 +96,8 @@ class Runtime {
 
   ~Runtime();
 
-  size_t GetStackSize() const {
-    return stack_size_;
+  size_t GetDefaultStackSize() const {
+    return default_stack_size_;
   }
 
   ClassLinker* GetClassLinker() const {
@@ -130,7 +130,7 @@ class Runtime {
   void RegisterRuntimeNativeMethods(JNIEnv*);
 
   // The default stack size for managed threads created by the runtime.
-  size_t stack_size_;
+  size_t default_stack_size_;
 
   ThreadList* thread_list_;
 
