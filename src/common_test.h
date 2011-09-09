@@ -110,11 +110,9 @@ class CommonTest : public testing::Test {
     class_linker_ = runtime_->GetClassLinker();
 
 #if defined(__i386__)
-    compiler_ = new Compiler(kX86);
+    compiler_.reset(new Compiler(kX86));
 #elif defined(__arm__)
-    compiler_ = new Compiler(kThumb2);
-#else
-    compiler_ = new Compiler(kNone);
+    compiler_.reset(new Compiler(kThumb2));
 #endif
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
@@ -157,7 +155,7 @@ class CommonTest : public testing::Test {
     IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
     (*icu_cleanup_fn)();
 
-    delete compiler_;
+    compiler_.reset();
 
     Heap::VerifyHeap();  // Check for heap corruption after the test
   }
@@ -285,8 +283,9 @@ class CommonTest : public testing::Test {
   UniquePtr<const DexFile> java_lang_dex_file_;
   std::vector<const DexFile*> boot_class_path_;
   UniquePtr<Runtime> runtime_;
+  // Owned by the runtime
   ClassLinker* class_linker_;
-  Compiler* compiler_;
+  UniquePtr<Compiler> compiler_;
 
  private:
   std::vector<const DexFile*> loaded_dex_files_;
