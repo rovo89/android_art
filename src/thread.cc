@@ -127,6 +127,15 @@ static void LockObjectFromCode(Thread* thread, Object* obj) {
     obj->MonitorEnter(thread);
 }
 
+// TODO: placeholder
+static void CheckSuspendFromCode(Thread* thread) {
+    /*
+     * Code is at a safe point, suspend if needed.
+     * Also, this is where a pending safepoint callback
+     * would be fired.
+     */
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -178,6 +187,7 @@ void Thread::InitFunctionPointers() {
   pLockObjectFromCode = LockObjectFromCode;
   pUnlockObjectFromCode = UnlockObjectFromCode;
   pFindFieldFromCode = Field::FindFieldFromCode;
+  pCheckSuspendFromCode = CheckSuspendFromCode;
   pDebugMe = DebugMe;
 }
 

@@ -377,9 +377,8 @@ static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
  */
 static void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-#if 1
-  UNIMPLEMENTED(WARNING);
-#else
+#if 0
+    // TODO: re-enable when concurrent collector is active
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
     ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondEq, valReg, 0);
@@ -1708,22 +1707,22 @@ static bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-/*
- * Fetch *self->info.breakFlags. If the breakFlags are non-zero,
- * punt to the interpreter.
- */
+/* Check for pending suspend request.  */
 static void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
 {
-    UNIMPLEMENTED(WARNING);
-#if 0
-    int rTemp = oatAllocTemp(cUnit);
+    oatLockCallTemps(cUnit);   // Explicit register usage
+    int rSuspendCount = r1;
     ArmLIR* ld;
-    ld = loadBaseDisp(cUnit, NULL, rSELF,
-                      offsetof(Thread, interpBreak.ctl.breakFlags),
-                      rTemp, kUnsignedByte, INVALID_SREG);
+    ld = loadWordDisp(cUnit, rSELF,
+        art::Thread::SuspendCountOffset().Int32Value(), rSuspendCount);
     setMemRefType(ld, true /* isLoad */, kMustNotAlias);
-    genRegImmCheck(cUnit, kArmCondNe, rTemp, 0, mir->offset, NULL);
-#endif
+    loadWordDisp(cUnit, rSELF,
+                 OFFSETOF_MEMBER(Thread, pCheckSuspendFromCode), rLR);
+    genRegCopy(cUnit, r0, rSELF);
+    opRegImm(cUnit, kOpCmp, rSuspendCount, 0);
+    genIT(cUnit, kArmCondNe, "");
+    opReg(cUnit, kOpBlx, rLR); // CheckSuspendFromCode(self)
+    oatFreeCallTemps(cUnit);
 }
 
 /*

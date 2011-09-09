@@ -31,6 +31,8 @@ bool MarkSweep::Init() {
 
   // TODO: if concurrent, clear the card table.
 
+  // TODO: if concurrent, enable card marking in compiler
+
   // TODO: check that the mark bitmap is entirely clear.
 
   return true;

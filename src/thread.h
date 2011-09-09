@@ -230,6 +230,7 @@ class Thread {
   void (*pInvokeInterfaceTrampoline)(void*, void*, void*, void*);
   StaticStorageBase* (*pInitializeStaticStorage)(uint32_t, const Method*);
   Field* (*pFindFieldFromCode)(uint32_t, const Method*);
+  void (*pCheckSuspendFromCode)(Thread*);
 
   class StackVisitor {
    public:
