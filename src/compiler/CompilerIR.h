@@ -235,6 +235,7 @@ typedef struct CompilationUnit {
     BasicBlock* nextCodegenBlock;       // for extended trace codegen
     GrowableList dfsOrder;
     GrowableList domPostOrderTraversal;
+    GrowableList throwLaunchpads;
     ArenaBitVector* tryBlockAddr;
     ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks
     ArenaBitVector* tempBlockV;
@@ -245,12 +246,10 @@ typedef struct CompilationUnit {
     bool quitLoopMode;                  // cold path/complex bytecode
     int preservedRegsUsed;              // How many callee save regs used
     /*
-     * Frame layout details.  TODO: Reorganize, remove reduncancy
-     * and move elsewhere.  Some of this is already in struct Method,
-     * at least frameSize should eventually move there.  Delay regorg
-     * until we get a feel for how this will be used by the low-level
-     * codegen utilities.  "num" fields are in 4-byte words, "Size" and
-     * "Offset" in bytes.
+     * Frame layout details.
+     * NOTE: for debug support it will be necessary to add a structure
+     * to map the Dalvik virtual registers to the promoted registers.
+     * NOTE: "num" fields are in 4-byte words, "Size" and "Offset" in bytes.
      */
     int numIns;
     int numOuts;

@@ -1195,17 +1195,14 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                    lir->opcode == kThumb2BCond) {
             ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
             int delta = 0;
-            if (targetLIR == NULL) {
-                UNIMPLEMENTED(WARNING) << "Throw targets unimplemented";
-            } else {
-                intptr_t pc = lir->generic.offset + 4;
-                intptr_t target = targetLIR->generic.offset;
-                delta = target - pc;
-                if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
-                    lir->opcode = kThumb2BCond;
-                    oatSetupResourceMasks(lir);
-                    res = kRetryAll;
-                }
+            assert(targetLIR);
+            intptr_t pc = lir->generic.offset + 4;
+            intptr_t target = targetLIR->generic.offset;
+            delta = target - pc;
+            if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
+                lir->opcode = kThumb2BCond;
+                oatSetupResourceMasks(lir);
+                res = kRetryAll;
             }
             lir->operands[0] = delta >> 1;
         } else if (lir->opcode == kThumb2BUncond) {

@@ -142,6 +142,110 @@ static void StackOverflowFromCode(Method* method) {
     UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
 }
 
+// TODO: placeholder
+static void ThrowNullPointerFromCode() {
+    //NOTE: to save code space, this handler must look up caller's Method*
+    UNIMPLEMENTED(FATAL) << "Null pointer exception";
+}
+
+// TODO: placeholder
+static void ThrowDivZeroFromCode() {
+    UNIMPLEMENTED(FATAL) << "Divide by zero";
+}
+
+// TODO: placeholder
+static void ThrowArrayBoundsFromCode(int32_t index, int32_t limit) {
+    UNIMPLEMENTED(FATAL) << "Bound check exception, idx: " << index <<
+        ", limit: " << limit;
+}
+
+// TODO: placeholder
+static void ThrowVerificationErrorFromCode(int32_t src1, int32_t ref) {
+    UNIMPLEMENTED(FATAL) << "Verification error, src1: " << src1 <<
+        " ref: " << ref;
+}
+
+// TODO: placeholder
+static void ThrowNegArraySizeFromCode(int32_t index) {
+    UNIMPLEMENTED(FATAL) << "Negative array size: " << index;
+}
+
+// TODO: placeholder
+static void ThrowInternalErrorFromCode(int32_t errnum) {
+    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
+}
+
+// TODO: placeholder
+static void ThrowRuntimeExceptionFromCode(int32_t errnum) {
+    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
+}
+
+// TODO: placeholder
+static void ThrowNoSuchMethodFromCode(int32_t method_idx) {
+    UNIMPLEMENTED(FATAL) << "No such method, idx: " << method_idx;
+}
+
+/*
+ * Temporary placeholder.  Should include run-time checks for size
+ * of fill data <= size of array.  If not, throw arrayOutOfBoundsException.
+ * As with other new "FromCode" routines, this should return to the caller
+ * only if no exception has been thrown.
+ *
+ * NOTE: When dealing with a raw dex file, the data to be copied uses
+ * little-endian ordering.  Require that oat2dex do any required swapping
+ * so this routine can get by with a memcpy().
+ *
+ * Format of the data:
+ *  ushort ident = 0x0300   magic value
+ *  ushort width            width of each element in the table
+ *  uint   size             number of elements in the table
+ *  ubyte  data[size*width] table of data values (may contain a single-byte
+ *                          padding at the end)
+ */
+static void HandleFillArrayDataFromCode(Array* array, const uint16_t* table)
+{
+    uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
+    uint32_t size_in_bytes = size * table[1];
+    if (static_cast<int32_t>(size) > array->GetLength()) {
+      ThrowArrayBoundsFromCode(array->GetLength(), size);
+    }
+    memcpy((char*)array + art::Array::DataOffset().Int32Value(),
+           (char*)&table[4], size_in_bytes);
+}
+
+// TODO: move to more appropriate location
+/*
+ * Float/double conversion requires clamping to min and max of integer form.  If
+ * target doesn't support this normally, use these.
+ */
+static int64_t D2L(double d)
+{
+    static const double kMaxLong = (double)(int64_t)0x7fffffffffffffffULL;
+    static const double kMinLong = (double)(int64_t)0x8000000000000000ULL;
+    if (d >= kMaxLong)
+        return (int64_t)0x7fffffffffffffffULL;
+    else if (d <= kMinLong)
+        return (int64_t)0x8000000000000000ULL;
+    else if (d != d) // NaN case
+        return 0;
+    else
+        return (int64_t)d;
+}
+
+static int64_t F2L(float f)
+{
+    static const float kMaxLong = (float)(int64_t)0x7fffffffffffffffULL;
+    static const float kMinLong = (float)(int64_t)0x8000000000000000ULL;
+    if (f >= kMaxLong)
+        return (int64_t)0x7fffffffffffffffULL;
+    else if (f <= kMinLong)
+        return (int64_t)0x8000000000000000ULL;
+    else if (f != f) // NaN case
+        return 0;
+    else
+        return (int64_t)f;
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -195,6 +299,14 @@ void Thread::InitFunctionPointers() {
   pFindFieldFromCode = Field::FindFieldFromCode;
   pCheckSuspendFromCode = CheckSuspendFromCode;
   pStackOverflowFromCode = StackOverflowFromCode;
+  pThrowNullPointerFromCode = ThrowNullPointerFromCode;
+  pThrowArrayBoundsFromCode = ThrowArrayBoundsFromCode;
+  pThrowDivZeroFromCode = ThrowDivZeroFromCode;
+  pThrowVerificationErrorFromCode = ThrowVerificationErrorFromCode;
+  pThrowNegArraySizeFromCode = ThrowNegArraySizeFromCode;
+  pThrowRuntimeExceptionFromCode = ThrowRuntimeExceptionFromCode;
+  pThrowInternalErrorFromCode = ThrowInternalErrorFromCode;
+  pThrowNoSuchMethodFromCode = ThrowNoSuchMethodFromCode;
   pDebugMe = DebugMe;
 }
 

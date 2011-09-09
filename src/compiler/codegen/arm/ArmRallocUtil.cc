@@ -178,7 +178,6 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     qsort(coreRegs, numRegs, sizeof(RefCounts), sortCounts);
     qsort(fpRegs, numRegs, sizeof(RefCounts), sortCounts);
 
-    // TODO: temp for debugging, too verbose.  Remove when unneeded
     if (cUnit->printMeVerbose) {
         dumpCounts(coreRegs, numRegs, "coreRegs");
         dumpCounts(fpRegs, numRegs, "fpRegs");

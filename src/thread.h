@@ -224,6 +224,14 @@ class Thread {
   Field* (*pFindFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);
   void (*pStackOverflowFromCode)(Method*);
+  void (*pThrowNullPointerFromCode)();
+  void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
+  void (*pThrowDivZeroFromCode)();
+  void (*pThrowVerificationErrorFromCode)(int32_t, int32_t);
+  void (*pThrowNegArraySizeFromCode)(int32_t);
+  void (*pThrowRuntimeExceptionFromCode)(int32_t);
+  void (*pThrowInternalErrorFromCode)(int32_t);
+  void (*pThrowNoSuchMethodFromCode)(int32_t);
 
   class StackVisitor {
    public:

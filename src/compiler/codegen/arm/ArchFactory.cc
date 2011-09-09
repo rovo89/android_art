@@ -22,6 +22,10 @@
  *
  */
 
+static ArmLIR* genUnconditionalBranch(CompilationUnit*, ArmLIR*);
+static ArmLIR* genConditionalBranch(CompilationUnit*, ArmConditionCode,
+                                    ArmLIR*);
+
 /*
  * Utiltiy to load the current Method*.  Broken out
  * to allow easy change between placing the current Method* in a
@@ -47,26 +51,23 @@ static int loadCurrMethod(CompilationUnit *cUnit)
 #endif
 }
 
-/*
- * Perform a "reg cmp imm" operation and jump to the PCR region if condition
- * satisfies.
- */
-static TGT_LIR* genRegImmCheck(CompilationUnit* cUnit,
-                               ArmConditionCode cond, int reg,
-                               int checkValue, int dOffset,
-                               TGT_LIR* pcrLabel)
+static ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
+                             int reg, int immVal, MIR* mir, ArmThrowKind kind)
 {
-    TGT_LIR* branch = genCmpImmBranch(cUnit, cond, reg, checkValue);
-    BasicBlock* bb = cUnit->curBlock;
-    if (bb->taken) {
-        ArmLIR  *exceptionLabel = (ArmLIR* ) cUnit->blockLabelList;
-        exceptionLabel += bb->taken->id;
-        branch->generic.target = (LIR* ) exceptionLabel;
-        return exceptionLabel;
+    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    tgt->opcode = kArmPseudoThrowTarget;
+    tgt->operands[0] = kind;
+    tgt->operands[1] = mir->offset;
+    ArmLIR* branch;
+    if (cCode == kArmCondAl) {
+        branch = genUnconditionalBranch(cUnit, tgt);
     } else {
-        LOG(FATAL) << "Catch blocks not handled yet";
-        return NULL; // quiet gcc
+        branch = genCmpImmBranch(cUnit, kArmCondEq, reg, 0);
+        branch->generic.target = (LIR*)tgt;
     }
+    // Remember branch target - will process later
+    oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
 }
 
 /*
@@ -74,42 +75,30 @@ static TGT_LIR* genRegImmCheck(CompilationUnit* cUnit,
  * and mReg is the machine register holding the actual value. If internal state
  * indicates that sReg has been checked before the check request is ignored.
  */
-static TGT_LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
-                             int dOffset, TGT_LIR* pcrLabel)
+static ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
+                             MIR* mir)
 {
-    /* This particular Dalvik register has been null-checked */
-#if 0
-    // Yes, I know.  Please be quiet.
-    UNIMPLEMENTED(WARNING) << "Need null check & throw support";
-#endif
-    return pcrLabel;
     if (oatIsBitSet(cUnit->regPool->nullCheckedRegs, sReg)) {
-        return pcrLabel;
+        /* This particular Dalvik register has been null-checked */
+        return NULL;
     }
     oatSetBit(cUnit->regPool->nullCheckedRegs, sReg);
-    return genRegImmCheck(cUnit, kArmCondEq, mReg, 0, dOffset, pcrLabel);
-}
-
-/*
- * Perform a "reg cmp reg" operation and jump to the PCR region if condition
- * satisfies.
- */
-static TGT_LIR* genRegRegCheck(CompilationUnit* cUnit,
-                               ArmConditionCode cond,
-                               int reg1, int reg2, int dOffset,
-                               TGT_LIR* pcrLabel)
-{
-    TGT_LIR* res;
-    res = opRegReg(cUnit, kOpCmp, reg1, reg2);
-    TGT_LIR* branch = opCondBranch(cUnit, cond);
-    genCheckCommon(cUnit, dOffset, branch, pcrLabel);
-    return res;
+    return genImmedCheck(cUnit, kArmCondEq, mReg, 0, mir, kArmThrowNullPointer);
 }
 
 /* Perform bound check on two registers */
 static TGT_LIR* genBoundsCheck(CompilationUnit* cUnit, int rIndex,
-                               int rBound, int dOffset, TGT_LIR* pcrLabel)
+                               int rBound, MIR* mir, ArmThrowKind kind)
 {
-    return genRegRegCheck(cUnit, kArmCondCs, rIndex, rBound, dOffset,
-                          pcrLabel);
+    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    tgt->opcode = kArmPseudoThrowTarget;
+    tgt->operands[0] = kind;
+    tgt->operands[1] = mir->offset;
+    tgt->operands[2] = rIndex;
+    tgt->operands[3] = rBound;
+    opRegReg(cUnit, kOpCmp, rIndex, rBound);
+    ArmLIR* branch = genConditionalBranch(cUnit, kArmCondCs, tgt);
+    // Remember branch target - will process later
+    oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
 }

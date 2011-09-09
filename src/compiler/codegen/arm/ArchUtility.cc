@@ -351,6 +351,9 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
         case kArmPseudoNormalBlockLabel:
             LOG(INFO) << "L" << (intptr_t)lir << ":";
             break;
+        case kArmPseudoThrowTarget:
+            LOG(INFO) << "LT" << (intptr_t)lir << ":";
+            break;
         case kArmPseudoCaseLabel:
             LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
                 std::hex << lir->operands[0] << "|" << std::dec <<

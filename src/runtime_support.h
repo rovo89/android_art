@@ -44,10 +44,4 @@ extern "C" long long __aeabi_lmul(long long op1, long long op2);
 
 #endif
 
-namespace art {
-  int64_t D2L(double);
-  int64_t F2L(float);
-  void HandleFillArrayDataFromCode(art::Array*, const uint16_t*);
-}
-
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_
