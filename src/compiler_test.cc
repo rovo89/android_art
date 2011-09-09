@@ -56,7 +56,7 @@ class CompilerTest : public CommonTest {
   }
 };
 
-// TODO renenable when compiler can handle libcore
+// Disabled due to 10 second runtime on host
 TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
   Compiler compiler;
   compiler.CompileAll(NULL);
@@ -67,22 +67,27 @@ TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
   EXPECT_EQ(dex->NumStringIds(), dex_cache->NumStrings());
   for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
     const String* string = dex_cache->GetResolvedString(i);
-    EXPECT_TRUE(string != NULL);
+    EXPECT_TRUE(string != NULL) << "string_idx=" << i;
   }
   EXPECT_EQ(dex->NumTypeIds(), dex_cache->NumResolvedTypes());
   for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
     Class* type = dex_cache->GetResolvedType(i);
-    EXPECT_TRUE(type != NULL);
+    EXPECT_TRUE(type != NULL) << "type_idx=" << i
+                              << " " << dex->GetTypeDescriptor(dex->GetTypeId(i));
   }
   EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumResolvedMethods());
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
-    EXPECT_TRUE(method != NULL);
+    EXPECT_TRUE(method != NULL) << "method_idx=" << i
+                                << " " << dex->GetMethodClassDescriptor(dex->GetMethodId(i))
+                                << " " << dex->GetMethodName(dex->GetMethodId(i));
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
     Field* field = dex_cache->GetResolvedField(i);
-    EXPECT_TRUE(field != NULL);
+    EXPECT_TRUE(field != NULL) << "field_idx=" << i
+                               << " " << dex->GetFieldClassDescriptor(dex->GetFieldId(i))
+                               << " " << dex->GetFieldName(dex->GetFieldId(i));
   }
 
   // TODO check Class::IsVerified for all classes
@@ -93,8 +98,13 @@ TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
   CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
   for (size_t i = 0; i < dex_cache->NumCodeAndDirectMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
-    EXPECT_EQ(method->GetCode(), code_and_direct_methods->GetResolvedCode(i));
-    EXPECT_EQ(method,            code_and_direct_methods->GetResolvedMethod(i));
+    if (method->IsDirect()) {
+      EXPECT_EQ(method->GetCode(), code_and_direct_methods->GetResolvedCode(i));
+      EXPECT_EQ(method,            code_and_direct_methods->GetResolvedMethod(i));
+    } else {
+      EXPECT_EQ(0U, code_and_direct_methods->GetResolvedCode(i));
+      EXPECT_TRUE(code_and_direct_methods->GetResolvedMethod(i) == NULL);
+    }
   }
 }
 
