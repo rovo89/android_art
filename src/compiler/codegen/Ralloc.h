@@ -171,6 +171,8 @@ extern RegisterInfo *oatIsLive(CompilationUnit* cUnit, int reg);
 /* To be used when explicitly managing register use */
 extern void oatLockCallTemps(CompilationUnit* cUnit);
 
+extern void oatFreeCallTemps(CompilationUnit* cUnit);
+
 extern void oatFlushAllRegs(CompilationUnit* cUnit);
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit);

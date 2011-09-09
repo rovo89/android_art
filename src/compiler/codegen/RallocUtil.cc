@@ -712,6 +712,16 @@ extern void oatLockCallTemps(CompilationUnit* cUnit)
     oatLockTemp(cUnit, r3);
 }
 
+/* To be used when explicitly managing register use */
+extern void oatFreeCallTemps(CompilationUnit* cUnit)
+{
+    //TODO: Arm specific - move to target dependent code
+    oatFreeTemp(cUnit, r0);
+    oatFreeTemp(cUnit, r1);
+    oatFreeTemp(cUnit, r2);
+    oatFreeTemp(cUnit, r3);
+}
+
 // Make sure nothing is live and dirty
 static void flushAllRegsBody(CompilationUnit* cUnit, RegisterInfo* info,
                              int numRegs)
