@@ -464,7 +464,7 @@ bool Method::HasSameNameAndDescriptor(const Method* that) const {
 
 void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
                      ByteArray* mapping_table) {
-  CHECK(!HasCode() || IsNative());
+  CHECK(GetCode() == NULL || IsNative());
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
        mapping_table, false);
@@ -494,7 +494,16 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   // Call the invoke stub associated with the method.
   // Pass everything as arguments.
   const Method::InvokeStub* stub = GetInvokeStub();
-  if (HasCode() && stub != NULL) {
+
+  bool have_executable_code = (GetCode() != NULL);
+#if !defined(__arm__)
+  // Currently we can only compile for ARM, so we can't execute
+  // code on other architectures even if we do have it.
+  have_executable_code = false;
+#endif
+
+  if (have_executable_code && stub != NULL) {
+    LOG(INFO) << "invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
     (*stub)(this, receiver, self, args, result);
   } else {
     LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);

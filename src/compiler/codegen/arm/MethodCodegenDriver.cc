@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define DISPLAY_MISSING_TARGETS 1
+
 static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
                                    kLocDalvikFrame, INVALID_REG, INVALID_REG,

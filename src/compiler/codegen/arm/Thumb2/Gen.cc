@@ -24,7 +24,6 @@
 
 #define SLOW_FIELD_PATH 0
 #define SLOW_INVOKE_PATH 0
-#define DISPLAY_MISSING_TARGETS
 //#define EXERCISE_SLOWEST_FIELD_PATH
 
 std::string fieldNameFromIndex(const Method* method, uint32_t fieldIdx)

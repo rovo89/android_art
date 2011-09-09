@@ -87,8 +87,21 @@ class SystemMethods {
   private static int i = 4;
   private static long j = 0x0123456789abcdefL;
 
+  private static float f = 3.14f;
+  private static double d = Math.PI;
+
   public static int test4() {
     String s = "int=" + i + " long=" + j;
+    System.logI(s);
+    return 123;
+  }
+
+  public static int test5() {
+    System.logI("Float.toString");
+    System.logI(Float.toString(f));
+    System.logI("Double.toString");
+    System.logI(Double.toString(d));
+    String s = "int=" + i + " long=" + j + " float=" + f + " double=" + d;
     System.logI(s);
     return 123;
   }

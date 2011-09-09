@@ -19,46 +19,94 @@ class CompilerTest : public CommonTest {
  protected:
 
   void AssertStaticIntMethod(const ClassLoader* class_loader,
-                             const char* klass, const char* method, const char* signature,
+                             const char* class_name, const char* method, const char* signature,
                              jint expected, ...) {
-    CompileDirectMethod(class_loader, klass, method, signature);
+    EnsureCompiled(class_loader, class_name, method, signature);
 #if defined(__arm__)
-    JNIEnv* env = Thread::Current()->GetJniEnv();
-    jclass c = env->FindClass(klass);
-    CHECK(c != NULL) << "Class not found " << klass;
-    jmethodID m = env->GetStaticMethodID(c, method, signature);
-    CHECK(m != NULL) << "Method not found: " << klass << "." << method << signature;
     va_list args;
     va_start(args, expected);
-    jint result = env->CallStaticIntMethodV(c, m, args);
+    jint result = env_->CallStaticIntMethodV(class_, mid_, args);
     va_end(args);
-    LOG(INFO) << klass << "." << method << "(...) result is " << result;
+    LOG(INFO) << class_name << "." << method << "(...) result is " << result;
     EXPECT_EQ(expected, result);
 #endif // __arm__
   }
+
   void AssertStaticLongMethod(const ClassLoader* class_loader,
-                              const char* klass, const char* method, const char* signature,
+                              const char* class_name, const char* method, const char* signature,
                               jlong expected, ...) {
-    CompileDirectMethod(class_loader, klass, method, signature);
+    EnsureCompiled(class_loader, class_name, method, signature);
 #if defined(__arm__)
-    JNIEnv* env = Thread::Current()->GetJniEnv();
-    jclass c = env->FindClass(klass);
-    CHECK(c != NULL) << "Class not found " << klass;
-    jmethodID m = env->GetStaticMethodID(c, method, signature);
-    CHECK(m != NULL) << "Method not found: " << klass << "." << method << signature;
     va_list args;
     va_start(args, expected);
-    jlong result = env->CallStaticLongMethodV(c, m, args);
+    jlong result = env_->CallStaticLongMethodV(class_, mid_, args);
     va_end(args);
-    LOG(INFO) << klass << "." << method << "(...) result is " << result;
+    LOG(INFO) << class_name << "." << method << "(...) result is " << result;
     EXPECT_EQ(expected, result);
 #endif // __arm__
   }
+
+  void CompileAll(const ClassLoader* class_loader) {
+    compiler_->CompileAll(class_loader);
+    MakeAllExecutable(class_loader);
+  }
+
+  void EnsureCompiled(const ClassLoader* class_loader,
+      const char* class_name, const char* method, const char* signature) {
+    CompileAll(class_loader);
+    env_ = Thread::Current()->GetJniEnv();
+    class_ = env_->FindClass(class_name);
+    CHECK(class_ != NULL) << "Class not found: " << class_name;
+    mid_ = env_->GetStaticMethodID(class_, method, signature);
+    CHECK(mid_ != NULL) << "Method not found: " << class_name << "." << method << signature;
+  }
+
+  void MakeAllExecutable(const ClassLoader* class_loader) {
+    const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+    for (size_t i = 0; i != class_path.size(); ++i) {
+      const DexFile* dex_file = class_path[i];
+      CHECK(dex_file != NULL);
+      MakeDexFileExecutable(class_loader, *dex_file);
+    }
+  }
+
+  void MakeDexFileExecutable(const ClassLoader* class_loader, const DexFile& dex_file) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
+      const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+      const char* descriptor = dex_file.GetClassDescriptor(class_def);
+      Class* c = class_linker->FindClass(descriptor, class_loader);
+      CHECK(c != NULL);
+      for (size_t i = 0; i < c->NumDirectMethods(); i++) {
+        MakeMethodExecutable(c->GetDirectMethod(i));
+      }
+      for (size_t i = 0; i < c->NumVirtualMethods(); i++) {
+        MakeMethodExecutable(c->GetVirtualMethod(i));
+      }
+    }
+  }
+
+  void MakeMethodExecutable(Method* m) {
+    if (m->GetCodeArray() != NULL) {
+      MakeExecutable(m->GetCodeArray());
+    } else {
+      LOG(WARNING) << "no code for " << PrettyMethod(m);
+    }
+    if (m->GetInvokeStubArray() != NULL) {
+      MakeExecutable(m->GetInvokeStubArray());
+    } else {
+      LOG(WARNING) << "no invoke stub for " << PrettyMethod(m);
+    }
+  }
+
+  JNIEnv* env_;
+  jclass class_;
+  jmethodID mid_;
 };
 
 // Disabled due to 10 second runtime on host
-TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
-  compiler_->CompileAll(NULL);
+TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
+  CompileAll(NULL);
 
   // All libcore references should resolve
   const DexFile* dex = java_lang_dex_file_.get();
@@ -108,17 +156,13 @@ TEST_F(CompilerTest, DISABLED_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, BasicCodegen) {
-  AssertStaticIntMethod(LoadDex("Fibonacci"), "Fibonacci", "fibonacci", "(I)I", 55,
-                        10);
+  AssertStaticIntMethod(LoadDex("Fibonacci"), "Fibonacci", "fibonacci", "(I)I", 55, 10);
 }
 
 // TODO: need stub for InstanceofNonTrivialFromCode
 TEST_F(CompilerTest, InstanceTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
-  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
-  AssertStaticIntMethod(class_loader, "IntMath", "instanceTest", "(I)I", 1352, 10);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "instanceTest", "(I)I", 1352, 10);
 }
 
 // TODO: need check-cast test (when stub complete & we can throw/catch
@@ -127,13 +171,7 @@ TEST_F(CompilerTest, InstanceTest) {
 
 TEST_F(CompilerTest, SuperTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
-  CompileVirtualMethod(class_loader, "IntMathBase", "tryThing", "()I");
-  CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
-  CompileVirtualMethod(class_loader, "IntMath", "tryThing", "()I");
-  AssertStaticIntMethod(class_loader, "IntMath", "superTest", "(I)I", 4175,
-                        4141);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "superTest", "(I)I", 4175, 4141);
 }
 
 TEST_F(CompilerTest, ConstStringTest) {
@@ -143,13 +181,11 @@ TEST_F(CompilerTest, ConstStringTest) {
   CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
   CompileVirtualMethod(NULL, "java.lang.String", "charAt", "(I)C");
   CompileVirtualMethod(NULL, "java.lang.String", "length", "()I");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constStringTest",
-                                "(I)I", 1246, 1234);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constStringTest", "(I)I", 1246, 1234);
 }
 
 TEST_F(CompilerTest, ConstClassTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constClassTest",
-                                "(I)I", 2222, 1111);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constClassTest", "(I)I", 2222, 1111);
 }
 
 // TODO: Need native nativeFillInStackTrace()
@@ -164,27 +200,19 @@ TEST_F(CompilerTest, DISABLED_CatchTest) {
   CompileDirectMethod(NULL, "java.util.AbstractCollection","<init>","()V");
   CompileVirtualMethod(NULL, "java.lang.Throwable","fillInStackTrace","()Ljava/lang/Throwable;");
   CompileDirectMethod(NULL, "java.lang.Throwable","nativeFillInStackTrace","()Ljava/lang/Object;");
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  CompileDirectMethod(class_loader, "IntMath", "throwNullPointerException", "()V");
-  AssertStaticIntMethod(class_loader, "IntMath", "catchBlock", "(I)I", 1579,
-                        1000);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "catchBlock", "(I)I", 1579, 1000);
 }
 
 TEST_F(CompilerTest, CatchTestNoThrow) {
-  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  AssertStaticIntMethod(class_loader, "IntMath", "catchBlockNoThrow", "(I)I",
-                        1123, 1000);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "catchBlockNoThrow", "(I)I", 1123, 1000);
 }
 
 TEST_F(CompilerTest, StaticFieldTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticFieldTest", "(I)I", 1404,
-                        404);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticFieldTest", "(I)I", 1404, 404);
 }
 
 TEST_F(CompilerTest, UnopTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "unopTest", "(I)I", 37,
-                        38);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "unopTest", "(I)I", 37, 38);
 }
 
 TEST_F(CompilerTest, ShiftTest1) {
@@ -208,23 +236,19 @@ TEST_F(CompilerTest, CharSubTest) {
 }
 
 TEST_F(CompilerTest, IntOperTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "intOperTest", "(II)I", 0,
-                        70000, -3);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "intOperTest", "(II)I", 0, 70000, -3);
 }
 
 TEST_F(CompilerTest, Lit16Test) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "lit16Test", "(I)I", 0,
-                        77777);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "lit16Test", "(I)I", 0, 77777);
 }
 
 TEST_F(CompilerTest, Lit8Test) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "lit8Test", "(I)I", 0,
-                        -55555);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "lit8Test", "(I)I", 0, -55555);
 }
 
 TEST_F(CompilerTest, IntShiftTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "intShiftTest", "(II)I", 0,
-                        0xff00aa01, 8);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "intShiftTest", "(II)I", 0, 0xff00aa01, 8);
 }
 
 TEST_F(CompilerTest, LongOperTest) {
@@ -238,8 +262,7 @@ TEST_F(CompilerTest, LongShiftTest) {
 }
 
 TEST_F(CompilerTest, SwitchTest1) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "switchTest", "(I)I", 1234,
-                        1);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "switchTest", "(I)I", 1234, 1);
 }
 
 TEST_F(CompilerTest, IntCompare) {
@@ -265,8 +288,7 @@ TEST_F(CompilerTest, DoubleCompare) {
 }
 
 TEST_F(CompilerTest, RecursiveFibonacci) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "fibonacci", "(I)I", 55,
-                        10);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "fibonacci", "(I)I", 55, 10);
 }
 
 #if 0 // Need to complete try/catch block handling
@@ -285,110 +307,22 @@ TEST_F(CompilerTest, ManyArgs) {
 
 TEST_F(CompilerTest, VirtualCall) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
-  CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
-  CompileVirtualMethod(class_loader, "IntMath", "virtualCall", "(I)I");
-  AssertStaticIntMethod(class_loader, "IntMath", "staticCall", "(I)I", 6,
-                        3);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticCall", "(I)I", 6, 3);
 }
 
 TEST_F(CompilerTest, TestIGetPut) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  CompileDirectMethod(class_loader, "IntMathBase", "<init>", "()V");
-  CompileDirectMethod(class_loader, "IntMath", "<init>", "(I)V");
-  CompileDirectMethod(class_loader, "IntMath", "<init>", "()V");
-  CompileVirtualMethod(class_loader, "IntMath", "getFoo", "()I");
-  CompileVirtualMethod(class_loader, "IntMath", "setFoo", "(I)V");
-  AssertStaticIntMethod(class_loader, "IntMath", "testIGetPut", "(I)I", 333,
-                        111);
+  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "testIGetPut", "(I)I", 333, 111);
 }
 
 TEST_F(CompilerTest, InvokeTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  const ClassLoader* class_loader = LoadDex("Invoke");
-  CompileDirectMethod(class_loader, "Invoke", "<init>", "()V");
-  CompileVirtualMethod(class_loader, "Invoke", "virI_I", "(I)I");
-  CompileVirtualMethod(class_loader, "Invoke", "virI_II", "(II)I");
-  CompileVirtualMethod(class_loader, "Invoke", "virI_III", "(III)I");
-  CompileVirtualMethod(class_loader, "Invoke", "virI_IIII", "(IIII)I");
-  CompileVirtualMethod(class_loader, "Invoke", "virI_IIIII", "(IIIII)I");
-  CompileVirtualMethod(class_loader, "Invoke", "virI_IIIIII", "(IIIIII)I");
-  CompileDirectMethod(class_loader, "Invoke", "statI_I", "(I)I");
-  CompileDirectMethod(class_loader, "Invoke", "statI_II", "(II)I");
-  CompileDirectMethod(class_loader, "Invoke", "statI_III", "(III)I");
-  CompileDirectMethod(class_loader, "Invoke", "statI_IIII", "(IIII)I");
-  CompileDirectMethod(class_loader, "Invoke", "statI_IIIII", "(IIIII)I");
-  CompileDirectMethod(class_loader, "Invoke", "statI_IIIIII", "(IIIIII)I");
-  AssertStaticIntMethod(class_loader, "Invoke", "test0", "(I)I", 20664,
-                        912);
+  AssertStaticIntMethod(LoadDex("Invoke"), "Invoke", "test0", "(I)I", 20664, 912);
 }
 
-TEST_F(CompilerTest, SystemMethodsTest) {
-  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-
-  CompileDirectMethod(NULL, "java.lang.String", "<clinit>", "()V");
-  CompileDirectMethod(NULL, "java.lang.String", "<init>", "(II[C)V");
-  CompileDirectMethod(NULL, "java.lang.String", "<init>", "([CII)V");
-  CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
-  CompileVirtualMethod(NULL, "java.lang.String", "charAt", "(I)C");
-  CompileVirtualMethod(NULL, "java.lang.String", "length", "()I");
-
-  CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "<init>", "()V");
-  CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "<init>", "(I)V");
-  CompileDirectMethod(NULL, "java.lang.AbstractStringBuilder", "enlargeBuffer", "(I)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(C)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "(Ljava/lang/String;)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "append0", "([CII)V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "appendNull", "()V");
-  CompileVirtualMethod(NULL, "java.lang.AbstractStringBuilder", "toString", "()Ljava/lang/String;");
-
-  CompileDirectMethod(NULL, "java.lang.StringBuilder", "<init>", "()V");
-  CompileDirectMethod(NULL, "java.lang.StringBuilder", "<init>", "(I)V");
-  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(C)Ljava/lang/StringBuilder;");
-  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(I)Ljava/lang/StringBuilder;");
-  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(J)Ljava/lang/StringBuilder;");
-  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
-  CompileVirtualMethod(NULL, "java.lang.StringBuilder", "toString", "()Ljava/lang/String;");
-
-  CompileDirectMethod(NULL, "java.lang.ThreadLocal", "<init>", "()V");
-  CompileVirtualMethod(NULL, "java.lang.ThreadLocal", "get", "()Ljava/lang/Object;");
-
-  CompileDirectMethod(NULL, "java.lang.Long", "toHexString", "(J)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.Long", "toString", "(J)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.Long", "toString", "(JI)Ljava/lang/String;");
-
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "<clinit>", "()V");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "appendInt", "(Ljava/lang/AbstractStringBuilder;I)V");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "appendLong", "(Ljava/lang/AbstractStringBuilder;J)V");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "convertInt", "(Ljava/lang/AbstractStringBuilder;I)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "convertLong", "(Ljava/lang/AbstractStringBuilder;J)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "intIntoCharArray", "([CII)I");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "intToHexString", "(IZI)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToHexString", "(J)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(J)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "longToString", "(JI)Ljava/lang/String;");
-  CompileDirectMethod(NULL, "java.lang.IntegralToString", "stringOf", "([C)Ljava/lang/String;");
-
-  CompileDirectMethod(NULL, "java.lang.System", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
-  CompileDirectMethod(NULL, "java.lang.System", "currentTimeMillis", "()J");
-  CompileDirectMethod(NULL, "java.lang.System", "log", "(CLjava/lang/String;Ljava/lang/Throwable;)V");
-  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;)V");
-  CompileDirectMethod(NULL, "java.lang.System", "logI", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
-
-  CompileDirectMethod(NULL, "java.util.Arrays", "checkOffsetAndCount", "(III)V");
-
-  const ClassLoader* class_loader = LoadDex("SystemMethods");
-
-  CompileDirectMethod(class_loader, "SystemMethods", "<clinit>", "()V");
-
-  AssertStaticIntMethod(class_loader, "SystemMethods", "test0", "()I", 123);
-  AssertStaticIntMethod(class_loader, "SystemMethods", "test1", "()I", 123);
-  AssertStaticIntMethod(class_loader, "SystemMethods", "test2", "()I", 123);
-  AssertStaticIntMethod(class_loader, "SystemMethods", "test3", "()I", 123);
-  AssertStaticIntMethod(class_loader, "SystemMethods", "test4", "()I", 123);
+TEST_F(CompilerTest, DISABLED_LARGE_SystemMethodsTest) {
+  CompileAll(NULL); // This test calls a bunch of stuff from libcore.
+  AssertStaticIntMethod(LoadDex("SystemMethods"), "SystemMethods", "test5", "()I", 123);
 }
-
 
 }  // namespace art

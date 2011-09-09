@@ -113,7 +113,7 @@ void Compiler::CompileMethod(Method* method) {
   } else {
     oatCompileMethod(method, kThumb2);
   }
-  // CHECK(method->HasCode());  // TODO: enable this check ASAP
+  // CHECK(method->GetCode() != NULL);  // TODO: enable this check ASAP
 
   if (instruction_set_ == kX86) {
     art::x86::X86CreateInvokeStub(method);

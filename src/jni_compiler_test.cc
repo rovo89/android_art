@@ -43,7 +43,7 @@ class JniCompilerTest : public CommonTest {
 
     // Compile the native method
     CompileMethod(method);
-    ASSERT_TRUE(method->HasCode());
+    ASSERT_TRUE(method->GetCode() != NULL);
 
     if (direct) {
       jmethod_ = env_->GetStaticMethodID(jklass_, method_name, method_sig);

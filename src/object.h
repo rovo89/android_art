@@ -864,10 +864,6 @@ class Method : public AccessibleObject {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
   }
 
-  bool HasCode() const {
-    return GetCode() != NULL;
-  }
-
   void SetCode(ByteArray* code_array, InstructionSet instruction_set,
                ByteArray* mapping_table = NULL);
 
