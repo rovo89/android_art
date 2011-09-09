@@ -707,6 +707,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
          0;
 #endif
 
+    /* Assume non-throwing leaf */
+    cUnit.attrs = (METHOD_IS_LEAF | METHOD_IS_THROW_FREE);
+
     /* Initialize the block list */
     oatInitGrowableList(&cUnit.blockList, 40);
 

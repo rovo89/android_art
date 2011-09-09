@@ -136,6 +136,12 @@ static void CheckSuspendFromCode(Thread* thread) {
      */
 }
 
+// TODO: placeholder
+static void StackOverflowFromCode(Method* method) {
+    //NOTE: to save code space, this handler needs to look up its own Thread*
+    UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -188,6 +194,7 @@ void Thread::InitFunctionPointers() {
   pUnlockObjectFromCode = UnlockObjectFromCode;
   pFindFieldFromCode = Field::FindFieldFromCode;
   pCheckSuspendFromCode = CheckSuspendFromCode;
+  pStackOverflowFromCode = StackOverflowFromCode;
   pDebugMe = DebugMe;
 }
 
@@ -380,7 +387,6 @@ void Thread::InitStackHwm() {
     PLOG(FATAL) << "pthread_attr_getstack failed";
   }
 
-  const size_t kStackOverflowReservedBytes = 1024; // Space to throw a StackOverflowError in.
   if (stack_size <= kStackOverflowReservedBytes) {
     LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size << " bytes)";
   }
@@ -388,7 +394,7 @@ void Thread::InitStackHwm() {
   // stack_base is the "lowest addressable byte" of the stack.
   // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
   // to throw a StackOverflowError.
-  stack_end_ = reinterpret_cast<byte*>(stack_base) - kStackOverflowReservedBytes;
+  stack_end_ = reinterpret_cast<byte*>(stack_base) + kStackOverflowReservedBytes;
 
   // Sanity check.
   int stack_variable;

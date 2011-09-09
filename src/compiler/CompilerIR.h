@@ -263,6 +263,7 @@ typedef struct CompilationUnit {
     int frameSize;
     unsigned int coreSpillMask;
     unsigned int fpSpillMask;
+    unsigned int attrs;
     /*
      * CLEANUP/RESTRUCTURE: The code generation utilities don't have a built-in
      * mechanism to propogate the original Dalvik opcode address to the

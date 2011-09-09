@@ -1989,6 +1989,16 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
         int dfAttributes =
             oatDataFlowAttributes[mir->dalvikInsn.opcode];
 
+        int flags = dexGetFlagsFromOpcode(mir->dalvikInsn.opcode);
+
+        if (flags & kInstrCanThrow) {
+            cUnit->attrs &= ~METHOD_IS_THROW_FREE;
+        }
+
+        if (flags & kInstrInvoke) {
+            cUnit->attrs &= ~METHOD_IS_LEAF;
+        }
+
         int numUses = 0;
 
         if (dfAttributes & DF_FORMAT_35C) {

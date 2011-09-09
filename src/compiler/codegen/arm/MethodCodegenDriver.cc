@@ -1809,14 +1809,42 @@ static bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         oatLockTemp(cUnit, r1);
         oatLockTemp(cUnit, r2);
         oatLockTemp(cUnit, r3);
+
+        /*
+         * We can safely skip the stack overflow check if we're
+         * a leaf *and* our frame size < fudge factor.
+         */
+        bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
+                                  ((size_t)cUnit->frameSize <
+                                  art::Thread::kStackOverflowReservedBytes));
         newLIR0(cUnit, kArmPseudoMethodEntry);
+        if (!skipOverflowCheck) {
+            /* Load stack limit */
+            loadWordDisp(cUnit, rSELF,
+                         art::Thread::StackEndOffset().Int32Value(), r12);
+        }
         /* Spill core callee saves */
         newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
         /* Need to spill any FP regs? */
         if (cUnit->numFPSpills) {
             newLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
         }
-        opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (cUnit->numSpills * 4));
+        if (!skipOverflowCheck) {
+            opRegRegImm(cUnit, kOpSub, rLR, rSP,
+                        cUnit->frameSize - (cUnit->numSpills * 4));
+            opRegReg(cUnit, kOpCmp, rLR, r12);   // Stack overflow?
+            /* Begin conditional skip */
+            genIT(cUnit, kArmCondCc, "TT"); // Carry clear; unsigned <
+            loadWordDisp(cUnit, rSELF,
+                         OFFSETOF_MEMBER(Thread, pStackOverflowFromCode), rLR);
+            newLIR2(cUnit, kThumbAddRI8, rSP, cUnit->numSpills * 4);
+            opReg(cUnit, kOpBlx, rLR);
+            /* End conditional skip */
+            genRegCopy(cUnit, rSP, rLR);         // Establish stack
+        } else {
+            opRegImm(cUnit, kOpSub, rSP,
+                     cUnit->frameSize - (cUnit->numSpills * 4));
+        }
         storeBaseDisp(cUnit, rSP, 0, r0, kWord);
         flushIns(cUnit);
         oatFreeTemp(cUnit, r0);

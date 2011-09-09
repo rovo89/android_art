@@ -166,6 +166,7 @@ class Thread {
     kTerminated,
   };
 
+  static const size_t kStackOverflowReservedBytes = 1024; // Space to throw a StackOverflowError in.
 
   static const size_t kDefaultStackSize = 64 * KB;
 
@@ -222,6 +223,7 @@ class Thread {
   StaticStorageBase* (*pInitializeStaticStorage)(uint32_t, const Method*);
   Field* (*pFindFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);
+  void (*pStackOverflowFromCode)(Method*);
 
   class StackVisitor {
    public:
