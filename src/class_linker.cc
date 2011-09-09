@@ -886,7 +886,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->SetProtoIdx(method_id.proto_idx_);
   dst->SetCodeItemOffset(src.code_off_);
   const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
-  dst->SetShorty(shorty);
+  dst->SetShorty(String::AllocFromModifiedUtf8(shorty));
   dst->SetAccessFlags(src.access_flags_);
   dst->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
 

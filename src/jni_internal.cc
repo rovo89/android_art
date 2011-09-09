@@ -123,9 +123,9 @@ Method* DecodeMethod(ScopedJniThreadState& ts, jmethodID mid) {
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
   size_t num_bytes = method->NumArgArrayBytes();
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
-  const StringPiece& shorty = method->GetShorty();
-  for (int i = 1, offset = 0; i < shorty.size(); ++i) {
-    switch (shorty[i]) {
+  String* shorty = method->GetShorty();
+  for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
+    switch (shorty->CharAt(i)) {
       case 'Z':
       case 'B':
       case 'C':
@@ -160,9 +160,9 @@ byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, jvalue* args) {
   size_t num_bytes = method->NumArgArrayBytes();
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
-  const StringPiece& shorty = method->GetShorty();
-  for (int i = 1, offset = 0; i < shorty.size(); ++i) {
-    switch (shorty[i]) {
+  String* shorty = method->GetShorty();
+  for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
+    switch (shorty->CharAt(i)) {
       case 'Z':
       case 'B':
       case 'C':

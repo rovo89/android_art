@@ -57,7 +57,7 @@ void X86CreateInvokeStub(Method* method) {
 
   // pop arguments and padding up to saved EDI
   __ addl(ESP, Immediate(frame_size + pad_size - kPointerSize));
-  char ch = method->GetShorty()[0];
+  char ch = method->GetShorty()->CharAt(0);
   if (ch != 'V') {
     // Load the result JValue pointer.
     __ movl(EDI, Address(ESP, 24));

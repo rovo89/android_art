@@ -643,14 +643,9 @@ class Method : public AccessibleObject {
 
   void SetName(String* new_name);
 
-  const char* GetShorty() const;
+  String* GetShorty() const;
 
-  void SetShorty(const char* new_shorty) {
-    DCHECK(NULL == GetFieldPtr<const char*>(
-        OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false));
-    DCHECK_LE(1u, strlen(new_shorty));
-    SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), new_shorty, false);
-  }
+  void SetShorty(String* new_shorty);
 
   const String* GetSignature() const;
 
@@ -838,11 +833,7 @@ class Method : public AccessibleObject {
   //       need to deal with it.
   //
   // The number of Args that should be supplied to this method
-  size_t NumArgs() const {
-    // "1 +" because the first in Args is the receiver.
-    // "- 1" because we don't count the return type.
-    return (IsStatic() ? 0 : 1) + strlen(GetShorty()) - 1;
-  }
+  size_t NumArgs() const;
 
   // The number of reference arguments to this method including implicit this
   // pointer.
@@ -1039,6 +1030,9 @@ class Method : public AccessibleObject {
   // Storage for mapping_table_
   const ByteArray* mapping_table_;
 
+  // The short-form method descriptor string.
+  String* shorty_;
+
   // The method descriptor.  This represents the parameters a method
   // takes and value it returns.  This string is a list of the type
   // descriptors for the parameters enclosed in parenthesis followed
@@ -1101,9 +1095,6 @@ class Method : public AccessibleObject {
 
   // Offset of return PC within frame for compiled code (in bytes)
   size_t return_pc_offset_in_bytes_;
-
-  // The short-form method descriptor string. TODO: make String*
-  const char* shorty_;
 
   uint32_t java_slot_;
 
@@ -2594,10 +2585,17 @@ inline void Method::SetName(String* new_name) {
 
 }
 
-inline const char* Method::GetShorty() const {
+inline String* Method::GetShorty() const {
   DCHECK(GetDeclaringClass()->IsLoaded());
-  return GetFieldPtr<const char*>(
+  return GetFieldObject<String*>(
       OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false);
+}
+
+inline void Method::SetShorty(String* new_shorty) {
+  DCHECK(NULL == GetFieldObject<String*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false));
+  DCHECK_LE(1, new_shorty->GetLength());
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), new_shorty, false);
 }
 
 inline const String* Method::GetSignature() const {
