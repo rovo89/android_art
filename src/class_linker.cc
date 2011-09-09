@@ -2,6 +2,7 @@
 
 #include "class_linker.h"
 
+#include <deque>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1834,14 +1835,35 @@ bool ClassLinker::LinkStaticFields(Class* klass) {
   return success;
 }
 
+struct LinkFieldsComparator {
+  bool operator()(const Field* field1, const Field* field2){
+
+    // First come reference fields, then 64-bit, and finally 32-bit
+    const Class* type1 = field1->GetTypeDuringLinking();
+    const Class* type2 = field2->GetTypeDuringLinking();
+    bool isPrimitive1 = type1 != NULL && type1->IsPrimitive();
+    bool isPrimitive2 = type2 != NULL && type2->IsPrimitive();
+    bool is64bit1 = isPrimitive1 && (type1->IsPrimitiveLong() || type1->IsPrimitiveDouble());
+    bool is64bit2 = isPrimitive2 && (type2->IsPrimitiveLong() || type2->IsPrimitiveDouble());
+    int order1 = (!isPrimitive1 ? 0 : (is64bit1 ? 1 : 2));
+    int order2 = (!isPrimitive2 ? 0 : (is64bit2 ? 1 : 2));
+    if (order1 != order2) {
+      return order1 < order2;
+    }
+
+    // same basic group? then sort by string.
+    std::string name1 = field1->GetName()->ToModifiedUtf8();
+    std::string name2 = field2->GetName()->ToModifiedUtf8();
+    return name1 < name2;
+  }
+};
+
 bool ClassLinker::LinkFields(Class* klass, bool instance) {
   size_t num_fields =
       instance ? klass->NumInstanceFields() : klass->NumStaticFields();
 
   ObjectArray<Field>* fields =
       instance ? klass->GetIFields() : klass->GetSFields();
-  // Fields updated at end of LinkFields
-  size_t num_reference_fields;
 
   // Initialize size and field_offset
   size_t size;
@@ -1858,34 +1880,32 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
     field_offset = Class::FieldsOffset();
   }
 
-  CHECK((num_fields == 0) == (fields == NULL));
+  CHECK_EQ(num_fields == 0, fields == NULL);
 
-  // Move references to the front.
-  size_t i = 0;
-  num_reference_fields = 0;
-  for (; i < num_fields; i++) {
-    Field* field = fields->Get(i);
-    const Class* field_type = field->GetTypeDuringLinking();
+  // we want a relatively stable order so that adding new fields
+  // minimizes distruption of C++ version such as Class and Method.
+  std::deque<Field*> grouped_and_sorted_fields;
+  for (size_t i = 0; i < num_fields; i++) {
+    grouped_and_sorted_fields.push_back(fields->Get(i));
+  }
+  std::sort(grouped_and_sorted_fields.begin(),
+            grouped_and_sorted_fields.end(),
+            LinkFieldsComparator());
+
+  // References should be at the front.
+  size_t current_field = 0;
+  size_t num_reference_fields = 0;
+  for (; current_field < num_fields; current_field++) {
+    Field* field = grouped_and_sorted_fields.front();
+    const Class* type = field->GetTypeDuringLinking();
     // if a field's type at this point is NULL it isn't primitive
-    if (field_type != NULL && field_type->IsPrimitive()) {
-      for (size_t j = num_fields - 1; j > i; j--) {
-        Field* ref_field = fields->Get(j);
-        const Class* ref_field_type = ref_field->GetTypeDuringLinking();
-        if (ref_field_type == NULL || !ref_field_type->IsPrimitive()) {
-          fields->Set(i, ref_field);
-          fields->Set(j, field);
-          field = ref_field;
-          field_type = ref_field_type;
-          num_reference_fields++;
-          break;
-        }
-      }
-    } else {
-      num_reference_fields++;
+    bool isPrimitive = type != NULL && type->IsPrimitive();
+    if (isPrimitive) {
+      break; // past last reference, move on to the next phase
     }
-    if (field_type != NULL && field_type->IsPrimitive()) {
-      break;
-    }
+    grouped_and_sorted_fields.pop_front();
+    num_reference_fields++;
+    fields->Set(current_field, field);
     field->SetOffset(field_offset);
     field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
   }
@@ -1893,86 +1913,57 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
   // Now we want to pack all of the double-wide fields together.  If
   // we're not aligned, though, we want to shuffle one 32-bit field
   // into place.  If we can't find one, we'll have to pad it.
-  if (i != num_fields && !IsAligned(field_offset.Uint32Value(), 8)) {
-    Field* field = fields->Get(i);
-    const Class* c = field->GetTypeDuringLinking();
-    CHECK(c != NULL);  // should only be working on primitive types
-    if (!c->IsPrimitiveLong() && !c->IsPrimitiveDouble()) {
-      // The field that comes next is 32-bit, so just advance past it.
-      DCHECK(c->IsPrimitive());
+  if (current_field != num_fields && !IsAligned(field_offset.Uint32Value(), 8)) {
+    for (size_t i = 0; i < grouped_and_sorted_fields.size(); i++) {
+      Field* field = grouped_and_sorted_fields[i];
+      const Class* type = field->GetTypeDuringLinking();
+      CHECK(type != NULL);  // should only be working on primitive types
+      DCHECK(type->IsPrimitive());
+      if (type->IsPrimitiveLong() || type->IsPrimitiveDouble()) {
+        continue;
+      }
+      fields->Set(current_field++, field);
       field->SetOffset(field_offset);
-      field_offset = MemberOffset(field_offset.Uint32Value() +
-                                  sizeof(uint32_t));
-      i++;
-    } else {
-      // Next field is 64-bit, so search for a 32-bit field we can
-      // swap into it.
-      bool found = false;
-      for (size_t j = num_fields - 1; j > i; j--) {
-        Field* single_field = fields->Get(j);
-        const Class* rc = single_field->GetTypeDuringLinking();
-        CHECK(rc != NULL);  // should only be working on primitive types
-        if (!rc->IsPrimitiveLong() && !rc->IsPrimitiveDouble()) {
-          fields->Set(i, single_field);
-          fields->Set(j, field);
-          field = single_field;
-          field->SetOffset(field_offset);
-          field_offset = MemberOffset(field_offset.Uint32Value() +
-                                      sizeof(uint32_t));
-          found = true;
-          i++;
-          break;
-        }
-      }
-      if (!found) {
-        field_offset = MemberOffset(field_offset.Uint32Value() +
-                                    sizeof(uint32_t));
-      }
+      // drop the consumed field
+      grouped_and_sorted_fields.erase(grouped_and_sorted_fields.begin() + i);
+      break;
     }
+    // whether we found a 32-bit field for padding or not, we advance
+    field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
   }
 
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
-  DCHECK(i == num_fields || IsAligned(field_offset.Uint32Value(), 4));
-  for ( ; i < num_fields; i++) {
-    Field* field = fields->Get(i);
-    const Class* c = field->GetTypeDuringLinking();
-    CHECK(c != NULL);  // should only be working on primitive types
-    if (!c->IsPrimitiveDouble() && !c->IsPrimitiveLong()) {
-      for (size_t j = num_fields - 1; j > i; j--) {
-        Field* double_field = fields->Get(j);
-        const Class* rc = double_field->GetTypeDuringLinking();
-        CHECK(rc != NULL);  // should only be working on primitive types
-        if (rc->IsPrimitiveDouble() || rc->IsPrimitiveLong()) {
-          fields->Set(i, double_field);
-          fields->Set(j, field);
-          field = double_field;
-          c = rc;
-          break;
-        }
-      }
-    } else {
-      // This is a double-wide field, leave it be.
-    }
-
+  DCHECK(current_field == num_fields || IsAligned(field_offset.Uint32Value(), 8));
+  while (!grouped_and_sorted_fields.empty()) {
+    Field* field = grouped_and_sorted_fields.front();
+    grouped_and_sorted_fields.pop_front();
+    const Class* type = field->GetTypeDuringLinking();
+    CHECK(type != NULL);  // should only be working on primitive types
+    DCHECK(type->IsPrimitive());
+    fields->Set(current_field, field);
     field->SetOffset(field_offset);
-    if (c->IsPrimitiveLong() || c->IsPrimitiveDouble()) {
-      field_offset = MemberOffset(field_offset.Uint32Value() +
-                                  sizeof(uint64_t));
-    } else {
-      field_offset = MemberOffset(field_offset.Uint32Value() +
-                                  sizeof(uint32_t));
-    }
+    field_offset = MemberOffset(field_offset.Uint32Value() +
+                                ((type->IsPrimitiveLong() || type->IsPrimitiveDouble())
+                                 ? sizeof(uint64_t)
+                                 : sizeof(uint32_t)));
+    current_field++;
   }
 
 #ifndef NDEBUG
   // Make sure that all reference fields appear before
   // non-reference fields, and all double-wide fields are aligned.
   bool seen_non_ref = false;
-  for (i = 0; i < num_fields; i++) {
+  for (size_t i = 0; i < num_fields; i++) {
     Field* field = fields->Get(i);
-    const Class* c = field->GetTypeDuringLinking();
-    if (c != NULL && c->IsPrimitive()) {
+    if (false) {  // enable to debug field layout
+      LOG(INFO) << "LinkFields:"
+                << " class=" << klass->GetDescriptor()->ToModifiedUtf8()
+                << " field=" << field->GetName()->ToModifiedUtf8()
+                << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);
+    }
+    const Class* type = field->GetTypeDuringLinking();
+    if (type != NULL && type->IsPrimitive()) {
       if (!seen_non_ref) {
         seen_non_ref = true;
         DCHECK_EQ(num_reference_fields, i);
@@ -1987,9 +1978,9 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
 #endif
   size = field_offset.Uint32Value();
   // Update klass
-  if(instance) {
+  if (instance) {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
-    if(!klass->IsVariableSize()) {
+    if (!klass->IsVariableSize()) {
       klass->SetObjectSize(size);
     }
   } else {

@@ -379,61 +379,62 @@ struct CheckOffset {
 };
 
 struct CheckOffsets {
-  size_t s;
-  std::string c;
-  std::vector<CheckOffset> o;
+  bool instance;
+  size_t size;
+  std::string class_descriptor;
+  std::vector<CheckOffset> offsets;
 
   bool Check() {
-    Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(c);
-    CHECK(klass != NULL) << c;
+    Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor);
+    CHECK(klass != NULL) << class_descriptor;
 
     bool error = false;
 
-    if (!klass->IsClassClass())
-      if (s != klass->GetObjectSize()) {
+    if (!klass->IsClassClass() && instance)
+      if (size != (instance ? klass->GetObjectSize() : klass->GetClassSize())) {
         LG << "Class size mismatch:"
-           << " class=" << c
+           << " class=" << class_descriptor
            << " Java=" << klass->GetObjectSize()
-           << " C++=" << s;
+           << " C++=" << (instance ? klass->GetObjectSize() : klass->GetClassSize());
       error = true;
     }
 
-    CHECK_EQ(o.size(), klass->NumInstanceFields());
-    for (size_t i = 0; i < o.size(); i++) {
-      Field* field = klass->GetInstanceField(i);
-      if (!field->GetName()->Equals(o[i].java_name)) {
+    CHECK_EQ(offsets.size(), instance ? klass->NumInstanceFields() : klass->NumStaticFields());
+    for (size_t i = 0; i < offsets.size(); i++) {
+      Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
+      if (!field->GetName()->Equals(offsets[i].java_name)) {
         error = true;
       }
     }
     if (error) {
-      for (size_t i = 0; i < o.size(); i++) {
-        CheckOffset& offset = o[i];
-        Field* field = klass->GetInstanceField(i);
-        if (!field->GetName()->Equals(o[i].java_name)) {
+      for (size_t i = 0; i < offsets.size(); i++) {
+        CheckOffset& offset = offsets[i];
+        Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
+        if (!field->GetName()->Equals(offsets[i].java_name)) {
           LG << "JAVA FIELD ORDER MISMATCH NEXT LINE:";
         }
         LG << "Java field order:"
-           << " i=" << i << " class=" << c
+           << " i=" << i << " class=" << class_descriptor
            << " Java=" << field->GetName()->ToModifiedUtf8()
            << " CheckOffsets=" << offset.java_name;
       }
     }
 
-    for (size_t i = 0; i < o.size(); i++) {
-      CheckOffset& offset = o[i];
-      Field* field = klass->GetInstanceField(i);
+    for (size_t i = 0; i < offsets.size(); i++) {
+      CheckOffset& offset = offsets[i];
+      Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
       if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
         error = true;
       }
     }
     if (error) {
-      for (size_t i = 0; i < o.size(); i++) {
-        CheckOffset& offset = o[i];
-        Field* field = klass->GetInstanceField(i);
+      for (size_t i = 0; i < offsets.size(); i++) {
+        CheckOffset& offset = offsets[i];
+        Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
         if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
           LG << "OFFSET MISMATCH NEXT LINE:";
         }
-        LG << "Offset: class=" << c << " field=" << offset.java_name
+        LG << "Offset: class=" << class_descriptor << " field=" << offset.java_name
            << " Java=" << field->GetOffset().Uint32Value() << " C++=" << offset.cpp_offset;
       }
     }
@@ -444,175 +445,279 @@ struct CheckOffsets {
 
 struct ObjectOffsets : public CheckOffsets {
   ObjectOffsets() {
-    s = sizeof(Object);
-    c = "Ljava/lang/Object;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Object, klass_),   "shadow$_klass_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Object, monitor_), "shadow$_monitor_"));
+    instance = true;
+    size = sizeof(Object);
+    class_descriptor = "Ljava/lang/Object;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Object, klass_),   "shadow$_klass_"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Object, monitor_), "shadow$_monitor_"));
   };
 };
 
 struct AccessibleObjectOffsets : public CheckOffsets {
   AccessibleObjectOffsets() {
-    s = sizeof(AccessibleObject);
-    c = "Ljava/lang/reflect/AccessibleObject;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(AccessibleObject, java_flag_), "flag"));
+    instance = true;
+    size = sizeof(AccessibleObject);
+    class_descriptor = "Ljava/lang/reflect/AccessibleObject;";
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AccessibleObject, java_flag_), "flag"));
   };
 };
 
 struct FieldOffsets : public CheckOffsets {
   FieldOffsets() {
-    s = sizeof(Field);
-    c = "Ljava/lang/reflect/Field;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, declaring_class_),               "declaringClass"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_type_),                  "genericType"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, type_),                          "type"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, name_),                          "name"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, access_flags_),                  "shadow$_access_flags_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, offset_),                        "shadow$_offset_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, type_idx_),                      "shadow$_type_idx_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, slot_),                          "slot"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_types_are_initialized_), "genericTypesAreInitialized"));
+    instance = true;
+    size = sizeof(Field);
+    class_descriptor = "Ljava/lang/reflect/Field;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, declaring_class_),               "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_type_),                  "genericType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, name_),                          "name"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, type_),                          "type"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_types_are_initialized_), "genericTypesAreInitialized"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, access_flags_),                  "shadow$_access_flags_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, offset_),                        "shadow$_offset_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, type_idx_),                      "shadow$_type_idx_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, slot_),                          "slot"));
   };
 };
 
 struct MethodOffsets : public CheckOffsets {
   MethodOffsets() {
-    s = sizeof(Method);
-    c = "Ljava/lang/reflect/Method;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_exception_types_),                 "exceptionTypes"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_formal_type_parameters_),          "formalTypeParameters"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_exception_types_),         "genericExceptionTypes"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_parameter_types_),         "genericParameterTypes"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_return_type_),             "genericReturnType"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, name_),                                 "name"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_parameter_types_),                 "parameterTypes"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_),                     "returnType"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_array_),                    "shadow$_invoke_stub_array_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_array_),                           "shadow$_code_array_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "shadow$_dex_cache_resolved_types_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_code_and_direct_methods_),    "shadow$_dex_cache_code_and_direct_methods_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "shadow$_dex_cache_initialized_static_storage_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_fields_),            "shadow$_dex_cache_resolved_fields_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "shadow$_dex_cache_resolved_methods_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, core_spill_mask_),                      "shadow$_core_spill_mask_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_item_offset_),                     "shadow$_code_item_offset_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, fp_spill_mask_),                        "shadow$_fp_spill_mask_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_),                  "shadow$_frame_size_in_bytes_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),                          "shadow$_invoke_stub_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_),                                 "shadow$_code_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_idx_),                 "shadow$_java_return_type_idx_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, access_flags_),                         "shadow$_access_flags_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_index_),                         "shadow$_method_index_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_method_),                        "shadow$_native_method_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_ins_),                              "shadow$_num_ins_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_outs_),                             "shadow$_num_outs_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_registers_),                        "shadow$_num_registers_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, proto_idx_),                            "shadow$_proto_idx_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, return_pc_offset_in_bytes_),            "shadow$_return_pc_offset_in_bytes_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_types_are_initialized_),   "genericTypesAreInitialized"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_slot_),                            "slot"));
+    instance = true;
+    size = sizeof(Method);
+    class_descriptor = "Ljava/lang/reflect/Method;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_exception_types_),                 "exceptionTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_formal_type_parameters_),          "formalTypeParameters"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_exception_types_),         "genericExceptionTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_parameter_types_),         "genericParameterTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_return_type_),             "genericReturnType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, name_),                                 "name"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_parameter_types_),                 "parameterTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_),                     "returnType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_array_),                           "shadow$_code_array_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_code_and_direct_methods_),    "shadow$_dex_cache_code_and_direct_methods_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "shadow$_dex_cache_initialized_static_storage_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_fields_),            "shadow$_dex_cache_resolved_fields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "shadow$_dex_cache_resolved_methods_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "shadow$_dex_cache_resolved_types_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_array_),                    "shadow$_invoke_stub_array_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_types_are_initialized_),   "genericTypesAreInitialized"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, access_flags_),                         "shadow$_access_flags_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_),                                 "shadow$_code_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_item_offset_),                     "shadow$_code_item_offset_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, core_spill_mask_),                      "shadow$_core_spill_mask_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, fp_spill_mask_),                        "shadow$_fp_spill_mask_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_),                  "shadow$_frame_size_in_bytes_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),                          "shadow$_invoke_stub_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_idx_),                 "shadow$_java_return_type_idx_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_index_),                         "shadow$_method_index_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_method_),                        "shadow$_native_method_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_ins_),                              "shadow$_num_ins_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_outs_),                             "shadow$_num_outs_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_registers_),                        "shadow$_num_registers_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, proto_idx_),                            "shadow$_proto_idx_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, return_pc_offset_in_bytes_),            "shadow$_return_pc_offset_in_bytes_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_slot_),                            "slot"));
   };
 };
 
 struct ClassOffsets : public CheckOffsets {
   ClassOffsets() {
-    s = sizeof(Class);
-    c = "Ljava/lang/Class;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, vtable_),                        "shadow$_vtable_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "shadow$_virtual_methods_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "shadow$_class_loader_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "shadow$_verify_error_class_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "shadow$_super_class_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, component_type_),                "shadow$_component_type_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, descriptor_),                    "shadow$_descriptor_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "shadow$_dex_cache_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "shadow$_direct_methods_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "shadow$_ifields_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "shadow$_sfields_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_type_idx_),           "shadow$_interfaces_type_idx_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_),                    "shadow$_interfaces_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_count_),               "shadow$_ifvi_pool_count_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_),                     "shadow$_ifvi_pool_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_count_),                 "shadow$_iftable_count_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "shadow$_num_reference_static_fields_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "shadow$_object_size_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "shadow$_primitive_type_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "shadow$_reference_instance_offsets_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "shadow$_reference_static_offsets_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "shadow$_iftable_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, source_file_),                   "shadow$_source_file_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "shadow$_status_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_type_idx_),          "shadow$_super_class_type_idx_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, array_rank_),                    "shadow$_array_rank_"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "shadow$_access_flags_"));
+    instance = true;
+    size = sizeof(Class);
+    class_descriptor = "Ljava/lang/Class;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "shadow$_class_loader_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, component_type_),                "shadow$_component_type_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, descriptor_),                    "shadow$_descriptor_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "shadow$_dex_cache_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "shadow$_direct_methods_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "shadow$_ifields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_),                    "shadow$_interfaces_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_type_idx_),           "shadow$_interfaces_type_idx_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "shadow$_sfields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "shadow$_super_class_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "shadow$_verify_error_class_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "shadow$_virtual_methods_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, vtable_),                        "shadow$_vtable_"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "shadow$_access_flags_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, array_rank_),                    "shadow$_array_rank_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "shadow$_iftable_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_count_),                 "shadow$_iftable_count_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_),                     "shadow$_ifvi_pool_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_count_),               "shadow$_ifvi_pool_count_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "shadow$_num_reference_static_fields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "shadow$_object_size_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "shadow$_primitive_type_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "shadow$_reference_instance_offsets_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "shadow$_reference_static_offsets_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, source_file_),                   "shadow$_source_file_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "shadow$_status_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_type_idx_),          "shadow$_super_class_type_idx_"));
   };
 };
 
 struct StringOffsets : public CheckOffsets {
   StringOffsets() {
-    s = sizeof(String);
-    c = "Ljava/lang/String;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, array_),     "value"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, hash_code_), "hashCode"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, offset_),    "offset"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(String, count_),     "count"));
+    instance = true;
+    size = sizeof(String);
+    class_descriptor = "Ljava/lang/String;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, array_),     "value"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, count_),     "count"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, hash_code_), "hashCode"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, offset_),    "offset"));
   };
 };
 
 struct ThrowableOffsets : public CheckOffsets {
   ThrowableOffsets() {
-    s = sizeof(Throwable);
-    c = "Ljava/lang/Throwable;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, cause_),                 "cause"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, detail_message_),        "detailMessage"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_state_),           "stackState"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_trace_),           "stackTrace"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, suppressed_exceptions_), "suppressedExceptions"));
+    instance = true;
+    size = sizeof(Throwable);
+    class_descriptor = "Ljava/lang/Throwable;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, cause_),                 "cause"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, detail_message_),        "detailMessage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_state_),           "stackState"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_trace_),           "stackTrace"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, suppressed_exceptions_), "suppressedExceptions"));
   };
 };
 
 struct StackTraceElementOffsets : public CheckOffsets {
   StackTraceElementOffsets() {
-    s = sizeof(StackTraceElement);
-    c = "Ljava/lang/StackTraceElement;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, declaring_class_), "declaringClass"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, file_name_),       "fileName"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, method_name_),     "methodName"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, line_number_),     "lineNumber"));
+    instance = true;
+    size = sizeof(StackTraceElement);
+    class_descriptor = "Ljava/lang/StackTraceElement;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, declaring_class_), "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, file_name_),       "fileName"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, method_name_),     "methodName"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, line_number_),     "lineNumber"));
   };
 };
 
 struct ClassLoaderOffsets : public CheckOffsets {
   ClassLoaderOffsets() {
-    s = sizeof(ClassLoader);
-    c = "Ljava/lang/ClassLoader;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),   "parent"));
+    instance = true;
+    size = sizeof(ClassLoader);
+    class_descriptor = "Ljava/lang/ClassLoader;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),   "parent"));
   };
 };
 
 struct BaseDexClassLoaderOffsets : public CheckOffsets {
   BaseDexClassLoaderOffsets() {
-    s = sizeof(BaseDexClassLoader);
-    c = "Ldalvik/system/BaseDexClassLoader;";
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_), "originalPath"));
-    o.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),   "pathList"));
+    instance = true;
+    size = sizeof(BaseDexClassLoader);
+    class_descriptor = "Ldalvik/system/BaseDexClassLoader;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_), "originalPath"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),     "pathList"));
   };
 };
 
 struct PathClassLoaderOffsets : public CheckOffsets {
   PathClassLoaderOffsets() {
-    s = sizeof(PathClassLoader);
-    c = "Ldalvik/system/PathClassLoader;";
+    instance = true;
+    size = sizeof(PathClassLoader);
+    class_descriptor = "Ldalvik/system/PathClassLoader;";
+  };
+};
+
+struct ClassClassOffsets : public CheckOffsets {
+  ClassClassOffsets() {
+    instance = false;
+    size = sizeof(ClassClass);
+    class_descriptor = "Ljava/lang/Class;";
+
+    // padding 32-bit
+    // this space intentionally left blank
+
+    // alphabetical 64-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassClass, serialVersionUID_), "serialVersionUID"));
+  };
+};
+
+struct StringClassOffsets : public CheckOffsets {
+  StringClassOffsets() {
+    instance = false;
+    size = sizeof(StringClass);
+    class_descriptor = "Ljava/lang/String;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, ASCII_),                  "ASCII"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
+
+    // padding 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
+
+    // alphabetical 64-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, serialVersionUID_),       "serialVersionUID"));
+  };
+};
+
+struct FieldClassOffsets : public CheckOffsets {
+  FieldClassOffsets() {
+    instance = false;
+    size = sizeof(FieldClass);
+    class_descriptor = "Ljava/lang/reflect/Field;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, ORDER_BY_NAME_AND_DECLARING_CLASS_), "ORDER_BY_NAME_AND_DECLARING_CLASS"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_BOOLEAN_), "TYPE_BOOLEAN"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_BYTE_),    "TYPE_BYTE"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_CHAR_),    "TYPE_CHAR"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_DOUBLE_),  "TYPE_DOUBLE"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_FLOAT_),   "TYPE_FLOAT"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_INTEGER_), "TYPE_INTEGER"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_LONG_),    "TYPE_LONG"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, TYPE_SHORT_),   "TYPE_SHORT"));
+  };
+};
+
+struct MethodClassOffsets : public CheckOffsets {
+  MethodClassOffsets() {
+    instance = false;
+    size = sizeof(MethodClass);
+    class_descriptor = "Ljava/lang/reflect/Method;";
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, NO_ANNOTATIONS_),     "NO_ANNOTATIONS"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));
   };
 };
 
@@ -631,6 +736,11 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ClassLoaderOffsets().Check());
   EXPECT_TRUE(BaseDexClassLoaderOffsets().Check());
   EXPECT_TRUE(PathClassLoaderOffsets().Check());
+
+  EXPECT_TRUE(ClassClassOffsets().Check());
+  EXPECT_TRUE(StringClassOffsets().Check());
+  EXPECT_TRUE(FieldClassOffsets().Check());
+  EXPECT_TRUE(MethodClassOffsets().Check());
 }
 
 // The first reference array element must be a multiple of 8 bytes from the

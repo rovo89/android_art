@@ -186,7 +186,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
       LOG(FATAL) << "Object is dead: " << obj;
     }
     // Ignore early dawn of the universe verifications
-    if(num_objects_allocated_ > 10) {
+    if (num_objects_allocated_ > 10) {
       const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
           Object::ClassOffset().Int32Value();
       const Class* c = *reinterpret_cast<Class* const *>(raw_addr);

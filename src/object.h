@@ -597,10 +597,12 @@ class Field : public AccessibleObject {
 
   Object* generic_type_;
 
+  const String* name_;
+
   // Type of the field
   Class* type_;
 
-  const String* name_;
+  uint32_t generic_types_are_initialized_;
 
   uint32_t access_flags_;
 
@@ -611,8 +613,6 @@ class Field : public AccessibleObject {
   uint32_t type_idx_;
 
   int32_t slot_;
-
-  uint32_t generic_types_are_initialized_;
 
   static Class* java_lang_reflect_Field_;
 
@@ -1006,38 +1006,14 @@ class Method : public AccessibleObject {
   Object* java_generic_parameter_types_;
   Object* java_generic_return_type_;
 
-  // The method descriptor.  This represents the parameters a method
-  // takes and value it returns.  This string is a list of the type
-  // descriptors for the parameters enclosed in parenthesis followed
-  // by the return type descriptor.  For example, for the method
-  //
-  //   Object mymethod(int i, double d, Thread t)
-  //
-  // the method descriptor would be
-  //
-  //   (IDLjava/lang/Thread;)Ljava/lang/Object;
-  String* signature_;
-
   String* name_;
 
   ObjectArray<Class>* java_parameter_types_;
 
   Class* java_return_type_;  // Unused by ART
 
-  // Storage for mapping_table_
-  const ByteArray* mapping_table_;
-
-  // Storage for invoke_stub_
-  const ByteArray* invoke_stub_array_;
-
   // Storage for code_
   const ByteArray* code_array_;
-
-  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<String>* dex_cache_strings_;
-
-  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<Class>* dex_cache_resolved_types_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
@@ -1051,11 +1027,44 @@ class Method : public AccessibleObject {
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<Method>* dex_cache_resolved_methods_;
 
-  // Architecture-dependent register spill mask
-  uint32_t core_spill_mask_;
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<Class>* dex_cache_resolved_types_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<String>* dex_cache_strings_;
+
+  // Storage for invoke_stub_
+  const ByteArray* invoke_stub_array_;
+
+  // Storage for mapping_table_
+  const ByteArray* mapping_table_;
+
+  // The method descriptor.  This represents the parameters a method
+  // takes and value it returns.  This string is a list of the type
+  // descriptors for the parameters enclosed in parenthesis followed
+  // by the return type descriptor.  For example, for the method
+  //
+  //   Object mymethod(int i, double d, Thread t)
+  //
+  // the method descriptor would be
+  //
+  //   (IDLjava/lang/Thread;)Ljava/lang/Object;
+  String* signature_;
+
+  uint32_t java_generic_types_are_initialized_;
+
+  // access flags; low 16 bits are defined by spec (could be uint16_t?)
+  uint32_t access_flags_;
+
+  // Compiled code associated with this method for callers from managed code.
+  // May be compiled managed code or a bridge for invoking a native method.
+  const void* code_;
 
   // Offset to the CodeItem.
   uint32_t code_item_offset_;
+
+  // Architecture-dependent register spill mask
+  uint32_t core_spill_mask_;
 
   // Architecture-dependent register spill mask
   uint32_t fp_spill_mask_;
@@ -1066,15 +1075,8 @@ class Method : public AccessibleObject {
   // Native invocation stub entry point for calling from native to managed code.
   const InvokeStub* invoke_stub_;
 
-  // Compiled code associated with this method for callers from managed code.
-  // May be compiled managed code or a bridge for invoking a native method.
-  const void* code_;
-
   // Index of the return type
   uint32_t java_return_type_idx_;
-
-  // access flags; low 16 bits are defined by spec (could be uint16_t?)
-  uint32_t access_flags_;
 
   // For concrete virtual methods, this is the offset of the method
   // in Class::vtable_.
@@ -1102,8 +1104,6 @@ class Method : public AccessibleObject {
 
   // The short-form method descriptor string. TODO: make String*
   const char* shorty_;
-
-  uint32_t java_generic_types_are_initialized_;
 
   uint32_t java_slot_;
 
@@ -1549,7 +1549,7 @@ class Class : public StaticStorageBase {
     if (this == klass) {
       // Can always assign to things of the same type
       return true;
-    } else if(IsObjectClass()) {
+    } else if (IsObjectClass()) {
       // Can assign any reference to java.lang.Object
       return !klass->IsPrimitive();
     } else if (IsInterface()) {
@@ -1988,25 +1988,8 @@ class Class : public StaticStorageBase {
   // descriptor for the class such as "java.lang.Class" or "[C"
   String* name_;  // TODO initialize
 
-  // Virtual method table (vtable), for use by "invoke-virtual".  The
-  // vtable from the superclass is copied in, and virtual methods from
-  // our class either replace those from the super or are appended.
-  ObjectArray<Method>* vtable_;
-
-  // virtual methods defined in this class; invoked through vtable
-  ObjectArray<Method>* virtual_methods_;
-
   // defining class loader, or NULL for the "bootstrap" system loader
-  const ClassLoader* class_loader_;  // TODO: make an instance field
-
-  // If class verify fails, we must return same error on subsequent tries.
-  // Update with SetVerifyErrorClass to ensure a write barrier is used.
-  const Class* verify_error_class_;
-
-  // The superclass, or NULL if this is java.lang.Object or a
-  // primitive type.
-  // see also super_class_type_idx_;
-  Class* super_class_;
+  const ClassLoader* class_loader_;
 
   // For array classes, the class object for base element, for
   // instanceof/checkcast (for String[][][], this will be String).
@@ -2035,50 +2018,46 @@ class Class : public StaticStorageBase {
   // specifies the number of reference fields.
   ObjectArray<Field>* ifields_;
 
-  // Static fields
-  ObjectArray<Field>* sfields_;
+  // array of interfaces this class implements directly
+  // see also interfaces_type_idx_
+  ObjectArray<Class>* interfaces_;
 
   // array of type_idx's for interfaces this class implements directly
   // see also interfaces_
   IntArray* interfaces_type_idx_;
 
-  // array of interfaces this class implements directly
-  // see also interfaces_type_idx_
-  ObjectArray<Class>* interfaces_;
+  // Static fields
+  ObjectArray<Field>* sfields_;
 
-  // size of ifvi_pool_
-  size_t ifvi_pool_count_;
+  // The superclass, or NULL if this is java.lang.Object or a
+  // primitive type.
+  // see also super_class_type_idx_;
+  Class* super_class_;
 
-  // The interface vtable indices for iftable get stored here.  By
-  // placing them all in a single pool for each class that implements
-  // interfaces, we decrease the number of allocations.
-  //
-  // see also ifvi_pool_count_
-  //
-  // TODO convert to IntArray
-  uint32_t* ifvi_pool_;
+  // If class verify fails, we must return same error on subsequent tries.
+  // Update with SetVerifyErrorClass to ensure a write barrier is used.
+  const Class* verify_error_class_;
 
-  // size of iftable_
-  size_t iftable_count_;
+  // virtual methods defined in this class; invoked through vtable
+  ObjectArray<Method>* virtual_methods_;
 
-  // number of instance fields that are object refs
-  size_t num_reference_instance_fields_;
+  // Virtual method table (vtable), for use by "invoke-virtual".  The
+  // vtable from the superclass is copied in, and virtual methods from
+  // our class either replace those from the super or are appended.
+  ObjectArray<Method>* vtable_;
 
-  // number of static fields that are object refs
-  size_t num_reference_static_fields_;
+  // access flags; low 16 bits are defined by VM spec
+  uint32_t access_flags_;
 
-  // Total object size; used when allocating storage on gc heap.
-  // (For interfaces and abstract classes this will be zero.)
-  size_t object_size_;
+  // For array classes, the number of array dimensions, e.g. int[][]
+  // is 2.  Otherwise 0.
+  int32_t array_rank_;
 
-  // primitive type index, or kPrimNot (0); set for generated prim classes
-  PrimitiveType primitive_type_;
+  // Total class size; used when allocating storage on gc heap.
+  size_t class_size_;
 
-  // Bitmap of offsets of ifields.
-  uint32_t reference_instance_offsets_;
-
-  // Bitmap of offsets of sfields.
-  uint32_t reference_static_offsets_;
+  // threadId, used to check for recursive <clinit> invocation
+  pid_t clinit_thread_id_;
 
   // Interface table (iftable_), one entry per interface supported by
   // this class.  That means one entry for each interface we support
@@ -2099,28 +2078,49 @@ class Class : public StaticStorageBase {
   //
   InterfaceEntry* iftable_;
 
+  // size of iftable_
+  size_t iftable_count_;
+
+  // The interface vtable indices for iftable get stored here.  By
+  // placing them all in a single pool for each class that implements
+  // interfaces, we decrease the number of allocations.
+  //
+  // see also ifvi_pool_count_
+  //
+  // TODO convert to IntArray
+  uint32_t* ifvi_pool_;
+
+  // size of ifvi_pool_
+  size_t ifvi_pool_count_;
+
+  // number of instance fields that are object refs
+  size_t num_reference_instance_fields_;
+
+  // number of static fields that are object refs
+  size_t num_reference_static_fields_;
+
+  // Total object size; used when allocating storage on gc heap.
+  // (For interfaces and abstract classes this will be zero.)
+  size_t object_size_;
+
+  // primitive type index, or kPrimNot (0); set for generated prim classes
+  PrimitiveType primitive_type_;
+
+  // Bitmap of offsets of ifields.
+  uint32_t reference_instance_offsets_;
+
+  // Bitmap of offsets of sfields.
+  uint32_t reference_static_offsets_;
+
   // source file name, if known.  Otherwise, NULL.
   const char* source_file_;
 
   // state of class initialization
   Status status_;
 
-  // threadId, used to check for recursive <clinit> invocation
-  uint32_t clinit_thread_id_;
-
   // Set in LoadClass, used to LinkClass
   // see also super_class_
   uint32_t super_class_type_idx_;
-
-  // Total class size; used when allocating storage on gc heap.
-  size_t class_size_;
-
-  // For array classes, the number of array dimensions, e.g. int[][]
-  // is 2.  Otherwise 0.
-  int32_t array_rank_;
-
-  // access flags; low 16 bits are defined by VM spec
-  uint32_t access_flags_;
 
   // TODO: ?
   // initiating class loader list
@@ -2344,6 +2344,7 @@ class ClassClass : public Class {
   // Padding to ensure the 64-bit serialVersionUID_ begins on a 8-byte boundary
   int32_t padding_;
   int64_t serialVersionUID_;
+  friend struct ClassClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);
 };
 
@@ -2352,7 +2353,8 @@ class StringClass : public Class {
   CharArray* ASCII_;
   Object* CASE_INSENSITIVE_ORDER_;
   uint32_t REPLACEMENT_CHAR_;
-  int64_t serialVersionUID;
+  int64_t serialVersionUID_;
+  friend struct StringClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
 };
 
@@ -2367,13 +2369,15 @@ class FieldClass : public Class {
   uint32_t TYPE_INTEGER_;
   uint32_t TYPE_LONG_;
   uint32_t TYPE_SHORT_;
+  friend struct FieldClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(FieldClass);
 };
 
 class MethodClass : public Class {
  private:
-  int32_t DECLARED_;
-  int32_t PUBLIC_;
+  ObjectArray<Object>* NO_ANNOTATIONS_;
+  Object* ORDER_BY_SIGNATURE_;
+  friend struct MethodClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(MethodClass);
 };
 
@@ -2528,11 +2532,11 @@ class String : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   CharArray* array_;
 
+  int32_t count_;
+
   uint32_t hash_code_;
 
   int32_t offset_;
-
-  int32_t count_;
 
   static Class* java_lang_String_;
 
