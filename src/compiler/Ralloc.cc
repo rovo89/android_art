@@ -106,9 +106,9 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
             // Skip past "this"
             sReg++;
         }
-        const art::StringPiece& shorty = cUnit->method->GetShorty();
-        for (int i = 1; i < shorty.size(); i++) {
-            char arg = shorty[i];
+        String* shorty = cUnit->method->GetShorty();
+        for (int i = 1; i < shorty->GetLength(); i++) {
+            char arg = shorty->CharAt(i);
             // Is it wide?
             if ((arg == 'D') || (arg == 'J')) {
                 cUnit->regLocation[sReg].wide = true;

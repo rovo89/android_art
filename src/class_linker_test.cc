@@ -512,6 +512,7 @@ struct MethodOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_array_),                    "shadow$_invoke_stub_array_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
 
     // alphabetical 32-bit
@@ -531,7 +532,6 @@ struct MethodOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_registers_),                        "shadow$_num_registers_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, proto_idx_),                            "shadow$_proto_idx_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, return_pc_offset_in_bytes_),            "shadow$_return_pc_offset_in_bytes_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_slot_),                            "slot"));
   };
 };

@@ -359,10 +359,10 @@ size_t Method::NumArgRegisters(const StringPiece& shorty) {
 }
 
 size_t Method::NumArgArrayBytes() const {
-  const StringPiece& shorty = GetShorty();
+  String* shorty = GetShorty();
   size_t num_bytes = 0;
-  for (int i = 1; i < shorty.length(); ++i) {
-    char ch = shorty[i];
+  for (int i = 1; i < shorty->GetLength(); ++i) {
+    char ch = shorty->CharAt(i);
     if (ch == 'D' || ch == 'J') {
       num_bytes += 8;
     } else if (ch == 'L') {
@@ -376,13 +376,20 @@ size_t Method::NumArgArrayBytes() const {
   return num_bytes;
 }
 
+size_t Method::NumArgs() const {
+  // "1 +" because the first in Args is the receiver.
+  // "- 1" because we don't count the return type.
+  return (IsStatic() ? 0 : 1) + GetShorty()->GetLength() - 1;
+}
+
 // The number of reference arguments to this method including implicit this
 // pointer
 size_t Method::NumReferenceArgs() const {
-  const StringPiece& shorty = GetShorty();
+  String* shorty = GetShorty();
   size_t result = IsStatic() ? 0 : 1;  // The implicit this pointer.
-  for (int i = 1; i < shorty.length(); i++) {
-    if ((shorty[i] == 'L') || (shorty[i] == '[')) {
+  for (int i = 1; i < shorty->GetLength(); i++) {
+    char ch = shorty->CharAt(i);
+    if ((ch == 'L') || (ch == '[')) {
       result++;
     }
   }
@@ -391,10 +398,11 @@ size_t Method::NumReferenceArgs() const {
 
 // The number of long or double arguments
 size_t Method::NumLongOrDoubleArgs() const {
-  const StringPiece& shorty = GetShorty();
+  String* shorty = GetShorty();
   size_t result = 0;
-  for (int i = 1; i < shorty.length(); i++) {
-    if ((shorty[i] == 'D') || (shorty[i] == 'J')) {
+  for (int i = 1; i < shorty->GetLength(); i++) {
+    char ch = shorty->CharAt(i);
+    if ((ch == 'D') || (ch == 'J')) {
       result++;
     }
   }
@@ -409,7 +417,7 @@ bool Method::IsParamAReference(unsigned int param) const {
   } else if (param == 0) {
     return true;  // this argument
   }
-  return GetShorty()[param] == 'L';
+  return GetShorty()->CharAt(param) == 'L';
 }
 
 // Is the given method parameter a long or double?
@@ -420,7 +428,8 @@ bool Method::IsParamALongOrDouble(unsigned int param) const {
   } else if (param == 0) {
     return false;  // this argument
   }
-  return (GetShorty()[param] == 'J') || (GetShorty()[param] == 'D');
+  char ch = GetShorty()->CharAt(param);
+  return (ch == 'J' || ch == 'D');
 }
 
 static size_t ShortyCharToSize(char x) {
@@ -441,11 +450,11 @@ size_t Method::ParamSize(unsigned int param) const {
   } else if (param == 0) {
     return kPointerSize;  // this argument
   }
-  return ShortyCharToSize(GetShorty()[param]);
+  return ShortyCharToSize(GetShorty()->CharAt(param));
 }
 
 size_t Method::ReturnSize() const {
-  return ShortyCharToSize(GetShorty()[0]);
+  return ShortyCharToSize(GetShorty()->CharAt(0));
 }
 
 bool Method::HasSameNameAndDescriptor(const Method* that) const {

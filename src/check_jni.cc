@@ -446,7 +446,7 @@ public:
   void checkSig(jmethodID mid, const char* expectedType, bool isStatic) {
     ScopedJniThreadState ts(mEnv);
     const Method* m = DecodeMethod(ts, mid);
-    if (*expectedType != m->GetShorty()[0]) {
+    if (*expectedType != m->GetShorty()->CharAt(0)) {
       LOG(ERROR) << "JNI ERROR: expected return type '" << *expectedType << "' calling " << PrettyMethod(m);
       JniAbort();
     } else if (isStatic && !m->IsStatic()) {

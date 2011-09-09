@@ -101,7 +101,7 @@ void ArmCreateInvokeStub(Method* method) {
   __ blx(IP);
 
   // If the method returns a value, store it to the result pointer.
-  char ch = method->GetShorty()[0];
+  char ch = method->GetShorty()->CharAt(0);
   if (ch != 'V') {
     // Load the result JValue pointer of the stub caller's out args.
     __ LoadFromOffset(kLoadWord, IP, SP, frame_size);
