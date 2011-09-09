@@ -79,6 +79,32 @@ static inline int32_t DecodeSignedLeb128(const byte** data) {
   return result;
 }
 
+// Returns the number of bytes needed to encode the value in unsigned LEB128.
+static inline uint32_t UnsignedLeb128Size(uint32_t data) {
+  uint32_t count = 0;
+  do {
+    data >>= 7;
+    count++;
+  } while (data != 0);
+  return count;
+}
+
+// Writes a 32-bit value in unsigned ULEB128 format.
+// Returns the updated pointer.
+static inline uint8_t* WriteUnsignedLeb128(uint8_t* ptr, uint32_t data) {
+  while (true) {
+    uint8_t out = data & 0x7f;
+    if (out != data) {
+      *ptr++ = out | 0x80;
+      data >>= 7;
+    } else {
+      *ptr++ = out;
+      break;
+    }
+  }
+  return ptr;
+}
+
 }  // namespace art
 
 #endif  // ART_SRC_LEB128_H_
