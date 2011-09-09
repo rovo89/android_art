@@ -14,7 +14,7 @@ namespace art {
 #define kMaxMonitorStackDepth   (sizeof(MonitorEntries) * 8)
 
 /*
- * Set this to enable dead code scanning.  This is not required, but it's
+ * Set this to enable dead code scanning. This is not required, but it's
  * very useful when testing changes to the verifier (to make sure we're not
  * skipping over stuff). The only reason not to do it is that it slightly
  * increases the time required to perform verification.
@@ -26,7 +26,7 @@ namespace art {
 #endif
 
 /*
- * We need an extra "pseudo register" to hold the return type briefly.  It
+ * We need an extra "pseudo register" to hold the return type briefly. It
  * can be category 1 or 2, so we need two slots.
  */
 #define kExtraRegs  2
@@ -36,7 +36,7 @@ class DexVerifier {
  public:
   /*
    * RegType holds information about the type of data held in a register.
-   * For most types it's a simple enum.  For reference types it holds a
+   * For most types it's a simple enum. For reference types it holds a
    * pointer to the ClassObject, and for uninitialized references it holds
    * an index into the UninitInstanceMap.
    */
@@ -44,7 +44,7 @@ class DexVerifier {
 
   /*
    * A bit vector indicating which entries in the monitor stack are
-   * associated with this register.  The low bit corresponds to the stack's
+   * associated with this register. The low bit corresponds to the stack's
    * bottom-most entry.
    */
   typedef uint32_t MonitorEntries;
@@ -71,12 +71,12 @@ class DexVerifier {
   };
 
   /*
-   * "Direct" and "virtual" methods are stored independently.  The type of call
+   * "Direct" and "virtual" methods are stored independently. The type of call
    * used to invoke the method determines which list we search, and whether
    * we travel up into superclasses.
    *
    * (<clinit>, <init>, and methods declared "private" or "static" are stored
-   * in the "direct" list.  All others are stored in the "virtual" list.)
+   * in the "direct" list. All others are stored in the "virtual" list.)
    */
   enum MethodType {
     METHOD_UNKNOWN  = 0,
@@ -98,7 +98,7 @@ class DexVerifier {
   };
 
   /*
-   * Enumeration for register type values.  The "hi" piece of a 64-bit value
+   * Enumeration for register type values. The "hi" piece of a 64-bit value
    * MUST immediately follow the "lo" piece in the enumeration, so we can check
    * that hi==lo+1.
    *
@@ -125,7 +125,7 @@ class DexVerifier {
    *
    * In addition, all of the above can convert to "float".
    *
-   * We're more careful with integer values than the spec requires.  The
+   * We're more careful with integer values than the spec requires. The
    * motivation is to restrict byte/char/short to the correct range of values.
    * For example, if a method takes a byte argument, we don't want to allow
    * the code to load the constant "1024" and pass it in.
@@ -136,7 +136,7 @@ class DexVerifier {
     kRegTypeConflict,       /* merge clash makes this reg's type unknowable */
 
     /*
-     * Category-1nr types.  The order of these is chiseled into a couple
+     * Category-1nr types. The order of these is chiseled into a couple
      * of tables, so don't add, remove, or reorder if you can avoid it.
      */
 #define kRegType1nrSTART    kRegTypeZero
@@ -167,9 +167,9 @@ class DexVerifier {
     /*
      * Enumeration max; this is used with "full" (32-bit) RegType values.
      *
-     * Anything larger than this is a ClassObject or uninit ref.  Mask off
+     * Anything larger than this is a ClassObject or uninit ref. Mask off
      * all but the low 8 bits; if you're left with kRegTypeUninit, pull
-     * the uninit index out of the high 24.  Because kRegTypeUninit has an
+     * the uninit index out of the high 24. Because kRegTypeUninit has an
      * odd value, there is no risk of a particular ClassObject pointer bit
      * pattern being confused for it (assuming our class object allocator
      * uses word alignment).
@@ -183,9 +183,9 @@ class DexVerifier {
    * Register type categories, for type checking.
    *
    * The spec says category 1 includes boolean, byte, char, short, int, float,
-   * reference, and returnAddress.  Category 2 includes long and double.
+   * reference, and returnAddress. Category 2 includes long and double.
    *
-   * We treat object references separately, so we have "category1nr".  We
+   * We treat object references separately, so we have "category1nr". We
    * don't support jsr/ret, so there is no "returnAddress" type.
    */
   enum TypeCategory {
@@ -225,13 +225,24 @@ class DexVerifier {
 #define kVerifyErrorRefTypeShift 6
 
   /*
+   * Format enumeration for RegisterMap data area.
+   */
+  enum RegisterMapFormat {
+    kRegMapFormatUnknown = 0,
+    kRegMapFormatNone,          /* indicates no map data follows */
+    kRegMapFormatCompact8,      /* compact layout, 8-bit addresses */
+    kRegMapFormatCompact16,     /* compact layout, 16-bit addresses */
+    kRegMapFormatDifferential,  /* compressed, differential encoding */
+  };
+
+  /*
    * During verification, we associate one of these with every "interesting"
-   * instruction.  We track the status of all registers, and (if the method
+   * instruction. We track the status of all registers, and (if the method
    * has any monitor-enter instructions) maintain a stack of entered monitors
    * (identified by code unit offset).
    *
    * If live-precise register maps are enabled, the "liveRegs" vector will
-   * be populated.  Unlike the other lists of registers here, we do not
+   * be populated. Unlike the other lists of registers here, we do not
    * track the liveness of the method result register (which is not visible
    * to the GC).
    */
@@ -242,7 +253,8 @@ class DexVerifier {
     uint32_t monitor_stack_top_;
 
     RegisterLine()
-        : reg_types_(NULL), monitor_entries_(NULL), monitor_stack_(NULL), monitor_stack_top_(0) {
+        : reg_types_(NULL), monitor_entries_(NULL), monitor_stack_(NULL),
+          monitor_stack_top_(0) {
     }
 
     /* Allocate space for the fields. */
@@ -258,14 +270,14 @@ class DexVerifier {
   /* Big fat collection of register data. */
   struct RegisterTable {
     /*
-     * Array of RegisterLine structs, one per address in the method.  We only
+     * Array of RegisterLine structs, one per address in the method. We only
      * set the pointers for certain addresses, based on instruction widths
      * and what we're trying to accomplish.
      */
     UniquePtr<RegisterLine[]> register_lines_;
 
     /*
-     * Number of registers we track for each instruction.  This is equal
+     * Number of registers we track for each instruction. This is equal
      * to the method's declared "registersSize" plus kExtraRegs (2).
      */
     size_t      insn_reg_count_plus_;
@@ -291,7 +303,7 @@ class DexVerifier {
 
   /*
    * Table that maps uninitialized instances to classes, based on the
-   * address of the new-instance instruction.  One per method.
+   * address of the new-instance instruction. One per method.
    */
   struct UninitInstanceMap {
     int num_entries_;
@@ -326,9 +338,9 @@ class DexVerifier {
     UniquePtr<UninitInstanceMap> uninit_map_;
 
     /*
-     * Array of RegisterLine structs, one entry per code unit.  We only need
+     * Array of RegisterLine structs, one entry per code unit. We only need
      * entries for code units that hold the start of an "interesting"
-     * instruction.  For register map generation, we're only interested
+     * instruction. For register map generation, we're only interested
      * in GC points.
      */
     RegisterLine* register_lines_;
@@ -341,15 +353,45 @@ class DexVerifier {
         const DexFile::CodeItem* code_item)
         : method_(method), dex_file_(dex_file), code_item_(code_item),
           insn_flags_(NULL), uninit_map_(NULL), register_lines_(NULL),
-          new_instance_count_(0), monitor_enter_count_(0) { }
+          new_instance_count_(0), monitor_enter_count_(0) {
+    }
   };
 
   /*
-   * Merge result table for primitive values.  The table is symmetric along
+   * This is a single variable-size structure. It may be allocated on the
+   * heap or mapped out of a (post-dexopt) DEX file.
+   *
+   * 32-bit alignment of the structure is NOT guaranteed. This makes it a
+   * little awkward to deal with as a structure; to avoid accidents we use
+   * only byte types. Multi-byte values are little-endian.
+   *
+   * Size of (format==FormatNone): 1 byte
+   * Size of (format==FormatCompact8): 4 + (1 + reg_width) * num_entries
+   * Size of (format==FormatCompact16): 4 + (2 + reg_width) * num_entries
+   */
+  struct RegisterMap {
+    /* header */
+    uint8_t format_;          /* enum RegisterMapFormat; MUST be first entry */
+    uint8_t reg_width_;       /* bytes per register line, 1+ */
+    uint16_t num_entries_;    /* number of entries */
+    bool    format_on_heap_;  /* indicates allocation on heap */
+
+    /* raw data starts here; need not be aligned */
+    UniquePtr<uint8_t[]> data_;
+
+    RegisterMap(uint8_t format, uint8_t reg_width, uint16_t num_entries,
+        bool format_on_heap, uint32_t data_size)
+        : format_(format), reg_width_(reg_width), num_entries_(num_entries),
+          format_on_heap_(format_on_heap), data_(new uint8_t[data_size]()) {
+    }
+  };
+
+  /*
+   * Merge result table for primitive values. The table is symmetric along
    * the diagonal.
    *
-   * Note that 32-bit int/float do not merge into 64-bit long/double.  This
-   * is a register merge, not a widening conversion.  Only the "implicit"
+   * Note that 32-bit int/float do not merge into 64-bit long/double. This
+   * is a register merge, not a widening conversion. Only the "implicit"
    * widening within a category, e.g. byte to short, is allowed.
    *
    * Dalvik does not draw a distinction between int and float, but we enforce
@@ -357,11 +399,11 @@ class DexVerifier {
    * versa. We do not allow free exchange between 32-bit int/float and 64-bit
    * long/double.
    *
-   * Note that Uninit+Uninit=Uninit.  This holds true because we only
+   * Note that Uninit+Uninit=Uninit. This holds true because we only
    * use this when the RegType value is exactly equal to kRegTypeUninit, which
    * can only happen for the zeroeth entry in the table.
    *
-   * "Unknown" never merges with anything known.  The only time a register
+   * "Unknown" never merges with anything known. The only time a register
    * transitions from "unknown" to "known" is when we're executing code
    * for the first time, and we handle that with a simple copy.
    */
@@ -510,7 +552,7 @@ class DexVerifier {
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
    *
-   * Some checks may be bypassed depending on the verification mode.  We can't
+   * Some checks may be bypassed depending on the verification mode. We can't
    * turn this stuff off completely if we want to do "exact" GC.
    *
    * Confirmed here:
@@ -571,7 +613,7 @@ class DexVerifier {
 
   /*
    * Compute the width of the instruction at each address in the instruction
-   * stream, and store it in vdata->insn_flags.  Addresses that are in the
+   * stream, and store it in vdata->insn_flags. Addresses that are in the
    * middle of an instruction, or that are part of switch table data, are not
    * touched (so the caller should probably initialize "insn_flags" to zero).
    *
@@ -609,14 +651,14 @@ class DexVerifier {
       bool* pConditional, bool* selfOkay);
 
   /*
-   * Verify an array data table.  "cur_offset" is the offset of the
+   * Verify an array data table. "cur_offset" is the offset of the
    * fill-array-data instruction.
    */
   static bool CheckArrayData(const DexFile::CodeItem* code_item,
       uint32_t cur_offset);
 
   /*
-   * Perform static checks on a "new-instance" instruction.  Specifically,
+   * Perform static checks on a "new-instance" instruction. Specifically,
    * make sure the class reference isn't for an array class.
    *
    * We don't need the actual class, just a pointer to the class name.
@@ -624,7 +666,7 @@ class DexVerifier {
   static bool CheckNewInstance(const DexFile* dex_file, uint32_t idx);
 
   /*
-   * Perform static checks on a "new-array" instruction.  Specifically, make
+   * Perform static checks on a "new-array" instruction. Specifically, make
    * sure they aren't creating an array of arrays that causes the number of
    * dimensions to exceed 255.
    */
@@ -637,13 +679,13 @@ class DexVerifier {
   static bool CheckTypeIndex(const DexFile* dex_file, uint32_t idx);
 
   /*
-   * Perform static checks on a field get or set instruction.  All we do
+   * Perform static checks on a field get or set instruction. All we do
    * here is ensure that the field index is in the valid range.
    */
   static bool CheckFieldIndex(const DexFile* dex_file, uint32_t idx);
 
   /*
-   * Perform static checks on a method invocation instruction.  All we do
+   * Perform static checks on a method invocation instruction. All we do
    * here is ensure that the method index is in the valid range.
    */
   static bool CheckMethodIndex(const DexFile* dex_file, uint32_t idx);
@@ -667,7 +709,7 @@ class DexVerifier {
    *
    * There are some tests we don't do here, e.g. we don't try to verify
    * that invoking a method that takes a double is done with consecutive
-   * registers.  This requires parsing the target method signature, which
+   * registers. This requires parsing the target method signature, which
    * we will be doing later on during the code flow analysis.
    */
   static bool CheckVarArgRegs(const DexFile::CodeItem* code_item, uint32_t vA,
@@ -696,7 +738,7 @@ class DexVerifier {
    *
    * We don't expect code to jump directly into an exception handler, but
    * it's valid to do so as long as the target isn't a "move-exception"
-   * instruction.  We verify that in a later stage.
+   * instruction. We verify that in a later stage.
    *
    * The dex format forbids certain instructions from branching to itself.
    *
@@ -762,7 +804,7 @@ class DexVerifier {
 
 #ifndef NDEBUG
   /*
-   * Compare two register lines.  Returns 0 if they match.
+   * Compare two register lines. Returns 0 if they match.
    *
    * Using this for a sort is unwise, since the value can change based on
    * machine endianness.
@@ -801,11 +843,11 @@ class DexVerifier {
   /*
    * Create a new uninitialized instance map.
    *
-   * The map is allocated and populated with address entries.  The addresses
+   * The map is allocated and populated with address entries. The addresses
    * appear in ascending order to allow binary searching.
    *
    * Very few methods have 10 or more new-instance instructions; the
-   * majority have 0 or 1.  Occasionally a static initializer will have 200+.
+   * majority have 0 or 1. Occasionally a static initializer will have 200+.
    *
    * TODO: merge this into the static pass or initRegisterTable; want to
    * avoid walking through the instructions yet again just to set up this table
@@ -824,7 +866,7 @@ class DexVerifier {
       const char* descriptor, VerifyError* failure);
 
   /*
-   * Look up a class reference in a signature.  Could be an arg or the
+   * Look up a class reference in a signature. Could be an arg or the
    * return value.
    *
    * Advances "*sig" to the last character in the signature (that is, to
@@ -836,7 +878,7 @@ class DexVerifier {
       VerifyError* failure);
 
   /*
-   * Look up an array class reference in a signature.  Could be an arg or the
+   * Look up an array class reference in a signature. Could be an arg or the
    * return value.
    *
    * Advances "*sig" to the last character in the signature.
@@ -896,14 +938,14 @@ class DexVerifier {
    * because it's easier to do them here.)
    *
    * We need an array of RegType values, one per register, for every
-   * instruction.  If the method uses monitor-enter, we need extra data
+   * instruction. If the method uses monitor-enter, we need extra data
    * for every register, and a stack for every "interesting" instruction.
    * In theory this could become quite large -- up to several megabytes for
    * a monster function.
    *
    * NOTE:
    * The spec forbids backward branches when there's an uninitialized reference
-   * in a register.  The idea is to prevent something like this:
+   * in a register. The idea is to prevent something like this:
    *   loop:
    *     move r1, r0
    *     new-instance r0, MyClass
@@ -912,9 +954,9 @@ class DexVerifier {
    *   initialize r0
    *
    * This leaves us with two different instances, both allocated by the
-   * same instruction, but only one is initialized.  The scheme outlined in
+   * same instruction, but only one is initialized. The scheme outlined in
    * v3 4.11.1.4 wouldn't catch this, so they work around it by preventing
-   * backward branches.  We achieve identical results without restricting
+   * backward branches. We achieve identical results without restricting
    * code reordering by specifying that you can't execute the new-instance
    * instruction if a register contains an uninitialized instance created
    * by that same instrutcion.
@@ -929,24 +971,24 @@ class DexVerifier {
    * it has on registers.
    *
    * Finds zero or more following instructions and sets the "changed" flag
-   * if execution at that point needs to be (re-)evaluated.  Register changes
-   * are merged into "reg_types_" at the target addresses.  Does not set or
+   * if execution at that point needs to be (re-)evaluated. Register changes
+   * are merged into "reg_types_" at the target addresses. Does not set or
    * clear any other flags in "insn_flags".
    */
   static bool CodeFlowVerifyInstruction(VerifierData* vdata,
       RegisterTable* reg_table, uint32_t insn_idx, size_t* start_guess);
 
   /*
-   * Replace an instruction with "throw-verification-error".  This allows us to
+   * Replace an instruction with "throw-verification-error". This allows us to
    * defer error reporting until the code path is first used.
    *
    * This is expected to be called during "just in time" verification, not
-   * from within dexopt.  (Verification failures in dexopt will result in
+   * from within dexopt. (Verification failures in dexopt will result in
    * postponement of verification to first use of the class.)
    *
-   * The throw-verification-error instruction requires two code units.  Some
+   * The throw-verification-error instruction requires two code units. Some
    * of the replaced instructions require three; the third code unit will
-   * receive a "nop".  The instruction's length will be left unchanged
+   * receive a "nop". The instruction's length will be left unchanged
    * in "insn_flags".
    *
    * The VM postpones setting of debugger breakpoints in unverified classes,
@@ -967,15 +1009,15 @@ class DexVerifier {
 
   /*
    * Look up an instance field, specified by "field_idx", that is going to be
-   * accessed in object "obj_type".  This resolves the field and then verifies
+   * accessed in object "obj_type". This resolves the field and then verifies
    * that the class containing the field is an instance of the reference in
    * "obj_type".
    *
    * It is possible for "obj_type" to be kRegTypeZero, meaning that we might
-   * have a null reference.  This is a runtime problem, so we allow it,
+   * have a null reference. This is a runtime problem, so we allow it,
    * skipping some of the type checks.
    *
-   * In general, "obj_type" must be an initialized reference.  However, we
+   * In general, "obj_type" must be an initialized reference. However, we
    * allow it to be uninitialized if this is an "<init>" method and the field
    * is declared within the "obj_type" class.
    *
@@ -995,7 +1037,7 @@ class DexVerifier {
   /*
    * For the "move-exception" instruction at "insn_idx", which must be at an
    * exception handler address, determine the first common superclass of
-   * all exceptions that can land here.  (For javac output, we're probably
+   * all exceptions that can land here. (For javac output, we're probably
    * looking at multiple spans of bytecode covered by one "try" that lands
    * at an exception-specific "catch", but in general the handler could be
    * shared for multiple exceptions.)
@@ -1018,7 +1060,7 @@ class DexVerifier {
   }
 
   /*
-   * Return the register type for the method.  We can't just use the
+   * Return the register type for the method. We can't just use the
    * already-computed DalvikJniReturnType, because if it's a reference type
    * we need to do the class lookup.
    *
@@ -1030,7 +1072,7 @@ class DexVerifier {
       const Method* method);
 
   /*
-   * Get the value from a register, and cast it to a Class.  Sets
+   * Get the value from a register, and cast it to a Class. Sets
    * "*failure" if something fails.
    *
    * This fails if the register holds an uninitialized class.
@@ -1041,20 +1083,20 @@ class DexVerifier {
       uint32_t vsrc, VerifyError* failure);
 
   /*
-   * Get the "this" pointer from a non-static method invocation.  This
+   * Get the "this" pointer from a non-static method invocation. This
    * returns the RegType so the caller can decide whether it needs the
-   * reference to be initialized or not.  (Can also return kRegTypeZero
+   * reference to be initialized or not. (Can also return kRegTypeZero
    * if the reference can only be zero at this point.)
    *
    * The argument count is in vA, and the first argument is in vC, for both
-   * "simple" and "range" versions.  We just need to make sure vA is >= 1
+   * "simple" and "range" versions. We just need to make sure vA is >= 1
    * and then return vC.
    */
   static RegType GetInvocationThis(const RegisterLine* register_line,
       const Instruction::DecodedInstruction* dec_insn, VerifyError* failure);
 
   /*
-   * Set the type of register N, verifying that the register is valid.  If
+   * Set the type of register N, verifying that the register is valid. If
    * "new_type" is the "Lo" part of a 64-bit value, register N+1 will be
    * set to "new_type+1".
    *
@@ -1074,7 +1116,7 @@ class DexVerifier {
    * derived from a constant to prevent mixing of int/float and long/double.
    *
    * If "vsrc" is a reference, both it and the "vsrc" register must be
-   * initialized ("vsrc" may be Zero).  This will verify that the value in
+   * initialized ("vsrc" may be Zero). This will verify that the value in
    * the register is an instance of check_type, or if check_type is an
    * interface, verify that the register implements check_type.
    */
@@ -1087,7 +1129,7 @@ class DexVerifier {
 
   /*
    * Update all registers holding "uninit_type" to instead hold the
-   * corresponding initialized reference type.  This is called when an
+   * corresponding initialized reference type. This is called when an
    * appropriate <init> method is invoked -- all copies of the reference
    * must be marked as initialized.
    */
@@ -1096,21 +1138,21 @@ class DexVerifier {
       VerifyError* failure);
 
   /*
-   * Implement category-1 "move" instructions.  Copy a 32-bit value from
+   * Implement category-1 "move" instructions. Copy a 32-bit value from
    * "vsrc" to "vdst".
    */
   static void CopyRegister1(RegisterLine* register_line, uint32_t vdst,
       uint32_t vsrc, TypeCategory cat, VerifyError* failure);
 
   /*
-   * Implement category-2 "move" instructions.  Copy a 64-bit value from
-   * "vsrc" to "vdst".  This copies both halves of the register.
+   * Implement category-2 "move" instructions. Copy a 64-bit value from
+   * "vsrc" to "vdst". This copies both halves of the register.
    */
   static void CopyRegister2(RegisterLine* register_line, uint32_t vdst,
       uint32_t vsrc, VerifyError* failure);
 
   /*
-   * Implement "move-result".  Copy the category-1 value from the result
+   * Implement "move-result". Copy the category-1 value from the result
    * register to another register, and reset the result register.
    */
   static void CopyResultRegister1(RegisterLine* register_line,
@@ -1118,22 +1160,22 @@ class DexVerifier {
       VerifyError* failure);
 
   /*
-   * Implement "move-result-wide".  Copy the category-2 value from the result
+   * Implement "move-result-wide". Copy the category-2 value from the result
    * register to another register, and reset the result register.
    */
   static void CopyResultRegister2(RegisterLine* register_line,
       const int insn_reg_count, uint32_t vdst, VerifyError* failure);
 
   /*
-   * Compute the "class depth" of a class.  This is the distance from the
-   * class to the top of the tree, chasing superclass links.  java.lang.Object
+   * Compute the "class depth" of a class. This is the distance from the
+   * class to the top of the tree, chasing superclass links. java.lang.Object
    * has a class depth of 0.
    */
   static int GetClassDepth(Class* klass);
 
   /*
    * Given two classes, walk up the superclass tree to find a common
-   * ancestor.  (Called from findCommonSuperclass().)
+   * ancestor. (Called from findCommonSuperclass().)
    *
    * TODO: consider caching the class depth in the class object so we don't
    * have to search for it here.
@@ -1141,9 +1183,9 @@ class DexVerifier {
   static Class* DigForSuperclass(Class* c1, Class* c2);
 
   /*
-   * Merge two array classes.  We can't use the general "walk up to the
+   * Merge two array classes. We can't use the general "walk up to the
    * superclass" merge because the superclass of an array is always Object.
-   * We want String[] + Integer[] = Object[].  This works for higher dimensions
+   * We want String[] + Integer[] = Object[]. This works for higher dimensions
    * as well, e.g. String[][] + Integer[][] = Object[][].
    *
    * If Foo1 and Foo2 are subclasses of Foo, Foo1[] + Foo2[] = Foo[].
@@ -1154,19 +1196,19 @@ class DexVerifier {
    * with the least dimension, e.g. String[][] + String[][][][] = Object[][].
    *
    * Arrays of primitive types effectively have one less dimension when
-   * merging.  int[] + float[] = Object, int[] + String[] = Object,
-   * int[][] + float[][] = Object[], int[][] + String[] = Object[].  (The
+   * merging. int[] + float[] = Object, int[] + String[] = Object,
+   * int[][] + float[][] = Object[], int[][] + String[] = Object[]. (The
    * only time this function doesn't return an array class is when one of
    * the arguments is a 1-dimensional primitive array.)
    *
    * This gets a little awkward because we may have to ask the VM to create
-   * a new array type with the appropriate element and dimensions.  However, we
+   * a new array type with the appropriate element and dimensions. However, we
    * shouldn't be doing this often.
    */
   static Class* FindCommonArraySuperclass(Class* c1, Class* c2);
 
   /*
-   * Find the first common superclass of the two classes.  We're not
+   * Find the first common superclass of the two classes. We're not
    * interested in common interfaces.
    *
    * The easiest way to do this for concrete classes is to compute the "class
@@ -1177,21 +1219,21 @@ class DexVerifier {
    * element type.
    *
    * If one class is an interface, we check to see if the other class/interface
-   * (or one of its predecessors) implements the interface.  If so, we return
+   * (or one of its predecessors) implements the interface. If so, we return
    * the interface; otherwise, we return Object.
    *
-   * NOTE: we continue the tradition of "lazy interface handling".  To wit,
+   * NOTE: we continue the tradition of "lazy interface handling". To wit,
    * suppose we have three classes:
    *   One implements Fancy, Free
    *   Two implements Fancy, Free
    *   Three implements Free
-   * where Fancy and Free are unrelated interfaces.  The code requires us
-   * to merge One into Two.  Ideally we'd use a common interface, which
+   * where Fancy and Free are unrelated interfaces. The code requires us
+   * to merge One into Two. Ideally we'd use a common interface, which
    * gives us a choice between Fancy and Free, and no guidance on which to
-   * use.  If we use Free, we'll be okay when Three gets merged in, but if
-   * we choose Fancy, we're hosed.  The "ideal" solution is to create a
+   * use. If we use Free, we'll be okay when Three gets merged in, but if
+   * we choose Fancy, we're hosed. The "ideal" solution is to create a
    * set of common interfaces and carry that around, merging further references
-   * into it.  This is a pain.  The easy solution is to simply boil them
+   * into it. This is a pain. The easy solution is to simply boil them
    * down to Objects and let the runtime invokeinterface call fail, which
    * is what we do.
    */
@@ -1216,9 +1258,9 @@ class DexVerifier {
       MonitorEntries ents2, bool* changed);
 
   /*
-   * We're creating a new instance of class C at address A.  Any registers
+   * We're creating a new instance of class C at address A. Any registers
    * holding instances previously created at address A must be initialized
-   * by now.  If not, we mark them as "conflict" to prevent them from being
+   * by now. If not, we mark them as "conflict" to prevent them from being
    * used (otherwise, MarkRefsAsInitialized would mark the old ones and the
    * new ones at the same time).
    */
@@ -1284,11 +1326,11 @@ class DexVerifier {
       VerifyError* failure);
 
   /*
-   * Check constraints on constructor return.  Specifically, make sure that
+   * Check constraints on constructor return. Specifically, make sure that
    * the "this" argument got initialized.
    *
    * The "this" argument to <init> uses code offset kUninitThisArgAddr, which
-   * puts it at the start of the list in slot 0.  If we see a register with
+   * puts it at the start of the list in slot 0. If we see a register with
    * an uninitialized slot 0 reference, we know it somehow didn't get
    * initialized.
    *
@@ -1298,7 +1340,7 @@ class DexVerifier {
       const RegisterLine* register_line, const int insn_reg_count);
 
   /*
-   * Verify that the target instruction is not "move-exception".  It's important
+   * Verify that the target instruction is not "move-exception". It's important
    * that the only way to execute a move-exception is as the first instruction
    * of an exception handler.
    *
@@ -1308,11 +1350,11 @@ class DexVerifier {
   static bool CheckMoveException(const uint16_t* insns, int insn_idx);
 
   /*
-   * See if "type" matches "cat".  All we're really looking for here is that
+   * See if "type" matches "cat". All we're really looking for here is that
    * we're not mixing and matching 32-bit and 64-bit quantities, and we're
-   * not mixing references with numerics.  (For example, the arguments to
+   * not mixing references with numerics. (For example, the arguments to
    * "a < b" could be integers of different sizes, but they must both be
-   * integers.  Dalvik is less specific about int vs. float, so we treat them
+   * integers. Dalvik is less specific about int vs. float, so we treat them
    * as equivalent here.)
    *
    * For category 2 values, "type" must be the "low" half of the value.
@@ -1351,7 +1393,7 @@ class DexVerifier {
       VerifyError* failure);
 
   /*
-   * Verify types for a binary "2addr" operation.  "src_type1"/"src_type2"
+   * Verify types for a binary "2addr" operation. "src_type1"/"src_type2"
    * are verified against vA/vB, then "dst_type" is stored into vA.
    */
   static void CheckBinop2addr(RegisterLine* register_line,
@@ -1365,26 +1407,26 @@ class DexVerifier {
    * For example, right-shifting an int 24 times results in a value that can
    * be treated as a byte.
    *
-   * Things get interesting when contemplating sign extension.  Right-
+   * Things get interesting when contemplating sign extension. Right-
    * shifting an integer by 16 yields a value that can be represented in a
    * "short" but not a "char", but an unsigned right shift by 16 yields a
-   * value that belongs in a char rather than a short.  (Consider what would
+   * value that belongs in a char rather than a short. (Consider what would
    * happen if the result of the shift were cast to a char or short and then
-   * cast back to an int.  If sign extension, or the lack thereof, causes
+   * cast back to an int. If sign extension, or the lack thereof, causes
    * a change in the 32-bit representation, then the conversion was lossy.)
    *
-   * A signed right shift by 17 on an integer results in a short.  An unsigned
+   * A signed right shift by 17 on an integer results in a short. An unsigned
    * right shfit by 17 on an integer results in a posshort, which can be
    * assigned to a short or a char.
    *
    * An unsigned right shift on a short can actually expand the result into
-   * a 32-bit integer.  For example, 0xfffff123 >>> 8 becomes 0x00fffff1,
+   * a 32-bit integer. For example, 0xfffff123 >>> 8 becomes 0x00fffff1,
    * which can't be represented in anything smaller than an int.
    *
    * javac does not generate code that takes advantage of this, but some
-   * of the code optimizers do.  It's generally a peephole optimization
+   * of the code optimizers do. It's generally a peephole optimization
    * that replaces a particular sequence, e.g. (bipush 24, ishr, i2b) is
-   * replaced by (bipush 24, ishr).  Knowing that shifting a short 8 times
+   * replaced by (bipush 24, ishr). Knowing that shifting a short 8 times
    * to the right yields a byte is really more than we need to handle the
    * code that's out there, but support is not much more complex than just
    * handling integer.
@@ -1398,16 +1440,16 @@ class DexVerifier {
 
   /*
    * We're performing an operation like "and-int/2addr" that can be
-   * performed on booleans as well as integers.  We get no indication of
+   * performed on booleans as well as integers. We get no indication of
    * boolean-ness, but we can infer it from the types of the arguments.
    *
    * Assumes we've already validated reg1/reg2.
    *
-   * TODO: consider generalizing this.  The key principle is that the
+   * TODO: consider generalizing this. The key principle is that the
    * result of a bitwise operation can only be as wide as the widest of
-   * the operands.  You can safely AND/OR/XOR two chars together and know
+   * the operands. You can safely AND/OR/XOR two chars together and know
    * you still have a char, so it's reasonable for the compiler or "dx"
-   * to skip the int-to-char instruction.  (We need to do this for boolean
+   * to skip the int-to-char instruction. (We need to do this for boolean
    * because there is no int-to-boolean operation.)
    *
    * Returns true if both args are Boolean, Zero, or One.
@@ -1417,7 +1459,7 @@ class DexVerifier {
 
   /*
    * Verify types for A two-register instruction with a literal constant
-   * (e.g. "add-int/lit8").  "dst_type" is stored into vA, and "src_type" is
+   * (e.g. "add-int/lit8"). "dst_type" is stored into vA, and "src_type" is
    * verified against vB.
    *
    * If "check_boolean_op" is set, we use the constant value in vC.
@@ -1440,18 +1482,18 @@ class DexVerifier {
   static bool IsCorrectInvokeKind(MethodType method_type, Method* res_method);
 
   /*
-   * Verify the arguments to a method.  We're executing in "method", making
+   * Verify the arguments to a method. We're executing in "method", making
    * a call to the method reference in vB.
    *
-   * If this is a "direct" invoke, we allow calls to <init>.  For calls to
-   * <init>, the first argument may be an uninitialized reference.  Otherwise,
+   * If this is a "direct" invoke, we allow calls to <init>. For calls to
+   * <init>, the first argument may be an uninitialized reference. Otherwise,
    * calls to anything starting with '<' will be rejected, as will any
    * uninitialized reference arguments.
    *
    * For non-static method calls, this will verify that the method call is
    * appropriate for the "this" argument.
    *
-   * The method reference is in vBBBB.  The "is_range" parameter determines
+   * The method reference is in vBBBB. The "is_range" parameter determines
    * whether we use 0-4 "args" values or a range of registers defined by
    * vAA and vCCCC.
    *
@@ -1465,6 +1507,95 @@ class DexVerifier {
       RegisterLine* register_line, const int insn_reg_count,
       const Instruction::DecodedInstruction* dec_insn, MethodType method_type,
       bool is_range, bool is_super, VerifyError* failure);
+
+  /*
+   * Generate the register map for a method that has just been verified
+   * (i.e. we're doing this as part of verification).
+   *
+   * For type-precise determination we have all the data we need, so we
+   * just need to encode it in some clever fashion.
+   *
+   * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
+   */
+  static RegisterMap* GenerateRegisterMapV(VerifierData* vdata);
+
+  /*
+   * Determine if the RegType value is a reference type.
+   *
+   * Ordinarily we include kRegTypeZero in the "is it a reference"
+   * check. There's no value in doing so here, because we know
+   * the register can't hold anything but zero.
+   */
+  static inline bool IsReferenceType(RegType type) {
+    return (type > kRegTypeMAX || type == kRegTypeUninit);
+  }
+
+  /* Toggle the value of the "idx"th bit in "ptr". */
+  static inline void ToggleBit(uint8_t* ptr, int idx) {
+    ptr[idx >> 3] ^= 1 << (idx & 0x07);
+  }
+
+  /*
+   * Given a line of registers, output a bit vector that indicates whether
+   * or not the register holds a reference type (which could be null).
+   *
+   * We use '1' to indicate it's a reference, '0' for anything else (numeric
+   * value, uninitialized data, merge conflict). Register 0 will be found
+   * in the low bit of the first byte.
+   */
+  static void OutputTypeVector(const RegType* regs, int insn_reg_count,
+      uint8_t* data);
+
+  /*
+   * Double-check the map.
+   *
+   * We run through all of the data in the map, and compare it to the original.
+   * Only works on uncompressed data.
+   */
+  static bool VerifyMap(VerifierData* vdata, const RegisterMap* map);
+
+  /* Compare two register maps. Returns true if they're equal, false if not. */
+  static bool CompareMaps(const RegisterMap* map1, const RegisterMap* map2);
+
+  /* Compute the size, in bytes, of a register map. */
+  static size_t ComputeRegisterMapSize(const RegisterMap* map);
+
+  /*
+   * Compute the difference between two bit vectors.
+   *
+   * If "leb_out_buf" is non-NULL, we output the bit indices in ULEB128 format
+   * as we go. Otherwise, we just generate the various counts.
+   *
+   * The bit vectors are compared byte-by-byte, so any unused bits at the
+   * end must be zero.
+   *
+   * Returns the number of bytes required to hold the ULEB128 output.
+   *
+   * If "first_bit_changed_ptr" or "num_bits_changed_ptr" are non-NULL, they
+   * will receive the index of the first changed bit and the number of changed
+   * bits, respectively.
+   */
+  static int ComputeBitDiff(const uint8_t* bits1, const uint8_t* bits2,
+      int byte_width, int* first_bit_changed_ptr, int* num_bits_changed_ptr,
+      uint8_t* leb_out_buf);
+
+  /*
+   * Compress the register map with differential encoding.
+   *
+   * On success, returns a newly-allocated RegisterMap. If the map is not
+   * compatible for some reason, or fails to get smaller, this will return NULL.
+   */
+  static RegisterMap* CompressMapDifferential(const RegisterMap* map);
+
+  /*
+   * Expand a compressed map to an uncompressed form.
+   *
+   * Returns a newly-allocated RegisterMap on success, or NULL on failure.
+   *
+   * TODO: consider using the linear allocator or a custom allocator with
+   * LRU replacement for these instead of the native heap.
+   */
+  static RegisterMap* UncompressMapDifferential(const RegisterMap* map);
 
   DISALLOW_COPY_AND_ASSIGN(DexVerifier);
 };

@@ -145,7 +145,7 @@ bool DexVerifier::VerifyMethod(Method* method) {
   }
 
   /*
-   * Sanity-check the register counts.  ins + locals = registers, so make
+   * Sanity-check the register counts. ins + locals = registers, so make
    * sure that ins <= registers.
    */
   if (code_item->ins_size_ > code_item->registers_size_) {
@@ -204,7 +204,7 @@ bool DexVerifier::VerifyInstructions(VerifierData* vdata) {
 
   while (width < insns_size) {
     if (!VerifyInstruction(vdata, inst, width)) {
-      LOG(ERROR) << "VFY:  rejecting opcode 0x" << std::hex
+      LOG(ERROR) << "VFY: rejecting opcode 0x" << std::hex
                  << (int) inst->Opcode() << " at 0x" << width << std::dec;
       return false;
     }
@@ -316,6 +316,7 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
   const DexFile::CodeItem* code_item = vdata->code_item_;
   uint16_t registers_size = code_item->registers_size_;
   uint32_t insns_size = code_item->insns_size_;
+  bool generate_register_map = true;
   RegisterTable reg_table;
 
   if (registers_size * insns_size > 4*1024*1024) {
@@ -324,7 +325,8 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
   }
 
   /* Create and initialize register lists. */
-  if (!InitRegisterTable(vdata, &reg_table, kTrackRegsGcPoints)) {
+  if (!InitRegisterTable(vdata, &reg_table,
+      generate_register_map ? kTrackRegsGcPoints : kTrackRegsBranches)) {
     return false;
   }
 
@@ -347,8 +349,16 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
     return false;
   }
 
-  /* TODO: Generate a register map. */
-
+  /* Generate a register map. */
+  if (generate_register_map) {
+    RegisterMap* map = GenerateRegisterMapV(vdata);
+    /*
+     * Tuck the map into the Method. It will either get used directly or, if
+     * we're in dexopt, will be packed up and appended to the DEX file.
+     */
+    // TODO: Put the map somewhere...
+    delete map;
+  }
 
   return true;
 }
@@ -792,7 +802,7 @@ bool DexVerifier::CheckBranchTarget(const DexFile::CodeItem* code_item,
   }
 
   /*
-   * Check for 32-bit overflow.  This isn't strictly necessary if we can
+   * Check for 32-bit overflow. This isn't strictly necessary if we can
    * depend on the VM to have identical "wrap-around" behavior, but
    * it's unwise to depend on that.
    */
@@ -824,7 +834,7 @@ bool DexVerifier::InitRegisterTable(VerifierData* vdata,
   uint32_t i;
 
   /*
-   * Every address gets a RegisterLine struct.  This is wasteful, but
+   * Every address gets a RegisterLine struct. This is wasteful, but
    * not so much that it's worth chasing through an extra level of
    * indirection.
    */
@@ -932,17 +942,15 @@ bool DexVerifier::IsInitMethod(const Method* method) {
 Class* DexVerifier::LookupClassByDescriptor(const Method* method,
     const char* descriptor, VerifyError* failure) {
   /*
-   * The compiler occasionally puts references to nonexistent
-   * classes in signatures.  For example, if you have a non-static
-   * inner class with no constructor, the compiler provides
-   * a private <init> for you.  Constructing the class
-   * requires <init>(parent), but the outer class can't call
-   * that because the method is private.  So the compiler
-   * generates a package-scope <init>(parent,bogus) method that
-   * just calls the regular <init> (the "bogus" part being necessary
-   * to distinguish the signature of the synthetic method).
-   * Treating the bogus class as an instance of java.lang.Object
-   * allows the verifier to process the class successfully.
+   * The compiler occasionally puts references to nonexistent classes in
+   * signatures. For example, if you have a non-static inner class with no
+   * constructor, the compiler provides a private <init> for you.
+   * Constructing the class requires <init>(parent), but the outer class can't
+   * call that because the method is private. So the compiler generates a
+   * package-scope <init>(parent,bogus) method that just calls the regular
+   * <init> (the "bogus" part being necessary to distinguish the signature of
+   * the synthetic method). Treating the bogus class as an instance of
+   * java.lang.Object allows the verifier to process the class successfully.
    */
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const ClassLoader* class_loader =
@@ -971,12 +979,11 @@ Class* DexVerifier::LookupClassByDescriptor(const Method* method,
       }
 
       /*
-       * Try to continue with base array type.  This will let
-       * us pass basic stuff (e.g. get array len) that wouldn't
-       * fly with an Object.  This is NOT correct if the
-       * missing type is a primitive array, but we should never
-       * have a problem loading those.  (I'm not convinced this
-       * is correct or even useful.  Just use Object here?)
+       * Try to continue with base array type. This will let us pass basic
+       * stuff (e.g. get array len) that wouldn't fly with an Object. This
+       * is NOT correct if the missing type is a primitive array, but we
+       * should never have a problem loading those. (I'm not convinced this
+       * is correct or even useful. Just use Object here?)
        */
       klass = class_linker->FindClass("[Ljava/lang/Object;", class_loader);
     } else if (descriptor[0] == 'L') {
@@ -1061,7 +1068,7 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
   if (!method->IsStatic()) {
     /*
      * If this is a constructor for a class other than java.lang.Object,
-     * mark the first ("this") argument as uninitialized.  This restricts
+     * mark the first ("this") argument as uninitialized. This restricts
      * field access until the superclass constructor is called.
      */
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -1100,12 +1107,11 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
       case 'L':
       case '[':
         /*
-         * We assume that reference arguments are initialized.  The
-         * only way it could be otherwise (assuming the caller was
-         * verified) is if the current method is <init>, but in that
-         * case it's effectively considered initialized the instant
-         * we reach here (in the sense that we can return without
-         * doing anything or call virtual methods).
+         * We assume that reference arguments are initialized. The only way
+         * it could be otherwise (assuming the caller was verified) is if
+         * the current method is <init>, but in that case it's effectively
+         * considered initialized the instant we reach here (in the sense
+         * that we can return without doing anything or call virtual methods).
          */
         {
           Class* klass =
@@ -1166,8 +1172,8 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
   const char* descriptor = dex_file->GetReturnTypeDescriptor(proto_id);
 
   /*
-   * Validate return type.  We don't do the type lookup; just want to make
-   * sure that it has the right format.  Only major difference from the
+   * Validate return type. We don't do the type lookup; just want to make
+   * sure that it has the right format. Only major difference from the
    * method argument format is that 'V' is supported.
    */
   switch (*descriptor) {
@@ -1216,7 +1222,7 @@ int DexVerifier::SetUninitInstance(UninitInstanceMap* uninit_map, int addr,
   int idx;
   assert(klass != NULL);
 
-  /* TODO: binary search when numEntries > 8 */
+  /* TODO: binary search when num_entries > 8 */
   for (idx = uninit_map->num_entries_ - 1; idx >= 0; idx--) {
     if (uninit_map->map_[idx].addr_ == addr) {
       if (uninit_map->map_[idx].klass_ != NULL &&
@@ -1253,7 +1259,7 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
   /* Continue until no instructions are marked "changed". */
   while (true) {
     /*
-     * Find the first marked one.  Use "start_guess" as a way to find
+     * Find the first marked one. Use "start_guess" as a way to find
      * one quickly.
      */
     for (insn_idx = start_guess; insn_idx < insns_size; insn_idx++) {
@@ -1273,15 +1279,14 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
     }
 
     /*
-     * We carry the working set of registers from instruction to
-     * instruction.  If this address can be the target of a branch
-     * (or throw) instruction, or if we're skipping around chasing
-     * "changed" flags, we need to load the set of registers from
-     * the table.
+     * We carry the working set of registers from instruction to instruction.
+     * If this address can be the target of a branch (or throw) instruction,
+     * or if we're skipping around chasing "changed" flags, we need to load
+     * the set of registers from the table.
      *
-     * Because we always prefer to continue on to the next instruction,
-     * we should never have a situation where we have a stray
-     * "changed" flag set on an instruction that isn't a branch target.
+     * Because we always prefer to continue on to the next instruction, we
+     * should never have a situation where we have a stray "changed" flag set
+     * on an instruction that isn't a branch target.
      */
     if (InsnIsBranchTarget(insn_flags, insn_idx)) {
       RegisterLine* work_line = &reg_table->work_line_;
@@ -1320,7 +1325,7 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
 
   if (DEAD_CODE_SCAN && ((method->GetAccessFlags() & kAccWritable) == 0)) {
     /*
-     * Scan for dead code.  There's nothing "evil" about dead code
+     * Scan for dead code. There's nothing "evil" about dead code
      * (besides the wasted space), but it indicates a flaw somewhere
      * down the line, possibly in the verifier.
      *
@@ -1331,7 +1336,7 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
     for (insn_idx = 0; insn_idx < insns_size;
          insn_idx += InsnGetWidth(insn_flags, insn_idx)) {
       /*
-       * Switch-statement data doesn't get "visited" by scanner.  It
+       * Switch-statement data doesn't get "visited" by scanner. It
        * may or may not be preceded by a padding NOP (for alignment).
        */
       if (insns[insn_idx] == Instruction::kPackedSwitchSignature ||
@@ -1392,14 +1397,14 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
   /*
    * Once we finish decoding the instruction, we need to figure out where
-   * we can go from here.  There are three possible ways to transfer
+   * we can go from here. There are three possible ways to transfer
    * control to another statement:
    *
-   * (1) Continue to the next instruction.  Applies to all but
+   * (1) Continue to the next instruction. Applies to all but
    *     unconditional branches, method returns, and exception throws.
-   * (2) Branch to one or more possible locations.  Applies to branches
+   * (2) Branch to one or more possible locations. Applies to branches
    *     and switch statements.
-   * (3) Exception handlers.  Applies to any instruction that can
+   * (3) Exception handlers. Applies to any instruction that can
    *     throw an exception that is handled by an encompassing "try"
    *     block.
    *
@@ -1422,7 +1427,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
   VerifyError failure = VERIFY_ERROR_NONE;
 
   /*
-   * Make a copy of the previous register state.  If the instruction
+   * Make a copy of the previous register state. If the instruction
    * can throw an exception, we will copy/merge this into the "catch"
    * address rather than work_line, because we don't want the result
    * from the "successful" code path (e.g. a check-cast that "improves"
@@ -1442,7 +1447,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
   switch (dec_insn.opcode_) {
     case Instruction::NOP:
       /*
-       * A "pure" NOP has no effect on anything.  Data tables start with
+       * A "pure" NOP has no effect on anything. Data tables start with
        * a signature that looks like a NOP; if we see one of these in
        * the course of executing code then we have a problem.
        */
@@ -1472,12 +1477,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
     /*
      * The move-result instructions copy data out of a "pseudo-register"
-     * with the results from the last method invocation.  In practice we
+     * with the results from the last method invocation. In practice we
      * might want to hold the result in an actual CPU register, so the
      * Dalvik spec requires that these only appear immediately after an
      * invoke or filled-new-array.
      *
-     * These calls invalidate the "result" register.  (This is now
+     * These calls invalidate the "result" register. (This is now
      * redundant with the reset done below, but it can make the debug info
      * easier to read in some cases.)
      */
@@ -1497,7 +1502,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       /*
        * This statement can only appear as the first instruction in an
        * exception handler (though not all exception handlers need to
-       * have one of these).  We verify that as part of extracting the
+       * have one of these). We verify that as part of extracting the
        * exception type from the catch block list.
        *
        * "res_class" will hold the closest common superclass of all
@@ -1585,7 +1590,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
         /*
          * Verify that the reference in vAA is an instance of the type
-         * in "return_type".  The Zero type is allowed here.  If the
+         * in "return_type". The Zero type is allowed here. If the
          * method is declared to return an interface, then any
          * initialized reference is acceptable.
          *
@@ -1659,21 +1664,21 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       break;
     case Instruction::MONITOR_EXIT:
       /*
-       * monitor-exit instructions are odd.  They can throw exceptions,
+       * monitor-exit instructions are odd. They can throw exceptions,
        * but when they do they act as if they succeeded and the PC is
-       * pointing to the following instruction.  (This behavior goes back
+       * pointing to the following instruction. (This behavior goes back
        * to the need to handle asynchronous exceptions, a now-deprecated
        * feature that Dalvik doesn't support.)
        *
-       * In practice we don't need to worry about this.  The only
+       * In practice we don't need to worry about this. The only
        * exceptions that can be thrown from monitor-exit are for a
-       * null reference and -exit without a matching -enter.  If the
+       * null reference and -exit without a matching -enter. If the
        * structured locking checks are working, the former would have
        * failed on the -enter instruction, and the latter is impossible.
        *
        * This is fortunate, because issue 3221411 prevents us from
        * chasing the "can throw" path when monitor verification is
-       * enabled.  If we can fully verify the locking we can ignore
+       * enabled. If we can fully verify the locking we can ignore
        * some catch blocks (which will show up as "dead" code when
        * we skip them here); if we can't, then the code path could be
        * "live" so we still need to check it.
@@ -1686,7 +1691,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
     case Instruction::CHECK_CAST:
       /*
        * If this instruction succeeds, we will promote register vA to
-       * the type in vB.  (This could be a demotion -- not expected, so
+       * the type in vB. (This could be a demotion -- not expected, so
        * we don't try to address it.)
        *
        * If it fails, an exception is thrown, which we deal with later
@@ -2100,7 +2105,7 @@ aget_1nr_common:
           }
         } else {
           /*
-           * Null array ref; this code path will fail at runtime.  We
+           * Null array ref; this code path will fail at runtime. We
            * know this is either long or double, so label it const.
            */
           dst_type = kRegTypeConstLo;
@@ -2134,7 +2139,7 @@ aget_1nr_common:
           assert(res_class->GetComponentType() != NULL);
 
           /*
-           * Find the element class.  res_class->GetComponentType() indicates
+           * Find the element class. res_class->GetComponentType() indicates
            * the basic type, which won't be what we want for a
            * multi-dimensional array.
            */
@@ -2158,7 +2163,7 @@ aget_1nr_common:
         } else {
           /*
            * The array reference is NULL, so the current code path will
-           * throw an exception.  For proper merging with later code
+           * throw an exception. For proper merging with later code
            * paths, and correct handling of "if-eqz" tests on the
            * result of the array get, we want to treat this as a null
            * reference.
@@ -2292,7 +2297,7 @@ aput_1nr_common:
         Class* element_class;
 
         /*
-         * Get the array class.  If the array ref is null, we won't
+         * Get the array class. If the array ref is null, we won't
          * have type information (and we'll crash at runtime with a
          * null pointer exception).
          */
@@ -2308,12 +2313,12 @@ aput_1nr_common:
           }
 
           /*
-           * Find the element class.  res_class->GetComponentType() indicates
+           * Find the element class. res_class->GetComponentType() indicates
            * the basic type, which won't be what we want for a
            * multi-dimensional array.
            *
            * All we want to check here is that the element type is a
-           * reference class.  We *don't* check instanceof here, because
+           * reference class. We *don't* check instanceof here, because
            * you can still put a String into a String[] after the latter
            * has been cast to an Object[].
            */
@@ -2730,7 +2735,7 @@ sput_1nr_common:
           break;
 
         /*
-         * Get type of field we're storing into.  We know that the
+         * Get type of field we're storing into. We know that the
          * contents of the register match the instruction, but we also
          * need to ensure that the instruction matches the field type.
          * Using e.g. sput-short to write into a 32-bit integer field
@@ -2899,9 +2904,9 @@ sput_1nr_common:
           break;
 
         /*
-         * Some additional checks when calling <init>.  We know from
+         * Some additional checks when calling <init>. We know from
          * the invocation arg check that the "this" argument is an
-         * instance of called_method->klass.  Now we further restrict
+         * instance of called_method->klass. Now we further restrict
          * that to require that called_method->klass is the same as
          * this->klass or this->super, allowing the latter only if
          * the "this" argument is the same as the "this" argument to
@@ -2950,7 +2955,7 @@ sput_1nr_common:
 
           /*
            * Replace the uninitialized reference with an initialized
-           * one, and clear the entry in the uninit map.  We need to
+           * one, and clear the entry in the uninit map. We need to
            * do this for all registers that have the same object
            * instance in them, not just the "this" register.
            */
@@ -2998,7 +3003,7 @@ sput_1nr_common:
 #if 0   /* can't do this here, fails on dalvik test 052-verifier-fun */
         /*
          * Get the type of the "this" arg, which should always be an
-         * interface class.  Because we don't do a full merge on
+         * interface class. Because we don't do a full merge on
          * interface classes, this might have reduced to Object.
          */
         this_type = GetInvocationThis(work_line, &dec_insn, &failure);
@@ -3020,7 +3025,7 @@ sput_1nr_common:
           /*
            * Either "this_class" needs to be the interface class that
            * defined abs_method, or abs_method's class needs to be one
-           * of the interfaces implemented by "this_class".  (Or, if
+           * of the interfaces implemented by "this_class". (Or, if
            * we couldn't complete the merge, this will be Object.)
            */
           if (this_class != abs_method->GetDeclaringClass() &&
@@ -3038,7 +3043,7 @@ sput_1nr_common:
 
         /*
          * We don't have an object instance, so we can't find the
-         * concrete method.  However, all of the type information is
+         * concrete method. However, all of the type information is
          * in the abstract method, so we're good.
          */
         return_type = GetMethodReturnType(dex_file, abs_method);
@@ -3265,7 +3270,7 @@ sput_1nr_common:
 
     /*
      * This falls into the general category of "optimized" instructions,
-     * which don't generally appear during verification.  Because it's
+     * which don't generally appear during verification. Because it's
      * inserted in the course of verification, we can expect to see it here.
      */
     //case Instruction::THROW_VERIFICATION_ERROR:
@@ -3274,32 +3279,32 @@ sput_1nr_common:
 
     /*
      * Verifying "quickened" instructions is tricky, because we have
-     * discarded the original field/method information.  The byte offsets
+     * discarded the original field/method information. The byte offsets
      * and vtable indices only have meaning in the context of an object
      * instance.
      *
      * If a piece of code declares a local reference variable, assigns
      * null to it, and then issues a virtual method call on it, we
-     * cannot evaluate the method call during verification.  This situation
+     * cannot evaluate the method call during verification. This situation
      * isn't hard to handle, since we know the call will always result in an
-     * NPE, and the arguments and return value don't matter.  Any code that
+     * NPE, and the arguments and return value don't matter. Any code that
      * depends on the result of the method call is inaccessible, so the
      * fact that we can't fully verify anything that comes after the bad
      * call is not a problem.
      *
      * We must also consider the case of multiple code paths, only some of
-     * which involve a null reference.  We can completely verify the method
+     * which involve a null reference. We can completely verify the method
      * if we sidestep the results of executing with a null reference.
      * For example, if on the first pass through the code we try to do a
      * virtual method invocation through a null ref, we have to skip the
      * method checks and have the method return a "wildcard" type (which
-     * merges with anything to become that other thing).  The move-result
+     * merges with anything to become that other thing). The move-result
      * will tell us if it's a reference, single-word numeric, or double-word
-     * value.  We continue to perform the verification, and at the end of
+     * value. We continue to perform the verification, and at the end of
      * the function any invocations that were never fully exercised are
      * marked as null-only.
      *
-     * We would do something similar for the field accesses.  The field's
+     * We would do something similar for the field accesses. The field's
      * type, once known, can be used to recover the width of short integers.
      * If the object reference was null, the field-get returns the "wildcard"
      * type, which is acceptable for any operation.
@@ -3332,9 +3337,9 @@ sput_1nr_common:
 
     /*
      * These instructions are equivalent (from the verifier's point of view)
-     * to the original form.  The change was made for correctness rather
+     * to the original form. The change was made for correctness rather
      * than improved performance (except for invoke-object-init, which
-     * provides both).  The substitution takes place after verification
+     * provides both). The substitution takes place after verification
      * completes, though, so we don't expect to see them here.
      */
     case Instruction::UNUSED_F0:
@@ -3385,7 +3390,7 @@ sput_1nr_common:
       break;
 
     /*
-     * DO NOT add a "default" clause here.  Without it the compiler will
+     * DO NOT add a "default" clause here. Without it the compiler will
      * complain if an instruction is missing (which is desirable).
      */
     }
@@ -3418,9 +3423,9 @@ sput_1nr_common:
   }
 
   /*
-   * If we didn't just set the result register, clear it out.  This
+   * If we didn't just set the result register, clear it out. This
    * ensures that you can only use "move-result" immediately after the
-   * result is set.  (We could check this statically, but it's not
+   * result is set. (We could check this statically, but it's not
    * expensive and it makes our debugging output cleaner.)
    */
   if (!just_set_result) {
@@ -3430,7 +3435,7 @@ sput_1nr_common:
   }
 
   /*
-   * Handle "continue".  Tag the next consecutive instruction.
+   * Handle "continue". Tag the next consecutive instruction.
    */
   if ((opcode_flag & Instruction::kContinue) != 0) {
     size_t insn_width = InsnGetWidth(insn_flags, insn_idx);
@@ -3442,7 +3447,7 @@ sput_1nr_common:
 
     /*
      * The only way to get to a move-exception instruction is to get
-     * thrown there.  Make sure the next instruction isn't one.
+     * thrown there. Make sure the next instruction isn't one.
      */
     if (!CheckMoveException(code_item->insns_, insn_idx + insn_width))
       return false;
@@ -3458,7 +3463,7 @@ sput_1nr_common:
     } else {
       /*
        * We're not recording register data for the next instruction,
-       * so we don't know what the prior state was.  We have to
+       * so we don't know what the prior state was. We have to
        * assume that something has changed and re-evaluate it.
        */
       InsnSetChanged(insn_flags, insn_idx + insn_width, true);
@@ -3466,13 +3471,13 @@ sput_1nr_common:
   }
 
   /*
-   * Handle "branch".  Tag the branch target.
+   * Handle "branch". Tag the branch target.
    *
    * NOTE: instructions like Instruction::EQZ provide information about the
-   * state of the register when the branch is taken or not taken.  For example,
+   * state of the register when the branch is taken or not taken. For example,
    * somebody could get a reference field, check it for zero, and if the
    * branch is taken immediately store that register in a boolean field
-   * since the value is known to be zero.  We do not currently account for
+   * since the value is known to be zero. We do not currently account for
    * that, and will reject the code.
    *
    * TODO: avoid re-fetching the branch target
@@ -3499,7 +3504,7 @@ sput_1nr_common:
   }
 
   /*
-   * Handle "switch".  Tag all possible branch targets.
+   * Handle "switch". Tag all possible branch targets.
    *
    * We've already verified that the table is structurally sound, so we
    * just need to walk through and tag the targets.
@@ -3541,7 +3546,7 @@ sput_1nr_common:
 
   /*
    * Handle instructions that can throw and that are sitting in a
-   * "try" block.  (If they're not in a "try" block when they throw,
+   * "try" block. (If they're not in a "try" block when they throw,
    * control transfers out of the method.)
    */
   if ((opcode_flag & Instruction::kThrow) != 0 &&
@@ -3555,10 +3560,10 @@ sput_1nr_common:
         has_catch_all = true;
 
       /*
-       * Merge registers into the "catch" block.  We want to
-       * use the "savedRegs" rather than "work_regs", because
-       * at runtime the exception will be thrown before the
-       * instruction modifies any registers.
+       * Merge registers into the "catch" block. We want to use the
+       * "savedRegs" rather than "work_regs", because at runtime the
+       * exception will be thrown before the instruction modifies any
+       * registers.
        */
       if (!UpdateRegisters(insn_flags, reg_table, iterator.Get().address_,
           &reg_table->saved_line_))
@@ -3567,7 +3572,7 @@ sput_1nr_common:
 
     /*
      * If the monitor stack depth is nonzero, there must be a "catch all"
-     * handler for this instruction.  This does apply to monitor-exit
+     * handler for this instruction. This does apply to monitor-exit
      * because of async exception handling.
      */
     if (work_line->monitor_stack_top_ != 0 && !has_catch_all) {
@@ -3587,9 +3592,7 @@ sput_1nr_common:
     }
   }
 
-  /*
-   * If we're returning from the method, make sure our monitor stack is empty.
-   */
+  /* If we're returning from the method, make sure monitor stack is empty. */
   if ((opcode_flag & Instruction::kReturn) != 0 &&
       work_line->monitor_stack_top_ != 0) {
     LOG(ERROR) << "VFY: return with stack depth="
@@ -3599,8 +3602,8 @@ sput_1nr_common:
   }
 
   /*
-   * Update start_guess.  Advance to the next instruction of that's
-   * possible, otherwise use the branch target if one was found.  If
+   * Update start_guess. Advance to the next instruction of that's
+   * possible, otherwise use the branch target if one was found. If
    * neither of those exists we're in a return or throw; leave start_guess
    * alone and let the caller sort it out.
    */
@@ -3769,7 +3772,7 @@ void DexVerifier::HandleMonitorExit(RegisterLine* work_line, uint32_t reg_idx,
 
   /*
    * Confirm that the entry at the top of the stack is associated with
-   * the register.  Pop the top entry off.
+   * the register. Pop the top entry off.
    */
   work_line->monitor_stack_top_--;
 #ifdef BUG_3215458_FIXED
@@ -3840,7 +3843,6 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
     must_be_local = true;
   }
 
-  //if (!obj_class->InstanceOf(field->GetDeclaringClass())) {
   if (!field->GetDeclaringClass()->IsAssignableFrom(obj_class)) {
     LOG(ERROR) << "VFY: invalid field access (field "
                << field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
@@ -3927,10 +3929,10 @@ Class* DexVerifier::GetCaughtExceptionType(VerifierData* vdata, int insn_idx,
           LOG(ERROR) << "VFY: unable to resolve exception class "
                      << handler.type_idx_ << " ("
                      << dex_file->dexStringByTypeIdx(handler.type_idx_) << ")";
-          /* TODO: do we want to keep going?  If we don't fail
-           * this we run the risk of having a non-Throwable
-           * introduced at runtime.  However, that won't pass
-           * an instanceof test, so is essentially harmless.
+          /* TODO: do we want to keep going?  If we don't fail this we run
+           * the risk of having a non-Throwable introduced at runtime.
+           * However, that won't pass an instanceof test, so is essentially
+           * harmless.
            */
         } else {
           if (common_super == NULL)
@@ -4054,9 +4056,9 @@ void DexVerifier::SetRegisterType(RegisterLine* register_line, uint32_t vdst,
         /*
          * In most circumstances we won't see a reference to a primitive
          * class here (e.g. "D"), since that would mean the object in the
-         * register is actually a primitive type.  It can happen as the
+         * register is actually a primitive type. It can happen as the
          * result of an assumed-successful check-cast instruction in
-         * which the second argument refers to a primitive class.  (In
+         * which the second argument refers to a primitive class. (In
          * practice, such an instruction will always throw an exception.)
          *
          * This is not an issue for instructions like const-class, where
@@ -4274,7 +4276,7 @@ void DexVerifier::CopyResultRegister1(RegisterLine* register_line,
 }
 
 /*
- * Implement "move-result-wide".  Copy the category-2 value from the result
+ * Implement "move-result-wide". Copy the category-2 value from the result
  * register to another register, and reset the result register.
  */
 void DexVerifier::CopyResultRegister2(RegisterLine* register_line,
@@ -4358,7 +4360,7 @@ Class* DexVerifier::FindCommonArraySuperclass(Class* c1, Class* c2) {
 
   if (!has_primitive && array_dim1 == array_dim2) {
     /*
-     * Two arrays of reference types with equal dimensions.  Try to
+     * Two arrays of reference types with equal dimensions. Try to
      * find a good match.
      */
     common_elem = FindCommonSuperclass(c1->GetComponentType(),
@@ -4366,7 +4368,7 @@ Class* DexVerifier::FindCommonArraySuperclass(Class* c1, Class* c2) {
     num_dims = array_dim1;
   } else {
     /*
-     * Mismatched array depths and/or array(s) of primitives.  We want
+     * Mismatched array depths and/or array(s) of primitives. We want
      * Object, or an Object array with appropriate dimensions.
      *
      * We initialize array_class to Object here, because it's possible
@@ -4380,7 +4382,7 @@ Class* DexVerifier::FindCommonArraySuperclass(Class* c1, Class* c2) {
   }
 
   /*
-   * Find an appropriately-dimensioned array class.  This is easiest
+   * Find an appropriately-dimensioned array class. This is easiest
    * to do iteratively, using the array class found by the current round
    * as the element type for the next round.
    */
@@ -4431,8 +4433,8 @@ DexVerifier::RegType DexVerifier::MergeTypes(RegType type1, RegType type2,
    * from the table with a reference type.
    *
    * Uninitialized references are composed of the enum ORed with an
-   * index value.  The uninitialized table entry at index zero *will*
-   * show up as a simple kRegTypeUninit value.  Since this cannot be
+   * index value. The uninitialized table entry at index zero *will*
+   * show up as a simple kRegTypeUninit value. Since this cannot be
    * merged with anything but itself, the rules do the right thing.
    */
   if (type1 < kRegTypeMAX) {
@@ -4491,8 +4493,8 @@ bool DexVerifier::UpdateRegisters(InsnFlags* insn_flags,
   if (!InsnIsVisitedOrChanged(insn_flags, next_insn)) {
     /*
      * We haven't processed this instruction before, and we haven't
-     * touched the registers here, so there's nothing to "merge".  Copy
-     * the registers over and mark it as changed.  (This is the only
+     * touched the registers here, so there's nothing to "merge". Copy
+     * the registers over and mark it as changed. (This is the only
      * way a register can transition out of "unknown", so this is not
      * just an optimization.)
      */
@@ -4651,7 +4653,7 @@ void DexVerifier::CheckArrayIndexType(const Method* method, RegType reg_type,
     VerifyError* failure) {
   if (*failure == VERIFY_ERROR_NONE) {
     /*
-     * The 1nr types are interchangeable at this level.  We could
+     * The 1nr types are interchangeable at this level. We could
      * do something special if we can definitively identify it as a
      * float, but there's no real value in doing so.
      */
@@ -4909,8 +4911,8 @@ void DexVerifier::VerifyFilledNewArrayRegs(const Method* method,
   }
 
   /*
-   * Verify each register.  If "arg_count" is bad, VerifyRegisterType()
-   * will run off the end of the list and fail.  It's legal, if silly,
+   * Verify each register. If "arg_count" is bad, VerifyRegisterType()
+   * will run off the end of the list and fail. It's legal, if silly,
    * for arg_count to be zero.
    */
   for (ui = 0; ui < arg_count; ui++) {
@@ -4965,7 +4967,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   int actual_args;
 
   /*
-   * Resolve the method.  This could be an abstract or concrete method
+   * Resolve the method. This could be an abstract or concrete method
    * depending on what sort of call we're making.
    */
   res_method = class_linker->ResolveMethod(*dex_file, dec_insn->vB_, dex_cache,
@@ -4985,7 +4987,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
 
   /*
    * Only time you can explicitly call a method starting with '<' is when
-   * making a "direct" invocation on "<init>".  There are additional
+   * making a "direct" invocation on "<init>". There are additional
    * restrictions but we don't enforce them here.
    */
   if (res_method->GetName()->Equals("<init>")) {
@@ -5039,7 +5041,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
 
   /*
    * We use vAA as our expected arg count, rather than res_method->insSize,
-   * because we need to match the call to the signature.  Also, we might
+   * because we need to match the call to the signature. Also, we might
    * might be calling through an abstract method definition (which doesn't
    * have register count values).
    */
@@ -5064,7 +5066,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
 
   /*
    * Check the "this" argument, which must be an instance of the class
-   * that declared the method.  For an interface class, we don't do the
+   * that declared the method. For an interface class, we don't do the
    * full interface merge, so we can't do a rigorous check here (which
    * is okay since we have to do it at runtime).
    */
@@ -5098,7 +5100,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   }
 
   /*
-   * Process the target method's signature.  This signature may or may not
+   * Process the target method's signature. This signature may or may not
    * have been verified, so we can't assume it's properly formed.
    */
   for (sig_offset = 1; sig_offset < sig.size(); sig_offset++) {
@@ -5218,6 +5220,597 @@ bad_sig:
   if (*failure == VERIFY_ERROR_NONE)
     *failure = VERIFY_ERROR_GENERIC;
   return NULL;
+}
+
+DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
+{
+  const DexFile::CodeItem* code_item = vdata->code_item_;
+  int i, bytes_for_addr, gc_point_count;
+
+  if (code_item->registers_size_ >= 2048) {
+    LOG(ERROR) << "ERROR: register map can't handle "
+               << code_item->registers_size_ << " registers";
+    return NULL;
+  }
+  uint8_t reg_width = (code_item->registers_size_ + 7) / 8;
+
+  /*
+   * Decide if we need 8 or 16 bits to hold the address. Strictly speaking
+   * we only need 16 bits if we actually encode an address >= 256 -- if
+   * the method has a section at the end without GC points (e.g. array
+   * data) we don't need to count it. The situation is unusual, and
+   * detecting it requires scanning the entire method, so we don't bother.
+   */
+  RegisterMapFormat format;
+  if (code_item->insns_size_ < 256) {
+    format = kRegMapFormatCompact8;
+    bytes_for_addr = 1;
+  } else {
+    format = kRegMapFormatCompact16;
+    bytes_for_addr = 2;
+  }
+
+  /*
+   * Count up the number of GC point instructions.
+   *
+   * NOTE: this does not automatically include the first instruction,
+   * since we don't count method entry as a GC point.
+   */
+  gc_point_count = 0;
+  for (i = 0; i < (int) code_item->insns_size_; i++) {
+    if (InsnIsGcPoint(vdata->insn_flags_.get(), i))
+      gc_point_count++;
+  }
+  if (gc_point_count >= 65536) {
+    /* We could handle this, but in practice we don't get near this. */
+    LOG(ERROR) << "ERROR: register map can't handle " << gc_point_count
+               << " gc points in one method";
+    return NULL;
+  }
+
+  /* Calculate size of buffer to hold the map data. */
+  uint32_t data_size = gc_point_count * (bytes_for_addr + reg_width);
+
+  RegisterMap* map = new RegisterMap(format, reg_width, gc_point_count,
+      true, data_size);
+
+  /* Populate it. */
+  uint8_t* map_data = map->data_.get();
+  for (i = 0; i < (int) vdata->code_item_->insns_size_; i++) {
+    if (InsnIsGcPoint(vdata->insn_flags_.get(), i)) {
+      assert(vdata->register_lines_[i].reg_types_.get() != NULL);
+      if (format == kRegMapFormatCompact8) {
+        *map_data++ = i;
+      } else /*kRegMapFormatCompact16*/ {
+        *map_data++ = i & 0xff;
+        *map_data++ = i >> 8;
+      }
+      OutputTypeVector(vdata->register_lines_[i].reg_types_.get(),
+          code_item->registers_size_, map_data);
+      map_data += reg_width;
+    }
+  }
+
+  assert((uint32_t) map_data - (uint32_t) map->data_.get() == data_size);
+
+  // TODO: Remove this check when it's really running...
+#if 1
+  if (!VerifyMap(vdata, map)) {
+    LOG(ERROR) << "Map failed to verify";
+    return NULL;
+  }
+#endif
+
+  /* Try to compress the map. */
+  RegisterMap* compress_map = CompressMapDifferential(map);
+  if (compress_map != NULL) {
+    // TODO: Remove this check when it's really running...
+#if 1
+    /*
+     * Expand the compressed map we just created, and compare it
+     * to the original. Abort the VM if it doesn't match up.
+     */
+    UniquePtr<RegisterMap> uncompressed_map(UncompressMapDifferential(compress_map));
+    if (uncompressed_map.get() == NULL) {
+      LOG(ERROR) << "Map failed to uncompress - "
+                 << vdata->method_->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
+                 << "." << vdata->method_->GetName()->ToModifiedUtf8();
+      delete map;
+      delete compress_map;
+      /* bad - compression is broken or we're out of memory */
+      return NULL;
+    } else {
+      if (!CompareMaps(map, uncompressed_map.get())) {
+        LOG(ERROR) << "Map comparison failed - "
+                   << vdata->method_->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
+                   << "." << vdata->method_->GetName()->ToModifiedUtf8();
+        delete map;
+        delete compress_map;
+        /* bad - compression is broken */
+        return NULL;
+      }
+    }
+#endif
+    delete map;
+    map = compress_map;
+  }
+
+  return map;
+}
+
+void DexVerifier::OutputTypeVector(const RegType* regs, int insn_reg_count,
+    uint8_t* data) {
+  uint8_t val = 0;
+  int i;
+
+  for (i = 0; i < insn_reg_count; i++) {
+    RegType type = *regs++;
+    val >>= 1;
+    if (IsReferenceType(type))
+      val |= 0x80;        /* set hi bit */
+
+    if ((i & 0x07) == 7)
+      *data++ = val;
+  }
+  if ((i & 0x07) != 0) {
+    /* Flush bits from last byte. */
+    val >>= 8 - (i & 0x07);
+    *data++ = val;
+  }
+}
+
+bool DexVerifier::VerifyMap(VerifierData* vdata, const RegisterMap* map) {
+  const uint8_t* raw_map = map->data_.get();
+  uint8_t format = map->format_;
+  const int num_entries = map->num_entries_;
+  int ent;
+
+  if ((vdata->code_item_->registers_size_ + 7) / 8 != map->reg_width_) {
+    LOG(ERROR) << "GLITCH: registersSize=" << vdata->code_item_->registers_size_
+               << ", reg_width=" << map->reg_width_;
+    return false;
+  }
+
+  for (ent = 0; ent < num_entries; ent++) {
+    int addr;
+
+    switch (format) {
+      case kRegMapFormatCompact8:
+        addr = *raw_map++;
+        break;
+      case kRegMapFormatCompact16:
+        addr = *raw_map++;
+        addr |= (*raw_map++) << 8;
+        break;
+      default:
+        LOG(FATAL) << "GLITCH: bad format (" << format << ")";
+        return false;
+    }
+
+    const RegType* regs = vdata->register_lines_[addr].reg_types_.get();
+    if (regs == NULL) {
+      LOG(ERROR) << "GLITCH: addr " << addr << " has no data";
+      return false;
+    }
+
+    uint8_t val = 0;
+    int i;
+
+    for (i = 0; i < vdata->code_item_->registers_size_; i++) {
+      bool bit_is_ref, reg_is_ref;
+
+      val >>= 1;
+      if ((i & 0x07) == 0) {
+        /* Load next byte of data. */
+        val = *raw_map++;
+      }
+
+      bit_is_ref = val & 0x01;
+
+      RegType type = regs[i];
+      reg_is_ref = IsReferenceType(type);
+
+      if (bit_is_ref != reg_is_ref) {
+        LOG(ERROR) << "GLITCH: addr " << addr << " reg " << i << ": bit="
+                   << bit_is_ref << " reg=" << reg_is_ref << "(" << type << ")";
+        return false;
+      }
+    }
+    /* Raw_map now points to the address field of the next entry. */
+  }
+
+  return true;
+}
+
+bool DexVerifier::CompareMaps(const RegisterMap* map1, const RegisterMap* map2)
+{
+  size_t size1, size2;
+
+  size1 = ComputeRegisterMapSize(map1);
+  size2 = ComputeRegisterMapSize(map2);
+  if (size1 != size2) {
+    LOG(ERROR) << "CompareMaps: size mismatch (" << size1 << " vs " << size2
+               << ")";
+    return false;
+  }
+
+  if (map1->format_ != map2->format_ || map1->reg_width_ != map2->reg_width_ ||
+      map1->num_entries_ != map2->num_entries_ ||
+      map1->format_on_heap_ != map2->format_on_heap_) {
+    LOG(ERROR) << "CompareMaps: fields mismatch";
+  }
+  if (memcmp(map1->data_.get(), map2->data_.get(), size1) != 0) {
+    LOG(ERROR) << "CompareMaps: data mismatch";
+    return false;
+  }
+
+  return true;
+}
+
+size_t DexVerifier::ComputeRegisterMapSize(const RegisterMap* map) {
+  uint8_t format = map->format_;
+  uint16_t num_entries = map->num_entries_;
+
+  assert(map != NULL);
+
+  switch (format) {
+    case kRegMapFormatNone:
+      return 1;
+    case kRegMapFormatCompact8:
+      return (1 + map->reg_width_) * num_entries;
+    case kRegMapFormatCompact16:
+      return (2 + map->reg_width_) * num_entries;
+    case kRegMapFormatDifferential:
+      {
+        /* Decoded ULEB128 length. */
+        const uint8_t* ptr = map->data_.get();
+        return DecodeUnsignedLeb128(&ptr);
+      }
+    default:
+      LOG(FATAL) << "Bad register map format " << format;
+      return 0;
+  }
+}
+
+int DexVerifier::ComputeBitDiff(const uint8_t* bits1, const uint8_t* bits2,
+    int byte_width, int* first_bit_changed_ptr, int* num_bits_changed_ptr,
+    uint8_t* leb_out_buf) {
+  int num_bits_changed = 0;
+  int first_bit_changed = -1;
+  int leb_size = 0;
+  int byte_num;
+
+  /*
+   * Run through the vectors, first comparing them at the byte level. This
+   * will yield a fairly quick result if nothing has changed between them.
+   */
+  for (byte_num = 0; byte_num < byte_width; byte_num++) {
+    uint8_t byte1 = *bits1++;
+    uint8_t byte2 = *bits2++;
+    if (byte1 != byte2) {
+      /* Walk through the byte, identifying the changed bits. */
+      int bit_num;
+      for (bit_num = 0; bit_num < 8; bit_num++) {
+        if (((byte1 >> bit_num) & 0x01) != ((byte2 >> bit_num) & 0x01)) {
+          int bit_offset = (byte_num << 3) + bit_num;
+
+          if (first_bit_changed < 0)
+            first_bit_changed = bit_offset;
+          num_bits_changed++;
+
+          if (leb_out_buf == NULL) {
+            leb_size += UnsignedLeb128Size(bit_offset);
+          } else {
+            uint8_t* cur_buf = leb_out_buf;
+            leb_out_buf = WriteUnsignedLeb128(leb_out_buf, bit_offset);
+            leb_size += leb_out_buf - cur_buf;
+          }
+        }
+      }
+    }
+  }
+
+  if (num_bits_changed > 0)
+    assert(first_bit_changed >= 0);
+
+  if (first_bit_changed_ptr != NULL)
+    *first_bit_changed_ptr = first_bit_changed;
+  if (num_bits_changed_ptr != NULL)
+    *num_bits_changed_ptr = num_bits_changed;
+
+  return leb_size;
+}
+
+DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
+    const RegisterMap* map) {
+  int orig_size = ComputeRegisterMapSize(map);
+  uint8_t* tmp_ptr;
+  int addr_width;
+
+  uint8_t format = map->format_;
+  switch (format) {
+    case kRegMapFormatCompact8:
+      addr_width = 1;
+      break;
+    case kRegMapFormatCompact16:
+      addr_width = 2;
+      break;
+    default:
+      LOG(ERROR) << "ERROR: can't compress map with format=" << format;
+      return NULL;
+  }
+
+  int reg_width = map->reg_width_;
+  int num_entries = map->num_entries_;
+
+  if (num_entries <= 1) {
+    return NULL;
+  }
+
+  /*
+   * We don't know how large the compressed data will be. It's possible
+   * for it to expand and become larger than the original. The header
+   * itself is variable-sized, so we generate everything into a temporary
+   * buffer and then copy it to form-fitting storage once we know how big
+   * it will be (and that it's smaller than the original).
+   *
+   * If we use a size that is equal to the size of the input map plus
+   * a value longer than a single entry can possibly expand to, we need
+   * only check for overflow at the end of each entry. The worst case
+   * for a single line is (1 + <ULEB8 address> + <full copy of vector>).
+   * Addresses are 16 bits, so that's (1 + 3 + reg_width).
+   *
+   * The initial address offset and bit vector will take up less than
+   * or equal to the amount of space required when uncompressed -- large
+   * initial offsets are rejected.
+   */
+  UniquePtr<uint8_t[]> tmp_buf(new uint8_t[orig_size + (1 + 3 + reg_width)]);
+
+  tmp_ptr = tmp_buf.get();
+
+  const uint8_t* map_data = map->data_.get();
+  const uint8_t* prev_bits;
+  uint16_t addr, prev_addr;
+
+  addr = *map_data++;
+  if (addr_width > 1)
+    addr |= (*map_data++) << 8;
+
+  if (addr >= 128) {
+    LOG(ERROR) << "Can't compress map with starting address >= 128";
+    return NULL;
+  }
+
+  /*
+   * Start by writing the initial address and bit vector data. The high
+   * bit of the initial address is used to indicate the required address
+   * width (which the decoder can't otherwise determine without parsing
+   * the compressed data).
+   */
+  *tmp_ptr++ = addr | (addr_width > 1 ? 0x80 : 0x00);
+  memcpy(tmp_ptr, map_data, reg_width);
+
+  prev_bits = map_data;
+  prev_addr = addr;
+
+  tmp_ptr += reg_width;
+  map_data += reg_width;
+
+  /* Loop over all following entries. */
+  for (int entry = 1; entry < num_entries; entry++) {
+    int addr_diff;
+    uint8_t key;
+
+    /* Pull out the address and figure out how to encode it. */
+    addr = *map_data++;
+    if (addr_width > 1)
+      addr |= (*map_data++) << 8;
+
+    addr_diff = addr - prev_addr;
+    assert(addr_diff > 0);
+    if (addr_diff < 8) {
+      /* Small difference, encode in 3 bits. */
+      key = addr_diff -1;          /* set 00000AAA */
+    } else {
+      /* Large difference, output escape code. */
+      key = 0x07;                 /* escape code for AAA */
+    }
+
+    int num_bits_changed, first_bit_changed, leb_size;
+
+    leb_size = ComputeBitDiff(prev_bits, map_data, reg_width,
+        &first_bit_changed, &num_bits_changed, NULL);
+
+    if (num_bits_changed == 0) {
+      /* set B to 1 and CCCC to zero to indicate no bits were changed */
+      key |= 0x08;
+    } else if (num_bits_changed == 1 && first_bit_changed < 16) {
+      /* set B to 0 and CCCC to the index of the changed bit */
+      key |= first_bit_changed << 4;
+    } else if (num_bits_changed < 15 && leb_size < reg_width) {
+      /* set B to 1 and CCCC to the number of bits */
+      key |= 0x08 | (num_bits_changed << 4);
+    } else {
+      /* set B to 1 and CCCC to 0x0f so we store the entire vector */
+      key |= 0x08 | 0xf0;
+    }
+
+    /*
+     * Encode output. Start with the key, follow with the address
+     * diff (if it didn't fit in 3 bits), then the changed bit info.
+     */
+    *tmp_ptr++ = key;
+    if ((key & 0x07) == 0x07)
+      tmp_ptr = WriteUnsignedLeb128(tmp_ptr, addr_diff);
+
+    if ((key & 0x08) != 0) {
+      int bit_count = key >> 4;
+      if (bit_count == 0) {
+        /* nothing changed, no additional output required */
+      } else if (bit_count == 15) {
+        /* full vector is most compact representation */
+        memcpy(tmp_ptr, map_data, reg_width);
+        tmp_ptr += reg_width;
+      } else {
+        /* write bit indices in ULEB128 format */
+        (void) ComputeBitDiff(prev_bits, map_data, reg_width,
+               NULL, NULL, tmp_ptr);
+        tmp_ptr += leb_size;
+      }
+    } else {
+      /* single-bit changed, value encoded in key byte */
+    }
+
+    prev_bits = map_data;
+    prev_addr = addr;
+    map_data += reg_width;
+
+    /* See if we've run past the original size. */
+    if (tmp_ptr - tmp_buf.get() >= orig_size) {
+      return NULL;
+    }
+  }
+
+  /*
+   * Create a RegisterMap with the contents.
+   *
+   * TODO: consider using a threshold other than merely ">=". We would
+   * get poorer compression but potentially use less native heap space.
+   */
+  int new_data_size = tmp_ptr - tmp_buf.get();
+  int new_map_size = new_data_size + UnsignedLeb128Size(new_data_size);
+
+  if (new_map_size >= orig_size) {
+    return NULL;
+  }
+
+  RegisterMap* new_map = new RegisterMap(kRegMapFormatDifferential, reg_width,
+      num_entries, true, new_map_size);
+
+  tmp_ptr = new_map->data_.get();
+  tmp_ptr = WriteUnsignedLeb128(tmp_ptr, new_data_size);
+  memcpy(tmp_ptr, tmp_buf.get(), new_data_size);
+
+  return new_map;
+}
+
+DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
+    const RegisterMap* map) {
+  uint8_t format = map->format_;
+  RegisterMapFormat new_format;
+  int reg_width, num_entries, new_addr_width, new_data_size;
+
+  if (format != kRegMapFormatDifferential) {
+    LOG(ERROR) << "Not differential (" << format << ")";
+    return NULL;
+  }
+
+  reg_width = map->reg_width_;
+  num_entries = map->num_entries_;
+
+  /* Get the data size; we can check this at the end. */
+  const uint8_t* src_ptr = map->data_.get();
+  int expected_src_len = DecodeUnsignedLeb128(&src_ptr);
+  const uint8_t* src_start = src_ptr;
+
+  /* Get the initial address and the 16-bit address flag. */
+  int addr = *src_ptr & 0x7f;
+  if ((*src_ptr & 0x80) == 0) {
+    new_format = kRegMapFormatCompact8;
+    new_addr_width = 1;
+  } else {
+    new_format = kRegMapFormatCompact16;
+    new_addr_width = 2;
+  }
+  src_ptr++;
+
+  /* Now we know enough to allocate the new map. */
+  new_data_size = (new_addr_width + reg_width) * num_entries;
+  RegisterMap* new_map = new RegisterMap(new_format, reg_width, num_entries,
+      true, new_data_size);
+
+  /* Write the start address and initial bits to the new map. */
+  uint8_t* dst_ptr = new_map->data_.get();
+
+  *dst_ptr++ = addr & 0xff;
+  if (new_addr_width > 1)
+    *dst_ptr++ = (uint8_t) (addr >> 8);
+
+  memcpy(dst_ptr, src_ptr, reg_width);
+
+  int prev_addr = addr;
+  const uint8_t* prev_bits = dst_ptr;    /* point at uncompressed data */
+
+  dst_ptr += reg_width;
+  src_ptr += reg_width;
+
+  /* Walk through, uncompressing one line at a time. */
+  int entry;
+  for (entry = 1; entry < num_entries; entry++) {
+    int addr_diff;
+    uint8_t key;
+
+    key = *src_ptr++;
+
+    /* Get the address. */
+    if ((key & 0x07) == 7) {
+      /* Address diff follows in ULEB128. */
+      addr_diff = DecodeUnsignedLeb128(&src_ptr);
+    } else {
+      addr_diff = (key & 0x07) +1;
+    }
+
+    addr = prev_addr + addr_diff;
+    *dst_ptr++ = addr & 0xff;
+    if (new_addr_width > 1)
+      *dst_ptr++ = (uint8_t) (addr >> 8);
+
+    /* Unpack the bits. */
+    if ((key & 0x08) != 0) {
+      int bit_count = (key >> 4);
+      if (bit_count == 0) {
+        /* No bits changed, just copy previous. */
+        memcpy(dst_ptr, prev_bits, reg_width);
+      } else if (bit_count == 15) {
+        /* Full copy of bit vector is present; ignore prev_bits. */
+        memcpy(dst_ptr, src_ptr, reg_width);
+        src_ptr += reg_width;
+      } else {
+        /* Copy previous bits and modify listed indices. */
+        memcpy(dst_ptr, prev_bits, reg_width);
+        while (bit_count--) {
+          int bit_index = DecodeUnsignedLeb128(&src_ptr);
+          ToggleBit(dst_ptr, bit_index);
+        }
+      }
+    } else {
+      /* Copy previous bits and modify the specified one. */
+      memcpy(dst_ptr, prev_bits, reg_width);
+
+      /* One bit, from 0-15 inclusive, was changed. */
+      ToggleBit(dst_ptr, key >> 4);
+    }
+
+    prev_addr = addr;
+    prev_bits = dst_ptr;
+    dst_ptr += reg_width;
+  }
+
+  if (dst_ptr - new_map->data_.get() != new_data_size) {
+    LOG(ERROR) << "ERROR: output " << dst_ptr - new_map->data_.get()
+               << " bytes, expected " << new_data_size;
+    free(new_map);
+    return NULL;
+  }
+
+  if (src_ptr - src_start != expected_src_len) {
+    LOG(ERROR) << "ERROR: consumed " << src_ptr - src_start
+               << " bytes, expected " << expected_src_len;
+    free(new_map);
+    return NULL;
+  }
+
+  return new_map;
 }
 
 }  // namespace art
