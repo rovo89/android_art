@@ -23,7 +23,7 @@ namespace art {
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
-    : stack_size_(0),
+    : default_stack_size_(Thread::kDefaultStackSize),
       thread_list_(NULL),
       intern_table_(NULL),
       class_linker_(NULL),
@@ -362,27 +362,19 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   exit_ = options->hook_exit_;
   abort_ = options->hook_abort_;
 
-  stack_size_ = options->stack_size_;
+  default_stack_size_ = options->stack_size_;
   thread_list_ = ThreadList::Create();
 
   intern_table_ = new InternTable;
 
-  if (!Heap::Init(options->heap_initial_size_,
-                  options->heap_maximum_size_,
-                  options->boot_image_,
-                  options->images_)) {
-    LOG(WARNING) << "Failed to create heap";
-    return false;
-  }
+  Heap::Init(options->heap_initial_size_, options->heap_maximum_size_,
+      options->boot_image_, options->images_);
 
   BlockSignals();
 
   java_vm_ = new JavaVMExt(this, options.get());
 
-  if (!Thread::Startup()) {
-    LOG(WARNING) << "Failed to startup threads";
-    return false;
-  }
+  Thread::Startup();
 
   // ClassLinker needs an attached thread, but we can't fully attach a thread
   // without creating objects.

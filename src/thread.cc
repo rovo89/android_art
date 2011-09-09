@@ -191,6 +191,13 @@ void Thread::InitFunctionPointers() {
   pDebugMe = DebugMe;
 }
 
+Mutex::~Mutex() {
+  errno = pthread_mutex_destroy(&mutex_);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_mutex_destroy failed";
+  }
+}
+
 Mutex* Mutex::Create(const char* name) {
   Mutex* mu = new Mutex(name);
 #ifndef NDEBUG
@@ -203,7 +210,7 @@ Mutex* Mutex::Create(const char* name) {
   if (errno != 0) {
     PLOG(FATAL) << "pthread_mutexattr_settype failed";
   }
-  errno = pthread_mutex_init(&mu->lock_impl_, &debug_attributes);
+  errno = pthread_mutex_init(&mu->mutex_, &debug_attributes);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_mutex_init failed";
   }
@@ -212,7 +219,7 @@ Mutex* Mutex::Create(const char* name) {
     PLOG(FATAL) << "pthread_mutexattr_destroy failed";
   }
 #else
-  errno = pthread_mutex_init(&mu->lock_impl_, NULL);
+  errno = pthread_mutex_init(&mu->mutex_, NULL);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_mutex_init failed";
   }
@@ -221,7 +228,7 @@ Mutex* Mutex::Create(const char* name) {
 }
 
 void Mutex::Lock() {
-  int result = pthread_mutex_lock(&lock_impl_);
+  int result = pthread_mutex_lock(&mutex_);
   if (result != 0) {
     errno = result;
     PLOG(FATAL) << "pthread_mutex_lock failed";
@@ -229,7 +236,7 @@ void Mutex::Lock() {
 }
 
 bool Mutex::TryLock() {
-  int result = pthread_mutex_trylock(&lock_impl_);
+  int result = pthread_mutex_trylock(&mutex_);
   if (result == EBUSY) {
     return false;
   }
@@ -241,7 +248,7 @@ bool Mutex::TryLock() {
 }
 
 void Mutex::Unlock() {
-  int result = pthread_mutex_unlock(&lock_impl_);
+  int result = pthread_mutex_unlock(&mutex_);
   if (result != 0) {
     errno = result;
     PLOG(FATAL) << "pthread_mutex_unlock failed";
@@ -274,7 +281,7 @@ void* ThreadStart(void *arg) {
 Thread* Thread::Create(const Runtime* runtime) {
   UNIMPLEMENTED(FATAL) << "need to pass in a java.lang.Thread";
 
-  size_t stack_size = runtime->GetStackSize();
+  size_t stack_size = runtime->GetDefaultStackSize();
 
   Thread* new_thread = new Thread;
 
@@ -294,7 +301,7 @@ Thread* Thread::Create(const Runtime* runtime) {
     PLOG(FATAL) << "pthread_attr_setstacksize(" << stack_size << ") failed";
   }
 
-  errno = pthread_create(&new_thread->handle_, &attr, ThreadStart, new_thread);
+  errno = pthread_create(&new_thread->pthread_, &attr, ThreadStart, new_thread);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_create failed";
   }
@@ -314,8 +321,10 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
   Thread* self = new Thread;
 
   self->tid_ = ::art::GetTid();
-  self->handle_ = pthread_self();
+  self->pthread_ = pthread_self();
   self->is_daemon_ = as_daemon;
+
+  self->InitStackHwm();
 
   self->state_ = kRunnable;
 
@@ -350,13 +359,38 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   jboolean thread_is_daemon = as_daemon;
 
   jclass c = env->FindClass("java/lang/Thread");
-  LOG(INFO) << "java/lang/Thread=" << (void*)c;
   jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
-  LOG(INFO) << "java/lang/Thread.<init>=" << (void*)mid;
   jobject o = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
   LOG(INFO) << "Created new java.lang.Thread " << (void*) o << " decoded=" << (void*) DecodeJObject(o);
 
   peer_ = DecodeJObject(o);
+}
+
+void Thread::InitStackHwm() {
+  pthread_attr_t attributes;
+  errno = pthread_getattr_np(pthread_, &attributes);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_getattr_np failed";
+  }
+
+  // stack_base is the "lowest addressable byte" of the stack.
+  void* stack_base;
+  size_t stack_size;
+  errno = pthread_attr_getstack(&attributes, &stack_base, &stack_size);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_attr_getstack failed";
+  }
+
+  const size_t kStackOverflowReservedBytes = 1024; // Space to throw a StackOverflowError in.
+  if (stack_size <= kStackOverflowReservedBytes) {
+    LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size << " bytes)";
+  }
+  stack_hwm_ = reinterpret_cast<byte*>(stack_base) + stack_size - kStackOverflowReservedBytes;
+
+  errno = pthread_attr_destroy(&attributes);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_attr_destroy failed";
+  }
 }
 
 void Thread::Dump(std::ostream& os) const {
@@ -437,7 +471,7 @@ void Thread::DumpState(std::ostream& os) const {
 
   int policy;
   sched_param sp;
-  errno = pthread_getschedparam(handle_, &policy, &sp);
+  errno = pthread_getschedparam(pthread_, &policy, &sp);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_getschedparam failed";
   }
@@ -514,27 +548,24 @@ void Thread::DumpStack(std::ostream& os) const {
   os << "UNIMPLEMENTED: Thread::DumpStack\n";
 }
 
-static void ThreadExitCheck(void* arg) {
-  LG << "Thread exit check";
+void Thread::ThreadExitCallback(void* arg) {
+  Thread* self = reinterpret_cast<Thread*>(arg);
+  LOG(FATAL) << "Native thread exited without calling DetachCurrentThread: " << *self;
 }
 
-bool Thread::Startup() {
+void Thread::Startup() {
   // Allocate a TLS slot.
-  errno = pthread_key_create(&Thread::pthread_key_self_, ThreadExitCheck);
+  errno = pthread_key_create(&Thread::pthread_key_self_, Thread::ThreadExitCallback);
   if (errno != 0) {
-    PLOG(WARNING) << "pthread_key_create failed";
-    return false;
+    PLOG(FATAL) << "pthread_key_create failed";
   }
 
   // Double-check the TLS slot allocation.
   if (pthread_getspecific(pthread_key_self_) != NULL) {
-    LOG(WARNING) << "newly-created pthread TLS slot is not NULL";
-    return false;
+    LOG(FATAL) << "newly-created pthread TLS slot is not NULL";
   }
 
   // TODO: initialize other locks and condition variables
-
-  return true;
 }
 
 void Thread::Shutdown() {
@@ -939,21 +970,33 @@ void ThreadList::Dump(std::ostream& os) {
 }
 
 void ThreadList::Register(Thread* thread) {
-  LOG(INFO) << "ThreadList::Register() " << *thread;
+  //LOG(INFO) << "ThreadList::Register() " << *thread;
   MutexLock mu(lock_);
   CHECK(!Contains(thread));
   list_.push_back(thread);
 }
 
 void ThreadList::Unregister() {
-  LOG(INFO) << "ThreadList::Unregister() " << *Thread::Current();
-  MutexLock mu(lock_);
   Thread* self = Thread::Current();
+
+  //LOG(INFO) << "ThreadList::Unregister() " << self;
+  MutexLock mu(lock_);
+
+  // Remove this thread from the list.
   CHECK(Contains(self));
   list_.remove(self);
+
+  // Delete the Thread* and release the thin lock id.
   uint32_t thin_lock_id = self->thin_lock_id_;
   delete self;
   ReleaseThreadId(thin_lock_id);
+
+  // Clear the TLS data, so that thread is recognizably detached.
+  // (It may wish to reattach later.)
+  errno = pthread_setspecific(Thread::pthread_key_self_, NULL);
+  if (errno != 0) {
+    PLOG(FATAL) << "pthread_setspecific failed";
+  }
 }
 
 void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
