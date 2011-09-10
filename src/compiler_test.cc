@@ -18,13 +18,13 @@ namespace art {
 class CompilerTest : public CommonTest {
  protected:
 
-  void AssertStaticIntMethod(const ClassLoader* class_loader,
+  void AssertStaticIntMethod(jint expected, const ClassLoader* class_loader,
                              const char* class_name, const char* method, const char* signature,
-                             jint expected, ...) {
+                             ...) {
     EnsureCompiled(class_loader, class_name, method, signature);
 #if defined(__arm__)
     va_list args;
-    va_start(args, expected);
+    va_start(args, signature);
     jint result = env_->CallStaticIntMethodV(class_, mid_, args);
     va_end(args);
     LOG(INFO) << class_name << "." << method << "(...) result is " << result;
@@ -32,13 +32,13 @@ class CompilerTest : public CommonTest {
 #endif // __arm__
   }
 
-  void AssertStaticLongMethod(const ClassLoader* class_loader,
+  void AssertStaticLongMethod(jlong expected, const ClassLoader* class_loader,
                               const char* class_name, const char* method, const char* signature,
-                              jlong expected, ...) {
+                              ...) {
     EnsureCompiled(class_loader, class_name, method, signature);
 #if defined(__arm__)
     va_list args;
-    va_start(args, expected);
+    va_start(args, signature);
     jlong result = env_->CallStaticLongMethodV(class_, mid_, args);
     va_end(args);
     LOG(INFO) << class_name << "." << method << "(...) result is " << result;
@@ -156,13 +156,13 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, BasicCodegen) {
-  AssertStaticIntMethod(LoadDex("Fibonacci"), "Fibonacci", "fibonacci", "(I)I", 55, 10);
+  AssertStaticIntMethod(55, LoadDex("Fibonacci"), "Fibonacci", "fibonacci", "(I)I", 10);
 }
 
 // TODO: need stub for InstanceofNonTrivialFromCode
 TEST_F(CompilerTest, InstanceTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "instanceTest", "(I)I", 1352, 10);
+  AssertStaticIntMethod(1352, LoadDex("IntMath"), "IntMath", "instanceTest", "(I)I", 10);
 }
 
 // TODO: need check-cast test (when stub complete & we can throw/catch
@@ -171,7 +171,7 @@ TEST_F(CompilerTest, InstanceTest) {
 
 TEST_F(CompilerTest, SuperTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "superTest", "(I)I", 4175, 4141);
+  AssertStaticIntMethod(4175, LoadDex("IntMath"), "IntMath", "superTest", "(I)I", 4141);
 }
 
 TEST_F(CompilerTest, ConstStringTest) {
@@ -181,11 +181,11 @@ TEST_F(CompilerTest, ConstStringTest) {
   CompileVirtualMethod(NULL, "java.lang.String", "_getChars", "(II[CI)V");
   CompileVirtualMethod(NULL, "java.lang.String", "charAt", "(I)C");
   CompileVirtualMethod(NULL, "java.lang.String", "length", "()I");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constStringTest", "(I)I", 1246, 1234);
+  AssertStaticIntMethod(1246, LoadDex("IntMath"), "IntMath", "constStringTest", "(I)I", 1234);
 }
 
 TEST_F(CompilerTest, ConstClassTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "constClassTest", "(I)I", 2222, 1111);
+  AssertStaticIntMethod(2222, LoadDex("IntMath"), "IntMath", "constClassTest", "(I)I", 1111);
 }
 
 // TODO: Need native nativeFillInStackTrace()
@@ -200,106 +200,106 @@ TEST_F(CompilerTest, DISABLED_CatchTest) {
   CompileDirectMethod(NULL, "java.util.AbstractCollection","<init>","()V");
   CompileVirtualMethod(NULL, "java.lang.Throwable","fillInStackTrace","()Ljava/lang/Throwable;");
   CompileDirectMethod(NULL, "java.lang.Throwable","nativeFillInStackTrace","()Ljava/lang/Object;");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "catchBlock", "(I)I", 1579, 1000);
+  AssertStaticIntMethod(1579, LoadDex("IntMath"), "IntMath", "catchBlock", "(I)I", 1000);
 }
 
 TEST_F(CompilerTest, CatchTestNoThrow) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "catchBlockNoThrow", "(I)I", 1123, 1000);
+  AssertStaticIntMethod(1123, LoadDex("IntMath"), "IntMath", "catchBlockNoThrow", "(I)I", 1000);
 }
 
 TEST_F(CompilerTest, StaticFieldTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticFieldTest", "(I)I", 1404, 404);
+  AssertStaticIntMethod(1404, LoadDex("IntMath"), "IntMath", "staticFieldTest", "(I)I", 404);
 }
 
 TEST_F(CompilerTest, UnopTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "unopTest", "(I)I", 37, 38);
+  AssertStaticIntMethod(37, LoadDex("IntMath"), "IntMath", "unopTest", "(I)I", 38);
 }
 
 TEST_F(CompilerTest, ShiftTest1) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "shiftTest1", "()I", 0);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "shiftTest1", "()I");
 }
 
 TEST_F(CompilerTest, ShiftTest2) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "shiftTest2", "()I", 0);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "shiftTest2", "()I");
 }
 
 TEST_F(CompilerTest, UnsignedShiftTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "unsignedShiftTest", "()I", 0);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "unsignedShiftTest", "()I");
 }
 
 TEST_F(CompilerTest, ConvTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "convTest", "()I", 0);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "convTest", "()I");
 }
 
 TEST_F(CompilerTest, CharSubTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "charSubTest", "()I", 0);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "charSubTest", "()I");
 }
 
 TEST_F(CompilerTest, IntOperTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "intOperTest", "(II)I", 0, 70000, -3);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "intOperTest", "(II)I", 70000, -3);
 }
 
 TEST_F(CompilerTest, Lit16Test) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "lit16Test", "(I)I", 0, 77777);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "lit16Test", "(I)I", 77777);
 }
 
 TEST_F(CompilerTest, Lit8Test) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "lit8Test", "(I)I", 0, -55555);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "lit8Test", "(I)I", -55555);
 }
 
 TEST_F(CompilerTest, IntShiftTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "intShiftTest", "(II)I", 0, 0xff00aa01, 8);
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "intShiftTest", "(II)I", 0xff00aa01, 8);
 }
 
 TEST_F(CompilerTest, LongOperTest) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "longOperTest", "(JJ)I", 0,
+  AssertStaticIntMethod(0, LoadDex("IntMath"), "IntMath", "longOperTest", "(JJ)I",
                         70000000000LL, -3LL);
 }
 
 TEST_F(CompilerTest, LongShiftTest) {
-  AssertStaticLongMethod(LoadDex("IntMath"), "IntMath", "longShiftTest", "(JI)J",
-                         0x96deff00aa010000LL, 0xd5aa96deff00aa01LL, 16);
+  AssertStaticLongMethod(0x96deff00aa010000LL,
+      LoadDex("IntMath"), "IntMath", "longShiftTest", "(JI)J", 0xd5aa96deff00aa01LL, 16);
 }
 
 TEST_F(CompilerTest, SwitchTest1) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "switchTest", "(I)I", 1234, 1);
+  AssertStaticIntMethod(1234, LoadDex("IntMath"), "IntMath", "switchTest", "(I)I", 1);
 }
 
 TEST_F(CompilerTest, IntCompare) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "testIntCompare", "(IIII)I", 1111,
+  AssertStaticIntMethod(1111, LoadDex("IntMath"), "IntMath", "testIntCompare", "(IIII)I",
                         -5, 4, 4, 0);
 }
 
 TEST_F(CompilerTest, LongCompare) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "testLongCompare", "(JJJJ)I", 2222,
+  AssertStaticIntMethod(2222, LoadDex("IntMath"), "IntMath", "testLongCompare", "(JJJJ)I",
                         -5LL, -4294967287LL, 4LL, 8LL);
 }
 
 TEST_F(CompilerTest, FloatCompare) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "testFloatCompare", "(FFFF)I", 3333,
+  AssertStaticIntMethod(3333, LoadDex("IntMath"), "IntMath", "testFloatCompare", "(FFFF)I",
                         -5.0f, 4.0f, 4.0f,
                         (1.0f/0.0f) / (1.0f/0.0f));
 }
 
 TEST_F(CompilerTest, DoubleCompare) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "testDoubleCompare", "(DDDD)I", 4444,
+  AssertStaticIntMethod(4444, LoadDex("IntMath"), "IntMath", "testDoubleCompare", "(DDDD)I",
                                     -5.0, 4.0, 4.0,
                                     (1.0/0.0) / (1.0/0.0));
 }
 
 TEST_F(CompilerTest, RecursiveFibonacci) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "fibonacci", "(I)I", 55, 10);
+  AssertStaticIntMethod(55, LoadDex("IntMath"), "IntMath", "fibonacci", "(I)I", 10);
 }
 
 #if 0 // Need to complete try/catch block handling
 TEST_F(CompilerTest, ThrowAndCatch) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "throwAndCatch", "()I", 4);
+  AssertStaticIntMethod(4, LoadDex("IntMath"), "IntMath", "throwAndCatch", "()I");
 }
 #endif
 
 TEST_F(CompilerTest, ManyArgs) {
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "manyArgs",
-                        "(IJIJIJIIDFDSICIIBZIIJJIIIII)I", -1,
+  AssertStaticIntMethod(-1, LoadDex("IntMath"), "IntMath", "manyArgs",
+                        "(IJIJIJIIDFDSICIIBZIIJJIIIII)I",
                         0, 1LL, 2, 3LL, 4, 5LL, 6, 7, 8.0, 9.0f, 10.0,
                         (short)11, 12, (char)13, 14, 15, (int8_t)-16, true, 18,
                         19, 20LL, 21LL, 22, 23, 24, 25, 26);
@@ -307,22 +307,22 @@ TEST_F(CompilerTest, ManyArgs) {
 
 TEST_F(CompilerTest, VirtualCall) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "staticCall", "(I)I", 6, 3);
+  AssertStaticIntMethod(6, LoadDex("IntMath"), "IntMath", "staticCall", "(I)I", 3);
 }
 
 TEST_F(CompilerTest, TestIGetPut) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  AssertStaticIntMethod(LoadDex("IntMath"), "IntMath", "testIGetPut", "(I)I", 333, 111);
+  AssertStaticIntMethod(333, LoadDex("IntMath"), "IntMath", "testIGetPut", "(I)I", 111);
 }
 
 TEST_F(CompilerTest, InvokeTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-  AssertStaticIntMethod(LoadDex("Invoke"), "Invoke", "test0", "(I)I", 20664, 912);
+  AssertStaticIntMethod(20664, LoadDex("Invoke"), "Invoke", "test0", "(I)I", 912);
 }
 
 TEST_F(CompilerTest, DISABLED_LARGE_SystemMethodsTest) {
   CompileAll(NULL); // This test calls a bunch of stuff from libcore.
-  AssertStaticIntMethod(LoadDex("SystemMethods"), "SystemMethods", "test5", "()I", 123);
+  AssertStaticIntMethod(123, LoadDex("SystemMethods"), "SystemMethods", "test5", "()I");
 }
 
 }  // namespace art
