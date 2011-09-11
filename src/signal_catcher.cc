@@ -29,8 +29,7 @@
 
 namespace art {
 
-SignalCatcher::SignalCatcher() {
-  lock_ = Mutex::Create("SignalCatcher lock");
+SignalCatcher::SignalCatcher() : lock_("SignalCatcher lock") {
   SetHaltFlag(false);
 
   // Create a raw pthread; its start routine will attach to the runtime.
@@ -72,9 +71,7 @@ void SignalCatcher::HandleSigQuit() {
     os << "Cmd line: " << cmdline << "\n";
   }
 
-  Runtime* runtime = Runtime::Current();
-  runtime->DumpStatistics(os);
-  runtime->GetThreadList()->Dump(os);
+  Runtime::Current()->Dump(os);
 
   std::string maps;
   if (ReadFileToString("/proc/self/maps", &maps)) {

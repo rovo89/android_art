@@ -252,15 +252,6 @@ void SetThreadName(const char *threadName) {
 #endif
 }
 
-pid_t GetOwner(pthread_mutex_t* mutex) {
-#ifdef __BIONIC__
-  return static_cast<pid_t>(((mutex)->value >> 16) & 0xffff);
-#else
-  UNIMPLEMENTED(FATAL);
-  return 0;
-#endif
-}
-
 }  // namespace art
 
 // Neither bionic nor glibc exposes gettid(2).

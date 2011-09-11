@@ -17,11 +17,10 @@
 #ifndef ART_SRC_SIGNAL_CATCHER_H_
 #define ART_SRC_SIGNAL_CATCHER_H_
 
-#include <pthread.h>
+#include "mutex.h"
 
 namespace art {
 
-class Mutex;
 class Runtime;
 class Thread;
 
@@ -44,7 +43,7 @@ class SignalCatcher {
   void SetHaltFlag(bool new_value);
   bool ShouldHalt();
 
-  Mutex* lock_;
+  mutable Mutex lock_;
   bool halt_;
   pthread_t thread_;
 };

@@ -17,6 +17,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "runtime_support.h"
+#include "thread_list.h"
 #include "utils.h"
 
 namespace art {
@@ -310,74 +311,6 @@ void Thread::InitFunctionPointers() {
   pDebugMe = DebugMe;
 }
 
-Mutex::~Mutex() {
-  errno = pthread_mutex_destroy(&mutex_);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutex_destroy failed";
-  }
-}
-
-Mutex* Mutex::Create(const char* name) {
-  Mutex* mu = new Mutex(name);
-#ifndef NDEBUG
-  pthread_mutexattr_t debug_attributes;
-  errno = pthread_mutexattr_init(&debug_attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutexattr_init failed";
-  }
-#if VERIFY_OBJECT_ENABLED
-  errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_RECURSIVE);
-#else
-  errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_ERRORCHECK);
-#endif
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutexattr_settype failed";
-  }
-  errno = pthread_mutex_init(&mu->mutex_, &debug_attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutex_init failed";
-  }
-  errno = pthread_mutexattr_destroy(&debug_attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutexattr_destroy failed";
-  }
-#else
-  errno = pthread_mutex_init(&mu->mutex_, NULL);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutex_init failed";
-  }
-#endif
-  return mu;
-}
-
-void Mutex::Lock() {
-  int result = pthread_mutex_lock(&mutex_);
-  if (result != 0) {
-    errno = result;
-    PLOG(FATAL) << "pthread_mutex_lock failed";
-  }
-}
-
-bool Mutex::TryLock() {
-  int result = pthread_mutex_trylock(&mutex_);
-  if (result == EBUSY) {
-    return false;
-  }
-  if (result != 0) {
-    errno = result;
-    PLOG(FATAL) << "pthread_mutex_trylock failed";
-  }
-  return true;
-}
-
-void Mutex::Unlock() {
-  int result = pthread_mutex_unlock(&mutex_);
-  if (result != 0) {
-    errno = result;
-    PLOG(FATAL) << "pthread_mutex_unlock failed";
-  }
-}
-
 void Frame::Next() {
   byte* next_sp = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetFrameSizeInBytes();
@@ -478,15 +411,14 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
 
   jobject thread_group = NULL;
   jobject thread_name = env->NewStringUTF(name);
-  jint thread_priority = 123;
+  jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
 
   jclass c = env->FindClass("java/lang/Thread");
   jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
-  jobject o = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
-  LOG(INFO) << "Created new java.lang.Thread " << (void*) o << " decoded=" << (void*) DecodeJObject(o);
 
-  peer_ = DecodeJObject(o);
+  jobject peer = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
+  peer_ = env->NewGlobalRef(peer);
 }
 
 void Thread::InitStackHwm() {
@@ -631,7 +563,6 @@ void Thread::DumpState(std::ostream& os) const {
 
   int suspend_count = 0; // TODO
   int debug_suspend_count = 0; // TODO
-  void* peer_ = NULL; // TODO
   os << "  | group=\"" << group_name << "\""
      << " sCount=" << suspend_count
      << " dsCount=" << debug_suspend_count
@@ -706,6 +637,10 @@ void Thread::Shutdown() {
 
 Thread::Thread()
     : peer_(NULL),
+      wait_mutex_("Thread wait mutex"),
+      wait_monitor_(NULL),
+      interrupted_(false),
+      stack_end_(NULL),
       top_of_managed_stack_(),
       native_to_managed_record_(NULL),
       top_sirt_(NULL),
@@ -714,11 +649,8 @@ Thread::Thread()
       suspend_count_(0),
       class_loader_override_(NULL) {
   InitCpu();
-  {
-    ThreadListLock mu;
-    thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
-  }
   InitFunctionPointers();
+  thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
 }
 
 void MonitorExitVisitor(const Object* object, void*) {
@@ -753,6 +685,10 @@ Thread::~Thread() {
   //dvmObjectNotifyAll(self, lock);
   //dvmUnlockObject(self, lock);
   //lock = NULL;
+
+  // Delete our global reference to the java.lang.Thread.
+  jni_env_->DeleteGlobalRef(peer_);
+  peer_ = NULL;
 
   delete jni_env_;
   jni_env_ = NULL;
@@ -1057,102 +993,10 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
      << ",pthread_t=" << thread.GetImpl()
      << ",tid=" << thread.GetTid()
      << ",id=" << thread.GetThinLockId()
-     << ",state=" << thread.GetState() << "]";
+     << ",state=" << thread.GetState()
+     << ",peer=" << thread.GetPeer()
+     << "]";
   return os;
 }
 
-ThreadList* ThreadList::Create() {
-  return new ThreadList;
-}
-
-ThreadList::ThreadList() {
-  lock_ = Mutex::Create("ThreadList::Lock");
-}
-
-ThreadList::~ThreadList() {
-  if (Contains(Thread::Current())) {
-    Runtime::Current()->DetachCurrentThread();
-  }
-
-  // All threads should have exited and unregistered when we
-  // reach this point. This means that all daemon threads had been
-  // shutdown cleanly.
-  // TODO: dump ThreadList if non-empty.
-  CHECK_EQ(list_.size(), 0U);
-
-  delete lock_;
-  lock_ = NULL;
-}
-
-bool ThreadList::Contains(Thread* thread) {
-  return find(list_.begin(), list_.end(), thread) != list_.end();
-}
-
-void ThreadList::Dump(std::ostream& os) {
-  MutexLock mu(lock_);
-  os << "DALVIK THREADS (" << list_.size() << "):\n";
-  typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
-  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    (*it)->Dump(os);
-    os << "\n";
-  }
-}
-
-void ThreadList::Register(Thread* thread) {
-  //LOG(INFO) << "ThreadList::Register() " << *thread;
-  MutexLock mu(lock_);
-  CHECK(!Contains(thread));
-  list_.push_back(thread);
-}
-
-void ThreadList::Unregister() {
-  Thread* self = Thread::Current();
-
-  //LOG(INFO) << "ThreadList::Unregister() " << self;
-  MutexLock mu(lock_);
-
-  // Remove this thread from the list.
-  CHECK(Contains(self));
-  list_.remove(self);
-
-  // Delete the Thread* and release the thin lock id.
-  uint32_t thin_lock_id = self->thin_lock_id_;
-  delete self;
-  ReleaseThreadId(thin_lock_id);
-
-  // Clear the TLS data, so that thread is recognizably detached.
-  // (It may wish to reattach later.)
-  errno = pthread_setspecific(Thread::pthread_key_self_, NULL);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_setspecific failed";
-  }
-}
-
-void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  MutexLock mu(lock_);
-  typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
-  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    (*it)->VisitRoots(visitor, arg);
-  }
-}
-
-uint32_t ThreadList::AllocThreadId() {
-  DCHECK_LOCK_HELD(lock_);
-  for (size_t i = 0; i < allocated_ids_.size(); ++i) {
-    if (!allocated_ids_[i]) {
-      allocated_ids_.set(i);
-      return i + 1; // Zero is reserved to mean "invalid".
-    }
-  }
-  LOG(FATAL) << "Out of internal thread ids";
-  return 0;
-}
-
-void ThreadList::ReleaseThreadId(uint32_t id) {
-  DCHECK_LOCK_HELD(lock_);
-  --id; // Zero is reserved to mean "invalid".
-  DCHECK(allocated_ids_[id]) << id;
-  allocated_ids_.reset(id);
-}
-
-}  // namespace
+}  // namespace art

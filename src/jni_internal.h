@@ -8,6 +8,7 @@
 #include "heap.h"
 #include "indirect_reference_table.h"
 #include "macros.h"
+#include "mutex.h"
 #include "reference_table.h"
 #include "runtime.h"
 
@@ -18,7 +19,6 @@ namespace art {
 class ClassLoader;
 class Libraries;
 class Method;
-class Mutex;
 class Thread;
 
 void JniAbort(const char* jni_function_name);
@@ -64,18 +64,18 @@ struct JavaVMExt : public JavaVM {
   bool work_around_app_jni_bugs;
 
   // Used to hold references to pinned primitive arrays.
-  Mutex* pins_lock;
+  Mutex pins_lock;
   ReferenceTable pin_table;
 
   // JNI global references.
-  Mutex* globals_lock;
+  Mutex globals_lock;
   IndirectReferenceTable globals;
 
   // JNI weak global references.
-  Mutex* weak_globals_lock;
+  Mutex weak_globals_lock;
   IndirectReferenceTable weak_globals;
 
-  Mutex* libraries_lock;
+  Mutex libraries_lock;
   Libraries* libraries;
 
   // Used by -Xcheck:jni.

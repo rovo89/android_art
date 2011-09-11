@@ -10,8 +10,8 @@
 #include "dex_file.h"
 #include "heap.h"
 #include "macros.h"
+#include "mutex.h"
 #include "object.h"
-#include "thread.h"
 #include "unordered_map.h"
 #include "unordered_set.h"
 
@@ -264,9 +264,9 @@ class ClassLinker {
   // multimap from a StringPiece hash code of a class descriptor to
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
+  mutable Mutex classes_lock_;
   typedef std::tr1::unordered_multimap<size_t, Class*> Table;
   Table classes_;
-  Mutex* classes_lock_;
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.

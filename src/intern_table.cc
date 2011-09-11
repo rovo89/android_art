@@ -7,12 +7,7 @@
 
 namespace art {
 
-InternTable::InternTable() {
-  intern_table_lock_ = Mutex::Create("InternTable::Lock");
-}
-
-InternTable::~InternTable() {
-  delete intern_table_lock_;
+InternTable::InternTable() : intern_table_lock_("InternTable lock") {
 }
 
 size_t InternTable::Size() const {
@@ -30,7 +25,7 @@ void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 const String* InternTable::Lookup(Table& table, const String* s, uint32_t hash_code) {
-  // Requires the intern_table_lock_.
+  intern_table_lock_.AssertHeld();
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     const String* existing_string = it->second;
@@ -42,7 +37,7 @@ const String* InternTable::Lookup(Table& table, const String* s, uint32_t hash_c
 }
 
 const String* InternTable::Insert(Table& table, const String* s, uint32_t hash_code) {
-  // Requires the intern_table_lock_.
+  intern_table_lock_.AssertHeld();
   table.insert(std::make_pair(hash_code, s));
   return s;
 }
@@ -53,7 +48,7 @@ void InternTable::RegisterStrong(const String* s) {
 }
 
 void InternTable::Remove(Table& table, const String* s, uint32_t hash_code) {
-  // Requires the intern_table_lock_.
+  intern_table_lock_.AssertHeld();
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     if (it->second == s) {
