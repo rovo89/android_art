@@ -162,7 +162,7 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         art::ClassLinker* class_linker = art::Runtime::Current()->
             GetClassLinker();
         const art::DexFile& dex_file = class_linker->
-            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
         const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
         int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
@@ -220,7 +220,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         art::ClassLinker* class_linker = art::Runtime::Current()->
             GetClassLinker();
         const art::DexFile& dex_file = class_linker->
-            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
         const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
         int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
@@ -278,7 +278,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         art::ClassLinker* class_linker = art::Runtime::Current()->
             GetClassLinker();
         const art::DexFile& dex_file = class_linker->
-            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
         const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
         int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
@@ -341,7 +341,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         art::ClassLinker* class_linker = art::Runtime::Current()->
             GetClassLinker();
         const art::DexFile& dex_file = class_linker->
-            FindDexFile(field->GetDeclaringClass()->GetDexCache());
+            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
         const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
         int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
