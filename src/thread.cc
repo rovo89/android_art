@@ -270,12 +270,12 @@ void Thread::InitFunctionPointers() {
   pDdiv = __aeabi_ddiv;
   pDmul = __aeabi_dmul;
   pFmod = fmod;
-  pF2l = F2L;
-  pD2l = D2L;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
 #endif
+  pF2l = F2L;
+  pD2l = D2L;
   pAllocFromCode = Array::AllocFromCode;
   pCheckAndAllocFromCode = CheckAndAllocFromCode;
   pAllocObjectFromCode = Class::AllocObjectFromCode;
