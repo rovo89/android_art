@@ -356,6 +356,7 @@ typedef enum ArmThrowKind {
     kArmThrowInternalError,
     kArmThrowRuntimeException,
     kArmThrowNoSuchMethod,
+    kArmThrowStackOverflow,
 } ArmThrowKind;
 
 #define isPseudoOpcode(opcode) ((int)(opcode) < 0)

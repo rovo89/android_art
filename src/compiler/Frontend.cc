@@ -851,7 +851,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     oatMethodMIR2LIR(&cUnit);
 
     // Debugging only
-    //oatDumpCFG(&cUnit, "/sdcard/cfg/");
+    if (cUnit.dumpCFG) {
+        oatDumpCFG(&cUnit, "/sdcard/cfg/");
+    }
 
     /* Method is not empty */
     if (cUnit.firstLIRInsn) {

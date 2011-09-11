@@ -833,7 +833,11 @@ static void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
 {
     RegisterInfo* newInfo = getRegInfo(cUnit, newReg);
     RegisterInfo* oldInfo = getRegInfo(cUnit, oldReg);
+    // Target temp status must not change
+    bool isTemp = newInfo->isTemp;
     *newInfo = *oldInfo;
+    // Restore target's temp status
+    newInfo->isTemp = isTemp;
     newInfo->reg = newReg;
 }
 
@@ -1011,7 +1015,12 @@ extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num)
 {
     RegLocation res = cUnit->regLocation[mir->ssaRep->defs[num]];
 #ifdef SSA_WORKAROUND
-    res.wide = false;
+    if (res.wide) {
+        LOG(WARNING) << "Invalid SSA renaming: " << PrettyMethod(cUnit->method);
+        cUnit->printMe = true;
+        cUnit->dumpCFG = true;
+        res.wide = false;
+    }
 #endif
     assert(!res.wide);
     return res;
@@ -1020,7 +1029,12 @@ extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
     RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
 #ifdef SSA_WORKAROUND
-    res.wide = false;
+    if (res.wide) {
+        LOG(WARNING) << "Invalid SSA renaming: " << PrettyMethod(cUnit->method);
+        cUnit->printMe = true;
+        cUnit->dumpCFG = true;
+        res.wide = false;
+    }
 #endif
     assert(!res.wide);
     return res;
@@ -1035,7 +1049,12 @@ extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir,
 {
     RegLocation res = cUnit->regLocation[mir->ssaRep->defs[low]];
 #ifdef SSA_WORKAROUND
-    res.wide = true;
+    if (!res.wide) {
+        LOG(WARNING) << "Invalid SSA renaming: " << PrettyMethod(cUnit->method);
+        cUnit->printMe = true;
+        cUnit->dumpCFG = true;
+        res.wide = true;
+    }
 #endif
     assert(res.wide);
     return res;
@@ -1046,7 +1065,12 @@ extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
 {
     RegLocation res = cUnit->regLocation[mir->ssaRep->uses[low]];
 #ifdef SSA_WORKAROUND
-    res.wide = true;
+    if (!res.wide) {
+        LOG(WARNING) << "Invalid SSA renaming: " << PrettyMethod(cUnit->method);
+        cUnit->printMe = true;
+        cUnit->dumpCFG = true;
+        res.wide = true;
+    }
 #endif
     assert(res.wide);
     return res;

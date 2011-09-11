@@ -37,7 +37,7 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, mir->dalvikInsn.vC);  // arg0 <- type_id
     loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
-    opReg(cUnit, kOpBlx, rLR);
+    callUnwindableHelper(cUnit, rLR);
     oatClobberCallRegs(cUnit);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
@@ -67,7 +67,7 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
     loadConstant(cUnit, r2, elems);               // arg2 <- count
-    opReg(cUnit, kOpBlx, rLR);
+    callUnwindableHelper(cUnit, rLR);
     /*
      * NOTE: the implicit target for OP_FILLED_NEW_ARRAY is the
      * return region.  Because AllocFromCode placed the new array
@@ -154,7 +154,7 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirect(cUnit, rlSrc, r2);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         oatClobberCallRegs(cUnit);
     } else {
         // fast path
@@ -181,7 +181,7 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -212,7 +212,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         oatClobberCallRegs(cUnit);
     } else {
         // fast path
@@ -239,7 +239,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -269,7 +269,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         RegLocation rlResult = oatGetReturnWide(cUnit);
         storeValueWide(cUnit, rlDest, rlResult);
     } else {
@@ -297,7 +297,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -332,7 +332,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         RegLocation rlResult = oatGetReturn(cUnit);
         storeValue(cUnit, rlDest, rlResult);
     } else {
@@ -360,7 +360,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -491,7 +491,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
             loadConstant(cUnit, r1, dInsn->vB);
-            newLIR1(cUnit, kThumbBlxR, rLR);
+            callUnwindableHelper(cUnit, rLR);
             genUnconditionalBranch(cUnit, rollback);
             // Resume normal slow path
             skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
@@ -658,7 +658,7 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
             loadConstant(cUnit, r1, dInsn->vB);
-            newLIR1(cUnit, kThumbBlxR, rLR);
+            callUnwindableHelper(cUnit, rLR);
             genUnconditionalBranch(cUnit, rollback);
             // Resume normal slow path
             skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
@@ -686,7 +686,8 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                 tReg = oatAllocTemp(cUnit);
                 loadWordDisp(cUnit, r0, art::Array::LengthOffset().Int32Value(),
                              tReg);
-                genBoundsCheck(cUnit, tReg, rLR, mir, kArmThrowNoSuchMethod);
+                genRegRegCheck(cUnit, kArmCondCs, tReg, rLR, mir,
+                               kArmThrowNoSuchMethod);
                 oatFreeTemp(cUnit, tReg);
             }
             // Adjust vtable_ base past object header
@@ -731,7 +732,10 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
      */
     for (unsigned int i=3; i < dInsn->vA; i++) {
         int reg;
-        rlArg = oatUpdateLoc(cUnit, oatGetSrc(cUnit, mir, i));
+        // Treating args as untyped 32-bit chunks
+        rlArg = oatGetRawSrc(cUnit, mir, i);
+        rlArg.wide = false;
+        rlArg = oatUpdateLoc(cUnit, rlArg);
         if (rlArg.location == kLocPhysReg) {
             reg = rlArg.lowReg;
         } else {
@@ -838,7 +842,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         opRegRegImm(cUnit, kOpAdd, r1, rSP, outsOffset);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pMemcpy), rLR);
         loadConstant(cUnit, r2, (numArgs - 3) * 4);
-        newLIR1(cUnit, kThumbBlxR, rLR);
+        callNoUnwindHelper(cUnit, rLR);
     } else {
         // Use vldm/vstm pair using r3 as a temp
         int regsLeft = std::min(numArgs - 3, 16);
@@ -908,7 +912,7 @@ static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
 #ifdef DISPLAY_MISSING_TARGETS
     genShowTarget(cUnit);
 #endif
-    newLIR1(cUnit, kThumbBlxR, rLR);
+    opReg(cUnit, kOpBlx, rLR);
 }
 
 /*
@@ -939,7 +943,7 @@ static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
 #ifdef DISPLAY_MISSING_TARGETS
     genShowTarget(cUnit);
 #endif
-    newLIR1(cUnit, kThumbBlxR, rLR);
+    opReg(cUnit, kOpBlx, rLR);
 }
 
 static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
@@ -991,7 +995,7 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
 #ifdef DISPLAY_MISSING_TARGETS
     genShowTarget(cUnit);
 #endif
-    newLIR1(cUnit, kThumbBlxR, rLR);
+    opReg(cUnit, kOpBlx, rLR);
 }
 
 static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
@@ -1030,7 +1034,7 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
 #ifdef DISPLAY_MISSING_TARGETS
     genShowTarget(cUnit);
 #endif
-    newLIR1(cUnit, kThumbBlxR, rLR);
+    opReg(cUnit, kOpBlx, rLR);
 }
 
 static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
@@ -1218,7 +1222,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
                 OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode), rLR);
             loadConstant(cUnit, r0, mir->dalvikInsn.vA);
             loadConstant(cUnit, r1, mir->dalvikInsn.vB);
-            opReg(cUnit, kOpBlx, rLR);
+            callUnwindableHelper(cUnit, rLR);
             break;
 
         case OP_ARRAY_LENGTH:
@@ -1839,14 +1843,8 @@ static bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         if (!skipOverflowCheck) {
             opRegRegImm(cUnit, kOpSub, rLR, rSP,
                         cUnit->frameSize - (cUnit->numSpills * 4));
-            opRegReg(cUnit, kOpCmp, rLR, r12);   // Stack overflow?
-            /* Begin conditional skip */
-            genIT(cUnit, kArmCondCc, "TT"); // Carry clear; unsigned <
-            loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pStackOverflowFromCode), rLR);
-            newLIR2(cUnit, kThumbAddRI8, rSP, cUnit->numSpills * 4);
-            opReg(cUnit, kOpBlx, rLR);
-            /* End conditional skip */
+            genRegRegCheck(cUnit, kArmCondCc, rLR, r12, NULL,
+                           kArmThrowStackOverflow);
             genRegCopy(cUnit, rSP, rLR);         // Establish stack
         } else {
             opRegImm(cUnit, kOpSub, rSP,
@@ -2054,11 +2052,17 @@ static void handleThrowLaunchpads(CompilationUnit *cUnit)
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNoSuchMethodFromCode);
                 break;
+            case kArmThrowStackOverflow:
+                funcOffset =
+                    OFFSETOF_MEMBER(Thread, pStackOverflowFromCode);
+                // Restore stack alignment
+                opRegImm(cUnit, kOpAdd, rSP, cUnit->numSpills * 4);
+                break;
             default:
                 LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
         }
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
-        opReg(cUnit, kOpBlx, rLR);
+        callUnwindableHelper(cUnit, rLR);
     }
 }
 

@@ -1945,7 +1945,7 @@ static void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
     defs[regIndex] = ssaReg;
 }
 
-/* Loop up new SSA names for format_35c instructions */
+/* Look up new SSA names for format_35c instructions */
 static void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction *dInsn = &mir->dalvikInsn;
@@ -1960,7 +1960,7 @@ static void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
     }
 }
 
-/* Loop up new SSA names for format_3rc instructions */
+/* Look up new SSA names for format_3rc instructions */
 static void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction *dInsn = &mir->dalvikInsn;

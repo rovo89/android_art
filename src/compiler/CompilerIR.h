@@ -197,6 +197,7 @@ typedef struct CompilationUnit {
     std::vector<uint32_t> mappingTable;
     bool printMe;
     bool printMeVerbose;
+    bool dumpCFG;
     bool hasClassLiterals;              // Contains class ptrs used as literals
     bool hasLoop;                       // Contains a loop
     bool hasInvoke;                     // Contains an invoke instruction

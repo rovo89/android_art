@@ -62,7 +62,7 @@ static ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
     if (cCode == kArmCondAl) {
         branch = genUnconditionalBranch(cUnit, tgt);
     } else {
-        branch = genCmpImmBranch(cUnit, kArmCondEq, reg, 0);
+        branch = genCmpImmBranch(cUnit, cCode, reg, immVal);
         branch->generic.target = (LIR*)tgt;
     }
     // Remember branch target - will process later
@@ -86,18 +86,18 @@ static ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
     return genImmedCheck(cUnit, kArmCondEq, mReg, 0, mir, kArmThrowNullPointer);
 }
 
-/* Perform bound check on two registers */
-static TGT_LIR* genBoundsCheck(CompilationUnit* cUnit, int rIndex,
-                               int rBound, MIR* mir, ArmThrowKind kind)
+/* Perform check on two registers */
+static TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
+                               int reg1, int reg2, MIR* mir, ArmThrowKind kind)
 {
     ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
-    tgt->operands[1] = mir->offset;
-    tgt->operands[2] = rIndex;
-    tgt->operands[3] = rBound;
-    opRegReg(cUnit, kOpCmp, rIndex, rBound);
-    ArmLIR* branch = genConditionalBranch(cUnit, kArmCondCs, tgt);
+    tgt->operands[1] = mir ? mir->offset : 0;
+    tgt->operands[2] = reg1;
+    tgt->operands[3] = reg2;
+    opRegReg(cUnit, kOpCmp, reg1, reg2);
+    ArmLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
     // Remember branch target - will process later
     oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
