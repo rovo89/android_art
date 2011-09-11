@@ -11,6 +11,7 @@
 namespace art {
 
 // C++ mirror of java.lang.ClassLoader
+// TODO: add MANAGED when class_path_ removed
 class ClassLoader : public Object {
  public:
   static const std::vector<const DexFile*>& GetClassPath(const ClassLoader* class_loader);
@@ -34,6 +35,7 @@ class ClassLoader : public Object {
 };
 
 // C++ mirror of dalvik.system.BaseDexClassLoader
+// TODO: add MANAGED when class_path_ removed
 class BaseDexClassLoader : public ClassLoader {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
@@ -45,6 +47,7 @@ class BaseDexClassLoader : public ClassLoader {
 };
 
 // C++ mirror of dalvik.system.PathClassLoader
+// TODO: add MANAGED when class_path_ removed
 class PathClassLoader : public BaseDexClassLoader {
  public:
   static const PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);

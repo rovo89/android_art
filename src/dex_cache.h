@@ -17,7 +17,7 @@ class Method;
 class String;
 union JValue;
 
-class CodeAndDirectMethods : public IntArray {
+class MANAGED CodeAndDirectMethods : public IntArray {
  public:
   void* GetResolvedCode(uint32_t method_idx) const {
     return reinterpret_cast<byte*>(Get(CodeIndex(method_idx)));
@@ -78,7 +78,7 @@ class CodeAndDirectMethods : public IntArray {
   DISALLOW_IMPLICIT_CONSTRUCTORS(CodeAndDirectMethods);
 };
 
-class DexCache : public ObjectArray<Object> {
+class MANAGED DexCache : public ObjectArray<Object> {
  public:
   void Init(String* location,
             ObjectArray<String>* strings,

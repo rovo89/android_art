@@ -170,8 +170,12 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
 #define OFFSET_OF_OBJECT_MEMBER(type, field) \
     MemberOffset(OFFSETOF_MEMBER(type, field))
 
+// Classes shared with the managed side of the world need to be packed
+// so that they don't have extra platform specific padding.
+#define MANAGED __attribute__ ((__packed__))
+
 // C++ mirror of java.lang.Object
-class Object {
+class MANAGED Object {
  public:
   static bool InstanceOf(const Object* object, const Class* klass) {
     if (object == NULL) {
@@ -475,7 +479,7 @@ class ObjectLock {
 };
 
 // C++ mirror of java.lang.reflect.AccessibleObject
-class AccessibleObject : public Object {
+class MANAGED AccessibleObject : public Object {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   uint32_t java_flag_;  // can accessibility checks be bypassed
@@ -484,7 +488,7 @@ class AccessibleObject : public Object {
 };
 
 // C++ mirror of java.lang.reflect.Field
-class Field : public AccessibleObject {
+class MANAGED Field : public AccessibleObject {
  public:
   Class* GetDeclaringClass() const;
 
@@ -621,7 +625,7 @@ class Field : public AccessibleObject {
 };
 
 // C++ mirror of java.lang.reflect.Method
-class Method : public AccessibleObject {
+class MANAGED Method : public AccessibleObject {
  public:
   // An function that invokes a method with an array of its arguments.
   typedef void InvokeStub(const Method* method,
@@ -1101,7 +1105,7 @@ class Method : public AccessibleObject {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Method);
 };
 
-class Array : public Object {
+class MANAGED Array : public Object {
  public:
   static size_t SizeOf(size_t component_count,
                        size_t component_size) {
@@ -1165,7 +1169,7 @@ class Array : public Object {
 };
 
 template<class T>
-class ObjectArray : public Array {
+class MANAGED ObjectArray : public Array {
  public:
   static ObjectArray<T>* Alloc(Class* object_array_class, int32_t length);
 
@@ -1212,10 +1216,10 @@ ObjectArray<T>* ObjectArray<T>::CopyOf(int32_t new_length) {
 // provides the static storage. However, this might change to an Array
 // to improve image sharing, so we use this type to avoid assumptions
 // on the current storage.
-class StaticStorageBase : public Object {};
+class MANAGED StaticStorageBase : public Object {};
 
 // C++ mirror of java.lang.Class
-class Class : public StaticStorageBase {
+class MANAGED Class : public StaticStorageBase {
  public:
 
   // Class Status
@@ -1499,7 +1503,10 @@ class Class : public StaticStorageBase {
   }
 
   void SetClassSize(size_t new_class_size) {
-    DCHECK_GE(new_class_size, GetClassSize());
+    DCHECK(new_class_size >= GetClassSize())
+            << " class=" << PrettyType(this)
+            << " new_class_size=" << new_class_size
+            << " GetClassSize=" << GetClassSize();
     SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size,
                false);
   }
@@ -2281,14 +2288,14 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
   }
 }
 
-class ClassClass : public Class {
+class MANAGED ClassClass : public Class {
  private:
   int64_t serialVersionUID_;
   friend struct ClassClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);
 };
 
-class StringClass : public Class {
+class MANAGED StringClass : public Class {
  private:
   CharArray* ASCII_;
   Object* CASE_INSENSITIVE_ORDER_;
@@ -2298,7 +2305,7 @@ class StringClass : public Class {
   DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
 };
 
-class FieldClass : public Class {
+class MANAGED FieldClass : public Class {
  private:
   Object* ORDER_BY_NAME_AND_DECLARING_CLASS_;
   uint32_t TYPE_BOOLEAN_;
@@ -2313,7 +2320,7 @@ class FieldClass : public Class {
   DISALLOW_IMPLICIT_CONSTRUCTORS(FieldClass);
 };
 
-class MethodClass : public Class {
+class MANAGED MethodClass : public Class {
  private:
   ObjectArray<Object>* NO_ANNOTATIONS_;
   Object* ORDER_BY_SIGNATURE_;
@@ -2322,7 +2329,7 @@ class MethodClass : public Class {
 };
 
 template<class T>
-class PrimitiveArray : public Array {
+class MANAGED PrimitiveArray : public Array {
  public:
   typedef T ElementType;
 
@@ -2378,7 +2385,7 @@ inline void Class::SetInterfacesTypeIdx(IntArray* new_interfaces_idx) {
 }
 
 // C++ mirror of java.lang.String
-class String : public Object {
+class MANAGED String : public Object {
  public:
   const CharArray* GetCharArray() const {
     const CharArray* result = GetFieldObject<const CharArray*>(
@@ -2609,7 +2616,7 @@ inline uint32_t Method::GetProtoIdx() const {
 }
 
 // C++ mirror of java.lang.Throwable
-class Throwable : public Object {
+class MANAGED Throwable : public Object {
  public:
   void SetDetailMessage(String* new_detail_message) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_),
@@ -2629,7 +2636,7 @@ class Throwable : public Object {
 };
 
 // C++ mirror of java.lang.StackTraceElement
-class StackTraceElement : public Object {
+class MANAGED StackTraceElement : public Object {
  public:
   const String* GetDeclaringClass() const {
     return GetFieldObject<const String*>(
@@ -2678,7 +2685,7 @@ class StackTraceElement : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);
 };
 
- class InterfaceEntry : public ObjectArray<Object> {
+class MANAGED InterfaceEntry : public ObjectArray<Object> {
  public:
   Class* GetInterface() const {
     Class* interface = Get(kInterface)->AsClass();
