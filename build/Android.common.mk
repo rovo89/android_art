@@ -64,6 +64,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/compiler/codegen/arm/Assemble.cc \
 	src/compiler/codegen/arm/LocalOptimizations.cc \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc \
+	src/dalvik_system_VMStack.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
@@ -79,6 +80,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/java_lang_Runtime.cc \
 	src/java_lang_String.cc \
 	src/java_lang_System.cc \
+	src/java_lang_Thread.cc \
 	src/java_lang_Throwable.cc \
 	src/java_util_concurrent_atomic_AtomicLong.cc \
 	src/jni_compiler.cc \
@@ -92,6 +94,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/managed_register_x86.cc \
 	src/memory_region.cc \
 	src/mspace.c \
+	src/mutex.cc \
 	src/object.cc \
 	src/object_bitmap.cc \
 	src/offsets.cc \
@@ -103,6 +106,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
 	src/thread.cc \
+	src/thread_list.cc \
 	src/utf.cc \
 	src/utils.cc \
 	src/zip_archive.cc \
@@ -112,12 +116,14 @@ LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/logging_android.cc \
 	src/runtime_android.cc \
+	src/thread_android.cc \
 	src/thread_arm.cc
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/logging_linux.cc \
 	src/runtime_linux.cc \
+	src/thread_linux.cc \
 	src/thread_x86.cc
 
 LIBARTTEST_COMMON_SRC_FILES := \

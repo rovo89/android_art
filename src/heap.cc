@@ -126,7 +126,7 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
   // It's still to early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
-  lock_ = Mutex::Create("Heap lock");
+  lock_ = new Mutex("Heap lock");
 }
 
 void Heap::Destroy() {
@@ -176,7 +176,7 @@ void Heap::VerifyObject(const Object* obj) {
 #endif
 
 void Heap::VerifyObjectLocked(const Object* obj) {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
   if (obj != NULL && !verify_object_disabled_) {
     if (!IsAligned(obj, kObjectAlignment)) {
       LOG(FATAL) << "Object isn't aligned: " << obj;
@@ -224,7 +224,7 @@ void Heap::VerifyHeap() {
 void Heap::RecordAllocationLocked(Space* space, const Object* obj) {
 #ifndef NDEBUG
   if (Runtime::Current()->IsStarted()) {
-    DCHECK_LOCK_HELD(lock_);
+    lock_->AssertHeld();
   }
 #endif
   size_t size = space->AllocationSize(obj);
@@ -235,7 +235,7 @@ void Heap::RecordAllocationLocked(Space* space, const Object* obj) {
 }
 
 void Heap::RecordFreeLocked(Space* space, const Object* obj) {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
   size_t size = space->AllocationSize(obj);
   DCHECK_NE(size, 0u);
   if (size < num_bytes_allocated_) {
@@ -263,7 +263,7 @@ void Heap::RecordImageAllocations(Space* space) {
 }
 
 Object* Heap::AllocateLocked(size_t size) {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
   DCHECK(alloc_space_ != NULL);
   Space* space = alloc_space_;
   Object* obj = AllocateLocked(space, size);
@@ -274,7 +274,7 @@ Object* Heap::AllocateLocked(size_t size) {
 }
 
 Object* Heap::AllocateLocked(Space* space, size_t size) {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
 
   // Fail impossible allocations.  TODO: collect soft references.
   if (size > maximum_size_) {
@@ -365,7 +365,7 @@ void Heap::CollectGarbage() {
 }
 
 void Heap::CollectGarbageInternal() {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
 
   // TODO: Suspend all threads
   {
@@ -402,14 +402,14 @@ void Heap::CollectGarbageInternal() {
 }
 
 void Heap::WaitForConcurrentGcToComplete() {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
 }
 
 // Given the current contents of the active heap, increase the allowed
 // heap footprint to match the target utilization ratio.  This should
 // only be called immediately after a full garbage collection.
 void Heap::GrowForUtilization() {
-  DCHECK_LOCK_HELD(lock_);
+  lock_->AssertHeld();
   UNIMPLEMENTED(ERROR);
 }
 

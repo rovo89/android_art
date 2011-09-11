@@ -6,6 +6,7 @@
 #include "unordered_map.h"
 
 #include "heap.h"
+#include "mutex.h"
 #include "object.h"
 
 namespace art {
@@ -23,7 +24,6 @@ namespace art {
 class InternTable {
  public:
   InternTable();
-  ~InternTable();
 
   // Interns a potentially new string in the 'strong' table. (See above.)
   const String* InternStrong(int32_t utf16_length, const char* utf8_data);
@@ -59,9 +59,9 @@ class InternTable {
   const String* Insert(Table& table, const String* s, uint32_t hash_code);
   void Remove(Table& table, const String* s, uint32_t hash_code);
 
+  mutable Mutex intern_table_lock_;
   Table strong_interns_;
   Table weak_interns_;
-  Mutex* intern_table_lock_;
 };
 
 }  // namespace art

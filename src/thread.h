@@ -8,12 +8,14 @@
 #include <bitset>
 #include <iosfwd>
 #include <list>
+#include <string>
 
 #include "dex_file.h"
 #include "globals.h"
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
+#include "mutex.h"
 #include "mem_map.h"
 #include "offsets.h"
 
@@ -24,6 +26,7 @@ class Class;
 class ClassLinker;
 class ClassLoader;
 class Method;
+class Monitor;
 class Object;
 class Runtime;
 class Thread;
@@ -35,43 +38,6 @@ class StaticStorageBase;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<int32_t> IntArray;
-
-class Mutex {
- public:
-  ~Mutex();
-
-  void Lock();
-
-  bool TryLock();
-
-  void Unlock();
-
-  const char* GetName() { return name_; }
-
-  static Mutex* Create(const char* name);
-
-  pthread_mutex_t* GetImpl() { return &mutex_; }
-
- private:
-  explicit Mutex(const char* name) : name_(name) {}
-
-  const char* name_;
-
-  pthread_mutex_t mutex_;
-
-  DISALLOW_COPY_AND_ASSIGN(Mutex);
-};
-
-class MutexLock {
- public:
-  explicit MutexLock(Mutex *mu) : mu_(mu) {
-    mu_->Lock();
-  }
-  ~MutexLock() { mu_->Unlock(); }
- private:
-  Mutex* const mu_;
-  DISALLOW_COPY_AND_ASSIGN(MutexLock);
-};
 
 // Stack allocated indirect reference table, allocated within the bridge frame
 // between managed and native code.
@@ -155,6 +121,12 @@ class Frame {
 
 class Thread {
  public:
+  /* thread priorities, from java.lang.Thread */
+  enum Priority {
+    kMinPriority = 1,
+    kNormPriority = 5,
+    kMaxPriority = 10,
+  };
   enum State {
     kUnknown = -1,
     kNew,
@@ -250,6 +222,13 @@ class Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
+  static Thread* FromManagedThread(JNIEnv* env, jobject thread) {
+    // TODO: make these more generally available, and cached.
+    jclass java_lang_Thread = env->FindClass("java/lang/Thread");
+    jfieldID fid = env->GetFieldID(java_lang_Thread, "vmData", "I");
+    return reinterpret_cast<Thread*>(static_cast<uintptr_t>(env->GetIntField(thread, fid)));
+  }
+
   void Dump(std::ostream& os) const;
 
   State GetState() const {
@@ -261,6 +240,22 @@ class Thread {
     state_ = new_state;
     return old_state;
   }
+
+  /*
+   * Changes the priority of this thread to match that of the java.lang.Thread object.
+   *
+   * We map a priority value from 1-10 to Linux "nice" values, where lower
+   * numbers indicate higher priority.
+   */
+  void SetNativePriority(int newPriority);
+
+  /*
+   * Returns the thread priority for the current thread by querying the system.
+   * This is useful when attaching a thread through JNI.
+   *
+   * Returns a value from 1 to 10 (compatible with java.lang.Thread values).
+   */
+  static int GetNativePriority();
 
   bool CanAccessDirectReferences() const {
     // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
@@ -277,6 +272,10 @@ class Thread {
 
   pthread_t GetImpl() const {
     return pthread_;
+  }
+
+  jobject GetPeer() const {
+    return peer_;
   }
 
   // Returns the Method* for the current method.
@@ -352,6 +351,20 @@ class Thread {
 
   // Convert a jobject into a Object*
   Object* DecodeJObject(jobject obj);
+
+  // Implements java.lang.Thread.interrupted.
+  bool Interrupted() {
+    MutexLock mu(wait_mutex_);
+    bool interrupted = interrupted_;
+    interrupted_ = false;
+    return interrupted;
+  }
+
+  // Implements java.lang.Thread.isInterrupted.
+  bool IsInterrupted() {
+    MutexLock mu(wait_mutex_);
+    return interrupted_;
+  }
 
   void RegisterExceptionEntryPoint(void (*handler)(Method**)) {
     exception_entry_point_ = handler;
@@ -480,7 +493,14 @@ class Thread {
   bool is_daemon_;
 
   // Our managed peer (an instance of java.lang.Thread).
-  Object* peer_;
+  jobject peer_;
+
+  // Guards the 'interrupted_' and 'wait_monitor_' members.
+  mutable Mutex wait_mutex_;
+  // Pointer to the monitor lock we're currently waiting on (or NULL), guarded by wait_mutex_.
+  Monitor* wait_monitor_;
+  // Thread "interrupted" status; stays raised until queried or thrown, guarded by wait_mutex_.
+  bool interrupted_;
 
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;
@@ -537,79 +557,6 @@ class Thread {
 };
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
 std::ostream& operator<<(std::ostream& os, const Thread::State& state);
-
-class ThreadList {
- public:
-  static const uint32_t kMaxThreadId = 0xFFFF;
-  static const uint32_t kInvalidId = 0;
-  static const uint32_t kMainId = 1;
-
-  static ThreadList* Create();
-
-  ~ThreadList();
-
-  void Dump(std::ostream& os);
-
-  void Register(Thread* thread);
-
-  void Unregister();
-
-  bool Contains(Thread* thread);
-
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
-
- private:
-  ThreadList();
-
-  uint32_t AllocThreadId();
-  void ReleaseThreadId(uint32_t id);
-
-  void Lock() {
-    lock_->Lock();
-  }
-
-  void Unlock() {
-    lock_->Unlock();
-  }
-
-  Mutex* lock_;
-
-  std::bitset<kMaxThreadId> allocated_ids_;
-  std::list<Thread*> list_;
-
-  friend class Thread;
-  friend class ThreadListLock;
-
-  DISALLOW_COPY_AND_ASSIGN(ThreadList);
-};
-
-class ThreadListLock {
- public:
-  ThreadListLock(Thread* self = NULL) {
-    if (self == NULL) {
-      // Try to get it from TLS.
-      self = Thread::Current();
-    }
-    Thread::State old_state;
-    if (self != NULL) {
-      old_state = self->SetState(Thread::kWaiting);  // TODO: VMWAIT
-    } else {
-      // This happens during VM shutdown.
-      old_state = Thread::kUnknown;
-    }
-    Runtime::Current()->GetThreadList()->Lock();
-    if (self != NULL) {
-      self->SetState(old_state);
-    }
-  }
-
-  ~ThreadListLock() {
-    Runtime::Current()->GetThreadList()->Unlock();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ThreadListLock);
-};
 
 class ScopedThreadStateChange {
  public:

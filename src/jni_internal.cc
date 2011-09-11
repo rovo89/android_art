@@ -452,14 +452,10 @@ class SharedLibrary {
   SharedLibrary(const std::string& path, void* handle, Object* class_loader)
       : path_(path),
         handle_(handle),
-        jni_on_load_lock_(Mutex::Create("JNI_OnLoad lock")),
+        jni_on_load_lock_("JNI_OnLoad lock"),
         jni_on_load_thread_id_(Thread::Current()->GetThinLockId()),
         jni_on_load_result_(kPending) {
     pthread_cond_init(&jni_on_load_cond_, NULL);
-  }
-
-  ~SharedLibrary() {
-    delete jni_on_load_lock_;
   }
 
   Object* GetClassLoader() {
@@ -491,7 +487,7 @@ class SharedLibrary {
                   << "JNI_OnLoad...]";
       }
       ScopedThreadStateChange tsc(self, Thread::kWaiting); // TODO: VMWAIT
-      pthread_cond_wait(&jni_on_load_cond_, jni_on_load_lock_->GetImpl());
+      pthread_cond_wait(&jni_on_load_cond_, jni_on_load_lock_.GetImpl());
     }
 
     bool okay = (jni_on_load_result_ == kOkay);
@@ -532,7 +528,7 @@ class SharedLibrary {
   Object* class_loader_;
 
   // Guards remaining items.
-  Mutex* jni_on_load_lock_;
+  Mutex jni_on_load_lock_;
   // Wait for JNI_OnLoad in other thread.
   pthread_cond_t jni_on_load_cond_;
   // Recursive invocation guard.
@@ -2654,13 +2650,13 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       log_third_party_jni(options->IsVerbose("third-party-jni")),
       trace(options->jni_trace_),
       work_around_app_jni_bugs(false), // TODO: add a way to enable this
-      pins_lock(Mutex::Create("JNI pin table lock")),
+      pins_lock("JNI pin table lock"),
       pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
-      globals_lock(Mutex::Create("JNI global reference table lock")),
+      globals_lock("JNI global reference table lock"),
       globals(kGlobalsInitial, kGlobalsMax, kGlobal),
-      weak_globals_lock(Mutex::Create("JNI weak global reference table lock")),
+      weak_globals_lock("JNI weak global reference table lock"),
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
-      libraries_lock(Mutex::Create("JNI shared libraries map lock")),
+      libraries_lock("JNI shared libraries map lock"),
       libraries(new Libraries) {
   functions = unchecked_functions = &gInvokeInterface;
   if (check_jni) {
@@ -2669,10 +2665,6 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
 }
 
 JavaVMExt::~JavaVMExt() {
-  delete pins_lock;
-  delete globals_lock;
-  delete weak_globals_lock;
-  delete libraries_lock;
   delete libraries;
 }
 

@@ -14,6 +14,7 @@
 #include "jni_internal.h"
 #include "signal_catcher.h"
 #include "thread.h"
+#include "thread_list.h"
 
 // TODO: this drags in cutil/log.h, which conflicts with our logging.h.
 #include "JniConstants.h"
@@ -363,7 +364,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   abort_ = options->hook_abort_;
 
   default_stack_size_ = options->stack_size_;
-  thread_list_ = ThreadList::Create();
+  thread_list_ = new ThreadList;
 
   intern_table_ = new InternTable;
 
@@ -407,18 +408,17 @@ void Runtime::InitLibraries() {
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
-  //REGISTER(register_dalvik_bytecode_OpcodeInfo);
   //REGISTER(register_dalvik_system_DexFile);
   //REGISTER(register_dalvik_system_VMDebug);
   //REGISTER(register_dalvik_system_VMRuntime);
-  //REGISTER(register_dalvik_system_VMStack);
+  REGISTER(register_dalvik_system_VMStack);
   //REGISTER(register_dalvik_system_Zygote);
   //REGISTER(register_java_lang_Class);
   REGISTER(register_java_lang_Object);
   REGISTER(register_java_lang_Runtime);
   REGISTER(register_java_lang_String);
   REGISTER(register_java_lang_System);
-  //REGISTER(register_java_lang_Thread);
+  REGISTER(register_java_lang_Thread);
   REGISTER(register_java_lang_Throwable);
   //REGISTER(register_java_lang_VMClassLoader);
   //REGISTER(register_java_lang_reflect_AccessibleObject);
@@ -434,7 +434,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #undef REGISTER
 }
 
-void Runtime::DumpStatistics(std::ostream& os) {
+void Runtime::Dump(std::ostream& os) {
   // TODO: dump other runtime statistics?
   os << "Loaded classes: " << class_linker_->NumLoadedClasses() << "\n";
   os << "Intern table size: " << GetInternTable()->Size() << "\n";
@@ -445,6 +445,8 @@ void Runtime::DumpStatistics(std::ostream& os) {
   //    gDvm.pBootLoaderAlloc->curOffset);
   // LOGI("GC precise methods: %d", dvmPointerSetGetCount(gDvm.preciseMethods));
   os << "\n";
+
+  thread_list_->Dump(os);
 }
 
 void Runtime::BlockSignals() {

@@ -71,7 +71,7 @@ ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_p
 }
 
 ClassLinker::ClassLinker(InternTable* intern_table)
-    : classes_lock_(Mutex::Create("ClassLinker::Lock")),
+    : classes_lock_("ClassLinker lock"),
       class_roots_(NULL),
       array_interfaces_(NULL),
       array_iftable_(NULL),
@@ -514,7 +514,6 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 ClassLinker::~ClassLinker() {
-  delete classes_lock_;
   String::ResetClass();
   Field::ResetClass();
   Method::ResetClass();

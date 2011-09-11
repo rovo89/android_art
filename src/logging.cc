@@ -22,8 +22,8 @@
 
 namespace {
 
-art::Mutex* GetLoggingLock() {
-  static art::Mutex* lock = art::Mutex::Create("LogMessage lock");
+art::Mutex& GetLoggingLock() {
+  static art::Mutex lock("LogMessage lock");
   return lock;
 }
 
