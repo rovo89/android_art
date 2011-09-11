@@ -60,17 +60,20 @@ define build-art-executable
   endif
 endef
 
-$(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),target,ndebug))
-$(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),target,debug))
-ifeq ($(WITH_HOST_DALVIK),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),host,ndebug))
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),host,debug))
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),target,ndebug))
+  $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),target,ndebug))
 endif
-
-$(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),target,ndebug))
-$(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),target,debug))
-ifeq ($(WITH_HOST_DALVIK),true)
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),target,debug))
+  $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),target,debug))
+endif
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),host,ndebug))
   $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),host,ndebug))
+endif
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),host,debug))
   $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),host,debug))
 endif
 

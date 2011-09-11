@@ -325,7 +325,11 @@ Mutex* Mutex::Create(const char* name) {
   if (errno != 0) {
     PLOG(FATAL) << "pthread_mutexattr_init failed";
   }
+#if VERIFY_OBJECT_ENABLED
+  errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_RECURSIVE);
+#else
   errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_ERRORCHECK);
+#endif
   if (errno != 0) {
     PLOG(FATAL) << "pthread_mutexattr_settype failed";
   }
@@ -928,7 +932,7 @@ ObjectArray<StackTraceElement>* Thread::AllocStackTrace() {
     StackTraceElement* obj =
         StackTraceElement::Alloc(readable_descriptor,
                                  method->GetName(),
-                                 String::AllocFromModifiedUtf8(klass->GetSourceFile()),
+                                 klass->GetSourceFile(),
                                  dex_file.GetLineNumFromPC(method,
                                      method->ToDexPC(build_trace_visitor.GetPC(i))));
     java_traces->Set(i, obj);

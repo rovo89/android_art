@@ -182,9 +182,9 @@ class DexCache : public ObjectArray<Object> {
     return static_cast<ObjectArray<StaticStorageBase>*>(GetNonNull(kInitializedStaticStorage));
   }
 
- static size_t LengthAsArray() {
-   return kMax;
- }
+  static size_t LengthAsArray() {
+    return kMax;
+  }
 
  private:
 

@@ -1072,7 +1072,7 @@ class Method : public AccessibleObject {
   // in Class::vtable_.
   //
   // For abstract methods in an interface class, this is the offset
-  // of the method in "iftable_[n]->method_index_array_".
+  // of the method in "iftable_->Get(n)->GetMethodArray()".
   uint32_t method_index_;  // (could be uint16_t)
 
   // The target native method registered with this method
@@ -1761,49 +1761,23 @@ class Class : public StaticStorageBase {
     return GetInterfaces()->Get(i);
   }
 
-  size_t GetIFTableCount() const {
-    DCHECK(IsResolved());
-    DCHECK(sizeof(size_t) == sizeof(int32_t));
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, iftable_count_), false);
+  int32_t GetIfTableCount() const {
+    ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+    if (iftable == NULL) {
+      return 0;
+    }
+    return iftable->GetLength();
   }
 
-  void SetIFTableCount(size_t new_iftable_count) {
-    DCHECK(sizeof(size_t) == sizeof(int32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, iftable_count_),
-               new_iftable_count, false);
-  }
-
-  InterfaceEntry* GetIFTable() const {
+  ObjectArray<InterfaceEntry>* GetIfTable() const {
     DCHECK(IsResolved());
-    return GetFieldPtr<InterfaceEntry*>(
+    return GetFieldObject<ObjectArray<InterfaceEntry>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
   }
 
-  void SetIFTable(InterfaceEntry* new_iftable) {
-    SetFieldPtr<InterfaceEntry*>(OFFSET_OF_OBJECT_MEMBER(Class, iftable_),
-                                 new_iftable, false);
-  }
-
-  size_t GetIfviPoolCount() const {
-    DCHECK(IsResolved());
-    CHECK(sizeof(size_t) == sizeof(int32_t));
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_count_), false);
-  }
-
-  void SetIfviPoolCount(size_t new_count) {
-    CHECK(sizeof(size_t) == sizeof(int32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_count_), new_count,
-               false);
-  }
-
-  uint32_t* GetIfviPool() const {
-    DCHECK(IsResolved());
-    return GetFieldPtr<uint32_t*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_), false);
-  }
-
-  void SetIfviPool(uint32_t* new_pool) {
-    SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Class, ifvi_pool_), new_pool, false);
+  void SetIfTable(ObjectArray<InterfaceEntry>* new_iftable) {
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_),
+		   new_iftable, false);
   }
 
   // Get instance fields
@@ -1955,14 +1929,14 @@ class Class : public StaticStorageBase {
                           klass, false);
   }
 
-  const char* GetSourceFile() const {
+  String* GetSourceFile() const {
     DCHECK(IsLoaded());
-    return GetFieldPtr<const char*>(
+    return GetFieldPtr<String*>(
         OFFSET_OF_OBJECT_MEMBER(Class, source_file_), false);
   }
 
-  void SetSourceFile(const char* new_source_file) {
-    SetFieldPtr<const char*>(OFFSET_OF_OBJECT_MEMBER(Class, source_file_),
+  void SetSourceFile(String* new_source_file) {
+    SetFieldPtr<String*>(OFFSET_OF_OBJECT_MEMBER(Class, source_file_),
                              new_source_file, false);
   }
 
@@ -1981,7 +1955,7 @@ class Class : public StaticStorageBase {
   // For array classes, the class object for base element, for
   // instanceof/checkcast (for String[][][], this will be String).
   // Otherwise, NULL.
-  Class* component_type_;  // TODO: make an instance field
+  Class* component_type_;
 
   // descriptor for the class such as "Ljava/lang/Class;" or "[C"
   String* descriptor_;
@@ -2005,6 +1979,21 @@ class Class : public StaticStorageBase {
   // specifies the number of reference fields.
   ObjectArray<Field>* ifields_;
 
+  // Interface table (iftable_), one entry per interface supported by
+  // this class.  That means one entry for each interface we support
+  // directly, indirectly via superclass, or indirectly via
+  // superinterface.  This will be null if neither we nor our
+  // superclass implement any interfaces.
+  //
+  // Why we need this: given "class Foo implements Face", declare
+  // "Face faceObj = new Foo()".  Invoke faceObj.blah(), where "blah"
+  // is part of the Face interface.  We can't easily use a single
+  // vtable.
+  //
+  // For every interface a concrete class implements, we create an array
+  // of the concrete vtable_ methods for the methods in the interface.
+  ObjectArray<InterfaceEntry>* iftable_;
+
   // array of interfaces this class implements directly
   // see also interfaces_type_idx_
   ObjectArray<Class>* interfaces_;
@@ -2015,6 +2004,9 @@ class Class : public StaticStorageBase {
 
   // Static fields
   ObjectArray<Field>* sfields_;
+
+  // source file name, if known.  Otherwise, NULL.
+  String* source_file_;
 
   // The superclass, or NULL if this is java.lang.Object or a
   // primitive type.
@@ -2046,40 +2038,6 @@ class Class : public StaticStorageBase {
   // threadId, used to check for recursive <clinit> invocation
   pid_t clinit_thread_id_;
 
-  // Interface table (iftable_), one entry per interface supported by
-  // this class.  That means one entry for each interface we support
-  // directly, indirectly via superclass, or indirectly via
-  // superinterface.  This will be null if neither we nor our
-  // superclass implement any interfaces.
-  //
-  // Why we need this: given "class Foo implements Face", declare
-  // "Face faceObj = new Foo()".  Invoke faceObj.blah(), where "blah"
-  // is part of the Face interface.  We can't easily use a single
-  // vtable.
-  //
-  // For every interface a concrete class implements, we create a list
-  // of virtualMethod indices for the methods in the interface.
-  //
-  // see also iftable_count_;
-  // TODO convert to ObjectArray<?>
-  //
-  InterfaceEntry* iftable_;
-
-  // size of iftable_
-  size_t iftable_count_;
-
-  // The interface vtable indices for iftable get stored here.  By
-  // placing them all in a single pool for each class that implements
-  // interfaces, we decrease the number of allocations.
-  //
-  // see also ifvi_pool_count_
-  //
-  // TODO convert to IntArray
-  uint32_t* ifvi_pool_;
-
-  // size of ifvi_pool_
-  size_t ifvi_pool_count_;
-
   // number of instance fields that are object refs
   size_t num_reference_instance_fields_;
 
@@ -2098,9 +2056,6 @@ class Class : public StaticStorageBase {
 
   // Bitmap of offsets of sfields.
   uint32_t reference_static_offsets_;
-
-  // source file name, if known.  Otherwise, NULL.
-  const char* source_file_;
 
   // state of class initialization
   Status status_;
@@ -2328,8 +2283,6 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
 
 class ClassClass : public Class {
  private:
-  // Padding to ensure the 64-bit serialVersionUID_ begins on a 8-byte boundary
-  int32_t padding_;
   int64_t serialVersionUID_;
   friend struct ClassClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);
@@ -2339,8 +2292,8 @@ class StringClass : public Class {
  private:
   CharArray* ASCII_;
   Object* CASE_INSENSITIVE_ORDER_;
-  uint32_t REPLACEMENT_CHAR_;
   int64_t serialVersionUID_;
+  uint32_t REPLACEMENT_CHAR_;
   friend struct StringClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
 };
@@ -2725,39 +2678,49 @@ class StackTraceElement : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);
 };
 
-class InterfaceEntry {
+ class InterfaceEntry : public ObjectArray<Object> {
  public:
-  InterfaceEntry() : interface_(NULL), method_index_array_(NULL) {
-  }
-
   Class* GetInterface() const {
-    DCHECK(interface_ != NULL);
-    return interface_;
+    Class* interface = Get(kInterface)->AsClass();
+    DCHECK(interface != NULL);
+    return interface;
   }
 
   void SetInterface(Class* interface) {
+    DCHECK(interface != NULL);
     DCHECK(interface->IsInterface());
-    interface_ = interface;
+    DCHECK(Get(kInterface) == NULL);
+    Set(kInterface, interface);
   }
 
-  uint32_t* GetMethodIndexArray() const {
-    return method_index_array_;
+  ObjectArray<Method>* GetMethodArray() const {
+    ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
+    DCHECK(method_array != NULL);
+    return method_array;
   }
 
-  void SetMethodIndexArray(uint32_t* new_mia) {
-    method_index_array_ = new_mia;
+  void SetMethodArray(ObjectArray<Method>* new_ma) {
+    DCHECK(new_ma != NULL);
+    DCHECK(Get(kMethodArray) == NULL);
+    Set(kMethodArray, new_ma);
+  }
+
+  static size_t LengthAsArray() {
+    return kMax;
   }
 
  private:
-  // Points to the interface class.
-  Class* interface_;
 
-  // Index into array of vtable offsets.  This points into the
-  // ifvi_pool_, which holds the vtables for all interfaces declared by
-  // this class.
-  uint32_t* method_index_array_;
+  enum ArrayIndex {
+    // Points to the interface class.
+    kInterface   = 0,
+    // Method pointers into the vtable, allow fast map from interface
+    // method index to concrete instance method.
+    kMethodArray = 1,
+    kMax         = 2,
+  };
 
-  DISALLOW_COPY_AND_ASSIGN(InterfaceEntry);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(InterfaceEntry);
 };
 
 }  // namespace art

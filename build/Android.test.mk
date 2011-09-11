@@ -50,8 +50,10 @@ define build-art-test
   endif
 endef
 
-$(foreach file,$(TEST_TARGET_SRC_FILES), $(eval $(call build-art-test,target,$(file))))
-ifeq ($(WITH_HOST_DALVIK),true)
+ifeq ($(ART_BUILD_TARGET),true)
+  $(foreach file,$(TEST_TARGET_SRC_FILES), $(eval $(call build-art-test,target,$(file))))
+endif
+ifeq ($(ART_BUILD_HOST),true)
   $(foreach file,$(TEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file))))
 endif
 

@@ -497,9 +497,8 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
 
   bool have_executable_code = (GetCode() != NULL);
 #if !defined(__arm__)
-  // Currently we can only compile for ARM, so we can't execute
-  // code on other architectures even if we do have it.
-  have_executable_code = false;
+  // Currently we can only compile non-native methods for ARM.
+  have_executable_code = IsNative();
 #endif
 
   if (have_executable_code && stub != NULL) {
@@ -620,8 +619,10 @@ bool Class::Implements(const Class* klass) const {
   // All interfaces implemented directly and by our superclass, and
   // recursively all super-interfaces of those interfaces, are listed
   // in iftable_, so we can just do a linear scan through that.
-  for (size_t i = 0; i < iftable_count_; i++) {
-    if (iftable_[i].GetInterface() == klass) {
+  int32_t iftable_count = GetIfTableCount();
+  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  for (int32_t i = 0; i < iftable_count; i++) {
+    if (iftable->Get(i)->GetInterface() == klass) {
       return true;
     }
   }
@@ -783,11 +784,12 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class->IsInterface());
   // TODO cache to improve lookup speed
-  for (size_t i = 0; i < iftable_count_; i++) {
-    InterfaceEntry& interface_entry = iftable_[i];
-    if (interface_entry.GetInterface() == declaring_class) {
-      return GetVTable()->Get(
-          interface_entry.GetMethodIndexArray()[method->GetMethodIndex()]);
+  int32_t iftable_count = GetIfTableCount();
+  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  for (int32_t i = 0; i < iftable_count; i++) {
+    InterfaceEntry* interface_entry = iftable->Get(i);
+    if (interface_entry->GetInterface() == declaring_class) {
+      return interface_entry->GetMethodArray()->Get(method->GetMethodIndex());
     }
   }
   UNIMPLEMENTED(FATAL) << "Need to throw an error of some kind";
@@ -802,9 +804,10 @@ Method* Class::FindInterfaceMethod(const StringPiece& name,
     return method;
   }
 
-  InterfaceEntry* iftable = GetIFTable();
-  for (size_t i = 0; i < GetIFTableCount(); i++) {
-    method = iftable[i].GetInterface()->FindVirtualMethod(name, signature);
+  int32_t iftable_count = GetIfTableCount();
+  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  for (int32_t i = 0; i < iftable_count; i++) {
+    method = iftable->Get(i)->GetInterface()->FindVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }

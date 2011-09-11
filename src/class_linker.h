@@ -175,6 +175,7 @@ class ClassLinker {
   Field* AllocField();
   Method* AllocMethod();
   CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
+  InterfaceEntry* AllocInterfaceEntry(Class* interface);
 
   Class* CreatePrimitiveClass(const char* descriptor,
                               Class::PrimitiveType type);
@@ -331,7 +332,7 @@ class ClassLinker {
   }
 
   ObjectArray<Class>* array_interfaces_;
-  InterfaceEntry* array_iftable_;
+  ObjectArray<InterfaceEntry>* array_iftable_;
 
   bool init_done_;
 

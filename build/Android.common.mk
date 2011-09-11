@@ -173,3 +173,18 @@ TEST_DEX_DIRECTORIES := \
 	SystemMethods \
 	Invoke \
 	XandY
+
+ART_BUILD_TARGET := false
+ART_BUILD_HOST := false
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+  ART_BUILD_TARGET := true
+endif
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+  ART_BUILD_TARGET := true
+endif
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
+  ART_BUILD_HOST := true
+endif
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
+  ART_BUILD_HOST := true
+endif

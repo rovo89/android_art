@@ -53,9 +53,15 @@ define build-libart
   endif
 endef
 
-$(eval $(call build-libart,target,ndebug))
-$(eval $(call build-libart,target,debug))
-ifeq ($(WITH_HOST_DALVIK),true)
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+  $(eval $(call build-libart,target,ndebug))
+endif
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+  $(eval $(call build-libart,target,debug))
+endif
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart,host,ndebug))
+endif
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-libart,host,debug))
 endif

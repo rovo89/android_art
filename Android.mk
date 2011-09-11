@@ -17,6 +17,13 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
+# These can be overridden via the environment or by editing to
+# enable/disable certain build configuration.
+ART_BUILD_TARGET_NDEBUG ?= true
+ART_BUILD_TARGET_DEBUG ?= true
+ART_BUILD_HOST_NDEBUG ?= true
+ART_BUILD_HOST_DEBUG ?= true
+
 build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 

@@ -37,7 +37,9 @@ define build-libarttest
   endif
 endef
 
-$(eval $(call build-libarttest,target))
-ifeq ($(WITH_HOST_DALVIK),true)
+ifeq ($(ART_BUILD_TARGET),true)
+  $(eval $(call build-libarttest,target))
+endif
+ifeq ($(ART_BUILD_HOST),true)
   $(eval $(call build-libarttest,host))
 endif

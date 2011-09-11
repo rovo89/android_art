@@ -390,16 +390,26 @@ struct CheckOffsets {
 
     bool error = false;
 
-    if (!klass->IsClassClass() && instance)
-      if (size != (instance ? klass->GetObjectSize() : klass->GetClassSize())) {
+    if (!klass->IsClassClass() && instance) {
+      size_t expected_size = instance ? klass->GetObjectSize() : klass->GetClassSize();
+      if (size != expected_size) {
         LG << "Class size mismatch:"
            << " class=" << class_descriptor
            << " Java=" << klass->GetObjectSize()
-           << " C++=" << (instance ? klass->GetObjectSize() : klass->GetClassSize());
+           << " C++=" << expected_size;
+        error = true;
+      }
+    }
+
+    size_t num_fields = instance ? klass->NumInstanceFields() : klass->NumStaticFields();
+    if (offsets.size() != num_fields) {
+      LG << "Field count mismatch:"
+         << " class=" << class_descriptor
+         << " Java=" << num_fields
+         << " C++=" << offsets.size();
       error = true;
     }
 
-    CHECK_EQ(offsets.size(), instance ? klass->NumInstanceFields() : klass->NumStaticFields());
     for (size_t i = 0; i < offsets.size(); i++) {
       Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
       if (!field->GetName()->Equals(offsets[i].java_name)) {
@@ -550,9 +560,11 @@ struct ClassOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "shadow$_dex_cache_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "shadow$_direct_methods_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "shadow$_ifields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "shadow$_iftable_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_),                    "shadow$_interfaces_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, interfaces_type_idx_),           "shadow$_interfaces_type_idx_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "shadow$_sfields_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, source_file_),                   "shadow$_source_file_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "shadow$_super_class_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "shadow$_verify_error_class_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "shadow$_virtual_methods_"));
@@ -563,17 +575,12 @@ struct ClassOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, array_rank_),                    "shadow$_array_rank_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "shadow$_iftable_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_count_),                 "shadow$_iftable_count_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_),                     "shadow$_ifvi_pool_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifvi_pool_count_),               "shadow$_ifvi_pool_count_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "shadow$_num_reference_static_fields_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "shadow$_object_size_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "shadow$_primitive_type_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "shadow$_reference_instance_offsets_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "shadow$_reference_static_offsets_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, source_file_),                   "shadow$_source_file_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "shadow$_status_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_type_idx_),          "shadow$_super_class_type_idx_"));
   };
@@ -662,9 +669,6 @@ struct ClassClassOffsets : public CheckOffsets {
     size = sizeof(ClassClass);
     class_descriptor = "Ljava/lang/Class;";
 
-    // padding 32-bit
-    // this space intentionally left blank
-
     // alphabetical 64-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassClass, serialVersionUID_), "serialVersionUID"));
   };
@@ -680,11 +684,11 @@ struct StringClassOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, ASCII_),                  "ASCII"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
 
-    // padding 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
-
     // alphabetical 64-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, serialVersionUID_),       "serialVersionUID"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
   };
 };
 

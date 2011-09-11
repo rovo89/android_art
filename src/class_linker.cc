@@ -151,7 +151,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
 
   // Create array interface entries to populate once we can load system classes
   array_interfaces_ = AllocObjectArray<Class>(2);
-  array_iftable_ = new InterfaceEntry[2];
+  array_iftable_ = AllocObjectArray<InterfaceEntry>(2);
 
   // Create int array type for AllocDexCache (done in AppendToBootClassPath)
   Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
@@ -195,8 +195,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
 
   // now we can use FindSystemClass
 
-  // Object and String just need more minimal setup, since they do not have
-  // extra C++ fields.
+  // Object and String need to be rerun through FindSystemClass to finish init
   java_lang_Object->SetStatus(Class::kStatusNotReady);
   Class* Object_class = FindSystemClass("Ljava/lang/Object;");
   CHECK_EQ(java_lang_Object, Object_class);
@@ -206,8 +205,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   CHECK_EQ(java_lang_String, String_class);
   CHECK_EQ(java_lang_String->GetObjectSize(), sizeof(String));
 
-  // Setup the primitive array type classes - can't be done until Object has
-  // a vtable
+  // Setup the primitive array type classes - can't be done until Object has a vtable
   SetClassRoot(kBooleanArrayClass, FindSystemClass("[Z"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
 
@@ -245,10 +243,9 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   array_interfaces_->Set(1, java_io_Serializable);
   // We assume that Cloneable/Serializable don't have superinterfaces --
   // normally we'd have to crawl up and explicitly list all of the
-  // supers as well.  These interfaces don't have any methods, so we
-  // don't have to worry about the ifviPool either.
-  array_iftable_[0].SetInterface(array_interfaces_->Get(0));
-  array_iftable_[1].SetInterface(array_interfaces_->Get(1));
+  // supers as well.
+  array_iftable_->Set(0, AllocInterfaceEntry(array_interfaces_->Get(0)));
+  array_iftable_->Set(1, AllocInterfaceEntry(array_interfaces_->Get(1)));
 
   // Sanity check Object[]'s interfaces
   CHECK_EQ(java_lang_Cloneable, object_array_class->GetInterface(0));
@@ -549,6 +546,14 @@ CodeAndDirectMethods* ClassLinker::AllocCodeAndDirectMethods(size_t length) {
   return down_cast<CodeAndDirectMethods*>(IntArray::Alloc(CodeAndDirectMethods::LengthAsArray(length)));
 }
 
+InterfaceEntry* ClassLinker::AllocInterfaceEntry(Class* interface) {
+  DCHECK(interface->IsInterface());
+  ObjectArray<Object>* array = AllocObjectArray<Object>(InterfaceEntry::LengthAsArray());
+  InterfaceEntry* interface_entry = down_cast<InterfaceEntry*>(array);
+  interface_entry->SetInterface(interface);
+  return interface_entry;
+}
+
 Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
   DCHECK_GE(class_size, sizeof(Class));
   Class* klass = Heap::AllocObject(java_lang_Class, class_size)->AsClass();
@@ -774,7 +779,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   size_t num_direct_methods = header.direct_methods_size_;
   size_t num_virtual_methods = header.virtual_methods_size_;
 
-  klass->SetSourceFile(dex_file.dexGetSourceFile(dex_class_def));
+  klass->SetSourceFile(String::AllocFromModifiedUtf8(dex_file.dexGetSourceFile(dex_class_def)));
 
   // Load class interfaces.
   LoadInterfaces(dex_file, dex_class_def, klass);
@@ -1099,8 +1104,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
   new_class->SetInterfaces(array_interfaces_);
-  new_class->SetIFTableCount(2);
-  new_class->SetIFTable(array_iftable_);
+  new_class->SetIfTable(array_iftable_);
 
   // Inherit access flags from the component type.  Arrays can't be
   // used as a superclass or interface, so we want to add "final"
@@ -1303,13 +1307,12 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       }
     }
   }
-  for (size_t i = 0; i < klass->GetIFTableCount(); ++i) {
-    const InterfaceEntry* iftable = &klass->GetIFTable()[i];
-    Class* interface = iftable->GetInterface();
+  for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+    InterfaceEntry* interface_entry = klass->GetIfTable()->Get(i);
+    Class* interface = interface_entry->GetInterface();
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        uint32_t vtable_index = iftable->GetMethodIndexArray()[j];
-        const Method* method = klass->GetVirtualMethod(vtable_index);
+        const Method* method = interface_entry->GetMethodArray()->Get(j);
         if (!HasSameMethodDescriptorClasses(method, interface,
                                             method->GetClass())) {
           LG << "Classes resolve differently in interface";  // TODO: LinkageError
@@ -1684,71 +1687,61 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
 }
 
 bool ClassLinker::LinkInterfaceMethods(Class* klass) {
-  int pool_offset = 0;
-  int pool_size = 0;
   int miranda_count = 0;
   int miranda_alloc = 0;
   size_t super_ifcount;
   if (klass->HasSuperClass()) {
-    super_ifcount = klass->GetSuperClass()->GetIFTableCount();
+    super_ifcount = klass->GetSuperClass()->GetIfTableCount();
   } else {
     super_ifcount = 0;
   }
   size_t ifcount = super_ifcount;
   ifcount += klass->NumInterfaces();
   for (size_t i = 0; i < klass->NumInterfaces(); i++) {
-    ifcount += klass->GetInterface(i)->GetIFTableCount();
+    ifcount += klass->GetInterface(i)->GetIfTableCount();
   }
   if (ifcount == 0) {
     // TODO: enable these asserts with klass status validation
-    // DCHECK(klass->GetIFTableCount() == 0);
-    // DCHECK(klass->GetIFTable() == NULL);
+    // DCHECK(klass->GetIfTableCount() == 0);
+    // DCHECK(klass->GetIfTable() == NULL);
     return true;
   }
-  InterfaceEntry* iftable = new InterfaceEntry[ifcount];
-  memset(iftable, 0x00, sizeof(InterfaceEntry) * ifcount);
+  ObjectArray<InterfaceEntry>* iftable = AllocObjectArray<InterfaceEntry>(ifcount);
   if (super_ifcount != 0) {
-    memcpy(iftable, klass->GetSuperClass()->GetIFTable(),
-           sizeof(InterfaceEntry) * super_ifcount);
+    ObjectArray<InterfaceEntry>* super_iftable = klass->GetSuperClass()->GetIfTable();
+    for (size_t i = 0; i < super_ifcount; i++) {
+      iftable->Set(i, AllocInterfaceEntry(super_iftable->Get(i)->GetInterface()));
+    }
   }
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
   for (size_t i = 0; i < klass->NumInterfaces(); i++) {
-    Class* interf = klass->GetInterface(i);
-    DCHECK(interf != NULL);
-    if (!interf->IsInterface()) {
+    Class* interface = klass->GetInterface(i);
+    DCHECK(interface != NULL);
+    if (!interface->IsInterface()) {
       LG << "Class implements non-interface class";  // TODO: IncompatibleClassChangeError
       return false;
     }
-    iftable[idx++].SetInterface(interf);
-    for (size_t j = 0; j < interf->GetIFTableCount(); j++) {
-      iftable[idx++].SetInterface(interf->GetIFTable()[j].GetInterface());
+    iftable->Set(idx++, AllocInterfaceEntry(interface));
+    for (int32_t j = 0; j < interface->GetIfTableCount(); j++) {
+      iftable->Set(idx++, AllocInterfaceEntry(interface->GetIfTable()->Get(j)->GetInterface()));
     }
   }
-  klass->SetIFTable(iftable);
+  klass->SetIfTable(iftable);
   CHECK_EQ(idx, ifcount);
-  klass->SetIFTableCount(ifcount);
   if (klass->IsInterface() || super_ifcount == ifcount) {
     return true;
   }
-  for (size_t i = super_ifcount; i < ifcount; i++) {
-    pool_size += iftable[i].GetInterface()->NumVirtualMethods();
-  }
-  if (pool_size == 0) {
-    return true;
-  }
-  klass->SetIfviPoolCount(pool_size);
-  uint32_t* ifvi_pool = new uint32_t[pool_size];
-  klass->SetIfviPool(ifvi_pool);
   std::vector<Method*> miranda_list;
-  for (size_t i = super_ifcount; i < ifcount; ++i) {
-    iftable[i].SetMethodIndexArray(ifvi_pool + pool_offset);
-    Class* interface = iftable[i].GetInterface();
-    pool_offset += interface->NumVirtualMethods();    // end here
+  for (size_t i = 0; i < ifcount; ++i) {
+    InterfaceEntry* interface_entry = iftable->Get(i);
+    Class* interface = interface_entry->GetInterface();
+    ObjectArray<Method>* method_array = AllocObjectArray<Method>(interface->NumVirtualMethods());
+    interface_entry->SetMethodArray(method_array);
     ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
       Method* interface_method = interface->GetVirtualMethod(j);
-      int k;  // must be signed
+      int32_t k;
       for (k = vtable->GetLength() - 1; k >= 0; --k) {
         Method* vtable_method = vtable->Get(k);
         if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
@@ -1756,7 +1749,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
             LG << "Implementation not public";
             return false;
           }
-          iftable[i].GetMethodIndexArray()[j] = k;
+          method_array->Set(j, vtable_method);
           break;
         }
       }
@@ -1769,16 +1762,16 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
             miranda_list.resize(miranda_alloc);
           }
         }
+        Method* miranda_method = NULL;
         int mir;
         for (mir = 0; mir < miranda_count; mir++) {
-          Method* miranda_method = miranda_list[mir];
+          miranda_method = miranda_list[mir];
           if (miranda_method->HasSameNameAndDescriptor(interface_method)) {
             break;
           }
         }
-        // point the interface table at a phantom slot index
-        iftable[i].GetMethodIndexArray()[j] =
-            vtable->GetLength() + mir;
+        // point the interface table at a phantom slot
+        method_array->Set(j, miranda_method);
         if (mir == miranda_count) {
           miranda_list[miranda_count++] = interface_method;
         }
