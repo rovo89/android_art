@@ -165,7 +165,6 @@ extern void oatResetDefTracking(CompilationUnit* cUnit);
 extern void oatKillNullCheckedLoc(CompilationUnit* cUnit,
                                   RegLocation loc);
 
-//FIXME - this needs to also check the preserved pool.
 extern RegisterInfo *oatIsLive(CompilationUnit* cUnit, int reg);
 
 /* To be used when explicitly managing register use */

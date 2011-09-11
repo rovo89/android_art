@@ -445,8 +445,7 @@ static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null object? */
         loadBaseIndexed(cUnit, rlObj.lowReg, r0, rlResult.lowReg, 0, size);
         oatGenMemBarrier(cUnit, kSY);
         storeValue(cUnit, rlDest, rlResult);
@@ -459,8 +458,7 @@ static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
         int fieldOffset = fieldPtr->GetOffset().Int32Value();
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null object? */
         loadBaseDisp(cUnit, mir, rlObj.lowReg, fieldOffset, rlResult.lowReg,
                      size, rlObj.sRegLow);
         if (isVolatile) {
@@ -481,8 +479,7 @@ static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlSrc = loadValue(cUnit, rlSrc, regClass);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null object? */
         oatGenMemBarrier(cUnit, kSY);
         storeBaseIndexed(cUnit, rlObj.lowReg, r0, rlSrc.lowReg, 0, size);
     } else {
@@ -494,8 +491,7 @@ static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
         int fieldOffset = fieldPtr->GetOffset().Int32Value();
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlSrc = loadValue(cUnit, rlSrc, regClass);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                    NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
 
         if (isVolatile) {
             oatGenMemBarrier(cUnit, kSY);
@@ -519,8 +515,7 @@ static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
         opRegReg(cUnit, kOpAdd, r0, rlObj.lowReg);
         loadPair(cUnit, r0, rlResult.lowReg, rlResult.highReg);
         oatGenMemBarrier(cUnit, kSY);
@@ -537,8 +532,7 @@ static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 
         assert(rlDest.wide);
 
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
         opRegRegImm(cUnit, kOpAdd, regPtr, rlObj.lowReg, fieldOffset);
         rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
 
@@ -563,8 +557,7 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
         opRegReg(cUnit, kOpAdd, r0, rlObj.lowReg);
         oatGenMemBarrier(cUnit, kSY);
         storePair(cUnit, r0, rlSrc.lowReg, rlSrc.highReg);
@@ -579,8 +572,7 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         int regPtr;
         rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
-        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
-                     NULL);/* null object? */
+        genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
         regPtr = oatAllocTemp(cUnit);
         opRegRegImm(cUnit, kOpAdd, regPtr, rlObj.lowReg, fieldOffset);
 
@@ -919,7 +911,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     assert(art::Monitor::kLwShapeThin == 0);
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, r1, mir->offset, NULL);
+    genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
     newLIR3(cUnit, kThumb2Ldrex, r2, r1,
             Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
@@ -970,7 +962,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     oatFlushAllRegs(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, r1, mir->offset, NULL);
+    genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
     loadWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r2); // Get lock
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
@@ -1241,14 +1233,6 @@ static ArmLIR* genConditionalBranch(CompilationUnit* cUnit,
     return branch;
 }
 
-/* Generate a unconditional branch to go to the interpreter */
-static inline ArmLIR* genTrap(CompilationUnit* cUnit, int dOffset,
-                                  ArmLIR* pcrLabel)
-{
-    ArmLIR* branch = opNone(cUnit, kOpUncondBr);
-    return genCheckCommon(cUnit, dOffset, branch, pcrLabel);
-}
-
 /*
  * Generate array store
  *
@@ -1269,8 +1253,7 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
     ArmLIR*  pcrLabel = NULL;
 
     if (!(mir->OptimizationFlags & MIR_IGNORE_NULL_CHECK)) {
-        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, r1,
-                                mir->offset, NULL);
+        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, r1, mir);
     }
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pCanPutArrayElementFromCode), rLR);
@@ -1302,8 +1285,8 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
         /* regPtr -> array data */
         opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
-        genBoundsCheck(cUnit, rlIndex.lowReg, regLen, mir->offset,
-                       pcrLabel);
+        genBoundsCheck(cUnit, rlIndex.lowReg, regLen, mir,
+                       kArmThrowArrayBounds);
         oatFreeTemp(cUnit, regLen);
     } else {
         /* regPtr -> array data */
@@ -1334,8 +1317,7 @@ static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     ArmLIR*  pcrLabel = NULL;
 
     if (!(mir->OptimizationFlags & MIR_IGNORE_NULL_CHECK)) {
-        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow,
-                                rlArray.lowReg, mir->offset, NULL);
+        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
     }
 
     regPtr = oatAllocTemp(cUnit);
@@ -1346,8 +1328,8 @@ static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
         /* regPtr -> array data */
         opRegRegImm(cUnit, kOpAdd, regPtr, rlArray.lowReg, dataOffset);
-        genBoundsCheck(cUnit, rlIndex.lowReg, regLen, mir->offset,
-                       pcrLabel);
+        genBoundsCheck(cUnit, rlIndex.lowReg, regLen, mir,
+                       kArmThrowArrayBounds);
         oatFreeTemp(cUnit, regLen);
     } else {
         /* regPtr -> array data */
@@ -1409,8 +1391,7 @@ static void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     ArmLIR*  pcrLabel = NULL;
 
     if (!(mir->OptimizationFlags & MIR_IGNORE_NULL_CHECK)) {
-        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg,
-                                mir->offset, NULL);
+        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
     }
 
     if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
@@ -1420,8 +1401,8 @@ static void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
         /* regPtr -> array data */
         opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
-        genBoundsCheck(cUnit, rlIndex.lowReg, regLen, mir->offset,
-                       pcrLabel);
+        genBoundsCheck(cUnit, rlIndex.lowReg, regLen, mir,
+                       kArmThrowArrayBounds);
         oatFreeTemp(cUnit, regLen);
     } else {
         /* regPtr -> array data */
@@ -1429,7 +1410,7 @@ static void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
     /* at this point, regPtr points to array, 2 live temps */
     if ((size == kLong) || (size == kDouble)) {
-        //TODO: need specific wide routine that can handle fp regs
+        //TUNING: specific wide routine that can handle fp regs
         if (scale) {
             int rNewIndex = oatAllocTemp(cUnit);
             opRegRegImm(cUnit, kOpLsl, rNewIndex, rlIndex.lowReg, scale);
@@ -1693,7 +1674,7 @@ static bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadValueDirectFixed(cUnit, rlSrc1, r0);
         if (checkZero) {
-            genNullCheck(cUnit, rlSrc2.sRegLow, r1, mir->offset, NULL);
+            genImmedCheck(cUnit, kArmCondEq, r1, 0, mir, kArmThrowDivZero);
         }
         opReg(cUnit, kOpBlx, rLR);
         oatClobberCallRegs(cUnit);
@@ -1844,7 +1825,7 @@ static bool handleEasyMultiply(CompilationUnit* cUnit,
     } else {
         // Reverse subtract: (src << (shift + 1)) - src.
         assert(powerOfTwoMinusOne);
-        // TODO: rsb dst, src, src lsl#lowestSetBit(lit + 1)
+        // TUNING: rsb dst, src, src lsl#lowestSetBit(lit + 1)
         int tReg = oatAllocTemp(cUnit);
         opRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, lowestSetBit(lit + 1));
         opRegRegReg(cUnit, kOpSub, rlResult.lowReg, tReg, rlSrc.lowReg);
@@ -1925,8 +1906,7 @@ static bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir,
         case OP_REM_INT_LIT8:
         case OP_REM_INT_LIT16:
             if (lit == 0) {
-                UNIMPLEMENTED(FATAL);
-                // FIXME: generate an explicit throw here
+                genImmedCheck(cUnit, kArmCondAl, 0, 0, mir, kArmThrowDivZero);
                 return false;
             }
             if (handleEasyDivide(cUnit, dalvikOpcode, rlSrc, rlDest, lit)) {

@@ -347,6 +347,17 @@ typedef enum ArmConditionCode {
     kArmCondNv = 0xf,    /* 1111 */
 } ArmConditionCode;
 
+typedef enum ArmThrowKind {
+    kArmThrowNullPointer,
+    kArmThrowDivZero,
+    kArmThrowArrayBounds,
+    kArmThrowVerificationError,
+    kArmThrowNegArraySize,
+    kArmThrowInternalError,
+    kArmThrowRuntimeException,
+    kArmThrowNoSuchMethod,
+} ArmThrowKind;
+
 #define isPseudoOpcode(opcode) ((int)(opcode) < 0)
 
 /*
@@ -355,6 +366,7 @@ typedef enum ArmConditionCode {
  * Assemble.c.
  */
 typedef enum ArmOpcode {
+    kArmPseudoThrowTarget = -14,
     kArmPseudoCaseLabel = -13,
     kArmPseudoMethodEntry = -12,
     kArmPseudoMethodExit = -11,

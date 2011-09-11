@@ -226,37 +226,6 @@ static void setupResourceMasks(ArmLIR* lir)
 }
 
 /*
- * Set up the accurate resource mask for branch instructions
- */
-static void relaxBranchMasks(ArmLIR* lir)
-{
-    int flags = EncodingMap[lir->opcode].flags;
-
-    /* Make sure only branch instructions are passed here */
-    assert(flags & IS_BRANCH);
-
-    lir->useMask = lir->defMask = ENCODE_REG_PC;
-
-    if (flags & REG_DEF_LR) {
-        lir->defMask |= ENCODE_REG_LR;
-    }
-
-    if (flags & (REG_USE0 | REG_USE1 | REG_USE2 | REG_USE3)) {
-        int i;
-
-        for (i = 0; i < 4; i++) {
-            if (flags & (1 << (kRegUse0 + i))) {
-                setupRegMask(&lir->useMask, lir->operands[i]);
-            }
-        }
-    }
-
-    if (flags & USES_CCODES) {
-        lir->useMask |= ENCODE_CCODE;
-    }
-}
-
-/*
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
@@ -382,37 +351,4 @@ static void genBarrier(CompilationUnit* cUnit)
     ArmLIR* barrier = newLIR0(cUnit, kArmPseudoBarrier);
     /* Mark all resources as being clobbered */
     barrier->defMask = -1;
-}
-
-/* Create the PC reconstruction slot if not already done */
-static ArmLIR* genCheckCommon(CompilationUnit* cUnit, int dOffset,
-                              ArmLIR* branch,
-                              ArmLIR* pcrLabel)
-{
-    //FIXME - won't be rolling back, need to throw now.
-    UNIMPLEMENTED(WARNING);
-#if 0
-
-    /* Forget all def info (because we might rollback here.  Bug #2367397 */
-    oatResetDefTracking(cUnit);
-
-    /* Set up the place holder to reconstruct this Dalvik PC */
-    if (pcrLabel == NULL) {
-        int dPC = (int) (cUnit->insns + dOffset);
-        pcrLabel = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
-        pcrLabel->opcode = kArmPseudoPCReconstructionCell;
-        pcrLabel->operands[0] = dPC;
-        pcrLabel->operands[1] = dOffset;
-        /* Insert the place holder to the growable list */
-        oatInsertGrowableList(&cUnit->pcReconstructionList,
-                              (intptr_t) pcrLabel);
-    }
-#endif
-    /* Branch to the PC reconstruction code */
-    branch->generic.target = (LIR*) pcrLabel;
-
-    /* Clear the conservative flags for branches that punt to the interpreter */
-    relaxBranchMasks(branch);
-
-    return pcrLabel;
 }

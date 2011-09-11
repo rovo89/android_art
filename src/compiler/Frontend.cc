@@ -719,6 +719,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     /* Intialize the fillArrayData list */
     oatInitGrowableList(&cUnit.fillArrayData, 4);
 
+    /* Intialize the throwLaunchpads list */
+    oatInitGrowableList(&cUnit.throwLaunchpads, 4);
+
     /* Allocate the bit-vector to track the beginning of basic blocks */
     ArenaBitVector *tryBlockAddr = oatAllocBitVector(cUnit.insnsSize,
                                                      true /* expandable */);

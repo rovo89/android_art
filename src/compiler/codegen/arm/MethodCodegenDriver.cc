@@ -438,7 +438,7 @@ static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
             loadValueDirectFixed(cUnit, rlArg, r1);
             break;
         case 1: // Is "this" null? [use r1]
-            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir->offset, NULL);
+            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
             // get this->klass_ [use r1, set rLR]
             loadWordDisp(cUnit, r1, Object::ClassOffset().Int32Value(), rLR);
             break;
@@ -507,7 +507,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 4:
             // Is "this" null? [use r1]
-            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir->offset, NULL);
+            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
             // get this->clazz [use r1, set rLR]
             loadWordDisp(cUnit, r1, Object::ClassOffset().Int32Value(), rLR);
             break;
@@ -601,8 +601,7 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, r0, Method::DeclaringClassOffset().Int32Value(),
                          rLR);
             // Is "this" null? [use r1]
-            genNullCheck(cUnit, oatSSASrc(mir,0), r1,
-                           mir->offset, NULL);
+            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
             break;
         case 1: // Get method->declaring_class_->super_class [usr rLR, set rLR]
             loadWordDisp(cUnit, rLR, Class::SuperClassOffset().Int32Value(),
@@ -676,7 +675,7 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, r0, Method::DeclaringClassOffset().Int32Value(),
                          r0);
             // Null this?
-            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir->offset, NULL);
+            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
             // Get method->declaring_class_->super_class [usr r0, set r0]
             loadWordDisp(cUnit, r0, Class::SuperClassOffset().Int32Value(), r0);
             break;
@@ -687,7 +686,7 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                 tReg = oatAllocTemp(cUnit);
                 loadWordDisp(cUnit, r0, art::Array::LengthOffset().Int32Value(),
                              tReg);
-                genBoundsCheck(cUnit, tReg, rLR, mir->offset, NULL);
+                genBoundsCheck(cUnit, tReg, rLR, mir, kArmThrowNoSuchMethod);
                 oatFreeTemp(cUnit, tReg);
             }
             // Adjust vtable_ base past object header
@@ -761,8 +760,7 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     //TODO: better to move this into CallInsn lists
     // Load direct & need a "this" null check?
     if (pcrLabel) {
-        *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1,
-                                 mir->offset, NULL);
+        *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
     }
     return callState;
 }
@@ -1215,12 +1213,19 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             genThrow(cUnit, mir, rlSrc[0]);
             break;
 
+        case OP_THROW_VERIFICATION_ERROR:
+            loadWordDisp(cUnit, rSELF,
+                OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode), rLR);
+            loadConstant(cUnit, r0, mir->dalvikInsn.vA);
+            loadConstant(cUnit, r1, mir->dalvikInsn.vB);
+            opReg(cUnit, kOpBlx, rLR);
+            break;
+
         case OP_ARRAY_LENGTH:
             int lenOffset;
             lenOffset = Array::LengthOffset().Int32Value();
             rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg,
-                         mir->offset, NULL);
+            genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg, mir);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
             loadWordDisp(cUnit, rlSrc[0].lowReg, lenOffset,
                          rlResult.lowReg);
@@ -1986,6 +1991,77 @@ void removeRedundantBranches(CompilationUnit* cUnit)
     }
 }
 
+static void handleThrowLaunchpads(CompilationUnit *cUnit)
+{
+    ArmLIR** throwLabel =
+        (ArmLIR **) cUnit->throwLaunchpads.elemList;
+    int numElems = cUnit->throwLaunchpads.numUsed;
+    int i;
+
+    for (i = 0; i < numElems; i++) {
+        ArmLIR* lab = throwLabel[i];
+        cUnit->currentDalvikOffset = lab->operands[1];
+        oatAppendLIR(cUnit, (LIR *)lab);
+        int funcOffset = 0;
+        int v1 = lab->operands[2];
+        int v2 = lab->operands[3];
+        switch(lab->operands[0]) {
+            case kArmThrowNullPointer:
+                funcOffset = OFFSETOF_MEMBER(Thread, pThrowNullPointerFromCode);
+                break;
+            case kArmThrowArrayBounds:
+                if (v2 != r0) {
+                    genRegCopy(cUnit, r0, v1);
+                    genRegCopy(cUnit, r1, v2);
+                } else {
+                    if (v1 == r1) {
+                        genRegCopy(cUnit, r12, v1);
+                        genRegCopy(cUnit, r1, v2);
+                        genRegCopy(cUnit, r0, r12);
+                    } else {
+                        genRegCopy(cUnit, r1, v2);
+                        genRegCopy(cUnit, r0, v1);
+                    }
+                }
+                funcOffset = OFFSETOF_MEMBER(Thread, pThrowArrayBoundsFromCode);
+                break;
+            case kArmThrowDivZero:
+                funcOffset = OFFSETOF_MEMBER(Thread, pThrowDivZeroFromCode);
+                break;
+            case kArmThrowVerificationError:
+                loadConstant(cUnit, r0, v1);
+                loadConstant(cUnit, r1, v2);
+                funcOffset =
+                    OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode);
+                break;
+            case kArmThrowNegArraySize:
+                genRegCopy(cUnit, r0, v1);
+                funcOffset =
+                    OFFSETOF_MEMBER(Thread, pThrowNegArraySizeFromCode);
+                break;
+            case kArmThrowInternalError:
+                genRegCopy(cUnit, r0, v1);
+                funcOffset =
+                    OFFSETOF_MEMBER(Thread, pThrowInternalErrorFromCode);
+                break;
+            case kArmThrowRuntimeException:
+                genRegCopy(cUnit, r0, v1);
+                funcOffset =
+                    OFFSETOF_MEMBER(Thread, pThrowRuntimeExceptionFromCode);
+                break;
+            case kArmThrowNoSuchMethod:
+                genRegCopy(cUnit, r0, v1);
+                funcOffset =
+                    OFFSETOF_MEMBER(Thread, pThrowNoSuchMethodFromCode);
+                break;
+            default:
+                LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
+        }
+        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+        opReg(cUnit, kOpBlx, rLR);
+    }
+}
+
 void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
     /* Used to hold the labels of each block */
@@ -1995,6 +2071,8 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
     oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                   kPreOrderDFSTraversal, false /* Iterative */);
     removeRedundantBranches(cUnit);
+
+    handleThrowLaunchpads(cUnit);
 }
 
 /* Common initialization routine for an architecture family */
