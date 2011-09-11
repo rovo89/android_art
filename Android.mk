@@ -21,8 +21,13 @@ include $(CLEAR_VARS)
 # enable/disable certain build configuration.
 ART_BUILD_TARGET_NDEBUG ?= true
 ART_BUILD_TARGET_DEBUG ?= true
-ART_BUILD_HOST_NDEBUG ?= true
-ART_BUILD_HOST_DEBUG ?= true
+ifeq ($(HOST_OS),linux)
+  ART_BUILD_HOST_NDEBUG ?= true
+  ART_BUILD_HOST_DEBUG ?= true
+else
+  ART_BUILD_HOST_NDEBUG ?= false
+  ART_BUILD_HOST_DEBUG ?= false
+endif
 
 build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
