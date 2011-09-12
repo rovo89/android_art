@@ -359,7 +359,7 @@ size_t Method::NumArgRegisters(const StringPiece& shorty) {
 }
 
 size_t Method::NumArgArrayBytes() const {
-  String* shorty = GetShorty();
+  const String* shorty = GetShorty();
   size_t num_bytes = 0;
   for (int i = 1; i < shorty->GetLength(); ++i) {
     char ch = shorty->CharAt(i);
@@ -385,7 +385,7 @@ size_t Method::NumArgs() const {
 // The number of reference arguments to this method including implicit this
 // pointer
 size_t Method::NumReferenceArgs() const {
-  String* shorty = GetShorty();
+  const String* shorty = GetShorty();
   size_t result = IsStatic() ? 0 : 1;  // The implicit this pointer.
   for (int i = 1; i < shorty->GetLength(); i++) {
     char ch = shorty->CharAt(i);
@@ -398,7 +398,7 @@ size_t Method::NumReferenceArgs() const {
 
 // The number of long or double arguments
 size_t Method::NumLongOrDoubleArgs() const {
-  String* shorty = GetShorty();
+  const String* shorty = GetShorty();
   size_t result = 0;
   for (int i = 1; i < shorty->GetLength(); i++) {
     char ch = shorty->CharAt(i);
@@ -981,7 +981,7 @@ void String::ResetClass() {
   java_lang_String_ = NULL;
 }
 
-const String* String::Intern() const {
+String* String::Intern() {
   return Runtime::Current()->GetInternTable()->InternWeak(this);
 }
 

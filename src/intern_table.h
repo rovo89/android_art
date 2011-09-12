@@ -26,14 +26,20 @@ class InternTable {
   InternTable();
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  const String* InternStrong(int32_t utf16_length, const char* utf8_data);
+  String* InternStrong(int32_t utf16_length, const char* utf8_data);
+
+  // Interns a potentially new string in the 'strong' table. (See above.)
+  String* InternStrong(const char* utf8_data);
+
+  // Interns a potentially new string in the 'strong' table. (See above.)
+  String* InternStrong(String* s);
 
   // Interns a potentially new string in the 'weak' table. (See above.)
-  const String* InternWeak(const String* s);
+  String* InternWeak(String* s);
 
   // Register a String trusting that it is safe to intern.
   // Used when reinitializing InternTable from an image.
-  void RegisterStrong(const String* s);
+  void RegisterStrong(String* s);
 
   // Removes all weak interns for which the predicate functor 'p' returns true.
   // (We use an explicit Predicate type rather than a template to keep implementation
@@ -44,19 +50,19 @@ class InternTable {
   };
   void RemoveWeakIf(const Predicate& p);
 
-  bool ContainsWeak(const String* s);
+  bool ContainsWeak(String* s);
 
   size_t Size() const;
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
  private:
-  typedef std::tr1::unordered_multimap<int32_t, const String*> Table;
+  typedef std::tr1::unordered_multimap<int32_t, String*> Table;
 
-  const String* Insert(const String* s, bool is_strong);
+  String* Insert(String* s, bool is_strong);
 
-  const String* Lookup(Table& table, const String* s, uint32_t hash_code);
-  const String* Insert(Table& table, const String* s, uint32_t hash_code);
+  String* Lookup(Table& table, String* s, uint32_t hash_code);
+  String* Insert(Table& table, String* s, uint32_t hash_code);
   void Remove(Table& table, const String* s, uint32_t hash_code);
 
   mutable Mutex intern_table_lock_;

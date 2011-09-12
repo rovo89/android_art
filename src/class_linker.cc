@@ -58,13 +58,13 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
 
 ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path,
                                  const std::vector<const DexFile*>& class_path,
-                                 InternTable* intern_table, Space* space) {
+                                 InternTable* intern_table, bool image) {
   CHECK_NE(boot_class_path.size(), 0U);
   UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
-  if (space == NULL) {
-    class_linker->Init(boot_class_path, class_path);
+  if (image) {
+    class_linker->InitFromImage(boot_class_path, class_path);
   } else {
-    class_linker->Init(boot_class_path, class_path, space);
+    class_linker->Init(boot_class_path, class_path);
   }
   // TODO: check for failure during initialization
   return class_linker.release();
@@ -115,16 +115,11 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   java_lang_String->SetStatus(Class::kStatusResolved);
 
   // Backfill Class descriptors missing until this point
-  // TODO: intern these strings
-  java_lang_Class->SetDescriptor(
-      String::AllocFromModifiedUtf8("Ljava/lang/Class;"));
-  java_lang_Object->SetDescriptor(
-      String::AllocFromModifiedUtf8("Ljava/lang/Object;"));
-  object_array_class->SetDescriptor(
-      String::AllocFromModifiedUtf8("[Ljava/lang/Object;"));
-  java_lang_String->SetDescriptor(
-      String::AllocFromModifiedUtf8("Ljava/lang/String;"));
-  char_array_class->SetDescriptor(String::AllocFromModifiedUtf8("[C"));
+  java_lang_Class->SetDescriptor(intern_table_->InternStrong("Ljava/lang/Class;"));
+  java_lang_Object->SetDescriptor(intern_table_->InternStrong("Ljava/lang/Object;"));
+  object_array_class->SetDescriptor(intern_table_->InternStrong("[Ljava/lang/Object;"));
+  java_lang_String->SetDescriptor(intern_table_->InternStrong("Ljava/lang/String;"));
+  char_array_class->SetDescriptor(intern_table_->InternStrong("[C"));
 
   // Create storage for root classes, save away our work so far (requires
   // descriptors)
@@ -156,7 +151,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   // Create int array type for AllocDexCache (done in AppendToBootClassPath)
   Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
   int_array_class->SetArrayRank(1);
-  int_array_class->SetDescriptor(String::AllocFromModifiedUtf8("[I"));
+  int_array_class->SetDescriptor(intern_table_->InternStrong("[I"));
   int_array_class->SetComponentType(GetClassRoot(kPrimitiveInt));
   IntArray::SetArrayClass(int_array_class);
   SetClassRoot(kIntArrayClass, int_array_class);
@@ -179,14 +174,15 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   // Field and Method are necessary so that FindClass can link members
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class, sizeof(FieldClass));
   CHECK(java_lang_reflect_Field != NULL);
-  java_lang_reflect_Field->SetDescriptor(String::AllocFromModifiedUtf8("Ljava/lang/reflect/Field;"));
+  java_lang_reflect_Field->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Field;"));
   java_lang_reflect_Field->SetObjectSize(sizeof(Field));
   SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
   java_lang_reflect_Field->SetStatus(Class::kStatusResolved);
   Field::SetClass(java_lang_reflect_Field);
 
   Class* java_lang_reflect_Method = AllocClass(java_lang_Class, sizeof(MethodClass));
-  java_lang_reflect_Method->SetDescriptor(String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;"));
+  java_lang_reflect_Method->SetDescriptor(
+      intern_table_->InternStrong("Ljava/lang/reflect/Method;"));
   CHECK(java_lang_reflect_Method != NULL);
   java_lang_reflect_Method->SetObjectSize(sizeof(Method));
   SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
@@ -358,7 +354,7 @@ void ClassLinker::FinishInit() {
   init_done_ = true;
 }
 
-struct ClassLinker::InitCallbackState {
+struct ClassLinker::InitFromImageCallbackState {
   ClassLinker* class_linker;
 
   Class* class_roots[kClassRootsMax];
@@ -370,15 +366,14 @@ struct ClassLinker::InitCallbackState {
   Set dex_caches;
 };
 
-void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
-                       const std::vector<const DexFile*>& class_path,
-                       Space* space) {
+void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_path,
+                                const std::vector<const DexFile*>& class_path) {
   CHECK(!init_done_);
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
 
-  InitCallbackState state;
+  InitFromImageCallbackState state;
   state.class_linker = this;
   for (size_t i = 0; i < kClassRootsMax; i++) {
     ClassRoot class_root = static_cast<ClassRoot>(i);
@@ -386,7 +381,7 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   }
 
   // reinit clases_ table
-  heap_bitmap->Walk(InitCallback, &state);
+  heap_bitmap->Walk(InitFromImageCallback, &state);
 
   // reinit class_roots_
   Class* object_array_class = state.class_roots[kObjectArrayClass];
@@ -396,21 +391,13 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
     SetClassRoot(class_root, state.class_roots[class_root]);
   }
 
-  // reinit intern table
-  // TODO: remove interned_array, make all strings in image interned (and remove space argument)
-  ObjectArray<Object>* interned_array = space->GetImageHeader().GetInternedArray();
-  for (int32_t i = 0; i < interned_array->GetLength(); i++) {
-    String* string = interned_array->Get(i)->AsString();
-    intern_table_->RegisterStrong(string);
-  }
-
   // reinit array_interfaces_ from any array class instance, they should all be ==
   array_interfaces_ = GetClassRoot(kObjectArrayClass)->GetInterfaces();
   DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->GetInterfaces());
 
   // build a map from location to DexCache to match up with DexFile::GetLocation
   std::tr1::unordered_map<std::string, DexCache*> location_to_dex_cache;
-  typedef InitCallbackState::Set::const_iterator It;  // TODO: C++0x auto
+  typedef InitFromImageCallbackState::Set::const_iterator It;  // TODO: C++0x auto
   for (It it = state.dex_caches.begin(), end = state.dex_caches.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
     std::string location = dex_cache->GetLocation()->ToModifiedUtf8();
@@ -454,11 +441,15 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   FinishInit();
 }
 
-void ClassLinker::InitCallback(Object* obj, void *arg) {
+void ClassLinker::InitFromImageCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
-  InitCallbackState* state = reinterpret_cast<InitCallbackState*>(arg);
+  InitFromImageCallbackState* state = reinterpret_cast<InitFromImageCallbackState*>(arg);
 
+  if (obj->IsString()) {
+    state->class_linker->intern_table_->RegisterStrong(obj->AsString());
+    return;
+  }
   if (!obj->IsClass()) {
     return;
   }
@@ -484,7 +475,7 @@ void ClassLinker::InitCallback(Object* obj, void *arg) {
   }
 
   // check if this is a root, if so, register it
-  typedef InitCallbackState::Table::const_iterator It;  // TODO: C++0x auto
+  typedef InitFromImageCallbackState::Table::const_iterator It;  // TODO: C++0x auto
   It it = state->descriptor_to_class_root.find(descriptor);
   if (it != state->descriptor_to_class_root.end()) {
     ClassRoot class_root = it->second;
@@ -531,7 +522,7 @@ ClassLinker::~ClassLinker() {
 
 DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
   DexCache* dex_cache = down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::LengthAsArray()));
-  dex_cache->Init(String::AllocFromModifiedUtf8(dex_file.GetLocation().c_str()),
+  dex_cache->Init(intern_table_->InternStrong(dex_file.GetLocation().c_str()),
                   AllocObjectArray<String>(dex_file.NumStringIds()),
                   AllocObjectArray<Class>(dex_file.NumTypeIds()),
                   AllocObjectArray<Method>(dex_file.NumMethodIds()),
@@ -760,7 +751,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   if (klass->GetDescriptor() != NULL) {
     DCHECK(klass->GetDescriptor()->Equals(descriptor));
   } else {
-    klass->SetDescriptor(String::AllocFromModifiedUtf8(descriptor));
+    klass->SetDescriptor(intern_table_->InternStrong(descriptor));
   }
   uint32_t access_flags = dex_class_def.access_flags_;
   // Make sure there aren't any "bonus" flags set, since we use them for runtime
@@ -778,7 +769,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   size_t num_direct_methods = header.direct_methods_size_;
   size_t num_virtual_methods = header.virtual_methods_size_;
 
-  klass->SetSourceFile(String::AllocFromModifiedUtf8(dex_file.dexGetSourceFile(dex_class_def)));
+  klass->SetSourceFile(intern_table_->InternStrong(dex_file.dexGetSourceFile(dex_class_def)));
 
   // Load class interfaces.
   LoadInterfaces(dex_file, dex_class_def, klass);
@@ -885,12 +876,12 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   {
     int32_t utf16_length;
     std::string utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
-    dst->SetSignature(String::AllocFromModifiedUtf8(utf16_length, utf8.c_str()));
+    dst->SetSignature(intern_table_->InternStrong(utf16_length, utf8.c_str()));
   }
   dst->SetProtoIdx(method_id.proto_idx_);
   dst->SetCodeItemOffset(src.code_off_);
   const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
-  dst->SetShorty(String::AllocFromModifiedUtf8(shorty));
+  dst->SetShorty(intern_table_->InternStrong(shorty));
   dst->SetAccessFlags(src.access_flags_);
   dst->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
 
@@ -965,7 +956,7 @@ Class* ClassLinker::CreatePrimitiveClass(const char* descriptor,
   Class* klass = AllocClass(sizeof(Class));
   CHECK(klass != NULL);
   klass->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
-  klass->SetDescriptor(String::AllocFromModifiedUtf8(descriptor));
+  klass->SetDescriptor(intern_table_->InternStrong(descriptor));
   klass->SetPrimitiveType(type);
   klass->SetStatus(Class::kStatusInitialized);
   bool success = InsertClass(descriptor, klass);
@@ -1078,7 +1069,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   if (new_class->GetDescriptor() != NULL) {
     DCHECK(new_class->GetDescriptor()->Equals(descriptor));
   } else {
-    new_class->SetDescriptor(String::AllocFromModifiedUtf8(descriptor.ToString().c_str()));
+    new_class->SetDescriptor(intern_table_->InternStrong(descriptor.ToString().c_str()));
   }
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);

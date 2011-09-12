@@ -106,7 +106,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
             // Skip past "this"
             sReg++;
         }
-        String* shorty = cUnit->method->GetShorty();
+        const String* shorty = cUnit->method->GetShorty();
         for (int i = 1; i < shorty->GetLength(); i++) {
             char arg = shorty->CharAt(i);
             // Is it wide?

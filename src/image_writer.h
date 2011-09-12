@@ -29,11 +29,24 @@ class ImageWriter {
   bool Init();
 
   // we use the lock word to store the offset of the object in the image
-  static void SetImageOffset(Object* object, size_t offset) {
+  void AssignImageOffset(Object* object) {
     DCHECK(object != NULL);
     DCHECK(object->GetMonitor() == NULL);  // should be no lock
+    SetImageOffset(object, image_top_);
+    image_top_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
+    DCHECK_LT(image_top_, image_->GetLength());
+  }
+  static void SetImageOffset(Object* object, size_t offset) {
+    DCHECK(object != NULL);
+    // should be no lock (but it might be forward referenced interned string)
+    DCHECK(object->GetMonitor() == NULL || object->IsString());
     DCHECK_NE(0U, offset);
     object->SetMonitor(reinterpret_cast<Monitor*>(offset));
+  }
+  static size_t IsImageOffsetAssigned(const Object* object) {
+    DCHECK(object != NULL);
+    size_t offset = reinterpret_cast<size_t>(object->GetMonitor());
+    return offset != 0U;
   }
   static size_t GetImageOffset(const Object* object) {
     DCHECK(object != NULL);

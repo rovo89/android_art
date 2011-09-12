@@ -15,8 +15,7 @@ class ImageHeader {
  public:
   ImageHeader() {}
 
-  ImageHeader(uint32_t base_addr, uint32_t intern_addr)
-      : base_addr_(base_addr), intern_addr_(intern_addr) {
+  ImageHeader(uint32_t base_addr) : base_addr_(base_addr) {
     memcpy(magic_, kImageMagic, sizeof(kImageMagic));
     memcpy(version_, kImageVersion, sizeof(kImageVersion));
   }
@@ -35,10 +34,6 @@ class ImageHeader {
     return reinterpret_cast<byte*>(base_addr_);
   }
 
-  ObjectArray<Object>* GetInternedArray() const {
-    return reinterpret_cast<ObjectArray<Object>*>(intern_addr_);
-  }
-
  private:
   static const byte kImageMagic[4];
   static const byte kImageVersion[4];
@@ -48,10 +43,6 @@ class ImageHeader {
 
   // required base address for mapping the image.
   uint32_t base_addr_;
-
-  // absolute address of an Object[] of Strings to InternTable::RegisterStrong.
-  // TODO: remove after interning all Strings in image
-  uint32_t intern_addr_;
 };
 
 }  // namespace art

@@ -24,11 +24,11 @@ void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   // Note: we deliberately don't visit the weak_interns_ table.
 }
 
-const String* InternTable::Lookup(Table& table, const String* s, uint32_t hash_code) {
+String* InternTable::Lookup(Table& table, String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld();
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
-    const String* existing_string = it->second;
+    String* existing_string = it->second;
     if (existing_string->Equals(s)) {
       return existing_string;
     }
@@ -36,13 +36,13 @@ const String* InternTable::Lookup(Table& table, const String* s, uint32_t hash_c
   return NULL;
 }
 
-const String* InternTable::Insert(Table& table, const String* s, uint32_t hash_code) {
+String* InternTable::Insert(Table& table, String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld();
   table.insert(std::make_pair(hash_code, s));
   return s;
 }
 
-void InternTable::RegisterStrong(const String* s) {
+void InternTable::RegisterStrong(String* s) {
   MutexLock mu(intern_table_lock_);
   Insert(strong_interns_, s, s->GetHashCode());
 }
@@ -58,7 +58,7 @@ void InternTable::Remove(Table& table, const String* s, uint32_t hash_code) {
   }
 }
 
-const String* InternTable::Insert(const String* s, bool is_strong) {
+String* InternTable::Insert(String* s, bool is_strong) {
   MutexLock mu(intern_table_lock_);
 
   DCHECK(s != NULL);
@@ -66,13 +66,13 @@ const String* InternTable::Insert(const String* s, bool is_strong) {
 
   if (is_strong) {
     // Check the strong table for a match.
-    const String* strong = Lookup(strong_interns_, s, hash_code);
+    String* strong = Lookup(strong_interns_, s, hash_code);
     if (strong != NULL) {
       return strong;
     }
 
     // There is no match in the strong table, check the weak table.
-    const String* weak = Lookup(weak_interns_, s, hash_code);
+    String* weak = Lookup(weak_interns_, s, hash_code);
     if (weak != NULL) {
       // A match was found in the weak table. Promote to the strong table.
       Remove(weak_interns_, weak, hash_code);
@@ -84,12 +84,12 @@ const String* InternTable::Insert(const String* s, bool is_strong) {
   }
 
   // Check the strong table for a match.
-  const String* strong = Lookup(strong_interns_, s, hash_code);
+  String* strong = Lookup(strong_interns_, s, hash_code);
   if (strong != NULL) {
     return strong;
   }
   // Check the weak table for a match.
-  const String* weak = Lookup(weak_interns_, s, hash_code);
+  String* weak = Lookup(weak_interns_, s, hash_code);
   if (weak != NULL) {
     return weak;
   }
@@ -97,15 +97,23 @@ const String* InternTable::Insert(const String* s, bool is_strong) {
   return Insert(weak_interns_, s, hash_code);
 }
 
-const String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
+String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
   return Insert(String::AllocFromModifiedUtf8(utf16_length, utf8_data), true);
 }
 
-const String* InternTable::InternWeak(const String* s) {
+String* InternTable::InternStrong(const char* utf8_data) {
+  return Insert(String::AllocFromModifiedUtf8(utf8_data), true);
+}
+
+String* InternTable::InternStrong(String* s) {
+  return Insert(s, true);
+}
+
+String* InternTable::InternWeak(String* s) {
   return Insert(s, false);
 }
 
-bool InternTable::ContainsWeak(const String* s) {
+bool InternTable::ContainsWeak(String* s) {
   MutexLock mu(intern_table_lock_);
   const String* found = Lookup(weak_interns_, s, s->GetHashCode());
   return found == s;

@@ -24,10 +24,10 @@ class InternTable;
 
 class ClassLinker {
  public:
-  // Initializes the class linker using DexFile and an optional boot Space.
+  // Initializes the class linker using DexFiles and an optional an image.
   static ClassLinker* Create(const std::vector<const DexFile*>& boot_class_path,
                              const std::vector<const DexFile*>& class_path,
-                             InternTable* intern_table, Space* boot_space);
+                             InternTable* intern_table, bool image);
 
   ~ClassLinker();
 
@@ -153,12 +153,11 @@ class ClassLinker {
   void Init(const std::vector<const DexFile*>& boot_class_path_,
             const std::vector<const DexFile*>& class_path_);
 
-  // Initialize class linker from pre-initialized space.
-  void Init(const std::vector<const DexFile*>& boot_class_path_,
-            const std::vector<const DexFile*>& class_path_,
-            Space* space);
-  static void InitCallback(Object* obj, void *arg);
-  struct InitCallbackState;
+  // Initialize class linker from pre-initialized image.
+  void InitFromImage(const std::vector<const DexFile*>& boot_class_path_,
+                     const std::vector<const DexFile*>& class_path_);
+  static void InitFromImageCallback(Object* obj, void *arg);
+  struct InitFromImageCallbackState;
 
   void FinishInit();
 

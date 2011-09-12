@@ -90,9 +90,9 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Strongs are never weak.
     InternTable t;
-    const String* foo_1 = t.InternStrong(3, "foo");
+    String* foo_1 = t.InternStrong(3, "foo");
     EXPECT_FALSE(t.ContainsWeak(foo_1));
-    const String* foo_2 = t.InternStrong(3, "foo");
+    String* foo_2 = t.InternStrong(3, "foo");
     EXPECT_FALSE(t.ContainsWeak(foo_2));
     EXPECT_EQ(foo_1, foo_2);
   }
@@ -100,9 +100,9 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Weaks are always weak.
     InternTable t;
-    const String* foo_1 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
+    String* foo_1 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
     EXPECT_TRUE(t.ContainsWeak(foo_1));
-    const String* foo_2 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
+    String* foo_2 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
     EXPECT_TRUE(t.ContainsWeak(foo_2));
     EXPECT_EQ(foo_1, foo_2);
   }
@@ -110,9 +110,9 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // A weak can be promoted to a strong.
     InternTable t;
-    const String* foo_1 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
+    String* foo_1 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
     EXPECT_TRUE(t.ContainsWeak(foo_1));
-    const String* foo_2 = t.InternStrong(3, "foo");
+    String* foo_2 = t.InternStrong(3, "foo");
     EXPECT_FALSE(t.ContainsWeak(foo_2));
     EXPECT_EQ(foo_1, foo_2);
   }
@@ -120,9 +120,9 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Interning a weak after a strong gets you the strong.
     InternTable t;
-    const String* foo_1 = t.InternStrong(3, "foo");
+    String* foo_1 = t.InternStrong(3, "foo");
     EXPECT_FALSE(t.ContainsWeak(foo_1));
-    const String* foo_2 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
+    String* foo_2 = t.InternWeak(String::AllocFromModifiedUtf8("foo"));
     EXPECT_FALSE(t.ContainsWeak(foo_2));
     EXPECT_EQ(foo_1, foo_2);
   }

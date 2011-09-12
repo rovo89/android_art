@@ -1940,16 +1940,9 @@ class MANAGED Class : public StaticStorageBase {
                           klass, false);
   }
 
-  String* GetSourceFile() const {
-    DCHECK(IsLoaded());
-    return GetFieldPtr<String*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, source_file_), false);
-  }
+  String* GetSourceFile() const;
 
-  void SetSourceFile(String* new_source_file) {
-    SetFieldPtr<String*>(OFFSET_OF_OBJECT_MEMBER(Class, source_file_),
-                             new_source_file, false);
-  }
+  void SetSourceFile(String* new_source_file);
 
  private:
   bool Implements(const Class* klass) const;
@@ -2419,7 +2412,7 @@ class MANAGED String : public Object {
 
   uint16_t CharAt(int32_t index) const;
 
-  const String* Intern() const;
+  String* Intern();
 
   static String* AllocFromUtf16(int32_t utf16_length,
                                 const uint16_t* utf16_data_in,
@@ -2587,6 +2580,15 @@ inline void Class::SetDescriptor(String* new_descriptor) {
   DCHECK_NE(0, new_descriptor->GetLength());
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, descriptor_),
                  new_descriptor, false);
+}
+
+inline String* Class::GetSourceFile() const {
+  DCHECK(IsLoaded());
+  return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Class, source_file_), false);
+}
+
+inline void Class::SetSourceFile(String* new_source_file) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, source_file_), new_source_file, false);
 }
 
 inline uint32_t Method::GetAccessFlags() const {

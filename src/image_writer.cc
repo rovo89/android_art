@@ -57,41 +57,6 @@ bool ImageWriter::Init() {
   return true;
 }
 
-namespace {
-
-struct InternTableVisitorState {
-  int index;
-  ObjectArray<const Object>* interned_array;
-};
-
-void InternTableVisitor(const Object* obj, void* arg) {
-  InternTableVisitorState* state = reinterpret_cast<InternTableVisitorState*>(arg);
-  state->interned_array->Set(state->index++, obj);
-}
-
-ObjectArray<const Object>* CreateInternedArray() {
-  // build a Object[] of the interned strings for reinit
-  // TODO: avoid creating this future garbage
-  Runtime* runtime = Runtime::Current();
-  ClassLinker* class_linker = runtime->GetClassLinker();
-  const InternTable& intern_table = *runtime->GetInternTable();
-  size_t size = intern_table.Size();
-  CHECK_NE(0U, size);
-
-  Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
-  ObjectArray<const Object>* interned_array = ObjectArray<const Object>::Alloc(object_array_class, size);
-
-  InternTableVisitorState state;
-  state.index = 0;
-  state.interned_array = interned_array;
-
-  intern_table.VisitRoots(InternTableVisitor, &state);
-
-  return interned_array;
-}
-
-} // namespace
-
 void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
@@ -99,9 +64,28 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
   if (!image_writer->InSourceSpace(obj)) {
     return;
   }
-  image_writer->SetImageOffset(obj, image_writer->image_top_);
-  image_writer->image_top_ += RoundUp(obj->SizeOf(), 8);  // 64-bit alignment
-  DCHECK_LT(image_writer->image_top_, image_writer->image_->GetLength());
+
+  // if it is a string, we want to intern it if its not interned.
+  if (obj->IsString()) {
+    // we must be an interned string that was forward referenced and already assigned
+    if (IsImageOffsetAssigned(obj)) {
+      DCHECK_EQ(obj, obj->AsString()->Intern());
+      return;
+    }
+    String* interned = obj->AsString()->Intern();
+    if (obj != interned) {
+      if (!IsImageOffsetAssigned(interned)) {
+        // interned obj is after us, allocate its location early
+        image_writer->AssignImageOffset(interned);
+      }
+      // point those looking for this object to the interned version.
+      SetImageOffset(obj, GetImageOffset(interned));
+      return;
+    }
+    // else (obj == interned), nothing to do but fall through to the normal case
+  }
+
+  image_writer->AssignImageOffset(obj);
 
   // sniff out the DexCaches on this pass for use on the next pass
   if (obj->IsClass()) {
@@ -116,22 +100,18 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
 }
 
 void ImageWriter::CalculateNewObjectOffsets() {
-  ObjectArray<const Object>* interned_array = CreateInternedArray();
-
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   DCHECK_EQ(0U, image_top_);
 
-  // leave space for the header, but do not write it yet, we need to
-  // know where interned_array is going to end up
+  // leave space for the header, but do not write it yet
   image_top_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
   heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
   DCHECK_LT(image_top_, image_->GetLength());
 
-  // return to write header at start of image with future location of interned_array
-  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
-                           reinterpret_cast<uint32_t>(GetImageAddress(interned_array)));
+  // return to write header at start of image
+  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_));
   memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
 
   // Note that top_ is left at end of used space

@@ -144,7 +144,7 @@ Method* DecodeMethod(ScopedJniThreadState& ts, jmethodID mid) {
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
   size_t num_bytes = method->NumArgArrayBytes();
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
-  String* shorty = method->GetShorty();
+  const String* shorty = method->GetShorty();
   for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
     switch (shorty->CharAt(i)) {
       case 'Z':
@@ -181,7 +181,7 @@ byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, jvalue* args) {
   size_t num_bytes = method->NumArgArrayBytes();
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
-  String* shorty = method->GetShorty();
+  const String* shorty = method->GetShorty();
   for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
     switch (shorty->CharAt(i)) {
       case 'Z':
