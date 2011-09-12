@@ -1179,7 +1179,9 @@ Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader
 
 bool ClassLinker::InitializeClass(Class* klass) {
   CHECK(klass->GetStatus() == Class::kStatusResolved ||
-      klass->GetStatus() == Class::kStatusError) << klass->GetStatus();
+      klass->GetStatus() == Class::kStatusInitializing ||
+      klass->GetStatus() == Class::kStatusError)
+          << PrettyDescriptor(klass->GetDescriptor()) << " is " << klass->GetStatus();
 
   Thread* self = Thread::Current();
 
@@ -1211,9 +1213,9 @@ bool ClassLinker::InitializeClass(Class* klass) {
     }
 
     while (klass->GetStatus() == Class::kStatusInitializing) {
-      // we caught somebody else in the act; was it us?
+      // We caught somebody else in the act; was it us?
       if (klass->GetClinitThreadId() == self->GetTid()) {
-        LG << "recursive <clinit>";
+        // Yes. That's fine.
         return true;
       }
 
