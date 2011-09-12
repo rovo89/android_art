@@ -17,6 +17,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "runtime_support.h"
+#include "scoped_jni_thread_state.h"
 #include "thread_list.h"
 #include "utils.h"
 
@@ -781,53 +782,65 @@ Object* Thread::DecodeJObject(jobject obj) {
 
 class CountStackDepthVisitor : public Thread::StackVisitor {
  public:
-  CountStackDepthVisitor() : depth(0) {}
+  CountStackDepthVisitor() : depth_(0) {}
   virtual bool VisitFrame(const Frame&) {
-    ++depth;
+    ++depth_;
     return true;
   }
 
   int GetDepth() const {
-    return depth;
+    return depth_;
   }
 
  private:
-  uint32_t depth;
+  uint32_t depth_;
 };
 
-class BuildStackTraceVisitor : public Thread::StackVisitor {
+//
+class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
  public:
-  explicit BuildStackTraceVisitor(int depth) : count(0) {
-    method_trace = Runtime::Current()->GetClassLinker()->AllocObjectArray<Method>(depth);
-    pc_trace = IntArray::Alloc(depth);
+  explicit BuildInternalStackTraceVisitor(int depth, ScopedJniThreadState& ts) : count_(0) {
+    // Allocate method trace with an extra slot that will hold the PC trace
+    method_trace_ = Runtime::Current()->GetClassLinker()->
+        AllocObjectArray<Object>(depth + 1);
+    // Register a local reference as IntArray::Alloc may trigger GC
+    local_ref_ = AddLocalReference<jobject>(ts.Env(), method_trace_);
+    pc_trace_ = IntArray::Alloc(depth);
+#ifdef MOVING_GARBAGE_COLLECTOR
+    // Re-read after potential GC
+    method_trace = Decode<ObjectArray<Object>*>(ts.Env(), local_ref_);
+#endif
+    // Save PC trace in last element of method trace, also places it into the
+    // object graph.
+    method_trace_->Set(depth, pc_trace_);
   }
 
-  virtual ~BuildStackTraceVisitor() {}
+  virtual ~BuildInternalStackTraceVisitor() {}
 
   virtual bool VisitFrame(const Frame& frame) {
-    method_trace->Set(count, frame.GetMethod());
-    pc_trace->Set(count, frame.GetPC());
-    ++count;
+    method_trace_->Set(count_, frame.GetMethod());
+    pc_trace_->Set(count_, frame.GetPC());
+    ++count_;
     return true;
   }
 
-  const Method* GetMethod(uint32_t i) {
-    DCHECK(i < count);
-    return method_trace->Get(i);
-  }
-
-  uintptr_t GetPC(uint32_t i) {
-    DCHECK(i < count);
-    return pc_trace->Get(i);
+  jobject GetInternalStackTrace() const {
+    return local_ref_;
   }
 
  private:
-  uint32_t count;
-  ObjectArray<Method>* method_trace;
-  IntArray* pc_trace;
+  // Current position down stack trace
+  uint32_t count_;
+  // Array of return PC values
+  IntArray* pc_trace_;
+  // An array of the methods on the stack, the last entry is a reference to the
+  // PC trace
+  ObjectArray<Object>* method_trace_;
+  // Local indirect reference table entry for method trace
+  jobject local_ref_;
 };
 
-void Thread::WalkStack(StackVisitor* visitor) {
+void Thread::WalkStack(StackVisitor* visitor) const {
   Frame frame = Thread::Current()->GetTopOfStack();
   // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
   // CHECK(native_to_managed_record_ != NULL);
@@ -845,35 +858,65 @@ void Thread::WalkStack(StackVisitor* visitor) {
   }
 }
 
-ObjectArray<StackTraceElement>* Thread::AllocStackTrace() {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-
+jobject Thread::CreateInternalStackTrace() const {
+  // Compute depth of stack
   CountStackDepthVisitor count_visitor;
   WalkStack(&count_visitor);
   int32_t depth = count_visitor.GetDepth();
 
-  BuildStackTraceVisitor build_trace_visitor(depth);
+  // Transition into runnable state to work on Object*/Array*
+  ScopedJniThreadState ts(jni_env_);
+
+  // Build internal stack trace
+  BuildInternalStackTraceVisitor build_trace_visitor(depth, ts);
   WalkStack(&build_trace_visitor);
 
-  ObjectArray<StackTraceElement>* java_traces = class_linker->AllocStackTraceElementArray(depth);
+  return build_trace_visitor.GetInternalStackTrace();
+}
+
+jobjectArray Thread::InternalStackTraceToStackTraceElementArray(jobject internal,
+                                                                JNIEnv* env) {
+  // Transition into runnable state to work on Object*/Array*
+  ScopedJniThreadState ts(env);
+
+  // Decode the internal stack trace into the depth, method trace and PC trace
+  ObjectArray<Object>* method_trace =
+      down_cast<ObjectArray<Object>*>(Decode<Object*>(ts.Env(), internal));
+  int32_t depth = method_trace->GetLength()-1;
+  IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  // Create java_trace array and place in local reference table
+  ObjectArray<StackTraceElement>* java_traces =
+      class_linker->AllocStackTraceElementArray(depth);
+  jobjectArray result = AddLocalReference<jobjectArray>(ts.Env(), java_traces);
 
   for (int32_t i = 0; i < depth; ++i) {
-    // Prepare parameter for StackTraceElement(String cls, String method, String file, int line)
-    const Method* method = build_trace_visitor.GetMethod(i);
-    const Class* klass = method->GetDeclaringClass();
+    // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
+    Method* method = down_cast<Method*>(method_trace->Get(i));
+    uint32_t native_pc = pc_trace->Get(i);
+    Class* klass = method->GetDeclaringClass();
     const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
     String* readable_descriptor = String::AllocFromModifiedUtf8(
         PrettyDescriptor(klass->GetDescriptor()).c_str());
 
+    // Allocate element, potentially triggering GC
     StackTraceElement* obj =
         StackTraceElement::Alloc(readable_descriptor,
                                  method->GetName(),
                                  klass->GetSourceFile(),
                                  dex_file.GetLineNumFromPC(method,
-                                     method->ToDexPC(build_trace_visitor.GetPC(i))));
+                                     method->ToDexPC(native_pc)));
+#ifdef MOVING_GARBAGE_COLLECTOR
+    // Re-read after potential GC
+    java_traces = Decode<ObjectArray<Object>*>(ts.Env(), result);
+    method_trace = down_cast<ObjectArray<Object>*>(Decode<Object*>(ts.Env(), internal));
+    pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
+#endif
     java_traces->Set(i, obj);
   }
-  return java_traces;
+  return result;
 }
 
 void Thread::ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...) {

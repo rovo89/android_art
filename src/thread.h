@@ -400,8 +400,13 @@ class Thread {
     class_loader_override_ = class_loader_override;
   }
 
-  // Allocate stack trace
-  ObjectArray<StackTraceElement>* AllocStackTrace();
+  // Create the internal representation of a stack trace, that is more time
+  // and space efficient to compute than the StackTraceElement[]
+  jobject CreateInternalStackTrace() const;
+
+  // Convert an internal stack trace representation to a StackTraceElement[]
+  static jobjectArray
+      InternalStackTraceToStackTraceElementArray(jobject internal, JNIEnv* env);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
@@ -475,7 +480,7 @@ class Thread {
 
   static void ThreadExitCallback(void* arg);
 
-  void WalkStack(StackVisitor* visitor);
+  void WalkStack(StackVisitor* visitor) const;
 
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned

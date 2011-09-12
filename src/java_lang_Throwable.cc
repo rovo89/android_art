@@ -15,7 +15,7 @@
  */
 
 #include "jni_internal.h"
-#include "object.h"
+#include "thread.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
@@ -24,22 +24,12 @@ namespace art {
 namespace {
 
 jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(WARNING);
-  //Object* stackState = dvmFillInStackTrace(dvmThreadSelf());
-  //return addLocalReference(env, stackState);
-  return NULL;
+  JNIEnvExt* env_ext = reinterpret_cast<JNIEnvExt*>(env);
+  return env_ext->self->CreateInternalStackTrace();
 }
 
 jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {
-  UNIMPLEMENTED(WARNING);
-  //Object* stackState = dvmDecodeIndirectRef(env, javaStackState);
-  //if (stackState == NULL) {
-    //LOGW("getStackTrace() called but no trace available");
-    //return NULL;   /* could throw NPE; currently caller will do so */
-  //}
-  //ArrayObject* elements = dvmGetStackTrace(stackState);
-  //return reinterpret_cast<jobjectArray>(addLocalReference(env, elements));
-  return NULL;
+  return Thread::InternalStackTraceToStackTraceElementArray(javaStackState, env);
 }
 
 JNINativeMethod gMethods[] = {

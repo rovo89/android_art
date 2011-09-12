@@ -14,6 +14,7 @@
 #include "jni_internal.h"
 #include "mem_map.h"
 #include "runtime.h"
+#include "scoped_jni_thread_state.h"
 #include "thread.h"
 
 namespace art {
@@ -413,12 +414,14 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
 
 int gSuspendCounterHandler_calls;
 void SuspendCountHandler(Method** frame) {
+  // Check we came here in the native state then transition to runnable to work
+  // on the Object*
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
-  Thread::Current()->SetState(Thread::kRunnable);
+  ScopedJniThreadState ts(Thread::Current()->GetJniEnv());
+
   EXPECT_TRUE((*frame)->GetName()->Equals("fooI"));
   gSuspendCounterHandler_calls++;
   Thread::Current()->DecrementSuspendCount();
-  Thread::Current()->SetState(Thread::kNative);
 }
 
 TEST_F(JniCompilerTest, SuspendCountAcknowledgement) {
@@ -444,12 +447,14 @@ TEST_F(JniCompilerTest, SuspendCountAcknowledgement) {
 
 int gExceptionHandler_calls;
 void ExceptionHandler(Method** frame) {
+  // Check we came here in the native state then transition to runnable to work
+  // on the Object*
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
-  Thread::Current()->SetState(Thread::kRunnable);
+  ScopedJniThreadState ts(Thread::Current()->GetJniEnv());
+
   EXPECT_TRUE((*frame)->GetName()->Equals("throwException"));
   gExceptionHandler_calls++;
   Thread::Current()->ClearException();
-  Thread::Current()->SetState(Thread::kNative);
 }
 
 void Java_MyClass_throwException(JNIEnv* env, jobject) {
@@ -480,19 +485,28 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
 
 jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
   if (i <= 0) {
-    EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
-    Thread::Current()->SetState(Thread::kRunnable);
-    ObjectArray<StackTraceElement>* trace_array = Thread::Current()->AllocStackTrace();
+    // We want to check raw Object*/Array* below
+    ScopedJniThreadState ts(env);
+
+    // Build stack trace
+    jobject internal = Thread::Current()->CreateInternalStackTrace();
+    jobjectArray ste_array =
+        Thread::InternalStackTraceToStackTraceElementArray(internal, env);
+    ObjectArray<StackTraceElement>* trace_array =
+        Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
     EXPECT_TRUE(trace_array != NULL);
     EXPECT_EQ(11, trace_array->GetLength());
 
+    // Check stack trace entries have expected values
     for (int32_t i = 0; i < trace_array->GetLength(); ++i) {
       EXPECT_EQ(-2, trace_array->Get(i)->GetLineNumber());
-      EXPECT_STREQ("MyClassNatives.java", trace_array->Get(i)->GetFileName()->ToModifiedUtf8().c_str());
-      EXPECT_STREQ("MyClass", trace_array->Get(i)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-      EXPECT_STREQ("fooI", trace_array->Get(i)->GetMethodName()->ToModifiedUtf8().c_str());
+      StackTraceElement* ste = trace_array->Get(i);
+      EXPECT_STREQ("MyClassNatives.java", ste->GetFileName()->ToModifiedUtf8().c_str());
+      EXPECT_STREQ("MyClass", ste->GetDeclaringClass()->ToModifiedUtf8().c_str());
+      EXPECT_STREQ("fooI", ste->GetMethodName()->ToModifiedUtf8().c_str());
     }
-    Thread::Current()->SetState(Thread::kNative);
+
+    // end recursion
     return 0;
   } else {
     jclass jklass = env->FindClass("MyClass");
@@ -500,7 +514,10 @@ jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     jmethodID jmethod = env->GetMethodID(jklass, "fooI", "(I)I");
     EXPECT_TRUE(jmethod != NULL);
 
+    // Recurse with i - 1
     jint result = env->CallNonvirtualIntMethod(thisObj, jklass, jmethod, i - 1);
+
+    // Return sum of all depths
     return i + result;
   }
 }
@@ -508,7 +525,7 @@ jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
 TEST_F(JniCompilerTest, NativeStackTraceElement) {
   SetupForTest(false, "fooI", "(I)I", reinterpret_cast<void*>(&Java_MyClass_nativeUpCall));
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 10);
-  EXPECT_EQ(55, result);
+  EXPECT_EQ(10+9+8+7+6+5+4+3+2+1, result);
 }
 
 jobject Java_MyClass_fooO(JNIEnv* env, jobject thisObj, jobject x) {

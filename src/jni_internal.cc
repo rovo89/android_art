@@ -111,6 +111,8 @@ template Class* Decode<Class*>(JNIEnv*, jobject);
 template ClassLoader* Decode<ClassLoader*>(JNIEnv*, jobject);
 template Object* Decode<Object*>(JNIEnv*, jobject);
 template String* Decode<String*>(JNIEnv*, jobject);
+template ObjectArray<StackTraceElement>*
+    Decode<ObjectArray<StackTraceElement>*>(JNIEnv*, jobject);
 
 namespace {
 
