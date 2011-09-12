@@ -26,8 +26,7 @@ namespace art {
 namespace {
 
 jobject Thread_currentThread(JNIEnv* env, jclass) {
-  Object* peer = Decode<Object*>(env, Thread::Current()->GetPeer());
-  return AddLocalReference<jobject>(env, peer);
+  return AddLocalReference<jobject>(env, Thread::Current()->GetPeer());
 }
 
 jboolean Thread_interrupted(JNIEnv* env, jclass) {
@@ -37,19 +36,19 @@ jboolean Thread_interrupted(JNIEnv* env, jclass) {
 jboolean Thread_isInterrupted(JNIEnv* env, jobject javaThread) {
   ThreadListLock lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  return thread->IsInterrupted();
+  return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
 
 void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong stackSize) {
-  UNIMPLEMENTED(FATAL);
-  //Object* threadObj = dvmDecodeIndirectRef(env, javaThread);
-  //dvmCreateInterpThread(threadObj, (int) stackSize);
+  Object* managedThread = Decode<Object*>(env, javaThread);
+  Thread::Create(managedThread, stackSize);
 }
 
 jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
   ThreadListLock lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  return static_cast<jint>(thread->GetState());
+  Thread::State state = (thread != NULL) ? thread->GetState() : Thread::kUnknown;
+  return static_cast<jint>(state);
 }
 
 jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
@@ -93,7 +92,9 @@ void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
 void Thread_nativeSetPriority(JNIEnv* env, jobject javaThread, jint newPriority) {
   ThreadListLock lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  thread->SetNativePriority(newPriority);
+  if (thread != NULL) {
+    thread->SetNativePriority(newPriority);
+  }
 }
 
 /*

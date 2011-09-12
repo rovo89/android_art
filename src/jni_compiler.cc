@@ -76,7 +76,9 @@ void JniCompiler::Compile(Method* native_method) {
       jni_stub_ = x86::CreateJniStub();
     }
   }
-  native_method->RegisterNative(jni_stub_->GetData());
+  if (!native_method->IsRegistered()) {
+    native_method->RegisterNative(jni_stub_->GetData());
+  }
   // TODO: Need to make sure that the stub is copied into the image. I.e.,
   // ByteArray* needs to be reachable either as a root or from the object graph.
 

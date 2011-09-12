@@ -76,6 +76,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
 	src/intern_table.cc \
+	src/java_lang_Class.cc \
 	src/java_lang_Object.cc \
 	src/java_lang_Runtime.cc \
 	src/java_lang_String.cc \

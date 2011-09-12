@@ -208,11 +208,11 @@ class Thread {
   class StackVisitor {
    public:
     virtual ~StackVisitor() {}
-    virtual bool VisitFrame(const Frame& frame) = 0;
+    virtual void VisitFrame(const Frame& frame) = 0;
   };
 
   // Creates a new thread.
-  static Thread* Create(const Runtime* runtime);
+  static void Create(Object* peer, size_t stack_size);
 
   // Creates a new thread from the calling thread.
   static Thread* Attach(const Runtime* runtime, const char* name, bool as_daemon);
@@ -274,7 +274,7 @@ class Thread {
     return pthread_;
   }
 
-  jobject GetPeer() const {
+  Object* GetPeer() const {
     return peer_;
   }
 
@@ -495,10 +495,8 @@ class Thread {
   // Native thread handle.
   pthread_t pthread_;
 
-  bool is_daemon_;
-
   // Our managed peer (an instance of java.lang.Thread).
-  jobject peer_;
+  Object* peer_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
   mutable Mutex wait_mutex_;

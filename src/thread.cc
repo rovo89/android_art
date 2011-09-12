@@ -26,7 +26,7 @@ namespace art {
 pthread_key_t Thread::pthread_key_self_;
 
 // Temporary debugging hook for compiler.
-static void DebugMe(Method* method, uint32_t info) {
+void DebugMe(Method* method, uint32_t info) {
     LOG(INFO) << "DebugMe";
     if (method != NULL)
         LOG(INFO) << PrettyMethod(method);
@@ -40,8 +40,7 @@ static void DebugMe(Method* method, uint32_t info) {
  * callsite of the failed invoke-interface.  See comments in
  * compiler/runtime_support.S
  */
-extern "C" void artFailedInvokeInterface()
-{
+extern "C" void artFailedInvokeInterface() {
     UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
 }
 
@@ -62,19 +61,19 @@ extern "C" uint64_t artFindInterfaceMethodInCache(uint32_t method_idx,
 }
 
 // TODO: placeholder.  This is what generated code will call to throw
-static void ThrowException(Thread* thread, Throwable* exception) {
-    /*
-     * exception may be NULL, in which case this routine should
-     * throw NPE.  NOTE: this is a convenience for generated code,
-     * which previuosly did the null check inline and constructed
-     * and threw a NPE if NULL.  This routine responsible for setting
-     * exception_ in thread.
-     */
-    UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
+void ThrowException(Thread* thread, Throwable* exception) {
+  /*
+   * exception may be NULL, in which case this routine should
+   * throw NPE.  NOTE: this is a convenience for generated code,
+   * which previously did the null check inline and constructed
+   * and threw a NPE if NULL.  This routine responsible for setting
+   * exception_ in thread.
+   */
+  UNIMPLEMENTED(FATAL) << "Unimplemented exception throw: " << PrettyType(exception);
 }
 
 // TODO: placeholder.  Helper function to type
-static Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
+Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
   /*
    * Should initialize & fix up method->dex_cache_resolved_types_[].
    * Returns initialized type.  Does not return normally if an exception
@@ -86,7 +85,7 @@ static Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
 }
 
 // TODO: placeholder.  Helper function to resolve virtual method
-static void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
+void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
     /*
      * Slow-path handler on invoke virtual method path in which
      * base method is unresolved at compile-time.  Doesn't need to
@@ -98,9 +97,7 @@ static void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
 }
 
 // TODO: placeholder.  Helper function to alloc array for OP_FILLED_NEW_ARRAY
-static Array* CheckAndAllocFromCode(uint32_t type_index, Method* method,
-                                    int32_t component_count)
-{
+Array* CheckAndAllocFromCode(uint32_t type_index, Method* method, int32_t component_count) {
     /*
      * Just a wrapper around Array::AllocFromCode() that additionally
      * throws a runtime exception "bad Filled array req" for 'D' and 'J'.
@@ -110,7 +107,7 @@ static Array* CheckAndAllocFromCode(uint32_t type_index, Method* method,
 }
 
 // TODO: placeholder (throw on failure)
-static void CheckCastFromCode(const Class* a, const Class* b) {
+void CheckCastFromCode(const Class* a, const Class* b) {
     if (a->IsAssignableFrom(b)) {
         return;
     }
@@ -118,19 +115,19 @@ static void CheckCastFromCode(const Class* a, const Class* b) {
 }
 
 // TODO: placeholder
-static void UnlockObjectFromCode(Thread* thread, Object* obj) {
+void UnlockObjectFromCode(Thread* thread, Object* obj) {
     // TODO: throw and unwind if lock not held
     // TODO: throw and unwind on NPE
     obj->MonitorExit(thread);
 }
 
 // TODO: placeholder
-static void LockObjectFromCode(Thread* thread, Object* obj) {
+void LockObjectFromCode(Thread* thread, Object* obj) {
     obj->MonitorEnter(thread);
 }
 
 // TODO: placeholder
-static void CheckSuspendFromCode(Thread* thread) {
+void CheckSuspendFromCode(Thread* thread) {
     /*
      * Code is at a safe point, suspend if needed.
      * Also, this is where a pending safepoint callback
@@ -139,51 +136,51 @@ static void CheckSuspendFromCode(Thread* thread) {
 }
 
 // TODO: placeholder
-static void StackOverflowFromCode(Method* method) {
-    //NOTE: to save code space, this handler needs to look up its own Thread*
-    UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
+void StackOverflowFromCode(Method* method) {
+  //NOTE: to save code space, this handler needs to look up its own Thread*
+  UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
 }
 
 // TODO: placeholder
-static void ThrowNullPointerFromCode() {
-    //NOTE: to save code space, this handler must look up caller's Method*
-    UNIMPLEMENTED(FATAL) << "Null pointer exception";
+void ThrowNullPointerFromCode() {
+  Thread::Current()->Dump(std::cerr);
+  //NOTE: to save code space, this handler must look up caller's Method*
+  UNIMPLEMENTED(FATAL) << "Null pointer exception";
 }
 
 // TODO: placeholder
-static void ThrowDivZeroFromCode() {
-    UNIMPLEMENTED(FATAL) << "Divide by zero";
+void ThrowDivZeroFromCode() {
+  UNIMPLEMENTED(FATAL) << "Divide by zero";
 }
 
 // TODO: placeholder
-static void ThrowArrayBoundsFromCode(int32_t index, int32_t limit) {
-    UNIMPLEMENTED(FATAL) << "Bound check exception, idx: " << index <<
-        ", limit: " << limit;
+void ThrowArrayBoundsFromCode(int32_t index, int32_t limit) {
+  UNIMPLEMENTED(FATAL) << "Bound check exception, idx: " << index << ", limit: " << limit;
 }
 
 // TODO: placeholder
-static void ThrowVerificationErrorFromCode(int32_t src1, int32_t ref) {
+void ThrowVerificationErrorFromCode(int32_t src1, int32_t ref) {
     UNIMPLEMENTED(FATAL) << "Verification error, src1: " << src1 <<
         " ref: " << ref;
 }
 
 // TODO: placeholder
-static void ThrowNegArraySizeFromCode(int32_t index) {
+void ThrowNegArraySizeFromCode(int32_t index) {
     UNIMPLEMENTED(FATAL) << "Negative array size: " << index;
 }
 
 // TODO: placeholder
-static void ThrowInternalErrorFromCode(int32_t errnum) {
+void ThrowInternalErrorFromCode(int32_t errnum) {
     UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
 }
 
 // TODO: placeholder
-static void ThrowRuntimeExceptionFromCode(int32_t errnum) {
+void ThrowRuntimeExceptionFromCode(int32_t errnum) {
     UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
 }
 
 // TODO: placeholder
-static void ThrowNoSuchMethodFromCode(int32_t method_idx) {
+void ThrowNoSuchMethodFromCode(int32_t method_idx) {
     UNIMPLEMENTED(FATAL) << "No such method, idx: " << method_idx;
 }
 
@@ -204,8 +201,7 @@ static void ThrowNoSuchMethodFromCode(int32_t method_idx) {
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-static void HandleFillArrayDataFromCode(Array* array, const uint16_t* table)
-{
+void HandleFillArrayDataFromCode(Array* array, const uint16_t* table) {
     uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
     uint32_t size_in_bytes = size * table[1];
     if (static_cast<int32_t>(size) > array->GetLength()) {
@@ -220,8 +216,7 @@ static void HandleFillArrayDataFromCode(Array* array, const uint16_t* table)
  * Float/double conversion requires clamping to min and max of integer form.  If
  * target doesn't support this normally, use these.
  */
-static int64_t D2L(double d)
-{
+int64_t D2L(double d) {
     static const double kMaxLong = (double)(int64_t)0x7fffffffffffffffULL;
     static const double kMinLong = (double)(int64_t)0x8000000000000000ULL;
     if (d >= kMaxLong)
@@ -234,8 +229,7 @@ static int64_t D2L(double d)
         return (int64_t)d;
 }
 
-static int64_t F2L(float f)
-{
+int64_t F2L(float f) {
     static const float kMaxLong = (float)(int64_t)0x7fffffffffffffffULL;
     static const float kMinLong = (float)(int64_t)0x8000000000000000ULL;
     if (f >= kMaxLong)
@@ -335,12 +329,15 @@ void* ThreadStart(void *arg) {
   return NULL;
 }
 
-Thread* Thread::Create(const Runtime* runtime) {
-  UNIMPLEMENTED(FATAL) << "need to pass in a java.lang.Thread";
+void Thread::Create(Object* peer, size_t stack_size) {
+  CHECK(peer != NULL);
 
-  size_t stack_size = runtime->GetDefaultStackSize();
+  if (stack_size == 0) {
+    stack_size = Runtime::Current()->GetDefaultStackSize();
+  }
 
-  Thread* new_thread = new Thread;
+  Thread* self = new Thread;
+  self->peer_ = peer;
 
   pthread_attr_t attr;
   errno = pthread_attr_init(&attr);
@@ -358,7 +355,7 @@ Thread* Thread::Create(const Runtime* runtime) {
     PLOG(FATAL) << "pthread_attr_setstacksize(" << stack_size << ") failed";
   }
 
-  errno = pthread_create(&new_thread->pthread_, &attr, ThreadStart, new_thread);
+  errno = pthread_create(&self->pthread_, &attr, ThreadStart, self);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_create failed";
   }
@@ -367,11 +364,6 @@ Thread* Thread::Create(const Runtime* runtime) {
   if (errno != 0) {
     PLOG(FATAL) << "pthread_attr_destroy failed";
   }
-
-  // TODO: get the "daemon" field from the java.lang.Thread.
-  // new_thread->is_daemon_ = dvmGetFieldBoolean(threadObj, gDvm.offJavaLangThread_daemon);
-
-  return new_thread;
 }
 
 Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
@@ -379,7 +371,6 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
 
   self->tid_ = ::art::GetTid();
   self->pthread_ = pthread_self();
-  self->is_daemon_ = as_daemon;
 
   self->InitStackHwm();
 
@@ -405,12 +396,22 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
   return self;
 }
 
+jobject GetWellKnownThreadGroup(JNIEnv* env, const char* field_name) {
+  jclass thread_group_class = env->FindClass("java/lang/ThreadGroup");
+  jfieldID fid = env->GetStaticFieldID(thread_group_class, field_name, "Ljava/lang/ThreadGroup;");
+  jobject thread_group = env->GetStaticObjectField(thread_group_class, fid);
+  // This will be null in the compiler (and tests), but never in a running system.
+  //CHECK(thread_group != NULL) << "java.lang.ThreadGroup." << field_name << " not initialized";
+  return thread_group;
+}
+
 void Thread::CreatePeer(const char* name, bool as_daemon) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kNative);
 
   JNIEnv* env = jni_env_;
 
-  jobject thread_group = NULL;
+  const char* field_name = (GetThinLockId() == ThreadList::kMainId) ? "mMain" : "mSystem";
+  jobject thread_group = GetWellKnownThreadGroup(env, field_name);
   jobject thread_name = env->NewStringUTF(name);
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
@@ -419,7 +420,21 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
 
   jobject peer = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
-  peer_ = env->NewGlobalRef(peer);
+
+  // Because we mostly run without code available (in the compiler, in tests), we
+  // manually assign the fields the constructor should have set.
+  // TODO: lose this.
+  jfieldID fid;
+  fid = env->GetFieldID(c, "group", "Ljava/lang/ThreadGroup;");
+  env->SetObjectField(peer, fid, thread_group);
+  fid = env->GetFieldID(c, "name", "Ljava/lang/String;");
+  env->SetObjectField(peer, fid, thread_name);
+  fid = env->GetFieldID(c, "priority", "I");
+  env->SetIntField(peer, fid, thread_priority);
+  fid = env->GetFieldID(c, "daemon", "Z");
+  env->SetBooleanField(peer, fid, thread_is_daemon);
+
+  peer_ = DecodeJObject(peer);
 }
 
 void Thread::InitStackHwm() {
@@ -456,33 +471,8 @@ void Thread::InitStackHwm() {
 }
 
 void Thread::Dump(std::ostream& os) const {
-  /*
-   * Get the java.lang.Thread object.  This function gets called from
-   * some weird debug contexts, so it's possible that there's a GC in
-   * progress on some other thread.  To decrease the chances of the
-   * thread object being moved out from under us, we add the reference
-   * to the tracked allocation list, which pins it in place.
-   *
-   * If threadObj is NULL, the thread is still in the process of being
-   * attached to the VM, and there's really nothing interesting to
-   * say about it yet.
-   */
-  os << "TODO: pin Thread before dumping\n";
-#if 0
-  // TODO: dalvikvm had this limitation, but we probably still want to do our best.
-  if (peer_ == NULL) {
-    LOGI("Can't dump thread %d: threadObj not set", threadId);
-    return;
-  }
-  dvmAddTrackedAlloc(peer_, NULL);
-#endif
-
   DumpState(os);
   DumpStack(os);
-
-#if 0
-  dvmReleaseTrackedAlloc(peer_, NULL);
-#endif
 }
 
 std::string GetSchedulerGroup(pid_t tid) {
@@ -511,25 +501,46 @@ std::string GetSchedulerGroup(pid_t tid) {
 }
 
 void Thread::DumpState(std::ostream& os) const {
-  std::string thread_name("unknown");
-  int priority = -1;
+  std::string thread_name("<native thread without managed peer>");
+  std::string group_name;
+  int priority;
+  bool is_daemon = false;
 
-#if 0 // TODO
-  nameStr = (StringObject*) dvmGetFieldObject(threadObj, gDvm.offJavaLangThread_name);
-  threadName = dvmCreateCstrFromString(nameStr);
-  priority = dvmGetFieldInt(threadObj, gDvm.offJavaLangThread_priority);
-#else
-  {
-    // TODO: this may be truncated; we should use the java.lang.Thread 'name' field instead.
+  if (peer_ != NULL) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+    Class* boolean_class = class_linker->FindPrimitiveClass('Z');
+    Class* int_class = class_linker->FindPrimitiveClass('I');
+    Class* string_class = class_linker->FindSystemClass("Ljava/lang/String;");
+    Class* thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
+    Class* thread_group_class = class_linker->FindSystemClass("Ljava/lang/ThreadGroup;");
+
+    Field* name_field = thread_class->FindDeclaredInstanceField("name", string_class);
+    Field* priority_field = thread_class->FindDeclaredInstanceField("priority", int_class);
+    Field* daemon_field = thread_class->FindDeclaredInstanceField("daemon", boolean_class);
+    Field* thread_group_field = thread_class->FindDeclaredInstanceField("group", thread_group_class);
+
+    String* thread_name_string = reinterpret_cast<String*>(name_field->GetObject(peer_));
+    thread_name = (thread_name_string != NULL) ? thread_name_string->ToModifiedUtf8() : "<null>";
+    priority = priority_field->GetInt(peer_);
+    is_daemon = daemon_field->GetBoolean(peer_);
+
+    Object* thread_group = thread_group_field->GetObject(peer_);
+    if (thread_group != NULL) {
+      Field* name_field = thread_group_class->FindDeclaredInstanceField("name", string_class);
+      String* group_name_string = reinterpret_cast<String*>(name_field->GetObject(thread_group));
+      group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
+    }
+  } else {
+    // This name may be truncated, but it's the best we can do in the absence of a managed peer.
     std::string stats;
     if (ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
       size_t start = stats.find('(') + 1;
       size_t end = stats.find(')') - start;
       thread_name = stats.substr(start, end);
     }
+    priority = GetNativePriority();
   }
-  priority = -1;
-#endif
 
   int policy;
   sched_param sp;
@@ -543,19 +554,8 @@ void Thread::DumpState(std::ostream& os) const {
     scheduler_group = "default";
   }
 
-  std::string group_name("(null; initializing?)");
-#if 0
-  groupObj = (Object*) dvmGetFieldObject(threadObj, gDvm.offJavaLangThread_group);
-  if (groupObj != NULL) {
-    nameStr = (StringObject*) dvmGetFieldObject(groupObj, gDvm.offJavaLangThreadGroup_name);
-    groupName = dvmCreateCstrFromString(nameStr);
-  }
-#else
-  group_name = "TODO";
-#endif
-
   os << '"' << thread_name << '"';
-  if (is_daemon_) {
+  if (is_daemon) {
     os << " daemon";
   }
   os << " prio=" << priority
@@ -605,8 +605,36 @@ void Thread::DumpState(std::ostream& os) const {
      << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
 }
 
+struct StackDumpVisitor : public Thread::StackVisitor {
+  StackDumpVisitor(std::ostream& os) : os(os) {
+  }
+
+  ~StackDumpVisitor() {
+  }
+
+  void VisitFrame(const Frame& frame) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+    Method* m = frame.GetMethod();
+    Class* c = m->GetDeclaringClass();
+    const DexFile& dex_file = class_linker->FindDexFile(c->GetDexCache());
+
+    os << "  at " << PrettyMethod(m, false);
+    if (m->IsNative()) {
+      os << "(Native method)";
+    } else {
+      int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(frame.GetPC()));
+      os << "(" << c->GetSourceFile()->ToModifiedUtf8() << ":" << line_number << ")";
+    }
+    os << "\n";
+  }
+
+  std::ostream& os;
+};
+
 void Thread::DumpStack(std::ostream& os) const {
-  os << "UNIMPLEMENTED: Thread::DumpStack\n";
+  StackDumpVisitor dumper(os);
+  WalkStack(&dumper);
 }
 
 void Thread::ThreadExitCallback(void* arg) {
@@ -686,10 +714,6 @@ Thread::~Thread() {
   //dvmObjectNotifyAll(self, lock);
   //dvmUnlockObject(self, lock);
   //lock = NULL;
-
-  // Delete our global reference to the java.lang.Thread.
-  jni_env_->DeleteGlobalRef(peer_);
-  peer_ = NULL;
 
   delete jni_env_;
   jni_env_ = NULL;
@@ -783,9 +807,9 @@ Object* Thread::DecodeJObject(jobject obj) {
 class CountStackDepthVisitor : public Thread::StackVisitor {
  public:
   CountStackDepthVisitor() : depth_(0) {}
-  virtual bool VisitFrame(const Frame&) {
+
+  virtual void VisitFrame(const Frame&) {
     ++depth_;
-    return true;
   }
 
   int GetDepth() const {
@@ -817,11 +841,10 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
 
   virtual ~BuildInternalStackTraceVisitor() {}
 
-  virtual bool VisitFrame(const Frame& frame) {
+  virtual void VisitFrame(const Frame& frame) {
     method_trace_->Set(count_, frame.GetMethod());
     pc_trace_->Set(count_, frame.GetPC());
     ++count_;
-    return true;
   }
 
   jobject GetInternalStackTrace() const {
@@ -841,7 +864,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
 };
 
 void Thread::WalkStack(StackVisitor* visitor) const {
-  Frame frame = Thread::Current()->GetTopOfStack();
+  Frame frame = GetTopOfStack();
   // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
   // CHECK(native_to_managed_record_ != NULL);
   NativeToManagedRecord* record = native_to_managed_record_;
@@ -1005,8 +1028,12 @@ void* Thread::FindExceptionHandlerInMethod(const Method* method,
 }
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  //(*visitor)(&thread->threadObj, threadId, ROOT_THREAD_OBJECT, arg);
-  //(*visitor)(&thread->exception, threadId, ROOT_NATIVE_STACK, arg);
+  if (exception_ != NULL) {
+    visitor(exception_, arg);
+  }
+  if (peer_ != NULL) {
+    visitor(peer_, arg);
+  }
   jni_env_->locals.VisitRoots(visitor, arg);
   jni_env_->monitors.VisitRoots(visitor, arg);
   // visitThreadStack(visitor, thread, arg);

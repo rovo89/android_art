@@ -71,8 +71,7 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(boot_space != NULL);
 
   // enable to display maps to debug boot_base and boot_limit checking problems below
-  // TODO: why does this dump show two attached threads?
-  if (true) {
+  if (false) {
     SignalCatcher::HandleSigQuit();
   }
 
