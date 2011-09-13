@@ -359,7 +359,7 @@ public:
     }
 
     ScopedJniThreadState ts(mEnv);
-    Field* f = DecodeField(ts, fid);
+    Field* f = DecodeField(fid);
     Class* field_type = f->GetType();
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
@@ -418,7 +418,7 @@ public:
       return;
     }
 
-    Field* f = DecodeField(ts, fid);
+    Field* f = DecodeField(fid);
     Class* f_type = f->GetType();
     // check invariant that all jfieldIDs have resovled types
     DCHECK(f_type != NULL);
@@ -445,7 +445,7 @@ public:
    */
   void checkSig(jmethodID mid, const char* expectedType, bool isStatic) {
     ScopedJniThreadState ts(mEnv);
-    const Method* m = DecodeMethod(ts, mid);
+    const Method* m = DecodeMethod(mid);
     if (*expectedType != m->GetShorty()->CharAt(0)) {
       LOG(ERROR) << "JNI ERROR: expected return type '" << *expectedType << "' calling " << PrettyMethod(m);
       JniAbort();
@@ -467,7 +467,7 @@ public:
   void checkStaticFieldID(jclass java_class, jfieldID fid) {
     ScopedJniThreadState ts(mEnv);
     Class* c = Decode<Class*>(ts, java_class);
-    const Field* f = DecodeField(ts, fid);
+    const Field* f = DecodeField(fid);
     if (f->GetDeclaringClass() != c) {
       LOG(ERROR) << "JNI ERROR: static jfieldID " << fid << " not valid for class " << PrettyDescriptor(c->GetDescriptor());
       JniAbort();
@@ -486,7 +486,7 @@ public:
   void checkStaticMethod(jclass java_class, jmethodID mid) {
     ScopedJniThreadState ts(mEnv);
     Class* c = Decode<Class*>(ts, java_class);
-    const Method* m = DecodeMethod(ts, mid);
+    const Method* m = DecodeMethod(mid);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
       LOG(ERROR) << "JNI ERROR: can't call static " << PrettyMethod(m) << " on class " << PrettyDescriptor(c->GetDescriptor());
       JniAbort();
@@ -503,7 +503,7 @@ public:
   void checkVirtualMethod(jobject java_object, jmethodID mid) {
     ScopedJniThreadState ts(mEnv);
     Object* o = Decode<Object*>(ts, java_object);
-    const Method* m = DecodeMethod(ts, mid);
+    const Method* m = DecodeMethod(mid);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
       LOG(ERROR) << "JNI ERROR: can't call " << PrettyMethod(m) << " on instance of " << PrettyType(o);
       JniAbort();
@@ -620,7 +620,7 @@ public:
           }
         } else if (ch == 'f') { // jfieldID
           jfieldID fid = va_arg(ap, jfieldID);
-          Field* f = reinterpret_cast<Field*>(Thread::Current()->DecodeJObject(reinterpret_cast<jweak>(fid)));
+          Field* f = reinterpret_cast<Field*>(fid);
           msg += PrettyField(f);
           if (!entry) {
             StringAppendF(&msg, " (%p)", fid);
@@ -633,7 +633,7 @@ public:
           StringAppendF(&msg, "%d", i);
         } else if (ch == 'm') { // jmethodID
           jmethodID mid = va_arg(ap, jmethodID);
-          Method* m = reinterpret_cast<Method*>(Thread::Current()->DecodeJObject(reinterpret_cast<jweak>(mid)));
+          Method* m = reinterpret_cast<Method*>(mid);
           msg += PrettyMethod(m);
           if (!entry) {
             StringAppendF(&msg, " (%p)", mid);
@@ -730,14 +730,6 @@ public:
   }
 
 private:
-  Field* DecodeField(ScopedJniThreadState& ts, jfieldID fid) {
-    return Decode<Field*>(ts, reinterpret_cast<jweak>(fid));
-  }
-
-  Method* DecodeMethod(ScopedJniThreadState& ts, jmethodID mid) {
-    return Decode<Method*>(ts, reinterpret_cast<jweak>(mid));
-  }
-
   void init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
     mEnv = reinterpret_cast<JNIEnvExt*>(env);
     mVm = reinterpret_cast<JavaVMExt*>(vm);

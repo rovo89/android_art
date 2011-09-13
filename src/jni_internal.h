@@ -17,6 +17,7 @@
 namespace art {
 
 class ClassLoader;
+class Field;
 class Libraries;
 class Method;
 class Thread;
@@ -26,6 +27,22 @@ void* FindNativeMethod(Thread* thread);
 
 template<typename T> T Decode(JNIEnv*, jobject);
 template<typename T> T AddLocalReference(JNIEnv*, const Object*);
+
+inline Field* DecodeField(jfieldID fid) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  // TODO: we should make these unique weak globals if Field instances can ever move.
+  UNIMPLEMENTED(WARNING);
+#endif
+  return reinterpret_cast<Field*>(fid);
+}
+
+inline Method* DecodeMethod(jmethodID mid) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  // TODO: we should make these unique weak globals if Method instances can ever move.
+  UNIMPLEMENTED(WARNING);
+#endif
+  return reinterpret_cast<Method*>(mid);
+}
 
 struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);
