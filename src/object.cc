@@ -50,8 +50,6 @@ Class* Field::GetTypeDuringLinking() const {
 }
 
 Class* Field::GetType() const {
-  DCHECK(Runtime::Current()->IsStarted())
-      << "Can't call GetType without an initialized runtime";
   // Do full linkage (which sets dex cache value to speed next call)
   return Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
 }
@@ -474,7 +472,7 @@ void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
     // Set the low-order bit so a BLX will switch to Thumb mode
     address |= 0x1;
   }
-  SetFieldPtr<uintptr_t>(OFFSET_OF_OBJECT_MEMBER(Method, code_), address, false);
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), reinterpret_cast<const void*>(address), false);
 }
 
 void Method::SetInvokeStub(const ByteArray* invoke_stub_array) {

@@ -18,6 +18,7 @@
 
 #include <errno.h>
 
+#include "heap.h" // for VERIFY_OBJECT_ENABLED
 #include "logging.h"
 #include "utils.h"
 

@@ -137,6 +137,10 @@ class Heap {
   // Callers must hold the heap lock.
   static void RecordFreeLocked(Space* space, const Object* object);
 
+  // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
+  // The call is not needed if NULL is stored in the field.
+  static void WriteBarrier(const Object* object);
+
  private:
   // Allocates uninitialized storage.
   static Object* AllocateLocked(size_t num_bytes);

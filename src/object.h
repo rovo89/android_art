@@ -17,12 +17,10 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
-#include <cutils/atomic.h>
-#include <cutils/atomic-inline.h>
-
 #include <vector>
 
 #include "UniquePtr.h"
+#include "atomic.h"
 #include "casts.h"
 #include "constants.h"
 #include "globals.h"
@@ -349,32 +347,18 @@ class MANAGED Object {
   // Accessors for Java type fields
   template<class T>
   T GetFieldObject(MemberOffset field_offset, bool is_volatile) const {
-    Heap::VerifyObject(this);
-    DCHECK(Thread::Current() == NULL ||
-           Thread::Current()->CanAccessDirectReferences());
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
-        field_offset.Int32Value();
-    if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
-    }
-    T result = *reinterpret_cast<T const *>(raw_addr);
+    DCHECK(Thread::Current() == NULL || Thread::Current()->CanAccessDirectReferences());
+    T result = reinterpret_cast<T>(GetField32(field_offset, is_volatile));
     Heap::VerifyObject(result);
     return result;
   }
 
-  void SetFieldObject(MemberOffset offset, const Object* new_value,
-                      bool is_volatile) {
-    // Avoid verifying this when initializing the Class*
-    if (offset.Int32Value() != ClassOffset().Int32Value()) {
-      Heap::VerifyObject(this);
-    }
+  void SetFieldObject(MemberOffset field_offset, const Object* new_value, bool is_volatile, bool this_is_valid = true) {
     Heap::VerifyObject(new_value);
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
-    if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
+    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
+    if (new_value != NULL) {
+      Heap::WriteBarrier(this);
     }
-    *reinterpret_cast<const Object**>(raw_addr) = new_value;
-    // TODO: write barrier
   }
 
   uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
@@ -388,9 +372,11 @@ class MANAGED Object {
     }
   }
 
-  void SetField32(MemberOffset offset, uint32_t new_value, bool is_volatile) {
-    Heap::VerifyObject(this);
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+  void SetField32(MemberOffset field_offset, uint32_t new_value, bool is_volatile, bool this_is_valid = true) {
+    if (this_is_valid) {
+      Heap::VerifyObject(this);
+    }
+    byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
     uint32_t* word_addr = reinterpret_cast<uint32_t*>(raw_addr);
     if (is_volatile) {
       /*
@@ -409,42 +395,39 @@ class MANAGED Object {
   uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const {
     Heap::VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
+    const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
     if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
+      uint64_t result = QuasiAtomicRead64(addr);
+      ANDROID_MEMBAR_FULL();
+      return result;
+    } else {
+      return *addr;
     }
-    return *reinterpret_cast<const uint64_t*>(raw_addr);
   }
 
-  void SetField64(MemberOffset offset, uint64_t new_value, bool is_volatile) {
+  void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile) {
     Heap::VerifyObject(this);
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+    int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
     if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
+      ANDROID_MEMBAR_STORE();
+      QuasiAtomicSwap64(new_value, addr);
+      // Post-store barrier not required due to use of atomic op or mutex.
+    } else {
+      *addr = new_value;
     }
-    *reinterpret_cast<uint64_t*>(raw_addr) = new_value;
   }
 
  protected:
   // Accessors for non-Java type fields
   template<class T>
   T GetFieldPtr(MemberOffset field_offset, bool is_volatile) const {
-    Heap::VerifyObject(this);
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
-        field_offset.Int32Value();
-    if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
-    }
-    return *reinterpret_cast<T const *>(raw_addr);
+    return reinterpret_cast<T>(GetField32(field_offset, is_volatile));
   }
 
   template<typename T>
-  void SetFieldPtr(MemberOffset offset, T new_value, bool is_volatile) {
-    Heap::VerifyObject(this);
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
-    if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
-    }
-    *reinterpret_cast<T*>(raw_addr) = new_value;
+  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile) {
+    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile);
   }
 
  private:
@@ -1793,8 +1776,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetIfTable(ObjectArray<InterfaceEntry>* new_iftable) {
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_),
-		   new_iftable, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable, false);
   }
 
   // Get instance fields
@@ -2091,7 +2073,7 @@ std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 inline void Object::SetClass(Class* new_klass) {
   // new_klass may be NULL prior to class linker initialization
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false, false);
 }
 
 inline bool Object::InstanceOf(const Class* klass) const {

@@ -55,6 +55,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
 	src/assembler_arm.cc \
 	src/assembler_x86.cc \
+	src/atomic.cc.arm \
 	src/calling_convention.cc \
 	src/calling_convention_arm.cc \
 	src/calling_convention_x86.cc \
