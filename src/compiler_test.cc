@@ -155,6 +155,11 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   }
 }
 
+TEST_F(CompilerTest, ByBillion) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  AssertStaticLongMethod(123, LoadDex("IntMath"), "IntMath", "divideLongByBillion", "(J)J", 123000000000LL);
+}
+
 TEST_F(CompilerTest, BasicCodegen) {
   AssertStaticIntMethod(55, LoadDex("Fibonacci"), "Fibonacci", "fibonacci", "(I)I", 10);
 }

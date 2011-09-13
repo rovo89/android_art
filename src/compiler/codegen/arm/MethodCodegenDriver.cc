@@ -1878,9 +1878,7 @@ static bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
 
         oatResetRegPool(cUnit);
-        if (cUnit->disableOpt & (1 << kTrackLiveTemps)) {
-            oatClobberAllRegs(cUnit);
-        }
+        oatClobberAllRegs(cUnit);
 
         if (cUnit->disableOpt & (1 << kSuppressLoads)) {
             oatResetDefTracking(cUnit);

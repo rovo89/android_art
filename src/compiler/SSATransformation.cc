@@ -548,6 +548,48 @@ static bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
     return true;
 }
 
+static void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
+{
+
+    if (block->visited || block->hidden) return;
+    block->visited = true;
+
+    /* Process this block */
+    oatDoSSAConversion(cUnit, block);
+    int mapSize = sizeof(int) * cUnit->method->NumRegisters();
+
+    /* Save SSA map snapshot */
+    int* savedSSAMap = (int*)oatNew(mapSize, false);
+    memcpy(savedSSAMap, cUnit->dalvikToSSAMap, mapSize);
+
+    if (block->fallThrough) {
+        doDFSPreOrderSSARename(cUnit, block->fallThrough);
+        /* Restore SSA map snapshot */
+        memcpy(cUnit->dalvikToSSAMap, savedSSAMap, mapSize);
+    }
+    if (block->taken) {
+        doDFSPreOrderSSARename(cUnit, block->taken);
+        /* Restore SSA map snapshot */
+        memcpy(cUnit->dalvikToSSAMap, savedSSAMap, mapSize);
+    }
+    if (block->successorBlockList.blockListType != kNotUsed) {
+        GrowableListIterator iterator;
+        oatGrowableListIteratorInit(&block->successorBlockList.blocks,
+                                    &iterator);
+        while (true) {
+            SuccessorBlockInfo *successorBlockInfo =
+                (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
+            if (successorBlockInfo == NULL) break;
+            BasicBlock* succBB = successorBlockInfo->block;
+            doDFSPreOrderSSARename(cUnit, succBB);
+            /* Restore SSA map snapshot */
+            memcpy(cUnit->dalvikToSSAMap, savedSSAMap, mapSize);
+        }
+    }
+    cUnit->dalvikToSSAMap = savedSSAMap;
+    return;
+}
+
 /* Perform SSA transformation for the whole method */
 void oatMethodSSATransformation(CompilationUnit* cUnit)
 {
@@ -567,9 +609,10 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
     insertPhiNodes(cUnit);
 
     /* Rename register names by local defs and phi nodes */
-    oatDataFlowAnalysisDispatcher(cUnit, oatDoSSAConversion,
-                                          kPreOrderDFSTraversal,
+    oatDataFlowAnalysisDispatcher(cUnit, oatClearVisitedFlag,
+                                          kAllNodes,
                                           false /* isIterative */);
+    doDFSPreOrderSSARename(cUnit, cUnit->entryBlock);
 
     /*
      * Shared temp bit vector used by each block to count the number of defs

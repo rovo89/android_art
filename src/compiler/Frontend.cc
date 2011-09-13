@@ -701,7 +701,6 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     cUnit.disableOpt = 0 |
          (1 << kLoadStoreElimination) |
          (1 << kLoadHoisting) |
-         (1 << kTrackLiveTemps) |
          (1 << kSuppressLoads) |
          (1 << kPromoteRegs) |
          0;

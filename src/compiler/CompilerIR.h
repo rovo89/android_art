@@ -215,6 +215,7 @@ typedef struct CompilationUnit {
     /* The following are new data structures to support SSA representations */
     /* Map original Dalvik reg i to the SSA[15..0]/Sub[31..16] pair */
     int* dalvikToSSAMap;                // length == method->registersSize
+    int* SSALastDefs;                   // length == method->registersSize
     ArenaBitVector* isConstantV;        // length == numSSAReg
     int* constantValues;                // length == numSSAReg
 

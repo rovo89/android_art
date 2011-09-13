@@ -1931,10 +1931,9 @@ static void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
 static void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
                          int regIndex)
 {
-    int encodedValue = cUnit->dalvikToSSAMap[dalvikReg];
     int ssaReg = cUnit->numSSARegs++;
     /* Bump up the subscript */
-    int dalvikSub = DECODE_SUB(encodedValue) + 1;
+    int dalvikSub = ++cUnit->SSALastDefs[dalvikReg];
     int newD2SMapping = ENCODE_REG_SUB(ssaReg, dalvikSub);
 
     cUnit->dalvikToSSAMap[dalvikReg] = newD2SMapping;
@@ -1982,6 +1981,10 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     if (bb->dataFlowInfo == NULL) return false;
 
+    if (cUnit->printMeVerbose) {
+        LOG(INFO) << "oatDoSSAConversion processing block " << bb->id;
+    }
+
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
         mir->ssaRep = (struct SSARepresentation *)
             oatNew(sizeof(SSARepresentation), true);
@@ -1989,14 +1992,17 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
         int dfAttributes =
             oatDataFlowAttributes[mir->dalvikInsn.opcode];
 
-        int flags = dexGetFlagsFromOpcode(mir->dalvikInsn.opcode);
+        // If not a pseudo-op, note non-leaf or can throw
+        if (mir->dalvikInsn.opcode < kNumPackedOpcodes) {
+            int flags = dexGetFlagsFromOpcode(mir->dalvikInsn.opcode);
 
-        if (flags & kInstrCanThrow) {
-            cUnit->attrs &= ~METHOD_IS_THROW_FREE;
-        }
+            if (flags & kInstrCanThrow) {
+                cUnit->attrs &= ~METHOD_IS_THROW_FREE;
+            }
 
-        if (flags & kInstrInvoke) {
-            cUnit->attrs &= ~METHOD_IS_LEAF;
+            if (flags & kInstrInvoke) {
+                cUnit->attrs &= ~METHOD_IS_LEAF;
+            }
         }
 
         int numUses = 0;
@@ -2222,8 +2228,13 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
      */
     cUnit->dalvikToSSAMap = (int *)oatNew(sizeof(int) * numDalvikReg,
                                                   false);
+    /* Keep track of the higest def for each dalvik reg */
+    cUnit->SSALastDefs = (int *)oatNew(sizeof(int) * numDalvikReg,
+                                                  false);
+
     for (i = 0; i < numDalvikReg; i++) {
         cUnit->dalvikToSSAMap[i] = i;
+        cUnit->SSALastDefs[i] = 0;
     }
 
     /*

@@ -26,7 +26,6 @@
 enum optControlVector {
     kLoadStoreElimination = 0,
     kLoadHoisting,
-    kTrackLiveTemps,
     kSuppressLoads,
     kPromoteRegs,
 };

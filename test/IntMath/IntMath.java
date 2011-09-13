@@ -25,6 +25,31 @@ class IntMath extends IntMathBase {
         foo_ = 123;
     }
 
+    /* Regression test: triggered an SSA renaming bug. */
+    static long divideLongByBillion(long a) {
+        long quot;
+        long rem;
+
+        if (a >= 0) {
+            long bLong = 1000000000L;
+            quot = (a / bLong);
+            rem = (a % bLong);
+        } else {
+            /*
+             * Make the dividend positive shifting it right by 1 bit then get
+             * the quotient an remainder and correct them properly
+             */
+            long aPos = a >>> 1;
+            long bPos = 1000000000L >>> 1;
+            quot = aPos / bPos;
+            rem = aPos % bPos;
+            // double the remainder and add 1 if 'a' is odd
+            rem = (rem << 1) + (a & 1);
+        }
+        return ((rem << 32) | (quot & 0xFFFFFFFFL));
+    }
+
+
     static int instanceTest(int x) {
         IntMathBase a = new IntMathBase();
         IntMath b = new IntMath();
@@ -734,7 +759,16 @@ class IntMath extends IntMathBase {
     }
 
     public static void main(String[] args) {
-        int res = unopTest(38);
+        int res;
+        long lres;
+
+        lres = divideLongByBillion(123000000000L);
+        if (lres == 123) {
+            System.out.println("divideLongByBillion PASSED");
+        } else {
+            System.out.println("divideLongByBillion FAILED: " + lres);
+        }
+        res = unopTest(38);
         if (res == 37) {
             System.out.println("unopTest PASSED");
         } else {
@@ -782,7 +816,7 @@ class IntMath extends IntMathBase {
         } else {
             System.out.println("longOperTest FAILED: " + res);
         }
-        long lres = longShiftTest(0xd5aa96deff00aa01L, 16);
+        lres = longShiftTest(0xd5aa96deff00aa01L, 16);
         if (lres == 0x96deff00aa010000L) {
             System.out.println("longShiftTest PASSED");
         } else {
