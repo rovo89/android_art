@@ -468,7 +468,7 @@ static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
         storeValue(cUnit, rlDest, rlResult);
     } else {
 #if ANDROID_SMP != 0
-        bool isVolatile = dvmIsVolatileField(fieldPtr);
+        bool isVolatile = fieldPtr->IsVolatile();
 #else
         bool isVolatile = false;
 #endif
@@ -501,7 +501,7 @@ static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
         storeBaseIndexed(cUnit, rlObj.lowReg, r0, rlSrc.lowReg, 0, size);
     } else {
 #if ANDROID_SMP != 0
-        bool isVolatile = dvmIsVolatileField(fieldPtr);
+        bool isVolatile = fieldPtr->IsVolatile();
 #else
         bool isVolatile = false;
 #endif
@@ -539,7 +539,7 @@ static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         storeValue(cUnit, rlDest, rlResult);
     } else {
 #if ANDROID_SMP != 0
-        bool isVolatile = dvmIsVolatileField(fieldPtr);
+        bool isVolatile = fieldPtr->IsVolatile();
 #else
         bool isVolatile = false;
 #endif
@@ -580,7 +580,7 @@ static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         storePair(cUnit, r0, rlSrc.lowReg, rlSrc.highReg);
     } else {
 #if ANDROID_SMP != 0
-        bool isVolatile = dvmIsVolatileField(fieldPtr);
+        bool isVolatile = fieldPtr->IsVolatile();
 #else
         bool isVolatile = false;
 #endif

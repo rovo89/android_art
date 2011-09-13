@@ -24,10 +24,11 @@ define build-libarttest
   LOCAL_MODULE := libarttest
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
-  LOCAL_CFLAGS := $(ART_CFLAGS) -UNDEBUG
   ifeq ($(1),target)
+    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) -UNDEBUG
     LOCAL_SHARED_LIBRARIES := libdl libstlport
   else
+    LOCAL_CFLAGS := $(ART_HOST_CFLAGS) -UNDEBUG
     LOCAL_LDLIBS := -ldl -lrt
   endif
   ifeq ($(1),target)

@@ -24,7 +24,7 @@ ART_C_INCLUDES := \
 	art/src \
 	dalvik/libdex
 
-ART_CFLAGS := \
+art_cflags := \
 	-O2 \
 	-ggdb3 \
 	-Wall \
@@ -34,6 +34,16 @@ ART_CFLAGS := \
 	-Wstrict-aliasing=2 \
 	-fno-align-jumps \
 	-fstrict-aliasing
+
+ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1
+
+ART_TARGET_CFLAGS := $(art_cflags)
+ifeq ($(TARGET_CPU_SMP),true)
+  ART_TARGET_CFLAGS += -DANDROID_SMP=1
+else
+  ART_TARGET_CFLAGS += -DANDROID_SMP=0
+endif
+
 
 DEX2OAT_SRC_FILES := \
 	src/dex2oat.cc

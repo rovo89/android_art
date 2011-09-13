@@ -34,7 +34,11 @@ define build-art-executable
   endif
   LOCAL_MODULE_TAGS := optional
   LOCAL_SRC_FILES := $(2)
-  LOCAL_CFLAGS := $(ART_CFLAGS)
+  ifeq ($(3),target)
+    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+  else
+    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+  endif
   ifeq ($(4),debug)
     LOCAL_CFLAGS += -UNDEBUG
   endif

@@ -33,7 +33,11 @@ define build-libart
   else
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
   endif
-  LOCAL_CFLAGS := $(ART_CFLAGS)
+  ifeq ($(1),target)
+    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+  else
+    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+  endif
   ifeq ($(2),debug)
     LOCAL_CFLAGS += -UNDEBUG
   endif

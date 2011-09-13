@@ -304,7 +304,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         rlDest = oatGetDestWide(cUnit, mir, 0, 1);
         RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
 #if ANDROID_SMP != 0
-        if (isVolatile) {
+        if (field->IsVolatile()) {
             oatGenMemBarrier(cUnit, kSY);
         }
 #endif
@@ -367,7 +367,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         rlDest = oatGetDest(cUnit, mir, 0);
         rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
 #if ANDROID_SMP != 0
-        if (isVolatile) {
+        if (field->IsVolatile()) {
             oatGenMemBarrier(cUnit, kSY);
         }
 #endif

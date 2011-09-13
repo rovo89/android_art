@@ -28,13 +28,14 @@ define build-art-test
   LOCAL_MODULE := $(notdir $(basename $(2:%.arm=%)))
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(2)
-  LOCAL_CFLAGS := $(ART_CFLAGS) -UNDEBUG
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libarttest libartd
   ifeq ($(1),target)
+    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) -UNDEBUG
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
   else
+    LOCAL_CFLAGS := $(ART_HOST_CFLAGS) -UNDEBUG
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
   endif

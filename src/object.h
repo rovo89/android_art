@@ -1,7 +1,24 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
+
+#include <cutils/atomic.h>
+#include <cutils/atomic-inline.h>
 
 #include <vector>
 
@@ -362,35 +379,43 @@ class MANAGED Object {
 
   uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
     Heap::VerifyObject(this);
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
-        field_offset.Int32Value();
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
+    const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
     if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
+      return android_atomic_acquire_load(word_addr);
+    } else {
+      return *word_addr;
     }
-    return *reinterpret_cast<const uint32_t*>(raw_addr);
   }
 
   void SetField32(MemberOffset offset, uint32_t new_value, bool is_volatile) {
     Heap::VerifyObject(this);
     byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
+    uint32_t* word_addr = reinterpret_cast<uint32_t*>(raw_addr);
     if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
+      /*
+       * TODO: add an android_atomic_synchronization_store() function and
+       * use it in the 32-bit volatile set handlers.  On some platforms we
+       * can use a fast atomic instruction and avoid the barriers.
+       */
+      ANDROID_MEMBAR_STORE();
+      *word_addr = new_value;
+      ANDROID_MEMBAR_FULL();
+    } else {
+      *word_addr = new_value;
     }
-    *reinterpret_cast<uint32_t*>(raw_addr) = new_value;
   }
 
   uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const {
     Heap::VerifyObject(this);
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
-        field_offset.Int32Value();
+    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
     if (is_volatile) {
       UNIMPLEMENTED(WARNING);
     }
     return *reinterpret_cast<const uint64_t*>(raw_addr);
   }
 
-  void SetField64(MemberOffset offset, uint64_t new_value,
-                  bool is_volatile = false) {
+  void SetField64(MemberOffset offset, uint64_t new_value, bool is_volatile) {
     Heap::VerifyObject(this);
     byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
     if (is_volatile) {
@@ -401,25 +426,6 @@ class MANAGED Object {
 
  protected:
   // Accessors for non-Java type fields
-  uint16_t GetField16(MemberOffset field_offset, bool is_volatile) const {
-    Heap::VerifyObject(this);
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) +
-        field_offset.Int32Value();
-    if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
-    }
-    return *reinterpret_cast<const uint16_t*>(raw_addr);
-  }
-
-  void SetField16(MemberOffset offset, uint16_t new_value, bool is_volatile) {
-    Heap::VerifyObject(this);
-    byte* raw_addr = reinterpret_cast<byte*>(this) + offset.Int32Value();
-    if (is_volatile) {
-      UNIMPLEMENTED(WARNING);
-    }
-    *reinterpret_cast<uint16_t*>(raw_addr) = new_value;
-  }
-
   template<class T>
   T GetFieldPtr(MemberOffset field_offset, bool is_volatile) const {
     Heap::VerifyObject(this);
@@ -721,7 +727,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   void SetMethodIndex(uint16_t new_method_index) {
-    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, method_index_),
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_),
                new_method_index, false);
   }
 
@@ -748,21 +754,21 @@ class MANAGED Method : public AccessibleObject {
   uint16_t NumRegisters() const;
 
   void SetNumRegisters(uint16_t new_num_registers) {
-    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_),
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_),
                new_num_registers, false);
   }
 
   uint16_t NumIns() const;
 
   void SetNumIns(uint16_t new_num_ins) {
-    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_),
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_),
                new_num_ins, false);
   }
 
   uint16_t NumOuts() const;
 
   void SetNumOuts(uint16_t new_num_outs) {
-    SetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_),
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_),
                new_num_outs, false);
   }
 
@@ -1051,7 +1057,7 @@ class MANAGED Method : public AccessibleObject {
 
   uint32_t java_generic_types_are_initialized_;
 
-  // access flags; low 16 bits are defined by spec (could be uint16_t?)
+  // Access flags; low 16 bits are defined by spec.
   uint32_t access_flags_;
 
   // Compiled code associated with this method for callers from managed code.
@@ -1081,7 +1087,7 @@ class MANAGED Method : public AccessibleObject {
   //
   // For abstract methods in an interface class, this is the offset
   // of the method in "iftable_->Get(n)->GetMethodArray()".
-  uint32_t method_index_;  // (could be uint16_t)
+  uint32_t method_index_;
 
   // The target native method registered with this method
   const void* native_method_;
@@ -1090,9 +1096,9 @@ class MANAGED Method : public AccessibleObject {
   //
   // For a native method, we compute the size of the argument list, and
   // set "insSize" and "registerSize" equal to it.
-  uint32_t num_ins_;  // (could be uint16_t)
-  uint32_t num_outs_;  // (could be uint16_t)
-  uint32_t num_registers_;  // ins + locals  // (could be uint16_t)
+  uint32_t num_ins_;
+  uint32_t num_outs_;
+  uint32_t num_registers_;  // ins + locals
 
   // Method prototype descriptor string (return and argument types).
   uint32_t proto_idx_;
@@ -2598,22 +2604,22 @@ inline uint32_t Method::GetAccessFlags() const {
 
 inline uint16_t Method::GetMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsResolved());
-  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), false);
 }
 
 inline uint16_t Method::NumRegisters() const {
   DCHECK(GetDeclaringClass()->IsLoaded());
-  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_), false);
 }
 
 inline uint16_t Method::NumIns() const {
   DCHECK(GetDeclaringClass()->IsLoaded());
-  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_), false);
 }
 
 inline uint16_t Method::NumOuts() const {
   DCHECK(GetDeclaringClass()->IsLoaded());
-  return GetField16(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_), false);
 }
 
 inline uint32_t Method::GetProtoIdx() const {
