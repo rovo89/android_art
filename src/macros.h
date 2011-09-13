@@ -120,4 +120,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
      &reinterpret_cast<t*>(16)->f) -  \
    reinterpret_cast<char*>(16))
 
+#define OFFSETOF_VOLATILE_MEMBER(t, f) \
+  (reinterpret_cast<volatile char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<volatile char*>(16))
+
 #endif  // ART_SRC_MACROS_H_

@@ -41,6 +41,9 @@ class ThreadList {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
+  void SignalGo(Thread* child);
+  void WaitForGo();
+
  private:
   uint32_t AllocThreadId();
   void ReleaseThreadId(uint32_t id);
@@ -48,6 +51,8 @@ class ThreadList {
   mutable Mutex lock_;
   std::bitset<kMaxThreadId> allocated_ids_;
   std::list<Thread*> list_;
+
+  static pthread_cond_t thread_start_cond_;
 
   friend class Thread;
   friend class ThreadListLock;
@@ -64,7 +69,7 @@ class ThreadListLock {
     }
     Thread::State old_state;
     if (self != NULL) {
-      old_state = self->SetState(Thread::kWaiting);  // TODO: VMWAIT
+      old_state = self->SetState(Thread::kVmWait);
     } else {
       // This happens during VM shutdown.
       old_state = Thread::kUnknown;

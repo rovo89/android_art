@@ -40,9 +40,11 @@ Runtime::~Runtime() {
   // Make sure our internal threads are dead before we start tearing down things they're using.
   delete signal_catcher_;
 
+  // Make sure all other threads have terminated too.
+  delete thread_list_;
+
   delete class_linker_;
   Heap::Destroy();
-  delete thread_list_;
   delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();

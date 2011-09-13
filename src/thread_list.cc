@@ -18,6 +18,8 @@
 
 namespace art {
 
+pthread_cond_t ThreadList::thread_start_cond_ = PTHREAD_COND_INITIALIZER;
+
 ThreadList::ThreadList() : lock_("ThreadList lock") {
 }
 
@@ -57,7 +59,7 @@ void ThreadList::Register(Thread* thread) {
 void ThreadList::Unregister() {
   Thread* self = Thread::Current();
 
-  //LOG(INFO) << "ThreadList::Unregister() " << self;
+  //LOG(INFO) << "ThreadList::Unregister() " << *self;
   MutexLock mu(lock_);
 
   // Remove this thread from the list.
@@ -83,6 +85,59 @@ void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->VisitRoots(visitor, arg);
   }
+}
+
+/*
+ * Tell a new thread it's safe to start.
+ *
+ * We must hold the thread list lock before messing with another thread.
+ * In the general case we would also need to verify that the new thread was
+ * still in the thread list, but in our case the thread has not started
+ * executing user code and therefore has not had a chance to exit.
+ *
+ * We move it to kVmWait, and it then shifts itself to kRunning, which
+ * comes with a suspend-pending check. We do this after
+ */
+void ThreadList::SignalGo(Thread* child) {
+  Thread* self = Thread::Current();
+  CHECK(child != self);
+
+  {
+    MutexLock mu(lock_);
+
+    // We wait for the child to tell us that it's in the thread list.
+    while (child->GetState() != Thread::kStarting) {
+      pthread_cond_wait(&thread_start_cond_, lock_.GetImpl());
+    }
+  }
+
+  // If we switch out of runnable and then back in, we know there's no pending suspend.
+  self->SetState(Thread::kVmWait);
+  self->SetState(Thread::kRunnable);
+
+  // Tell the child that it's safe: it will see any future suspend request.
+  child->SetState(Thread::kVmWait);
+  pthread_cond_broadcast(&thread_start_cond_);
+}
+
+void ThreadList::WaitForGo() {
+  Thread* self = Thread::Current();
+  DCHECK(Contains(self));
+
+  MutexLock mu(lock_);
+
+  // Tell our parent that we're in the thread list.
+  self->SetState(Thread::kStarting);
+  pthread_cond_broadcast(&thread_start_cond_);
+
+  // Wait until our parent tells us there's no suspend still pending
+  // from before we were on the thread list.
+  while (self->GetState() != Thread::kVmWait) {
+    pthread_cond_wait(&thread_start_cond_, lock_.GetImpl());
+  }
+
+  // Enter the runnable state. We know that any pending suspend will affect us now.
+  self->SetState(Thread::kRunnable);
 }
 
 uint32_t ThreadList::AllocThreadId() {

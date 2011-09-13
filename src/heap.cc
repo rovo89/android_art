@@ -414,7 +414,7 @@ void Heap::GrowForUtilization() {
 }
 
 void Heap::Lock() {
-  // TODO: grab the lock, but put ourselves into THREAD_VMWAIT if it looks like
+  // TODO: grab the lock, but put ourselves into Thread::kVmWait if it looks like
   // we're going to have to wait on the mutex.
   lock_->Lock();
 }

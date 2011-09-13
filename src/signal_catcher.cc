@@ -91,7 +91,7 @@ void SignalCatcher::HandleSigUsr1() {
 }
 
 int WaitForSignal(Thread* thread, sigset_t& mask) {
-  ScopedThreadStateChange tsc(thread, Thread::kWaiting); // TODO: VMWAIT
+  ScopedThreadStateChange tsc(thread, Thread::kVmWait);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition

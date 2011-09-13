@@ -508,7 +508,7 @@ class SharedLibrary {
         LOG(INFO) << "[" << *self << " waiting for \"" << path_ << "\" "
                   << "JNI_OnLoad...]";
       }
-      ScopedThreadStateChange tsc(self, Thread::kWaiting); // TODO: VMWAIT
+      ScopedThreadStateChange tsc(self, Thread::kVmWait);
       pthread_cond_wait(&jni_on_load_cond_, jni_on_load_lock_.GetImpl());
     }
 
@@ -2751,12 +2751,12 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   // TODO: automate some of these checks!
 
   // This can execute slowly for a large library on a busy system, so we
-  // want to switch from RUNNING to VMWAIT while it executes.  This allows
+  // want to switch from kRunnable to kVmWait while it executes.  This allows
   // the GC to ignore us.
   Thread* self = Thread::Current();
   void* handle = NULL;
   {
-    ScopedThreadStateChange tsc(self, Thread::kWaiting); // TODO: VMWAIT
+    ScopedThreadStateChange tsc(self, Thread::kVmWait);
     handle = dlopen(path.c_str(), RTLD_LAZY);
   }
 

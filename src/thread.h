@@ -129,13 +129,19 @@ class Thread {
   };
   enum State {
     kUnknown = -1,
-    kNew,
-    kRunnable,
-    kBlocked,
-    kWaiting,
-    kTimedWaiting,
-    kNative,
-    kTerminated,
+
+    // These match up with JDWP values.
+    kTerminated   = 0,        // TERMINATED
+    kRunnable     = 1,        // RUNNABLE or running now
+    kTimedWaiting = 2,        // TIMED_WAITING in Object.wait()
+    kBlocked      = 3,        // BLOCKED on a monitor
+    kWaiting      = 4,        // WAITING in Object.wait()
+    // Non-JDWP states.
+    kInitializing = 5,        // allocated, not yet running --- TODO: unnecessary?
+    kStarting     = 6,        // native thread started, not yet ready to run managed code
+    kNative       = 7,        // off in a JNI native method
+    kVmWait       = 8,        // waiting on a VM resource
+    kSuspended    = 9,        // suspended, usually by GC or debugger
   };
 
   static const size_t kStackOverflowReservedBytes = 1024; // Space to throw a StackOverflowError in.
@@ -435,7 +441,7 @@ class Thread {
   }
 
   static ThreadOffset StateOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, state_));
+    return ThreadOffset(OFFSETOF_VOLATILE_MEMBER(Thread, state_));
   }
 
   static ThreadOffset StackEndOffset() {
@@ -473,6 +479,9 @@ class Thread {
 
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const;
+
+  void Attach(const Runtime* runtime);
+  static void* CreateCallback(void* arg);
 
   void InitCpu();
   void InitFunctionPointers();
@@ -527,7 +536,7 @@ class Thread {
   // Every thread may have an associated JNI environment
   JNIEnvExt* jni_env_;
 
-  State state_;
+  volatile State state_;
 
   // Initialized to "this". On certain architectures (such as x86) reading
   // off of Thread::Current is easy but getting the address of Thread::Current

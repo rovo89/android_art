@@ -324,9 +324,54 @@ Method* Frame::NextMethod() const {
   return *reinterpret_cast<Method**>(next_sp);
 }
 
-void* ThreadStart(void *arg) {
-  UNIMPLEMENTED(FATAL);
+void* Thread::CreateCallback(void *arg) {
+  Thread* self = reinterpret_cast<Thread*>(arg);
+  Runtime* runtime = Runtime::Current();
+
+  self->Attach(runtime);
+
+  ClassLinker* class_linker = runtime->GetClassLinker();
+
+  Class* thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
+  Class* string_class = class_linker->FindSystemClass("Ljava/lang/String;");
+
+  Field* name_field = thread_class->FindDeclaredInstanceField("name", string_class);
+  String* thread_name = reinterpret_cast<String*>(name_field->GetObject(self->peer_));
+  if (thread_name != NULL) {
+    SetThreadName(thread_name->ToModifiedUtf8().c_str());
+  }
+
+  // Wait until it's safe to start running code. (There may have been a suspend-all
+  // in progress while we were starting up.)
+  runtime->GetThreadList()->WaitForGo();
+
+  // TODO: say "hi" to the debugger.
+  //if (gDvm.debuggerConnected) {
+  //  dvmDbgPostThreadStart(self);
+  //}
+
+  // Invoke the 'run' method of our java.lang.Thread.
+  CHECK(self->peer_ != NULL);
+  Object* receiver = self->peer_;
+  Method* Thread_run = thread_class->FindVirtualMethod("run", "()V");
+  Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(Thread_run);
+  m->Invoke(self, receiver, NULL, NULL);
+
+  // Detach.
+  runtime->GetThreadList()->Unregister();
+
   return NULL;
+}
+
+void SetVmData(Object* managed_thread, Thread* native_thread) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  Class* thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
+  Class* int_class = class_linker->FindPrimitiveClass('I');
+
+  Field* vmData_field = thread_class->FindDeclaredInstanceField("vmData", int_class);
+
+  vmData_field->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
 void Thread::Create(Object* peer, size_t stack_size) {
@@ -336,8 +381,12 @@ void Thread::Create(Object* peer, size_t stack_size) {
     stack_size = Runtime::Current()->GetDefaultStackSize();
   }
 
-  Thread* self = new Thread;
-  self->peer_ = peer;
+  Thread* native_thread = new Thread;
+  native_thread->peer_ = peer;
+
+  // Thread.start is synchronized, so we know that vmData is 0,
+  // and know that we're not racing to assign it.
+  SetVmData(peer, native_thread);
 
   pthread_attr_t attr;
   errno = pthread_attr_init(&attr);
@@ -355,7 +404,7 @@ void Thread::Create(Object* peer, size_t stack_size) {
     PLOG(FATAL) << "pthread_attr_setstacksize(" << stack_size << ") failed";
   }
 
-  errno = pthread_create(&self->pthread_, &attr, ThreadStart, self);
+  errno = pthread_create(&native_thread->pthread_, &attr, Thread::CreateCallback, native_thread);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_create failed";
   }
@@ -364,28 +413,39 @@ void Thread::Create(Object* peer, size_t stack_size) {
   if (errno != 0) {
     PLOG(FATAL) << "pthread_attr_destroy failed";
   }
+
+  // Let the child know when it's safe to start running.
+  Runtime::Current()->GetThreadList()->SignalGo(native_thread);
 }
 
-Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
-  Thread* self = new Thread;
+void Thread::Attach(const Runtime* runtime) {
+  InitCpu();
+  InitFunctionPointers();
 
-  self->tid_ = ::art::GetTid();
-  self->pthread_ = pthread_self();
+  thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
 
-  self->InitStackHwm();
+  tid_ = ::art::GetTid();
+  pthread_ = pthread_self();
 
-  self->state_ = kRunnable;
+  InitStackHwm();
 
-  SetThreadName(name);
-
-  errno = pthread_setspecific(Thread::pthread_key_self_, self);
+  errno = pthread_setspecific(Thread::pthread_key_self_, this);
   if (errno != 0) {
     PLOG(FATAL) << "pthread_setspecific failed";
   }
 
-  self->jni_env_ = new JNIEnvExt(self, runtime->GetJavaVM());
+  jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 
-  runtime->GetThreadList()->Register(self);
+  runtime->GetThreadList()->Register(this);
+}
+
+Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
+  Thread* self = new Thread;
+  self->Attach(runtime);
+
+  self->SetState(Thread::kRunnable);
+
+  SetThreadName(name);
 
   // If we're the main thread, ClassLinker won't be created until after we're attached,
   // so that thread needs a two-stage attach. Regular threads don't need this hack.
@@ -560,7 +620,7 @@ void Thread::DumpState(std::ostream& os) const {
   }
   os << " prio=" << priority
      << " tid=" << GetThinLockId()
-     << " " << state_ << "\n";
+     << " " << GetState() << "\n";
 
   int suspend_count = 0; // TODO
   int debug_suspend_count = 0; // TODO
@@ -674,17 +734,15 @@ Thread::Thread()
       native_to_managed_record_(NULL),
       top_sirt_(NULL),
       jni_env_(NULL),
+      state_(Thread::kUnknown),
       exception_(NULL),
       suspend_count_(0),
       class_loader_override_(NULL) {
-  InitCpu();
-  InitFunctionPointers();
-  thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
 }
 
 void MonitorExitVisitor(const Object* object, void*) {
   Object* entered_monitor = const_cast<Object*>(object);
-  entered_monitor->MonitorExit();;
+  entered_monitor->MonitorExit();
 }
 
 Thread::~Thread() {
@@ -692,7 +750,9 @@ Thread::~Thread() {
   // a call stack that includes managed frames. (It's only valid if the stack is all-native.)
 
   // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
-  jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
+  if (jni_env_ != NULL) {
+    jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
+  }
 
   if (IsExceptionPending()) {
     UNIMPLEMENTED(FATAL) << "threadExitUncaughtException()";
@@ -700,11 +760,13 @@ Thread::~Thread() {
 
   // TODO: ThreadGroup.removeThread(this);
 
-  // TODO: this.vmData = 0;
+  if (peer_ != NULL) {
+    SetVmData(peer_, NULL);
+  }
 
   // TODO: say "bye" to the debugger.
   //if (gDvm.debuggerConnected) {
-  //   dvmDbgPostThreadDeath(self);
+  //  dvmDbgPostThreadDeath(self);
   //}
 
   // Thread.join() is implemented as an Object.wait() on the Thread.lock
@@ -1041,19 +1103,23 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 static const char* kStateNames[] = {
-  "New",
+  "Terminated",
   "Runnable",
+  "TimedWaiting",
   "Blocked",
   "Waiting",
-  "TimedWaiting",
+  "Initializing",
+  "Starting",
   "Native",
-  "Terminated",
+  "VmWait",
+  "Suspended",
 };
 std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
-  if (state >= Thread::kNew && state <= Thread::kTerminated) {
-    os << kStateNames[state-Thread::kNew];
+  int int_state = static_cast<int>(state);
+  if (state >= Thread::kTerminated && state <= Thread::kSuspended) {
+    os << kStateNames[int_state];
   } else {
-    os << "State[" << static_cast<int>(state) << "]";
+    os << "State[" << int_state << "]";
   }
   return os;
 }
