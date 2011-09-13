@@ -156,10 +156,6 @@ Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
   return obj;
 }
 
-void Heap::WriteBarrier(const Object* obj) {
-  // TODO: mark obj's card.
-}
-
 bool Heap::IsHeapAddress(const Object* obj) {
   // Note: we deliberately don't take the lock here, and mustn't test anything that would
   // require taking the lock.

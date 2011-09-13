@@ -2269,7 +2269,7 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
         dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
       }
     }
-    // TODO: bulk write barrier
+    Heap::WriteBarrier(dst);
   }
 }
 

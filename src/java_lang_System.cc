@@ -187,8 +187,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   if (sameDimensions && srcComponentType->InstanceOf(dstComponentType)) {
     // Yes. Bulk copy.
     move32(dstBytes + dstPos * width, srcBytes + srcPos * width, length * width);
-    UNIMPLEMENTED(WARNING) << "write barriers in System.arraycopy";
-    //dvmWriteBarrierArray(dstArray, dstPos, dstPos + length);
+    Heap::WriteBarrier(dstArray);
     return;
   }
 
@@ -228,8 +227,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   }
 
   move32(dstBytes + dstPos * width, srcBytes + srcPos * width, copyCount * width);
-  UNIMPLEMENTED(WARNING) << "write barriers in System.arraycopy";
-  //dvmWriteBarrierArray(dstArray, 0, copyCount);
+  Heap::WriteBarrier(dstArray);
   if (copyCount != length) {
     std::string actualSrcType(PrettyType(srcObj[copyCount]));
     std::string dstType(PrettyType(dstArray));
