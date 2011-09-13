@@ -61,12 +61,12 @@ struct SSARepresentation;
 struct GrowableList;
 struct MIR;
 
-void oatInit(void);
+void oatInit(const Compiler& compiler);
 bool oatArchInit(void);
 void oatArchDump(void);
 bool oatStartup(void);
 void oatShutdown(void);
-bool oatCompileMethod(Method* method, OatInstructionSetType);
+bool oatCompileMethod(const Compiler& compiler, Method* method, OatInstructionSetType);
 void oatDumpStats(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);

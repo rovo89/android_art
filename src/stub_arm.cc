@@ -51,7 +51,7 @@ ByteArray* CreateJniStub() {
   __ mov(R0, ShifterOperand(R9));
 
   // Call FindNativeMethod
-  __ LoadImmediate(R12, reinterpret_cast<int32_t>(&FindNativeMethod));
+  __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pFindNativeMethod));
   __ blx(R12);
 
   // Save result of FindNativeMethod in R12

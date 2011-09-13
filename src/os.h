@@ -20,6 +20,9 @@ class OS {
 
   // Check if a file exists.
   static bool FileExists(const char* name);
+
+  // Check if a directory exists.
+  static bool DirectoryExists(const char* name);
 };
 
 }  // namespace art

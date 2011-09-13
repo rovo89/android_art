@@ -233,6 +233,10 @@ jobject Java_MyClass_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
+#if !defined(__arm__)
+  UNIMPLEMENTED(WARNING) << "needs X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister)";
+  return;
+#endif
   SetupForTest(false, "fooIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClass_fooIOO));
@@ -332,6 +336,10 @@ jobject Java_MyClass_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
 
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
+#if !defined(__arm__)
+  UNIMPLEMENTED(WARNING) << "needs X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister)";
+  return;
+#endif
   SetupForTest(true, "fooSIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClass_fooSIOO));
@@ -382,6 +390,10 @@ jobject Java_MyClass_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
+#if !defined(__arm__)
+  UNIMPLEMENTED(WARNING) << "needs X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister)";
+  return;
+#endif
   SetupForTest(true, "fooSSIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClass_fooSSIOO));
@@ -534,6 +546,10 @@ jobject Java_MyClass_fooO(JNIEnv* env, jobject thisObj, jobject x) {
 }
 
 TEST_F(JniCompilerTest, ReturnGlobalRef) {
+#if !defined(__arm__)
+  UNIMPLEMENTED(WARNING) << "needs X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister)";
+  return;
+#endif
   SetupForTest(false, "fooO", "(Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClass_fooO));
   jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, jobj_);

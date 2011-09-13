@@ -20,6 +20,14 @@ class Compiler {
   // Compile a single Method
   void CompileOne(Method* method);
 
+  void SetVerbose(bool verbose) {
+    verbose_ = verbose;
+  }
+
+  bool IsVerbose() const {
+    return verbose_;
+  }
+
  private:
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
@@ -40,6 +48,8 @@ class Compiler {
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
   ByteArray* abstract_method_error_stub_;
+
+  bool verbose_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };

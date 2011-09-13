@@ -317,13 +317,17 @@ class DexFile {
                                         const ClassPath& class_path);
 
   // Opens .dex file, guessing the format based on file extension
-  static const DexFile* Open(const std::string& filename);
+  static const DexFile* Open(const std::string& filename,
+                             const std::string& strip_location_prefix);
 
   // Opens a .dex file from the file system.
-  static const DexFile* OpenFile(const std::string& filename);
+  static const DexFile* OpenFile(const std::string& filename,
+                                 const std::string& original_location,
+                                 const std::string& strip_location_prefix);
 
   // Opens a .jar, .zip, or .apk file from the file system.
-  static const DexFile* OpenZip(const std::string& filename);
+  static const DexFile* OpenZip(const std::string& filename,
+                                const std::string& strip_location_prefix);
 
   // Opens a .dex file from a new allocated pointer.  location is used
   // to identify the source, for example "/system/framework/core.jar"

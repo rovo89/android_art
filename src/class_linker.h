@@ -104,6 +104,15 @@ class ClassLinker {
                         const ClassLoader* class_loader,
                         bool is_direct);
 
+  Method* ResolveMethod(uint32_t method_idx, const Method* referrer, bool is_direct) {
+    Class* declaring_class = referrer->GetDeclaringClass();
+    DexCache* dex_cache = declaring_class->GetDexCache();
+    // TODO: we could check for a dex cache hit here
+    const ClassLoader* class_loader = declaring_class->GetClassLoader();
+    const DexFile& dex_file = FindDexFile(dex_cache);
+    return ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
+  }
+
   Field* ResolveField(uint32_t field_idx, const Method* referrer) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
@@ -113,7 +122,7 @@ class ClassLinker {
     return ResolveField(dex_file, field_idx, dex_cache, class_loader, true);
   }
 
-  // Resolve a method with a given ID from the DexFile, storing the
+  // Resolve a field with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
   // in ResolveType. What is unique is the is_static argument which is
   // used to determine if we are resolving a static or non-static
@@ -252,16 +261,17 @@ class ClassLinker {
   void CreateReferenceOffsets(Class *klass, bool instance,
                               uint32_t reference_offsets);
 
+  // lock to protect ClassLinker state
+  mutable Mutex lock_;
+
   std::vector<const DexFile*> boot_class_path_;
 
   std::vector<const DexFile*> dex_files_;
-
   std::vector<DexCache*> dex_caches_;
 
   // multimap from a StringPiece hash code of a class descriptor to
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
-  mutable Mutex classes_lock_;
   typedef std::tr1::unordered_multimap<size_t, Class*> Table;
   Table classes_;
 

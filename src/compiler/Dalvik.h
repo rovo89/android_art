@@ -28,6 +28,7 @@
 #include "object.h"
 #include "thread.h"
 #include "class_linker.h"
+#include "compiler.h"
 #include "dex_cache.h"
 #include "utils.h"
 
@@ -51,14 +52,15 @@ typedef unsigned long long  u8;
 #include "DexOpcodes.h"
 #include "InstrUtils.h"
 
-typedef art::JValue JValue;
-typedef art::Thread Thread;
-typedef art::Class Class;
 typedef art::Array Array;
+typedef art::Class Class;
+typedef art::Compiler Compiler;
+typedef art::Field Field;
+typedef art::JValue JValue;
 typedef art::Method Method;
 typedef art::Object Object;
-typedef art::Field Field;
 typedef art::String String;
+typedef art::Thread Thread;
 
 // From alloc/CardTable.h
 #define GC_CARD_SHIFT 7

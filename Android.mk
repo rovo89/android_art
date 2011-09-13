@@ -35,6 +35,8 @@ include $(build_path)/Android.common.mk
 include $(build_path)/Android.libart.mk
 include $(build_path)/Android.executable.mk
 
+include $(build_path)/Android.oat.mk
+
 include $(build_path)/Android.libarttest.mk
 include $(build_path)/Android.test.mk
 
@@ -54,8 +56,8 @@ define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_DEX_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_DEX_FILES)
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_OAT_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_OAT_FILES)
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
@@ -79,9 +81,14 @@ test-art-target: $(ART_TARGET_TEST_DEPENDENCIES)
 	adb sync
 	adb shell touch /sdcard/test-art-target
 	adb shell rm /sdcard/test-art-target
+        # gtest unit tests
 	adb shell sh -c "$(foreach file,$(sort $(ART_TARGET_TEST_EXECUTABLES)), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target"
 	adb pull /sdcard/test-art-target /tmp/
-	rm /tmp/test-art-target
+	rm /tmp/test-art-target # this will cause the make on test failure (since the file will not exist)
+        # oatexec test
+	adb shell sh -c "oatexecd -Xbootclasspath:/system/framework/core.jar -Xbootimage:/system/framework/boot.oat -classpath /system/framework/art-test-dex-HelloWorld.jar -Ximage:/system/framework/art-test-dex-HelloWorld.oat HelloWorld && touch /sdcard/test-art-target"
+	adb pull /sdcard/test-art-target /tmp/
+	rm /tmp/test-art-target # this will cause the make on test failure (since the file will not exist)
 
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art

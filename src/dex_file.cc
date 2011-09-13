@@ -42,16 +42,17 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
-const DexFile* DexFile::Open(const std::string& filename) {
+const DexFile* DexFile::Open(const std::string& filename,
+                             const std::string& strip_location_prefix) {
   if (filename.size() < 4) {
     LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
     return NULL;
   }
   std::string suffix(filename.substr(filename.size() - 4));
   if (suffix == ".zip" || suffix == ".jar" || suffix == ".apk") {
-    return DexFile::OpenZip(filename);
+    return DexFile::OpenZip(filename, strip_location_prefix);
   } else {
-    return DexFile::OpenFile(filename);
+    return DexFile::OpenFile(filename, filename, strip_location_prefix);
   }
 }
 
@@ -69,7 +70,15 @@ DexFile::MmapCloser::~MmapCloser() {
 DexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
 DexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
 
-const DexFile* DexFile::OpenFile(const std::string& filename) {
+const DexFile* DexFile::OpenFile(const std::string& filename,
+                                 const std::string& original_location,
+                                 const std::string& strip_location_prefix) {
+  StringPiece location = original_location;
+  if (!location.starts_with(strip_location_prefix)) {
+    LOG(ERROR) << filename << " does not start with " << strip_location_prefix;
+    return NULL;
+  }
+  location.remove_prefix(strip_location_prefix.size());
   int fd = open(filename.c_str(), O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
     PLOG(ERROR) << "open(\"" << filename << "\", O_RDONLY) failed";
@@ -92,7 +101,7 @@ const DexFile* DexFile::OpenFile(const std::string& filename) {
   close(fd);
   byte* dex_file = reinterpret_cast<byte*>(addr);
   Closer* closer = new MmapCloser(addr, length);
-  return Open(dex_file, length, filename, closer);
+  return Open(dex_file, length, location.ToString(), closer);
 }
 
 static const char* kClassesDex = "classes.dex";
@@ -152,7 +161,8 @@ class TmpFile {
 };
 
 // Open classes.dex from within a .zip, .jar, .apk, ...
-const DexFile* DexFile::OpenZip(const std::string& filename) {
+const DexFile* DexFile::OpenZip(const std::string& filename,
+                                const std::string& strip_location_prefix) {
 
   // First, look for a ".dex" alongside the jar file.  It will have
   // the same name/path except for the extension.
@@ -161,7 +171,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
   std::string adjacent_dex_filename(filename);
   size_t found = adjacent_dex_filename.find_last_of(".");
   if (found == std::string::npos) {
-    LOG(WARNING) << "No . in filename" << filename;
+    LOG(ERROR) << "No . in filename" << filename;
     return NULL;
   }
   adjacent_dex_filename.replace(adjacent_dex_filename.begin() + found,
@@ -169,7 +179,9 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
                                 ".dex");
   // Example adjacent_dex_filename = dir/foo.dex
   if (OS::FileExists(adjacent_dex_filename.c_str())) {
-    const DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename);
+    const DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename,
+                                                         filename,
+                                                         strip_location_prefix);
     if (adjacent_dex_file != NULL) {
       // We don't verify anything in this case, because we aren't in
       // the cache and typically the file is in the readonly /system
@@ -182,8 +194,8 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
   char resolved[PATH_MAX];
   char* absolute_path = realpath(filename.c_str(), resolved);
   if (absolute_path == NULL) {
-      LOG(WARNING) << "Failed to create absolute path for " << filename
-                   << " when looking for classes.dex";
+      LOG(ERROR) << "Failed to create absolute path for " << filename
+                 << " when looking for classes.dex";
       return NULL;
   }
   std::string cache_file(absolute_path+1); // skip leading slash
@@ -194,20 +206,43 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
 
   const char* data_root = getenv("ANDROID_DATA");
   if (data_root == NULL) {
-    data_root = "/data";
+    if (OS::DirectoryExists("/data")) {
+      data_root = "/data";
+    } else {
+      data_root = "/tmp";
+    }
+  }
+  if (!OS::DirectoryExists(data_root)) {
+    LOG(ERROR) << "Failed to find ANDROID_DATA directory " << data_root;
+    return NULL;
   }
 
-  std::string cache_path_tmp = StringPrintf("%s/art-cache/%s", data_root, cache_file.c_str());
+  std::string art_cache = StringPrintf("%s/art-cache", data_root);
+
+  if (!OS::DirectoryExists(art_cache.c_str())) {
+    if (StringPiece(art_cache).starts_with("/tmp/")) {
+      int result = mkdir(art_cache.c_str(), 0700);
+      if (result != 0) {
+        LOG(ERROR) << "Failed to create art-cache directory " << art_cache;
+        return NULL;
+      }
+    } else {
+      LOG(ERROR) << "Failed to find art-cache directory " << art_cache;
+      return NULL;
+    }
+  }
+
+  std::string cache_path_tmp = StringPrintf("%s/%s", art_cache.c_str(), cache_file.c_str());
   // Example cache_path_tmp = /data/art-cache/parent@dir@foo.jar@classes.dex
 
   UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
   if (zip_archive.get() == NULL) {
-    LOG(WARNING) << "Failed to open " << filename << " when looking for classes.dex";
+    LOG(ERROR) << "Failed to open " << filename << " when looking for classes.dex";
     return NULL;
   }
   UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
   if (zip_entry.get() == NULL) {
-    LOG(WARNING) << "Failed to find classes.dex within " << filename;
+    LOG(ERROR) << "Failed to find classes.dex within " << filename;
     return NULL;
   }
 
@@ -216,7 +251,9 @@ const DexFile* DexFile::OpenZip(const std::string& filename) {
 
   while (true) {
     if (OS::FileExists(cache_path.c_str())) {
-      const DexFile* cached_dex_file = DexFile::OpenFile(cache_path);
+      const DexFile* cached_dex_file = DexFile::OpenFile(cache_path,
+                                                         filename,
+                                                         strip_location_prefix);
       if (cached_dex_file != NULL) {
         return cached_dex_file;
       }
@@ -355,7 +392,7 @@ bool DexFile::IsMagicValid() {
 bool DexFile::CheckMagic(const byte* magic) {
   CHECK(magic != NULL);
   if (memcmp(magic, kDexMagic, sizeof(kDexMagic)) != 0) {
-    LOG(WARNING) << "Unrecognized magic number:"
+    LOG(ERROR) << "Unrecognized magic number:"
             << " " << magic[0]
             << " " << magic[1]
             << " " << magic[2]
@@ -364,7 +401,7 @@ bool DexFile::CheckMagic(const byte* magic) {
   }
   const byte* version = &magic[sizeof(kDexMagic)];
   if (memcmp(version, kDexMagicVersion, sizeof(kDexMagicVersion)) != 0) {
-    LOG(WARNING) << "Unrecognized version number:"
+    LOG(ERROR) << "Unrecognized version number:"
             << " " << version[0]
             << " " << version[1]
             << " " << version[2]

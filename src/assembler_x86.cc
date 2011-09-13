@@ -1654,9 +1654,15 @@ void X86Assembler::Call(ManagedRegister mbase, Offset offset, ManagedRegister) {
 }
 
 void X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister) {
+  // TODO: Needed for:
+  // JniCompilerTest.CompileAndRunIntObjectObjectMethod
+  // JniCompilerTest.CompileAndRunStaticIntObjectObjectMethod
+  // JniCompilerTest.CompileAndRunStaticSynchronizedIntObjectObjectMethod
+  // JniCompilerTest.ReturnGlobalRef
   UNIMPLEMENTED(FATAL);
 }
 
+// TODO: remove this generator of non-PIC code
 void X86Assembler::Call(uintptr_t addr, ManagedRegister mscratch) {
   Register scratch = mscratch.AsX86().AsCpuRegister();
   movl(scratch, Immediate(addr));

@@ -25,6 +25,10 @@ class JniCompiler {
 
   void Compile(Method* method);
 
+  // Stub to perform native method symbol lookup via dlsym
+  // TODO: remove from JniCompiler
+  static ByteArray* CreateJniStub(InstructionSet instruction_set);
+
  private:
   // Copy a single parameter from the managed to the JNI calling convention
   void CopyParameter(Assembler* jni_asm,
@@ -37,8 +41,6 @@ class JniCompiler {
                           ManagedRegister in_reg);
 
   InstructionSet instruction_set_;
-
-  ByteArray* jni_stub_;  // Stub to perform native method symbol lookup
 
   DISALLOW_COPY_AND_ASSIGN(JniCompiler);
 };

@@ -46,14 +46,20 @@ static void usage() {
           "  --method may be used to limit compilation to a subset of methods.\n"
           "      Example: --method=Ljava/lang/Object;<init>()V\n"
           "\n");
+  fprintf(stderr,
+          "  --strip-prefix may be used to strip a path prefix from dex file names in the\n"
+          "       the generated image to match the target file system layout.\n"
+          "      Example: --strip-prefix=out/target/product/crespo\n"
+          "\n");
   exit(EXIT_FAILURE);
 }
 
 static void OpenDexFiles(std::vector<const char*>& dex_filenames,
-                         std::vector<const DexFile*>& dex_files) {
+                         std::vector<const DexFile*>& dex_files,
+                         const std::string& strip_location_prefix) {
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
-    const DexFile* dex_file = DexFile::Open(dex_filename);
+    const DexFile* dex_file = DexFile::Open(dex_filename, strip_location_prefix);
     if (dex_file == NULL) {
       fprintf(stderr, "could not open .dex from file %s\n", dex_filename);
       exit(EXIT_FAILURE);
@@ -78,6 +84,8 @@ int dex2oat(int argc, char** argv) {
   std::string boot_image_option;
   std::vector<const char*> boot_dex_filenames;
   uintptr_t image_base = 0;
+  std::string strip_location_prefix;
+
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
     if (option.starts_with("--dex-file=")) {
@@ -101,6 +109,8 @@ int dex2oat(int argc, char** argv) {
       boot_image_option += boot_image_filename;
     } else if (option.starts_with("--boot-dex-file=")) {
       boot_dex_filenames.push_back(option.substr(strlen("--boot-dex-file=")).data());
+    } else if (option.starts_with("--strip-prefix=")) {
+      strip_location_prefix = option.substr(strlen("--strip-prefix=")).data();
     } else {
       fprintf(stderr, "unknown argument %s\n", option.data());
       usage();
@@ -125,10 +135,10 @@ int dex2oat(int argc, char** argv) {
   }
 
   std::vector<const DexFile*> dex_files;
-  OpenDexFiles(dex_filenames, dex_files);
+  OpenDexFiles(dex_filenames, dex_files, strip_location_prefix);
 
   std::vector<const DexFile*> boot_dex_files;
-  OpenDexFiles(boot_dex_filenames, boot_dex_files);
+  OpenDexFiles(boot_dex_filenames, boot_dex_files, strip_location_prefix);
 
   Runtime::Options options;
   if (boot_image_option.empty()) {
@@ -160,6 +170,11 @@ int dex2oat(int argc, char** argv) {
       class_linker->RegisterDexFile(*dex_files[i]);
     }
     class_loader = PathClassLoader::Alloc(dex_files);
+  }
+
+  // if we loaded an existing image, we will reuse its stub array.
+  if (!runtime->HasJniStubArray()) {
+    runtime->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
   }
 
   Compiler compiler(kThumb2);

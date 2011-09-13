@@ -10,7 +10,7 @@
 #include "jni_internal.h"
 #include "runtime.h"
 
-extern bool oatCompileMethod(art::Method*, art::InstructionSet);
+extern bool oatCompileMethod(const art::Compiler& compiler, art::Method*, art::InstructionSet);
 
 namespace art {
 
@@ -31,7 +31,8 @@ namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub(ThrowAme);
 }
 
-Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns) {
+Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
+    verbose_(false) {
   if (insns == kArm || insns == kThumb2) {
     abstract_method_error_stub_ = arm::CreateAbstractMethodErrorStub(&ThrowAbstractMethodError);
   } else if (insns == kX86) {
@@ -41,7 +42,15 @@ Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler
 
 void Compiler::CompileAll(const ClassLoader* class_loader) {
   Resolve(class_loader);
-  // TODO add verification step
+  // TODO: add verification step
+
+  // TODO: mark all verified classes initialized if they have no <clinit>
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* Class_class = class_linker->FindSystemClass("Ljava/lang/Class;");
+  Method* Class_clinit = Class_class->FindDirectMethod("<clinit>", "()V");
+  CHECK(Class_clinit == NULL);
+  Class_class->SetStatus(Class::kStatusInitialized);
+
   Compile(class_loader);
   SetCodeAndDirectMethods(class_loader);
 }
@@ -49,7 +58,7 @@ void Compiler::CompileAll(const ClassLoader* class_loader) {
 void Compiler::CompileOne(Method* method) {
   const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
   Resolve(class_loader);
-  // TODO add verification step
+  // TODO: add verification step
   CompileMethod(method);
   SetCodeAndDirectMethods(class_loader);
 }
@@ -131,6 +140,8 @@ namespace x86 {
 void Compiler::CompileMethod(Method* method) {
   if (method->IsNative()) {
     jni_compiler_.Compile(method);
+    // unregister will install the stub to lookup via dlsym
+    method->UnregisterNative();
   } else if (method->IsAbstract()) {
     DCHECK(abstract_method_error_stub_ != NULL);
     if (instruction_set_ == kX86) {
@@ -140,7 +151,7 @@ void Compiler::CompileMethod(Method* method) {
       method->SetCode(abstract_method_error_stub_, kArm);
     }
   } else {
-    oatCompileMethod(method, kThumb2);
+    oatCompileMethod(*this, method, kThumb2);
   }
   CHECK(method->GetCode() != NULL);
 

@@ -516,7 +516,6 @@ class ArmAssembler : public Assembler {
                     ManagedRegister scratch);
   virtual void Call(FrameOffset base, Offset offset,
                     ManagedRegister scratch);
-  virtual void Call(uintptr_t addr, ManagedRegister scratch);
 
   // Generate code to check if Thread::Current()->suspend_count_ is non-zero
   // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue

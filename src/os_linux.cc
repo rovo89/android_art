@@ -36,4 +36,13 @@ bool OS::FileExists(const char* name) {
   }
 }
 
+bool OS::DirectoryExists(const char* name) {
+  struct stat st;
+  if (stat(name, &st) == 0) {
+    return S_ISDIR(st.st_mode);  // TODO: Deal with symlinks?
+  } else {
+    return false;
+  }
+}
+
 }  // namespace art

@@ -48,33 +48,6 @@ void DebugMe(Method* method, uint32_t info) {
     LOG(INFO) << "Info: " << info;
 }
 
-/*
- * TODO: placeholder for a method that can be called by the
- * invoke-interface trampoline to unwind and handle exception.  The
- * trampoline will arrange it so that the caller appears to be the
- * callsite of the failed invoke-interface.  See comments in
- * compiler/runtime_support.S
- */
-extern "C" void artFailedInvokeInterface() {
-    UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
-}
-
-// TODO: placeholder.  See comments in compiler/runtime_support.S
-extern "C" uint64_t artFindInterfaceMethodInCache(uint32_t method_idx,
-     Object* this_object , Method* caller_method)
-{
-    /*
-     * Note: this_object has not yet been null-checked.  To match
-     * the old-world state, nullcheck this_object and load
-     * Class* this_class = this_object->GetClass().
-     * See comments and possible thrown exceptions in old-world
-     * Interp.cpp:dvmInterpFindInterfaceMethod, and complete with
-     * new-world FindVirtualMethodForInterface.
-     */
-    UNIMPLEMENTED(FATAL) << "Unimplemented invoke interface";
-    return 0LL;
-}
-
 // TODO: placeholder.  This is what generated code will call to throw
 void ThrowException(Thread* thread, Throwable* exception) {
   /*
@@ -146,6 +119,7 @@ void CheckSuspendFromCode(Thread* thread) {
 
 // TODO: placeholder
 void StackOverflowFromCode(Method* method) {
+  Thread::Current()->Dump(std::cerr);
   //NOTE: to save code space, this handler needs to look up its own Thread*
   UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
 }
@@ -220,6 +194,38 @@ void HandleFillArrayDataFromCode(Array* array, const uint16_t* table) {
            (char*)&table[4], size_in_bytes);
 }
 
+/*
+ * TODO: placeholder for a method that can be called by the
+ * invoke-interface trampoline to unwind and handle exception.  The
+ * trampoline will arrange it so that the caller appears to be the
+ * callsite of the failed invoke-interface.  See comments in
+ * runtime_support.S
+ */
+extern "C" void artFailedInvokeInterface() {
+    UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
+}
+
+// See comments in runtime_support.S
+extern "C" uint64_t artFindInterfaceMethodInCache(uint32_t method_idx,
+     Object* this_object , Method* caller_method)
+{
+  if (this_object == NULL) {
+    ThrowNullPointerFromCode();
+  }
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Method* interface_method = class_linker->ResolveMethod(method_idx, caller_method, false);
+  if (interface_method == NULL) {
+    UNIMPLEMENTED(FATAL) << "Could not resolve interface method. Throw error and unwind";
+  }
+  Method* method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
+  const void* code = method->GetCode();
+
+  uint32_t method_uint = reinterpret_cast<uint32_t>(method);
+  uint64_t code_uint = reinterpret_cast<uint32_t>(code);
+  uint64_t result = ((code_uint << 32) | method_uint);
+  return result;
+}
+
 // TODO: move to more appropriate location
 /*
  * Float/double conversion requires clamping to min and max of integer form.  If
@@ -249,6 +255,11 @@ int64_t F2L(float f) {
         return 0;
     else
         return (int64_t)f;
+}
+
+// Return value helper for jobject return types
+static Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
+  return thread->DecodeJObject(obj);
 }
 
 void Thread::InitFunctionPointers() {
@@ -312,6 +323,8 @@ void Thread::InitFunctionPointers() {
   pThrowRuntimeExceptionFromCode = ThrowRuntimeExceptionFromCode;
   pThrowInternalErrorFromCode = ThrowInternalErrorFromCode;
   pThrowNoSuchMethodFromCode = ThrowNoSuchMethodFromCode;
+  pFindNativeMethod = FindNativeMethod;
+  pDecodeJObjectInThread = DecodeJObjectInThread;
   pDebugMe = DebugMe;
 }
 

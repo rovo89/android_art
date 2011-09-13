@@ -374,16 +374,11 @@ public:
           JniAbort();
           return;
         } else {
-#if 0
-          Class* field_class = dvmFindLoadedClass(f->signature);
-          if (!obj->GetClass()->InstanceOf(field_class)) {
-            LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyType(java_object);
+          if (!obj->InstanceOf(field_type)) {
+            LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyType(obj);
             JniAbort();
             return;
           }
-#else
-          UNIMPLEMENTED(WARNING) << "need way to get Class* for a given Field*'s type";
-#endif
         }
       }
     } else if (field_type != Runtime::Current()->GetClassLinker()->FindPrimitiveClass(prim)) {

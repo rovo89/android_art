@@ -669,9 +669,11 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
+bool oatCompileMethod(const Compiler& compiler, Method* method, art::InstructionSet insnSet)
 {
-    LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
+    if (compiler.IsVerbose()) {
+        LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
+    }
     oatArenaReset();
 
     CompilationUnit cUnit;
@@ -687,7 +689,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 
 #if 1
     // FIXME - temp 'till properly integrated
-    oatInit();
+    oatInit(compiler);
 #endif
 
     memset(&cUnit, 0, sizeof(cUnit));
@@ -697,8 +699,8 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     cUnit.insnsSize = code_item->insns_size_;
 #if 1
     // TODO: Use command-line argument passing mechanism
-    cUnit.printMe = false;
-    cUnit.printMeVerbose = false;
+    cUnit.printMe = compiler.IsVerbose();
+    cUnit.printMeVerbose = compiler.IsVerbose();
     cUnit.disableOpt = 0 |
          (1 << kLoadStoreElimination) |
          (1 << kLoadHoisting) |
@@ -889,9 +891,11 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetCoreSpillMask(cUnit.coreSpillMask);
     method->SetFpSpillMask(cUnit.fpSpillMask);
-    LOG(INFO) << "Compiled " << PrettyMethod(method)
-              << " code at " << reinterpret_cast<void*>(managed_code->GetData())
-              << " (" << managed_code->GetLength() << " bytes)";
+    if (compiler.IsVerbose()) {
+        LOG(INFO) << "Compiled " << PrettyMethod(method)
+                  << " code at " << reinterpret_cast<void*>(managed_code->GetData())
+                  << " (" << managed_code->GetLength() << " bytes)";
+    }
 #if 0
     oatDumpCFG(&cUnit, "/sdcard/cfg/");
 #endif
@@ -899,7 +903,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
     return true;
 }
 
-void oatInit(void)
+void oatInit(const Compiler& compiler)
 {
 #if 1
     // FIXME - temp hack 'till properly integrated
@@ -907,7 +911,9 @@ void oatInit(void)
     if (initialized)
         return;
     initialized = true;
-    LOG(INFO) << "Initializing compiler";
+    if (compiler.IsVerbose()) {
+        LOG(INFO) << "Initializing compiler";
+    }
 #endif
     if (!oatArchInit()) {
         LOG(FATAL) << "Failed to initialize oat";

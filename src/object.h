@@ -892,22 +892,11 @@ class MANAGED Method : public AccessibleObject {
                return_pc_offset_in_bytes, false);
   }
 
-  bool IsRegistered() {
-    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_), false) != NULL;
-  }
+  bool IsRegistered();
 
-  void RegisterNative(const void* native_method) {
-    CHECK(IsNative());
-    CHECK(native_method != NULL);
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
-                             native_method, false);
-  }
+  void RegisterNative(const void* native_method);
 
-  void UnregisterNative() {
-    CHECK(IsNative());
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
-                             NULL, false);
-  }
+  void UnregisterNative();
 
   static MemberOffset NativeMethodOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);

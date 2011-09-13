@@ -513,6 +513,25 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   self->PopNativeToManagedRecord(record);
 }
 
+bool Method::IsRegistered() {
+  void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_), false);
+  void* jni_stub = Runtime::Current()->GetJniStubArray()->GetData();
+  return native_method != jni_stub;
+}
+
+void Method::RegisterNative(const void* native_method) {
+  CHECK(IsNative());
+  CHECK(native_method != NULL);
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+                           native_method, false);
+}
+
+void Method::UnregisterNative() {
+  CHECK(IsNative());
+  // restore stub to lookup native pointer via dlsym
+  RegisterNative(Runtime::Current()->GetJniStubArray()->GetData());
+}
+
 void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError ||
       !Runtime::Current()->IsStarted());
@@ -790,7 +809,7 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
       return interface_entry->GetMethodArray()->Get(method->GetMethodIndex());
     }
   }
-  UNIMPLEMENTED(FATAL) << "Need to throw an error of some kind";
+  UNIMPLEMENTED(FATAL) << "Need to throw an error of some kind " << PrettyMethod(method);
   return NULL;
 }
 

@@ -224,6 +224,8 @@ class Thread {
   void (*pThrowRuntimeExceptionFromCode)(int32_t);
   void (*pThrowInternalErrorFromCode)(int32_t);
   void (*pThrowNoSuchMethodFromCode)(int32_t);
+  void* (*pFindNativeMethod)(Thread* thread);
+  Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
 
   class StackVisitor {
    public:

@@ -30,6 +30,7 @@ Runtime::Runtime()
       class_linker_(NULL),
       signal_catcher_(NULL),
       java_vm_(NULL),
+      jni_stub_array_(NULL),
       started_(false),
       vfprintf_(NULL),
       exit_(NULL),
@@ -171,7 +172,7 @@ void CreateClassPath(const std::string& class_path,
   std::vector<std::string> parsed;
   Split(class_path, ':', parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
-    const DexFile* dex_file = DexFile::Open(parsed[i]);
+    const DexFile* dex_file = DexFile::Open(parsed[i], "");
     if (dex_file != NULL) {
       class_path_vector.push_back(dex_file);
     }
@@ -339,9 +340,8 @@ void Runtime::Start() {
 
   // Finish attaching the main thread.
   Thread* main_thread = Thread::Current();
-  main_thread->CreatePeer("main", false);
-
   instance_->InitLibraries();
+  main_thread->CreatePeer("main", false);
   instance_->signal_catcher_ = new SignalCatcher;
 }
 
@@ -484,6 +484,7 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   intern_table_->VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
   thread_list_->VisitRoots(visitor, arg);
+  visitor(jni_stub_array_, arg);
 
   //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
   //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);

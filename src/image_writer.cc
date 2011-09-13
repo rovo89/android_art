@@ -99,19 +99,34 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
   }
 }
 
+ObjectArray<Object>* CreateImageRoots() {
+  // build a Object[] of the roots needed to restore the runtime
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
+  ObjectArray<Object>* image_roots = ObjectArray<Object>::Alloc(object_array_class,
+                                                                ImageHeader::kImageRootsMax);
+  image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniStubArray());
+  return image_roots;
+}
+
 void ImageWriter::CalculateNewObjectOffsets() {
+  ObjectArray<Object>* image_roots = CreateImageRoots();
+
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   DCHECK_EQ(0U, image_top_);
 
-  // leave space for the header, but do not write it yet
+  // leave space for the header, but do not write it yet, we need to
+  // know where image_roots is going to end up
   image_top_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
   heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
   DCHECK_LT(image_top_, image_->GetLength());
 
-  // return to write header at start of image
-  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_));
+  // return to write header at start of image with future location of image_roots
+  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
+                           reinterpret_cast<uint32_t>(GetImageAddress(image_roots)));
   memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
 
   // Note that top_ is left at end of used space
@@ -156,6 +171,8 @@ void ImageWriter::FixupObject(const Object* orig, Object* copy) {
     FixupClass(orig->AsClass(), down_cast<Class*>(copy));
   } else if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
+  } else if (orig->IsMethod()) {
+    FixupMethod(orig->AsMethod(), down_cast<Method*>(copy));
   } else {
     FixupInstanceFields(orig, copy);
   }
@@ -174,16 +191,22 @@ const void* FixupCode(const ByteArray* copy_code_array, const void* orig_code) {
   const void* copy_code = copy_code_array->GetData();
   // TODO: remember InstructionSet with each code array so we know if we need to do thumb fixup?
   if ((reinterpret_cast<uintptr_t>(orig_code) % 2) == 1) {
-      return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(copy_code) + 1);
+    return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(copy_code) + 1);
   }
   return copy_code;
 }
 
 void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
-  // TODO: convert shorty_ to heap allocated storage
   copy->code_ = FixupCode(copy->code_array_, orig->code_);
   copy->invoke_stub_ = reinterpret_cast<Method::InvokeStub*>(FixupCode(copy->invoke_stub_array_, reinterpret_cast<void*>(orig->invoke_stub_)));
+  if (orig->IsNative()) {
+    ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniStubArray();
+    ByteArray* copy_jni_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_jni_stub_array_));
+    copy->native_method_ = copy_jni_stub_array_->GetData();
+  } else {
+    DCHECK(copy->native_method_ == NULL);
+  }
 }
 
 void ImageWriter::FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy) {

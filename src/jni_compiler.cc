@@ -25,7 +25,20 @@ namespace x86 {
 ByteArray* CreateJniStub();
 }
 
-JniCompiler::JniCompiler(InstructionSet insns) : jni_stub_(NULL) {
+ByteArray* JniCompiler::CreateJniStub(InstructionSet instruction_set) {
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateJniStub();
+    case kX86:
+      return x86::CreateJniStub();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      return NULL;
+  }
+}
+
+JniCompiler::JniCompiler(InstructionSet insns) {
   if (insns == kThumb2) {
     // currently only ARM code generation is supported
     instruction_set_ = kArm;
@@ -35,11 +48,6 @@ JniCompiler::JniCompiler(InstructionSet insns) : jni_stub_(NULL) {
 }
 
 JniCompiler::~JniCompiler() {}
-
-// Return value helper for jobject return types
-static Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
-  return thread->DecodeJObject(obj);
-}
 
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
@@ -68,17 +76,6 @@ void JniCompiler::Compile(Method* native_method) {
   // Cache of IsStatic as we call it often enough
   const bool is_static = native_method->IsStatic();
 
-  // 0. native_method->RegisterNative(jni_stub_ stuff). Note that jni_stub_ will invoke dlsym.
-  if (jni_stub_ == NULL) {
-    if (instruction_set_ == kArm) {
-      jni_stub_ = arm::CreateJniStub();
-    } else {
-      jni_stub_ = x86::CreateJniStub();
-    }
-  }
-  if (!native_method->IsRegistered()) {
-    native_method->RegisterNative(jni_stub_->GetData());
-  }
   // TODO: Need to make sure that the stub is copied into the image. I.e.,
   // ByteArray* needs to be reachable either as a root or from the object graph.
 
@@ -347,13 +344,16 @@ void JniCompiler::Compile(Method* native_method) {
     jni_conv->ResetIterator(FrameOffset(out_arg_size));
     if (jni_conv->IsCurrentParamInRegister()) {
       __ GetCurrentThread(jni_conv->CurrentParamRegister());
+      __ Call(jni_conv->CurrentParamRegister(),
+              Offset(OFFSETOF_MEMBER(Thread, pDecodeJObjectInThread)),
+              jni_conv->InterproceduralScratchRegister());
     } else {
       __ GetCurrentThread(jni_conv->CurrentParamStackOffset(),
                           jni_conv->InterproceduralScratchRegister());
+      __ Call(jni_conv->CurrentParamStackOffset(),
+              Offset(OFFSETOF_MEMBER(Thread, pDecodeJObjectInThread)),
+              jni_conv->InterproceduralScratchRegister());
     }
-
-    __ Call(reinterpret_cast<uintptr_t>(DecodeJObjectInThread),
-            jni_conv->InterproceduralScratchRegister());
 
     __ DecreaseFrameSize(out_arg_size);
     jni_conv->ResetIterator(FrameOffset(0));

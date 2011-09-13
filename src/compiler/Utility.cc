@@ -78,7 +78,7 @@ retry:
         currentArena->next = newArena;
         currentArena = newArena;
         numArenaBlocks++;
-        if (numArenaBlocks > 10) {
+        if (numArenaBlocks > 1000) {
             LOG(INFO) << "Total arena pages: " << numArenaBlocks;
         }
         goto retry;

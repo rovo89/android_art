@@ -66,6 +66,8 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(runtime_.get() != NULL);
   class_linker_ = runtime_->GetClassLinker();
 
+  ASSERT_TRUE(runtime_->GetJniStubArray() != NULL);
+
   ASSERT_EQ(2U, Heap::GetSpaces().size());
   Space* boot_space = Heap::GetBootSpace();
   ASSERT_TRUE(boot_space != NULL);

@@ -20,6 +20,8 @@
 
 namespace art {
 
+template<class T> class PrimitiveArray;
+typedef PrimitiveArray<int8_t> ByteArray;
 class ClassLinker;
 class DexFile;
 class Heap;
@@ -136,6 +138,21 @@ class Runtime {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
+  bool HasJniStubArray() const {
+    return jni_stub_array_ != NULL;
+  }
+
+  ByteArray* GetJniStubArray() const {
+    CHECK(jni_stub_array_ != NULL);
+    return jni_stub_array_;
+  }
+
+  void SetJniStubArray(ByteArray* jni_stub_array) {
+    CHECK(jni_stub_array != NULL);
+    CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array);
+    jni_stub_array_ = jni_stub_array;
+  }
+
  private:
   static void PlatformAbort(const char*, int);
 
@@ -163,6 +180,8 @@ class Runtime {
   SignalCatcher* signal_catcher_;
 
   JavaVMExt* java_vm_;
+
+  ByteArray* jni_stub_array_;
 
   bool started_;
 

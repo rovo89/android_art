@@ -71,7 +71,7 @@ ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_p
 }
 
 ClassLinker::ClassLinker(InternTable* intern_table)
-    : classes_lock_("ClassLinker lock"),
+    : lock_("ClassLinker lock"),
       class_roots_(NULL),
       array_interfaces_(NULL),
       array_iftable_(NULL),
@@ -251,7 +251,6 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   // this initializes their dex_cache_ fields and register them in classes_.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class, Class_class);
-  // No sanity check on size as Class is variably sized
 
   java_lang_reflect_Field->SetStatus(Class::kStatusNotReady);
   Class* Field_class = FindSystemClass("Ljava/lang/reflect/Field;");
@@ -278,43 +277,6 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
       java_lang_ref_WeakReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsWeakReference);
 
-  // Let the heap know some key offsets into java.lang.ref instances
-  // NB we hard code the field indexes here rather than using FindInstanceField
-  // as the types of the field can't be resolved prior to the runtime being
-  // fully initialized
-  Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
-
-  Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
-  CHECK(pendingNext->GetName()->Equals("pendingNext"));
-  CHECK(ResolveType(pendingNext->GetTypeIdx(), pendingNext) ==
-        java_lang_ref_Reference);
-
-  Field* queue = java_lang_ref_Reference->GetInstanceField(1);
-  CHECK(queue->GetName()->Equals("queue"));
-  CHECK(ResolveType(queue->GetTypeIdx(), queue) ==
-        FindSystemClass("Ljava/lang/ref/ReferenceQueue;"));
-
-  Field* queueNext = java_lang_ref_Reference->GetInstanceField(2);
-  CHECK(queueNext->GetName()->Equals("queueNext"));
-  CHECK(ResolveType(queueNext->GetTypeIdx(), queueNext) ==
-        java_lang_ref_Reference);
-
-  Field* referent = java_lang_ref_Reference->GetInstanceField(3);
-  CHECK(referent->GetName()->Equals("referent"));
-  CHECK(ResolveType(referent->GetTypeIdx(), referent) ==
-        java_lang_Object);
-
-  Field* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
-  CHECK(zombie->GetName()->Equals("zombie"));
-  CHECK(ResolveType(zombie->GetTypeIdx(), zombie) ==
-        java_lang_Object);
-
-  Heap::SetReferenceOffsets(referent->GetOffset(),
-                            queue->GetOffset(),
-                            queueNext->GetOffset(),
-                            pendingNext->GetOffset(),
-                            zombie->GetOffset());
-
   // Setup the ClassLoaders, adjusting the object_size_ as necessary
   Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
   CHECK_LT(java_lang_ClassLoader->GetObjectSize(), sizeof(ClassLoader));
@@ -339,6 +301,41 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
 }
 
 void ClassLinker::FinishInit() {
+
+  // Let the heap know some key offsets into java.lang.ref instances
+  // NB we hard code the field indexes here rather than using FindInstanceField
+  // as the types of the field can't be resolved prior to the runtime being
+  // fully initialized
+  Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
+  Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+
+  Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
+  CHECK(pendingNext->GetName()->Equals("pendingNext"));
+  CHECK_EQ(ResolveType(pendingNext->GetTypeIdx(), pendingNext), java_lang_ref_Reference);
+
+  Field* queue = java_lang_ref_Reference->GetInstanceField(1);
+  CHECK(queue->GetName()->Equals("queue"));
+  CHECK_EQ(ResolveType(queue->GetTypeIdx(), queue),
+           FindSystemClass("Ljava/lang/ref/ReferenceQueue;"));
+
+  Field* queueNext = java_lang_ref_Reference->GetInstanceField(2);
+  CHECK(queueNext->GetName()->Equals("queueNext"));
+  CHECK_EQ(ResolveType(queueNext->GetTypeIdx(), queueNext), java_lang_ref_Reference);
+
+  Field* referent = java_lang_ref_Reference->GetInstanceField(3);
+  CHECK(referent->GetName()->Equals("referent"));
+  CHECK_EQ(ResolveType(referent->GetTypeIdx(), referent), GetClassRoot(kJavaLangObject));
+
+  Field* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
+  CHECK(zombie->GetName()->Equals("zombie"));
+  CHECK_EQ(ResolveType(zombie->GetTypeIdx(), zombie), GetClassRoot(kJavaLangObject));
+
+  Heap::SetReferenceOffsets(referent->GetOffset(),
+                            queue->GetOffset(),
+                            queueNext->GetOffset(),
+                            pendingNext->GetOffset(),
+                            zombie->GetOffset());
+
   // ensure all class_roots_ are initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
     ClassRoot class_root = static_cast<ClassRoot>(i);
@@ -494,7 +491,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 
   {
-    MutexLock mu(classes_lock_);
+    MutexLock mu(lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
@@ -924,6 +921,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) {
+  MutexLock mu(lock_);
   CHECK(dex_cache != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_files_.push_back(&dex_file);
@@ -931,6 +929,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) 
 }
 
 const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
+  MutexLock mu(lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     if (dex_caches_[i] == dex_cache) {
         return *dex_files_[i];
@@ -941,6 +940,7 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
 }
 
 DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
+  MutexLock mu(lock_);
   for (size_t i = 0; i != dex_files_.size(); ++i) {
     if (dex_files_[i] == &dex_file) {
         return dex_caches_[i];
@@ -1150,14 +1150,14 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
 
 bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass) {
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(classes_lock_);
+  MutexLock mu(lock_);
   Table::iterator it = classes_.insert(std::make_pair(hash, klass));
   return ((*it).second == klass);
 }
 
 Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader) {
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(classes_lock_);
+  MutexLock mu(lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
@@ -2125,7 +2125,7 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
 }
 
 size_t ClassLinker::NumLoadedClasses() const {
-  MutexLock mu(classes_lock_);
+  MutexLock mu(lock_);
   return classes_.size();
 }
 

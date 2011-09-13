@@ -15,7 +15,8 @@ class ImageHeader {
  public:
   ImageHeader() {}
 
-  ImageHeader(uint32_t base_addr) : base_addr_(base_addr) {
+  ImageHeader(uint32_t base_addr, uint32_t image_roots)
+      : base_addr_(base_addr), image_roots_(image_roots) {
     memcpy(magic_, kImageMagic, sizeof(kImageMagic));
     memcpy(version_, kImageVersion, sizeof(kImageVersion));
   }
@@ -34,6 +35,15 @@ class ImageHeader {
     return reinterpret_cast<byte*>(base_addr_);
   }
 
+  enum ImageRoot {
+    kJniStubArray,
+    kImageRootsMax,
+  };
+
+  Object* GetImageRoot(ImageRoot image_root) const {
+    return reinterpret_cast<ObjectArray<Object>*>(image_roots_)->Get(image_root);
+  }
+
  private:
   static const byte kImageMagic[4];
   static const byte kImageVersion[4];
@@ -43,6 +53,11 @@ class ImageHeader {
 
   // required base address for mapping the image.
   uint32_t base_addr_;
+
+  // absolute address of an Object[] of objects needed to reinitialize from an image
+  uint32_t image_roots_;
+
+  friend class ImageWriter;
 };
 
 }  // namespace art

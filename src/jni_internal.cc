@@ -572,7 +572,7 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(const Method* m) {
+  void* FindNativeMethod(const Method* m, std::string& detail) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
     const ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
@@ -595,12 +595,9 @@ class Libraries {
         return fn;
       }
     }
-    std::string detail;
     detail += "No implementation found for ";
     detail += PrettyMethod(m);
     LOG(ERROR) << detail;
-    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;",
-        "%s", detail.c_str());
     return NULL;
   }
 
@@ -2840,8 +2837,18 @@ void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
     CHECK_GE(c->GetStatus(), Class::kStatusInitializing);
   }
 
-  MutexLock mu(libraries_lock);
-  return libraries->FindNativeMethod(m);
+  std::string detail;
+  void* native_method;
+  {
+    MutexLock mu(libraries_lock);
+    native_method = libraries->FindNativeMethod(m, detail);
+  }
+  // throwing can cause libraries_lock to be reacquired
+  if (native_method == NULL) {
+    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;",
+        "%s", detail.c_str());
+  }
+  return native_method;
 }
 
 void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {

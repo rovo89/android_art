@@ -59,7 +59,7 @@ class Space {
   size_t AllocationSize(const Object* obj);
 
   bool IsCondemned() const {
-    return true;  // TODO
+    return mspace_ != NULL;
   }
 
  private:
@@ -96,8 +96,6 @@ class Space {
   byte* base_;
 
   byte* limit_;
-
-  // bool is_condemned_;  // TODO: with IsCondemned
 
   DISALLOW_COPY_AND_ASSIGN(Space);
 };

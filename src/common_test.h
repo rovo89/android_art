@@ -110,8 +110,10 @@ class CommonTest : public testing::Test {
     class_linker_ = runtime_->GetClassLinker();
 
 #if defined(__i386__)
+    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kX86));
     compiler_.reset(new Compiler(kX86));
 #elif defined(__arm__)
+    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
     compiler_.reset(new Compiler(kThumb2));
 #endif
 
@@ -171,7 +173,7 @@ class CommonTest : public testing::Test {
 
   const DexFile* GetLibCoreDex() {
     std::string libcore_dex_file_name = GetLibCoreDexFileName();
-    return DexFile::OpenZip(libcore_dex_file_name);
+    return DexFile::OpenZip(libcore_dex_file_name, "");
   }
 
   uint32_t FindTypeIdxByDescriptor(const DexFile& dex_file, const StringPiece& descriptor) {
@@ -217,7 +219,7 @@ class CommonTest : public testing::Test {
     filename += "/system/framework/art-test-dex-";
     filename += name;
     filename += ".jar";
-    const DexFile* dex_file = DexFile::OpenZip(filename);
+    const DexFile* dex_file = DexFile::OpenZip(filename, "");
     CHECK(dex_file != NULL) << "Failed to open " << filename;
     return dex_file;
   }
@@ -247,6 +249,7 @@ class CommonTest : public testing::Test {
   void CompileMethod(Method* method) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
+    MakeExecutable(runtime_->GetJniStubArray());
     MakeExecutable(method->GetCodeArray());
     MakeExecutable(method->GetInvokeStubArray());
   }

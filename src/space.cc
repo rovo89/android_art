@@ -114,6 +114,9 @@ bool Space::Init(const char* image_file_name) {
   image_header_ = reinterpret_cast<ImageHeader*>(map->GetAddress());
   DCHECK_EQ(0, memcmp(&image_header, image_header_, sizeof(ImageHeader)));
 
+  Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
+  Runtime::Current()->SetJniStubArray(down_cast<ByteArray*>(jni_stub_array));
+
   Init(map.release());
   return true;
 }

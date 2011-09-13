@@ -1752,15 +1752,6 @@ void ArmAssembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
-void ArmAssembler::Call(uintptr_t addr, ManagedRegister mscratch) {
-  ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
-  CHECK(sizeof(uintptr_t) == sizeof(int32_t));
-  LoadImmediate(scratch.AsCoreRegister(), static_cast<int32_t>(addr));
-  blx(scratch.AsCoreRegister());
-  // TODO: place reference map on call
-}
-
 void ArmAssembler::GetCurrentThread(ManagedRegister tr) {
   mov(tr.AsArm().AsCoreRegister(), ShifterOperand(TR));
 }
