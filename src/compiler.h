@@ -12,8 +12,7 @@ namespace art {
 
 class Compiler {
  public:
-  explicit Compiler(InstructionSet insns) : instruction_set_(insns),
-      jni_compiler_(insns) {}
+  explicit Compiler(InstructionSet insns);
 
   // Compile all Methods of all the Classes of all the DexFiles that are part of a ClassLoader.
   void CompileAll(const ClassLoader* class_loader);
@@ -40,6 +39,7 @@ class Compiler {
 
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
+  ByteArray* abstract_method_error_stub_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };

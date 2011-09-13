@@ -128,6 +128,10 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
     EXPECT_TRUE(method != NULL) << "method_idx=" << i
                                 << " " << dex->GetMethodClassDescriptor(dex->GetMethodId(i))
                                 << " " << dex->GetMethodName(dex->GetMethodId(i));
+    EXPECT_TRUE(method->GetCode() != NULL) << "method_idx=" << i
+                                           << " "
+                                           << dex->GetMethodClassDescriptor(dex->GetMethodId(i))
+                                           << " " << dex->GetMethodName(dex->GetMethodId(i));
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {

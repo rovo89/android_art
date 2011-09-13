@@ -242,8 +242,6 @@ class ClassLinker {
 
   bool LinkInterfaceMethods(Class* klass);
 
-  void LinkAbstractMethods(Class* klass);
-
   bool LinkStaticFields(Class* klass);
   bool LinkInstanceFields(Class* klass);
   bool LinkFields(Class *klass, bool instance);

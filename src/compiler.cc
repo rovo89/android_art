@@ -14,6 +14,30 @@ extern bool oatCompileMethod(art::Method*, art::InstructionSet);
 
 namespace art {
 
+typedef void (*ThrowAme)(Method*, Thread*);
+
+void ThrowAbstractMethodError(Method* method, Thread* thread) {
+  thread->ThrowNewException("Ljava/lang/AbstractMethodError",
+                            "abstract method \"%s\"",
+                            PrettyMethod(method).c_str());
+}
+
+namespace arm {
+  ByteArray* CreateAbstractMethodErrorStub(ThrowAme);
+}
+
+namespace x86 {
+  ByteArray* CreateAbstractMethodErrorStub(ThrowAme);
+}
+
+Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns) {
+  if (insns == kArm || insns == kThumb2) {
+    abstract_method_error_stub_ = arm::CreateAbstractMethodErrorStub(&ThrowAbstractMethodError);
+  } else if (insns == kX86) {
+    abstract_method_error_stub_ = x86::CreateAbstractMethodErrorStub(&ThrowAbstractMethodError);
+  }
+}
+
 void Compiler::CompileAll(const ClassLoader* class_loader) {
   Resolve(class_loader);
   // TODO add verification step
@@ -107,13 +131,17 @@ void Compiler::CompileMethod(Method* method) {
   if (method->IsNative()) {
     jni_compiler_.Compile(method);
   } else if (method->IsAbstract()) {
-    // TODO: This might be also noted in the ClassLinker.
-    // Probably makes more sense to do here?
-    UNIMPLEMENTED(WARNING) << "compile stub to throw AbstractMethodError";
+    DCHECK(abstract_method_error_stub_ != NULL);
+    if (instruction_set_ == kX86) {
+      method->SetCode(abstract_method_error_stub_, kX86);
+    } else {
+      CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
+      method->SetCode(abstract_method_error_stub_, kArm);
+    }
   } else {
     oatCompileMethod(method, kThumb2);
   }
-  // CHECK(method->GetCode() != NULL);  // TODO: enable this check ASAP
+  CHECK(method->GetCode() != NULL);
 
   if (instruction_set_ == kX86) {
     art::x86::X86CreateInvokeStub(method);

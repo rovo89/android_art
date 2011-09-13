@@ -1612,9 +1612,6 @@ bool ClassLinker::LinkMethods(Class* klass) {
 
     // Link interface method tables
     LinkInterfaceMethods(klass);
-
-    // Insert stubs.
-    LinkAbstractMethods(klass);
   }
   return true;
 }
@@ -1795,16 +1792,6 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     klass->SetVTable(vtable);
   }
   return true;
-}
-
-void ClassLinker::LinkAbstractMethods(Class* klass) {
-  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-    Method* method = klass->GetVirtualMethodDuringLinking(i);
-    if (method->IsAbstract()) {
-      LG << "AbstractMethodError";
-      // TODO: throw AbstractMethodError
-    }
-  }
 }
 
 bool ClassLinker::LinkInstanceFields(Class* klass) {

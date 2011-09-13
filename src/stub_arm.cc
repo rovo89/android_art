@@ -9,6 +9,34 @@
 namespace art {
 namespace arm {
 
+typedef void (*ThrowAme)(Method*, Thread*);
+
+ByteArray* CreateAbstractMethodErrorStub(ThrowAme throw_ame) {
+  UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
+
+  // R0 is the Method* already.
+
+  // Pass Thread::Current() in R1
+  __ mov(R1, ShifterOperand(R9));
+
+  // Call throw_ame to throw AbstractMethodError
+  __ LoadImmediate(R12, reinterpret_cast<int32_t>(throw_ame));
+  // Leaf call to routine that never returns
+  __ mov(PC, ShifterOperand(R12));
+
+  __ bkpt(0);
+
+  assembler->EmitSlowPaths();
+
+  size_t cs = assembler->CodeSize();
+  ByteArray* abstract_stub = ByteArray::Alloc(cs);
+  CHECK(abstract_stub != NULL);
+  MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
+  assembler->FinalizeInstructions(code);
+
+  return abstract_stub;
+}
+
 ByteArray* CreateJniStub() {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
 
