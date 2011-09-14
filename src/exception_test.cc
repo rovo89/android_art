@@ -72,27 +72,22 @@ class ExceptionTest : public CommonTest {
     ASSERT_TRUE(class_loader != NULL);
     my_klass_ = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
     ASSERT_TRUE(my_klass_ != NULL);
+    ByteArray* fake_code = ByteArray::Alloc(12);
+    ASSERT_TRUE(fake_code != NULL);
+    IntArray* fake_mapping_data = IntArray::Alloc(2);
+    ASSERT_TRUE(fake_mapping_data!= NULL);
+    fake_mapping_data->Set(0, 3);  // offset 3
+    fake_mapping_data->Set(1, 3);  // maps to dex offset 3
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
-    method_f_->SetReturnPcOffsetInBytes(4);
+    method_f_->SetReturnPcOffsetInBytes(kStackAlignment-kPointerSize);
+    method_f_->SetCode(fake_code, kThumb2, fake_mapping_data);
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
-    method_g_->SetReturnPcOffsetInBytes(4);
-  }
-
-  DexFile::CatchHandlerItem FindCatchHandlerItem(Method* method,
-                                                 const char exception_type[],
-                                                 uint32_t addr) {
-    const DexFile::CodeItem* code_item = dex_->GetCodeItem(method->GetCodeItemOffset());
-    for (DexFile::CatchHandlerIterator iter = dex_->dexFindCatchHandler(*code_item, addr);
-         !iter.HasNext(); iter.Next()) {
-      if (strcmp(exception_type, dex_->dexStringByTypeIdx(iter.Get().type_idx_)) == 0) {
-        return iter.Get();
-      }
-    }
-    return DexFile::CatchHandlerItem();
+    method_g_->SetReturnPcOffsetInBytes(kStackAlignment-kPointerSize);
+    method_g_->SetCode(fake_code, kThumb2, fake_mapping_data);
   }
 
   UniquePtr<const DexFile> dex_;
@@ -146,21 +141,22 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
   // Create/push fake 16byte stack frame for method g
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_g_);
-  fake_stack[top_of_stack++] = 3;
   fake_stack[top_of_stack++] = 0;
   fake_stack[top_of_stack++] = 0;
+  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_->GetCode()) + 3;  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);
-  fake_stack[top_of_stack++] = 3;
   fake_stack[top_of_stack++] = 0;
   fake_stack[top_of_stack++] = 0;
+  fake_stack[top_of_stack++] = 0xEBAD6070;  // return pc
 
   // Pull Method* of NULL to terminate the trace
   fake_stack[top_of_stack++] = NULL;
 
+  // Set up thread to appear as if we called out of method_g_ at pc 3
   Thread* thread = Thread::Current();
-  thread->SetTopOfStack(fake_stack);
+  thread->SetTopOfStack(fake_stack, reinterpret_cast<uintptr_t>(method_g_->GetCode()) + 3);
 
   jobject internal = thread->CreateInternalStackTrace();
   jobjectArray ste_array =

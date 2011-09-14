@@ -460,11 +460,82 @@ bool Method::HasSameNameAndDescriptor(const Method* that) const {
           this->GetSignature()->Equals(that->GetSignature()));
 }
 
+uint32_t Method::ToDexPC(const uintptr_t pc) const {
+  IntArray* mapping_table = GetMappingTable();
+  if (mapping_table == NULL) {
+    DCHECK(pc == 0);
+    return DexFile::kDexNoIndex;   // Special no mapping/pc == -1 case
+  }
+  size_t mapping_table_length = mapping_table->GetLength();
+  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetCode());
+  CHECK_LT(sought_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
+  uint32_t best_offset = 0;
+  uint32_t best_dex_offset = 0;
+  for (size_t i = 0; i < mapping_table_length; i += 2) {
+    uint32_t map_offset = mapping_table->Get(i);
+    uint32_t map_dex_offset = mapping_table->Get(i + 1);
+    if (map_offset == sought_offset) {
+      best_offset = map_offset;
+      best_dex_offset = map_dex_offset;
+      break;
+    }
+    if (map_offset < sought_offset && map_offset > best_offset) {
+      best_offset = map_offset;
+      best_dex_offset = map_dex_offset;
+    }
+  }
+  return best_dex_offset;
+}
+
+uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
+  IntArray* mapping_table = GetMappingTable();
+  if (mapping_table == NULL) {
+    DCHECK(dex_pc == 0);
+    return 0;   // Special no mapping/pc == 0 case
+  }
+  size_t mapping_table_length = mapping_table->GetLength();
+  for (size_t i = 0; i < mapping_table_length; i += 2) {
+    uint32_t map_offset = mapping_table->Get(i);
+    uint32_t map_dex_offset = mapping_table->Get(i + 1);
+    if (map_dex_offset == dex_pc) {
+      DCHECK_LT(map_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
+      return reinterpret_cast<uintptr_t>(GetCode()) + map_offset;
+    }
+  }
+  LOG(FATAL) << "Looking up Dex PC not contained in method";
+  return 0;
+}
+
+uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
+  DexCache* dex_cache = GetDeclaringClass()->GetDexCache();
+  const ClassLoader* class_loader = GetDeclaringClass()->GetClassLoader();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(GetCodeItemOffset());
+  // Iterate over the catch handlers associated with dex_pc
+  for (DexFile::CatchHandlerIterator iter = dex_file.dexFindCatchHandler(*code_item, dex_pc);
+       !iter.HasNext(); iter.Next()) {
+    uint32_t iter_type_idx = iter.Get().type_idx_;
+    // Catch all case
+    if(iter_type_idx == DexFile::kDexNoIndex) {
+      return iter.Get().address_;
+    }
+    // Does this catch exception type apply?
+    Class* iter_exception_type =
+        class_linker->ResolveType(dex_file, iter_type_idx, dex_cache, class_loader);
+    if (iter_exception_type->IsAssignableFrom(exception_type)) {
+      return iter.Get().address_;
+    }
+  }
+  // Handler not found
+  return DexFile::kDexNoIndex;
+}
+
 void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
-                     ByteArray* mapping_table) {
+                     IntArray* mapping_table) {
   CHECK(GetCode() == NULL || IsNative());
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
-  SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
+  SetFieldPtr<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
        mapping_table, false);
   int8_t* code = code_array->GetData();
   uintptr_t address = reinterpret_cast<uintptr_t>(code);
@@ -473,6 +544,19 @@ void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
     address |= 0x1;
   }
   SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), reinterpret_cast<const void*>(address), false);
+}
+
+bool Method::IsWithinCode(uintptr_t pc) const {
+  if (GetCode() == NULL) {
+    return false;
+  }
+  if (pc == 0) {
+    // assume that this is some initial value that will always lie in code
+    return true;
+  } else {
+    uint32_t rel_offset = pc - reinterpret_cast<uintptr_t>(GetCodeArray()->GetData());
+    return rel_offset < static_cast<uint32_t>(GetCodeArray()->GetLength());
+  }
 }
 
 void Method::SetInvokeStub(const ByteArray* invoke_stub_array) {

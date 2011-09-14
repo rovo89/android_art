@@ -276,8 +276,8 @@ class DexFile {
 
     private:
       CatchHandlerItem handler_;
-      const byte *current_data_;  // the current handlder in dex file.
-      int32_t remaining_count_;   // number of handler not read.
+      const byte *current_data_;  // the current handler in dex file.
+      int32_t remaining_count_;   // number of handlers not read.
       bool catch_all_;            // is there a handler that will catch all exceptions in case
                                   // that all typed handler does not match.
   };

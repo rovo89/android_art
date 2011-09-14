@@ -221,6 +221,7 @@ class X86Assembler : public Assembler {
   void movl(Register dst, const Address& src);
   void movl(const Address& dst, Register src);
   void movl(const Address& dst, const Immediate& imm);
+  void movl(const Address& dst, Label* lbl);
 
   void movzxb(Register dst, ByteRegister src);
   void movzxb(Register dst, const Address& src);
@@ -444,15 +445,11 @@ class X86Assembler : public Assembler {
 
   // Emit code that will create an activation on the stack
   virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                          const std::vector<ManagedRegister>& spill_regs);
+                          const std::vector<ManagedRegister>& callee_save_regs);
 
   // Emit code that will remove an activation from the stack
   virtual void RemoveFrame(size_t frame_size,
-                           const std::vector<ManagedRegister>& spill_regs);
-
-  // Fill list of registers from spill area
-  virtual void FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
-                                 size_t displacement);
+                           const std::vector<ManagedRegister>& callee_save_regs);
 
   virtual void IncreaseFrameSize(size_t adjust);
   virtual void DecreaseFrameSize(size_t adjust);
@@ -473,6 +470,8 @@ class X86Assembler : public Assembler {
                                         ManagedRegister scratch);
 
   virtual void StoreStackPointerToThread(ThreadOffset thr_offs);
+
+  void StoreLabelToThread(ThreadOffset thr_offs, Label* lbl);
 
   virtual void StoreSpanning(FrameOffset dest, ManagedRegister src,
                              FrameOffset in_off, ManagedRegister scratch);
@@ -537,7 +536,7 @@ class X86Assembler : public Assembler {
                     ManagedRegister scratch);
   virtual void Call(FrameOffset base, Offset offset,
                     ManagedRegister scratch);
-  virtual void Call(uintptr_t addr, ManagedRegister scratch);
+  virtual void Call(ThreadOffset offset, ManagedRegister scratch);
 
   // Generate code to check if Thread::Current()->suspend_count_ is non-zero
   // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue

@@ -134,6 +134,12 @@ void X86Assembler::movl(const Address& dst, const Immediate& imm) {
   EmitImmediate(imm);
 }
 
+void X86Assembler::movl(const Address& dst, Label* lbl) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xC7);
+  EmitOperand(0, dst);
+  EmitLabel(lbl, dst.length_ + 5);
+}
 
 void X86Assembler::movzxb(Register dst, ByteRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
@@ -1389,11 +1395,6 @@ void X86Assembler::RemoveFrame(size_t frame_size,
   ret();
 }
 
-void X86Assembler::FillFromSpillArea(
-    const std::vector<ManagedRegister>& spill_regs, size_t displacement) {
-  CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
-}
-
 void X86Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK(IsAligned(adjust, kStackAlignment));
   addl(ESP, Immediate(-adjust));
@@ -1465,6 +1466,10 @@ void X86Assembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
 
 void X86Assembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
   fs()->movl(Address::Absolute(thr_offs), ESP);
+}
+
+void X86Assembler::StoreLabelToThread(ThreadOffset thr_offs, Label* lbl) {
+  fs()->movl(Address::Absolute(thr_offs), lbl);
 }
 
 void X86Assembler::StoreSpanning(FrameOffset dest, ManagedRegister src,
@@ -1654,19 +1659,11 @@ void X86Assembler::Call(ManagedRegister mbase, Offset offset, ManagedRegister) {
 }
 
 void X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister) {
-  // TODO: Needed for:
-  // JniCompilerTest.CompileAndRunIntObjectObjectMethod
-  // JniCompilerTest.CompileAndRunStaticIntObjectObjectMethod
-  // JniCompilerTest.CompileAndRunStaticSynchronizedIntObjectObjectMethod
-  // JniCompilerTest.ReturnGlobalRef
   UNIMPLEMENTED(FATAL);
 }
 
-// TODO: remove this generator of non-PIC code
-void X86Assembler::Call(uintptr_t addr, ManagedRegister mscratch) {
-  Register scratch = mscratch.AsX86().AsCpuRegister();
-  movl(scratch, Immediate(addr));
-  call(scratch);
+void X86Assembler::Call(ThreadOffset offset, ManagedRegister mscratch) {
+  fs()->call(Address::Absolute(offset));
 }
 
 void X86Assembler::GetCurrentThread(ManagedRegister tr) {

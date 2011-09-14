@@ -11,7 +11,7 @@ namespace x86 {
 
 typedef void (*ThrowAme)(Method*, Thread*);
 
-ByteArray* CreateAbstractMethodErrorStub(ThrowAme throw_ame) {
+ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<X86Assembler> assembler( static_cast<X86Assembler*>(Assembler::Create(kX86)) );
 
   // Pad stack to ensure 16-byte alignment
@@ -20,10 +20,9 @@ ByteArray* CreateAbstractMethodErrorStub(ThrowAme throw_ame) {
   __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // Thread*
   __ pushl(EDI); // Method*
 
-  // Call throw_ame to throw AbstractMethodError
-  // TODO: make this PIC (throw_ame will not be in the same location after image load)
-  // TODO: remove X86Assembler::Call(uintptr_t addr, ManagedRegister scratch)
-  __ Call(reinterpret_cast<int32_t>(throw_ame), X86ManagedRegister::FromCpuRegister(ECX));
+  // Call to throw AbstractMethodError
+  __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode)),
+          X86ManagedRegister::FromCpuRegister(ECX));
 
   // Because the call above never returns, we do not need to do ESP+=16 here.
 
@@ -50,9 +49,8 @@ ByteArray* CreateJniStub() {
   __ fs()->movl(ECX, Address::Absolute(Thread::SelfOffset()));
   __ pushl(ECX);  // Thread*
 
-  // TODO: make this PIC (FindNativeMethod will not be in the same location after image load)
-  // TODO: remove X86Assembler::Call(uintptr_t addr, ManagedRegister scratch)
-  __ Call(reinterpret_cast<int32_t>(&FindNativeMethod), X86ManagedRegister::FromCpuRegister(ECX));
+  __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pFindNativeMethod)),
+          X86ManagedRegister::FromCpuRegister(ECX));
 
   __ addl(ESP, Immediate(16));
 

@@ -32,6 +32,7 @@
 #include "mutex.h"
 #include "mem_map.h"
 #include "offsets.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -39,6 +40,7 @@ class Array;
 class Class;
 class ClassLinker;
 class ClassLoader;
+class Context;
 class Method;
 class Monitor;
 class Object;
@@ -94,8 +96,9 @@ class StackIndirectReferenceTable {
 };
 
 struct NativeToManagedRecord {
-  NativeToManagedRecord* link;
-  void* last_top_of_managed_stack;
+  NativeToManagedRecord* link_;
+  void* last_top_of_managed_stack_;
+  uintptr_t last_top_of_managed_stack_pc_;
 };
 
 // Iterator over managed frames up to the first native-to-managed transition
@@ -113,7 +116,9 @@ class Frame {
 
   void Next();
 
-  uintptr_t GetPC() const;
+  uintptr_t GetReturnPC() const;
+
+  uintptr_t LoadCalleeSave(int num) const;
 
   Method** GetSP() const {
     return sp_;
@@ -207,7 +212,7 @@ class Thread {
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
   void (*pUnlockObjectFromCode)(Thread*, Object*);
   void (*pLockObjectFromCode)(Thread*, Object*);
-  void (*pThrowException)(Thread*, Throwable*);
+  void (*pThrowException)(void*);
   void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
@@ -224,13 +229,14 @@ class Thread {
   void (*pThrowRuntimeExceptionFromCode)(int32_t);
   void (*pThrowInternalErrorFromCode)(int32_t);
   void (*pThrowNoSuchMethodFromCode)(int32_t);
+  void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread);
   void* (*pFindNativeMethod)(Thread* thread);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
 
   class StackVisitor {
    public:
     virtual ~StackVisitor() {}
-    virtual void VisitFrame(const Frame& frame) = 0;
+    virtual void VisitFrame(const Frame& frame, uintptr_t pc) = 0;
   };
 
   // Creates a new thread.
@@ -324,15 +330,29 @@ class Thread {
     exception_ = NULL;
   }
 
+  // Find catch block and perform long jump to appropriate exception handle
+  void DeliverException(Throwable* exception);
+
+  Context* GetLongJumpContext();
+
   Frame GetTopOfStack() const {
     return top_of_managed_stack_;
   }
 
   // TODO: this is here for testing, remove when we have exception unit tests
   // that use the real stack
-  void SetTopOfStack(void* stack) {
+  void SetTopOfStack(void* stack, uintptr_t pc) {
     top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(stack));
+    top_of_managed_stack_pc_ = pc;
   }
+
+  void SetTopOfStackPC(uintptr_t pc) {
+    top_of_managed_stack_pc_ = pc;
+  }
+
+  // Returns a special method that describes all callee saves being spilt to the
+  // stack.
+  Method* CalleeSaveMethod() const;
 
   void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));
@@ -390,14 +410,16 @@ class Thread {
 
   // Linked list recording transitions from native to managed code
   void PushNativeToManagedRecord(NativeToManagedRecord* record) {
-    record->last_top_of_managed_stack = reinterpret_cast<void*>(top_of_managed_stack_.GetSP());
-    record->link = native_to_managed_record_;
+    record->last_top_of_managed_stack_ = reinterpret_cast<void*>(top_of_managed_stack_.GetSP());
+    record->last_top_of_managed_stack_pc_ = top_of_managed_stack_pc_;
+    record->link_ = native_to_managed_record_;
     native_to_managed_record_ = record;
     top_of_managed_stack_.SetSP(NULL);
   }
   void PopNativeToManagedRecord(const NativeToManagedRecord& record) {
-    native_to_managed_record_ = record.link;
-    top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack));
+    native_to_managed_record_ = record.link_;
+    top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack_));
+    top_of_managed_stack_pc_ = record.last_top_of_managed_stack_pc_;
   }
 
   const ClassLoader* GetClassLoaderOverride() {
@@ -461,6 +483,10 @@ class Thread {
         OFFSETOF_MEMBER(Frame, sp_));
   }
 
+  static ThreadOffset TopOfManagedStackPcOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_pc_));
+  }
+
   static ThreadOffset TopSirtOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
@@ -494,6 +520,8 @@ class Thread {
   static void ThreadExitCallback(void* arg);
 
   void WalkStack(StackVisitor* visitor) const;
+
+  void WalkStackUntilUpCall(StackVisitor* visitor) const;
 
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned
@@ -530,6 +558,9 @@ class Thread {
   // a managed stack when a thread is in native code.
   Frame top_of_managed_stack_;
 
+  // PC corresponding to the call out of the top_of_managed_stack_ frame
+  uintptr_t top_of_managed_stack_pc_;
+
   // A linked list (of stack allocated records) recording transitions from
   // native to managed code.
   NativeToManagedRecord* native_to_managed_record_;
@@ -560,6 +591,9 @@ class Thread {
   // useful for testing.
   const ClassLoader* class_loader_override_;
 
+  // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
+  UniquePtr<Context> long_jump_context_;
+
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
 
@@ -571,6 +605,7 @@ class Thread {
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
+
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
 std::ostream& operator<<(std::ostream& os, const Thread::State& state);
 

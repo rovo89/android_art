@@ -38,7 +38,15 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual size_t FrameSize();
   virtual size_t ReturnPcOffset();
   virtual size_t OutArgSize();
-  virtual size_t SpillAreaSize();
+  virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
+    return callee_save_regs_;
+  }
+  virtual uint32_t CoreSpillMask() const {
+    return 0x0FF0;  // R4 to R12
+  }
+  virtual uint32_t FpSpillMask() const {
+    return 0;
+  }
   virtual bool IsOutArgRegister(ManagedRegister reg);
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
@@ -49,6 +57,9 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual size_t NumberOfOutgoingStackArgs();
 
  private:
+  // TODO: these values aren't unique and can be shared amongst instances
+  std::vector<ManagedRegister> callee_save_regs_;
+
   DISALLOW_COPY_AND_ASSIGN(ArmJniCallingConvention);
 };
 

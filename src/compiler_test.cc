@@ -227,8 +227,7 @@ TEST_F(CompilerTest, ConstClassTest) {
   AssertStaticIntMethod(2222, LoadDex("IntMath"), "IntMath", "constClassTest", "(I)I", 1111);
 }
 
-// TODO: Need native nativeFillInStackTrace()
-TEST_F(CompilerTest, DISABLED_CatchTest) {
+TEST_F(CompilerTest, CatchTest) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
   CompileDirectMethod(NULL, "java.lang.NullPointerException", "<init>", "()V");
   CompileDirectMethod(NULL, "java.lang.RuntimeException", "<init>", "()V");

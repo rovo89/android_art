@@ -876,19 +876,19 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     }
 
     art::ByteArray* managed_code =
-        art::ByteArray::Alloc(cUnit.codeBuffer.size() *
-        sizeof(cUnit.codeBuffer[0]));
+        art::ByteArray::Alloc(cUnit.codeBuffer.size() * sizeof(cUnit.codeBuffer[0]));
     memcpy(managed_code->GetData(),
            reinterpret_cast<const int8_t*>(&cUnit.codeBuffer[0]),
            managed_code->GetLength());
-    art::ByteArray* mapping_table =
-        art::ByteArray::Alloc(cUnit.mappingTable.size() *
-        sizeof(cUnit.mappingTable[0]));
+    art::IntArray* mapping_table =
+        art::IntArray::Alloc(cUnit.mappingTable.size());
+    DCHECK_EQ(mapping_table->GetClass()->GetComponentSize(), sizeof(cUnit.mappingTable[0]));
     memcpy(mapping_table->GetData(),
-           reinterpret_cast<const int8_t*>(&cUnit.mappingTable[0]),
-           mapping_table->GetLength());
+           reinterpret_cast<const int32_t*>(&cUnit.mappingTable[0]),
+           mapping_table->GetLength() * sizeof(cUnit.mappingTable[0]));
     method->SetCode(managed_code, art::kThumb2, mapping_table);
     method->SetFrameSizeInBytes(cUnit.frameSize);
+    method->SetReturnPcOffsetInBytes(cUnit.frameSize - sizeof(intptr_t));
     method->SetCoreSpillMask(cUnit.coreSpillMask);
     method->SetFpSpillMask(cUnit.fpSpillMask);
     if (compiler.IsVerbose()) {

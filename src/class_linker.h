@@ -183,7 +183,12 @@ class ClassLinker {
   Class* AllocClass(size_t class_size);
   DexCache* AllocDexCache(const DexFile& dex_file);
   Field* AllocField();
+
+  // TODO: have no friends, we need this currently to create a special method
+  // to describe callee save registers for throwing exceptions
+  friend class Thread;
   Method* AllocMethod();
+
   CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
   InterfaceEntry* AllocInterfaceEntry(Class* interface);
 

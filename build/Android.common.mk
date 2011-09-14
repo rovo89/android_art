@@ -64,6 +64,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/calling_convention.cc \
 	src/calling_convention_arm.cc \
 	src/calling_convention_x86.cc \
+	src/context.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/class_loader.cc \
@@ -135,6 +136,7 @@ LIBART_COMMON_SRC_FILES := \
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
+	src/context_arm.cc.arm \
 	src/logging_android.cc \
 	src/runtime_android.cc \
 	src/thread_android.cc \
@@ -142,6 +144,7 @@ LIBART_TARGET_SRC_FILES := \
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
+	src/context_x86.cc \
 	src/logging_linux.cc \
 	src/runtime_linux.cc \
 	src/thread_linux.cc \

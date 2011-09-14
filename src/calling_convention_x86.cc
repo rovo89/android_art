@@ -65,6 +65,8 @@ FrameOffset X86ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
+std::vector<ManagedRegister> X86JniCallingConvention::callee_save_regs_;
+
 size_t X86JniCallingConvention::FrameSize() {
   // Return address and Method*
   size_t frame_data_size = 2 * kPointerSize;
@@ -82,12 +84,6 @@ size_t X86JniCallingConvention::OutArgSize() {
 size_t X86JniCallingConvention::ReturnPcOffset() {
   // Return PC is pushed at the top of the frame by the call into the method
   return FrameSize() - kPointerSize;
-}
-
-
-size_t X86JniCallingConvention::SpillAreaSize() {
-  // No spills, return address was pushed at the top of the frame
-  return 0;
 }
 
 bool X86JniCallingConvention::IsOutArgRegister(ManagedRegister) {
@@ -117,7 +113,7 @@ size_t X86JniCallingConvention::NumberOfOutgoingStackArgs() {
   // regular argument parameters and this
   size_t param_args = GetMethod()->NumArgs() +
                       GetMethod()->NumLongOrDoubleArgs();
-  return static_args + param_args + 1;  // count JNIEnv*
+  return static_args + param_args + 2;  // count JNIEnv* and return pc (pushed after Method*)
 }
 
 }  // namespace x86

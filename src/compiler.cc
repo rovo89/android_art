@@ -14,29 +14,20 @@ extern bool oatCompileMethod(const art::Compiler& compiler, art::Method*, art::I
 
 namespace art {
 
-typedef void (*ThrowAme)(Method*, Thread*);
-
-void ThrowAbstractMethodError(Method* method, Thread* thread) {
-  LOG(FATAL) << "Unimplemented Exception Handling. Remove this when ThrowException works.";
-  thread->ThrowNewException("Ljava/lang/AbstractMethodError",
-                            "abstract method \"%s\"",
-                            PrettyMethod(method).c_str());
-}
-
 namespace arm {
-  ByteArray* CreateAbstractMethodErrorStub(ThrowAme);
+  ByteArray* CreateAbstractMethodErrorStub();
 }
 
 namespace x86 {
-  ByteArray* CreateAbstractMethodErrorStub(ThrowAme);
+  ByteArray* CreateAbstractMethodErrorStub();
 }
 
 Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
     verbose_(false) {
   if (insns == kArm || insns == kThumb2) {
-    abstract_method_error_stub_ = arm::CreateAbstractMethodErrorStub(&ThrowAbstractMethodError);
+    abstract_method_error_stub_ = arm::CreateAbstractMethodErrorStub();
   } else if (insns == kX86) {
-    abstract_method_error_stub_ = x86::CreateAbstractMethodErrorStub(&ThrowAbstractMethodError);
+    abstract_method_error_stub_ = x86::CreateAbstractMethodErrorStub();
   }
 }
 
@@ -192,7 +183,10 @@ void Compiler::CompileMethod(Method* method) {
   if (method->IsNative()) {
     jni_compiler_.Compile(method);
     // unregister will install the stub to lookup via dlsym
-    method->UnregisterNative();
+    // TODO: this is only necessary for tests
+    if (!method->IsRegistered()) {
+      method->UnregisterNative();
+    }
   } else if (method->IsAbstract()) {
     DCHECK(abstract_method_error_stub_ != NULL);
     if (instruction_set_ == kX86) {

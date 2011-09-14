@@ -866,10 +866,18 @@ class MANAGED Method : public AccessibleObject {
   }
 
   void SetCode(ByteArray* code_array, InstructionSet instruction_set,
-               ByteArray* mapping_table = NULL);
+               IntArray* mapping_table = NULL);
 
   static MemberOffset GetCodeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, code_);
+  }
+
+  // Is the given PC within the code array?
+  bool IsWithinCode(uintptr_t pc) const;
+
+  IntArray* GetMappingTable() const {
+    return GetFieldObject<IntArray*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
   }
 
   size_t GetFrameSizeInBytes() const {
@@ -943,10 +951,8 @@ class MANAGED Method : public AccessibleObject {
 
   void SetInvokeStub(const ByteArray* invoke_stub_array);
 
-  void SetFpSpillMask(uint32_t fp_spill_mask) {
-    // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_),
-               fp_spill_mask, false);
+  uint32_t GetCoreSpillMask() {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_), false);
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
@@ -955,17 +961,26 @@ class MANAGED Method : public AccessibleObject {
                core_spill_mask, false);
   }
 
+  uint32_t GetFpSpillMask() {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), false);
+  }
+
+  void SetFpSpillMask(uint32_t fp_spill_mask) {
+    // Computed during compilation
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_),
+               fp_spill_mask, false);
+  }
+
   // Converts a native PC to a dex PC.  TODO: this is a no-op
   // until we associate a PC mapping table with each method.
-  uintptr_t ToDexPC(const uintptr_t pc) const {
-    return pc;
-  }
+  uint32_t ToDexPC(const uintptr_t pc) const;
 
   // Converts a dex PC to a native PC.  TODO: this is a no-op
   // until we associate a PC mapping table with each method.
-  uintptr_t ToNativePC(const uintptr_t pc) const {
-    return pc;
-  }
+  uintptr_t ToNativePC(const uint32_t dex_pc) const;
+
+  // Find the catch block for the given exception type and dex_pc
+  uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc) const;
 
   static Class* GetJavaLangReflectMethod() {
     DCHECK(java_lang_reflect_Method_ != NULL);
@@ -1018,7 +1033,7 @@ class MANAGED Method : public AccessibleObject {
   const ByteArray* invoke_stub_array_;
 
   // Storage for mapping_table_
-  const ByteArray* mapping_table_;
+  IntArray* mapping_table_;
 
   // Byte arrays that hold data for the register maps
   const ByteArray* register_map_data_;

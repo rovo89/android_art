@@ -11,7 +11,7 @@ namespace arm {
 
 typedef void (*ThrowAme)(Method*, Thread*);
 
-ByteArray* CreateAbstractMethodErrorStub(ThrowAme throw_ame) {
+ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
 
   // R0 is the Method* already.
@@ -19,8 +19,8 @@ ByteArray* CreateAbstractMethodErrorStub(ThrowAme throw_ame) {
   // Pass Thread::Current() in R1
   __ mov(R1, ShifterOperand(R9));
 
-  // Call throw_ame to throw AbstractMethodError
-  __ LoadImmediate(R12, reinterpret_cast<int32_t>(throw_ame));
+  // Call to throw AbstractMethodError
+  __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode));
   // Leaf call to routine that never returns
   __ mov(PC, ShifterOperand(R12));
 

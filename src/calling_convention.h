@@ -64,6 +64,13 @@ class CallingConvention {
 };
 
 // Abstraction for managed code's calling conventions
+// | { Incoming stack args } |
+// | { Prior Method* }       | <-- Prior SP
+// | { Return address }      |
+// | { Callee saves }        |
+// | { Spills ... }          |
+// | { Outgoing stack args } |
+// | { Method* }             | <-- SP
 class ManagedRuntimeCallingConvention : public CallingConvention {
  public:
   static ManagedRuntimeCallingConvention* Create(Method* native_method,
@@ -90,21 +97,22 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 
  protected:
   explicit ManagedRuntimeCallingConvention(Method* method) :
-                                          CallingConvention(method) {}
+                                           CallingConvention(method) {}
 };
 
 // Abstraction for JNI calling conventions
-// | incoming stack args    | <-- Prior SP
-// | { Return address }     |     (x86)
-// | { Return value spill } |     (live on return slow paths)
-// | { Stack Indirect Ref.  |
-// |   Table...             |
-// |   num. refs./link }    |     (here to prior SP is frame size)
-// | { Spill area }         |     (ARM)
-// | Method*                | <-- Anchor SP written to thread
-// | { Outgoing stack args  |
-// |   ... }                | <-- SP at point of call
-// | Native frame           |
+// | { Incoming stack args }         | <-- Prior SP
+// | { Return address }              |
+// | { Callee saves }                |     ([1])
+// | { Return value spill }          |     (live on return slow paths)
+// | { Stack Indirect Ref. Table     |
+// |   num. refs./link }             |     (here to prior SP is frame size)
+// | { Method* }                     | <-- Anchor SP written to thread
+// | { Outgoing stack args }         | <-- SP at point of call
+// | Native frame                    |
+//
+// [1] We must save all callee saves here to enable any exception throws to restore
+// callee saves for frames above this one.
 class JniCallingConvention : public CallingConvention {
  public:
   static JniCallingConvention* Create(Method* native_method,
@@ -118,19 +126,18 @@ class JniCallingConvention : public CallingConvention {
   virtual size_t ReturnPcOffset() = 0;
   // Size of outgoing arguments, including alignment
   virtual size_t OutArgSize() = 0;
-  // Size of area used to hold spilled registers
-  virtual size_t SpillAreaSize() = 0;
   // Number of references in stack indirect reference table
   size_t ReferenceCount();
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
   FrameOffset ReturnValueSaveLocation();
 
-  // Registers that must be spilled (due to clobbering) before the call into
-  // the native routine
-  const std::vector<ManagedRegister>& RegsToSpillPreCall() {
-    return spill_regs_;
-  }
+  // Callee save registers to spill prior to native code (which may clobber)
+  virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const = 0;
+
+  // Spill mask values
+  virtual uint32_t CoreSpillMask() const = 0;
+  virtual uint32_t FpSpillMask() const = 0;
 
   // Returns true if the register will be clobbered by an outgoing
   // argument value.
@@ -152,7 +159,6 @@ class JniCallingConvention : public CallingConvention {
   // Position of SIRT and interior fields
   FrameOffset SirtOffset() {
     return FrameOffset(displacement_.Int32Value() +
-                       SpillAreaSize() +
                        kPointerSize);  // above Method*
   }
   FrameOffset SirtNumRefsOffset() {
@@ -182,9 +188,6 @@ class JniCallingConvention : public CallingConvention {
 
  protected:
   static size_t NumberOfExtraArgumentsForJni(Method* method);
-
-  // Extra registers to spill before the call into native
-  std::vector<ManagedRegister> spill_regs_;
 };
 
 }  // namespace art

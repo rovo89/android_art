@@ -2,6 +2,20 @@
 
     .balign 4
 
+    .global art_throw_exception
+    .extern artThrowExceptionHelper
+    /*
+     * Called by managed code, saves all registers (forms basis of long jump context).
+     * artThrowExceptionHelper will place a mock Method* at the bottom of the thread.
+     * r0 holds Throwable
+     */
+art_throw_exception:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                @ 4 words of space, bottom word will hold Method*
+    mov r1, r9
+    mov r2, sp
+    b artThrowExceptionHelper  @ artThrowExceptionHelper(Throwable*, SP)
+
     .global art_invoke_interface_trampoline
     .extern artFindInterfaceMethodInCache
     .extern artFailedInvokeInterface

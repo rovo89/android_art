@@ -1414,46 +1414,55 @@ void ArmAssembler::Rrx(Register rd, Register rm, Condition cond) {
 }
 
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                              const std::vector<ManagedRegister>& spill_regs) {
+                              const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK(IsAligned(frame_size, kStackAlignment));
   CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
-  AddConstant(SP, -frame_size);
-  RegList spill_list = 1 << R0 | 1 << LR;
-  for (size_t i = 0; i < spill_regs.size(); i++) {
-    Register reg = spill_regs.at(i).AsArm().AsCoreRegister();
-    // check assumption LR is the last register that gets spilled
-    CHECK_LT(reg, LR);
-    spill_list |= 1 << reg;
+
+  // Push callee saves and link register
+  RegList push_list = 1 << LR;
+  size_t pushed_values = 1;
+  for (size_t i = 0; i < callee_save_regs.size(); i++) {
+    Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
+    push_list |= 1 << reg;
+    pushed_values++;
   }
-  // Store spill list from (low to high number register) starting at SP
-  // incrementing after each store but not updating SP
-  stm(IA, SP, spill_list, AL);
+  PushList(push_list);
+
+  // Increase frame to required size
+  CHECK_GT(frame_size, pushed_values * kPointerSize);  // Must be at least space to push Method*
+  size_t adjust = frame_size - (pushed_values * kPointerSize);
+  IncreaseFrameSize(adjust);
+
+  // Write out Method*
+  StoreToOffset(kStoreWord, R0, SP, 0);
 }
 
 void ArmAssembler::RemoveFrame(size_t frame_size,
-                              const std::vector<ManagedRegister>& spill_regs) {
+                              const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK(IsAligned(frame_size, kStackAlignment));
-  // Reload LR. TODO: reload any saved callee saves from spill_regs
-  LoadFromOffset(kLoadWord, LR, SP, (spill_regs.size() + 1) * kPointerSize);
-  AddConstant(SP, frame_size);
-  mov(PC, ShifterOperand(LR));
-}
-
-void ArmAssembler::FillFromSpillArea(const std::vector<ManagedRegister>& spill_regs,
-                                     size_t displacement) {
-  for(size_t i = 0; i < spill_regs.size(); i++) {
-    Register reg = spill_regs.at(i).AsArm().AsCoreRegister();
-    LoadFromOffset(kLoadWord, reg, SP, displacement + ((i + 1) * kPointerSize));
+  // Compute callee saves to pop and PC
+  RegList pop_list = 1 << PC;
+  size_t pop_values = 1;
+  for (size_t i = 0; i < callee_save_regs.size(); i++) {
+    Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
+    pop_list |= 1 << reg;
+    pop_values++;
   }
+
+  // Decrease frame to start of callee saves
+  CHECK_GT(frame_size, pop_values * kPointerSize);
+  size_t adjust = frame_size - (pop_values * kPointerSize);
+  DecreaseFrameSize(adjust);
+
+  // Pop callee saves and PC
+  PopList(pop_list);
 }
 
 void ArmAssembler::IncreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, kStackAlignment));
   AddConstant(SP, -adjust);
 }
 
 void ArmAssembler::DecreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, kStackAlignment));
   AddConstant(SP, adjust);
 }
 
@@ -1750,6 +1759,10 @@ void ArmAssembler::Call(FrameOffset base, Offset offset,
                  scratch.AsCoreRegister(), offset.Int32Value());
   blx(scratch.AsCoreRegister());
   // TODO: place reference map on call
+}
+
+void ArmAssembler::Call(ThreadOffset offset, ManagedRegister scratch) {
+  UNIMPLEMENTED(FATAL);
 }
 
 void ArmAssembler::GetCurrentThread(ManagedRegister tr) {

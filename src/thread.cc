@@ -27,6 +27,7 @@
 #include <list>
 
 #include "class_linker.h"
+#include "context.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "object.h"
@@ -48,17 +49,25 @@ void DebugMe(Method* method, uint32_t info) {
     LOG(INFO) << "Info: " << info;
 }
 
-// TODO: placeholder.  This is what generated code will call to throw
-void ThrowException(Thread* thread, Throwable* exception) {
+}  // namespace art
+
+// Called by generated call to throw an exception
+extern "C" void artThrowExceptionHelper(art::Throwable* exception,
+                                        art::Thread* thread,
+                                        art::Method** sp) {
   /*
    * exception may be NULL, in which case this routine should
    * throw NPE.  NOTE: this is a convenience for generated code,
    * which previously did the null check inline and constructed
    * and threw a NPE if NULL.  This routine responsible for setting
-   * exception_ in thread.
+   * exception_ in thread and delivering the exception.
    */
-  UNIMPLEMENTED(FATAL) << "Unimplemented exception throw: " << PrettyType(exception);
+  *sp = thread->CalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->DeliverException(exception);
 }
+
+namespace art {
 
 // TODO: placeholder.  Helper function to type
 Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
@@ -166,6 +175,14 @@ void ThrowRuntimeExceptionFromCode(int32_t errnum) {
 void ThrowNoSuchMethodFromCode(int32_t method_idx) {
     UNIMPLEMENTED(FATAL) << "No such method, idx: " << method_idx;
 }
+
+void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread) {
+  thread->ThrowNewException("Ljava/lang/AbstractMethodError",
+                            "abstract method \"%s\"",
+                            PrettyMethod(method).c_str());
+  thread->DeliverException(thread->GetException());
+}
+
 
 /*
  * Temporary placeholder.  Should include run-time checks for size
@@ -289,6 +306,7 @@ void Thread::InitFunctionPointers() {
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
+  pThrowException = art_throw_exception;
 #endif
   pF2l = F2L;
   pD2l = D2L;
@@ -304,7 +322,6 @@ void Thread::InitFunctionPointers() {
   pGetObjStatic = Field::GetObjStaticFromCode;
   pSetObjStatic = Field::SetObjStaticFromCode;
   pCanPutArrayElementFromCode = Class::CanPutArrayElementFromCode;
-  pThrowException = ThrowException;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pInitializeStaticStorage = ClassLinker::InitializeStaticStorageFromCode;
@@ -323,6 +340,7 @@ void Thread::InitFunctionPointers() {
   pThrowRuntimeExceptionFromCode = ThrowRuntimeExceptionFromCode;
   pThrowInternalErrorFromCode = ThrowInternalErrorFromCode;
   pThrowNoSuchMethodFromCode = ThrowNoSuchMethodFromCode;
+  pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pFindNativeMethod = FindNativeMethod;
   pDecodeJObjectInThread = DecodeJObjectInThread;
   pDebugMe = DebugMe;
@@ -334,10 +352,20 @@ void Frame::Next() {
   sp_ = reinterpret_cast<Method**>(next_sp);
 }
 
-uintptr_t Frame::GetPC() const {
+uintptr_t Frame::GetReturnPC() const {
   byte* pc_addr = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
+}
+
+uintptr_t Frame::LoadCalleeSave(int num) const {
+  // Callee saves are held at the top of the frame
+  Method* method = GetMethod();
+  DCHECK(method != NULL);
+  size_t frame_size = method->GetFrameSizeInBytes();
+  byte* save_addr = reinterpret_cast<byte*>(sp_) + frame_size -
+                    ((num + 1) * kPointerSize);
+  return *reinterpret_cast<uintptr_t*>(save_addr);
 }
 
 Method* Frame::NextMethod() const {
@@ -656,10 +684,10 @@ struct StackDumpVisitor : public Thread::StackVisitor {
   StackDumpVisitor(std::ostream& os) : os(os) {
   }
 
-  ~StackDumpVisitor() {
+  virtual ~StackDumpVisitor() {
   }
 
-  void VisitFrame(const Frame& frame) {
+  void VisitFrame(const Frame& frame, uintptr_t pc) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
     Method* m = frame.GetMethod();
@@ -670,7 +698,7 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     if (m->IsNative()) {
       os << "(Native method)";
     } else {
-      int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(frame.GetPC()));
+      int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
       os << "(" << c->GetSourceFile()->ToModifiedUtf8() << ":" << line_number << ")";
     }
     os << "\n";
@@ -946,7 +974,7 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
  public:
   CountStackDepthVisitor() : depth_(0) {}
 
-  virtual void VisitFrame(const Frame&) {
+  virtual void VisitFrame(const Frame&, uintptr_t pc) {
     ++depth_;
   }
 
@@ -979,9 +1007,9 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
 
   virtual ~BuildInternalStackTraceVisitor() {}
 
-  virtual void VisitFrame(const Frame& frame) {
+  virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
     method_trace_->Set(count_, frame.GetMethod());
-    pc_trace_->Set(count_, frame.GetPC());
+    pc_trace_->Set(count_, pc);
     ++count_;
   }
 
@@ -1003,19 +1031,36 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
 
 void Thread::WalkStack(StackVisitor* visitor) const {
   Frame frame = GetTopOfStack();
+  uintptr_t pc = top_of_managed_stack_pc_;
   // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
   // CHECK(native_to_managed_record_ != NULL);
   NativeToManagedRecord* record = native_to_managed_record_;
 
-  while (frame.GetSP()) {
+  while (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
-      visitor->VisitFrame(frame);
+      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      visitor->VisitFrame(frame, pc);
+      pc = frame.GetReturnPC();
     }
     if (record == NULL) {
       break;
     }
-    frame.SetSP(reinterpret_cast<art::Method**>(record->last_top_of_managed_stack));  // last_tos should return Frame instead of sp?
-    record = record->link;
+    // last_tos should return Frame instead of sp?
+    frame.SetSP(reinterpret_cast<art::Method**>(record->last_top_of_managed_stack_));
+    pc = record->last_top_of_managed_stack_pc_;
+    record = record->link_;
+  }
+}
+
+void Thread::WalkStackUntilUpCall(StackVisitor* visitor) const {
+  Frame frame = GetTopOfStack();
+  uintptr_t pc = top_of_managed_stack_pc_;
+
+  if (frame.GetSP() != 0) {
+    for ( ; frame.GetMethod() != 0; frame.Next()) {
+      visitor->VisitFrame(frame, pc);
+      pc = frame.GetReturnPC();
+    }
   }
 }
 
@@ -1104,65 +1149,88 @@ void Thread::ThrowOutOfMemoryError() {
   UNIMPLEMENTED(FATAL);
 }
 
-Frame Thread::FindExceptionHandler(void* throw_pc, void** handler_pc) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  DCHECK(class_linker != NULL);
+Method* Thread::CalleeSaveMethod() const {
+  // TODO: we should only allocate this once
+  // TODO: this code is ARM specific
+  Method* method = Runtime::Current()->GetClassLinker()->AllocMethod();
+  method->SetCode(NULL, art::kThumb2, NULL);
+  method->SetFrameSizeInBytes(64);
+  method->SetReturnPcOffsetInBytes(60);
+  method->SetCoreSpillMask(0x4FFE);
+  method->SetFpSpillMask(0);
+  return method;
+}
 
-  Frame cur_frame = GetTopOfStack();
-  for (int unwind_depth = 0; ; unwind_depth++) {
-    const Method* cur_method = cur_frame.GetMethod();
-    DexCache* dex_cache = cur_method->GetDeclaringClass()->GetDexCache();
-    const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+class CatchBlockStackVisitor : public Thread::StackVisitor {
+ public:
+  CatchBlockStackVisitor(Class* to_find, Context* ljc)
+      : found_(false), to_find_(to_find), long_jump_context_(ljc) {}
 
-    void* handler_addr = FindExceptionHandlerInMethod(cur_method,
-                                                      throw_pc,
-                                                      dex_file,
-                                                      class_linker);
-    if (handler_addr) {
-      *handler_pc = handler_addr;
-      return cur_frame;
-    } else {
-      // Check if we are at the last frame
-      if (cur_frame.HasNext()) {
-        cur_frame.Next();
-      } else {
-        // Either at the top of stack or next frame is native.
-        break;
+  virtual void VisitFrame(const Frame& fr, uintptr_t pc) {
+    if (!found_) {
+      last_pc_ = pc;
+      handler_frame_ = fr;
+      Method* method = fr.GetMethod();
+      if (pc > 0) {
+        // Move the PC back 2 bytes as a call will frequently terminate the
+        // decoding of a particular instruction and we want to make sure we
+        // get the Dex PC of the instruction with the call and not the
+        // instruction following.
+        pc -= 2;
+      }
+      uint32_t dex_pc = method->ToDexPC(pc);
+      if (dex_pc != DexFile::kDexNoIndex) {
+        uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
+        if (found_dex_pc != DexFile::kDexNoIndex) {
+          found_ = true;
+          handler_dex_pc_ = found_dex_pc;
+        }
+      }
+      if (!found_) {
+        // Caller may be handler, fill in callee saves in context
+        long_jump_context_->FillCalleeSaves(fr);
       }
     }
   }
-  *handler_pc = NULL;
-  return Frame();
+
+  // Did we find a catch block yet?
+  bool found_;
+  // The type of the exception catch block to find
+  Class* to_find_;
+  // Frame with found handler or last frame if no handler found
+  Frame handler_frame_;
+  // Found dex PC of the handler block
+  uint32_t handler_dex_pc_;
+  // Context that will be the target of the long jump
+  Context* long_jump_context_;
+  uintptr_t last_pc_;
+};
+
+void Thread::DeliverException(Throwable* exception) {
+  SetException(exception);  // Set exception on thread
+
+  Context* long_jump_context = GetLongJumpContext();
+  CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);
+  WalkStackUntilUpCall(&catch_finder);
+
+  long_jump_context->SetSP(reinterpret_cast<intptr_t>(catch_finder.handler_frame_.GetSP()));
+  uintptr_t long_jump_pc;
+  if (catch_finder.found_) {
+    long_jump_pc = catch_finder.handler_frame_.GetMethod()->ToNativePC(catch_finder.handler_dex_pc_);
+  } else {
+    long_jump_pc = catch_finder.last_pc_;
+  }
+  long_jump_context->SetPC(long_jump_pc);
+  long_jump_context->DoLongJump();
 }
 
-void* Thread::FindExceptionHandlerInMethod(const Method* method,
-                                           void* throw_pc,
-                                           const DexFile& dex_file,
-                                           ClassLinker* class_linker) {
-  Throwable* exception_obj = exception_;
-  exception_ = NULL;
-
-  intptr_t dex_pc = -1;
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
-  DexFile::CatchHandlerIterator iter;
-  for (iter = dex_file.dexFindCatchHandler(*code_item,
-                                           method->ToDexPC(reinterpret_cast<intptr_t>(throw_pc)));
-       !iter.HasNext();
-       iter.Next()) {
-    Class* klass = class_linker->FindSystemClass(dex_file.dexStringByTypeIdx(iter.Get().type_idx_));
-    DCHECK(klass != NULL);
-    if (exception_obj->InstanceOf(klass)) {
-      dex_pc = iter.Get().address_;
-      break;
-    }
+Context* Thread::GetLongJumpContext() {
+  Context* result = long_jump_context_.get();
+  if (result == NULL) {
+    result = Context::Create();
+    long_jump_context_.reset(result);
   }
-
-  exception_ = exception_obj;
-  if (iter.HasNext()) {
-    return NULL;
-  } else {
-    return reinterpret_cast<void*>( method->ToNativePC(dex_pc) );
-  }
+  return result;
 }
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {

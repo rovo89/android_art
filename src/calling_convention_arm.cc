@@ -99,20 +99,19 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
-ArmJniCallingConvention::ArmJniCallingConvention(Method* method) :
-    JniCallingConvention(method) {
-  // A synchronized method will call monitor enter clobbering R1, R2 and R3
-  // unless they are spilled.
-  if (method->IsSynchronized()) {
-    spill_regs_.push_back(ArmManagedRegister::FromCoreRegister(R1));
-    spill_regs_.push_back(ArmManagedRegister::FromCoreRegister(R2));
-    spill_regs_.push_back(ArmManagedRegister::FromCoreRegister(R3));
+ArmJniCallingConvention::ArmJniCallingConvention(Method* method) : JniCallingConvention(method) {
+  for (int i = R4; i < R12; i++) {
+    callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(static_cast<Register>(i)));
   }
+  // TODO: VFP
+  // for (SRegister i = S16; i <= S31; i++) {
+  //  callee_save_regs_.push_back(ArmManagedRegister::FromSRegister(i));
+  // }
 }
 
 size_t ArmJniCallingConvention::FrameSize() {
-  // Method* and spill area size
-  size_t frame_data_size = kPointerSize + SpillAreaSize();
+  // Method*, LR and callee save area size
+  size_t frame_data_size = (2 + CalleeSaveRegisters().size()) * kPointerSize;
   // References plus 2 words for SIRT header
   size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
   // Plus return value spill area size
@@ -135,15 +134,8 @@ size_t ArmJniCallingConvention::OutArgSize() {
 }
 
 size_t ArmJniCallingConvention::ReturnPcOffset() {
-  // Link register is always the last value spilled, skip forward one word for
-  // the Method* then skip back one word to get the link register (ie +0)
-  return SpillAreaSize();
-}
-
-size_t ArmJniCallingConvention::SpillAreaSize() {
-  // Space for link register. For synchronized methods we need enough space to
-  // save R1, R2 and R3 (R0 is the method register and always preserved)
-  return GetMethod()->IsSynchronized() ? (4 * kPointerSize) : kPointerSize;
+  // Link register is always the first value pushed when the frame is constructed
+  return FrameSize() - kPointerSize;
 }
 
 // Will reg be crushed by an outgoing argument?
@@ -164,7 +156,7 @@ bool ArmJniCallingConvention::IsCurrentParamInRegister() {
   int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
   if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
     // itr_slots_ needs to be an even number, according to AAPCS.
-    if (itr_slots_ & 0x1u) {
+    if ((itr_slots_ & 0x1u) != 0) {
       itr_slots_++;
     }
   }

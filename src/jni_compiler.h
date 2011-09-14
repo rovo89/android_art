@@ -40,6 +40,7 @@ class JniCompiler {
                           JniCallingConvention* jni_conv,
                           ManagedRegister in_reg);
 
+  // Architecture to generate code for
   InstructionSet instruction_set_;
 
   DISALLOW_COPY_AND_ASSIGN(JniCompiler);

@@ -76,19 +76,12 @@ void JniCompiler::Compile(Method* native_method) {
   // Cache of IsStatic as we call it often enough
   const bool is_static = native_method->IsStatic();
 
-  // TODO: Need to make sure that the stub is copied into the image. I.e.,
-  // ByteArray* needs to be reachable either as a root or from the object graph.
-
-  // 1. Build the frame
+  // 1. Build the frame saving all callee saves
   const size_t frame_size(jni_conv->FrameSize());
-  const std::vector<ManagedRegister>& spill_regs = jni_conv->RegsToSpillPreCall();
-  __ BuildFrame(frame_size, mr_conv->MethodRegister(), spill_regs);
+  const std::vector<ManagedRegister>& callee_save_regs = jni_conv->CalleeSaveRegisters();
+  __ BuildFrame(frame_size, mr_conv->MethodRegister(), callee_save_regs);
 
-  // 2. Save callee save registers that aren't callee save in the native code
-  // TODO: implement computing the difference of the callee saves
-  // and saving
-
-  // 3. Set up the StackIndirectReferenceTable
+  // 2. Set up the StackIndirectReferenceTable
   mr_conv->ResetIterator(FrameOffset(frame_size));
   jni_conv->ResetIterator(FrameOffset(0));
   __ StoreImmediateToFrame(jni_conv->SirtNumRefsOffset(),
@@ -101,9 +94,9 @@ void JniCompiler::Compile(Method* native_method) {
                               jni_conv->SirtOffset(),
                               mr_conv->InterproceduralScratchRegister());
 
-  // 4. Place incoming reference arguments into SIRT
+  // 3. Place incoming reference arguments into SIRT
   jni_conv->Next();  // Skip JNIEnv*
-  // 4.5. Create Class argument for static methods out of passed method
+  // 3.5. Create Class argument for static methods out of passed method
   if (is_static) {
     FrameOffset sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
     // Check sirt offset is within frame
@@ -144,24 +137,44 @@ void JniCompiler::Compile(Method* native_method) {
     jni_conv->Next();
   }
 
-  // 5. Transition from being in managed to native code
+  // 4. Transition from being in managed to native code. Save the top_of_managed_stack_
+  // so that the managed stack can be crawled while in native code. Clear the corresponding
+  // PC value that has no meaning for the this frame.
   // TODO: ensure the transition to native follow a store fence.
   __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset());
+  __ StoreImmediateToThread(Thread::TopOfManagedStackPcOffset(), 0,
+                            mr_conv->InterproceduralScratchRegister());
   __ StoreImmediateToThread(Thread::StateOffset(), Thread::kNative,
-                                  mr_conv->InterproceduralScratchRegister());
+                            mr_conv->InterproceduralScratchRegister());
 
-  // 6. Move frame down to allow space for out going args. Do for as short a
+  // 5. Move frame down to allow space for out going args. Do for as short a
   //    time as possible to aid profiling..
   const size_t out_arg_size = jni_conv->OutArgSize();
   __ IncreaseFrameSize(out_arg_size);
 
-  // 7. Acquire lock for synchronized methods.
+  // 6. Acquire lock for synchronized methods.
   if (native_method->IsSynchronized()) {
-    // TODO: preserve incoming arguments in registers
-    mr_conv->ResetIterator(FrameOffset(frame_size+out_arg_size));
+    // Compute arguments in registers to preserve
+    mr_conv->ResetIterator(FrameOffset(frame_size + out_arg_size));
+    std::vector<ManagedRegister> live_argument_regs;
+    while (mr_conv->HasNext()) {
+      if (mr_conv->IsCurrentParamInRegister()) {
+        live_argument_regs.push_back(mr_conv->CurrentParamRegister());
+      }
+      mr_conv->Next();
+    }
+
+    // Copy arguments to preserve to callee save registers
+    CHECK_LE(live_argument_regs.size(), callee_save_regs.size());
+    for (size_t i = 0; i < live_argument_regs.size(); i++) {
+      __ Move(callee_save_regs.at(i), live_argument_regs.at(i));
+    }
+
+    // Get SIRT entry for 1st argument (jclass or this) to be 1st argument to
+    // monitor enter
+    mr_conv->ResetIterator(FrameOffset(frame_size + out_arg_size));
     jni_conv->ResetIterator(FrameOffset(out_arg_size));
     jni_conv->Next();  // Skip JNIEnv*
-    // Get SIRT entry for 1st argument
     if (is_static) {
       FrameOffset sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
       if (jni_conv->IsCurrentParamOnStack()) {
@@ -178,21 +191,29 @@ void JniCompiler::Compile(Method* native_method) {
       CopyParameter(jni_asm.get(), mr_conv.get(), jni_conv.get(), frame_size,
                     out_arg_size);
     }
+
     // Generate JNIEnv* in place and leave a copy in jni_fns_register
     jni_conv->ResetIterator(FrameOffset(out_arg_size));
     ManagedRegister jni_fns_register =
         jni_conv->InterproceduralScratchRegister();
     __ LoadRawPtrFromThread(jni_fns_register, Thread::JniEnvOffset());
     SetNativeParameter(jni_asm.get(), jni_conv.get(), jni_fns_register);
+
     // Call JNIEnv->MonitorEnter(object)
     __ LoadRawPtr(jni_fns_register, jni_fns_register, functions);
     __ Call(jni_fns_register, monitor_enter,
                   jni_conv->InterproceduralScratchRegister());
-    __ FillFromSpillArea(spill_regs, out_arg_size);
+
+    // Check for exceptions
     __ ExceptionPoll(jni_conv->InterproceduralScratchRegister());
+
+    // Restore live arguments
+    for (size_t i = 0; i < live_argument_regs.size(); i++) {
+      __ Move(live_argument_regs.at(i), callee_save_regs.at(i));
+    }
   }
 
-  // 8. Iterate over arguments placing values from managed calling convention in
+  // 7. Iterate over arguments placing values from managed calling convention in
   //    to the convention required for a native call (shuffling). For references
   //    place an index/pointer to the reference after checking whether it is
   //    NULL (which must be encoded as NULL).
@@ -240,7 +261,7 @@ void JniCompiler::Compile(Method* native_method) {
                          ManagedRegister::NoRegister(), false);
     }
   }
-  // 9. Create 1st argument, the JNI environment ptr
+  // 8. Create 1st argument, the JNI environment ptr
   jni_conv->ResetIterator(FrameOffset(out_arg_size));
   if (jni_conv->IsCurrentParamInRegister()) {
     __ LoadRawPtrFromThread(jni_conv->CurrentParamRegister(),
@@ -251,7 +272,7 @@ void JniCompiler::Compile(Method* native_method) {
                             jni_conv->InterproceduralScratchRegister());
   }
 
-  // 10. Plant call to native code associated with method
+  // 9. Plant call to native code associated with method
   if (!jni_conv->IsOutArgRegister(mr_conv->MethodRegister())) {
     // Method register shouldn't have been crushed by setting up outgoing
     // arguments
@@ -261,7 +282,8 @@ void JniCompiler::Compile(Method* native_method) {
     __ Call(jni_conv->MethodStackOffset(), Method::NativeMethodOffset(),
             mr_conv->InterproceduralScratchRegister());
   }
-  // 11. Release lock for synchronized methods.
+
+  // 10. Release lock for synchronized methods.
   if (native_method->IsSynchronized()) {
     mr_conv->ResetIterator(FrameOffset(frame_size+out_arg_size));
     jni_conv->ResetIterator(FrameOffset(out_arg_size));
@@ -308,12 +330,12 @@ void JniCompiler::Compile(Method* native_method) {
     }
   }
 
-  // 12. Release outgoing argument area
+  // 11. Release outgoing argument area
   __ DecreaseFrameSize(out_arg_size);
   mr_conv->ResetIterator(FrameOffset(frame_size));
   jni_conv->ResetIterator(FrameOffset(0));
 
-  // 13. Transition from being in native to managed code, possibly entering a
+  // 12. Transition from being in native to managed code, possibly entering a
   //     safepoint
   CHECK(!jni_conv->InterproceduralScratchRegister()
         .Equals(jni_conv->ReturnRegister()));  // don't clobber result
@@ -329,7 +351,7 @@ void JniCompiler::Compile(Method* native_method) {
                             jni_conv->InterproceduralScratchRegister());
 
 
-  // 14. Place result in correct register possibly loading from indirect
+  // 13. Place result in correct register possibly loading from indirect
   //     reference table
   if (jni_conv->IsReturnAReference()) {
     __ IncreaseFrameSize(out_arg_size);
@@ -350,8 +372,7 @@ void JniCompiler::Compile(Method* native_method) {
     } else {
       __ GetCurrentThread(jni_conv->CurrentParamStackOffset(),
                           jni_conv->InterproceduralScratchRegister());
-      __ Call(jni_conv->CurrentParamStackOffset(),
-              Offset(OFFSETOF_MEMBER(Thread, pDecodeJObjectInThread)),
+      __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pDecodeJObjectInThread)),
               jni_conv->InterproceduralScratchRegister());
     }
 
@@ -360,14 +381,18 @@ void JniCompiler::Compile(Method* native_method) {
   }
   __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister());
 
-  // 15. Remove SIRT from thread
+  // 14. Remove SIRT from thread
   __ CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv->SirtLinkOffset(),
                         jni_conv->InterproceduralScratchRegister());
 
-  // 16. Remove activation
-  __ RemoveFrame(frame_size, spill_regs);
+  // 15. Remove activation
+  if (native_method->IsSynchronized()) {
+    __ RemoveFrame(frame_size, callee_save_regs);
+  } else {
+    __ RemoveFrame(frame_size, std::vector<ManagedRegister>());
+  }
 
-  // 17. Finalize code generation
+  // 16. Finalize code generation
   __ EmitSlowPaths();
   size_t cs = __ CodeSize();
   ByteArray* managed_code = ByteArray::Alloc(cs);
@@ -377,6 +402,8 @@ void JniCompiler::Compile(Method* native_method) {
   native_method->SetCode(managed_code, instruction_set_);
   native_method->SetFrameSizeInBytes(frame_size);
   native_method->SetReturnPcOffsetInBytes(jni_conv->ReturnPcOffset());
+  native_method->SetCoreSpillMask(jni_conv->CoreSpillMask());
+  native_method->SetFpSpillMask(jni_conv->FpSpillMask());
 #undef __
 }
 
