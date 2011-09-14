@@ -10,6 +10,7 @@
 #include "object.h"
 #include "space.h"
 #include "stl_util.h"
+#include "thread_list.h"
 
 namespace art {
 
@@ -367,7 +368,8 @@ void Heap::CollectGarbage() {
 void Heap::CollectGarbageInternal() {
   lock_->AssertHeld();
 
-  // TODO: Suspend all threads
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  thread_list->SuspendAll();
   {
     MarkSweep mark_sweep;
 
@@ -379,13 +381,13 @@ void Heap::CollectGarbageInternal() {
 
     // TODO: if concurrent
     //   unlock heap
-    //   resume threads
+    //   thread_list->ResumeAll();
 
     mark_sweep.RecursiveMark();
 
     // TODO: if concurrent
     //   lock heap
-    //   suspend threads
+    //   thread_list->SuspendAll();
     //   re-mark root set
     //   scan dirty objects
 
@@ -397,8 +399,7 @@ void Heap::CollectGarbageInternal() {
   }
 
   GrowForUtilization();
-
-  // TODO: Resume all threads
+  thread_list->ResumeAll();
 }
 
 void Heap::WaitForConcurrentGcToComplete() {

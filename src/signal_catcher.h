@@ -45,7 +45,9 @@ class SignalCatcher {
 
   mutable Mutex lock_;
   bool halt_;
-  pthread_t thread_;
+  pthread_cond_t cond_;
+  pthread_t pthread_;
+  Thread* thread_;
 };
 
 }  // namespace art

@@ -1,7 +1,22 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include "thread.h"
 
+#include <dynamic_annotations.h>
 #include <pthread.h>
 #include <sys/mman.h>
 
@@ -114,25 +129,19 @@ void CheckCastFromCode(const Class* a, const Class* b) {
     UNIMPLEMENTED(FATAL);
 }
 
-// TODO: placeholder
 void UnlockObjectFromCode(Thread* thread, Object* obj) {
-    // TODO: throw and unwind if lock not held
-    // TODO: throw and unwind on NPE
-    obj->MonitorExit(thread);
+  // TODO: throw and unwind if lock not held
+  // TODO: throw and unwind on NPE
+  obj->MonitorExit(thread);
 }
 
-// TODO: placeholder
 void LockObjectFromCode(Thread* thread, Object* obj) {
-    obj->MonitorEnter(thread);
+  obj->MonitorEnter(thread);
+  // TODO: throw and unwind on failure.
 }
 
-// TODO: placeholder
 void CheckSuspendFromCode(Thread* thread) {
-    /*
-     * Code is at a safe point, suspend if needed.
-     * Also, this is where a pending safepoint callback
-     * would be fired.
-     */
+  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
 // TODO: placeholder
@@ -389,30 +398,11 @@ void Thread::Create(Object* peer, size_t stack_size) {
   SetVmData(peer, native_thread);
 
   pthread_attr_t attr;
-  errno = pthread_attr_init(&attr);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_attr_init failed";
-  }
-
-  errno = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_attr_setdetachstate(PTHREAD_CREATE_DETACHED) failed";
-  }
-
-  errno = pthread_attr_setstacksize(&attr, stack_size);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_attr_setstacksize(" << stack_size << ") failed";
-  }
-
-  errno = pthread_create(&native_thread->pthread_, &attr, Thread::CreateCallback, native_thread);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_create failed";
-  }
-
-  errno = pthread_attr_destroy(&attr);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_attr_destroy failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
+  CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
+  CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
+  CHECK_PTHREAD_CALL(pthread_create, (&native_thread->pthread_, &attr, Thread::CreateCallback, native_thread), "new thread");
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
 
   // Let the child know when it's safe to start running.
   Runtime::Current()->GetThreadList()->SignalGo(native_thread);
@@ -429,10 +419,7 @@ void Thread::Attach(const Runtime* runtime) {
 
   InitStackHwm();
 
-  errno = pthread_setspecific(Thread::pthread_key_self_, this);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_setspecific failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach");
 
   jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 
@@ -499,17 +486,11 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
 
 void Thread::InitStackHwm() {
   pthread_attr_t attributes;
-  errno = pthread_getattr_np(pthread_, &attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_getattr_np failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_, &attributes), __FUNCTION__);
 
   void* stack_base;
   size_t stack_size;
-  errno = pthread_attr_getstack(&attributes, &stack_base, &stack_size);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_attr_getstack failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &stack_base, &stack_size), __FUNCTION__);
 
   if (stack_size <= kStackOverflowReservedBytes) {
     LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size << " bytes)";
@@ -524,10 +505,7 @@ void Thread::InitStackHwm() {
   int stack_variable;
   CHECK_GT(&stack_variable, (void*) stack_end_);
 
-  errno = pthread_attr_destroy(&attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_attr_destroy failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 }
 
 void Thread::Dump(std::ostream& os) const {
@@ -604,10 +582,7 @@ void Thread::DumpState(std::ostream& os) const {
 
   int policy;
   sched_param sp;
-  errno = pthread_getschedparam(pthread_, &policy, &sp);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_getschedparam failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_getschedparam, (pthread_, &policy, &sp), __FUNCTION__);
 
   std::string scheduler_group(GetSchedulerGroup(GetTid()));
   if (scheduler_group.empty()) {
@@ -622,10 +597,9 @@ void Thread::DumpState(std::ostream& os) const {
      << " tid=" << GetThinLockId()
      << " " << GetState() << "\n";
 
-  int suspend_count = 0; // TODO
   int debug_suspend_count = 0; // TODO
   os << "  | group=\"" << group_name << "\""
-     << " sCount=" << suspend_count
+     << " sCount=" << suspend_count_
      << " dsCount=" << debug_suspend_count
      << " obj=" << reinterpret_cast<void*>(peer_)
      << " self=" << reinterpret_cast<const void*>(this) << "\n";
@@ -697,6 +671,101 @@ void Thread::DumpStack(std::ostream& os) const {
   WalkStack(&dumper);
 }
 
+Thread::State Thread::SetState(Thread::State new_state) {
+  Thread::State old_state = state_;
+  if (old_state == new_state) {
+    return old_state;
+  }
+
+  volatile void* raw = reinterpret_cast<volatile void*>(&state_);
+  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
+
+  if (new_state == Thread::kRunnable) {
+    /*
+     * Change our status to Thread::kRunnable.  The transition requires
+     * that we check for pending suspension, because the VM considers
+     * us to be "asleep" in all other states, and another thread could
+     * be performing a GC now.
+     *
+     * The order of operations is very significant here.  One way to
+     * do this wrong is:
+     *
+     *   GCing thread                   Our thread (in kNative)
+     *   ------------                   ----------------------
+     *                                  check suspend count (== 0)
+     *   SuspendAllThreads()
+     *   grab suspend-count lock
+     *   increment all suspend counts
+     *   release suspend-count lock
+     *   check thread state (== kNative)
+     *   all are suspended, begin GC
+     *                                  set state to kRunnable
+     *                                  (continue executing)
+     *
+     * We can correct this by grabbing the suspend-count lock and
+     * performing both of our operations (check suspend count, set
+     * state) while holding it, now we need to grab a mutex on every
+     * transition to kRunnable.
+     *
+     * What we do instead is change the order of operations so that
+     * the transition to kRunnable happens first.  If we then detect
+     * that the suspend count is nonzero, we switch to kSuspended.
+     *
+     * Appropriate compiler and memory barriers are required to ensure
+     * that the operations are observed in the expected order.
+     *
+     * This does create a small window of opportunity where a GC in
+     * progress could observe what appears to be a running thread (if
+     * it happens to look between when we set to kRunnable and when we
+     * switch to kSuspended).  At worst this only affects assertions
+     * and thread logging.  (We could work around it with some sort
+     * of intermediate "pre-running" state that is generally treated
+     * as equivalent to running, but that doesn't seem worthwhile.)
+     *
+     * We can also solve this by combining the "status" and "suspend
+     * count" fields into a single 32-bit value.  This trades the
+     * store/load barrier on transition to kRunnable for an atomic RMW
+     * op on all transitions and all suspend count updates (also, all
+     * accesses to status or the thread count require bit-fiddling).
+     * It also eliminates the brief transition through kRunnable when
+     * the thread is supposed to be suspended.  This is possibly faster
+     * on SMP and slightly more correct, but less convenient.
+     */
+    android_atomic_acquire_store(new_state, addr);
+    if (ANNOTATE_UNPROTECTED_READ(suspend_count_) != 0) {
+      Runtime::Current()->GetThreadList()->FullSuspendCheck(this);
+    }
+  } else {
+    /*
+     * Not changing to Thread::kRunnable. No additional work required.
+     *
+     * We use a releasing store to ensure that, if we were runnable,
+     * any updates we previously made to objects on the managed heap
+     * will be observed before the state change.
+     */
+    android_atomic_release_store(new_state, addr);
+  }
+
+  return old_state;
+}
+
+void Thread::WaitUntilSuspended() {
+  // TODO: dalvik dropped the waiting thread's priority after a while.
+  // TODO: dalvik timed out and aborted.
+  useconds_t delay = 0;
+  while (GetState() == Thread::kRunnable) {
+    useconds_t new_delay = delay * 2;
+    CHECK_GE(new_delay, delay);
+    delay = new_delay;
+    if (delay == 0) {
+      sched_yield();
+      delay = 10000;
+    } else {
+      usleep(delay);
+    }
+  }
+}
+
 void Thread::ThreadExitCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
   LOG(FATAL) << "Native thread exited without calling DetachCurrentThread: " << *self;
@@ -704,10 +773,7 @@ void Thread::ThreadExitCallback(void* arg) {
 
 void Thread::Startup() {
   // Allocate a TLS slot.
-  errno = pthread_key_create(&Thread::pthread_key_self_, Thread::ThreadExitCallback);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_key_create failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_key_create, (&Thread::pthread_key_self_, Thread::ThreadExitCallback), "self key");
 
   // Double-check the TLS slot allocation.
   if (pthread_getspecific(pthread_key_self_) != NULL) {
@@ -718,10 +784,7 @@ void Thread::Startup() {
 }
 
 void Thread::Shutdown() {
-  errno = pthread_key_delete(Thread::pthread_key_self_);
-  if (errno != 0) {
-    PLOG(WARNING) << "pthread_key_delete failed";
-  }
+  CHECK_PTHREAD_CALL(pthread_key_delete, (Thread::pthread_key_self_), "self key");
 }
 
 Thread::Thread()

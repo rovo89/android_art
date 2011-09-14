@@ -60,6 +60,15 @@
 #define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
 #define CHECK_STRNE(s1, s2) CHECK_STROP(s1, s2, false)
 
+#define CHECK_PTHREAD_CALL(call, args, what) \
+  do { \
+    int rc = call args; \
+    if (rc != 0) { \
+      errno = rc; \
+      PLOG(FATAL) << # call << " failed for " << what; \
+    } \
+  } while (false)
+
 #ifndef NDEBUG
 
 #define DCHECK(x) CHECK(x)
@@ -117,7 +126,7 @@
 
 #define LG LOG(INFO)
 
-#define UNIMPLEMENTED(level) LOG(level) << __FUNCTION__ << " unimplemented "
+#define UNIMPLEMENTED(level) LOG(level) << __PRETTY_FUNCTION__ << " unimplemented "
 
 class LogMessage {
  public:

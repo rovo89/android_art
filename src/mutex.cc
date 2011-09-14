@@ -22,52 +22,32 @@
 #include "logging.h"
 #include "utils.h"
 
+#define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
+
 namespace art {
 
 Mutex::Mutex(const char* name) : name_(name) {
 #ifndef NDEBUG
   pthread_mutexattr_t debug_attributes;
-  errno = pthread_mutexattr_init(&debug_attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutexattr_init failed";
-  }
+  CHECK_MUTEX_CALL(pthread_mutexattr_init, (&debug_attributes));
 #if VERIFY_OBJECT_ENABLED
-  errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_RECURSIVE);
+  CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&debug_attributes, PTHREAD_MUTEX_RECURSIVE));
 #else
-  errno = pthread_mutexattr_settype(&debug_attributes, PTHREAD_MUTEX_ERRORCHECK);
+  CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&debug_attributes, PTHREAD_MUTEX_ERRORCHECK));
 #endif
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutexattr_settype failed";
-  }
-  errno = pthread_mutex_init(&mutex_, &debug_attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutex_init failed";
-  }
-  errno = pthread_mutexattr_destroy(&debug_attributes);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutexattr_destroy failed";
-  }
+  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, &debug_attributes));
+  CHECK_MUTEX_CALL(pthread_mutexattr_destroy, (&debug_attributes));
 #else
-  errno = pthread_mutex_init(&mutex_, NULL);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutex_init failed";
-  }
+  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, NULL));
 #endif
 }
 
 Mutex::~Mutex() {
-  errno = pthread_mutex_destroy(&mutex_);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_mutex_destroy failed";
-  }
+  CHECK_MUTEX_CALL(pthread_mutex_destroy, (&mutex_));
 }
 
 void Mutex::Lock() {
-  int result = pthread_mutex_lock(&mutex_);
-  if (result != 0) {
-    errno = result;
-    PLOG(FATAL) << "pthread_mutex_lock failed";
-  }
+  CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
 }
 
 bool Mutex::TryLock() {
@@ -77,17 +57,13 @@ bool Mutex::TryLock() {
   }
   if (result != 0) {
     errno = result;
-    PLOG(FATAL) << "pthread_mutex_trylock failed";
+    PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
   }
   return true;
 }
 
 void Mutex::Unlock() {
-  int result = pthread_mutex_unlock(&mutex_);
-  if (result != 0) {
-    errno = result;
-    PLOG(FATAL) << "pthread_mutex_unlock failed";
-  }
+  CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 }
 
 pid_t Mutex::GetOwner() {

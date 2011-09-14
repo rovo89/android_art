@@ -465,7 +465,7 @@ class SharedLibrary {
         jni_on_load_lock_("JNI_OnLoad lock"),
         jni_on_load_thread_id_(Thread::Current()->GetThinLockId()),
         jni_on_load_result_(kPending) {
-    pthread_cond_init(&jni_on_load_cond_, NULL);
+    CHECK_PTHREAD_CALL(pthread_cond_init, (&jni_on_load_cond_, NULL), "jni_on_load_cond_");
   }
 
   Object* GetClassLoader() {
@@ -497,7 +497,7 @@ class SharedLibrary {
                   << "JNI_OnLoad...]";
       }
       ScopedThreadStateChange tsc(self, Thread::kVmWait);
-      pthread_cond_wait(&jni_on_load_cond_, jni_on_load_lock_.GetImpl());
+      CHECK_PTHREAD_CALL(pthread_cond_wait, (&jni_on_load_cond_, jni_on_load_lock_.GetImpl()), "JNI_OnLoad");
     }
 
     bool okay = (jni_on_load_result_ == kOkay);
@@ -514,7 +514,7 @@ class SharedLibrary {
 
     // Broadcast a wakeup to anybody sleeping on the condition variable.
     MutexLock mu(jni_on_load_lock_);
-    pthread_cond_broadcast(&jni_on_load_cond_);
+    CHECK_PTHREAD_CALL(pthread_cond_broadcast, (&jni_on_load_cond_), "JNI_OnLoad");
   }
 
   void* FindSymbol(const std::string& symbol_name) {

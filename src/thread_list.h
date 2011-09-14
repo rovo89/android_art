@@ -31,28 +31,40 @@ class ThreadList {
   ThreadList();
   ~ThreadList();
 
+  bool Contains(Thread* thread);
+
   void Dump(std::ostream& os);
 
+  // Thread suspension support.
+  void FullSuspendCheck(Thread* thread);
+  void ResumeAll();
+  void SuspendAll();
+
   void Register(Thread* thread);
-
   void Unregister();
-
-  bool Contains(Thread* thread);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
+  // Handshaking for new thread creation.
   void SignalGo(Thread* child);
   void WaitForGo();
 
  private:
+  typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
+
   uint32_t AllocThreadId();
   void ReleaseThreadId(uint32_t id);
 
-  mutable Mutex lock_;
+  mutable Mutex thread_list_lock_;
   std::bitset<kMaxThreadId> allocated_ids_;
   std::list<Thread*> list_;
 
-  static pthread_cond_t thread_start_cond_;
+  pthread_cond_t thread_start_cond_;
+
+  // This lock guards every thread's suspend_count_ field...
+  mutable Mutex thread_suspend_count_lock_;
+  // ...and is used in conjunction with this condition variable.
+  pthread_cond_t thread_suspend_count_cond_;
 
   friend class Thread;
   friend class ThreadListLock;
@@ -74,14 +86,14 @@ class ThreadListLock {
       // This happens during VM shutdown.
       old_state = Thread::kUnknown;
     }
-    Runtime::Current()->GetThreadList()->lock_.Lock();
+    Runtime::Current()->GetThreadList()->thread_list_lock_.Lock();
     if (self != NULL) {
       self->SetState(old_state);
     }
   }
 
   ~ThreadListLock() {
-    Runtime::Current()->GetThreadList()->lock_.Unlock();
+    Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
   }
 
  private:

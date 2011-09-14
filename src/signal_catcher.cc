@@ -25,26 +25,31 @@
 #include "heap.h"
 #include "runtime.h"
 #include "thread.h"
+#include "thread_list.h"
 #include "utils.h"
 
 namespace art {
 
-SignalCatcher::SignalCatcher() : lock_("SignalCatcher lock") {
+SignalCatcher::SignalCatcher() : lock_("SignalCatcher lock"), thread_(NULL) {
   SetHaltFlag(false);
 
   // Create a raw pthread; its start routine will attach to the runtime.
-  errno = pthread_create(&thread_, NULL, &Run, this);
-  if (errno != 0) {
-    PLOG(FATAL) << "pthread_create failed for signal catcher thread";
+  CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
+
+  CHECK_PTHREAD_CALL(pthread_cond_init, (&cond_, NULL), "SignalCatcher::cond_");
+  MutexLock mu(lock_);
+  while (thread_ == NULL) {
+    CHECK_PTHREAD_CALL(pthread_cond_wait, (&cond_, lock_.GetImpl()), __FUNCTION__);
   }
+  CHECK_PTHREAD_CALL(pthread_cond_destroy, (&cond_), "SignalCatcher::cond_");
 }
 
 SignalCatcher::~SignalCatcher() {
   // Since we know the thread is just sitting around waiting for signals
   // to arrive, send it one.
   SetHaltFlag(true);
-  pthread_kill(thread_, SIGQUIT);
-  pthread_join(thread_, NULL);
+  CHECK_PTHREAD_CALL(pthread_kill, (pthread_, SIGQUIT), "signal catcher shutdown");
+  CHECK_PTHREAD_CALL(pthread_join, (pthread_, NULL), "signal catcher shutdown");
 }
 
 void SignalCatcher::SetHaltFlag(bool new_value) {
@@ -58,7 +63,7 @@ bool SignalCatcher::ShouldHalt() {
 }
 
 void SignalCatcher::HandleSigQuit() {
-  // TODO: suspend all threads
+  Runtime::Current()->GetThreadList()->SuspendAll();
 
   std::stringstream os;
   os << "\n"
@@ -80,7 +85,7 @@ void SignalCatcher::HandleSigQuit() {
 
   os << "----- end " << getpid() << " -----";
 
-  // TODO: resume all threads
+  Runtime::Current()->GetThreadList()->ResumeAll();
 
   LOG(INFO) << os.str();
 }
@@ -112,9 +117,14 @@ void* SignalCatcher::Run(void* arg) {
   SignalCatcher* signal_catcher = reinterpret_cast<SignalCatcher*>(arg);
   CHECK(signal_catcher != NULL);
 
-  Runtime::Current()->AttachCurrentThread("Signal Catcher", true);
-  Thread* self = Thread::Current();
-  CHECK(self != NULL);
+  Runtime* runtime = Runtime::Current();
+  runtime->AttachCurrentThread("Signal Catcher", true);
+
+  {
+    MutexLock mu(signal_catcher->lock_);
+    signal_catcher->thread_ = Thread::Current();
+    CHECK_PTHREAD_CALL(pthread_cond_broadcast, (&signal_catcher->cond_), __FUNCTION__);
+  }
 
   // Set up mask with signals we want to handle.
   sigset_t mask;
@@ -123,13 +133,13 @@ void* SignalCatcher::Run(void* arg) {
   sigaddset(&mask, SIGUSR1);
 
   while (true) {
-    int signal_number = WaitForSignal(self, mask);
+    int signal_number = WaitForSignal(signal_catcher->thread_, mask);
     if (signal_catcher->ShouldHalt()) {
-      Runtime::Current()->DetachCurrentThread();
+      runtime->DetachCurrentThread();
       return NULL;
     }
 
-    LOG(INFO) << *self << ": reacting to signal " << signal_number;
+    LOG(INFO) << *signal_catcher->thread_ << ": reacting to signal " << signal_number;
     switch (signal_number) {
     case SIGQUIT:
       HandleSigQuit();

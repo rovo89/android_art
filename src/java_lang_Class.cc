@@ -43,7 +43,6 @@ jclass Class_getComponentType(JNIEnv* env, jobject javaThis) {
     result = c->GetComponentType();
   }
   return AddLocalReference<jclass>(env, result);
-
 }
 
 jobjectArray Class_getDeclaredClasses(JNIEnv* env, jclass java_lang_Class_class, jclass c, jboolean publicOnly) {
