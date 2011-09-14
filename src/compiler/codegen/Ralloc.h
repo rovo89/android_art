@@ -45,12 +45,6 @@ static inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
     return DECODE_REG(oatConvertSSARegToDalvik(cUnit, sReg));
 }
 
-/* Reset the tracker to unknown state */
-static inline void oatResetNullCheck(CompilationUnit* cUnit)
-{
-    oatClearAllBits(cUnit->regPool->nullCheckedRegs);
-}
-
 /*
  * Get the "real" sreg number associated with an sReg slot.  In general,
  * sReg values passed through codegen are the SSA names created by
@@ -160,10 +154,6 @@ extern void oatFreeTemp(CompilationUnit* cUnit, int reg);
 extern void oatResetDefLocWide(CompilationUnit* cUnit, RegLocation rl);
 
 extern void oatResetDefTracking(CompilationUnit* cUnit);
-
-/* Kill the corresponding bit in the null-checked register list */
-extern void oatKillNullCheckedLoc(CompilationUnit* cUnit,
-                                  RegLocation loc);
 
 extern RegisterInfo *oatIsLive(CompilationUnit* cUnit, int reg);
 

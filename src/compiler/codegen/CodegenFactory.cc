@@ -127,7 +127,6 @@ static void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
     LIR* defEnd;
     assert(!rlDest.wide);
     assert(!rlSrc.wide);
-    oatKillNullCheckedLoc(cUnit, rlDest);
     rlSrc = oatUpdateLoc(cUnit, rlSrc);
     rlDest = oatUpdateLoc(cUnit, rlDest);
     if (rlSrc.location == kLocPhysReg) {
@@ -190,7 +189,6 @@ static void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
     assert(FPREG(rlSrc.lowReg)==FPREG(rlSrc.highReg));
     assert(rlDest.wide);
     assert(rlSrc.wide);
-    oatKillNullCheckedLoc(cUnit, rlDest);
     if (rlSrc.location == kLocPhysReg) {
         if (oatIsLive(cUnit, rlSrc.lowReg) ||
             oatIsLive(cUnit, rlSrc.highReg) ||

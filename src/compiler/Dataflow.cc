@@ -50,13 +50,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
 
     // 07 OP_MOVE_OBJECT vA, vB
-    DF_DA | DF_UB | DF_IS_MOVE,
+    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE,
 
     // 08 OP_MOVE_OBJECT_FROM16 vAA, vBBBB
-    DF_DA | DF_UB | DF_IS_MOVE,
+    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE,
 
     // 09 OP_MOVE_OBJECT_16 vAAAA, vBBBB
-    DF_DA | DF_UB | DF_IS_MOVE,
+    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE,
 
     // 0A OP_MOVE_RESULT vAA
     DF_DA,
@@ -116,31 +116,31 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA,
 
     // 1D OP_MONITOR_ENTER vAA
-    DF_UA,
+    DF_UA | DF_NULL_CHK_0,
 
     // 1E OP_MONITOR_EXIT vAA
-    DF_UA,
+    DF_UA | DF_NULL_CHK_0,
 
-    // 1F OP_CHECK_CAST vAA, type@BBBB
+    // 1F OP_CHK_CAST vAA, type@BBBB
     DF_UA,
 
     // 20 OP_INSTANCE_OF vA, vB, type@CCCC
     DF_DA | DF_UB,
 
     // 21 OP_ARRAY_LENGTH vA, vB
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // 22 OP_NEW_INSTANCE vAA, type@BBBB
-    DF_DA,
+    DF_DA | DF_NON_NULL_DST,
 
     // 23 OP_NEW_ARRAY vA, vB, type@CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NON_NULL_DST,
 
     // 24 OP_FILLED_NEW_ARRAY {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_NON_NULL_RET,
 
     // 25 OP_FILLED_NEW_ARRAY_RANGE {vCCCC .. vNNNN}, type@BBBB
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NON_NULL_RET,
 
     // 26 OP_FILL_ARRAY_DATA vAA, +BBBBBBBB
     DF_UA,
@@ -234,88 +234,88 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // 44 OP_AGET vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 45 OP_AGET_WIDE vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 46 OP_AGET_OBJECT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 47 OP_AGET_BOOLEAN vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 48 OP_AGET_BYTE vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 49 OP_AGET_CHAR vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 4A OP_AGET_SHORT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
 
     // 4B OP_APUT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 4C OP_APUT_WIDE vAA, vBB, vCC
-    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_2 | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 4D OP_APUT_OBJECT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 4E OP_APUT_BOOLEAN vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 4F OP_APUT_BYTE vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 50 OP_APUT_CHAR vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 51 OP_APUT_SHORT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_N_RANGE_CHECK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
 
     // 52 OP_IGET vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 53 OP_IGET_WIDE vA, vB, field@CCCC
-    DF_DA_WIDE | DF_UB | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 54 OP_IGET_OBJECT vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 55 OP_IGET_BOOLEAN vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 56 OP_IGET_BYTE vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 57 OP_IGET_CHAR vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 58 OP_IGET_SHORT vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 59 OP_IPUT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 5A OP_IPUT_WIDE vA, vB, field@CCCC
-    DF_UA_WIDE | DF_UB | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 5B OP_IPUT_OBJECT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 5C OP_IPUT_BOOLEAN vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 5D OP_IPUT_BYTE vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 5E OP_IPUT_CHAR vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 5F OP_IPUT_SHORT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 60 OP_SGET vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
@@ -360,13 +360,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_IS_SETTER,
 
     // 6E OP_INVOKE_VIRTUAL {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
     // 6F OP_INVOKE_SUPER {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
     // 70 OP_INVOKE_DIRECT {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
     // 71 OP_INVOKE_STATIC {vD, vE, vF, vG, vA}
     DF_FORMAT_35C,
@@ -378,13 +378,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // 74 OP_INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // 75 OP_INVOKE_SUPER_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // 76 OP_INVOKE_DIRECT_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // 77 OP_INVOKE_STATIC_RANGE {vCCCC .. vNNNN}
     DF_FORMAT_3RC,
@@ -711,10 +711,10 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA | DF_UB,
 
     // E3 OP_IGET_VOLATILE
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // E4 OP_IPUT_VOLATILE
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_NULL_CHK_1,
 
     // E5 OP_SGET_VOLATILE
     DF_DA,
@@ -723,13 +723,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA,
 
     // E7 OP_IGET_OBJECT_VOLATILE
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // E8 OP_IGET_WIDE_VOLATILE
-    DF_DA_WIDE | DF_UB,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0,
 
     // E9 OP_IPUT_WIDE_VOLATILE
-    DF_UA_WIDE | DF_UB,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1,
 
     // EA OP_SGET_WIDE_VOLATILE
     DF_DA_WIDE,
@@ -750,43 +750,43 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_FORMAT_3RC,
 
     // F0 OP_INVOKE_OBJECT_INIT_RANGE
-    DF_NOP,
+    DF_NOP | DF_NULL_CHK_0,
 
     // F1 OP_RETURN_VOID_BARRIER
     DF_NOP,
 
     // F2 OP_IGET_QUICK
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // F3 OP_IGET_WIDE_QUICK
-    DF_DA_WIDE | DF_UB | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // F4 OP_IGET_OBJECT_QUICK
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // F5 OP_IPUT_QUICK
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // F6 OP_IPUT_WIDE_QUICK
-    DF_UA_WIDE | DF_UB | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 |DF_IS_SETTER,
 
     // F7 OP_IPUT_OBJECT_QUICK
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // F8 OP_INVOKE_VIRTUAL_QUICK
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
     // F9 OP_INVOKE_VIRTUAL_QUICK_RANGE
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // FA OP_INVOKE_SUPER_QUICK
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
     // FB OP_INVOKE_SUPER_QUICK_RANGE
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // FC OP_IPUT_OBJECT_VOLATILE
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_NULL_CHK_1,
 
     // FD OP_SGET_OBJECT_VOLATILE
     DF_DA,
@@ -797,65 +797,67 @@ int oatDataFlowAttributes[kMirOpLast] = {
     // FF OP_DISPATCH_FF
     DF_NOP,
 
+    //TODO: remove jumbo opcodes
+
     // 100 OP_CONST_CLASS_JUMBO vAAAA, type@BBBBBBBB
     DF_DA,
 
-    // 101 OP_CHECK_CAST_JUMBO vAAAA, type@BBBBBBBB
+    // 101 OP_CHK_CAST_JUMBO vAAAA, type@BBBBBBBB
     DF_UA,
 
     // 102 OP_INSTANCE_OF_JUMBO vAAAA, vBBBB, type@CCCCCCCC
     DF_DA | DF_UB,
 
     // 103 OP_NEW_INSTANCE_JUMBO vAAAA, type@BBBBBBBB
-    DF_DA,
+    DF_DA | DF_NON_NULL_DST,
 
     // 104 OP_NEW_ARRAY_JUMBO vAAAA, vBBBB, type@CCCCCCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NON_NULL_DST,
 
     // 105 OP_FILLED_NEW_ARRAY_JUMBO {vCCCC .. vNNNN}, type@BBBBBBBB
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NON_NULL_RET,
 
     // 106 OP_IGET_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 107 OP_IGET_WIDE_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA_WIDE | DF_UB | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 108 OP_IGET_OBJECT_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 109 OP_IGET_BOOLEAN_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 10A OP_IGET_BYTE_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 10B OP_IGET_CHAR_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 10C OP_IGET_SHORT_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_DA | DF_UB | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
     // 10D OP_IPUT_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 10E OP_IPUT_WIDE_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA_WIDE | DF_UB | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 10F OP_IPUT_OBJECT_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 110 OP_IPUT_BOOLEAN_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 111 OP_IPUT_BYTE_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 112 OP_IPUT_CHAR_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 113 OP_IPUT_SHORT_JUMBO vAAAA, vBBBB, field@CCCCCCCC
-    DF_UA | DF_UB | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // 114 OP_SGET_JUMBO vAAAA, vBBBB, field@CCCCCCCC
     DF_DA | DF_IS_GETTER,
@@ -900,13 +902,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_IS_SETTER,
 
     // 122 OP_INVOKE_VIRTUAL_JUMBO {vCCCC .. vNNNN}, meth@BBBBBBBB
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // 123 OP_INVOKE_SUPER_JUMBO {vCCCC .. vNNNN}, meth@BBBBBBBB
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // 124 OP_INVOKE_DIRECT_JUMBO {vCCCC .. vNNNN}, meth@BBBBBBBB
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // 125 OP_INVOKE_STATIC_JUMBO {vCCCC .. vNNNN}, meth@BBBBBBBB
     DF_FORMAT_3RC,
@@ -1524,25 +1526,25 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // 1F2 OP_INVOKE_OBJECT_INIT_JUMBO
-    DF_NOP,
+    DF_NOP | DF_NULL_CHK_0,
 
     // 1F3 OP_IGET_VOLATILE_JUMBO
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // 1F4 OP_IGET_WIDE_VOLATILE_JUMBO
-    DF_DA_WIDE | DF_UB,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0,
 
     // 1F5 OP_IGET_OBJECT_VOLATILE_JUMBO
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // 1F6 OP_IPUT_VOLATILE_JUMBO
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_NULL_CHK_1,
 
     // 1F7 OP_IPUT_WIDE_VOLATILE_JUMBO
-    DF_UA_WIDE | DF_UB,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1,
 
     // 1F8 OP_IPUT_OBJECT_VOLATILE_JUMBO
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_NULL_CHK_1,
 
     // 1F9 OP_SGET_VOLATILE_JUMBO
     DF_DA,
@@ -1567,7 +1569,7 @@ int oatDataFlowAttributes[kMirOpLast] = {
 
     // Beginning of extended MIR opcodes
     // 200 OP_MIR_PHI
-    DF_PHI | DF_DA,
+    DF_PHI | DF_DA | DF_NULL_TRANSFER_N,
     /*
      * For extended MIR inserted at the MIR2LIR stage, it is okay to have
      * undefined values here.
@@ -2355,5 +2357,142 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
         }
         /* If isIterative is false, exit the loop after the first iteration */
         change &= isIterative;
+    }
+}
+
+static bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
+                                     struct BasicBlock* bb)
+{
+    if (bb->dataFlowInfo == NULL) return false;
+    bb->dataFlowInfo->endingNullCheckV =
+        oatAllocBitVector(cUnit->numSSARegs, false);
+    oatClearAllBits(bb->dataFlowInfo->endingNullCheckV);
+    return true;
+}
+
+/* Eliminate unnecessary null checks for a basic block. */
+static bool eliminateNullChecks( struct CompilationUnit* cUnit,
+                                 struct BasicBlock* bb)
+{
+    if (bb->dataFlowInfo == NULL) return false;
+    /*
+     * Set initial state.  Be conservative with catch
+     * blocks and start with no assumptions about null check
+     * status (except for "this").
+     */
+
+    if ((bb->blockType == kEntryBlock) | bb->catchEntry) {
+        oatClearAllBits(cUnit->tempSSARegisterV);
+        if (!cUnit->method->IsStatic()) {
+            // If non-static method, mark "this" as non-null
+            int thisReg = cUnit->method->NumRegisters() -
+                          cUnit->method->NumIns();
+            oatSetBit(cUnit->tempSSARegisterV, thisReg);
+        }
+    } else {
+        // Starting state is intesection of all incoming arcs
+        GrowableList* blockList = &cUnit->blockList;
+        ArenaBitVectorIterator bvIterator;
+        oatBitVectorIteratorInit(bb->predecessors, &bvIterator);
+        int predBBIdx = oatBitVectorIteratorNext(&bvIterator);
+        DCHECK(predBBIdx != -1);
+        BasicBlock* predBB = (BasicBlock*)oatGrowableListGetElement(
+            blockList, predBBIdx);
+        oatCopyBitVector(cUnit->tempSSARegisterV,
+                         predBB->dataFlowInfo->endingNullCheckV);
+        while (true) {
+            predBBIdx = oatBitVectorIteratorNext(&bvIterator);
+            if (predBBIdx == -1) break;
+            predBB = (BasicBlock*)oatGrowableListGetElement(
+                blockList, predBBIdx);
+            oatIntersectBitVectors(cUnit->tempSSARegisterV,
+                cUnit->tempSSARegisterV,
+                predBB->dataFlowInfo->endingNullCheckV);
+        }
+    }
+
+    // Walk through the instruction in the block, updating as necessary
+    for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
+        if (mir->ssaRep == NULL) {
+            continue;
+        }
+        int dfAttributes =
+            oatDataFlowAttributes[mir->dalvikInsn.opcode];
+
+        // Mark target of NEW* as non-null
+        if (dfAttributes & DF_NON_NULL_DST) {
+            oatSetBit(cUnit->tempSSARegisterV, mir->ssaRep->defs[0]);
+        }
+
+        // Mark non-null returns from invoke-style NEW*
+        if (dfAttributes & DF_NON_NULL_RET) {
+            MIR* nextMir = mir->next;
+            // Next should be an OP_MOVE_RESULT_OBJECT
+            if (nextMir && nextMir->dalvikInsn.opcode == OP_MOVE_RESULT_OBJECT) {
+                // Mark as null checked
+                oatSetBit(cUnit->tempSSARegisterV, nextMir->ssaRep->uses[0]);
+            } else {
+                if (nextMir) {
+                    LOG(WARNING) << "Unexpected opcode following new: " <<
+                    (int)nextMir->dalvikInsn.opcode;
+                } else {
+                    LOG(WARNING) << "Unexpected termination following new";
+                }
+            }
+        }
+
+        /*
+         * Propagate nullcheck state on register copies (including
+         * Phi pseudo copies.  For the latter, nullcheck state is
+         * the "and" of all the Phi's operands.
+         */
+        if (dfAttributes & (DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)) {
+            int tgtSreg = mir->ssaRep->defs[0];
+            int operands = (dfAttributes & DF_NULL_TRANSFER_0) ? 1 :
+                mir->ssaRep->numUses;
+            bool nullChecked = true;
+            for (int i = 0; i < operands; i++) {
+                nullChecked &= oatIsBitSet(cUnit->tempSSARegisterV,
+                    mir->ssaRep->uses[i]);
+            }
+            if (nullChecked) {
+                oatSetBit(cUnit->tempSSARegisterV, tgtSreg);
+            }
+        }
+
+        // Already nullchecked?
+        if (dfAttributes & DF_HAS_NULL_CHKS) {
+            int srcSreg = (dfAttributes & DF_NULL_CHK_1) ?
+                mir->ssaRep->uses[1] : mir->ssaRep->uses[0];
+            if (oatIsBitSet(cUnit->tempSSARegisterV, srcSreg)) {
+                // Eliminate the null check
+                mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
+            } else {
+                // Mark sReg as null-checked
+                oatSetBit(cUnit->tempSSARegisterV, srcSreg);
+            }
+        }
+    }
+
+    // Did anything change?
+    bool res = oatCompareBitVectors(bb->dataFlowInfo->endingNullCheckV,
+                                    cUnit->tempSSARegisterV);
+    if (res) {
+        oatCopyBitVector(bb->dataFlowInfo->endingNullCheckV,
+                         cUnit->tempSSARegisterV);
+    }
+    return res;
+}
+
+void oatMethodNullCheckElimination(CompilationUnit *cUnit)
+{
+    if (!(cUnit->disableOpt & (1 << kNullCheckElimination))) {
+        DCHECK(cUnit->tempSSARegisterV != NULL);
+        oatDataFlowAnalysisDispatcher(cUnit, nullCheckEliminationInit,
+                                      kAllNodes,
+                                      false /* isIterative */);
+        oatDataFlowAnalysisDispatcher(cUnit, eliminateNullChecks,
+                                      kPreOrderDFSTraversal,
+                                      true /* isIterative */);
     }
 }

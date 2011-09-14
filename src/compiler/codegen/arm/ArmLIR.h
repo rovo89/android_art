@@ -149,7 +149,6 @@ typedef struct RegisterInfo {
 } RegisterInfo;
 
 typedef struct RegisterPool {
-    ArenaBitVector *nullCheckedRegs; // Which registers have been null-checked?
     int numCoreRegs;
     RegisterInfo *coreRegs;
     int nextCoreReg;

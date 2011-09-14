@@ -1036,17 +1036,3 @@ extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
     assert(res.wide);
     return res;
 }
-
-/* Kill the corresponding bit in the null-checked register list */
-extern void oatKillNullCheckedLoc(CompilationUnit* cUnit,
-                                  RegLocation loc)
-{
-    if (loc.sRegLow == INVALID_SREG)
-        return;
-    oatClearBit(cUnit->regPool->nullCheckedRegs, loc.sRegLow);
-    if (loc.wide) {
-        assert(oatSRegHi(loc.sRegLow) != INVALID_SREG);
-        oatClearBit(cUnit->regPool->nullCheckedRegs,
-                    oatSRegHi(loc.sRegLow));
-    }
-}

@@ -70,19 +70,14 @@ static ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
     return branch;
 }
 
-/*
- * Perform null-check on a register. sReg is the ssa register being checked,
- * and mReg is the machine register holding the actual value. If internal state
- * indicates that sReg has been checked before the check request is ignored.
- */
+/* Perform null-check on a register.  */
 static ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
                              MIR* mir)
 {
-    if (oatIsBitSet(cUnit->regPool->nullCheckedRegs, sReg)) {
-        /* This particular Dalvik register has been null-checked */
+    if (!(cUnit->disableOpt & (1 << kNullCheckElimination)) &&
+        mir->optimizationFlags & MIR_IGNORE_NULL_CHECK) {
         return NULL;
     }
-    oatSetBit(cUnit->regPool->nullCheckedRegs, sReg);
     return genImmedCheck(cUnit, kArmCondEq, mReg, 0, mir, kArmThrowNullPointer);
 }
 

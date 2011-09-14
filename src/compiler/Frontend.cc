@@ -619,6 +619,7 @@ static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
             BasicBlock *catchBlock = findBlock(cUnit, iterator.Get().address_,
                                                false /* split*/,
                                                false /* creat */);
+            catchBlock->catchEntry = true;
             SuccessorBlockInfo *successorBlockInfo =
                   (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
                   false);
@@ -702,6 +703,7 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
          (1 << kLoadStoreElimination) |
          (1 << kLoadHoisting) |
          (1 << kSuppressLoads) |
+         (1 << kNullCheckElimination) |
          (1 << kPromoteRegs) |
          0;
 #endif
@@ -840,6 +842,9 @@ bool oatCompileMethod(Method* method, art::InstructionSet insnSet)
 
     /* Perform SSA transformation for the whole method */
     oatMethodSSATransformation(&cUnit);
+
+    /* Perform null check elimination */
+    oatMethodNullCheckElimination(&cUnit);
 
     oatInitializeRegAlloc(&cUnit);  // Needs to happen after SSA naming
 

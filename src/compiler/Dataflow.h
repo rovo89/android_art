@@ -35,9 +35,15 @@ typedef enum DataFlowAttributePos {
     kFormat35c,
     kFormat3rc,
     kPhi,
-    kNullNRangeCheck0,
-    kNullNRangeCheck1,
-    kNullNRangeCheck2,
+    kNullCheckSrc0,        // Null check of src[0]
+    kNullCheckSrc1,        // Null check of src[1]
+    kNullCheckOut0,        // Null check out outgoing arg0
+    kDstNonNull,           // May assume dst is non-null
+    kRetNonNull,           // May assume retval is non-null
+    kNullTransferSrc0,     // Object copy src[0] -> dst
+    kNullTransferSrcN,     // Phi null check state transfer
+    kRangeCheckSrc1,       // Range check of src[1]
+    kRangeCheckSrc2,       // Range check of src[2]
     kFPA,
     kFPB,
     kFPC,
@@ -60,9 +66,15 @@ typedef enum DataFlowAttributePos {
 #define DF_FORMAT_35C           (1 << kFormat35c)
 #define DF_FORMAT_3RC           (1 << kFormat3rc)
 #define DF_PHI                  (1 << kPhi)
-#define DF_NULL_N_RANGE_CHECK_0 (1 << kNullNRangeCheck0)
-#define DF_NULL_N_RANGE_CHECK_1 (1 << kNullNRangeCheck1)
-#define DF_NULL_N_RANGE_CHECK_2 (1 << kNullNRangeCheck2)
+#define DF_NULL_CHK_0           (1 << kNullCheckSrc0)
+#define DF_NULL_CHK_1           (1 << kNullCheckSrc1)
+#define DF_NULL_CHK_OUT0        (1 << kNullCheckOut0)
+#define DF_NON_NULL_DST         (1 << kDstNonNull)
+#define DF_NON_NULL_RET         (1 << kRetNonNull)
+#define DF_NULL_TRANSFER_0      (1 << kNullTransferSrc0)
+#define DF_NULL_TRANSFER_N      (1 << kNullTransferSrcN)
+#define DF_RANGE_CHK_1          (1 << kRangeCheckSrc1)
+#define DF_RANGE_CHK_2          (1 << kRangeCheckSrc2)
 #define DF_FP_A                 (1 << kFPA)
 #define DF_FP_B                 (1 << kFPB)
 #define DF_FP_C                 (1 << kFPC)
@@ -74,9 +86,13 @@ typedef enum DataFlowAttributePos {
 
 #define DF_HAS_DEFS             (DF_DA | DF_DA_WIDE)
 
-#define DF_HAS_NR_CHECKS        (DF_NULL_N_RANGE_CHECK_0 | \
-                                 DF_NULL_N_RANGE_CHECK_1 | \
-                                 DF_NULL_N_RANGE_CHECK_2)
+#define DF_HAS_NULL_CHKS        (DF_NULL_CHK_0 | \
+                                 DF_NULL_CHK_1 | \
+                                 DF_NULL_CHK_OUT0)
+
+#define DF_HAS_NR_CHKS          (DF_HAS_NULL_CHKS | \
+                                 DF_RANGE_CHK_1 | \
+                                 DF_RANGE_CHK_2)
 
 #define DF_A_IS_REG             (DF_UA | DF_UA_WIDE | DF_DA | DF_DA_WIDE)
 #define DF_B_IS_REG             (DF_UB | DF_UB_WIDE)
@@ -91,6 +107,7 @@ typedef struct BasicBlockDataFlow {
     ArenaBitVector* liveInV;
     ArenaBitVector* phiV;
     int* dalvikToSSAMap;
+    ArenaBitVector* endingNullCheckV;
 } BasicBlockDataFlow;
 
 typedef struct SSARepresentation {
@@ -124,5 +141,8 @@ typedef struct ArrayAccessInfo {
 #define ENCODE_REG_SUB(r,s)             ((s<<16) | r)
 #define DECODE_REG(v)                   (v & 0xffff)
 #define DECODE_SUB(v)                   (((unsigned int) v) >> 16)
+
+
+void oatMethodNullCheckElimination(CompilationUnit*);
 
 #endif  // ART_SRC_COMPILER_DATAFLOW_H_

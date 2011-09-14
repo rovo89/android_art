@@ -111,7 +111,7 @@ typedef struct MIR {
     struct MIR* prev;
     struct MIR* next;
     struct SSARepresentation* ssaRep;
-    int OptimizationFlags;
+    int optimizationFlags;
     int seqNum;
     union {
         // Used by the inlined insn from the callee to find the mother method
@@ -135,6 +135,7 @@ typedef struct BasicBlock {
     int id;
     bool visited;
     bool hidden;
+    bool catchEntry;
     unsigned int startOffset;
     const Method* containingMethod;     // For blocks from the callee
     BBType blockType;

@@ -450,7 +450,7 @@ static void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
     loadWordDisp(cUnit, r0, art::Field::OffsetOffset().Int32Value(), r0);
 }
 
-static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
+static void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
                      RegLocation rlDest, RegLocation rlObj)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -485,7 +485,7 @@ static void genIGetX(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 }
 
-static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
+static void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
                     RegLocation rlSrc, RegLocation rlObj, bool isObject)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -521,7 +521,7 @@ static void genIPutX(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 }
 
-static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+static void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlObj)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -564,7 +564,7 @@ static void genIGetWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     }
 }
 
-static void genIPutWideX(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
+static void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                         RegLocation rlObj)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -886,8 +886,6 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     for (int i = 0; i < numFPTemps; i++) {
         oatMarkTemp(cUnit, fpTemps[i]);
     }
-    pool->nullCheckedRegs =
-        oatAllocBitVector(cUnit->numSSARegs, false);
 }
 
 /*
@@ -1267,11 +1265,7 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectFixed(cUnit, rlSrc, r0);
 
     /* null array object? */
-    ArmLIR*  pcrLabel = NULL;
-
-    if (!(mir->OptimizationFlags & MIR_IGNORE_NULL_CHECK)) {
-        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, r1, mir);
-    }
+    genNullCheck(cUnit, rlArray.sRegLow, r1, mir);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pCanPutArrayElementFromCode), rLR);
     /* Get the array's clazz */
@@ -1295,7 +1289,7 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
         genRegCopy(cUnit, regPtr, rlArray.lowReg);
     }
 
-    if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
         int regLen = oatAllocTemp(cUnit);
         //NOTE: max live temps(4) here.
         /* Get len */
@@ -1331,15 +1325,11 @@ static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     int regPtr;
 
     /* null object? */
-    ArmLIR*  pcrLabel = NULL;
-
-    if (!(mir->OptimizationFlags & MIR_IGNORE_NULL_CHECK)) {
-        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
-    }
+    genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
 
     regPtr = oatAllocTemp(cUnit);
 
-    if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
         int regLen = oatAllocTemp(cUnit);
         /* Get len */
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
@@ -1405,13 +1395,9 @@ static void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 
     /* null object? */
-    ArmLIR*  pcrLabel = NULL;
+    genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
 
-    if (!(mir->OptimizationFlags & MIR_IGNORE_NULL_CHECK)) {
-        pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
-    }
-
-    if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
         int regLen = oatAllocTemp(cUnit);
         //NOTE: max live temps(4) here.
         /* Get len */

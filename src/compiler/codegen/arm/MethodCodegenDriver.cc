@@ -681,7 +681,7 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 4: // Get ...->super_class_->vtable [u/s r0]
             loadWordDisp(cUnit, r0, Class::VTableOffset().Int32Value(), r0);
-            if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+            if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
                 // Range check, throw NSM on failure
                 tReg = oatAllocTemp(cUnit);
                 loadWordDisp(cUnit, r0, art::Array::LengthOffset().Int32Value(),
@@ -1110,7 +1110,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case OP_MOVE_RESULT_WIDE:
-            if (mir->OptimizationFlags & MIR_INLINED)
+            if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
             /*
              * Somewhat hacky here.   Because we're now passing
@@ -1130,7 +1130,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
         case OP_MOVE_RESULT:
         case OP_MOVE_RESULT_OBJECT:
-            if (mir->OptimizationFlags & MIR_INLINED)
+            if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
             /* See comment for OP_MOVE_RESULT_WIDE */
             assert(retLoc.lowReg == r0);
@@ -1420,55 +1420,55 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
         case OP_IGET_WIDE:
         case OP_IGET_WIDE_VOLATILE:
-            genIGetWideX(cUnit, mir, rlDest, rlSrc[0]);
+            genIGetWide(cUnit, mir, rlDest, rlSrc[0]);
             break;
 
         case OP_IGET:
         case OP_IGET_VOLATILE:
         case OP_IGET_OBJECT:
         case OP_IGET_OBJECT_VOLATILE:
-            genIGetX(cUnit, mir, kWord, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kWord, rlDest, rlSrc[0]);
             break;
 
         case OP_IGET_BOOLEAN:
         case OP_IGET_BYTE:
-            genIGetX(cUnit, mir, kUnsignedByte, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kUnsignedByte, rlDest, rlSrc[0]);
             break;
 
         case OP_IGET_CHAR:
-            genIGetX(cUnit, mir, kUnsignedHalf, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kUnsignedHalf, rlDest, rlSrc[0]);
             break;
 
         case OP_IGET_SHORT:
-            genIGetX(cUnit, mir, kSignedHalf, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kSignedHalf, rlDest, rlSrc[0]);
             break;
 
         case OP_IPUT_WIDE:
         case OP_IPUT_WIDE_VOLATILE:
-            genIPutWideX(cUnit, mir, rlSrc[0], rlSrc[1]);
+            genIPutWide(cUnit, mir, rlSrc[0], rlSrc[1]);
             break;
 
         case OP_IPUT_OBJECT:
         case OP_IPUT_OBJECT_VOLATILE:
-            genIPutX(cUnit, mir, kWord, rlSrc[0], rlSrc[1], true);
+            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], true);
             break;
 
         case OP_IPUT:
         case OP_IPUT_VOLATILE:
-            genIPutX(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false);
             break;
 
         case OP_IPUT_BOOLEAN:
         case OP_IPUT_BYTE:
-            genIPutX(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], false);
             break;
 
         case OP_IPUT_CHAR:
-            genIPutX(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], false);
             break;
 
         case OP_IPUT_SHORT:
-            genIPutX(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false);
             break;
 
         case OP_SGET:
@@ -1805,7 +1805,6 @@ static bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
 
     oatClobberAllRegs(cUnit);
-    oatResetNullCheck(cUnit);
 
     ArmLIR* headLIR = NULL;
 

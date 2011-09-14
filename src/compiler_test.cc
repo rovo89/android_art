@@ -163,6 +163,16 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   }
 }
 
+TEST_F(CompilerTest, NullCheckElimination1) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  AssertStaticIntMethod(2054, LoadDex("ExceptionTest"), "ExceptionTest", "nullCheckTestNoThrow", "(I)I", 1976);
+}
+
+TEST_F(CompilerTest, DISABLED_NullCheckElimination2) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+  AssertStaticIntMethod(2057, LoadDex("ExceptionTest"), "ExceptionTest", "nullCheckTestThrow", "(I)I", 1976);
+}
+
 TEST_F(CompilerTest, ByBillion) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
   AssertStaticLongMethod(123, LoadDex("IntMath"), "IntMath", "divideLongByBillion", "(J)J", 123000000000LL);
