@@ -438,6 +438,11 @@ class DexFile {
     return GetTypeDescriptor(type_id);
   }
 
+  // Returns the prototype of a method id.
+  const char* GetMethodPrototype(const MethodId& method_id) const {
+    return dexStringById(method_id.proto_idx_);
+  }
+
   // Returns the name of a method id.
   const char* GetMethodName(const MethodId& method_id) const {
     return dexStringById(method_id.name_idx_);

@@ -34,6 +34,10 @@ namespace art {
 
 class DexVerifier {
  public:
+  /* Verify a class. Returns "true" on success. */
+  static bool VerifyClass(Class* klass);
+
+ private:
   /*
    * RegType holds information about the type of data held in a register.
    * For most types it's a simple enum. For reference types it holds a
@@ -537,10 +541,6 @@ class DexVerifier {
     return (uint32_t) (kRegTypeUninit | (uidx << kRegTypeUninitShift));
   }
 
-  /* Verify a class. Returns "true" on success. */
-  static bool VerifyClass(Class* klass);
-
- private:
   /*
    * Perform verification on a single method.
    *
@@ -1240,6 +1240,17 @@ class DexVerifier {
   static Class* FindCommonSuperclass(Class* c1, Class* c2);
 
   /*
+   * Resolves a class based on an index and performs access checks to ensure
+   * the referrer can access the resolved class.
+   *
+   * Exceptions caused by failures are cleared before returning.
+   *
+   * Sets "*failure" on failure.
+   */
+  static Class* ResolveClassAndCheckAccess(const DexFile* dex_file,
+      uint32_t class_idx, const Class* referrer, VerifyError* failure);
+
+  /*
    * Merge two RegType values.
    *
    * Sets "*changed" to "true" if the result doesn't match "type1".
@@ -1252,7 +1263,7 @@ class DexVerifier {
    *
    * The merge is a simple bitwise AND.
    *
-   * Sets "*pChanged" to "true" if the result doesn't match "ents1".
+   * Sets "*changed" to "true" if the result doesn't match "ents1".
    */
   static MonitorEntries MergeMonitorEntries(MonitorEntries ents1,
       MonitorEntries ents2, bool* changed);

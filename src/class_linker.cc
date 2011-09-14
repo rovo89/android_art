@@ -1168,8 +1168,29 @@ Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader
   return NULL;
 }
 
+void ClassLinker::VerifyClass(Class* klass) {
+  if (klass->IsVerified()) {
+    return;
+  }
+
+  CHECK_EQ(klass->GetStatus(), Class::kStatusResolved);
+
+  klass->SetStatus(Class::kStatusVerifying);
+  if (!DexVerifier::VerifyClass(klass)) {
+    LOG(ERROR) << "Verification failed on class "
+               << klass->GetDescriptor()->ToModifiedUtf8();
+    Object* exception = Thread::Current()->GetException();
+    klass->SetVerifyErrorClass(exception->GetClass());
+    klass->SetStatus(Class::kStatusError);
+    return;
+  }
+
+  klass->SetStatus(Class::kStatusVerified);
+}
+
 bool ClassLinker::InitializeClass(Class* klass) {
   CHECK(klass->GetStatus() == Class::kStatusResolved ||
+      klass->GetStatus() == Class::kStatusVerified ||
       klass->GetStatus() == Class::kStatusInitializing ||
       klass->GetStatus() == Class::kStatusError)
           << PrettyDescriptor(klass->GetDescriptor()) << " is " << klass->GetStatus();
@@ -1185,18 +1206,10 @@ bool ClassLinker::InitializeClass(Class* klass) {
         return false;
       }
 
-      CHECK(klass->GetStatus() == Class::kStatusResolved);
-
-      klass->SetStatus(Class::kStatusVerifying);
-      if (!DexVerifier::VerifyClass(klass)) {
-        LG << "Verification failed";  // TODO: ThrowVerifyError
-        Object* exception = self->GetException();
-        klass->SetVerifyErrorClass(exception->GetClass());
-        klass->SetStatus(Class::kStatusError);
+      VerifyClass(klass);
+      if (klass->GetStatus() != Class::kStatusVerified) {
         return false;
       }
-
-      klass->SetStatus(Class::kStatusVerified);
     }
 
     if (klass->GetStatus() == Class::kStatusInitialized) {

@@ -155,6 +155,8 @@ class ClassLinker {
 
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
 
+  void VerifyClass(Class* klass);
+
  private:
   ClassLinker(InternTable*);
 

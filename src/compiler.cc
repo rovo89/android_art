@@ -42,7 +42,7 @@ Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler
 
 void Compiler::CompileAll(const ClassLoader* class_loader) {
   Resolve(class_loader);
-  // TODO: add verification step
+  Verify(class_loader);
 
   // TODO: mark all verified classes initialized if they have no <clinit>
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -58,7 +58,7 @@ void Compiler::CompileAll(const ClassLoader* class_loader) {
 void Compiler::CompileOne(Method* method) {
   const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
   Resolve(class_loader);
-  // TODO: add verification step
+  Verify(class_loader);
   CompileMethod(method);
   SetCodeAndDirectMethods(class_loader);
 }
@@ -98,6 +98,26 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     if (field == NULL) {
       class_linker->ResolveField(dex_file, i, dex_cache, class_loader, true);
     }
+  }
+}
+
+void Compiler::Verify(const ClassLoader* class_loader) {
+  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    CHECK(dex_file != NULL);
+    VerifyDexFile(class_loader, *dex_file);
+  }
+}
+
+void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+    const char* descriptor = dex_file.GetClassDescriptor(class_def);
+    Class* klass = class_linker->FindClass(descriptor, class_loader);
+    CHECK(klass != NULL);
+    class_linker->VerifyClass(klass);
   }
 }
 

@@ -35,6 +35,9 @@ class Compiler {
   void Resolve(const ClassLoader* class_loader);
   void ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 
+  void Verify(const ClassLoader* class_loader);
+  void VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+
   void Compile(const ClassLoader* class_loader);
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(Class* klass);

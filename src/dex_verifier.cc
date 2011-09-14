@@ -104,16 +104,16 @@ bool DexVerifier::VerifyClass(Class* klass) {
   for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
     Method* method = klass->GetDirectMethod(i);
     if (!VerifyMethod(method)) {
-        LOG(ERROR) << "Verifier rejected class "
-                   << klass->GetDescriptor()->ToModifiedUtf8();
+      LOG(ERROR) << "Verifier rejected class "
+                 << klass->GetDescriptor()->ToModifiedUtf8();
       return false;
     }
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
     Method* method = klass->GetVirtualMethod(i);
     if (!VerifyMethod(method)) {
-        LOG(ERROR) << "Verifier rejected class "
-                   << klass->GetDescriptor()->ToModifiedUtf8();
+      LOG(ERROR) << "Verifier rejected class "
+                 << klass->GetDescriptor()->ToModifiedUtf8();
       return false;
     }
   }
@@ -1646,7 +1646,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       break;
     case Instruction::CONST_CLASS:
       /* make sure we can resolve the class; access check is important */
-      res_class = class_linker->ResolveType(*dex_file, dec_insn.vB_, klass);
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
         LOG(ERROR) << "VFY: unable to resolve const-class " << dec_insn.vB_
@@ -1697,7 +1697,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
        * If it fails, an exception is thrown, which we deal with later
        * by ignoring the update to dec_insn.vA_ when branching to a handler.
        */
-      res_class = class_linker->ResolveType(*dex_file, dec_insn.vB_, klass);
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
         LOG(ERROR) << "VFY: unable to resolve check-cast " << dec_insn.vB_
@@ -1726,7 +1726,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       }
 
       /* make sure we can resolve the class; access check is important */
-      res_class = class_linker->ResolveType(*dex_file, dec_insn.vC_, klass);
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vC_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vC_);
         LOG(ERROR) << "VFY: unable to resolve instanceof " << dec_insn.vC_
@@ -1752,7 +1752,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       break;
 
     case Instruction::NEW_INSTANCE:
-      res_class = class_linker->ResolveType(*dex_file, dec_insn.vB_, klass);
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
         LOG(ERROR) << "VFY: unable to resolve new-instance " << dec_insn.vB_
@@ -1787,7 +1787,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       }
       break;
    case Instruction::NEW_ARRAY:
-      res_class = class_linker->ResolveType(*dex_file, dec_insn.vC_, klass);
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vC_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vC_);
         LOG(ERROR) << "VFY: unable to resolve new-array " << dec_insn.vC_
@@ -1806,7 +1806,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       break;
     case Instruction::FILLED_NEW_ARRAY:
     case Instruction::FILLED_NEW_ARRAY_RANGE:
-      res_class = class_linker->ResolveType(*dex_file, dec_insn.vB_, klass);
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
         LOG(ERROR) << "VFY: unable to resolve filled-array " << dec_insn.vB_
@@ -3396,13 +3396,18 @@ sput_1nr_common:
     }
 
   if (failure != VERIFY_ERROR_NONE) {
-    //if (failure == VERIFY_ERROR_GENERIC || gDvm.optimizing)
     if (failure == VERIFY_ERROR_GENERIC) {
       /* immediate failure, reject class */
       LOG(ERROR) << "VFY:  rejecting opcode 0x" << std::hex
                  << (int) dec_insn.opcode_ << " at 0x" << insn_idx << std::dec;
       return false;
     } else {
+      // TODO: CHECK IF THIS WILL WORK!
+      /* ignore the failure and move on */
+      LOG(ERROR) << "VFY: failing opcode 0x" << std::hex
+                 << (int) dec_insn.opcode_ << " at 0x" << insn_idx << std::dec;
+      failure = VERIFY_ERROR_NONE;
+#if 0
       /* replace opcode and continue on */
       LOG(ERROR) << "VFY: replacing opcode 0x" << std::hex
                  << (int) dec_insn.opcode_ << " at 0x" << insn_idx << std::dec;
@@ -3419,6 +3424,7 @@ sput_1nr_common:
       /* continue on as if we just handled a throw-verification-error */
       failure = VERIFY_ERROR_NONE;
       opcode_flag = Instruction::kThrow;
+#endif
     }
   }
 
@@ -3717,6 +3723,7 @@ bool DexVerifier::ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
   // TODO: REPLACE FAILING OPCODES
   //assert(width == 2 || width == 3);
   //uint16_t new_val = Instruction::THROW_VERIFICATION_ERROR |
+  //uint16_t new_val = Instruction::UNUSED_ED |
       //(failure << 8) | (ref_type << (8 + kVerifyErrorRefTypeShift));
   //UpdateCodeUnit(method, insns, new_val);
 
@@ -3921,8 +3928,8 @@ Class* DexVerifier::GetCaughtExceptionType(VerifierData* vdata, int insn_idx,
         if (handler.type_idx_ == DexFile::kDexNoIndex) {
           klass = class_linker->FindSystemClass("Ljava/lang/Throwable;");
         } else {
-          klass = class_linker->ResolveType(*dex_file, handler.type_idx_,
-              method->GetDeclaringClass());
+          klass = ResolveClassAndCheckAccess(dex_file, handler.type_idx_,
+              method->GetDeclaringClass(), failure);
         }
 
         if (klass == NULL) {
@@ -4418,13 +4425,33 @@ Class* DexVerifier::FindCommonSuperclass(Class* c1, Class* c2) {
   return DigForSuperclass(c1, c2);
 }
 
+Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
+      uint32_t class_idx, const Class* referrer, VerifyError* failure) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* res_class = class_linker->ResolveType(*dex_file, class_idx, referrer);
+
+  if (res_class == NULL) {
+    *failure = VERIFY_ERROR_NO_CLASS;
+    return NULL;
+  }
+
+  /* Check if access is allowed. */
+  if (!referrer->CanAccess(res_class)) {
+    LOG(ERROR) << "VFY: illegal class access: "
+               << referrer->GetDescriptor()->ToModifiedUtf8() << " -> "
+               << res_class->GetDescriptor()->ToModifiedUtf8();
+    *failure = VERIFY_ERROR_ACCESS_CLASS;
+    return NULL;
+  }
+
+  return res_class;
+}
+
 DexVerifier::RegType DexVerifier::MergeTypes(RegType type1, RegType type2,
     bool* changed) {
   RegType result;
 
-  /*
-   * Check for trivial case so we don't have to hit memory.
-   */
+  /* Check for trivial case so we don't have to hit memory. */
   if (type1 == type2)
     return type1;
 
@@ -4973,17 +5000,17 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   res_method = class_linker->ResolveMethod(*dex_file, dec_insn->vB_, dex_cache,
       class_loader, (method_type == METHOD_DIRECT || method_type == METHOD_STATIC));
 
-  /* Scan all implemented interfaces for the method */
-  if (method_type == METHOD_INTERFACE && res_method == NULL) {
-
-  }
-
   if (res_method == NULL) {
-    LOG(ERROR) << "VFY: unable to resolve called method";
+    const DexFile::MethodId& method_id = dex_file->GetMethodId(dec_insn->vB_);
+    const char* method_name = dex_file->GetMethodName(method_id);
+    const char* method_proto = dex_file->GetMethodPrototype(method_id);
+    const char* class_descriptor = dex_file->GetMethodClassDescriptor(method_id);
+
+    LOG(ERROR) << "VFY: unable to resolve method " << dec_insn->vB_ << ": "
+               << class_descriptor << "." << method_name << " " << method_proto;
     *failure = VERIFY_ERROR_NO_METHOD;
     return NULL;
   }
-  Class* res_class = res_method->GetDeclaringClass();
 
   /*
    * Only time you can explicitly call a method starting with '<' is when
@@ -4993,7 +5020,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   if (res_method->GetName()->Equals("<init>")) {
     if (method_type != METHOD_DIRECT || !IsInitMethod(res_method)) {
       LOG(ERROR) << "VFY: invalid call to "
-                 << res_class->GetDescriptor()->ToModifiedUtf8()
+                 << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
                  << "." << res_method->GetName();
       goto bad_sig;
     }
@@ -5005,7 +5032,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
    */
   if (!IsCorrectInvokeKind(method_type, res_method)) {
     LOG(ERROR) << "VFY: invoke type does not match method type of "
-               << res_class->GetDescriptor()->ToModifiedUtf8()
+               << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
                << "." << res_method->GetName()->ToModifiedUtf8();
 
     *failure = VERIFY_ERROR_GENERIC;
