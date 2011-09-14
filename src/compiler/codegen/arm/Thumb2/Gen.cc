@@ -393,7 +393,7 @@ static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
  */
 static void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-#if 0
+#ifdef CONCURRENT_GARBAGE_COLLECTOR
     // TODO: re-enable when concurrent collector is active
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);

@@ -140,7 +140,10 @@ class Heap {
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
   static void WriteBarrier(const Object* object) {
-    // TODO: re-enable card marking when concurrent collector is active.
+#ifdef CONCURRENT_GARBAGE_COLLECTOR
+    // TODO: we need card marking for a concurrent collector.
+    UNIMPLEMENTED(FATAL);
+#endif
   }
 
  private:

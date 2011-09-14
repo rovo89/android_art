@@ -111,8 +111,7 @@ template Class* Decode<Class*>(JNIEnv*, jobject);
 template ClassLoader* Decode<ClassLoader*>(JNIEnv*, jobject);
 template Object* Decode<Object*>(JNIEnv*, jobject);
 template String* Decode<String*>(JNIEnv*, jobject);
-template ObjectArray<StackTraceElement>*
-    Decode<ObjectArray<StackTraceElement>*>(JNIEnv*, jobject);
+template ObjectArray<StackTraceElement>* Decode<ObjectArray<StackTraceElement>*>(JNIEnv*, jobject);
 
 namespace {
 
@@ -131,14 +130,6 @@ jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
 template<typename T>
 T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
-}
-
-Field* DecodeField(ScopedJniThreadState& ts, jfieldID fid) {
-  return Decode<Field*>(ts, reinterpret_cast<jweak>(fid));
-}
-
-Method* DecodeMethod(ScopedJniThreadState& ts, jmethodID mid) {
-  return Decode<Method*>(ts, reinterpret_cast<jweak>(mid));
 }
 
 byte* CreateArgArray(ScopedJniThreadState& ts, Method* method, va_list ap) {
@@ -222,18 +213,16 @@ JValue InvokeWithArgArray(ScopedJniThreadState& ts, Object* receiver,
   return result;
 }
 
-JValue InvokeWithJValues(ScopedJniThreadState& ts, jobject obj,
-                         jmethodID mid, jvalue* args) {
+JValue InvokeWithJValues(ScopedJniThreadState& ts, jobject obj, jmethodID mid, jvalue* args) {
   Object* receiver = Decode<Object*>(ts, obj);
-  Method* method = DecodeMethod(ts, mid);
+  Method* method = DecodeMethod(mid);
   UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 
-JValue InvokeWithVarArgs(ScopedJniThreadState& ts, jobject obj,
-                         jmethodID mid, va_list args) {
+JValue InvokeWithVarArgs(ScopedJniThreadState& ts, jobject obj, jmethodID mid, va_list args) {
   Object* receiver = Decode<Object*>(ts, obj);
-  Method* method = DecodeMethod(ts, mid);
+  Method* method = DecodeMethod(mid);
   UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
@@ -244,14 +233,14 @@ Method* FindVirtualMethod(Object* receiver, Method* method) {
 
 JValue InvokeVirtualOrInterfaceWithJValues(ScopedJniThreadState& ts, jobject obj, jmethodID mid, jvalue* args) {
   Object* receiver = Decode<Object*>(ts, obj);
-  Method* method = FindVirtualMethod(receiver, DecodeMethod(ts, mid));
+  Method* method = FindVirtualMethod(receiver, DecodeMethod(mid));
   UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
 
 JValue InvokeVirtualOrInterfaceWithVarArgs(ScopedJniThreadState& ts, jobject obj, jmethodID mid, va_list args) {
   Object* receiver = Decode<Object*>(ts, obj);
-  Method* method = FindVirtualMethod(receiver, DecodeMethod(ts, mid));
+  Method* method = FindVirtualMethod(receiver, DecodeMethod(mid));
   UniquePtr<byte[]> arg_array(CreateArgArray(ts, method, args));
   return InvokeWithArgArray(ts, receiver, method, arg_array.get());
 }
@@ -309,7 +298,7 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
     return NULL;
   }
 
-  return reinterpret_cast<jmethodID>(AddWeakGlobalReference(ts, method));
+  return reinterpret_cast<jmethodID>(method);
 }
 
 jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
@@ -353,8 +342,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   // Check invariant that all jfieldIDs have resolved types (how else would
   // the type equality in Find...Field hold?)
   DCHECK(field->GetType() != NULL);
-  jweak fid = AddWeakGlobalReference(ts, field);
-  return reinterpret_cast<jfieldID>(fid);
+  return reinterpret_cast<jfieldID>(field);
 }
 
 void PinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
@@ -654,24 +642,24 @@ class JNI {
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject java_method) {
     ScopedJniThreadState ts(env);
     Method* method = Decode<Method*>(ts, java_method);
-    return reinterpret_cast<jmethodID>(AddWeakGlobalReference(ts, method));
+    return reinterpret_cast<jmethodID>(method);
   }
 
   static jfieldID FromReflectedField(JNIEnv* env, jobject java_field) {
     ScopedJniThreadState ts(env);
     Field* field = Decode<Field*>(ts, java_field);
-    return reinterpret_cast<jfieldID>(AddWeakGlobalReference(ts, field));
+    return reinterpret_cast<jfieldID>(field);
   }
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
     ScopedJniThreadState ts(env);
-    Method* method = DecodeMethod(ts, mid);
+    Method* method = DecodeMethod(mid);
     return AddLocalReference<jobject>(env, method);
   }
 
   static jobject ToReflectedField(JNIEnv* env, jclass, jfieldID fid, jboolean) {
     ScopedJniThreadState ts(env);
-    Field* field = DecodeField(ts, fid);
+    Field* field = DecodeField(fid);
     return AddLocalReference<jobject>(env, field);
   }
 
@@ -1376,15 +1364,13 @@ class JNI {
     InvokeWithJValues(ts, obj, mid, args);
   }
 
-  static jfieldID GetFieldID(JNIEnv* env,
-      jclass c, const char* name, const char* sig) {
+  static jfieldID GetFieldID(JNIEnv* env, jclass c, const char* name, const char* sig) {
     ScopedJniThreadState ts(env);
     return FindFieldID(ts, c, name, sig, false);
   }
 
 
-  static jfieldID GetStaticFieldID(JNIEnv* env,
-      jclass c, const char* name, const char* sig) {
+  static jfieldID GetStaticFieldID(JNIEnv* env, jclass c, const char* name, const char* sig) {
     ScopedJniThreadState ts(env);
     return FindFieldID(ts, c, name, sig, true);
   }
@@ -1392,13 +1378,13 @@ class JNI {
   static jobject GetObjectField(JNIEnv* env, jobject obj, jfieldID fid) {
     ScopedJniThreadState ts(env);
     Object* o = Decode<Object*>(ts, obj);
-    Field* f = DecodeField(ts, fid);
+    Field* f = DecodeField(fid);
     return AddLocalReference<jobject>(env, f->GetObject(o));
   }
 
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
     ScopedJniThreadState ts(env);
-    Field* f = DecodeField(ts, fid);
+    Field* f = DecodeField(fid);
     return AddLocalReference<jobject>(env, f->GetObject(NULL));
   }
 
@@ -1406,27 +1392,27 @@ class JNI {
     ScopedJniThreadState ts(env);
     Object* o = Decode<Object*>(ts, java_object);
     Object* v = Decode<Object*>(ts, java_value);
-    Field* f = DecodeField(ts, fid);
+    Field* f = DecodeField(fid);
     f->SetObject(o, v);
   }
 
   static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
     ScopedJniThreadState ts(env);
     Object* v = Decode<Object*>(ts, java_value);
-    Field* f = DecodeField(ts, fid);
+    Field* f = DecodeField(fid);
     f->SetObject(NULL, v);
   }
 
 #define GET_PRIMITIVE_FIELD(fn, instance) \
   ScopedJniThreadState ts(env); \
   Object* o = Decode<Object*>(ts, instance); \
-  Field* f = DecodeField(ts, fid); \
+  Field* f = DecodeField(fid); \
   return f->fn(o)
 
 #define SET_PRIMITIVE_FIELD(fn, instance, value) \
   ScopedJniThreadState ts(env); \
   Object* o = Decode<Object*>(ts, instance); \
-  Field* f = DecodeField(ts, fid); \
+  Field* f = DecodeField(fid); \
   f->fn(o, value)
 
   static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {

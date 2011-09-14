@@ -119,6 +119,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/stringprintf.cc \
 	src/stub_arm.cc \
 	src/stub_x86.cc \
+	src/sun_misc_Unsafe.cc \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/utf.cc \
