@@ -21,7 +21,7 @@ class CompilerTest : public CommonTest {
   void AssertStaticIntMethod(jint expected, const ClassLoader* class_loader,
                              const char* class_name, const char* method, const char* signature,
                              ...) {
-    EnsureCompiled(class_loader, class_name, method, signature);
+    EnsureCompiled(class_loader, class_name, method, signature, false);
 #if defined(__arm__)
     va_list args;
     va_start(args, signature);
@@ -35,7 +35,7 @@ class CompilerTest : public CommonTest {
   void AssertStaticLongMethod(jlong expected, const ClassLoader* class_loader,
                               const char* class_name, const char* method, const char* signature,
                               ...) {
-    EnsureCompiled(class_loader, class_name, method, signature);
+    EnsureCompiled(class_loader, class_name, method, signature, false);
 #if defined(__arm__)
     va_list args;
     va_start(args, signature);
@@ -52,12 +52,16 @@ class CompilerTest : public CommonTest {
   }
 
   void EnsureCompiled(const ClassLoader* class_loader,
-      const char* class_name, const char* method, const char* signature) {
+      const char* class_name, const char* method, const char* signature, bool is_virtual) {
     CompileAll(class_loader);
     env_ = Thread::Current()->GetJniEnv();
     class_ = env_->FindClass(class_name);
     CHECK(class_ != NULL) << "Class not found: " << class_name;
-    mid_ = env_->GetStaticMethodID(class_, method, signature);
+    if (is_virtual) {
+      mid_ = env_->GetMethodID(class_, method, signature);
+    } else {
+      mid_ = env_->GetStaticMethodID(class_, method, signature);
+    }
     CHECK(mid_ != NULL) << "Method not found: " << class_name << "." << method << signature;
   }
 
@@ -166,6 +170,22 @@ TEST_F(CompilerTest, ByBillion) {
 
 TEST_F(CompilerTest, BasicCodegen) {
   AssertStaticIntMethod(55, LoadDex("Fibonacci"), "Fibonacci", "fibonacci", "(I)I", 10);
+}
+
+TEST_F(CompilerTest, DISABLED_AbstractMethodErrorStub) {
+  const ClassLoader* class_loader = LoadDex("AbstractMethod");
+  EnsureCompiled(class_loader, "AbstractMethod", "callme", "()V", true);
+
+  // Create a jobj_ of class "B", NOT class "AbstractMethod".
+  jclass b_class = env_->FindClass("B");
+  jmethodID constructor = env_->GetMethodID(b_class, "<init>", "()V");
+  jobject jobj_ = env_->NewObject(b_class, constructor);
+  ASSERT_TRUE(jobj_ != NULL);
+
+#if defined(__arm__)
+  // Will throw AbstractMethodError exception.
+  env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);
+#endif  // __arm__
 }
 
 // TODO: need stub for InstanceofNonTrivialFromCode

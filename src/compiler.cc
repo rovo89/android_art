@@ -17,6 +17,7 @@ namespace art {
 typedef void (*ThrowAme)(Method*, Thread*);
 
 void ThrowAbstractMethodError(Method* method, Thread* thread) {
+  LOG(FATAL) << "Unimplemented Exception Handling. Remove this when ThrowException works.";
   thread->ThrowNewException("Ljava/lang/AbstractMethodError",
                             "abstract method \"%s\"",
                             PrettyMethod(method).c_str());

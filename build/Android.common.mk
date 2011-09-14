@@ -178,6 +178,7 @@ TEST_HOST_SRC_FILES := \
 
 # subdirectories of test/
 TEST_DEX_DIRECTORIES := \
+	AbstractMethod \
 	AllFields \
 	CreateMethodDescriptor \
 	Fibonacci \
