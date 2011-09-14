@@ -212,7 +212,7 @@ class PACKED Thread {
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
   void (*pUnlockObjectFromCode)(Thread*, Object*);
   void (*pLockObjectFromCode)(Thread*, Object*);
-  void (*pThrowException)(void*);
+  void (*pDeliverException)(void*);
   void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
@@ -385,6 +385,9 @@ class PACKED Thread {
   // Is the given obj in this thread's stack indirect reference table?
   bool SirtContains(jobject obj);
 
+  // Pop the top SIRT
+  void PopSirt();
+
   // Convert a jobject into a Object*
   Object* DecodeJObject(jobject obj);
 
@@ -414,10 +417,6 @@ class PACKED Thread {
   void Notify() {
     MutexLock mu(*wait_mutex_);
     NotifyLocked();
-  }
-
-  void RegisterExceptionEntryPoint(void (*handler)(Method**)) {
-    exception_entry_point_ = handler;
   }
 
   void RegisterSuspendCountEntryPoint(void (*handler)(Method**)) {
@@ -507,10 +506,6 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
 
-  static ThreadOffset ExceptionEntryPointOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_entry_point_));
-  }
-
   static ThreadOffset SuspendCountEntryPointOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_entry_point_));
   }
@@ -543,7 +538,7 @@ class PACKED Thread {
 
   void WalkStack(StackVisitor* visitor) const;
 
-  void WalkStackUntilUpCall(StackVisitor* visitor) const;
+  void WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) const;
 
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned
@@ -623,9 +618,6 @@ class PACKED Thread {
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
-
-  // Entry point called when exception_ is set
-  void (*exception_entry_point_)(Method** frame);
 
   // Entry point called when suspend_count_ is non-zero
   void (*suspend_count_entry_point_)(Method** frame);

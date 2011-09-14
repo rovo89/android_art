@@ -35,19 +35,18 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual ManagedRegister ReturnRegister();
   virtual ManagedRegister InterproceduralScratchRegister();
   // JNI calling convention
+  virtual void Next();  // Override default behavior for AAPCS
   virtual size_t FrameSize();
   virtual size_t ReturnPcOffset();
   virtual size_t OutArgSize();
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
     return callee_save_regs_;
   }
-  virtual uint32_t CoreSpillMask() const {
-    return 0x0FF0;  // R4 to R12
-  }
+  virtual uint32_t CoreSpillMask() const;
   virtual uint32_t FpSpillMask() const {
-    return 0;
+    return 0;  // Floats aren't spilled in JNI down call
   }
-  virtual bool IsOutArgRegister(ManagedRegister reg);
+  virtual bool IsMethodRegisterCrushedPreCall();
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();
@@ -59,6 +58,9 @@ class ArmJniCallingConvention : public JniCallingConvention {
  private:
   // TODO: these values aren't unique and can be shared amongst instances
   std::vector<ManagedRegister> callee_save_regs_;
+
+  // Padding to ensure longs and doubles are not split in AAPCS
+  size_t padding_;
 
   DISALLOW_COPY_AND_ASSIGN(ArmJniCallingConvention);
 };

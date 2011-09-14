@@ -15,4 +15,5 @@ class MyClass {
     static native double fooSDD(double x, double y);
     static synchronized native Object fooSSIOO(int x, Object y, Object z);
     static native void arraycopy(Object src, int src_pos, Object dst, int dst_pos, int length);
+    native boolean compareAndSwapInt(Object obj, long offset, int expected, int newval);
 }

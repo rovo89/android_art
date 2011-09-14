@@ -8,9 +8,11 @@ namespace art {
 namespace arm {
 
 ArmContext::ArmContext() {
+#ifndef NDEBUG
   for (int i=0; i < 16; i++) {
-    gprs_[i] = 0xEBAD6070;
+    gprs_[i] = 0xEBAD6070+i;
   }
+#endif
   memset(fprs_, 0, sizeof(fprs_));
 }
 

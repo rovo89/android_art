@@ -1658,8 +1658,10 @@ void X86Assembler::Call(ManagedRegister mbase, Offset offset, ManagedRegister) {
   // TODO: place reference map on call
 }
 
-void X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister) {
-  UNIMPLEMENTED(FATAL);
+void X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscratch) {
+  Register scratch = mscratch.AsX86().AsCpuRegister();
+  movl(scratch, Address(ESP, base));
+  call(Address(scratch, offset));
 }
 
 void X86Assembler::Call(ThreadOffset offset, ManagedRegister mscratch) {
@@ -1713,7 +1715,6 @@ void X86Assembler::ExceptionPoll(ManagedRegister scratch) {
   buffer_.EnqueueSlowPath(slow);
   fs()->cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));
   j(kNotEqual, slow->Entry());
-  Bind(slow->Continuation());
 }
 
 void X86ExceptionSlowPath::Emit(Assembler *sasm) {
@@ -1721,14 +1722,11 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
 #define __ sp_asm->
   __ Bind(&entry_);
   // NB the return value is dead
-  // Pass top of stack as argument
-  __ pushl(ESP);
-  __ fs()->call(Address::Absolute(Thread::ExceptionEntryPointOffset()));
-  // TODO: this call should never return as it should make a long jump to
-  // the appropriate catch block
-  // Release argument
-  __ addl(ESP, Immediate(kPointerSize));
-  __ jmp(&continuation_);
+  // Pass exception as argument in EAX
+  __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset()));
+  __ fs()->call(Address::Absolute(OFFSETOF_MEMBER(Thread, pDeliverException)));
+  // this call should never return
+  __ int3();
 #undef __
 }
 

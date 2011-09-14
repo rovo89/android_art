@@ -273,7 +273,7 @@ void JniCompiler::Compile(Method* native_method) {
   }
 
   // 9. Plant call to native code associated with method
-  if (!jni_conv->IsOutArgRegister(mr_conv->MethodRegister())) {
+  if (!jni_conv->IsMethodRegisterCrushedPreCall()) {
     // Method register shouldn't have been crushed by setting up outgoing
     // arguments
     __ Call(mr_conv->MethodRegister(), Method::NativeMethodOffset(),

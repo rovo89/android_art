@@ -1810,28 +1810,27 @@ void ArmSuspendCountSlowPath::Emit(Assembler* sasm) {
 
 void ArmAssembler::ExceptionPoll(ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  ArmExceptionSlowPath* slow = new ArmExceptionSlowPath();
+  ArmExceptionSlowPath* slow = new ArmExceptionSlowPath(scratch);
   buffer_.EnqueueSlowPath(slow);
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, Thread::ExceptionOffset().Int32Value());
   cmp(scratch.AsCoreRegister(), ShifterOperand(0));
   b(slow->Entry(), NE);
-  Bind(slow->Continuation());
 }
 
 void ArmExceptionSlowPath::Emit(Assembler* sasm) {
   ArmAssembler* sp_asm = down_cast<ArmAssembler*>(sasm);
 #define __ sp_asm->
   __ Bind(&entry_);
-  // Pass top of stack as argument
-  __ mov(R0, ShifterOperand(SP));
-  __ LoadFromOffset(kLoadWord, R12, TR,
-                         Thread::ExceptionEntryPointOffset().Int32Value());
-  // Note: assume that link register will be spilled/filled on method entry/exit
+
+  // Pass exception object as argument
+  // Don't care about preserving R0 as this call won't return
+  __ mov(R0, ShifterOperand(scratch_.AsCoreRegister()));
+  // Set up call to Thread::Current()->pDeliverException
+  __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pDeliverException));
   __ blx(R12);
-  // TODO: this call should never return as it should make a long jump to
-  // the appropriate catch block
-  __ b(&continuation_);
+  // Call never returns
+  __ bkpt(0);
 #undef __
 }
 

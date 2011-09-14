@@ -9,7 +9,7 @@
   extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
   extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
   extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
-  extern "C" void art_throw_exception(void*);
+  extern "C" void art_deliver_exception(void*);
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT
@@ -43,6 +43,10 @@
 extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
 extern "C" long long __aeabi_lmul(long long op1, long long op2);
 
+#endif
+
+#if defined(__i386__)
+extern "C" void art_deliver_exception(void*);
 #endif
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

@@ -139,13 +139,13 @@ class JniCallingConvention : public CallingConvention {
   virtual uint32_t CoreSpillMask() const = 0;
   virtual uint32_t FpSpillMask() const = 0;
 
-  // Returns true if the register will be clobbered by an outgoing
-  // argument value.
-  virtual bool IsOutArgRegister(ManagedRegister reg) = 0;
+  // Returns true if the method register will have been clobbered during argument
+  // set up
+  virtual bool IsMethodRegisterCrushedPreCall() = 0;
 
   // Iterator interface
   bool HasNext();
-  void Next();
+  virtual void Next();
   bool IsCurrentParamAReference();
   size_t CurrentParamSize();
   virtual bool IsCurrentParamInRegister() = 0;

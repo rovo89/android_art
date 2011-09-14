@@ -5,19 +5,21 @@
 
 #include "context.h"
 
+#include "constants_x86.h"
+
 namespace art {
 namespace x86 {
 
 class X86Context : public Context {
  public:
-  X86Context() : esp_(0), eip_(0) {}
+  X86Context();
   virtual ~X86Context() {}
 
   // No callee saves on X86
-  virtual void FillCalleeSaves(const Frame& fr) {}
+  virtual void FillCalleeSaves(const Frame& fr);
 
   virtual void SetSP(uintptr_t new_sp) {
-    esp_ = new_sp;
+    gprs_[ESP] = new_sp;
   }
 
   virtual void SetPC(uintptr_t new_pc) {
@@ -27,8 +29,7 @@ class X86Context : public Context {
   virtual void DoLongJump();
 
  private:
-  // Currently just ESP and EIP are used
-  uintptr_t esp_;
+  uintptr_t gprs_[8];
   uintptr_t eip_;
 };
 }  // namespace x86

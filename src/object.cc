@@ -488,8 +488,8 @@ bool Method::HasSameNameAndDescriptor(const Method* that) const {
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
   IntArray* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
-    DCHECK(pc == 0);
-    return DexFile::kDexNoIndex;   // Special no mapping/pc == -1 case
+    DCHECK(IsNative());
+    return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = mapping_table->GetLength();
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetCode());

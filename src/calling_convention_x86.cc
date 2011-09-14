@@ -41,7 +41,7 @@ ManagedRegister X86JniCallingConvention::ReturnRegister() {
 // Managed runtime calling convention
 
 ManagedRegister X86ManagedRuntimeCallingConvention::MethodRegister() {
-  return X86ManagedRegister::FromCpuRegister(EDI);
+  return X86ManagedRegister::FromCpuRegister(EAX);
 }
 
 bool X86ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
@@ -86,8 +86,8 @@ size_t X86JniCallingConvention::ReturnPcOffset() {
   return FrameSize() - kPointerSize;
 }
 
-bool X86JniCallingConvention::IsOutArgRegister(ManagedRegister) {
-  return false;  // Everything is passed by stack
+bool X86JniCallingConvention::IsMethodRegisterCrushedPreCall() {
+  return GetMethod()->IsSynchronized();  // Monitor enter crushes the method register
 }
 
 bool X86JniCallingConvention::IsCurrentParamInRegister() {

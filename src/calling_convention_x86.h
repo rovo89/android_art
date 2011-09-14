@@ -49,7 +49,7 @@ class X86JniCallingConvention : public JniCallingConvention {
   virtual uint32_t FpSpillMask() const {
     return 0;
   }
-  virtual bool IsOutArgRegister(ManagedRegister reg);
+  virtual bool IsMethodRegisterCrushedPreCall();
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();

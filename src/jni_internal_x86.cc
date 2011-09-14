@@ -28,16 +28,15 @@ void X86CreateInvokeStub(Method* method) {
   UniquePtr<X86Assembler> assembler(
       down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
-  // Size of frame - spill of EDI + Method* + possible receiver + arg array
+  // Size of frame - return address + Method* + possible receiver + arg array
   size_t frame_size = (2 * kPointerSize) +
                       (method->IsStatic() ? 0 : kPointerSize) +
                       method->NumArgArrayBytes();
   size_t pad_size = RoundUp(frame_size, kStackAlignment) - frame_size;
 
-  __ pushl(EDI);                   // preserve EDI
-  __ movl(EDI, Address(ESP, 8));   // EDI = method
-  __ movl(EAX, Address(ESP, 12));  // EAX = receiver
-  __ movl(EDX, Address(ESP, 20));  // EDX = arg array
+  __ movl(EAX, Address(ESP, 4));   // EAX = method
+  __ movl(ECX, Address(ESP, 8));   // ECX = receiver
+  __ movl(EDX, Address(ESP, 16));  // EDX = arg array
 
   // Push padding
   if (pad_size != 0) {
@@ -49,35 +48,35 @@ void X86CreateInvokeStub(Method* method) {
     __ pushl(Address(EDX, off - kPointerSize));
   }
   if (!method->IsStatic()) {
-    __ pushl(EAX);
+    __ pushl(ECX);
   }
   // Push 0 as NULL Method* thereby terminating managed stack crawls
   __ pushl(Immediate(0));
-  __ call(Address(EDI, method->GetCodeOffset()));  // Call code off of method
 
-  // pop arguments and padding up to saved EDI
+  __ call(Address(EAX, method->GetCodeOffset()));  // Call code off of method
+
+  // pop arguments up to the return address
   __ addl(ESP, Immediate(frame_size + pad_size - kPointerSize));
   char ch = method->GetShorty()->CharAt(0);
   if (ch != 'V') {
     // Load the result JValue pointer.
-    __ movl(EDI, Address(ESP, 24));
+    __ movl(ECX, Address(ESP, 20));
     switch (ch) {
       case 'D':
-        __ fstpl(Address(EDI, 0));
+        __ fstpl(Address(ECX, 0));
         break;
       case 'F':
-        __ fstps(Address(EDI, 0));
+        __ fstps(Address(ECX, 0));
         break;
       case 'J':
-        __ movl(Address(EDI, 0), EAX);
-        __ movl(Address(EDI, 4), EDX);
+        __ movl(Address(ECX, 0), EAX);
+        __ movl(Address(ECX, 4), EDX);
         break;
       default:
-        __ movl(Address(EDI, 0), EAX);
+        __ movl(Address(ECX, 0), EAX);
         break;
     }
   }
-  __ popl(EDI);  // restore EDI
   __ ret();
   // TODO: store native_entry in the stub table
   ByteArray* code = ByteArray::Alloc(assembler->CodeSize());

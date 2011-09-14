@@ -2,19 +2,19 @@
 
     .balign 4
 
-    .global art_throw_exception
-    .extern artThrowExceptionHelper
+    .global art_deliver_exception
+    .extern artDeliverExceptionHelper
     /*
-     * Called by managed code, saves all registers (forms basis of long jump context).
+     * Called by managed code, saves mosts registers (forms basis of long jump context).
      * artThrowExceptionHelper will place a mock Method* at the bottom of the thread.
      * r0 holds Throwable
      */
-art_throw_exception:
+art_deliver_exception:
     stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                @ 4 words of space, bottom word will hold Method*
+    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
     mov r1, r9
     mov r2, sp
-    b artThrowExceptionHelper  @ artThrowExceptionHelper(Throwable*, SP)
+    b artDeliverExceptionHelper  @ artThrowExceptionHelper(Throwable*, SP)
 
     .global art_invoke_interface_trampoline
     .extern artFindInterfaceMethodInCache
@@ -120,5 +120,35 @@ art_ushr_long:
     movpl   r0, r1, lsr ip              @  if r2 >= 32, r0<-r1 >>> (r2-32)
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     bx      lr
+
+#endif
+
+#if defined(__i386__)
+
+    .global art_deliver_exception
+    .extern artDeliverExceptionHelper
+    .extern _ZN3art6Thread5self_E
+    /*
+     * Called by managed code, saves callee saves and then calls artThrowExceptionHelper
+     * that will place a mock Method* at the bottom of the stack.
+     * EAX holds the exception.
+     */
+art_deliver_exception:
+    // Create frame
+    pushl %edi  // Save callee saves
+    pushl %esi
+    pushl %ebp
+    pushl %ebx
+    pushl $0
+    pushl $0
+    pushl $0   // Will be clobbered to be Method*
+    mov %esp, %ecx
+    // Outgoing argument set up
+    pushl $0    // Alignment padding
+    pushl %ecx
+    pushl $0    // TODO: pass fs:offsetof(Thread,self_) - for now this is computed in the helper
+    pushl %eax
+    call artDeliverExceptionHelper  // artThrowExceptionHelper(Throwable*, Thread*, SP)
+    int3
 
 #endif

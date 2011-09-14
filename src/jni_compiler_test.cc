@@ -448,42 +448,34 @@ TEST_F(JniCompilerTest, DISABLED_SuspendCountAcknowledgement) {
   EXPECT_EQ(1, gSuspendCounterHandler_calls);
 }
 
-int gExceptionHandler_calls;
-void ExceptionHandler(Method** frame) {
-  // Check we came here in the native state then transition to runnable to work
-  // on the Object*
-  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
-  ScopedJniThreadState ts(Thread::Current()->GetJniEnv());
-
-  EXPECT_TRUE((*frame)->GetName()->Equals("throwException"));
-  gExceptionHandler_calls++;
-  Thread::Current()->ClearException();
-}
-
 void Java_MyClass_throwException(JNIEnv* env, jobject) {
   jclass c = env->FindClass("java/lang/RuntimeException");
   env->ThrowNew(c, "hello");
 }
 
 TEST_F(JniCompilerTest, ExceptionHandling) {
-  Thread::Current()->RegisterExceptionEntryPoint(&ExceptionHandler);
-  gExceptionHandler_calls = 0;
   gJava_MyClass_foo_calls = 0;
 
+  // Check a single call of a JNI method is ok
   SetupForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClass_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(1, gJava_MyClass_foo_calls);
-  EXPECT_EQ(0, gExceptionHandler_calls);
+  EXPECT_FALSE(Thread::Current()->IsExceptionPending());
 
+  // Get class for exception we expect to be thrown
+  Class* jlre = class_linker_->FindClass("Ljava/lang/RuntimeException;", class_loader_);
   SetupForTest(false, "throwException", "()V", reinterpret_cast<void*>(&Java_MyClass_throwException));
+  // Call Java_MyClass_throwException (JNI method that throws exception)
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(1, gJava_MyClass_foo_calls);
-  EXPECT_EQ(1, gExceptionHandler_calls);
+  EXPECT_TRUE(Thread::Current()->IsExceptionPending());
+  EXPECT_TRUE(Thread::Current()->GetException()->InstanceOf(jlre));
+  Thread::Current()->ClearException();
 
+  // Check a single call of a JNI method is ok
   SetupForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClass_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(2, gJava_MyClass_foo_calls);
-  EXPECT_EQ(1, gExceptionHandler_calls);
 }
 
 jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
@@ -556,6 +548,22 @@ TEST_F(JniCompilerTest, JavaLangSystemArrayCopy) {
   SetupForTest(true, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                reinterpret_cast<void*>(&my_arraycopy));
   env_->CallStaticVoidMethod(jklass_, jmethod_, jobj_, 1234, jklass_, 5678, 9876);
+}
+
+jboolean my_casi(JNIEnv* env, jobject unsafe, jobject obj, jlong offset, jint expected, jint newval) {
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, unsafe));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, obj));
+  EXPECT_EQ(0x12345678ABCDEF88ll, offset);
+  EXPECT_EQ(static_cast<jint>(0xCAFEF00D), expected);
+  EXPECT_EQ(static_cast<jint>(0xEBADF00D), newval);
+  return JNI_TRUE;
+}
+
+TEST_F(JniCompilerTest, CompareAndSwapInt) {
+  SetupForTest(false, "compareAndSwapInt", "(Ljava/lang/Object;JII)Z",
+               reinterpret_cast<void*>(&my_casi));
+  jboolean result = env_->CallBooleanMethod(jobj_, jmethod_, jobj_, 0x12345678ABCDEF88ll, 0xCAFEF00D, 0xEBADF00D);
+  EXPECT_EQ(result, JNI_TRUE);
 }
 
 }  // namespace art

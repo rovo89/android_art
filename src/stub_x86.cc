@@ -16,9 +16,8 @@ ByteArray* CreateAbstractMethodErrorStub() {
 
   // Pad stack to ensure 16-byte alignment
   __ pushl(Immediate(0));
-  __ pushl(Immediate(0));
   __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // Thread*
-  __ pushl(EDI); // Method*
+  __ pushl(EAX); // Method*
 
   // Call to throw AbstractMethodError
   __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode)),
@@ -45,14 +44,12 @@ ByteArray* CreateJniStub() {
   // Pad stack to ensure 16-byte alignment
   __ pushl(Immediate(0));
   __ pushl(Immediate(0));
-  __ pushl(Immediate(0));
-  __ fs()->movl(ECX, Address::Absolute(Thread::SelfOffset()));
-  __ pushl(ECX);  // Thread*
+  __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // Thread*
 
   __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pFindNativeMethod)),
           X86ManagedRegister::FromCpuRegister(ECX));
 
-  __ addl(ESP, Immediate(16));
+  __ addl(ESP, Immediate(12));
 
   Label no_native_code_found;  // forward declaration
   __ cmpl(EAX, Immediate(0));

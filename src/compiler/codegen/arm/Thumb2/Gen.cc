@@ -683,9 +683,9 @@ static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
 void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pThrowException), rLR);
+                 OFFSETOF_MEMBER(Thread, pDeliverException), rLR);
     loadValueDirectFixed(cUnit, rlSrc, r0);  // Get exception object
-    callNoUnwindHelper(cUnit, rLR); // art_throw_exception(exception);
+    callNoUnwindHelper(cUnit, rLR);  // art_deliver_exception(exception);
 }
 
 static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,

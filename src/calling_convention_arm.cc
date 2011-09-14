@@ -100,13 +100,54 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 // JNI calling convention
 
 ArmJniCallingConvention::ArmJniCallingConvention(Method* method) : JniCallingConvention(method) {
-  for (int i = R4; i < R12; i++) {
-    callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(static_cast<Register>(i)));
+  // Compute padding to ensure longs and doubles are not split in AAPCS
+  // TODO: in terms of outgoing argument size this may be overly generous
+  // due to padding appearing in the registers
+  size_t padding = 0;
+  size_t check = method->IsStatic() ? 1 : 0;
+  for(size_t i = 0; i < method->NumArgs(); i++) {
+    if(((i & 1) == check) && method->IsParamALongOrDouble(i)) {
+      padding += 4;
+    }
   }
-  // TODO: VFP
-  // for (SRegister i = S16; i <= S31; i++) {
-  //  callee_save_regs_.push_back(ArmManagedRegister::FromSRegister(i));
-  // }
+  padding_ = padding;
+  if (method->IsSynchronized()) {
+    // Preserve callee saves that may be clobbered during monitor enter where
+    // we copy across R0 to R3
+    if (method->NumArgs() > 0) {
+      callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R4));
+      if (method->NumArgs() > 1) {
+        callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R5));
+        if (method->NumArgs() > 2) {
+          callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R6));
+          if (method->NumArgs() > 3) {
+            callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R7));
+          }
+        }
+      }
+    }
+  }
+}
+
+uint32_t ArmJniCallingConvention::CoreSpillMask() const {
+  // Compute spill mask to agree with callee saves initialized in the constructor
+  uint32_t result = 0;
+  Method* method = GetMethod();
+  if (method->IsSynchronized()) {
+    if (method->NumArgs() > 0) {
+      result |= 1 << R4;
+      if (method->NumArgs() > 1) {
+        result |= 1 << R5;
+        if (method->NumArgs() > 2) {
+          result |= 1 << R6;
+          if (method->NumArgs() > 3) {
+            result |= 1 << R7;
+          }
+        }
+      }
+    }
+  }
+  return result;
 }
 
 size_t ArmJniCallingConvention::FrameSize() {
@@ -120,16 +161,7 @@ size_t ArmJniCallingConvention::FrameSize() {
 }
 
 size_t ArmJniCallingConvention::OutArgSize() {
-  const Method* method = GetMethod();
-  size_t padding;  // padding to ensure longs and doubles are not split in AAPCS
-  if (method->IsStatic()) {
-    padding = (method->NumArgs() > 1) && !method->IsParamALongOrDouble(0) &&
-              method->IsParamALongOrDouble(1) ? 4 : 0;
-  } else {
-    padding = (method->NumArgs() > 2) && !method->IsParamALongOrDouble(1) &&
-              method->IsParamALongOrDouble(2) ? 4 : 0;
-  }
-  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize + padding,
+  return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize + padding_,
                  kStackAlignment);
 }
 
@@ -139,28 +171,27 @@ size_t ArmJniCallingConvention::ReturnPcOffset() {
 }
 
 // Will reg be crushed by an outgoing argument?
-bool ArmJniCallingConvention::IsOutArgRegister(ManagedRegister mreg) {
-  Register reg = mreg.AsArm().AsCoreRegister();
-  return reg >= R0 && reg <= R3;
+bool ArmJniCallingConvention::IsMethodRegisterCrushedPreCall() {
+  return true;  // The method register R0 is always clobbered by the JNIEnv
 }
 
-// JniCallingConvention ABI follows AAPCS
-//
-// In processing each parameter, we know that IsCurrentParamInRegister()
-// or IsCurrentParamOnStack() will be called first.
-// Both functions will ensure that we conform to AAPCS.
-//
-bool ArmJniCallingConvention::IsCurrentParamInRegister() {
-  // AAPCS processing
+// JniCallingConvention ABI follows AAPCS where longs and doubles must occur
+// in even register numbers and stack slots
+void ArmJniCallingConvention::Next() {
+  JniCallingConvention::Next();
   Method* method = GetMethod();
-  int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
-  if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
+  size_t arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
+  if ((itr_args_ >= 2) &&
+      (arg_pos < GetMethod()->NumArgs()) &&
+      method->IsParamALongOrDouble(arg_pos)) {
     // itr_slots_ needs to be an even number, according to AAPCS.
     if ((itr_slots_ & 0x1u) != 0) {
       itr_slots_++;
     }
   }
+}
 
+bool ArmJniCallingConvention::IsCurrentParamInRegister() {
   return itr_slots_ < 4;
 }
 
@@ -187,7 +218,7 @@ ManagedRegister ArmJniCallingConvention::CurrentParamRegister() {
 FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 4u);
   return FrameOffset(displacement_.Int32Value() - OutArgSize()
-               + ((itr_slots_ - 4) * kPointerSize));
+                     + ((itr_slots_ - 4) * kPointerSize));
 }
 
 size_t ArmJniCallingConvention::NumberOfOutgoingStackArgs() {
