@@ -45,6 +45,10 @@ else
   ART_TARGET_CFLAGS += -DANDROID_SMP=0
 endif
 
+art_debug_cflags := -UNDEBUG
+# TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4
+ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
+ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 
 DEX2OAT_SRC_FILES := \
 	src/dex2oat.cc

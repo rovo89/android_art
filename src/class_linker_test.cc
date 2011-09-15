@@ -54,6 +54,9 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(0U, primitive->NumInstanceFields());
     EXPECT_EQ(0U, primitive->NumStaticFields());
     EXPECT_EQ(0U, primitive->NumInterfaces());
+    EXPECT_TRUE(primitive->GetVTable() == NULL);
+    EXPECT_EQ(0, primitive->GetIfTableCount());
+    EXPECT_TRUE(primitive->GetIfTable() == NULL);
   }
 
   void AssertArrayClass(const StringPiece& array_descriptor,
@@ -95,6 +98,12 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
     EXPECT_EQ(2U, array->NumInterfaces());
+    EXPECT_TRUE(array->GetVTable() != NULL);
+    EXPECT_EQ(2, array->GetIfTableCount());
+    ObjectArray<InterfaceEntry>* iftable = array->GetIfTable();
+    ASSERT_TRUE(iftable != NULL);
+    EXPECT_TRUE(iftable->Get(0)->GetInterface()->GetDescriptor()->Equals("Ljava/lang/Cloneable;"));
+    EXPECT_TRUE(iftable->Get(1)->GetInterface()->GetDescriptor()->Equals("Ljava/io/Serializable;"));
   }
 
   void AssertMethod(Class* klass, Method* method) {
@@ -157,6 +166,20 @@ class ClassLinkerTest : public CommonTest {
     } else {
       if (!klass->IsSynthetic()) {
         EXPECT_NE(0U, klass->NumDirectMethods());
+      }
+    }
+    EXPECT_EQ(klass->IsInterface(), klass->GetVTable() == NULL);
+    for (int i = 0; i < klass->GetIfTableCount(); i++) {
+      const InterfaceEntry* interface_entry = klass->GetIfTable()->Get(i);
+      ASSERT_TRUE(interface_entry != NULL);
+      Class* interface = interface_entry->GetInterface();
+      ASSERT_TRUE(interface != NULL);
+      EXPECT_TRUE(interface_entry->GetInterface() != NULL);
+      if (klass->IsInterface()) {
+        EXPECT_EQ(0U, interface_entry->GetMethodArrayCount());
+      } else {
+        CHECK_EQ(interface->NumVirtualMethods(), interface_entry->GetMethodArrayCount());
+        EXPECT_EQ(interface->NumVirtualMethods(), interface_entry->GetMethodArrayCount());
       }
     }
     if (klass->IsAbstract()) {

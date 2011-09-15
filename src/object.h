@@ -2683,6 +2683,14 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
     Set(kInterface, interface);
   }
 
+  size_t GetMethodArrayCount() const {
+    ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
+    if (method_array == 0) {
+      return 0;
+    }
+    return method_array->GetLength();
+  }
+
   ObjectArray<Method>* GetMethodArray() const {
     ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
     DCHECK(method_array != NULL);

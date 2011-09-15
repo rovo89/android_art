@@ -1718,7 +1718,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   }
   klass->SetIfTable(iftable);
   CHECK_EQ(idx, ifcount);
-  if (klass->IsInterface() || super_ifcount == ifcount) {
+  if (klass->IsInterface()) {
     return true;
   }
   std::vector<Method*> miranda_list;

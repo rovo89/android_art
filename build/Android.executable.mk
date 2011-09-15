@@ -40,7 +40,12 @@ define build-art-executable
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
   endif
   ifeq ($(4),debug)
-    LOCAL_CFLAGS += -UNDEBUG
+    ifeq ($(3),target)
+      LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
+    else
+      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+      LOCAL_STATIC_LIBRARIES := libgtest_host
+    endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libnativehelper

@@ -76,19 +76,39 @@ tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 
 # "mm test-art-device" to build and run all target tests
 .PHONY: test-art-target
-test-art-target: $(ART_TARGET_TEST_DEPENDENCIES)
+test-art-target: test-art-target-gtest test-art-target-oat
+
+.PHONY: test-art-target-sync
+test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES)
 	adb remount
 	adb sync
-	adb shell touch /sdcard/test-art-target
-	adb shell rm /sdcard/test-art-target
-        # gtest unit tests
-	adb shell sh -c "$(foreach file,$(sort $(ART_TARGET_TEST_EXECUTABLES)), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target"
-	adb pull /sdcard/test-art-target /tmp/
-	rm /tmp/test-art-target # this will cause the make on test failure (since the file will not exist)
-        # oatexec test
-	adb shell sh -c "oatexecd -Xbootclasspath:/system/framework/core.jar -Xbootimage:/system/framework/boot.oat -classpath /system/framework/art-test-dex-HelloWorld.jar -Ximage:/system/framework/art-test-dex-HelloWorld.oat HelloWorld && touch /sdcard/test-art-target"
-	adb pull /sdcard/test-art-target /tmp/
-	rm /tmp/test-art-target # this will cause the make on test failure (since the file will not exist)
+
+.PHONY: test-art-target-gtest
+test-art-target-gtest: test-art-target-sync
+	adb shell touch /sdcard/test-art-target-gtest
+	adb shell rm /sdcard/test-art-target-gtest
+	adb shell sh -c "$(foreach file,$(sort $(ART_TARGET_TEST_EXECUTABLES)), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target-gtest"
+	(adb pull /sdcard/test-art-target-gtest /tmp/ && echo test-art-target-gtest PASSED) || echo test-art-target-gtest FAILED
+	$(hide) rm /tmp/test-art-target-gtest
+
+.PHONY: test-art-target-oat
+test-art-target-oat: test-art-target-oat-HelloWorld # test-art-target-oat-Fibonacci
+
+.PHONY: test-art-target-oat-HelloWorld
+test-art-target-oat-HelloWorld: test-art-target-sync
+	adb shell touch /sdcard/test-art-target-oat-HelloWorld
+	adb shell rm /sdcard/test-art-target-oat-HelloWorld
+	adb shell sh -c "oatexecd -Xbootclasspath:/system/framework/core.jar -Xbootimage:/system/framework/boot.oat -classpath /system/framework/art-test-dex-HelloWorld.jar -Ximage:/system/framework/art-test-dex-HelloWorld.oat HelloWorld && touch /sdcard/test-art-target-oat-HelloWorld"
+	(adb pull /sdcard/test-art-target-oat-HelloWorld /tmp/ && echo test-art-target-oat-HelloWorld PASSED) || (echo test-art-target-oat-HelloWorld FAILED && exit 1)
+	$(hide) rm /tmp/test-art-target-oat-HelloWorld
+
+.PHONY: test-art-target-oat-Fibonacci
+test-art-target-oat-Fibonacci: test-art-target-sync
+	adb shell touch /sdcard/test-art-target-oat-Fibonacci
+	adb shell rm /sdcard/test-art-target-oat-Fibonacci
+	adb shell sh -c "oatexecd -Xbootclasspath:/system/framework/core.jar -Xbootimage:/system/framework/boot.oat -classpath /system/framework/art-test-dex-Fibonacci.jar -Ximage:/system/framework/art-test-dex-Fibonacci.oat Fibonacci 10 && touch /sdcard/test-art-target-oat-Fibonacci"
+	(adb pull /sdcard/test-art-target-oat-Fibonacci /tmp/ && echo test-art-target-oat-Fibonacci PASSED) || (echo test-art-target-oat-Fibonacci FAILED && exit 1)
+	$(hide) rm /tmp/test-art-target-oat-Fibonacci
 
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art

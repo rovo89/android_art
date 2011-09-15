@@ -38,8 +38,12 @@ define build-libart
   else
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
   endif
-  ifeq ($(2),debug)
-    LOCAL_CFLAGS += -UNDEBUG
+  ifeq ($(4),debug)
+    ifeq ($(3),target)
+      LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
+    else
+      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+    endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
