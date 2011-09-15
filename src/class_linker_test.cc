@@ -108,6 +108,7 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertMethod(Class* klass, Method* method) {
     EXPECT_TRUE(method != NULL);
+    EXPECT_TRUE(method->GetClass() != NULL);
     EXPECT_TRUE(method->GetName() != NULL);
     EXPECT_TRUE(method->GetSignature() != NULL);
 
@@ -133,6 +134,7 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertField(Class* klass, Field* field) {
     EXPECT_TRUE(field != NULL);
+    EXPECT_TRUE(field->GetClass() != NULL);
     EXPECT_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != NULL);
     EXPECT_TRUE(field->GetType() != NULL);
@@ -146,6 +148,8 @@ class ClassLinkerTest : public CommonTest {
       EXPECT_TRUE(klass->HasSuperClass());
       EXPECT_TRUE(klass->GetSuperClass() != NULL);
     }
+    EXPECT_TRUE(klass->GetClass() != NULL);
+    EXPECT_EQ(klass->GetClass(), klass->GetClass()->GetClass());
     EXPECT_TRUE(klass->GetDexCache() != NULL);
     EXPECT_TRUE(klass->IsResolved());
     EXPECT_FALSE(klass->IsErroneous());

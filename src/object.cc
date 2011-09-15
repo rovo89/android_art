@@ -502,6 +502,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   if (have_executable_code && stub != NULL) {
     LOG(INFO) << "invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
     (*stub)(this, receiver, self, args, result);
+    LOG(INFO) << "returning " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
   } else {
     LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);
     if (result != NULL) {
@@ -534,7 +535,7 @@ void Method::UnregisterNative() {
 
 void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError ||
-      !Runtime::Current()->IsStarted());
+      !Runtime::Current()->IsStarted()) << GetDescriptor()->ToModifiedUtf8();
   CHECK(sizeof(Status) == sizeof(uint32_t));
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_),
                     new_status, false);
@@ -799,6 +800,7 @@ void Class::SetClassLoader(const ClassLoader* new_cl) {
 
 Method* Class::FindVirtualMethodForInterface(Method* method) {
   Class* declaring_class = method->GetDeclaringClass();
+  DCHECK(declaring_class != NULL);
   DCHECK(declaring_class->IsInterface());
   // TODO cache to improve lookup speed
   int32_t iftable_count = GetIfTableCount();

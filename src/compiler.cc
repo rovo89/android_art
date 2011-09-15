@@ -43,14 +43,7 @@ Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler
 void Compiler::CompileAll(const ClassLoader* class_loader) {
   Resolve(class_loader);
   Verify(class_loader);
-
-  // TODO: mark all verified classes initialized if they have no <clinit>
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* Class_class = class_linker->FindSystemClass("Ljava/lang/Class;");
-  Method* Class_clinit = Class_class->FindDirectMethod("<clinit>", "()V");
-  CHECK(Class_clinit == NULL);
-  Class_class->SetStatus(Class::kStatusInitialized);
-
+  InitializeClassesWithoutClinit(class_loader);
   Compile(class_loader);
   SetCodeAndDirectMethods(class_loader);
 }
@@ -59,6 +52,7 @@ void Compiler::CompileOne(Method* method) {
   const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
   Resolve(class_loader);
   Verify(class_loader);
+  InitializeClassesWithoutClinit(class_loader);
   CompileMethod(method);
   SetCodeAndDirectMethods(class_loader);
 }
@@ -83,7 +77,8 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
 
   // Class derived values are more complicated, they require the linker and loader
   for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-    class_linker->ResolveType(dex_file, i, dex_cache, class_loader);
+    Class* klass = class_linker->ResolveType(dex_file, i, dex_cache, class_loader);
+    CHECK(klass->IsResolved());
   }
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     // unknown if direct or virtual, try both
@@ -116,8 +111,44 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
+    CHECK(klass->IsResolved());
     CHECK(klass != NULL);
     class_linker->VerifyClass(klass);
+    CHECK(klass->IsVerified() || klass->IsErroneous());
+  }
+}
+
+void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader) {
+  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  for (size_t i = 0; i != class_path.size(); ++i) {
+    const DexFile* dex_file = class_path[i];
+    CHECK(dex_file != NULL);
+    InitializeClassesWithoutClinit(class_loader, *dex_file);
+  }
+}
+
+void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, const DexFile& dex_file) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+    const char* descriptor = dex_file.GetClassDescriptor(class_def);
+    Class* klass = class_linker->FindClass(descriptor, class_loader);
+    CHECK(klass != NULL);
+    if (klass->IsInitialized()) {
+      continue;
+    }
+    CHECK(klass->IsVerified() || klass->IsErroneous());
+    if (!klass->IsVerified()) {
+      continue;
+    }
+    Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
+    if (clinit != NULL) {
+      continue;
+    }
+    klass->SetStatus(Class::kStatusInitialized);
+    // TODO: enable after crash investigation
+    // DexCache* dex_cache = class_linker->FindDexCache(dex_file);
+    // dex_cache->GetInitializedStaticStorage()->Set(i, klass);
   }
 }
 

@@ -38,6 +38,9 @@ class Compiler {
   void Verify(const ClassLoader* class_loader);
   void VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 
+  void InitializeClassesWithoutClinit(const ClassLoader* class_loader);
+  void InitializeClassesWithoutClinit(const ClassLoader* class_loader, const DexFile& dex_file);
+
   void Compile(const ClassLoader* class_loader);
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(Class* klass);
