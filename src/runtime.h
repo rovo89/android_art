@@ -39,7 +39,9 @@ class Runtime {
     // returns null if problem parsing and ignore_unrecognized is false
     static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
 
+    std::string boot_class_path_string_;
     std::vector<const DexFile*> boot_class_path_;
+    std::string class_path_string_;
     std::vector<const DexFile*> class_path_;
     const char* boot_image_;
     std::vector<const char*> images_;
@@ -96,12 +98,20 @@ class Runtime {
 
   ~Runtime();
 
-  size_t GetDefaultStackSize() const {
-    return default_stack_size_;
+  const std::string& GetBootClassPath() const {
+    return boot_class_path_;
   }
 
   ClassLinker* GetClassLinker() const {
     return class_linker_;
+  }
+
+  const std::string& GetClassPath() const {
+    return class_path_;
+  }
+
+  size_t GetDefaultStackSize() const {
+    return default_stack_size_;
   }
 
   InternTable* GetInternTable() const {
@@ -112,8 +122,16 @@ class Runtime {
     return java_vm_;
   }
 
+  const std::vector<std::string>& GetProperties() const {
+    return properties_;
+  }
+
   ThreadList* GetThreadList() const {
     return thread_list_;
+  }
+
+  const char* GetVersion() const {
+    return "2.0.0";
   }
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
@@ -128,6 +146,10 @@ class Runtime {
   bool Init(const Options& options, bool ignore_unrecognized);
   void InitLibraries();
   void RegisterRuntimeNativeMethods(JNIEnv*);
+
+  std::string boot_class_path_;
+  std::string class_path_;
+  std::vector<std::string> properties_;
 
   // The default stack size for managed threads created by the runtime.
   size_t default_stack_size_;

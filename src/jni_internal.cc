@@ -107,6 +107,7 @@ T Decode(JNIEnv* public_env, jobject obj) {
   return reinterpret_cast<T>(env->self->DecodeJObject(obj));
 }
 // Explicit instantiations.
+template Array* Decode<Array*>(JNIEnv*, jobject);
 template Class* Decode<Class*>(JNIEnv*, jobject);
 template ClassLoader* Decode<ClassLoader*>(JNIEnv*, jobject);
 template Object* Decode<Object*>(JNIEnv*, jobject);

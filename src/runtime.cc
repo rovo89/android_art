@@ -166,11 +166,10 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
   }
 }
 
-void CreateClassPath(const char* class_path_cstr,
+void CreateClassPath(const std::string& class_path,
                      std::vector<const DexFile*>& class_path_vector) {
-  CHECK(class_path_cstr != NULL);
   std::vector<std::string> parsed;
-  Split(class_path_cstr, ':', parsed);
+  Split(class_path, ':', parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
     const DexFile* dex_file = DexFile::Open(parsed[i]);
     if (dex_file != NULL) {
@@ -181,8 +180,6 @@ void CreateClassPath(const char* class_path_cstr,
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
-  const char* boot_class_path = NULL;
-  const char* class_path = NULL;
   parsed->boot_image_ = NULL;
 #ifdef NDEBUG
   // -Xcheck:jni is off by default for regular builds...
@@ -207,8 +204,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   for (size_t i = 0; i < options.size(); ++i) {
     const StringPiece& option = options[i].first;
     if (option.starts_with("-Xbootclasspath:")) {
-      boot_class_path = option.substr(strlen("-Xbootclasspath:")).data();
+      parsed->boot_class_path_string_ = option.substr(strlen("-Xbootclasspath:")).data();
     } else if (option == "bootclasspath") {
+      UNIMPLEMENTED(WARNING) << "what should VMRuntime.getBootClassPath return here?";
       const void* dex_vector = options[i].second;
       const std::vector<const DexFile*>* v
           = reinterpret_cast<const std::vector<const DexFile*>*>(dex_vector);
@@ -230,7 +228,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       const StringPiece& value = options[i].first;
-      class_path = value.data();
+      parsed->class_path_string_ = value.data();
     } else if (option.starts_with("-Xbootimage:")) {
       // TODO: remove when intern_addr_ is removed, just use -Ximage:
       parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
@@ -296,31 +294,29 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     }
   }
 
-  // consider it an error if both bootclasspath and -Xbootclasspath: are supplied.
+  // Consider it an error if both bootclasspath and -Xbootclasspath: are supplied.
   // TODO: remove bootclasspath which is only mostly just used by tests?
-  if (!parsed->boot_class_path_.empty() && boot_class_path != NULL) {
+  if (!parsed->boot_class_path_.empty() && !parsed->boot_class_path_string_.empty()) {
     // TODO: usage
     LOG(FATAL) << "bootclasspath and -Xbootclasspath: are mutually exclusive options.";
     return NULL;
   }
   if (parsed->boot_class_path_.empty()) {
-    if (boot_class_path == NULL) {
-      boot_class_path = getenv("BOOTCLASSPATH");
-      if (boot_class_path == NULL) {
-        boot_class_path = "";
-      }
+    if (parsed->boot_class_path_string_ == NULL) {
+      const char* BOOTCLASSPATH = getenv("BOOTCLASSPATH");
+      parsed->boot_class_path_string_ = BOOTCLASSPATH;
     }
-    CreateClassPath(boot_class_path, parsed->boot_class_path_);
+    CreateClassPath(parsed->boot_class_path_string_, parsed->boot_class_path_);
   }
 
-  if (class_path == NULL) {
-    class_path = getenv("CLASSPATH");
-    if (class_path == NULL) {
-      class_path = "";
+  if (parsed->class_path_string_ == NULL) {
+    const char* CLASSPATH = getenv("CLASSPATH");
+    if (CLASSPATH != NULL) {
+      parsed->class_path_string_ = CLASSPATH;
     }
   }
   CHECK_EQ(parsed->class_path_.size(), 0U);
-  CreateClassPath(class_path, parsed->class_path_);
+  CreateClassPath(parsed->class_path_string_, parsed->class_path_);
 
   return parsed.release();
 }
@@ -361,13 +357,18 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     LOG(WARNING) << "Failed to parse options";
     return false;
   }
+
+  boot_class_path_ = options->boot_class_path_string_;
+  class_path_ = options->class_path_string_;
+  properties_ = options->properties_;
+
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;
   abort_ = options->hook_abort_;
 
   default_stack_size_ = options->stack_size_;
-  thread_list_ = new ThreadList;
 
+  thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
   Heap::Init(options->heap_initial_size_, options->heap_maximum_size_,
@@ -412,7 +413,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
   //REGISTER(register_dalvik_system_DexFile);
   //REGISTER(register_dalvik_system_VMDebug);
-  //REGISTER(register_dalvik_system_VMRuntime);
+  REGISTER(register_dalvik_system_VMRuntime);
   REGISTER(register_dalvik_system_VMStack);
   //REGISTER(register_dalvik_system_Zygote);
   REGISTER(register_java_lang_Class);

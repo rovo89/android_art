@@ -76,6 +76,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/compiler/codegen/arm/Assemble.cc \
 	src/compiler/codegen/arm/LocalOptimizations.cc \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc \
+	src/dalvik_system_VMRuntime.cc \
 	src/dalvik_system_VMStack.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \

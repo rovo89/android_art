@@ -64,6 +64,20 @@ class Heap {
   // Implements java.lang.Runtime.freeMemory.
   static int64_t GetFreeMemory();
 
+  // Implements dalvik.system.VMRuntime.clearGrowthLimit.
+  static void ClearGrowthLimit() {
+    UNIMPLEMENTED(WARNING);
+  }
+  // Implements dalvik.system.VMRuntime.getTargetHeapUtilization.
+  static float GetTargetHeapUtilization() {
+    UNIMPLEMENTED(WARNING);
+    return 0.0f;
+  }
+  // Implements dalvik.system.VMRuntime.setTargetHeapUtilization.
+  static void SetTargetHeapUtilization(float target) {
+    UNIMPLEMENTED(WARNING);
+  }
+
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();
 
