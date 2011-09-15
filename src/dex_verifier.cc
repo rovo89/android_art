@@ -351,13 +351,19 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
 
   /* Generate a register map. */
   if (generate_register_map) {
-    RegisterMap* map = GenerateRegisterMapV(vdata);
+    UniquePtr<RegisterMap> map(GenerateRegisterMapV(vdata));
     /*
      * Tuck the map into the Method. It will either get used directly or, if
      * we're in dexopt, will be packed up and appended to the DEX file.
      */
-    // TODO: Put the map somewhere...
-    delete map;
+    ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
+    ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map.get()));
+
+    memcpy(header->GetData(), map.get()->header_, sizeof(RegisterMapHeader));
+    memcpy(data->GetData(), map.get()->data_, ComputeRegisterMapSize(map.get()));
+
+    method->SetRegisterMapHeader(header);
+    method->SetRegisterMapData(data);
   }
 
   return true;
@@ -5302,7 +5308,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
       true, data_size);
 
   /* Populate it. */
-  uint8_t* map_data = map->data_.get();
+  uint8_t* map_data = map->data_;
   for (i = 0; i < (int) vdata->code_item_->insns_size_; i++) {
     if (InsnIsGcPoint(vdata->insn_flags_.get(), i)) {
       assert(vdata->register_lines_[i].reg_types_.get() != NULL);
@@ -5318,7 +5324,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
     }
   }
 
-  assert((uint32_t) map_data - (uint32_t) map->data_.get() == data_size);
+  assert((uint32_t) map_data - (uint32_t) map->data_ == data_size);
 
   // TODO: Remove this check when it's really running...
 #if 1
@@ -5387,14 +5393,14 @@ void DexVerifier::OutputTypeVector(const RegType* regs, int insn_reg_count,
 }
 
 bool DexVerifier::VerifyMap(VerifierData* vdata, const RegisterMap* map) {
-  const uint8_t* raw_map = map->data_.get();
-  uint8_t format = map->format_;
-  const int num_entries = map->num_entries_;
+  const uint8_t* raw_map = map->data_;
+  uint8_t format = map->header_->format_;
+  const int num_entries = map->header_->num_entries_;
   int ent;
 
-  if ((vdata->code_item_->registers_size_ + 7) / 8 != map->reg_width_) {
+  if ((vdata->code_item_->registers_size_ + 7) / 8 != map->header_->reg_width_) {
     LOG(ERROR) << "GLITCH: registersSize=" << vdata->code_item_->registers_size_
-               << ", reg_width=" << map->reg_width_;
+               << ", reg_width=" << map->header_->reg_width_;
     return false;
   }
 
@@ -5461,12 +5467,13 @@ bool DexVerifier::CompareMaps(const RegisterMap* map1, const RegisterMap* map2)
     return false;
   }
 
-  if (map1->format_ != map2->format_ || map1->reg_width_ != map2->reg_width_ ||
-      map1->num_entries_ != map2->num_entries_ ||
-      map1->format_on_heap_ != map2->format_on_heap_) {
+  if (map1->header_->format_ != map2->header_->format_ ||
+      map1->header_->reg_width_ != map2->header_->reg_width_ ||
+      map1->header_->num_entries_ != map2->header_->num_entries_ ||
+      map1->header_->format_on_heap_ != map2->header_->format_on_heap_) {
     LOG(ERROR) << "CompareMaps: fields mismatch";
   }
-  if (memcmp(map1->data_.get(), map2->data_.get(), size1) != 0) {
+  if (memcmp(map1->data_, map2->data_, size1) != 0) {
     LOG(ERROR) << "CompareMaps: data mismatch";
     return false;
   }
@@ -5475,8 +5482,8 @@ bool DexVerifier::CompareMaps(const RegisterMap* map1, const RegisterMap* map2)
 }
 
 size_t DexVerifier::ComputeRegisterMapSize(const RegisterMap* map) {
-  uint8_t format = map->format_;
-  uint16_t num_entries = map->num_entries_;
+  uint8_t format = map->header_->format_;
+  uint16_t num_entries = map->header_->num_entries_;
 
   assert(map != NULL);
 
@@ -5484,13 +5491,13 @@ size_t DexVerifier::ComputeRegisterMapSize(const RegisterMap* map) {
     case kRegMapFormatNone:
       return 1;
     case kRegMapFormatCompact8:
-      return (1 + map->reg_width_) * num_entries;
+      return (1 + map->header_->reg_width_) * num_entries;
     case kRegMapFormatCompact16:
-      return (2 + map->reg_width_) * num_entries;
+      return (2 + map->header_->reg_width_) * num_entries;
     case kRegMapFormatDifferential:
       {
         /* Decoded ULEB128 length. */
-        const uint8_t* ptr = map->data_.get();
+        const uint8_t* ptr = map->data_;
         return DecodeUnsignedLeb128(&ptr);
       }
     default:
@@ -5554,7 +5561,7 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
   uint8_t* tmp_ptr;
   int addr_width;
 
-  uint8_t format = map->format_;
+  uint8_t format = map->header_->format_;
   switch (format) {
     case kRegMapFormatCompact8:
       addr_width = 1;
@@ -5567,8 +5574,8 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
       return NULL;
   }
 
-  int reg_width = map->reg_width_;
-  int num_entries = map->num_entries_;
+  int reg_width = map->header_->reg_width_;
+  int num_entries = map->header_->num_entries_;
 
   if (num_entries <= 1) {
     return NULL;
@@ -5595,7 +5602,7 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
 
   tmp_ptr = tmp_buf.get();
 
-  const uint8_t* map_data = map->data_.get();
+  const uint8_t* map_data = map->data_;
   const uint8_t* prev_bits;
   uint16_t addr, prev_addr;
 
@@ -5714,7 +5721,7 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
   RegisterMap* new_map = new RegisterMap(kRegMapFormatDifferential, reg_width,
       num_entries, true, new_map_size);
 
-  tmp_ptr = new_map->data_.get();
+  tmp_ptr = new_map->data_;
   tmp_ptr = WriteUnsignedLeb128(tmp_ptr, new_data_size);
   memcpy(tmp_ptr, tmp_buf.get(), new_data_size);
 
@@ -5723,7 +5730,7 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
 
 DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
     const RegisterMap* map) {
-  uint8_t format = map->format_;
+  uint8_t format = map->header_->format_;
   RegisterMapFormat new_format;
   int reg_width, num_entries, new_addr_width, new_data_size;
 
@@ -5732,11 +5739,11 @@ DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
     return NULL;
   }
 
-  reg_width = map->reg_width_;
-  num_entries = map->num_entries_;
+  reg_width = map->header_->reg_width_;
+  num_entries = map->header_->num_entries_;
 
   /* Get the data size; we can check this at the end. */
-  const uint8_t* src_ptr = map->data_.get();
+  const uint8_t* src_ptr = map->data_;
   int expected_src_len = DecodeUnsignedLeb128(&src_ptr);
   const uint8_t* src_start = src_ptr;
 
@@ -5757,7 +5764,7 @@ DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
       true, new_data_size);
 
   /* Write the start address and initial bits to the new map. */
-  uint8_t* dst_ptr = new_map->data_.get();
+  uint8_t* dst_ptr = new_map->data_;
 
   *dst_ptr++ = addr & 0xff;
   if (new_addr_width > 1)
@@ -5823,8 +5830,8 @@ DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
     dst_ptr += reg_width;
   }
 
-  if (dst_ptr - new_map->data_.get() != new_data_size) {
-    LOG(ERROR) << "ERROR: output " << dst_ptr - new_map->data_.get()
+  if (dst_ptr - new_map->data_ != new_data_size) {
+    LOG(ERROR) << "ERROR: output " << dst_ptr - new_map->data_
                << " bytes, expected " << new_data_size;
     free(new_map);
     return NULL;

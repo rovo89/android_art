@@ -545,6 +545,8 @@ struct MethodOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_array_),                    "shadow$_invoke_stub_array_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_data_),                    "shadow$_register_map_data_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_header_),                  "shadow$_register_map_header_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
 

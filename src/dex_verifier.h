@@ -34,10 +34,6 @@ namespace art {
 
 class DexVerifier {
  public:
-  /* Verify a class. Returns "true" on success. */
-  static bool VerifyClass(Class* klass);
-
- private:
   /*
    * RegType holds information about the type of data held in a register.
    * For most types it's a simple enum. For reference types it holds a
@@ -361,6 +357,20 @@ class DexVerifier {
     }
   };
 
+  /* Header for RegisterMap */
+  struct RegisterMapHeader {
+    uint8_t format_;          /* enum RegisterMapFormat; MUST be first entry */
+    uint8_t reg_width_;       /* bytes per register line, 1+ */
+    uint16_t num_entries_;    /* number of entries */
+    bool    format_on_heap_;  /* indicates allocation on heap */
+
+    RegisterMapHeader(uint8_t format, uint8_t reg_width, uint16_t num_entries,
+        bool format_on_heap)
+        : format_(format), reg_width_(reg_width), num_entries_(num_entries),
+          format_on_heap_(format_on_heap) {
+    }
+  };
+
   /*
    * This is a single variable-size structure. It may be allocated on the
    * heap or mapped out of a (post-dexopt) DEX file.
@@ -374,19 +384,29 @@ class DexVerifier {
    * Size of (format==FormatCompact16): 4 + (2 + reg_width) * num_entries
    */
   struct RegisterMap {
-    /* header */
-    uint8_t format_;          /* enum RegisterMapFormat; MUST be first entry */
-    uint8_t reg_width_;       /* bytes per register line, 1+ */
-    uint16_t num_entries_;    /* number of entries */
-    bool    format_on_heap_;  /* indicates allocation on heap */
+    RegisterMapHeader* header_;
+    uint8_t* data_;
+    bool needs_free_;
 
-    /* raw data starts here; need not be aligned */
-    UniquePtr<uint8_t[]> data_;
+    RegisterMap(ByteArray* header, ByteArray* data) {
+      header_ = (RegisterMapHeader*) header->GetData();
+      data_ = (uint8_t*) data->GetData();
+      needs_free_ = false;
+    }
 
     RegisterMap(uint8_t format, uint8_t reg_width, uint16_t num_entries,
-        bool format_on_heap, uint32_t data_size)
-        : format_(format), reg_width_(reg_width), num_entries_(num_entries),
-          format_on_heap_(format_on_heap), data_(new uint8_t[data_size]()) {
+        bool format_on_heap, uint32_t data_size) {
+      header_ = new RegisterMapHeader(format, reg_width, num_entries,
+          format_on_heap);
+      data_ = new uint8_t[data_size]();
+      needs_free_ = true;
+    }
+
+    ~RegisterMap() {
+      if (needs_free_) {
+        delete header_;
+        delete [] data_;
+      }
     }
   };
 
@@ -541,6 +561,10 @@ class DexVerifier {
     return (uint32_t) (kRegTypeUninit | (uidx << kRegTypeUninitShift));
   }
 
+  /* Verify a class. Returns "true" on success. */
+  static bool VerifyClass(Class* klass);
+
+ private:
   /*
    * Perform verification on a single method.
    *

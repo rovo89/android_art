@@ -636,6 +636,14 @@ class MANAGED Method : public AccessibleObject {
 
   void SetName(String* new_name);
 
+  ByteArray* GetRegisterMapData() const;
+
+  void SetRegisterMapData(ByteArray* new_data);
+
+  ByteArray* GetRegisterMapHeader() const;
+
+  void SetRegisterMapHeader(ByteArray* new_header);
+
   String* GetShorty() const;
 
   void SetShorty(String* new_shorty);
@@ -1011,6 +1019,10 @@ class MANAGED Method : public AccessibleObject {
 
   // Storage for mapping_table_
   const ByteArray* mapping_table_;
+
+  // Byte arrays that hold data for the register maps
+  const ByteArray* register_map_data_;
+  const ByteArray* register_map_header_;
 
   // The short-form method descriptor string.
   String* shorty_;
@@ -2513,6 +2525,26 @@ inline void Method::SetName(String* new_name) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, name_),
                  new_name, false);
 
+}
+
+inline ByteArray* Method::GetRegisterMapData() const {
+  return GetFieldObject<ByteArray*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), false);
+}
+
+inline void Method::SetRegisterMapData(ByteArray* new_data) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_),
+                 new_data, false);
+}
+
+inline ByteArray* Method::GetRegisterMapHeader() const {
+  return GetFieldObject<ByteArray*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), false);
+}
+
+inline void Method::SetRegisterMapHeader(ByteArray* new_header) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_),
+                 new_header, false);
 }
 
 inline String* Method::GetShorty() const {
