@@ -932,10 +932,10 @@ static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     if (mir->dalvikInsn.opcode == OP_INVOKE_INTERFACE)
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
                                          false, nextInterfaceCallInsn, NULL,
-                                         true);
+                                         false);
     else
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextInterfaceCallInsn, NULL, true);
+                                       nextInterfaceCallInsn, NULL, false);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
         callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
