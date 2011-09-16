@@ -20,8 +20,8 @@ static void usage() {
           "Usage: dex2oat [options]...\n"
           "\n");
   fprintf(stderr,
-          "  --dex-file=<dex-file>: specifies a .dex files to compile. At least one .dex\n"
-          "      but more than one may be included. \n"
+          "  --dex-file=<dex-file>: specifies a .dex file to compile. At least one .dex\n"
+          "      file must be specified. \n"
           "      Example: --dex-file=/system/framework/core.jar\n"
           "\n");
   fprintf(stderr,
@@ -52,20 +52,6 @@ static void usage() {
           "      Example: --strip-prefix=out/target/product/crespo\n"
           "\n");
   exit(EXIT_FAILURE);
-}
-
-static void OpenDexFiles(std::vector<const char*>& dex_filenames,
-                         std::vector<const DexFile*>& dex_files,
-                         const std::string& strip_location_prefix) {
-  for (size_t i = 0; i < dex_filenames.size(); i++) {
-    const char* dex_filename = dex_filenames[i];
-    const DexFile* dex_file = DexFile::Open(dex_filename, strip_location_prefix);
-    if (dex_file == NULL) {
-      fprintf(stderr, "could not open .dex from file %s\n", dex_filename);
-      exit(EXIT_FAILURE);
-    }
-    dex_files.push_back(dex_file);
-  }
 }
 
 int dex2oat(int argc, char** argv) {
@@ -122,6 +108,11 @@ int dex2oat(int argc, char** argv) {
    return EXIT_FAILURE;
   }
 
+  if (dex_filenames.empty()) {
+   fprintf(stderr, "no --dex-file values specified\n");
+   return EXIT_FAILURE;
+  }
+
   if (boot_image_option.empty()) {
     if (image_base == 0) {
       fprintf(stderr, "non-zero --base not specified\n");
@@ -129,16 +120,16 @@ int dex2oat(int argc, char** argv) {
     }
   } else {
     if (boot_dex_filenames.empty()) {
-      fprintf(stderr, "no --boot-dex-file specified with --boot\n");
+      fprintf(stderr, "no --boot-dex-file values specified with --boot\n");
       return EXIT_FAILURE;
     }
   }
 
   std::vector<const DexFile*> dex_files;
-  OpenDexFiles(dex_filenames, dex_files, strip_location_prefix);
+  DexFile::OpenDexFiles(dex_filenames, dex_files, strip_location_prefix);
 
   std::vector<const DexFile*> boot_dex_files;
-  OpenDexFiles(boot_dex_filenames, boot_dex_files, strip_location_prefix);
+  DexFile::OpenDexFiles(boot_dex_filenames, boot_dex_files, strip_location_prefix);
 
   Runtime::Options options;
   if (boot_image_option.empty()) {

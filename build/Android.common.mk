@@ -53,6 +53,9 @@ ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 DEX2OAT_SRC_FILES := \
 	src/dex2oat.cc
 
+OATDUMP_SRC_FILES := \
+	src/oatdump.cc
+
 OATEXEC_SRC_FILES := \
 	src/oatexec.cc
 

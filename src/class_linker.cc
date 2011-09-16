@@ -438,7 +438,7 @@ void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_pa
   FinishInit();
 }
 
-void ClassLinker::InitFromImageCallback(Object* obj, void *arg) {
+void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   InitFromImageCallbackState* state = reinterpret_cast<InitFromImageCallbackState*>(arg);

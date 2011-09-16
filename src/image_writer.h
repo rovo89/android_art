@@ -82,10 +82,10 @@ class ImageWriter {
   }
 
   void CalculateNewObjectOffsets();
-  static void CalculateNewObjectOffsetsCallback(Object* obj, void *arg);
+  static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg);
 
   void CopyAndFixupObjects();
-  static void CopyAndFixupObjectsCallback(Object* obj, void *arg);
+  static void CopyAndFixupObjectsCallback(Object* obj, void* arg);
   void FixupClass(const Class* orig, Class* copy);
   void FixupMethod(const Method* orig, Method* copy);
   void FixupObject(const Object* orig, Object* copy);

@@ -316,6 +316,11 @@ class DexFile {
   static ClassPathEntry FindInClassPath(const StringPiece& descriptor,
                                         const ClassPath& class_path);
 
+  // Opens a collection of .dex files
+  static void OpenDexFiles(std::vector<const char*>& dex_filenames,
+                           std::vector<const DexFile*>& dex_files,
+                           const std::string& strip_location_prefix);
+
   // Opens .dex file, guessing the format based on file extension
   static const DexFile* Open(const std::string& filename,
                              const std::string& strip_location_prefix);
@@ -699,18 +704,18 @@ class DexFile {
 
   // Callback for "new position table entry".
   // Returning true causes the decoder to stop early.
-  typedef bool (*DexDebugNewPositionCb)(void *cnxt, uint32_t address, uint32_t line_num);
+  typedef bool (*DexDebugNewPositionCb)(void* cnxt, uint32_t address, uint32_t line_num);
 
   // Callback for "new locals table entry". "signature" is an empty string
   // if no signature is available for an entry.
-  typedef void (*DexDebugNewLocalCb)(void *cnxt, uint16_t reg,
+  typedef void (*DexDebugNewLocalCb)(void* cnxt, uint16_t reg,
                                      uint32_t startAddress,
                                      uint32_t endAddress,
                                      const String* name,
                                      const String* descriptor,
                                      const String* signature);
 
-  static bool LineNumForPcCb(void *cnxt, uint32_t address, uint32_t line_num) {
+  static bool LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num) {
     LineNumFromPcContext *context = (LineNumFromPcContext *)cnxt;
 
     // We know that this callback will be called in
@@ -775,8 +780,8 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(LineNumFromPcContext);
   };
 
-  void InvokeLocalCbIfLive(void *cnxt, int reg, uint32_t end_address,
-                         LocalInfo *local_in_reg, DexDebugNewLocalCb local_cb) const {
+  void InvokeLocalCbIfLive(void* cnxt, int reg, uint32_t end_address,
+                           LocalInfo* local_in_reg, DexDebugNewLocalCb local_cb) const {
     if (local_cb != NULL && local_in_reg[reg].is_live_) {
       local_cb(cnxt, reg, local_in_reg[reg].start_address_, end_address,
                local_in_reg[reg].name_, local_in_reg[reg].descriptor_,

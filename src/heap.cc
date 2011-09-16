@@ -212,7 +212,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
   }
 }
 
-void Heap::VerificationCallback(Object* obj, void *arg) {
+void Heap::VerificationCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
   Heap::VerifyObjectLocked(obj);
 }

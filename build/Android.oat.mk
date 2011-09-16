@@ -19,6 +19,11 @@ DEX2OATD := $(HOST_OUT_EXECUTABLES)/dex2oatd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
 DEX2OAT := $(DEX2OATD)
 
+OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
+OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
+# TODO: for now, override with debug version for better error reporting
+OATDUMP := $(OATDUMPD)
+
 # start of oat reserved address space
 OAT_HOST_BASE_ADDRESS := 0x50000000
 OAT_TARGET_BASE_ADDRESS := 0x50000000

@@ -220,6 +220,19 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->boot_class_path_ = *v;
+    } else if (option == "classpath") {
+      const void* dex_vector = options[i].second;
+      const std::vector<const DexFile*>* v
+          = reinterpret_cast<const std::vector<const DexFile*>*>(dex_vector);
+      if (v == NULL) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO: usage
+        LOG(FATAL) << "Failed to parse " << option;
+        return NULL;
+      }
+      parsed->class_path_ = *v;
     } else if (option == "-classpath" || option == "-cp") {
       // TODO: support -Djava.class.path
       i++;
@@ -296,8 +309,13 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   }
 
   // Consider it an error if both bootclasspath and -Xbootclasspath: are supplied.
-  // TODO: remove bootclasspath which is only mostly just used by tests?
+  // TODO: remove bootclasspath and classpath which are mostly just used by tests?
   if (!parsed->boot_class_path_.empty() && !parsed->boot_class_path_string_.empty()) {
+    // TODO: usage
+    LOG(FATAL) << "bootclasspath and -Xbootclasspath: are mutually exclusive options.";
+    return NULL;
+  }
+  if (!parsed->class_path_.empty() && !parsed->class_path_string_.empty()) {
     // TODO: usage
     LOG(FATAL) << "bootclasspath and -Xbootclasspath: are mutually exclusive options.";
     return NULL;
@@ -310,14 +328,15 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     CreateClassPath(parsed->boot_class_path_string_, parsed->boot_class_path_);
   }
 
-  if (parsed->class_path_string_ == NULL) {
-    const char* CLASSPATH = getenv("CLASSPATH");
-    if (CLASSPATH != NULL) {
-      parsed->class_path_string_ = CLASSPATH;
+  if (parsed->class_path_.empty()) {
+    if (parsed->class_path_string_ == NULL) {
+      const char* CLASSPATH = getenv("CLASSPATH");
+      if (CLASSPATH != NULL) {
+        parsed->class_path_string_ = CLASSPATH;
+      }
     }
+    CreateClassPath(parsed->class_path_string_, parsed->class_path_);
   }
-  CHECK_EQ(parsed->class_path_.size(), 0U);
-  CreateClassPath(parsed->class_path_string_, parsed->class_path_);
 
   return parsed.release();
 }

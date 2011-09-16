@@ -918,6 +918,10 @@ class MANAGED Method : public AccessibleObject {
     return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);
   }
 
+  const void* GetNativeMethod() const {
+    return reinterpret_cast<const void*>(GetField32(NativeMethodOffset(), false));
+  }
+
   ByteArray* GetInvokeStubArray() const {
     ByteArray* result = GetFieldPtr<ByteArray*>(
         OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_array_), false);

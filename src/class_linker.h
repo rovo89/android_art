@@ -167,7 +167,7 @@ class ClassLinker {
   // Initialize class linker from pre-initialized image.
   void InitFromImage(const std::vector<const DexFile*>& boot_class_path_,
                      const std::vector<const DexFile*>& class_path_);
-  static void InitFromImageCallback(Object* obj, void *arg);
+  static void InitFromImageCallback(Object* obj, void* arg);
   struct InitFromImageCallbackState;
 
   void FinishInit();

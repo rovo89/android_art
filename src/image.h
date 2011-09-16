@@ -21,7 +21,7 @@ class ImageHeader {
     memcpy(version_, kImageVersion, sizeof(kImageVersion));
   }
 
-  bool IsValid() {
+  bool IsValid() const {
     if (memcmp(magic_, kImageMagic, sizeof(kImageMagic) != 0)) {
       return false;
     }
@@ -29,6 +29,11 @@ class ImageHeader {
       return false;
     }
     return true;
+  }
+
+  const char* GetMagic() const {
+    CHECK(IsValid());
+    return reinterpret_cast<const char*>(magic_);
   }
 
   byte* GetBaseAddr() const {

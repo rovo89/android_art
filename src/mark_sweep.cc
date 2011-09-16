@@ -146,7 +146,7 @@ void MarkSweep::SweepSystemWeaks() {
   SweepJniWeakGlobals();
 }
 
-void MarkSweep::SweepCallback(size_t num_ptrs, void **ptrs, void *arg) {
+void MarkSweep::SweepCallback(size_t num_ptrs, void** ptrs, void* arg) {
   // TODO, lock heap if concurrent
   Space* space = static_cast<Space*>(arg);
   for (size_t i = 0; i < num_ptrs; ++i) {

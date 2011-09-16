@@ -110,6 +110,10 @@ test-art-target-oat-Fibonacci: test-art-target-sync
 	(adb pull /sdcard/test-art-target-oat-Fibonacci /tmp/ && echo test-art-target-oat-Fibonacci PASSED) || (echo test-art-target-oat-Fibonacci FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-Fibonacci
 
+.PHONY: dump-boot-oat
+dump-boot-oat: $(TARGET_BOOT_OAT) $(OATDUMP)
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT)
+
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art
 cpplint-art:

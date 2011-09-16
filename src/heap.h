@@ -174,7 +174,7 @@ class Heap {
 
   static void VerifyObjectLocked(const Object *obj);
 
-  static void VerificationCallback(Object* obj, void *arg);
+  static void VerificationCallback(Object* obj, void* arg);
 
   static Mutex* lock_;
 

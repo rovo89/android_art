@@ -48,11 +48,11 @@ class HeapBitmap {
  public:
   static const size_t kAlignment = 8;
 
-  typedef void Callback(Object* obj, void *arg);
+  typedef void Callback(Object* obj, void* arg);
 
-  typedef void ScanCallback(Object* obj, void *finger, void *arg);
+  typedef void ScanCallback(Object* obj, void* finger, void* arg);
 
-  typedef void SweepCallback(size_t numPtrs, void **ptrs, void *arg);
+  typedef void SweepCallback(size_t numPtrs, void** ptrs, void* arg);
 
   static HeapBitmap* Create(byte* base, size_t length);
 

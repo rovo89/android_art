@@ -374,7 +374,7 @@ Method* Frame::NextMethod() const {
   return *reinterpret_cast<Method**>(next_sp);
 }
 
-void* Thread::CreateCallback(void *arg) {
+void* Thread::CreateCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
   Runtime* runtime = Runtime::Current();
 

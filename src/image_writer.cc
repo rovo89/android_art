@@ -57,7 +57,7 @@ bool ImageWriter::Init() {
   return true;
 }
 
-void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void *arg) {
+void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
@@ -141,7 +141,7 @@ void ImageWriter::CopyAndFixupObjects() {
   FixupDexCaches();
 }
 
-void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void *arg) {
+void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK(object != NULL);
   DCHECK(arg != NULL);
   const Object* obj = object;

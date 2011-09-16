@@ -42,6 +42,20 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
+void DexFile::OpenDexFiles(std::vector<const char*>& dex_filenames,
+                           std::vector<const DexFile*>& dex_files,
+                           const std::string& strip_location_prefix) {
+  for (size_t i = 0; i < dex_filenames.size(); i++) {
+    const char* dex_filename = dex_filenames[i];
+    const DexFile* dex_file = Open(dex_filename, strip_location_prefix);
+    if (dex_file == NULL) {
+      fprintf(stderr, "could not open .dex from file %s\n", dex_filename);
+      exit(EXIT_FAILURE);
+    }
+    dex_files.push_back(dex_file);
+  }
+}
+
 const DexFile* DexFile::Open(const std::string& filename,
                              const std::string& strip_location_prefix) {
   if (filename.size() < 4) {
