@@ -86,7 +86,7 @@ TEST_F(ImageTest, WriteRead) {
     EXPECT_TRUE(klass != NULL) << descriptor;
     EXPECT_LT(boot_base, reinterpret_cast<byte*>(klass)) << descriptor;
     EXPECT_LT(reinterpret_cast<byte*>(klass), boot_limit) << descriptor;
-    EXPECT_TRUE(klass->GetMonitor() == NULL);  // address should have been removed from monitor
+    EXPECT_EQ(*klass->GetRawLockWordAddress(), 0);  // address should have been removed from monitor
   }
 }
 

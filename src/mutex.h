@@ -82,6 +82,22 @@ class MutexLock {
   DISALLOW_COPY_AND_ASSIGN(MutexLock);
 };
 
+class ConditionVariable {
+ public:
+  ConditionVariable(const std::string& name);
+  ~ConditionVariable();
+
+  void Broadcast();
+  void Signal();
+  void Wait(Mutex& mutex);
+  void TimedWait(Mutex& mutex, const timespec& ts);
+
+ private:
+  pthread_cond_t cond_;
+  std::string name_;
+  DISALLOW_COPY_AND_ASSIGN(ConditionVariable);
+};
+
 }  // namespace art
 
 #endif  // ART_SRC_MUTEX_H_

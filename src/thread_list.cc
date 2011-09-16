@@ -20,18 +20,15 @@ namespace art {
 
 ThreadList::ThreadList()
     : thread_list_lock_("thread list lock"),
-      thread_suspend_count_lock_("thread suspend count lock") {
-  CHECK_PTHREAD_CALL(pthread_cond_init, (&thread_start_cond_, NULL), "thread_start_cond_");
-  CHECK_PTHREAD_CALL(pthread_cond_init, (&thread_suspend_count_cond_, NULL), "thread_suspend_count_cond_");
+      thread_start_cond_("thread_start_cond_"),
+      thread_suspend_count_lock_("thread suspend count lock"),
+      thread_suspend_count_cond_("thread_suspend_count_cond_") {
 }
 
 ThreadList::~ThreadList() {
   if (Contains(Thread::Current())) {
     Runtime::Current()->DetachCurrentThread();
   }
-
-  CHECK_PTHREAD_CALL(pthread_cond_destroy, (&thread_start_cond_), "thread_start_cond_");
-  CHECK_PTHREAD_CALL(pthread_cond_destroy, (&thread_suspend_count_cond_), "thread_suspend_count_cond_");
 
   // All threads should have exited and unregistered when we
   // reach this point. This means that all daemon threads had been
@@ -71,7 +68,7 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
        * and re-acquiring the lock provides the memory barriers we
        * need for correct behavior on SMP.
        */
-      CHECK_PTHREAD_CALL(pthread_cond_wait, (&thread_suspend_count_cond_, thread_suspend_count_lock_.GetImpl()), __FUNCTION__);
+      thread_suspend_count_cond_.Wait(thread_suspend_count_lock_);
     }
     CHECK_EQ(thread->suspend_count_, 0);
   }
@@ -152,7 +149,7 @@ void ThreadList::ResumeAll() {
   {
     //LOG(INFO) << *self << " ResumeAll waking others";
     MutexLock mu(thread_suspend_count_lock_);
-    CHECK_PTHREAD_CALL(pthread_cond_broadcast, (&thread_suspend_count_cond_), "thread_suspend_count_cond_");
+    thread_suspend_count_cond_.Broadcast();
   }
 
   //LOG(INFO) << *self << " ResumeAll complete";
@@ -212,7 +209,7 @@ void ThreadList::SignalGo(Thread* child) {
 
     // We wait for the child to tell us that it's in the thread list.
     while (child->GetState() != Thread::kStarting) {
-      CHECK_PTHREAD_CALL(pthread_cond_wait, (&thread_start_cond_, thread_list_lock_.GetImpl()), __FUNCTION__);
+      thread_start_cond_.Wait(thread_list_lock_);
     }
   }
 
@@ -222,7 +219,7 @@ void ThreadList::SignalGo(Thread* child) {
 
   // Tell the child that it's safe: it will see any future suspend request.
   child->SetState(Thread::kVmWait);
-  CHECK_PTHREAD_CALL(pthread_cond_broadcast, (&thread_start_cond_), __FUNCTION__);
+  thread_start_cond_.Broadcast();
 }
 
 void ThreadList::WaitForGo() {
@@ -233,12 +230,12 @@ void ThreadList::WaitForGo() {
 
   // Tell our parent that we're in the thread list.
   self->SetState(Thread::kStarting);
-  CHECK_PTHREAD_CALL(pthread_cond_broadcast, (&thread_start_cond_), __FUNCTION__);
+  thread_start_cond_.Broadcast();
 
   // Wait until our parent tells us there's no suspend still pending
   // from before we were on the thread list.
   while (self->GetState() != Thread::kVmWait) {
-    CHECK_PTHREAD_CALL(pthread_cond_wait, (&thread_start_cond_, thread_list_lock_.GetImpl()), __FUNCTION__);
+    thread_start_cond_.Wait(thread_list_lock_);
   }
 
   // Enter the runnable state. We know that any pending suspend will affect us now.

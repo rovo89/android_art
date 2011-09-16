@@ -30,18 +30,17 @@
 
 namespace art {
 
-SignalCatcher::SignalCatcher() : lock_("SignalCatcher lock"), thread_(NULL) {
+SignalCatcher::SignalCatcher()
+    : lock_("SignalCatcher lock"), cond_("SignalCatcher::cond_"), thread_(NULL) {
   SetHaltFlag(false);
 
   // Create a raw pthread; its start routine will attach to the runtime.
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
 
-  CHECK_PTHREAD_CALL(pthread_cond_init, (&cond_, NULL), "SignalCatcher::cond_");
   MutexLock mu(lock_);
   while (thread_ == NULL) {
-    CHECK_PTHREAD_CALL(pthread_cond_wait, (&cond_, lock_.GetImpl()), __FUNCTION__);
+    cond_.Wait(lock_);
   }
-  CHECK_PTHREAD_CALL(pthread_cond_destroy, (&cond_), "SignalCatcher::cond_");
 }
 
 SignalCatcher::~SignalCatcher() {
@@ -123,7 +122,7 @@ void* SignalCatcher::Run(void* arg) {
   {
     MutexLock mu(signal_catcher->lock_);
     signal_catcher->thread_ = Thread::Current();
-    CHECK_PTHREAD_CALL(pthread_cond_broadcast, (&signal_catcher->cond_), __FUNCTION__);
+    signal_catcher->cond_.Broadcast();
   }
 
   // Set up mask with signals we want to handle.

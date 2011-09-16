@@ -130,6 +130,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/stub_arm.cc \
 	src/stub_x86.cc \
 	src/sun_misc_Unsafe.cc \
+	src/sync.cc \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/utf.cc \

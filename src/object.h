@@ -27,8 +27,6 @@
 #include "heap.h"
 #include "logging.h"
 #include "macros.h"
-#include "monitor.h"
-#include "monitor.h"
 #include "offsets.h"
 #include "runtime.h"
 #include "stringpiece.h"
@@ -204,8 +202,7 @@ class MANAGED Object {
   }
 
   Class* GetClass() const {
-    return
-        GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Object, klass_), false);
+    return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Object, klass_), false);
   }
 
   void SetClass(Class* new_klass);
@@ -223,45 +220,25 @@ class MANAGED Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
   }
 
-  Monitor* GetMonitor() const {
-    return GetFieldPtr<Monitor*>(
-        OFFSET_OF_OBJECT_MEMBER(Object, monitor_), false);
+  volatile int32_t* GetRawLockWordAddress() {
+    byte* raw_addr = reinterpret_cast<byte*>(this) + OFFSET_OF_OBJECT_MEMBER(Object, monitor_).Int32Value();
+    int32_t* word_addr = reinterpret_cast<int32_t*>(raw_addr);
+    return const_cast<volatile int32_t*>(word_addr);
   }
 
-  void SetMonitor(Monitor* monitor) {
-    // TODO: threading - compare-and-set
-    SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), monitor, false);
-  }
+  uint32_t GetLockOwner();
 
-  void MonitorEnter(Thread* thread = NULL) {
-    // TODO: use thread to get lock id
-    GetMonitor()->Enter();
-  }
+  void MonitorEnter(Thread* thread);
 
-  void MonitorExit(Thread* thread = NULL) {
-    // TODO: use thread to get lock id
-    GetMonitor()->Exit();
-  }
+  void MonitorExit(Thread* thread);
 
-  void Notify() {
-    GetMonitor()->Notify();
-  }
+  void Notify();
 
-  void NotifyAll() {
-    GetMonitor()->NotifyAll();
-  }
+  void NotifyAll();
 
-  void Wait() {
-    GetMonitor()->Wait();
-  }
+  void Wait(int64_t timeout);
 
-  void Wait(int64_t timeout) {
-    GetMonitor()->Wait(timeout);
-  }
-
-  void Wait(int64_t timeout, int32_t nanos) {
-    GetMonitor()->Wait(timeout, nanos);
-  }
+  void Wait(int64_t timeout, int32_t nanos);
 
   bool IsClass() const;
 
@@ -433,38 +410,11 @@ class MANAGED Object {
  private:
   Class* klass_;
 
-  Monitor* monitor_;
+  uint32_t monitor_;
 
-  friend struct ObjectOffsets;  // for verifying offset information
+  friend class ImageWriter;  // for abusing monitor_ directly
+  friend class ObjectOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
-};
-
-class ObjectLock {
- public:
-  explicit ObjectLock(Object* object) : obj_(object) {
-    CHECK(object != NULL);
-    obj_->MonitorEnter();
-  }
-
-  ~ObjectLock() {
-    obj_->MonitorExit();
-  }
-
-  void Wait(int64_t millis = 0) {
-    return obj_->Wait(millis);
-  }
-
-  void Notify() {
-    obj_->Notify();
-  }
-
-  void NotifyAll() {
-    obj_->NotifyAll();
-  }
-
- private:
-  Object* obj_;
-  DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
 // C++ mirror of java.lang.reflect.AccessibleObject
@@ -2047,7 +1997,7 @@ class MANAGED Class : public StaticStorageBase {
   // Total class size; used when allocating storage on gc heap.
   size_t class_size_;
 
-  // threadId, used to check for recursive <clinit> invocation
+  // tid used to check for recursive <clinit> invocation
   pid_t clinit_thread_id_;
 
   // number of instance fields that are object refs

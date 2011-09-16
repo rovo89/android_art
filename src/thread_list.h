@@ -59,12 +59,12 @@ class ThreadList {
   std::bitset<kMaxThreadId> allocated_ids_;
   std::list<Thread*> list_;
 
-  pthread_cond_t thread_start_cond_;
+  ConditionVariable thread_start_cond_;
 
   // This lock guards every thread's suspend_count_ field...
   mutable Mutex thread_suspend_count_lock_;
   // ...and is used in conjunction with this condition variable.
-  pthread_cond_t thread_suspend_count_cond_;
+  ConditionVariable thread_suspend_count_cond_;
 
   friend class Thread;
   friend class ThreadListLock;

@@ -358,9 +358,4 @@ TEST_F(CompilerTest, InvokeTest) {
   AssertStaticIntMethod(20664, LoadDex("Invoke"), "Invoke", "test0", "(I)I", 912);
 }
 
-TEST_F(CompilerTest, DISABLED_LARGE_SystemMethodsTest) {
-  CompileAll(NULL); // This test calls a bunch of stuff from libcore.
-  AssertStaticIntMethod(123, LoadDex("SystemMethods"), "SystemMethods", "test5", "()I");
-}
-
 }  // namespace art

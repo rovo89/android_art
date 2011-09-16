@@ -17,12 +17,37 @@
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "runtime.h"
+#include "sync.h"
 
 namespace art {
 
 bool Object::IsString() const {
   // TODO use "klass_ == String::GetJavaLangString()" instead?
   return GetClass() == GetClass()->GetDescriptor()->GetClass();
+}
+
+uint32_t Object::GetLockOwner() {
+  return Monitor::GetLockOwner(monitor_);
+}
+
+void Object::MonitorEnter(Thread* thread) {
+  Monitor::MonitorEnter(thread, this);
+}
+
+void Object::MonitorExit(Thread* thread) {
+  Monitor::MonitorExit(thread, this);
+}
+
+void Object::Notify() {
+  Monitor::Notify(Thread::Current(), this);
+}
+
+void Object::NotifyAll() {
+  Monitor::NotifyAll(Thread::Current(), this);
+}
+
+void Object::Wait(int64_t ms, int32_t ns) {
+  Monitor::Wait(Thread::Current(), this, ms, ns, true);
 }
 
 // TODO: get global references for these

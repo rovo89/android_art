@@ -922,7 +922,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     ArmLIR* hopBranch;
 
     oatFlushAllRegs(cUnit);
-    assert(art::Monitor::kLwShapeThin == 0);
+    DCHECK_EQ(LW_SHAPE_THIN, 0);
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
@@ -930,12 +930,10 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     newLIR3(cUnit, kThumb2Ldrex, r2, r1,
             Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
     // Align owner
-    opRegImm(cUnit, kOpLsl, r3, art::Monitor::kLwLockOwnerShift);
+    opRegImm(cUnit, kOpLsl, r3, LW_LOCK_OWNER_SHIFT);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
-    newLIR4(cUnit, kThumb2Bfi, r3, r2, 0, art::Monitor::kLwLockOwnerShift
-            - 1);
-    newLIR3(cUnit, kThumb2Bfc, r2, art::Monitor::kLwHashStateShift,
-            art::Monitor::kLwLockOwnerShift - 1);
+    newLIR4(cUnit, kThumb2Bfi, r3, r2, 0, LW_LOCK_OWNER_SHIFT - 1);
+    newLIR3(cUnit, kThumb2Bfc, r2, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
     hopBranch = newLIR2(cUnit, kThumb2Cbnz, r2, 0);
     newLIR4(cUnit, kThumb2Strex, r2, r3, r1,
             Object::MonitorOffset().Int32Value() >> 2);
@@ -972,7 +970,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     ArmLIR* hopTarget;
     ArmLIR* hopBranch;
 
-    assert(art::Monitor::kLwShapeThin == 0);
+    DCHECK_EQ(LW_SHAPE_THIN, 0);
     oatFlushAllRegs(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
@@ -980,12 +978,10 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     loadWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r2); // Get lock
     loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
-    opRegRegImm(cUnit, kOpAnd, r12, r2, (art::Monitor::kLwHashStateMask <<
-                art::Monitor::kLwHashStateShift));
+    opRegRegImm(cUnit, kOpAnd, r12, r2, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
     // Align owner
-    opRegImm(cUnit, kOpLsl, r3, art::Monitor::kLwLockOwnerShift);
-    newLIR3(cUnit, kThumb2Bfc, r2, art::Monitor::kLwHashStateShift,
-            art::Monitor::kLwLockOwnerShift - 1);
+    opRegImm(cUnit, kOpLsl, r3, LW_LOCK_OWNER_SHIFT);
+    newLIR3(cUnit, kThumb2Bfc, r2, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
     opRegReg(cUnit, kOpSub, r2, r3);
     hopBranch = opCondBranch(cUnit, kArmCondNe);
     oatGenMemBarrier(cUnit, kSY);

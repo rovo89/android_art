@@ -30,6 +30,7 @@
 #include "class_linker.h"
 #include "compiler.h"
 #include "dex_cache.h"
+#include "sync.h"
 #include "utils.h"
 
 // From Common.h

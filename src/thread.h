@@ -267,6 +267,8 @@ class Thread {
 
   void WaitUntilSuspended();
 
+  bool HoldsLock(Object*);
+
   /*
    * Changes the priority of this thread to match that of the java.lang.Thread object.
    *
@@ -400,6 +402,20 @@ class Thread {
     return interrupted_;
   }
 
+  void Interrupt() {
+    MutexLock mu(wait_mutex_);
+    if (interrupted_) {
+      return;
+    }
+    interrupted_ = true;
+    NotifyLocked();
+  }
+
+  void Notify() {
+    MutexLock mu(wait_mutex_);
+    NotifyLocked();
+  }
+
   void RegisterExceptionEntryPoint(void (*handler)(Method**)) {
     exception_entry_point_ = handler;
   }
@@ -517,6 +533,12 @@ class Thread {
   void InitFunctionPointers();
   void InitStackHwm();
 
+  void NotifyLocked() {
+    if (wait_monitor_ != NULL) {
+      wait_cond_.Signal();
+    }
+  }
+
   static void ThreadExitCallback(void* arg);
 
   void WalkStack(StackVisitor* visitor) const;
@@ -541,10 +563,15 @@ class Thread {
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
   mutable Mutex wait_mutex_;
+  ConditionVariable wait_cond_;
   // Pointer to the monitor lock we're currently waiting on (or NULL), guarded by wait_mutex_.
   Monitor* wait_monitor_;
   // Thread "interrupted" status; stays raised until queried or thrown, guarded by wait_mutex_.
   bool interrupted_;
+  // The next thread in the wait set this thread is part of.
+  Thread* wait_next_;
+
+  friend class Monitor;
 
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;

@@ -831,6 +831,7 @@ void Thread::Shutdown() {
 Thread::Thread()
     : peer_(NULL),
       wait_mutex_("Thread wait mutex"),
+      wait_cond_("Thread wait condition variable"),
       wait_monitor_(NULL),
       interrupted_(false),
       stack_end_(NULL),
@@ -846,7 +847,7 @@ Thread::Thread()
 
 void MonitorExitVisitor(const Object* object, void*) {
   Object* entered_monitor = const_cast<Object*>(object);
-  entered_monitor->MonitorExit();
+  entered_monitor->MonitorExit(Thread::Current());
 }
 
 Thread::~Thread() {
@@ -875,11 +876,21 @@ Thread::~Thread() {
 
   // Thread.join() is implemented as an Object.wait() on the Thread.lock
   // object. Signal anyone who is waiting.
-  //Object* lock = dvmGetFieldObject(self->threadObj, gDvm.offJavaLangThread_lock);
-  //dvmLockObject(self, lock);
-  //dvmObjectNotifyAll(self, lock);
-  //dvmUnlockObject(self, lock);
-  //lock = NULL;
+  if (peer_ != NULL) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Class* java_lang_Thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
+    Class* java_lang_ThreadLock_class = class_linker->FindSystemClass("Ljava/lang/ThreadLock;");
+    Field* lock_field = java_lang_Thread_class->FindDeclaredInstanceField("lock", java_lang_ThreadLock_class);
+
+    Thread* self = Thread::Current();
+    Object* lock = lock_field->GetObject(peer_);
+    // This conditional is only needed for tests, where Thread.lock won't have been set.
+    if (lock != NULL) {
+      lock->MonitorEnter(self);
+      lock->NotifyAll();
+      lock->MonitorExit(self);
+    }
+  }
 
   delete jni_env_;
   jni_env_ = NULL;
@@ -1231,6 +1242,13 @@ Context* Thread::GetLongJumpContext() {
     long_jump_context_.reset(result);
   }
   return result;
+}
+
+bool Thread::HoldsLock(Object* object) {
+  if (object == NULL) {
+    return false;
+  }
+  return object->GetLockOwner() == thin_lock_id_;
 }
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {

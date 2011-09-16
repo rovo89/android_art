@@ -79,4 +79,37 @@ pid_t Mutex::GetTid() {
   return art::GetTid();
 }
 
+ConditionVariable::ConditionVariable(const std::string& name) : name_(name) {
+  CHECK_MUTEX_CALL(pthread_cond_init, (&cond_, NULL));
+}
+
+ConditionVariable::~ConditionVariable() {
+  CHECK_MUTEX_CALL(pthread_cond_destroy, (&cond_));
+}
+
+void ConditionVariable::Broadcast() {
+  CHECK_MUTEX_CALL(pthread_cond_broadcast, (&cond_));
+}
+
+void ConditionVariable::Signal() {
+  CHECK_MUTEX_CALL(pthread_cond_signal, (&cond_));
+}
+
+void ConditionVariable::Wait(Mutex& mutex) {
+  CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, mutex.GetImpl()));
+}
+
+void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
+#ifdef HAVE_TIMEDWAIT_MONOTONIC
+#define TIMEDWAIT pthread_cond_timedwait_monotonic
+#else
+#define TIMEDWAIT pthread_cond_timedwait
+#endif
+  int rc = TIMEDWAIT(&cond_, mutex.GetImpl(), &ts);
+  if (rc != 0 && rc != ETIMEDOUT) {
+    errno = rc;
+    PLOG(FATAL) << "TimedWait failed for " << name_;
+  }
+}
+
 }  // namespace

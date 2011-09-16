@@ -31,7 +31,7 @@ class ImageWriter {
   // we use the lock word to store the offset of the object in the image
   void AssignImageOffset(Object* object) {
     DCHECK(object != NULL);
-    DCHECK(object->GetMonitor() == NULL);  // should be no lock
+    DCHECK(object->monitor_ == 0);  // should be no lock
     SetImageOffset(object, image_top_);
     image_top_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
     DCHECK_LT(image_top_, image_->GetLength());
@@ -39,25 +39,25 @@ class ImageWriter {
   static void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
     // should be no lock (but it might be forward referenced interned string)
-    DCHECK(object->GetMonitor() == NULL || object->IsString());
+    DCHECK(object->monitor_ == 0 || object->IsString());
     DCHECK_NE(0U, offset);
-    object->SetMonitor(reinterpret_cast<Monitor*>(offset));
+    object->monitor_ = offset;
   }
   static size_t IsImageOffsetAssigned(const Object* object) {
     DCHECK(object != NULL);
-    size_t offset = reinterpret_cast<size_t>(object->GetMonitor());
+    size_t offset = object->monitor_;
     return offset != 0U;
   }
   static size_t GetImageOffset(const Object* object) {
     DCHECK(object != NULL);
-    size_t offset = reinterpret_cast<size_t>(object->GetMonitor());
+    size_t offset = object->monitor_;
     DCHECK_NE(0U, offset);
     return offset;
   }
   static void ResetImageOffset(Object* object) {
     DCHECK(object != NULL);
-    DCHECK(object->GetMonitor() != NULL);  // should be an offset
-    object->SetMonitor(reinterpret_cast<Monitor*>(0));
+    DCHECK(object->monitor_ != 0);  // should be an offset
+    object->monitor_ = 0;
   }
 
   bool InSourceSpace(const Object* object) {

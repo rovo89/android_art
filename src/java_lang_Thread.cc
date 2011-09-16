@@ -53,31 +53,26 @@ jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
 
 jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
   ThreadListLock lock;
-  //Thread* thread = Thread::FromManagedThread(env, javaThread);
-  //Object* object = dvmDecodeIndirectRef(env, javaObject);
-  //if (object == NULL) {
-    //dvmThrowNullPointerException("object == null");
-    //return JNI_FALSE;
-  //}
-  //Thread* thread = Thread::FromManagedThread(env, javaThread);
-  //int result = dvmHoldsLock(thread, object);
-  //return result;
-  UNIMPLEMENTED(FATAL);
-  return JNI_FALSE;
+  Object* object = Decode<Object*>(env, javaObject);
+  if (object == NULL) {
+    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
+    return JNI_FALSE;
+  }
+  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  return thread->HoldsLock(object);
 }
 
 void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
   ThreadListLock lock;
-  UNIMPLEMENTED(FATAL);
-  //Thread* thread = Thread::FromManagedThread(env, javaThread);
-  //if (thread != NULL) {
-    //dvmThreadInterrupt(thread);
-  //}
+  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  if (thread != NULL) {
+    thread->Interrupt();
+  }
 }
 
 void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
   ThreadListLock lock;
-  UNIMPLEMENTED(WARNING);
+  // TODO: needed for debugging (DDMS) support.
   //Thread* thread = Thread::FromManagedThread(env, javaThread);
   //StringObject* nameStr = (StringObject*) dvmDecodeIndirectRef(env, javaName);
   //int threadId = (thread != NULL) ? thread->threadId : -1;

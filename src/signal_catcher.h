@@ -45,7 +45,7 @@ class SignalCatcher {
 
   mutable Mutex lock_;
   bool halt_;
-  pthread_cond_t cond_;
+  ConditionVariable cond_;
   pthread_t pthread_;
   Thread* thread_;
 };

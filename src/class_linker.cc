@@ -16,10 +16,10 @@
 #include "heap.h"
 #include "intern_table.h"
 #include "logging.h"
-#include "monitor.h"
 #include "object.h"
 #include "runtime.h"
 #include "space.h"
+#include "sync.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -54,6 +54,35 @@ const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
   "[J",
   "[S",
   "[Ljava/lang/StackTraceElement;",
+};
+
+class ObjectLock {
+ public:
+  explicit ObjectLock(Object* object) : self_(Thread::Current()), obj_(object) {
+    CHECK(object != NULL);
+    obj_->MonitorEnter(self_);
+  }
+
+  ~ObjectLock() {
+    obj_->MonitorExit(self_);
+  }
+
+  void Wait() {
+    return Monitor::Wait(self_, obj_, 0, 0, false);
+  }
+
+  void Notify() {
+    obj_->Notify();
+  }
+
+  void NotifyAll() {
+    obj_->NotifyAll();
+  }
+
+ private:
+  Thread* self_;
+  Object* obj_;
+  DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
 ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path,
@@ -1387,9 +1416,10 @@ bool ClassLinker::InitializeSuperClass(Class* klass) {
     Class* super_class = klass->GetSuperClass();
     if (super_class->GetStatus() != Class::kStatusInitialized) {
       CHECK(!super_class->IsInterface());
-      klass->MonitorExit();
+      Thread* self = Thread::Current();
+      klass->MonitorEnter(self);
       bool super_initialized = InitializeClass(super_class);
-      klass->MonitorEnter();
+      klass->MonitorExit(self);
       // TODO: check for a pending exception
       if (!super_initialized) {
         klass->SetStatus(Class::kStatusError);
@@ -1407,10 +1437,11 @@ bool ClassLinker::EnsureInitialized(Class* c) {
     return true;
   }
 
-  c->MonitorExit();
+  Thread* self = Thread::Current();
+  c->MonitorEnter(self);
   InitializeClass(c);
-  c->MonitorEnter();
-  return !Thread::Current()->IsExceptionPending();
+  c->MonitorExit(self);
+  return !self->IsExceptionPending();
 }
 
 StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx,
