@@ -316,7 +316,6 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
   const DexFile::CodeItem* code_item = vdata->code_item_;
   uint16_t registers_size = code_item->registers_size_;
   uint32_t insns_size = code_item->insns_size_;
-  bool generate_register_map = true;
   RegisterTable reg_table;
 
   if (registers_size * insns_size > 4*1024*1024) {
@@ -325,8 +324,7 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
   }
 
   /* Create and initialize register lists. */
-  if (!InitRegisterTable(vdata, &reg_table,
-      generate_register_map ? kTrackRegsGcPoints : kTrackRegsBranches)) {
+  if (!InitRegisterTable(vdata, &reg_table, kTrackRegsGcPoints)) {
     return false;
   }
 
@@ -349,22 +347,16 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
     return false;
   }
 
-  /* Generate a register map. */
-  if (generate_register_map) {
-    UniquePtr<RegisterMap> map(GenerateRegisterMapV(vdata));
-    /*
-     * Tuck the map into the Method. It will either get used directly or, if
-     * we're in dexopt, will be packed up and appended to the DEX file.
-     */
-    ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
-    ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map.get()));
+  /* Generate a register map and add it to the method. */
+  UniquePtr<RegisterMap> map(GenerateRegisterMapV(vdata));
+  ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
+  ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map.get()));
 
-    memcpy(header->GetData(), map.get()->header_, sizeof(RegisterMapHeader));
-    memcpy(data->GetData(), map.get()->data_, ComputeRegisterMapSize(map.get()));
+  memcpy(header->GetData(), map.get()->header_, sizeof(RegisterMapHeader));
+  memcpy(data->GetData(), map.get()->data_, ComputeRegisterMapSize(map.get()));
 
-    method->SetRegisterMapHeader(header);
-    method->SetRegisterMapData(data);
-  }
+  method->SetRegisterMapHeader(header);
+  method->SetRegisterMapData(data);
 
   return true;
 }
@@ -1610,7 +1602,6 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
           break;
         if (res_class != NULL) {
           if (!decl_class->IsInterface() &&
-              //!res_class->InstanceOf(decl_class)) {
               !decl_class->IsAssignableFrom(res_class)) {
             LOG(ERROR) << "VFY: returning " << std::hex
                        << res_class->GetDescriptor()->ToModifiedUtf8()
@@ -3446,9 +3437,7 @@ sput_1nr_common:
     SetRegisterType(work_line, reg + 1, kRegTypeUnknown);
   }
 
-  /*
-   * Handle "continue". Tag the next consecutive instruction.
-   */
+  /* Handle "continue". Tag the next consecutive instruction. */
   if ((opcode_flag & Instruction::kContinue) != 0) {
     size_t insn_width = InsnGetWidth(insn_flags, insn_idx);
     if (insn_idx + insn_width >= insns_size) {
@@ -5305,7 +5294,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
   uint32_t data_size = gc_point_count * (bytes_for_addr + reg_width);
 
   RegisterMap* map = new RegisterMap(format, reg_width, gc_point_count,
-      true, data_size);
+      data_size);
 
   /* Populate it. */
   uint8_t* map_data = map->data_;
@@ -5369,6 +5358,121 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
   }
 
   return map;
+}
+
+DexVerifier::RegisterMap* DexVerifier::GetExpandedRegisterMapHelper(
+    Method* method, RegisterMap* map) {
+  RegisterMap* new_map;
+
+  if (map == NULL)
+    return NULL;
+
+  /* TODO: sanity check to ensure this isn't called w/o external locking */
+
+  uint8_t format = map->header_->format_;
+  switch (format) {
+    case kRegMapFormatCompact8:
+    case kRegMapFormatCompact16:
+      /* already expanded */
+      return map;
+    case kRegMapFormatDifferential:
+      new_map = UncompressMapDifferential(map);
+      break;
+    default:
+      LOG(ERROR) << "Unknown format " << format
+                 << " in dvmGetExpandedRegisterMap";
+      return NULL;
+  }
+
+  if (new_map == NULL) {
+    LOG(ERROR) << "Map failed to uncompress (fmt=" << format << ") "
+               << method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
+               << "." << method->GetName();
+    return NULL;
+  }
+
+  /* Update method, and free compressed map if it was sitting on the heap. */
+  ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
+  ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map));
+
+  memcpy(header->GetData(), map->header_, sizeof(RegisterMapHeader));
+  memcpy(data->GetData(), map->data_, ComputeRegisterMapSize(map));
+
+  method->SetRegisterMapHeader(header);
+  method->SetRegisterMapData(data);
+
+  delete map;
+  return new_map;
+}
+
+const uint8_t* DexVerifier::RegisterMapGetLine(const RegisterMap* map, int addr) {
+  int addr_width, line_width;
+  uint8_t format = map->header_->format_;
+  uint16_t num_entries = map->header_->num_entries_;
+
+  assert(num_entries > 0);
+
+  switch (format) {
+    case kRegMapFormatNone:
+      return NULL;
+    case kRegMapFormatCompact8:
+      addr_width = 1;
+      break;
+    case kRegMapFormatCompact16:
+      addr_width = 2;
+      break;
+    default:
+      LOG(ERROR) << "Unknown format " << format;
+      return NULL;
+  }
+
+  line_width = addr_width + map->header_->reg_width_;
+
+  /*
+   * Find the appropriate entry. Many maps are very small, some are very large.
+   */
+  static const int kSearchThreshold = 8;
+  const uint8_t* data = NULL;
+  int line_addr;
+
+  if (num_entries < kSearchThreshold) {
+    int i;
+    data = map->data_;
+    for (i = num_entries; i > 0; i--) {
+      line_addr = data[0];
+      if (addr_width > 1)
+        line_addr |= data[1] << 8;
+      if (line_addr == addr)
+        return data + addr_width;
+
+      data += line_width;
+    }
+    assert(data == map->data_ + line_width * num_entries);
+  } else {
+    int hi, lo, mid;
+
+    lo = 0;
+    hi = num_entries -1;
+
+    while (hi >= lo) {
+      mid = (hi + lo) / 2;
+      data = map->data_ + line_width * mid;
+
+      line_addr = data[0];
+      if (addr_width > 1)
+        line_addr |= data[1] << 8;
+
+      if (addr > line_addr) {
+        lo = mid + 1;
+      } else if (addr < line_addr) {
+        hi = mid - 1;
+      } else {
+        return data + addr_width;
+      }
+    }
+  }
+
+  return NULL;
 }
 
 void DexVerifier::OutputTypeVector(const RegType* regs, int insn_reg_count,
@@ -5469,8 +5573,7 @@ bool DexVerifier::CompareMaps(const RegisterMap* map1, const RegisterMap* map2)
 
   if (map1->header_->format_ != map2->header_->format_ ||
       map1->header_->reg_width_ != map2->header_->reg_width_ ||
-      map1->header_->num_entries_ != map2->header_->num_entries_ ||
-      map1->header_->format_on_heap_ != map2->header_->format_on_heap_) {
+      map1->header_->num_entries_ != map2->header_->num_entries_) {
     LOG(ERROR) << "CompareMaps: fields mismatch";
   }
   if (memcmp(map1->data_, map2->data_, size1) != 0) {
@@ -5719,7 +5822,7 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
   }
 
   RegisterMap* new_map = new RegisterMap(kRegMapFormatDifferential, reg_width,
-      num_entries, true, new_map_size);
+      num_entries, new_map_size);
 
   tmp_ptr = new_map->data_;
   tmp_ptr = WriteUnsignedLeb128(tmp_ptr, new_data_size);
@@ -5761,7 +5864,7 @@ DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
   /* Now we know enough to allocate the new map. */
   new_data_size = (new_addr_width + reg_width) * num_entries;
   RegisterMap* new_map = new RegisterMap(new_format, reg_width, num_entries,
-      true, new_data_size);
+      new_data_size);
 
   /* Write the start address and initial bits to the new map. */
   uint8_t* dst_ptr = new_map->data_;

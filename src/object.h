@@ -588,11 +588,11 @@ class MANAGED Method : public AccessibleObject {
 
   ByteArray* GetRegisterMapData() const;
 
-  void SetRegisterMapData(ByteArray* new_data);
+  void SetRegisterMapData(ByteArray* data);
 
   ByteArray* GetRegisterMapHeader() const;
 
-  void SetRegisterMapHeader(ByteArray* new_header);
+  void SetRegisterMapHeader(ByteArray* header);
 
   String* GetShorty() const;
 
@@ -2501,9 +2501,9 @@ inline ByteArray* Method::GetRegisterMapData() const {
       OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), false);
 }
 
-inline void Method::SetRegisterMapData(ByteArray* new_data) {
+inline void Method::SetRegisterMapData(ByteArray* data) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_),
-                 new_data, false);
+                 data, false);
 }
 
 inline ByteArray* Method::GetRegisterMapHeader() const {
@@ -2511,9 +2511,9 @@ inline ByteArray* Method::GetRegisterMapHeader() const {
       OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), false);
 }
 
-inline void Method::SetRegisterMapHeader(ByteArray* new_header) {
+inline void Method::SetRegisterMapHeader(ByteArray* header) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_),
-                 new_header, false);
+                 header, false);
 }
 
 inline String* Method::GetShorty() const {

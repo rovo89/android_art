@@ -362,12 +362,9 @@ class DexVerifier {
     uint8_t format_;          /* enum RegisterMapFormat; MUST be first entry */
     uint8_t reg_width_;       /* bytes per register line, 1+ */
     uint16_t num_entries_;    /* number of entries */
-    bool    format_on_heap_;  /* indicates allocation on heap */
 
-    RegisterMapHeader(uint8_t format, uint8_t reg_width, uint16_t num_entries,
-        bool format_on_heap)
-        : format_(format), reg_width_(reg_width), num_entries_(num_entries),
-          format_on_heap_(format_on_heap) {
+    RegisterMapHeader(uint8_t format, uint8_t reg_width, uint16_t num_entries)
+        : format_(format), reg_width_(reg_width), num_entries_(num_entries) {
     }
   };
 
@@ -395,9 +392,8 @@ class DexVerifier {
     }
 
     RegisterMap(uint8_t format, uint8_t reg_width, uint16_t num_entries,
-        bool format_on_heap, uint32_t data_size) {
-      header_ = new RegisterMapHeader(format, reg_width, num_entries,
-          format_on_heap);
+        uint32_t data_size) {
+      header_ = new RegisterMapHeader(format, reg_width, num_entries);
       data_ = new uint8_t[data_size]();
       needs_free_ = true;
     }
@@ -560,6 +556,136 @@ class DexVerifier {
   static inline RegType RegTypeFromUninitIndex(int uidx) {
     return (uint32_t) (kRegTypeUninit | (uidx << kRegTypeUninitShift));
   }
+
+  /*
+   * Generate the register map for a method that has just been verified
+   * (i.e. we're doing this as part of verification).
+   *
+   * For type-precise determination we have all the data we need, so we
+   * just need to encode it in some clever fashion.
+   *
+   * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
+   */
+  static RegisterMap* GenerateRegisterMapV(VerifierData* vdata);
+
+  /*
+   * Get the expanded form of the register map associated with the specified
+   * method. May update the RegisterMap, possibly freeing the previous map.
+   *
+   * Returns NULL on failure (e.g. unable to expand map).
+   *
+   * NOTE: this function is not synchronized; external locking is mandatory.
+   * (This is expected to be called at GC time.)
+   */
+  static inline RegisterMap* GetExpandedRegisterMap(Method* method) {
+    if (method->GetRegisterMapHeader() == NULL ||
+        method->GetRegisterMapData() == NULL) {
+      return NULL;
+    }
+    RegisterMap* cur_map = new RegisterMap(method->GetRegisterMapHeader(),
+        method->GetRegisterMapData());
+    uint8_t format = cur_map->header_->format_;
+    if (format == kRegMapFormatCompact8 || format == kRegMapFormatCompact16) {
+      return cur_map;
+    } else {
+      return GetExpandedRegisterMapHelper(method, cur_map);
+    }
+  }
+
+  /*
+   * Get the expanded form of the register map associated with the method.
+   *
+   * If the map is already in one of the uncompressed formats, we return
+   * immediately.  Otherwise, we expand the map and replace method's register
+   * map pointer, freeing it if it was allocated on the heap.
+   *
+   * NOTE: this function is not synchronized; external locking is mandatory
+   * (unless we're in the zygote, where single-threaded access is guaranteed).
+   */
+  static RegisterMap* GetExpandedRegisterMapHelper(Method* method,
+      RegisterMap* map);
+
+  /* Return the data for the specified address, or NULL if not found. */
+  static const uint8_t* RegisterMapGetLine(const RegisterMap* map, int addr);
+
+  /*
+   * Determine if the RegType value is a reference type.
+   *
+   * Ordinarily we include kRegTypeZero in the "is it a reference"
+   * check. There's no value in doing so here, because we know
+   * the register can't hold anything but zero.
+   */
+  static inline bool IsReferenceType(RegType type) {
+    return (type > kRegTypeMAX || type == kRegTypeUninit);
+  }
+
+  /* Toggle the value of the "idx"th bit in "ptr". */
+  static inline void ToggleBit(uint8_t* ptr, int idx) {
+    ptr[idx >> 3] ^= 1 << (idx & 0x07);
+  }
+
+  /*
+   * Given a line of registers, output a bit vector that indicates whether
+   * or not the register holds a reference type (which could be null).
+   *
+   * We use '1' to indicate it's a reference, '0' for anything else (numeric
+   * value, uninitialized data, merge conflict). Register 0 will be found
+   * in the low bit of the first byte.
+   */
+  static void OutputTypeVector(const RegType* regs, int insn_reg_count,
+      uint8_t* data);
+
+  /*
+   * Double-check the map.
+   *
+   * We run through all of the data in the map, and compare it to the original.
+   * Only works on uncompressed data.
+   */
+  static bool VerifyMap(VerifierData* vdata, const RegisterMap* map);
+
+  /* Compare two register maps. Returns true if they're equal, false if not. */
+  static bool CompareMaps(const RegisterMap* map1, const RegisterMap* map2);
+
+  /* Compute the size, in bytes, of a register map. */
+  static size_t ComputeRegisterMapSize(const RegisterMap* map);
+
+  /*
+   * Compute the difference between two bit vectors.
+   *
+   * If "leb_out_buf" is non-NULL, we output the bit indices in ULEB128 format
+   * as we go. Otherwise, we just generate the various counts.
+   *
+   * The bit vectors are compared byte-by-byte, so any unused bits at the
+   * end must be zero.
+   *
+   * Returns the number of bytes required to hold the ULEB128 output.
+   *
+   * If "first_bit_changed_ptr" or "num_bits_changed_ptr" are non-NULL, they
+   * will receive the index of the first changed bit and the number of changed
+   * bits, respectively.
+   */
+  static int ComputeBitDiff(const uint8_t* bits1, const uint8_t* bits2,
+      int byte_width, int* first_bit_changed_ptr, int* num_bits_changed_ptr,
+      uint8_t* leb_out_buf);
+
+  /*
+   * Compress the register map with differential encoding.
+   *
+   * On success, returns a newly-allocated RegisterMap. If the map is not
+   * compatible for some reason, or fails to get smaller, this will return NULL.
+   */
+  static RegisterMap* CompressMapDifferential(const RegisterMap* map);
+
+  /*
+   * Expand a compressed map to an uncompressed form.
+   *
+   * Returns a newly-allocated RegisterMap on success, or NULL on failure.
+   *
+   * TODO: consider using the linear allocator or a custom allocator with
+   * LRU replacement for these instead of the native heap.
+   */
+  static RegisterMap* UncompressMapDifferential(const RegisterMap* map);
+
 
   /* Verify a class. Returns "true" on success. */
   static bool VerifyClass(Class* klass);
@@ -1542,95 +1668,6 @@ class DexVerifier {
       RegisterLine* register_line, const int insn_reg_count,
       const Instruction::DecodedInstruction* dec_insn, MethodType method_type,
       bool is_range, bool is_super, VerifyError* failure);
-
-  /*
-   * Generate the register map for a method that has just been verified
-   * (i.e. we're doing this as part of verification).
-   *
-   * For type-precise determination we have all the data we need, so we
-   * just need to encode it in some clever fashion.
-   *
-   * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
-   */
-  static RegisterMap* GenerateRegisterMapV(VerifierData* vdata);
-
-  /*
-   * Determine if the RegType value is a reference type.
-   *
-   * Ordinarily we include kRegTypeZero in the "is it a reference"
-   * check. There's no value in doing so here, because we know
-   * the register can't hold anything but zero.
-   */
-  static inline bool IsReferenceType(RegType type) {
-    return (type > kRegTypeMAX || type == kRegTypeUninit);
-  }
-
-  /* Toggle the value of the "idx"th bit in "ptr". */
-  static inline void ToggleBit(uint8_t* ptr, int idx) {
-    ptr[idx >> 3] ^= 1 << (idx & 0x07);
-  }
-
-  /*
-   * Given a line of registers, output a bit vector that indicates whether
-   * or not the register holds a reference type (which could be null).
-   *
-   * We use '1' to indicate it's a reference, '0' for anything else (numeric
-   * value, uninitialized data, merge conflict). Register 0 will be found
-   * in the low bit of the first byte.
-   */
-  static void OutputTypeVector(const RegType* regs, int insn_reg_count,
-      uint8_t* data);
-
-  /*
-   * Double-check the map.
-   *
-   * We run through all of the data in the map, and compare it to the original.
-   * Only works on uncompressed data.
-   */
-  static bool VerifyMap(VerifierData* vdata, const RegisterMap* map);
-
-  /* Compare two register maps. Returns true if they're equal, false if not. */
-  static bool CompareMaps(const RegisterMap* map1, const RegisterMap* map2);
-
-  /* Compute the size, in bytes, of a register map. */
-  static size_t ComputeRegisterMapSize(const RegisterMap* map);
-
-  /*
-   * Compute the difference between two bit vectors.
-   *
-   * If "leb_out_buf" is non-NULL, we output the bit indices in ULEB128 format
-   * as we go. Otherwise, we just generate the various counts.
-   *
-   * The bit vectors are compared byte-by-byte, so any unused bits at the
-   * end must be zero.
-   *
-   * Returns the number of bytes required to hold the ULEB128 output.
-   *
-   * If "first_bit_changed_ptr" or "num_bits_changed_ptr" are non-NULL, they
-   * will receive the index of the first changed bit and the number of changed
-   * bits, respectively.
-   */
-  static int ComputeBitDiff(const uint8_t* bits1, const uint8_t* bits2,
-      int byte_width, int* first_bit_changed_ptr, int* num_bits_changed_ptr,
-      uint8_t* leb_out_buf);
-
-  /*
-   * Compress the register map with differential encoding.
-   *
-   * On success, returns a newly-allocated RegisterMap. If the map is not
-   * compatible for some reason, or fails to get smaller, this will return NULL.
-   */
-  static RegisterMap* CompressMapDifferential(const RegisterMap* map);
-
-  /*
-   * Expand a compressed map to an uncompressed form.
-   *
-   * Returns a newly-allocated RegisterMap on success, or NULL on failure.
-   *
-   * TODO: consider using the linear allocator or a custom allocator with
-   * LRU replacement for these instead of the native heap.
-   */
-  static RegisterMap* UncompressMapDifferential(const RegisterMap* map);
 
   DISALLOW_COPY_AND_ASSIGN(DexVerifier);
 };
