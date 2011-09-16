@@ -165,6 +165,12 @@ static void setupResourceMasks(ArmLIR* lir)
         lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
     }
 
+    if (flags & REG_DEF_FPCS_LIST2) {
+        for (int i = 0; i < lir->operands[2]; i++) {
+            setupRegMask(&lir->defMask, lir->operands[1] + i);
+        }
+    }
+
     if (flags & SETS_CCODES) {
         lir->defMask |= ENCODE_CCODE;
     }
@@ -205,7 +211,9 @@ static void setupResourceMasks(ArmLIR* lir)
     }
 
     if (flags & REG_USE_FPCS_LIST2) {
-        lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[2] >> 16);
+        for (int i = 0; i < lir->operands[2]; i++) {
+            setupRegMask(&lir->useMask, lir->operands[1] + i);
+        }
     }
 
     if (flags & USES_CCODES) {
