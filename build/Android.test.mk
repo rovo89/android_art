@@ -37,7 +37,7 @@ define build-art-test
   else
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
-    LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
+    LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_main_host
   endif
   ifeq ($(1),target)
     include $(BUILD_EXECUTABLE)
