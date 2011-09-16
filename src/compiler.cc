@@ -62,27 +62,27 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
 
   // Strings are easy, they always are simply resolved to literals in the same file
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-  for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
-    class_linker->ResolveString(dex_file, i, dex_cache);
+  for (size_t string_idx = 0; string_idx < dex_cache->NumStrings(); string_idx++) {
+    class_linker->ResolveString(dex_file, string_idx, dex_cache);
   }
 
   // Class derived values are more complicated, they require the linker and loader
-  for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-    Class* klass = class_linker->ResolveType(dex_file, i, dex_cache, class_loader);
+  for (size_t type_idx = 0; type_idx < dex_cache->NumResolvedTypes(); type_idx++) {
+    Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
     CHECK(klass->IsResolved());
   }
-  for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
+  for (size_t method_idx = 0; method_idx < dex_cache->NumResolvedMethods(); method_idx++) {
     // unknown if direct or virtual, try both
-    Method* method = class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, false);
+    Method* method = class_linker->ResolveMethod(dex_file, method_idx, dex_cache, class_loader, false);
     if (method == NULL) {
-      class_linker->ResolveMethod(dex_file, i, dex_cache, class_loader, true);
+      class_linker->ResolveMethod(dex_file, method_idx, dex_cache, class_loader, true);
     }
   }
-  for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
+  for (size_t field_idx = 0; field_idx < dex_cache->NumResolvedFields(); field_idx++) {
     // unknown if instance or static, try both
-    Field* field = class_linker->ResolveField(dex_file, i, dex_cache, class_loader, false);
+    Field* field = class_linker->ResolveField(dex_file, field_idx, dex_cache, class_loader, false);
     if (field == NULL) {
-      class_linker->ResolveField(dex_file, i, dex_cache, class_loader, true);
+      class_linker->ResolveField(dex_file, field_idx, dex_cache, class_loader, true);
     }
   }
 }
@@ -98,8 +98,8 @@ void Compiler::Verify(const ClassLoader* class_loader) {
 
 void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
-    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+  for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
     CHECK(klass->IsResolved());
@@ -120,8 +120,8 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader) {
 
 void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
-    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+  for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
     CHECK(klass != NULL);
@@ -137,9 +137,14 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
       continue;
     }
     klass->SetStatus(Class::kStatusInitialized);
-    // TODO: enable after crash investigation
-    // DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-    // dex_cache->GetInitializedStaticStorage()->Set(i, klass);
+  }
+
+  DexCache* dex_cache = class_linker->FindDexCache(dex_file);
+  for (size_t type_idx = 0; type_idx < dex_cache->NumResolvedTypes(); type_idx++) {
+    Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    if (klass->IsInitialized()) {
+      dex_cache->GetInitializedStaticStorage()->Set(type_idx, klass);
+    }
   }
 }
 
@@ -154,8 +159,8 @@ void Compiler::Compile(const ClassLoader* class_loader) {
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
-    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+  for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
     CHECK(klass != NULL);
