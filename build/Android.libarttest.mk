@@ -24,13 +24,16 @@ define build-libarttest
   LOCAL_MODULE := libarttest
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
+  LOCAL_SHARED_LIBRARIES := libartd
   ifeq ($(1),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
-    LOCAL_SHARED_LIBRARIES := libdl libstlport
+    LOCAL_SHARED_LIBRARIES += libdl libstlport
+    LOCAL_STATIC_LIBRARIES := libgtest
   else
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
-    LOCAL_LDLIBS := -ldl -lrt
+    LOCAL_LDLIBS := -ldl -lrt -lpthread
   endif
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   ifeq ($(1),target)
     include $(BUILD_SHARED_LIBRARY)
   else

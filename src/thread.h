@@ -531,6 +531,8 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
 
+  void WalkStack(StackVisitor* visitor) const;
+
  private:
   Thread();
   ~Thread();
@@ -556,8 +558,6 @@ class PACKED Thread {
   }
 
   static void ThreadExitCallback(void* arg);
-
-  void WalkStack(StackVisitor* visitor) const;
 
   void WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) const;
 
