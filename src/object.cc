@@ -10,14 +10,14 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
+#include "dex_cache.h"
+#include "dex_file.h"
 #include "globals.h"
 #include "heap.h"
 #include "intern_table.h"
 #include "logging.h"
-#include "dex_cache.h"
-#include "dex_file.h"
+#include "monitor.h"
 #include "runtime.h"
-#include "sync.h"
 
 namespace art {
 
@@ -766,8 +766,8 @@ bool Class::CanPutArrayElement(const Class* object_class, const Class* array_cla
 
 void Class::CanPutArrayElementFromCode(const Class* object_class, const Class* array_class) {
   if (!CanPutArrayElement(object_class, array_class)) {
-    LOG(ERROR) << "Can't put a " << PrettyDescriptor(object_class->GetDescriptor())
-               << " into a " << PrettyDescriptor(array_class->GetDescriptor());
+    LOG(ERROR) << "Can't put a " << PrettyClass(object_class)
+               << " into a " << PrettyClass(array_class);
     UNIMPLEMENTED(FATAL) << "need to throw ArrayStoreException and unwind stack";
   }
 }

@@ -56,20 +56,44 @@ TEST_F(UtilsTest, PrettyDescriptor_PrimitiveScalars) {
   EXPECT_DESCRIPTOR("short", "S");
 }
 
-TEST_F(UtilsTest, PrettyType) {
-  EXPECT_EQ("null", PrettyType(NULL));
+TEST_F(UtilsTest, PrettyTypeOf) {
+  EXPECT_EQ("null", PrettyTypeOf(NULL));
 
   String* s = String::AllocFromModifiedUtf8("");
-  EXPECT_EQ("java.lang.String", PrettyType(s));
+  EXPECT_EQ("java.lang.String", PrettyTypeOf(s));
 
   ShortArray* a = ShortArray::Alloc(2);
-  EXPECT_EQ("short[]", PrettyType(a));
+  EXPECT_EQ("short[]", PrettyTypeOf(a));
 
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
   Object* o = ObjectArray<String>::Alloc(c, 0);
-  EXPECT_EQ("java.lang.String[]", PrettyType(o));
-  EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyType(o->GetClass()));
+  EXPECT_EQ("java.lang.String[]", PrettyTypeOf(o));
+  EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyTypeOf(o->GetClass()));
+}
+
+TEST_F(UtilsTest, PrettyClass) {
+  EXPECT_EQ("null", PrettyClass(NULL));
+  Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  ASSERT_TRUE(c != NULL);
+  Object* o = ObjectArray<String>::Alloc(c, 0);
+  EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyClass(o->GetClass()));
+}
+
+TEST_F(UtilsTest, PrettyField) {
+  EXPECT_EQ("null", PrettyField(NULL));
+
+  Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
+  Class* int_class = class_linker_->FindPrimitiveClass('I');
+  Class* char_array_class = class_linker_->FindSystemClass("[C");
+
+  Field* f;
+  f = java_lang_String->FindDeclaredInstanceField("count", int_class);
+  EXPECT_EQ("int java.lang.String.count", PrettyField(f));
+  EXPECT_EQ("java.lang.String.count", PrettyField(f, false));
+  f = java_lang_String->FindDeclaredInstanceField("value", char_array_class);
+  EXPECT_EQ("char[] java.lang.String.value", PrettyField(f));
+  EXPECT_EQ("java.lang.String.value", PrettyField(f, false));
 }
 
 TEST_F(UtilsTest, MangleForJni) {

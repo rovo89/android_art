@@ -97,11 +97,16 @@ std::string PrettyDescriptor(const String* java_descriptor) {
   return result;
 }
 
-std::string PrettyField(const Field* f) {
+std::string PrettyField(const Field* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
-  std::string result(PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor()));
+  std::string result;
+  if (with_type) {
+    result += PrettyDescriptor(f->GetType()->GetDescriptor());
+    result += ' ';
+  }
+  result += PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor());
   result += '.';
   result += f->GetName()->ToModifiedUtf8();
   return result;
@@ -123,7 +128,7 @@ std::string PrettyMethod(const Method* m, bool with_signature) {
   return result;
 }
 
-std::string PrettyType(const Object* obj) {
+std::string PrettyTypeOf(const Object* obj) {
   if (obj == NULL) {
     return "null";
   }
@@ -134,6 +139,17 @@ std::string PrettyType(const Object* obj) {
   if (obj->IsClass()) {
     result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
   }
+  return result;
+}
+
+std::string PrettyClass(const Class* c) {
+  if (c == NULL) {
+    return "null";
+  }
+  std::string result;
+  result += "java.lang.Class<";
+  result += PrettyDescriptor(c->GetDescriptor());
+  result += ">";
   return result;
 }
 

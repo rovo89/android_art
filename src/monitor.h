@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SYNC_H_
-#define ART_SRC_SYNC_H_
+#ifndef ART_SRC_MONITOR_H_
+#define ART_SRC_MONITOR_H_
 
 #include <pthread.h>
 #include <stdint.h>
@@ -44,13 +44,6 @@ namespace art {
 #define LW_HASH_STATE(x) (((x) >> LW_HASH_STATE_SHIFT) & LW_HASH_STATE_MASK)
 
 /*
- * Monitor accessor.  Extracts a monitor structure pointer from a fat
- * lock.  Performs no error checking.
- */
-#define LW_MONITOR(x) \
-  ((Monitor*)((x) & ~((LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT) | LW_SHAPE_MASK)))
-
-/*
  * Lock owner field.  Contains the thread id of the thread currently
  * holding the lock.
  */
@@ -58,16 +51,8 @@ namespace art {
 #define LW_LOCK_OWNER_SHIFT 3
 #define LW_LOCK_OWNER(x) (((x) >> LW_LOCK_OWNER_SHIFT) & LW_LOCK_OWNER_MASK)
 
-/*
- * Lock recursion count field.  Contains a count of the numer of times
- * a lock has been recursively acquired.
- */
-#define LW_LOCK_COUNT_MASK 0x1fff
-#define LW_LOCK_COUNT_SHIFT 19
-#define LW_LOCK_COUNT(x) (((x) >> LW_LOCK_COUNT_SHIFT) & LW_LOCK_COUNT_MASK)
-
-struct Object;
-struct Thread;
+class Object;
+class Thread;
 
 class Monitor {
  public:
@@ -135,4 +120,4 @@ int dvmRelativeCondWait(pthread_cond_t* cond, pthread_mutex_t* mutex, int64_t ms
 
 }  // namespace art
 
-#endif  // ART_SRC_SYNC_H_
+#endif  // ART_SRC_MONITOR_H_

@@ -470,7 +470,7 @@ class Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
   }
 
-  static ThreadOffset IdOffset() {
+  static ThreadOffset ThinLockIdOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_id_));
   }
 

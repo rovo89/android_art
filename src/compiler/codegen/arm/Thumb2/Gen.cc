@@ -926,7 +926,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
-    loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
+    loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r3);
     newLIR3(cUnit, kThumb2Ldrex, r2, r1,
             Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
     // Align owner
@@ -976,7 +976,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
     loadWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r2); // Get lock
-    loadWordDisp(cUnit, rSELF, Thread::IdOffset().Int32Value(), r3);
+    loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r3);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
     opRegRegImm(cUnit, kOpAnd, r12, r2, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
     // Align owner

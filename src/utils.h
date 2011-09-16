@@ -14,6 +14,7 @@
 
 namespace art {
 
+class Class;
 class Field;
 class Method;
 class Object;
@@ -142,13 +143,16 @@ static inline std::string PrintableString(const StringT& s) {
   return result;
 }
 
+// Used to implement PrettyClass, PrettyField, PrettyMethod, and PrettyTypeOf,
+// one of which is probably more useful to you.
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
 std::string PrettyDescriptor(const String* descriptor);
 
-// Returns a human-readable signature for 'f'. Something like "a.b.C.f".
-std::string PrettyField(const Field* f);
+// Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
+// "int a.b.C.f" (depending on the value of 'with_type').
+std::string PrettyField(const Field* f, bool with_type = true);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
@@ -158,7 +162,11 @@ std::string PrettyMethod(const Method* m, bool with_signature = true);
 // So given an instance of java.lang.String, the output would
 // be "java.lang.String". Given an array of int, the output would be "int[]".
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyType(const Object* obj);
+std::string PrettyTypeOf(const Object* obj);
+
+// Returns a human-readable form of the name of the given class.
+// Given String.class, the output would be "java.lang.Class<java.lang.String>".
+std::string PrettyClass(const Class* c);
 
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
 // of the JNI spec.

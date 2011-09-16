@@ -82,9 +82,8 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
   if (env->check_jni) {
     size_t entry_count = locals.Capacity();
     if (entry_count > 16) {
-      std::string class_descriptor(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
       LOG(WARNING) << "Warning: more than 16 JNI local references: "
-                   << entry_count << " (most recent was a " << class_descriptor << ")";
+                   << entry_count << " (most recent was a " << PrettyTypeOf(obj) << ")";
       locals.Dump();
       // TODO: dvmDumpThread(dvmThreadSelf(), false);
       // dvmAbort();
@@ -384,7 +383,7 @@ void ReleasePrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jint mod
 }
 
 void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize length, const char* identifier) {
-  std::string type(PrettyType(array));
+  std::string type(PrettyTypeOf(array));
   ts.Self()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
       "%s offset=%d length=%d %s.length=%d",
       type.c_str(), start, length, identifier, array->GetLength());
@@ -722,7 +721,7 @@ class JNI {
       return JNI_ERR;
     }
 
-    LOG(INFO) << "Throwing " << PrettyType(Decode<Throwable*>(ts, exception.get()))
+    LOG(INFO) << "Throwing " << PrettyTypeOf(Decode<Throwable*>(ts, exception.get()))
               << ": " << msg;
     ts.Self()->SetException(Decode<Throwable*>(ts, exception.get()));
 
@@ -751,11 +750,11 @@ class JNI {
     jmethodID mid = env->GetMethodID(exception_class.get(), "printStackTrace", "()V");
     if (mid == NULL) {
       LOG(WARNING) << "JNI WARNING: no printStackTrace()V in "
-                   << PrettyType(original_exception);
+                   << PrettyTypeOf(original_exception);
     } else {
       env->CallVoidMethod(exception.get(), mid);
       if (self->IsExceptionPending()) {
-        LOG(WARNING) << "JNI WARNING: " << PrettyType(self->GetException())
+        LOG(WARNING) << "JNI WARNING: " << PrettyTypeOf(self->GetException())
                      << " thrown while calling printStackTrace";
         self->ClearException();
       }
@@ -2164,8 +2163,7 @@ class JNI {
     Class* c = Decode<Class*>(ts, java_class);
 
     if (ts.Vm()->verbose_jni) {
-      LOG(INFO) << "[Unregistering JNI native methods for "
-                << PrettyDescriptor(c->GetDescriptor()) << "]";
+      LOG(INFO) << "[Unregistering JNI native methods for " << PrettyClass(c) << "]";
     }
 
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {

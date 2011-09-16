@@ -1115,8 +1115,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(jobject internal
     uint32_t native_pc = pc_trace->Get(i);
     Class* klass = method->GetDeclaringClass();
     const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
-    String* readable_descriptor = String::AllocFromModifiedUtf8(
-        PrettyDescriptor(klass->GetDescriptor()).c_str());
+    String* readable_descriptor = String::AllocFromModifiedUtf8(PrettyClass(klass).c_str());
 
     // Allocate element, potentially triggering GC
     StackTraceElement* obj =

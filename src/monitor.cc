@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "sync.h"
+#include "monitor.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -61,9 +61,7 @@ namespace art {
  *
  * For an in-depth description of the mechanics of thin-vs-fat locking,
  * read the paper referred to above.
- */
-
-/*
+ *
  * Monitors provide:
  *  - mutually exclusive access to resources
  *  - a way for multiple threads to wait for notification
@@ -76,6 +74,23 @@ namespace art {
  *
  * TODO: the various members of monitor are not SMP-safe.
  */
+
+
+/*
+ * Monitor accessor.  Extracts a monitor structure pointer from a fat
+ * lock.  Performs no error checking.
+ */
+#define LW_MONITOR(x) \
+  ((Monitor*)((x) & ~((LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT) | LW_SHAPE_MASK)))
+
+/*
+ * Lock recursion count field.  Contains a count of the number of times
+ * a lock has been recursively acquired.
+ */
+#define LW_LOCK_COUNT_MASK 0x1fff
+#define LW_LOCK_COUNT_SHIFT 19
+#define LW_LOCK_COUNT(x) (((x) >> LW_LOCK_COUNT_SHIFT) & LW_LOCK_COUNT_MASK)
+
 Monitor::Monitor(Object* obj)
     : owner_(NULL),
       lock_count_(0),

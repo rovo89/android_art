@@ -108,7 +108,7 @@ void LogSummaryLine(const Object* obj, size_t elems, int identical, int equiv) {
     return;
   }
 
-  std::string className(PrettyType(obj));
+  std::string className(PrettyTypeOf(obj));
   if (obj->IsClass()) {
     // We're summarizing multiple instances, so using the exemplar
     // Class' type parameter here would be misleading.
@@ -165,7 +165,7 @@ void ReferenceTable::Dump(const Table& entries) {
       continue;
     }
 
-    std::string className(PrettyType(ref));
+    std::string className(PrettyTypeOf(ref));
 
     std::string extras;
     size_t elems = GetElementCount(ref);

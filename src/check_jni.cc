@@ -375,7 +375,7 @@ public:
           return;
         } else {
           if (!obj->InstanceOf(field_type)) {
-            LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyType(obj);
+            LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyTypeOf(obj);
             JniAbort();
             return;
           }
@@ -419,7 +419,7 @@ public:
     DCHECK(f_type != NULL);
     Class* c = o->GetClass();
     if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f_type) == NULL) {
-      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f) << " not valid for an object of class " << PrettyType(o);
+      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f) << " not valid for an object of class " << PrettyTypeOf(o);
       JniAbort();
     }
   }
@@ -464,7 +464,7 @@ public:
     Class* c = Decode<Class*>(ts, java_class);
     const Field* f = DecodeField(fid);
     if (f->GetDeclaringClass() != c) {
-      LOG(ERROR) << "JNI ERROR: static jfieldID " << fid << " not valid for class " << PrettyDescriptor(c->GetDescriptor());
+      LOG(ERROR) << "JNI ERROR: static jfieldID " << fid << " not valid for class " << PrettyClass(c);
       JniAbort();
     }
   }
@@ -483,7 +483,7 @@ public:
     Class* c = Decode<Class*>(ts, java_class);
     const Method* m = DecodeMethod(mid);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
-      LOG(ERROR) << "JNI ERROR: can't call static " << PrettyMethod(m) << " on class " << PrettyDescriptor(c->GetDescriptor());
+      LOG(ERROR) << "JNI ERROR: can't call static " << PrettyMethod(m) << " on class " << PrettyClass(c);
       JniAbort();
     }
   }
@@ -500,7 +500,7 @@ public:
     Object* o = Decode<Object*>(ts, java_object);
     const Method* m = DecodeMethod(mid);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
-      LOG(ERROR) << "JNI ERROR: can't call " << PrettyMethod(m) << " on instance of " << PrettyType(o);
+      LOG(ERROR) << "JNI ERROR: can't call " << PrettyMethod(m) << " on instance of " << PrettyTypeOf(o);
       JniAbort();
     }
   }
@@ -608,7 +608,7 @@ public:
           } else if (c == kInvalidIndirectRefObject || !Heap::IsHeapAddress(c)) {
             StringAppendF(&msg, "%p(INVALID)", jc);
           } else {
-            msg += PrettyDescriptor(c->GetDescriptor());
+            msg += PrettyClass(c);
             if (!entry) {
               StringAppendF(&msg, " (%p)", jc);
             }
@@ -755,7 +755,7 @@ private:
       LOG(ERROR) << "JNI ERROR: jarray is an invalid " << GetIndirectRefKind(java_array) << ": " << reinterpret_cast<void*>(java_array);
       JniAbort();
     } else if (!a->IsArrayInstance()) {
-      LOG(ERROR) << "JNI ERROR: jarray argument has non-array type: " << PrettyType(a);
+      LOG(ERROR) << "JNI ERROR: jarray argument has non-array type: " << PrettyTypeOf(a);
       JniAbort();
     }
   }
@@ -952,7 +952,7 @@ private:
       break;
     }
     if (!okay) {
-      LOG(ERROR) << "JNI ERROR: " << what << " has wrong type: " << PrettyType(obj);
+      LOG(ERROR) << "JNI ERROR: " << what << " has wrong type: " << PrettyTypeOf(obj);
       JniAbort();
     }
   }

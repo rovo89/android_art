@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "UniquePtr.h"
 #include "casts.h"
 #include "class_loader.h"
 #include "dex_cache.h"
@@ -16,11 +15,12 @@
 #include "heap.h"
 #include "intern_table.h"
 #include "logging.h"
+#include "monitor.h"
 #include "object.h"
 #include "runtime.h"
 #include "space.h"
-#include "sync.h"
 #include "thread.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {
@@ -1222,7 +1222,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
       klass->GetStatus() == Class::kStatusVerified ||
       klass->GetStatus() == Class::kStatusInitializing ||
       klass->GetStatus() == Class::kStatusError)
-          << PrettyDescriptor(klass->GetDescriptor()) << " is " << klass->GetStatus();
+          << PrettyClass(klass) << " is " << klass->GetStatus();
 
   Thread* self = Thread::Current();
 

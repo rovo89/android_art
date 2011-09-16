@@ -20,17 +20,18 @@
 #ifndef DALVIK_COMMON_H_
 #define DALVIK_COMMON_H_
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <assert.h>
-#include "logging.h"
-#include "object.h"
-#include "thread.h"
+
 #include "class_linker.h"
 #include "compiler.h"
 #include "dex_cache.h"
-#include "sync.h"
+#include "logging.h"
+#include "monitor.h"
+#include "object.h"
+#include "thread.h"
 #include "utils.h"
 
 // From Common.h

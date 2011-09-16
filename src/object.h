@@ -1467,18 +1467,16 @@ class MANAGED Class : public StaticStorageBase {
 
   void SetClassSize(size_t new_class_size) {
     DCHECK(new_class_size >= GetClassSize())
-            << " class=" << PrettyType(this)
+            << " class=" << PrettyTypeOf(this)
             << " new_class_size=" << new_class_size
             << " GetClassSize=" << GetClassSize();
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size,
-               false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size, false);
   }
 
   size_t GetObjectSize() const {
     CHECK(!IsVariableSize());
     CHECK(sizeof(size_t) == sizeof(int32_t));
-    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_),
-                               false);
+    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), false);
     CHECK_GE(result, sizeof(Object));
     return result;
   }

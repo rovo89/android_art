@@ -105,7 +105,7 @@ namespace art {
 namespace {
 
 void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) {
-  std::string actualType(PrettyType(array));
+  std::string actualType(PrettyTypeOf(array));
   Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;", "%s is not an array: %s", identifier, actualType.c_str());
 }
 
@@ -153,8 +153,8 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   if (srcComponentType->IsPrimitive() || dstComponentType->IsPrimitive()) {
     // If one of the arrays holds a primitive type the other array must hold the exact same type.
     if (srcComponentType->IsPrimitive() != dstComponentType->IsPrimitive() || srcComponentType != dstComponentType) {
-      std::string srcType(PrettyType(srcArray));
-      std::string dstType(PrettyType(dstArray));
+      std::string srcType(PrettyTypeOf(srcArray));
+      std::string dstType(PrettyTypeOf(dstArray));
       self->ThrowNewException("Ljava/lang/ArrayStoreException;",
           "Incompatible types: src=%s, dst=%s", srcType.c_str(), dstType.c_str());
       return;
@@ -175,7 +175,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
       move32(dstBytes + dstPos * 8, srcBytes + srcPos * 8, length * 8);
       break;
     default:
-      LOG(FATAL) << "Unknown primitive array type: " << PrettyType(srcArray);
+      LOG(FATAL) << "Unknown primitive array type: " << PrettyTypeOf(srcArray);
     }
 
     return;
@@ -229,8 +229,8 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   move32(dstBytes + dstPos * width, srcBytes + srcPos * width, copyCount * width);
   Heap::WriteBarrier(dstArray);
   if (copyCount != length) {
-    std::string actualSrcType(PrettyType(srcObj[copyCount]));
-    std::string dstType(PrettyType(dstArray));
+    std::string actualSrcType(PrettyTypeOf(srcObj[copyCount]));
+    std::string dstType(PrettyTypeOf(dstArray));
     self->ThrowNewException("Ljava/lang/ArrayStoreException;",
         "source[%d] of type %s cannot be stored in destination array of type %s",
         srcPos + copyCount, actualSrcType.c_str(), dstType.c_str());
