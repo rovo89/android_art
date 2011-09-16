@@ -1427,7 +1427,7 @@ class MANAGED Class : public StaticStorageBase {
   static bool CanPutArrayElement(const Class* object_class, const Class* array_class);
   // Like CanPutArrayElement, but throws an exception and
   // unwinds the stack instead of returning false.
-  static void CanPutArrayElementFromCode(const Class* object_class, const Class* array_class);
+  static void CanPutArrayElementFromCode(const Object* element, const Class* array_class);
 
   // Given the context of a calling Method, use its DexCache to
   // resolve a type to a Class. If it cannot be resolved, throw an
