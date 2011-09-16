@@ -611,7 +611,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   if (have_executable_code && stub != NULL) {
     LOG(INFO) << "invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
     (*stub)(this, receiver, self, args, result);
-    LOG(INFO) << "returning " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
+    LOG(INFO) << "returned " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
   } else {
     LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);
     if (result != NULL) {

@@ -30,7 +30,6 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     return false;
   }
   static const int PUBLIC = 0x0001;   // java.lang.reflect.Modifiers.PUBLIC
-#if 0 // reflect.Method.getModifiers not yet implemented
   jmethodID get_modifiers = env->GetMethodID(method.get(),
                                              "getModifiers",
                                              "()I");
@@ -39,10 +38,6 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     return false;
   }
   int modifiers = env->CallIntMethod(reflected.get(), get_modifiers);
-#else
-  int modifiers = PUBLIC;
-  UNIMPLEMENTED(WARNING) << "assuming main is public...";
-#endif
   if ((modifiers & PUBLIC) == 0) {
     return false;
   }

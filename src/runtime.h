@@ -163,6 +163,7 @@ class Runtime {
   bool Init(const Options& options, bool ignore_unrecognized);
   void InitLibraries();
   void RegisterRuntimeNativeMethods(JNIEnv*);
+  void RunImageClinits();
   void StartDaemonThreads();
 
   std::string boot_class_path_;

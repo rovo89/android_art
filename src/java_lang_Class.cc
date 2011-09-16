@@ -60,6 +60,27 @@ jobjectArray Class_getDeclaredClasses(JNIEnv* env, jclass java_lang_Class_class,
   return env->NewObjectArray(0, java_lang_Class_class, NULL);
 }
 
+jobject Class_getDeclaredField(JNIEnv* env, jclass java_lang_Class_class, jclass jklass, jobject jname) {
+  Class* klass = Decode<Class*>(env, jklass);
+  DCHECK(klass->IsClass());
+  String* name = Decode<String*>(env, jname);
+  DCHECK(name->IsString());
+
+  for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
+    Field* f = klass->GetInstanceField(i);
+    if (f->GetName()->Equals(name)) {
+      return AddLocalReference<jclass>(env, f);
+    }
+  }
+  for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
+    Field* f = klass->GetStaticField(i);
+    if (f->GetName()->Equals(name)) {
+      return AddLocalReference<jclass>(env, f);
+    }
+  }
+  return NULL;
+}
+
 jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
   UNIMPLEMENTED(WARNING) << "needs annotations";
   return NULL;
@@ -148,7 +169,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDeclaredClasses, "(Ljava/lang/Class;Z)[Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
   //NATIVE_METHOD(Class, getDeclaredConstructors, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Constructor;"),
-  //NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   //NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
   //NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
