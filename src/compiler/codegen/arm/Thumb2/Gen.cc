@@ -1265,8 +1265,6 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
                  OFFSETOF_MEMBER(Thread, pCanPutArrayElementFromCode), rLR);
     /* Get the array's clazz */
     loadWordDisp(cUnit, r1, Object::ClassOffset().Int32Value(), r1);
-    /* Get the object's clazz */
-    loadWordDisp(cUnit, r0, Object::ClassOffset().Int32Value(), r0);
     callUnwindableHelper(cUnit, rLR);
     oatClobberCallRegs(cUnit);
 

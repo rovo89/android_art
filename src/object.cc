@@ -764,9 +764,12 @@ bool Class::CanPutArrayElement(const Class* object_class, const Class* array_cla
   }
 }
 
-void Class::CanPutArrayElementFromCode(const Class* object_class, const Class* array_class) {
-  if (!CanPutArrayElement(object_class, array_class)) {
-    LOG(ERROR) << "Can't put a " << PrettyClass(object_class)
+void Class::CanPutArrayElementFromCode(const Object* element, const Class* array_class) {
+  if (element == NULL) {
+    return;
+  }
+  if (!CanPutArrayElement(element->GetClass(), array_class)) {
+    LOG(ERROR) << "Can't put a " << PrettyClass(element->GetClass())
                << " into a " << PrettyClass(array_class);
     UNIMPLEMENTED(FATAL) << "need to throw ArrayStoreException and unwind stack";
   }
