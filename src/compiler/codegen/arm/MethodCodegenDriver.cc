@@ -848,11 +848,16 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         int regsLeft = std::min(numArgs - 3, 16);
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, startOffset);
-        newLIR3(cUnit, kThumb2Vldms, r3, fr0, regsLeft);
+        ArmLIR* ld = newLIR3(cUnit, kThumb2Vldms, r3, fr0, regsLeft);
+        //TUNING: loosen barrier
+        ld->defMask = ENCODE_ALL;
+        setMemRefType(ld, true /* isLoad */, kDalvikReg);
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, 4 /* Method* */ + (3 * 4));
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
-        newLIR3(cUnit, kThumb2Vstms, r3, fr0, regsLeft);
+        ArmLIR* st = newLIR3(cUnit, kThumb2Vstms, r3, fr0, regsLeft);
+        setMemRefType(st, false /* isLoad */, kDalvikReg);
+        st->defMask = ENCODE_ALL;
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
 

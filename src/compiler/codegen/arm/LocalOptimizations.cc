@@ -439,12 +439,10 @@ void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
                                         LIR* tailLIR)
 {
     if (!(cUnit->disableOpt & (1 << kLoadStoreElimination))) {
-        LOG(INFO) << "Doing ldstElim, op: 0x" << std::hex << cUnit->disableOpt;
         applyLoadStoreElimination(cUnit, (ArmLIR* ) headLIR,
                                   (ArmLIR* ) tailLIR);
     }
     if (!(cUnit->disableOpt & (1 << kLoadHoisting))) {
-        LOG(INFO) << "Doing hoisting, op: 0x" << std::hex << cUnit->disableOpt;
         applyLoadHoisting(cUnit, (ArmLIR* ) headLIR, (ArmLIR* ) tailLIR);
     }
 }
