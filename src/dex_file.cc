@@ -237,11 +237,11 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     if (StringPiece(art_cache).starts_with("/tmp/")) {
       int result = mkdir(art_cache.c_str(), 0700);
       if (result != 0) {
-        LOG(ERROR) << "Failed to create art-cache directory " << art_cache;
+        LOG(FATAL) << "Failed to create art-cache directory " << art_cache;
         return NULL;
       }
     } else {
-      LOG(ERROR) << "Failed to find art-cache directory " << art_cache;
+      LOG(FATAL) << "Failed to find art-cache directory " << art_cache;
       return NULL;
     }
   }
