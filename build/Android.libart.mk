@@ -38,11 +38,12 @@ define build-libart
   else
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
   endif
-  ifeq ($(4),debug)
-    ifeq ($(3),target)
+  ifeq ($(2),debug)
+    ifeq ($(1),target)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
     else
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+      LOCAL_STATIC_LIBRARIES := libgtest_host
     endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
