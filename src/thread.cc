@@ -109,10 +109,12 @@ Array* CheckAndAllocFromCode(uint32_t type_index, Method* method, int32_t compon
 
 // TODO: placeholder (throw on failure)
 void CheckCastFromCode(const Class* a, const Class* b) {
-    if (a->IsAssignableFrom(b)) {
-        return;
-    }
-    UNIMPLEMENTED(FATAL);
+  DCHECK(a->IsClass());
+  DCHECK(b->IsClass());
+  if (b->IsAssignableFrom(a)) {
+    return;
+  }
+  UNIMPLEMENTED(FATAL);
 }
 
 void UnlockObjectFromCode(Thread* thread, Object* obj) {

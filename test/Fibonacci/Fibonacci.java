@@ -22,8 +22,8 @@ class Fibonacci {
                 int x = Integer.parseInt(args[0]);
                 int y = fibonacci(x); /* to warm up cache */
                 System.out.printf("fibonacci(%d)=%d\n", x, y);
-                y = fibonacci(x +1);
-                System.out.printf("fibonacci(%d)=%d\n", x, y);
+                y = fibonacci(x + 1);
+                System.out.printf("fibonacci(%d)=%d\n", x + 1, y);
             }
         } catch (NumberFormatException ex) {}
     }

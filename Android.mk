@@ -92,7 +92,7 @@ test-art-target-gtest: test-art-target-sync
 	$(hide) rm /tmp/test-art-target-gtest
 
 .PHONY: test-art-target-oat
-test-art-target-oat: test-art-target-oat-HelloWorld # test-art-target-oat-Fibonacci
+test-art-target-oat: test-art-target-oat-HelloWorld test-art-target-oat-Fibonacci
 
 .PHONY: test-art-target-oat-HelloWorld
 test-art-target-oat-HelloWorld: test-art-target-sync
