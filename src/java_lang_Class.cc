@@ -37,7 +37,7 @@ jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
 jclass Class_getComponentType(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
   if (!c->IsArrayClass()) {
-    return NULL;
+      return NULL;
   }
 
   /*
@@ -60,13 +60,65 @@ jobjectArray Class_getDeclaredClasses(JNIEnv* env, jclass java_lang_Class_class,
   return env->NewObjectArray(0, java_lang_Class_class, NULL);
 }
 
-jobject Class_getDeclaredField(JNIEnv* env, jclass java_lang_Class_class, jclass jklass, jobject jname) {
+jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
+                                             jclass jklass, jstring jname, jobjectArray jsignature) {
+  Class* klass = Decode<Class*>(env, jklass);
+  DCHECK(klass->IsClass());
+  String* name = Decode<String*>(env, jname);
+  DCHECK(name->IsString());
+  Object* signature_obj = Decode<Object*>(env, jsignature);
+  DCHECK(signature_obj->IsArrayInstance());
+  // check that this is a Class[] by checkin that component type is Class
+  // foo->GetClass()->GetClass() is an idiom for getting java.lang.Class from an arbitrary object
+  DCHECK(signature_obj->GetClass()->GetComponentType() == signature_obj->GetClass()->GetClass());
+  ObjectArray<Class>* signature = down_cast<ObjectArray<Class>*>(signature_obj);
+
+  std::string name_string = name->ToModifiedUtf8();
+  std::string signature_string;
+  signature_string += "(";
+  for (int i = 0; i < signature->GetLength(); i++) {
+    Class* argument_class = signature->Get(0);
+    if (argument_class == NULL) {
+      UNIMPLEMENTED(FATAL) << "throw null pointer exception?";
+    }
+    signature_string += argument_class->GetDescriptor()->ToModifiedUtf8();
+  }
+  signature_string += ")";
+
+  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+    Method* method = klass->GetVirtualMethod(i);
+    if (!method->GetName()->Equals(name)) {
+      continue;
+    }
+    std::string method_signature = method->GetSignature()->ToModifiedUtf8();
+    if (!StringPiece(method_signature).starts_with(signature_string)) {
+      continue;
+    }
+    return AddLocalReference<jobject>(env, method);
+  }
+
+  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+    Method* method = klass->GetVirtualMethod(i);
+    if (!method->GetName()->Equals(name)) {
+      continue;
+    }
+    std::string method_signature = method->GetSignature()->ToModifiedUtf8();
+    if (!StringPiece(method_signature).starts_with(signature_string)) {
+      continue;
+    }
+    return AddLocalReference<jobject>(env, method);
+  }
+
+  return NULL;
+}
+
+jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname) {
   Class* klass = Decode<Class*>(env, jklass);
   DCHECK(klass->IsClass());
   String* name = Decode<String*>(env, jname);
   DCHECK(name->IsString());
 
-  for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
+  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
     Field* f = klass->GetInstanceField(i);
     if (f->GetName()->Equals(name)) {
       return AddLocalReference<jclass>(env, f);
@@ -167,7 +219,7 @@ static JNINativeMethod gMethods[] = {
   //NATIVE_METHOD(Class, getDeclaredAnnotation, "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
   //NATIVE_METHOD(Class, getDeclaredAnnotations, "()[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Class, getDeclaredClasses, "(Ljava/lang/Class;Z)[Ljava/lang/Class;"),
-  //NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
+  NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
   //NATIVE_METHOD(Class, getDeclaredConstructors, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   //NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),

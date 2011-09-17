@@ -1677,7 +1677,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Method* FindDeclaredVirtualMethod(const StringPiece& name,
-                                    const StringPiece& descriptor);
+                                    const StringPiece& signature);
 
   Method* FindVirtualMethod(const StringPiece& name,
                             const StringPiece& descriptor);
