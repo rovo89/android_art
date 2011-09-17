@@ -32,6 +32,7 @@ void ArmContext::FillCalleeSaves(const Frame& fr) {
 }
 
 void ArmContext::DoLongJump() {
+#if defined(__arm__)
   // TODO: Load all GPRs and FPRs, currently the code restores registers R4 to PC
   asm volatile ( "mov %%r0, %0\n"
                  "mov %%r1, %1\n"
@@ -50,6 +51,9 @@ void ArmContext::DoLongJump() {
         "w28"(fprs_[28]), "w29"(fprs_[29]), "w30"(fprs_[30]), "w31"(fprs_[31])
 #endif
       :);  // clobber
+#else
+  UNIMPLEMENTED(FATAL);
+#endif
 }
 
 }  // namespace arm

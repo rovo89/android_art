@@ -102,7 +102,7 @@ struct NativeToManagedRecord {
 };
 
 // Iterator over managed frames up to the first native-to-managed transition
-class Frame {
+class PACKED Frame {
  public:
   Frame() : sp_(NULL) {}
 
@@ -138,7 +138,7 @@ class Frame {
   Method** sp_;
 };
 
-class Thread {
+class PACKED Thread {
  public:
   /* thread priorities, from java.lang.Thread */
   enum Priority {
@@ -390,7 +390,7 @@ class Thread {
 
   // Implements java.lang.Thread.interrupted.
   bool Interrupted() {
-    MutexLock mu(wait_mutex_);
+    MutexLock mu(*wait_mutex_);
     bool interrupted = interrupted_;
     interrupted_ = false;
     return interrupted;
@@ -398,12 +398,12 @@ class Thread {
 
   // Implements java.lang.Thread.isInterrupted.
   bool IsInterrupted() {
-    MutexLock mu(wait_mutex_);
+    MutexLock mu(*wait_mutex_);
     return interrupted_;
   }
 
   void Interrupt() {
-    MutexLock mu(wait_mutex_);
+    MutexLock mu(*wait_mutex_);
     if (interrupted_) {
       return;
     }
@@ -412,7 +412,7 @@ class Thread {
   }
 
   void Notify() {
-    MutexLock mu(wait_mutex_);
+    MutexLock mu(*wait_mutex_);
     NotifyLocked();
   }
 
@@ -535,7 +535,7 @@ class Thread {
 
   void NotifyLocked() {
     if (wait_monitor_ != NULL) {
-      wait_cond_.Signal();
+      wait_cond_->Signal();
     }
   }
 
@@ -562,8 +562,8 @@ class Thread {
   Object* peer_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
-  mutable Mutex wait_mutex_;
-  ConditionVariable wait_cond_;
+  mutable Mutex* wait_mutex_;
+  ConditionVariable* wait_cond_;
   // Pointer to the monitor lock we're currently waiting on (or NULL), guarded by wait_mutex_.
   Monitor* wait_monitor_;
   // Thread "interrupted" status; stays raised until queried or thrown, guarded by wait_mutex_.
@@ -619,7 +619,7 @@ class Thread {
   const ClassLoader* class_loader_override_;
 
   // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
-  UniquePtr<Context> long_jump_context_;
+  Context* long_jump_context_;
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;

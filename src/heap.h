@@ -143,9 +143,12 @@ class Heap {
     return finalizer_reference_zombie_offset_;
   }
 
+  static void EnableObjectValidation() {
+    verify_objects_ = true;
+  }
+
   static void DisableObjectValidation() {
-    // TODO: remove this hack necessary for image writing
-    verify_object_disabled_ = true;
+    verify_objects_ = false;
   }
 
   // Callers must hold the heap lock.
@@ -220,7 +223,7 @@ class Heap {
   // offset of java.lang.ref.FinalizerReference.zombie
   static MemberOffset finalizer_reference_zombie_offset_;
 
-  static bool verify_object_disabled_;
+  static bool verify_objects_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

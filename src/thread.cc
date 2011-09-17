@@ -830,8 +830,8 @@ void Thread::Shutdown() {
 
 Thread::Thread()
     : peer_(NULL),
-      wait_mutex_("Thread wait mutex"),
-      wait_cond_("Thread wait condition variable"),
+      wait_mutex_(new Mutex("Thread wait mutex")),
+      wait_cond_(new ConditionVariable("Thread wait condition variable")),
       wait_monitor_(NULL),
       interrupted_(false),
       stack_end_(NULL),
@@ -842,7 +842,8 @@ Thread::Thread()
       state_(Thread::kUnknown),
       exception_(NULL),
       suspend_count_(0),
-      class_loader_override_(NULL) {
+      class_loader_override_(NULL),
+      long_jump_context_(NULL) {
 }
 
 void MonitorExitVisitor(const Object* object, void*) {
@@ -896,6 +897,11 @@ Thread::~Thread() {
   jni_env_ = NULL;
 
   SetState(Thread::kTerminated);
+
+  delete wait_cond_;
+  delete wait_mutex_;
+
+  delete long_jump_context_;
 }
 
 size_t Thread::NumSirtReferences() {
@@ -1235,10 +1241,10 @@ void Thread::DeliverException(Throwable* exception) {
 }
 
 Context* Thread::GetLongJumpContext() {
-  Context* result = long_jump_context_.get();
+  Context* result = long_jump_context_;
   if (result == NULL) {
     result = Context::Create();
-    long_jump_context_.reset(result);
+    long_jump_context_ = result;
   }
   return result;
 }

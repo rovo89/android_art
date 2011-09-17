@@ -187,13 +187,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->check_jni_ = false;
 #else
   // ...but on by default in debug builds.
-#if 0 // TODO: disabled for oatexec until the shorty's used by check_jni are managed heap allocated.
-      // Instead we turn on -Xcheck_jni in common_test.
   parsed->check_jni_ = true;
-#else
-  parsed->check_jni_ = false;
 #endif
-#endif
+
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
   parsed->stack_size_ = Thread::kDefaultStackSize;
@@ -338,6 +334,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     CreateClassPath(parsed->class_path_string_, parsed->class_path_);
   }
 
+  LOG(INFO) << "CheckJNI is " << (parsed->check_jni_ ? "on" : "off");
+
   return parsed.release();
 }
 
@@ -357,11 +355,25 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 void Runtime::Start() {
   started_ = true;
 
+  // Initialize both the built-in and libcore native methods.
+  InitLibraries();
+
   // Finish attaching the main thread.
-  Thread* main_thread = Thread::Current();
-  instance_->InitLibraries();
-  main_thread->CreatePeer("main", false);
-  instance_->signal_catcher_ = new SignalCatcher;
+  Thread::Current()->CreatePeer("main", false);
+
+  StartDaemonThreads();
+}
+
+void Runtime::StartDaemonThreads() {
+  signal_catcher_ = new SignalCatcher;
+
+  Class* c = class_linker_->FindSystemClass("Ljava/lang/Daemons;");
+  CHECK(c != NULL);
+  Method* m = c->FindDirectMethod("start", "()V");
+  CHECK(m != NULL);
+//  m->Invoke(Thread::Current(), NULL, NULL, NULL);
+
+  signal_catcher_->HandleSigQuit();
 }
 
 bool Runtime::IsStarted() {

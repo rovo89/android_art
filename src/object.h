@@ -185,7 +185,7 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
 
 // Classes shared with the managed side of the world need to be packed
 // so that they don't have extra platform specific padding.
-#define MANAGED __attribute__ ((__packed__))
+#define MANAGED PACKED
 
 // C++ mirror of java.lang.Object
 class MANAGED Object {

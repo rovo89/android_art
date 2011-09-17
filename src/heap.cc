@@ -124,6 +124,8 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
     RecordImageAllocations(image_spaces[i]);
   }
 
+  Heap::EnableObjectValidation();
+
   // It's still to early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
@@ -167,10 +169,13 @@ bool Heap::IsHeapAddress(const Object* obj) {
   return true;
 }
 
-bool Heap::verify_object_disabled_;
+bool Heap::verify_objects_ = false;
 
 #if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
+  if (!verify_objects_) {
+    return;
+  }
   ScopedHeapLock lock;
   Heap::VerifyObjectLocked(obj);
 }
@@ -178,7 +183,7 @@ void Heap::VerifyObject(const Object* obj) {
 
 void Heap::VerifyObjectLocked(const Object* obj) {
   lock_->AssertHeld();
-  if (obj != NULL && !verify_object_disabled_) {
+  if (obj != NULL) {
     if (!IsAligned(obj, kObjectAlignment)) {
       LOG(FATAL) << "Object isn't aligned: " << obj;
     } else if (!live_bitmap_->Test(obj)) {

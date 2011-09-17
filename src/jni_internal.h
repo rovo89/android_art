@@ -104,7 +104,7 @@ struct JNIEnvExt : public JNIEnv {
   JNIEnvExt(Thread* self, JavaVMExt* vm);
   ~JNIEnvExt();
 
-  Thread* self;
+  Thread* const self;
   JavaVMExt* vm;
 
   // Frequently-accessed fields cached from JavaVM.

@@ -123,4 +123,6 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define OFFSETOF_VOLATILE_MEMBER(t, f) \
   (reinterpret_cast<volatile char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<volatile char*>(16))
 
+#define PACKED __attribute__ ((__packed__))
+
 #endif  // ART_SRC_MACROS_H_

@@ -511,7 +511,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
     self->SetState(Thread::kWaiting);
   }
 
-  self->wait_mutex_.Lock();
+  self->wait_mutex_->Lock();
 
   /*
    * Set wait_monitor_ to the monitor object we will be waiting on.
@@ -529,7 +529,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   if (self->interrupted_) {
     wasInterrupted = true;
     self->wait_monitor_ = NULL;
-    self->wait_mutex_.Unlock();
+    self->wait_mutex_->Unlock();
     goto done;
   }
 
@@ -540,9 +540,9 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   lock_.Unlock();
 
   if (!timed) {
-    self->wait_cond_.Wait(self->wait_mutex_);
+    self->wait_cond_->Wait(*self->wait_mutex_);
   } else {
-    self->wait_cond_.TimedWait(self->wait_mutex_, ts);
+    self->wait_cond_->TimedWait(*self->wait_mutex_, ts);
   }
   if (self->interrupted_) {
     wasInterrupted = true;
@@ -550,7 +550,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
 
   self->interrupted_ = false;
   self->wait_monitor_ = NULL;
-  self->wait_mutex_.Unlock();
+  self->wait_mutex_->Unlock();
 
   // Reacquire the monitor lock.
   Lock(self);
@@ -601,9 +601,9 @@ void Monitor::Notify(Thread* self) {
     thread->wait_next_ = NULL;
 
     // Check to see if the thread is still waiting.
-    MutexLock mu(thread->wait_mutex_);
+    MutexLock mu(*thread->wait_mutex_);
     if (thread->wait_monitor_ != NULL) {
-      thread->wait_cond_.Signal();
+      thread->wait_cond_->Signal();
       return;
     }
   }
