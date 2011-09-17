@@ -28,9 +28,11 @@ static const int kLogSeverityToAndroidLogPriority[] = {
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
 : file_(file), line_number_(line), severity_(severity), errno_(error)
 {
+  const char* last_slash = strrchr(file, '/');
+  file_ = (last_slash == NULL) ? file : last_slash + 1;
 }
 
 void LogMessage::LogLine(const char* line) {
   int priority = kLogSeverityToAndroidLogPriority[severity_];
-  LOG_PRI(priority, LOG_TAG, "%s", line);
+  LOG_PRI(priority, LOG_TAG, "%s:%d] %s", file_, line_number_, line);
 }
