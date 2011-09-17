@@ -1696,8 +1696,25 @@ static void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
                  OFFSETOF_MEMBER(Thread, pCheckSuspendFromCode), rLR);
     genRegCopy(cUnit, r0, rSELF);
     opRegImm(cUnit, kOpCmp, rSuspendCount, 0);
+    /*
+     * FIXME: for efficiency we should use an if-converted suspend
+     * test here.  However, support for IT is a bit weak at the
+     * moment, and requires knowledge of the exact number of instructions
+     * to fall in the skip shadow.  While the exception mechanism
+     * remains in flux, use a compare and branch sequence.  Once
+     * things firm up, restore the conditional skip (and perhaps
+     * fix the utility to handle variable-sized shadows).
+     */
+#if 0
     genIT(cUnit, kArmCondNe, "");
     callUnwindableHelper(cUnit, rLR); // CheckSuspendFromCode(self)
+#else
+    ArmLIR* branch = opCondBranch(cUnit, kArmCondEq);
+    callUnwindableHelper(cUnit, rLR); // CheckSuspendFromCode(self)
+    ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
+    target->defMask = ENCODE_ALL;
+    branch->generic.target = (LIR*)target;
+#endif
     oatFreeCallTemps(cUnit);
 }
 
