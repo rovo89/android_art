@@ -52,15 +52,8 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
-    int elems;
-    int typeId;
-    if (isRange) {
-        elems = dInsn->vA;
-        typeId = dInsn->vB;
-    } else {
-        elems = dInsn->vB;
-        typeId = dInsn->vC;
-    }
+    int elems = dInsn->vA;
+    int typeId = dInsn->vB;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pCheckAndAllocFromCode), rLR);
