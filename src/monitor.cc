@@ -126,7 +126,7 @@ Monitor::~Monitor() {
 void Monitor::AppendToWaitSet(Thread* thread) {
   DCHECK(owner_ == Thread::Current());
   DCHECK(thread != NULL);
-  DCHECK(thread->wait_next_ == NULL);
+  DCHECK(thread->wait_next_ == NULL) << thread->wait_next_;
   if (wait_set_ == NULL) {
     wait_set_ = thread;
     return;
