@@ -9,6 +9,7 @@ namespace arm {
 
 ArmContext::ArmContext() {
 #ifndef NDEBUG
+  // Initialize registers with easy to spot debug values
   for (int i=0; i < 16; i++) {
     gprs_[i] = 0xEBAD6070+i;
   }

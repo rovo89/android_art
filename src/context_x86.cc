@@ -8,9 +8,13 @@ namespace art {
 namespace x86 {
 
 X86Context::X86Context() {
+#ifndef NDEBUG
+  // Initialize registers with easy to spot debug values
   for (int i=0; i < 8; i++) {
     gprs_[i] = 0xEBAD6070+i;
   }
+  eip_ = 0xEBAD601F;
+#endif
 }
 
 void X86Context::FillCalleeSaves(const Frame& fr) {

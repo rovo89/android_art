@@ -86,7 +86,7 @@ size_t X86JniCallingConvention::ReturnPcOffset() {
   return FrameSize() - kPointerSize;
 }
 
-bool X86JniCallingConvention::IsMethodRegisterCrushedPreCall() {
+bool X86JniCallingConvention::IsMethodRegisterClobberedPreCall() {
   return GetMethod()->IsSynchronized();  // Monitor enter crushes the method register
 }
 

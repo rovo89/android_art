@@ -46,7 +46,7 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual uint32_t FpSpillMask() const {
     return 0;  // Floats aren't spilled in JNI down call
   }
-  virtual bool IsMethodRegisterCrushedPreCall();
+  virtual bool IsMethodRegisterClobberedPreCall();
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();

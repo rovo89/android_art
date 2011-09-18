@@ -312,11 +312,8 @@ void Thread::InitFunctionPointers() {
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
-  pDeliverException = art_deliver_exception;
 #endif
-#if defined(__i386__)
   pDeliverException = art_deliver_exception;
-#endif
   pF2l = F2L;
   pD2l = D2L;
   pAllocFromCode = Array::AllocFromCode;
@@ -1304,8 +1301,8 @@ void Thread::DeliverException(Throwable* exception) {
   if (catch_finder.native_method_count_ == 1) {
     PopSirt();
   } else {
-    // We only expect the stack crawl to have passed 1 native method as its terminated
-    // by a up call
+    // We only expect the stack crawl to have passed 1 native method as it's terminated
+    // by an up call
     DCHECK_EQ(catch_finder.native_method_count_, 0u);
   }
   long_jump_context->SetSP(reinterpret_cast<intptr_t>(catch_finder.handler_frame_.GetSP()));
