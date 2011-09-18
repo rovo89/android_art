@@ -147,6 +147,7 @@ void CheckSuspendFromCode(Thread* thread) {
 
 // TODO: placeholder
 void StackOverflowFromCode(Method* method) {
+  Thread::Current()->SetTopOfStackPC(reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
   Thread::Current()->Dump(std::cerr);
   //NOTE: to save code space, this handler needs to look up its own Thread*
   UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
@@ -154,6 +155,7 @@ void StackOverflowFromCode(Method* method) {
 
 // TODO: placeholder
 void ThrowNullPointerFromCode() {
+  Thread::Current()->SetTopOfStackPC(reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
   Thread::Current()->Dump(std::cerr);
   //NOTE: to save code space, this handler must look up caller's Method*
   UNIMPLEMENTED(FATAL) << "Null pointer exception";
