@@ -51,7 +51,7 @@ jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
   DCHECK(name->IsString());
   Object* signature_obj = Decode<Object*>(env, jsignature);
   DCHECK(signature_obj->IsArrayInstance());
-  // check that this is a Class[] by checkin that component type is Class
+  // check that this is a Class[] by checking that component type is Class
   // foo->GetClass()->GetClass() is an idiom for getting java.lang.Class from an arbitrary object
   DCHECK(signature_obj->GetClass()->GetComponentType() == signature_obj->GetClass()->GetClass());
   ObjectArray<Class>* signature = down_cast<ObjectArray<Class>*>(signature_obj);
@@ -80,8 +80,8 @@ jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
     return AddLocalReference<jobject>(env, method);
   }
 
-  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-    Method* method = klass->GetVirtualMethod(i);
+  for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
+    Method* method = klass->GetDirectMethod(i);
     if (!method->GetName()->Equals(name)) {
       continue;
     }

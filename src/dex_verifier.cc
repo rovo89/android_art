@@ -3589,7 +3589,7 @@ sput_1nr_common:
   }
 
   DCHECK_LT(*start_guess, insns_size);
-  DCHECK(InsnGetWidth(insn_flags, *start_guess) != 0);
+  DCHECK_NE(InsnGetWidth(insn_flags, *start_guess), 0);
 
   return true;
 }
