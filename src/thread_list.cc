@@ -16,25 +16,26 @@
 
 #include "thread_list.h"
 
+#include <unistd.h>
+
 namespace art {
 
 ThreadList::ThreadList()
     : thread_list_lock_("thread list lock"),
       thread_start_cond_("thread_start_cond_"),
+      thread_exit_cond_("thread_exit_cond_"),
       thread_suspend_count_lock_("thread suspend count lock"),
       thread_suspend_count_cond_("thread_suspend_count_cond_") {
 }
 
 ThreadList::~ThreadList() {
+  // Detach the current thread if necessary.
   if (Contains(Thread::Current())) {
     Runtime::Current()->DetachCurrentThread();
   }
 
-  // All threads should have exited and unregistered when we
-  // reach this point. This means that all daemon threads had been
-  // shutdown cleanly.
-  // TODO: dump ThreadList if non-empty.
-  CHECK_EQ(list_.size(), 0U);
+  WaitForNonDaemonThreadsToExit();
+  SuspendAllDaemonThreads();
 }
 
 bool ThreadList::Contains(Thread* thread) {
@@ -105,7 +106,7 @@ void ThreadList::SuspendAll() {
    *
    * It's also okay if the thread transitions to a non-kRunnable state.
    *
-   * Note we released the threadSuspendCountLock before getting here,
+   * Note we released the thread_suspend_count_lock_ before getting here,
    * so if another thread is fiddling with its suspend count (perhaps
    * self-suspending for the debugger) it won't block while we're waiting
    * in here.
@@ -180,6 +181,9 @@ void ThreadList::Unregister() {
   // Clear the TLS data, so that thread is recognizably detached.
   // (It may wish to reattach later.)
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, NULL), "detach self");
+
+  // Signal that a thread just detached.
+  thread_exit_cond_.Signal();
 }
 
 void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
@@ -240,6 +244,56 @@ void ThreadList::WaitForGo() {
 
   // Enter the runnable state. We know that any pending suspend will affect us now.
   self->SetState(Thread::kRunnable);
+}
+
+bool ThreadList::AllThreadsAreDaemons() {
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    if (!(*it)->IsDaemon()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void ThreadList::WaitForNonDaemonThreadsToExit() {
+  MutexLock mu(thread_list_lock_);
+  while (!AllThreadsAreDaemons()) {
+    thread_exit_cond_.Wait(thread_list_lock_);
+  }
+}
+
+void ThreadList::SuspendAllDaemonThreads() {
+  MutexLock mu(thread_list_lock_);
+
+  // Tell all the daemons it's time to suspend. (At this point, we know
+  // all threads are daemons.)
+  {
+    MutexLock mu(thread_suspend_count_lock_);
+    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+      Thread* thread = *it;
+      ++thread->suspend_count_;
+    }
+  }
+
+  // Give the threads a chance to suspend, complaining if they're slow.
+  bool have_complained = false;
+  for (int i = 0; i < 10; ++i) {
+    usleep(200 * 1000);
+    bool all_suspended = true;
+    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+      Thread* thread = *it;
+      if (thread->GetState() == Thread::kRunnable) {
+        if (!have_complained) {
+          LOG(WARNING) << "daemon thread not yet suspended: " << *thread;
+          have_complained = true;
+        }
+        all_suspended = false;
+      }
+    }
+    if (all_suspended) {
+      return;
+    }
+  }
 }
 
 uint32_t ThreadList::AllocThreadId() {

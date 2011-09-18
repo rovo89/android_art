@@ -41,6 +41,15 @@ namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
+static Field* gThread_daemon = NULL;
+static Field* gThread_group = NULL;
+static Field* gThread_lock = NULL;
+static Field* gThread_name = NULL;
+static Field* gThread_priority = NULL;
+static Field* gThread_vmData = NULL;
+static Field* gThreadGroup_name = NULL;
+static Method* gThread_run = NULL;
+
 // Temporary debugging hook for compiler.
 void DebugMe(Method* method, uint32_t info) {
     LOG(INFO) << "DebugMe";
@@ -398,13 +407,7 @@ void* Thread::CreateCallback(void* arg) {
 
   self->Attach(runtime);
 
-  ClassLinker* class_linker = runtime->GetClassLinker();
-
-  Class* thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
-  Class* string_class = class_linker->FindSystemClass("Ljava/lang/String;");
-
-  Field* name_field = thread_class->FindDeclaredInstanceField("name", string_class);
-  String* thread_name = reinterpret_cast<String*>(name_field->GetObject(self->peer_));
+  String* thread_name = reinterpret_cast<String*>(gThread_name->GetObject(self->peer_));
   if (thread_name != NULL) {
     SetThreadName(thread_name->ToModifiedUtf8().c_str());
   }
@@ -421,8 +424,7 @@ void* Thread::CreateCallback(void* arg) {
   // Invoke the 'run' method of our java.lang.Thread.
   CHECK(self->peer_ != NULL);
   Object* receiver = self->peer_;
-  Method* Thread_run = thread_class->FindVirtualMethod("run", "()V");
-  Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(Thread_run);
+  Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(gThread_run);
   m->Invoke(self, receiver, NULL, NULL);
 
   // Detach.
@@ -432,14 +434,7 @@ void* Thread::CreateCallback(void* arg) {
 }
 
 void SetVmData(Object* managed_thread, Thread* native_thread) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-
-  Class* thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
-  Class* int_class = class_linker->FindPrimitiveClass('I');
-
-  Field* vmData_field = thread_class->FindDeclaredInstanceField("vmData", int_class);
-
-  vmData_field->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
+  gThread_vmData->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
 void Thread::Create(Object* peer, size_t stack_size) {
@@ -604,28 +599,14 @@ void Thread::DumpState(std::ostream& os) const {
   bool is_daemon = false;
 
   if (peer_ != NULL) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-
-    Class* boolean_class = class_linker->FindPrimitiveClass('Z');
-    Class* int_class = class_linker->FindPrimitiveClass('I');
-    Class* string_class = class_linker->FindSystemClass("Ljava/lang/String;");
-    Class* thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
-    Class* thread_group_class = class_linker->FindSystemClass("Ljava/lang/ThreadGroup;");
-
-    Field* name_field = thread_class->FindDeclaredInstanceField("name", string_class);
-    Field* priority_field = thread_class->FindDeclaredInstanceField("priority", int_class);
-    Field* daemon_field = thread_class->FindDeclaredInstanceField("daemon", boolean_class);
-    Field* thread_group_field = thread_class->FindDeclaredInstanceField("group", thread_group_class);
-
-    String* thread_name_string = reinterpret_cast<String*>(name_field->GetObject(peer_));
+    String* thread_name_string = reinterpret_cast<String*>(gThread_name->GetObject(peer_));
     thread_name = (thread_name_string != NULL) ? thread_name_string->ToModifiedUtf8() : "<null>";
-    priority = priority_field->GetInt(peer_);
-    is_daemon = daemon_field->GetBoolean(peer_);
+    priority = gThread_priority->GetInt(peer_);
+    is_daemon = gThread_daemon->GetBoolean(peer_);
 
-    Object* thread_group = thread_group_field->GetObject(peer_);
+    Object* thread_group = gThread_group->GetObject(peer_);
     if (thread_group != NULL) {
-      Field* name_field = thread_group_class->FindDeclaredInstanceField("name", string_class);
-      String* group_name_string = reinterpret_cast<String*>(name_field->GetObject(thread_group));
+      String* group_name_string = reinterpret_cast<String*>(gThreadGroup_name->GetObject(thread_group));
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
   } else {
@@ -838,8 +819,28 @@ void Thread::Startup() {
   if (pthread_getspecific(pthread_key_self_) != NULL) {
     LOG(FATAL) << "newly-created pthread TLS slot is not NULL";
   }
+}
 
-  // TODO: initialize other locks and condition variables
+void Thread::FinishStartup() {
+  // Finish attaching the main thread.
+  Thread::Current()->CreatePeer("main", false);
+
+  // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* boolean_class = class_linker->FindPrimitiveClass('Z');
+  Class* int_class = class_linker->FindPrimitiveClass('I');
+  Class* String_class = class_linker->FindSystemClass("Ljava/lang/String;");
+  Class* Thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
+  Class* ThreadGroup_class = class_linker->FindSystemClass("Ljava/lang/ThreadGroup;");
+  Class* ThreadLock_class = class_linker->FindSystemClass("Ljava/lang/ThreadLock;");
+  gThread_daemon = Thread_class->FindDeclaredInstanceField("daemon", boolean_class);
+  gThread_group = Thread_class->FindDeclaredInstanceField("group", ThreadGroup_class);
+  gThread_lock = Thread_class->FindDeclaredInstanceField("lock", ThreadLock_class);
+  gThread_name = Thread_class->FindDeclaredInstanceField("name", String_class);
+  gThread_priority = Thread_class->FindDeclaredInstanceField("priority", int_class);
+  gThread_run = Thread_class->FindVirtualMethod("run", "()V");
+  gThread_vmData = Thread_class->FindDeclaredInstanceField("vmData", int_class);
+  gThreadGroup_name = ThreadGroup_class->FindDeclaredInstanceField("name", String_class);
 }
 
 void Thread::Shutdown() {
@@ -875,9 +876,6 @@ void MonitorExitVisitor(const Object* object, void*) {
 }
 
 Thread::~Thread() {
-  // TODO: check we're not calling the JNI DetachCurrentThread function from
-  // a call stack that includes managed frames. (It's only valid if the stack is all-native.)
-
   // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
   if (jni_env_ != NULL) {
     jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
@@ -901,14 +899,9 @@ Thread::~Thread() {
   // Thread.join() is implemented as an Object.wait() on the Thread.lock
   // object. Signal anyone who is waiting.
   if (peer_ != NULL) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Class* java_lang_Thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
-    Class* java_lang_ThreadLock_class = class_linker->FindSystemClass("Ljava/lang/ThreadLock;");
-    Field* lock_field = java_lang_Thread_class->FindDeclaredInstanceField("lock", java_lang_ThreadLock_class);
-
     Thread* self = Thread::Current();
-    Object* lock = lock_field->GetObject(peer_);
-    // This conditional is only needed for tests, where Thread.lock won't have been set.
+    Object* lock = gThread_lock->GetObject(peer_);
+    // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
       lock->MonitorEnter(self);
       lock->NotifyAll();
@@ -1328,6 +1321,10 @@ bool Thread::HoldsLock(Object* object) {
     return false;
   }
   return object->GetLockOwner() == thin_lock_id_;
+}
+
+bool Thread::IsDaemon() {
+  return gThread_daemon->GetBoolean(peer_);
 }
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {

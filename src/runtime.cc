@@ -40,8 +40,9 @@ Runtime::Runtime()
 Runtime::~Runtime() {
   // Make sure our internal threads are dead before we start tearing down things they're using.
   delete signal_catcher_;
+  // TODO: GC thread.
 
-  // Make sure all other threads have terminated too.
+  // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
 
   delete class_linker_;
@@ -355,11 +356,9 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 void Runtime::Start() {
   started_ = true;
 
-  // Initialize both the built-in and libcore native methods.
-  InitLibraries();
+  InitNativeMethods();
 
-  // Finish attaching the main thread.
-  Thread::Current()->CreatePeer("main", false);
+  Thread::FinishStartup();
 
   RunImageClinits();
 
@@ -382,7 +381,7 @@ void Runtime::StartDaemonThreads() {
   CHECK(c != NULL);
   Method* m = c->FindDirectMethod("start", "()V");
   CHECK(m != NULL);
-//  m->Invoke(Thread::Current(), NULL, NULL, NULL);
+  m->Invoke(Thread::Current(), NULL, NULL, NULL);
 }
 
 bool Runtime::IsStarted() {
@@ -432,7 +431,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   return true;
 }
 
-void Runtime::InitLibraries() {
+void Runtime::InitNativeMethods() {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -516,6 +515,8 @@ void Runtime::AttachCurrentThread(const char* name, bool as_daemon) {
 }
 
 void Runtime::DetachCurrentThread() {
+  // TODO: check we're not calling DetachCurrentThread from a call stack that
+  // includes managed frames. (It's only valid if the stack is all-native.)
   thread_list_->Unregister();
 }
 

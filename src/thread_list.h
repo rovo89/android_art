@@ -52,14 +52,18 @@ class ThreadList {
  private:
   typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
 
+  bool AllThreadsAreDaemons();
   uint32_t AllocThreadId();
   void ReleaseThreadId(uint32_t id);
+  void SuspendAllDaemonThreads();
+  void WaitForNonDaemonThreadsToExit();
 
   mutable Mutex thread_list_lock_;
   std::bitset<kMaxThreadId> allocated_ids_;
   std::list<Thread*> list_;
 
   ConditionVariable thread_start_cond_;
+  ConditionVariable thread_exit_cond_;
 
   // This lock guards every thread's suspend_count_ field...
   mutable Mutex thread_suspend_count_lock_;

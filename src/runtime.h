@@ -161,7 +161,7 @@ class Runtime {
   void BlockSignals();
 
   bool Init(const Options& options, bool ignore_unrecognized);
-  void InitLibraries();
+  void InitNativeMethods();
   void RegisterRuntimeNativeMethods(JNIEnv*);
   void RunImageClinits();
   void StartDaemonThreads();

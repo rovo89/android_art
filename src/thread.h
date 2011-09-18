@@ -265,6 +265,8 @@ class PACKED Thread {
 
   State SetState(State new_state);
 
+  bool IsDaemon();
+
   void WaitUntilSuspended();
 
   bool HoldsLock(Object*);
@@ -372,6 +374,7 @@ class PACKED Thread {
   void SetName(const char* name);
 
   static void Startup();
+  static void FinishStartup();
   static void Shutdown();
 
   // JNI methods
