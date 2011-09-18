@@ -921,9 +921,12 @@ Thread::~Thread() {
     }
 
     // this.group.removeThread(this);
-    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
-    Object* args = peer_;
-    m->Invoke(this, group, reinterpret_cast<byte*>(&args), NULL);
+    // group can be null if we're in the compiler or a test.
+    if (group != NULL) {
+      Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
+      Object* args = peer_;
+      m->Invoke(this, group, reinterpret_cast<byte*>(&args), NULL);
+    }
 
     // this.vmData = 0;
     SetVmData(peer_, NULL);

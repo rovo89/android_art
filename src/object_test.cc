@@ -53,6 +53,14 @@ TEST_F(ObjectTest, IsInSamePackage) {
                                       String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;")));
 }
 
+TEST_F(ObjectTest, Clone) {
+  ObjectArray<Object>* a1 = class_linker_->AllocObjectArray<Object>(256);
+  size_t s1 = a1->SizeOf();
+  Object* clone = a1->Clone();
+  EXPECT_EQ(s1, clone->SizeOf());
+  EXPECT_TRUE(clone->GetClass() == a1->GetClass());
+}
+
 TEST_F(ObjectTest, AllocObjectArray) {
   ObjectArray<Object>* oa = class_linker_->AllocObjectArray<Object>(2);
   EXPECT_EQ(2, oa->GetLength());

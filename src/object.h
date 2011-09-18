@@ -211,10 +211,7 @@ class MANAGED Object {
 
   size_t SizeOf() const;
 
-  Object* Clone() {
-    UNIMPLEMENTED(FATAL);
-    return NULL;
-  }
+  Object* Clone();
 
   static MemberOffset MonitorOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);

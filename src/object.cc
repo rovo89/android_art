@@ -21,13 +21,40 @@
 
 namespace art {
 
-bool Object::IsString() const {
-  // TODO use "klass_ == String::GetJavaLangString()" instead?
-  return GetClass() == GetClass()->GetDescriptor()->GetClass();
+Object* Object::Clone() {
+  Class* c = GetClass();
+  DCHECK(!c->IsClassClass());
+
+  // Object::SizeOf gets the right size even if we're an array.
+  // Using c->AllocObject() here would be wrong.
+  size_t num_bytes = SizeOf();
+  Object* copy = Heap::AllocObject(c, num_bytes);
+  if (copy == NULL) {
+    return NULL;
+  }
+
+  // Copy instance data.  We assume memcpy copies by words.
+  // TODO: expose and use move32.
+  byte* src_bytes = reinterpret_cast<byte*>(this);
+  byte* dst_bytes = reinterpret_cast<byte*>(copy);
+  size_t offset = sizeof(Object);
+  memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
+
+  // TODO: Mark the clone as finalizable if appropriate.
+//  if (IS_CLASS_FLAG_SET(clazz, CLASS_ISFINALIZABLE)) {
+//    dvmSetFinalizable(copy);
+//  }
+
+  return copy;
 }
 
 uint32_t Object::GetLockOwner() {
   return Monitor::GetLockOwner(monitor_);
+}
+
+bool Object::IsString() const {
+  // TODO use "klass_ == String::GetJavaLangString()" instead?
+  return GetClass() == GetClass()->GetDescriptor()->GetClass();
 }
 
 void Object::MonitorEnter(Thread* thread) {
