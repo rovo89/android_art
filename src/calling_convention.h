@@ -141,7 +141,7 @@ class JniCallingConvention : public CallingConvention {
 
   // Returns true if the method register will have been clobbered during argument
   // set up
-  virtual bool IsMethodRegisterCrushedPreCall() = 0;
+  virtual bool IsMethodRegisterClobberedPreCall() = 0;
 
   // Iterator interface
   bool HasNext();

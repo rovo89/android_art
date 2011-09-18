@@ -127,7 +127,6 @@ art_ushr_long:
 
     .global art_deliver_exception
     .extern artDeliverExceptionHelper
-    .extern _ZN3art6Thread5self_E
     /*
      * Called by managed code, saves callee saves and then calls artThrowExceptionHelper
      * that will place a mock Method* at the bottom of the stack.

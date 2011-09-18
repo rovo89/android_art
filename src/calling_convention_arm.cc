@@ -171,7 +171,7 @@ size_t ArmJniCallingConvention::ReturnPcOffset() {
 }
 
 // Will reg be crushed by an outgoing argument?
-bool ArmJniCallingConvention::IsMethodRegisterCrushedPreCall() {
+bool ArmJniCallingConvention::IsMethodRegisterClobberedPreCall() {
   return true;  // The method register R0 is always clobbered by the JNIEnv
 }
 
