@@ -828,6 +828,27 @@ class IntMath extends IntMathBase {
             System.out.println("intOperTest FAILED: " + res);
             failure = true;
         }
+        res = lit16Test(77777);
+        if (res == 0) {
+            System.out.println("lit16Test PASSED");
+        } else {
+            System.out.println("lit16Test FAILED: " + res);
+            failure = true;
+        }
+        res = lit8Test(-55555);
+        if (res == 0) {
+            System.out.println("lit8Test PASSED");
+        } else {
+            System.out.println("lit8Test FAILED: " + res);
+            failure = true;
+        }
+        res = intShiftTest(0xff00aa01, 8);
+        if (res == 0) {
+            System.out.println("intShiftTest PASSED");
+        } else {
+            System.out.println("intShiftTest FAILED: " + res);
+            failure = true;
+        }
         res = longOperTest(70000000000L, -3L);
         if (res == 0) {
             System.out.println("longOperTest PASSED");
@@ -935,12 +956,20 @@ class IntMath extends IntMathBase {
 
         res = catchBlock(1000);
         if (res == 1579) {
-            System.out.println("catchBlock PASSED");
+            System.out.println("catchBlock(1000) PASSED");
         } else {
-            System.out.println("catchBlock FAILED: " + res);
+            System.out.println("catchBlock(1000) FAILED: " + res);
             failure = true;
         }
-
+if (false) { // TODO: restore when fixed
+        res = catchBlock(7000);
+        if (res == 7777) {
+            System.out.println("catchBlock(7000) PASSED");
+        } else {
+            System.out.println("catchBlock(7000) FAILED: " + res);
+            failure = true;
+        }
+}
         res = catchBlockNoThrow(1000);
         if (res == 1123) {
             System.out.println("catchBlockNoThrow PASSED");
@@ -957,11 +986,19 @@ class IntMath extends IntMathBase {
             failure = true;
         }
 
+        res = constClassTest(1111);
+        if (res == 2222) {
+            System.out.println("constClassTest PASSED");
+        } else {
+            System.out.println("constClassTest FAILED: " + res);
+            failure = true;
+        }
+
         res = constStringTest(10);
         if (res == 22) {
-            System.out.println("stringTest PASSED");
+            System.out.println("constStringTest PASSED");
         } else {
-            System.out.println("stringTest FAILED: " + res);
+            System.out.println("constStringTest FAILED: " + res);
             failure = true;
         }
 

@@ -207,19 +207,19 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   // and cause us to copy incompatible elements.
 
   Object* const * srcObj = reinterpret_cast<Object* const *>(srcBytes + srcPos * width);
-  Class* dstClass = dstArray->GetClass();
+  Class* dstClass = dstArray->GetClass()->GetComponentType();
 
   Class* initialElementClass = NULL;
   if (length > 0 && srcObj[0] != NULL) {
     initialElementClass = srcObj[0]->GetClass();
-    if (!Class::CanPutArrayElement(initialElementClass, dstClass)) {
+    if (!dstClass->IsAssignableFrom(initialElementClass)) {
       initialElementClass = NULL;
     }
   }
 
   int copyCount;
   for (copyCount = 0; copyCount < length; copyCount++) {
-    if (srcObj[copyCount] != NULL && srcObj[copyCount]->GetClass() != initialElementClass && !Class::CanPutArrayElement(srcObj[copyCount]->GetClass(), dstClass)) {
+    if (srcObj[copyCount] != NULL && srcObj[copyCount]->GetClass() != initialElementClass && !dstClass->IsAssignableFrom(srcObj[copyCount]->GetClass())) {
       // Can't put this element into the array.
       // We'll copy up to this point, then throw.
       break;

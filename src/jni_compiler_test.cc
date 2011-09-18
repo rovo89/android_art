@@ -26,13 +26,8 @@ class JniCompilerTest : public CommonTest {
     class_loader_ = LoadDex("MyClassNatives");
   }
 
-  void SetupForTest(bool direct, const char* method_name,
-                    const char* method_sig, void* native_fnptr) {
-    env_ = Thread::Current()->GetJniEnv();
-
-    jklass_ = env_->FindClass("MyClass");
-    ASSERT_TRUE(jklass_ != NULL);
-
+  void CompileForTest(bool direct, const char* method_name, const char* method_sig) {
+    // Compile the native method before starting the runtime
     Class* c = class_linker_->FindClass("LMyClass;", class_loader_);
     Method* method;
     if (direct) {
@@ -41,10 +36,24 @@ class JniCompilerTest : public CommonTest {
       method = c->FindVirtualMethod(method_name, method_sig);
     }
     ASSERT_TRUE(method != NULL);
-
-    // Compile the native method
+    if (method->GetCode() != NULL) {
+      return;
+    }
     CompileMethod(method);
     ASSERT_TRUE(method->GetCode() != NULL);
+  }
+
+  void SetupForTest(bool direct, const char* method_name, const char* method_sig,
+                    void* native_fnptr) {
+    CompileForTest(direct, method_name, method_sig);
+    if (!runtime_->IsStarted()) {
+      runtime_->Start();
+    }
+
+    // JNI operations after runtime start
+    env_ = Thread::Current()->GetJniEnv();
+    jklass_ = env_->FindClass("MyClass");
+    ASSERT_TRUE(jklass_ != NULL);
 
     if (direct) {
       jmethod_ = env_->GetStaticMethodID(jklass_, method_name, method_sig);
@@ -420,6 +429,11 @@ void Java_MyClass_throwException(JNIEnv* env, jobject) {
 }
 
 TEST_F(JniCompilerTest, ExceptionHandling) {
+  // all compilation needs to happen before SetupForTest calls Runtime::Start
+  CompileForTest(false, "foo", "()V");
+  CompileForTest(false, "throwException", "()V");
+  CompileForTest(false, "foo", "()V");
+
   gJava_MyClass_foo_calls = 0;
 
   // Check a single call of a JNI method is ok

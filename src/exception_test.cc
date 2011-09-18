@@ -133,6 +133,8 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 }
 
 TEST_F(ExceptionTest, StackTraceElement) {
+  runtime_->Start();
+
   enum {STACK_SIZE = 1000};
   uint32_t top_of_stack = 0;
   uintptr_t fake_stack[STACK_SIZE];

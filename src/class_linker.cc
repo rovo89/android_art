@@ -1192,7 +1192,7 @@ void ClassLinker::VerifyClass(Class* klass) {
   klass->SetStatus(Class::kStatusVerified);
 }
 
-bool ClassLinker::InitializeClass(Class* klass) {
+bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   CHECK(klass->GetStatus() == Class::kStatusResolved ||
       klass->GetStatus() == Class::kStatusVerified ||
       klass->GetStatus() == Class::kStatusInitializing ||
@@ -1201,6 +1201,7 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
   Thread* self = Thread::Current();
 
+  Method* clinit = NULL;
   {
     ObjectLock lock(klass);
 
@@ -1218,6 +1219,12 @@ bool ClassLinker::InitializeClass(Class* klass) {
 
     if (klass->GetStatus() == Class::kStatusInitialized) {
       return true;
+    }
+
+    clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
+    if (clinit != NULL && !can_run_clinit) {
+      // if the class has a <clinit>, don't bother going to initializing
+      return false;
     }
 
     while (klass->GetStatus() == Class::kStatusInitializing) {
@@ -1268,19 +1275,18 @@ bool ClassLinker::InitializeClass(Class* klass) {
       return false;
     }
 
-    DCHECK(klass->GetStatus() < Class::kStatusInitializing);
+    DCHECK_LT(klass->GetStatus(), Class::kStatusInitializing);
 
     klass->SetClinitThreadId(self->GetTid());
     klass->SetStatus(Class::kStatusInitializing);
   }
 
-  if (!InitializeSuperClass(klass)) {
+  if (!InitializeSuperClass(klass, can_run_clinit)) {
     return false;
   }
 
   InitializeStaticFields(klass);
 
-  Method* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
   if (clinit != NULL) {
     clinit->Invoke(self, NULL, NULL, NULL);
   }
@@ -1385,7 +1391,7 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
   return true;
 }
 
-bool ClassLinker::InitializeSuperClass(Class* klass) {
+bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
   CHECK(klass != NULL);
   if (!klass->IsInterface() && klass->HasSuperClass()) {
     Class* super_class = klass->GetSuperClass();
@@ -1393,10 +1399,16 @@ bool ClassLinker::InitializeSuperClass(Class* klass) {
       CHECK(!super_class->IsInterface());
       Thread* self = Thread::Current();
       klass->MonitorEnter(self);
-      bool super_initialized = InitializeClass(super_class);
+      bool super_initialized = InitializeClass(super_class, can_run_clinit);
       klass->MonitorExit(self);
       // TODO: check for a pending exception
       if (!super_initialized) {
+        if (!can_run_clinit) {
+         // Don't set status to error when we can't run <clinit>.
+         CHECK_EQ(klass->GetStatus(), Class::kStatusInitializing);
+         klass->SetStatus(Class::kStatusVerified);
+         return false;
+        }
         klass->SetStatus(Class::kStatusError);
         klass->NotifyAll();
         return false;
@@ -1406,7 +1418,7 @@ bool ClassLinker::InitializeSuperClass(Class* klass) {
   return true;
 }
 
-bool ClassLinker::EnsureInitialized(Class* c) {
+bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
   CHECK(c != NULL);
   if (c->IsInitialized()) {
     return true;
@@ -1414,7 +1426,7 @@ bool ClassLinker::EnsureInitialized(Class* c) {
 
   Thread* self = Thread::Current();
   c->MonitorEnter(self);
-  InitializeClass(c);
+  InitializeClass(c, can_run_clinit);
   c->MonitorExit(self);
   return !self->IsExceptionPending();
 }
@@ -1433,7 +1445,7 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
   if (klass == referrer->GetDeclaringClass() && referrer->GetName()->Equals("<clinit>")) {
     return klass;
   }
-  if (!class_linker->EnsureInitialized(klass)) {
+  if (!class_linker->EnsureInitialized(klass, true)) {
     CHECK(Thread::Current()->IsExceptionPending());
     UNIMPLEMENTED(FATAL) << "throw exception due to class initialization problem";
   }

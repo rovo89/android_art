@@ -37,10 +37,12 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetSuperClass() == NULL);
     EXPECT_FALSE(primitive->HasSuperClass());
     EXPECT_TRUE(primitive->GetClassLoader() == NULL);
-    EXPECT_TRUE(primitive->GetStatus() == Class::kStatusInitialized);
+    EXPECT_EQ(Class::kStatusInitialized, primitive->GetStatus());
     EXPECT_FALSE(primitive->IsErroneous());
-    EXPECT_TRUE(primitive->IsVerified());
+    EXPECT_TRUE(primitive->IsLoaded());
     EXPECT_TRUE(primitive->IsResolved());
+    EXPECT_TRUE(primitive->IsVerified());
+    EXPECT_TRUE(primitive->IsInitialized());
     EXPECT_FALSE(primitive->IsArrayInstance());
     EXPECT_FALSE(primitive->IsArrayClass());
     EXPECT_TRUE(primitive->GetComponentType() == NULL);
@@ -79,10 +81,12 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(array->HasSuperClass());
     ASSERT_TRUE(array->GetComponentType() != NULL);
     ASSERT_TRUE(array->GetComponentType()->GetDescriptor() != NULL);
-    EXPECT_TRUE(array->GetStatus() == Class::kStatusInitialized);
+    EXPECT_EQ(Class::kStatusInitialized, array->GetStatus());
     EXPECT_FALSE(array->IsErroneous());
-    EXPECT_TRUE(array->IsVerified());
+    EXPECT_TRUE(array->IsLoaded());
     EXPECT_TRUE(array->IsResolved());
+    EXPECT_TRUE(array->IsVerified());
+    EXPECT_TRUE(array->IsInitialized());
     EXPECT_FALSE(array->IsArrayInstance());
     EXPECT_TRUE(array->IsArrayClass());
     EXPECT_FALSE(array->IsInterface());
@@ -148,10 +152,9 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(klass->GetClass() != NULL);
     EXPECT_EQ(klass->GetClass(), klass->GetClass()->GetClass());
     EXPECT_TRUE(klass->GetDexCache() != NULL);
+    EXPECT_TRUE(klass->IsLoaded());
     EXPECT_TRUE(klass->IsResolved());
     EXPECT_FALSE(klass->IsErroneous());
-    EXPECT_TRUE(klass->IsResolved());
-    EXPECT_TRUE(klass->IsLoaded());
     EXPECT_FALSE(klass->IsArrayClass());
     EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->IsInSamePackage(klass));
@@ -714,9 +717,12 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
   EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
+  EXPECT_EQ(Class::kStatusResolved, JavaLangObject->GetStatus());
   EXPECT_FALSE(JavaLangObject->IsErroneous());
-  EXPECT_TRUE(JavaLangObject->IsVerified());
+  EXPECT_TRUE(JavaLangObject->IsLoaded());
   EXPECT_TRUE(JavaLangObject->IsResolved());
+  EXPECT_FALSE(JavaLangObject->IsVerified());
+  EXPECT_FALSE(JavaLangObject->IsInitialized());
   EXPECT_FALSE(JavaLangObject->IsArrayInstance());
   EXPECT_FALSE(JavaLangObject->IsArrayClass());
   EXPECT_TRUE(JavaLangObject->GetComponentType() == NULL);
@@ -745,10 +751,12 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
   EXPECT_EQ(class_loader, MyClass->GetClassLoader());
-  EXPECT_TRUE(MyClass->GetStatus() == Class::kStatusResolved);
+  EXPECT_EQ(Class::kStatusResolved, MyClass->GetStatus());
   EXPECT_FALSE(MyClass->IsErroneous());
-  EXPECT_FALSE(MyClass->IsVerified());
+  EXPECT_TRUE(MyClass->IsLoaded());
   EXPECT_TRUE(MyClass->IsResolved());
+  EXPECT_FALSE(MyClass->IsVerified());
+  EXPECT_FALSE(MyClass->IsInitialized());
   EXPECT_FALSE(MyClass->IsArrayInstance());
   EXPECT_FALSE(MyClass->IsArrayClass());
   EXPECT_TRUE(MyClass->GetComponentType() == NULL);
@@ -812,7 +820,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   // TODO: uncomment expectations of initial values when InitializeClass works
   const ClassLoader* class_loader = LoadDex("Statics");
   Class* statics = class_linker_->FindClass("LStatics;", class_loader);
-  class_linker_->EnsureInitialized(statics);
+  class_linker_->EnsureInitialized(statics, true);
 
   EXPECT_EQ(10U, statics->NumStaticFields());
 

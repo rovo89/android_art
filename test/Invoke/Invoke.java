@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-class Invoke {
+class Invoke implements InvokeInterface {
 
     int virI_I(int a) {
         return a + 123;
@@ -64,7 +64,11 @@ class Invoke {
         return a + b + c + d + e + f + 2020;
     }
 
-    static int test0(int a) {
+    public int interfaceMethod(int i) {
+        return i + 23;
+    }
+
+    static int invoke(int a) {
         Invoke foo = new Invoke();
 
         return foo.virI_I(a) +
@@ -78,15 +82,23 @@ class Invoke {
                statI_III(a, 1, 2) +
                statI_IIII(a, 1, 2, 3) +
                statI_IIIII(a, 1, 2, 3, 4) +
-               statI_IIIIII(a, 1, 2, 3, 4, 5);
+               statI_IIIIII(a, 1, 2, 3, 4, 5) +
+               foo.interfaceMethod(a);
     }
 
     public static void main(String[] args) {
-        int res = test0(912);
-        if (res == 20664) {
-            System.out.println("test0 PASSED");
+        boolean failure = false;
+        int res = invoke(912);
+        if (res == 21599) {
+            System.out.println("invoke PASSED");
         } else {
-            System.out.println("test0 FAILED: " + res);
+            System.out.println("invoke FAILED: " + res);
+            failure = true;
         }
+        System.exit(failure ? 1 : 0);
     }
+}
+
+interface InvokeInterface {
+    int interfaceMethod(int i);
 }

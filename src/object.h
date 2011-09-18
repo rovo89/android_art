@@ -1406,11 +1406,8 @@ class MANAGED Class : public StaticStorageBase {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
 
-  // Tests whether an element of type 'object_class' can be
+  // Tests whether a possibly null 'element' can be
   // assigned into an array of type 'array_class'.
-  static bool CanPutArrayElement(const Class* object_class, const Class* array_class);
-  // Like CanPutArrayElement, but throws an exception and
-  // unwinds the stack instead of returning false.
   static void CanPutArrayElementFromCode(const Object* element, const Class* array_class);
 
   // Given the context of a calling Method, use its DexCache to
@@ -2526,7 +2523,7 @@ inline uint32_t Class::GetAccessFlags() const {
   // circularity issue during loading the names of its members
   DCHECK(IsLoaded() || this == String::GetJavaLangString() ||
          this == Field::GetJavaLangReflectField() ||
-         this == Method::GetJavaLangReflectMethod());
+         this == Method::GetJavaLangReflectMethod()) << PrettyClass(this);
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
 }
 

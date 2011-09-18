@@ -1053,6 +1053,7 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
 
   virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
     // We want to skip frames up to and including the exception's constructor.
+    DCHECK(gThrowable != NULL);
     if (skipping_ && !gThrowable->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
       skipping_ = false;
     }

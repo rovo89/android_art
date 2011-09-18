@@ -24,6 +24,7 @@ namespace x86 {
 
 Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
     verbose_(false) {
+  CHECK(!Runtime::Current()->IsStarted());
   if (insns == kArm || insns == kThumb2) {
     abstract_method_error_stub_ = arm::CreateAbstractMethodErrorStub();
   } else if (insns == kX86) {
@@ -32,6 +33,7 @@ Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler
 }
 
 void Compiler::CompileAll(const ClassLoader* class_loader) {
+  DCHECK(!Runtime::Current()->IsStarted());
   Resolve(class_loader);
   Verify(class_loader);
   InitializeClassesWithoutClinit(class_loader);
@@ -40,6 +42,7 @@ void Compiler::CompileAll(const ClassLoader* class_loader) {
 }
 
 void Compiler::CompileOne(Method* method) {
+  DCHECK(!Runtime::Current()->IsStarted());
   const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
   Resolve(class_loader);
   Verify(class_loader);
@@ -124,19 +127,7 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
-    CHECK(klass != NULL);
-    if (klass->IsInitialized()) {
-      continue;
-    }
-    CHECK(klass->IsVerified() || klass->IsErroneous());
-    if (!klass->IsVerified()) {
-      continue;
-    }
-    Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
-    if (clinit != NULL) {
-      continue;
-    }
-    klass->SetStatus(Class::kStatusInitialized);
+    class_linker->EnsureInitialized(klass, false);
   }
 
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);

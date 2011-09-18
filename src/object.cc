@@ -113,7 +113,7 @@ Field* Field::FindFieldFromCode(uint32_t field_idx, const Method* referrer) {
     Class* c = f->GetDeclaringClass();
     // If the class is already initializing, we must be inside <clinit>, or
     // we'd still be waiting for the lock.
-    if (c->GetStatus() == Class::kStatusInitializing || class_linker->EnsureInitialized(c)) {
+    if (c->GetStatus() == Class::kStatusInitializing || class_linker->EnsureInitialized(c, true)) {
       return f;
     }
   }
@@ -789,19 +789,12 @@ bool Class::Implements(const Class* klass) const {
   return false;
 }
 
-bool Class::CanPutArrayElement(const Class* object_class, const Class* array_class) {
-  if (object_class->IsArrayClass()) {
-    return array_class->IsArrayAssignableFromArray(object_class);
-  } else {
-    return array_class->GetComponentType()->IsAssignableFrom(object_class);
-  }
-}
-
 void Class::CanPutArrayElementFromCode(const Object* element, const Class* array_class) {
+  DCHECK(array_class != NULL);
   if (element == NULL) {
     return;
   }
-  if (!CanPutArrayElement(element->GetClass(), array_class)) {
+  if (!array_class->GetComponentType()->IsAssignableFrom(element->GetClass())) {
     LOG(ERROR) << "Can't put a " << PrettyClass(element->GetClass())
                << " into a " << PrettyClass(array_class);
     UNIMPLEMENTED(FATAL) << "need to throw ArrayStoreException and unwind stack";

@@ -648,6 +648,7 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
   LoadDex("AllFields");
+  runtime_->Start();
 
   jclass c = env_->FindClass("AllFields");
   ASSERT_TRUE(c != NULL);
@@ -675,6 +676,7 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
   LoadDex("AllFields");
+  runtime_->Start();
 
   jclass c = env_->FindClass("AllFields");
   ASSERT_TRUE(c != NULL);

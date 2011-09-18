@@ -134,7 +134,9 @@ class ClassLinker {
                       bool is_static);
 
   // Returns true on success, false if there's an exception pending.
-  bool EnsureInitialized(Class* c);
+  // can_run_clinit=false allows the compiler to attempt to init a class,
+  // given the restriction that no <clinit> execution is possible.
+  bool EnsureInitialized(Class* c, bool can_run_clinit);
 
   void RegisterDexFile(const DexFile& dex_file);
   void RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache);
@@ -172,7 +174,7 @@ class ClassLinker {
 
   void FinishInit();
 
-  bool InitializeClass(Class* klass);
+  bool InitializeClass(Class* klass, bool can_run_clinit);
 
   // For early bootstrapping by Init
   Class* AllocClass(Class* java_lang_Class, size_t class_size);
@@ -238,7 +240,7 @@ class ClassLinker {
   // was inserted.
   bool InsertClass(const StringPiece& descriptor, Class* klass);
 
-  bool InitializeSuperClass(Class* klass);
+  bool InitializeSuperClass(Class* klass, bool can_run_clinit);
 
   void InitializeStaticFields(Class* klass);
 

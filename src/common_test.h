@@ -106,7 +106,6 @@ class CommonTest : public testing::Test {
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     runtime_.reset(Runtime::Create(options, false));
     ASSERT_TRUE(runtime_.get() != NULL);
-    runtime_->Start();
     class_linker_ = runtime_->GetClassLinker();
 
 #if defined(__i386__)

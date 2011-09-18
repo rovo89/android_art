@@ -370,7 +370,7 @@ void Runtime::Start() {
 void Runtime::RunImageClinits() {
   Class* Field_class = class_linker_->FindSystemClass("Ljava/lang/reflect/Field;");
   CHECK(Field_class->FindDeclaredDirectMethod("<clinit>", "()V") != NULL);
-  class_linker_->EnsureInitialized(Field_class);
+  class_linker_->EnsureInitialized(Field_class, true);
   CHECK(!Thread::Current()->IsExceptionPending());
 }
 
