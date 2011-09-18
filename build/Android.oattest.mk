@@ -69,5 +69,6 @@ $(eval $(call declare-test-test-target,Fibonacci,10))
 # TODO: enable this when manyArgs is passing (and remove compiler_test IntMath test cases)
 #$(eval $(call declare-test-test-target,IntMath,))
 $(eval $(call declare-test-test-target,ExceptionTest,))
+$(eval $(call declare-test-test-target,SystemMethods,))
 
 ########################################################################

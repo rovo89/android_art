@@ -41,14 +41,18 @@ namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
+static Class* gThrowable = NULL;
 static Field* gThread_daemon = NULL;
 static Field* gThread_group = NULL;
 static Field* gThread_lock = NULL;
 static Field* gThread_name = NULL;
 static Field* gThread_priority = NULL;
+static Field* gThread_uncaughtHandler = NULL;
 static Field* gThread_vmData = NULL;
 static Field* gThreadGroup_name = NULL;
 static Method* gThread_run = NULL;
+static Method* gThreadGroup_removeThread = NULL;
+static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
 // Temporary debugging hook for compiler.
 void DebugMe(Method* method, uint32_t info) {
@@ -835,14 +839,20 @@ void Thread::FinishStartup() {
   Class* Thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
   Class* ThreadGroup_class = class_linker->FindSystemClass("Ljava/lang/ThreadGroup;");
   Class* ThreadLock_class = class_linker->FindSystemClass("Ljava/lang/ThreadLock;");
+  Class* UncaughtExceptionHandler_class = class_linker->FindSystemClass("Ljava/lang/Thread$UncaughtExceptionHandler;");
+  gThrowable = class_linker->FindSystemClass("Ljava/lang/Throwable;");
   gThread_daemon = Thread_class->FindDeclaredInstanceField("daemon", boolean_class);
   gThread_group = Thread_class->FindDeclaredInstanceField("group", ThreadGroup_class);
   gThread_lock = Thread_class->FindDeclaredInstanceField("lock", ThreadLock_class);
   gThread_name = Thread_class->FindDeclaredInstanceField("name", String_class);
   gThread_priority = Thread_class->FindDeclaredInstanceField("priority", int_class);
   gThread_run = Thread_class->FindVirtualMethod("run", "()V");
+  gThread_uncaughtHandler = Thread_class->FindDeclaredInstanceField("uncaughtHandler", UncaughtExceptionHandler_class);
   gThread_vmData = Thread_class->FindDeclaredInstanceField("vmData", int_class);
   gThreadGroup_name = ThreadGroup_class->FindDeclaredInstanceField("name", String_class);
+  gThreadGroup_removeThread = ThreadGroup_class->FindVirtualMethod("removeThread", "(Ljava/lang/Thread;)V");
+  gUncaughtExceptionHandler_uncaughtException =
+      UncaughtExceptionHandler_class->FindVirtualMethod("uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
 }
 
 void Thread::Shutdown() {
@@ -883,24 +893,48 @@ Thread::~Thread() {
     jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
   }
 
-  if (IsExceptionPending()) {
-    UNIMPLEMENTED(FATAL) << "threadExitUncaughtException()";
-  }
-
-  // TODO: ThreadGroup.removeThread(this);
-
   if (peer_ != NULL) {
+    Object* group = gThread_group->GetObject(peer_);
+
+    // Handle any pending exception.
+    if (IsExceptionPending()) {
+      // Get and clear the exception.
+      Object* exception = GetException();
+      ClearException();
+
+      // If the thread has its own handler, use that.
+      Object* handler = gThread_uncaughtHandler->GetObject(peer_);
+      if (handler == NULL) {
+        // Otherwise use the thread group's default handler.
+        handler = group;
+      }
+
+      // Call the handler.
+      Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(gUncaughtExceptionHandler_uncaughtException);
+      Object* args[2];
+      args[0] = peer_;
+      args[1] = exception;
+      m->Invoke(this, handler, reinterpret_cast<byte*>(&args), NULL);
+
+      // If the handler threw, clear that exception too.
+      ClearException();
+    }
+
+    // this.group.removeThread(this);
+    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
+    Object* args = peer_;
+    m->Invoke(this, group, reinterpret_cast<byte*>(&args), NULL);
+
+    // this.vmData = 0;
     SetVmData(peer_, NULL);
-  }
 
-  // TODO: say "bye" to the debugger.
-  //if (gDvm.debuggerConnected) {
-  //  dvmDbgPostThreadDeath(self);
-  //}
+    // TODO: say "bye" to the debugger.
+    //if (gDvm.debuggerConnected) {
+    //  dvmDbgPostThreadDeath(self);
+    //}
 
-  // Thread.join() is implemented as an Object.wait() on the Thread.lock
-  // object. Signal anyone who is waiting.
-  if (peer_ != NULL) {
+    // Thread.join() is implemented as an Object.wait() on the Thread.lock
+    // object. Signal anyone who is waiting.
     Thread* self = Thread::Current();
     Object* lock = gThread_lock->GetObject(peer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
@@ -1012,24 +1046,38 @@ Object* Thread::DecodeJObject(jobject obj) {
 
 class CountStackDepthVisitor : public Thread::StackVisitor {
  public:
-  CountStackDepthVisitor() : depth_(0) {}
+  CountStackDepthVisitor() : depth_(0), skip_depth_(0), skipping_(true) {}
 
-  virtual void VisitFrame(const Frame&, uintptr_t pc) {
-    ++depth_;
+  virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+    // We want to skip frames up to and including the exception's constructor.
+    if (skipping_ && !gThrowable->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
+      skipping_ = false;
+    }
+    if (!skipping_) {
+      ++depth_;
+    } else {
+      ++skip_depth_;
+    }
   }
 
   int GetDepth() const {
     return depth_;
   }
 
+  int GetSkipDepth() const {
+    return skip_depth_;
+  }
+
  private:
   uint32_t depth_;
+  uint32_t skip_depth_;
+  bool skipping_;
 };
 
-//
 class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
  public:
-  explicit BuildInternalStackTraceVisitor(int depth, ScopedJniThreadState& ts) : count_(0) {
+  explicit BuildInternalStackTraceVisitor(int depth, int skip_depth, ScopedJniThreadState& ts)
+      : skip_depth_(skip_depth), count_(0) {
     // Allocate method trace with an extra slot that will hold the PC trace
     method_trace_ = Runtime::Current()->GetClassLinker()->
         AllocObjectArray<Object>(depth + 1);
@@ -1048,6 +1096,10 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   virtual ~BuildInternalStackTraceVisitor() {}
 
   virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+    if (skip_depth_ > 0) {
+      skip_depth_--;
+      return;
+    }
     method_trace_->Set(count_, frame.GetMethod());
     pc_trace_->Set(count_, pc);
     ++count_;
@@ -1058,6 +1110,8 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   }
 
  private:
+  // How many more frames to skip.
+  int32_t skip_depth_;
   // Current position down stack trace
   uint32_t count_;
   // Array of return PC values
@@ -1113,12 +1167,13 @@ jobject Thread::CreateInternalStackTrace() const {
   CountStackDepthVisitor count_visitor;
   WalkStack(&count_visitor);
   int32_t depth = count_visitor.GetDepth();
+  int32_t skip_depth = count_visitor.GetSkipDepth();
 
   // Transition into runnable state to work on Object*/Array*
   ScopedJniThreadState ts(jni_env_);
 
   // Build internal stack trace
-  BuildInternalStackTraceVisitor build_trace_visitor(depth, ts);
+  BuildInternalStackTraceVisitor build_trace_visitor(depth, skip_depth, ts);
   WalkStack(&build_trace_visitor);
 
   return build_trace_visitor.GetInternalStackTrace();

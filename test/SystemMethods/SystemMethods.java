@@ -96,13 +96,30 @@ class SystemMethods {
     return 123;
   }
 
-  public static int test5() {
-    System.logI("Float.toString");
-    System.logI(Float.toString(f));
-    System.logI("Double.toString");
-    System.logI(Double.toString(d));
-    String s = "int=" + i + " long=" + j + " float=" + f + " double=" + d;
-    System.logI(s);
+  public static int test5() throws Exception {
+    System.logI("new Thread...");
+    Thread t = new Thread(new Runnable() {
+      public void run() {
+        System.logI("hello from a new thread!");
+        System.logI(Thread.currentThread().toString());
+        try {
+          System.logI("sleeping for 2s");
+          Thread.sleep(2*1000);
+        } catch (Exception ex) { ex.printStackTrace(); }
+        System.logI("finished sleeping");
+        throw new RuntimeException("uncaught exception");
+      }
+    });
+    System.logI("calling Thread.toString...");
+    System.logI(t.toString());
+    System.logI("calling Thread.start...");
+    t.start();
+    //t.join();
+    System.logI("...done!");
     return 123;
+  }
+
+  public static void main(String[] args) throws Exception {
+    test5();
   }
 }
