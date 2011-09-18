@@ -185,7 +185,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   const size_t width = sizeof(Object*);
   if (dstComponentType->IsAssignableFrom(srcComponentType)) {
     // Yes. Bulk copy.
-    DCHECK_EQ(width, sizeof(uint32_t));
+    COMPILE_ASSERT(sizeof(width) == sizeof(uint32_t), move32_assumes_Object_references_are_32_bit);
     move32(dstBytes + dstPos * width, srcBytes + srcPos * width, length * width);
     Heap::WriteBarrier(dstArray);
     return;
