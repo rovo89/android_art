@@ -1295,13 +1295,13 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
             ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
             SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
             lir->operands[1] = (tabRec->offset -
-                ((addPCInst->generic.offset + 4) & ~3)) & 0xffff;
+                (addPCInst->generic.offset + 4)) & 0xffff;
         } else if (lir->opcode == kThumb2MovImm16HST) {
             // operands[1] should hold disp, [2] has add, [3] has tabRec
             ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
             SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
             lir->operands[1] = ((tabRec->offset -
-                ((addPCInst->generic.offset + 4) & ~3)) >> 16) & 0xffff;
+                (addPCInst->generic.offset + 4)) >> 16) & 0xffff;
         }
         ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
         u4 bits = encoder->skeleton;
