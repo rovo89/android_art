@@ -43,7 +43,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->IsResolved());
     EXPECT_FALSE(primitive->IsArrayInstance());
     EXPECT_FALSE(primitive->IsArrayClass());
-    EXPECT_EQ(0, primitive->GetArrayRank());
+    EXPECT_TRUE(primitive->GetComponentType() == NULL);
     EXPECT_FALSE(primitive->IsInterface());
     EXPECT_TRUE(primitive->IsPublic());
     EXPECT_TRUE(primitive->IsFinal());
@@ -60,11 +60,9 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertArrayClass(const StringPiece& array_descriptor,
-                        int32_t array_rank,
                         const StringPiece& component_type,
                         const ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor, class_loader);
-    EXPECT_EQ(array_rank, array->GetArrayRank());
     EXPECT_TRUE(array->GetComponentType()->GetDescriptor()->Equals(component_type));
     EXPECT_EQ(class_loader, array->GetClassLoader());
     AssertArrayClass(array_descriptor, array);
@@ -87,7 +85,6 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(array->IsResolved());
     EXPECT_FALSE(array->IsArrayInstance());
     EXPECT_TRUE(array->IsArrayClass());
-    EXPECT_LE(1, array->GetArrayRank());
     EXPECT_FALSE(array->IsInterface());
     EXPECT_EQ(array->GetComponentType()->IsPublic(), array->IsPublic());
     EXPECT_TRUE(array->IsFinal());
@@ -156,7 +153,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(klass->IsResolved());
     EXPECT_TRUE(klass->IsLoaded());
     EXPECT_FALSE(klass->IsArrayClass());
-    EXPECT_EQ(0, klass->GetArrayRank());
+    EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->IsInSamePackage(klass));
     EXPECT_TRUE(Class::IsInSamePackage(klass->GetDescriptor(), klass->GetDescriptor()));
     if (klass->IsInterface()) {
@@ -292,113 +289,6 @@ class ClassLinkerTest : public CommonTest {
   }
 };
 
-TEST_F(ClassLinkerTest, FindClassNonexistent) {
-  AssertNonExistentClass("NoSuchClass;");
-  AssertNonExistentClass("LNoSuchClass;");
-}
-
-TEST_F(ClassLinkerTest, FindClassNested) {
-  const ClassLoader* class_loader = LoadDex("Nested");
-
-  Class* outer = class_linker_->FindClass("LNested;", class_loader);
-  ASSERT_TRUE(outer != NULL);
-  EXPECT_EQ(0U, outer->NumVirtualMethods());
-  EXPECT_EQ(1U, outer->NumDirectMethods());
-
-  Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader);
-  ASSERT_TRUE(inner != NULL);
-  EXPECT_EQ(0U, inner->NumVirtualMethods());
-  EXPECT_EQ(1U, inner->NumDirectMethods());
-}
-
-TEST_F(ClassLinkerTest, FindClass_Primitives) {
-  StringPiece expected = "BCDFIJSZV";
-  for (int ch = 0; ch < 255; ch++) {
-    char* s = reinterpret_cast<char*>(&ch);
-    StringPiece descriptor(s, 1);
-    if (expected.find(ch) == StringPiece::npos) {
-      AssertNonExistentClass(descriptor);
-    } else {
-      AssertPrimitiveClass(descriptor);
-    }
-  }
-}
-
-TEST_F(ClassLinkerTest, FindClass) {
-  Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
-  ASSERT_TRUE(JavaLangObject != NULL);
-  ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
-  ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
-  EXPECT_EQ(JavaLangObject, JavaLangObject->GetClass()->GetSuperClass());
-  ASSERT_TRUE(JavaLangObject->GetDescriptor()->Equals("Ljava/lang/Object;"));
-  EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
-  EXPECT_FALSE(JavaLangObject->HasSuperClass());
-  EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
-  EXPECT_FALSE(JavaLangObject->IsErroneous());
-  EXPECT_TRUE(JavaLangObject->IsVerified());
-  EXPECT_TRUE(JavaLangObject->IsResolved());
-  EXPECT_FALSE(JavaLangObject->IsArrayInstance());
-  EXPECT_FALSE(JavaLangObject->IsArrayClass());
-  EXPECT_EQ(0, JavaLangObject->GetArrayRank());
-  EXPECT_FALSE(JavaLangObject->IsInterface());
-  EXPECT_TRUE(JavaLangObject->IsPublic());
-  EXPECT_FALSE(JavaLangObject->IsFinal());
-  EXPECT_FALSE(JavaLangObject->IsPrimitive());
-  EXPECT_FALSE(JavaLangObject->IsSynthetic());
-  EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
-  EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
-  EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());
-  EXPECT_TRUE(JavaLangObject->GetInstanceField(0)->GetName()->Equals("shadow$_klass_"));
-  EXPECT_TRUE(JavaLangObject->GetInstanceField(1)->GetName()->Equals("shadow$_monitor_"));
-
-  EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
-  EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
-
-  const ClassLoader* class_loader = LoadDex("MyClass");
-  AssertNonExistentClass("LMyClass;");
-  Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
-  ASSERT_TRUE(MyClass != NULL);
-  ASSERT_TRUE(MyClass->GetClass() != NULL);
-  ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
-  EXPECT_EQ(JavaLangObject, MyClass->GetClass()->GetSuperClass());
-  ASSERT_TRUE(MyClass->GetDescriptor()->Equals("LMyClass;"));
-  EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
-  EXPECT_TRUE(MyClass->HasSuperClass());
-  EXPECT_EQ(class_loader, MyClass->GetClassLoader());
-  EXPECT_TRUE(MyClass->GetStatus() == Class::kStatusResolved);
-  EXPECT_FALSE(MyClass->IsErroneous());
-  EXPECT_FALSE(MyClass->IsVerified());
-  EXPECT_TRUE(MyClass->IsResolved());
-  EXPECT_FALSE(MyClass->IsArrayInstance());
-  EXPECT_FALSE(MyClass->IsArrayClass());
-  EXPECT_EQ(0, JavaLangObject->GetArrayRank());
-  EXPECT_FALSE(MyClass->IsInterface());
-  EXPECT_FALSE(MyClass->IsPublic());
-  EXPECT_FALSE(MyClass->IsFinal());
-  EXPECT_FALSE(MyClass->IsPrimitive());
-  EXPECT_FALSE(MyClass->IsSynthetic());
-  EXPECT_EQ(1U, MyClass->NumDirectMethods());
-  EXPECT_EQ(0U, MyClass->NumVirtualMethods());
-  EXPECT_EQ(0U, MyClass->NumInstanceFields());
-  EXPECT_EQ(0U, MyClass->NumStaticFields());
-  EXPECT_EQ(0U, MyClass->NumInterfaces());
-
-  EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
-
-  // created by class_linker
-  AssertArrayClass("[C", 1, "C", NULL);
-  AssertArrayClass("[Ljava/lang/Object;", 1, "Ljava/lang/Object;", NULL);
-  // synthesized on the fly
-  AssertArrayClass("[[C", 2, "C", NULL);
-  AssertArrayClass("[[[LMyClass;", 3, "LMyClass;", class_loader);
-  // or not available at all
-  AssertNonExistentClass("[[[[LNonExistentClass;");
-}
-
-TEST_F(ClassLinkerTest, LibCore) {
-  AssertDexFile(java_lang_dex_file_.get(), NULL);
-}
-
 struct CheckOffset {
   size_t cpp_offset;
   const char* java_name;
@@ -479,6 +369,9 @@ struct CheckOffsets {
     return !error;
   };
 };
+
+// Note that ClassLinkerTest.ValidateFieldOrderOfJavaCppUnionClasses
+// is first since if it is failing, others are unlikely to succeed.
 
 struct ObjectOffsets : public CheckOffsets {
   ObjectOffsets() {
@@ -601,7 +494,6 @@ struct ClassOffsets : public CheckOffsets {
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "shadow$_access_flags_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, array_rank_),                    "shadow$_array_rank_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
@@ -698,6 +590,10 @@ struct ClassClassOffsets : public CheckOffsets {
     size = sizeof(ClassClass);
     class_descriptor = "Ljava/lang/Class;";
 
+    // padding 32-bit
+    CHECK_EQ(OFFSETOF_MEMBER(ClassClass, padding_) + 4,
+             OFFSETOF_MEMBER(ClassClass, serialVersionUID_));
+
     // alphabetical 64-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassClass, serialVersionUID_), "serialVersionUID"));
   };
@@ -713,11 +609,11 @@ struct StringClassOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, ASCII_),                  "ASCII"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
 
+    // padding 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
+
     // alphabetical 64-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, serialVersionUID_),       "serialVersionUID"));
-
-    // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
   };
 };
 
@@ -774,6 +670,113 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(StringClassOffsets().Check());
   EXPECT_TRUE(FieldClassOffsets().Check());
   EXPECT_TRUE(MethodClassOffsets().Check());
+}
+
+TEST_F(ClassLinkerTest, FindClassNonexistent) {
+  AssertNonExistentClass("NoSuchClass;");
+  AssertNonExistentClass("LNoSuchClass;");
+}
+
+TEST_F(ClassLinkerTest, FindClassNested) {
+  const ClassLoader* class_loader = LoadDex("Nested");
+
+  Class* outer = class_linker_->FindClass("LNested;", class_loader);
+  ASSERT_TRUE(outer != NULL);
+  EXPECT_EQ(0U, outer->NumVirtualMethods());
+  EXPECT_EQ(1U, outer->NumDirectMethods());
+
+  Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader);
+  ASSERT_TRUE(inner != NULL);
+  EXPECT_EQ(0U, inner->NumVirtualMethods());
+  EXPECT_EQ(1U, inner->NumDirectMethods());
+}
+
+TEST_F(ClassLinkerTest, FindClass_Primitives) {
+  StringPiece expected = "BCDFIJSZV";
+  for (int ch = 0; ch < 255; ch++) {
+    char* s = reinterpret_cast<char*>(&ch);
+    StringPiece descriptor(s, 1);
+    if (expected.find(ch) == StringPiece::npos) {
+      AssertNonExistentClass(descriptor);
+    } else {
+      AssertPrimitiveClass(descriptor);
+    }
+  }
+}
+
+TEST_F(ClassLinkerTest, FindClass) {
+  Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  ASSERT_TRUE(JavaLangObject != NULL);
+  ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
+  ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
+  EXPECT_EQ(JavaLangObject, JavaLangObject->GetClass()->GetSuperClass());
+  ASSERT_TRUE(JavaLangObject->GetDescriptor()->Equals("Ljava/lang/Object;"));
+  EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
+  EXPECT_FALSE(JavaLangObject->HasSuperClass());
+  EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
+  EXPECT_FALSE(JavaLangObject->IsErroneous());
+  EXPECT_TRUE(JavaLangObject->IsVerified());
+  EXPECT_TRUE(JavaLangObject->IsResolved());
+  EXPECT_FALSE(JavaLangObject->IsArrayInstance());
+  EXPECT_FALSE(JavaLangObject->IsArrayClass());
+  EXPECT_TRUE(JavaLangObject->GetComponentType() == NULL);
+  EXPECT_FALSE(JavaLangObject->IsInterface());
+  EXPECT_TRUE(JavaLangObject->IsPublic());
+  EXPECT_FALSE(JavaLangObject->IsFinal());
+  EXPECT_FALSE(JavaLangObject->IsPrimitive());
+  EXPECT_FALSE(JavaLangObject->IsSynthetic());
+  EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
+  EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
+  EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());
+  EXPECT_TRUE(JavaLangObject->GetInstanceField(0)->GetName()->Equals("shadow$_klass_"));
+  EXPECT_TRUE(JavaLangObject->GetInstanceField(1)->GetName()->Equals("shadow$_monitor_"));
+
+  EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
+  EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
+
+  const ClassLoader* class_loader = LoadDex("MyClass");
+  AssertNonExistentClass("LMyClass;");
+  Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
+  ASSERT_TRUE(MyClass != NULL);
+  ASSERT_TRUE(MyClass->GetClass() != NULL);
+  ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
+  EXPECT_EQ(JavaLangObject, MyClass->GetClass()->GetSuperClass());
+  ASSERT_TRUE(MyClass->GetDescriptor()->Equals("LMyClass;"));
+  EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
+  EXPECT_TRUE(MyClass->HasSuperClass());
+  EXPECT_EQ(class_loader, MyClass->GetClassLoader());
+  EXPECT_TRUE(MyClass->GetStatus() == Class::kStatusResolved);
+  EXPECT_FALSE(MyClass->IsErroneous());
+  EXPECT_FALSE(MyClass->IsVerified());
+  EXPECT_TRUE(MyClass->IsResolved());
+  EXPECT_FALSE(MyClass->IsArrayInstance());
+  EXPECT_FALSE(MyClass->IsArrayClass());
+  EXPECT_TRUE(MyClass->GetComponentType() == NULL);
+  EXPECT_FALSE(MyClass->IsInterface());
+  EXPECT_FALSE(MyClass->IsPublic());
+  EXPECT_FALSE(MyClass->IsFinal());
+  EXPECT_FALSE(MyClass->IsPrimitive());
+  EXPECT_FALSE(MyClass->IsSynthetic());
+  EXPECT_EQ(1U, MyClass->NumDirectMethods());
+  EXPECT_EQ(0U, MyClass->NumVirtualMethods());
+  EXPECT_EQ(0U, MyClass->NumInstanceFields());
+  EXPECT_EQ(0U, MyClass->NumStaticFields());
+  EXPECT_EQ(0U, MyClass->NumInterfaces());
+
+  EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
+
+  // created by class_linker
+  AssertArrayClass("[C", "C", NULL);
+  AssertArrayClass("[Ljava/lang/Object;", "Ljava/lang/Object;", NULL);
+  // synthesized on the fly
+  AssertArrayClass("[[C", "[C", NULL);
+  AssertArrayClass("[[[LMyClass;", "[[LMyClass;", class_loader);
+  // or not available at all
+  AssertNonExistentClass("[[[[LNonExistentClass;");
+}
+
+TEST_F(ClassLinkerTest, LibCore) {
+  AssertDexFile(java_lang_dex_file_.get(), NULL);
 }
 
 // The first reference array element must be a multiple of 8 bytes from the

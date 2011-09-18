@@ -794,52 +794,29 @@ void Class::CanPutArrayElementFromCode(const Object* element, const Class* array
 // Don't forget about primitive types.
 //   Object[]         = int[] --> false
 //
-bool Class::IsArrayAssignableFromArray(const Class* klass) const {
+bool Class::IsArrayAssignableFromArray(const Class* src) const {
   DCHECK(IsArrayClass());
-  DCHECK(klass->IsArrayClass());
-  DCHECK_GT(GetArrayRank(), 0);
-  DCHECK_GT(klass->GetArrayRank(), 0);
-  DCHECK(GetComponentType() != NULL);
-  DCHECK(klass->GetComponentType() != NULL);
-  if (GetArrayRank() > klass->GetArrayRank()) {
-    // Too many []s.
-    return false;
-  }
-  if (GetArrayRank() == klass->GetArrayRank()) {
-    return GetComponentType()->IsAssignableFrom(klass->GetComponentType());
-  }
-  DCHECK_LT(GetArrayRank(), klass->GetArrayRank());
-  // The thing we might be assignable from has more dimensions.  We
-  // must be an Object or array of Object, or a standard array
-  // interface or array of standard array interfaces (the standard
-  // interfaces being java/lang/Cloneable and java/io/Serializable).
-  if (GetComponentType()->IsInterface()) {
-    // See if we implement our component type.  We know the
-    // base element is an interface; if the array class implements
-    // it, we know it's a standard array interface.
-    return Implements(GetComponentType());
-  }
-  // See if this is an array of Object, Object[], etc.
-  return GetComponentType()->IsObjectClass();
+  DCHECK(src->IsArrayClass());
+  return GetComponentType()->IsAssignableFrom(src->GetComponentType());
 }
 
-bool Class::IsAssignableFromArray(const Class* klass) const {
+bool Class::IsAssignableFromArray(const Class* src) const {
   DCHECK(!IsInterface());  // handled first in IsAssignableFrom
-  DCHECK(klass->IsArrayClass());
+  DCHECK(src->IsArrayClass());
   if (!IsArrayClass()) {
     // If "this" is not also an array, it must be Object.
-    // klass's super should be java_lang_Object, since it is an array.
-    Class* java_lang_Object = klass->GetSuperClass();
+    // src's super should be java_lang_Object, since it is an array.
+    Class* java_lang_Object = src->GetSuperClass();
     DCHECK(java_lang_Object != NULL);
     DCHECK(java_lang_Object->GetSuperClass() == NULL);
     return this == java_lang_Object;
   }
-  return IsArrayAssignableFromArray(klass);
+  return IsArrayAssignableFromArray(src);
 }
 
 bool Class::IsSubClass(const Class* klass) const {
   DCHECK(!IsInterface());
-  DCHECK(!klass->IsArrayClass());
+  DCHECK(!IsArrayClass());
   const Class* current = this;
   do {
     if (current == klass) {

@@ -505,7 +505,7 @@ bool DexVerifier::CheckArrayData(const DexFile::CodeItem* code_item,
   const uint16_t* array_data;
   int32_t array_data_offset;
 
-  assert(cur_offset < insn_count);
+  DCHECK_LT(cur_offset, insn_count);
 
   /* make sure the start of the array data table is in range */
   array_data_offset = insns[1] | (((int32_t) insns[2]) << 16);
@@ -839,7 +839,7 @@ bool DexVerifier::InitRegisterTable(VerifierData* vdata,
   reg_table->insn_reg_count_plus_ = registers_size + kExtraRegs;
   reg_table->register_lines_.reset(new RegisterLine[insns_size]());
 
-  assert(insns_size > 0);
+  DCHECK_GT(insns_size, 0U);
 
   bool track_monitors;
   //if (gDvm.monitorVerification) {
@@ -929,7 +929,7 @@ DexVerifier::UninitInstanceMap* DexVerifier::CreateUninitInstanceMap(
     inst = inst->Next();
   }
 
-  assert(idx == new_instance_count);
+  CHECK_EQ(idx, new_instance_count);
   return uninit_map;
 }
 
@@ -966,7 +966,7 @@ Class* DexVerifier::LookupClassByDescriptor(const Method* method,
     }
 
     /* Check if the descriptor is an array. */
-    if (descriptor[0] == '[') {
+    if (descriptor[0] == '[' && descriptor[1] != '\0') {
       /*
        * There should never be a problem loading primitive arrays.
        */
@@ -1012,7 +1012,7 @@ Class* DexVerifier::LookupClassByDescriptor(const Method* method,
 
 Class* DexVerifier::LookupSignatureClass(const Method* method, std::string sig,
     VerifyError* failure) {
-  assert(sig[0] == 'L');
+  DCHECK_EQ(sig[0], 'L');
   size_t end = sig.find(';');
 
   if (end == std::string::npos) {
@@ -1027,7 +1027,7 @@ Class* DexVerifier::LookupSignatureClass(const Method* method, std::string sig,
 
 Class* DexVerifier::LookupSignatureArrayClass(const Method* method,
     std::string sig, VerifyError* failure) {
-  assert(sig[0] == '[');
+  DCHECK_EQ(sig[0], '[');
   size_t end = 0;
 
   while (sig[end] == '[')
@@ -1058,7 +1058,7 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
   int expected_args = code_item->ins_size_;   /* long/double count as two */
   int actual_args = 0;
 
-  assert(arg_start >= 0);      /* should have been verified earlier */
+  DCHECK_GE(arg_start, 0);      /* should have been verified earlier */
 
   /*
    * Include the "this" pointer.
@@ -1074,7 +1074,7 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
     if (IsInitMethod(method) && method->GetDeclaringClass() != klass_object) {
       int idx = SetUninitInstance(uninit_map, kUninitThisArgAddr,
           method->GetDeclaringClass());
-      assert(idx == 0);
+      DCHECK_EQ(idx, 0);
       reg_types[arg_start + actual_args] = RegTypeFromUninitIndex(idx);
     } else {
       reg_types[arg_start + actual_args] =
@@ -1218,7 +1218,7 @@ bool DexVerifier::SetTypesFromSignature(VerifierData* vdata, RegType* reg_types)
 int DexVerifier::SetUninitInstance(UninitInstanceMap* uninit_map, int addr,
     Class* klass) {
   int idx;
-  assert(klass != NULL);
+  DCHECK(klass != NULL);
 
   /* TODO: binary search when num_entries > 8 */
   for (idx = uninit_map->num_entries_ - 1; idx >= 0; idx--) {
@@ -1235,8 +1235,7 @@ int DexVerifier::SetUninitInstance(UninitInstanceMap* uninit_map, int addr,
     }
   }
 
-  LOG(ERROR) << "VFY: addr " << addr << " not found in uninit map";
-  assert(false);      // shouldn't happen
+  LOG(FATAL) << "VFY: addr " << addr << " not found in uninit map";
   return -1;
 }
 
@@ -1508,7 +1507,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
        */
       res_class = GetCaughtExceptionType(vdata, insn_idx, &failure);
       if (res_class == NULL) {
-        assert(failure != VERIFY_ERROR_NONE);
+        DCHECK(failure != VERIFY_ERROR_NONE);
       } else {
         SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(res_class));
       }
@@ -1583,8 +1582,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         }
 
         /* return_type is the *expected* return type, not register value */
-        assert(return_type != kRegTypeZero);
-        assert(!RegTypeIsUninitReference(return_type));
+        DCHECK(return_type != kRegTypeZero);
+        DCHECK(!RegTypeIsUninitReference(return_type));
 
         /*
          * Verify that the reference in vAA is an instance of the type
@@ -1649,7 +1648,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve const-class " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        assert(failure != VERIFY_ERROR_GENERIC);
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
       } else {
         SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(
             class_linker->FindSystemClass("Ljava/lang/Class;")));
@@ -1700,7 +1699,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve check-cast " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        assert(failure != VERIFY_ERROR_GENERIC);
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
       } else {
         RegType orig_type;
 
@@ -1729,7 +1728,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve instanceof " << dec_insn.vC_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        assert(failure != VERIFY_ERROR_GENERIC);
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
       } else {
         /* result is boolean */
         SetRegisterType(work_line, dec_insn.vA_, kRegTypeBoolean);
@@ -1755,7 +1754,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve new-instance " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        assert(failure != VERIFY_ERROR_GENERIC);
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
       } else {
         RegType uninit_type;
 
@@ -1769,7 +1768,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
         /* add resolved class to uninit map if not already there */
         int uidx = SetUninitInstance(uninit_map, insn_idx, res_class);
-        assert(uidx >= 0);
+        DCHECK_GE(uidx, 0);
         uninit_type = RegTypeFromUninitIndex(uidx);
 
         /*
@@ -1790,7 +1789,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve new-array " << dec_insn.vC_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        assert(failure != VERIFY_ERROR_GENERIC);
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
       } else if (!res_class->IsArrayClass()) {
         LOG(ERROR) << "VFY: new-array on non-array class";
         failure = VERIFY_ERROR_GENERIC;
@@ -1809,7 +1808,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve filled-array " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        assert(failure != VERIFY_ERROR_GENERIC);
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
       } else if (!res_class->IsArrayClass()) {
         LOG(ERROR) << "VFY: filled-new-array on non-array class";
         failure = VERIFY_ERROR_GENERIC;
@@ -1888,7 +1887,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
         Class::PrimitiveType prim_type =
             res_class->GetComponentType()->GetPrimitiveType();
-        if (!res_class->IsArrayClass() || res_class->GetArrayRank() != 1 ||
+        if (!res_class->IsArrayClass() ||
             prim_type == Class::kPrimNot || prim_type == Class::kPrimVoid) {
           LOG(ERROR) << "VFY: invalid fill-array-data on " <<
                 res_class->GetDescriptor()->ToModifiedUtf8();
@@ -1897,7 +1896,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         }
 
         value_type = PrimitiveTypeToRegType(prim_type);
-        assert(value_type != kRegTypeUnknown);
+        DCHECK(value_type != kRegTypeUnknown);
 
         /*
          * Now verify if the element width in the table matches the element
@@ -2033,8 +2032,7 @@ aget_1nr_common:
           /* verify the class */
           Class::PrimitiveType prim_type =
               res_class->GetComponentType()->GetPrimitiveType();
-          if (!res_class->IsArrayClass() || res_class->GetArrayRank() != 1 ||
-              prim_type == Class::kPrimNot) {
+          if (!res_class->IsArrayClass() || prim_type == Class::kPrimNot) {
             LOG(ERROR) << "VFY: invalid aget-1nr target "
                        << res_class->GetDescriptor()->ToModifiedUtf8();
             failure = VERIFY_ERROR_GENERIC;
@@ -2077,8 +2075,7 @@ aget_1nr_common:
           /* verify the class */
           Class::PrimitiveType prim_type =
               res_class->GetComponentType()->GetPrimitiveType();
-          if (!res_class->IsArrayClass() || res_class->GetArrayRank() != 1 ||
-              prim_type == Class::kPrimNot) {
+          if (!res_class->IsArrayClass() || prim_type == Class::kPrimNot) {
             LOG(ERROR) << "VFY: invalid aget-wide target "
                        << res_class->GetDescriptor()->ToModifiedUtf8();
             failure = VERIFY_ERROR_GENERIC;
@@ -2127,29 +2124,19 @@ aget_1nr_common:
         if (res_class != NULL) {
           Class* element_class;
 
-          assert(res_class != NULL);
+          DCHECK(res_class != NULL);
           if (!res_class->IsArrayClass()) {
             LOG(ERROR) << "VFY: aget-object on non-array class";
             failure = VERIFY_ERROR_GENERIC;
             break;
           }
-          assert(res_class->GetComponentType() != NULL);
+          DCHECK(res_class->GetComponentType() != NULL);
 
           /*
-           * Find the element class. res_class->GetComponentType() indicates
-           * the basic type, which won't be what we want for a
-           * multi-dimensional array.
+           * Find the element class.
            */
-          if (res_class->GetDescriptor()->CharAt(1) == '[') {
-            assert(res_class->GetArrayRank() > 1);
-            std::string descriptor =
-                res_class->GetDescriptor()->ToModifiedUtf8();
-            element_class = class_linker->FindClass(descriptor.c_str() + 1,
-                           res_class->GetClassLoader());
-          } else if (res_class->GetDescriptor()->CharAt(1) == 'L') {
-            assert(res_class->GetArrayRank() == 1);
-            element_class = res_class->GetComponentType();
-          } else {
+          element_class = res_class->GetComponentType();
+          if (element_class->IsPrimitive()) {
             LOG(ERROR) << "VFY: aget-object on non-ref array class ("
                        << res_class->GetDescriptor()->ToModifiedUtf8() << ")";
             failure = VERIFY_ERROR_GENERIC;
@@ -2204,8 +2191,7 @@ aput_1nr_common:
 
         Class::PrimitiveType prim_type =
             res_class->GetComponentType()->GetPrimitiveType();
-        if (!res_class->IsArrayClass() || res_class->GetArrayRank() != 1 ||
-            prim_type == Class::kPrimNot) {
+        if (!res_class->IsArrayClass() || prim_type == Class::kPrimNot) {
           LOG(ERROR) << "VFY: invalid aput-1nr on "
                      << res_class->GetDescriptor()->ToModifiedUtf8();
           failure = VERIFY_ERROR_GENERIC;
@@ -2253,8 +2239,7 @@ aput_1nr_common:
         Class::PrimitiveType prim_type =
             res_class->GetComponentType()->GetPrimitiveType();
         /* verify the class and try to refine "dst_type" */
-        if (!res_class->IsArrayClass() || res_class->GetArrayRank() != 1 ||
-            prim_type == Class::kPrimNot)
+        if (!res_class->IsArrayClass() || prim_type == Class::kPrimNot)
         {
           LOG(ERROR) << "VFY: invalid aput-wide on "
                      << res_class->GetDescriptor()->ToModifiedUtf8();
@@ -2310,26 +2295,15 @@ aput_1nr_common:
           }
 
           /*
-           * Find the element class. res_class->GetComponentType() indicates
-           * the basic type, which won't be what we want for a
-           * multi-dimensional array.
+           * Find the element class.
            *
            * All we want to check here is that the element type is a
            * reference class. We *don't* check instanceof here, because
            * you can still put a String into a String[] after the latter
            * has been cast to an Object[].
            */
-          if (array_class->GetDescriptor()->CharAt(1) == '[') {
-            assert(array_class->GetArrayRank() > 1);
-            std::string descriptor =
-                array_class->GetDescriptor()->ToModifiedUtf8();
-            element_class = class_linker->FindClass(descriptor.c_str() + 1,
-                           array_class->GetClassLoader());
-          } else {
-            assert(array_class->GetArrayRank() == 1);
-            element_class = array_class->GetComponentType();
-          }
-          if (element_class->GetPrimitiveType() != Class::kPrimNot) {
+          element_class = array_class->GetComponentType();
+          if (element_class->IsPrimitive()) {
             LOG(ERROR) << "VFY: invalid aput-object of "
                        << res_class->GetDescriptor()->ToModifiedUtf8()
                        << " into "
@@ -2438,7 +2412,7 @@ iget_1nr_common:
           break;
         }
         if (failure == VERIFY_ERROR_NONE) {
-          assert(!field_class->IsPrimitive());
+          DCHECK(!field_class->IsPrimitive()) << PrettyClass(field_class);
           SetRegisterType(work_line, dec_insn.vA_,
               RegTypeFromClass(field_class));
         }
@@ -2925,7 +2899,7 @@ sput_1nr_common:
           Class* this_class;
 
           this_class = RegTypeReferenceToClass(this_type, uninit_map);
-          assert(this_class != NULL);
+          DCHECK(this_class != NULL);
 
           /* must be in same class or in superclass */
           if (called_method->GetDeclaringClass() == this_class->GetSuperClass())
@@ -3492,8 +3466,7 @@ sput_1nr_common:
       LOG(ERROR) << "VFY: bad branch at 0x" << std::hex << insn_idx << std::dec;
       return false;
     }
-    assert(isConditional || (opcode_flag & Instruction::kContinue) == 0);
-    assert(!isConditional || (opcode_flag & Instruction::kContinue) != 0);
+    DCHECK_EQ(isConditional, (opcode_flag & Instruction::kContinue) != 0);
 
     if (!CheckMoveException(code_item->insns_, insn_idx + branch_target))
       return false;
@@ -3521,7 +3494,7 @@ sput_1nr_common:
       offset_to_targets = 4;
     } else {
       /* 0 = sig, 1 = count, 2..count * 2 = keys */
-      assert((*insns & 0xff) == Instruction::SPARSE_SWITCH);
+      DCHECK((*insns & 0xff) == Instruction::SPARSE_SWITCH);
       offset_to_targets = 2 + 2 * switch_count;
     }
 
@@ -3535,7 +3508,7 @@ sput_1nr_common:
          (((int32_t) switch_insns[offset_to_targets + targ * 2 + 1]) << 16);
       abs_offset = insn_idx + offset;
 
-      assert(abs_offset < insns_size);
+      DCHECK_LT(abs_offset, insns_size);
 
       if (!CheckMoveException(code_item->insns_, abs_offset))
         return false;
@@ -3615,8 +3588,8 @@ sput_1nr_common:
     *start_guess = insn_idx + branch_target;
   }
 
-  assert(*start_guess < insns_size &&
-      InsnGetWidth(insn_flags, *start_guess) != 0);
+  DCHECK_LT(*start_guess, insns_size);
+  DCHECK(InsnGetWidth(insn_flags, *start_guess) != 0);
 
   return true;
 }
@@ -3696,7 +3669,7 @@ bool DexVerifier::ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
       return false;
   }
 
-  assert(inst->IsThrow());
+  DCHECK(inst->IsThrow());
 
   /* write a NOP over the third code unit, if necessary */
   int width = InsnGetWidth(insn_flags, insn_idx);
@@ -3716,7 +3689,7 @@ bool DexVerifier::ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
 
   /* encode the opcode, with the failure code in the high byte */
   // TODO: REPLACE FAILING OPCODES
-  //assert(width == 2 || width == 3);
+  //DCHECK(width == 2 || width == 3);
   //uint16_t new_val = Instruction::THROW_VERIFICATION_ERROR |
   //uint16_t new_val = Instruction::UNUSED_ED |
       //(failure << 8) | (ref_type << (8 + kVerifyErrorRefTypeShift));
@@ -3835,7 +3808,7 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
    * declared by this class.
    */
   obj_class = RegTypeReferenceToClass(obj_type, uninit_map);
-  assert(obj_class != NULL);
+  DCHECK(obj_class != NULL);
   if (RegTypeIsUninitReference(obj_type)) {
     if (!IsInitMethod(method) || method->GetDeclaringClass() != obj_class) {
       LOG(ERROR) << "VFY: attempt to access field via uninitialized ref";
@@ -4135,15 +4108,14 @@ void DexVerifier::VerifyRegisterType(RegisterLine* register_line, uint32_t vsrc,
     case kRegTypeUnknown:
     case kRegTypeConflict:
       /* should never be checking for these explicitly */
-      assert(false);
+      DCHECK(false);
       *failure = VERIFY_ERROR_GENERIC;
       return;
     case kRegTypeUninit:
     default:
       /* make sure check_type is initialized reference */
       if (!RegTypeIsReference(check_type)) {
-        LOG(ERROR) << "VFY: unexpected check type " << check_type;
-        assert(false);
+        LOG(FATAL) << "VFY: unexpected check type " << check_type;
         *failure = VERIFY_ERROR_GENERIC;
         break;
       }
@@ -4168,8 +4140,8 @@ void DexVerifier::VerifyRegisterType(RegisterLine* register_line, uint32_t vsrc,
       if (src_type != kRegTypeZero) {
         Class* src_class = RegTypeInitializedReferenceToClass(src_type);
         Class* check_class = RegTypeInitializedReferenceToClass(check_type);
-        assert(src_class != NULL);
-        assert(check_class != NULL);
+        DCHECK(src_class != NULL);
+        DCHECK(check_class != NULL);
 
         if (!check_class->IsAssignableFrom(src_class)) {
           LOG(ERROR) << "VFY: " << src_class->GetDescriptor()->ToModifiedUtf8()
@@ -4210,7 +4182,7 @@ void DexVerifier::MarkRefsAsInitialized(RegisterLine* register_line,
       changed++;
     }
   }
-  assert(changed > 0);
+  DCHECK_GT(changed, 0);
 
   return;
 }
@@ -4230,7 +4202,7 @@ void DexVerifier::MarkUninitRefsAsInvalid(RegisterLine* register_line,
 
 void DexVerifier::CopyRegister1(RegisterLine* register_line, uint32_t vdst,
     uint32_t vsrc, TypeCategory cat, VerifyError* failure) {
-  assert(cat == kTypeCategory1nr || cat == kTypeCategoryRef);
+  DCHECK(cat == kTypeCategory1nr || cat == kTypeCategoryRef);
   RegType type = GetRegisterType(register_line, vsrc);
   CheckTypeCategory(type, cat, failure);
   if (*failure != VERIFY_ERROR_NONE) {
@@ -4263,7 +4235,7 @@ void DexVerifier::CopyRegister2(RegisterLine* register_line, uint32_t vdst,
 void DexVerifier::CopyResultRegister1(RegisterLine* register_line,
     const int insn_reg_count, uint32_t vdst, TypeCategory cat,
     VerifyError* failure) {
-  assert(vdst < (uint32_t) insn_reg_count);
+  DCHECK_LT(vdst, static_cast<uint32_t>(insn_reg_count));
 
   uint32_t vsrc = RESULT_REGISTER(insn_reg_count);
   RegType type = GetRegisterType(register_line, vsrc);
@@ -4283,7 +4255,7 @@ void DexVerifier::CopyResultRegister1(RegisterLine* register_line,
  */
 void DexVerifier::CopyResultRegister2(RegisterLine* register_line,
     const int insn_reg_count, uint32_t vdst, VerifyError* failure) {
-  assert(vdst < (uint32_t) insn_reg_count);
+  DCHECK_LT(vdst, static_cast<uint32_t>(insn_reg_count));
 
   uint32_t vsrc = RESULT_REGISTER(insn_reg_count);
   RegType type_l = GetRegisterType(register_line, vsrc);
@@ -4332,77 +4304,33 @@ Class* DexVerifier::DigForSuperclass(Class* c1, Class* c2) {
   while (c1 != c2) {
     c1 = c1->GetSuperClass();
     c2 = c2->GetSuperClass();
-
-    assert(c1 != NULL && c2 != NULL);
+    DCHECK(c1 != NULL);
+    DCHECK(c2 != NULL);
   }
 
   return c1;
 }
 
 Class* DexVerifier::FindCommonArraySuperclass(Class* c1, Class* c2) {
-  Class* array_class = NULL;
-  Class* common_elem;
-  int array_dim1, array_dim2;
-  int i, num_dims;
-  bool has_primitive = false;
-
-  array_dim1 = c1->GetArrayRank();
-  array_dim2 = c2->GetArrayRank();
-  assert(c1->GetArrayRank() > 0);
-  assert(c2->GetArrayRank() > 0);
-
-  if (c1->GetComponentType()->IsPrimitive()) {
-    array_dim1--;
-    has_primitive = true;
+  DCHECK(c1->IsArrayClass());
+  DCHECK(c2->IsArrayClass());
+  Class* e1 = c1->GetComponentType();
+  Class* e2 = c2->GetComponentType();
+  if (e1->IsPrimitive() || e2->IsPrimitive()) {
+    return c1->GetSuperClass();  // == java.lang.Object
   }
-  if (c2->GetComponentType()->IsPrimitive()) {
-    array_dim2--;
-    has_primitive = true;
-  }
-
-  if (!has_primitive && array_dim1 == array_dim2) {
-    /*
-     * Two arrays of reference types with equal dimensions. Try to
-     * find a good match.
-     */
-    common_elem = FindCommonSuperclass(c1->GetComponentType(),
-        c2->GetComponentType());
-    num_dims = array_dim1;
-  } else {
-    /*
-     * Mismatched array depths and/or array(s) of primitives. We want
-     * Object, or an Object array with appropriate dimensions.
-     *
-     * We initialize array_class to Object here, because it's possible
-     * for us to set num_dims=0.
-     */
-    if (array_dim1 < array_dim2)
-      num_dims = array_dim1;
-    else
-      num_dims = array_dim2;
-    array_class = common_elem = c1->GetSuperClass();  // == java.lang.Object
-  }
-
-  /*
-   * Find an appropriately-dimensioned array class. This is easiest
-   * to do iteratively, using the array class found by the current round
-   * as the element type for the next round.
-   */
-  for (i = 0; i < num_dims; i++) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    const ClassLoader* class_loader = c1->GetClassLoader();
-    std::string descriptor = "[" +
-        common_elem->GetDescriptor()->ToModifiedUtf8();
-    array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
-    common_elem = array_class;
-  }
-  assert(array_class != NULL);
-
+  Class* common_elem = FindCommonSuperclass(c1->GetComponentType(), c2->GetComponentType());
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const ClassLoader* class_loader = c1->GetClassLoader();
+  std::string descriptor = "[" + common_elem->GetDescriptor()->ToModifiedUtf8();
+  Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+  DCHECK(array_class != NULL);
   return array_class;
 }
 
 Class* DexVerifier::FindCommonSuperclass(Class* c1, Class* c2) {
-  assert(!c1->IsPrimitive() && !c2->IsPrimitive());
+  DCHECK(!c1->IsPrimitive()) << PrettyClass(c1);
+  DCHECK(!c2->IsPrimitive()) << PrettyClass(c2);
 
   if (c1 == c2)
     return c1;
@@ -4487,7 +4415,7 @@ DexVerifier::RegType DexVerifier::MergeTypes(RegType type1, RegType type2,
         Class* klass1 = RegTypeInitializedReferenceToClass(type1);
         Class* klass2 = RegTypeInitializedReferenceToClass(type2);
         Class* merged_class = FindCommonSuperclass(klass1, klass2);
-        assert(merged_class != NULL);
+        DCHECK(merged_class != NULL);
         result = RegTypeFromClass(merged_class);
       }
     }
@@ -4509,7 +4437,7 @@ DexVerifier::MonitorEntries DexVerifier::MergeMonitorEntries(
 bool DexVerifier::UpdateRegisters(InsnFlags* insn_flags,
     RegisterTable* reg_table, int next_insn, const RegisterLine* work_line) {
   const size_t insn_reg_count_plus = reg_table->insn_reg_count_plus_;
-  assert(work_line != NULL);
+  DCHECK(work_line != NULL);
   const RegType* work_regs = work_line->reg_types_.get();
 
   if (!InsnIsVisitedOrChanged(insn_flags, next_insn)) {
@@ -4531,7 +4459,7 @@ bool DexVerifier::UpdateRegisters(InsnFlags* insn_flags,
     bool changed = false;
     unsigned int idx;
 
-    assert(target_regs != NULL);
+    DCHECK(target_regs != NULL);
     if (target_mon_ents != NULL) {
       /* Monitor stacks must be identical. */
       if (target_line->monitor_stack_top_ != work_line->monitor_stack_top_) {
@@ -4589,7 +4517,8 @@ bool DexVerifier::CanConvertTo1nr(RegType src_type, RegType check_type) {
     { /*F*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
   };
 
-  assert(check_type >= kRegType1nrSTART && check_type <= kRegType1nrEND);
+  DCHECK(check_type >= kRegType1nrSTART);
+  DCHECK(check_type <= kRegType1nrEND);
 
   if (src_type >= kRegType1nrSTART && src_type <= kRegType1nrEND)
     return (bool) conv_tab[src_type - kRegType1nrSTART]
@@ -4755,7 +4684,7 @@ void DexVerifier::CheckTypeCategory(RegType type, TypeCategory cat,
         *failure = VERIFY_ERROR_GENERIC;
       break;
     default:
-      assert(false);
+      DCHECK(false);
       *failure = VERIFY_ERROR_GENERIC;
       break;
   }
@@ -4794,7 +4723,7 @@ void DexVerifier::CheckLitop(RegisterLine* register_line,
   VerifyRegisterType(register_line, dec_insn->vB_, src_type, failure);
 
   if ((*failure == VERIFY_ERROR_NONE) && check_boolean_op) {
-    assert(dst_type == kRegTypeInteger);
+    DCHECK(dst_type == kRegTypeInteger);
 
     /* check vB with the call, then check the constant manually */
     if (UpcastBooleanOp(register_line, dec_insn->vB_, dec_insn->vB_)
@@ -4814,7 +4743,7 @@ void DexVerifier::CheckBinop(RegisterLine* register_line,
   VerifyRegisterType(register_line, dec_insn->vC_, src_type2, failure);
 
   if ((*failure == VERIFY_ERROR_NONE) && check_boolean_op) {
-    assert(dst_type == kRegTypeInteger);
+    DCHECK(dst_type == kRegTypeInteger);
     if (UpcastBooleanOp(register_line, dec_insn->vB_, dec_insn->vC_))
       dst_type = kRegTypeBoolean;
   }
@@ -4830,7 +4759,7 @@ void DexVerifier::CheckBinop2addr(RegisterLine* register_line,
   VerifyRegisterType(register_line, dec_insn->vB_, src_type2, failure);
 
   if ((*failure == VERIFY_ERROR_NONE) && check_boolean_op) {
-    assert(dst_type == kRegTypeInteger);
+    DCHECK(dst_type == kRegTypeInteger);
     if (UpcastBooleanOp(register_line, dec_insn->vA_, dec_insn->vB_))
       dst_type = kRegTypeBoolean;
   }
@@ -4908,7 +4837,7 @@ DexVerifier::RegType DexVerifier::AdjustForRightShift(
       break;
     default:
       /* long, double, references; shouldn't be here! */
-      assert(false);
+      DCHECK(false);
       break;
   }
 
@@ -4924,7 +4853,7 @@ void DexVerifier::VerifyFilledNewArrayRegs(const Method* method,
   Class::PrimitiveType elem_type;
   unsigned int ui;
 
-  assert(res_class->IsArrayClass());
+  DCHECK(res_class->IsArrayClass()) << PrettyClass(res_class);
   elem_type = res_class->GetComponentType()->GetPrimitiveType();
   if (elem_type == Class::kPrimNot) {
     expected_type = RegTypeFromClass(res_class->GetComponentType());
@@ -5039,7 +4968,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
    * method's class' superclass has a vtable entry for the target method.
    */
   if (is_super) {
-    assert(method_type == METHOD_VIRTUAL);
+    DCHECK(method_type == METHOD_VIRTUAL);
     Class* super = method->GetDeclaringClass()->GetSuperClass();
     if (super == NULL || res_method->GetMethodIndex() > super->GetVTable()->GetLength()) {
       if (super == NULL) {
@@ -5071,7 +5000,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   actual_args = 0;
 
   /* caught by static verifier */
-  assert(is_range || expected_args <= 5);
+  DCHECK(is_range || expected_args <= 5);
 
   if (expected_args > code_item->outs_size_) {
     LOG(ERROR) << "VFY: invalid arg count (" << expected_args
@@ -5300,7 +5229,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
   uint8_t* map_data = map->data_;
   for (i = 0; i < (int) vdata->code_item_->insns_size_; i++) {
     if (InsnIsGcPoint(vdata->insn_flags_.get(), i)) {
-      assert(vdata->register_lines_[i].reg_types_.get() != NULL);
+      DCHECK(vdata->register_lines_[i].reg_types_.get() != NULL);
       if (format == kRegMapFormatCompact8) {
         *map_data++ = i;
       } else /*kRegMapFormatCompact16*/ {
@@ -5313,7 +5242,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
     }
   }
 
-  assert((uint32_t) map_data - (uint32_t) map->data_ == data_size);
+  DCHECK_EQ((uint32_t) map_data - (uint32_t) map->data_, data_size);
 
   // TODO: Remove this check when it's really running...
 #if 1
@@ -5410,7 +5339,7 @@ const uint8_t* DexVerifier::RegisterMapGetLine(const RegisterMap* map, int addr)
   uint8_t format = map->header_->format_;
   uint16_t num_entries = map->header_->num_entries_;
 
-  assert(num_entries > 0);
+  DCHECK_GT(num_entries, 0);
 
   switch (format) {
     case kRegMapFormatNone:
@@ -5447,7 +5376,7 @@ const uint8_t* DexVerifier::RegisterMapGetLine(const RegisterMap* map, int addr)
 
       data += line_width;
     }
-    assert(data == map->data_ + line_width * num_entries);
+    DCHECK_EQ(data, map->data_ + line_width * num_entries);
   } else {
     int hi, lo, mid;
 
@@ -5588,7 +5517,7 @@ size_t DexVerifier::ComputeRegisterMapSize(const RegisterMap* map) {
   uint8_t format = map->header_->format_;
   uint16_t num_entries = map->header_->num_entries_;
 
-  assert(map != NULL);
+  DCHECK(map != NULL);
 
   switch (format) {
     case kRegMapFormatNone:
@@ -5647,13 +5576,17 @@ int DexVerifier::ComputeBitDiff(const uint8_t* bits1, const uint8_t* bits2,
     }
   }
 
-  if (num_bits_changed > 0)
-    assert(first_bit_changed >= 0);
+  if (num_bits_changed > 0) {
+    DCHECK_GE(first_bit_changed, 0);
+  }
 
-  if (first_bit_changed_ptr != NULL)
+  if (first_bit_changed_ptr != NULL) {
     *first_bit_changed_ptr = first_bit_changed;
-  if (num_bits_changed_ptr != NULL)
+  }
+
+  if (num_bits_changed_ptr != NULL) {
     *num_bits_changed_ptr = num_bits_changed;
+  }
 
   return leb_size;
 }
@@ -5744,7 +5677,7 @@ DexVerifier::RegisterMap* DexVerifier::CompressMapDifferential(
       addr |= (*map_data++) << 8;
 
     addr_diff = addr - prev_addr;
-    assert(addr_diff > 0);
+    DCHECK_GT(addr_diff, 0);
     if (addr_diff < 8) {
       /* Small difference, encode in 3 bits. */
       key = addr_diff -1;          /* set 00000AAA */

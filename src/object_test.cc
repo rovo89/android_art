@@ -321,6 +321,11 @@ TEST_F(ObjectTest, InstanceOf) {
   EXPECT_FALSE(x->InstanceOf(Y));
   EXPECT_TRUE(y->InstanceOf(X));
   EXPECT_TRUE(y->InstanceOf(Y));
+
+  Class* Class_class = class_linker_->FindSystemClass("Ljava/lang/Class;");
+  Class* Object_array_class = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+  EXPECT_FALSE(Class_class->InstanceOf(Object_array_class));
+  EXPECT_TRUE(Object_array_class->InstanceOf(Class_class));
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {

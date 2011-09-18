@@ -413,7 +413,7 @@ class MANAGED Object {
   uint32_t monitor_;
 
   friend class ImageWriter;  // for abusing monitor_ directly
-  friend class ObjectOffsets;  // for verifying offset information
+  friend struct ObjectOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
@@ -1386,23 +1386,10 @@ class MANAGED Class : public StaticStorageBase {
   size_t PrimitiveSize() const;
 
   bool IsArrayClass() const {
-    return GetArrayRank() != 0;
-  }
-
-  int32_t GetArrayRank() const {
-    int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, array_rank_),
-                                false);
-    return result;
-  }
-
-  void SetArrayRank(int32_t new_array_rank) {
-    DCHECK_EQ(0, GetArrayRank());
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, array_rank_), new_array_rank,
-               false);
+    return GetComponentType() != NULL;
   }
 
   Class* GetComponentType() const {
-    DCHECK(IsArrayClass());
     return GetFieldObject<Class*>(
         OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
   }
@@ -1499,20 +1486,20 @@ class MANAGED Class : public StaticStorageBase {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
 
-  bool IsAssignableFrom(const Class* klass) const {
-    DCHECK(klass != NULL);
-    if (this == klass) {
+  bool IsAssignableFrom(const Class* src) const {
+    DCHECK(src != NULL);
+    if (this == src) {
       // Can always assign to things of the same type
       return true;
     } else if (IsObjectClass()) {
       // Can assign any reference to java.lang.Object
-      return !klass->IsPrimitive();
+      return !src->IsPrimitive();
     } else if (IsInterface()) {
-      return klass->Implements(this);
-    } else if (klass->IsArrayClass()) {
-      return IsAssignableFromArray(klass);
+      return src->Implements(this);
+    } else if (src->IsArrayClass()) {
+      return IsAssignableFromArray(src);
     } else {
-      return klass->IsSubClass(this);
+      return src->IsSubClass(this);
     }
   }
 
@@ -1912,9 +1899,8 @@ class MANAGED Class : public StaticStorageBase {
   // defining class loader, or NULL for the "bootstrap" system loader
   const ClassLoader* class_loader_;
 
-  // For array classes, the class object for base element, for
-  // instanceof/checkcast (for String[][][], this will be String).
-  // Otherwise, NULL.
+  // For array classes, the component class object for instanceof/checkcast
+  // (for String[][][], this will be String[][]). NULL for non-array classes.
   Class* component_type_;
 
   // descriptor for the class such as "Ljava/lang/Class;" or "[C"
@@ -1987,10 +1973,6 @@ class MANAGED Class : public StaticStorageBase {
 
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;
-
-  // For array classes, the number of array dimensions, e.g. int[][]
-  // is 2.  Otherwise 0.
-  int32_t array_rank_;
 
   // Total class size; used when allocating storage on gc heap.
   size_t class_size_;
@@ -2243,6 +2225,7 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
 
 class MANAGED ClassClass : public Class {
  private:
+  int32_t padding_;
   int64_t serialVersionUID_;
   friend struct ClassClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);
@@ -2252,8 +2235,8 @@ class MANAGED StringClass : public Class {
  private:
   CharArray* ASCII_;
   Object* CASE_INSENSITIVE_ORDER_;
-  int64_t serialVersionUID_;
   uint32_t REPLACEMENT_CHAR_;
+  int64_t serialVersionUID_;
   friend struct StringClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
 };

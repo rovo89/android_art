@@ -605,7 +605,7 @@ TEST_F(JniInternalTest, GetStringCritical_ReleaseStringCritical) {
 }
 
 TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
-  jclass c = env_->FindClass("[Ljava/lang/Object;");
+  jclass c = env_->FindClass("java/lang/Object");
   ASSERT_TRUE(c != NULL);
 
   jobjectArray array = env_->NewObjectArray(1, c, NULL);

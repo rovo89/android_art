@@ -435,7 +435,7 @@ void DexFile::InitIndex() {
 }
 
 const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) const {
-  CHECK(descriptor != NULL);
+  CHECK(!descriptor.empty());
   Index::const_iterator it = index_.find(descriptor);
   if (it == index_.end()) {
     return NULL;

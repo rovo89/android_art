@@ -35,24 +35,7 @@ jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
 }
 
 jclass Class_getComponentType(JNIEnv* env, jobject javaThis) {
-  Class* c = Decode<Class*>(env, javaThis);
-  if (!c->IsArrayClass()) {
-      return NULL;
-  }
-
-  /*
-   * We can't just return c->GetComponentType(), because that gives
-   * us the base type (e.g. X[][][] returns X).  If this is a multi-
-   * dimensional array, we have to do the lookup by name.
-   */
-  Class* result;
-  std::string descriptor(c->GetDescriptor()->ToModifiedUtf8());
-  if (descriptor[1] == '[') {
-    result = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str() + 1, c->GetClassLoader());
-  } else {
-    result = c->GetComponentType();
-  }
-  return AddLocalReference<jclass>(env, result);
+  return AddLocalReference<jclass>(env, Decode<Class*>(env, javaThis)->GetComponentType());
 }
 
 jobjectArray Class_getDeclaredClasses(JNIEnv* env, jclass java_lang_Class_class, jclass c, jboolean publicOnly) {

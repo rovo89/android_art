@@ -129,12 +129,14 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
 
   // Object[] next to hold class roots
   Class* object_array_class = AllocClass(java_lang_Class, sizeof(Class));
-  object_array_class->SetArrayRank(1);
   object_array_class->SetComponentType(java_lang_Object);
+
+  // Setup the char class to be used for char[]
+  Class* char_class = AllocClass(java_lang_Class, sizeof(Class));
 
   // Setup the char[] class to be used for String
   Class* char_array_class = AllocClass(java_lang_Class, sizeof(Class));
-  char_array_class->SetArrayRank(1);
+  char_array_class->SetComponentType(char_class);
   CharArray::SetArrayClass(char_array_class);
 
   // Setup String
@@ -162,7 +164,6 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   // Setup the primitive type classes.
   SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z", Class::kPrimBoolean));
   SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B", Class::kPrimByte));
-  SetClassRoot(kPrimitiveChar, CreatePrimitiveClass("C", Class::kPrimChar));
   SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S", Class::kPrimShort));
   SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I", Class::kPrimInt));
   SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J", Class::kPrimLong));
@@ -170,16 +171,12 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D", Class::kPrimDouble));
   SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V", Class::kPrimVoid));
 
-  // Backfill component type of char[]
-  char_array_class->SetComponentType(GetClassRoot(kPrimitiveChar));
-
   // Create array interface entries to populate once we can load system classes
   array_interfaces_ = AllocObjectArray<Class>(2);
   array_iftable_ = AllocObjectArray<InterfaceEntry>(2);
 
   // Create int array type for AllocDexCache (done in AppendToBootClassPath)
   Class* int_array_class = AllocClass(java_lang_Class, sizeof(Class));
-  int_array_class->SetArrayRank(1);
   int_array_class->SetDescriptor(intern_table_->InternStrong("[I"));
   int_array_class->SetComponentType(GetClassRoot(kPrimitiveInt));
   IntArray::SetArrayClass(int_array_class);
@@ -219,6 +216,10 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   Method::SetClass(java_lang_reflect_Method);
 
   // now we can use FindSystemClass
+
+  // run char class through InitializePrimitiveClass to finish init
+  InitializePrimitiveClass(char_class, "C", Class::kPrimChar);
+  SetClassRoot(kPrimitiveChar, char_class);  // needs descriptor
 
   // Object and String need to be rerun through FindSystemClass to finish init
   java_lang_Object->SetStatus(Class::kStatusNotReady);
@@ -614,7 +615,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
   Class* klass = LookupClass(descriptor, class_loader);
   if (klass == NULL) {
     // Class is not yet loaded.
-    if (descriptor[0] == '[') {
+    if (descriptor[0] == '[' && descriptor[1] != '\0') {
       return CreateArrayClass(descriptor, class_loader);
     }
     const DexFile::ClassPath& class_path = ((class_loader != NULL)
@@ -979,18 +980,18 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   return NULL;
 }
 
-Class* ClassLinker::CreatePrimitiveClass(const char* descriptor,
-                                         Class::PrimitiveType type) {
+Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
+                                             const char* descriptor,
+                                             Class::PrimitiveType type) {
   // TODO: deduce one argument from the other
-  Class* klass = AllocClass(sizeof(Class));
-  CHECK(klass != NULL);
-  klass->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
-  klass->SetDescriptor(intern_table_->InternStrong(descriptor));
-  klass->SetPrimitiveType(type);
-  klass->SetStatus(Class::kStatusInitialized);
-  bool success = InsertClass(descriptor, klass);
-  CHECK(success) << "CreatePrimitiveClass(" << descriptor << ") failed";
-  return klass;
+  CHECK(primitive_class != NULL);
+  primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
+  primitive_class->SetDescriptor(intern_table_->InternStrong(descriptor));
+  primitive_class->SetPrimitiveType(type);
+  primitive_class->SetStatus(Class::kStatusInitialized);
+  bool success = InsertClass(descriptor, primitive_class);
+  CHECK(success) << "InitPrimitiveClass(" << descriptor << ") failed";
+  return primitive_class;
 }
 
 // Create an array class (i.e. the class object for the array, not the
@@ -1000,44 +1001,20 @@ Class* ClassLinker::CreatePrimitiveClass(const char* descriptor,
 // If "descriptor" refers to an array of primitives, look up the
 // primitive type's internally-generated class object.
 //
-// "loader" is the class loader of the class that's referring to us.  It's
-// used to ensure that we're looking for the element type in the right
-// context.  It does NOT become the class loader for the array class; that
-// always comes from the base element class.
+// "class_loader" is the class loader of the class that's referring to
+// us.  It's used to ensure that we're looking for the element type in
+// the right context.  It does NOT become the class loader for the
+// array class; that always comes from the base element class.
 //
 // Returns NULL with an exception raised on failure.
 Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
                                      const ClassLoader* class_loader) {
   CHECK_EQ('[', descriptor[0]);
 
-  // Identify the underlying element class and the array dimension depth.
-  Class* component_type = NULL;
-  int array_rank;
-  if (descriptor[1] == '[') {
-    // array of arrays; keep descriptor and grab stuff from parent
-    Class* outer = FindClass(descriptor.substr(1), class_loader);
-    if (outer != NULL) {
-      // want the base class, not "outer", in our component_type
-      component_type = outer->GetComponentType();
-      array_rank = outer->GetArrayRank() + 1;
-    } else {
-      DCHECK(component_type == NULL);  // make sure we fail
-    }
-  } else {
-    array_rank = 1;
-    if (descriptor[1] == 'L') {
-      // array of objects; strip off "[" and look up descriptor.
-      const StringPiece subDescriptor = descriptor.substr(1);
-      component_type = FindClass(subDescriptor, class_loader);
-    } else {
-      // array of a primitive type
-      component_type = FindPrimitiveClass(descriptor[1]);
-    }
-  }
-
+  // Identify the underlying component type
+  Class* component_type = FindClass(descriptor.substr(1), class_loader);
   if (component_type == NULL) {
-    // failed
-    // DCHECK(Thread::Current()->IsExceptionPending());  // TODO
+    DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
 
@@ -1090,10 +1067,8 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
     if (new_class == NULL) {
       return NULL;
     }
-    new_class->SetArrayRank(array_rank);
     new_class->SetComponentType(component_type);
   }
-  DCHECK_LE(1, new_class->GetArrayRank());
   DCHECK(new_class->GetComponentType() != NULL);
   if (new_class->GetDescriptor() != NULL) {
     DCHECK(new_class->GetDescriptor()->Equals(descriptor));

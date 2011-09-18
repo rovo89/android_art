@@ -193,7 +193,13 @@ class ClassLinker {
   InterfaceEntry* AllocInterfaceEntry(Class* interface);
 
   Class* CreatePrimitiveClass(const char* descriptor,
-                              Class::PrimitiveType type);
+                              Class::PrimitiveType type) {
+    return InitializePrimitiveClass(AllocClass(sizeof(Class)), descriptor, type);
+  }
+  Class* InitializePrimitiveClass(Class* primitive_class,
+                                  const char* descriptor,
+                                  Class::PrimitiveType type);
+
 
   Class* CreateArrayClass(const StringPiece& descriptor,
                           const ClassLoader* class_loader);
