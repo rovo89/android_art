@@ -239,6 +239,7 @@ TEST_F(CompilerTest, CatchTest) {
   CompileVirtualMethod(NULL, "java.lang.Throwable","fillInStackTrace","()Ljava/lang/Throwable;");
   CompileDirectMethod(NULL, "java.lang.Throwable","nativeFillInStackTrace","()Ljava/lang/Object;");
   AssertStaticIntMethod(1579, LoadDex("IntMath"), "IntMath", "catchBlock", "(I)I", 1000);
+  AssertStaticIntMethod(7777, LoadDex("IntMath"), "IntMath", "catchBlock", "(I)I", 7000);
 }
 
 TEST_F(CompilerTest, CatchTestNoThrow) {

@@ -68,6 +68,10 @@ extern "C" void artDeliverExceptionHelper(art::Throwable* exception,
   // Place a special frame at the TOS that will save all callee saves
   *sp = thread->CalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
+  if (exception == NULL) {
+    thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
+    exception = thread->GetException();
+  }
   thread->DeliverException(exception);
 }
 

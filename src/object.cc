@@ -579,8 +579,14 @@ bool Method::IsWithinCode(uintptr_t pc) const {
     // assume that this is some initial value that will always lie in code
     return true;
   } else {
+#if defined(__arm__)
+    pc &= ~0x1;  // clear any possible thumb instruction mode bit
+#endif
     uint32_t rel_offset = pc - reinterpret_cast<uintptr_t>(GetCodeArray()->GetData());
-    return rel_offset < static_cast<uint32_t>(GetCodeArray()->GetLength());
+    // Strictly the following test should be a less-than, however, if the last
+    // instruction is a call to an exception throw we may see return addresses
+    // that are 1 beyond the end of code.
+    return rel_offset <= static_cast<uint32_t>(GetCodeArray()->GetLength());
   }
 }
 

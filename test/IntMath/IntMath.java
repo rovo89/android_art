@@ -103,10 +103,19 @@ class IntMath extends IntMathBase {
         throw new NullPointerException();
     }
 
+    static void throwImplicitNullPointerException() {
+      throw null;
+    }
+
     static int catchBlock(int x) {
         try {
-            x += 123;
-            throwNullPointerException();
+            if (x == 1000) {
+                x += 123;
+                throwNullPointerException();
+            } else {
+                x += 321;
+                throwImplicitNullPointerException();
+            }
         } catch (NullPointerException npe) {
             x += 456;
         }
