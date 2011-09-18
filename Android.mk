@@ -38,7 +38,8 @@ include $(build_path)/Android.executable.mk
 include $(build_path)/Android.oat.mk
 
 include $(build_path)/Android.libarttest.mk
-include $(build_path)/Android.test.mk
+include $(build_path)/Android.gtest.mk
+include $(build_path)/Android.oattest.mk
 
 # "m build-art" for quick minimal build
 .PHONY: build-art
@@ -92,23 +93,7 @@ test-art-target-gtest: test-art-target-sync
 	$(hide) rm /tmp/test-art-target-gtest
 
 .PHONY: test-art-target-oat
-test-art-target-oat: test-art-target-oat-HelloWorld test-art-target-oat-Fibonacci
-
-.PHONY: test-art-target-oat-HelloWorld
-test-art-target-oat-HelloWorld: test-art-target-sync
-	adb shell touch /sdcard/test-art-target-oat-HelloWorld
-	adb shell rm /sdcard/test-art-target-oat-HelloWorld
-	adb shell sh -c "oatexecd -Xbootclasspath:/system/framework/core.jar -Xbootimage:/system/framework/boot.oat -classpath /system/framework/art-test-dex-HelloWorld.jar -Ximage:/system/framework/art-test-dex-HelloWorld.oat HelloWorld && touch /sdcard/test-art-target-oat-HelloWorld"
-	$(hide) (adb pull /sdcard/test-art-target-oat-HelloWorld /tmp/ && echo test-art-target-oat-HelloWorld PASSED) || (echo test-art-target-oat-HelloWorld FAILED && exit 1)
-	$(hide) rm /tmp/test-art-target-oat-HelloWorld
-
-.PHONY: test-art-target-oat-Fibonacci
-test-art-target-oat-Fibonacci: test-art-target-sync
-	adb shell touch /sdcard/test-art-target-oat-Fibonacci
-	adb shell rm /sdcard/test-art-target-oat-Fibonacci
-	adb shell sh -c "oatexecd -Xbootclasspath:/system/framework/core.jar -Xbootimage:/system/framework/boot.oat -classpath /system/framework/art-test-dex-Fibonacci.jar -Ximage:/system/framework/art-test-dex-Fibonacci.oat Fibonacci 10 && touch /sdcard/test-art-target-oat-Fibonacci"
-	$(hide) (adb pull /sdcard/test-art-target-oat-Fibonacci /tmp/ && echo test-art-target-oat-Fibonacci PASSED) || (echo test-art-target-oat-Fibonacci FAILED && exit 1)
-	$(hide) rm /tmp/test-art-target-oat-Fibonacci
+test-art-target-oat: $(ART_TEST_OAT_TARGETS)
 
 .PHONY: dump-boot-oat
 dump-boot-oat: $(TARGET_BOOT_OAT) $(OATDUMP)

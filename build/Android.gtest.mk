@@ -57,31 +57,3 @@ endif
 ifeq ($(ART_BUILD_HOST),true)
   $(foreach file,$(TEST_HOST_SRC_FILES), $(eval $(call build-art-test,host,$(file))))
 endif
-
-ART_TEST_DEX_FILES :=
-
-# $(1): directory
-define build-art-test-dex
-  include $(CLEAR_VARS)
-  LOCAL_MODULE := art-test-dex-$(1)
-  LOCAL_MODULE_TAGS := optional
-  LOCAL_SRC_FILES := $(call all-java-files-under, test/$(1))
-  LOCAL_JAVA_LIBRARIES := core
-  LOCAL_NO_STANDARD_LIBRARIES := true
-  include $(BUILD_JAVA_LIBRARY)
-  ART_TEST_DEX_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/$$(LOCAL_MODULE).jar
-endef
-$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,$(dir))))
-
-ART_TEST_OAT_FILES :=
-
-# $(1): directory
-define build-art-test-oat
-# TODO: change DEX2OATD to order-only prerequisite when output is stable
-$(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).oat: $(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).jar $(TARGET_BOOT_OAT) $(DEX2OAT)
-	@echo "target dex2oat: $$@ ($$<)"
-	$(hide) $(DEX2OAT) $(addprefix --boot-dex-file=,$(TARGET_BOOT_DEX)) --boot=$(TARGET_BOOT_OAT) $(addprefix --dex-file=,$$<) --image=$$@ --strip-prefix=$(PRODUCT_OUT)
-
-ART_TEST_OAT_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).oat
-endef
-$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))

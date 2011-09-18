@@ -91,7 +91,7 @@ class IntMath extends IntMathBase {
            return x * 2;
         } else {
            return x;
-       }
+        }
     }
 
     static int constStringTest(int x) {
@@ -692,12 +692,12 @@ class IntMath extends IntMathBase {
     }
 
     static int throwAndCatch() {
-      try {
-        throwNullPointerException();
-        return 1;
-      } catch (NullPointerException npe) {
-        return 0;
-      }
+        try {
+            throwNullPointerException();
+            return 1;
+        } catch (NullPointerException npe) {
+            return 0;
+        }
     }
 
     static int manyArgs(int a0, long a1, int a2, long a3, int a4, long a5,
@@ -768,6 +768,7 @@ class IntMath extends IntMathBase {
     }
 
     public static void main(String[] args) {
+        boolean failure = false;
         int res;
         long lres;
 
@@ -776,60 +777,70 @@ class IntMath extends IntMathBase {
             System.out.println("divideLongByBillion PASSED");
         } else {
             System.out.println("divideLongByBillion FAILED: " + lres);
+            failure = true;
         }
         res = unopTest(38);
         if (res == 37) {
             System.out.println("unopTest PASSED");
         } else {
             System.out.println("unopTest FAILED: " + res);
+            failure = true;
         }
         res = shiftTest1();
         if (res == 0) {
             System.out.println("shiftTest1 PASSED");
         } else {
             System.out.println("shiftTest1 FAILED: " + res);
+            failure = true;
         }
         res = shiftTest2();
         if (res == 0) {
             System.out.println("shiftTest2 PASSED");
         } else {
             System.out.println("shiftTest2 FAILED: " + res);
+            failure = true;
         }
         res = unsignedShiftTest();
         if (res == 0) {
             System.out.println("unsignedShiftTest PASSED");
         } else {
             System.out.println("unsignedShiftTest FAILED: " + res);
+            failure = true;
         }
         res = convTest();
         if (res == 0) {
             System.out.println("convTest PASSED");
         } else {
             System.out.println("convTest FAILED: " + res);
+            failure = true;
         }
         res = charSubTest();
         if (res == 0) {
             System.out.println("charSubTest PASSED");
         } else {
             System.out.println("charSubTest FAILED: " + res);
+            failure = true;
         }
         res = intOperTest(70000, -3);
         if (res == 0) {
             System.out.println("intOperTest PASSED");
         } else {
             System.out.println("intOperTest FAILED: " + res);
+            failure = true;
         }
         res = longOperTest(70000000000L, -3L);
         if (res == 0) {
             System.out.println("longOperTest PASSED");
         } else {
             System.out.println("longOperTest FAILED: " + res);
+            failure = true;
         }
         lres = longShiftTest(0xd5aa96deff00aa01L, 16);
         if (lres == 0x96deff00aa010000L) {
             System.out.println("longShiftTest PASSED");
         } else {
             System.out.println("longShiftTest FAILED: " + res);
+            failure = true;
         }
 
         res = switchTest(1);
@@ -837,6 +848,7 @@ class IntMath extends IntMathBase {
             System.out.println("switchTest PASSED");
         } else {
             System.out.println("switchTest FAILED: " + res);
+            failure = true;
         }
 
         res = testIntCompare(-5, 4, 4, 0);
@@ -844,6 +856,7 @@ class IntMath extends IntMathBase {
             System.out.println("testIntCompare PASSED");
         } else {
             System.out.println("testIntCompare FAILED: " + res);
+            failure = true;
         }
 
         res = testLongCompare(-5L, -4294967287L, 4L, 8L);
@@ -851,6 +864,7 @@ class IntMath extends IntMathBase {
             System.out.println("testLongCompare PASSED");
         } else {
             System.out.println("testLongCompare FAILED: " + res);
+            failure = true;
         }
 
         res = testFloatCompare(-5.0f, 4.0f, 4.0f, (1.0f/0.0f) / (1.0f/0.0f));
@@ -858,6 +872,7 @@ class IntMath extends IntMathBase {
             System.out.println("testFloatCompare PASSED");
         } else {
             System.out.println("testFloatCompare FAILED: " + res);
+            failure = true;
         }
 
         res = testDoubleCompare(-5.0, 4.0, 4.0, (1.0/0.0) / (1.0/0.0));
@@ -865,6 +880,7 @@ class IntMath extends IntMathBase {
             System.out.println("testDoubleCompare PASSED");
         } else {
             System.out.println("testDoubleCompare FAILED: " + res);
+            failure = true;
         }
 
         res = fibonacci(10);
@@ -872,13 +888,15 @@ class IntMath extends IntMathBase {
             System.out.println("fibonacci PASSED");
         } else {
             System.out.println("fibonacci FAILED: " + res);
+            failure = true;
         }
 
         res = throwAndCatch();
         if (res == 0) {
-          System.out.println("throwAndCatch PASSED");
+            System.out.println("throwAndCatch PASSED");
         } else {
-          System.out.println("throwAndCatch FAILED: " + res);
+            System.out.println("throwAndCatch FAILED: " + res);
+            failure = true;
         }
 
         res = manyArgs(0, 1L, 2, 3L, 4, 5L, 6, 7, 8.0, 9.0f, 10.0,
@@ -888,6 +906,7 @@ class IntMath extends IntMathBase {
             System.out.println("manyArgs PASSED");
         } else {
             System.out.println("manyArgs FAILED: " + res);
+            failure = true;
         }
 
         res = staticCall(3);
@@ -895,6 +914,7 @@ class IntMath extends IntMathBase {
             System.out.println("virtualCall PASSED");
         } else {
             System.out.println("virtualCall FAILED: " + res);
+            failure = true;
         }
 
         res = testIGetPut(111);
@@ -902,6 +922,7 @@ class IntMath extends IntMathBase {
             System.out.println("testGetPut PASSED");
         } else {
             System.out.println("testGetPut FAILED: " + res);
+            failure = true;
         }
 
         res = staticFieldTest(404);
@@ -909,6 +930,7 @@ class IntMath extends IntMathBase {
             System.out.println("staticFieldTest PASSED");
         } else {
             System.out.println("staticFieldTest FAILED: " + res);
+            failure = true;
         }
 
         res = catchBlock(1000);
@@ -916,6 +938,7 @@ class IntMath extends IntMathBase {
             System.out.println("catchBlock PASSED");
         } else {
             System.out.println("catchBlock FAILED: " + res);
+            failure = true;
         }
 
         res = catchBlockNoThrow(1000);
@@ -923,6 +946,7 @@ class IntMath extends IntMathBase {
             System.out.println("catchBlockNoThrow PASSED");
         } else {
             System.out.println("catchBlockNoThrow FAILED: " + res);
+            failure = true;
         }
 
         res = superTest(4141);
@@ -930,6 +954,7 @@ class IntMath extends IntMathBase {
             System.out.println("superTest PASSED");
         } else {
             System.out.println("superTest FAILED: " + res);
+            failure = true;
         }
 
         res = constStringTest(10);
@@ -937,6 +962,7 @@ class IntMath extends IntMathBase {
             System.out.println("stringTest PASSED");
         } else {
             System.out.println("stringTest FAILED: " + res);
+            failure = true;
         }
 
         res = instanceTest(10);
@@ -944,7 +970,10 @@ class IntMath extends IntMathBase {
             System.out.println("instanceTest PASSED");
         } else {
             System.out.println("instanceTest FAILED: " + res);
+            failure = true;
         }
+
+        System.exit(failure ? 1 : 0);
     }
 }
 
