@@ -961,7 +961,6 @@ class IntMath extends IntMathBase {
             System.out.println("catchBlock(1000) FAILED: " + res);
             failure = true;
         }
-if (false) { // TODO: restore when fixed
         res = catchBlock(7000);
         if (res == 7777) {
             System.out.println("catchBlock(7000) PASSED");
@@ -969,7 +968,6 @@ if (false) { // TODO: restore when fixed
             System.out.println("catchBlock(7000) FAILED: " + res);
             failure = true;
         }
-}
         res = catchBlockNoThrow(1000);
         if (res == 1123) {
             System.out.println("catchBlockNoThrow PASSED");

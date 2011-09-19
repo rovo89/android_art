@@ -130,6 +130,9 @@ class PACKED Frame {
     sp_ = sp;
   }
 
+  // Is this a frame for a real method (native or with dex code)
+  bool HasMethod() const;
+
  private:
   Method* NextMethod() const;
 

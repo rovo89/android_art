@@ -902,7 +902,7 @@ class MANAGED Method : public AccessibleObject {
 
   void SetInvokeStub(const ByteArray* invoke_stub_array);
 
-  uint32_t GetCoreSpillMask() {
+  uint32_t GetCoreSpillMask() const {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_), false);
   }
 
@@ -912,7 +912,7 @@ class MANAGED Method : public AccessibleObject {
                core_spill_mask, false);
   }
 
-  uint32_t GetFpSpillMask() {
+  uint32_t GetFpSpillMask() const {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), false);
   }
 
@@ -920,6 +920,15 @@ class MANAGED Method : public AccessibleObject {
     // Computed during compilation
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_),
                fp_spill_mask, false);
+  }
+
+  // Is this a hand crafted method used for something like describing callee saves?
+  bool IsPhony() const {
+    bool result =
+        NULL == GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
+    // Check that if we do think it is phony it looks like the callee save method
+    DCHECK(!result || GetCoreSpillMask() != 0);
+    return result;
   }
 
   // Converts a native PC to a dex PC.  TODO: this is a no-op

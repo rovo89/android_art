@@ -382,6 +382,10 @@ void Frame::Next() {
          (*sp_)->GetClass()->GetDescriptor()->Equals("Ljava/lang/reflect/Method;"));
 }
 
+bool Frame::HasMethod() const {
+  return GetMethod() != NULL && (!GetMethod()->IsPhony());
+}
+
 uintptr_t Frame::GetReturnPC() const {
   byte* pc_addr = reinterpret_cast<byte*>(sp_) +
       GetMethod()->GetReturnPcOffsetInBytes();
@@ -693,6 +697,9 @@ struct StackDumpVisitor : public Thread::StackVisitor {
   }
 
   void VisitFrame(const Frame& frame, uintptr_t pc) {
+    if (!frame.HasMethod()) {
+      return;
+    }
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
     Method* m = frame.GetMethod();
@@ -1053,8 +1060,10 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
 
   virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
     // We want to skip frames up to and including the exception's constructor.
+    // Note we also skip the frame if it doesn't have a method (namely the callee
+    // save frame)
     DCHECK(gThrowable != NULL);
-    if (skipping_ && !gThrowable->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
+    if (skipping_ && frame.HasMethod() && !gThrowable->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
       skipping_ = false;
     }
     if (!skipping_) {
@@ -1307,17 +1316,17 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
         return;
       }
       uint32_t dex_pc = DexFile::kDexNoIndex;
-      if (pc > 0) {
-        if (method->IsNative()) {
-          native_method_count_++;
-        } else {
-          // Move the PC back 2 bytes as a call will frequently terminate the
-          // decoding of a particular instruction and we want to make sure we
-          // get the Dex PC of the instruction with the call and not the
-          // instruction following.
-          pc -= 2;
-          dex_pc = method->ToDexPC(pc);
-        }
+      if (method->IsPhony()) {
+        // ignore callee save method
+      } else if (method->IsNative()) {
+        native_method_count_++;
+      } else {
+        // Move the PC back 2 bytes as a call will frequently terminate the
+        // decoding of a particular instruction and we want to make sure we
+        // get the Dex PC of the instruction with the call and not the
+        // instruction following.
+        pc -= 2;
+        dex_pc = method->ToDexPC(pc);
       }
       if (dex_pc != DexFile::kDexNoIndex) {
         uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
