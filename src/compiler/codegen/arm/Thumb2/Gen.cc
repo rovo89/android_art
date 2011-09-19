@@ -435,7 +435,7 @@ static void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
 #endif
     // Resolve
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pFindFieldFromCode), rLR);
+                 OFFSETOF_MEMBER(Thread, pFindInstanceFieldFromCode), rLR);
     loadConstant(cUnit, r0, fieldIdx);
     callUnwindableHelper(cUnit, rLR); // resolveTypeFromCode(idx, method)
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);

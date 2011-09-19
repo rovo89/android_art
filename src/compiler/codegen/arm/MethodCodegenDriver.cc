@@ -130,13 +130,47 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     }
 }
 
+Field* FindFieldWithResolvedStaticStorage(const Method* method,
+                                          const uint32_t fieldIdx,
+                                          uint32_t& resolvedTypeIdx) {
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    Field* field = class_linker->ResolveField(fieldIdx, method, true);
+    if (field == NULL) {
+        return NULL;
+    }
+    const art::DexFile& dex_file = class_linker->
+            FindDexFile(method->GetDeclaringClass()->GetDexCache());
+    const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
+    int type_idx = field_id.class_idx_;
+    Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+    // Check if storage class is the same as class referred to by type idx.
+    // They may not be if the FieldId refers a subclass, but storage is in super
+    if (field->GetDeclaringClass() == klass) {
+        resolvedTypeIdx = type_idx;
+        return field;
+    }
+    // See if we can find a dex reference for the storage class.
+    // we may not if the dex file never references the super class,
+    // but usually it will.
+    std::string descriptor = field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8();
+    for (size_t type_idx = 0; type_idx < dex_file.NumTypeIds(); type_idx++) {
+        const art::DexFile::TypeId& type_id = dex_file.GetTypeId(type_idx);
+        if (descriptor == dex_file.GetTypeDescriptor(type_id)) {
+            resolvedTypeIdx = type_idx;
+            return field;
+        }
+    }
+    return NULL;  // resort to slow path
+}
+
 static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     bool isObject = ((mir->dalvikInsn.opcode == OP_SPUT_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SPUT_OBJECT_VOLATILE));
     int fieldIdx = mir->dalvikInsn.vB;
-    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
-    if (field == NULL) {
+    uint32_t typeIdx;
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    if (SLOW_FIELD_PATH || field == NULL) {
         // Slow path
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
@@ -152,12 +186,6 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     } else {
         // fast path
         int fieldOffset = field->GetOffset().Int32Value();
-        art::ClassLinker* class_linker = art::Runtime::Current()->
-            GetClassLinker();
-        const art::DexFile& dex_file = class_linker->
-            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
-        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
-        int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
         int rMethod = r1;
         oatLockTemp(cUnit, rMethod);
@@ -196,7 +224,8 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     int fieldIdx = mir->dalvikInsn.vB;
-    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
+    uint32_t typeIdx;
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
     if (SLOW_FIELD_PATH || field == NULL) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
@@ -210,12 +239,6 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     } else {
         // fast path
         int fieldOffset = field->GetOffset().Int32Value();
-        art::ClassLinker* class_linker = art::Runtime::Current()->
-            GetClassLinker();
-        const art::DexFile& dex_file = class_linker->
-            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
-        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
-        int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
         int rMethod = r1;
         oatLockTemp(cUnit, rMethod);
@@ -254,7 +277,8 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
                  RegLocation rlResult, RegLocation rlDest)
 {
     int fieldIdx = mir->dalvikInsn.vB;
-    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
+    uint32_t typeIdx;
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
     if (SLOW_FIELD_PATH || field == NULL) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
@@ -268,12 +292,6 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
     } else {
         // Fast path
         int fieldOffset = field->GetOffset().Int32Value();
-        art::ClassLinker* class_linker = art::Runtime::Current()->
-            GetClassLinker();
-        const art::DexFile& dex_file = class_linker->
-            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
-        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
-        int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
         int rMethod = r1;
         oatLockTemp(cUnit, rMethod);
@@ -312,7 +330,8 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
              RegLocation rlResult, RegLocation rlDest)
 {
     int fieldIdx = mir->dalvikInsn.vB;
-    Field* field = cUnit->method->GetDexCacheResolvedFields()->Get(fieldIdx);
+    uint32_t typeIdx;
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
     bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
     if (SLOW_FIELD_PATH || field == NULL) {
@@ -331,12 +350,6 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
     } else {
         // Fast path
         int fieldOffset = field->GetOffset().Int32Value();
-        art::ClassLinker* class_linker = art::Runtime::Current()->
-            GetClassLinker();
-        const art::DexFile& dex_file = class_linker->
-            FindDexFile(cUnit->method->GetDeclaringClass()->GetDexCache());
-        const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
-        int typeIdx = field_id.class_idx_;
         // Using fixed register to sync with slow path
         int rMethod = r1;
         oatLockTemp(cUnit, rMethod);
@@ -421,8 +434,8 @@ static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
      * This is the fast path in which the target virtual method is
      * fully resolved at compile time.
      */
-    Method* baseMethod = cUnit->method->GetDexCacheResolvedMethods()->
-        Get(dInsn->vB);
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
     CHECK(baseMethod != NULL);
     uint32_t target_idx = baseMethod->GetMethodIndex();
     switch(state) {
@@ -575,8 +588,8 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
      * that the check to verify that the target method index falls
      * within the size of the super's vtable has been done at compile-time.
      */
-    Method* baseMethod = cUnit->method->GetDexCacheResolvedMethods()->
-        Get(dInsn->vB);
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
     CHECK(baseMethod != NULL);
     Class* superClass = cUnit->method->GetDeclaringClass()->GetSuperClass();
     CHECK(superClass != NULL);
@@ -950,8 +963,8 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     int callState = 0;
     ArmLIR* nullCk;
     ArmLIR* rollback;
-    Method* baseMethod = cUnit->method->GetDexCacheResolvedMethods()->
-        Get(dInsn->vB);
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
     NextCallInsn nextCallInsn;
     bool fastPath = true;
 
@@ -1002,8 +1015,8 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     int callState = 0;
     ArmLIR* nullCk;
     ArmLIR* rollback;
-    Method* method = cUnit->method->GetDexCacheResolvedMethods()->
-        Get(dInsn->vB);
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    Method* method = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
     NextCallInsn nextCallInsn;
 
     // Explicit register usage

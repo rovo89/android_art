@@ -69,23 +69,66 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     class_linker->ResolveString(dex_file, string_idx, dex_cache);
   }
 
-  // Class derived values are more complicated, they require the linker and loader
+  // Class derived values are more complicated, they require the linker and loader.
   for (size_t type_idx = 0; type_idx < dex_cache->NumResolvedTypes(); type_idx++) {
     Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
     CHECK(klass->IsResolved());
   }
-  for (size_t method_idx = 0; method_idx < dex_cache->NumResolvedMethods(); method_idx++) {
-    // unknown if direct or virtual, try both
-    Method* method = class_linker->ResolveMethod(dex_file, method_idx, dex_cache, class_loader, false);
-    if (method == NULL) {
-      class_linker->ResolveMethod(dex_file, method_idx, dex_cache, class_loader, true);
+
+  // Method and Field are the worst. We can't resolve without either
+  // context from the code use (to disambiguate virtual vs direct
+  // method and instance vs static field) or from class
+  // definitions. While the compiler will resolve what it can as it
+  // needs it, here we try to resolve fields and methods used in class
+  // definitions, since many of them many never be referenced by
+  // generated code.
+  for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+
+    // Note the class_data pointer advances through the headers,
+    // static fields, instance fields, direct methods, and virtual
+    // methods.
+    const byte* class_data = dex_file.GetClassData(class_def);
+
+    DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
+    size_t num_static_fields = header.static_fields_size_;
+    size_t num_instance_fields = header.instance_fields_size_;
+    size_t num_direct_methods = header.direct_methods_size_;
+    size_t num_virtual_methods = header.virtual_methods_size_;
+
+    if (num_static_fields != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_static_fields; ++i) {
+        DexFile::Field dex_field;
+        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
+        class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache, class_loader, true);
+      }
     }
-  }
-  for (size_t field_idx = 0; field_idx < dex_cache->NumResolvedFields(); field_idx++) {
-    // unknown if instance or static, try both
-    Field* field = class_linker->ResolveField(dex_file, field_idx, dex_cache, class_loader, false);
-    if (field == NULL) {
-      class_linker->ResolveField(dex_file, field_idx, dex_cache, class_loader, true);
+    if (num_instance_fields != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_instance_fields; ++i) {
+        DexFile::Field dex_field;
+        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
+        class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache, class_loader, false);
+      }
+    }
+    if (num_direct_methods != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_direct_methods; ++i) {
+        DexFile::Method dex_method;
+        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
+        class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache, class_loader,
+                                    true);
+      }
+    }
+    if (num_virtual_methods != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_virtual_methods; ++i) {
+        DexFile::Method dex_method;
+        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
+        class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache, class_loader,
+                                    false);
+      }
     }
   }
 }

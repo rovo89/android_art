@@ -115,13 +115,13 @@ class ClassLinker {
     return ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
   }
 
-  Field* ResolveField(uint32_t field_idx, const Method* referrer) {
+  Field* ResolveField(uint32_t field_idx, const Method* referrer, bool is_static) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
     // TODO: we could check for a dex cache hit here
     const ClassLoader* class_loader = declaring_class->GetClassLoader();
     const DexFile& dex_file = FindDexFile(dex_cache);
-    return ResolveField(dex_file, field_idx, dex_cache, class_loader, true);
+    return ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
   }
 
   // Resolve a field with a given ID from the DexFile, storing the

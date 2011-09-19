@@ -1450,7 +1450,7 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
   }
   if (!class_linker->EnsureInitialized(klass, true)) {
     CHECK(Thread::Current()->IsExceptionPending());
-    UNIMPLEMENTED(FATAL) << "throw exception due to class initialization problem";
+    UNIMPLEMENTED(FATAL) << "throw class initialization error " << PrettyClass(klass);
   }
   referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
   return klass;
@@ -1963,7 +1963,7 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
   for (size_t i = 0; i < num_fields; i++) {
     Field* field = fields->Get(i);
     if (false) {  // enable to debug field layout
-      LOG(INFO) << "LinkFields:"
+      LOG(INFO) << "LinkFields: " << (instance ? "instance" : "static")
                 << " class=" << klass->GetDescriptor()->ToModifiedUtf8()
                 << " field=" << field->GetName()->ToModifiedUtf8()
                 << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);

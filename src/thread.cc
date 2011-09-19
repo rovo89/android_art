@@ -354,7 +354,7 @@ void Thread::InitFunctionPointers() {
   pCheckCastFromCode = CheckCastFromCode;
   pLockObjectFromCode = LockObjectFromCode;
   pUnlockObjectFromCode = UnlockObjectFromCode;
-  pFindFieldFromCode = Field::FindFieldFromCode;
+  pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = CheckSuspendFromCode;
   pStackOverflowFromCode = StackOverflowFromCode;
   pThrowNullPointerFromCode = ThrowNullPointerFromCode;

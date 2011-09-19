@@ -469,7 +469,9 @@ class MANAGED Field : public AccessibleObject {
     return MemberOffset(OFFSETOF_MEMBER(Field, offset_));
   }
 
-  static Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer);
+  static Field* FindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer);
+  static Field* FindStaticFieldFromCode(uint32_t field_idx, const Method* referrer);
+  static Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static);
 
   MemberOffset GetOffsetDuringLinking() const;
 

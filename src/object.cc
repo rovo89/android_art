@@ -107,9 +107,17 @@ Class* Field::GetType() const {
   return Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
 }
 
-Field* Field::FindFieldFromCode(uint32_t field_idx, const Method* referrer) {
+Field* Field::FindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer) {
+  return FindFieldFromCode(field_idx, referrer, false);
+}
+
+Field* Field::FindStaticFieldFromCode(uint32_t field_idx, const Method* referrer) {
+  return FindFieldFromCode(field_idx, referrer, true);
+}
+
+Field* Field::FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Field* f = class_linker->ResolveField(field_idx, referrer);
+  Field* f = class_linker->ResolveField(field_idx, referrer, is_static);
   if (f != NULL) {
     Class* c = f->GetDeclaringClass();
     // If the class is already initializing, we must be inside <clinit>, or
@@ -123,32 +131,32 @@ Field* Field::FindFieldFromCode(uint32_t field_idx, const Method* referrer) {
 }
 
 uint32_t Field::Get32StaticFromCode(uint32_t field_idx, const Method* referrer) {
-  Field* field = FindFieldFromCode(field_idx, referrer);
+  Field* field = FindStaticFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int32_t));
   return field->Get32(NULL);
 }
 void Field::Set32StaticFromCode(uint32_t field_idx, const Method* referrer, uint32_t new_value) {
-  Field* field = FindFieldFromCode(field_idx, referrer);
+  Field* field = FindStaticFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int32_t));
   field->Set32(NULL, new_value);
 }
 uint64_t Field::Get64StaticFromCode(uint32_t field_idx, const Method* referrer) {
-  Field* field = FindFieldFromCode(field_idx, referrer);
+  Field* field = FindStaticFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int64_t));
   return field->Get64(NULL);
 }
 void Field::Set64StaticFromCode(uint32_t field_idx, const Method* referrer, uint64_t new_value) {
-  Field* field = FindFieldFromCode(field_idx, referrer);
+  Field* field = FindStaticFieldFromCode(field_idx, referrer);
   DCHECK(field->GetType()->PrimitiveSize() == sizeof(int64_t));
   field->Set64(NULL, new_value);
 }
 Object* Field::GetObjStaticFromCode(uint32_t field_idx, const Method* referrer) {
-  Field* field = FindFieldFromCode(field_idx, referrer);
+  Field* field = FindStaticFieldFromCode(field_idx, referrer);
   DCHECK(!field->GetType()->IsPrimitive());
   return field->GetObj(NULL);
 }
 void Field::SetObjStaticFromCode(uint32_t field_idx, const Method* referrer, Object* new_value) {
-  Field* field = FindFieldFromCode(field_idx, referrer);
+  Field* field = FindStaticFieldFromCode(field_idx, referrer);
   DCHECK(!field->GetType()->IsPrimitive());
   field->SetObj(NULL, new_value);
 }
