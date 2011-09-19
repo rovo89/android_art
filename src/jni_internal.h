@@ -62,6 +62,8 @@ struct JavaVMExt : public JavaVM {
    */
   void* FindCodeForNativeMethod(Method* m);
 
+  void DumpReferenceTables();
+
   void VisitRoots(Heap::RootVisitor*, void*);
 
   Runtime* runtime;
@@ -103,6 +105,8 @@ struct JavaVMExt : public JavaVM {
 struct JNIEnvExt : public JNIEnv {
   JNIEnvExt(Thread* self, JavaVMExt* vm);
   ~JNIEnvExt();
+
+  void DumpReferenceTables();
 
   Thread* const self;
   JavaVMExt* vm;

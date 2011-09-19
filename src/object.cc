@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <iostream>
 #include <string>
 #include <utility>
 
@@ -708,6 +709,63 @@ Object* Class::AllocObjectFromCode(uint32_t type_idx, Method* method) {
 Object* Class::AllocObject() {
   DCHECK(!IsAbstract());
   return Heap::AllocObject(this, this->object_size_);
+}
+
+void Class::DumpClass(std::ostream& os, int flags) {
+  if ((flags & kDumpClassFullDetail) == 0) {
+    os << PrettyClass(this);
+    if ((flags & kDumpClassClassLoader) != 0) {
+      os << ' ' << GetClassLoader();
+    }
+    if ((flags & kDumpClassInitialized) != 0) {
+      os << ' ' << GetStatus();
+    }
+    os << std::endl;
+    return;
+  }
+
+  Class* super = GetSuperClass();
+  os << "----- " << (IsInterface() ? "interface" : "class") << " "
+     << "'" << GetDescriptor()->ToModifiedUtf8() << "' cl=" << GetClassLoader() << " -----\n",
+  os << "  objectSize=" << SizeOf() << " "
+     << "(" << (super != NULL ? super->SizeOf() : -1) << " from super)\n",
+  os << StringPrintf("  access=0x%04x.%04x\n",
+      GetAccessFlags() >> 16, GetAccessFlags() & kAccJavaFlagsMask);
+  if (super != NULL) {
+    os << "  super='" << PrettyClass(super) << "' (cl=" << super->GetClassLoader() << ")\n";
+  }
+  if (IsArrayClass()) {
+    os << "  componentType=" << PrettyClass(GetComponentType()) << "\n";
+  }
+  if (NumInterfaces() > 0) {
+    os << "  interfaces (" << NumInterfaces() << "):\n";
+    for (size_t i = 0; i < NumInterfaces(); ++i) {
+      Class* interface = GetInterface(i);
+      const ClassLoader* cl = interface->GetClassLoader();
+      os << StringPrintf("    %2d: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
+    }
+  }
+  os << "  vtable (" << NumVirtualMethods() << " entries, "
+     << (super != NULL ? super->NumVirtualMethods() : 0) << " in super):\n";
+  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
+    os << StringPrintf("    %2d: %s\n", i, PrettyMethod(GetVirtualMethod(i)).c_str());
+  }
+  os << "  direct methods (" << NumDirectMethods() << " entries):\n";
+  for (size_t i = 0; i < NumDirectMethods(); ++i) {
+    os << StringPrintf("    %2d: %s\n", i, PrettyMethod(GetDirectMethod(i)).c_str());
+  }
+  if (NumStaticFields() > 0) {
+    os << "  static fields (" << NumStaticFields() << " entries):\n";
+    for (size_t i = 0; i < NumStaticFields(); ++i) {
+      os << StringPrintf("    %2d: %s\n", i, PrettyField(GetStaticField(i)).c_str());
+    }
+  }
+  if (NumInstanceFields() > 0) {
+    os << "  instance fields (" << NumInstanceFields() << " entries):\n";
+    for (size_t i = 0; i < NumInstanceFields(); ++i) {
+      os << StringPrintf("    %2d: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
+    }
+  }
 }
 
 void Class::SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {

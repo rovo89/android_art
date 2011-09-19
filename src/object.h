@@ -17,6 +17,7 @@
 #ifndef ART_SRC_OBJECT_H_
 #define ART_SRC_OBJECT_H_
 
+#include <iosfwd>
 #include <vector>
 
 #include "UniquePtr.h"
@@ -1550,6 +1551,14 @@ class MANAGED Class : public StaticStorageBase {
   static MemberOffset DexCacheOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Class, dex_cache_));
   }
+
+  enum {
+    kDumpClassFullDetail = 1,
+    kDumpClassClassLoader = (1 << 1),
+    kDumpClassInitialized = (1 << 2),
+  };
+
+  void DumpClass(std::ostream& os, int flags);
 
   DexCache* GetDexCache() const;
 

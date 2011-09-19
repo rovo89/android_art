@@ -34,7 +34,8 @@ Runtime::Runtime()
       started_(false),
       vfprintf_(NULL),
       exit_(NULL),
-      abort_(NULL) {
+      abort_(NULL),
+      stats_enabled_(false) {
 }
 
 Runtime::~Runtime() {
@@ -451,7 +452,7 @@ void Runtime::InitNativeMethods() {
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
   //REGISTER(register_dalvik_system_DexFile);
-  //REGISTER(register_dalvik_system_VMDebug);
+  REGISTER(register_dalvik_system_VMDebug);
   REGISTER(register_dalvik_system_VMRuntime);
   REGISTER(register_dalvik_system_VMStack);
   //REGISTER(register_dalvik_system_Zygote);
@@ -489,6 +490,60 @@ void Runtime::Dump(std::ostream& os) {
   os << "\n";
 
   thread_list_->Dump(os);
+}
+
+void Runtime::SetStatsEnabled(bool new_state) {
+  if (new_state == true) {
+    GetStats()->Clear(~0);
+    // TODO: wouldn't it make more sense to clear _all_ threads' stats?
+    Thread::Current()->GetStats()->Clear(~0);
+  }
+  stats_enabled_ = new_state;
+}
+
+void Runtime::ResetStats(int kinds) {
+  GetStats()->Clear(kinds & 0xffff);
+  // TODO: wouldn't it make more sense to clear _all_ threads' stats?
+  Thread::Current()->GetStats()->Clear(kinds >> 16);
+}
+
+RuntimeStats* Runtime::GetStats() {
+  return &stats_;
+}
+
+int32_t Runtime::GetStat(int kind) {
+  RuntimeStats* stats;
+  if (kind < (1<<16)) {
+    stats = GetStats();
+  } else {
+    stats = Thread::Current()->GetStats();
+    kind >>= 16;
+  }
+  switch (kind) {
+  case KIND_ALLOCATED_OBJECTS:
+    return stats->allocated_objects;
+  case KIND_ALLOCATED_BYTES:
+    return stats->allocated_bytes;
+  case KIND_FREED_OBJECTS:
+    return stats->freed_objects;
+  case KIND_FREED_BYTES:
+    return stats->freed_bytes;
+  case KIND_GC_INVOCATIONS:
+    return stats->gc_for_alloc_count;
+  case KIND_CLASS_INIT_COUNT:
+    return stats->class_init_count;
+  case KIND_CLASS_INIT_TIME:
+    // Convert ns to us, reduce to 32 bits.
+    return (int) (stats->class_init_time_ns / 1000);
+  case KIND_EXT_ALLOCATED_OBJECTS:
+  case KIND_EXT_ALLOCATED_BYTES:
+  case KIND_EXT_FREED_OBJECTS:
+  case KIND_EXT_FREED_BYTES:
+    return 0;  // backward compatibility
+  default:
+    CHECK(false);
+    return -1; // unreachable
+  }
 }
 
 void Runtime::BlockSignals() {

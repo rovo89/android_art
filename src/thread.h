@@ -32,6 +32,7 @@
 #include "mutex.h"
 #include "mem_map.h"
 #include "offsets.h"
+#include "runtime_stats.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -311,6 +312,10 @@ class PACKED Thread {
     return peer_;
   }
 
+  RuntimeStats* GetStats() {
+    return &stats_;
+  }
+
   // Returns the Method* for the current method.
   // This is used by the JNI implementation for logging and diagnostic purposes.
   const Method* GetCurrentMethod() const {
@@ -565,6 +570,8 @@ class PACKED Thread {
   Thread* wait_next_;
 
   friend class Monitor;
+
+  RuntimeStats stats_;
 
   // FIXME: placeholder for the gc cardTable
   uint32_t card_table_;

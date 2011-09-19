@@ -1297,6 +1297,9 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     if (self->IsExceptionPending()) {
       klass->SetStatus(Class::kStatusError);
     } else {
+      ++Runtime::Current()->GetStats()->class_init_count;
+      ++self->GetStats()->class_init_count;
+      // TODO: class_init_time_ns
       klass->SetStatus(Class::kStatusInitialized);
     }
     lock.NotifyAll();
@@ -2153,6 +2156,23 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
     // TODO: DCHECK(Thread::Current()->IsExceptionPending());
   }
   return resolved;
+}
+
+void ClassLinker::DumpAllClasses(int flags) const {
+  // TODO: at the time this was written, it wasn't safe to call PrettyField with the ClassLinker
+  // lock held, because it might need to resolve a field's type, which would try to take the lock.
+  std::vector<Class*> all_classes;
+  {
+    MutexLock mu(lock_);
+    typedef Table::const_iterator It;  // TODO: C++0x auto
+    for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
+      all_classes.push_back(it->second);
+    }
+  }
+
+  for (size_t i = 0; i < all_classes.size(); ++i) {
+    all_classes[i]->DumpClass(std::cerr, flags);
+  }
 }
 
 size_t ClassLinker::NumLoadedClasses() const {

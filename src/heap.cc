@@ -40,6 +40,8 @@ MemberOffset Heap::finalizer_reference_zombie_offset_ = MemberOffset(0);
 
 Mutex* Heap::lock_ = NULL;
 
+bool Heap::verify_objects_ = false;
+
 class ScopedHeapLock {
  public:
   ScopedHeapLock() {
@@ -169,8 +171,6 @@ bool Heap::IsHeapAddress(const Object* obj) {
   return true;
 }
 
-bool Heap::verify_objects_ = false;
-
 #if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
   if (!verify_objects_) {
@@ -237,6 +237,16 @@ void Heap::RecordAllocationLocked(Space* space, const Object* obj) {
   DCHECK_NE(size, 0u);
   num_bytes_allocated_ += size;
   num_objects_allocated_ += 1;
+
+  if (Runtime::Current()->HasStatsEnabled()) {
+    RuntimeStats* global_stats = Runtime::Current()->GetStats();
+    RuntimeStats* thread_stats = Thread::Current()->GetStats();
+    ++global_stats->allocated_objects;
+    ++thread_stats->allocated_objects;
+    global_stats->allocated_bytes += size;
+    thread_stats->allocated_bytes += size;
+  }
+
   live_bitmap_->Set(obj);
 }
 
@@ -252,6 +262,15 @@ void Heap::RecordFreeLocked(Space* space, const Object* obj) {
   live_bitmap_->Clear(obj);
   if (num_objects_allocated_ > 0) {
     num_objects_allocated_ -= 1;
+  }
+
+  if (Runtime::Current()->HasStatsEnabled()) {
+    RuntimeStats* global_stats = Runtime::Current()->GetStats();
+    RuntimeStats* thread_stats = Thread::Current()->GetStats();
+    ++global_stats->freed_objects;
+    ++thread_stats->freed_objects;
+    global_stats->freed_bytes += size;
+    thread_stats->freed_bytes += size;
   }
 }
 
@@ -307,6 +326,10 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
   // Another failure.  Our thread was starved or there may be too many
   // live objects.  Try a foreground GC.  This will have no effect if
   // the concurrent GC is already running.
+  if (Runtime::Current()->HasStatsEnabled()) {
+    ++Runtime::Current()->GetStats()->gc_for_alloc_count;
+    ++Thread::Current()->GetStats()->gc_for_alloc_count;
+  }
   CollectGarbageInternal();
   ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {
@@ -363,6 +386,46 @@ int64_t Heap::GetTotalMemory() {
 int64_t Heap::GetFreeMemory() {
   UNIMPLEMENTED(WARNING);
   return 0;
+}
+
+class InstanceCounter {
+ public:
+  InstanceCounter(Class* c, bool count_assignable)
+      : class_(c), count_assignable_(count_assignable), count_(0) {
+  }
+
+  size_t GetCount() {
+    return count_;
+  }
+
+  static void Callback(Object* o, void* arg) {
+    reinterpret_cast<InstanceCounter*>(arg)->VisitInstance(o);
+  }
+
+ private:
+  void VisitInstance(Object* o) {
+    Class* instance_class = o->GetClass();
+    if (count_assignable_) {
+      if (instance_class == class_) {
+        ++count_;
+      }
+    } else {
+      if (instance_class != NULL && class_->IsAssignableFrom(instance_class)) {
+        ++count_;
+      }
+    }
+  }
+
+  Class* class_;
+  bool count_assignable_;
+  size_t count_;
+};
+
+int64_t Heap::CountInstances(Class* c, bool count_assignable) {
+  ScopedHeapLock lock;
+  InstanceCounter counter(c, count_assignable);
+  live_bitmap_->Walk(InstanceCounter::Callback, &counter);
+  return counter.GetCount();
 }
 
 void Heap::CollectGarbage() {

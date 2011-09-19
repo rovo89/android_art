@@ -15,6 +15,7 @@
 #include "heap.h"
 #include "globals.h"
 #include "macros.h"
+#include "runtime_stats.h"
 #include "stringpiece.h"
 #include "unordered_set.h"
 
@@ -153,6 +154,18 @@ class Runtime {
     jni_stub_array_ = jni_stub_array;
   }
 
+  int32_t GetStat(int kind);
+
+  RuntimeStats* GetStats();
+
+  bool HasStatsEnabled() const {
+    return stats_enabled_;
+  }
+
+  void ResetStats(int kinds);
+
+  void SetStatsEnabled(bool new_state);
+
  private:
   static void PlatformAbort(const char*, int);
 
@@ -191,6 +204,9 @@ class Runtime {
   jint (*vfprintf_)(FILE* stream, const char* format, va_list ap);
   void (*exit_)(jint status);
   void (*abort_)();
+
+  bool stats_enabled_;
+  RuntimeStats stats_;
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;

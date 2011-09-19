@@ -42,6 +42,8 @@ class ClassLinker {
     return FindClass(descriptor, NULL);
   }
 
+  void DumpAllClasses(int flags) const;
+
   size_t NumLoadedClasses() const;
 
   // Resolve a String with the given index from the DexFile, storing the

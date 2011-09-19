@@ -2537,6 +2537,11 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
 JNIEnvExt::~JNIEnvExt() {
 }
 
+void JNIEnvExt::DumpReferenceTables() {
+  locals.Dump();
+  monitors.Dump();
+}
+
 // JNI Invocation interface.
 
 extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
@@ -2670,6 +2675,21 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
 
 JavaVMExt::~JavaVMExt() {
   delete libraries;
+}
+
+void JavaVMExt::DumpReferenceTables() {
+  {
+    MutexLock mu(globals_lock);
+    globals.Dump();
+  }
+  {
+    MutexLock mu(weak_globals_lock);
+    weak_globals.Dump();
+  }
+  {
+    MutexLock mu(pins_lock);
+    pin_table.Dump();
+  }
 }
 
 bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail) {
