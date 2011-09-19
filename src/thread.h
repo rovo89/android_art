@@ -422,10 +422,6 @@ class PACKED Thread {
     NotifyLocked();
   }
 
-  void RegisterSuspendCountEntryPoint(void (*handler)(Method**)) {
-    suspend_count_entry_point_ = handler;
-  }
-
   // Linked list recording transitions from native to managed code
   void PushNativeToManagedRecord(NativeToManagedRecord* record) {
     record->last_top_of_managed_stack_ = reinterpret_cast<void*>(top_of_managed_stack_.GetSP());
@@ -507,10 +503,6 @@ class PACKED Thread {
 
   static ThreadOffset TopSirtOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
-  }
-
-  static ThreadOffset SuspendCountEntryPointOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_entry_point_));
   }
 
  private:
@@ -621,9 +613,6 @@ class PACKED Thread {
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
-
-  // Entry point called when suspend_count_ is non-zero
-  void (*suspend_count_entry_point_)(Method** frame);
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };

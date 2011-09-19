@@ -414,40 +414,6 @@ TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
   EXPECT_EQ(7, gJava_MyClass_fooSSIOO_calls);
 }
 
-// TODO: this is broken now we have thread suspend implemented.
-int gSuspendCounterHandler_calls;
-void SuspendCountHandler(Method** frame) {
-  // Check we came here in the native state then transition to runnable to work
-  // on the Object*
-  EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
-  ScopedJniThreadState ts(Thread::Current()->GetJniEnv());
-
-  EXPECT_TRUE((*frame)->GetName()->Equals("fooI"));
-  gSuspendCounterHandler_calls++;
-  //Thread::Current()->DecrementSuspendCount();
-}
-
-TEST_F(JniCompilerTest, DISABLED_SuspendCountAcknowledgement) {
-  SetupForTest(false, "fooI", "(I)I",
-               reinterpret_cast<void*>(&Java_MyClass_fooI));
-  Thread::Current()->RegisterSuspendCountEntryPoint(&SuspendCountHandler);
-
-  gJava_MyClass_fooI_calls = 0;
-  jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 42);
-  EXPECT_EQ(42, result);
-  EXPECT_EQ(1, gJava_MyClass_fooI_calls);
-  EXPECT_EQ(0, gSuspendCounterHandler_calls);
-  //Thread::Current()->IncrementSuspendCount();
-  result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 42);
-  EXPECT_EQ(42, result);
-  EXPECT_EQ(2, gJava_MyClass_fooI_calls);
-  EXPECT_EQ(1, gSuspendCounterHandler_calls);
-  result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 42);
-  EXPECT_EQ(42, result);
-  EXPECT_EQ(3, gJava_MyClass_fooI_calls);
-  EXPECT_EQ(1, gSuspendCounterHandler_calls);
-}
-
 void Java_MyClass_throwException(JNIEnv* env, jobject) {
   jclass c = env->FindClass("java/lang/RuntimeException");
   env->ThrowNew(c, "hello");

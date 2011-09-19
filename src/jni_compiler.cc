@@ -140,12 +140,12 @@ void JniCompiler::Compile(Method* native_method) {
   // 4. Transition from being in managed to native code. Save the top_of_managed_stack_
   // so that the managed stack can be crawled while in native code. Clear the corresponding
   // PC value that has no meaning for the this frame.
-  // TODO: ensure the transition to native follow a store fence.
   __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset());
   __ StoreImmediateToThread(Thread::TopOfManagedStackPcOffset(), 0,
                             mr_conv->InterproceduralScratchRegister());
-  __ StoreImmediateToThread(Thread::StateOffset(), Thread::kNative,
-                            mr_conv->InterproceduralScratchRegister());
+  ChangeThreadState(jni_asm.get(), Thread::kNative,
+                    mr_conv->InterproceduralScratchRegister(),
+                    ManagedRegister::NoRegister(), FrameOffset(0), 0);
 
   // 5. Move frame down to allow space for out going args. Do for as short a
   //    time as possible to aid profiling..
@@ -337,21 +337,21 @@ void JniCompiler::Compile(Method* native_method) {
 
   // 12. Transition from being in native to managed code, possibly entering a
   //     safepoint
-  CHECK(!jni_conv->InterproceduralScratchRegister()
-        .Equals(jni_conv->ReturnRegister()));  // don't clobber result
+  // Don't clobber result
+  CHECK(!jni_conv->InterproceduralScratchRegister().Equals(jni_conv->ReturnRegister()));
   // Location to preserve result on slow path, ensuring its within the frame
   FrameOffset return_save_location = jni_conv->ReturnValueSaveLocation();
   CHECK(return_save_location.Uint32Value() < frame_size ||
         jni_conv->SizeOfReturnValue() == 0);
-  __ SuspendPoll(jni_conv->InterproceduralScratchRegister(),
-                 jni_conv->ReturnRegister(), return_save_location,
-                 jni_conv->SizeOfReturnValue());
+  ChangeThreadState(jni_asm.get(), Thread::kRunnable,
+                    jni_conv->InterproceduralScratchRegister(),
+                    jni_conv->ReturnRegister(), return_save_location,
+                    jni_conv->SizeOfReturnValue());
+
+  // 13. Check for pending exception and forward if there
   __ ExceptionPoll(jni_conv->InterproceduralScratchRegister());
-  __ StoreImmediateToThread(Thread::StateOffset(), Thread::kRunnable,
-                            jni_conv->InterproceduralScratchRegister());
 
-
-  // 13. Place result in correct register possibly loading from indirect
+  // 14. Place result in correct register possibly loading from indirect
   //     reference table
   if (jni_conv->IsReturnAReference()) {
     __ IncreaseFrameSize(out_arg_size);
@@ -381,18 +381,18 @@ void JniCompiler::Compile(Method* native_method) {
   }
   __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister());
 
-  // 14. Remove SIRT from thread
+  // 15. Remove SIRT from thread
   __ CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv->SirtLinkOffset(),
                         jni_conv->InterproceduralScratchRegister());
 
-  // 15. Remove activation
+  // 16. Remove activation
   if (native_method->IsSynchronized()) {
     __ RemoveFrame(frame_size, callee_save_regs);
   } else {
     __ RemoveFrame(frame_size, std::vector<ManagedRegister>());
   }
 
-  // 16. Finalize code generation
+  // 17. Finalize code generation
   __ EmitSlowPaths();
   size_t cs = __ CodeSize();
   ByteArray* managed_code = ByteArray::Alloc(cs);
@@ -518,6 +518,35 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     }
   }
 #undef __
+}
+
+void JniCompiler::ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
+                                    ManagedRegister scratch, ManagedRegister return_reg,
+                                    FrameOffset return_save_location,
+                                    size_t return_size) {
+  /*
+   * This code mirrors that of Thread::SetState where detail is given on why
+   * barriers occur when they do.
+   */
+#define __ jni_asm->
+  if (new_state == Thread::kRunnable) {
+    /*
+     * Change our status to Thread::kRunnable.  The transition requires
+     * that we check for pending suspension, because the VM considers
+     * us to be "asleep" in all other states, and another thread could
+     * be performing a GC now.
+     */
+    __ StoreImmediateToThread(Thread::StateOffset(), Thread::kRunnable, scratch);
+    __ MemoryBarrier(scratch);
+    __ SuspendPoll(scratch, return_reg, return_save_location, return_size);
+  } else {
+    /*
+     * Not changing to Thread::kRunnable. No additional work required.
+     */
+    __ MemoryBarrier(scratch);
+    __ StoreImmediateToThread(Thread::StateOffset(), new_state, scratch);
+  }
+  #undef __
 }
 
 }  // namespace art

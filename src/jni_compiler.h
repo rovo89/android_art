@@ -40,6 +40,11 @@ class JniCompiler {
                           JniCallingConvention* jni_conv,
                           ManagedRegister in_reg);
 
+  void ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
+                         ManagedRegister scratch, ManagedRegister return_reg,
+                         FrameOffset return_save_location,
+                         size_t return_size);
+
   // Architecture to generate code for
   InstructionSet instruction_set_;
 

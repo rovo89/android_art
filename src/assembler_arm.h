@@ -481,6 +481,8 @@ class ArmAssembler : public Assembler {
   virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
                     unsigned int size);
 
+  virtual void MemoryBarrier(ManagedRegister scratch);
+
   // Exploit fast access in managed code to Thread::Current()
   virtual void GetCurrentThread(ManagedRegister tr);
   virtual void GetCurrentThread(FrameOffset dest_offset,

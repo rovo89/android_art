@@ -505,6 +505,8 @@ class X86Assembler : public Assembler {
   virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
                     size_t size);
 
+  virtual void MemoryBarrier(ManagedRegister);
+
   // Exploit fast access in managed code to Thread::Current()
   virtual void GetCurrentThread(ManagedRegister tr);
   virtual void GetCurrentThread(FrameOffset dest_offset,

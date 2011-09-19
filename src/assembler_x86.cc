@@ -1585,6 +1585,14 @@ void X86Assembler::Copy(FrameOffset dest, FrameOffset src,
   }
 }
 
+void X86Assembler::MemoryBarrier(ManagedRegister) {
+#if ANDROID_SMP != 0
+  EmitUint8(0x0F);  // mfence
+  EmitUint8(0xAE);
+  EmitOperand(0, Operand(EAX));  // EAX is unused
+#endif
+}
+
 void X86Assembler::CreateSirtEntry(ManagedRegister mout_reg,
                                    FrameOffset sirt_offset,
                                    ManagedRegister min_reg, bool null_allowed) {
@@ -1699,9 +1707,9 @@ void X86SuspendCountSlowPath::Emit(Assembler *sasm) {
   __ Bind(&entry_);
   // Save return value
   __ Store(return_save_location_, return_register_, return_size_);
-  // Pass top of stack as argument
-  __ pushl(ESP);
-  __ fs()->call(Address::Absolute(Thread::SuspendCountEntryPointOffset()));
+  // Pass Thread::Current as argument
+  __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));
+  __ fs()->call(Address::Absolute(OFFSETOF_MEMBER(Thread, pCheckSuspendFromCode)));
   // Release argument
   __ addl(ESP, Immediate(kPointerSize));
   // Reload return value

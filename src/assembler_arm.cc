@@ -1667,6 +1667,24 @@ void ArmAssembler::Copy(FrameOffset dest, FrameOffset src,
   }
 }
 
+void ArmAssembler::MemoryBarrier(ManagedRegister mscratch) {
+#if ANDROID_SMP != 0
+#if defined(__ARM_HAVE_DMB)
+  int32_t encoding = 0xf57ff05f;  // dmb
+  Emit(encoding);
+#elif  defined(__ARM_HAVE_LDREX_STREX)
+  CHECK(mscratch.AsArm().AsCoreRegister() == R12);
+  LoadImmediate(R12, 0);
+  int32_t encoding = 0xee07cfba;  // mcr p15, 0, r12, c7, c10, 5
+  Emit(encoding);
+#else
+  CHECK(mscratch.AsArm().AsCoreRegister() == R12);
+  LoadImmediate(R12, 0xffff0fa0);  // kuser_memory_barrier
+  blx(R12);
+#endif
+#endif
+}
+
 void ArmAssembler::CreateSirtEntry(ManagedRegister mout_reg,
                                    FrameOffset sirt_offset,
                                    ManagedRegister min_reg, bool null_allowed) {
@@ -1796,10 +1814,9 @@ void ArmSuspendCountSlowPath::Emit(Assembler* sasm) {
   __ Bind(&entry_);
   // Save return value
   __ Store(return_save_location_, return_register_, return_size_);
-  // Pass top of stack as argument
-  __ mov(R0, ShifterOperand(SP));
-  __ LoadFromOffset(kLoadWord, R12, TR,
-                         Thread::SuspendCountEntryPointOffset().Int32Value());
+  // Pass thread as argument
+  __ mov(R0, ShifterOperand(TR));
+  __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pCheckSuspendFromCode));
   // Note: assume that link register will be spilled/filled on method entry/exit
   __ blx(R12);
   // Reload return value
