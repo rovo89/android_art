@@ -1589,7 +1589,7 @@ void X86Assembler::MemoryBarrier(ManagedRegister) {
 #if ANDROID_SMP != 0
   EmitUint8(0x0F);  // mfence
   EmitUint8(0xAE);
-  EmitOperand(0, Operand(EAX));  // EAX is unused
+  EmitUint8(0xF0);
 #endif
 }
 
