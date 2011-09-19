@@ -830,9 +830,9 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     int startOffset = cUnit->regLocation[mir->ssaRep->uses[3]].spOffset;
     int outsOffset = 4 /* Method* */ + (3 * 4);
     if (numArgs >= 20) {
-        // Generate memcpy, but first make sure all of
-        opRegRegImm(cUnit, kOpAdd, r0, rSP, startOffset);
-        opRegRegImm(cUnit, kOpAdd, r1, rSP, outsOffset);
+        // Generate memcpy
+        opRegRegImm(cUnit, kOpAdd, r0, rSP, outsOffset);
+        opRegRegImm(cUnit, kOpAdd, r1, rSP, startOffset);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pMemcpy), rLR);
         loadConstant(cUnit, r2, (numArgs - 3) * 4);
         callNoUnwindHelper(cUnit, rLR);
