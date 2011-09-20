@@ -1147,7 +1147,10 @@ class DexVerifier {
    * Returns "true" on success.
    */
   static bool ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
-      InsnFlags* insn_flags, int insn_idx, VerifyError failure);
+      int insn_idx, VerifyError failure);
+
+  /* Update a 16-bit opcode in a dex file. */
+  static void UpdateCodeUnit(const uint16_t* ptr, uint16_t new_val);
 
   /* Handle a monitor-enter instruction. */
   static void HandleMonitorEnter(RegisterLine* work_line, uint32_t reg_idx,
@@ -1401,6 +1404,30 @@ class DexVerifier {
       uint32_t class_idx, const Class* referrer, VerifyError* failure);
 
   /*
+   * Resolves a method based on an index and performs access checks to ensure
+   * the referrer can access the resolved method.
+   *
+   * Does not throw exceptions.
+   *
+   * Sets "*failure" on failure.
+   */
+  static Method* ResolveMethodAndCheckAccess(const DexFile* dex_file,
+      uint32_t method_idx, const Class* referrer, VerifyError* failure,
+      bool is_direct);
+
+  /*
+   * Resolves a field based on an index and performs access checks to ensure
+   * the referrer can access the resolved field.
+   *
+   * Exceptions caused by failures are cleared before returning.
+   *
+   * Sets "*failure" on failure.
+   */
+  static Field* ResolveFieldAndCheckAccess(const DexFile* dex_file,
+      uint32_t class_idx, const Class* referrer, VerifyError* failure,
+      bool is_static);
+
+  /*
    * Merge two RegType values.
    *
    * Sets "*changed" to "true" if the result doesn't match "type1".
@@ -1597,7 +1624,7 @@ class DexVerifier {
    * Returns the new register type.
    */
   static RegType AdjustForRightShift(RegisterLine* register_line, int reg,
-      unsigned int shift_count, bool is_unsigned_shift, VerifyError* failure);
+      unsigned int shift_count, bool is_unsigned_shift);
 
   /*
    * We're performing an operation like "and-int/2addr" that can be
