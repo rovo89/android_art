@@ -189,7 +189,10 @@ int dex2oat(int argc, char** argv) {
   if (!runtime->HasJniStubArray()) {
     runtime->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
   }
-
+  // similarly for the callee save method
+  if (!runtime->HasCalleeSaveMethod()) {
+    runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(kThumb2));
+  }
   Compiler compiler(kThumb2);
   if (method_names.empty()) {
     compiler.CompileAll(class_loader);

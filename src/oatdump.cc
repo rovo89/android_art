@@ -54,8 +54,9 @@ static void usage() {
   exit(EXIT_FAILURE);
 }
 
-const char* image_roots_descriptions_[ImageHeader::kImageRootsMax] = {
+const char* image_roots_descriptions_[] = {
   "kJniStubArray",
+  "kCalleeSaveMethod"
 };
 
 class OatDump {
@@ -66,6 +67,7 @@ class OatDump {
     os << image_header.GetMagic() << "\n\n";
 
     os << "ROOTS:\n";
+    CHECK(sizeof(image_roots_descriptions_)/(sizeof(char*)) == ImageHeader::kImageRootsMax);
     for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
       ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
       os << StringPrintf("%s: %p\n",
@@ -82,7 +84,7 @@ class OatDump {
 
  private:
 
-  OatDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space_), os_(os) {}
+  OatDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space), os_(os) {}
 
   static void Callback(Object* obj, void* arg) {
     DCHECK(obj != NULL);
@@ -118,9 +120,14 @@ class OatDump {
     if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
       const ByteArray* code = method->GetCodeArray();
-      StringAppendF(&summary, "\tCODE     %p-%p\n", code->GetData(), code->GetData() + code->GetLength());
-      const ByteArray* invoke = method->GetInvokeStubArray();
-      StringAppendF(&summary, "\tJNI STUB %p-%p\n", invoke->GetData(), invoke->GetData() + invoke->GetLength());
+      if (method->IsPhony()) {
+        CHECK(code == NULL);
+        StringAppendF(&summary, "\tPHONY\n");
+      } else {
+        StringAppendF(&summary, "\tCODE     %p-%p\n", code->GetData(), code->GetData() + code->GetLength());
+        const ByteArray* invoke = method->GetInvokeStubArray();
+        StringAppendF(&summary, "\tJNI STUB %p-%p\n", invoke->GetData(), invoke->GetData() + invoke->GetLength());
+      }
       if (method->IsNative()) {
         if (method->IsRegistered()) {
          StringAppendF(&summary, "\tNATIVE REGISTERED %p\n", method->GetNativeMethod());

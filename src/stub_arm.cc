@@ -14,11 +14,15 @@ typedef void (*ThrowAme)(Method*, Thread*);
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
 
-  // R0 is the Method* already.
+  // Save callee saves and ready frame for exception delivery
+  RegList save = (1 << R1) | (1 << R2) | (1 << R3) | (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) |
+                 (1 << R8) | (1 << R9) | (1 << R10) | (1 << R11) | (1 << LR);
+  __ PushList(save);
+  __ IncreaseFrameSize(16);  // 4 words of space, bottom word will hold callee save Method*
 
-  // Pass Thread::Current() in R1
-  __ mov(R1, ShifterOperand(R9));
-
+  // R0 is the Method* already
+  __ mov(R1, ShifterOperand(R9));  // Pass Thread::Current() in R1
+  __ mov(R2, ShifterOperand(SP));  // Pass SP in R2
   // Call to throw AbstractMethodError
   __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode));
   // Leaf call to routine that never returns

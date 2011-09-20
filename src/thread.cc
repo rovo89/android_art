@@ -63,12 +63,8 @@ void DebugMe(Method* method, uint32_t info) {
   LOG(INFO) << "Info: " << info;
 }
 
-}  // namespace art
-
 // Called by generated call to throw an exception
-extern "C" void artDeliverExceptionHelper(art::Throwable* exception,
-                                          art::Thread* thread,
-                                          art::Method** sp) {
+extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread, Method** sp) {
   /*
    * exception may be NULL, in which case this routine should
    * throw NPE.  NOTE: this is a convenience for generated code,
@@ -77,51 +73,94 @@ extern "C" void artDeliverExceptionHelper(art::Throwable* exception,
    * exception_ in thread and delivering the exception.
    */
   // Place a special frame at the TOS that will save all callee saves
-  *sp = thread->CalleeSaveMethod();
+  *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   if (exception == NULL) {
     thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
-    exception = thread->GetException();
+  } else {
+    thread->SetException(exception);
   }
-  thread->DeliverException(exception);
+  thread->DeliverException();
+}
+
+// Deliver an exception that's pending on thread helping set up a callee save frame on the way
+extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, Method** sp) {
+  *sp = Runtime::Current()->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->DeliverException();
 }
 
 // Called by generated call to throw a NPE exception
-extern "C" void artThrowNullPointerExceptionFromCodeHelper(art::Thread* thread,
-                                                           art::Method** sp) {
+extern "C" void artThrowNullPointerExceptionFromCode(Thread* thread, Method** sp) {
   // Place a special frame at the TOS that will save all callee saves
-  *sp = thread->CalleeSaveMethod();
+  *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   thread->ThrowNewException("Ljava/lang/NullPointerException;", "unexpected null reference");
-  art::Throwable* exception = thread->GetException();
-  thread->DeliverException(exception);
+  thread->DeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception
-extern "C" void artThrowDivZeroFromCodeHelper(art::Thread* thread,
-                                              art::Method** sp) {
+extern "C" void artThrowDivZeroFromCode(Thread* thread, Method** sp) {
   // Place a special frame at the TOS that will save all callee saves
-  *sp = thread->CalleeSaveMethod();
+  *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   thread->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
-  art::Throwable* exception = thread->GetException();
-  thread->DeliverException(exception);
+  thread->DeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception
-extern "C" void artThrowArrayBoundsFromCodeHelper(int index, int limit,
-                                                  art::Thread* thread,
-                                                  art::Method** sp) {
+extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread, Method** sp) {
   // Place a special frame at the TOS that will save all callee saves
-  *sp = thread->CalleeSaveMethod();
+  *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   thread->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
                             "length=%d; index=%d", limit, index);
-  art::Throwable* exception = thread->GetException();
-  thread->DeliverException(exception);
+  thread->DeliverException();
 }
 
-namespace art {
+// Called by the AbstractMethodError stub (not runtime support)
+void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp) {
+  *sp = Runtime::Current()->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->ThrowNewException("Ljava/lang/AbstractMethodError",
+                            "abstract method \"%s\"",
+                            PrettyMethod(method).c_str());
+  thread->DeliverException();
+}
+
+// TODO: placeholder
+void StackOverflowFromCode(Method* method) {
+  Thread::Current()->SetTopOfStackPC(reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
+  Thread::Current()->Dump(std::cerr);
+  //NOTE: to save code space, this handler needs to look up its own Thread*
+  UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
+}
+
+// TODO: placeholder
+void ThrowVerificationErrorFromCode(int32_t src1, int32_t ref) {
+    UNIMPLEMENTED(FATAL) << "Verification error, src1: " << src1 <<
+        " ref: " << ref;
+}
+
+// TODO: placeholder
+void ThrowNegArraySizeFromCode(int32_t index) {
+    UNIMPLEMENTED(FATAL) << "Negative array size: " << index;
+}
+
+// TODO: placeholder
+void ThrowInternalErrorFromCode(int32_t errnum) {
+    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
+}
+
+// TODO: placeholder
+void ThrowRuntimeExceptionFromCode(int32_t errnum) {
+    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
+}
+
+// TODO: placeholder
+void ThrowNoSuchMethodFromCode(int32_t method_idx) {
+    UNIMPLEMENTED(FATAL) << "No such method, idx: " << method_idx;
+}
 
 // TODO: placeholder.  Helper function to type
 Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
@@ -158,95 +197,39 @@ Array* CheckAndAllocFromCode(uint32_t type_index, Method* method, int32_t compon
 }
 
 // TODO: placeholder (throw on failure)
-void CheckCastFromCode(const Class* a, const Class* b) {
+extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
   DCHECK(a->IsClass());
   DCHECK(b->IsClass());
   if (b->IsAssignableFrom(a)) {
-    return;
+    return 0;  // Success
+  } else {
+    Thread::Current()->ThrowNewException("Ljava/lang/ClassCastException;",
+                                         "%s cannot be cast to %s",
+                                         PrettyClass(b).c_str(), PrettyClass(a).c_str());
+    return -1;  // Failure
   }
-  UNIMPLEMENTED(FATAL);
 }
 
-void UnlockObjectFromCode(Thread* thread, Object* obj) {
-  // TODO: throw and unwind if lock not held
-  // TODO: throw and unwind on NPE
-  obj->MonitorExit(thread);
+extern "C" int artUnlockObjectFromCode(Thread* thread, Object* obj) {
+  DCHECK(obj != NULL);  // Assumed to have been checked before entry
+  return obj->MonitorExit(thread) ? 0 /* Success */ : -1 /* Failure */;
 }
 
 void LockObjectFromCode(Thread* thread, Object* obj) {
+  DCHECK(obj != NULL);  // Assumed to have been checked before entry
   obj->MonitorEnter(thread);
-  // TODO: throw and unwind on failure.
+  DCHECK(thread->HoldsLock(obj));
+  // Only possible exception is NPE and is handled before entry
+  DCHECK(thread->GetException() == NULL);
 }
 
 extern "C" void artCheckSuspendFromCode(Thread* thread) {
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
-// TODO: placeholder
-void StackOverflowFromCode(Method* method) {
-  Thread::Current()->SetTopOfStackPC(reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
-  Thread::Current()->Dump(std::cerr);
-  //NOTE: to save code space, this handler needs to look up its own Thread*
-  UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
-}
-
-// TODO: placeholder
-void ThrowNullPointerFromCode() {
-  Thread::Current()->SetTopOfStackPC(reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
-  Thread::Current()->Dump(std::cerr);
-  //NOTE: to save code space, this handler must look up caller's Method*
-  UNIMPLEMENTED(FATAL) << "Null pointer exception";
-}
-
-// TODO: placeholder
-void ThrowDivZeroFromCode() {
-  UNIMPLEMENTED(FATAL) << "Divide by zero";
-}
-
-// TODO: placeholder
-void ThrowArrayBoundsFromCode(int32_t index, int32_t limit) {
-  UNIMPLEMENTED(FATAL) << "Bound check exception, idx: " << index << ", limit: " << limit;
-}
-
-// TODO: placeholder
-void ThrowVerificationErrorFromCode(int32_t src1, int32_t ref) {
-    UNIMPLEMENTED(FATAL) << "Verification error, src1: " << src1 <<
-        " ref: " << ref;
-}
-
-// TODO: placeholder
-void ThrowNegArraySizeFromCode(int32_t index) {
-    UNIMPLEMENTED(FATAL) << "Negative array size: " << index;
-}
-
-// TODO: placeholder
-void ThrowInternalErrorFromCode(int32_t errnum) {
-    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
-}
-
-// TODO: placeholder
-void ThrowRuntimeExceptionFromCode(int32_t errnum) {
-    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
-}
-
-// TODO: placeholder
-void ThrowNoSuchMethodFromCode(int32_t method_idx) {
-    UNIMPLEMENTED(FATAL) << "No such method, idx: " << method_idx;
-}
-
-void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread) {
-  thread->ThrowNewException("Ljava/lang/AbstractMethodError",
-                            "abstract method \"%s\"",
-                            PrettyMethod(method).c_str());
-  thread->DeliverException(thread->GetException());
-}
-
-
 /*
- * Temporary placeholder.  Should include run-time checks for size
- * of fill data <= size of array.  If not, throw arrayOutOfBoundsException.
- * As with other new "FromCode" routines, this should return to the caller
- * only if no exception has been thrown.
+ * Fill the array with predefined constant values, throwing exceptions if the array is null or
+ * not of sufficient length.
  *
  * NOTE: When dealing with a raw dex file, the data to be copied uses
  * little-endian ordering.  Require that oat2dex do any required swapping
@@ -259,38 +242,43 @@ void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread) {
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-void HandleFillArrayDataFromCode(Array* array, const uint16_t* table) {
-    uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
-    uint32_t size_in_bytes = size * table[1];
-    if (static_cast<int32_t>(size) > array->GetLength()) {
-      ThrowArrayBoundsFromCode(array->GetLength(), size);
-    }
-    memcpy((char*)array + art::Array::DataOffset().Int32Value(),
-           (char*)&table[4], size_in_bytes);
-}
-
-/*
- * TODO: placeholder for a method that can be called by the
- * invoke-interface trampoline to unwind and handle exception.  The
- * trampoline will arrange it so that the caller appears to be the
- * callsite of the failed invoke-interface.  See comments in
- * runtime_support.S
- */
-extern "C" void artFailedInvokeInterface() {
-    UNIMPLEMENTED(FATAL) << "Unimplemented exception throw";
+extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* table) {
+  DCHECK_EQ(table[0], 0x0300);
+  if (array == NULL) {
+    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;",
+                                         "null array in fill array");
+    return -1;  // Error
+  }
+  DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
+  uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
+  if (static_cast<int32_t>(size) > array->GetLength()) {
+    Thread::Current()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+                                         "failed array fill. length=%d; index=%d",
+                                         array->GetLength(), size);
+    return -1;  // Error
+  }
+  uint16_t width = table[1];
+  uint32_t size_in_bytes = size * width;
+  memcpy((char*)array + Array::DataOffset().Int32Value(), (char*)&table[4], size_in_bytes);
+  return 0;  // Success
 }
 
 // See comments in runtime_support.S
-extern "C" uint64_t artFindInterfaceMethodInCache(uint32_t method_idx,
-     Object* this_object , Method* caller_method)
-{
+extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
+                                                          Object* this_object ,
+                                                          Method* caller_method) {
+  Thread* thread = Thread::Current();
   if (this_object == NULL) {
-    ThrowNullPointerFromCode();
+    thread->ThrowNewException("Ljava/lang/NullPointerException;",
+                              "null receiver during interface dispatch");
+    return 0;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Method* interface_method = class_linker->ResolveMethod(method_idx, caller_method, false);
   if (interface_method == NULL) {
-    UNIMPLEMENTED(FATAL) << "Could not resolve interface method. Throw error and unwind";
+    // Could not resolve interface method. Throw error and unwind
+    CHECK(thread->GetException() != NULL);
+    return 0;
   }
   Method* method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
   const void* code = method->GetCode();
@@ -363,20 +351,22 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
-  pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
-  pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
-  pThrowDivZeroFromCode = art_throw_div_zero_from_code;
+  pCheckCastFromCode = art_check_cast_from_code;
+  pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
   pTestSuspendFromCode = art_test_suspend;
+  pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
+  pThrowDivZeroFromCode = art_throw_div_zero_from_code;
+  pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
+  pUnlockObjectFromCode = art_unlock_object_from_code;
 #endif
-  pDeliverException = art_deliver_exception;
+  pDeliverException = art_deliver_exception_from_code;
   pF2l = F2L;
   pD2l = D2L;
   pAllocFromCode = Array::AllocFromCode;
   pCheckAndAllocFromCode = CheckAndAllocFromCode;
   pAllocObjectFromCode = Class::AllocObjectFromCode;
   pMemcpy = memcpy;
-  pHandleFillArrayDataFromCode = HandleFillArrayDataFromCode;
   pGet32Static = Field::Get32StaticFromCode;
   pSet32Static = Field::Set32StaticFromCode;
   pGet64Static = Field::Get64StaticFromCode;
@@ -388,9 +378,7 @@ void Thread::InitFunctionPointers() {
   pResolveMethodFromCode = ResolveMethodFromCode;
   pInitializeStaticStorage = ClassLinker::InitializeStaticStorageFromCode;
   pInstanceofNonTrivialFromCode = Object::InstanceOf;
-  pCheckCastFromCode = CheckCastFromCode;
   pLockObjectFromCode = LockObjectFromCode;
-  pUnlockObjectFromCode = UnlockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = artCheckSuspendFromCode;
   pStackOverflowFromCode = StackOverflowFromCode;
@@ -409,11 +397,11 @@ void Frame::Next() {
   size_t frame_size = GetMethod()->GetFrameSizeInBytes();
   DCHECK_NE(frame_size, 0u);
   DCHECK_LT(frame_size, 1024u);
-  byte* next_sp = reinterpret_cast<byte*>(sp_) +
-      frame_size;
+  byte* next_sp = reinterpret_cast<byte*>(sp_) + frame_size;
   sp_ = reinterpret_cast<Method**>(next_sp);
-  DCHECK(*sp_ == NULL ||
-         (*sp_)->GetClass()->GetDescriptor()->Equals("Ljava/lang/reflect/Method;"));
+  if(*sp_ != NULL) {
+    DCHECK_EQ((*sp_)->GetClass(), Method::GetMethodClass());
+  }
 }
 
 bool Frame::HasMethod() const {
@@ -421,8 +409,7 @@ bool Frame::HasMethod() const {
 }
 
 uintptr_t Frame::GetReturnPC() const {
-  byte* pc_addr = reinterpret_cast<byte*>(sp_) +
-      GetMethod()->GetReturnPcOffsetInBytes();
+  byte* pc_addr = reinterpret_cast<byte*>(sp_) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
@@ -431,8 +418,7 @@ uintptr_t Frame::LoadCalleeSave(int num) const {
   Method* method = GetMethod();
   DCHECK(method != NULL);
   size_t frame_size = method->GetFrameSizeInBytes();
-  byte* save_addr = reinterpret_cast<byte*>(sp_) + frame_size -
-                    ((num + 1) * kPointerSize);
+  byte* save_addr = reinterpret_cast<byte*>(sp_) + frame_size - ((num + 1) * kPointerSize);
 #if defined(__i386__)
   save_addr -= kPointerSize;  // account for return address
 #endif
@@ -1187,7 +1173,7 @@ void Thread::WalkStack(StackVisitor* visitor) const {
       break;
     }
     // last_tos should return Frame instead of sp?
-    frame.SetSP(reinterpret_cast<art::Method**>(record->last_top_of_managed_stack_));
+    frame.SetSP(reinterpret_cast<Method**>(record->last_top_of_managed_stack_));
     pc = record->last_top_of_managed_stack_pc_;
     record = record->link_;
   }
@@ -1312,41 +1298,6 @@ void Thread::ThrowOutOfMemoryError() {
   UNIMPLEMENTED(FATAL);
 }
 
-Method* Thread::CalleeSaveMethod() const {
-  // TODO: we should only allocate this once
-  Method* method = Runtime::Current()->GetClassLinker()->AllocMethod();
-#if defined(__arm__)
-  method->SetCode(NULL, art::kThumb2, NULL);
-  method->SetFrameSizeInBytes(64);
-  method->SetReturnPcOffsetInBytes(60);
-  method->SetCoreSpillMask((1 << art::arm::R1) |
-                           (1 << art::arm::R2) |
-                           (1 << art::arm::R3) |
-                           (1 << art::arm::R4) |
-                           (1 << art::arm::R5) |
-                           (1 << art::arm::R6) |
-                           (1 << art::arm::R7) |
-                           (1 << art::arm::R8) |
-                           (1 << art::arm::R9) |
-                           (1 << art::arm::R10) |
-                           (1 << art::arm::R11) |
-                           (1 << art::arm::LR));
-  method->SetFpSpillMask(0);
-#elif defined(__i386__)
-  method->SetCode(NULL, art::kX86, NULL);
-  method->SetFrameSizeInBytes(32);
-  method->SetReturnPcOffsetInBytes(28);
-  method->SetCoreSpillMask((1 << art::x86::EBX) |
-                           (1 << art::x86::EBP) |
-                           (1 << art::x86::ESI) |
-                           (1 << art::x86::EDI));
-  method->SetFpSpillMask(0);
-#else
-  UNIMPLEMENTED(FATAL);
-#endif
-  return method;
-}
-
 class CatchBlockStackVisitor : public Thread::StackVisitor {
  public:
   CatchBlockStackVisitor(Class* to_find, Context* ljc)
@@ -1409,8 +1360,9 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
   uint32_t native_method_count_;
 };
 
-void Thread::DeliverException(Throwable* exception) {
-  SetException(exception);  // Set exception on thread
+void Thread::DeliverException() {
+  Throwable *exception = GetException();  // Set exception on thread
+  CHECK(exception != NULL);
 
   Context* long_jump_context = GetLongJumpContext();
   CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);

@@ -117,6 +117,9 @@ bool Space::Init(const char* image_file_name) {
   Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
   Runtime::Current()->SetJniStubArray(down_cast<ByteArray*>(jni_stub_array));
 
+  Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
+  Runtime::Current()->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method));
+
   Init(map.release());
   return true;
 }

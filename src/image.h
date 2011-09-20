@@ -42,6 +42,7 @@ class ImageHeader {
 
   enum ImageRoot {
     kJniStubArray,
+    kCalleeSaveMethod,
     kImageRootsMax,
   };
 

@@ -4,10 +4,17 @@
 #define ART_SRC_RUNTIME_SUPPORT_H_
 
 /* Helper for both JNI and regular compiled code */
-extern "C" void art_deliver_exception(void*);
+extern "C" void art_deliver_exception_from_code(void*);
 
 #if defined(__arm__)
   /* Compiler helpers */
+  extern "C" void art_check_cast_from_code(void*, void*);
+  extern "C" void art_handle_fill_data_from_code(void*, void*);
+  extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
+  extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
+  extern "C" void art_throw_div_zero_from_code();
+  extern "C" void art_throw_null_pointer_exception_from_code();
+  extern "C" void art_unlock_object_from_code(void*, void*);
   extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
   extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
   extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
@@ -45,9 +52,9 @@ extern "C" void art_deliver_exception(void*);
   extern "C" int __aeabi_idivmod(int op1, int op2);  // OP_REM_INT[_2ADDR|_LIT8|_LIT16]
   extern "C" int __aeabi_idiv(int op1, int op2);     // OP_DIV_INT[_2ADDR|_LIT8|_LIT16]
 
-/* Long long arithmetics - OP_REM_LONG[_2ADDR] & OP_DIV_LONG[_2ADDR] */
-extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
-extern "C" long long __aeabi_lmul(long long op1, long long op2);
+  /* Long long arithmetics - OP_REM_LONG[_2ADDR] & OP_DIV_LONG[_2ADDR] */
+  extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
+  extern "C" long long __aeabi_lmul(long long op1, long long op2);
 
 #endif
 

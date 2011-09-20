@@ -212,12 +212,12 @@ class PACKED Thread {
   void (*pSetObjStatic)(uint32_t, const Method*, Object*);
   void (*pCanPutArrayElementFromCode)(const Object*, const Class*);
   bool (*pInstanceofNonTrivialFromCode) (const Object*, const Class*);
-  void (*pCheckCastFromCode) (const Class*, const Class*);
+  void (*pCheckCastFromCode) (void*, void*);
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
-  void (*pUnlockObjectFromCode)(Thread*, Object*);
+  void (*pUnlockObjectFromCode)(void*, void*);
   void (*pLockObjectFromCode)(Thread*, Object*);
   void (*pDeliverException)(void*);
-  void (*pHandleFillArrayDataFromCode)(Array*, const uint16_t*);
+  void (*pHandleFillArrayDataFromCode)(void*, void*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
   void (*pInvokeInterfaceTrampoline)(void*, void*, void*, void*);
@@ -234,7 +234,7 @@ class PACKED Thread {
   void (*pThrowRuntimeExceptionFromCode)(int32_t);
   void (*pThrowInternalErrorFromCode)(int32_t);
   void (*pThrowNoSuchMethodFromCode)(int32_t);
-  void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread);
+  void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread, Method** sp);
   void* (*pFindNativeMethod)(Thread* thread);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
 
@@ -339,7 +339,7 @@ class PACKED Thread {
   }
 
   // Find catch block and perform long jump to appropriate exception handle
-  void DeliverException(Throwable* exception);
+  void DeliverException();
 
   Context* GetLongJumpContext();
 
@@ -357,10 +357,6 @@ class PACKED Thread {
   void SetTopOfStackPC(uintptr_t pc) {
     top_of_managed_stack_pc_ = pc;
   }
-
-  // Returns a special method that describes all callee saves being spilt to the
-  // stack.
-  Method* CalleeSaveMethod() const;
 
   void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));

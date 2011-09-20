@@ -31,6 +31,7 @@ Runtime::Runtime()
       signal_catcher_(NULL),
       java_vm_(NULL),
       jni_stub_array_(NULL),
+      callee_save_method_(NULL),
       started_(false),
       vfprintf_(NULL),
       exit_(NULL),
@@ -579,12 +580,50 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister();
 }
 
+Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
+  Class* method_class = Method::GetMethodClass();
+  Method* method = down_cast<Method*>(method_class->AllocObject());
+  method->SetDeclaringClass(method_class);
+  method->SetName(intern_table_->InternStrong("$$$callee_save_method$$$"));
+  method->SetSignature(intern_table_->InternStrong("()V"));
+  method->SetCode(NULL, insns, NULL);
+  if ((insns == kThumb2) || (insns == kArm)) {
+    method->SetFrameSizeInBytes(64);
+    method->SetReturnPcOffsetInBytes(60);
+    method->SetCoreSpillMask((1 << art::arm::R1) |
+                             (1 << art::arm::R2) |
+                             (1 << art::arm::R3) |
+                             (1 << art::arm::R4) |
+                             (1 << art::arm::R5) |
+                             (1 << art::arm::R6) |
+                             (1 << art::arm::R7) |
+                             (1 << art::arm::R8) |
+                             (1 << art::arm::R9) |
+                             (1 << art::arm::R10) |
+                             (1 << art::arm::R11) |
+                             (1 << art::arm::LR));
+    method->SetFpSpillMask(0);
+  } else if (insns == kX86) {
+    method->SetFrameSizeInBytes(32);
+    method->SetReturnPcOffsetInBytes(28);
+    method->SetCoreSpillMask((1 << art::x86::EBX) |
+                             (1 << art::x86::EBP) |
+                             (1 << art::x86::ESI) |
+                             (1 << art::x86::EDI));
+    method->SetFpSpillMask(0);
+  } else {
+    UNIMPLEMENTED(FATAL);
+  }
+  return method;
+}
+
 void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   class_linker_->VisitRoots(visitor, arg);
   intern_table_->VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
   thread_list_->VisitRoots(visitor, arg);
   visitor(jni_stub_array_, arg);
+  visitor(callee_save_method_, arg);
 
   //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
   //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);

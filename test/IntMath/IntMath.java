@@ -767,6 +767,25 @@ class IntMath extends IntMathBase {
         return foo.getFoo();
     }
 
+    static int throwClassCast(Object o) {
+      return ((Integer)o).intValue();
+    }
+
+    static int testClassCast() {
+      int res = 0;
+      try {
+        res += throwClassCast(Integer.valueOf(123));
+      } catch(ClassCastException e) {
+        res += 456;
+      }
+      try {
+        res += throwClassCast(new Short((short)321));
+      } catch(ClassCastException e) {
+        res += 765;
+      }
+      return res;
+    }
+
     public static void main(String[] args) {
         boolean failure = false;
         int res;
@@ -917,6 +936,14 @@ class IntMath extends IntMathBase {
             System.out.println("throwAndCatch PASSED");
         } else {
             System.out.println("throwAndCatch FAILED: " + res);
+            failure = true;
+        }
+
+        res = testClassCast();
+        if (res == 888) {
+            System.out.println("testClassCast PASSED");
+        } else {
+            System.out.println("testClassCast FAILED: " + res);
             failure = true;
         }
 

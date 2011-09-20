@@ -62,8 +62,8 @@ void Object::MonitorEnter(Thread* thread) {
   Monitor::MonitorEnter(thread, this);
 }
 
-void Object::MonitorExit(Thread* thread) {
-  Monitor::MonitorExit(thread, this);
+bool Object::MonitorExit(Thread* thread) {
+  return Monitor::MonitorExit(thread, this);
 }
 
 void Object::Notify() {
@@ -604,15 +604,15 @@ void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
     // Set the low-order bit so a BLX will switch to Thumb mode
     address |= 0x1;
   }
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), reinterpret_cast<const void*>(address), false);
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_),
+                           reinterpret_cast<const void*>(address), false);
 }
 
 bool Method::IsWithinCode(uintptr_t pc) const {
-  if (GetCode() == NULL) {
-    return false;
-  }
   if (pc == 0) {
-    // assume that this is some initial value that will always lie in code
+    // PC of 0 represents the beginning of a stack trace either a native or where we have a callee
+    // save method that has no code
+    DCHECK(IsNative() || IsPhony());
     return true;
   } else {
 #if defined(__arm__)

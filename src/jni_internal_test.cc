@@ -836,7 +836,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 
   Object* arg = NULL;
 
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), NULL);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), NULL);
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
@@ -851,7 +851,7 @@ TEST_F(JniInternalTest, StaticNopMethod) {
 
   Method::InvokeStub* stub = method->GetInvokeStub();
 
-  (*stub)(method, NULL, NULL, NULL, NULL);
+  (*stub)(method, NULL, Thread::Current(), NULL, NULL);
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
@@ -871,22 +871,22 @@ TEST_F(JniInternalTest, StaticIdentityByteMethod) {
 
   arg = 0;
   result.b = -1;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(0, result.b);
 
   arg = -1;
   result.b = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(-1, result.b);
 
   arg = SCHAR_MAX;
   result.b = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(SCHAR_MAX, result.b);
 
   arg = SCHAR_MIN;
   result.b = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(SCHAR_MIN, result.b);
 }
 
@@ -907,22 +907,22 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
 
   arg = 0;
   result.i = -1;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(0, result.i);
 
   arg = -1;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(-1, result.i);
 
   arg = INT_MAX;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(INT_MAX, result.i);
 
   arg = INT_MIN;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(INT_MIN, result.i);
 }
 
@@ -943,22 +943,22 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
 
   arg = 0.0;
   result.d = -1.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(0.0, result.d);
 
   arg = -1.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(-1.0, result.d);
 
   arg = DBL_MAX;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(DBL_MAX, result.d);
 
   arg = DBL_MIN;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(&arg), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
   EXPECT_EQ(DBL_MIN, result.d);
 }
 
@@ -980,31 +980,31 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
   args[0] = 0;
   args[1] = 0;
   result.i = -1;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0, result.i);
 
   args[0] = 1;
   args[1] = 2;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3, result.i);
 
   args[0] = -2;
   args[1] = 5;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3, result.i);
 
   args[0] = INT_MAX;
   args[1] = INT_MIN;
   result.i = 1234;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-1, result.i);
 
   args[0] = INT_MAX;
   args[1] = INT_MAX;
   result.i = INT_MIN;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-2, result.i);
 }
 
@@ -1027,35 +1027,35 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
   args[1] = 0;
   args[2] = 0;
   result.i = -1;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0, result.i);
 
   args[0] = 1;
   args[1] = 2;
   args[2] = 3;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(6, result.i);
 
   args[0] = -1;
   args[1] = 2;
   args[2] = -3;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-2, result.i);
 
   args[0] = INT_MAX;
   args[1] = INT_MIN;
   args[2] = INT_MAX;
   result.i = 1234;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2147483646, result.i);
 
   args[0] = INT_MAX;
   args[1] = INT_MAX;
   args[2] = INT_MAX;
   result.i = INT_MIN;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2147483645, result.i);
 }
 
@@ -1079,7 +1079,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   args[2] = 0;
   args[3] = 0;
   result.i = -1;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0, result.i);
 
   args[0] = 1;
@@ -1087,7 +1087,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   args[2] = 3;
   args[3] = 4;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(10, result.i);
 
   args[0] = -1;
@@ -1095,7 +1095,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   args[2] = -3;
   args[3] = 4;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2, result.i);
 
   args[0] = INT_MAX;
@@ -1103,7 +1103,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   args[2] = INT_MAX;
   args[3] = INT_MIN;
   result.i = 1234;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-2, result.i);
 
   args[0] = INT_MAX;
@@ -1111,7 +1111,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
   args[2] = INT_MAX;
   args[3] = INT_MAX;
   result.i = INT_MIN;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-4, result.i);
 }
 
@@ -1136,7 +1136,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   args[3] = 0;
   args[4] = 0;
   result.i = -1.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0, result.i);
 
   args[0] = 1;
@@ -1145,7 +1145,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   args[3] = 4;
   args[4] = 5;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(15, result.i);
 
   args[0] = -1;
@@ -1154,7 +1154,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   args[3] = 4;
   args[4] = -5;
   result.i = 0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-3, result.i);
 
   args[0] = INT_MAX;
@@ -1163,7 +1163,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   args[3] = INT_MIN;
   args[4] = INT_MAX;
   result.i = 1234;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2147483645, result.i);
 
   args[0] = INT_MAX;
@@ -1172,7 +1172,7 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
   args[3] = INT_MAX;
   args[4] = INT_MAX;
   result.i = INT_MIN;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2147483643, result.i);
 }
 
@@ -1194,31 +1194,31 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
   args[0] = 0.0;
   args[1] = 0.0;
   result.d = -1.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0.0, result.d);
 
   args[0] = 1.0;
   args[1] = 2.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3.0, result.d);
 
   args[0] = 1.0;
   args[1] = -2.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-1.0, result.d);
 
   args[0] = DBL_MAX;
   args[1] = DBL_MIN;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(1.7976931348623157e308, result.d);
 
   args[0] = DBL_MAX;
   args[1] = DBL_MAX;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(INFINITY, result.d);
 }
 
@@ -1241,21 +1241,21 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
   args[1] = 0.0;
   args[2] = 0.0;
   result.d = -1.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0.0, result.d);
 
   args[0] = 1.0;
   args[1] = 2.0;
   args[2] = 3.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(6.0, result.d);
 
   args[0] = 1.0;
   args[1] = -2.0;
   args[2] = 3.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(2.0, result.d);
 }
 
@@ -1279,7 +1279,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
   args[2] = 0.0;
   args[3] = 0.0;
   result.d = -1.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0.0, result.d);
 
   args[0] = 1.0;
@@ -1287,7 +1287,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
   args[2] = 3.0;
   args[3] = 4.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(10.0, result.d);
 
   args[0] = 1.0;
@@ -1295,7 +1295,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
   args[2] = 3.0;
   args[3] = -4.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(-2.0, result.d);
 }
 
@@ -1320,7 +1320,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   args[3] = 0.0;
   args[4] = 0.0;
   result.d = -1.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(0.0, result.d);
 
   args[0] = 1.0;
@@ -1329,7 +1329,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   args[3] = 4.0;
   args[4] = 5.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(15.0, result.d);
 
   args[0] = 1.0;
@@ -1338,7 +1338,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   args[3] = -4.0;
   args[4] = 5.0;
   result.d = 0.0;
-  (*stub)(method, NULL, NULL, reinterpret_cast<byte*>(args), &result);
+  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3.0, result.d);
 }
 #endif  // __arm__

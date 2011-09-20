@@ -107,6 +107,7 @@ ObjectArray<Object>* CreateImageRoots() {
   ObjectArray<Object>* image_roots = ObjectArray<Object>::Alloc(object_array_class,
                                                                 ImageHeader::kImageRootsMax);
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniStubArray());
+  image_roots->Set(ImageHeader::kCalleeSaveMethod, runtime->GetCalleeSaveMethod());
   return image_roots;
 }
 

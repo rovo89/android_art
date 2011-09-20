@@ -4,92 +4,161 @@
 
     .balign 4
 
-    .global art_deliver_exception
-    .extern artDeliverExceptionHelper
+    /* Deliver the given exception */
+    .extern artDeliverExceptionFromCode
+    /* Deliver an exception pending on a thread */
+    .extern artDeliverPendingException
+
+    .global art_deliver_exception_from_code
     /*
-     * Called by managed code, saves mosts registers (forms basis of long jump context).
-     * artThrowExceptionHelper will place a mock Method* at the bottom of the thread.
-     * r0 holds Throwable
+     * Called by managed code, saves mosts registers (forms basis of long jump context) and passes
+     * the bottom of the stack. artDeliverExceptionFromCode will place the callee save Method* at
+     * the bottom of the thread. On entry r0 holds Throwable*
      */
-art_deliver_exception:
+art_deliver_exception_from_code:
     stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
-    mov r1, r9                   @ pass Thread::Current
-    mov r2, sp                   @ pass SP
-    b artDeliverExceptionHelper  @ artDeliverExceptionHelper(Throwable*, Thread*, SP)
+    sub sp, #16                     @ 4 words of space, bottom word will hold Method*
+    mov r1, r9                      @ pass Thread::Current
+    mov r2, sp                      @ pass SP
+    b   artDeliverExceptionFromCode @ artDeliverExceptionFromCode(Throwable*, Thread*, SP)
 
     .global art_throw_null_pointer_exception_from_code
-    .extern artThrowNullPointerExceptionFromCodeHelper
+    .extern artThrowNullPointerExceptionFromCode
     /*
-     * Create NPE and deliver
+     * Called by managed code to create and deliver a NullPointerException
      */
 art_throw_null_pointer_exception_from_code:
     stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
-    mov r0, r9                   @ pass Thread::Current
-    mov r1, sp                   @ pass SP
-    b artThrowNullPointerExceptionFromCodeHelper @ artThrowNullPointerExceptionFromCodeHelper(Thread*, SP)
+    sub sp, #16                              @ 4 words of space, bottom word will hold Method*
+    mov r0, r9                               @ pass Thread::Current
+    mov r1, sp                               @ pass SP
+    b   artThrowNullPointerExceptionFromCode @ artThrowNullPointerExceptionFromCode(Thread*, SP)
 
     .global art_throw_div_zero_from_code
-    .extern artThrowDivZeroFromCodeHelper
+    .extern artThrowDivZeroFromCode
     /*
-     * Create ArithmeticException and deliver
+     * Called by managed code to create and deliver an ArithmeticException
      */
 art_throw_div_zero_from_code:
     stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
-    mov r0, r9                   @ pass Thread::Current
-    mov r1, sp                   @ pass SP
-    b artThrowDivZeroFromCodeHelper @ artThrowDivZeroFromCodeHelper(Thread*, SP)
+    sub sp, #16                 @ 4 words of space, bottom word will hold Method*
+    mov r0, r9                  @ pass Thread::Current
+    mov r1, sp                  @ pass SP
+    b   artThrowDivZeroFromCode @ artThrowDivZeroFromCode(Thread*, SP)
 
     .global art_throw_array_bounds_from_code
-    .extern artThrowArrayBoundsFromCodeHelper
+    .extern artThrowArrayBoundsFromCode
     /*
-     * Create ArrayIndexOutOfBoundsException and deliver
+     * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException
      */
 art_throw_array_bounds_from_code:
     stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
-    mov r2, r9                   @ pass Thread::Current
-    mov r3, sp                   @ pass SP
-    b artThrowArrayBoundsFromCodeHelper @ artThrowArrayBoundsFromCodeHelper(index, limit, Thread*, SP)
+    sub sp, #16                     @ 4 words of space, bottom word will hold Method*
+    mov r2, r9                      @ pass Thread::Current
+    mov r3, sp                      @ pass SP
+    b   artThrowArrayBoundsFromCode @ artThrowArrayBoundsFromCode(index, limit, Thread*, SP)
 
     .global art_invoke_interface_trampoline
-    .extern artFindInterfaceMethodInCache
-    .extern artFailedInvokeInterface
-art_invoke_interface_trampoline:
+    .extern artFindInterfaceMethodInCacheFromCode
     /*
-     * All generated callsites for interface invokes will load arguments
-     * as usual - except instead of loading arg0/r0 with the target
-     * Method*, arg0/r0 will contain the method_idx.  This wrapper will
-     * save arg1-arg3, load the caller's Method*, align the stack and
-     * call the helper artFindInterfaceMethodInCache(idx, this, method);
-     * NOTE: "this" is first visable argument of the target, and so can be
-     * found in arg1/r1.
+     * All generated callsites for interface invokes will load arguments as usual - except instead
+     * of loading arg0/r0 with the target Method*, arg0/r0 will contain the method_idx.  This
+     * wrapper will save arg1-arg3, load the caller's Method*, align the stack and call the helper
+     * artFindInterfaceMethodInCacheFromCode(idx, this, method);
+     * NOTE: "this" is first visable argument of the target, and so can be found in arg1/r1.
      *
-     * artFindInterfaceMethodInCache will attempt to locate the target
-     * and return a 64-bit result in r0/r1 consisting of the target
-     * Method* in r0 and method->code_ in r1.
+     * artFindInterfaceMethodInCacheFromCode will attempt to locate the target and return a 64-bit
+     * result in r0/r1 consisting of the target Method* in r0 and method->code_ in r1.
      *
-     * If unsuccessful, artFindInterfaceMethodInCache will return
-     * NULL/NULL.  This is somewhat different than the usual
-     * mechanism of helper routines performing the unwind & throw.
-     * The reason is that this trampoline is not unwindable.  In the
-     * event artFindInterfaceMethodInCache fails to resolve, the wrapper
-     * will prepare an unwindable environment and jump to another helper
-     * to do unwind/throw.
+     * If unsuccessful, artFindInterfaceMethodInCacheFromCode will return NULL/NULL. There will be
+     * a pending exception in the thread and we branch to another stub to deliver it.
      *
-     * On success this wrapper will restore arguments and *jump* to the
-     * target, leaving the lr pointing back to the original caller.
+     * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
+     * pointing back to the original caller.
      */
+art_invoke_interface_trampoline:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
     stmdb  sp!, {r1, r2, r3, lr}
-    ldr    r2, [sp, #16]                 @ load caller's Method*
-    bl     artFindInterfaceMethodInCache @ (method_idx, this, callerMethod)
-    mov    r12, r1                       @ save r0->code_
-    ldmia  sp!, {r1, r2, r3, lr}         @ restore arguments
-    cmp    r0, #0                        @ did we find the target?
-    bxne   r12                           @ tail call to target if so
-    b      artFailedInvokeInterface      @ Will appear as if called directly
+    ldr    r2, [sp, #16]                         @ load caller's Method*
+    bl     artFindInterfaceMethodInCacheFromCode @ (method_idx, this, callerMethod)
+    mov    r12, r1                               @ save r0->code_
+    ldmia  sp!, {r1, r2, r3, lr}                 @ restore arguments
+    cmp    r0, #0                                @ did we find the target?
+    bxne   r12                                   @ tail call to target if so
+                                                 @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                               @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                                @ pass Thread::Current
+    mov    r1, sp                                @ pass SP
+    b      artDeliverPendingExceptionFromCode    @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
+    .global art_handle_fill_data_from_code
+    .extern artHandleFillArrayDataFromCode
+    /*
+     * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
+     * failure.
+     */
+art_handle_fill_data_from_code:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}                          @ Save LR
+    sub    sp, #12                            @ Align stack
+    bl     artHandleFillArrayDataFromCode     @ (Array* array, const uint16_t* table)
+    add    sp, #12
+    ldmia  sp!, {lr}                          @ restore LR
+    cmp    r0, #0                             @ success?
+    moveq  pc, lr                             @ return on success
+                                              @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                             @ pass Thread::Current
+    mov    r1, sp                             @ pass SP
+    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
+    .global art_unlock_object_from_code
+    .extern artUnlockObjectFromCode
+    /*
+     * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
+     */
+art_unlock_object_from_code:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}                          @ Save LR
+    sub    sp, #12                            @ Align stack
+    bl     artUnlockObjectFromCode            @ (Thread* thread, Object* obj)
+    add    sp, #12
+    ldmia  sp!, {lr}                          @ restore LR
+    cmp    r0, #0                             @ success?
+    moveq  pc, lr                             @ return on success
+                                              @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                             @ pass Thread::Current
+    mov    r1, sp                             @ pass SP
+    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
+    .global art_check_cast_from_code
+    .extern artCheckCastFromCode
+    /*
+     * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
+     */
+art_check_cast_from_code:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}                          @ Save LR
+    sub    sp, #12                            @ Align stack
+    bl     artCheckCastFromCode               @ (Class* a, Class* b)
+    add    sp, #12
+    ldmia  sp!, {lr}                          @ restore LR
+    cmp    r0, #0                             @ success?
+    moveq  pc, lr                             @ return on success
+                                              @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                             @ pass Thread::Current
+    mov    r1, sp                             @ pass SP
+    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_shl_long
 art_shl_long:
@@ -180,14 +249,14 @@ art_test_suspend:
 
 #if defined(__i386__)
 
-    .global art_deliver_exception
-    .extern artDeliverExceptionHelper
+    .global art_deliver_exception_from_code
+    .extern artDeliverExceptionFromCode
     /*
-     * Called by managed code, saves callee saves and then calls artThrowExceptionHelper
+     * Called by managed code, saves callee saves and then calls artThrowException
      * that will place a mock Method* at the bottom of the stack.
      * EAX holds the exception.
      */
-art_deliver_exception:
+art_deliver_exception_from_code:
     // Create frame
     pushl %edi  // Save callee saves
     pushl %esi
@@ -198,11 +267,11 @@ art_deliver_exception:
     pushl $0   // Will be clobbered to be Method*
     mov %esp, %ecx
     // Outgoing argument set up
-    pushl $0    // Alignment padding
-    pushl %ecx                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET    // pass fs:offsetof(Thread,self_)
-    pushl %eax                      // pass Throwable*
-    call artDeliverExceptionHelper  // artDeliverExceptionHelper(Throwable*, Thread*, SP)
+    pushl $0  // Alignment padding
+    pushl %ecx                        // pass SP
+    pushl %fs:THREAD_SELF_OFFSET      // pass fs:offsetof(Thread,self_)
+    pushl %eax                        // pass Throwable*
+    call artDeliverExceptionFromCode  // artDeliverExceptionFromCode(Throwable*, Thread*, SP)
     int3
 
 #endif

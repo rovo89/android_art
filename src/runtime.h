@@ -12,6 +12,7 @@
 
 #include <jni.h>
 
+#include "constants.h"
 #include "heap.h"
 #include "globals.h"
 #include "macros.h"
@@ -28,6 +29,7 @@ class DexFile;
 class Heap;
 class InternTable;
 class JavaVMExt;
+class Method;
 class SignalCatcher;
 class String;
 class ThreadList;
@@ -154,6 +156,21 @@ class Runtime {
     jni_stub_array_ = jni_stub_array;
   }
 
+  Method* CreateCalleeSaveMethod(InstructionSet insns);
+
+  bool HasCalleeSaveMethod() const {
+    return callee_save_method_ != NULL;
+  }
+
+  // Returns a special method that describes all callee saves being spilled to the stack.
+  Method* GetCalleeSaveMethod() const {
+    return callee_save_method_;
+  }
+
+  void SetCalleeSaveMethod(Method* method) {
+    callee_save_method_ = method;
+  }
+
   int32_t GetStat(int kind);
 
   RuntimeStats* GetStats();
@@ -197,6 +214,8 @@ class Runtime {
   JavaVMExt* java_vm_;
 
   ByteArray* jni_stub_array_;
+
+  Method* callee_save_method_;
 
   bool started_;
 

@@ -37,7 +37,7 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, mir->dalvikInsn.vC);  // arg0 <- type_id
     loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
-    callUnwindableHelper(cUnit, rLR);
+    callRuntimeHelper(cUnit, rLR);
     oatClobberCallRegs(cUnit);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
@@ -60,7 +60,7 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
     loadConstant(cUnit, r2, elems);               // arg2 <- count
-    callUnwindableHelper(cUnit, rLR);
+    callRuntimeHelper(cUnit, rLR);
     /*
      * NOTE: the implicit target for OP_FILLED_NEW_ARRAY is the
      * return region.  Because AllocFromCode placed the new array
@@ -181,7 +181,7 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirect(cUnit, rlSrc, r2);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         oatClobberCallRegs(cUnit);
     } else {
         // fast path
@@ -202,7 +202,7 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -234,7 +234,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         oatClobberCallRegs(cUnit);
     } else {
         // fast path
@@ -255,7 +255,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -286,7 +286,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         RegLocation rlResult = oatGetReturnWide(cUnit);
         storeValueWide(cUnit, rlDest, rlResult);
     } else {
@@ -308,7 +308,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -344,7 +344,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         RegLocation rlResult = oatGetReturn(cUnit);
         storeValue(cUnit, rlDest, rlResult);
     } else {
@@ -366,7 +366,7 @@ static void genSget(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
         loadConstant(cUnit, r0, typeIdx);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         skipTarget->defMask = ENCODE_ALL;
         branchOver->generic.target = (LIR*)skipTarget;
@@ -497,7 +497,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
             loadConstant(cUnit, r1, dInsn->vB);
-            callUnwindableHelper(cUnit, rLR);
+            callRuntimeHelper(cUnit, rLR);
             genUnconditionalBranch(cUnit, rollback);
             // Resume normal slow path
             skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
@@ -664,7 +664,7 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
             loadConstant(cUnit, r1, dInsn->vB);
-            callUnwindableHelper(cUnit, rLR);
+            callRuntimeHelper(cUnit, rLR);
             genUnconditionalBranch(cUnit, rollback);
             // Resume normal slow path
             skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
@@ -848,7 +848,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         opRegRegImm(cUnit, kOpAdd, r1, rSP, startOffset);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pMemcpy), rLR);
         loadConstant(cUnit, r2, (numArgs - 3) * 4);
-        callNoUnwindHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
         // Restore Method*
         loadCurrMethodDirect(cUnit, r0);
     } else {
@@ -1237,7 +1237,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
                 OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode), rLR);
             loadConstant(cUnit, r0, mir->dalvikInsn.vA);
             loadConstant(cUnit, r1, mir->dalvikInsn.vB);
-            callUnwindableHelper(cUnit, rLR);
+            callRuntimeHelper(cUnit, rLR);
             break;
 
         case OP_ARRAY_LENGTH:
@@ -2092,7 +2092,7 @@ static void handleThrowLaunchpads(CompilationUnit *cUnit)
                 LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
         }
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
-        callUnwindableHelper(cUnit, rLR);
+        callRuntimeHelper(cUnit, rLR);
     }
 }
 

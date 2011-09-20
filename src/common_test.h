@@ -113,9 +113,11 @@ class CommonTest : public testing::Test {
 
 #if defined(__i386__)
     runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kX86));
+    runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(kX86));
     compiler_.reset(new Compiler(kX86));
 #elif defined(__arm__)
     runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
+    runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(kThumb2));
     compiler_.reset(new Compiler(kThumb2));
 #endif
 

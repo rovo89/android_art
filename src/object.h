@@ -228,7 +228,7 @@ class MANAGED Object {
 
   void MonitorEnter(Thread* thread);
 
-  void MonitorExit(Thread* thread);
+  bool MonitorExit(Thread* thread);
 
   void Notify();
 
@@ -927,8 +927,7 @@ class MANAGED Method : public AccessibleObject {
 
   // Is this a hand crafted method used for something like describing callee saves?
   bool IsPhony() const {
-    bool result =
-        NULL == GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
+    bool result = this == Runtime::Current()->GetCalleeSaveMethod();
     // Check that if we do think it is phony it looks like the callee save method
     DCHECK(!result || GetCoreSpillMask() != 0);
     return result;
@@ -951,6 +950,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   static void SetClass(Class* java_lang_reflect_Method);
+  static Class* GetMethodClass() { return java_lang_reflect_Method_; }
   static void ResetClass();
 
  private:
