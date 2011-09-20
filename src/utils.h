@@ -172,6 +172,15 @@ std::string PrettyClass(const Class* c);
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);
 
+// Tests whether 's' is a valid class name.
+// name_or_descriptor
+//     true  => "java/lang/String"
+//     false => "Ljava/lang/String;" (i.e. "descriptor")
+// dot_or_slash
+//     true  => "java.lang.String"
+//     false => "java/lang/String" (i.e. "dot or slash")
+bool IsValidClassName(const char* s, bool name_or_descriptor, bool dot_or_slash);
+
 // Returns the JNI native function name for the non-overloaded method 'm'.
 std::string JniShortName(const Method* m);
 // Returns the JNI native function name for the overloaded method 'm'.

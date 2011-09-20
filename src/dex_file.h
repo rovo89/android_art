@@ -911,7 +911,7 @@ class DexFile {
   // The size of the underlying memory allocation in bytes.
   size_t length_;
 
-  // Typically the dex file name when availble, alternatively some identifying string.
+  // Typically the dex file name when available, alternatively some identifying string.
   //
   // The ClassLinker will use this to match DexFiles the boot class
   // path to DexCache::GetLocation when loading from an image.

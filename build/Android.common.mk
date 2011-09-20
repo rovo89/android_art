@@ -108,6 +108,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/java_lang_System.cc \
 	src/java_lang_Thread.cc \
 	src/java_lang_Throwable.cc \
+	src/java_lang_VMClassLoader.cc \
 	src/java_lang_reflect_Array.cc \
 	src/java_lang_reflect_Field.cc \
 	src/java_lang_reflect_Method.cc \

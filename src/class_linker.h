@@ -31,10 +31,13 @@ class ClassLinker {
 
   ~ClassLinker();
 
-  // Finds a class by its descriptor name.
+  // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
-  Class* FindClass(const StringPiece& descriptor,
-                   const ClassLoader* class_loader);
+  Class* FindClass(const StringPiece& descriptor, const ClassLoader* class_loader);
+
+  // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
+  // by the given 'class_loader'.
+  Class* LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader);
 
   Class* FindPrimitiveClass(char type);
 
@@ -235,8 +238,6 @@ class ClassLinker {
                   const DexFile::Method& dex_method,
                   Class* klass,
                   Method* dst);
-
-  Class* LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader);
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
