@@ -71,6 +71,7 @@ jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, job
 
 jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   // Returns the defining class loader of the caller's caller.
+  // TODO: need SmartFrame (Thread::WalkStack-like iterator).
   Frame frame = Thread::Current()->GetTopOfStack();
   frame.Next();
   frame.Next();
@@ -79,13 +80,24 @@ jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   return AddLocalReference<jobject>(env, cl);
 }
 
-jobjectArray VMStack_getClasses(JNIEnv* env, jclass, jint maxDepth) {
-  UNIMPLEMENTED(FATAL);
+jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
+  Thread* self = Thread::Current();
+  Object* bootstrap = Decode<Object*>(env, javaBootstrap);
+  Object* system = Decode<Object*>(env, javaSystem);
+  // TODO: need SmartFrame (Thread::WalkStack-like iterator).
+  for (Frame frame = self->GetTopOfStack(); frame.HasNext(); frame.Next()) {
+    Class* c = frame.GetMethod()->GetDeclaringClass();
+    Object* cl = const_cast<ClassLoader*>(c->GetClassLoader());
+    if (cl != bootstrap && cl != system) {
+      return AddLocalReference<jobject>(env, cl);
+    }
+  }
   return NULL;
 }
 
 jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   // Returns the class of the caller's caller's caller.
+  // TODO: need SmartFrame (Thread::WalkStack-like iterator).
   Frame frame = Thread::Current()->GetTopOfStack();
   frame.Next();
   frame.Next();
@@ -106,7 +118,7 @@ jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMStack, fillStackTraceElements, "(Ljava/lang/Thread;[Ljava/lang/StackTraceElement;)I"),
   NATIVE_METHOD(VMStack, getCallingClassLoader, "()Ljava/lang/ClassLoader;"),
-  NATIVE_METHOD(VMStack, getClasses, "(I)[Ljava/lang/Class;"),
+  NATIVE_METHOD(VMStack, getClosestUserClassLoader, "(Ljava/lang/ClassLoader;Ljava/lang/ClassLoader;)Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(VMStack, getStackClass2, "()Ljava/lang/Class;"),
   NATIVE_METHOD(VMStack, getThreadStackTrace, "(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;"),
 };
