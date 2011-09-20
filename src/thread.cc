@@ -75,9 +75,6 @@ extern "C" void artDeliverExceptionHelper(art::Throwable* exception,
    * and threw a NPE if NULL.  This routine responsible for setting
    * exception_ in thread and delivering the exception.
    */
-#if defined(__i386__)
-  thread = art::Thread::Current();  // TODO: fix passing this in as an argument
-#endif
   // Place a special frame at the TOS that will save all callee saves
   *sp = thread->CalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
@@ -85,6 +82,41 @@ extern "C" void artDeliverExceptionHelper(art::Throwable* exception,
     thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
     exception = thread->GetException();
   }
+  thread->DeliverException(exception);
+}
+
+// Called by generated call to throw a NPE exception
+extern "C" void artThrowNullPointerExceptionFromCodeHelper(art::Thread* thread,
+                                                           art::Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  *sp = thread->CalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->ThrowNewException("Ljava/lang/NullPointerException;", "unexpected null reference");
+  art::Throwable* exception = thread->GetException();
+  thread->DeliverException(exception);
+}
+
+// Called by generated call to throw an arithmetic divide by zero exception
+extern "C" void artThrowDivZeroFromCodeHelper(art::Thread* thread,
+                                              art::Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  *sp = thread->CalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+  art::Throwable* exception = thread->GetException();
+  thread->DeliverException(exception);
+}
+
+// Called by generated call to throw an arithmetic divide by zero exception
+extern "C" void artThrowArrayBoundsFromCodeHelper(int index, int limit,
+                                                  art::Thread* thread,
+                                                  art::Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  *sp = thread->CalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+                            "length=%d; index=%d", limit, index);
+  art::Throwable* exception = thread->GetException();
   thread->DeliverException(exception);
 }
 
@@ -330,6 +362,9 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
+  pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
+  pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
+  pThrowDivZeroFromCode = art_throw_div_zero_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
 #endif
   pDeliverException = art_deliver_exception;
@@ -357,9 +392,6 @@ void Thread::InitFunctionPointers() {
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = CheckSuspendFromCode;
   pStackOverflowFromCode = StackOverflowFromCode;
-  pThrowNullPointerFromCode = ThrowNullPointerFromCode;
-  pThrowArrayBoundsFromCode = ThrowArrayBoundsFromCode;
-  pThrowDivZeroFromCode = ThrowDivZeroFromCode;
   pThrowVerificationErrorFromCode = ThrowVerificationErrorFromCode;
   pThrowNegArraySizeFromCode = ThrowNegArraySizeFromCode;
   pThrowRuntimeExceptionFromCode = ThrowRuntimeExceptionFromCode;

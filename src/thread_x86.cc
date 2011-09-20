@@ -6,6 +6,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
+#include "asm_support.h"
 #include "macros.h"
 
 namespace art {
@@ -53,9 +54,10 @@ void Thread::InitCpu() {
   // Sanity check reads from FS goes to this Thread*
   Thread* self_check;
   // TODO: use our assembler to generate code
+  CHECK_EQ(THREAD_SELF_OFFSET, OFFSETOF_MEMBER(Thread, self_));
   asm volatile("movl %%fs:(%1), %0"
       : "=r"(self_check)  // output
-      : "r"(OFFSETOF_MEMBER(Thread, self_))  // input
+      : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber
   CHECK_EQ(self_check, this);
 }

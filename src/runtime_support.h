@@ -11,6 +11,9 @@ extern "C" void art_deliver_exception(void*);
   extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
   extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
   extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
+  extern "C" void art_throw_null_pointer_exception_from_code();
+  extern "C" void art_throw_div_zero_from_code();
+  extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
 
   /* Conversions */

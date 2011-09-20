@@ -138,6 +138,49 @@ class ExceptionTest {
     }
 
 
+    static void throwImplicitAIOBE(int[] array, int index) {
+      array[index] = 0;
+    }
+
+    static int checkAIOBE() {
+      int[] array = new int[10];
+      int res;
+      try {
+        throwImplicitAIOBE(array, 11);
+        res = 123;
+      } catch (NullPointerException npe) {
+        res = 768;
+      } catch (ArrayIndexOutOfBoundsException e) {
+        res = 456;
+      }
+      try {
+        throwImplicitAIOBE(array, -1);
+        res += 123;
+      } catch (NullPointerException npe) {
+        res += 768;
+      } catch (ArrayIndexOutOfBoundsException e) {
+        res += 456;
+      }
+      return res;
+    }
+
+    static int throwImplicitDivZero(int x, int y) {
+      return x / y;
+    }
+
+    static int checkDivZero() {
+      try {
+        throwImplicitDivZero(100, 0);
+        return 123;
+      } catch (NullPointerException npe) {
+        return 768;
+      } catch (ArrayIndexOutOfBoundsException e) {
+        return 987;
+      } catch (ArithmeticException e) {
+        return 456;
+      }
+    }
+
     public static void main(String[] args) {
         boolean failure = false;
         int res;
@@ -150,7 +193,6 @@ class ExceptionTest {
             failure = true;
         }
 
-if (false) { // TODO: enable this test when passing
         res = nullCheckTestThrow(1976);
         if (res == 2057) {
             System.out.println("nullCheckTestThrow PASSED");
@@ -158,7 +200,22 @@ if (false) { // TODO: enable this test when passing
             System.out.println("nullCheckTestThrow FAILED: " + res);
             failure = true;
         }
-}
+
+        res = checkAIOBE();
+        if (res == 912) {
+          System.out.println("checkAIOBE PASSED");
+        } else {
+          System.out.println("checkAIOBE FAILED: " + res);
+          failure = true;
+        }
+
+        res = checkDivZero();
+        if (res == 456) {
+          System.out.println("checkDivZero PASSED");
+        } else {
+          System.out.println("checkDivZero FAILED: " + res);
+          failure = true;
+        }
         System.exit(failure ? 1 : 0);
     }
 }

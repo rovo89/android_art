@@ -1,3 +1,5 @@
+#include "asm_support.h"
+
 #if defined(__arm__)
 
     .balign 4
@@ -12,9 +14,45 @@
 art_deliver_exception:
     stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
     sub sp, #16                  @ 4 words of space, bottom word will hold Method*
-    mov r1, r9
-    mov r2, sp
-    b artDeliverExceptionHelper  @ artThrowExceptionHelper(Throwable*, SP)
+    mov r1, r9                   @ pass Thread::Current
+    mov r2, sp                   @ pass SP
+    b artDeliverExceptionHelper  @ artDeliverExceptionHelper(Throwable*, Thread*, SP)
+
+    .global art_throw_null_pointer_exception_from_code
+    .extern artThrowNullPointerExceptionFromCodeHelper
+    /*
+     * Create NPE and deliver
+     */
+art_throw_null_pointer_exception_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
+    mov r0, r9                   @ pass Thread::Current
+    mov r1, sp                   @ pass SP
+    b artThrowNullPointerExceptionFromCodeHelper @ artThrowNullPointerExceptionFromCodeHelper(Thread*, SP)
+
+    .global art_throw_div_zero_from_code
+    .extern artThrowDivZeroFromCodeHelper
+    /*
+     * Create ArithmeticException and deliver
+     */
+art_throw_div_zero_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
+    mov r0, r9                   @ pass Thread::Current
+    mov r1, sp                   @ pass SP
+    b artThrowDivZeroFromCodeHelper @ artThrowDivZeroFromCodeHelper(Thread*, SP)
+
+    .global art_throw_array_bounds_from_code
+    .extern artThrowArrayBoundsFromCodeHelper
+    /*
+     * Create ArrayIndexOutOfBoundsException and deliver
+     */
+art_throw_array_bounds_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                  @ 4 words of space, bottom word will hold Method*
+    mov r2, r9                   @ pass Thread::Current
+    mov r3, sp                   @ pass SP
+    b artThrowArrayBoundsFromCodeHelper @ artThrowArrayBoundsFromCodeHelper(index, limit, Thread*, SP)
 
     .global art_invoke_interface_trampoline
     .extern artFindInterfaceMethodInCache
@@ -144,10 +182,10 @@ art_deliver_exception:
     mov %esp, %ecx
     // Outgoing argument set up
     pushl $0    // Alignment padding
-    pushl %ecx
-    pushl $0    // TODO: pass fs:offsetof(Thread,self_) - for now this is computed in the helper
-    pushl %eax
-    call artDeliverExceptionHelper  // artThrowExceptionHelper(Throwable*, Thread*, SP)
+    pushl %ecx                      // pass SP
+    pushl %fs:THREAD_SELF_OFFSET    // pass fs:offsetof(Thread,self_)
+    pushl %eax                      // pass Throwable*
+    call artDeliverExceptionHelper  // artDeliverExceptionHelper(Throwable*, Thread*, SP)
     int3
 
 #endif
