@@ -332,7 +332,7 @@ void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
 }
 
 Class* Method::GetReturnType() const {
-  DCHECK(GetDeclaringClass()->IsResolved());
+  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
   // Short-cut
   Class* result = GetDexCacheResolvedTypes()->Get(GetReturnTypeIdx());
   if (result == NULL) {

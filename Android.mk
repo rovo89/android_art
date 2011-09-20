@@ -15,7 +15,6 @@
 #
 
 LOCAL_PATH := $(call my-dir)
-include $(CLEAR_VARS)
 
 # These can be overridden via the environment or by editing to
 # enable/disable certain build configuration.
@@ -95,11 +94,34 @@ test-art-target-gtest: test-art-target-sync
 .PHONY: test-art-target-oat
 test-art-target-oat: $(ART_TEST_OAT_TARGETS)
 
+# $(1): name
+define build-art-framework-oat
+  $(call build-art-oat,$(1),$(TARGET_BOOT_OAT),$(TARGET_BOOT_DEX))
+endef
+
+$(eval $(call build-art-framework-oat,am))
+
+.PHONY: test-art-target-oat-process
+test-art-target-oat-process: $(TARGET_OUT_JAVA_LIBRARIES)/am.oat
+	adb remount
+	adb sync
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am && touch /sdcard/test-art-target-process"
+	$(hide) (adb pull /sdcard/test-art-target-process /tmp/ && echo test-art-target-process PASSED) || echo test-art-target-process FAILED
+	$(hide) rm /tmp/test-art-target-process
+
+.PHONY: dump-core-oat
+dump-core-oat: $(TARGET_CORE_OAT) $(OATDUMP)
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_CORE_DEX)) --image=$(TARGET_CORE_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
+	@echo Output in /tmp/core.oatdump.txt
+
 .PHONY: dump-boot-oat
 dump-boot-oat: $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT)
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
+	@echo Output in /tmp/boot.oatdump.txt
 
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art
 cpplint-art:
 	$(LOCAL_PATH)/tools/cpplint.py $(LOCAL_PATH)/src/*.h $(LOCAL_PATH)/src/*.cc
+
+include $(call all-makefiles-under,$(LOCAL_PATH))

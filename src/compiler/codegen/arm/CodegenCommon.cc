@@ -280,8 +280,11 @@ static ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1, int src2)
 {
     ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
-    assert(isPseudoOpcode(opcode) ||
-           (EncodingMap[opcode].flags & IS_TERTIARY_OP));
+    DCHECK(isPseudoOpcode(opcode) ||
+           (EncodingMap[opcode].flags & IS_TERTIARY_OP))
+            << (int)opcode << " "
+            << PrettyMethod(cUnit->method) << " "
+            << cUnit->currentDalvikOffset;
     insn->opcode = opcode;
     insn->operands[0] = dest;
     insn->operands[1] = src1;

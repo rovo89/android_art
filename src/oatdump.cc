@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -45,6 +47,10 @@ static void usage() {
           "       the generated image to match the target file system layout.\n"
           "      Example: --strip-prefix=out/target/product/crespo\n"
           "\n");
+  fprintf(stderr,
+          "  --output=<file> may be used to send the output to a file.\n"
+          "      Example: --output=/tmp/oatdump.txt\n"
+          "\n");
   exit(EXIT_FAILURE);
 }
 
@@ -52,14 +58,31 @@ const char* image_roots_descriptions_[ImageHeader::kImageRootsMax] = {
   "kJniStubArray",
 };
 
-struct OatDump {
-  const Space* dump_space;
+class OatDump {
 
-  bool InDumpSpace(const Object* object) {
-    DCHECK(dump_space != NULL);
-    const byte* o = reinterpret_cast<const byte*>(object);
-    return (o >= dump_space->GetBase() && o < dump_space->GetLimit());
+ public:
+  static void Dump(std::ostream& os, Space& image_space, const ImageHeader& image_header) {
+    os << "MAGIC:\n";
+    os << image_header.GetMagic() << "\n\n";
+
+    os << "ROOTS:\n";
+    for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
+      ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
+      os << StringPrintf("%s: %p\n",
+                         image_roots_descriptions_[i], image_header.GetImageRoot(image_root));
+    }
+    os << "\n";
+
+    os << "OBJECTS:\n" << std::flush;
+    OatDump state(image_space, os);
+    HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+    DCHECK(heap_bitmap != NULL);
+    heap_bitmap->Walk(OatDump::Callback, &state);
   }
+
+ private:
+
+  OatDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space_), os_(os) {}
 
   static void Callback(Object* obj, void* arg) {
     DCHECK(obj != NULL);
@@ -106,8 +129,15 @@ struct OatDump {
         }
       }
     }
-    std::cout << summary;
+    state->os_ << summary << std::flush;
   }
+
+  bool InDumpSpace(const Object* object) {
+    const byte* o = reinterpret_cast<const byte*>(object);
+    return (o >= dump_space_.GetBase() && o < dump_space_.GetLimit());
+  }
+  const Space& dump_space_;
+  std::ostream& os_;
 };
 
 int oatdump(int argc, char** argv) {
@@ -125,6 +155,8 @@ int oatdump(int argc, char** argv) {
   const char* boot_image_filename = NULL;
   std::vector<const char*> boot_dex_filenames;
   std::string strip_location_prefix;
+  std::ostream* os = &std::cout;
+  UniquePtr<std::ofstream> out;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -138,6 +170,14 @@ int oatdump(int argc, char** argv) {
       boot_dex_filenames.push_back(option.substr(strlen("--boot-dex-file=")).data());
     } else if (option.starts_with("--strip-prefix=")) {
       strip_location_prefix = option.substr(strlen("--strip-prefix=")).data();
+    } else if (option.starts_with("--output=")) {
+      const char* filename = option.substr(strlen("--output=")).data();
+      out.reset(new std::ofstream(filename));
+      if (!out->good()) {
+        fprintf(stderr, "failed to open output filename %s\n", filename);
+        usage();
+      }
+      os = out.get();
     } else {
       fprintf(stderr, "unknown argument %s\n", option.data());
       usage();
@@ -202,24 +242,7 @@ int oatdump(int argc, char** argv) {
     fprintf(stderr, "invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-
-  printf("MAGIC:\n");
-  printf("%s\n\n", image_header.GetMagic());
-
-  printf("ROOTS:\n");
-  for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
-    ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
-    printf("%s: %p\n", image_roots_descriptions_[i], image_header.GetImageRoot(image_root));
-  }
-  printf("\n");
-
-  printf("OBJECTS:\n");
-  OatDump state;
-  state.dump_space = image_space;
-  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
-  DCHECK(heap_bitmap != NULL);
-  heap_bitmap->Walk(OatDump::Callback, &state);
-
+  OatDump::Dump(*os, *image_space, image_header);
   return EXIT_SUCCESS;
 }
 

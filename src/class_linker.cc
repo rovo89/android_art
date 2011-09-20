@@ -657,7 +657,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
 
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
-  CHECK(!self->IsExceptionPending());
+  CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
   // Find the class in the loaded classes table.
   Class* klass = LookupClass(descriptor, class_loader);
   if (klass == NULL) {
@@ -701,7 +701,6 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
       LoadClass(dex_file, dex_class_def, klass, class_loader);
       // Check for a pending exception during load
       if (self->IsExceptionPending()) {
-        // TODO: free native allocations in klass
         return NULL;
       }
       ObjectLock lock(klass);
@@ -711,7 +710,6 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
       if (!success) {
         // We may fail to insert if we raced with another thread.
         klass->SetClinitThreadId(0);
-        // TODO: free native allocations in klass
         klass = LookupClass(descriptor, class_loader);
         CHECK(klass != NULL);
         return klass;
@@ -1230,7 +1228,12 @@ void ClassLinker::VerifyClass(Class* klass) {
     LOG(ERROR) << "Verification failed on class "
                << klass->GetDescriptor()->ToModifiedUtf8();
     Object* exception = Thread::Current()->GetException();
-    klass->SetVerifyErrorClass(exception->GetClass());
+    // CHECK(exception != NULL) << PrettyClass(klass);
+    if (exception == NULL) {
+      UNIMPLEMENTED(ERROR) << "null verification exception for " << PrettyClass(klass);
+    } else {
+      klass->SetVerifyErrorClass(exception->GetClass());
+    }
     klass->SetStatus(Class::kStatusError);
     return;
   }
@@ -1381,7 +1384,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
         const Method* method = interface_entry->GetMethodArray()->Get(j);
         if (!HasSameMethodDescriptorClasses(method, interface,
-                                            method->GetClass())) {
+                                            method->GetDeclaringClass())) {
           ThrowLinkageError("Classes resolve differently in interface");
           return false;
         }
@@ -1394,7 +1397,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
 bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
                                                  const Class* klass1,
                                                  const Class* klass2) {
-  const DexFile& dex_file = FindDexFile(method->GetClass()->GetDexCache());
+  const DexFile& dex_file = FindDexFile(method->GetDeclaringClass()->GetDexCache());
   const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
   DexFile::ParameterIterator *it;
   for (it = dex_file.GetParameterIterator(proto_id); it->HasNext(); it->Next()) {
@@ -1865,8 +1868,9 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   if (miranda_count != 0) {
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_count;
-    klass->SetVirtualMethods(
-        klass->GetVirtualMethods()->CopyOf(new_method_count));
+    klass->SetVirtualMethods((old_method_count == 0)
+                             ? AllocObjectArray<Method>(new_method_count)
+                             : klass->GetVirtualMethods()->CopyOf(new_method_count));
 
     ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
     CHECK(vtable != NULL);

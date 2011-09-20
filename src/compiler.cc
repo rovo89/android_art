@@ -2,6 +2,8 @@
 
 #include "compiler.h"
 
+#include <sys/mman.h>
+
 #include "assembler.h"
 #include "class_linker.h"
 #include "class_loader.h"
@@ -72,7 +74,9 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   // Class derived values are more complicated, they require the linker and loader.
   for (size_t type_idx = 0; type_idx < dex_cache->NumResolvedTypes(); type_idx++) {
     Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
-    CHECK(klass->IsResolved());
+    if (klass == NULL) {
+      Thread::Current()->ClearException();
+    }
   }
 
   // Method and Field are the worst. We can't resolve without either
@@ -172,13 +176,19 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
-    class_linker->EnsureInitialized(klass, false);
+    if (klass != NULL) {
+      class_linker->EnsureInitialized(klass, false);
+    }
+    // clear any class not found or verification exceptions
+    Thread::Current()->ClearException();
   }
 
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   for (size_t type_idx = 0; type_idx < dex_cache->NumResolvedTypes(); type_idx++) {
     Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
-    if (klass->IsInitialized()) {
+    if (klass == NULL) {
+      Thread::Current()->ClearException();
+    } else if (klass->IsInitialized()) {
       dex_cache->GetInitializedStaticStorage()->Set(type_idx, klass);
     }
   }
@@ -199,8 +209,15 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
-    CHECK(klass != NULL);
-    CompileClass(klass);
+    if (klass == NULL) {
+      // previous verification error will cause FindClass to throw
+      Thread* self = Thread::Current();
+      // CHECK(self->IsExceptionPending());
+      UNIMPLEMENTED(WARNING) << "CHECK for verification error after FindClass " << descriptor;
+      self->ClearException();
+    } else {
+      CompileClass(klass);
+    }
   }
 }
 

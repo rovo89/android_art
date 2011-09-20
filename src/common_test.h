@@ -2,6 +2,7 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -104,6 +105,8 @@ class CommonTest : public testing::Test {
     Runtime::Options options;
     options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair("-Xms16m", reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair("-Xmx16m", reinterpret_cast<void*>(NULL)));
     runtime_.reset(Runtime::Create(options, false));
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();

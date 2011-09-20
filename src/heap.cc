@@ -330,6 +330,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
+  UNIMPLEMENTED(FATAL) << "No implicit GC, use larger -Xms -Xmx";
   CollectGarbageInternal();
   ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {

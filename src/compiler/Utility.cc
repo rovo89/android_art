@@ -78,7 +78,7 @@ retry:
         currentArena->next = newArena;
         currentArena = newArena;
         numArenaBlocks++;
-        if (numArenaBlocks > 1000) {
+        if (numArenaBlocks > 20000) {
             LOG(INFO) << "Total arena pages: " << numArenaBlocks;
         }
         goto retry;
@@ -373,7 +373,8 @@ void oatCopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src)
 bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                             const ArenaBitVector* src2)
 {
-    if (dest->storageSize != src1->storageSize ||
+    if (src2 == NULL ||
+        dest->storageSize != src1->storageSize ||
         dest->storageSize != src2->storageSize ||
         dest->expandable != src1->expandable ||
         dest->expandable != src2->expandable)
@@ -392,7 +393,8 @@ bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
 bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                         const ArenaBitVector* src2)
 {
-    if (dest->storageSize != src1->storageSize ||
+    if (src2 == NULL ||
+        dest->storageSize != src1->storageSize ||
         dest->storageSize != src2->storageSize ||
         dest->expandable != src1->expandable ||
         dest->expandable != src2->expandable)

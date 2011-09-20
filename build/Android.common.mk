@@ -122,6 +122,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/mark_sweep.cc \
 	src/managed_register_arm.cc \
 	src/managed_register_x86.cc \
+	src/mem_map.cc \
 	src/memory_region.cc \
 	src/monitor.cc \
 	src/mspace.c \

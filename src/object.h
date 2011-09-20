@@ -1536,7 +1536,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   uint32_t GetSuperClassTypeIdx() const {
-    DCHECK(IsIdxLoaded());
+    DCHECK(IsIdxLoaded() || IsErroneous());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, super_class_type_idx_),
                       false);
   }
@@ -1567,7 +1567,7 @@ class MANAGED Class : public StaticStorageBase {
   void SetDexCache(DexCache* new_dex_cache);
 
   ObjectArray<Method>* GetDirectMethods() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Method>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
   }
@@ -1597,7 +1597,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   ObjectArray<Method>* GetVirtualMethods() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Method>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
   }
@@ -1616,12 +1616,12 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Method* GetVirtualMethod(uint32_t i) const {
-    DCHECK(IsResolved());
+    DCHECK(IsResolved() || IsErroneous());
     return GetVirtualMethods()->Get(i);
   }
 
   Method* GetVirtualMethodDuringLinking(uint32_t i) const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     return GetVirtualMethods()->Get(i);
   }
 
@@ -1633,13 +1633,13 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   ObjectArray<Method>* GetVTable() const {
-    DCHECK(IsResolved());
+    DCHECK(IsResolved() || IsErroneous());
     return GetFieldObject<ObjectArray<Method>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
   }
 
   ObjectArray<Method>* GetVTableDuringLinking() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Method>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
   }
@@ -1690,14 +1690,14 @@ class MANAGED Class : public StaticStorageBase {
                            const StringPiece& signature);
 
   size_t NumInterfaces() const {
-    CHECK(IsIdxLoaded()); // used during loading
+    CHECK(IsIdxLoaded() || IsErroneous()); // used during loading
     ObjectArray<Class>* interfaces = GetFieldObject<ObjectArray<Class>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false);
     return (interfaces != NULL) ? interfaces->GetLength() : 0;
   }
 
   IntArray* GetInterfacesTypeIdx() const {
-    CHECK(IsIdxLoaded());
+    CHECK(IsIdxLoaded() || IsErroneous());
     return GetFieldObject<IntArray*>(
         OFFSET_OF_OBJECT_MEMBER(Class, interfaces_type_idx_), false);
   }
@@ -1705,7 +1705,7 @@ class MANAGED Class : public StaticStorageBase {
   void SetInterfacesTypeIdx(IntArray* new_interfaces_idx);
 
   ObjectArray<Class>* GetInterfaces() const {
-    CHECK(IsLoaded());
+    CHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Class>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false);
   }
@@ -1739,7 +1739,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   ObjectArray<InterfaceEntry>* GetIfTable() const {
-    DCHECK(IsResolved());
+    DCHECK(IsResolved() || IsErroneous());
     return GetFieldObject<ObjectArray<InterfaceEntry>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
   }
@@ -1750,7 +1750,7 @@ class MANAGED Class : public StaticStorageBase {
 
   // Get instance fields
   ObjectArray<Field>* GetIFields() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
   }
@@ -1779,14 +1779,14 @@ class MANAGED Class : public StaticStorageBase {
 
   // Returns the number of instance fields containing reference types.
   size_t NumReferenceInstanceFields() const {
-    DCHECK(IsResolved());
+    DCHECK(IsResolved() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
   }
 
   size_t NumReferenceInstanceFieldsDuringLinking() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
@@ -1799,7 +1799,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   uint32_t GetReferenceInstanceOffsets() const {
-    DCHECK(IsResolved());
+    DCHECK(IsResolved() || IsErroneous());
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_), false);
   }
@@ -1813,14 +1813,14 @@ class MANAGED Class : public StaticStorageBase {
 
   // Returns the number of static fields containing reference types.
   size_t NumReferenceStaticFields() const {
-    DCHECK(IsResolved());
+    DCHECK(IsResolved() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
   }
 
   size_t NumReferenceStaticFieldsDuringLinking() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
     return GetField32(
         OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
@@ -1833,7 +1833,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   ObjectArray<Field>* GetSFields() const {
-    DCHECK(IsLoaded());
+    DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
   }
@@ -1877,7 +1877,7 @@ class MANAGED Class : public StaticStorageBase {
   Field* FindDeclaredStaticField(const StringPiece& name, Class* type);
 
   pid_t GetClinitThreadId() const {
-    DCHECK(IsIdxLoaded());
+    DCHECK(IsIdxLoaded() || IsErroneous());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), false);
   }
 
@@ -2113,7 +2113,7 @@ inline size_t Object::SizeOf() const {
 }
 
 inline void Field::SetOffset(MemberOffset num_bytes) {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   Class* type = GetTypeDuringLinking();
   if (type != NULL && (type->IsPrimitiveDouble() || type->IsPrimitiveLong())) {
     DCHECK(IsAligned(num_bytes.Uint32Value(), 8));
@@ -2126,7 +2126,7 @@ inline Class* Field::GetDeclaringClass() const {
   Class* result = GetFieldObject<Class*>(
       OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), false);
   DCHECK(result != NULL);
-  DCHECK(result->IsLoaded());
+  DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
@@ -2140,7 +2140,7 @@ inline Class* Method::GetDeclaringClass() const {
       GetFieldObject<Class*>(
           OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
   DCHECK(result != NULL);
-  DCHECK(result->IsLoaded());
+  DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
@@ -2150,7 +2150,7 @@ inline void Method::SetDeclaringClass(Class *new_declaring_class) {
 }
 
 inline uint32_t Method::GetReturnTypeIdx() const {
-  DCHECK(GetDeclaringClass()->IsResolved());
+  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_idx_),
                     false);
 }
@@ -2442,7 +2442,7 @@ class MANAGED String : public Object {
 };
 
 inline const String* Field::GetName() const {
-   DCHECK(GetDeclaringClass()->IsLoaded());
+   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
    String* result =
        GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Field, name_), false);
    DCHECK(result != NULL);
@@ -2455,29 +2455,29 @@ inline void Field::SetName(String* new_name) {
 }
 
 inline uint32_t Field::GetAccessFlags() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), false);
 }
 
 inline uint32_t Field::GetTypeIdx() const {
-  DCHECK(GetDeclaringClass()->IsIdxLoaded());
+  DCHECK(GetDeclaringClass()->IsIdxLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, type_idx_), false);
 }
 
 inline MemberOffset Field::GetOffset() const {
-  DCHECK(GetDeclaringClass()->IsResolved());
+  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
   return MemberOffset(
       GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
 }
 
 inline MemberOffset Field::GetOffsetDuringLinking() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return MemberOffset(
       GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
 }
 
 inline const String* Method::GetName() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   const String* result =
       GetFieldObject<const String*>(
           OFFSET_OF_OBJECT_MEMBER(Method, name_), false);
@@ -2512,7 +2512,7 @@ inline void Method::SetRegisterMapHeader(ByteArray* header) {
 }
 
 inline String* Method::GetShorty() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetFieldObject<String*>(
       OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false);
 }
@@ -2525,7 +2525,7 @@ inline void Method::SetShorty(String* new_shorty) {
 }
 
 inline const String* Method::GetSignature() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   const String* result =
       GetFieldObject<const String*>(
           OFFSET_OF_OBJECT_MEMBER(Method, signature_), false);
@@ -2541,7 +2541,8 @@ inline void Method::SetSignature(String* new_signature) {
 inline uint32_t Class::GetAccessFlags() const {
   // Check class is loaded or this is java.lang.String that has a
   // circularity issue during loading the names of its members
-  DCHECK(IsLoaded() || this == String::GetJavaLangString() ||
+  DCHECK(IsLoaded() || IsErroneous() ||
+         this == String::GetJavaLangString() ||
          this == Field::GetJavaLangReflectField() ||
          this == Method::GetJavaLangReflectMethod()) << PrettyClass(this);
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
@@ -2556,7 +2557,7 @@ inline void Class::SetDescriptor(String* new_descriptor) {
 }
 
 inline String* Class::GetSourceFile() const {
-  DCHECK(IsLoaded());
+  DCHECK(IsLoaded() || IsErroneous());
   return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Class, source_file_), false);
 }
 
@@ -2565,32 +2566,32 @@ inline void Class::SetSourceFile(String* new_source_file) {
 }
 
 inline uint32_t Method::GetAccessFlags() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), false);
 }
 
 inline uint16_t Method::GetMethodIndex() const {
-  DCHECK(GetDeclaringClass()->IsResolved());
+  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), false);
 }
 
 inline uint16_t Method::NumRegisters() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_), false);
 }
 
 inline uint16_t Method::NumIns() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_), false);
 }
 
 inline uint16_t Method::NumOuts() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_), false);
 }
 
 inline uint32_t Method::GetProtoIdx() const {
-  DCHECK(GetDeclaringClass()->IsLoaded());
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, proto_idx_), false);
 }
 

@@ -18,6 +18,7 @@
 
 #include "UniquePtr.h"
 #include "logging.h"
+#include "utils.h"
 
 namespace art {
 

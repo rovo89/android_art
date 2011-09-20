@@ -39,7 +39,7 @@ static void usage() {
   // TODO: remove this by making boot image contain boot DexFile information?
   fprintf(stderr,
           "  --boot-dex-file=<dex-file>: specifies a .dex file that is part of the boot\n"
-          "       image specified with --boot. \n"
+          "      image specified with --boot. \n"
           "      Example: --boot-dex-file=/system/framework/core.jar\n"
           "\n");
   fprintf(stderr,
@@ -48,8 +48,18 @@ static void usage() {
           "\n");
   fprintf(stderr,
           "  --strip-prefix may be used to strip a path prefix from dex file names in the\n"
-          "       the generated image to match the target file system layout.\n"
+          "      the generated image to match the target file system layout.\n"
           "      Example: --strip-prefix=out/target/product/crespo\n"
+          "\n");
+  fprintf(stderr,
+          "  -Xms<n> may be used to specify an initial heap size for the runtime used to\n"
+          "      run dex2oat\n"
+          "      Example: -Xms256m\n"
+          "\n");
+  fprintf(stderr,
+          "  -Xmx<n> may be used to specify a maximum heap size for the runtime used to\n"
+          "      run dex2oat\n"
+          "      Example: -Xmx256m\n"
           "\n");
   exit(EXIT_FAILURE);
 }
@@ -71,6 +81,8 @@ int dex2oat(int argc, char** argv) {
   std::vector<const char*> boot_dex_filenames;
   uintptr_t image_base = 0;
   std::string strip_location_prefix;
+  const char* Xms = NULL;
+  const char* Xmx = NULL;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -85,7 +97,7 @@ int dex2oat(int argc, char** argv) {
       char* end;
       image_base = strtoul(image_base_str, &end, 16);
       if (end == image_base_str || *end != '\0') {
-        fprintf(stderr, "could not parse hexadecimal value for option %s\n", option.data());
+        fprintf(stderr, "Failed to parse hexadecimal value for option %s\n", option.data());
         usage();
       }
     } else if (option.starts_with("--boot=")) {
@@ -97,6 +109,10 @@ int dex2oat(int argc, char** argv) {
       boot_dex_filenames.push_back(option.substr(strlen("--boot-dex-file=")).data());
     } else if (option.starts_with("--strip-prefix=")) {
       strip_location_prefix = option.substr(strlen("--strip-prefix=")).data();
+    } else if (option.starts_with("-Xms")) {
+      Xms = option.data();
+    } else if (option.starts_with("-Xmx")) {
+      Xmx = option.data();
     } else {
       fprintf(stderr, "unknown argument %s\n", option.data());
       usage();
@@ -137,6 +153,12 @@ int dex2oat(int argc, char** argv) {
   } else {
     options.push_back(std::make_pair("bootclasspath", &boot_dex_files));
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
+  }
+  if (Xms != NULL) {
+    options.push_back(std::make_pair(Xms, reinterpret_cast<void*>(NULL)));
+  }
+  if (Xmx != NULL) {
+    options.push_back(std::make_pair(Xmx, reinterpret_cast<void*>(NULL)));
   }
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
   if (runtime.get() == NULL) {

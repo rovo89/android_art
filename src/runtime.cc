@@ -300,8 +300,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
-        LOG(FATAL) << "Unrecognized option " << option;
-        return NULL;
+        LOG(ERROR) << "Unrecognized option " << option;
+        // TODO: this should exit, but for now tolerate unknown options
+        //return NULL;
       }
     }
   }
@@ -321,7 +322,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   if (parsed->boot_class_path_.empty()) {
     if (parsed->boot_class_path_string_ == NULL) {
       const char* BOOTCLASSPATH = getenv("BOOTCLASSPATH");
-      parsed->boot_class_path_string_ = BOOTCLASSPATH;
+      if (BOOTCLASSPATH != NULL) {
+        parsed->boot_class_path_string_ = BOOTCLASSPATH;
+      }
     }
     CreateClassPath(parsed->boot_class_path_string_, parsed->boot_class_path_);
   }

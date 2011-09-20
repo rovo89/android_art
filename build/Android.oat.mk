@@ -25,26 +25,37 @@ OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
 OATDUMP := $(OATDUMPD)
 
 # start of oat reserved address space
-OAT_HOST_BASE_ADDRESS := 0x50000000
-OAT_TARGET_BASE_ADDRESS := 0x50000000
+OAT_HOST_BASE_ADDRESS   := 0x60000000
+OAT_TARGET_BASE_ADDRESS := 0x60000000
 
-HOST_BOOT_OAT := $(HOST_OUT_JAVA_LIBRARIES)/boot.oat
-TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
+########################################################################
+# A smaller libcore only oat file
+HOST_CORE_JARS := core-hostdex
+TARGET_CORE_JARS := core
 
-# TODO: just use libcore for now, not full bootclasspath.
-# eventually need to replace with full list based on DEXPREOPT_BOOT_JARS.
-HOST_BOOT_JARS := core-hostdex
-TARGET_BOOT_JARS := core
+HOST_CORE_DEX   := $(foreach jar,$(HOST_CORE_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)
+TARGET_CORE_DEX := $(foreach jar,$(TARGET_CORE_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
 
-HOST_BOOT_DEX   := $(foreach jar,$(HOST_BOOT_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)
-TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
+HOST_CORE_OAT := $(HOST_OUT_JAVA_LIBRARIES)/core.oat
+TARGET_CORE_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/core.oat
 
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
-$(HOST_BOOT_OAT): $(HOST_BOOT_DEX) $(DEX2OAT)
+$(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT)
 	@echo "host dex2oat: $@ ($<)"
-	$(hide) $(DEX2OAT) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --image=$@ --base=$(OAT_HOST_BASE_ADDRESS)
+	$(hide) $(DEX2OAT) -Xms16m -Xmx16m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --image=$@ --base=$(OAT_HOST_BASE_ADDRESS)
+
+# TODO: change DEX2OATD to order-only prerequisite when output is stable
+$(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT)
+	@echo "target dex2oat: $@ ($<)"
+	$(hide) $(DEX2OAT) -Xms32m -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --image=$@ --base=$(OAT_TARGET_BASE_ADDRESS) --strip-prefix=$(PRODUCT_OUT)
+
+########################################################################
+# The full system boot classpath
+TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
+TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
+TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
 
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT)
 	@echo "target dex2oat: $@ ($<)"
-	$(hide) $(DEX2OAT) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --image=$@ --base=$(OAT_TARGET_BASE_ADDRESS) --strip-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) -Xms256m -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --image=$@ --base=$(OAT_TARGET_BASE_ADDRESS) --strip-prefix=$(PRODUCT_OUT)

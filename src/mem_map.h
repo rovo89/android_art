@@ -17,9 +17,10 @@
 #ifndef ART_SRC_MEM_MAP_H_
 #define ART_SRC_MEM_MAP_H_
 
-#include <sys/mman.h>
+#include <stddef.h>
+#include <sys/types.h>
 
-#include "utils.h"
+#include "globals.h"
 
 namespace art {
 
@@ -37,22 +38,7 @@ class MemMap {
   // Request an anonymous region of a specified length and a requested base address.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(byte* addr, size_t length, int prot) {
-    CHECK_NE(0U, length);
-    CHECK_NE(0, prot);
-    size_t page_aligned_size = RoundUp(length, kPageSize);
-    byte* actual = reinterpret_cast<byte*>(mmap(addr,
-                                                page_aligned_size,
-                                                prot,
-                                                MAP_PRIVATE | MAP_ANONYMOUS,
-                                                -1,
-                                                0));
-    if (actual == MAP_FAILED) {
-      PLOG(ERROR) << "mmap failed";
-      return NULL;
-    }
-    return new MemMap(actual, length, actual, page_aligned_size);
-  }
+  static MemMap* Map(byte* addr, size_t length, int prot);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
@@ -67,44 +53,10 @@ class MemMap {
   // requesting a specific address for the base of the mapping.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(byte* addr, size_t length, int prot, int flags, int fd, off_t start) {
-    CHECK_NE(0U, length);
-    CHECK_NE(0, prot);
-    CHECK(flags & MAP_SHARED || flags & MAP_PRIVATE);
-    // adjust to be page-aligned
-    int page_offset = start % kPageSize;
-    off_t page_aligned_offset = start - page_offset;
-    size_t page_aligned_size = RoundUp(length + page_offset, kPageSize);
-    byte* actual = reinterpret_cast<byte*>(mmap(addr,
-                                                page_aligned_size,
-                                                prot,
-                                                flags,
-                                                fd,
-                                                page_aligned_offset));
-    if (actual == MAP_FAILED) {
-      PLOG(ERROR) << "mmap failed";
-      return NULL;
-    }
-    return new MemMap(actual + page_offset, length, actual, page_aligned_size);
-  }
+  static MemMap* Map(byte* addr, size_t length, int prot, int flags, int fd, off_t start);
 
-  ~MemMap() {
-    Unmap();
-  }
-
-  // Release a memory mapping, returning true on success or it was previously unmapped.
-  bool Unmap() {
-    if (base_addr_ == NULL && base_length_ == 0) {
-      return true;
-    }
-    int result = munmap(base_addr_, base_length_);
-    base_addr_ = NULL;
-    base_length_ = 0;
-    if (result == -1) {
-      return false;
-    }
-    return true;
-  }
+  // Releases the memory mapping
+  ~MemMap();
 
   byte* GetAddress() const {
     return addr_;
@@ -119,13 +71,7 @@ class MemMap {
   }
 
  private:
-  MemMap(byte* addr, size_t length, void* base_addr, size_t base_length)
-      : addr_(addr), length_(length), base_addr_(base_addr), base_length_(base_length) {
-    CHECK(addr_ != NULL);
-    CHECK(length_ != 0);
-    CHECK(base_addr_ != NULL);
-    CHECK(base_length_ != 0);
-  };
+  MemMap(byte* addr, size_t length, void* base_addr, size_t base_length);
 
   byte*  addr_;              // start of data
   size_t length_;            // length of data
