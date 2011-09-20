@@ -15,7 +15,9 @@
  */
 
 #include "jni_internal.h"
+#include "class_loader.h"
 #include "object.h"
+#include "thread_list.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
@@ -23,14 +25,58 @@ namespace art {
 
 namespace {
 
-jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject targetThread, jobjectArray javaSteArray) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+class StackGetter {
+ public:
+  StackGetter(JNIEnv* env, Thread* thread) : env_(env), thread_(thread), trace_(NULL) {
+  }
+
+  static void Callback(void* arg) {
+    reinterpret_cast<StackGetter*>(arg)->Callback();
+  }
+
+  jobject GetTrace() {
+    return trace_;
+  }
+
+ private:
+  void Callback() {
+    trace_ = thread_->CreateInternalStackTrace(env_);
+  }
+
+  JNIEnv* env_;
+  Thread* thread_;
+  jobject trace_;
+};
+
+jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
+  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  if (thread == NULL) {
+    return NULL;
+  }
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  StackGetter stack_getter(env, thread);
+  thread_list->RunWhileSuspended(thread, StackGetter::Callback, &stack_getter);
+  return stack_getter.GetTrace();
+}
+
+jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, jobjectArray javaSteArray) {
+  jobject trace = GetThreadStack(env, javaThread);
+  if (trace == NULL) {
+    return 0;
+  }
+  int32_t depth;
+  Thread::InternalStackTraceToStackTraceElementArray(env, trace, javaSteArray, &depth);
+  return depth;
 }
 
 jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+  // Returns the defining class loader of the caller's caller.
+  Frame frame = Thread::Current()->GetTopOfStack();
+  frame.Next();
+  frame.Next();
+  Method* callerCaller = frame.GetMethod();
+  const Object* cl = callerCaller->GetDeclaringClass()->GetClassLoader();
+  return AddLocalReference<jobject>(env, cl);
 }
 
 jobjectArray VMStack_getClasses(JNIEnv* env, jclass, jint maxDepth) {
@@ -39,13 +85,22 @@ jobjectArray VMStack_getClasses(JNIEnv* env, jclass, jint maxDepth) {
 }
 
 jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  // Returns the class of the caller's caller's caller.
+  Frame frame = Thread::Current()->GetTopOfStack();
+  frame.Next();
+  frame.Next();
+  frame.Next();
+  Method* callerCallerCaller = frame.GetMethod();
+  Class* c = callerCallerCaller->GetDeclaringClass();
+  return AddLocalReference<jclass>(env, c);
 }
 
-jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject targetThread) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread) {
+  jobject trace = GetThreadStack(env, javaThread);
+  if (trace == NULL) {
+    return NULL;
+  }
+  return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
 }
 
 static JNINativeMethod gMethods[] = {

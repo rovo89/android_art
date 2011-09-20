@@ -160,13 +160,11 @@ TEST_F(ExceptionTest, StackTraceElement) {
   Thread* thread = Thread::Current();
   thread->SetTopOfStack(fake_stack, reinterpret_cast<uintptr_t>(method_g_->GetCode()) + 3);
 
-  jobject internal = thread->CreateInternalStackTrace();
-  jobjectArray ste_array =
-      Thread::InternalStackTraceToStackTraceElementArray(internal,
-                                                         thread->GetJniEnv());
+  JNIEnv* env = thread->GetJniEnv();
+  jobject internal = thread->CreateInternalStackTrace(env);
+  jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
   ObjectArray<StackTraceElement>* trace_array =
-      Decode<ObjectArray<StackTraceElement>*>(thread->GetJniEnv(), ste_array);
-
+      Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
 
   ASSERT_TRUE(trace_array->Get(0) != NULL);
   EXPECT_STREQ("java.lang.MyClass",

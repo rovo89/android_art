@@ -464,9 +464,8 @@ jint Java_MyClass_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     ScopedJniThreadState ts(env);
 
     // Build stack trace
-    jobject internal = Thread::Current()->CreateInternalStackTrace();
-    jobjectArray ste_array =
-        Thread::InternalStackTraceToStackTraceElementArray(internal, env);
+    jobject internal = Thread::Current()->CreateInternalStackTrace(env);
+    jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
     ObjectArray<StackTraceElement>* trace_array =
         Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
     EXPECT_TRUE(trace_array != NULL);

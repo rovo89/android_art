@@ -254,12 +254,7 @@ class PACKED Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
-  static Thread* FromManagedThread(JNIEnv* env, jobject thread) {
-    // TODO: make these more generally available, and cached.
-    jclass java_lang_Thread = env->FindClass("java/lang/Thread");
-    jfieldID fid = env->GetFieldID(java_lang_Thread, "vmData", "I");
-    return reinterpret_cast<Thread*>(static_cast<uintptr_t>(env->GetIntField(thread, fid)));
-  }
+  static Thread* FromManagedThread(JNIEnv* env, jobject thread);
 
   void Dump(std::ostream& os) const;
 
@@ -456,11 +451,14 @@ class PACKED Thread {
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[]
-  jobject CreateInternalStackTrace() const;
+  jobject CreateInternalStackTrace(JNIEnv* env) const;
 
-  // Convert an internal stack trace representation to a StackTraceElement[]
-  static jobjectArray
-      InternalStackTraceToStackTraceElementArray(jobject internal, JNIEnv* env);
+  // Convert an internal stack trace representation (returned by CreateInternalStackTrace) to a
+  // StackTraceElement[]. If output_array is NULL, a new array is created, otherwise as many
+  // frames as will fit are written into the given array. If stack_depth is non-NULL, it's updated
+  // with the number of valid frames in the returned array.
+  static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
+      jobjectArray output_array = NULL, int* stack_depth = NULL);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 

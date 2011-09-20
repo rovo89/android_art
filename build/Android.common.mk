@@ -86,8 +86,10 @@ LIBART_COMMON_SRC_FILES := \
 	src/compiler/codegen/arm/Assemble.cc \
 	src/compiler/codegen/arm/LocalOptimizations.cc \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc \
+	src/dalvik_system_VMDebug.cc \
 	src/dalvik_system_VMRuntime.cc \
 	src/dalvik_system_VMStack.cc \
+	src/dalvik_system_Zygote.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
@@ -99,7 +101,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
 	src/intern_table.cc \
-	src/dalvik_system_VMDebug.cc \
 	src/java_lang_Class.cc \
 	src/java_lang_Object.cc \
 	src/java_lang_Runtime.cc \

@@ -122,6 +122,29 @@ void ThreadList::SuspendAll() {
   //LOG(INFO) << *self << " SuspendAll complete";
 }
 
+void ThreadList::Suspend(Thread* thread) {
+  DCHECK(thread != Thread::Current());
+
+  // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
+
+  //LOG(INFO) << "Suspend(" << *thread << ") starting...";
+
+  MutexLock mu(thread_list_lock_);
+  if (!Contains(thread)) {
+    return;
+  }
+
+  {
+    MutexLock mu(thread_suspend_count_lock_);
+    ++thread->suspend_count_;
+  }
+
+  thread->WaitUntilSuspended();
+
+  //LOG(INFO) << "Suspend(" << *thread << ") complete";
+}
+
+
 void ThreadList::ResumeAll() {
   Thread* self = Thread::Current();
 
@@ -154,6 +177,45 @@ void ThreadList::ResumeAll() {
   }
 
   //LOG(INFO) << *self << " ResumeAll complete";
+}
+
+void ThreadList::Resume(Thread* thread) {
+  DCHECK(thread != Thread::Current());
+
+  //LOG(INFO) << "Resume(" << *thread << ") starting...";
+
+  {
+    MutexLock mu1(thread_list_lock_);
+    MutexLock mu2(thread_suspend_count_lock_);
+    if (!Contains(thread)) {
+      return;
+    }
+    if (thread->suspend_count_ > 0) {
+      --thread->suspend_count_;
+    } else {
+      LOG(WARNING) << *thread << " suspend count already zero";
+    }
+  }
+
+  {
+    //LOG(INFO) << "Resume(" << *thread << ") waking others";
+    MutexLock mu(thread_suspend_count_lock_);
+    thread_suspend_count_cond_.Broadcast();
+  }
+
+  //LOG(INFO) << "Resume(" << *thread << ") complete";
+}
+
+void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg) {
+  DCHECK(thread != NULL);
+  Thread* self = Thread::Current();
+  if (thread != self) {
+    Suspend(thread);
+  }
+  callback(arg);
+  if (thread != self) {
+    Resume(thread);
+  }
 }
 
 void ThreadList::Register(Thread* thread) {

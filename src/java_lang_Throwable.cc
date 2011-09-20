@@ -25,11 +25,11 @@ namespace {
 
 jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
   JNIEnvExt* env_ext = reinterpret_cast<JNIEnvExt*>(env);
-  return env_ext->self->CreateInternalStackTrace();
+  return env_ext->self->CreateInternalStackTrace(env);
 }
 
 jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {
-  return Thread::InternalStackTraceToStackTraceElementArray(javaStackState, env);
+  return Thread::InternalStackTraceToStackTraceElementArray(env, javaStackState);
 }
 
 JNINativeMethod gMethods[] = {

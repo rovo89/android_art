@@ -88,7 +88,7 @@ void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
 
 jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
   // TODO: debugger!
-  return false;
+  return JNI_FALSE;
 }
 
 jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {

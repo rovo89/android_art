@@ -56,10 +56,11 @@ static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
 // Temporary debugging hook for compiler.
 void DebugMe(Method* method, uint32_t info) {
-    LOG(INFO) << "DebugMe";
-    if (method != NULL)
-        LOG(INFO) << PrettyMethod(method);
-    LOG(INFO) << "Info: " << info;
+  LOG(INFO) << "DebugMe";
+  if (method != NULL) {
+    LOG(INFO) << PrettyMethod(method);
+  }
+  LOG(INFO) << "Info: " << info;
 }
 
 }  // namespace art
@@ -479,6 +480,11 @@ void SetVmData(Object* managed_thread, Thread* native_thread) {
   gThread_vmData->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
+Thread* Thread::FromManagedThread(JNIEnv* env, jobject java_thread) {
+  Object* thread = Decode<Object*>(env, java_thread);
+  return reinterpret_cast<Thread*>(static_cast<uintptr_t>(gThread_vmData->GetInt(thread)));
+}
+
 void Thread::Create(Object* peer, size_t stack_size) {
   CHECK(peer != NULL);
 
@@ -549,7 +555,8 @@ jobject GetWellKnownThreadGroup(JNIEnv* env, const char* field_name) {
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kNative);
+  Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, Thread::kNative);
 
   JNIEnv* env = jni_env_;
 
@@ -563,21 +570,16 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
 
   jobject peer = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
+  peer_ = DecodeJObject(peer);
+  SetVmData(peer_, self);
 
   // Because we mostly run without code available (in the compiler, in tests), we
   // manually assign the fields the constructor should have set.
   // TODO: lose this.
-  jfieldID fid;
-  fid = env->GetFieldID(c, "group", "Ljava/lang/ThreadGroup;");
-  env->SetObjectField(peer, fid, thread_group);
-  fid = env->GetFieldID(c, "name", "Ljava/lang/String;");
-  env->SetObjectField(peer, fid, thread_name);
-  fid = env->GetFieldID(c, "priority", "I");
-  env->SetIntField(peer, fid, thread_priority);
-  fid = env->GetFieldID(c, "daemon", "Z");
-  env->SetBooleanField(peer, fid, thread_is_daemon);
-
-  peer_ = DecodeJObject(peer);
+  gThread_daemon->SetBoolean(peer_, thread_is_daemon);
+  gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group));
+  gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name));
+  gThread_priority->SetInt(peer_, thread_priority);
 }
 
 void Thread::InitStackHwm() {
@@ -867,9 +869,6 @@ void Thread::Startup() {
 }
 
 void Thread::FinishStartup() {
-  // Finish attaching the main thread.
-  Thread::Current()->CreatePeer("main", false);
-
   // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* boolean_class = class_linker->FindPrimitiveClass('Z');
@@ -892,6 +891,9 @@ void Thread::FinishStartup() {
   gThreadGroup_removeThread = ThreadGroup_class->FindVirtualMethod("removeThread", "(Ljava/lang/Thread;)V");
   gUncaughtExceptionHandler_uncaughtException =
       UncaughtExceptionHandler_class->FindVirtualMethod("uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
+
+  // Finish attaching the main thread.
+  Thread::Current()->CreatePeer("main", false);
 }
 
 void Thread::Shutdown() {
@@ -1124,8 +1126,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   explicit BuildInternalStackTraceVisitor(int depth, int skip_depth, ScopedJniThreadState& ts)
       : skip_depth_(skip_depth), count_(0) {
     // Allocate method trace with an extra slot that will hold the PC trace
-    method_trace_ = Runtime::Current()->GetClassLinker()->
-        AllocObjectArray<Object>(depth + 1);
+    method_trace_ = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1);
     // Register a local reference as IntArray::Alloc may trigger GC
     local_ref_ = AddLocalReference<jobject>(ts.Env(), method_trace_);
     pc_trace_ = IntArray::Alloc(depth);
@@ -1207,7 +1208,7 @@ void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) co
   }
 }
 
-jobject Thread::CreateInternalStackTrace() const {
+jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
   // Compute depth of stack
   CountStackDepthVisitor count_visitor;
   WalkStack(&count_visitor);
@@ -1215,7 +1216,7 @@ jobject Thread::CreateInternalStackTrace() const {
   int32_t skip_depth = count_visitor.GetSkipDepth();
 
   // Transition into runnable state to work on Object*/Array*
-  ScopedJniThreadState ts(jni_env_);
+  ScopedJniThreadState ts(env);
 
   // Build internal stack trace
   BuildInternalStackTraceVisitor build_trace_visitor(depth, skip_depth, ts);
@@ -1224,8 +1225,8 @@ jobject Thread::CreateInternalStackTrace() const {
   return build_trace_visitor.GetInternalStackTrace();
 }
 
-jobjectArray Thread::InternalStackTraceToStackTraceElementArray(jobject internal,
-                                                                JNIEnv* env) {
+jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
+    jobjectArray output_array, int* stack_depth) {
   // Transition into runnable state to work on Object*/Array*
   ScopedJniThreadState ts(env);
 
@@ -1237,10 +1238,24 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(jobject internal
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
-  // Create java_trace array and place in local reference table
-  ObjectArray<StackTraceElement>* java_traces =
-      class_linker->AllocStackTraceElementArray(depth);
-  jobjectArray result = AddLocalReference<jobjectArray>(ts.Env(), java_traces);
+  jobjectArray result;
+  ObjectArray<StackTraceElement>* java_traces;
+  if (output_array != NULL) {
+    // Reuse the array we were given.
+    result = output_array;
+    java_traces = reinterpret_cast<ObjectArray<StackTraceElement>*>(Decode<Array*>(env,
+        output_array));
+    // ...adjusting the number of frames we'll write to not exceed the array length.
+    depth = std::min(depth, java_traces->GetLength());
+  } else {
+    // Create java_trace array and place in local reference table
+    java_traces = class_linker->AllocStackTraceElementArray(depth);
+    result = AddLocalReference<jobjectArray>(ts.Env(), java_traces);
+  }
+
+  if (stack_depth != NULL) {
+    *stack_depth = depth;
+  }
 
   for (int32_t i = 0; i < depth; ++i) {
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)

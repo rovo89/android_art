@@ -31,14 +31,13 @@ class ThreadList {
   ThreadList();
   ~ThreadList();
 
-  bool Contains(Thread* thread);
-
   void Dump(std::ostream& os);
 
   // Thread suspension support.
   void FullSuspendCheck(Thread* thread);
   void ResumeAll();
   void SuspendAll();
+  void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);
 
   void Register(Thread* thread);
   void Unregister();
@@ -54,7 +53,10 @@ class ThreadList {
 
   bool AllThreadsAreDaemons();
   uint32_t AllocThreadId();
+  bool Contains(Thread* thread);
   void ReleaseThreadId(uint32_t id);
+  void Resume(Thread* thread);
+  void Suspend(Thread* thread);
   void SuspendAllDaemonThreads();
   void WaitForNonDaemonThreadsToExit();
 
