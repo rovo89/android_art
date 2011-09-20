@@ -473,8 +473,6 @@ static ArmLIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest,
                 return newLIR3(cUnit, kThumbAddPcRel, rDest, rSrc1,
                                value >> 2);
             }
-            opcode = kThumb2AddRRI8;
-            altOpcode = kThumb2AddRRR;
             // Note: intentional fallthrough
         case kOpSub:
             if (allLowRegs && ((absValue & 0x7) == absValue)) {
@@ -497,6 +495,9 @@ static ArmLIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest,
             if (op == kOpSub) {
                 opcode = kThumb2SubRRI8;
                 altOpcode = kThumb2SubRRR;
+            } else {
+                opcode = kThumb2AddRRI8;
+                altOpcode = kThumb2AddRRR;
             }
             break;
         case kOpAdc:
