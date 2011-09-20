@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "class_linker.h"
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
@@ -3222,13 +3223,13 @@ sput_1nr_common:
       break;
     case Instruction::SHR_INT_LIT8:
       tmp_type = AdjustForRightShift(work_line, dec_insn.vB_, dec_insn.vC_,
-          false, &failure);
+          false);
       CheckLitop(work_line, &dec_insn, tmp_type, kRegTypeInteger, false,
           &failure);
       break;
     case Instruction::USHR_INT_LIT8:
       tmp_type = AdjustForRightShift(work_line, dec_insn.vB_, dec_insn.vC_,
-          true, &failure);
+          true);
       CheckLitop(work_line, &dec_insn, tmp_type, kRegTypeInteger, false,
           &failure);
       break;
@@ -3244,8 +3245,7 @@ sput_1nr_common:
      * which don't generally appear during verification. Because it's
      * inserted in the course of verification, we can expect to see it here.
      */
-    //case Instruction::THROW_VERIFICATION_ERROR:
-    case Instruction::UNUSED_ED:
+    case Instruction::THROW_VERIFICATION_ERROR:
       break;
 
     /*
@@ -3373,17 +3373,10 @@ sput_1nr_common:
                  << (int) dec_insn.opcode_ << " at 0x" << insn_idx << std::dec;
       return false;
     } else {
-      // TODO: CHECK IF THIS WILL WORK!
-      /* ignore the failure and move on */
-      LOG(ERROR) << "VFY: failing opcode 0x" << std::hex
-                 << (int) dec_insn.opcode_ << " at 0x" << insn_idx << std::dec;
-      failure = VERIFY_ERROR_NONE;
-#if 0
       /* replace opcode and continue on */
       LOG(ERROR) << "VFY: replacing opcode 0x" << std::hex
                  << (int) dec_insn.opcode_ << " at 0x" << insn_idx << std::dec;
-      if (!ReplaceFailingInstruction(code_item, insn_flags, insn_idx, failure))
-      {
+      if (!ReplaceFailingInstruction(code_item, insn_idx, failure)) {
         LOG(ERROR) << "VFY:  rejecting opcode 0x" << std::hex
                    << (int) dec_insn.opcode_ << " at 0x" << insn_idx
                    << std::dec;
@@ -3395,7 +3388,6 @@ sput_1nr_common:
       /* continue on as if we just handled a throw-verification-error */
       failure = VERIFY_ERROR_NONE;
       opcode_flag = Instruction::kThrow;
-#endif
     }
   }
 
@@ -3595,7 +3587,7 @@ sput_1nr_common:
 }
 
 bool DexVerifier::ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
-    InsnFlags* insn_flags, int insn_idx, VerifyError failure) {
+    int insn_idx, VerifyError failure) {
   const uint16_t* insns = code_item->insns_ + insn_idx;
   const byte* ptr = reinterpret_cast<const byte*>(insns);
   const Instruction* inst = Instruction::At(ptr);
@@ -3672,14 +3664,13 @@ bool DexVerifier::ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
   DCHECK(inst->IsThrow());
 
   /* write a NOP over the third code unit, if necessary */
-  int width = InsnGetWidth(insn_flags, insn_idx);
+  int width = inst->Size();
   switch (width) {
     case 2:
       /* nothing to do */
       break;
     case 3:
-      // TODO: Add this functionality
-      //UpdateCodeUnit(method, insns + 2, Instruction::NOP);
+      UpdateCodeUnit(insns + 2, Instruction::NOP);
       break;
     default:
       /* whoops */
@@ -3688,17 +3679,18 @@ bool DexVerifier::ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
   }
 
   /* encode the opcode, with the failure code in the high byte */
-  // TODO: REPLACE FAILING OPCODES
-  //DCHECK(width == 2 || width == 3);
-  //uint16_t new_val = Instruction::THROW_VERIFICATION_ERROR |
-  //uint16_t new_val = Instruction::UNUSED_ED |
-      //(failure << 8) | (ref_type << (8 + kVerifyErrorRefTypeShift));
-  //UpdateCodeUnit(method, insns, new_val);
+  DCHECK(width == 2 || width == 3);
+  uint16_t new_val = Instruction::THROW_VERIFICATION_ERROR |
+      (failure << 8) | (ref_type << (8 + kVerifyErrorRefTypeShift));
+  UpdateCodeUnit(insns, new_val);
 
   return true;
 }
 
-/* Handle a monitor-enter instruction. */
+void DexVerifier::UpdateCodeUnit(const uint16_t* ptr, uint16_t new_val) {
+  *(uint16_t*) ptr = new_val;
+}
+
 void DexVerifier::HandleMonitorEnter(RegisterLine* work_line, uint32_t reg_idx,
     uint32_t insn_idx, VerifyError* failure) {
   if (!RegTypeIsReference(GetRegisterType(work_line, reg_idx))) {
@@ -3726,7 +3718,6 @@ void DexVerifier::HandleMonitorEnter(RegisterLine* work_line, uint32_t reg_idx,
   work_line->monitor_stack_[work_line->monitor_stack_top_++] = insn_idx;
 }
 
-/* Handle a monitor-exit instruction. */
 void DexVerifier::HandleMonitorExit(RegisterLine* work_line, uint32_t reg_idx,
     uint32_t insn_idx, VerifyError* failure) {
   if (!RegTypeIsReference(GetRegisterType(work_line, reg_idx))) {
@@ -3777,23 +3768,17 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
   Method* method = vdata->method_;
   const DexFile* dex_file = vdata->dex_file_;
   UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-  const ClassLoader* class_loader =
-      method->GetDeclaringClass()->GetClassLoader();
-  Field* field = NULL;
-  Class* obj_class;
   bool must_be_local = false;
 
   if (!RegTypeIsReference(obj_type)) {
     LOG(ERROR) << "VFY: attempt to access field in non-reference type "
                << obj_type;
     *failure = VERIFY_ERROR_GENERIC;
-    return field;
+    return NULL;
   }
 
-  field = class_linker->ResolveField(*dex_file, field_idx, dex_cache,
-      class_loader, false);
+  Field* field = ResolveFieldAndCheckAccess(dex_file, field_idx,
+      method->GetDeclaringClass(), failure, false);
   if (field == NULL) {
     LOG(ERROR) << "VFY: unable to resolve instance field " << field_idx;
     return field;
@@ -3807,7 +3792,7 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
    * the <init> method for the object and the field in question is
    * declared by this class.
    */
-  obj_class = RegTypeReferenceToClass(obj_type, uninit_map);
+  Class* obj_class = RegTypeReferenceToClass(obj_type, uninit_map);
   DCHECK(obj_class != NULL);
   if (RegTypeIsUninitReference(obj_type)) {
     if (!IsInitMethod(method) || method->GetDeclaringClass() != obj_class) {
@@ -3849,21 +3834,14 @@ Field* DexVerifier::GetStaticField(VerifierData* vdata, int field_idx,
     VerifyError* failure) {
   Method* method = vdata->method_;
   const DexFile* dex_file = vdata->dex_file_;
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-  const ClassLoader* class_loader =
-      method->GetDeclaringClass()->GetClassLoader();
-  Field* field;
-
-  field = class_linker->ResolveField(*dex_file, field_idx, dex_cache,
-      class_loader, true);
+  Field* field = ResolveFieldAndCheckAccess(dex_file, field_idx,
+      method->GetDeclaringClass(), failure, true);
   if (field == NULL) {
-    //const DexFile::FieldId field_id = dex_file->GetFieldId(field_idx);
-
-    //LOG(ERROR) << "VFY: unable to resolve static field " << field_idx << " ("
-               //<< dex_file->GetFieldName(field_id) << ") in "
-               //<< dex_file->GetFieldClassDescriptor(field_id);
-    LOG(ERROR) << "VFY: unable to resolve static field";
+    const DexFile::FieldId& field_id = dex_file->GetFieldId(field_idx);
+    LOG(ERROR) << "VFY: unable to resolve static field " << field_idx << " ("
+               << dex_file->GetFieldName(field_id) << ") in "
+               << dex_file->GetFieldClassDescriptor(field_id);
+    *failure = VERIFY_ERROR_NO_FIELD;
   }
 
   return field;
@@ -4349,7 +4327,7 @@ Class* DexVerifier::FindCommonSuperclass(Class* c1, Class* c2) {
 }
 
 Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
-      uint32_t class_idx, const Class* referrer, VerifyError* failure) {
+    uint32_t class_idx, const Class* referrer, VerifyError* failure) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* res_class = class_linker->ResolveType(*dex_file, class_idx, referrer);
 
@@ -4368,6 +4346,103 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
   }
 
   return res_class;
+}
+
+Method* DexVerifier::ResolveMethodAndCheckAccess(const DexFile* dex_file,
+    uint32_t method_idx, const Class* referrer, VerifyError* failure,
+    bool is_direct) {
+  DexCache* dex_cache = referrer->GetDexCache();
+  Method* res_method = dex_cache->GetResolvedMethod(method_idx);
+
+  if (res_method == NULL) {
+    const DexFile::MethodId& method_id = dex_file->GetMethodId(method_idx);
+    Class* klass = ResolveClassAndCheckAccess(dex_file, method_id.class_idx_, referrer, failure);
+    if (klass == NULL) {
+      DCHECK(*failure != VERIFY_ERROR_NONE);
+      return NULL;
+    }
+
+    const char* name = dex_file->dexStringById(method_id.name_idx_);
+    std::string signature(dex_file->CreateMethodDescriptor(method_id.proto_idx_, NULL));
+    if (is_direct) {
+      res_method = klass->FindDirectMethod(name, signature);
+    } else if (klass->IsInterface()) {
+      res_method = klass->FindInterfaceMethod(name, signature);
+    } else {
+      res_method = klass->FindVirtualMethod(name, signature);
+    }
+    if (res_method != NULL) {
+      dex_cache->SetResolvedMethod(method_idx, res_method);
+    } else {
+      LOG(ERROR) << "VFY: couldn't find method "
+                 << klass->GetDescriptor()->ToModifiedUtf8() << "." << name
+                 << " " << signature;
+      *failure = VERIFY_ERROR_NO_METHOD;
+      return NULL;
+    }
+  }
+
+  /* Check if access is allowed. */
+  if (!referrer->CanAccess(res_method->GetDeclaringClass())) {
+    LOG(ERROR) << "VFY: illegal method access (call "
+               << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
+               << "." << res_method->GetName() << " "
+               << res_method->GetSignature() << " from "
+               << referrer->GetDescriptor()->ToModifiedUtf8() << ")";
+    *failure = VERIFY_ERROR_ACCESS_METHOD;
+    return NULL;
+  }
+
+  return res_method;
+}
+
+Field* DexVerifier::ResolveFieldAndCheckAccess(const DexFile* dex_file,
+    uint32_t field_idx, const Class* referrer, VerifyError* failure,
+    bool is_static) {
+  DexCache* dex_cache = referrer->GetDexCache();
+  Field* res_field = dex_cache->GetResolvedField(field_idx);
+
+  if (res_field == NULL) {
+    const DexFile::FieldId& field_id = dex_file->GetFieldId(field_idx);
+    Class* klass = ResolveClassAndCheckAccess(dex_file, field_id.class_idx_, referrer, failure);
+    if (klass == NULL) {
+      DCHECK(*failure != VERIFY_ERROR_NONE);
+      return NULL;
+    }
+
+    Class* field_type = ResolveClassAndCheckAccess(dex_file, field_id.type_idx_, referrer, failure);
+    if (field_type == NULL) {
+      DCHECK(*failure != VERIFY_ERROR_NONE);
+      return NULL;
+    }
+
+    const char* name = dex_file->dexStringById(field_id.name_idx_);
+    if (is_static) {
+      res_field = klass->FindStaticField(name, field_type);
+    } else {
+      res_field = klass->FindInstanceField(name, field_type);
+    }
+    if (res_field != NULL) {
+      dex_cache->SetResolvedfield(field_idx, res_field);
+    } else {
+      LOG(ERROR) << "VFY: couldn't find field "
+                 << klass->GetDescriptor()->ToModifiedUtf8() << "." << name;
+      *failure = VERIFY_ERROR_NO_FIELD;
+      return NULL;
+    }
+  }
+
+  /* Check if access is allowed. */
+  if (!referrer->CanAccess(res_field->GetDeclaringClass())) {
+    LOG(ERROR) << "VFY: access denied from "
+               << referrer->GetDescriptor()->ToModifiedUtf8() << " to field "
+               << res_field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
+               << "." << res_field->GetName()->ToModifiedUtf8();
+    *failure = VERIFY_ERROR_ACCESS_FIELD;
+    return NULL;
+  }
+
+  return res_field;
 }
 
 DexVerifier::RegType DexVerifier::MergeTypes(RegType type1, RegType type2,
@@ -4769,7 +4844,7 @@ void DexVerifier::CheckBinop2addr(RegisterLine* register_line,
 
 DexVerifier::RegType DexVerifier::AdjustForRightShift(
     RegisterLine* register_line, int reg, unsigned int shift_count,
-    bool is_unsigned_shift, VerifyError* failure) {
+    bool is_unsigned_shift) {
   RegType src_type = GetRegisterType(register_line, reg);
   RegType new_type;
 
@@ -4906,10 +4981,6 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   const DexFile* dex_file = vdata->dex_file_;
   const DexFile::CodeItem* code_item = vdata->code_item_;
   UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-  const ClassLoader* class_loader =
-      method->GetDeclaringClass()->GetClassLoader();
 
   Method* res_method;
   std::string sig;
@@ -4921,8 +4992,8 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
    * Resolve the method. This could be an abstract or concrete method
    * depending on what sort of call we're making.
    */
-  res_method = class_linker->ResolveMethod(*dex_file, dec_insn->vB_, dex_cache,
-      class_loader, (method_type == METHOD_DIRECT || method_type == METHOD_STATIC));
+  res_method = ResolveMethodAndCheckAccess(dex_file, dec_insn->vB_, method->GetDeclaringClass(),
+      failure, (method_type == METHOD_DIRECT || method_type == METHOD_STATIC));
 
   if (res_method == NULL) {
     const DexFile::MethodId& method_id = dex_file->GetMethodId(dec_insn->vB_);

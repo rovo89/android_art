@@ -70,6 +70,10 @@ const DexFile* DexFile::Open(const std::string& filename,
   }
 }
 
+void DexFile::ChangePermissions(int prot) const {
+  closer_->ChangePermissions(prot);
+}
+
 DexFile::Closer::~Closer() {}
 
 DexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
@@ -80,9 +84,15 @@ DexFile::MmapCloser::~MmapCloser() {
     PLOG(INFO) << "munmap failed";
   }
 }
+void DexFile::MmapCloser::ChangePermissions(int prot) {
+  if (mprotect(addr_, length_, prot) != 0) {
+    PLOG(FATAL) << "Failed to change dex file permissions to " << prot;
+  }
+}
 
 DexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
 DexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
+void DexFile::PtrCloser::ChangePermissions(int prot) {}
 
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& original_location,
@@ -106,7 +116,7 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     return NULL;
   }
   size_t length = sbuf.st_size;
-  void* addr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, 0);
+  void* addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
   if (addr == MAP_FAILED) {
     PLOG(ERROR) << "mmap \"" << filename << "\" failed";
     close(fd);

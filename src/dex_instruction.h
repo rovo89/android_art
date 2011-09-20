@@ -32,6 +32,7 @@ class Instruction {
     k11n,  // op vA, #+B
     k11x,  // op vAA
     k10t,  // op +AA
+    k20bc, // op AA, kind@BBBB
     k20t,  // op +AAAA
     k22x,  // op vAA, vBBBB
     k21t,  // op vAA, +BBBB

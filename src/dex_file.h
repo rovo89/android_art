@@ -832,11 +832,14 @@ class DexFile {
     }
   }
 
+  void ChangePermissions(int prot) const;
+
  private:
   // Helper class to deallocate underlying storage.
   class Closer {
    public:
     virtual ~Closer();
+    virtual void ChangePermissions(int prot) = 0;
   };
 
   // Helper class to deallocate mmap-backed .dex files.
@@ -844,6 +847,7 @@ class DexFile {
    public:
     MmapCloser(void* addr, size_t length);
     virtual ~MmapCloser();
+    virtual void ChangePermissions(int prot);
    private:
     void* addr_;
     size_t length_;
@@ -854,6 +858,7 @@ class DexFile {
    public:
     PtrCloser(byte* addr);
     virtual ~PtrCloser();
+    virtual void ChangePermissions(int prot);
    private:
     byte* addr_;
   };

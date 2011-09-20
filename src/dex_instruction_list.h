@@ -238,7 +238,7 @@
   V(0xEA, UNUSED_EA, "unused-ea", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xEB, UNUSED_EB, "unused-eb", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xEC, UNUSED_EC, "unused-ec", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xED, UNUSED_ED, "unused-ed", k10x, false, kUnknown, 0, kVerifyError) \
+  V(0xED, THROW_VERIFICATION_ERROR, "throw-verification-error", k20bc, false, kNone, kThrow, kVerifyNone) \
   V(0xEE, UNUSED_EE, "unused-ee", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xEF, UNUSED_EF, "unused-ef", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xF0, UNUSED_F0, "unused-f0", k10x, false, kUnknown, 0, kVerifyError) \
@@ -264,6 +264,7 @@
   V(k11n) \
   V(k11x) \
   V(k10t) \
+  V(k20bc) \
   V(k20t) \
   V(k22x) \
   V(k21t) \

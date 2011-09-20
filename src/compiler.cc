@@ -143,6 +143,7 @@ void Compiler::Verify(const ClassLoader* class_loader) {
 }
 
 void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  dex_file.ChangePermissions(PROT_READ | PROT_WRITE);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
@@ -153,6 +154,7 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
     class_linker->VerifyClass(klass);
     CHECK(klass->IsVerified() || klass->IsErroneous());
   }
+  dex_file.ChangePermissions(PROT_READ);
 }
 
 void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader) {
