@@ -1683,9 +1683,31 @@ static bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
+/* Check if we need to check for pending suspend request */
+static void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
+{
+    if (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
+        return;
+    }
+    newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
+    ArmLIR* branch = opCondBranch(cUnit, kArmCondEq);
+    ArmLIR* retLab = newLIR0(cUnit, kArmPseudoTargetLabel);
+    retLab->defMask = ENCODE_ALL;
+    ArmLIR* target = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    target->generic.dalvikOffset = cUnit->currentDalvikOffset;
+    target->opcode = kArmPseudoSuspendTarget;
+    target->operands[0] = (intptr_t)retLab;
+    target->operands[1] = mir->offset;
+    branch->generic.target = (LIR*)target;
+    oatInsertGrowableList(&cUnit->suspendLaunchpads, (intptr_t)target);
+}
+
 /* Check for pending suspend request.  */
 static void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
 {
+    if (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
+        return;
+    }
     oatLockCallTemps(cUnit);   // Explicit register usage
     int rSuspendCount = r1;
     ArmLIR* ld;

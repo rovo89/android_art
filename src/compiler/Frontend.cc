@@ -725,6 +725,9 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     /* Intialize the throwLaunchpads list */
     oatInitGrowableList(&cUnit.throwLaunchpads, 4);
 
+    /* Intialize the suspendLaunchpads list */
+    oatInitGrowableList(&cUnit.suspendLaunchpads, 4);
+
     /* Allocate the bit-vector to track the beginning of basic blocks */
     ArenaBitVector *tryBlockAddr = oatAllocBitVector(cUnit.insnsSize,
                                                      true /* expandable */);

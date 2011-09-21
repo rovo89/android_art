@@ -22,9 +22,9 @@
  *
  */
 
-static int coreRegs[] = {r0, r1, r2, r3, r4, r5, r6, r7, rSELF, r8, r10, r11,
-                         r12, rSP, rLR, rPC};
-static int reservedRegs[] = {rSELF, rSP, rLR, rPC};
+static int coreRegs[] = {r0, r1, r2, r3, rSUSPEND, r5, r6, r7, rSELF, r8, r10,
+                         r11, r12, rSP, rLR, rPC};
+static int reservedRegs[] = {rSUSPEND, rSELF, rSP, rLR, rPC};
 static int fpRegs[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
                        fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15,
                        fr16, fr17, fr18, fr19, fr20, fr21, fr22, fr23,

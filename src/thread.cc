@@ -178,7 +178,7 @@ void LockObjectFromCode(Thread* thread, Object* obj) {
   // TODO: throw and unwind on failure.
 }
 
-void CheckSuspendFromCode(Thread* thread) {
+extern "C" void artCheckSuspendFromCode(Thread* thread) {
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
@@ -367,6 +367,7 @@ void Thread::InitFunctionPointers() {
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
   pThrowDivZeroFromCode = art_throw_div_zero_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
+  pTestSuspendFromCode = art_test_suspend;
 #endif
   pDeliverException = art_deliver_exception;
   pF2l = F2L;
@@ -391,7 +392,7 @@ void Thread::InitFunctionPointers() {
   pLockObjectFromCode = LockObjectFromCode;
   pUnlockObjectFromCode = UnlockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
-  pCheckSuspendFromCode = CheckSuspendFromCode;
+  pCheckSuspendFromCode = artCheckSuspendFromCode;
   pStackOverflowFromCode = StackOverflowFromCode;
   pThrowVerificationErrorFromCode = ThrowVerificationErrorFromCode;
   pThrowNegArraySizeFromCode = ThrowNegArraySizeFromCode;

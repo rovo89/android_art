@@ -159,6 +159,23 @@ art_ushr_long:
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     bx      lr
 
+    .balign 4
+    .global art_test_suspend
+    .extern artCheckSuspendFromCode
+art_test_suspend:
+    /*
+     * Check to see if there's a pending suspend request on our thread.
+     * reset rSUSPEND to SUSPEND_CHECK_INTERVAL.
+     * On entry, rSUSPEND holds the suspend request value
+     * [TUNING: move load of suspend check value into this stub.
+     */
+    cmp    rSUSPEND, #0
+    mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL
+    bxeq   rLR
+    mov    r0, rSELF
+    b      artCheckSuspendFromCode
+
+
 #endif
 
 #if defined(__i386__)

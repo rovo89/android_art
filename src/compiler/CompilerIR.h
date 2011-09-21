@@ -87,6 +87,7 @@ typedef enum {
     kMIRInlined,                        // Invoke is inlined (ie dead)
     kMIRInlinedPred,                    // Invoke is inlined via prediction
     kMIRCallee,                         // Instruction is inlined from callee
+    kMIRIgnoreSuspendCheck,
 } MIROptimizationFlagPositons;
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
@@ -96,6 +97,7 @@ typedef enum {
 #define MIR_INLINED                     (1 << kMIRInlined)
 #define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
 #define MIR_CALLEE                      (1 << kMIRCallee)
+#define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
 
 typedef struct CallsiteInfo {
     const char* classDescriptor;
@@ -239,6 +241,7 @@ typedef struct CompilationUnit {
     GrowableList dfsOrder;
     GrowableList domPostOrderTraversal;
     GrowableList throwLaunchpads;
+    GrowableList suspendLaunchpads;
     ArenaBitVector* tryBlockAddr;
     ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks
     ArenaBitVector* tempBlockV;

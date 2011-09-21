@@ -15,6 +15,7 @@ extern "C" void art_deliver_exception(void*);
   extern "C" void art_throw_div_zero_from_code();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
+  extern "C" void art_test_suspend();
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT

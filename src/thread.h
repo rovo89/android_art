@@ -224,6 +224,7 @@ class PACKED Thread {
   StaticStorageBase* (*pInitializeStaticStorage)(uint32_t, const Method*);
   Field* (*pFindInstanceFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);
+  void (*pTestSuspendFromCode)();
   void (*pStackOverflowFromCode)(Method*);
   void (*pThrowNullPointerFromCode)();
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);

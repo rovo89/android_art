@@ -28,7 +28,7 @@
  *        pointer in r0 as a hidden arg0. Otherwise used as codegen scratch
  *        registers.
  * r0-r1: As in C/C++ r0 is 32-bit return register and r0/r1 is 64-bit
- * r4   : Callee save (promotion target)
+ * r4   : (rSUSPEND) is reserved (suspend check assist)
  * r5   : Callee save (promotion target)
  * r6   : Callee save (promotion target)
  * r7   : Callee save (promotion target)
@@ -243,7 +243,7 @@ typedef enum OpKind {
 
 /*
  * Annotate special-purpose core registers:
- *   - VM: r4PC, r5FP, and r6SELF
+ *   - VM: r6SELF
  *   - ARM architecture: r13sp, r14lr, and r15pc
  *
  * rPC, rFP, and rSELF are for architecture-independent code to use.
@@ -253,7 +253,7 @@ typedef enum NativeRegisterPool {
     r1     = 1,
     r2     = 2,
     r3     = 3,
-    r4     = 4,
+    rSUSPEND = 4,
     r5     = 5,
     r6     = 6,
     r7     = 7,
@@ -366,6 +366,7 @@ typedef enum ArmThrowKind {
  * Assemble.c.
  */
 typedef enum ArmOpcode {
+    kArmPseudoSuspendTarget = -15,
     kArmPseudoThrowTarget = -14,
     kArmPseudoCaseLabel = -13,
     kArmPseudoMethodEntry = -12,

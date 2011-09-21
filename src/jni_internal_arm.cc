@@ -31,21 +31,21 @@ void ArmCreateInvokeStub(Method* method) {
   UniquePtr<ArmAssembler> assembler(
       down_cast<ArmAssembler*>(Assembler::Create(kArm)));
 #define __ assembler->
-  // Size of frame - spill of R9/LR + Method* + possible receiver + arg array
-  size_t unpadded_frame_size = (3 * kPointerSize) +
+  // Size of frame - spill of R4,R9/LR + Method* + possible receiver + arg array
+  size_t unpadded_frame_size = (4 * kPointerSize) +
                                (method->IsStatic() ? 0 : kPointerSize) +
                                method->NumArgArrayBytes();
   size_t frame_size = RoundUp(unpadded_frame_size, kStackAlignment);
 
-  // Spill R9 and LR
-  RegList save = (1 << R9);
+  // Spill R4,R9 and LR
+  RegList save = (1 << R9) | (1 << R4);
   __ PushList(save | (1 << LR));
 
   // Move the managed thread pointer into R9.
   __ mov(R9, ShifterOperand(R2));
 
-  // Move frame down for arguments less 2 pushed values above
-  __ AddConstant(SP, -frame_size + (2 * kPointerSize));
+  // Move frame down for arguments less 3 pushed values above
+  __ AddConstant(SP, -frame_size + (3 * kPointerSize));
 
   // Can either get 3 or 2 arguments into registers
   size_t reg_bytes = (method->IsStatic() ? 3 : 2) * kPointerSize;
@@ -112,10 +112,10 @@ void ArmCreateInvokeStub(Method* method) {
     }
   }
 
-  // Remove the frame less the spilled R9 and LR
-  __ AddConstant(SP, frame_size - (2 * kPointerSize));
+  // Remove the frame less the spilled R4, R9 and LR
+  __ AddConstant(SP, frame_size - (3 * kPointerSize));
 
-  // Pop R9 and the LR into PC
+  // Pop R4, R9 and the LR into PC
   __ PopList(save | (1 << PC));
   // TODO: store native_entry in the stub table
   ByteArray* code = ByteArray::Alloc(assembler->CodeSize());

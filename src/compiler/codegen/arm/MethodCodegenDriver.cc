@@ -1113,10 +1113,12 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
         case OP_RETURN:
         case OP_RETURN_OBJECT:
+            genSuspendPoll(cUnit, mir);
             storeValue(cUnit, retLoc, rlSrc[0]);
             break;
 
         case OP_RETURN_WIDE:
+            genSuspendPoll(cUnit, mir);
             rlDest = retLocWide;
             rlDest.fp = rlSrc[0].fp;
             storeValueWide(cUnit, rlDest, rlSrc[0]);
@@ -1277,11 +1279,8 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         case OP_GOTO:
         case OP_GOTO_16:
         case OP_GOTO_32:
-            // TUNING: add MIR flag to disable when unnecessary
-            bool backwardBranch;
-            backwardBranch = (bb->taken->startOffset <= mir->offset);
-            if (backwardBranch) {
-                genSuspendPoll(cUnit, mir);
+            if (bb->taken->startOffset <= mir->offset) {
+                genSuspendTest(cUnit, mir);
             }
             genUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
             break;
@@ -1315,7 +1314,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             ArmConditionCode cond;
             backwardBranch = (bb->taken->startOffset <= mir->offset);
             if (backwardBranch) {
-                genSuspendPoll(cUnit, mir);
+                genSuspendTest(cUnit, mir);
             }
             rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
             rlSrc[1] = loadValue(cUnit, rlSrc[1], kCoreReg);
@@ -1358,7 +1357,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             ArmConditionCode cond;
             backwardBranch = (bb->taken->startOffset <= mir->offset);
             if (backwardBranch) {
-                genSuspendPoll(cUnit, mir);
+                genSuspendTest(cUnit, mir);
             }
             rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
             opRegImm(cUnit, kOpCmp, rlSrc[0].lowReg, 0);
@@ -1999,6 +1998,27 @@ void removeRedundantBranches(CompilationUnit* cUnit)
     }
 }
 
+static void handleSuspendLaunchpads(CompilationUnit *cUnit)
+{
+    ArmLIR** suspendLabel =
+        (ArmLIR **) cUnit->suspendLaunchpads.elemList;
+    int numElems = cUnit->suspendLaunchpads.numUsed;
+
+    for (int i = 0; i < numElems; i++) {
+        /* TUNING: move suspend count load into helper */
+        ArmLIR* lab = suspendLabel[i];
+        ArmLIR* resumeLab = (ArmLIR*)lab->operands[0];
+        cUnit->currentDalvikOffset = lab->operands[1];
+        oatAppendLIR(cUnit, (LIR *)lab);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pTestSuspendFromCode), rLR);
+        loadWordDisp(cUnit, rSELF,
+            art::Thread::SuspendCountOffset().Int32Value(), rSUSPEND);
+        opReg(cUnit, kOpBlx, rLR);
+        genUnconditionalBranch(cUnit, resumeLab);
+    }
+}
+
 static void handleThrowLaunchpads(CompilationUnit *cUnit)
 {
     ArmLIR** throwLabel =
@@ -2084,9 +2104,11 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 
     oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                   kPreOrderDFSTraversal, false /* Iterative */);
-    removeRedundantBranches(cUnit);
+    handleSuspendLaunchpads(cUnit);
 
     handleThrowLaunchpads(cUnit);
+
+    removeRedundantBranches(cUnit);
 }
 
 /* Common initialization routine for an architecture family */
