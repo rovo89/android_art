@@ -19,32 +19,70 @@
 #include "Dataflow.h"
 #include "codegen/Ralloc.h"
 
+static bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
+    bool change = false;
+    if (isFP && !cUnit->regLocation[index].fp) {
+        cUnit->regLocation[index].fp = true;
+        change = true;
+    }
+    return change;
+}
+
 /*
- * Quick & dirty - make FP usage sticky.  This is strictly a hint - local
- * code generation will handle misses.  It might be worthwhile to collaborate
- * with dx/dexopt to avoid reusing the same Dalvik temp for values of
- * different types.
+ * Infer types and sizes.  We don't need to track change on sizes,
+ * as it doesn't propagate.  We're guaranteed at least one pass through
+ * the cfg.
  */
-static void inferTypes(CompilationUnit* cUnit, BasicBlock* bb)
+static bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 {
     MIR *mir;
+    bool changed = false;   // Did anything change?
+
+    if (bb->dataFlowInfo == NULL) return false;
     if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock)
-        return;
+        return false;
 
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
         SSARepresentation *ssaRep = mir->ssaRep;
         if (ssaRep) {
-            int i;
-            for (i=0; ssaRep->fpUse && i< ssaRep->numUses; i++) {
-                if (ssaRep->fpUse[i])
-                    cUnit->regLocation[ssaRep->uses[i]].fp = true;
+            int attrs = oatDataFlowAttributes[mir->dalvikInsn.opcode];
+            int next = 0;
+            if (attrs & DF_DA_WIDE) {
+                cUnit->regLocation[ssaRep->defs[0]].wide = true;
             }
-            for (i=0; ssaRep->fpDef && i< ssaRep->numDefs; i++) {
+            if (attrs & DF_UA_WIDE) {
+                cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                next += 2;
+            }
+            if (attrs & DF_UB_WIDE) {
+                cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                next += 2;
+            }
+            if (attrs & DF_UC_WIDE) {
+                cUnit->regLocation[ssaRep->uses[next]].wide = true;
+            }
+            for (int i=0; ssaRep->fpUse && i< ssaRep->numUses; i++) {
+                if (ssaRep->fpUse[i])
+                    changed |= setFp(cUnit, ssaRep->uses[i], true);
+            }
+            for (int i=0; ssaRep->fpDef && i< ssaRep->numDefs; i++) {
                 if (ssaRep->fpDef[i])
-                    cUnit->regLocation[ssaRep->defs[i]].fp = true;
+                    changed |= setFp(cUnit, ssaRep->defs[i], true);
+            }
+            // Special-case handling for moves & Phi
+            if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
+                bool isFP = cUnit->regLocation[ssaRep->defs[0]].fp;
+                for (int i = 0; i < ssaRep->numUses; i++) {
+                    isFP |= cUnit->regLocation[ssaRep->uses[i]].fp;
+                }
+                changed |= setFp(cUnit, ssaRep->defs[0], isFP);
+                for (int i = 0; i < ssaRep->numUses; i++) {
+                    changed |= setFp(cUnit, ssaRep->uses[i], isFP);
+                }
             }
         }
     }
+    return changed;
 }
 
 static const char* storageName[] = {" Frame ", "PhysReg", " Spill "};
@@ -87,16 +125,6 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     }
     cUnit->regLocation = loc;
 
-    GrowableListIterator iterator;
-
-    oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
-
-    /* Do type inference pass */
-    while (true) {
-        BasicBlock *bb = (BasicBlock *) oatGrowableListIteratorNext(&iterator);
-        if (bb == NULL) break;
-        inferTypes(cUnit, bb);
-    }
     /* Add types of incoming arguments based on signature */
     int numRegs = cUnit->method->NumRegisters();
     int numIns = cUnit->method->NumIns();
@@ -119,37 +147,10 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
         }
     }
 
-    /* Mark wide use/defs */
-    oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
-
-    /* Do size inference pass */
-    while (true) {
-        BasicBlock *bb = (BasicBlock *) oatGrowableListIteratorNext(&iterator);
-        if (bb == NULL) break;
-        for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
-            SSARepresentation* ssaRep = mir->ssaRep;
-            if (ssaRep == NULL) {
-                continue;
-            }
-            // TODO: special formats?
-            int attrs = oatDataFlowAttributes[mir->dalvikInsn.opcode];
-            int next = 0;
-            if (attrs & DF_DA_WIDE) {
-                cUnit->regLocation[ssaRep->defs[0]].wide = true;
-            }
-            if (attrs & DF_UA_WIDE) {
-                cUnit->regLocation[ssaRep->uses[next]].wide = true;
-                next += 2;
-            }
-            if (attrs & DF_UB_WIDE) {
-                cUnit->regLocation[ssaRep->uses[next]].wide = true;
-                next += 2;
-            }
-            if (attrs & DF_UC_WIDE) {
-                cUnit->regLocation[ssaRep->uses[next]].wide = true;
-            }
-        }
-    }
+    /* Do type & size inference pass */
+    oatDataFlowAnalysisDispatcher(cUnit, inferTypeAndSize,
+                                  kPreOrderDFSTraversal,
+                                  true /* isIterative */);
 
     /*
      * Set the sRegLow field to refer to the pre-SSA name of the

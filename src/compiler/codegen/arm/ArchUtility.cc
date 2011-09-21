@@ -371,7 +371,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
                 buildInsnString(EncodingMap[lir->opcode].fmt, lir, opOperands,
                                 baseAddr, 256);
                 char tBuf[256];
-                snprintf(tBuf, 256, "%p (%04x): %-8s%s%s", baseAddr + offset, offset,
+                snprintf(tBuf, 256, "%p (%04x): %-9s%s%s", baseAddr + offset, offset,
                          opName, opOperands, lir->flags.isNop ? "(nop)" : "");
                 LOG(INFO) << tBuf;
             }

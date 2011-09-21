@@ -326,6 +326,25 @@ static ArmLIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
     return NULL;
 }
 
+/* Search the existing constants in the literal pool for an exact wide match */
+static ArmLIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
+{
+    bool loMatch = false;
+    LIR* loTarget = NULL;
+    while (dataTarget) {
+        if (loMatch && (((ArmLIR*)dataTarget)->operands[0] == valHi)) {
+            return (ArmLIR*)loTarget;
+        }
+        loMatch = false;
+        if (((ArmLIR*)dataTarget)->operands[0] == valLo) {
+            loMatch = true;
+            loTarget = dataTarget;
+        }
+        dataTarget = dataTarget->next;
+    }
+    return NULL;
+}
+
 /*
  * The following are building blocks to insert constants into the pool or
  * instruction streams.
@@ -348,6 +367,23 @@ static ArmLIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
         newLIR1(cUnit, kArm16BitData, (value >> 16));
     }
     return NULL;
+}
+
+/* Add a 64-bit constant to the constant pool or mixed with code */
+static ArmLIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
+                           int valLo, int valHi)
+{
+    ArmLIR* res;
+    //NOTE: hard-coded little endian
+    if (constantListP == NULL) {
+        res = addWordData(cUnit, NULL, valLo);
+        addWordData(cUnit, NULL, valHi);
+    } else {
+        // Insert high word into list first
+        addWordData(cUnit, constantListP, valHi);
+        res = addWordData(cUnit, constantListP, valLo);
+    }
+    return res;
 }
 
 /*

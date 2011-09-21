@@ -1182,10 +1182,10 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
         case OP_CONST_WIDE_16:
         case OP_CONST_WIDE_32:
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            loadConstantNoClobber(cUnit, rlResult.lowReg, mir->dalvikInsn.vB);
-            //TUNING: do high separately to avoid load dependency
-            opRegRegImm(cUnit, kOpAsr, rlResult.highReg, rlResult.lowReg, 31);
+            rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
+            loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
+                                  mir->dalvikInsn.vB,
+                                  (mir->dalvikInsn.vB & 0x80000000) ? -1 : 0);
             storeValueWide(cUnit, rlDest, rlResult);
             break;
 

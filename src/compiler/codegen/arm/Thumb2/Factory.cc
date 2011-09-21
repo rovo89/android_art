@@ -619,7 +619,7 @@ static int encodeImmDoubleHigh(int value)
     if (zeroes != 0)
         return -1;
     if (bitB) {
-        if ((notBitB != 0) || (bSmear != 0x1f))
+        if ((notBitB != 0) || (bSmear != 0xff))
             return -1;
     } else {
         if ((notBitB != 1) || (bSmear != 0x0))
@@ -642,9 +642,29 @@ static ArmLIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo,
 {
     int encodedImm = encodeImmDouble(valLo, valHi);
     ArmLIR* res;
-    if (FPREG(rDestLo) && (encodedImm >= 0)) {
-        res = newLIR2(cUnit, kThumb2Vmovd_IMM8, S2D(rDestLo, rDestHi),
-                      encodedImm);
+    if (FPREG(rDestLo)) {
+        if (encodedImm >= 0) {
+            res = newLIR2(cUnit, kThumb2Vmovd_IMM8, S2D(rDestLo, rDestHi),
+                          encodedImm);
+        } else {
+            ArmLIR* dataTarget = scanLiteralPoolWide(cUnit->literalList, valLo,
+               valHi);
+            if (dataTarget == NULL) {
+                dataTarget = addWideData(cUnit, &cUnit->literalList, valLo,
+                                         valHi);
+            }
+            ArmLIR* loadPcRel = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+            loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
+            loadPcRel->opcode = kThumb2Vldrd;
+            loadPcRel->generic.target = (LIR* ) dataTarget;
+            loadPcRel->operands[0] = S2D(rDestLo, rDestHi);
+            loadPcRel->operands[1] = r15pc;
+            setupResourceMasks(loadPcRel);
+            setMemRefType(loadPcRel, true, kLiteral);
+            loadPcRel->aliasInfo = dataTarget->operands[0];
+            oatAppendLIR(cUnit, (LIR* ) loadPcRel);
+            res = loadPcRel;
+        }
     } else {
         res = loadConstantNoClobber(cUnit, rDestLo, valLo);
         loadConstantNoClobber(cUnit, rDestHi, valHi);

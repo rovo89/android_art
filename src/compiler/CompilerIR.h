@@ -268,7 +268,7 @@ typedef struct CompilationUnit {
     unsigned int attrs;
     /*
      * CLEANUP/RESTRUCTURE: The code generation utilities don't have a built-in
-     * mechanism to propogate the original Dalvik opcode address to the
+     * mechanism to propagate the original Dalvik opcode address to the
      * associated generated instructions.  For the trace compiler, this wasn't
      * necessary because the interpreter handled all throws and debugging
      * requests.  For now we'll handle this by placing the Dalvik offset

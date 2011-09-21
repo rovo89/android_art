@@ -682,7 +682,7 @@ typedef enum ArmOpcode {
     kThumb2BUncond,      /* b <label> */
     kThumb2MovImm16H,    /* similar to kThumb2MovImm16, but target high hw */
     kThumb2AddPCR,       /* Thumb2 2-operand add with hard-coded PC target */
-    kThumb2AdrST,        /* Special purpose encoding of ADR for switch tables */
+    kThumb2Adr,          /* Special purpose encoding of ADR for switch tables */
     kThumb2MovImm16LST,  /* Special purpose version for switch table use */
     kThumb2MovImm16HST,  /* Special purpose version for switch table use */
     kThumb2LdmiaWB,      /* ldmia  [111010011001[ rn[19..16] mask[15..0] */

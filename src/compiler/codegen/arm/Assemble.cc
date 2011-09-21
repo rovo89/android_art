@@ -932,7 +932,7 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_USE0 | IS_BRANCH,
                  "add", "rPC, !0C", 1),
-    ENCODING_MAP(kThumb2AdrST,       0xf20f0000,
+    ENCODING_MAP(kThumb2Adr,         0xf20f0000,
                  kFmtBitBlt, 11, 8, kFmtImm12, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_TERTIARY_OP | REG_DEF0,/* Note: doesn't affect flags */
@@ -1085,6 +1085,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
         if (lir->opcode == kThumbLdrPcRel ||
             lir->opcode == kThumb2LdrPcRel12 ||
             lir->opcode == kThumbAddPcRel ||
+            ((lir->opcode == kThumb2Vldrd) && (lir->operands[1] == r15pc)) ||
             ((lir->opcode == kThumb2Vldrs) && (lir->operands[1] == r15pc))) {
             /*
              * PC-relative loads are mostly used to load immediates
@@ -1106,57 +1107,34 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 LOG(FATAL) << "Unexpected pc-rel offset " << delta;
             }
             // Now, check for the two difficult cases
-            if (1 || ((lir->opcode == kThumb2LdrPcRel12) && (delta > 4091)) ||
-                ((lir->opcode == kThumb2Vldrs) && (delta > 1020))) {
-            /*
-             * OK - the load doesn't work.  We'll just materialize
-             * the immediate directly using mov16l and mov16h.
-             * It's a little ugly for float immediates as we don't have
-             * float ops like the core mov imm16H/L.  In this case
-             * we'll materialize in a core register (rLR) and then copy.
-             * NOTE/WARNING: This is a *very* fragile workaround that will
-             * be addressed in a later release when we have a late spill
-             * capability.  We can get away with it for now because rLR
-             * is currently only used during call setups, and our convention
-             * requires all arguments to be passed in core register & the
-             * frame (and thus, we won't see any vlrds in the sequence).
-             * The normal resource mask mechanism will prevent any damaging
-             * code motion.
-             */
-                int tgtReg = (lir->opcode == kThumb2Vldrs) ? rLR :
-                              lir->operands[0];
-                int immVal = lirTarget->operands[0];
-                // The standard utilities won't work here - build manually
-                ArmLIR *newMov16L =
+            if (((lir->opcode == kThumb2LdrPcRel12) && (delta > 4091)) ||
+                ((lir->opcode == kThumb2Vldrs) && (delta > 1020)) ||
+                ((lir->opcode == kThumb2Vldrd) && (delta > 1020))) {
+                int baseReg = (lir->opcode == kThumb2LdrPcRel12) ?
+                    lir->operands[0] : rLR;
+
+                // Add new Adr to generate the address
+                ArmLIR *newAdr =
                     (ArmLIR *)oatNew(sizeof(ArmLIR), true);
-                newMov16L->generic.dalvikOffset = lir->generic.dalvikOffset;
-                newMov16L->opcode = kThumb2MovImm16;
-                newMov16L->operands[0] = tgtReg;
-                newMov16L->operands[1] = immVal & 0xffff;
-                oatSetupResourceMasks(newMov16L);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
-                ArmLIR *newMov16H =
-                    (ArmLIR *)oatNew(sizeof(ArmLIR), true);
-                newMov16H->generic.dalvikOffset = lir->generic.dalvikOffset;
-                newMov16H->opcode = kThumb2MovImm16H;
-                newMov16H->operands[0] = tgtReg;
-                newMov16H->operands[1] = (immVal >> 16) & 0xffff;
-                oatSetupResourceMasks(newMov16H);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16H);
-                if (lir->opcode == kThumb2Vldrs) {
-                    // Convert the vldrs to a kThumb2Fmsr
-                    lir->opcode = kThumb2Fmsr;
-                    lir->operands[1] = rLR;
-                    lir->generic.target = NULL;
-                    lir->operands[2] = 0;
-                    oatSetupResourceMasks(lir);
-                } else {
-                    // Nullify the original load
-                    lir->flags.isNop = true;
+                newAdr->generic.dalvikOffset = lir->generic.dalvikOffset;
+                newAdr->generic.target = lir->generic.target;
+                newAdr->opcode = kThumb2Adr;
+                newAdr->operands[0] = baseReg;
+                oatSetupResourceMasks(newAdr);
+                oatInsertLIRBefore((LIR*)lir, (LIR*)newAdr);
+
+                // Convert to normal load
+                if (lir->opcode == kThumb2LdrPcRel12) {
+                    lir->opcode = kThumb2LdrRRI12;
                 }
+                // Change the load to be relative to the new Adr base
+                lir->operands[1] = baseReg;
+                lir->operands[2] = 0;
+                oatSetupResourceMasks(lir);
                 res = kRetryAll;
             } else {
-                if (lir->opcode == kThumb2Vldrs) {
+                if ((lir->opcode == kThumb2Vldrs) ||
+                    (lir->opcode == kThumb2Vldrd)) {
                     lir->operands[2] = delta >> 2;
                 } else {
                     lir->operands[1] = (lir->opcode == kThumb2LdrPcRel12) ?
@@ -1259,16 +1237,19 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
 
             lir->operands[0] = (delta >> 12) & 0x7ff;
             NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
-        } else if (lir->opcode == kThumb2AdrST) {
+        } else if (lir->opcode == kThumb2Adr) {
             SwitchTable *tabRec = (SwitchTable*)lir->operands[2];
-            int disp = tabRec->offset - ((lir->generic.offset + 4) & ~3);
+            ArmLIR* target = (ArmLIR*)lir->generic.target;
+            int targetDisp = tabRec ? tabRec->offset : target->generic.offset;
+            int disp = targetDisp - ((lir->generic.offset + 4) & ~3);
             if (disp < 4096) {
                 lir->operands[1] = disp;
             } else {
-                // convert to ldimm16l, ldimm16h, add tgt, pc, r12
+                // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
                 ArmLIR *newMov16L =
                     (ArmLIR *)oatNew(sizeof(ArmLIR), true);
                 newMov16L->generic.dalvikOffset = lir->generic.dalvikOffset;
+                newMov16L->generic.target = lir->generic.target;
                 newMov16L->opcode = kThumb2MovImm16LST;
                 newMov16L->operands[0] = lir->operands[0];
                 newMov16L->operands[2] = (intptr_t)lir;
@@ -1278,6 +1259,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 ArmLIR *newMov16H =
                     (ArmLIR *)oatNew(sizeof(ArmLIR), true);
                 newMov16H->generic.dalvikOffset = lir->generic.dalvikOffset;
+                newMov16H->generic.target = lir->generic.target;
                 newMov16H->opcode = kThumb2MovImm16HST;
                 newMov16H->operands[0] = lir->operands[0];
                 newMov16H->operands[2] = (intptr_t)lir;
@@ -1294,13 +1276,19 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
             // operands[1] should hold disp, [2] has add, [3] has tabRec
             ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
             SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            lir->operands[1] = (tabRec->offset -
+            // If tabRec is null, this is a literal load - use generic.target
+            ArmLIR* target = (ArmLIR*)lir->generic.target;
+            int targetDisp = tabRec ? tabRec->offset : target->generic.offset;
+            lir->operands[1] = (targetDisp -
                 (addPCInst->generic.offset + 4)) & 0xffff;
         } else if (lir->opcode == kThumb2MovImm16HST) {
             // operands[1] should hold disp, [2] has add, [3] has tabRec
             ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
             SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            lir->operands[1] = ((tabRec->offset -
+            // If tabRec is null, this is a literal load - use generic.target
+            ArmLIR* target = (ArmLIR*)lir->generic.target;
+            int targetDisp = tabRec ? tabRec->offset : target->generic.offset;
+            lir->operands[1] = ((targetDisp -
                 (addPCInst->generic.offset + 4)) >> 16) & 0xffff;
         }
         ArmEncodingMap *encoder = &EncodingMap[lir->opcode];

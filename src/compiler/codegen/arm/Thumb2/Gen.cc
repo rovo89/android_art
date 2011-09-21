@@ -283,7 +283,7 @@ static void genSparseSwitch(CompilationUnit* cUnit, MIR* mir,
         rKey = tmp;
     }
     // Materialize a pointer to the switch table
-    newLIR3(cUnit, kThumb2AdrST, rBase, 0, (intptr_t)tabRec);
+    newLIR3(cUnit, kThumb2Adr, rBase, 0, (intptr_t)tabRec);
     // Set up rIdx
     int rIdx = oatAllocTemp(cUnit);
     loadConstant(cUnit, rIdx, size);
@@ -324,7 +324,7 @@ static void genPackedSwitch(CompilationUnit* cUnit, MIR* mir,
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
     int tableBase = oatAllocTemp(cUnit);
     // Materialize a pointer to the switch table
-    newLIR3(cUnit, kThumb2AdrST, tableBase, 0, (intptr_t)tabRec);
+    newLIR3(cUnit, kThumb2Adr, tableBase, 0, (intptr_t)tabRec);
     int lowKey = s4FromSwitchData(&table[2]);
     int keyReg;
     // Remove the bias, if necessary
@@ -383,7 +383,7 @@ static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pHandleFillArrayDataFromCode), rLR);
     // Materialize a pointer to the fill data image
-    newLIR3(cUnit, kThumb2AdrST, r1, 0, (intptr_t)tabRec);
+    newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
     callUnwindableHelper(cUnit, rLR);
     oatClobberCallRegs(cUnit);
 }
