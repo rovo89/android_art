@@ -1284,11 +1284,15 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
 }
 
 void Thread::ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...) {
-  std::string msg;
   va_list args;
   va_start(args, fmt);
-  StringAppendV(&msg, fmt, args);
+  ThrowNewExceptionV(exception_class_descriptor, fmt, args);
   va_end(args);
+}
+
+void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap) {
+  std::string msg;
+  StringAppendV(&msg, fmt, ap);
 
   // Convert "Ljava/lang/Exception;" into JNI-style "java/lang/Exception".
   CHECK_EQ('L', exception_class_descriptor[0]);

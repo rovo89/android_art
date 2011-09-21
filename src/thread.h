@@ -364,6 +364,8 @@ class PACKED Thread {
   void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));
 
+  void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap);
+
   // This exception is special, because we need to pre-allocate an instance.
   void ThrowOutOfMemoryError();
 

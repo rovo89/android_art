@@ -25,6 +25,53 @@
 
 namespace art {
 
+namespace {
+
+void ThrowNoClassDefFoundError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowNoClassDefFoundError(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Thread::Current()->ThrowNewExceptionV("Ljava/lang/NoClassDefFoundError;", fmt, args);
+  va_end(args);
+}
+
+void ThrowVirtualMachineError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowVirtualMachineError(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Thread::Current()->ThrowNewExceptionV("Ljava/lang/VirtualMachineError;", fmt, args);
+  va_end(args);
+}
+
+void ThrowLinkageError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowLinkageError(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Thread::Current()->ThrowNewExceptionV("Ljava/lang/LinkageError;", fmt, args);
+  va_end(args);
+}
+
+void ThrowEarlierClassFailure(Class* c) {
+  /*
+   * The class failed to initialize on a previous attempt, so we want to throw
+   * a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
+   * failed in verification, in which case v2 5.4.1 says we need to re-throw
+   * the previous error.
+   */
+  LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
+
+  if (c->GetVerifyErrorClass() != NULL) {
+    // TODO: change the verifier to store an _instance_, with a useful detail message?
+    std::string error_descriptor(c->GetVerifyErrorClass()->GetDescriptor()->ToModifiedUtf8());
+    Thread::Current()->ThrowNewException(error_descriptor.c_str(), "%s",
+        PrettyDescriptor(c->GetDescriptor()).c_str());
+  } else {
+    ThrowNoClassDefFoundError("%s", PrettyDescriptor(c->GetDescriptor()).c_str());
+  }
+}
+
+}
+
 const char* ClassLinker::class_roots_descriptors_[kClassRootsMax] = {
   "Ljava/lang/Class;",
   "Ljava/lang/Object;",
@@ -624,8 +671,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
     if (pair.second == NULL) {
       std::string name(PrintableString(descriptor));
-      self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
-          "Class %s not found in class loader %p", name.c_str(), class_loader);
+      ThrowNoClassDefFoundError("Class %s not found in class loader %p", name.c_str(), class_loader);
       return NULL;
     }
     const DexFile& dex_file = *pair.first;
@@ -674,7 +720,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         CHECK(!klass->IsLoaded());
         if (!LoadSuperAndInterfaces(klass, dex_file)) {
           // Loading failed.
-          // TODO: CHECK(self->IsExceptionPending());
+          CHECK(self->IsExceptionPending());
           lock.NotifyAll();
           return NULL;
         }
@@ -683,7 +729,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         CHECK(!klass->IsResolved());
         if (!LinkClass(klass)) {
           // Linking failed.
-          // TODO: CHECK(self->IsExceptionPending());
+          CHECK(self->IsExceptionPending());
           lock.NotifyAll();
           return NULL;
         }
@@ -696,7 +742,8 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
     if (!klass->IsResolved() && klass->GetClinitThreadId() == self->GetTid()) {
-      self->ThrowNewException("Ljava/lang/ClassCircularityError;", NULL); // TODO: detail
+      self->ThrowNewException("Ljava/lang/ClassCircularityError;", "%s",
+          PrettyDescriptor(klass->GetDescriptor()).c_str());
       return NULL;
     }
     // Wait for the pending initialization to complete.
@@ -705,7 +752,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     }
   }
   if (klass->IsErroneous()) {
-    LG << "EarlierClassFailure";  // TODO: EarlierClassFailure
+    ThrowEarlierClassFailure(klass);
     return NULL;
   }
   // Return the loaded class.  No exceptions should be pending.
@@ -1147,8 +1194,7 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
       return GetClassRoot(kPrimitiveVoid);
   }
   std::string printable_type(PrintableChar(type));
-  Thread::Current()->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
-      "Not a primitive type: %s", printable_type.c_str());
+  ThrowNoClassDefFoundError("Not a primitive type: %s", printable_type.c_str());
   return NULL;
 }
 
@@ -1207,7 +1253,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
 
     if (klass->GetStatus() < Class::kStatusVerified) {
       if (klass->IsErroneous()) {
-        LG << "re-initializing failed class";  // TODO: throw
+        ThrowEarlierClassFailure(klass);
         return false;
       }
 
@@ -1235,15 +1281,17 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       }
 
       CHECK(!self->IsExceptionPending());
-
-      lock.Wait();  // TODO: check for interruption
+      lock.Wait();
+      CHECK(!self->IsExceptionPending());
 
       // When we wake up, repeat the test for init-in-progress.  If
       // there's an exception pending (only possible if
       // "interruptShouldThrow" was set), bail out.
       if (self->IsExceptionPending()) {
-        CHECK(false);
-        LG << "Exception in initialization.";  // TODO: ExceptionInInitializerError
+        self->ThrowNewException("Ljava/lang/ExceptionInInitializerError;",
+            "Exception %s thrown while initializing class %s",
+            PrettyTypeOf(self->GetException()).c_str(),
+            PrettyDescriptor(klass->GetDescriptor()).c_str());
         klass->SetStatus(Class::kStatusError);
         return false;
       }
@@ -1255,7 +1303,9 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       if (klass->IsErroneous()) {
         // The caller wants an exception, but it was thrown in a
         // different thread.  Synthesize one here.
-        LG << "<clinit> failed";  // TODO: throw UnsatisfiedLinkError
+        self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;",
+            "<clinit> failed for class %s; see exception in other thread",
+            PrettyDescriptor(klass->GetDescriptor()).c_str());
         return false;
       }
       return true;  // otherwise, initialized
@@ -1265,8 +1315,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     if (klass->IsErroneous()) {
       // might be wise to unlock before throwing; depends on which class
       // it is that we have locked
-
-      // TODO: throwEarlierClassFailure(klass);
+      ThrowEarlierClassFailure(klass);
       return false;
     }
 
@@ -1320,7 +1369,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       const Method* method = super->GetVirtualMethod(i);
       if (method != super->GetVirtualMethod(i) &&
           !HasSameMethodDescriptorClasses(method, super, klass)) {
-        LG << "Classes resolve differently in superclass";
+        ThrowLinkageError("Classes resolve differently in superclass");
         return false;
       }
     }
@@ -1333,7 +1382,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
         const Method* method = interface_entry->GetMethodArray()->Get(j);
         if (!HasSameMethodDescriptorClasses(method, interface,
                                             method->GetClass())) {
-          LG << "Classes resolve differently in interface";  // TODO: LinkageError
+          ThrowLinkageError("Classes resolve differently in interface");
           return false;
         }
       }
@@ -1564,7 +1613,8 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
   if (klass->GetSuperClassTypeIdx() != DexFile::kDexNoIndex) {
     Class* super_class = ResolveType(dex_file, klass->GetSuperClassTypeIdx(), klass);
     if (super_class == NULL) {
-      LG << "Failed to resolve superclass";
+      ThrowVirtualMachineError("Failed to resolve superclass with type index %d for class %s",
+          klass->GetSuperClassTypeIdx(), PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
     }
     klass->SetSuperClass(super_class);
@@ -1574,12 +1624,15 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
     Class *interface = ResolveType(dex_file, idx, klass);
     klass->SetInterface(i, interface);
     if (interface == NULL) {
-      LG << "Failed to resolve interface";
+      ThrowVirtualMachineError("Failed to resolve interface with type index %d for class %s",
+          idx, PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
     }
     // Verify
     if (!klass->CanAccess(interface)) {
-      LG << "Inaccessible interface";
+      ThrowVirtualMachineError("Inaccessible interface %s implemented by class %s",
+          PrettyDescriptor(interface->GetDescriptor()).c_str(),
+          PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
     }
   }
@@ -1593,27 +1646,28 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   Class* super = klass->GetSuperClass();
   if (klass->GetDescriptor()->Equals("Ljava/lang/Object;")) {
     if (super != NULL) {
-      LG << "Superclass must not be defined";  // TODO: ClassFormatError
+      Thread::Current()->ThrowNewException("Ljava/lang/ClassFormatError;",
+          "java.lang.Object must not have a superclass");
       return false;
     }
     // TODO: clear finalize attribute
     return true;
   }
   if (super == NULL) {
-    LG << "No superclass defined";  // TODO: LinkageError
+    ThrowLinkageError("No superclass defined for class %s",
+        PrettyDescriptor(klass->GetDescriptor()).c_str());
     return false;
   }
   // Verify
-  if (super->IsFinal()) {
-    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is declared final";  // TODO: IncompatibleClassChangeError
-    return false;
-  }
-  if (super->IsInterface()) {
-    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is an interface";  // TODO: IncompatibleClassChangeError
+  if (super->IsFinal() || super->IsInterface()) {
+    Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
+        "Superclass %s is %s", PrettyDescriptor(super->GetDescriptor()).c_str(),
+        super->IsFinal() ? "declared final" : "an interface");
     return false;
   }
   if (!klass->CanAccess(super)) {
-    LG << "Superclass " << super->GetDescriptor()->ToModifiedUtf8() << " is inaccessible";  // TODO: IllegalAccessError
+    Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+        "Superclass %s is inaccessible", PrettyDescriptor(super->GetDescriptor()).c_str());
     return false;
   }
 #ifndef NDEBUG
@@ -1632,7 +1686,7 @@ bool ClassLinker::LinkMethods(Class* klass) {
     // No vtable.
     size_t count = klass->NumVirtualMethods();
     if (!IsUint(16, count)) {
-      LG << "Too many methods on interface";  // TODO: VirtualMachineError
+      ThrowVirtualMachineError("Too many methods on interface: %d", count);
       return false;
     }
     for (size_t i = 0; i < count; ++i) {
@@ -1666,7 +1720,10 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
         if (local_method->HasSameNameAndDescriptor(super_method)) {
           // Verify
           if (super_method->IsFinal()) {
-            LG << "Method overrides final method";  // TODO: VirtualMachineError
+            ThrowVirtualMachineError("Method %s.%s overrides final method in class %s",
+                PrettyDescriptor(klass->GetDescriptor()).c_str(),
+                local_method->GetName()->ToModifiedUtf8().c_str(),
+                PrettyDescriptor(super_method->GetDeclaringClass()->GetDescriptor()).c_str());
             return false;
           }
           vtable->Set(j, local_method);
@@ -1682,7 +1739,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       }
     }
     if (!IsUint(16, actual_count)) {
-      LG << "Too many methods defined on class";  // TODO: VirtualMachineError
+      ThrowVirtualMachineError("Too many methods defined on class: %d", actual_count);
       return false;
     }
     // Shrink vtable if possible
@@ -1695,7 +1752,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
     CHECK(klass->GetDescriptor()->Equals("Ljava/lang/Object;"));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
     if (!IsUint(16, num_virtual_methods)) {
-      LG << "Too many methods";  // TODO: VirtualMachineError
+      ThrowVirtualMachineError("Too many methods: %d", num_virtual_methods);
       return false;
     }
     ObjectArray<Method>* vtable = AllocObjectArray<Method>(num_virtual_methods);
@@ -1742,7 +1799,10 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     Class* interface = klass->GetInterface(i);
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
-      LG << "Class implements non-interface class";  // TODO: IncompatibleClassChangeError
+      Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
+          "Class %s implements non-interface class %s",
+          PrettyDescriptor(klass->GetDescriptor()).c_str(),
+          PrettyDescriptor(interface->GetDescriptor()).c_str());
       return false;
     }
     iftable->Set(idx++, AllocInterfaceEntry(interface));
@@ -1769,7 +1829,8 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
         Method* vtable_method = vtable->Get(k);
         if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
           if (!vtable_method->IsPublic()) {
-            LG << "Implementation not public";
+            Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+                "Implementation not public: %s", PrettyMethod(vtable_method).c_str());
             return false;
           }
           method_array->Set(j, vtable_method);
@@ -2080,7 +2141,8 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
       Class* check = resolved->IsArrayClass() ? resolved->GetComponentType() : resolved;
       if (dex_cache != check->GetDexCache()) {
         if (check->GetClassLoader() != NULL) {
-          LG << "Class resolved by unexpected DEX";  // TODO: IllegalAccessError
+          Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+              "Class with type index %d resolved by unexpected .dex", type_idx);
           resolved = NULL;
         }
       }
@@ -2121,7 +2183,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   if (resolved != NULL) {
     dex_cache->SetResolvedMethod(method_idx, resolved);
   } else {
-    // DCHECK(Thread::Current()->IsExceptionPending());
+    DCHECK(Thread::Current()->IsExceptionPending());
   }
   return resolved;
 }
@@ -2151,9 +2213,9 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
     resolved = klass->FindInstanceField(name, field_type);
   }
   if (resolved != NULL) {
-    dex_cache->SetResolvedfield(field_idx, resolved);
+    dex_cache->SetResolvedField(field_idx, resolved);
   } else {
-    // TODO: DCHECK(Thread::Current()->IsExceptionPending());
+    DCHECK(Thread::Current()->IsExceptionPending());
   }
   return resolved;
 }

@@ -4423,7 +4423,7 @@ Field* DexVerifier::ResolveFieldAndCheckAccess(const DexFile* dex_file,
       res_field = klass->FindInstanceField(name, field_type);
     }
     if (res_field != NULL) {
-      dex_cache->SetResolvedfield(field_idx, res_field);
+      dex_cache->SetResolvedField(field_idx, res_field);
     } else {
       LOG(ERROR) << "VFY: couldn't find field "
                  << klass->GetDescriptor()->ToModifiedUtf8() << "." << name;

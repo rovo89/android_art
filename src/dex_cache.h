@@ -159,7 +159,7 @@ class MANAGED DexCache : public ObjectArray<Object> {
     return GetResolvedFields()->Get(field_idx);
   }
 
-  void SetResolvedfield(uint32_t field_idx, Field* resolved) {
+  void SetResolvedField(uint32_t field_idx, Field* resolved) {
     GetResolvedFields()->Set(field_idx, resolved);
   }
 
