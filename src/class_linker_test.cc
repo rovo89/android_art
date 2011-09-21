@@ -805,6 +805,28 @@ TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
   EXPECT_EQ(16U, data_offset - array_offset);
 }
 
+TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
+  // Validate that the "value" field is always the 0th field in each of java.lang's box classes.
+  // This lets UnboxPrimitive avoid searching for the field by name at runtime.
+  Class* c;
+  c = class_linker_->FindClass("Ljava/lang/Boolean;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Byte;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Character;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Double;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Float;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Integer;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Long;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+  c = class_linker_->FindClass("Ljava/lang/Short;", NULL);
+  EXPECT_EQ("value", c->GetIFields()->Get(0)->GetName()->ToModifiedUtf8());
+}
+
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   const ClassLoader* class_loader_1 = LoadDex("MyClass");
   const ClassLoader* class_loader_2 = LoadDex("MyClass");
