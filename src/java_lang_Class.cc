@@ -57,6 +57,17 @@ jboolean Class_desiredAssertionStatus(JNIEnv* env, jobject javaThis) {
     return JNI_FALSE;
 }
 
+jobject Class_getDex(JNIEnv* env, jobject javaClass) {
+  Class* c = Decode<Class*>(env, javaClass);
+
+  DexCache* dex_cache = c->GetDexCache();
+  if (dex_cache == NULL) {
+    return NULL;
+  }
+
+  return Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache).GetDexObject(env);
+}
+
 jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
   Object* result = reinterpret_cast<Object*>(const_cast<ClassLoader*>(c->GetClassLoader()));
@@ -312,6 +323,7 @@ static JNINativeMethod gMethods[] = {
   //NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
   //NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
+  NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
   //NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
   //NATIVE_METHOD(Class, getInterfaces, "()[Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),

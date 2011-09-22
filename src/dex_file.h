@@ -9,8 +9,10 @@
 
 #include "UniquePtr.h"
 #include "globals.h"
+#include "jni.h"
 #include "leb128.h"
 #include "logging.h"
+#include "mutex.h"
 #include "stringpiece.h"
 #include "strutil.h"
 #include "utils.h"
@@ -347,6 +349,10 @@ class DexFile {
   const std::string& GetLocation() const {
     return location_;
   }
+
+  // Returns a com.android.dex.Dex object corresponding to the mapped-in dex file.
+  // Used by managed code to implement annotations.
+  jobject GetDexObject(JNIEnv* env) const;
 
   const Header& GetHeader() const {
     CHECK(header_ != NULL);
@@ -874,6 +880,8 @@ class DexFile {
         length_(length),
         location_(location),
         closer_(closer),
+        dex_object_lock_("a dex_object_lock_"),
+        dex_object_(NULL),
         header_(0),
         string_ids_(0),
         type_ids_(0),
@@ -919,6 +927,10 @@ class DexFile {
 
   // Helper object to free the underlying allocation.
   UniquePtr<Closer> closer_;
+
+  // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
+  mutable Mutex dex_object_lock_;
+  mutable jobject dex_object_;
 
   // Points to the header section.
   const Header* header_;
