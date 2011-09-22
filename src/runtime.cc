@@ -456,7 +456,7 @@ void Runtime::InitNativeMethods() {
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
-  //REGISTER(register_dalvik_system_DexFile);
+  REGISTER(register_dalvik_system_DexFile);
   REGISTER(register_dalvik_system_VMDebug);
   REGISTER(register_dalvik_system_VMRuntime);
   REGISTER(register_dalvik_system_VMStack);

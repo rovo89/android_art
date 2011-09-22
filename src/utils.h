@@ -172,6 +172,9 @@ std::string PrettyClass(const Class* c);
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);
 
+// Turn "java.lang.String" into "Ljava/lang/String;".
+std::string DotToDescriptor(const char* class_name);
+
 // Tests whether 's' is a valid class name.
 // name_or_descriptor
 //     true  => "java/lang/String"

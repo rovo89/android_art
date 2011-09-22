@@ -36,12 +36,26 @@ inline Field* DecodeField(jfieldID fid) {
   return reinterpret_cast<Field*>(fid);
 }
 
+inline jfieldID EncodeField(Field* field) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  UNIMPLEMENTED(WARNING);
+#endif
+  return reinterpret_cast<jfieldID>(field);
+}
+
 inline Method* DecodeMethod(jmethodID mid) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: we should make these unique weak globals if Method instances can ever move.
   UNIMPLEMENTED(WARNING);
 #endif
   return reinterpret_cast<Method*>(mid);
+}
+
+inline jmethodID EncodeMethod(Method* method) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  UNIMPLEMENTED(WARNING);
+#endif
+  return reinterpret_cast<jmethodID>(method);
 }
 
 struct JavaVMExt : public JavaVM {

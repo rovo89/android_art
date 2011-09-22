@@ -25,16 +25,6 @@ namespace art {
 
 namespace {
 
-// Turn "java.lang.String" into "Ljava/lang/String;".
-std::string ToDescriptor(const char* class_name) {
-  std::string descriptor(class_name);
-  std::replace(descriptor.begin(), descriptor.end(), '.', '/');
-  if (descriptor.length() > 0 && descriptor[0] != '[') {
-    descriptor = "L" + descriptor + ";";
-  }
-  return descriptor;
-}
-
 jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
   ClassLoader* loader = Decode<ClassLoader*>(env, javaLoader);
   ScopedUtfChars name(env, javaName);
@@ -42,7 +32,7 @@ jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, js
     return NULL;
   }
 
-  std::string descriptor(ToDescriptor(name.c_str()));
+  std::string descriptor(DotToDescriptor(name.c_str()));
   Class* c = Runtime::Current()->GetClassLinker()->LookupClass(descriptor.c_str(), loader);
   return AddLocalReference<jclass>(env, c);
 }
@@ -90,48 +80,10 @@ jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring java
   return env->NewStringUTF(url.c_str());
 }
 
-/*
- * static Class loadClass(String name, boolean resolve)
- *     throws ClassNotFoundException
- *
- * Load class using bootstrap class loader.
- *
- * Return the Class object associated with the class or interface with
- * the specified name.
- *
- * "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
- */
-jclass VMClassLoader_loadClass(JNIEnv* env, jclass, jstring javaName, jboolean resolve) {
-  ScopedUtfChars name(env, javaName);
-  if (name.c_str() == NULL) {
-    return NULL;
-  }
-
-  /*
-   * We need to validate and convert the name (from x.y.z to x/y/z).  This
-   * is especially handy for array types, since we want to avoid
-   * auto-generating bogus array classes.
-   */
-  if (!IsValidClassName(name.c_str(), true, true)) {
-    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;",
-        "Invalid name: %s", name.c_str());
-    return NULL;
-  }
-
-  std::string descriptor(ToDescriptor(name.c_str()));
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* c = class_linker->FindClass(descriptor.c_str(), NULL);
-  if (resolve) {
-    class_linker->EnsureInitialized(c, true);
-  }
-  return AddLocalReference<jclass>(env, c);
-}
-
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMClassLoader, findLoadedClass, "(Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/Class;"),
   NATIVE_METHOD(VMClassLoader, getBootClassPathResource, "(Ljava/lang/String;I)Ljava/lang/String;"),
   NATIVE_METHOD(VMClassLoader, getBootClassPathSize, "()I"),
-  NATIVE_METHOD(VMClassLoader, loadClass, "(Ljava/lang/String;Z)Ljava/lang/Class;"),
 };
 
 }  // namespace

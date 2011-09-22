@@ -16,13 +16,42 @@
 
 #include "jni_internal.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "object.h"
+#include "ScopedUtfChars.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
 namespace art {
 
 namespace {
+
+// "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
+jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
+  ScopedUtfChars name(env, javaName);
+  if (name.c_str() == NULL) {
+    return NULL;
+  }
+
+  // We need to validate and convert the name (from x.y.z to x/y/z).  This
+  // is especially handy for array types, since we want to avoid
+  // auto-generating bogus array classes.
+  if (!IsValidClassName(name.c_str(), true, true)) {
+    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;",
+        "Invalid name: %s", name.c_str());
+    return NULL;
+  }
+
+  std::string descriptor(DotToDescriptor(name.c_str()));
+  Object* loader = Decode<Object*>(env, javaLoader);
+  ClassLoader* class_loader = down_cast<ClassLoader*>(loader);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
+  if (initialize) {
+    class_linker->EnsureInitialized(c, true);
+  }
+  return AddLocalReference<jclass>(env, c);
+}
 
 jboolean Class_desiredAssertionStatus(JNIEnv* env, jobject javaThis) {
     return JNI_FALSE;
@@ -194,8 +223,101 @@ jboolean Class_isPrimitive(JNIEnv* env, jobject javaThis) {
   return c->IsPrimitive();
 }
 
+bool CheckClassAccess(const Class* access_from, const Class* klass) {
+  if (klass->IsPublic()) {
+    return true;
+  }
+  return access_from->IsInSamePackage(klass);
+}
+
+// Validate method/field access.
+bool CheckMemberAccess(const Class* access_from, const Class* access_to, uint32_t member_flags) {
+  // quick accept for public access */
+  if (member_flags & kAccPublic) {
+    return true;
+  }
+
+  // quick accept for access from same class
+  if (access_from == access_to) {
+    return true;
+  }
+
+  // quick reject for private access from another class
+  if (member_flags & kAccPrivate) {
+    return false;
+  }
+
+  // Semi-quick test for protected access from a sub-class, which may or
+  // may not be in the same package.
+  if (member_flags & kAccProtected) {
+    if (access_from->IsSubClass(access_to)) {
+        return true;
+    }
+  }
+
+  // Allow protected and private access from other classes in the same
+  return access_from->IsInSamePackage(access_to);
+}
+
+jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
+  Class* c = Decode<Class*>(env, javaThis);
+  if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
+    Thread::Current()->ThrowNewException("Ljava/lang/InstantiationException;",
+        "Class %s can not be instantiated", PrettyDescriptor(c->GetDescriptor()).c_str());
+    return NULL;
+  }
+
+  Method* init = c->FindDirectMethod("<init>", "()V");
+  if (init == NULL) {
+    Thread::Current()->ThrowNewException("Ljava/lang/InstantiationException;",
+        "Class %s has no default <init>()V constructor", PrettyDescriptor(c->GetDescriptor()).c_str());
+    return NULL;
+  }
+
+  // Verify access from the call site.
+  //
+  // First, make sure the method invoking Class.newInstance() has permission
+  // to access the class.
+  //
+  // Second, make sure it has permission to invoke the constructor.  The
+  // constructor must be public or, if the caller is in the same package,
+  // have package scope.
+  // TODO: need SmartFrame (Thread::WalkStack-like iterator).
+  Frame frame = Thread::Current()->GetTopOfStack();
+  frame.Next();
+  frame.Next();
+  Method* caller_caller = frame.GetMethod();
+  Class* caller_class = caller_caller->GetDeclaringClass();
+
+  if (!CheckClassAccess(c, caller_class)) {
+    Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessException;",
+                                         "Class %s is not accessible from class %s",
+                                         PrettyDescriptor(c->GetDescriptor()).c_str(),
+                                         PrettyDescriptor(caller_class->GetDescriptor()).c_str());
+    return NULL;
+  }
+  if (!CheckMemberAccess(caller_class, init->GetDeclaringClass(), init->GetAccessFlags())) {
+    Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessException;",
+                                         "%s is not accessible from class %s",
+                                         PrettyMethod(init).c_str(),
+                                         PrettyDescriptor(caller_class->GetDescriptor()).c_str());
+    return NULL;
+  }
+
+  Object* new_obj = c->AllocObject();
+  if (new_obj == NULL) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return NULL;
+  }
+
+  // invoke constructor; unlike reflection calls, we don't wrap exceptions
+  jclass jklass = AddLocalReference<jclass>(env, c);
+  jmethodID mid = EncodeMethod(init);
+  return env->NewObject(jklass, mid);
+}
+
 static JNINativeMethod gMethods[] = {
-  //NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
   NATIVE_METHOD(Class, desiredAssertionStatus, "()Z"),
   NATIVE_METHOD(Class, getClassLoader, "(Ljava/lang/Class;)Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(Class, getComponentType, "()Ljava/lang/Class;"),
@@ -223,7 +345,7 @@ static JNINativeMethod gMethods[] = {
   //NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, isInterface, "()Z"),
   NATIVE_METHOD(Class, isPrimitive, "()Z"),
-  //NATIVE_METHOD(Class, newInstanceImpl, "()Ljava/lang/Object;"),
+  NATIVE_METHOD(Class, newInstanceImpl, "()Ljava/lang/Object;"),
 };
 
 }  // namespace

@@ -298,7 +298,7 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
     return NULL;
   }
 
-  return reinterpret_cast<jmethodID>(method);
+  return EncodeMethod(method);
 }
 
 jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
@@ -342,7 +342,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   // Check invariant that all jfieldIDs have resolved types (how else would
   // the type equality in Find...Field hold?)
   DCHECK(field->GetType() != NULL);
-  return reinterpret_cast<jfieldID>(field);
+  return EncodeField(field);
 }
 
 void PinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
@@ -639,13 +639,13 @@ class JNI {
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject java_method) {
     ScopedJniThreadState ts(env);
     Method* method = Decode<Method*>(ts, java_method);
-    return reinterpret_cast<jmethodID>(method);
+    return EncodeMethod(method);
   }
 
   static jfieldID FromReflectedField(JNIEnv* env, jobject java_field) {
     ScopedJniThreadState ts(env);
     Field* field = Decode<Field*>(ts, java_field);
-    return reinterpret_cast<jfieldID>(field);
+    return EncodeField(field);
   }
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {

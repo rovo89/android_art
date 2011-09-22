@@ -184,6 +184,15 @@ std::string MangleForJni(const std::string& s) {
   return result;
 }
 
+std::string DotToDescriptor(const char* class_name) {
+  std::string descriptor(class_name);
+  std::replace(descriptor.begin(), descriptor.end(), '.', '/');
+  if (descriptor.length() > 0 && descriptor[0] != '[') {
+    descriptor = "L" + descriptor + ";";
+  }
+  return descriptor;
+}
+
 std::string JniShortName(const Method* m) {
   Class* declaring_class = m->GetDeclaringClass();
 

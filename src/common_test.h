@@ -241,15 +241,6 @@ class CommonTest : public testing::Test {
     return class_loader;
   }
 
-  std::string ConvertClassNameToClassDescriptor(const char* class_name) {
-    std::string desc;
-    desc += "L";
-    desc += class_name;
-    desc += ";";
-    std::replace(desc.begin(), desc.end(), '.', '/');
-    return desc;
-  }
-
   void CompileMethod(Method* method) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
@@ -262,7 +253,7 @@ class CommonTest : public testing::Test {
                            const char* class_name,
                            const char* method_name,
                            const char* signature) {
-    std::string class_descriptor = ConvertClassNameToClassDescriptor(class_name);
+    std::string class_descriptor = DotToDescriptor(class_name);
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     Method* method = klass->FindDirectMethod(method_name, signature);
@@ -275,7 +266,7 @@ class CommonTest : public testing::Test {
                             const char* class_name,
                             const char* method_name,
                             const char* signature) {
-    std::string class_descriptor = ConvertClassNameToClassDescriptor(class_name);
+    std::string class_descriptor = DotToDescriptor(class_name);
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     Method* method = klass->FindVirtualMethod(method_name, signature);

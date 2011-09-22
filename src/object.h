@@ -1492,6 +1492,8 @@ class MANAGED Class : public StaticStorageBase {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
 
+  bool IsSubClass(const Class* klass) const;
+
   bool IsAssignableFrom(const Class* src) const {
     DCHECK(src != NULL);
     if (this == src) {
@@ -1905,7 +1907,6 @@ class MANAGED Class : public StaticStorageBase {
   bool Implements(const Class* klass) const;
   bool IsArrayAssignableFromArray(const Class* klass) const;
   bool IsAssignableFromArray(const Class* klass) const;
-  bool IsSubClass(const Class* klass) const;
 
   // descriptor for the class such as "java.lang.Class" or "[C"
   String* name_;  // TODO initialize
