@@ -18,6 +18,7 @@ namespace art {
 
 class ClassLoader;
 class Field;
+union JValue;
 class Libraries;
 class Method;
 class Thread;
@@ -57,6 +58,8 @@ inline jmethodID EncodeMethod(Method* method) {
 #endif
   return reinterpret_cast<jmethodID>(method);
 }
+
+JValue InvokeWithJValues(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args);
 
 struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);

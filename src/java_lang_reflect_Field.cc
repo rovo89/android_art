@@ -17,6 +17,7 @@
 #include "jni_internal.h"
 #include "class_linker.h"
 #include "object.h"
+#include "reflection.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
@@ -26,240 +27,6 @@ namespace {
 
 jint Field_getFieldModifiers(JNIEnv* env, jobject jfield, jclass javaDeclaringClass, jint slot) {
   return Decode<Object*>(env, jfield)->AsField()->GetAccessFlags() & kAccFieldFlagsMask;
-}
-
-// TODO: we'll need this for Method too.
-bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
-  if (o == NULL) {
-    jniThrowNullPointerException(env, "receiver for non-static field access was null");
-    return false;
-  }
-  if (!o->InstanceOf(c)) {
-    std::string expectedClassName(PrettyDescriptor(c->GetDescriptor()));
-    std::string actualClassName(PrettyTypeOf(o));
-    jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
-        "expected receiver of type %s, but got %s",
-        expectedClassName.c_str(), actualClassName.c_str());
-    return false;
-  }
-  return true;
-}
-
-/*
- * Convert primitive, boxed data from "srcPtr" to "dstPtr".
- *
- * Section v2 2.6 lists the various conversions and promotions.  We
- * allow the "widening" and "identity" conversions, but don't allow the
- * "narrowing" conversions.
- *
- * Allowed:
- *  byte to short, int, long, float, double
- *  short to int, long, float double
- *  char to int, long, float, double
- *  int to long, float, double
- *  long to float, double
- *  float to double
- * Values of types byte, char, and short are "internally" widened to int.
- *
- * Returns the width in 32-bit words of the destination primitive, or
- * -1 if the conversion is not allowed.
- */
-bool ConvertPrimitiveValue(Class* src_class, Class* dst_class, const JValue& src, JValue& dst) {
-  Class::PrimitiveType srcType = src_class->GetPrimitiveType();
-  Class::PrimitiveType dstType = dst_class->GetPrimitiveType();
-  switch (dstType) {
-  case Class::kPrimBoolean:
-  case Class::kPrimChar:
-  case Class::kPrimByte:
-    if (srcType == dstType) {
-      dst.i = src.i;
-      return true;
-    }
-    break;
-  case Class::kPrimShort:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimShort) {
-      dst.i = src.i;
-      return true;
-    }
-    break;
-  case Class::kPrimInt:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
-      dst.i = src.i;
-      return true;
-    }
-    break;
-  case Class::kPrimLong:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
-      dst.j = src.i;
-      return true;
-    } else if (srcType == Class::kPrimLong) {
-      dst.j = src.j;
-      return true;
-    }
-    break;
-  case Class::kPrimFloat:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
-      dst.f = src.i;
-      return true;
-    } else if (srcType == Class::kPrimLong) {
-      dst.f = src.j;
-      return true;
-    } else if (srcType == Class::kPrimFloat) {
-      dst.i = src.i;
-      return true;
-    }
-    break;
-  case Class::kPrimDouble:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
-      dst.d = src.i;
-      return true;
-    } else if (srcType == Class::kPrimLong) {
-      dst.d = src.j;
-      return true;
-    } else if (srcType == Class::kPrimFloat) {
-      dst.d = src.f;
-      return true;
-    } else if (srcType == Class::kPrimDouble) {
-      dst.j = src.j;
-      return true;
-    }
-    break;
-  default:
-    break;
-  }
-  Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-      "invalid primitive conversion from %s to %s",
-      PrettyDescriptor(src_class->GetDescriptor()).c_str(),
-      PrettyDescriptor(dst_class->GetDescriptor()).c_str());
-  return false;
-}
-
-bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value) {
-  if (dst_class->GetPrimitiveType() == Class::kPrimNot) {
-    if (o != NULL && !o->InstanceOf(dst_class)) {
-      jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
-          "expected object of type %s, but got %s",
-          PrettyDescriptor(dst_class->GetDescriptor()).c_str(),
-          PrettyTypeOf(o).c_str());
-      return false;
-    }
-    unboxed_value.l = o;
-    return true;
-  } else if (dst_class->GetPrimitiveType() == Class::kPrimVoid) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-        "can't unbox to void");
-    return false;
-  }
-
-  if (o == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-        "null passed for boxed primitive type");
-    return false;
-  }
-
-  JValue boxed_value = { 0 };
-  const String* src_descriptor = o->GetClass()->GetDescriptor();
-  Class* src_class = NULL;
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
-  if (src_descriptor->Equals("Ljava/lang/Boolean;")) {
-    src_class = class_linker->FindPrimitiveClass('Z');
-    boxed_value.z = primitive_field->GetBoolean(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Byte;")) {
-    src_class = class_linker->FindPrimitiveClass('B');
-    boxed_value.b = primitive_field->GetByte(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Character;")) {
-    src_class = class_linker->FindPrimitiveClass('C');
-    boxed_value.c = primitive_field->GetChar(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Float;")) {
-    src_class = class_linker->FindPrimitiveClass('F');
-    boxed_value.f = primitive_field->GetFloat(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Double;")) {
-    src_class = class_linker->FindPrimitiveClass('D');
-    boxed_value.d = primitive_field->GetDouble(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Integer;")) {
-    src_class = class_linker->FindPrimitiveClass('I');
-    boxed_value.i = primitive_field->GetInt(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Long;")) {
-    src_class = class_linker->FindPrimitiveClass('J');
-    boxed_value.j = primitive_field->GetLong(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Short;")) {
-    src_class = class_linker->FindPrimitiveClass('S');
-    boxed_value.s = primitive_field->GetShort(o);
-  } else {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-        "%s is not a boxed primitive type", PrettyDescriptor(src_descriptor).c_str());
-    return false;
-  }
-
-  return ConvertPrimitiveValue(src_class, dst_class, boxed_value, unboxed_value);
-}
-
-Method* gBoolean_valueOf;
-Method* gByte_valueOf;
-Method* gCharacter_valueOf;
-Method* gDouble_valueOf;
-Method* gFloat_valueOf;
-Method* gInteger_valueOf;
-Method* gLong_valueOf;
-Method* gShort_valueOf;
-
-void InitBoxingMethod(JNIEnv* env, Method*& m, jclass c, const char* method_signature) {
-  m = DecodeMethod(env->GetStaticMethodID(c, "valueOf", method_signature));
-}
-
-void BoxPrimitive(JNIEnv* env, Class* src_class, JValue& value) {
-  if (!src_class->IsPrimitive()) {
-    return;
-  }
-
-  Method* m = NULL;
-  UniquePtr<byte[]> args(new byte[8]);
-  memset(&args[0], 0, 8);
-  switch (src_class->GetPrimitiveType()) {
-  case Class::kPrimBoolean:
-    m = gBoolean_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.z;
-    break;
-  case Class::kPrimByte:
-    m = gByte_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.b;
-    break;
-  case Class::kPrimChar:
-    m = gCharacter_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.c;
-    break;
-  case Class::kPrimDouble:
-    m = gDouble_valueOf;
-    *reinterpret_cast<double*>(&args[0]) = value.d;
-    break;
-  case Class::kPrimFloat:
-    m = gFloat_valueOf;
-    *reinterpret_cast<float*>(&args[0]) = value.f;
-    break;
-  case Class::kPrimInt:
-    m = gInteger_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.i;
-    break;
-  case Class::kPrimLong:
-    m = gLong_valueOf;
-    *reinterpret_cast<uint64_t*>(&args[0]) = value.j;
-    break;
-  case Class::kPrimShort:
-    m = gShort_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.s;
-    break;
-  default:
-    LOG(FATAL) << PrettyClass(src_class);
-  }
-
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  m->Invoke(self, NULL, args.get(), &value);
 }
 
 bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
@@ -305,7 +72,7 @@ bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
 }
 
 JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor) {
-  Field* f = reinterpret_cast<Field*>(env->FromReflectedField(javaField));
+  Field* f = DecodeField(env->FromReflectedField(javaField));
 
   // Check that the receiver is non-null and an instance of the field's declaring class.
   Object* o = Decode<Object*>(env, javaObj);
@@ -406,7 +173,7 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
 }
 
 void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor, const JValue& new_value) {
-  Field* f = reinterpret_cast<Field*>(env->FromReflectedField(javaField));
+  Field* f = DecodeField(env->FromReflectedField(javaField));
 
   // Check that the receiver is non-null and an instance of the field's declaring class.
   Object* o = Decode<Object*>(env, javaObj);
@@ -478,7 +245,7 @@ void Field_setZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass jav
 }
 
 void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jobject javaValue) {
-  Field* f = reinterpret_cast<Field*>(env->FromReflectedField(javaField));
+  Field* f = DecodeField(env->FromReflectedField(javaField));
 
   // Unbox the value, if necessary.
   Object* boxed_value = Decode<Object*>(env, javaValue);
@@ -501,7 +268,7 @@ void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass java
 }
 
 jobject Field_getField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean) {
-  Field* f = reinterpret_cast<Field*>(env->FromReflectedField(javaField));
+  Field* f = DecodeField(env->FromReflectedField(javaField));
 
   // Check that the receiver is non-null and an instance of the field's declaring class.
   Object* o = Decode<Object*>(env, javaObj);
@@ -549,14 +316,7 @@ static JNINativeMethod gMethods[] = {
 }  // namespace
 
 void register_java_lang_reflect_Field(JNIEnv* env) {
-  InitBoxingMethod(env, gBoolean_valueOf, JniConstants::booleanClass, "(Z)Ljava/lang/Boolean;");
-  InitBoxingMethod(env, gByte_valueOf, JniConstants::byteClass, "(B)Ljava/lang/Byte;");
-  InitBoxingMethod(env, gCharacter_valueOf, JniConstants::characterClass, "(C)Ljava/lang/Character;");
-  InitBoxingMethod(env, gDouble_valueOf, JniConstants::doubleClass, "(D)Ljava/lang/Double;");
-  InitBoxingMethod(env, gFloat_valueOf, JniConstants::floatClass, "(F)Ljava/lang/Float;");
-  InitBoxingMethod(env, gInteger_valueOf, JniConstants::integerClass, "(I)Ljava/lang/Integer;");
-  InitBoxingMethod(env, gLong_valueOf, JniConstants::longClass, "(J)Ljava/lang/Long;");
-  InitBoxingMethod(env, gShort_valueOf, JniConstants::shortClass, "(S)Ljava/lang/Short;");
+  InitBoxingMethods(env); // TODO: move to Runtime?
   jniRegisterNativeMethods(env, "java/lang/reflect/Field", gMethods, NELEM(gMethods));
 }
 

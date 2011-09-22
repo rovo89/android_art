@@ -440,17 +440,19 @@ void Runtime::InitNativeMethods() {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
-  // Must be in the kNative state for JNI-based method registration.
+  // Must be in the kNative state for calling native methods (JNI_OnLoad code).
   ScopedThreadStateChange tsc(self, Thread::kNative);
 
+  // First set up JniConstants, which is used by both the runtime's built-in native
+  // methods and libcore.
   JniConstants::init(env);
 
-  // First set up the native methods provided by the runtime itself.
+  // Then set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);
 
-  // Now set up libcore, which is just a JNI library with a JNI_OnLoad.
-  // Most JNI libraries can just use System.loadLibrary, but you can't
-  // if you're the library that implements System.loadLibrary!
+  // Then set up libcore, which is just a regular JNI library with a regular JNI_OnLoad.
+  // Most JNI libraries can just use System.loadLibrary, but libcore can't because it's
+  // the library that implements System.loadLibrary!
   LoadJniLibrary(instance_->GetJavaVM(), "javacore");
 }
 

@@ -67,53 +67,43 @@ jclass Class_getComponentType(JNIEnv* env, jobject javaThis) {
   return AddLocalReference<jclass>(env, Decode<Class*>(env, javaThis)->GetComponentType());
 }
 
+bool MethodMatches(Method* m, String* name, const std::string& signature) {
+  if (!m->GetName()->Equals(name)) {
+    return false;
+  }
+  std::string method_signature = m->GetSignature()->ToModifiedUtf8();
+  if (!StringPiece(method_signature).starts_with(signature)) {
+    return false;
+  }
+  m->InitJavaFields();
+  return true;
+}
+
 jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
-                                             jclass jklass, jstring jname, jobjectArray jsignature) {
-  Class* klass = Decode<Class*>(env, jklass);
-  DCHECK(klass->IsClass());
-  String* name = Decode<String*>(env, jname);
-  DCHECK(name->IsString());
-  Object* signature_obj = Decode<Object*>(env, jsignature);
-  DCHECK(signature_obj->IsArrayInstance());
-  // check that this is a Class[] by checking that component type is Class
-  // foo->GetClass()->GetClass() is an idiom for getting java.lang.Class from an arbitrary object
-  DCHECK(signature_obj->GetClass()->GetComponentType() == signature_obj->GetClass()->GetClass());
-  ObjectArray<Class>* signature = down_cast<ObjectArray<Class>*>(signature_obj);
+    jclass javaClass, jstring javaName, jobjectArray javaSignature) {
+  Class* c = Decode<Class*>(env, javaClass);
+  String* name = Decode<String*>(env, javaName);
+  ObjectArray<Class>* signature_array = Decode<ObjectArray<Class>*>(env, javaSignature);
 
-  std::string name_string = name->ToModifiedUtf8();
-  std::string signature_string;
-  signature_string += "(";
-  for (int i = 0; i < signature->GetLength(); i++) {
-    Class* argument_class = signature->Get(0);
-    if (argument_class == NULL) {
-      UNIMPLEMENTED(FATAL) << "throw null pointer exception?";
-    }
-    signature_string += argument_class->GetDescriptor()->ToModifiedUtf8();
+  std::string signature;
+  signature += "(";
+  for (int i = 0; i < signature_array->GetLength(); i++) {
+    signature += signature_array->Get(i)->GetDescriptor()->ToModifiedUtf8();
   }
-  signature_string += ")";
+  signature += ")";
 
-  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-    Method* method = klass->GetVirtualMethod(i);
-    if (!method->GetName()->Equals(name)) {
-      continue;
+  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+    Method* m = c->GetVirtualMethod(i);
+    if (MethodMatches(m, name, signature)) {
+      return AddLocalReference<jobject>(env, m);
     }
-    std::string method_signature = method->GetSignature()->ToModifiedUtf8();
-    if (!StringPiece(method_signature).starts_with(signature_string)) {
-      continue;
-    }
-    return AddLocalReference<jobject>(env, method);
   }
 
-  for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
-    Method* method = klass->GetDirectMethod(i);
-    if (!method->GetName()->Equals(name)) {
-      continue;
+  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+    Method* m = c->GetDirectMethod(i);
+    if (MethodMatches(m, name, signature)) {
+      return AddLocalReference<jobject>(env, m);
     }
-    std::string method_signature = method->GetSignature()->ToModifiedUtf8();
-    if (!StringPiece(method_signature).starts_with(signature_string)) {
-      continue;
-    }
-    return AddLocalReference<jobject>(env, method);
   }
 
   return NULL;
@@ -326,7 +316,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getEnclosingConstructor, "()Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getEnclosingMethod, "()Ljava/lang/reflect/Method;"),
   //NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
-  //NATIVE_METHOD(Class, getInterfaces, "()[Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),

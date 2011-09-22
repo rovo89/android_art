@@ -916,8 +916,7 @@ class MANAGED Method : public AccessibleObject {
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
     // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_),
-               core_spill_mask, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_), core_spill_mask, false);
   }
 
   uint32_t GetFpSpillMask() const {
@@ -926,8 +925,7 @@ class MANAGED Method : public AccessibleObject {
 
   void SetFpSpillMask(uint32_t fp_spill_mask) {
     // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_),
-               fp_spill_mask, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), fp_spill_mask, false);
   }
 
   // Is this a hand crafted method used for something like describing callee saves?
@@ -958,13 +956,16 @@ class MANAGED Method : public AccessibleObject {
   static Class* GetMethodClass() { return java_lang_reflect_Method_; }
   static void ResetClass();
 
+  void InitJavaFields();
+
  private:
   uint32_t GetReturnTypeIdx() const;
+  void InitJavaFieldsLocked();
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // the class we are a part of
   Class* declaring_class_;
-  ObjectArray<Class>* java_exception_types_;
+  ObjectArray<Class>* java_exception_types_; // TODO
   Object* java_formal_type_parameters_;
   Object* java_generic_exception_types_;
   Object* java_generic_parameter_types_;
@@ -972,9 +973,9 @@ class MANAGED Method : public AccessibleObject {
 
   String* name_;
 
+  // Initialized by InitJavaFields.
   ObjectArray<Class>* java_parameter_types_;
-
-  Class* java_return_type_;  // Unused by ART
+  Class* java_return_type_;
 
   // Storage for code_
   const ByteArray* code_array_;
@@ -1728,7 +1729,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetInterface(uint32_t i, Class* f) {  // TODO: uint16_t
-    DCHECK_NE(NumInterfaces(), 0U);
+    DCHECK_LT(i, NumInterfaces());
     ObjectArray<Class>* interfaces =
         GetFieldObject<ObjectArray<Class>*>(
             OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false);
@@ -1736,7 +1737,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Class* GetInterface(uint32_t i) const {
-    DCHECK_NE(NumInterfaces(), 0U);
+    DCHECK_LT(i, NumInterfaces());
     return GetInterfaces()->Get(i);
   }
 

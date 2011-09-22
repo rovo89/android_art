@@ -321,6 +321,76 @@ void Method::ResetClass() {
   java_lang_reflect_Method_ = NULL;
 }
 
+Class* ExtractNextClassFromSignature(ClassLinker* class_linker, const ClassLoader* cl, const char*& p) {
+  if (*p == '[') {
+    // Something like "[[[Ljava/lang/String;".
+    const char* start = p;
+    while (*p == '[') {
+      ++p;
+    }
+    if (*p == 'L') {
+      while (*p != ';') {
+        ++p;
+      }
+    }
+    ++p; // Either the ';' or the primitive type.
+
+    StringPiece descriptor(start, (p - start));
+    return class_linker->FindClass(descriptor, cl);
+  } else if (*p == 'L') {
+    const char* start = p;
+    while (*p != ';') {
+      ++p;
+    }
+    ++p;
+    StringPiece descriptor(start, (p - start));
+    return class_linker->FindClass(descriptor, cl);
+  } else {
+    return class_linker->FindPrimitiveClass(*p++);
+  }
+}
+
+void Method::InitJavaFieldsLocked() {
+  // Create the array.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  size_t arg_count = GetShorty()->GetLength() - 1;
+  Class* array_class = class_linker->FindSystemClass("[Ljava/lang/Class;");
+  ObjectArray<Class>* parameters = ObjectArray<Class>::Alloc(array_class, arg_count);
+  if (parameters == NULL) {
+    return;
+  }
+
+  // Parse the signature, filling the array.
+  const ClassLoader* cl = GetDeclaringClass()->GetClassLoader();
+  std::string signature(GetSignature()->ToModifiedUtf8());
+  const char* p = signature.c_str();
+  DCHECK_EQ(*p, '(');
+  ++p;
+  for (size_t i = 0; i < arg_count; ++i) {
+    Class* c = ExtractNextClassFromSignature(class_linker, cl, p);
+    if (c == NULL) {
+      return;
+    }
+    parameters->Set(i, c);
+  }
+
+  DCHECK_EQ(*p, ')');
+  ++p;
+
+  java_parameter_types_ = parameters;
+  java_return_type_ = ExtractNextClassFromSignature(class_linker, cl, p);
+}
+
+void Method::InitJavaFields() {
+  Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  MonitorEnter(self);
+  if (java_parameter_types_ == NULL || java_return_type_ == NULL) {
+    InitJavaFieldsLocked();
+  }
+  MonitorExit(self);
+}
+
 ObjectArray<String>* Method::GetDexCacheStrings() const {
   return GetFieldObject<ObjectArray<String>*>(
       OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_), false);
@@ -1304,9 +1374,17 @@ bool String::Equals(const char* modified_utf8) const {
 }
 
 bool String::Equals(const StringPiece& modified_utf8) const {
-  // TODO: do not assume C-string representation. For now DCHECK.
-  DCHECK_EQ(modified_utf8.data()[modified_utf8.size()], 0);
-  return Equals(modified_utf8.data());
+  if (modified_utf8.size() != GetLength()) {
+    return false;
+  }
+  const char* p = modified_utf8.data();
+  for (int32_t i = 0; i < GetLength(); ++i) {
+    uint16_t ch = GetUtf16FromUtf8(&p);
+    if (ch != CharAt(i)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Create a modified UTF-8 encoded std::string from a java/lang/String object.

@@ -209,8 +209,9 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
     return 0;  // Success
   } else {
     Thread::Current()->ThrowNewException("Ljava/lang/ClassCastException;",
-                                         "%s cannot be cast to %s",
-                                         PrettyClass(b).c_str(), PrettyClass(a).c_str());
+        "%s cannot be cast to %s",
+        PrettyDescriptor(a->GetDescriptor()).c_str(),
+        PrettyDescriptor(b->GetDescriptor()).c_str());
     return -1;  // Failure
   }
 }

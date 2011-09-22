@@ -1,4 +1,18 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef ART_SRC_CLASS_LINKER_H_
 #define ART_SRC_CLASS_LINKER_H_
@@ -155,9 +169,14 @@ class ClassLinker {
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
   DexCache* FindDexCache(const DexFile& dex_file) const;
 
+  // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
     return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
+  }
+
+  ObjectArray<Class>* AllocClassArray(size_t length) {
+    return ObjectArray<Class>::Alloc(GetClassRoot(kClassArrayClass), length);
   }
 
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
@@ -295,6 +314,7 @@ class ClassLinker {
   enum ClassRoot {
     kJavaLangClass,
     kJavaLangObject,
+    kClassArrayClass,
     kObjectArrayClass,
     kJavaLangString,
     kJavaLangReflectField,
@@ -345,7 +365,7 @@ class ClassLinker {
     class_roots_->Set(class_root, klass);
   }
 
-  static const char* class_roots_descriptors_[kClassRootsMax];
+  static const char* class_roots_descriptors_[];
 
   const char* GetClassRootDescriptor(ClassRoot class_root) {
     const char* descriptor = class_roots_descriptors_[class_root];

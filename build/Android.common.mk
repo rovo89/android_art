@@ -133,6 +133,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/offsets.cc \
 	src/os_linux.cc \
 	src/reference_table.cc \
+	src/reflection.cc \
 	src/runtime.cc \
 	src/signal_catcher.cc \
 	src/space.cc \

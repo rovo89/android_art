@@ -76,7 +76,7 @@ class OatDump {
     os << reinterpret_cast<void*>(image_header.GetBaseAddr()) << "\n\n";
 
     os << "ROOTS:\n";
-    CHECK(sizeof(image_roots_descriptions_)/(sizeof(char*)) == ImageHeader::kImageRootsMax);
+    CHECK_EQ(arraysize(image_roots_descriptions_), size_t(ImageHeader::kImageRootsMax));
     for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
       ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
       os << StringPrintf("%s: %p\n",
