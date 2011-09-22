@@ -67,11 +67,6 @@ jclass Class_getComponentType(JNIEnv* env, jobject javaThis) {
   return AddLocalReference<jclass>(env, Decode<Class*>(env, javaThis)->GetComponentType());
 }
 
-jobjectArray Class_getDeclaredClasses(JNIEnv* env, jclass java_lang_Class_class, jclass c, jboolean publicOnly) {
-  UNIMPLEMENTED(WARNING) << "needs annotations";
-  return env->NewObjectArray(0, java_lang_Class_class, NULL);
-}
-
 jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
                                              jclass jklass, jstring jname, jobjectArray jsignature) {
   Class* klass = Decode<Class*>(env, jklass);
@@ -311,25 +306,19 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, desiredAssertionStatus, "()Z"),
   NATIVE_METHOD(Class, getClassLoader, "(Ljava/lang/Class;)Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(Class, getComponentType, "()Ljava/lang/Class;"),
-  //NATIVE_METHOD(Class, getDeclaredAnnotation, "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  //NATIVE_METHOD(Class, getDeclaredAnnotations, "()[Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Class, getDeclaredClasses, "(Ljava/lang/Class;Z)[Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
   //NATIVE_METHOD(Class, getDeclaredConstructors, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   //NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
   //NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
-  //NATIVE_METHOD(Class, getEnclosingClass, "()Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
   //NATIVE_METHOD(Class, getInterfaces, "()[Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
-  //NATIVE_METHOD(Class, getSignatureAnnotation, "()[Ljava/lang/Object;"),
   NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
   //NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
-  //NATIVE_METHOD(Class, isDeclaredAnnotationPresent, "(Ljava/lang/Class;)Z"),
   //NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, isInterface, "()Z"),
   NATIVE_METHOD(Class, isPrimitive, "()Z"),

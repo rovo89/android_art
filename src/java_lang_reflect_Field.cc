@@ -524,7 +524,6 @@ jobject Field_getField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
 }
 
 static JNINativeMethod gMethods[] = {
-  //NATIVE_METHOD(Field, getSignatureAnnotation, "(Ljava/lang/Class;I)[Ljava/lang/Object;"),
   NATIVE_METHOD(Field, getFieldModifiers, "(Ljava/lang/Class;I)I"),
 
   NATIVE_METHOD(Field, getBField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)B"),

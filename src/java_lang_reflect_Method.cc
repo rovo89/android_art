@@ -41,14 +41,8 @@ jint Method_getMethodModifiers(JNIEnv* env, jclass, jclass javaDeclaringClass, j
 }
 
 static JNINativeMethod gMethods[] = {
-  //NATIVE_METHOD(Method, getAnnotation, "(Ljava/lang/Class;ILjava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  //NATIVE_METHOD(Method, getDeclaredAnnotations, "(Ljava/lang/Class;I)[Ljava/lang/annotation/Annotation;"),
-  //NATIVE_METHOD(Method, getDefaultValue, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
   NATIVE_METHOD(Method, getMethodModifiers, "(Ljava/lang/Class;Ljava/lang/reflect/AccessibleObject;I)I"),
-  //NATIVE_METHOD(Method, getParameterAnnotations, "(Ljava/lang/Class;I)[[Ljava/lang/annotation/Annotation;"),
-  //NATIVE_METHOD(Method, getSignatureAnnotation, "(Ljava/lang/Class;I)[Ljava/lang/Object;"),
   //NATIVE_METHOD(Method, invokeNative, "(Ljava/lang/Object;[Ljava/lang/Object;Ljava/lang/Class;[Ljava/lang/Class;Ljava/lang/Class;IZ)Ljava/lang/Object;"),
-  //NATIVE_METHOD(Method, isAnnotationPresent, "(Ljava/lang/Class;ILjava/lang/Class;)Z"),
 };
 
 }  // namespace
