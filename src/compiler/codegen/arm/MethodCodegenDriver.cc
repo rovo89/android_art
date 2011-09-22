@@ -849,6 +849,8 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pMemcpy), rLR);
         loadConstant(cUnit, r2, (numArgs - 3) * 4);
         callNoUnwindHelper(cUnit, rLR);
+        // Restore Method*
+        loadCurrMethodDirect(cUnit, r0);
     } else {
         // Use vldm/vstm pair using r3 as a temp
         int regsLeft = std::min(numArgs - 3, 16);
