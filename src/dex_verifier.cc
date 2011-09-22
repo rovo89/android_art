@@ -1381,6 +1381,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
   InsnFlags* insn_flags = vdata->insn_flags_.get();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
+  const ClassLoader* class_loader =
+      method->GetDeclaringClass()->GetClassLoader();
   const uint16_t* insns = code_item->insns_ + insn_idx;
   uint32_t insns_size = code_item->insns_size_;
   uint32_t registers_size = code_item->registers_size_;
@@ -1649,11 +1651,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve const-class " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        DCHECK(failure != VERIFY_ERROR_GENERIC);
-      } else {
-        SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(
-            class_linker->FindSystemClass("Ljava/lang/Class;")));
+        if (failure != VERIFY_ERROR_NONE) {
+          break;
+        }
       }
+      SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(
+          class_linker->FindSystemClass("Ljava/lang/Class;")));
       break;
 
     case Instruction::MONITOR_ENTER:
@@ -1700,18 +1703,21 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve check-cast " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        DCHECK(failure != VERIFY_ERROR_GENERIC);
-      } else {
-        RegType orig_type;
-
-        orig_type = GetRegisterType(work_line, dec_insn.vA_);
-        if (!RegTypeIsReference(orig_type)) {
-          LOG(ERROR) << "VFY: check-cast on non-reference in v" << dec_insn.vA_;
-          failure = VERIFY_ERROR_GENERIC;
+        if (failure != VERIFY_ERROR_NONE) {
           break;
         }
-        SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(res_class));
+        /* if the class is unresolvable, treat it as an object */
+        res_class = class_linker->FindClass("Ljava/lang/Object;", class_loader);
       }
+      RegType orig_type;
+
+      orig_type = GetRegisterType(work_line, dec_insn.vA_);
+      if (!RegTypeIsReference(orig_type)) {
+        LOG(ERROR) << "VFY: check-cast on non-reference in v" << dec_insn.vA_;
+        failure = VERIFY_ERROR_GENERIC;
+        break;
+      }
+      SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(res_class));
       break;
     case Instruction::INSTANCE_OF:
       /* make sure we're checking a reference type */
@@ -1729,11 +1735,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve instanceof " << dec_insn.vC_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        DCHECK(failure != VERIFY_ERROR_GENERIC);
-      } else {
-        /* result is boolean */
-        SetRegisterType(work_line, dec_insn.vA_, kRegTypeBoolean);
+        if (failure != VERIFY_ERROR_NONE) {
+          break;
+        }
       }
+      /* result is boolean */
+      SetRegisterType(work_line, dec_insn.vA_, kRegTypeBoolean);
       break;
 
     case Instruction::ARRAY_LENGTH:
@@ -1749,14 +1756,19 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       break;
 
     case Instruction::NEW_INSTANCE:
-      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
-      if (res_class == NULL) {
-        const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
-        LOG(ERROR) << "VFY: unable to resolve new-instance " << dec_insn.vB_
-                   << " (" << bad_class_desc << ") in "
-                   << klass->GetDescriptor()->ToModifiedUtf8();
-        DCHECK(failure != VERIFY_ERROR_GENERIC);
-      } else {
+      {
+        res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
+        if (res_class == NULL) {
+          const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
+          LOG(ERROR) << "VFY: unable to resolve new-instance " << dec_insn.vB_
+                     << " (" << bad_class_desc << ") in "
+                     << klass->GetDescriptor()->ToModifiedUtf8();
+          if (failure != VERIFY_ERROR_NONE) {
+            break;
+          }
+          /* if the class is unresolvable, treat it as an object */
+          res_class = class_linker->FindClass("Ljava/lang/Object;", class_loader);
+        }
         RegType uninit_type;
 
         /* can't create an instance of an interface or abstract class */
@@ -1781,8 +1793,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
         /* add the new uninitialized reference to the register ste */
         SetRegisterType(work_line, dec_insn.vA_, uninit_type);
+        break;
       }
-      break;
    case Instruction::NEW_ARRAY:
       res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vC_, klass, &failure);
       if (res_class == NULL) {
@@ -1790,8 +1802,13 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve new-array " << dec_insn.vC_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        DCHECK(failure != VERIFY_ERROR_GENERIC);
-      } else if (!res_class->IsArrayClass()) {
+        if (failure != VERIFY_ERROR_NONE) {
+          break;
+        }
+        /* if the class is unresolvable, treat it as an object array */
+        res_class = class_linker->FindClass("[Ljava/lang/Object;", class_loader);
+      }
+      if (!res_class->IsArrayClass()) {
         LOG(ERROR) << "VFY: new-array on non-array class";
         failure = VERIFY_ERROR_GENERIC;
       } else {
@@ -1809,13 +1826,17 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve filled-array " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        DCHECK(failure != VERIFY_ERROR_GENERIC);
-      } else if (!res_class->IsArrayClass()) {
+        if (failure != VERIFY_ERROR_NONE) {
+          break;
+        }
+        /* if the class is unresolvable, treat it as an object array */
+        res_class = class_linker->FindClass("[Ljava/lang/Object;", class_loader);
+      }
+      if (!res_class->IsArrayClass()) {
         LOG(ERROR) << "VFY: filled-new-array on non-array class";
         failure = VERIFY_ERROR_GENERIC;
       } else {
-        bool is_range = (dec_insn.opcode_ ==
-            Instruction::FILLED_NEW_ARRAY_RANGE);
+        bool is_range = (dec_insn.opcode_ == Instruction::FILLED_NEW_ARRAY_RANGE);
 
         /* check the arguments to the instruction */
         VerifyFilledNewArrayRegs(method, work_line, &dec_insn, res_class,
@@ -4121,11 +4142,19 @@ void DexVerifier::VerifyRegisterType(RegisterLine* register_line, uint32_t vsrc,
         DCHECK(src_class != NULL);
         DCHECK(check_class != NULL);
 
-        if (!check_class->IsAssignableFrom(src_class)) {
-          LOG(ERROR) << "VFY: " << src_class->GetDescriptor()->ToModifiedUtf8()
-                     << " is not instance of "
-                     << check_class->GetDescriptor()->ToModifiedUtf8();
-          *failure = VERIFY_ERROR_GENERIC;
+        if (check_class->IsInterface()) {
+          /*
+           * All objects implement all interfaces as far as the verifier is
+           * concerned. The runtime has to sort it out. See coments above
+           * FindCommonSuperclass.
+           */
+        } else {
+          if (!check_class->IsAssignableFrom(src_class)) {
+            LOG(ERROR) << "VFY: " << src_class->GetDescriptor()->ToModifiedUtf8()
+                       << " is not instance of "
+                       << check_class->GetDescriptor()->ToModifiedUtf8();
+            *failure = VERIFY_ERROR_GENERIC;
+          }
         }
       }
       break;
@@ -4332,10 +4361,12 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
   Class* res_class = class_linker->ResolveType(*dex_file, class_idx, referrer);
 
   if (res_class == NULL) {
-    *failure = VERIFY_ERROR_NO_CLASS;
+    //*failure = VERIFY_ERROR_NO_CLASS;
+    LOG(ERROR) << "VFY: can't find class with index 0x" << std::hex << class_idx << std::dec;
     return NULL;
   }
 
+#if 0
   /* Check if access is allowed. */
   if (!referrer->CanAccess(res_class)) {
     LOG(ERROR) << "VFY: illegal class access: "
@@ -4344,6 +4375,7 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
     *failure = VERIFY_ERROR_ACCESS_CLASS;
     return NULL;
   }
+#endif
 
   return res_class;
 }
@@ -4382,16 +4414,18 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(const DexFile* dex_file,
     }
   }
 
+#if 0
   /* Check if access is allowed. */
   if (!referrer->CanAccess(res_method->GetDeclaringClass())) {
     LOG(ERROR) << "VFY: illegal method access (call "
                << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << res_method->GetName() << " "
-               << res_method->GetSignature() << " from "
+               << "." << res_method->GetName()->ToModifiedUtf8() << " "
+               << res_method->GetSignature()->ToModifiedUtf8() << " from "
                << referrer->GetDescriptor()->ToModifiedUtf8() << ")";
     *failure = VERIFY_ERROR_ACCESS_METHOD;
     return NULL;
   }
+#endif
 
   return res_method;
 }
@@ -5952,6 +5986,104 @@ DexVerifier::RegisterMap* DexVerifier::UncompressMapDifferential(
   }
 
   return new_map;
+}
+
+/* Dump the register types for the specifed address to the log file. */
+void DexVerifier::DumpRegTypes(const VerifierData* vdata,
+    const RegisterLine* register_line, int addr, const char* addr_name,
+    const UninitInstanceMap* uninit_map) {
+  const DexFile::CodeItem* code_item = vdata->code_item_;
+  uint16_t reg_count = code_item->registers_size_;
+  uint32_t insns_size = code_item->insns_size_;
+  const InsnFlags* insn_flags = vdata->insn_flags_.get();
+  const RegType* addr_regs = register_line->reg_types_.get();
+  int full_reg_count = reg_count + kExtraRegs;
+  bool branch_target = InsnIsBranchTarget(insn_flags, addr);
+  int i;
+
+  CHECK(addr >= 0 && addr < (int) insns_size);
+
+  int reg_char_size = full_reg_count + (full_reg_count - 1) / 4 + 2 + 1;
+  char reg_chars[reg_char_size + 1];
+  memset(reg_chars, ' ', reg_char_size);
+  reg_chars[0] = '[';
+  if (reg_count == 0)
+    reg_chars[1] = ']';
+  else
+    reg_chars[1 + (reg_count - 1) + (reg_count -1 ) / 4 + 1] = ']';
+  reg_chars[reg_char_size] = '\0';
+
+  for (i = 0; i < reg_count + kExtraRegs; i++) {
+    char tch;
+
+    switch (addr_regs[i]) {
+      case kRegTypeUnknown:       tch = '.';  break;
+      case kRegTypeConflict:      tch = 'X';  break;
+      case kRegTypeZero:          tch = '0';  break;
+      case kRegTypeOne:           tch = '1';  break;
+      case kRegTypeBoolean:       tch = 'Z';  break;
+      case kRegTypeConstPosByte:  tch = 'y';  break;
+      case kRegTypeConstByte:     tch = 'Y';  break;
+      case kRegTypeConstPosShort: tch = 'h';  break;
+      case kRegTypeConstShort:    tch = 'H';  break;
+      case kRegTypeConstChar:     tch = 'c';  break;
+      case kRegTypeConstInteger:  tch = 'i';  break;
+      case kRegTypePosByte:       tch = 'b';  break;
+      case kRegTypeByte:          tch = 'B';  break;
+      case kRegTypePosShort:      tch = 's';  break;
+      case kRegTypeShort:         tch = 'S';  break;
+      case kRegTypeChar:          tch = 'C';  break;
+      case kRegTypeInteger:       tch = 'I';  break;
+      case kRegTypeFloat:         tch = 'F';  break;
+      case kRegTypeConstLo:       tch = 'N';  break;
+      case kRegTypeConstHi:       tch = 'n';  break;
+      case kRegTypeLongLo:        tch = 'J';  break;
+      case kRegTypeLongHi:        tch = 'j';  break;
+      case kRegTypeDoubleLo:      tch = 'D';  break;
+      case kRegTypeDoubleHi:      tch = 'd';  break;
+      default:
+        if (RegTypeIsReference(addr_regs[i])) {
+          if (RegTypeIsUninitReference(addr_regs[i]))
+            tch = 'U';
+          else
+            tch = 'L';
+        } else {
+          tch = '*';
+          CHECK(false);
+        }
+        break;
+    }
+
+    if (i < reg_count)
+      reg_chars[1 + i + (i / 4)] = tch;
+    else
+      reg_chars[1 + i + (i / 4) + 2] = tch;
+  }
+
+  if (addr == 0 && addr_name != NULL) {
+    char start = branch_target ? '>' : ' ';
+    LOG(INFO) << start << addr_name << " " << reg_chars << " mst="
+              << register_line->monitor_stack_top_;
+  } else {
+    char start = branch_target ? '>' : ' ';
+    LOG(INFO) << start << "0x" << std::hex << addr << std::dec << " "
+              << reg_chars << " mst=" << register_line->monitor_stack_top_;
+  }
+
+  for (i = 0; i < reg_count + kExtraRegs; i++) {
+    if (RegTypeIsReference(addr_regs[i]) && addr_regs[i] != kRegTypeZero) {
+      Class* klass = RegTypeReferenceToClass(addr_regs[i], uninit_map);
+      if (i < reg_count) {
+        const char* undef = RegTypeIsUninitReference(addr_regs[i]) ? "[U]" : "";
+        LOG(INFO) << "        " << i << ": 0x" << std::hex << addr_regs[i] << std::dec
+                  << " " << undef << klass->GetDescriptor()->ToModifiedUtf8();
+      } else {
+        const char* undef = RegTypeIsUninitReference(addr_regs[i]) ? "[U]" : "";
+        LOG(INFO) << "        RS: 0x" << std::hex << addr_regs[i] << std::dec
+                  << " " << undef << klass->GetDescriptor()->ToModifiedUtf8();
+      }
+    }
+  }
 }
 
 }  // namespace art

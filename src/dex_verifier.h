@@ -1696,6 +1696,11 @@ class DexVerifier {
       const Instruction::DecodedInstruction* dec_insn, MethodType method_type,
       bool is_range, bool is_super, VerifyError* failure);
 
+  /* Dump the register types for the specifed address to the log file. */
+  static void DumpRegTypes(const VerifierData* vdata,
+      const RegisterLine* register_line, int addr, const char* addr_name,
+      const UninitInstanceMap* uninit_map);
+
   DISALLOW_COPY_AND_ASSIGN(DexVerifier);
 };
 

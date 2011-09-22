@@ -74,6 +74,8 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
     case k10t:       // op +AA
       vA = (int8_t) INST_AA(insn);              // sign-extend 8-bit value
       break;
+    case k20bc:      // op AA, kind@BBBB
+      break;
     case k20t:       // op +AAAA
       vA = (int16_t) FETCH(1);                   // sign-extend 16-bit value
       break;
