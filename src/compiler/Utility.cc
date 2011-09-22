@@ -373,8 +373,9 @@ void oatCopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src)
 bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                             const ArenaBitVector* src2)
 {
-    if (src2 == NULL ||
-        dest->storageSize != src1->storageSize ||
+    DCHECK(src1 != NULL);
+    DCHECK(src2 != NULL);
+    if (dest->storageSize != src1->storageSize ||
         dest->storageSize != src2->storageSize ||
         dest->expandable != src1->expandable ||
         dest->expandable != src2->expandable)
@@ -393,8 +394,9 @@ bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
 bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                         const ArenaBitVector* src2)
 {
-    if (src2 == NULL ||
-        dest->storageSize != src1->storageSize ||
+    DCHECK(src1 != NULL);
+    DCHECK(src2 != NULL);
+    if (dest->storageSize != src1->storageSize ||
         dest->storageSize != src2->storageSize ||
         dest->expandable != src1->expandable ||
         dest->expandable != src2->expandable)

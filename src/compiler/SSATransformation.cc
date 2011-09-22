@@ -247,7 +247,9 @@ static bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
         BasicBlock* predBB = (BasicBlock* ) oatGrowableListGetElement(
                                  blockList, predIdx);
         /* tempBlockV = tempBlockV ^ dominators */
-        oatIntersectBitVectors(tempBlockV, tempBlockV, predBB->dominators);
+        if (predBB->dominators != NULL) {
+            oatIntersectBitVectors(tempBlockV, tempBlockV, predBB->dominators);
+        }
     }
     oatSetBit(tempBlockV, bb->id);
     if (oatCompareBitVectors(tempBlockV, bb->dominators)) {
@@ -452,7 +454,9 @@ static void insertPhiNodes(CompilationUnit* cUnit)
                     (BasicBlock* ) oatGrowableListGetElement(blockList, idx);
 
                 /* Merge the dominance frontier to tmpBlocks */
-                oatUnifyBitVectors(tmpBlocks, tmpBlocks, defBB->domFrontier);
+                if (defBB->domFrontier != NULL) {
+                    oatUnifyBitVectors(tmpBlocks, tmpBlocks, defBB->domFrontier);
+                }
             }
             if (oatCompareBitVectors(phiBlocks, tmpBlocks)) {
                 change = true;

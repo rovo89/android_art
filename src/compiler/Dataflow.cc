@@ -2405,6 +2405,10 @@ static bool eliminateNullChecks( struct CompilationUnit* cUnit,
             if (predBBIdx == -1) break;
             predBB = (BasicBlock*)oatGrowableListGetElement(
                 blockList, predBBIdx);
+            if ((predBB->dataFlowInfo == NULL) ||
+                (predBB->dataFlowInfo->endingNullCheckV == NULL)) {
+                continue;
+            }
             oatIntersectBitVectors(cUnit->tempSSARegisterV,
                 cUnit->tempSSARegisterV,
                 predBB->dataFlowInfo->endingNullCheckV);
