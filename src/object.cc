@@ -1107,8 +1107,9 @@ Field* Class::FindStaticField(const StringPiece& name, Class* type) {
     }
 
     // Is this field in any of this class' interfaces?
-    for (size_t i = 0; i < c->NumInterfaces(); ++i) {
-      Class* interface = c->GetInterface(i);
+    for (int32_t i = 0; i < c->GetIfTableCount(); ++i) {
+      InterfaceEntry* interface_entry = c->GetIfTable()->Get(i);
+      Class* interface = interface_entry->GetInterface();
       f = interface->FindDeclaredStaticField(name, type);
       if (f != NULL) {
         return f;
