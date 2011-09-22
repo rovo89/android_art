@@ -221,7 +221,7 @@ class PACKED Thread {
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
   void (*pInvokeInterfaceTrampoline)(void*, void*, void*, void*);
-  StaticStorageBase* (*pInitializeStaticStorage)(uint32_t, const Method*);
+  void* (*pInitializeStaticStorage)(uint32_t, void*);
   Field* (*pFindInstanceFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);
   void (*pTestSuspendFromCode)();

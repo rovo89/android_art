@@ -310,7 +310,9 @@ void ThreadList::WaitForGo() {
 
 bool ThreadList::AllThreadsAreDaemons() {
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    if (!(*it)->IsDaemon()) {
+    // TODO: there's a race here with thread exit that's being worked around by checking if the peer
+    // is null.
+    if ((*it)->GetPeer() != NULL && !(*it)->IsDaemon()) {
       return false;
     }
   }

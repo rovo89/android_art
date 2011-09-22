@@ -10,19 +10,13 @@ extern "C" void art_deliver_exception_from_code(void*);
   /* Compiler helpers */
   extern "C" void art_check_cast_from_code(void*, void*);
   extern "C" void art_handle_fill_data_from_code(void*, void*);
+  extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
   extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
+  extern "C" void art_test_suspend();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();
   extern "C" void art_throw_null_pointer_exception_from_code();
   extern "C" void art_unlock_object_from_code(void*, void*);
-  extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
-  extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
-  extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
-  extern "C" void art_throw_null_pointer_exception_from_code();
-  extern "C" void art_throw_div_zero_from_code();
-  extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
-  extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
-  extern "C" void art_test_suspend();
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT
@@ -55,6 +49,9 @@ extern "C" void art_deliver_exception_from_code(void*);
   /* Long long arithmetics - OP_REM_LONG[_2ADDR] & OP_DIV_LONG[_2ADDR] */
   extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
   extern "C" long long __aeabi_lmul(long long op1, long long op2);
+  extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
+  extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
+  extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
 
 #endif
 

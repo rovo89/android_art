@@ -353,6 +353,7 @@ void Thread::InitFunctionPointers() {
   pLmul = __aeabi_lmul;
   pCheckCastFromCode = art_check_cast_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
+  pInitializeStaticStorage = art_initialize_static_storage_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
   pTestSuspendFromCode = art_test_suspend;
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
@@ -376,7 +377,6 @@ void Thread::InitFunctionPointers() {
   pCanPutArrayElementFromCode = Class::CanPutArrayElementFromCode;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
-  pInitializeStaticStorage = ClassLinker::InitializeStaticStorageFromCode;
   pInstanceofNonTrivialFromCode = Object::InstanceOf;
   pLockObjectFromCode = LockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;

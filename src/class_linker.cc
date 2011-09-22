@@ -1491,7 +1491,8 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* klass = class_linker->ResolveType(type_idx, referrer);
   if (klass == NULL) {
-    UNIMPLEMENTED(FATAL) << "throw exception due to unresolved class";
+    CHECK(Thread::Current()->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
   }
   // If we are the <clinit> of this class, just return our storage.
   //
@@ -1502,7 +1503,7 @@ StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_id
   }
   if (!class_linker->EnsureInitialized(klass, true)) {
     CHECK(Thread::Current()->IsExceptionPending());
-    UNIMPLEMENTED(FATAL) << "throw class initialization error " << PrettyClass(klass);
+    return NULL;  // Failure - Indicate to caller to deliver exception
   }
   referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
   return klass;

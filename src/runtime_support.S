@@ -160,6 +160,31 @@ art_check_cast_from_code:
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
+    .global art_initialize_static_storage_from_code
+    .extern _ZN3art11ClassLinker31InitializeStaticStorageFromCodeEjPKNS_6MethodE
+    /*
+     * Entry from managed code when uninitialized static storage, this stub will run the class
+     * initializer and deliver the exception on error. On success the static storage base is
+     * returned.
+     */
+art_initialize_static_storage_from_code:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}                          @ Save LR
+    sub    sp, #12                            @ Align stack
+    @ ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer)
+    bl     _ZN3art11ClassLinker31InitializeStaticStorageFromCodeEjPKNS_6MethodE
+    add    sp, #12
+    ldmia  sp!, {lr}                          @ restore LR
+    cmp    r0, #0                             @ success if result is non-null
+    movne  pc, lr                             @ return on success
+                                              @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                             @ pass Thread::Current
+    mov    r1, sp                             @ pass SP
+    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
     .global art_shl_long
 art_shl_long:
     /*
