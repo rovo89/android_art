@@ -150,16 +150,6 @@ jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
   return NULL;
 }
 
-jobject Class_getEnclosingConstructor(JNIEnv* env, jobject javaThis) {
-  UNIMPLEMENTED(WARNING) << "needs annotations";
-  return NULL;
-}
-
-jobject Class_getEnclosingMethod(JNIEnv* env, jobject javaThis) {
-  UNIMPLEMENTED(WARNING) << "needs annotations";
-  return NULL;
-}
-
 /*
  * private native String getNameNative()
  *
@@ -331,8 +321,6 @@ static JNINativeMethod gMethods[] = {
   //NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getEnclosingClass, "()Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, getEnclosingConstructor, "()Ljava/lang/reflect/Constructor;"),
-  NATIVE_METHOD(Class, getEnclosingMethod, "()Ljava/lang/reflect/Method;"),
   //NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
   //NATIVE_METHOD(Class, getInterfaces, "()[Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),
