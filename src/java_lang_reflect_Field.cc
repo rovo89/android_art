@@ -208,12 +208,8 @@ Method* gInteger_valueOf;
 Method* gLong_valueOf;
 Method* gShort_valueOf;
 
-void InitBoxingMethod(Method*& m, const char* class_descriptor, const char* method_signature) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* c = class_linker->FindSystemClass(class_descriptor);
-  CHECK(c != NULL) << "Couldn't find boxing class: " << class_descriptor;
-  m = c->FindDirectMethod("valueOf", method_signature);
-  CHECK(m != NULL) << "Couldn't find boxing method: " << method_signature;
+void InitBoxingMethod(JNIEnv* env, Method*& m, jclass c, const char* method_signature) {
+  m = DecodeMethod(env->GetStaticMethodID(c, "valueOf", method_signature));
 }
 
 void BoxPrimitive(JNIEnv* env, Class* src_class, JValue& value) {
@@ -554,14 +550,14 @@ static JNINativeMethod gMethods[] = {
 }  // namespace
 
 void register_java_lang_reflect_Field(JNIEnv* env) {
-  InitBoxingMethod(gBoolean_valueOf, "Ljava/lang/Boolean;", "(Z)Ljava/lang/Boolean;");
-  InitBoxingMethod(gByte_valueOf, "Ljava/lang/Byte;", "(B)Ljava/lang/Byte;");
-  InitBoxingMethod(gCharacter_valueOf, "Ljava/lang/Character;", "(C)Ljava/lang/Character;");
-  InitBoxingMethod(gDouble_valueOf, "Ljava/lang/Double;", "(D)Ljava/lang/Double;");
-  InitBoxingMethod(gFloat_valueOf, "Ljava/lang/Float;", "(F)Ljava/lang/Float;");
-  InitBoxingMethod(gInteger_valueOf, "Ljava/lang/Integer;", "(I)Ljava/lang/Integer;");
-  InitBoxingMethod(gLong_valueOf, "Ljava/lang/Long;", "(J)Ljava/lang/Long;");
-  InitBoxingMethod(gShort_valueOf, "Ljava/lang/Short;", "(S)Ljava/lang/Short;");
+  InitBoxingMethod(env, gBoolean_valueOf, JniConstants::booleanClass, "(Z)Ljava/lang/Boolean;");
+  InitBoxingMethod(env, gByte_valueOf, JniConstants::byteClass, "(B)Ljava/lang/Byte;");
+  InitBoxingMethod(env, gCharacter_valueOf, JniConstants::characterClass, "(C)Ljava/lang/Character;");
+  InitBoxingMethod(env, gDouble_valueOf, JniConstants::doubleClass, "(D)Ljava/lang/Double;");
+  InitBoxingMethod(env, gFloat_valueOf, JniConstants::floatClass, "(F)Ljava/lang/Float;");
+  InitBoxingMethod(env, gInteger_valueOf, JniConstants::integerClass, "(I)Ljava/lang/Integer;");
+  InitBoxingMethod(env, gLong_valueOf, JniConstants::longClass, "(J)Ljava/lang/Long;");
+  InitBoxingMethod(env, gShort_valueOf, JniConstants::shortClass, "(S)Ljava/lang/Short;");
   jniRegisterNativeMethods(env, "java/lang/reflect/Field", gMethods, NELEM(gMethods));
 }
 
