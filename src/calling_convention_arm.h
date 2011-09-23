@@ -42,6 +42,7 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
     return callee_save_regs_;
   }
+  virtual ManagedRegister ReturnScratchRegister() const;
   virtual uint32_t CoreSpillMask() const;
   virtual uint32_t FpSpillMask() const {
     return 0;  // Floats aren't spilled in JNI down call

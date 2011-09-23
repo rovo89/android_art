@@ -240,8 +240,7 @@ void JniCompiler::Compile(Method* native_method) {
       mr_conv->Next();
       jni_conv->Next();
     }
-    CopyParameter(jni_asm.get(), mr_conv.get(), jni_conv.get(), frame_size,
-                  out_arg_size);
+    CopyParameter(jni_asm.get(), mr_conv.get(), jni_conv.get(), frame_size, out_arg_size);
   }
 
   if (is_static) {
@@ -261,15 +260,21 @@ void JniCompiler::Compile(Method* native_method) {
                          ManagedRegister::NoRegister(), false);
     }
   }
-  // 8. Create 1st argument, the JNI environment ptr
+  // 8. Create 1st argument, the JNI environment ptr and save the top of the local reference table
   jni_conv->ResetIterator(FrameOffset(out_arg_size));
+  // Register that will hold local indirect reference table
   if (jni_conv->IsCurrentParamInRegister()) {
-    __ LoadRawPtrFromThread(jni_conv->CurrentParamRegister(),
-                            Thread::JniEnvOffset());
+    ManagedRegister jni_env = jni_conv->CurrentParamRegister();
+    DCHECK(!jni_env.Equals(jni_conv->InterproceduralScratchRegister()));
+    __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset());
+    __ Copy(jni_conv->LocalReferenceTable_SegmentStatesOffset(), jni_env,
+            JNIEnvExt::SegmentStateOffset(), jni_conv->InterproceduralScratchRegister(), 4);
   } else {
-    __ CopyRawPtrFromThread(jni_conv->CurrentParamStackOffset(),
-                            Thread::JniEnvOffset(),
+    FrameOffset jni_env = jni_conv->CurrentParamStackOffset();
+    __ CopyRawPtrFromThread(jni_env, Thread::JniEnvOffset(),
                             jni_conv->InterproceduralScratchRegister());
+    __ Copy(jni_conv->LocalReferenceTable_SegmentStatesOffset(), jni_env,
+            JNIEnvExt::SegmentStateOffset(), jni_conv->InterproceduralScratchRegister(), 4);
   }
 
   // 9. Plant call to native code associated with method
@@ -381,7 +386,11 @@ void JniCompiler::Compile(Method* native_method) {
   }
   __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister());
 
-  // 15. Remove SIRT from thread
+  // 15. Restore segment state and remove SIRT from thread
+  __ Copy(Thread::JniEnvOffset(), JNIEnvExt::SegmentStateOffset(),
+          jni_conv->LocalReferenceTable_SegmentStatesOffset(),
+          jni_conv->InterproceduralScratchRegister(),
+          jni_conv->ReturnScratchRegister(), 4);
   __ CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv->SirtLinkOffset(),
                         jni_conv->InterproceduralScratchRegister());
 
@@ -427,7 +436,6 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
                                 ManagedRuntimeCallingConvention* mr_conv,
                                 JniCallingConvention* jni_conv,
                                 size_t frame_size, size_t out_arg_size) {
-
   bool input_in_reg = mr_conv->IsCurrentParamInRegister();
   bool output_in_reg = jni_conv->IsCurrentParamInRegister();
   FrameOffset sirt_offset(0);
@@ -449,7 +457,7 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     // as with regular references).
     sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
     // Check SIRT offset is within frame.
-    CHECK_LT(sirt_offset.Uint32Value(), (frame_size+out_arg_size));
+    CHECK_LT(sirt_offset.Uint32Value(), (frame_size + out_arg_size));
   }
 #define __ jni_asm->
   if (input_in_reg && output_in_reg) {
@@ -468,15 +476,13 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
   } else if (!input_in_reg && !output_in_reg) {
     FrameOffset out_off = jni_conv->CurrentParamStackOffset();
     if (ref_param) {
-      __ CreateSirtEntry(out_off, sirt_offset,
-                         mr_conv->InterproceduralScratchRegister(),
+      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
                          null_allowed);
     } else {
       FrameOffset in_off = mr_conv->CurrentParamStackOffset();
       size_t param_size = mr_conv->CurrentParamSize();
       CHECK_EQ(param_size, jni_conv->CurrentParamSize());
-      __ Copy(out_off, in_off, mr_conv->InterproceduralScratchRegister(),
-              param_size);
+      __ Copy(out_off, in_off, mr_conv->InterproceduralScratchRegister(), param_size);
     }
   } else if (!input_in_reg && output_in_reg) {
     FrameOffset in_off = mr_conv->CurrentParamStackOffset();
@@ -484,10 +490,9 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     // Check that incoming stack arguments are above the current stack frame.
     CHECK_GT(in_off.Uint32Value(), frame_size);
     if (ref_param) {
-      __ CreateSirtEntry(out_reg, sirt_offset,
-                         ManagedRegister::NoRegister(), null_allowed);
+      __ CreateSirtEntry(out_reg, sirt_offset, ManagedRegister::NoRegister(), null_allowed);
     } else {
-      unsigned int param_size = mr_conv->CurrentParamSize();
+      size_t param_size = mr_conv->CurrentParamSize();
       CHECK_EQ(param_size, jni_conv->CurrentParamSize());
       __ Load(out_reg, in_off, param_size);
     }
@@ -499,8 +504,7 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
     CHECK_LT(out_off.Uint32Value(), frame_size);
     if (ref_param) {
       // TODO: recycle value in in_reg rather than reload from SIRT
-      __ CreateSirtEntry(out_off, sirt_offset,
-                         mr_conv->InterproceduralScratchRegister(),
+      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
                          null_allowed);
     } else {
       size_t param_size = mr_conv->CurrentParamSize();
@@ -512,8 +516,7 @@ void JniCompiler::CopyParameter(Assembler* jni_asm,
         // store where input straddles registers and stack
         CHECK_EQ(param_size, 8u);
         FrameOffset in_off = mr_conv->CurrentParamStackOffset();
-        __ StoreSpanning(out_off, in_reg, in_off,
-                         mr_conv->InterproceduralScratchRegister());
+        __ StoreSpanning(out_off, in_reg, in_off, mr_conv->InterproceduralScratchRegister());
       }
     }
   }

@@ -360,6 +360,15 @@ class Assembler {
   virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
                     unsigned int size) = 0;
 
+  virtual void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
+                    ManagedRegister scratch, size_t size) = 0;
+
+  virtual void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
+                    ManagedRegister scratch, size_t size) = 0;
+
+  virtual void Copy(ThreadOffset dest_base, Offset dest_offset, FrameOffset src,
+                    ManagedRegister scratch, ManagedRegister scratch2, size_t size) = 0;
+
   virtual void MemoryBarrier(ManagedRegister scratch) = 0;
 
   // Exploit fast access in managed code to Thread::Current()

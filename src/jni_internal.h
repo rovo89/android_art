@@ -122,6 +122,11 @@ struct JNIEnvExt : public JNIEnv {
 
   void DumpReferenceTables();
 
+  static Offset SegmentStateOffset() {
+    return Offset(OFFSETOF_MEMBER(JNIEnvExt, locals) +
+                  IndirectReferenceTable::SegmentStateOffset().Int32Value());
+  }
+
   Thread* const self;
   JavaVMExt* vm;
 

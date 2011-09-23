@@ -1645,27 +1645,44 @@ void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc) {
   }
 }
 
-void ArmAssembler::Copy(FrameOffset dest, FrameOffset src,
-                        ManagedRegister mscratch, size_t size) {
+void ArmAssembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister mscratch, size_t size) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister());
   CHECK(size == 4 || size == 8);
   if (size == 4) {
-    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
-                   SP, src.Int32Value());
-    StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
-                  SP, dest.Int32Value());
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
+    StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
   } else if (size == 8) {
-    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
-                   SP, src.Int32Value());
-    StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
-                  SP, dest.Int32Value());
-    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
-                   SP, src.Int32Value() + 4);
-    StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
-                  SP, dest.Int32Value() + 4);
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
+    StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
+    LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value() + 4);
+    StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value() + 4);
   }
 }
+
+void ArmAssembler::Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
+                        ManagedRegister mscratch, size_t size) {
+  Register scratch = mscratch.AsArm().AsCoreRegister();
+  CHECK_EQ(size, 4u);
+  LoadFromOffset(kLoadWord, scratch, src_base.AsArm().AsCoreRegister(), src_offset.Int32Value());
+  StoreToOffset(kStoreWord, scratch, SP, dest.Int32Value());
+}
+
+void ArmAssembler::Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
+                        ManagedRegister mscratch, size_t size) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmAssembler::Copy(ThreadOffset dest_base, Offset dest_offset, FrameOffset src,
+                        ManagedRegister mscratch, ManagedRegister mscratch2, size_t size) {
+  Register scratch = mscratch.AsArm().AsCoreRegister();
+  Register scratch2 = mscratch2.AsArm().AsCoreRegister();
+  CHECK_EQ(size, 4u);
+  LoadFromOffset(kLoadWord, scratch, TR, dest_base.Int32Value());
+  LoadFromOffset(kLoadWord, scratch2, SP, src.Int32Value());
+  StoreToOffset(kStoreWord, scratch2, scratch, dest_offset.Int32Value());
+}
+
 
 void ArmAssembler::MemoryBarrier(ManagedRegister mscratch) {
 #if ANDROID_SMP != 0
