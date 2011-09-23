@@ -816,7 +816,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   void SetCode(ByteArray* code_array, InstructionSet instruction_set,
-               IntArray* mapping_table = NULL);
+               IntArray* mapping_table = NULL, ShortArray* vmap_table = NULL);
 
   static MemberOffset GetCodeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, code_);
@@ -828,6 +828,11 @@ class MANAGED Method : public AccessibleObject {
   IntArray* GetMappingTable() const {
     return GetFieldObject<IntArray*>(
         OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
+  }
+
+  ShortArray* GetVMapTable() const {
+    return GetFieldObject<ShortArray*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
   }
 
   size_t GetFrameSizeInBytes() const {
@@ -1016,6 +1021,9 @@ class MANAGED Method : public AccessibleObject {
   //
   //   (IDLjava/lang/Thread;)Ljava/lang/Object;
   String* signature_;
+
+  // Storage for Dalvik virtual register mapping_table_
+  ShortArray* vmap_table_;
 
   uint32_t java_generic_types_are_initialized_;
 

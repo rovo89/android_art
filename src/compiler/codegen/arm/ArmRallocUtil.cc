@@ -260,6 +260,21 @@ extern int oatVRegOffset(CompilationUnit* cUnit, int reg)
             cUnit->insOffset + ((reg - cUnit->numRegs) << 2);
 }
 
+/* Return sp-relative offset in bytes using Method* */
+extern int oatVRegOffsetFromMethod(Method* method, int reg)
+{
+    int numIns = method->NumIns();
+    int numRegs = method->NumRegisters() - numIns;
+    int numOuts = method->NumOuts();
+    int numSpills = __builtin_popcount(method->GetCoreSpillMask()) +
+                    __builtin_popcount(method->GetFpSpillMask());
+    int numPadding = (STACK_ALIGN_WORDS -
+        (numSpills + numRegs + numOuts + 2)) & (STACK_ALIGN_WORDS-1);
+    int regsOffset = (numOuts + numPadding + 1) * 4;
+    int insOffset = method->GetFrameSizeInBytes() + 4;
+    return (reg < numRegs) ? regsOffset + (reg << 2) :
+           insOffset + ((reg - numRegs) << 2);
+}
 
 /* Clobber all regs that might be used by an external C call */
 extern void oatClobberCallRegs(CompilationUnit *cUnit)

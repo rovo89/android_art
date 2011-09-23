@@ -449,6 +449,7 @@ struct MethodOffsets : public CheckOffsets {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_header_),                  "shadow$_register_map_header_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, vmap_table_),                           "shadow$_vmap_table_"));
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_types_are_initialized_),   "genericTypesAreInitialized"));

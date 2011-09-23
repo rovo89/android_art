@@ -593,11 +593,13 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 }
 
 void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
-                     IntArray* mapping_table) {
+                     IntArray* mapping_table, ShortArray* vmap_table) {
   CHECK(GetCode() == NULL || IsNative());
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
   SetFieldPtr<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
        mapping_table, false);
+  SetFieldPtr<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_),
+       vmap_table, false);
   int8_t* code = code_array->GetData();
   uintptr_t address = reinterpret_cast<uintptr_t>(code);
   if (instruction_set == kThumb2) {

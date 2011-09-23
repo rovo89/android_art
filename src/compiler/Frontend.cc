@@ -889,7 +889,21 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     memcpy(mapping_table->GetData(),
            reinterpret_cast<const int32_t*>(&cUnit.mappingTable[0]),
            mapping_table->GetLength() * sizeof(cUnit.mappingTable[0]));
-    method->SetCode(managed_code, art::kThumb2, mapping_table);
+    // Add a marker to take place of lr
+    cUnit.coreVmapTable.push_back(-1);
+    // Combine vmap tables - core regs, then fp regs
+    for (uint32_t i = 0; i < cUnit.fpVmapTable.size(); i++) {
+        cUnit.coreVmapTable.push_back(cUnit.fpVmapTable[i]);
+    }
+    DCHECK(cUnit.coreVmapTable.size() == (uint32_t)
+        (__builtin_popcount(cUnit.coreSpillMask) +
+         __builtin_popcount(cUnit.fpSpillMask)));
+    art::ShortArray* vmap_table =
+        art::ShortArray::Alloc(cUnit.coreVmapTable.size());
+    memcpy(vmap_table->GetData(),
+           reinterpret_cast<const int16_t*>(&cUnit.coreVmapTable[0]),
+           vmap_table->GetLength() * sizeof(cUnit.coreVmapTable[0]));
+    method->SetCode(managed_code, art::kThumb2, mapping_table, vmap_table);
     method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetReturnPcOffsetInBytes(cUnit.frameSize - sizeof(intptr_t));
     method->SetCoreSpillMask(cUnit.coreSpillMask);

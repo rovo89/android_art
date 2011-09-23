@@ -450,13 +450,15 @@ void oatCodegenDump(CompilationUnit* cUnit)
 
     }
 
-    int linebreak = 0;
     std::string signature = method->GetSignature()->ToModifiedUtf8();
     std::string name = method->GetName()->ToModifiedUtf8();
     std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->
         ToModifiedUtf8();
 
     char buf[256];
+#if 0
+    int linebreak = 0;
+    //TODO: delete when we're sure it's no longer necessary
     LOG(INFO) << "*/";
     sprintf(buf,"\n    u1 %s%s_%s_code[] = {", descriptor.c_str(),
             name.c_str(), signature.c_str());
@@ -477,6 +479,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
         LOG(INFO) << buf;
     }
     LOG(INFO) << "    };\n\n";
+#endif
 
     // Dump mapping table
     if (cUnit->mappingTable.size() > 0) {
@@ -495,4 +498,6 @@ void oatCodegenDump(CompilationUnit* cUnit)
         }
         LOG(INFO) <<"    };\n\n";
     }
+
+    // Dump vmap table
 }

@@ -220,6 +220,7 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
             res = coreRegs[i].reg;
             coreRegs[i].inUse = true;
             cUnit->coreSpillMask |= (1 << res);
+            cUnit->coreVmapTable.push_back(sReg);
             cUnit->numSpills++;
             cUnit->regLocation[sReg].location = kLocPhysReg;
             cUnit->regLocation[sReg].lowReg = res;
@@ -245,6 +246,7 @@ static int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
             res = FPRegs[i].reg;
             FPRegs[i].inUse = true;
             cUnit->fpSpillMask |= (1 << (res & FP_REG_MASK));
+            cUnit->fpVmapTable.push_back(sReg);
             cUnit->numSpills++;
             cUnit->numFPSpills++;
             cUnit->regLocation[sReg].fpLocation = kLocPhysReg;

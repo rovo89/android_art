@@ -198,6 +198,8 @@ typedef struct CompilationUnit {
     int assemblerRetries;
     std::vector<short> codeBuffer;
     std::vector<uint32_t> mappingTable;
+    std::vector<uint32_t> coreVmapTable;
+    std::vector<short> fpVmapTable;
     bool printMe;
     bool printMeVerbose;
     bool dumpCFG;
