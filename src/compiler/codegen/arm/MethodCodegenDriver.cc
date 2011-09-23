@@ -2084,7 +2084,7 @@ static void handleThrowLaunchpads(CompilationUnit *cUnit)
                 break;
             case kArmThrowStackOverflow:
                 funcOffset =
-                    OFFSETOF_MEMBER(Thread, pStackOverflowFromCode);
+                    OFFSETOF_MEMBER(Thread, pThrowStackOverflowFromCode);
                 // Restore stack alignment
                 opRegImm(cUnit, kOpAdd, rSP, cUnit->numSpills * 4);
                 break;

@@ -786,6 +786,25 @@ class IntMath extends IntMathBase {
       return res;
     }
 
+    static long recursion_count_;
+    static void throwStackOverflow(long l) {
+      recursion_count_++;
+      throwStackOverflow(recursion_count_);
+    }
+
+    static long testStackOverflow() {
+      try {
+        throwStackOverflow(0);
+        if (recursion_count_ != 0) {
+          return recursion_count_;
+        } else {
+          return -1;
+        }
+      } catch(StackOverflowError soe) {
+        return 0;
+      }
+    }
+
     public static void main(String[] args) {
         boolean failure = false;
         int res;
@@ -944,6 +963,14 @@ class IntMath extends IntMathBase {
             System.out.println("testClassCast PASSED");
         } else {
             System.out.println("testClassCast FAILED: " + res);
+            failure = true;
+        }
+
+        lres= testStackOverflow();
+        if (lres == 0) {
+            System.out.println("testStackOverflow PASSED");
+        } else {
+            System.out.println("testStackOverflow FAILED: " + lres);
             failure = true;
         }
 

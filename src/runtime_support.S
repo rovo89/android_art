@@ -58,6 +58,15 @@ art_throw_array_bounds_from_code:
     mov r3, sp                      @ pass SP
     b   artThrowArrayBoundsFromCode @ artThrowArrayBoundsFromCode(index, limit, Thread*, SP)
 
+    .global art_throw_stack_overflow_from_code
+    .extern artThrowStackOverflowFromCode
+art_throw_stack_overflow_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    mov r1, r9                        @ pass Thread::Current
+    mov r2, sp                        @ pass SP
+    b   artThrowStackOverflowFromCode @ artThrowStackOverflowFromCode(method, Thread*, SP)
+
     .global art_invoke_interface_trampoline
     .extern artFindInterfaceMethodInCacheFromCode
     /*

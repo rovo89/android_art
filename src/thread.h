@@ -167,7 +167,8 @@ class PACKED Thread {
     kSuspended    = 9,        // suspended, usually by GC or debugger
   };
 
-  static const size_t kStackOverflowReservedBytes = 1024; // Space to throw a StackOverflowError in.
+  // Space to throw a StackOverflowError in.
+  static const size_t kStackOverflowReservedBytes = 3 * KB;
 
   static const size_t kDefaultStackSize = 64 * KB;
 
@@ -225,7 +226,7 @@ class PACKED Thread {
   Field* (*pFindInstanceFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);
   void (*pTestSuspendFromCode)();
-  void (*pStackOverflowFromCode)(Method*);
+  void (*pThrowStackOverflowFromCode)(void*);
   void (*pThrowNullPointerFromCode)();
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
   void (*pThrowDivZeroFromCode)();
@@ -489,6 +490,26 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_VOLATILE_MEMBER(Thread, state_));
   }
 
+  // Size of stack less any space reserved for stack overflow
+  size_t GetStackSize() {
+    return stack_size_ - (stack_end_ - stack_base_);
+  }
+
+  // Set the stack end to that to be used during a stack overflow
+  void SetStackEndForStackOverflow() {
+    // During stack overflow we allow use of the full stack
+    CHECK(stack_end_ != stack_base_) << "Need to increase: kStackOverflowReservedBytes ("
+                                     << kStackOverflowReservedBytes << ")";
+    stack_end_ = stack_base_;
+  }
+
+  // Set the stack end to that to be used during regular execution
+  void ResetDefaultStackEnd() {
+    // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
+    // to throw a StackOverflowError.
+    stack_end_ = stack_base_ + kStackOverflowReservedBytes;
+  }
+
   static ThreadOffset StackEndOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, stack_end_));
   }
@@ -576,6 +597,12 @@ class PACKED Thread {
   // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
   // We leave extra space so there's room for the code that throws StackOverflowError.
   byte* stack_end_;
+
+  // Size of the stack
+  size_t stack_size_;
+
+  // The "lowest addressable byte" of the stack
+  byte* stack_base_;
 
   // Top of the managed stack, written out prior to the state transition from
   // kRunnable to kNative. Uses include to give the starting point for scanning
