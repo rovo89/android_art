@@ -9,10 +9,13 @@
 #include <vector>
 
 #include "class_linker.h"
+#include "file.h"
 #include "image.h"
+#include "os.h"
 #include "runtime.h"
 #include "space.h"
 #include "stringpiece.h"
+#include "unordered_map.h"
 
 namespace art {
 
@@ -62,9 +65,15 @@ const char* image_roots_descriptions_[] = {
 class OatDump {
 
  public:
-  static void Dump(std::ostream& os, Space& image_space, const ImageHeader& image_header) {
+  static void Dump(const std::string& image_filename,
+                   std::ostream& os,
+                   Space& image_space,
+                   const ImageHeader& image_header) {
     os << "MAGIC:\n";
     os << image_header.GetMagic() << "\n\n";
+
+    os << "BASE:\n";
+    os << reinterpret_cast<void*>(image_header.GetBaseAddr()) << "\n\n";
 
     os << "ROOTS:\n";
     CHECK(sizeof(image_roots_descriptions_)/(sizeof(char*)) == ImageHeader::kImageRootsMax);
@@ -80,6 +89,15 @@ class OatDump {
     HeapBitmap* heap_bitmap = Heap::GetLiveBits();
     DCHECK(heap_bitmap != NULL);
     heap_bitmap->Walk(OatDump::Callback, &state);
+    os << "\n";
+
+    os << "STATS:\n" << std::flush;
+    UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), false));
+    state.stats_.file_bytes = file->Length();
+    state.stats_.header_bytes = sizeof(ImageHeader);
+    state.stats_.Dump(os);
+
+    os << std::flush;
   }
 
  private:
@@ -93,6 +111,12 @@ class OatDump {
     if (!state->InDumpSpace(obj)) {
       return;
     }
+
+    size_t object_bytes = obj->SizeOf();
+    size_t alignment_bytes = RoundUp(object_bytes, kObjectAlignment) - object_bytes;
+    state->stats_.object_bytes += object_bytes;
+    state->stats_.alignment_bytes += alignment_bytes;
+
     std::string summary;
     StringAppendF(&summary, "%p: ", obj);
     if (obj->IsClass()) {
@@ -115,25 +139,63 @@ class OatDump {
       StringAppendF(&summary, "OBJECT");
     }
     StringAppendF(&summary, "\n");
-    StringAppendF(&summary, "\tclass %p: %s\n",
-                  obj->GetClass(), obj->GetClass()->GetDescriptor()->ToModifiedUtf8().c_str());
+    std::string descriptor = obj->GetClass()->GetDescriptor()->ToModifiedUtf8();
+    StringAppendF(&summary, "\tclass %p: %s\n", obj->GetClass(), descriptor.c_str());
+    state->stats_.descriptor_to_bytes[descriptor] += object_bytes;
+    state->stats_.descriptor_to_count[descriptor] += 1;
+    // StringAppendF(&summary, "\tsize %d (alignment padding %d)\n",
+    //               object_bytes, RoundUp(object_bytes, kObjectAlignment) - object_bytes);
     if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
       const ByteArray* code = method->GetCodeArray();
-      if (method->IsPhony()) {
-        CHECK(code == NULL);
-        StringAppendF(&summary, "\tPHONY\n");
-      } else {
-        StringAppendF(&summary, "\tCODE     %p-%p\n", code->GetData(), code->GetData() + code->GetLength());
+      if (!method->IsPhony()) {
+        size_t code_bytes = code->GetLength();
+        if (method->IsNative()) {
+          state->stats_.managed_to_native_code_bytes += code_bytes;
+        } else {
+          state->stats_.managed_code_bytes += code_bytes;
+        }
+        StringAppendF(&summary, "\tCODE     %p-%p\n", code->GetData(), code->GetData() + code_bytes);
+
         const ByteArray* invoke = method->GetInvokeStubArray();
-        StringAppendF(&summary, "\tJNI STUB %p-%p\n", invoke->GetData(), invoke->GetData() + invoke->GetLength());
+        size_t native_to_managed_code_bytes = invoke->GetLength();
+        state->stats_.native_to_managed_code_bytes += native_to_managed_code_bytes;
+        StringAppendF(&summary, "\tJNI STUB %p-%p\n",
+                      invoke->GetData(), invoke->GetData() + native_to_managed_code_bytes);
       }
       if (method->IsNative()) {
         if (method->IsRegistered()) {
-         StringAppendF(&summary, "\tNATIVE REGISTERED %p\n", method->GetNativeMethod());
+          StringAppendF(&summary, "\tNATIVE REGISTERED %p\n", method->GetNativeMethod());
         } else {
           StringAppendF(&summary, "\tNATIVE UNREGISTERED\n");
         }
+        DCHECK(method->GetRegisterMapHeader() == NULL);
+        DCHECK(method->GetRegisterMapData() == NULL);
+        DCHECK(method->GetMappingTable() == NULL);
+      } else if (method->IsAbstract()) {
+        StringAppendF(&summary, "\tABSTRACT\n");
+        DCHECK(method->GetRegisterMapHeader() == NULL);
+        DCHECK(method->GetRegisterMapData() == NULL);
+        DCHECK(method->GetMappingTable() == NULL);
+      } else if (method->IsPhony()) {
+        StringAppendF(&summary, "\tPHONY\n");
+        DCHECK(method->GetRegisterMapHeader() == NULL);
+        DCHECK(method->GetRegisterMapData() == NULL);
+        DCHECK(method->GetMappingTable() == NULL);
+      } else {
+        size_t register_map_bytes = (method->GetRegisterMapHeader()->GetLength() +
+                                     method->GetRegisterMapData()->GetLength());
+        state->stats_.register_map_bytes += register_map_bytes;
+
+        size_t pc_mapping_table_bytes = method->GetMappingTable()->GetLength();
+        state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
+
+        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+        class DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+        const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+        const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
+        size_t dex_instruction_bytes = code_item->insns_size_ * 2;
+        state->stats_.dex_instruction_bytes += dex_instruction_bytes;
       }
     }
     state->os_ << summary << std::flush;
@@ -143,6 +205,114 @@ class OatDump {
     const byte* o = reinterpret_cast<const byte*>(object);
     return (o >= dump_space_.GetBase() && o < dump_space_.GetLimit());
   }
+
+ public:
+  struct Stats {
+    size_t file_bytes;
+
+    size_t header_bytes;
+    size_t object_bytes;
+    size_t alignment_bytes;
+
+    size_t managed_code_bytes;
+    size_t managed_to_native_code_bytes;
+    size_t native_to_managed_code_bytes;
+
+    size_t register_map_bytes;
+    size_t pc_mapping_table_bytes;
+
+    size_t dex_instruction_bytes;
+
+    Stats()
+        : file_bytes(0),
+          header_bytes(0),
+          object_bytes(0),
+          alignment_bytes(0),
+          managed_code_bytes(0),
+          managed_to_native_code_bytes(0),
+          native_to_managed_code_bytes(0),
+          register_map_bytes(0),
+          pc_mapping_table_bytes(0),
+          dex_instruction_bytes(0) {}
+
+    typedef std::tr1::unordered_map<std::string,size_t> TableBytes;
+    TableBytes descriptor_to_bytes;
+
+    typedef std::tr1::unordered_map<std::string,size_t> TableCount;
+    TableCount descriptor_to_count;
+
+    double PercentOfFileBytes(size_t size) {
+      return (static_cast<double>(size) / static_cast<double>(file_bytes)) * 100;
+    }
+
+    double PercentOfObjectBytes(size_t size) {
+      return (static_cast<double>(size) / static_cast<double>(object_bytes)) * 100;
+    }
+
+    void Dump(std::ostream& os) {
+      os << StringPrintf("\tfile_bytes = %d\n", file_bytes);
+      os << "\n";
+
+      os << "\tfile_bytes = header_bytes + object_bytes + alignment_bytes\n";
+      os << StringPrintf("\theader_bytes    = %10d (%2.0f%% of file_bytes)\n",
+                         header_bytes, PercentOfFileBytes(header_bytes));
+      os << StringPrintf("\tobject_bytes    = %10d (%2.0f%% of file_bytes)\n",
+                         object_bytes, PercentOfFileBytes(object_bytes));
+      os << StringPrintf("\talignment_bytes = %10d (%2.0f%% of file_bytes)\n",
+                         alignment_bytes, PercentOfFileBytes(alignment_bytes));
+      os << "\n";
+      os << std::flush;
+      CHECK_EQ(file_bytes, header_bytes + object_bytes + alignment_bytes);
+
+      os << "\tobject_bytes = sum of descriptor_to_bytes values below:\n";
+      size_t object_bytes_total = 0;
+      typedef TableBytes::const_iterator It;  // TODO: C++0x auto
+      for (It it = descriptor_to_bytes.begin(), end = descriptor_to_bytes.end(); it != end; ++it) {
+        const std::string& descriptor = it->first;
+        size_t bytes = it->second;
+        size_t count = descriptor_to_count[descriptor];
+        double average = static_cast<double>(bytes) / static_cast<double>(count);
+        double percent = PercentOfObjectBytes(bytes);
+        os << StringPrintf("\t%28s %8d bytes %6d instances "
+                           "(%3.0f bytes/instance) %2.0f%% of object_bytes\n",
+                           descriptor.c_str(), bytes, count,
+                           average, percent);
+
+        object_bytes_total += bytes;
+      }
+      os << "\n";
+      os << std::flush;
+      CHECK_EQ(object_bytes, object_bytes_total);
+
+      os << StringPrintf("\tmanaged_code_bytes           = %8d (%2.0f%% of object_bytes)\n",
+                         managed_code_bytes, PercentOfObjectBytes(managed_code_bytes));
+      os << StringPrintf("\tmanaged_to_native_code_bytes = %8d (%2.0f%% of object_bytes)\n",
+                         managed_to_native_code_bytes,
+                         PercentOfObjectBytes(managed_to_native_code_bytes));
+      os << StringPrintf("\tnative_to_managed_code_bytes = %8d (%2.0f%% of object_bytes)\n",
+                         native_to_managed_code_bytes,
+                         PercentOfObjectBytes(native_to_managed_code_bytes));
+      os << "\n";
+      os << std::flush;
+
+      os << StringPrintf("\tregister_map_bytes     = %7d (%2.0f%% of object_bytes)\n",
+                         register_map_bytes, PercentOfObjectBytes(register_map_bytes));
+      os << StringPrintf("\tpc_mapping_table_bytes = %7d (%2.0f%% of object_bytes)\n",
+                         pc_mapping_table_bytes, PercentOfObjectBytes(pc_mapping_table_bytes));
+      os << "\n";
+      os << std::flush;
+
+      os << StringPrintf("\tdex_instruction_bytes = %d\n", dex_instruction_bytes);
+      os << StringPrintf("\tmanaged_code_bytes expansion = %.2f\n",
+                         static_cast<double>(managed_code_bytes)
+                         / static_cast<double>(dex_instruction_bytes));
+      os << "\n";
+      os << std::flush;
+
+    }
+  } stats_;
+
+ private:
   const Space& dump_space_;
   std::ostream& os_;
 };
@@ -219,7 +389,6 @@ int oatdump(int argc, char** argv) {
     // if we don't have multiple images, pass the main one as the boot to match dex2oat
     boot_image_filename = image_filename;
     boot_dex_files = dex_files;
-    image_filename = NULL;
     dex_files.clear();
   } else {
     image_option += "-Ximage:";
@@ -249,7 +418,7 @@ int oatdump(int argc, char** argv) {
     fprintf(stderr, "invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  OatDump::Dump(*os, *image_space, image_header);
+  OatDump::Dump(image_filename, *os, *image_space, image_header);
   return EXIT_SUCCESS;
 }
 
