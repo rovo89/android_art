@@ -43,6 +43,7 @@ class X86JniCallingConvention : public JniCallingConvention {
     DCHECK(callee_save_regs_.empty());
     return callee_save_regs_;
   }
+  virtual ManagedRegister ReturnScratchRegister() const;
   virtual uint32_t CoreSpillMask() const {
     return 0;
   }

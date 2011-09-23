@@ -514,6 +514,23 @@ TEST_F(JniCompilerTest, ReturnGlobalRef) {
   EXPECT_TRUE(env_->IsSameObject(result, jobj_));
 }
 
+jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
+  // Add 10 local references
+  for(int i = 0; i < 10; i++) {
+    AddLocalReference<jobject>(env, Decode<Object*>(env, thisObj));
+  }
+  return x+1;
+}
+
+TEST_F(JniCompilerTest, LocalReferenceTableClearingTest) {
+  SetupForTest(false, "fooI", "(I)I", reinterpret_cast<void*>(&local_ref_test));
+  // 1000 invocations of a method that adds 10 local references
+  for(int i=0; i < 1000; i++) {
+    jint result = env_->CallIntMethod(jobj_, jmethod_, i);
+    EXPECT_TRUE(result == i + 1);
+  }
+}
+
 void my_arraycopy(JNIEnv* env, jclass klass, jobject src, jint src_pos, jobject dst, jint dst_pos, jint length) {
   EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, klass));
   EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jklass_, dst));

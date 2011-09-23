@@ -18,6 +18,10 @@ ManagedRegister X86JniCallingConvention::InterproceduralScratchRegister() {
   return X86ManagedRegister::FromCpuRegister(ECX);
 }
 
+ManagedRegister X86JniCallingConvention::ReturnScratchRegister() const {
+  return ManagedRegister::NoRegister();  // No free regs, so assembler uses push/pop
+}
+
 static ManagedRegister ReturnRegisterForMethod(Method* method) {
   if (method->IsReturnAFloatOrDouble()) {
     return X86ManagedRegister::FromX87Register(ST0);
@@ -68,13 +72,12 @@ FrameOffset X86ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 std::vector<ManagedRegister> X86JniCallingConvention::callee_save_regs_;
 
 size_t X86JniCallingConvention::FrameSize() {
-  // Return address and Method*
-  size_t frame_data_size = 2 * kPointerSize;
+  // Return address, Method* and local reference segment state
+  size_t frame_data_size = 3 * kPointerSize;
   // References plus 2 words for SIRT header
   size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
   // Plus return value spill area size
-  return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(),
-                 kStackAlignment);
+  return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
 }
 
 size_t X86JniCallingConvention::OutArgSize() {

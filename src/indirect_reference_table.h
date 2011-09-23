@@ -297,7 +297,7 @@ class IndirectReferenceTable {
    * so may be larger than the actual number of "live" entries.
    */
   size_t Capacity() const {
-    return segmentState.parts.topIndex;
+    return segment_state_.parts.topIndex;
   }
 
   iterator begin() {
@@ -310,6 +310,9 @@ class IndirectReferenceTable {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
+  static Offset SegmentStateOffset() {
+    return Offset(OFFSETOF_MEMBER(IndirectReferenceTable, segment_state_));
+  }
  private:
   /*
    * Extract the table index from an indirect reference.
@@ -348,8 +351,8 @@ class IndirectReferenceTable {
   bool GetChecked(IndirectRef) const;
   bool CheckEntry(const char*, IndirectRef, int) const;
 
-  /* semi-public - read/write by interpreter in native call handler */
-  IRTSegmentState segmentState;
+  /* semi-public - read/write by jni down calls */
+  IRTSegmentState segment_state_;
 
   /* bottom of the stack */
   const Object** table_;

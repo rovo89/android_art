@@ -48,7 +48,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   slot_data_ = reinterpret_cast<IndirectRefSlot*>(calloc(initialCount, sizeof(IndirectRefSlot)));
   CHECK(slot_data_ != NULL);
 
-  segmentState.all = IRT_FIRST_SEGMENT;
+  segment_state_.all = IRT_FIRST_SEGMENT;
   alloc_entries_ = initialCount;
   max_entries_ = maxCount;
   kind_ = desiredKind;
@@ -81,14 +81,14 @@ bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int 
 IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
   IRTSegmentState prevState;
   prevState.all = cookie;
-  size_t topIndex = segmentState.parts.topIndex;
+  size_t topIndex = segment_state_.parts.topIndex;
 
   DCHECK(obj != NULL);
   // TODO: stronger sanity check on the object (such as in heap)
   DCHECK(IsAligned(reinterpret_cast<intptr_t>(obj), 8));
   DCHECK(table_ != NULL);
   DCHECK_LE(alloc_entries_, max_entries_);
-  DCHECK_GE(segmentState.parts.numHoles, prevState.parts.numHoles);
+  DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   if (topIndex == alloc_entries_) {
     /* reached end of allocated space; did we hit buffer max? */
@@ -128,7 +128,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
    * add to the end of the list.
    */
   IndirectRef result;
-  int numHoles = segmentState.parts.numHoles - prevState.parts.numHoles;
+  int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
   if (numHoles > 0) {
     DCHECK_GT(topIndex, 1U);
     /* find the first hole; likely to be near the end of the list */
@@ -140,13 +140,13 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     UpdateSlotAdd(obj, pScan - table_);
     result = ToIndirectRef(obj, pScan - table_);
     *pScan = obj;
-    segmentState.parts.numHoles--;
+    segment_state_.parts.numHoles--;
   } else {
     /* add to the end */
     UpdateSlotAdd(obj, topIndex);
     result = ToIndirectRef(obj, topIndex);
     table_[topIndex++] = obj;
-    segmentState.parts.topIndex = topIndex;
+    segment_state_.parts.topIndex = topIndex;
   }
 
   DCHECK(result != NULL);
@@ -169,7 +169,7 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     return false;
   }
 
-  int topIndex = segmentState.parts.topIndex;
+  int topIndex = segment_state_.parts.topIndex;
   int idx = ExtractIndex(iref);
   if (idx >= topIndex) {
     /* bad -- stale reference? */
@@ -201,7 +201,7 @@ static int LinearScan(IndirectRef iref, int bottomIndex, int topIndex, const Obj
 }
 
 bool IndirectReferenceTable::Contains(IndirectRef iref) const {
-  return LinearScan(iref, 0, segmentState.parts.topIndex, table_) != -1;
+  return LinearScan(iref, 0, segment_state_.parts.topIndex, table_) != -1;
 }
 
 /*
@@ -220,12 +220,12 @@ bool IndirectReferenceTable::Contains(IndirectRef iref) const {
 bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   IRTSegmentState prevState;
   prevState.all = cookie;
-  int topIndex = segmentState.parts.topIndex;
+  int topIndex = segment_state_.parts.topIndex;
   int bottomIndex = prevState.parts.topIndex;
 
   DCHECK(table_ != NULL);
   DCHECK_LE(alloc_entries_, max_entries_);
-  DCHECK_GE(segmentState.parts.numHoles, prevState.parts.numHoles);
+  DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   int idx = ExtractIndex(iref);
 
@@ -257,7 +257,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     }
 
     table_[idx] = NULL;
-    int numHoles = segmentState.parts.numHoles - prevState.parts.numHoles;
+    int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
     if (numHoles != 0) {
       while (--topIndex > bottomIndex && numHoles != 0) {
         //LOG(INFO) << "+++ checking for hole at " << topIndex-1 << " (cookie=" << cookie << ") val=" << table_[topIndex-1];
@@ -267,10 +267,10 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
         //LOG(INFO) << "+++ ate hole at " << (topIndex-1);
         numHoles--;
       }
-      segmentState.parts.numHoles = numHoles + prevState.parts.numHoles;
-      segmentState.parts.topIndex = topIndex;
+      segment_state_.parts.numHoles = numHoles + prevState.parts.numHoles;
+      segment_state_.parts.topIndex = topIndex;
     } else {
-      segmentState.parts.topIndex = topIndex-1;
+      segment_state_.parts.topIndex = topIndex-1;
       //LOG(INFO) << "+++ ate last entry " << topIndex-1;
     }
   } else {
@@ -288,8 +288,8 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     }
 
     table_[idx] = NULL;
-    segmentState.parts.numHoles++;
-    //LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segmentState.parts.numHoles;
+    segment_state_.parts.numHoles++;
+    //LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segment_state_.parts.numHoles;
   }
 
   return true;

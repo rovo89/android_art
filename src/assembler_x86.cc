@@ -1585,6 +1585,30 @@ void X86Assembler::Copy(FrameOffset dest, FrameOffset src,
   }
 }
 
+void X86Assembler::Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
+                        ManagedRegister scratch, size_t size) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void X86Assembler::Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
+                        ManagedRegister mscratch, size_t size) {
+  Register scratch = mscratch.AsX86().AsCpuRegister();
+  CHECK_EQ(size, 4u);
+  movl(scratch, Address(ESP, src_base));
+  movl(scratch, Address(scratch, src_offset));
+  movl(Address(ESP, dest), scratch);
+}
+
+void X86Assembler::Copy(ThreadOffset dest_base, Offset dest_offset, FrameOffset src,
+                        ManagedRegister mscratch, ManagedRegister mscratch2, size_t size) {
+  Register scratch = mscratch.AsX86().AsCpuRegister();
+  CHECK(mscratch2.IsNoRegister());
+  CHECK_EQ(size, 4u);
+  fs()->movl(scratch, Address::Absolute(dest_base));
+  pushl(Address(ESP, src));
+  popl(Address(scratch, dest_offset));
+}
+
 void X86Assembler::MemoryBarrier(ManagedRegister) {
 #if ANDROID_SMP != 0
   EmitUint8(0x0F);  // mfence

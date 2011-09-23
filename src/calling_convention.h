@@ -105,6 +105,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // | { Return address }              |
 // | { Callee saves }                |     ([1])
 // | { Return value spill }          |     (live on return slow paths)
+// | { Local Ref. Table State }      |
 // | { Stack Indirect Ref. Table     |
 // |   num. refs./link }             |     (here to prior SP is frame size)
 // | { Method* }                     | <-- Anchor SP written to thread
@@ -127,10 +128,12 @@ class JniCallingConvention : public CallingConvention {
   // Size of outgoing arguments, including alignment
   virtual size_t OutArgSize() = 0;
   // Number of references in stack indirect reference table
-  size_t ReferenceCount();
+  size_t ReferenceCount() const;
+  // Location where the segment state of the local indirect reference table is saved
+  FrameOffset LocalReferenceTable_SegmentStatesOffset() const;
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
-  FrameOffset ReturnValueSaveLocation();
+  FrameOffset ReturnValueSaveLocation() const;
 
   // Callee save registers to spill prior to native code (which may clobber)
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const = 0;
@@ -142,6 +145,9 @@ class JniCallingConvention : public CallingConvention {
   // Returns true if the method register will have been clobbered during argument
   // set up
   virtual bool IsMethodRegisterClobberedPreCall() = 0;
+
+  // An extra scratch register live after the call
+  virtual ManagedRegister ReturnScratchRegister() const = 0;
 
   // Iterator interface
   bool HasNext();
@@ -157,15 +163,15 @@ class JniCallingConvention : public CallingConvention {
   FrameOffset CurrentParamSirtEntryOffset();
 
   // Position of SIRT and interior fields
-  FrameOffset SirtOffset() {
+  FrameOffset SirtOffset() const {
     return FrameOffset(displacement_.Int32Value() +
                        kPointerSize);  // above Method*
   }
-  FrameOffset SirtNumRefsOffset() {
+  FrameOffset SirtNumRefsOffset() const {
     return FrameOffset(SirtOffset().Int32Value() +
                        StackIndirectReferenceTable::NumberOfReferencesOffset());
   }
-  FrameOffset SirtLinkOffset() {
+  FrameOffset SirtLinkOffset() const {
     return FrameOffset(SirtOffset().Int32Value() +
                        StackIndirectReferenceTable::LinkOffset());
   }

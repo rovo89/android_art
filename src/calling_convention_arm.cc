@@ -150,14 +150,17 @@ uint32_t ArmJniCallingConvention::CoreSpillMask() const {
   return result;
 }
 
+ManagedRegister ArmJniCallingConvention::ReturnScratchRegister() const {
+  return ArmManagedRegister::FromCoreRegister(R2);
+}
+
 size_t ArmJniCallingConvention::FrameSize() {
-  // Method*, LR and callee save area size
-  size_t frame_data_size = (2 + CalleeSaveRegisters().size()) * kPointerSize;
+  // Method*, LR and callee save area size, local reference segment state
+  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kPointerSize;
   // References plus 2 words for SIRT header
   size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
   // Plus return value spill area size
-  return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(),
-                 kStackAlignment);
+  return RoundUp(frame_data_size + sirt_size + SizeOfReturnValue(), kStackAlignment);
 }
 
 size_t ArmJniCallingConvention::OutArgSize() {
