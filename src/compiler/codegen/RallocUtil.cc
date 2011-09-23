@@ -287,6 +287,7 @@ static int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
         p->inUse = true;
         assert((res & 1) == 0);
         cUnit->fpSpillMask |= (1 << (res & FP_REG_MASK));
+        cUnit->fpVmapTable.push_back(sReg);
         cUnit->numSpills++;
         cUnit->numFPSpills ++;
     } else {
@@ -300,8 +301,10 @@ static int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
                 res = FPRegs[i].reg;
                 FPRegs[i].inUse = true;
                 cUnit->fpSpillMask |= (1 << (res & FP_REG_MASK));
+                cUnit->fpVmapTable.push_back(sReg);
                 FPRegs[i+1].inUse = true;
                 cUnit->fpSpillMask |= (1 << ((res+1) & FP_REG_MASK));
+                cUnit->fpVmapTable.push_back(sReg);
                 cUnit->numSpills += 2;
                 cUnit->numFPSpills += 2;
                 break;
