@@ -102,7 +102,11 @@ class OatDump {
 
  private:
 
-  OatDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space), os_(os) {}
+  OatDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space), os_(os) {
+  }
+
+  ~OatDump() {
+  }
 
   static void Callback(Object* obj, void* arg) {
     DCHECK(obj != NULL);
@@ -315,6 +319,8 @@ class OatDump {
  private:
   const Space& dump_space_;
   std::ostream& os_;
+
+  DISALLOW_COPY_AND_ASSIGN(OatDump);
 };
 
 int oatdump(int argc, char** argv) {
