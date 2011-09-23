@@ -198,6 +198,25 @@ jboolean Class_isAnonymousClass(JNIEnv* env, jobject javaThis) {
   return JNI_FALSE;
 }
 
+jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
+  Class* lhs = Decode<Class*>(env, javaLhs);
+  Class* rhs = Decode<Class*>(env, javaRhs);
+  if (rhs == NULL) {
+    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "class == null");
+    return JNI_FALSE;
+  }
+  return lhs->IsAssignableFrom(rhs) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean Class_isInstance(JNIEnv* env, jobject javaClass, jobject javaObject) {
+  Class* c = Decode<Class*>(env, javaClass);
+  Object* o = Decode<Object*>(env, javaObject);
+  if (o == NULL) {
+    return JNI_FALSE;
+  }
+  return Object::InstanceOf(o, c) ? JNI_TRUE : JNI_FALSE;
+}
+
 jboolean Class_isInterface(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
   return c->IsInterface();
@@ -320,8 +339,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
-  //NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
-  //NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
+  NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
+  NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, isInterface, "()Z"),
   NATIVE_METHOD(Class, isPrimitive, "()Z"),
   NATIVE_METHOD(Class, newInstanceImpl, "()Ljava/lang/Object;"),
