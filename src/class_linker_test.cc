@@ -648,6 +648,7 @@ struct MethodClassOffsets : public CheckOffsets {
     class_descriptor = "Ljava/lang/reflect/Method;";
 
     // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, NO_ANNOTATIONS_),     "NO_ANNOTATIONS"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));
   };
 };
