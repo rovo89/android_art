@@ -54,6 +54,7 @@ class CompilerTest : public CommonTest {
   void EnsureCompiled(const ClassLoader* class_loader,
       const char* class_name, const char* method, const char* signature, bool is_virtual) {
     CompileAll(class_loader);
+    runtime_->Start();
     env_ = Thread::Current()->GetJniEnv();
     class_ = env_->FindClass(class_name);
     CHECK(class_ != NULL) << "Class not found: " << class_name;
@@ -163,19 +164,24 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   }
 }
 
-TEST_F(CompilerTest, DISABLED_AbstractMethodErrorStub) {
+TEST_F(CompilerTest, AbstractMethodErrorStub) {
   const ClassLoader* class_loader = LoadDex("AbstractMethod");
-  EnsureCompiled(class_loader, "AbstractMethod", "callme", "()V", true);
+  ASSERT_TRUE(class_loader != NULL);
+  EnsureCompiled(class_loader, "AbstractClass", "foo", "()V", true);
 
-  // Create a jobj_ of class "B", NOT class "AbstractMethod".
-  jclass b_class = env_->FindClass("B");
-  jmethodID constructor = env_->GetMethodID(b_class, "<init>", "()V");
-  jobject jobj_ = env_->NewObject(b_class, constructor);
+  // Create a jobj_ of ConcreteClass, NOT AbstractClass.
+  jclass c_class = env_->FindClass("ConcreteClass");
+  jmethodID constructor = env_->GetMethodID(c_class, "<init>", "()V");
+  jobject jobj_ = env_->NewObject(c_class, constructor);
   ASSERT_TRUE(jobj_ != NULL);
 
 #if defined(__arm__)
-  // Will throw AbstractMethodError exception.
+  Class* jlame = class_linker_->FindClass("Ljava/lang/AbstractMethodError;", class_loader);
+  // Force non-virtal call to AbstractClass foo, will throw AbstractMethodError exception.
   env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);
+  EXPECT_TRUE(Thread::Current()->IsExceptionPending());
+  EXPECT_TRUE(Thread::Current()->GetException()->InstanceOf(jlame));
+  Thread::Current()->ClearException();
 #endif  // __arm__
 }
 

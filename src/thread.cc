@@ -122,7 +122,7 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
 void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp) {
   *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewException("Ljava/lang/AbstractMethodError",
+  thread->ThrowNewException("Ljava/lang/AbstractMethodError;",
                             "abstract method \"%s\"",
                             PrettyMethod(method).c_str());
   thread->DeliverException();
