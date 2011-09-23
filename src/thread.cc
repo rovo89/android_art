@@ -201,7 +201,7 @@ Array* CheckAndAllocFromCode(uint32_t type_index, Method* method, int32_t compon
     return Array::AllocFromCode(type_index, method, component_count);
 }
 
-// TODO: placeholder (throw on failure)
+// Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
 extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
   DCHECK(a->IsClass());
   DCHECK(b->IsClass());
@@ -212,6 +212,24 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
         "%s cannot be cast to %s",
         PrettyDescriptor(a->GetDescriptor()).c_str(),
         PrettyDescriptor(b->GetDescriptor()).c_str());
+    return -1;  // Failure
+  }
+}
+
+// Tests whether 'element' can be assigned into an array of type 'array_class'.
+// Returns 0 on success and -1 if an exception is pending.
+extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class* array_class) {
+  DCHECK(array_class != NULL);
+  // element can't be NULL as we catch this is screened in runtime_support
+  Class* element_class = element->GetClass();
+  Class* component_type = array_class->GetComponentType();
+  if (component_type->IsAssignableFrom(element_class)) {
+    return 0;  // Success
+  } else {
+    Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;",
+                                      "Cannot store an object of type %s in to an array of type %s",
+                                         PrettyDescriptor(element_class->GetDescriptor()).c_str(),
+                                         PrettyDescriptor(array_class->GetDescriptor()).c_str());
     return -1;  // Failure
   }
 }
@@ -357,6 +375,7 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
+  pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   pCheckCastFromCode = art_check_cast_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
@@ -381,7 +400,6 @@ void Thread::InitFunctionPointers() {
   pSet64Static = Field::Set64StaticFromCode;
   pGetObjStatic = Field::GetObjStaticFromCode;
   pSetObjStatic = Field::SetObjStaticFromCode;
-  pCanPutArrayElementFromCode = Class::CanPutArrayElementFromCode;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pInstanceofNonTrivialFromCode = Object::InstanceOf;

@@ -211,7 +211,7 @@ class PACKED Thread {
   void (*pSet64Static)(uint32_t, const Method*, uint64_t);
   Object* (*pGetObjStatic)(uint32_t, const Method*);
   void (*pSetObjStatic)(uint32_t, const Method*, Object*);
-  void (*pCanPutArrayElementFromCode)(const Object*, const Class*);
+  void (*pCanPutArrayElementFromCode)(void*, void*);
   bool (*pInstanceofNonTrivialFromCode) (const Object*, const Class*);
   void (*pCheckCastFromCode) (void*, void*);
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);

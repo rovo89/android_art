@@ -169,6 +169,31 @@ art_check_cast_from_code:
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
+    .global art_can_put_array_element_from_code
+    .extern artCanPutArrayElementFromCode
+    /*
+     * Entry from managed code that calls artCanPutArrayElementFromCode and delivers exception on
+     * failure.
+     */
+art_can_put_array_element_from_code:
+    cmp    r0, #0                             @ return if element == NULL
+    moveq  pc, lr
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}                          @ Save LR
+    sub    sp, #12                            @ Align stack
+    bl     artCanPutArrayElementFromCode      @ (Object* element, Class* array_class)
+    add    sp, #12
+    ldmia  sp!, {lr}                          @ restore LR
+    cmp    r0, #0                             @ success?
+    moveq  pc, lr                             @ return on success
+                                              @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                             @ pass Thread::Current
+    mov    r1, sp                             @ pass SP
+    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
     .global art_initialize_static_storage_from_code
     .extern _ZN3art11ClassLinker31InitializeStaticStorageFromCodeEjPKNS_6MethodE
     /*

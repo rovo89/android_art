@@ -1427,10 +1427,6 @@ class MANAGED Class : public StaticStorageBase {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
 
-  // Tests whether a possibly null 'element' can be
-  // assigned into an array of type 'array_class'.
-  static void CanPutArrayElementFromCode(const Object* element, const Class* array_class);
-
   // Given the context of a calling Method, use its DexCache to
   // resolve a type to a Class. If it cannot be resolved, throw an
   // error. If it can, use it to create an instance.

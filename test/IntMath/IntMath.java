@@ -786,6 +786,34 @@ class IntMath extends IntMathBase {
       return res;
     }
 
+    static void throwArrayStoreException(Object[] array, Object element) {
+      array[0] = element;
+    }
+
+    static int testArrayStoreException() {
+      int res=0;
+      Object[] array = new Number[2];
+      try {
+        throwArrayStoreException(array, null);
+        res += 1;
+      } catch(ArrayStoreException e) {
+        res += 2;
+      }
+      try {
+        throwArrayStoreException(array, Integer.valueOf(1));
+        res += 10;
+      } catch(ArrayStoreException e) {
+        res += 20;
+      }
+      try {
+        throwArrayStoreException(array, "hello MTV-44");
+        res += 100;
+      } catch(ArrayStoreException e) {
+        res += 200;
+      }
+      return res;
+    }
+
     static long recursion_count_;
     static void throwStackOverflow(long l) {
       recursion_count_++;
@@ -964,6 +992,14 @@ class IntMath extends IntMathBase {
         } else {
             System.out.println("testClassCast FAILED: " + res);
             failure = true;
+        }
+
+        res = testArrayStoreException();
+        if (res == 211) {
+          System.out.println("testArrayStore PASSED");
+        } else {
+          System.out.println("testArrayStore FAILED: " + res);
+          failure = true;
         }
 
         lres= testStackOverflow();

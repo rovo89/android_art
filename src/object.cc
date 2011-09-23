@@ -927,18 +927,6 @@ bool Class::Implements(const Class* klass) const {
   return false;
 }
 
-void Class::CanPutArrayElementFromCode(const Object* element, const Class* array_class) {
-  DCHECK(array_class != NULL);
-  if (element == NULL) {
-    return;
-  }
-  if (!array_class->GetComponentType()->IsAssignableFrom(element->GetClass())) {
-    LOG(ERROR) << "Can't put a " << PrettyClass(element->GetClass())
-               << " into a " << PrettyClass(array_class);
-    UNIMPLEMENTED(FATAL) << "need to throw ArrayStoreException and unwind stack";
-  }
-}
-
 // Determine whether "this" is assignable from "klazz", where both of these
 // are array classes.
 //
