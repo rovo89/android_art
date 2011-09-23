@@ -1030,10 +1030,10 @@ bool Class::IsInSamePackage(const Class* that) const {
     return false;
   }
   // Arrays are in the same package when their element classes are.
-  if (klass1->IsArrayClass()) {
+  while (klass1->IsArrayClass()) {
     klass1 = klass1->GetComponentType();
   }
-  if (klass2->IsArrayClass()) {
+  while (klass2->IsArrayClass()) {
     klass2 = klass2->GetComponentType();
   }
   // Compare the package part of the descriptor string.

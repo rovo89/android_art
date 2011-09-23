@@ -4366,7 +4366,6 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
     return NULL;
   }
 
-#if 0
   /* Check if access is allowed. */
   if (!referrer->CanAccess(res_class)) {
     LOG(ERROR) << "VFY: illegal class access: "
@@ -4375,7 +4374,6 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
     *failure = VERIFY_ERROR_ACCESS_CLASS;
     return NULL;
   }
-#endif
 
   return res_class;
 }
@@ -4414,9 +4412,8 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(const DexFile* dex_file,
     }
   }
 
-#if 0
   /* Check if access is allowed. */
-  if (!referrer->CanAccess(res_method->GetDeclaringClass())) {
+  if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     LOG(ERROR) << "VFY: illegal method access (call "
                << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
                << "." << res_method->GetName()->ToModifiedUtf8() << " "
@@ -4425,7 +4422,6 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(const DexFile* dex_file,
     *failure = VERIFY_ERROR_ACCESS_METHOD;
     return NULL;
   }
-#endif
 
   return res_method;
 }
@@ -4467,7 +4463,7 @@ Field* DexVerifier::ResolveFieldAndCheckAccess(const DexFile* dex_file,
   }
 
   /* Check if access is allowed. */
-  if (!referrer->CanAccess(res_field->GetDeclaringClass())) {
+  if (!referrer->CanAccessMember(res_field->GetDeclaringClass(), res_field->GetAccessFlags())) {
     LOG(ERROR) << "VFY: access denied from "
                << referrer->GetDescriptor()->ToModifiedUtf8() << " to field "
                << res_field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
