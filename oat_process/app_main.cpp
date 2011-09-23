@@ -148,6 +148,45 @@ int main(int argc, const char* const argv[])
     argc--;
     argv++;
 
+    // ignore /system/bin/app_process when invoked via WrapperInit
+    if (strcmp(argv[0], "/system/bin/app_process") == 0) {
+        LOGI("Removing /system/bin/app_process argument");
+        argc--;
+        argv++;
+        for (int i = 0; i < argc; i++) {
+            LOGI("argv[%d]=%s", i, argv[i]);
+        }
+    }
+
+    // TODO: remove Calculator special case
+    int oatArgc = argc + 2;
+    const char* oatArgv[oatArgc];
+    if (strcmp(argv[0], "-Xbootimage:/system/framework/boot.oat") != 0) {
+        LOGI("Adding oat arguments");
+        oatArgv[0] = "-Xbootimage:/system/framework/boot.oat";
+        oatArgv[1] = "-Ximage:/system/app/Calculator.oat";
+        setenv("CLASSPATH", "/system/app/Calculator.apk", 1);
+        memcpy(oatArgv + (oatArgc - argc), argv, argc * sizeof(*argv));
+        argv = oatArgv;
+        argc = oatArgc;
+        for (int i = 0; i < argc; i++) {
+            LOGI("argv[%d]=%s", i, argv[i]);
+        }
+    }
+
+    // TODO: remove the heap arguments when implicit garbage collection enabled
+    LOGI("Adding heap arguments");
+    int heapArgc = argc + 2;
+    const char* heapArgv[heapArgc];
+    heapArgv[0] = "-Xms64m";
+    heapArgv[1] = "-Xmx64m";
+    memcpy(heapArgv + (heapArgc - argc), argv, argc * sizeof(*argv));
+    argv = heapArgv;
+    argc = heapArgc;
+    for (int i = 0; i < argc; i++) {
+        LOGI("argv[%d]=%s", i, argv[i]);
+    }
+
     // Everything up to '--' or first non '-' arg goes to the vm
 
     int i = runtime.addVmArguments(argc, argv);

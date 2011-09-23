@@ -33,12 +33,12 @@ $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,$(dir)))
 
 ########################################################################
 
-# $(1): module
+# $(1): input jar or apk filename
 # $(2): boot oat
 # $(3): boot dex files
 define build-art-oat
-# TODO: change DEX2OATD to order-only prerequisite when output is stable
-$(TARGET_OUT_JAVA_LIBRARIES)/$(1).oat: $(TARGET_OUT_JAVA_LIBRARIES)/$(1).jar $(2) $(DEX2OAT)
+# TODO: change DEX2OATD (and perhaps $(2) boot oat) to order-only prerequisite when output is stable
+$(patsubst %.apk,%.oat,$(patsubst %.jar,%.oat,$(1))): $(1) $(2) $(DEX2OAT)
 	@echo "target dex2oat: $$@ ($$<)"
 	$(hide) $(DEX2OAT) -Xms16m -Xmx16m $(addprefix --boot-dex-file=,$(3)) --boot=$(2) $(addprefix --dex-file=,$$<) --image=$$@ --strip-prefix=$(PRODUCT_OUT)
 endef
@@ -48,7 +48,7 @@ ART_TEST_OAT_FILES :=
 
 # $(1): directory
 define build-art-test-oat
-  $(call build-art-oat,art-test-dex-$(1),$(TARGET_CORE_OAT),$(TARGET_CORE_DEX))
+  $(call build-art-oat,$(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).jar,$(TARGET_CORE_OAT),$(TARGET_CORE_DEX))
   ART_TEST_OAT_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).oat
 endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))

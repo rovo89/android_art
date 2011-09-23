@@ -59,6 +59,11 @@ endef
 ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_OAT_FILES)
 ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_OAT_FILES)
 
+ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_OUT_EXECUTABLES)/oat_processd
+
+########################################################################
+# host test targets
+
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
 test-art-host: $(ART_HOST_TEST_DEPENDENCIES)
@@ -74,7 +79,10 @@ valgrind-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,"tsan")
 
-# "mm test-art-device" to build and run all target tests
+########################################################################
+# target test targets
+
+# "mm test-art-target" to build and run all target tests
 .PHONY: test-art-target
 test-art-target: test-art-target-gtest test-art-target-oat
 
@@ -94,20 +102,47 @@ test-art-target-gtest: test-art-target-sync
 .PHONY: test-art-target-oat
 test-art-target-oat: $(ART_TEST_OAT_TARGETS)
 
+########################################################################
+# oat_process test targets
+
 # $(1): name
 define build-art-framework-oat
   $(call build-art-oat,$(1),$(TARGET_BOOT_OAT),$(TARGET_BOOT_DEX))
 endef
 
-$(eval $(call build-art-framework-oat,am))
-
 .PHONY: test-art-target-oat-process
-test-art-target-oat-process: $(TARGET_OUT_JAVA_LIBRARIES)/am.oat
+test-art-target-oat-process: test-art-target-oat-process-am # test-art-target-oat-process-Calculator
+
+$(eval $(call build-art-framework-oat,$(TARGET_OUT_JAVA_LIBRARIES)/am.jar))
+
+.PHONY: test-art-target-oat-process-am
+test-art-target-oat-process-am: $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
 	adb remount
 	adb sync
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am && touch /sdcard/test-art-target-process"
-	$(hide) (adb pull /sdcard/test-art-target-process /tmp/ && echo test-art-target-process PASSED) || echo test-art-target-process FAILED
-	$(hide) rm /tmp/test-art-target-process
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start http://android.com && touch /sdcard/test-art-target-process-am"
+	$(hide) (adb pull /sdcard/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
+	$(hide) rm /tmp/test-art-target-process-am
+
+$(eval $(call build-art-framework-oat,$(TARGET_OUT_APPS)/Calculator.apk))
+
+.PHONY: test-art-target-oat-process-Calculator
+# Note that using this instead of "adb shell am start" make sure that the /data/art-cache is up-to-date
+test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat test-art-target-sync
+	mkdir -p $(TARGET_OUT_DATA)/art-cache
+	unzip $(TARGET_OUT_APPS)/Calculator.apk classes.dex -d $(TARGET_OUT_DATA)/art-cache
+	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(TARGET_OUT_DATA)/art-cache/system@app@Calculator.apk@classes.dex.c96b4ebb # crc32 from "unzip -lv $(TARGET_OUT_APPS)/Calculator.apk"
+	adb remount
+	adb sync
+	adb shell setprop wrap.com.android.calculator2 "oat_processd"
+	adb shell stop
+	adb shell start
+	sleep 15 # sleep 30
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch /sdcard/test-art-target-process-Calculator"
+	$(hide) (adb pull /sdcard/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
+	$(hide) rm /tmp/test-art-target-process-Calculator
+
+########################################################################
+# oatdump targets
 
 .PHONY: dump-core-oat
 dump-core-oat: $(TARGET_CORE_OAT) $(OATDUMP)
@@ -119,9 +154,14 @@ dump-boot-oat: $(TARGET_BOOT_OAT) $(OATDUMP)
 	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
 
+########################################################################
+# cpplint target
+
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art
 cpplint-art:
 	$(LOCAL_PATH)/tools/cpplint.py $(LOCAL_PATH)/src/*.h $(LOCAL_PATH)/src/*.cc
+
+########################################################################
 
 include $(call all-makefiles-under,$(LOCAL_PATH))

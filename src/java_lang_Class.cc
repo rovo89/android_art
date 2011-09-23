@@ -227,13 +227,6 @@ jboolean Class_isPrimitive(JNIEnv* env, jobject javaThis) {
   return c->IsPrimitive();
 }
 
-bool CheckClassAccess(const Class* access_from, const Class* klass) {
-  if (klass->IsPublic()) {
-    return true;
-  }
-  return access_from->IsInSamePackage(klass);
-}
-
 // Validate method/field access.
 bool CheckMemberAccess(const Class* access_from, const Class* access_to, uint32_t member_flags) {
   // quick accept for public access */
@@ -293,7 +286,7 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   Method* caller_caller = frame.GetMethod();
   Class* caller_class = caller_caller->GetDeclaringClass();
 
-  if (!CheckClassAccess(c, caller_class)) {
+  if (!caller_class->CanAccess(c)) {
     Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessException;",
                                          "Class %s is not accessible from class %s",
                                          PrettyDescriptor(c->GetDescriptor()).c_str(),

@@ -301,7 +301,7 @@ void LockObjectFromCode(Thread* thread, Object* obj) {
   obj->MonitorEnter(thread);
   DCHECK(thread->HoldsLock(obj));
   // Only possible exception is NPE and is handled before entry
-  DCHECK(thread->GetException() == NULL);
+  DCHECK(!thread->IsExceptionPending());
 }
 
 extern "C" void artCheckSuspendFromCode(Thread* thread) {
@@ -358,10 +358,14 @@ extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
   Method* interface_method = class_linker->ResolveMethod(method_idx, caller_method, false);
   if (interface_method == NULL) {
     // Could not resolve interface method. Throw error and unwind
-    CHECK(thread->GetException() != NULL);
+    CHECK(thread->IsExceptionPending());
     return 0;
   }
   Method* method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
+  if (method == NULL) {
+    CHECK(thread->IsExceptionPending());
+    return 0;
+  }
   const void* code = method->GetCode();
 
   uint32_t method_uint = reinterpret_cast<uint32_t>(method);
@@ -1372,6 +1376,7 @@ void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const ch
   CHECK(exception_class != NULL) << "descriptor=\"" << descriptor << "\"";
   int rc = env->ThrowNew(exception_class, msg.c_str());
   CHECK_EQ(rc, JNI_OK);
+  env->DeleteLocalRef(exception_class);
 }
 
 void Thread::ThrowOutOfMemoryError() {
