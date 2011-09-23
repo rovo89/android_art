@@ -128,12 +128,17 @@ void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** s
   thread->DeliverException();
 }
 
-// TODO: placeholder
-void StackOverflowFromCode(Method* method) {
-  Thread::Current()->SetTopOfStackPC(reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
-  Thread::Current()->Dump(std::cerr);
-  //NOTE: to save code space, this handler needs to look up its own Thread*
-  UNIMPLEMENTED(FATAL) << "Stack overflow: " << PrettyMethod(method);
+extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->SetStackEndForStackOverflow();
+  thread->ThrowNewException("Ljava/lang/StackOverflowError;",
+                            "stack size %zdkb; default stack size: %zdkb",
+                            thread->GetStackSize() / KB, runtime->GetDefaultStackSize() / KB);
+  thread->ResetDefaultStackEnd();
+  thread->DeliverException();
 }
 
 // TODO: placeholder
@@ -359,6 +364,7 @@ void Thread::InitFunctionPointers() {
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
   pThrowDivZeroFromCode = art_throw_div_zero_from_code;
   pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
+  pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
 #endif
   pDeliverException = art_deliver_exception_from_code;
@@ -381,7 +387,6 @@ void Thread::InitFunctionPointers() {
   pLockObjectFromCode = LockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = artCheckSuspendFromCode;
-  pStackOverflowFromCode = StackOverflowFromCode;
   pThrowVerificationErrorFromCode = ThrowVerificationErrorFromCode;
   pThrowNegArraySizeFromCode = ThrowNegArraySizeFromCode;
   pThrowRuntimeExceptionFromCode = ThrowRuntimeExceptionFromCode;
@@ -573,18 +578,17 @@ void Thread::InitStackHwm() {
   pthread_attr_t attributes;
   CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_, &attributes), __FUNCTION__);
 
-  void* stack_base;
-  size_t stack_size;
-  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &stack_base, &stack_size), __FUNCTION__);
+  void* temp_stack_base;
+  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &temp_stack_base, &stack_size_),
+                     __FUNCTION__);
+  stack_base_ = reinterpret_cast<byte*>(temp_stack_base);
 
-  if (stack_size <= kStackOverflowReservedBytes) {
-    LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size << " bytes)";
+  if (stack_size_ <= kStackOverflowReservedBytes) {
+    LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size_ << " bytes)";
   }
 
-  // stack_base is the "lowest addressable byte" of the stack.
-  // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
-  // to throw a StackOverflowError.
-  stack_end_ = reinterpret_cast<byte*>(stack_base) + kStackOverflowReservedBytes;
+  // Set stack_end_ to the bottom of the stack saving space of stack overflows
+  ResetDefaultStackEnd();
 
   // Sanity check.
   int stack_variable;

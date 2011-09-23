@@ -16,6 +16,7 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();
   extern "C" void art_throw_null_pointer_exception_from_code();
+  extern "C" void art_throw_stack_overflow_from_code(void*);
   extern "C" void art_unlock_object_from_code(void*, void*);
 
   /* Conversions */
