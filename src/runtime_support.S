@@ -219,6 +219,50 @@ art_initialize_static_storage_from_code:
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
+    .global art_array_alloc_from_code
+    .extern artArrayAllocFromCode
+    /*
+     * Called by managed code to allocate an array
+     */
+art_array_alloc_from_code:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}              @ Save LR
+    sub    sp, #12                @ Align stack
+    bl     artArrayAllocFromCode  @ (uint32_t type_idx, Method* method, int32_t component_count)
+    add    sp, #12
+    ldmia  sp!, {lr}              @ restore LR
+    cmp    r0, #0                 @ success if result is non-null
+    movne  pc, lr                 @ return on success
+                                  @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                 @ pass Thread::Current
+    mov    r1, sp                 @ pass SP
+    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
+    .global art_check_and_array_alloc_from_code
+    .extern artCheckAndArrayAllocFromCode
+    /*
+     * Called by managed code to allocate an array
+     */
+art_check_and_array_alloc_from_code:
+    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
+    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
+    stmdb  sp!, {lr}                      @ Save LR
+    sub    sp, #12                        @ Align stack
+    bl     artCheckAndArrayAllocFromCode  @ (uint32_t type_idx, Method* method, int32_t count)
+    add    sp, #12
+    ldmia  sp!, {lr}                      @ restore LR
+    cmp    r0, #0                         @ success if result is non-null
+    movne  pc, lr                         @ return on success
+                                          @ set up for throwing exception
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub    sp, #16                        @ 4 words of space, bottom word will hold Method*
+    mov    r0, r9                         @ pass Thread::Current
+    mov    r1, sp                         @ pass SP
+    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
     .global art_shl_long
 art_shl_long:
     /*

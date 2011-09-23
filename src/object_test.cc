@@ -171,12 +171,27 @@ TEST_F(ObjectTest, AllocObjectFromCode) {
   EXPECT_TRUE(string->IsString());
 }
 
-TEST_F(ObjectTest, AllocArrayFromCode) {
+extern "C" Array* artArrayAllocFromCode(uint32_t type_idx, Method* method, int32_t component_count);
+TEST_F(ObjectTest, ArrayAllocFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
   Method* toCharArray = java_lang_String->FindVirtualMethod("toCharArray", "()[C");
   uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "[C");
-  Object* array = Array::AllocFromCode(type_idx, toCharArray, 3);
+  Object* array = artArrayAllocFromCode(type_idx, toCharArray, 3);
+  EXPECT_TRUE(array->IsArrayInstance());
+  EXPECT_EQ(3, array->AsArray()->GetLength());
+  EXPECT_TRUE(array->GetClass()->IsArrayClass());
+  EXPECT_TRUE(array->GetClass()->GetComponentType()->IsPrimitive());
+}
+
+extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* method,
+                                                int32_t component_count);
+TEST_F(ObjectTest, CheckAndArrayAllocFromCode) {
+  // pretend we are trying to call 'new char[3]' from String.toCharArray
+  Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
+  Method* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
+  uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "[I");
+  Object* array = artCheckAndArrayAllocFromCode(type_idx, sort, 3);
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
   EXPECT_TRUE(array->GetClass()->IsArrayClass());

@@ -191,14 +191,57 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
      */
 }
 
-// TODO: placeholder.  Helper function to alloc array for OP_FILLED_NEW_ARRAY
-Array* CheckAndAllocFromCode(uint32_t type_index, Method* method, int32_t component_count) {
-    /*
-     * Just a wrapper around Array::AllocFromCode() that additionally
-     * throws a runtime exception "bad Filled array req" for 'D' and 'J'.
-     */
-    UNIMPLEMENTED(WARNING) << "Need check that not 'D' or 'J'";
-    return Array::AllocFromCode(type_index, method, component_count);
+// Helper function to alloc array for OP_FILLED_NEW_ARRAY
+extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* method,
+                                                int32_t component_count) {
+  if (component_count < 0) {
+    Thread::Current()->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d",
+                                         component_count);
+    return NULL;  // Failure
+  }
+  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  if (klass == NULL) {  // Not in dex cache so try to resolve
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {  // Error
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return NULL;  // Failure
+    }
+  }
+  if (klass->IsPrimitive() && !klass->IsPrimitiveInt()) {
+    if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
+      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
+          "Bad filled array request for type %s",
+          PrettyDescriptor(klass->GetDescriptor()).c_str());
+    } else {
+      Thread::Current()->ThrowNewException("Ljava/lang/InternalError;",
+          "Found type %s; filled-new-array not implemented for anything but \'int\'",
+          PrettyDescriptor(klass->GetDescriptor()).c_str());
+    }
+    return NULL;  // Failure
+  } else {
+    CHECK(klass->IsArrayClass());
+    return Array::Alloc(klass, component_count);
+  }
+}
+
+// Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
+// it cannot be resolved, throw an error. If it can, use it to create an array.
+extern "C" Array* artArrayAllocFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
+  if (component_count < 0) {
+    Thread::Current()->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d",
+                                         component_count);
+    return NULL;  // Failure
+  }
+  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  if (klass == NULL) {  // Not in dex cache so try to resolve
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {  // Error
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return NULL;  // Failure
+    }
+    CHECK(klass->IsArrayClass());
+  }
+  return Array::Alloc(klass, component_count);
 }
 
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
@@ -227,9 +270,9 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
     return 0;  // Success
   } else {
     Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;",
-                                      "Cannot store an object of type %s in to an array of type %s",
-                                         PrettyDescriptor(element_class->GetDescriptor()).c_str(),
-                                         PrettyDescriptor(array_class->GetDescriptor()).c_str());
+        "Cannot store an object of type %s in to an array of type %s",
+        PrettyDescriptor(element_class->GetDescriptor()).c_str(),
+        PrettyDescriptor(array_class->GetDescriptor()).c_str());
     return -1;  // Failure
   }
 }
@@ -375,7 +418,9 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
+  pArrayAllocFromCode = art_array_alloc_from_code;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
+  pCheckAndArrayAllocFromCode = art_check_and_array_alloc_from_code;
   pCheckCastFromCode = art_check_cast_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
@@ -390,8 +435,6 @@ void Thread::InitFunctionPointers() {
   pDeliverException = art_deliver_exception_from_code;
   pF2l = F2L;
   pD2l = D2L;
-  pAllocFromCode = Array::AllocFromCode;
-  pCheckAndAllocFromCode = CheckAndAllocFromCode;
   pAllocObjectFromCode = Class::AllocObjectFromCode;
   pMemcpy = memcpy;
   pGet32Static = Field::Get32StaticFromCode;

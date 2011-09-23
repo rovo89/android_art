@@ -1196,19 +1196,6 @@ Array* Array::Alloc(Class* array_class, int32_t component_count) {
   return Alloc(array_class, component_count, array_class->GetComponentSize());
 }
 
-Array* Array::AllocFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
-  // TODO: throw on negative component_count
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (klass == NULL) {
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL || !klass->IsArrayClass()) {
-      UNIMPLEMENTED(FATAL) << "throw an error";
-      return NULL;
-    }
-  }
-  return Array::Alloc(klass, component_count);
-}
-
 template<typename T>
 PrimitiveArray<T>* PrimitiveArray<T>::Alloc(size_t length) {
   DCHECK(array_class_ != NULL);

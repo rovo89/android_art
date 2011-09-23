@@ -833,6 +833,23 @@ class IntMath extends IntMathBase {
       }
     }
 
+    static int testArrayAllocation() {
+      int res = 0;
+      try {
+        int[] x = new int[-1];
+        res += 1;
+      } catch (NegativeArraySizeException e) {
+        res += 2;
+      }
+      try {
+        int[] x = new int [1];
+        res += 10;
+      } catch (Throwable e) {
+        res += 20;
+      }
+      return res;
+    }
+
     public static void main(String[] args) {
         boolean failure = false;
         int res;
@@ -1008,6 +1025,14 @@ class IntMath extends IntMathBase {
         } else {
             System.out.println("testStackOverflow FAILED: " + lres);
             failure = true;
+        }
+
+        res = testArrayAllocation();
+        if (res == 12) {
+          System.out.println("testArrayAllocation PASSED");
+        } else {
+          System.out.println("testArrayAllocation FAILED: " + res);
+          failure = true;
         }
 
         res = manyArgs(0, 1L, 2, 3L, 4, 5L, 6, 7, 8.0, 9.0f, 10.0,

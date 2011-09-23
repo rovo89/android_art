@@ -1093,11 +1093,6 @@ class MANAGED Array : public Object {
     return sizeof(Array) + component_count * component_size;
   }
 
-  // Given the context of a calling Method, use its DexCache to
-  // resolve a type to an array Class. If it cannot be resolved, throw
-  // an error. If it can, use it to create an array.
-  static Array* AllocFromCode(uint32_t type_idx, Method* method, int32_t component_count);
-
   // A convenience for code that doesn't know the component size,
   // and doesn't want to have to work it out itself.
   static Array* Alloc(Class* array_class, int32_t component_count);

@@ -33,7 +33,7 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pAllocFromCode), rLR);
+                 OFFSETOF_MEMBER(Thread, pArrayAllocFromCode), rLR);
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, mir->dalvikInsn.vC);  // arg0 <- type_id
     loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
@@ -56,7 +56,7 @@ static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     int typeId = dInsn->vB;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pCheckAndAllocFromCode), rLR);
+                 OFFSETOF_MEMBER(Thread, pCheckAndArrayAllocFromCode), rLR);
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
     loadConstant(cUnit, r2, elems);               // arg2 <- count
