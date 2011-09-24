@@ -105,7 +105,13 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       for (size_t i = 0; i < num_static_fields; ++i) {
         DexFile::Field dex_field;
         dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-        class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache, class_loader, true);
+        Field* field = class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache,
+                                                  class_loader, true);
+        if (field == NULL) {
+          Thread* self = Thread::Current();
+          CHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
       }
     }
     if (num_instance_fields != 0) {
@@ -113,7 +119,13 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       for (size_t i = 0; i < num_instance_fields; ++i) {
         DexFile::Field dex_field;
         dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-        class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache, class_loader, false);
+        Field* field = class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache,
+                                                  class_loader, false);
+        if (field == NULL) {
+          Thread* self = Thread::Current();
+          CHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
       }
     }
     if (num_direct_methods != 0) {
@@ -121,8 +133,13 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       for (size_t i = 0; i < num_direct_methods; ++i) {
         DexFile::Method dex_method;
         dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-        class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache, class_loader,
-                                    true);
+        Method* method = class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache,
+                                                     class_loader, true);
+        if (method == NULL) {
+          Thread* self = Thread::Current();
+          CHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
       }
     }
     if (num_virtual_methods != 0) {
@@ -130,8 +147,13 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       for (size_t i = 0; i < num_virtual_methods; ++i) {
         DexFile::Method dex_method;
         dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-        class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache, class_loader,
-                                    false);
+        Method* method = class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache,
+                                                     class_loader, false);
+        if (method == NULL) {
+          Thread* self = Thread::Current();
+          CHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
       }
     }
   }
@@ -153,10 +175,23 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
-    CHECK(klass->IsResolved());
-    CHECK(klass != NULL);
+    if (klass == NULL) {
+      Thread* self = Thread::Current();
+      CHECK(self->IsExceptionPending());
+      self->ClearException();
+      continue;
+    }
+    CHECK(klass->IsResolved()) << PrettyClass(klass);
     class_linker->VerifyClass(klass);
-    CHECK(klass->IsVerified() || klass->IsErroneous());
+    CHECK(klass->IsVerified() || klass->IsErroneous()) << PrettyClass(klass);
+    //CHECK(!Thread::Current()->IsExceptionPending());
+    if (klass->IsErroneous()) {
+      Thread* self = Thread::Current();
+      if (self->IsExceptionPending()) {
+        UNIMPLEMENTED(WARNING) << "Verifier failed to cleanup exceptions internally";
+        self->ClearException();
+      }
+    }
   }
   dex_file.ChangePermissions(PROT_READ);
 }
@@ -212,8 +247,7 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
     if (klass == NULL) {
       // previous verification error will cause FindClass to throw
       Thread* self = Thread::Current();
-      // CHECK(self->IsExceptionPending());
-      UNIMPLEMENTED(WARNING) << "CHECK for verification error after FindClass " << descriptor;
+      CHECK(self->IsExceptionPending());
       self->ClearException();
     } else {
       CompileClass(klass);

@@ -2548,6 +2548,7 @@ iput_1nr_common:
         inst_field = GetInstField(vdata, obj_type, dec_insn.vC_, &failure);
         if (failure != VERIFY_ERROR_NONE)
           break;
+        DCHECK(inst_field != NULL);
         CheckFinalFieldAccess(method, inst_field, &failure);
         if (failure != VERIFY_ERROR_NONE)
           break;
@@ -3802,6 +3803,7 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
       method->GetDeclaringClass(), failure, false);
   if (field == NULL) {
     LOG(ERROR) << "VFY: unable to resolve instance field " << field_idx;
+    *failure = VERIFY_ERROR_GENERIC;
     return field;
   }
 
@@ -4436,13 +4438,14 @@ Field* DexVerifier::ResolveFieldAndCheckAccess(const DexFile* dex_file,
     const DexFile::FieldId& field_id = dex_file->GetFieldId(field_idx);
     Class* klass = ResolveClassAndCheckAccess(dex_file, field_id.class_idx_, referrer, failure);
     if (klass == NULL) {
-      DCHECK(*failure != VERIFY_ERROR_NONE);
+      DCHECK(*failure != VERIFY_ERROR_NONE) << PrettyClass(referrer);
       return NULL;
     }
 
     Class* field_type = ResolveClassAndCheckAccess(dex_file, field_id.type_idx_, referrer, failure);
     if (field_type == NULL) {
-      DCHECK(*failure != VERIFY_ERROR_NONE);
+      // TODO: restore this assert?
+      // DCHECK(*failure != VERIFY_ERROR_NONE) << PrettyClass(referrer) << " " << PrettyClass(klass);
       return NULL;
     }
 
@@ -4692,8 +4695,10 @@ char DexVerifier::DetermineCat1Const(int32_t value) {
 
 void DexVerifier::CheckFinalFieldAccess(const Method* method,
     const Field* field, VerifyError* failure) {
-  if (!field->IsFinal())
+  DCHECK(field != NULL);
+  if (!field->IsFinal()) {
     return;
+  }
 
   /* make sure we're in the same class */
   if (method->GetDeclaringClass() != field->GetDeclaringClass()) {

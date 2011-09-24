@@ -127,7 +127,7 @@ $(eval $(call build-art-framework-oat,$(TARGET_OUT_APPS)/Calculator.apk))
 
 .PHONY: test-art-target-oat-process-Calculator
 # Note that using this instead of "adb shell am start" make sure that the /data/art-cache is up-to-date
-test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat test-art-target-sync
+test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
 	mkdir -p $(TARGET_OUT_DATA)/art-cache
 	unzip $(TARGET_OUT_APPS)/Calculator.apk classes.dex -d $(TARGET_OUT_DATA)/art-cache
 	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(TARGET_OUT_DATA)/art-cache/system@app@Calculator.apk@classes.dex.c96b4ebb # crc32 from "unzip -lv $(TARGET_OUT_APPS)/Calculator.apk"

@@ -233,7 +233,7 @@ extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* metho
     }
     return NULL;  // Failure
   } else {
-    CHECK(klass->IsArrayClass());
+    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
     return Array::Alloc(klass, component_count);
   }
 }
@@ -253,15 +253,15 @@ extern "C" Array* artArrayAllocFromCode(uint32_t type_idx, Method* method, int32
       DCHECK(Thread::Current()->IsExceptionPending());
       return NULL;  // Failure
     }
-    CHECK(klass->IsArrayClass());
+    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
   }
   return Array::Alloc(klass, component_count);
 }
 
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
 extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
-  DCHECK(a->IsClass());
-  DCHECK(b->IsClass());
+  DCHECK(a->IsClass()) << PrettyClass(a);
+  DCHECK(b->IsClass()) << PrettyClass(b);
   if (b->IsAssignableFrom(a)) {
     return 0;  // Success
   } else {

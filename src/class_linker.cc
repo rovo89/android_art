@@ -39,6 +39,7 @@ void ThrowVirtualMachineError(const char* fmt, ...) __attribute__((__format__ (_
 void ThrowVirtualMachineError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
+  UNIMPLEMENTED(FATAL) << "VirtualMachineError is abstract, throw something else";
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/VirtualMachineError;", fmt, args);
   va_end(args);
 }
@@ -1649,8 +1650,10 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
   if (klass->GetSuperClassTypeIdx() != DexFile::kDexNoIndex) {
     Class* super_class = ResolveType(dex_file, klass->GetSuperClassTypeIdx(), klass);
     if (super_class == NULL) {
-      ThrowVirtualMachineError("Failed to resolve superclass with type index %d for class %s",
-          klass->GetSuperClassTypeIdx(), PrettyDescriptor(klass->GetDescriptor()).c_str());
+      DCHECK(Thread::Current()->IsExceptionPending());
+      // TODO: can't ThrowVirtualMachineError, its abstract
+      // ThrowVirtualMachineError("Failed to resolve superclass with type index %d for class %s",
+      //     klass->GetSuperClassTypeIdx(), PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
     }
     klass->SetSuperClass(super_class);
@@ -2062,8 +2065,8 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
     Field* field = fields->Get(i);
     if (false) {  // enable to debug field layout
       LOG(INFO) << "LinkFields: " << (instance ? "instance" : "static")
-                << " class=" << klass->GetDescriptor()->ToModifiedUtf8()
-                << " field=" << field->GetName()->ToModifiedUtf8()
+                << " class=" << PrettyClass(klass)
+                << " field=" << PrettyField(field)
                 << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);
     }
     const Class* type = field->GetTypeDuringLinking();
@@ -2242,8 +2245,12 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
 
   const char* name = dex_file.dexStringById(field_id.name_idx_);
   Class* field_type = ResolveType(dex_file, field_id.type_idx_, dex_cache, class_loader);
-  // TODO: LinkageError?
-  CHECK(field_type != NULL);
+  if (field_type == NULL) {
+    // TODO: LinkageError?
+    UNIMPLEMENTED(WARNING) << "Failed to resolve type of field " << name
+                           << " in " << PrettyClass(klass);
+    return NULL;
+}
   if (is_static) {
     resolved = klass->FindStaticField(name, field_type);
   } else {

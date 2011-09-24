@@ -751,7 +751,9 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
     (*stub)(this, receiver, self, args, result);
     LOG(INFO) << "returned " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
   } else {
-    LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);
+    if (Runtime::Current()->IsStarted()) {
+      LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);
+    }
     if (result != NULL) {
       result->j = 0;
     }
@@ -782,8 +784,8 @@ void Method::UnregisterNative() {
 
 void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError ||
-      !Runtime::Current()->IsStarted()) << GetDescriptor()->ToModifiedUtf8();
-  CHECK(sizeof(Status) == sizeof(uint32_t));
+      !Runtime::Current()->IsStarted()) << PrettyClass(this);
+  CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_),
                     new_status, false);
 }
@@ -799,9 +801,9 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
 }
 
 Object* Class::AllocObject() {
-  DCHECK(!IsAbstract());
-  DCHECK(!IsInterface());
-  DCHECK(!IsPrimitive());
+  DCHECK(!IsAbstract()) << PrettyClass(this);
+  DCHECK(!IsInterface()) << PrettyClass(this);
+  DCHECK(!IsPrimitive()) << PrettyClass(this);
   return Heap::AllocObject(this, this->object_size_);
 }
 
@@ -927,7 +929,7 @@ size_t Class::GetTypeSize(const String* descriptor) {
 
 bool Class::Implements(const Class* klass) const {
   DCHECK(klass != NULL);
-  DCHECK(klass->IsInterface());
+  DCHECK(klass->IsInterface()) << PrettyClass(this);
   // All interfaces implemented directly and by our superclass, and
   // recursively all super-interfaces of those interfaces, are listed
   // in iftable_, so we can just do a linear scan through that.
@@ -961,28 +963,28 @@ bool Class::Implements(const Class* klass) const {
 //   Object[]         = int[] --> false
 //
 bool Class::IsArrayAssignableFromArray(const Class* src) const {
-  DCHECK(IsArrayClass());
-  DCHECK(src->IsArrayClass());
+  DCHECK(IsArrayClass())  << PrettyClass(this);
+  DCHECK(src->IsArrayClass()) << PrettyClass(src);
   return GetComponentType()->IsAssignableFrom(src->GetComponentType());
 }
 
 bool Class::IsAssignableFromArray(const Class* src) const {
-  DCHECK(!IsInterface());  // handled first in IsAssignableFrom
-  DCHECK(src->IsArrayClass());
+  DCHECK(!IsInterface()) << PrettyClass(this);  // handled first in IsAssignableFrom
+  DCHECK(src->IsArrayClass()) << PrettyClass(src);
   if (!IsArrayClass()) {
     // If "this" is not also an array, it must be Object.
     // src's super should be java_lang_Object, since it is an array.
     Class* java_lang_Object = src->GetSuperClass();
-    DCHECK(java_lang_Object != NULL);
-    DCHECK(java_lang_Object->GetSuperClass() == NULL);
+    DCHECK(java_lang_Object != NULL) << PrettyClass(src);
+    DCHECK(java_lang_Object->GetSuperClass() == NULL) << PrettyClass(src);
     return this == java_lang_Object;
   }
   return IsArrayAssignableFromArray(src);
 }
 
 bool Class::IsSubClass(const Class* klass) const {
-  DCHECK(!IsInterface());
-  DCHECK(!IsArrayClass());
+  DCHECK(!IsInterface()) << PrettyClass(this);
+  DCHECK(!IsArrayClass()) << PrettyClass(this);
   const Class* current = this;
   do {
     if (current == klass) {
@@ -1055,8 +1057,8 @@ void Class::SetClassLoader(const ClassLoader* new_cl) {
 
 Method* Class::FindVirtualMethodForInterface(Method* method) {
   Class* declaring_class = method->GetDeclaringClass();
-  DCHECK(declaring_class != NULL);
-  DCHECK(declaring_class->IsInterface());
+  DCHECK(declaring_class != NULL) << PrettyClass(this);
+  DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
   // TODO cache to improve lookup speed
   int32_t iftable_count = GetIfTableCount();
   ObjectArray<InterfaceEntry>* iftable = GetIfTable();

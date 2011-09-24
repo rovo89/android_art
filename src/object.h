@@ -2177,7 +2177,7 @@ inline Class* Method::GetDeclaringClass() const {
       GetFieldObject<Class*>(
           OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
   DCHECK(result != NULL);
-  DCHECK(result->IsLoaded() || result->IsErroneous());
+  DCHECK(result->IsIdxLoaded() || result->IsErroneous());
   return result;
 }
 
@@ -2607,7 +2607,7 @@ inline void Class::SetSourceFile(String* new_source_file) {
 }
 
 inline uint32_t Method::GetAccessFlags() const {
-  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
+  DCHECK(GetDeclaringClass()->IsIdxLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), false);
 }
 
