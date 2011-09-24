@@ -368,6 +368,10 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
     return NULL;
   }
 
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+    return NULL;
+  }
+
   Method* init = c->FindDirectMethod("<init>", "()V");
   if (init == NULL) {
     Thread::Current()->ThrowNewException("Ljava/lang/InstantiationException;",

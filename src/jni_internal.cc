@@ -2837,7 +2837,7 @@ void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
       return NULL;
     }
   } else {
-    CHECK_GE(c->GetStatus(), Class::kStatusInitializing);
+    CHECK(c->GetStatus() >= Class::kStatusInitializing) << c->GetStatus() << " " << PrettyMethod(m);
   }
 
   std::string detail;
@@ -2848,8 +2848,7 @@ void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
   }
   // throwing can cause libraries_lock to be reacquired
   if (native_method == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;",
-        "%s", detail.c_str());
+    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", "%s", detail.c_str());
   }
   return native_method;
 }

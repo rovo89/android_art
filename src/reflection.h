@@ -31,6 +31,8 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
 
 bool ConvertPrimitiveValue(Class* src_class, Class* dst_class, const JValue& src, JValue& dst);
 
+jobject InvokeMethod(JNIEnv* env, jobject method, jobject receiver, jobject args, jobject params);
+
 bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c);
 
 }  // namespace art

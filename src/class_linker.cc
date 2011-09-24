@@ -453,6 +453,17 @@ void ClassLinker::FinishInit() {
   init_done_ = true;
 }
 
+void ClassLinker::RunRootClinits() {
+  Thread* self = Thread::Current();
+  for (size_t i = 0; i < ClassLinker::kClassRootsMax; ++i) {
+    Class* c = GetClassRoot(ClassRoot(i));
+    if (!c->IsArrayClass() && !c->IsPrimitive()) {
+      EnsureInitialized(GetClassRoot(ClassRoot(i)), true);
+      CHECK(!self->IsExceptionPending());
+    }
+  }
+}
+
 struct ClassLinker::InitFromImageCallbackState {
   ClassLinker* class_linker;
 

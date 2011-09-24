@@ -365,18 +365,9 @@ void Runtime::Start() {
 
   Thread::FinishStartup();
 
-  RunImageClinits();
+  class_linker_->RunRootClinits();
 
   StartDaemonThreads();
-}
-
-// initialize classes that have instances in the image but that have
-// <clinit> methods so they could not be initialized by the compiler.
-void Runtime::RunImageClinits() {
-  Class* Field_class = class_linker_->FindSystemClass("Ljava/lang/reflect/Field;");
-  CHECK(Field_class->FindDeclaredDirectMethod("<clinit>", "()V") != NULL);
-  class_linker_->EnsureInitialized(Field_class, true);
-  CHECK(!Thread::Current()->IsExceptionPending());
 }
 
 void Runtime::StartDaemonThreads() {
@@ -473,7 +464,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   REGISTER(register_java_lang_VMClassLoader);
   //REGISTER(register_java_lang_reflect_AccessibleObject);
   REGISTER(register_java_lang_reflect_Array);
-  //REGISTER(register_java_lang_reflect_Constructor);
+  REGISTER(register_java_lang_reflect_Constructor);
   REGISTER(register_java_lang_reflect_Field);
   REGISTER(register_java_lang_reflect_Method);
   //REGISTER(register_java_lang_reflect_Proxy);

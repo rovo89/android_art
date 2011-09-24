@@ -48,6 +48,75 @@ void InitBoxingMethods(JNIEnv* env) {
   InitBoxingMethod(env, gShort_valueOf, JniConstants::shortClass, "(S)Ljava/lang/Short;");
 }
 
+jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs, jobject javaParams) {
+  Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+
+  jmethodID mid = env->FromReflectedMethod(javaMethod);
+  Method* m = reinterpret_cast<Method*>(mid);
+
+  Class* declaring_class = m->GetDeclaringClass();
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true)) {
+    return NULL;
+  }
+
+  Object* receiver = NULL;
+  if (!m->IsStatic()) {
+    // Check that the receiver is non-null and an instance of the field's declaring class.
+    receiver = Decode<Object*>(env, javaReceiver);
+    if (!VerifyObjectInClass(env, receiver, declaring_class)) {
+      return NULL;
+    }
+
+    // Find the actual implementation of the virtual method.
+    m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
+  }
+
+  // Get our arrays of arguments and their types, and check they're the same size.
+  ObjectArray<Object>* objects = Decode<ObjectArray<Object>*>(env, javaArgs);
+  ObjectArray<Class>* classes = Decode<ObjectArray<Class>*>(env, javaParams);
+  int32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
+  if (arg_count != classes->GetLength()) {
+    self->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+        "wrong number of arguments; expected %d, got %d",
+        classes->GetLength(), arg_count);
+    return NULL;
+  }
+
+  // Translate javaArgs to a jvalue[].
+  UniquePtr<jvalue[]> args(new jvalue[arg_count]);
+  JValue* decoded_args = reinterpret_cast<JValue*>(args.get());
+  for (int32_t i = 0; i < arg_count; ++i) {
+    Object* arg = objects->Get(i);
+    Class* dst_class = classes->Get(i);
+    if (dst_class->IsPrimitive()) {
+      if (!UnboxPrimitive(env, arg, dst_class, decoded_args[i])) {
+        return NULL;
+      }
+    } else {
+      args[i].l = AddLocalReference<jobject>(env, arg);
+    }
+  }
+
+  // Invoke the method.
+  JValue value = InvokeWithJValues(env, javaReceiver, mid, args.get());
+
+  // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
+  if (self->IsExceptionPending()) {
+    jthrowable th = env->ExceptionOccurred();
+    env->ExceptionClear();
+    jclass exception_class = env->FindClass("java/lang/reflect/InvocationTargetException");
+    jmethodID mid = env->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
+    jobject exception_instance = env->NewObject(exception_class, mid, th);
+    env->Throw(reinterpret_cast<jthrowable>(exception_instance));
+    return NULL;
+  }
+
+  // Box if necessary and return.
+  BoxPrimitive(env, m->GetReturnType(), value);
+  return AddLocalReference<jobject>(env, value.l);
+}
+
 bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
   if (o == NULL) {
     jniThrowNullPointerException(env, "receiver for non-static field access was null");

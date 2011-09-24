@@ -157,6 +157,10 @@ class ClassLinker {
   // given the restriction that no <clinit> execution is possible.
   bool EnsureInitialized(Class* c, bool can_run_clinit);
 
+  // Initializes classes that have instances in the image but that have
+  // <clinit> methods so they could not be initialized by the compiler.
+  void RunRootClinits();
+
   void RegisterDexFile(const DexFile& dex_file);
   void RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache);
 

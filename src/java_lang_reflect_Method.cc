@@ -25,10 +25,12 @@ namespace art {
 
 namespace {
 
-// We move the DECLARED_SYNCHRONIZED flag into the SYNCHRONIZED
-// position, because the callers of this function are trying to convey
-// the "traditional" meaning of the flags to their callers.
-uint32_t FixupMethodFlags(uint32_t access_flags) {
+jint Method_getMethodModifiers(JNIEnv* env, jclass, jclass javaDeclaringClass, jobject jmethod, jint slot) {
+  Method* m = Decode<Object*>(env, jmethod)->AsMethod();
+  jint access_flags = m->GetAccessFlags();
+  // We move the DECLARED_SYNCHRONIZED flag into the SYNCHRONIZED
+  // position, because the callers of this function are trying to convey
+  // the "traditional" meaning of the flags to their callers.
   access_flags &= ~kAccSynchronized;
   if ((access_flags & kAccDeclaredSynchronized) != 0) {
     access_flags |= kAccSynchronized;
@@ -36,72 +38,8 @@ uint32_t FixupMethodFlags(uint32_t access_flags) {
   return access_flags & kAccMethodFlagsMask;
 }
 
-jint Method_getMethodModifiers(JNIEnv* env, jclass, jclass javaDeclaringClass, jobject jmethod, jint slot) {
-  return FixupMethodFlags(Decode<Object*>(env, jmethod)->AsMethod()->GetAccessFlags());
-}
-
-jobject Method_invokeNative(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs, jclass javaDeclaringClass, jobject javaParams, jclass, jint, jboolean) {
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
-
-  jmethodID mid = env->FromReflectedMethod(javaMethod);
-  Method* m = reinterpret_cast<Method*>(mid);
-  Object* receiver = NULL;
-  if (!m->IsStatic()) {
-    // Check that the receiver is non-null and an instance of the field's declaring class.
-    receiver = Decode<Object*>(env, javaReceiver);
-    Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
-    if (!VerifyObjectInClass(env, receiver, declaringClass)) {
-      return NULL;
-    }
-
-    // Find the actual implementation of the virtual method.
-    m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
-  }
-
-  // Get our arrays of arguments and their types, and check they're the same size.
-  ObjectArray<Object>* objects = Decode<ObjectArray<Object>*>(env, javaArgs);
-  ObjectArray<Class>* classes = Decode<ObjectArray<Class>*>(env, javaParams);
-  int32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
-  if (arg_count != classes->GetLength()) {
-    self->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-        "wrong number of arguments; expected %d, got %d",
-        classes->GetLength(), arg_count);
-    return NULL;
-  }
-
-  // Translate javaArgs to a jvalue[].
-  UniquePtr<jvalue[]> args(new jvalue[arg_count]);
-  JValue* decoded_args = reinterpret_cast<JValue*>(args.get());
-  for (int32_t i = 0; i < arg_count; ++i) {
-    Object* arg = objects->Get(i);
-    Class* dst_class = classes->Get(i);
-    if (dst_class->IsPrimitive()) {
-      if (!UnboxPrimitive(env, arg, dst_class, decoded_args[i])) {
-        return NULL;
-      }
-    } else {
-      args[i].l = AddLocalReference<jobject>(env, arg);
-    }
-  }
-
-  // Invoke the method.
-  JValue value = InvokeWithJValues(env, javaReceiver, mid, args.get());
-
-  // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
-  if (self->IsExceptionPending()) {
-    jthrowable th = env->ExceptionOccurred();
-    env->ExceptionClear();
-    jclass exception_class = env->FindClass("java/lang/reflect/InvocationTargetException");
-    jmethodID mid = env->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
-    jobject exception_instance = env->NewObject(exception_class, mid, th);
-    env->Throw(reinterpret_cast<jthrowable>(exception_instance));
-    return NULL;
-  }
-
-  // Box if necessary and return.
-  BoxPrimitive(env, m->GetReturnType(), value);
-  return AddLocalReference<jobject>(env, value.l);
+jobject Method_invokeNative(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs, jclass, jobject javaParams, jclass, jint, jboolean) {
+  return InvokeMethod(env, javaMethod, javaReceiver, javaArgs, javaParams);
 }
 
 static JNINativeMethod gMethods[] = {
