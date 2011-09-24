@@ -298,9 +298,9 @@ struct CheckOffset {
   CheckOffset(size_t c, const char* j) : cpp_offset(c), java_name(j) {}
 };
 
+template <typename T>
 struct CheckOffsets {
   bool instance;
-  size_t size;
   std::string class_descriptor;
   std::vector<CheckOffset> offsets;
 
@@ -312,11 +312,11 @@ struct CheckOffsets {
 
     if (!klass->IsClassClass() && instance) {
       size_t expected_size = instance ? klass->GetObjectSize() : klass->GetClassSize();
-      if (size != expected_size) {
+      if (sizeof(T) != expected_size) {
         LG << "Class size mismatch:"
            << " class=" << class_descriptor
-           << " Java=" << klass->GetObjectSize()
-           << " C++=" << expected_size;
+           << " Java=" << expected_size
+           << " C++=" << sizeof(T);
         error = true;
       }
     }
@@ -376,10 +376,9 @@ struct CheckOffsets {
 // Note that ClassLinkerTest.ValidateFieldOrderOfJavaCppUnionClasses
 // is first since if it is failing, others are unlikely to succeed.
 
-struct ObjectOffsets : public CheckOffsets {
+struct ObjectOffsets : public CheckOffsets<Object> {
   ObjectOffsets() {
     instance = true;
-    size = sizeof(Object);
     class_descriptor = "Ljava/lang/Object;";
 
     // alphabetical references
@@ -390,19 +389,17 @@ struct ObjectOffsets : public CheckOffsets {
   };
 };
 
-struct AccessibleObjectOffsets : public CheckOffsets {
+struct AccessibleObjectOffsets : public CheckOffsets<AccessibleObject> {
   AccessibleObjectOffsets() {
     instance = true;
-    size = sizeof(AccessibleObject);
     class_descriptor = "Ljava/lang/reflect/AccessibleObject;";
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AccessibleObject, java_flag_), "flag"));
   };
 };
 
-struct FieldOffsets : public CheckOffsets {
+struct FieldOffsets : public CheckOffsets<Field> {
   FieldOffsets() {
     instance = true;
-    size = sizeof(Field);
     class_descriptor = "Ljava/lang/reflect/Field;";
 
     // alphabetical references
@@ -420,10 +417,9 @@ struct FieldOffsets : public CheckOffsets {
   };
 };
 
-struct MethodOffsets : public CheckOffsets {
+struct MethodOffsets : public CheckOffsets<Method> {
   MethodOffsets() {
     instance = true;
-    size = sizeof(Method);
     class_descriptor = "Ljava/lang/reflect/Method;";
 
     // alphabetical references
@@ -472,10 +468,16 @@ struct MethodOffsets : public CheckOffsets {
   };
 };
 
-struct ClassOffsets : public CheckOffsets {
+struct ConstructorOffsets : public MethodOffsets {
+  ConstructorOffsets() : MethodOffsets() {
+    // We use Method* for both java.lang.reflect.Constructor and java.lang.reflect.Method.
+    class_descriptor = "Ljava/lang/reflect/Constructor;";
+  }
+};
+
+struct ClassOffsets : public CheckOffsets<Class> {
   ClassOffsets() {
     instance = true;
-    size = sizeof(Class);
     class_descriptor = "Ljava/lang/Class;";
 
     // alphabetical references
@@ -511,10 +513,9 @@ struct ClassOffsets : public CheckOffsets {
   };
 };
 
-struct StringOffsets : public CheckOffsets {
+struct StringOffsets : public CheckOffsets<String> {
   StringOffsets() {
     instance = true;
-    size = sizeof(String);
     class_descriptor = "Ljava/lang/String;";
 
     // alphabetical references
@@ -527,10 +528,9 @@ struct StringOffsets : public CheckOffsets {
   };
 };
 
-struct ThrowableOffsets : public CheckOffsets {
+struct ThrowableOffsets : public CheckOffsets<Throwable> {
   ThrowableOffsets() {
     instance = true;
-    size = sizeof(Throwable);
     class_descriptor = "Ljava/lang/Throwable;";
 
     // alphabetical references
@@ -542,10 +542,9 @@ struct ThrowableOffsets : public CheckOffsets {
   };
 };
 
-struct StackTraceElementOffsets : public CheckOffsets {
+struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
   StackTraceElementOffsets() {
     instance = true;
-    size = sizeof(StackTraceElement);
     class_descriptor = "Ljava/lang/StackTraceElement;";
 
     // alphabetical references
@@ -556,10 +555,9 @@ struct StackTraceElementOffsets : public CheckOffsets {
   };
 };
 
-struct ClassLoaderOffsets : public CheckOffsets {
+struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
   ClassLoaderOffsets() {
     instance = true;
-    size = sizeof(ClassLoader);
     class_descriptor = "Ljava/lang/ClassLoader;";
 
     // alphabetical references
@@ -568,10 +566,9 @@ struct ClassLoaderOffsets : public CheckOffsets {
   };
 };
 
-struct BaseDexClassLoaderOffsets : public CheckOffsets {
+struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
   BaseDexClassLoaderOffsets() {
     instance = true;
-    size = sizeof(BaseDexClassLoader);
     class_descriptor = "Ldalvik/system/BaseDexClassLoader;";
 
     // alphabetical references
@@ -580,18 +577,16 @@ struct BaseDexClassLoaderOffsets : public CheckOffsets {
   };
 };
 
-struct PathClassLoaderOffsets : public CheckOffsets {
+struct PathClassLoaderOffsets : public CheckOffsets<PathClassLoader> {
   PathClassLoaderOffsets() {
     instance = true;
-    size = sizeof(PathClassLoader);
     class_descriptor = "Ldalvik/system/PathClassLoader;";
   };
 };
 
-struct ClassClassOffsets : public CheckOffsets {
+struct ClassClassOffsets : public CheckOffsets<ClassClass> {
   ClassClassOffsets() {
     instance = false;
-    size = sizeof(ClassClass);
     class_descriptor = "Ljava/lang/Class;";
 
     // padding 32-bit
@@ -603,10 +598,9 @@ struct ClassClassOffsets : public CheckOffsets {
   };
 };
 
-struct StringClassOffsets : public CheckOffsets {
+struct StringClassOffsets : public CheckOffsets<StringClass> {
   StringClassOffsets() {
     instance = false;
-    size = sizeof(StringClass);
     class_descriptor = "Ljava/lang/String;";
 
     // alphabetical references
@@ -621,10 +615,9 @@ struct StringClassOffsets : public CheckOffsets {
   };
 };
 
-struct FieldClassOffsets : public CheckOffsets {
+struct FieldClassOffsets : public CheckOffsets<FieldClass> {
   FieldClassOffsets() {
     instance = false;
-    size = sizeof(FieldClass);
     class_descriptor = "Ljava/lang/reflect/Field;";
 
     // alphabetical references
@@ -642,10 +635,9 @@ struct FieldClassOffsets : public CheckOffsets {
   };
 };
 
-struct MethodClassOffsets : public CheckOffsets {
+struct MethodClassOffsets : public CheckOffsets<MethodClass> {
   MethodClassOffsets() {
     instance = false;
-    size = sizeof(MethodClass);
     class_descriptor = "Ljava/lang/reflect/Method;";
 
     // alphabetical references
@@ -660,6 +652,7 @@ struct MethodClassOffsets : public CheckOffsets {
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ObjectOffsets().Check());
   EXPECT_TRUE(AccessibleObjectOffsets().Check());
+  EXPECT_TRUE(ConstructorOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
   EXPECT_TRUE(MethodOffsets().Check());
   EXPECT_TRUE(ClassOffsets().Check());

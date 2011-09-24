@@ -341,9 +341,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
         name, class_descriptor.c_str());
     return NULL;
   }
-  // Check invariant that all jfieldIDs have resolved types (how else would
-  // the type equality in Find...Field hold?)
-  DCHECK(field->GetType() != NULL);
+  field->InitJavaFields();
   return EncodeField(field);
 }
 

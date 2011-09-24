@@ -103,8 +103,24 @@ Class* Field::GetTypeDuringLinking() const {
 }
 
 Class* Field::GetType() const {
-  // Do full linkage (which sets dex cache value to speed next call)
-  return Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
+  if (type_ == NULL) {
+    type_ = Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
+  }
+  return type_;
+}
+
+void Field::InitJavaFields() {
+  Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  MonitorEnter(self);
+  if (type_ == NULL) {
+    InitJavaFieldsLocked();
+  }
+  MonitorExit(self);
+}
+
+void Field::InitJavaFieldsLocked() {
+  GetType(); // Sets type_ as a side-effect. May throw.
 }
 
 Field* Field::FindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer) {
@@ -308,15 +324,23 @@ void Field::SetObject(Object* object, const Object* l) const {
 }
 
 // TODO: get global references for these
+Class* Method::java_lang_reflect_Constructor_ = NULL;
 Class* Method::java_lang_reflect_Method_ = NULL;
 
-void Method::SetClass(Class* java_lang_reflect_Method) {
+void Method::SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method) {
+  CHECK(java_lang_reflect_Constructor_ == NULL);
+  CHECK(java_lang_reflect_Constructor != NULL);
+  java_lang_reflect_Constructor_ = java_lang_reflect_Constructor;
+
   CHECK(java_lang_reflect_Method_ == NULL);
   CHECK(java_lang_reflect_Method != NULL);
   java_lang_reflect_Method_ = java_lang_reflect_Method;
 }
 
-void Method::ResetClass() {
+void Method::ResetClasses() {
+  CHECK(java_lang_reflect_Constructor_ != NULL);
+  java_lang_reflect_Constructor_ = NULL;
+
   CHECK(java_lang_reflect_Method_ != NULL);
   java_lang_reflect_Method_ = NULL;
 }
@@ -648,7 +672,7 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
        !iter.HasNext(); iter.Next()) {
     uint32_t iter_type_idx = iter.Get().type_idx_;
     // Catch all case
-    if(iter_type_idx == DexFile::kDexNoIndex) {
+    if (iter_type_idx == DexFile::kDexNoIndex) {
       return iter.Get().address_;
     }
     // Does this catch exception type apply?
@@ -1184,6 +1208,19 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
 
 Array* Array::Alloc(Class* array_class, int32_t component_count) {
   return Alloc(array_class, component_count, array_class->GetComponentSize());
+}
+
+bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
+  Thread::Current()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+      "length=%i; index=%i", length_, index);
+  return false;
+}
+
+bool Array::ThrowArrayStoreException(Object* object) const {
+  Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;",
+      "Can't store an element of type %s into an array of type %s",
+      PrettyTypeOf(object).c_str(), PrettyTypeOf(this).c_str());
+  return false;
 }
 
 template<typename T>

@@ -484,8 +484,9 @@ void Frame::Next() {
   DCHECK_LT(frame_size, 1024u);
   byte* next_sp = reinterpret_cast<byte*>(sp_) + frame_size;
   sp_ = reinterpret_cast<Method**>(next_sp);
-  if(*sp_ != NULL) {
-    DCHECK_EQ((*sp_)->GetClass(), Method::GetMethodClass());
+  if (*sp_ != NULL) {
+    DCHECK((*sp_)->GetClass() == Method::GetMethodClass() ||
+        (*sp_)->GetClass() == Method::GetConstructorClass());
   }
 }
 

@@ -106,7 +106,7 @@ ArmJniCallingConvention::ArmJniCallingConvention(Method* method) : JniCallingCon
   size_t padding = 0;
   size_t check = method->IsStatic() ? 1 : 0;
   for(size_t i = 0; i < method->NumArgs(); i++) {
-    if(((i & 1) == check) && method->IsParamALongOrDouble(i)) {
+    if (((i & 1) == check) && method->IsParamALongOrDouble(i)) {
       padding += 4;
     }
   }

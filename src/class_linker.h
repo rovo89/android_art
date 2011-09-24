@@ -317,6 +317,7 @@ class ClassLinker {
     kClassArrayClass,
     kObjectArrayClass,
     kJavaLangString,
+    kJavaLangReflectConstructor,
     kJavaLangReflectField,
     kJavaLangReflectMethod,
     kJavaLangClassLoader,

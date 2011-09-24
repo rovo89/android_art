@@ -442,12 +442,16 @@ class MANAGED Field : public AccessibleObject {
                false);
   }
 
+  bool IsPublic() const {
+    return (GetAccessFlags() & kAccPublic) != 0;
+  }
+
   bool IsStatic() const {
     return (GetAccessFlags() & kAccStatic) != 0;
   }
 
   bool IsFinal() const {
-    return (access_flags_ & kAccFinal) != 0;
+    return (GetAccessFlags() & kAccFinal) != 0;
   }
 
   uint32_t GetTypeIdx() const;
@@ -524,6 +528,8 @@ class MANAGED Field : public AccessibleObject {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
+  void InitJavaFields();
+
  private:
   // private implementation of field access using raw data
   uint32_t Get32(const Object* object) const;
@@ -532,6 +538,8 @@ class MANAGED Field : public AccessibleObject {
   void Set64(Object* object, uint64_t new_value) const;
   Object* GetObj(const Object* object) const;
   void SetObj(Object* object, const Object* new_value) const;
+
+  void InitJavaFieldsLocked();
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
 
@@ -543,7 +551,7 @@ class MANAGED Field : public AccessibleObject {
   const String* name_;
 
   // Type of the field
-  Class* type_;
+  mutable Class* type_;
 
   uint32_t generic_types_are_initialized_;
 
@@ -642,17 +650,18 @@ class MANAGED Method : public AccessibleObject {
     return (GetAccessFlags() & synchonized) != 0;
   }
 
-  // Returns true if the method is declared final.
   bool IsFinal() const {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  // Returns true if the method is declared native.
+  bool IsMiranda() const {
+    return (GetAccessFlags() & kAccMiranda) != 0;
+  }
+
   bool IsNative() const {
     return (GetAccessFlags() & kAccNative) != 0;
   }
 
-  // Returns true if the method is declared abstract.
   bool IsAbstract() const {
     return (GetAccessFlags() & kAccAbstract) != 0;
   }
@@ -947,14 +956,17 @@ class MANAGED Method : public AccessibleObject {
   // Find the catch block for the given exception type and dex_pc
   uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc) const;
 
-  static Class* GetJavaLangReflectMethod() {
-    DCHECK(java_lang_reflect_Method_ != NULL);
+  static void SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method);
+
+  static Class* GetConstructorClass() {
+    return java_lang_reflect_Constructor_;
+  }
+
+  static Class* GetMethodClass() {
     return java_lang_reflect_Method_;
   }
 
-  static void SetClass(Class* java_lang_reflect_Method);
-  static Class* GetMethodClass() { return java_lang_reflect_Method_; }
-  static void ResetClass();
+  static void ResetClasses();
 
   void InitJavaFields();
 
@@ -1079,6 +1091,7 @@ class MANAGED Method : public AccessibleObject {
 
   uint32_t java_slot_;
 
+  static Class* java_lang_reflect_Constructor_;
   static Class* java_lang_reflect_Method_;
 
   friend class ImageWriter;  // for relocating code_ and invoke_stub_
@@ -1125,13 +1138,14 @@ class MANAGED Array : public Object {
  protected:
   bool IsValidIndex(int32_t index) const {
     if (index < 0 || index >= length_) {
-      Thread* self = Thread::Current();
-      self->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
-          "length=%i; index=%i", length_, index);
-      return false;
+      return ThrowArrayIndexOutOfBoundsException(index);
     }
     return true;
   }
+
+ protected:
+  bool ThrowArrayIndexOutOfBoundsException(int32_t index) const;
+  bool ThrowArrayStoreException(Object* object) const;
 
  private:
   // The number of array elements.
@@ -2097,10 +2111,8 @@ inline bool Object::IsField() const {
 }
 
 inline bool Object::IsMethod() const {
-  Class* java_lang_Class = GetClass()->GetClass();
-  Class* java_lang_reflect_Method =
-      java_lang_Class->GetDirectMethod(0)->GetClass();
-  return GetClass() == java_lang_reflect_Method;
+  Class* c = GetClass();
+  return c == Method::GetMethodClass() || c == Method::GetConstructorClass();
 }
 
 inline bool Object::IsReferenceInstance() const {
@@ -2209,9 +2221,10 @@ void ObjectArray<T>::Set(int32_t i, T* object) {
   if (IsValidIndex(i)) {
     if (object != NULL) {
       Class* element_class = GetClass()->GetComponentType();
-      DCHECK(!element_class->IsPrimitive());
-      // TODO: ArrayStoreException
-      CHECK(object->InstanceOf(element_class));
+      if (!object->InstanceOf(element_class)) {
+        ThrowArrayStoreException(object);
+        return;
+      }
     }
     MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
     SetFieldObject(data_offset, object, false);
@@ -2251,8 +2264,10 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
       CHECK(!element_class->IsPrimitive());
       for (size_t i=0; i < length; i++) {
         Object* object = src->GetFieldObject<Object*>(src_offset, false);
-        // TODO: ArrayStoreException
-        CHECK(object == NULL || object->InstanceOf(element_class));
+        if (object != NULL && !object->InstanceOf(element_class)) {
+          dst->ThrowArrayStoreException(object);
+          return;
+        }
         dst->SetFieldObject(dst_offset, object, false);
         src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
         dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
@@ -2567,9 +2582,10 @@ inline uint32_t Class::GetAccessFlags() const {
   // Check class is loaded or this is java.lang.String that has a
   // circularity issue during loading the names of its members
   DCHECK(IsLoaded() || IsErroneous() ||
-         this == String::GetJavaLangString() ||
-         this == Field::GetJavaLangReflectField() ||
-         this == Method::GetJavaLangReflectMethod()) << PrettyClass(this);
+      this == String::GetJavaLangString() ||
+      this == Field::GetJavaLangReflectField() ||
+      this == Method::GetConstructorClass() ||
+      this == Method::GetMethodClass()) << PrettyClass(this);
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
 }
 

@@ -182,7 +182,7 @@ static void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
 {
     LIR* defStart;
     LIR* defEnd;
-    if(FPREG(rlSrc.lowReg)!=FPREG(rlSrc.highReg)) {
+    if (FPREG(rlSrc.lowReg)!=FPREG(rlSrc.highReg)) {
         LOG(WARNING) << "rlSrc.lowreg:" << rlSrc.lowReg << ", rlSrc.highReg:"
                      << rlSrc.highReg;
     }

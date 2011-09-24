@@ -78,6 +78,7 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "[Ljava/lang/Class;",
   "[Ljava/lang/Object;",
   "Ljava/lang/String;",
+  "Ljava/lang/reflect/Constructor;",
   "Ljava/lang/reflect/Field;",
   "Ljava/lang/reflect/Method;",
   "Ljava/lang/ClassLoader;",
@@ -252,7 +253,14 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
     RegisterDexFile(*dex_file);
   }
 
-  // Field and Method are necessary so that FindClass can link members
+  // Constructor, Field, and Method are necessary so that FindClass can link members
+  Class* java_lang_reflect_Constructor = AllocClass(java_lang_Class, sizeof(MethodClass));
+  java_lang_reflect_Constructor->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Constructor;"));
+  CHECK(java_lang_reflect_Constructor != NULL);
+  java_lang_reflect_Constructor->SetObjectSize(sizeof(Method));
+  SetClassRoot(kJavaLangReflectConstructor, java_lang_reflect_Constructor);
+  java_lang_reflect_Constructor->SetStatus(Class::kStatusResolved);
+
   Class* java_lang_reflect_Field = AllocClass(java_lang_Class, sizeof(FieldClass));
   CHECK(java_lang_reflect_Field != NULL);
   java_lang_reflect_Field->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Field;"));
@@ -262,13 +270,12 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   Field::SetClass(java_lang_reflect_Field);
 
   Class* java_lang_reflect_Method = AllocClass(java_lang_Class, sizeof(MethodClass));
-  java_lang_reflect_Method->SetDescriptor(
-      intern_table_->InternStrong("Ljava/lang/reflect/Method;"));
+  java_lang_reflect_Method->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Method;"));
   CHECK(java_lang_reflect_Method != NULL);
   java_lang_reflect_Method->SetObjectSize(sizeof(Method));
   SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method);
   java_lang_reflect_Method->SetStatus(Class::kStatusResolved);
-  Method::SetClass(java_lang_reflect_Method);
+  Method::SetClasses(java_lang_reflect_Constructor, java_lang_reflect_Method);
 
   // now we can use FindSystemClass
 
@@ -337,10 +344,14 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   CHECK_EQ(java_lang_Cloneable, object_array_class->GetInterface(0));
   CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
 
-  // run Class, Field, and Method through FindSystemClass.
+  // run Class, Constructor, Field, and Method through FindSystemClass.
   // this initializes their dex_cache_ fields and register them in classes_.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class, Class_class);
+
+  java_lang_reflect_Constructor->SetStatus(Class::kStatusNotReady);
+  Class* Constructor_class = FindSystemClass("Ljava/lang/reflect/Constructor;");
+  CHECK_EQ(java_lang_reflect_Constructor, Constructor_class);
 
   java_lang_reflect_Field->SetStatus(Class::kStatusNotReady);
   Class* Field_class = FindSystemClass("Ljava/lang/reflect/Field;");
@@ -513,7 +524,7 @@ void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_pa
 
   String::SetClass(GetClassRoot(kJavaLangString));
   Field::SetClass(GetClassRoot(kJavaLangReflectField));
-  Method::SetClass(GetClassRoot(kJavaLangReflectMethod));
+  Method::SetClasses(GetClassRoot(kJavaLangReflectConstructor), GetClassRoot(kJavaLangReflectMethod));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   CharArray::SetArrayClass(GetClassRoot(kCharArrayClass));
@@ -594,7 +605,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 ClassLinker::~ClassLinker() {
   String::ResetClass();
   Field::ResetClass();
-  Method::ResetClass();
+  Method::ResetClasses();
   BooleanArray::ResetArrayClass();
   ByteArray::ResetArrayClass();
   CharArray::ResetArrayClass();
@@ -699,6 +710,8 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
         klass = GetClassRoot(kJavaLangClass);
       } else if (descriptor == "Ljava/lang/String;") {
         klass = GetClassRoot(kJavaLangString);
+      } else if (descriptor == "Ljava/lang/reflect/Constructor;") {
+        klass = GetClassRoot(kJavaLangReflectConstructor);
       } else if (descriptor == "Ljava/lang/reflect/Field;") {
         klass = GetClassRoot(kJavaLangReflectField);
       } else if (descriptor == "Ljava/lang/reflect/Method;") {
@@ -957,7 +970,11 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->SetDeclaringClass(klass);
-  dst->SetName(ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache()));
+  String* method_name = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
+  dst->SetName(method_name);
+  if (method_name->Equals("<init>")) {
+    dst->SetClass(GetClassRoot(kJavaLangReflectConstructor));
+  }
   {
     int32_t utf16_length;
     std::string utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));

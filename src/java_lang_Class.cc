@@ -18,6 +18,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "object.h"
+#include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -51,6 +52,107 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
     class_linker->EnsureInitialized(c, true);
   }
   return AddLocalReference<jclass>(env, c);
+}
+
+template<typename T>
+jobjectArray ToArray(JNIEnv* env, const char* array_class_name, const std::vector<T*>& objects) {
+  jclass array_class = env->FindClass(array_class_name);
+  jobjectArray result = env->NewObjectArray(objects.size(), array_class, NULL);
+  for (size_t i = 0; i < objects.size(); ++i) {
+    ScopedLocalRef<jobject> object(env, AddLocalReference<jobject>(env, objects[i]));
+    env->SetObjectArrayElement(result, i, object.get());
+  }
+  return result;
+}
+
+bool IsVisibleConstructor(Method* m, bool public_only) {
+  if (public_only && !m->IsPublic()) {
+    return false;
+  }
+  if (m->IsMiranda() || m->IsStatic()) {
+    return false;
+  }
+  if (m->GetName()->CharAt(0) != '<') {
+    return false;
+  }
+  m->InitJavaFields();
+  return true;
+}
+
+jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass, jclass javaClass, jboolean publicOnly) {
+  Class* c = Decode<Class*>(env, javaClass);
+
+  std::vector<Method*> constructors;
+  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+    Method* m = c->GetDirectMethod(i);
+    if (IsVisibleConstructor(m, publicOnly)) {
+      constructors.push_back(m);
+    }
+  }
+
+  return ToArray(env, "java/lang/reflect/Constructor", constructors);
+}
+
+bool IsVisibleField(Field* f, bool public_only) {
+  if (public_only && ~f->IsPublic()) {
+    return false;
+  }
+  f->InitJavaFields();
+  return true;
+}
+
+jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass, jclass javaClass, jboolean publicOnly) {
+  Class* c = Decode<Class*>(env, javaClass);
+
+  std::vector<Field*> fields;
+  for (size_t i = 0; i < c->NumInstanceFields(); ++i) {
+    Field* f = c->GetInstanceField(i);
+    if (IsVisibleField(f, publicOnly)) {
+      fields.push_back(f);
+    }
+  }
+  for (size_t i = 0; i < c->NumStaticFields(); ++i) {
+    Field* f = c->GetStaticField(i);
+    if (IsVisibleField(f, publicOnly)) {
+      fields.push_back(f);
+    }
+  }
+
+  return ToArray(env, "java/lang/reflect/Field", fields);
+}
+
+bool IsVisibleMethod(Method* m, bool public_only) {
+  if (public_only && !m->IsPublic()) {
+    return false;
+  }
+  if (m->IsMiranda()) {
+    return false;
+  }
+  if (m->GetName()->CharAt(0) == '<') {
+    return false;
+  }
+  m->InitJavaFields();
+  return true;
+}
+
+jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass, jclass javaClass, jboolean publicOnly) {
+  Class* c = Decode<Class*>(env, javaClass);
+
+  std::vector<Method*> methods;
+  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+    Method* m = c->GetVirtualMethod(i);
+    if (IsVisibleMethod(m, publicOnly)) {
+      methods.push_back(m);
+    }
+  }
+  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+    Method* m = c->GetDirectMethod(i);
+    if (IsVisibleMethod(m, publicOnly)) {
+      methods.push_back(m);
+    }
+  }
+
+  return ToArray(env, "java/lang/reflect/Method", methods);
 }
 
 jboolean Class_desiredAssertionStatus(JNIEnv* env, jobject javaThis) {
@@ -115,15 +217,17 @@ jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname
   String* name = Decode<String*>(env, jname);
   DCHECK(name->IsString());
 
-  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+  for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
     Field* f = klass->GetInstanceField(i);
     if (f->GetName()->Equals(name)) {
+      f->InitJavaFields();
       return AddLocalReference<jclass>(env, f);
     }
   }
   for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
     Field* f = klass->GetStaticField(i);
     if (f->GetName()->Equals(name)) {
+      f->InitJavaFields();
       return AddLocalReference<jclass>(env, f);
     }
   }
@@ -319,10 +423,10 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getClassLoader, "(Ljava/lang/Class;)Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(Class, getComponentType, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
-  //NATIVE_METHOD(Class, getDeclaredConstructors, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Constructor;"),
+  NATIVE_METHOD(Class, getDeclaredConstructors, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
-  //NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
-  //NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
+  NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
   //NATIVE_METHOD(Class, getEnclosingClass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getEnclosingConstructor, "()Ljava/lang/reflect/Constructor;"),
