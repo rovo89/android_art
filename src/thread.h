@@ -202,9 +202,9 @@ class PACKED Thread {
   int (*pIdiv)(int, int);
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
+  void* (*pAllocObjectFromCode)(uint32_t, void*);
   void* (*pArrayAllocFromCode)(uint32_t, void*, int32_t);
   void* (*pCheckAndArrayAllocFromCode)(uint32_t, void*, int32_t);
-  Object* (*pAllocObjectFromCode)(uint32_t, Method*);
   uint32_t (*pGet32Static)(uint32_t, const Method*);
   void (*pSet32Static)(uint32_t, const Method*, uint32_t);
   uint64_t (*pGet64Static)(uint32_t, const Method*);

@@ -8,6 +8,7 @@ extern "C" void art_deliver_exception_from_code(void*);
 
 #if defined(__arm__)
   /* Compiler helpers */
+  extern "C" void* art_alloc_object_from_code(uint32_t type_idx, void* method);
   extern "C" void* art_array_alloc_from_code(uint32_t, void*, int32_t);
   extern "C" void* art_check_and_array_alloc_from_code(uint32_t, void*, int32_t);
   extern "C" void art_can_put_array_element_from_code(void*, void*);

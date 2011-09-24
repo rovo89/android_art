@@ -162,12 +162,13 @@ TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
   TestPrimitiveArray<ShortArray>(class_linker_);
 }
 
+extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method);
 TEST_F(ObjectTest, AllocObjectFromCode) {
   // pretend we are trying to call 'new String' from Object.toString
   Class* java_lang_Object = class_linker_->FindSystemClass("Ljava/lang/Object;");
   Method* toString = java_lang_Object->FindVirtualMethod("toString", "()Ljava/lang/String;");
   uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "Ljava/lang/String;");
-  Object* string = Class::AllocObjectFromCode(type_idx, toString);
+  Object* string = artAllocObjectFromCode(type_idx, toString);
   EXPECT_TRUE(string->IsString());
 }
 

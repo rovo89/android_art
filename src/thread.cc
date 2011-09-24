@@ -191,6 +191,20 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
      */
 }
 
+// Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
+// cannot be resolved, throw an error. If it can, use it to create an instance.
+extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method) {
+  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  if (klass == NULL) {
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return NULL;  // Failure
+    }
+  }
+  return klass->AllocObject();
+}
+
 // Helper function to alloc array for OP_FILLED_NEW_ARRAY
 extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* method,
                                                 int32_t component_count) {
@@ -418,6 +432,7 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
+  pAllocObjectFromCode = art_alloc_object_from_code;
   pArrayAllocFromCode = art_array_alloc_from_code;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   pCheckAndArrayAllocFromCode = art_check_and_array_alloc_from_code;
@@ -435,7 +450,6 @@ void Thread::InitFunctionPointers() {
   pDeliverException = art_deliver_exception_from_code;
   pF2l = F2L;
   pD2l = D2L;
-  pAllocObjectFromCode = Class::AllocObjectFromCode;
   pMemcpy = memcpy;
   pGet32Static = Field::Get32StaticFromCode;
   pSet32Static = Field::Set32StaticFromCode;

@@ -1422,11 +1422,6 @@ class MANAGED Class : public StaticStorageBase {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
 
-  // Given the context of a calling Method, use its DexCache to
-  // resolve a type to a Class. If it cannot be resolved, throw an
-  // error. If it can, use it to create an instance.
-  static Object* AllocObjectFromCode(uint32_t type_idx, Method* method);
-
   // Creates a raw object instance but does not invoke the default constructor.
   Object* AllocObject();
 

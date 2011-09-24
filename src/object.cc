@@ -774,20 +774,10 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
                  new_dex_cache, false);
 }
 
-Object* Class::AllocObjectFromCode(uint32_t type_idx, Method* method) {
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (klass == NULL) {
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {
-      UNIMPLEMENTED(FATAL) << "throw an error";
-      return NULL;
-    }
-  }
-  return klass->AllocObject();
-}
-
 Object* Class::AllocObject() {
   DCHECK(!IsAbstract());
+  DCHECK(!IsInterface());
+  DCHECK(!IsPrimitive());
   return Heap::AllocObject(this, this->object_size_);
 }
 
