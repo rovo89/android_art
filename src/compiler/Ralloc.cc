@@ -19,7 +19,7 @@
 #include "Dataflow.h"
 #include "codegen/Ralloc.h"
 
-static bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
+STATIC bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
     bool change = false;
     if (isFP && !cUnit->regLocation[index].fp) {
         cUnit->regLocation[index].fp = true;
@@ -33,7 +33,7 @@ static bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
  * as it doesn't propagate.  We're guaranteed at least one pass through
  * the cfg.
  */
-static bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
+STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 {
     MIR *mir;
     bool changed = false;   // Did anything change?
@@ -60,7 +60,51 @@ static bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
             }
             if (attrs & DF_UC_WIDE) {
                 cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                next += 2;
             }
+
+           // Special-case handling for format 35c/3rc invokes
+           Opcode opcode = mir->dalvikInsn.opcode;
+           int flags = (opcode >= kNumPackedOpcodes) ? 0 :
+                dexGetFlagsFromOpcode(opcode);
+            if ((flags & kInstrInvoke) &&
+                (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
+                DCHECK_EQ(next, 0);
+                int target_idx = mir->dalvikInsn.vB;
+                const char* shorty =
+                    oatGetShortyFromTargetIdx(cUnit, target_idx);
+                int numUses = mir->dalvikInsn.vA;
+                // If this is a non-static invoke, skip implicit "this"
+                if (((mir->dalvikInsn.opcode != OP_INVOKE_STATIC) &&
+                     (mir->dalvikInsn.opcode != OP_INVOKE_STATIC_RANGE))) {
+                   next++;
+                }
+                uint32_t cpos = 1;
+                if (strlen(shorty) > 1) {
+                    for (int i = next; i < numUses;) {
+                        DCHECK_LT(cpos, strlen(shorty));
+                        switch(shorty[cpos++]) {
+                            case 'D':
+                                ssaRep->fpUse[i] = true;
+                                ssaRep->fpUse[i+1] = true;
+                                cUnit->regLocation[ssaRep->uses[i]].wide = true;
+                                i++;
+                                break;
+                            case 'J':
+                                cUnit->regLocation[ssaRep->uses[i]].wide = true;
+                                i++;
+                               break;
+                            case 'F':
+                                ssaRep->fpUse[i] = true;
+                                break;
+                           default:
+                                break;
+                        }
+                        i++;
+                    }
+                }
+            }
+
             for (int i=0; ssaRep->fpUse && i< ssaRep->numUses; i++) {
                 if (ssaRep->fpUse[i])
                     changed |= setFp(cUnit, ssaRep->uses[i], true);

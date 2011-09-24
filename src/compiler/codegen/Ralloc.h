@@ -31,7 +31,7 @@
  * Must use a core register for data types narrower than word (due
  * to possible unaligned load/store.
  */
-static inline RegisterClass oatRegClassBySize(OpSize size)
+STATIC inline RegisterClass oatRegClassBySize(OpSize size)
 {
     return (size == kUnsignedHalf ||
             size == kSignedHalf ||
@@ -39,9 +39,9 @@ static inline RegisterClass oatRegClassBySize(OpSize size)
             size == kSignedByte ) ? kCoreReg : kAnyReg;
 }
 
-static inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
+STATIC inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
 {
-    assert(sReg != INVALID_SREG);
+    DCHECK_NE(sReg, INVALID_SREG);
     return DECODE_REG(oatConvertSSARegToDalvik(cUnit, sReg));
 }
 
@@ -55,20 +55,20 @@ static inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
  * identified by the dataflow pass what it's new name is.
  */
 
-static inline int oatSRegHi(int lowSreg) {
+STATIC inline int oatSRegHi(int lowSreg) {
     return (lowSreg == INVALID_SREG) ? INVALID_SREG : lowSreg + 1;
 }
 
 
-static inline bool oatLiveOut(CompilationUnit* cUnit, int sReg)
+STATIC inline bool oatLiveOut(CompilationUnit* cUnit, int sReg)
 {
     //For now.
     return true;
 }
 
-static inline int oatSSASrc(MIR* mir, int num)
+STATIC inline int oatSSASrc(MIR* mir, int num)
 {
-    assert(mir->ssaRep->numUses > num);
+    DCHECK_GT(mir->ssaRep->numUses, num);
     return mir->ssaRep->uses[num];
 }
 
@@ -83,6 +83,9 @@ extern RegLocation oatUpdateLoc(CompilationUnit* cUnit,
 /* see comments for updateLoc */
 extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
                                             RegLocation loc);
+
+extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit,
+                                   RegLocation loc);
 
 extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg);
 

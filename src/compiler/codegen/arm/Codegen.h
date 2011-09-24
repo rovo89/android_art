@@ -28,21 +28,21 @@
 /*
  * loadConstant() sometimes needs to add a small imm to a pre-existing constant
  */
-static ArmLIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
+STATIC ArmLIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
                         int value);
-static ArmLIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
+STATIC ArmLIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
                         int rSrc2);
 
 /* Forward decalraton the portable versions due to circular dependency */
-static bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
                                     RegLocation rlDest, RegLocation rlSrc1,
                                     RegLocation rlSrc2);
 
-static bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
                                      RegLocation rlDest, RegLocation rlSrc1,
                                      RegLocation rlSrc2);
 
-static bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
+STATIC bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
 
 #endif
 

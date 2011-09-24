@@ -36,7 +36,7 @@ typedef struct RefCounts {
 } RefCounts;
 
 /* USE SSA names to count references of base Dalvik vRegs. */
-static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
+STATIC void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                       RefCounts* counts, bool fp)
 {
     MIR* mir;
@@ -83,7 +83,7 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
             for (i=0; i< ssaRep->numUses; i++) {
                 int origSreg = DECODE_REG(
                     oatConvertSSARegToDalvik(cUnit, ssaRep->uses[i]));
-                assert(origSreg < cUnit->method->NumRegisters());
+                DCHECK_LT(origSreg, cUnit->method->NumRegisters());
                 bool fpUse = ssaRep->fpUse ? ssaRep->fpUse[i] : false;
                 if (fp == fpUse) {
                     counts[origSreg].count++;
@@ -96,7 +96,7 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
                 }
                 int origSreg = DECODE_REG(
                     oatConvertSSARegToDalvik(cUnit, ssaRep->defs[i]));
-                assert(origSreg < cUnit->method->NumRegisters());
+                DCHECK_LT(origSreg, cUnit->method->NumRegisters());
                 bool fpDef = ssaRep->fpDef ? ssaRep->fpDef[i] : false;
                 if (fp == fpDef) {
                     counts[origSreg].count++;
@@ -107,14 +107,14 @@ static void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
 }
 
 /* qsort callback function, sort descending */
-static int sortCounts(const void *val1, const void *val2)
+STATIC int sortCounts(const void *val1, const void *val2)
 {
     const RefCounts* op1 = (const RefCounts*)val1;
     const RefCounts* op2 = (const RefCounts*)val2;
     return (op1->count == op2->count) ? 0 : (op1->count < op2->count ? 1 : -1);
 }
 
-static void dumpCounts(const RefCounts* arr, int size, const char* msg)
+STATIC void dumpCounts(const RefCounts* arr, int size, const char* msg)
 {
     LOG(INFO) << msg;
     for (int i = 0; i < size; i++) {

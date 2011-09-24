@@ -16,19 +16,19 @@
 
 #define DISPLAY_MISSING_TARGETS 1
 
-static const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
+STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
                                    kLocDalvikFrame, INVALID_REG, INVALID_REG,
                                    INVALID_OFFSET};
-static const RegLocation retLoc = LOC_DALVIK_RETURN_VAL;
-static const RegLocation retLocWide = LOC_DALVIK_RETURN_VAL_WIDE;
+STATIC const RegLocation retLoc = LOC_DALVIK_RETURN_VAL;
+STATIC const RegLocation retLocWide = LOC_DALVIK_RETURN_VAL_WIDE;
 
 /*
  * Let helper function take care of everything.  Will call
  * Array::AllocFromCode(type_idx, method, count);
  * Note: AllocFromCode will handle checks for errNegativeArraySize.
  */
-static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
@@ -49,7 +49,7 @@ static void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
  * code throws runtime exception "bad Filled array req" for 'D' and 'J'.
  * Current code also throws internal unimp if not 'L', '[' or 'I'.
  */
-static void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
+STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int elems = dInsn->vA;
@@ -163,7 +163,7 @@ Field* FindFieldWithResolvedStaticStorage(const Method* method,
     return NULL;  // resort to slow path
 }
 
-static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     bool isObject = ((mir->dalvikInsn.opcode == OP_SPUT_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SPUT_OBJECT_VOLATILE));
@@ -221,7 +221,7 @@ static void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     }
 }
 
-static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
@@ -273,7 +273,7 @@ static void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 }
 
 
-static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
+STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
                  RegLocation rlResult, RegLocation rlDest)
 {
     int fieldIdx = mir->dalvikInsn.vB;
@@ -326,7 +326,7 @@ static void genSgetWide(CompilationUnit* cUnit, MIR* mir,
     }
 }
 
-static void genSget(CompilationUnit* cUnit, MIR* mir,
+STATIC void genSget(CompilationUnit* cUnit, MIR* mir,
              RegLocation rlResult, RegLocation rlDest)
 {
     int fieldIdx = mir->dalvikInsn.vB;
@@ -390,7 +390,7 @@ typedef int (*NextCallInsn)(CompilationUnit*, MIR*, DecodedInstruction*, int,
  * Bit of a hack here - in leiu of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
+STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                         DecodedInstruction* dInsn, int state,
                         ArmLIR* rollback)
 {
@@ -424,7 +424,7 @@ static int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
  * Note also that we'll load the first argument ("this") into
  * r1 here rather than the standard loadArgRegs.
  */
-static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
+STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
                         DecodedInstruction* dInsn, int state,
                         ArmLIR* rollback)
 {
@@ -464,11 +464,11 @@ static int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
     return state + 1;
 }
 
-static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                            DecodedInstruction* dInsn, int state,
                            ArmLIR* rollback)
 {
-    DCHECK(rollback != NULL);
+    DCHECK(rollback == NULL);
     RegLocation rlArg;
     ArmLIR* skipBranch;
     ArmLIR* skipTarget;
@@ -520,7 +520,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
         case 5:
             // get this->klass_->vtable_ [usr rLR, set rLR]
             loadWordDisp(cUnit, rLR, Class::VTableOffset().Int32Value(), rLR);
-            DCHECK((art::Array::DataOffset().Int32Value() & 0x3) == 0);
+            DCHECK_EQ((art::Array::DataOffset().Int32Value() & 0x3), 0);
             // In load shadow fold vtable_ object header size into method_index_
             opRegImm(cUnit, kOpAdd, r0,
                      art::Array::DataOffset().Int32Value() / 4);
@@ -537,7 +537,7 @@ static int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
 }
 
 /* Load up to 3 arguments in r1..r3 */
-static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
+STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
                        DecodedInstruction* dInsn, int callState,
                        int *args, NextCallInsn nextCallInsn, ArmLIR* rollback)
 {
@@ -554,7 +554,7 @@ static int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
 }
 
 // Interleave launch code for INVOKE_INTERFACE.
-static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
+STATIC int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
                                  DecodedInstruction* dInsn, int state,
                                  ArmLIR* rollback)
 {
@@ -576,7 +576,7 @@ static int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
  * Interleave launch code for INVOKE_SUPER.  See comments
  * for nextVCallIns.
  */
-static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
+STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
                              DecodedInstruction* dInsn, int state,
                              ArmLIR* rollback)
 {
@@ -630,11 +630,11 @@ static int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
 }
 
 /* Slow-path version of nextSuperCallInsn */
-static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                                DecodedInstruction* dInsn, int state,
                                ArmLIR* rollback)
 {
-    DCHECK(rollback != NULL);
+    DCHECK(rollback == NULL);
     RegLocation rlArg;
     ArmLIR* skipBranch;
     ArmLIR* skipTarget;
@@ -717,7 +717,7 @@ static int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
  * the target method pointer.  Note, this may also be called
  * for "range" variants if the number of arguments is 5 or fewer.
  */
-static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
+STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                                 DecodedInstruction* dInsn, int callState,
                                 ArmLIR** pcrLabel, bool isRange,
                                 NextCallInsn nextCallInsn, ArmLIR* rollback,
@@ -790,7 +790,7 @@ static int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
  *       Pass arg0, arg1 & arg2 in r1-r3
  *
  */
-static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
+STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
                               DecodedInstruction* dInsn, int callState,
                               ArmLIR** pcrLabel, NextCallInsn nextCallInsn,
                               ArmLIR* rollback, bool skipThis)
@@ -888,7 +888,7 @@ static int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
 
 #ifdef DISPLAY_MISSING_TARGETS
 // Debugging routine - if null target, branch to DebugMe
-static void genShowTarget(CompilationUnit* cUnit)
+STATIC void genShowTarget(CompilationUnit* cUnit)
 {
     ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
     loadWordDisp(cUnit, rSELF,
@@ -899,7 +899,7 @@ static void genShowTarget(CompilationUnit* cUnit)
 }
 #endif
 
-static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
+STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
                                   bool direct, bool range)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
@@ -932,7 +932,7 @@ static void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
  * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
  * which will locate the target and continue on via a tail call.
  */
-static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
+STATIC void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
@@ -959,7 +959,7 @@ static void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     opReg(cUnit, kOpBlx, rLR);
 }
 
-static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
+STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
@@ -1011,7 +1011,7 @@ static void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     opReg(cUnit, kOpBlx, rLR);
 }
 
-static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
+STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
@@ -1050,7 +1050,7 @@ static void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     opReg(cUnit, kOpBlx, rLR);
 }
 
-static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
+STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
                                      BasicBlock* bb, ArmLIR* labelList)
 {
     bool res = false;   // Assume success
@@ -1134,8 +1134,8 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
              * registers are live and may not be used for address
              * formation in storeValueWide.
              */
-            assert(retLocWide.lowReg == r0);
-            assert(retLocWide.highReg == r1);
+            DCHECK(retLocWide.lowReg == r0);
+            DCHECK(retLocWide.highReg == r1);
             oatLockTemp(cUnit, retLocWide.lowReg);
             oatLockTemp(cUnit, retLocWide.highReg);
             storeValueWide(cUnit, rlDest, retLocWide);
@@ -1148,7 +1148,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
             /* See comment for OP_MOVE_RESULT_WIDE */
-            assert(retLoc.lowReg == r0);
+            DCHECK(retLoc.lowReg == r0);
             oatLockTemp(cUnit, retLoc.lowReg);
             storeValue(cUnit, rlDest, retLoc);
             oatFreeTemp(cUnit, retLoc.lowReg);
@@ -1719,7 +1719,7 @@ static bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     return res;
 }
 
-static const char *extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
+STATIC const char *extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirOpPhi",
     "kMirOpNullNRangeUpCheck",
     "kMirOpNullNRangeDownCheck",
@@ -1729,7 +1729,7 @@ static const char *extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
 };
 
 /* Extended MIR instructions like PHI */
-static void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
+STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
 {
     int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
     char* msg = (char*)oatNew(strlen(extendedMIROpNames[opOffset]) + 1, false);
@@ -1752,7 +1752,7 @@ static void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
  * to a callee-save register, flush them to the frame.
  * Note: at this pointCopy any ins that are passed in register to their
  * home location */
-static void flushIns(CompilationUnit* cUnit)
+STATIC void flushIns(CompilationUnit* cUnit)
 {
     if (cUnit->method->NumIns() == 0)
         return;
@@ -1803,7 +1803,7 @@ static void flushIns(CompilationUnit* cUnit)
 }
 
 /* Handle the content in each basic block */
-static bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
+STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 {
     MIR* mir;
     ArmLIR* labelList = (ArmLIR*) cUnit->blockLabelList;
@@ -1998,7 +1998,7 @@ void removeRedundantBranches(CompilationUnit* cUnit)
     }
 }
 
-static void handleSuspendLaunchpads(CompilationUnit *cUnit)
+STATIC void handleSuspendLaunchpads(CompilationUnit *cUnit)
 {
     ArmLIR** suspendLabel =
         (ArmLIR **) cUnit->suspendLaunchpads.elemList;
@@ -2019,7 +2019,7 @@ static void handleSuspendLaunchpads(CompilationUnit *cUnit)
     }
 }
 
-static void handleThrowLaunchpads(CompilationUnit *cUnit)
+STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
 {
     ArmLIR** throwLabel =
         (ArmLIR **) cUnit->throwLaunchpads.elemList;

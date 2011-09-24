@@ -32,14 +32,14 @@
 
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
-static TGT_LIR* loadWordDisp(CompilationUnit* cUnit, int rBase,
+STATIC TGT_LIR* loadWordDisp(CompilationUnit* cUnit, int rBase,
                              int displacement, int rDest)
 {
     return loadBaseDisp(cUnit, NULL, rBase, displacement, rDest, kWord,
                         INVALID_SREG);
 }
 
-static TGT_LIR* storeWordDisp(CompilationUnit* cUnit, int rBase,
+STATIC TGT_LIR* storeWordDisp(CompilationUnit* cUnit, int rBase,
                              int displacement, int rSrc)
 {
     return storeBaseDisp(cUnit, rBase, displacement, rSrc, kWord);
@@ -50,14 +50,14 @@ static TGT_LIR* storeWordDisp(CompilationUnit* cUnit, int rBase,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-static void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc,
+STATIC void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc,
                             int reg1)
 {
     rlSrc = oatUpdateLoc(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
         genRegCopy(cUnit, reg1, rlSrc.lowReg);
     } else {
-        assert(rlSrc.location == kLocDalvikFrame);
+        DCHECK(rlSrc.location == kLocDalvikFrame);
         loadWordDisp(cUnit, rSP, rlSrc.spOffset, reg1);
     }
 }
@@ -67,7 +67,7 @@ static void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc,
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-static void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc,
+STATIC void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc,
                                  int reg1)
 {
     oatClobber(cUnit, reg1);
@@ -80,14 +80,14 @@ static void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-static void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc,
+STATIC void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc,
                                 int regLo, int regHi)
 {
     rlSrc = oatUpdateLocWide(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
         genRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
     } else {
-        assert(rlSrc.location == kLocDalvikFrame);
+        DCHECK(rlSrc.location == kLocDalvikFrame);
         loadBaseDispWide(cUnit, NULL, rSP, rlSrc.spOffset,
                          regLo, regHi, INVALID_SREG);
     }
@@ -98,7 +98,7 @@ static void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc,
  * registers.  Should be used when loading to a fixed registers (for example,
  * loading arguments to an out of line call.
  */
-static void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
+STATIC void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
                                      int regLo, int regHi)
 {
     oatClobber(cUnit, regLo);
@@ -108,7 +108,7 @@ static void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
     loadValueDirectWide(cUnit, rlSrc, regLo, regHi);
 }
 
-static RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
+STATIC RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
                              RegisterClass opKind)
 {
     rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
@@ -120,13 +120,13 @@ static RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
     return rlSrc;
 }
 
-static void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
+STATIC void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
                        RegLocation rlSrc)
 {
     LIR* defStart;
     LIR* defEnd;
-    assert(!rlDest.wide);
-    assert(!rlSrc.wide);
+    DCHECK(!rlDest.wide);
+    DCHECK(!rlSrc.wide);
     rlSrc = oatUpdateLoc(cUnit, rlSrc);
     rlDest = oatUpdateLoc(cUnit, rlDest);
     if (rlSrc.location == kLocPhysReg) {
@@ -162,10 +162,10 @@ static void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
     }
 }
 
-static RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
+STATIC RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
                                  RegisterClass opKind)
 {
-    assert(rlSrc.wide);
+    DCHECK(rlSrc.wide);
     rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
     if (rlSrc.location == kLocDalvikFrame) {
         loadValueDirectWide(cUnit, rlSrc, rlSrc.lowReg, rlSrc.highReg);
@@ -177,7 +177,7 @@ static RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
     return rlSrc;
 }
 
-static void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
+STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
                            RegLocation rlSrc)
 {
     LIR* defStart;
@@ -186,9 +186,9 @@ static void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
         LOG(WARNING) << "rlSrc.lowreg:" << rlSrc.lowReg << ", rlSrc.highReg:"
                      << rlSrc.highReg;
     }
-    assert(FPREG(rlSrc.lowReg)==FPREG(rlSrc.highReg));
-    assert(rlDest.wide);
-    assert(rlSrc.wide);
+    DCHECK_EQ(FPREG(rlSrc.lowReg), FPREG(rlSrc.highReg));
+    DCHECK(rlDest.wide);
+    DCHECK(rlSrc.wide);
     if (rlSrc.location == kLocPhysReg) {
         if (oatIsLive(cUnit, rlSrc.lowReg) ||
             oatIsLive(cUnit, rlSrc.highReg) ||
@@ -225,7 +225,7 @@ static void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
         (oatLiveOut(cUnit, rlDest.sRegLow) ||
         oatLiveOut(cUnit, oatSRegHi(rlDest.sRegLow)))) {
         defStart = (LIR*)cUnit->lastLIRInsn;
-        assert((oatS2VReg(cUnit, rlDest.sRegLow)+1) ==
+        DCHECK_EQ((oatS2VReg(cUnit, rlDest.sRegLow)+1),
                 oatS2VReg(cUnit, oatSRegHi(rlDest.sRegLow)));
         storeBaseDispWide(cUnit, rSP, rlDest.spOffset,
                           rlDest.lowReg, rlDest.highReg);

@@ -67,6 +67,13 @@ typedef art::Thread Thread;
 // From alloc/CardTable.h
 #define GC_CARD_SHIFT 7
 
+// use to switch visibility on DCHECK tracebacks
+#if 1
+#define STATIC
+#else
+#define STATIC static
+#endif
+
 #include "Compiler.h"
 
 #endif

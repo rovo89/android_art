@@ -30,7 +30,7 @@
 #define LDLD_DISTANCE 4
 #define LD_LATENCY 2
 
-static inline bool isDalvikRegisterClobbered(ArmLIR* lir1, ArmLIR* lir2)
+STATIC inline bool isDalvikRegisterClobbered(ArmLIR* lir1, ArmLIR* lir2)
 {
     int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->aliasInfo);
     int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->aliasInfo);
@@ -41,7 +41,7 @@ static inline bool isDalvikRegisterClobbered(ArmLIR* lir1, ArmLIR* lir2)
 }
 
 /* Convert a more expensive instruction (ie load) into a move */
-static void convertMemOpIntoMove(CompilationUnit* cUnit, ArmLIR* origLIR,
+STATIC void convertMemOpIntoMove(CompilationUnit* cUnit, ArmLIR* origLIR,
                                  int dest, int src)
 {
     /* Insert a move to replace the load */
@@ -74,7 +74,7 @@ static void convertMemOpIntoMove(CompilationUnit* cUnit, ArmLIR* origLIR,
  *   1) They are must-aliases
  *   2) The memory location is not written to in between
  */
-static void applyLoadStoreElimination(CompilationUnit* cUnit,
+STATIC void applyLoadStoreElimination(CompilationUnit* cUnit,
                                       ArmLIR* headLIR,
                                       ArmLIR* tailLIR)
 {
@@ -142,7 +142,7 @@ static void applyLoadStoreElimination(CompilationUnit* cUnit,
                      * Should only see literal loads in the instruction
                      * stream.
                      */
-                    assert(!(EncodingMap[checkLIR->opcode].flags &
+                    DCHECK(!(EncodingMap[checkLIR->opcode].flags &
                              IS_STORE));
                     /* Same value && same register type */
                     if (checkLIR->aliasInfo == thisLIR->aliasInfo &&
@@ -257,7 +257,7 @@ static void applyLoadStoreElimination(CompilationUnit* cUnit,
  * Perform a pass of bottom-up walk, from the second instruction in the
  * superblock, to try to hoist loads to earlier slots.
  */
-static void applyLoadHoisting(CompilationUnit* cUnit,
+STATIC void applyLoadHoisting(CompilationUnit* cUnit,
                               ArmLIR* headLIR,
                               ArmLIR* tailLIR)
 {
@@ -328,7 +328,7 @@ static void applyLoadHoisting(CompilationUnit* cUnit,
                     }
                 /* Conservatively treat all heap refs as may-alias */
                 } else {
-                    assert(aliasCondition == ENCODE_HEAP_REF);
+                    DCHECK_EQ(aliasCondition, ENCODE_HEAP_REF);
                     stopHere = true;
                 }
                 /* Memory content may be updated. Stop looking now. */

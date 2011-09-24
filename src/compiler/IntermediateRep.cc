@@ -32,7 +32,7 @@ BasicBlock* oatNewBB(BBType blockType, int blockId)
 void oatAppendMIR(BasicBlock* bb, MIR* mir)
 {
     if (bb->firstMIRInsn == NULL) {
-        assert(bb->lastMIRInsn == NULL);
+        DCHECK(bb->lastMIRInsn == NULL);
         bb->lastMIRInsn = bb->firstMIRInsn = mir;
         mir->prev = mir->next = NULL;
     } else {
@@ -47,7 +47,7 @@ void oatAppendMIR(BasicBlock* bb, MIR* mir)
 void oatPrependMIR(BasicBlock* bb, MIR* mir)
 {
     if (bb->firstMIRInsn == NULL) {
-        assert(bb->lastMIRInsn == NULL);
+        DCHECK(bb->lastMIRInsn == NULL);
         bb->lastMIRInsn = bb->firstMIRInsn = mir;
         mir->prev = mir->next = NULL;
     } else {
@@ -81,7 +81,7 @@ void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
 void oatAppendLIR(CompilationUnit *cUnit, LIR* lir)
 {
     if (cUnit->firstLIRInsn == NULL) {
-        assert(cUnit->lastLIRInsn == NULL);
+        DCHECK(cUnit->lastLIRInsn == NULL);
         cUnit->lastLIRInsn = cUnit->firstLIRInsn = lir;
         lir->prev = lir->next = NULL;
     } else {
@@ -100,7 +100,7 @@ void oatAppendLIR(CompilationUnit *cUnit, LIR* lir)
  */
 void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR)
 {
-    assert(currentLIR->prev != NULL);
+    DCHECK(currentLIR->prev != NULL);
     LIR *prevLIR = currentLIR->prev;
 
     prevLIR->next = newLIR;

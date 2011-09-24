@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-static bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir,
                             RegLocation rlDest, RegLocation rlSrc1,
                             RegLocation rlSrc2)
 {
@@ -60,7 +60,7 @@ static bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-static bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir,
                              RegLocation rlDest, RegLocation rlSrc1,
                              RegLocation rlSrc2)
 {
@@ -95,12 +95,12 @@ static bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir,
     }
 
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
-    assert(rlSrc1.wide);
+    DCHECK(rlSrc1.wide);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
-    assert(rlSrc2.wide);
+    DCHECK(rlSrc2.wide);
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    assert(rlDest.wide);
-    assert(rlResult.wide);
+    DCHECK(rlDest.wide);
+    DCHECK(rlResult.wide);
     newLIR3(cUnit, (ArmOpcode)op, S2D(rlResult.lowReg, rlResult.highReg),
             S2D(rlSrc1.lowReg, rlSrc1.highReg),
             S2D(rlSrc2.lowReg, rlSrc2.highReg));
@@ -108,7 +108,7 @@ static bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-static bool genConversion(CompilationUnit* cUnit, MIR* mir)
+STATIC bool genConversion(CompilationUnit* cUnit, MIR* mir)
 {
     Opcode opcode = mir->dalvikInsn.opcode;
     int op = kThumbBkpt;
@@ -182,7 +182,7 @@ static bool genConversion(CompilationUnit* cUnit, MIR* mir)
     return false;
 }
 
-static bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+STATIC bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
     bool isDouble;
@@ -225,7 +225,7 @@ static bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         loadConstant(cUnit, rlResult.lowReg, defaultResult);
         newLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
     }
-    assert(!FPREG(rlResult.lowReg));
+    DCHECK(!FPREG(rlResult.lowReg));
     newLIR0(cUnit, kThumb2Fmstat);
 
     genIT(cUnit, (defaultResult == -1) ? kArmCondGt : kArmCondMi, "");

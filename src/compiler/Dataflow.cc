@@ -1852,7 +1852,7 @@ char *oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 }
 
 /* Any register that is used before being defined is considered live-in */
-static inline void handleLiveInUse(ArenaBitVector* useV, ArenaBitVector* defV,
+STATIC inline void handleLiveInUse(ArenaBitVector* useV, ArenaBitVector* defV,
                                    ArenaBitVector* liveInV, int dalvikRegId)
 {
     oatSetBit(useV, dalvikRegId);
@@ -1862,7 +1862,7 @@ static inline void handleLiveInUse(ArenaBitVector* useV, ArenaBitVector* defV,
 }
 
 /* Mark a reg as being defined */
-static inline void handleDef(ArenaBitVector* defV, int dalvikRegId)
+STATIC inline void handleDef(ArenaBitVector* defV, int dalvikRegId)
 {
     oatSetBit(defV, dalvikRegId);
 }
@@ -1921,7 +1921,7 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Find out the latest SSA register for a given Dalvik register */
-static void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
+STATIC void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
                          int regIndex)
 {
     int encodedValue = cUnit->dalvikToSSAMap[dalvikReg];
@@ -1930,7 +1930,7 @@ static void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
 }
 
 /* Setup a new SSA register for a given Dalvik register */
-static void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
+STATIC void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
                          int regIndex)
 {
     int ssaReg = cUnit->numSSARegs++;
@@ -1947,7 +1947,7 @@ static void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
 }
 
 /* Look up new SSA names for format_35c instructions */
-static void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
+STATIC void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction *dInsn = &mir->dalvikInsn;
     int numUses = dInsn->vA;
@@ -1955,6 +1955,8 @@ static void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 
     mir->ssaRep->numUses = numUses;
     mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, false);
+    // NOTE: will be filled in during type & size inference pass
+    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, false);
 
     for (i = 0; i < numUses; i++) {
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->arg[i], i);
@@ -1962,7 +1964,7 @@ static void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 }
 
 /* Look up new SSA names for format_3rc instructions */
-static void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
+STATIC void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction *dInsn = &mir->dalvikInsn;
     int numUses = dInsn->vA;
@@ -1970,6 +1972,8 @@ static void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
 
     mir->ssaRep->numUses = numUses;
     mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, false);
+    // NOTE: will be filled in during type & size inference pass
+    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, false);
 
     for (i = 0; i < numUses; i++) {
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+i, i);
@@ -2119,7 +2123,7 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-static void setConstant(CompilationUnit* cUnit, int ssaReg, int value)
+STATIC void setConstant(CompilationUnit* cUnit, int ssaReg, int value)
 {
     oatSetBit(cUnit->isConstantV, ssaReg);
     cUnit->constantValues[ssaReg] = value;
@@ -2360,7 +2364,7 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
     }
 }
 
-static bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
+STATIC bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
                                      struct BasicBlock* bb)
 {
     if (bb->dataFlowInfo == NULL) return false;
@@ -2371,7 +2375,7 @@ static bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
 }
 
 /* Eliminate unnecessary null checks for a basic block. */
-static bool eliminateNullChecks( struct CompilationUnit* cUnit,
+STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
                                  struct BasicBlock* bb)
 {
     if (bb->dataFlowInfo == NULL) return false;
@@ -2395,7 +2399,7 @@ static bool eliminateNullChecks( struct CompilationUnit* cUnit,
         ArenaBitVectorIterator bvIterator;
         oatBitVectorIteratorInit(bb->predecessors, &bvIterator);
         int predBBIdx = oatBitVectorIteratorNext(&bvIterator);
-        DCHECK(predBBIdx != -1);
+        DCHECK_NE(predBBIdx, -1);
         BasicBlock* predBB = (BasicBlock*)oatGrowableListGetElement(
             blockList, predBBIdx);
         oatCopyBitVector(cUnit->tempSSARegisterV,

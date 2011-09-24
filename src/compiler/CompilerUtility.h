@@ -109,6 +109,6 @@ void oatDumpResourceMask(struct LIR* lir, u8 mask, const char* prefix);
 void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
                            const ArenaBitVector* bv, int length);
 void oatGetBlockName(struct BasicBlock* bb, char* name);
-
+const char* oatGetShortyFromTargetIdx(CompilationUnit*, int);
 
 #endif  // ART_SRC_COMPILER_COMPILER_UTILITY_H_

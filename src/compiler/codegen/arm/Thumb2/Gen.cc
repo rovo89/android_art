@@ -45,23 +45,23 @@ std::string fieldNameFromIndex(const Method* method, uint32_t fieldIdx)
  * "switchData" must be 32-bit aligned.
  */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-static inline s4 s4FromSwitchData(const void* switchData) {
+STATIC inline s4 s4FromSwitchData(const void* switchData) {
     return *(s4*) switchData;
 }
 #else
-static inline s4 s4FromSwitchData(const void* switchData) {
+STATIC inline s4 s4FromSwitchData(const void* switchData) {
     u2* data = switchData;
     return data[0] | (((s4) data[1]) << 16);
 }
 #endif
 
-static ArmLIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
+STATIC ArmLIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
 {
     return opReg(cUnit, kOpBlx, reg);
 }
 
 /* Generate unconditional branch instructions */
-static ArmLIR* genUnconditionalBranch(CompilationUnit* cUnit, ArmLIR* target)
+STATIC ArmLIR* genUnconditionalBranch(CompilationUnit* cUnit, ArmLIR* target)
 {
     ArmLIR* branch = opNone(cUnit, kOpUncondBr);
     branch->generic.target = (LIR*) target;
@@ -78,7 +78,7 @@ static ArmLIR* genUnconditionalBranch(CompilationUnit* cUnit, ArmLIR* target)
  * met, and an "E" means the instruction is executed if the condition
  * is not met.
  */
-static ArmLIR* genIT(CompilationUnit* cUnit, ArmConditionCode code,
+STATIC ArmLIR* genIT(CompilationUnit* cUnit, ArmConditionCode code,
                      const char* guide)
 {
     int mask;
@@ -114,7 +114,7 @@ static ArmLIR* genIT(CompilationUnit* cUnit, ArmConditionCode code,
  * all resource flags on this to prevent code motion across
  * target boundaries.  KeyVal is just there for debugging.
  */
-static ArmLIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
+STATIC ArmLIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
 {
     ArmLIR* lir;
     for (lir = (ArmLIR*)cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
@@ -133,7 +133,7 @@ static ArmLIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
     return NULL; // Quiet gcc
 }
 
-static void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+STATIC void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
     const u2* table = tabRec->table;
     int baseVaddr = tabRec->vaddr;
@@ -146,7 +146,7 @@ static void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
     }
 }
 
-static void markSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+STATIC void markSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
     const u2* table = tabRec->table;
     int baseVaddr = tabRec->vaddr;
@@ -177,7 +177,7 @@ void oatProcessSwitchTables(CompilationUnit* cUnit)
     }
 }
 
-static void dumpSparseSwitchTable(const u2* table)
+STATIC void dumpSparseSwitchTable(const u2* table)
     /*
      * Sparse switch data format:
      *  ushort ident = 0x0200   magic value
@@ -200,7 +200,7 @@ static void dumpSparseSwitchTable(const u2* table)
     }
 }
 
-static void dumpPackedSwitchTable(const u2* table)
+STATIC void dumpPackedSwitchTable(const u2* table)
     /*
      * Packed switch data format:
      *  ushort ident = 0x0100   magic value
@@ -242,7 +242,7 @@ static void dumpPackedSwitchTable(const u2* table)
  *   add   rPC, rDisp   ; This is the branch from which we compute displacement
  *   cbnz  rIdx, lp
  */
-static void genSparseSwitch(CompilationUnit* cUnit, MIR* mir,
+STATIC void genSparseSwitch(CompilationUnit* cUnit, MIR* mir,
                             RegLocation rlSrc)
 {
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
@@ -292,7 +292,7 @@ static void genSparseSwitch(CompilationUnit* cUnit, MIR* mir,
 }
 
 
-static void genPackedSwitch(CompilationUnit* cUnit, MIR* mir,
+STATIC void genPackedSwitch(CompilationUnit* cUnit, MIR* mir,
                             RegLocation rlSrc)
 {
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
@@ -350,7 +350,7 @@ static void genPackedSwitch(CompilationUnit* cUnit, MIR* mir,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
+STATIC void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
                               RegLocation rlSrc)
 {
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
@@ -379,7 +379,7 @@ static void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-static void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
 #ifdef CONCURRENT_GARBAGE_COLLECTOR
     // TODO: re-enable when concurrent collector is active
@@ -403,7 +403,7 @@ static void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
  * Helper function for Iget/put when field not resolved at compile time.
  * Will trash call temps and return with the field offset in r0.
  */
-static void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
+STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
 {
     int fieldIdx = mir->dalvikInsn.vC;
     LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
@@ -438,7 +438,7 @@ static void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
     loadWordDisp(cUnit, r0, art::Field::OffsetOffset().Int32Value(), r0);
 }
 
-static void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
+STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
                      RegLocation rlDest, RegLocation rlObj)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -473,7 +473,7 @@ static void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 }
 
-static void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
+STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
                     RegLocation rlSrc, RegLocation rlObj, bool isObject)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -509,7 +509,7 @@ static void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 }
 
-static void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlObj)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -535,7 +535,7 @@ static void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         int regPtr = oatAllocTemp(cUnit);
 
-        assert(rlDest.wide);
+        DCHECK(rlDest.wide);
 
         genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
         opRegRegImm(cUnit, kOpAdd, regPtr, rlObj.lowReg, fieldOffset);
@@ -552,7 +552,7 @@ static void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     }
 }
 
-static void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
+STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                         RegLocation rlObj)
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
@@ -590,7 +590,7 @@ static void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
     }
 }
 
-static void genConstClass(CompilationUnit* cUnit, MIR* mir,
+STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
                           RegLocation rlDest, RegLocation rlSrc)
 {
     art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
@@ -632,7 +632,7 @@ static void genConstClass(CompilationUnit* cUnit, MIR* mir,
     }
 }
 
-static void genConstString(CompilationUnit* cUnit, MIR* mir,
+STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
     /* All strings should be available at compile time */
@@ -654,7 +654,7 @@ static void genConstString(CompilationUnit* cUnit, MIR* mir,
  * Let helper function take care of everything.  Will
  * call Class::NewInstanceFromCode(type_idx, method);
  */
-static void genNewInstance(CompilationUnit* cUnit, MIR* mir,
+STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest)
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
@@ -676,7 +676,7 @@ void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     callRuntimeHelper(cUnit, rLR);  // art_deliver_exception(exception);
 }
 
-static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                           RegLocation rlSrc)
 {
     // May generate a call - use explicit registers
@@ -709,7 +709,7 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     /* When taken r0 has NULL which can be used for store directly */
     ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r3, 0);
     /* load object->clazz */
-    assert(Object::ClassOffset().Int32Value() == 0);
+    DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, r3,  Object::ClassOffset().Int32Value(), r1);
     /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF,
@@ -730,7 +730,7 @@ static void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     branch2->generic.target = (LIR*)target;
 }
 
-static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     // May generate a call - use explicit registers
     oatLockCallTemps(cUnit);
@@ -762,7 +762,7 @@ static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     /* Null is OK - continue */
     ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
     /* load object->clazz */
-    assert(Object::ClassOffset().Int32Value() == 0);
+    DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
     /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF,
@@ -780,7 +780,7 @@ static void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     branch2->generic.target = (LIR*)target;
 }
 
-static void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest,
+STATIC void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest,
                         RegLocation rlSrc)
 {
     RegLocation rlResult;
@@ -790,7 +790,7 @@ static void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest,
     storeValue(cUnit, rlDest, rlResult);
 }
 
-static void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest,
+STATIC void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest,
                          RegLocation rlSrc)
 {
     RegLocation rlResult;
@@ -801,7 +801,7 @@ static void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest,
     storeValueWide(cUnit, rlDest, rlResult);
 }
 
-static void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
+STATIC void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
                         RegLocation rlFree)
 {
     if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg))
@@ -810,7 +810,7 @@ static void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
         oatFreeTemp(cUnit, rlFree.lowReg);
 }
 
-static void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
+STATIC void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
                          OpKind secondOp, RegLocation rlDest,
                          RegLocation rlSrc1, RegLocation rlSrc2)
 {
@@ -901,7 +901,7 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
  * preserved.
  *
  */
-static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
+STATIC void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
                             RegLocation rlSrc)
 {
     ArmLIR* target;
@@ -950,7 +950,7 @@ static void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
  * a zero recursion count, it's safe to punch it back to the
  * initial, unlock thin state with a store word.
  */
-static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
+STATIC void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlSrc)
 {
     ArmLIR* target;
@@ -1007,7 +1007,7 @@ static void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
  *     neg   rX
  * done:
  */
-static void genCmpLong(CompilationUnit* cUnit, MIR* mir,
+STATIC void genCmpLong(CompilationUnit* cUnit, MIR* mir,
                        RegLocation rlDest, RegLocation rlSrc1,
                        RegLocation rlSrc2)
 {
@@ -1043,7 +1043,7 @@ static void genCmpLong(CompilationUnit* cUnit, MIR* mir,
     branch3->generic.target = branch1->generic.target;
 }
 
-static void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit,
+STATIC void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit,
         RegLocation rlSrc, RegLocation rlResult, int lit,
         int firstBit, int secondBit)
 {
@@ -1054,7 +1054,7 @@ static void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit,
     }
 }
 
-static bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
+STATIC bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
                                      int srcSize, int tgtSize)
 {
     /*
@@ -1088,7 +1088,7 @@ static bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
     return false;
 }
 
-static bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
                                     RegLocation rlDest, RegLocation rlSrc1,
                                     RegLocation rlSrc2)
 {
@@ -1134,7 +1134,7 @@ static bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-static bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
                                      RegLocation rlDest, RegLocation rlSrc1,
                                      RegLocation rlSrc2)
 {
@@ -1180,7 +1180,7 @@ static bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-static bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
+STATIC bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
 {
     Opcode opcode = mir->dalvikInsn.opcode;
 
@@ -1222,7 +1222,7 @@ static bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
 }
 
 /* Generate conditional branch instructions */
-static ArmLIR* genConditionalBranch(CompilationUnit* cUnit,
+STATIC ArmLIR* genConditionalBranch(CompilationUnit* cUnit,
                                     ArmConditionCode cond,
                                     ArmLIR* target)
 {
@@ -1235,7 +1235,7 @@ static ArmLIR* genConditionalBranch(CompilationUnit* cUnit,
  * Generate array store
  *
  */
-static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
+STATIC void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlArray, RegLocation rlIndex,
                            RegLocation rlSrc, int scale)
 {
@@ -1293,7 +1293,7 @@ static void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
 /*
  * Generate array load
  */
-static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
+STATIC void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
                         RegLocation rlArray, RegLocation rlIndex,
                         RegLocation rlDest, int scale)
 {
@@ -1355,7 +1355,7 @@ static void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
  * Generate array store
  *
  */
-static void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
+STATIC void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
                         RegLocation rlArray, RegLocation rlIndex,
                         RegLocation rlSrc, int scale)
 {
@@ -1416,7 +1416,7 @@ static void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 }
 
-static bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc1,
                            RegLocation rlShift)
 {
@@ -1450,7 +1450,7 @@ static bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-static bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc1,
                            RegLocation rlSrc2)
 {
@@ -1549,7 +1549,7 @@ static bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-static bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
                           RegLocation rlDest, RegLocation rlSrc1,
                           RegLocation rlSrc2)
 {
@@ -1672,7 +1672,7 @@ static bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
 }
 
 /* Check if we need to check for pending suspend request */
-static void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
+STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 {
     if (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
         return;
@@ -1691,7 +1691,7 @@ static void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 }
 
 /* Check for pending suspend request.  */
-static void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
+STATIC void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
 {
     if (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
         return;
@@ -1734,20 +1734,20 @@ static void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
  * or produce corresponding Thumb instructions directly.
  */
 
-static bool isPowerOfTwo(int x)
+STATIC bool isPowerOfTwo(int x)
 {
     return (x & (x - 1)) == 0;
 }
 
 // Returns true if no more than two bits are set in 'x'.
-static bool isPopCountLE2(unsigned int x)
+STATIC bool isPopCountLE2(unsigned int x)
 {
     x &= x - 1;
     return (x & (x - 1)) == 0;
 }
 
 // Returns the index of the lowest set bit in 'x'.
-static int lowestSetBit(unsigned int x) {
+STATIC int lowestSetBit(unsigned int x) {
     int bit_posn = 0;
     while ((x & 0xf) == 0) {
         bit_posn += 4;
@@ -1762,7 +1762,7 @@ static int lowestSetBit(unsigned int x) {
 
 // Returns true if it added instructions to 'cUnit' to divide 'rlSrc' by 'lit'
 // and store the result in 'rlDest'.
-static bool handleEasyDivide(CompilationUnit* cUnit, Opcode dalvikOpcode,
+STATIC bool handleEasyDivide(CompilationUnit* cUnit, Opcode dalvikOpcode,
                              RegLocation rlSrc, RegLocation rlDest, int lit)
 {
     if (lit < 2 || !isPowerOfTwo(lit)) {
@@ -1814,7 +1814,7 @@ static bool handleEasyDivide(CompilationUnit* cUnit, Opcode dalvikOpcode,
 
 // Returns true if it added instructions to 'cUnit' to multiply 'rlSrc' by 'lit'
 // and store the result in 'rlDest'.
-static bool handleEasyMultiply(CompilationUnit* cUnit,
+STATIC bool handleEasyMultiply(CompilationUnit* cUnit,
                                RegLocation rlSrc, RegLocation rlDest, int lit)
 {
     // Can we simplify this multiplication?
@@ -1847,7 +1847,7 @@ static bool handleEasyMultiply(CompilationUnit* cUnit,
                                       firstBit, secondBit);
     } else {
         // Reverse subtract: (src << (shift + 1)) - src.
-        assert(powerOfTwoMinusOne);
+        DCHECK(powerOfTwoMinusOne);
         // TUNING: rsb dst, src, src lsl#lowestSetBit(lit + 1)
         int tReg = oatAllocTemp(cUnit);
         opRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, lowestSetBit(lit + 1));
@@ -1857,7 +1857,7 @@ static bool handleEasyMultiply(CompilationUnit* cUnit,
     return true;
 }
 
-static bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir,
+STATIC bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir,
                              RegLocation rlDest, RegLocation rlSrc,
                              int lit)
 {

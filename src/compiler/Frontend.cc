@@ -21,7 +21,7 @@
 #include "object.h"
 #include "runtime.h"
 
-static inline bool contentIsInsn(const u2* codePtr) {
+STATIC inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;
     Opcode opcode = (Opcode)(instr & 0xff);
 
@@ -35,7 +35,7 @@ static inline bool contentIsInsn(const u2* codePtr) {
 /*
  * Parse an instruction, return the length of the instruction
  */
-static inline int parseInsn(const u2* codePtr, DecodedInstruction* decInsn,
+STATIC inline int parseInsn(const u2* codePtr, DecodedInstruction* decInsn,
                             bool printMe)
 {
     // Don't parse instruction data
@@ -57,7 +57,7 @@ static inline int parseInsn(const u2* codePtr, DecodedInstruction* decInsn,
 
 #define UNKNOWN_TARGET 0xffffffff
 
-static inline bool isGoto(MIR* insn)
+STATIC inline bool isGoto(MIR* insn)
 {
     switch (insn->dalvikInsn.opcode) {
         case OP_GOTO:
@@ -72,7 +72,7 @@ static inline bool isGoto(MIR* insn)
 /*
  * Identify unconditional branch instructions
  */
-static inline bool isUnconditionalBranch(MIR* insn)
+STATIC inline bool isUnconditionalBranch(MIR* insn)
 {
     switch (insn->dalvikInsn.opcode) {
         case OP_RETURN_VOID:
@@ -86,7 +86,7 @@ static inline bool isUnconditionalBranch(MIR* insn)
 }
 
 /* Split an existing block from the specified code offset into two */
-static BasicBlock *splitBlock(CompilationUnit* cUnit,
+STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
                               unsigned int codeOffset,
                               BasicBlock* origBlock)
 {
@@ -156,7 +156,7 @@ static BasicBlock *splitBlock(CompilationUnit* cUnit,
  * Given a code offset, find out the block that starts with it. If the offset
  * is in the middle of an existing block, split it into two.
  */
-static BasicBlock *findBlock(CompilationUnit* cUnit,
+STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
                              unsigned int codeOffset,
                              bool split, bool create)
 {
@@ -348,7 +348,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 }
 
 /* Verify if all the successor is connected with all the claimed predecessors */
-static bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
+STATIC bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 {
     ArenaBitVectorIterator bvIterator;
 
@@ -392,7 +392,7 @@ static bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Identify code range in try blocks and set up the empty catch blocks */
-static void processTryCatchBlocks(CompilationUnit* cUnit)
+STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 {
     const Method* method = cUnit->method;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
@@ -435,7 +435,7 @@ static void processTryCatchBlocks(CompilationUnit* cUnit)
 }
 
 /* Process instructions with the kInstrCanBranch flag */
-static void processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
+STATIC void processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
                              MIR* insn, int curOffset, int width, int flags,
                              const u2* codePtr, const u2* codeEnd)
 {
@@ -508,7 +508,7 @@ static void processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
 }
 
 /* Process instructions with the kInstrCanSwitch flag */
-static void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
+STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                              MIR* insn, int curOffset, int width, int flags)
 {
     u2* switchData= (u2 *) (cUnit->insns + curOffset +
@@ -529,7 +529,7 @@ static void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
      * Total size is (4+size*2) 16-bit code units.
      */
     if (insn->dalvikInsn.opcode == OP_PACKED_SWITCH) {
-        assert(switchData[0] == kPackedSwitchSignature);
+        DCHECK_EQ(switchData[0], kPackedSwitchSignature);
         size = switchData[1];
         firstKey = switchData[2] | (switchData[3] << 16);
         targetTable = (int *) &switchData[4];
@@ -544,7 +544,7 @@ static void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
      * Total size is (2+size*4) 16-bit code units.
      */
     } else {
-        assert(switchData[0] == kSparseSwitchSignature);
+        DCHECK_EQ(switchData[0], kSparseSwitchSignature);
         size = switchData[1];
         keyTable = (int *) &switchData[2];
         targetTable = (int *) &switchData[2 + size*2];
@@ -589,7 +589,7 @@ static void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
 }
 
 /* Process instructions with the kInstrCanThrow flag */
-static void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
+STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                             MIR* insn, int curOffset, int width, int flags,
                             ArenaBitVector* tryBlockAddr, const u2* codePtr,
                             const u2* codeEnd)
@@ -817,7 +817,7 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
              * instruction is not an unconditional branch, connect them through
              * the fall-through link.
              */
-            assert(curBlock->fallThrough == NULL ||
+            DCHECK(curBlock->fallThrough == NULL ||
                    curBlock->fallThrough == nextBlock ||
                    curBlock->fallThrough == exitBlock);
 

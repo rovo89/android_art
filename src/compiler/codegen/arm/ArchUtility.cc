@@ -44,7 +44,7 @@ static const char* shiftNames[4] = {
     "ror"};
 
 /* Decode and print a ARM register name */
-static char* decodeRegList(ArmOpcode opcode, int vector, char* buf)
+STATIC char* decodeRegList(ArmOpcode opcode, int vector, char* buf)
 {
     int i;
     bool printed = false;
@@ -68,7 +68,7 @@ static char* decodeRegList(ArmOpcode opcode, int vector, char* buf)
     return buf;
 }
 
-static char*  decodeFPCSRegList(int count, int base, char* buf)
+STATIC char*  decodeFPCSRegList(int count, int base, char* buf)
 {
     sprintf(buf, "s%d", base);
     for (int i = 1; i < count; i++) {
@@ -77,7 +77,7 @@ static char*  decodeFPCSRegList(int count, int base, char* buf)
     return buf;
 }
 
-static int expandImmediate(int value)
+STATIC int expandImmediate(int value)
 {
     int mode = (value & 0xf00) >> 8;
     u4 bits = value & 0xff;
@@ -103,7 +103,7 @@ const char* ccNames[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-static void buildInsnString(const char* fmt, ArmLIR* lir, char* buf,
+STATIC void buildInsnString(const char* fmt, ArmLIR* lir, char* buf,
                             unsigned char* baseAddr, int size)
 {
     int i;
@@ -116,13 +116,13 @@ static void buildInsnString(const char* fmt, ArmLIR* lir, char* buf,
         int operand;
         if (*fmt == '!') {
             fmt++;
-            assert(fmt < fmtEnd);
+            DCHECK_LT(fmt, fmtEnd);
             nc = *fmt++;
             if (nc=='!') {
                 strcpy(tbuf, "!");
             } else {
-               assert(fmt < fmtEnd);
-               assert((unsigned)(nc-'0') < 4);
+               DCHECK_LT(fmt, fmtEnd);
+               DCHECK((unsigned)(nc-'0') < 4);
                operand = lir->operands[nc-'0'];
                switch(*fmt++) {
                    case 'H':

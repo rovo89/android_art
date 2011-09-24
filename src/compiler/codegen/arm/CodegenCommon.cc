@@ -27,11 +27,11 @@
 /* Track exercised opcodes */
 static int opcodeCoverage[kNumPackedOpcodes];
 
-static void setMemRefType(ArmLIR* lir, bool isLoad, int memType)
+STATIC void setMemRefType(ArmLIR* lir, bool isLoad, int memType)
 {
     u8 *maskPtr;
     u8 mask = ENCODE_MEM;;
-    assert(EncodingMap[lir->opcode].flags & (IS_LOAD | IS_STORE));
+    DCHECK(EncodingMap[lir->opcode].flags & (IS_LOAD | IS_STORE));
     if (isLoad) {
         maskPtr = &lir->useMask;
     } else {
@@ -42,7 +42,7 @@ static void setMemRefType(ArmLIR* lir, bool isLoad, int memType)
     /* ..and then add back the one we need */
     switch(memType) {
         case kLiteral:
-            assert(isLoad);
+            DCHECK(isLoad);
             *maskPtr |= ENCODE_LITERAL;
             break;
         case kDalvikReg:
@@ -53,7 +53,7 @@ static void setMemRefType(ArmLIR* lir, bool isLoad, int memType)
             break;
         case kMustNotAlias:
             /* Currently only loads can be marked as kMustNotAlias */
-            assert(!(EncodingMap[lir->opcode].flags & IS_STORE));
+            DCHECK(!(EncodingMap[lir->opcode].flags & IS_STORE));
             *maskPtr |= ENCODE_MUST_NOT_ALIAS;
             break;
         default:
@@ -65,7 +65,7 @@ static void setMemRefType(ArmLIR* lir, bool isLoad, int memType)
  * Mark load/store instructions that access Dalvik registers through r5FP +
  * offset.
  */
-static void annotateDalvikRegAccess(ArmLIR* lir, int regId, bool isLoad)
+STATIC void annotateDalvikRegAccess(ArmLIR* lir, int regId, bool isLoad)
 {
     setMemRefType(lir, isLoad, kDalvikReg);
 
@@ -82,7 +82,7 @@ static void annotateDalvikRegAccess(ArmLIR* lir, int regId, bool isLoad)
 /*
  * Decode the register id.
  */
-static inline u8 getRegMaskCommon(int reg)
+STATIC inline u8 getRegMaskCommon(int reg)
 {
     u8 seed;
     int shift;
@@ -102,7 +102,7 @@ static inline u8 getRegMaskCommon(int reg)
 /*
  * Mark the corresponding bit(s).
  */
-static inline void setupRegMask(u8* mask, int reg)
+STATIC inline void setupRegMask(u8* mask, int reg)
 {
     *mask |= getRegMaskCommon(reg);
 }
@@ -110,7 +110,7 @@ static inline void setupRegMask(u8* mask, int reg)
 /*
  * Set up the proper fields in the resource mask
  */
-static void setupResourceMasks(ArmLIR* lir)
+STATIC void setupResourceMasks(ArmLIR* lir)
 {
     int opcode = lir->opcode;
     int flags;
@@ -237,10 +237,10 @@ static void setupResourceMasks(ArmLIR* lir)
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
-static ArmLIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
+STATIC ArmLIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
 {
     ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
-    assert(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
+    DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
     insn->opcode = opcode;
     setupResourceMasks(insn);
     insn->generic.dalvikOffset = cUnit->currentDalvikOffset;
@@ -248,11 +248,11 @@ static ArmLIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
     return insn;
 }
 
-static ArmLIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
+STATIC ArmLIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest)
 {
     ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
-    assert(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
+    DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
     setupResourceMasks(insn);
@@ -261,11 +261,11 @@ static ArmLIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
     return insn;
 }
 
-static ArmLIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
+STATIC ArmLIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1)
 {
     ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
-    assert(isPseudoOpcode(opcode) ||
+    DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_BINARY_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
@@ -276,7 +276,7 @@ static ArmLIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
     return insn;
 }
 
-static ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
+STATIC ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1, int src2)
 {
     ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
@@ -296,11 +296,11 @@ static ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
 }
 
 #if defined(_ARMV7_A) || defined(_ARMV7_A_NEON)
-static ArmLIR* newLIR4(CompilationUnit* cUnit, ArmOpcode opcode,
+STATIC ArmLIR* newLIR4(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1, int src2, int info)
 {
     ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
-    assert(isPseudoOpcode(opcode) ||
+    DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_QUAD_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
@@ -318,7 +318,7 @@ static ArmLIR* newLIR4(CompilationUnit* cUnit, ArmOpcode opcode,
  * Search the existing constants in the literal pool for an exact or close match
  * within specified delta (greater or equal to 0).
  */
-static ArmLIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
+STATIC ArmLIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
 {
     while (dataTarget) {
         if (((unsigned) (value - ((ArmLIR* ) dataTarget)->operands[0])) <=
@@ -330,7 +330,7 @@ static ArmLIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
 }
 
 /* Search the existing constants in the literal pool for an exact wide match */
-static ArmLIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
+STATIC ArmLIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
 {
     bool loMatch = false;
     LIR* loTarget = NULL;
@@ -354,7 +354,7 @@ static ArmLIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
  */
 
 /* Add a 32-bit constant either in the constant pool or mixed with code */
-static ArmLIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
+STATIC ArmLIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
                            int value)
 {
     /* Add the constant to the literal pool */
@@ -373,7 +373,7 @@ static ArmLIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
 }
 
 /* Add a 64-bit constant to the constant pool or mixed with code */
-static ArmLIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
+STATIC ArmLIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
                            int valLo, int valHi)
 {
     ArmLIR* res;
@@ -393,7 +393,7 @@ static ArmLIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
  * Generate an kArmPseudoBarrier marker to indicate the boundary of special
  * blocks.
  */
-static void genBarrier(CompilationUnit* cUnit)
+STATIC void genBarrier(CompilationUnit* cUnit)
 {
     ArmLIR* barrier = newLIR0(cUnit, kArmPseudoBarrier);
     /* Mark all resources as being clobbered */

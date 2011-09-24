@@ -22,8 +22,8 @@
  *
  */
 
-static ArmLIR* genUnconditionalBranch(CompilationUnit*, ArmLIR*);
-static ArmLIR* genConditionalBranch(CompilationUnit*, ArmConditionCode,
+STATIC ArmLIR* genUnconditionalBranch(CompilationUnit*, ArmLIR*);
+STATIC ArmLIR* genConditionalBranch(CompilationUnit*, ArmConditionCode,
                                     ArmLIR*);
 
 /*
@@ -31,7 +31,7 @@ static ArmLIR* genConditionalBranch(CompilationUnit*, ArmConditionCode,
  * to allow easy change between placing the current Method* in a
  * dedicated register or its home location in the frame.
  */
-static void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
+STATIC void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 {
 #if defined(METHOD_IN_REG)
     genRegCopy(cUnit, rTgt, rMETHOD);
@@ -40,7 +40,7 @@ static void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 #endif
 }
 
-static int loadCurrMethod(CompilationUnit *cUnit)
+STATIC int loadCurrMethod(CompilationUnit *cUnit)
 {
 #if defined(METHOD_IN_REG)
     return rMETHOD;
@@ -51,7 +51,7 @@ static int loadCurrMethod(CompilationUnit *cUnit)
 #endif
 }
 
-static ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
+STATIC ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                              int reg, int immVal, MIR* mir, ArmThrowKind kind)
 {
     ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
@@ -71,7 +71,7 @@ static ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
 }
 
 /* Perform null-check on a register.  */
-static ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
+STATIC ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
                              MIR* mir)
 {
     if (!(cUnit->disableOpt & (1 << kNullCheckElimination)) &&
@@ -82,7 +82,7 @@ static ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
 }
 
 /* Perform check on two registers */
-static TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
+STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                                int reg1, int reg2, MIR* mir, ArmThrowKind kind)
 {
     ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);

@@ -25,7 +25,7 @@ static int numArenaBlocks;
 /* Allocate the initial memory block for arena-based allocation */
 bool oatHeapInit(void)
 {
-    assert(arenaHead == NULL);
+    DCHECK(arenaHead == NULL);
     arenaHead =
         (ArenaMemBlock *) malloc(sizeof(ArenaMemBlock) + ARENA_DEFAULT_SIZE);
     if (arenaHead == NULL) {
@@ -106,7 +106,7 @@ void oatInitGrowableList(GrowableList* gList, size_t initLength)
 }
 
 /* Expand the capacity of a growable list */
-static void expandGrowableList(GrowableList* gList)
+STATIC void expandGrowableList(GrowableList* gList)
 {
     int newLength = gList->numAllocated;
     if (newLength < 128) {
@@ -124,7 +124,7 @@ static void expandGrowableList(GrowableList* gList)
 /* Insert a new element into the growable list */
 void oatInsertGrowableList(GrowableList* gList, intptr_t elem)
 {
-    assert(gList->numAllocated != 0);
+    DCHECK(gList->numAllocated != 0);
     if (gList->numUsed == gList->numAllocated) {
         expandGrowableList(gList);
     }
@@ -141,14 +141,14 @@ void oatGrowableListIteratorInit(GrowableList* gList,
 
 intptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator)
 {
-    assert(iterator->size == iterator->list->numUsed);
+    DCHECK_EQ(iterator->size, iterator->list->numUsed);
     if (iterator->idx == iterator->size) return 0;
     return iterator->list->elemList[iterator->idx++];
 }
 
 intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx)
 {
-    assert(idx < gList->numUsed);
+    DCHECK_LT(idx, gList->numUsed);
     return gList->elemList[idx];
 }
 
@@ -212,7 +212,7 @@ ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable)
     ArenaBitVector* bv;
     unsigned int count;
 
-    assert(sizeof(bv->storage[0]) == 4);        /* assuming 32-bit units */
+    DCHECK(sizeof(bv->storage[0]) == 4);        /* assuming 32-bit units */
 
     bv = (ArenaBitVector*) oatNew(sizeof(ArenaBitVector), false);
 
@@ -229,7 +229,7 @@ ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable)
  */
 bool oatIsBitSet(const ArenaBitVector* pBits, unsigned int num)
 {
-    assert(num < pBits->storageSize * sizeof(u4) * 8);
+    DCHECK_LT(num, pBits->storageSize * sizeof(u4) * 8);
 
     unsigned int val = pBits->storage[num >> 5] & (1 << (num & 0x1f));
     return (val != 0);
@@ -261,7 +261,7 @@ bool oatSetBit(ArenaBitVector* pBits, unsigned int num)
 
         /* Round up to word boundaries for "num+1" bits */
         unsigned int newSize = (num + 1 + 31) >> 5;
-        assert(newSize > pBits->storageSize);
+        DCHECK_GT(newSize, pBits->storageSize);
         u4 *newStorage = (u4*)oatNew(newSize * sizeof(u4), false);
         memcpy(newStorage, pBits->storage, pBits->storageSize * sizeof(u4));
         memset(&newStorage[pBits->storageSize], 0,
@@ -346,7 +346,7 @@ void oatBitVectorIteratorInit(ArenaBitVector* pBits,
 /*
  * If the vector sizes don't match, log an error and abort.
  */
-static void checkSizes(const ArenaBitVector* bv1, const ArenaBitVector* bv2)
+STATIC void checkSizes(const ArenaBitVector* bv1, const ArenaBitVector* bv2)
 {
     if (bv1->storageSize != bv2->storageSize) {
         LOG(FATAL) << "Mismatched vector sizes (" << bv1->storageSize <<
@@ -459,7 +459,7 @@ int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
     const ArenaBitVector* pBits = iterator->pBits;
     u4 bitIndex = iterator->idx;
 
-    assert(iterator->bitSize == pBits->storageSize * sizeof(u4) * 8);
+    DCHECK_EQ(iterator->bitSize, pBits->storageSize * sizeof(u4) * 8);
     if (bitIndex >= iterator->bitSize) return -1;
 
     for (; bitIndex < iterator->bitSize; bitIndex++) {
@@ -482,7 +482,7 @@ int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
 void oatSetInitialBits(ArenaBitVector* pBits, unsigned int numBits)
 {
     unsigned int idx;
-    assert(((numBits + 31) >> 5) <= pBits->storageSize);
+    DCHECK_LE(((numBits + 31) >> 5), pBits->storageSize);
     for (idx = 0; idx < (numBits >> 5); idx++) {
         pBits->storage[idx] = -1;
     }
@@ -511,4 +511,14 @@ void oatGetBlockName(BasicBlock* bb, char* name)
             snprintf(name, BLOCK_NAME_LEN, "??");
             break;
     }
+}
+
+const char* oatGetShortyFromTargetIdx(CompilationUnit *cUnit, int targetIdx)
+{
+    art::DexCache* dex_cache =
+        cUnit->method->GetDeclaringClass()->GetDexCache();
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    const art::DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+    const art::DexFile::MethodId& methodId = dex_file.GetMethodId(targetIdx);
+    return dex_file.GetShorty(methodId.proto_idx_);
 }

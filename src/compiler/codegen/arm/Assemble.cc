@@ -966,7 +966,7 @@ ArmEncodingMap EncodingMap[kArmLast] = {
  */
 #define PADDING_MOV_R5_R5               0x1C2D
 
-static void pushWord(std::vector<short>&buf, int data) {
+STATIC void pushWord(std::vector<short>&buf, int data) {
     buf.push_back( data & 0xffff);
     buf.push_back( (data >> 16) & 0xffff);
 }
@@ -977,7 +977,7 @@ void alignBuffer(std::vector<short>&buf, size_t offset) {
 }
 
 /* Write the numbers in the constant to the output stream */
-static void installLiteralPools(CompilationUnit* cUnit)
+STATIC void installLiteralPools(CompilationUnit* cUnit)
 {
     alignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
     ArmLIR* dataLIR = (ArmLIR*) cUnit->literalList;
@@ -988,7 +988,7 @@ static void installLiteralPools(CompilationUnit* cUnit)
 }
 
 /* Write the switch tables to the output stream */
-static void installSwitchTables(CompilationUnit* cUnit)
+STATIC void installSwitchTables(CompilationUnit* cUnit)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
@@ -1015,7 +1015,7 @@ static void installSwitchTables(CompilationUnit* cUnit)
                     tabRec->targets[elems]->generic.offset - bxOffset);
             }
         } else {
-            assert(tabRec->table[0] == kPackedSwitchSignature);
+            DCHECK_EQ(tabRec->table[0], kPackedSwitchSignature);
             for (int elems = 0; elems < tabRec->table[1]; elems++) {
                 int disp = tabRec->targets[elems]->generic.offset - bxOffset;
                 if (cUnit->printMe) {
@@ -1030,7 +1030,7 @@ static void installSwitchTables(CompilationUnit* cUnit)
 }
 
 /* Write the fill array dta to the output stream */
-static void installFillArrayData(CompilationUnit* cUnit)
+STATIC void installFillArrayData(CompilationUnit* cUnit)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
@@ -1050,7 +1050,7 @@ static void installFillArrayData(CompilationUnit* cUnit)
  * discover that pc-relative displacements may not fit the selected
  * instruction.
  */
-static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
+STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                                             intptr_t startAddr)
 {
     ArmLIR* lir;
@@ -1173,7 +1173,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                    lir->opcode == kThumb2BCond) {
             ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
             int delta = 0;
-            assert(targetLIR);
+            DCHECK(targetLIR);
             intptr_t pc = lir->generic.offset + 4;
             intptr_t target = targetLIR->generic.offset;
             delta = target - pc;
@@ -1212,7 +1212,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 res = kRetryAll;
             }
         } else if (lir->opcode == kThumbBlx1) {
-            assert(NEXT_LIR(lir)->opcode == kThumbBlx2);
+            DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);
             /* curPC is Thumb */
             intptr_t curPC = (startAddr + lir->generic.offset + 4) & ~3;
             intptr_t target = lir->operands[1];
@@ -1222,18 +1222,18 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 target |= 0x2;
             }
             int delta = target - curPC;
-            assert((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
+            DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
 
             lir->operands[0] = (delta >> 12) & 0x7ff;
             NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
         } else if (lir->opcode == kThumbBl1) {
-            assert(NEXT_LIR(lir)->opcode == kThumbBl2);
+            DCHECK(NEXT_LIR(lir)->opcode == kThumbBl2);
             /* Both curPC and target are Thumb */
             intptr_t curPC = startAddr + lir->generic.offset + 4;
             intptr_t target = lir->operands[1];
 
             int delta = target - curPC;
-            assert((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
+            DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
 
             lir->operands[0] = (delta >> 12) & 0x7ff;
             NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
@@ -1344,8 +1344,8 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                     bits |= value;
                     break;
                 case kFmtDfp: {
-                    assert(DOUBLEREG(operand));
-                    assert((operand & 0x1) == 0);
+                    DCHECK(DOUBLEREG(operand));
+                    DCHECK((operand & 0x1) == 0);
                     int regName = (operand & FP_REG_MASK) >> 1;
                     /* Snag the 1-bit slice and position it */
                     value = ((regName & 0x10) >> 4) <<
@@ -1357,7 +1357,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                     break;
                 }
                 case kFmtSfp:
-                    assert(SINGLEREG(operand));
+                    DCHECK(SINGLEREG(operand));
                     /* Snag the 1-bit slice and position it */
                     value = (operand & 0x1) <<
                             encoder->fieldLoc[i].end;
@@ -1394,7 +1394,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                     }
                     break;
                 default:
-                    assert(0);
+                    LOG(FATAL) << "Bad fmt:" << (int)encoder->fieldLoc[i].kind;
             }
         }
         if (encoder->size == 2) {
@@ -1405,7 +1405,7 @@ static AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
     return res;
 }
 
-static int assignLiteralOffsetCommon(LIR* lir, int offset)
+STATIC int assignLiteralOffsetCommon(LIR* lir, int offset)
 {
     for (;lir != NULL; lir = lir->next) {
         lir->offset = offset;
@@ -1414,7 +1414,7 @@ static int assignLiteralOffsetCommon(LIR* lir, int offset)
     return offset;
 }
 
-static void createMappingTable(CompilationUnit* cUnit)
+STATIC void createMappingTable(CompilationUnit* cUnit)
 {
     ArmLIR* armLIR;
     int currentDalvikOffset = -1;
@@ -1433,13 +1433,13 @@ static void createMappingTable(CompilationUnit* cUnit)
 }
 
 /* Determine the offset of each literal field */
-static int assignLiteralOffset(CompilationUnit* cUnit, int offset)
+STATIC int assignLiteralOffset(CompilationUnit* cUnit, int offset)
 {
     offset = assignLiteralOffsetCommon(cUnit->literalList, offset);
     return offset;
 }
 
-static int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
+STATIC int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
@@ -1451,14 +1451,14 @@ static int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
         if (tabRec->table[0] == kSparseSwitchSignature) {
             offset += tabRec->table[1] * (sizeof(int) * 2);
         } else {
-            assert(tabRec->table[0] == kPackedSwitchSignature);
+            DCHECK_EQ(tabRec->table[0], kPackedSwitchSignature);
             offset += tabRec->table[1] * sizeof(int);
         }
     }
     return offset;
 }
 
-static int assignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
+STATIC int assignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
