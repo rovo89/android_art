@@ -35,12 +35,11 @@ void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_end(args);
 }
 
-void ThrowVirtualMachineError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
-void ThrowVirtualMachineError(const char* fmt, ...) {
+void ThrowClassFormatError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowClassFormatError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  UNIMPLEMENTED(FATAL) << "VirtualMachineError is abstract, throw something else";
-  Thread::Current()->ThrowNewExceptionV("Ljava/lang/VirtualMachineError;", fmt, args);
+  Thread::Current()->ThrowNewExceptionV("Ljava/lang/ClassFormatError;", fmt, args);
   va_end(args);
 }
 
@@ -1662,25 +1661,23 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
     Class* super_class = ResolveType(dex_file, klass->GetSuperClassTypeIdx(), klass);
     if (super_class == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
-      // TODO: can't ThrowVirtualMachineError, its abstract
-      // ThrowVirtualMachineError("Failed to resolve superclass with type index %d for class %s",
-      //     klass->GetSuperClassTypeIdx(), PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
     }
     klass->SetSuperClass(super_class);
   }
   for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
     uint32_t idx = klass->GetInterfacesTypeIdx()->Get(i);
-    Class *interface = ResolveType(dex_file, idx, klass);
+    Class* interface = ResolveType(dex_file, idx, klass);
     klass->SetInterface(i, interface);
     if (interface == NULL) {
-      ThrowVirtualMachineError("Failed to resolve interface with type index %d for class %s",
-          idx, PrettyDescriptor(klass->GetDescriptor()).c_str());
+      DCHECK(Thread::Current()->IsExceptionPending());
       return false;
     }
     // Verify
     if (!klass->CanAccess(interface)) {
-      ThrowVirtualMachineError("Inaccessible interface %s implemented by class %s",
+      // TODO: the RI seemed to ignore this in my testing.
+      Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+          "Interface %s implemented by class %s is inaccessible",
           PrettyDescriptor(interface->GetDescriptor()).c_str(),
           PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
@@ -1711,13 +1708,17 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   // Verify
   if (super->IsFinal() || super->IsInterface()) {
     Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
-        "Superclass %s is %s", PrettyDescriptor(super->GetDescriptor()).c_str(),
+        "Superclass %s of %s is %s",
+        PrettyDescriptor(super->GetDescriptor()).c_str(),
+        PrettyDescriptor(klass->GetDescriptor()).c_str(),
         super->IsFinal() ? "declared final" : "an interface");
     return false;
   }
   if (!klass->CanAccess(super)) {
     Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
-        "Superclass %s is inaccessible", PrettyDescriptor(super->GetDescriptor()).c_str());
+        "Superclass %s is inaccessible by %s",
+        PrettyDescriptor(super->GetDescriptor()).c_str(),
+        PrettyDescriptor(klass->GetDescriptor()).c_str());
     return false;
   }
 #ifndef NDEBUG
@@ -1736,7 +1737,7 @@ bool ClassLinker::LinkMethods(Class* klass) {
     // No vtable.
     size_t count = klass->NumVirtualMethods();
     if (!IsUint(16, count)) {
-      ThrowVirtualMachineError("Too many methods on interface: %d", count);
+      ThrowClassFormatError("Too many methods on interface: %d", count);
       return false;
     }
     for (size_t i = 0; i < count; ++i) {
@@ -1770,7 +1771,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
         if (local_method->HasSameNameAndDescriptor(super_method)) {
           // Verify
           if (super_method->IsFinal()) {
-            ThrowVirtualMachineError("Method %s.%s overrides final method in class %s",
+            ThrowLinkageError("Method %s.%s overrides final method in class %s",
                 PrettyDescriptor(klass->GetDescriptor()).c_str(),
                 local_method->GetName()->ToModifiedUtf8().c_str(),
                 PrettyDescriptor(super_method->GetDeclaringClass()->GetDescriptor()).c_str());
@@ -1789,7 +1790,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       }
     }
     if (!IsUint(16, actual_count)) {
-      ThrowVirtualMachineError("Too many methods defined on class: %d", actual_count);
+      ThrowClassFormatError("Too many methods defined on class: %d", actual_count);
       return false;
     }
     // Shrink vtable if possible
@@ -1802,7 +1803,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
     CHECK(klass->GetDescriptor()->Equals("Ljava/lang/Object;"));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
     if (!IsUint(16, num_virtual_methods)) {
-      ThrowVirtualMachineError("Too many methods: %d", num_virtual_methods);
+      ThrowClassFormatError("Too many methods: %d", num_virtual_methods);
       return false;
     }
     ObjectArray<Method>* vtable = AllocObjectArray<Method>(num_virtual_methods);
