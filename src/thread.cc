@@ -133,38 +133,63 @@ extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Me
   Runtime* runtime = Runtime::Current();
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
-  thread->SetStackEndForStackOverflow();
+  thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
   thread->ThrowNewException("Ljava/lang/StackOverflowError;",
                             "stack size %zdkb; default stack size: %zdkb",
                             thread->GetStackSize() / KB, runtime->GetDefaultStackSize() / KB);
-  thread->ResetDefaultStackEnd();
+  thread->ResetDefaultStackEnd();  // Return to default stack size
   thread->DeliverException();
 }
 
-// TODO: placeholder
-void ThrowVerificationErrorFromCode(int32_t src1, int32_t ref) {
-    UNIMPLEMENTED(FATAL) << "Verification error, src1: " << src1 <<
-        " ref: " << ref;
+extern "C" void artThrowVerificationErrorFromCode(int32_t src1, int32_t ref, Thread* thread, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  LOG(WARNING) << "TODO: verifcation error detail message. src1=" << src1 << " ref=" << ref;
+  thread->ThrowNewException("Ljava/lang/VerifyError;",
+                            "TODO: verifcation error detail message. src1=%d; ref=%d", src1, ref);
+  thread->DeliverException();
 }
 
-// TODO: placeholder
-void ThrowNegArraySizeFromCode(int32_t index) {
-    UNIMPLEMENTED(FATAL) << "Negative array size: " << index;
+extern "C" void artThrowInternalErrorFromCode(int32_t errnum, Thread* thread, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  LOG(WARNING) << "TODO: internal error detail message. errnum=" << errnum;
+  thread->ThrowNewException("Ljava/lang/InternalError;", "errnum=%d", errnum);
+  thread->DeliverException();
 }
 
-// TODO: placeholder
-void ThrowInternalErrorFromCode(int32_t errnum) {
-    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
+extern "C" void artThrowRuntimeExceptionFromCode(int32_t errnum, Thread* thread, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  LOG(WARNING) << "TODO: runtime exception detail message. errnum=" << errnum;
+  thread->ThrowNewException("Ljava/lang/RuntimeException;", "errnum=%d", errnum);
+  thread->DeliverException();
 }
 
-// TODO: placeholder
-void ThrowRuntimeExceptionFromCode(int32_t errnum) {
-    UNIMPLEMENTED(FATAL) << "Internal error: " << errnum;
+extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* thread, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  LOG(WARNING) << "TODO: no such method exception detail message. method_idx=" << method_idx;
+  thread->ThrowNewException("Ljava/lang/NoSuchMethodError;", "method_idx=%d", method_idx);
+  thread->DeliverException();
 }
 
-// TODO: placeholder
-void ThrowNoSuchMethodFromCode(int32_t method_idx) {
-    UNIMPLEMENTED(FATAL) << "No such method, idx: " << method_idx;
+extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Method** sp) {
+  LOG(WARNING) << "UNTESTED artThrowNegArraySizeFromCode";
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  thread->SetTopOfStack(sp, 0);
+  thread->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d", size);
+  thread->DeliverException();
 }
 
 // TODO: placeholder.  Helper function to type
@@ -447,11 +472,17 @@ void Thread::InitFunctionPointers() {
   pTestSuspendFromCode = art_test_suspend;
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
   pThrowDivZeroFromCode = art_throw_div_zero_from_code;
+  pThrowInternalErrorFromCode = art_throw_internal_error_from_code;
+  pThrowNegArraySizeFromCode = art_throw_neg_array_size_from_code;
+  pThrowNoSuchMethodFromCode = art_throw_no_such_method_from_code;
   pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
+  pThrowRuntimeExceptionFromCode = art_throw_runtime_exception_from_code;
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
+  pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
 #endif
   pDeliverException = art_deliver_exception_from_code;
+  pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pF2l = F2L;
   pD2l = D2L;
   pMemcpy = memcpy;
@@ -467,12 +498,6 @@ void Thread::InitFunctionPointers() {
   pLockObjectFromCode = LockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = artCheckSuspendFromCode;
-  pThrowVerificationErrorFromCode = ThrowVerificationErrorFromCode;
-  pThrowNegArraySizeFromCode = ThrowNegArraySizeFromCode;
-  pThrowRuntimeExceptionFromCode = ThrowRuntimeExceptionFromCode;
-  pThrowInternalErrorFromCode = ThrowInternalErrorFromCode;
-  pThrowNoSuchMethodFromCode = ThrowNoSuchMethodFromCode;
-  pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pFindNativeMethod = FindNativeMethod;
   pDecodeJObjectInThread = DecodeJObjectInThread;
   pDebugMe = DebugMe;

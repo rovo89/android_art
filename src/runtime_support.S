@@ -67,6 +67,51 @@ art_throw_stack_overflow_from_code:
     mov r2, sp                        @ pass SP
     b   artThrowStackOverflowFromCode @ artThrowStackOverflowFromCode(method, Thread*, SP)
 
+    .global art_throw_neg_array_size_from_code
+    .extern artThrowNegArraySizeFromCode
+art_throw_neg_array_size_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    mov r1, r9                        @ pass Thread::Current
+    mov r2, sp                        @ pass SP
+    b   artThrowNegArraySizeFromCode  @ artThrowNegArraySizeFromCode(size, Thread*, SP)
+
+    .global art_throw_internal_error_from_code
+    .extern artThrowInternalErrorFromCode
+art_throw_internal_error_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    mov r1, r9                        @ pass Thread::Current
+    mov r2, sp                        @ pass SP
+    b   artThrowInternalErrorFromCode @ artThrowInternalErrorFromCode(errnum, Thread*, SP)
+
+    .global art_throw_no_such_method_from_code
+    .extern artThrowNoSuchMethodFromCode
+art_throw_no_such_method_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    mov r1, r9                        @ pass Thread::Current
+    mov r2, sp                        @ pass SP
+    b   artThrowNoSuchMethodFromCode  @ artThrowNoSuchMethodFromCode(method_idx, Thread*, SP)
+
+    .global art_throw_runtime_exception_from_code
+    .extern artThrowRuntimeExceptionFromCode
+art_throw_runtime_exception_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                          @ 4 words of space, bottom word will hold Method*
+    mov r1, r9                           @ pass Thread::Current
+    mov r2, sp                           @ pass SP
+    b   artThrowRuntimeExceptionFromCode @ artThrowRuntimeExceptionFromCode(errnum, Thread*, SP)
+
+    .global art_throw_verification_error_from_code
+    .extern artThrowVerificationErrorFromCode
+art_throw_verification_error_from_code:
+    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
+    sub sp, #16                           @ 4 words of space, bottom word will hold Method*
+    mov r2, r9                            @ pass Thread::Current
+    mov r3, sp                            @ pass SP
+    b   artThrowVerificationErrorFromCode @ artThrowVerificationErrorFromCode(src1, ref, Thread*, SP)
+
     .global art_invoke_interface_trampoline
     .extern artFindInterfaceMethodInCacheFromCode
     /*

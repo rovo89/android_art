@@ -19,8 +19,13 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void art_test_suspend();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();
+  extern "C" void art_throw_internal_error_from_code(int32_t errnum);
+  extern "C" void art_throw_neg_array_size_from_code(int32_t size);
+  extern "C" void art_throw_no_such_method_from_code(int32_t method_idx);
   extern "C" void art_throw_null_pointer_exception_from_code();
+  extern "C" void art_throw_runtime_exception_from_code(int32_t errnum);
   extern "C" void art_throw_stack_overflow_from_code(void*);
+  extern "C" void art_throw_verification_error_from_code(int32_t src1, int32_t ref);
   extern "C" void art_unlock_object_from_code(void*, void*);
 
   /* Conversions */
