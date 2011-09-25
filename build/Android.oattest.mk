@@ -81,4 +81,6 @@ $(eval $(call declare-test-test-target,SystemMethods,))
 # $(eval $(call declare-test-test-target,StackWalk,))
 # $(eval $(call declare-test-test-target,StackWalk2,))
 
+$(eval $(call declare-test-test-target,MemUsage,))
+
 ########################################################################

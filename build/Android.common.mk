@@ -212,6 +212,7 @@ TEST_DEX_DIRECTORIES := \
 	IntMath \
 	Interfaces \
 	Main \
+	MemUsage \
 	MyClass \
 	MyClassNatives \
 	Nested \
