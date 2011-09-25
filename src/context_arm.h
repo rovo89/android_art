@@ -28,7 +28,7 @@ class ArmContext : public Context {
 
  private:
   uintptr_t gprs_[16];
-  float fprs_[32];
+  uint32_t fprs_[32];
 };
 
 }  // namespace arm

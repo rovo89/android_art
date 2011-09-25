@@ -9,6 +9,13 @@
     /* Deliver an exception pending on a thread */
     .extern artDeliverPendingException
 
+    /* Macro that sets up the callee save frame to conform with Runtime::CreateCalleeSaveMethod */
+.macro SETUP_CALLEE_SAVE_FRAME
+    push {r1-r11, lr}
+    vpush {s0-s31}
+    sub sp, #16  @ 4 words of space, bottom word will hold Method*
+.endm
+
     .global art_deliver_exception_from_code
     /*
      * Called by managed code, saves mosts registers (forms basis of long jump context) and passes
@@ -16,8 +23,7 @@
      * the bottom of the thread. On entry r0 holds Throwable*
      */
 art_deliver_exception_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                     @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r1, r9                      @ pass Thread::Current
     mov r2, sp                      @ pass SP
     b   artDeliverExceptionFromCode @ artDeliverExceptionFromCode(Throwable*, Thread*, SP)
@@ -28,8 +34,7 @@ art_deliver_exception_from_code:
      * Called by managed code to create and deliver a NullPointerException
      */
 art_throw_null_pointer_exception_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                              @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r0, r9                               @ pass Thread::Current
     mov r1, sp                               @ pass SP
     b   artThrowNullPointerExceptionFromCode @ artThrowNullPointerExceptionFromCode(Thread*, SP)
@@ -40,8 +45,7 @@ art_throw_null_pointer_exception_from_code:
      * Called by managed code to create and deliver an ArithmeticException
      */
 art_throw_div_zero_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                 @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r0, r9                  @ pass Thread::Current
     mov r1, sp                  @ pass SP
     b   artThrowDivZeroFromCode @ artThrowDivZeroFromCode(Thread*, SP)
@@ -52,8 +56,7 @@ art_throw_div_zero_from_code:
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException
      */
 art_throw_array_bounds_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                     @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r2, r9                      @ pass Thread::Current
     mov r3, sp                      @ pass SP
     b   artThrowArrayBoundsFromCode @ artThrowArrayBoundsFromCode(index, limit, Thread*, SP)
@@ -61,8 +64,7 @@ art_throw_array_bounds_from_code:
     .global art_throw_stack_overflow_from_code
     .extern artThrowStackOverflowFromCode
 art_throw_stack_overflow_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r1, r9                        @ pass Thread::Current
     mov r2, sp                        @ pass SP
     b   artThrowStackOverflowFromCode @ artThrowStackOverflowFromCode(method, Thread*, SP)
@@ -70,8 +72,7 @@ art_throw_stack_overflow_from_code:
     .global art_throw_neg_array_size_from_code
     .extern artThrowNegArraySizeFromCode
 art_throw_neg_array_size_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r1, r9                        @ pass Thread::Current
     mov r2, sp                        @ pass SP
     b   artThrowNegArraySizeFromCode  @ artThrowNegArraySizeFromCode(size, Thread*, SP)
@@ -79,8 +80,7 @@ art_throw_neg_array_size_from_code:
     .global art_throw_internal_error_from_code
     .extern artThrowInternalErrorFromCode
 art_throw_internal_error_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r1, r9                        @ pass Thread::Current
     mov r2, sp                        @ pass SP
     b   artThrowInternalErrorFromCode @ artThrowInternalErrorFromCode(errnum, Thread*, SP)
@@ -88,8 +88,7 @@ art_throw_internal_error_from_code:
     .global art_throw_no_such_method_from_code
     .extern artThrowNoSuchMethodFromCode
 art_throw_no_such_method_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                       @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r1, r9                        @ pass Thread::Current
     mov r2, sp                        @ pass SP
     b   artThrowNoSuchMethodFromCode  @ artThrowNoSuchMethodFromCode(method_idx, Thread*, SP)
@@ -97,8 +96,7 @@ art_throw_no_such_method_from_code:
     .global art_throw_runtime_exception_from_code
     .extern artThrowRuntimeExceptionFromCode
 art_throw_runtime_exception_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                          @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r1, r9                           @ pass Thread::Current
     mov r2, sp                           @ pass SP
     b   artThrowRuntimeExceptionFromCode @ artThrowRuntimeExceptionFromCode(errnum, Thread*, SP)
@@ -106,8 +104,7 @@ art_throw_runtime_exception_from_code:
     .global art_throw_verification_error_from_code
     .extern artThrowVerificationErrorFromCode
 art_throw_verification_error_from_code:
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub sp, #16                           @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov r2, r9                            @ pass Thread::Current
     mov r3, sp                            @ pass SP
     b   artThrowVerificationErrorFromCode @ artThrowVerificationErrorFromCode(src1, ref, Thread*, SP)
@@ -141,8 +138,7 @@ art_invoke_interface_trampoline:
     cmp    r0, #0                                @ did we find the target?
     bxne   r12                                   @ tail call to target if so
                                                  @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                               @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                                @ pass Thread::Current
     mov    r1, sp                                @ pass SP
     b      artDeliverPendingExceptionFromCode    @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -164,8 +160,7 @@ art_handle_fill_data_from_code:
     cmp    r0, #0                             @ success?
     moveq  pc, lr                             @ return on success
                                               @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                             @ pass Thread::Current
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -186,8 +181,7 @@ art_unlock_object_from_code:
     cmp    r0, #0                             @ success?
     moveq  pc, lr                             @ return on success
                                               @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                             @ pass Thread::Current
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -208,8 +202,7 @@ art_check_cast_from_code:
     cmp    r0, #0                             @ success?
     moveq  pc, lr                             @ return on success
                                               @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                             @ pass Thread::Current
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -233,8 +226,7 @@ art_can_put_array_element_from_code:
     cmp    r0, #0                             @ success?
     moveq  pc, lr                             @ return on success
                                               @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                             @ pass Thread::Current
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -258,8 +250,7 @@ art_initialize_static_storage_from_code:
     cmp    r0, #0                             @ success if result is non-null
     movne  pc, lr                             @ return on success
                                               @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                            @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                             @ pass Thread::Current
     mov    r1, sp                             @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -280,8 +271,7 @@ art_alloc_object_from_code:
     cmp    r0, #0                  @ success if result is non-null
     movne  pc, lr                  @ return on success
                                    @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                 @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                  @ pass Thread::Current
     mov    r1, sp                  @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
@@ -302,8 +292,7 @@ art_array_alloc_from_code:
     cmp    r0, #0                 @ success if result is non-null
     movne  pc, lr                 @ return on success
                                   @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME
     mov    r0, r9                 @ pass Thread::Current
     mov    r1, sp                 @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)

@@ -581,8 +581,9 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
   method->SetSignature(intern_table_->InternStrong("()V"));
   method->SetCode(NULL, insns, NULL);
   if ((insns == kThumb2) || (insns == kArm)) {
-    method->SetFrameSizeInBytes(64);
-    method->SetReturnPcOffsetInBytes(60);
+    size_t frame_size = (12 /* gprs */ + 32 /* fprs */ + 4 /* data */) * kPointerSize;
+    method->SetFrameSizeInBytes(frame_size);
+    method->SetReturnPcOffsetInBytes(frame_size - kPointerSize);
     method->SetCoreSpillMask((1 << art::arm::R1) |
                              (1 << art::arm::R2) |
                              (1 << art::arm::R3) |
@@ -595,7 +596,38 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
                              (1 << art::arm::R10) |
                              (1 << art::arm::R11) |
                              (1 << art::arm::LR));
-    method->SetFpSpillMask(0);
+    method->SetFpSpillMask((1 << art::arm::S0) |
+                           (1 << art::arm::S1) |
+                           (1 << art::arm::S2) |
+                           (1 << art::arm::S3) |
+                           (1 << art::arm::S4) |
+                           (1 << art::arm::S5) |
+                           (1 << art::arm::S6) |
+                           (1 << art::arm::S7) |
+                           (1 << art::arm::S8) |
+                           (1 << art::arm::S9) |
+                           (1 << art::arm::S10) |
+                           (1 << art::arm::S11) |
+                           (1 << art::arm::S12) |
+                           (1 << art::arm::S13) |
+                           (1 << art::arm::S14) |
+                           (1 << art::arm::S15) |
+                           (1 << art::arm::S16) |
+                           (1 << art::arm::S17) |
+                           (1 << art::arm::S18) |
+                           (1 << art::arm::S19) |
+                           (1 << art::arm::S20) |
+                           (1 << art::arm::S21) |
+                           (1 << art::arm::S22) |
+                           (1 << art::arm::S23) |
+                           (1 << art::arm::S24) |
+                           (1 << art::arm::S25) |
+                           (1 << art::arm::S26) |
+                           (1 << art::arm::S27) |
+                           (1 << art::arm::S28) |
+                           (1 << art::arm::S29) |
+                           (1 << art::arm::S30) |
+                           (1 << art::arm::S31));
   } else if (insns == kX86) {
     method->SetFrameSizeInBytes(32);
     method->SetReturnPcOffsetInBytes(28);

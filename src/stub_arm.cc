@@ -18,6 +18,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   RegList save = (1 << R1) | (1 << R2) | (1 << R3) | (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) |
                  (1 << R8) | (1 << R9) | (1 << R10) | (1 << R11) | (1 << LR);
   __ PushList(save);
+  __ Emit(0xed2d0a20);  // vpush {s0-s31}
   __ IncreaseFrameSize(16);  // 4 words of space, bottom word will hold callee save Method*
 
   // R0 is the Method* already
