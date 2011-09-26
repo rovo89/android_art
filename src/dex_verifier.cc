@@ -105,16 +105,14 @@ bool DexVerifier::VerifyClass(Class* klass) {
   for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
     Method* method = klass->GetDirectMethod(i);
     if (!VerifyMethod(method)) {
-      LOG(ERROR) << "Verifier rejected class "
-                 << klass->GetDescriptor()->ToModifiedUtf8();
+      LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass);
       return false;
     }
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
     Method* method = klass->GetVirtualMethod(i);
     if (!VerifyMethod(method)) {
-      LOG(ERROR) << "Verifier rejected class "
-                 << klass->GetDescriptor()->ToModifiedUtf8();
+      LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass);
       return false;
     }
   }
@@ -336,10 +334,7 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
 
   /* Initialize register types of method arguments. */
   if (!SetTypesFromSignature(vdata, reg_table.register_lines_[0].reg_types_.get())) {
-    LOG(ERROR) << "VFY: bad signature '"
-               << method->GetSignature()->ToModifiedUtf8() << "' for "
-               << method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << method->GetName()->ToModifiedUtf8();
+    LOG(ERROR) << "VFY: bad signature in " << PrettyMethod(method);
     return false;
   }
 
@@ -1298,21 +1293,13 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
       RegisterLine* register_line = GetRegisterLine(reg_table, insn_idx);
       if (register_line->reg_types_.get() != NULL && CompareLineToTable(reg_table,
           insn_idx, &reg_table->work_line_) != 0) {
-        Class* klass = method->GetDeclaringClass();
-        LOG(ERROR) << "HUH? work_line diverged in "
-                   << klass->GetDescriptor()->ToModifiedUtf8() << "."
-                   << method->GetName()->ToModifiedUtf8() << " "
-                   << method->GetSignature()->ToModifiedUtf8();
+        LOG(ERROR) << "HUH? work_line diverged in " << PrettyMethod(method);
       }
 #endif
     }
 
     if (!CodeFlowVerifyInstruction(vdata, reg_table, insn_idx, &start_guess)) {
-      Class* klass = method->GetDeclaringClass();
-      LOG(ERROR) << "VFY: failure to verify "
-                 << klass->GetDescriptor()->ToModifiedUtf8() << "."
-                << method->GetName()->ToModifiedUtf8() << " "
-                << method->GetSignature()->ToModifiedUtf8();
+      LOG(ERROR) << "VFY: failure to verify " << PrettyMethod(method);
       return false;
     }
 
@@ -1351,22 +1338,14 @@ bool DexVerifier::CodeFlowVerifyMethod(VerifierData* vdata,
         if (dead_start < 0)
           dead_start = insn_idx;
       } else if (dead_start >= 0) {
-        Class* klass = method->GetDeclaringClass();
         LOG(INFO) << "VFY: dead code 0x" << std::hex << dead_start << "-"
-                  << insn_idx - 1 << std::dec << " in "
-                  << klass->GetDescriptor()->ToModifiedUtf8() << "."
-                  << method->GetName()->ToModifiedUtf8() << " "
-                  << method->GetSignature()->ToModifiedUtf8();
+                  << insn_idx - 1 << std::dec << " in " << PrettyMethod(method);
         dead_start = -1;
       }
     }
     if (dead_start >= 0) {
-      Class* klass = method->GetDeclaringClass();
       LOG(INFO) << "VFY: dead code 0x" << std::hex << dead_start << "-"
-                << insn_idx - 1 << std::dec << " in "
-                << klass->GetDescriptor()->ToModifiedUtf8() << "."
-                << method->GetName()->ToModifiedUtf8() << " "
-                << method->GetSignature()->ToModifiedUtf8();
+                << insn_idx - 1 << std::dec << " in " << PrettyMethod(method);
     }
   }
 
@@ -1381,8 +1360,6 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
   InsnFlags* insn_flags = vdata->insn_flags_.get();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   UninitInstanceMap* uninit_map = vdata->uninit_map_.get();
-  const ClassLoader* class_loader =
-      method->GetDeclaringClass()->GetClassLoader();
   const uint16_t* insns = code_item->insns_ + insn_idx;
   uint32_t insns_size = code_item->insns_size_;
   uint32_t registers_size = code_item->registers_size_;
@@ -1651,12 +1628,11 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve const-class " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        if (failure != VERIFY_ERROR_NONE) {
-          break;
-        }
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
+      } else {
+        SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(
+            class_linker->FindSystemClass("Ljava/lang/Class;")));
       }
-      SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(
-          class_linker->FindSystemClass("Ljava/lang/Class;")));
       break;
 
     case Instruction::MONITOR_ENTER:
@@ -1703,21 +1679,16 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve check-cast " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        if (failure != VERIFY_ERROR_NONE) {
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
+      } else {
+        RegType orig_type = GetRegisterType(work_line, dec_insn.vA_);
+        if (!RegTypeIsReference(orig_type)) {
+          LOG(ERROR) << "VFY: check-cast on non-reference in v" << dec_insn.vA_;
+          failure = VERIFY_ERROR_GENERIC;
           break;
         }
-        /* if the class is unresolvable, treat it as an object */
-        res_class = class_linker->FindClass("Ljava/lang/Object;", class_loader);
+        SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(res_class));
       }
-      RegType orig_type;
-
-      orig_type = GetRegisterType(work_line, dec_insn.vA_);
-      if (!RegTypeIsReference(orig_type)) {
-        LOG(ERROR) << "VFY: check-cast on non-reference in v" << dec_insn.vA_;
-        failure = VERIFY_ERROR_GENERIC;
-        break;
-      }
-      SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(res_class));
       break;
     case Instruction::INSTANCE_OF:
       /* make sure we're checking a reference type */
@@ -1735,12 +1706,11 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve instanceof " << dec_insn.vC_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        if (failure != VERIFY_ERROR_NONE) {
-          break;
-        }
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
+      } else {
+        /* result is boolean */
+        SetRegisterType(work_line, dec_insn.vA_, kRegTypeBoolean);
       }
-      /* result is boolean */
-      SetRegisterType(work_line, dec_insn.vA_, kRegTypeBoolean);
       break;
 
     case Instruction::ARRAY_LENGTH:
@@ -1756,19 +1726,14 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
       break;
 
     case Instruction::NEW_INSTANCE:
-      {
-        res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
-        if (res_class == NULL) {
-          const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
-          LOG(ERROR) << "VFY: unable to resolve new-instance " << dec_insn.vB_
-                     << " (" << bad_class_desc << ") in "
-                     << klass->GetDescriptor()->ToModifiedUtf8();
-          if (failure != VERIFY_ERROR_NONE) {
-            break;
-          }
-          /* if the class is unresolvable, treat it as an object */
-          res_class = class_linker->FindClass("Ljava/lang/Object;", class_loader);
-        }
+      res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vB_, klass, &failure);
+      if (res_class == NULL) {
+        const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vB_);
+        LOG(ERROR) << "VFY: unable to resolve new-instance " << dec_insn.vB_
+                   << " (" << bad_class_desc << ") in "
+                   << klass->GetDescriptor()->ToModifiedUtf8();
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
+      } else {
         RegType uninit_type;
 
         /* can't create an instance of an interface or abstract class */
@@ -1793,8 +1758,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
 
         /* add the new uninitialized reference to the register ste */
         SetRegisterType(work_line, dec_insn.vA_, uninit_type);
-        break;
       }
+      break;
    case Instruction::NEW_ARRAY:
       res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vC_, klass, &failure);
       if (res_class == NULL) {
@@ -1802,13 +1767,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve new-array " << dec_insn.vC_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        if (failure != VERIFY_ERROR_NONE) {
-          break;
-        }
-        /* if the class is unresolvable, treat it as an object array */
-        res_class = class_linker->FindClass("[Ljava/lang/Object;", class_loader);
-      }
-      if (!res_class->IsArrayClass()) {
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
+      } else if (!res_class->IsArrayClass()) {
         LOG(ERROR) << "VFY: new-array on non-array class";
         failure = VERIFY_ERROR_GENERIC;
       } else {
@@ -1826,13 +1786,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         LOG(ERROR) << "VFY: unable to resolve filled-array " << dec_insn.vB_
                    << " (" << bad_class_desc << ") in "
                    << klass->GetDescriptor()->ToModifiedUtf8();
-        if (failure != VERIFY_ERROR_NONE) {
-          break;
-        }
-        /* if the class is unresolvable, treat it as an object array */
-        res_class = class_linker->FindClass("[Ljava/lang/Object;", class_loader);
-      }
-      if (!res_class->IsArrayClass()) {
+        DCHECK(failure != VERIFY_ERROR_GENERIC);
+      } else if (!res_class->IsArrayClass()) {
         LOG(ERROR) << "VFY: filled-new-array on non-array class";
         failure = VERIFY_ERROR_GENERIC;
       } else {
@@ -2363,18 +2318,14 @@ iget_1nr_common:
           break;
 
         /* make sure the field's type is compatible with expectation */
-        field_type =
-            PrimitiveTypeToRegType(inst_field->GetType()->GetPrimitiveType());
+        field_type = PrimitiveTypeToRegType(inst_field->GetType()->GetPrimitiveType());
 
         /* correct if float */
         if (field_type == kRegTypeFloat)
           tmp_type = kRegTypeFloat;
 
         if (field_type == kRegTypeUnknown || tmp_type != field_type) {
-          Class* inst_field_class = inst_field->GetDeclaringClass();
-          LOG(ERROR) << "VFY: invalid iget-1nr of "
-                     << inst_field_class->GetDescriptor()->ToModifiedUtf8()
-                     << "." << inst_field->GetName()->ToModifiedUtf8()
+          LOG(ERROR) << "VFY: invalid iget-1nr of " << PrettyField(inst_field)
                      << " (inst=" << tmp_type << " field=" << field_type << ")";
           failure = VERIFY_ERROR_GENERIC;
           break;
@@ -2385,33 +2336,25 @@ iget_1nr_common:
       break;
     case Instruction::IGET_WIDE:
       {
-        RegType dst_type;
         Field* inst_field;
         RegType obj_type;
 
         obj_type = GetRegisterType(work_line, dec_insn.vB_);
         inst_field = GetInstField(vdata, obj_type, dec_insn.vC_, &failure);
-        Class* inst_field_class = inst_field->GetDeclaringClass();
         if (failure != VERIFY_ERROR_NONE)
           break;
         /* check the type, which should be prim */
         switch (inst_field->GetType()->GetPrimitiveType()) {
           case Class::kPrimDouble:
-            dst_type = kRegTypeDoubleLo;
+            SetRegisterType(work_line, dec_insn.vA_, kRegTypeDoubleLo);
             break;
           case Class::kPrimLong:
-            dst_type = kRegTypeLongLo;
+            SetRegisterType(work_line, dec_insn.vA_, kRegTypeLongLo);
             break;
           default:
-            LOG(ERROR) << "VFY: invalid iget-wide of "
-                       << inst_field_class->GetDescriptor()->ToModifiedUtf8()
-                       << "." << inst_field->GetName()->ToModifiedUtf8();
-            dst_type = kRegTypeUnknown;
+            LOG(ERROR) << "VFY: invalid iget-wide of " << PrettyField(inst_field);
             failure = VERIFY_ERROR_GENERIC;
             break;
-        }
-        if (failure == VERIFY_ERROR_NONE) {
-          SetRegisterType(work_line, dec_insn.vA_, dst_type);
         }
       }
       break;
@@ -2433,11 +2376,8 @@ iget_1nr_common:
           failure = VERIFY_ERROR_GENERIC;
           break;
         }
-        if (failure == VERIFY_ERROR_NONE) {
-          DCHECK(!field_class->IsPrimitive()) << PrettyClass(field_class);
-          SetRegisterType(work_line, dec_insn.vA_,
-              RegTypeFromClass(field_class));
-        }
+        DCHECK(!field_class->IsPrimitive()) << PrettyClass(field_class);
+        SetRegisterType(work_line, dec_insn.vA_, RegTypeFromClass(field_class));
       }
       break;
     case Instruction::IPUT:
@@ -2469,8 +2409,7 @@ iput_1nr_common:
           break;
 
         /* get type of field we're storing into */
-        field_type =
-            PrimitiveTypeToRegType(inst_field->GetType()->GetPrimitiveType());
+        field_type = PrimitiveTypeToRegType(inst_field->GetType()->GetPrimitiveType());
         src_type = GetRegisterType(work_line, dec_insn.vA_);
 
         /* correct if float */
@@ -2498,10 +2437,7 @@ iput_1nr_common:
 
         if (failure != VERIFY_ERROR_NONE || field_type == kRegTypeUnknown ||
             tmp_type != field_type) {
-          Class* inst_field_class = inst_field->GetDeclaringClass();
-          LOG(ERROR) << "VFY: invalid iput-1nr of "
-                     << inst_field_class->GetDescriptor()->ToModifiedUtf8()
-                     << "." << inst_field->GetName()->ToModifiedUtf8()
+          LOG(ERROR) << "VFY: invalid iput-1nr of " << PrettyField(inst_field)
                      << " (inst=" << tmp_type << " field=" << field_type << ")";
           failure = VERIFY_ERROR_GENERIC;
           break;
@@ -2509,34 +2445,34 @@ iput_1nr_common:
       }
       break;
     case Instruction::IPUT_WIDE:
-      Field* inst_field;
-      RegType obj_type;
+      {
+        Field* inst_field;
+        RegType obj_type;
 
-      obj_type = GetRegisterType(work_line, dec_insn.vB_);
-      inst_field = GetInstField(vdata, obj_type, dec_insn.vC_, &failure);
-      if (failure != VERIFY_ERROR_NONE)
-        break;
-      CheckFinalFieldAccess(method, inst_field, &failure);
-      if (failure != VERIFY_ERROR_NONE)
-        break;
+        obj_type = GetRegisterType(work_line, dec_insn.vB_);
+        inst_field = GetInstField(vdata, obj_type, dec_insn.vC_, &failure);
+        if (failure != VERIFY_ERROR_NONE)
+          break;
+        CheckFinalFieldAccess(method, inst_field, &failure);
+        if (failure != VERIFY_ERROR_NONE)
+          break;
 
-      /* check the type, which should be prim */
-      switch (inst_field->GetType()->GetPrimitiveType()) {
-        case Class::kPrimDouble:
-          VerifyRegisterType(work_line, dec_insn.vA_, kRegTypeDoubleLo,
-              &failure);
-          break;
-        case Class::kPrimLong:
-          VerifyRegisterType(work_line, dec_insn.vA_, kRegTypeLongLo, &failure);
-          break;
-        default:
-          LOG(ERROR) << "VFY: invalid iput-wide of "
-                     << inst_field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                     << "." << inst_field->GetName()->ToModifiedUtf8();
-          failure = VERIFY_ERROR_GENERIC;
-          break;
+        /* check the type, which should be prim */
+        switch (inst_field->GetType()->GetPrimitiveType()) {
+          case Class::kPrimDouble:
+            VerifyRegisterType(work_line, dec_insn.vA_, kRegTypeDoubleLo,
+                &failure);
+            break;
+          case Class::kPrimLong:
+            VerifyRegisterType(work_line, dec_insn.vA_, kRegTypeLongLo, &failure);
+            break;
+          default:
+            LOG(ERROR) << "VFY: invalid iput-wide of " << PrettyField(inst_field);
+            failure = VERIFY_ERROR_GENERIC;
+            break;
         }
-      break;
+        break;
+      }
     case Instruction::IPUT_OBJECT:
       {
         Class* field_class;
@@ -2581,14 +2517,11 @@ iput_1nr_common:
           /* allow if field is any interface or field is base class */
           if (!field_class->IsInterface() &&
               !field_class->IsAssignableFrom(value_class)) {
-            Class* inst_field_class = inst_field->GetDeclaringClass();
             LOG(ERROR) << "VFY: storing type '"
                        << value_class->GetDescriptor()->ToModifiedUtf8()
                        << "' into field type '"
                        << field_class->GetDescriptor()->ToModifiedUtf8()
-                       << "' ("
-                       << inst_field_class->GetDescriptor()->ToModifiedUtf8()
-                       << "." << inst_field->GetName()->ToModifiedUtf8() << ")";
+                       << "' (" << PrettyField(inst_field) << ")";
             failure = VERIFY_ERROR_GENERIC;
             break;
           }
@@ -2635,10 +2568,7 @@ sget_1nr_common:
           tmp_type = kRegTypeFloat;
 
         if (tmp_type != field_type) {
-          Class* static_field_class = static_field->GetDeclaringClass();
-          LOG(ERROR) << "VFY: invalid sget-1nr of "
-                     << static_field_class->GetDescriptor()->ToModifiedUtf8()
-                     << "." << static_field->GetName()->ToModifiedUtf8()
+          LOG(ERROR) << "VFY: invalid sget-1nr of " << PrettyField(static_field)
                      << " (inst=" << tmp_type << " actual=" << field_type
                      << ")";
           failure = VERIFY_ERROR_GENERIC;
@@ -2650,43 +2580,30 @@ sget_1nr_common:
       break;
     case Instruction::SGET_WIDE:
       {
-        Field* static_field;
-        RegType dst_type;
-
-        static_field = GetStaticField(vdata, dec_insn.vB_, &failure);
-        Class* static_field_class = static_field->GetDeclaringClass();
+        Field* static_field = GetStaticField(vdata, dec_insn.vB_, &failure);
         if (failure != VERIFY_ERROR_NONE)
           break;
         /* check the type, which should be prim */
         switch (static_field->GetType()->GetPrimitiveType()) {
           case Class::kPrimDouble:
-            dst_type = kRegTypeDoubleLo;
+            SetRegisterType(work_line, dec_insn.vA_, kRegTypeDoubleLo);
             break;
           case Class::kPrimLong:
-            dst_type = kRegTypeLongLo;
+            SetRegisterType(work_line, dec_insn.vA_, kRegTypeLongLo);
             break;
           default:
-            LOG(ERROR) << "VFY: invalid sget-wide of "
-                       << static_field_class->GetDescriptor()->ToModifiedUtf8()
-                       << "." << static_field->GetName()->ToModifiedUtf8();
-            dst_type = kRegTypeUnknown;
+            LOG(ERROR) << "VFY: invalid sget-wide of " << PrettyField(static_field);
             failure = VERIFY_ERROR_GENERIC;
             break;
-        }
-        if (failure == VERIFY_ERROR_NONE) {
-          SetRegisterType(work_line, dec_insn.vA_, dst_type);
         }
       }
       break;
     case Instruction::SGET_OBJECT:
       {
-        Field* static_field;
-        Class* field_class;
-
-        static_field = GetStaticField(vdata, dec_insn.vB_, &failure);
+        Field* static_field = GetStaticField(vdata, dec_insn.vB_, &failure);
         if (failure != VERIFY_ERROR_NONE)
           break;
-        field_class = static_field->GetType();
+        Class* field_class = static_field->GetType();
         if (field_class == NULL) {
           LOG(ERROR) << "VFY: unable to recover field class from '"
                      << static_field->GetName()->ToModifiedUtf8() << "'";
@@ -2764,10 +2681,7 @@ sput_1nr_common:
 
         if (failure != VERIFY_ERROR_NONE || field_type == kRegTypeUnknown ||
             tmp_type != field_type) {
-          Class* static_field_class = static_field->GetDeclaringClass();
-          LOG(ERROR) << "VFY: invalid sput-1nr of "
-                     << static_field_class->GetDescriptor()->ToModifiedUtf8()
-                     << "." << static_field->GetName()->ToModifiedUtf8()
+          LOG(ERROR) << "VFY: invalid sput-1nr of " << PrettyField(static_field)
                      << " (inst=" << tmp_type << " actual=" << field_type
                      << ")";
           failure = VERIFY_ERROR_GENERIC;
@@ -2795,9 +2709,7 @@ sput_1nr_common:
           VerifyRegisterType(work_line, dec_insn.vA_, kRegTypeLongLo, &failure);
           break;
         default:
-          LOG(ERROR) << "VFY: invalid sput-wide of "
-                     << static_field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                     << "." << static_field->GetName()->ToModifiedUtf8();
+          LOG(ERROR) << "VFY: invalid sput-wide of " << PrettyField(static_field);
           failure = VERIFY_ERROR_GENERIC;
           break;
       }
@@ -2844,15 +2756,11 @@ sput_1nr_common:
           /* allow if field is any interface or field is base class */
           if (!field_class->IsInterface() &&
               !field_class->IsAssignableFrom(value_class)) {
-            Class* static_field_class = static_field->GetDeclaringClass();
             LOG(ERROR) << "VFY: storing type '"
                        << value_class->GetDescriptor()->ToModifiedUtf8()
                        << "' into field type '"
                        << field_class->GetDescriptor()->ToModifiedUtf8()
-                       << "' ("
-                       << static_field_class->GetDescriptor()->ToModifiedUtf8()
-                       << "." << static_field->GetName()->ToModifiedUtf8()
-                       << ")",
+                       << "' (" << PrettyField(static_field) << ")";
             failure = VERIFY_ERROR_GENERIC;
             break;
           }
@@ -2957,7 +2865,7 @@ sput_1nr_common:
               this_type, &failure);
           if (failure != VERIFY_ERROR_NONE)
             break;
-          }
+        }
         return_type = GetMethodReturnType(dex_file, called_method);
         SetResultRegisterType(work_line, registers_size, return_type);
         just_set_result = true;
@@ -3803,8 +3711,7 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
       method->GetDeclaringClass(), failure, false);
   if (field == NULL) {
     LOG(ERROR) << "VFY: unable to resolve instance field " << field_idx;
-    *failure = VERIFY_ERROR_GENERIC;
-    return field;
+    return NULL;
   }
 
   if (obj_type == kRegTypeZero)
@@ -3827,10 +3734,9 @@ Field* DexVerifier::GetInstField(VerifierData* vdata, RegType obj_type,
   }
 
   if (!field->GetDeclaringClass()->IsAssignableFrom(obj_class)) {
-    LOG(ERROR) << "VFY: invalid field access (field "
-               << field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << field->GetName()->ToModifiedUtf8() << ", through "
-               << obj_class->GetDescriptor()->ToModifiedUtf8() << " ref)";
+    LOG(ERROR) << "VFY: invalid field access (field " << PrettyField(field)
+               << ", through " << obj_class->GetDescriptor()->ToModifiedUtf8()
+               << " ref)";
     *failure = VERIFY_ERROR_NO_FIELD;
     return field;
   }
@@ -3878,6 +3784,7 @@ Class* DexVerifier::GetCaughtExceptionType(VerifierData* vdata, int insn_idx,
   Class* common_super = NULL;
   uint32_t handlers_size;
   const byte* handlers_ptr = DexFile::dexGetCatchHandlerData(*code_item, 0);
+  VerifyError local_failure;
 
   if (code_item->tries_size_ != 0) {
     handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
@@ -3898,7 +3805,7 @@ Class* DexVerifier::GetCaughtExceptionType(VerifierData* vdata, int insn_idx,
           klass = class_linker->FindSystemClass("Ljava/lang/Throwable;");
         } else {
           klass = ResolveClassAndCheckAccess(dex_file, handler.type_idx_,
-              method->GetDeclaringClass(), failure);
+              method->GetDeclaringClass(), &local_failure);
         }
 
         if (klass == NULL) {
@@ -4363,12 +4270,9 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
   Class* res_class = class_linker->ResolveType(*dex_file, class_idx, referrer);
 
   if (res_class == NULL) {
-    //*failure = VERIFY_ERROR_NO_CLASS;
-#if 1
-    // FIXME - is this correct?  Inserted as a workaround?
     Thread::Current()->ClearException();
-#endif
     LOG(ERROR) << "VFY: can't find class with index 0x" << std::hex << class_idx << std::dec;
+    *failure = VERIFY_ERROR_NO_CLASS;
     return NULL;
   }
 
@@ -4420,11 +4324,8 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(const DexFile* dex_file,
 
   /* Check if access is allowed. */
   if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
-    LOG(ERROR) << "VFY: illegal method access (call "
-               << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << res_method->GetName()->ToModifiedUtf8() << " "
-               << res_method->GetSignature()->ToModifiedUtf8() << " from "
-               << referrer->GetDescriptor()->ToModifiedUtf8() << ")";
+    LOG(ERROR) << "VFY: illegal method access (call " << PrettyMethod(res_method)
+               << " from " << referrer->GetDescriptor()->ToModifiedUtf8() << ")";
     *failure = VERIFY_ERROR_ACCESS_METHOD;
     return NULL;
   }
@@ -4448,8 +4349,7 @@ Field* DexVerifier::ResolveFieldAndCheckAccess(const DexFile* dex_file,
 
     Class* field_type = ResolveClassAndCheckAccess(dex_file, field_id.type_idx_, referrer, failure);
     if (field_type == NULL) {
-      // TODO: restore this assert?
-      // DCHECK(*failure != VERIFY_ERROR_NONE) << PrettyClass(referrer) << " " << PrettyClass(klass);
+      DCHECK(*failure != VERIFY_ERROR_NONE) << PrettyClass(referrer) << " " << PrettyClass(klass);
       return NULL;
     }
 
@@ -4473,8 +4373,7 @@ Field* DexVerifier::ResolveFieldAndCheckAccess(const DexFile* dex_file,
   if (!referrer->CanAccessMember(res_field->GetDeclaringClass(), res_field->GetAccessFlags())) {
     LOG(ERROR) << "VFY: access denied from "
                << referrer->GetDescriptor()->ToModifiedUtf8() << " to field "
-               << res_field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << res_field->GetName()->ToModifiedUtf8();
+               << PrettyField(res_field);
     *failure = VERIFY_ERROR_ACCESS_FIELD;
     return NULL;
   }
@@ -4706,9 +4605,7 @@ void DexVerifier::CheckFinalFieldAccess(const Method* method,
 
   /* make sure we're in the same class */
   if (method->GetDeclaringClass() != field->GetDeclaringClass()) {
-    LOG(ERROR) << "VFY: can't modify final field "
-               << field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << field->GetName()->ToModifiedUtf8();
+    LOG(ERROR) << "VFY: can't modify final field " << PrettyField(field);
     *failure = VERIFY_ERROR_ACCESS_FIELD;
     return;
   }
@@ -5042,22 +4939,16 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
 
     LOG(ERROR) << "VFY: unable to resolve method " << dec_insn->vB_ << ": "
                << class_descriptor << "." << method_name << " " << method_proto;
-    *failure = VERIFY_ERROR_NO_METHOD;
     return NULL;
   }
 
   /*
-   * Only time you can explicitly call a method starting with '<' is when
-   * making a "direct" invocation on "<init>". There are additional
-   * restrictions but we don't enforce them here.
+   * Make sure calls to "<init>" are "direct". There are additional restrictions
+   * but we don't enfore them here.
    */
-  if (res_method->GetName()->Equals("<init>")) {
-    if (method_type != METHOD_DIRECT || !IsInitMethod(res_method)) {
-      LOG(ERROR) << "VFY: invalid call to "
-                 << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                 << "." << res_method->GetName();
-      goto bad_sig;
-    }
+  if (res_method->GetName()->Equals("<init>") && method_type != METHOD_DIRECT) {
+    LOG(ERROR) << "VFY: invalid call to " << PrettyMethod(res_method);
+    goto bad_sig;
   }
 
   /*
@@ -5066,9 +4957,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
    */
   if (!IsCorrectInvokeKind(method_type, res_method)) {
     LOG(ERROR) << "VFY: invoke type does not match method type of "
-               << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << res_method->GetName()->ToModifiedUtf8();
-
+               << PrettyMethod(res_method);
     *failure = VERIFY_ERROR_GENERIC;
     return NULL;
   }
@@ -5082,16 +4971,12 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
     Class* super = method->GetDeclaringClass()->GetSuperClass();
     if (super == NULL || res_method->GetMethodIndex() > super->GetVTable()->GetLength()) {
       if (super == NULL) {
-        LOG(ERROR) << "VFY: invalid invoke-super from "
-                   << method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                   << "." << method->GetName()->ToModifiedUtf8() << " to super -."
-                   << res_method->GetName()->ToModifiedUtf8()
+        LOG(ERROR) << "VFY: invalid invoke-super from " << PrettyMethod(method)
+                   << " to super -." << res_method->GetName()->ToModifiedUtf8()
                    << " " << res_method->GetSignature()->ToModifiedUtf8();
       } else {
-        LOG(ERROR) << "VFY: invalid invoke-super from "
-                   << method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                   << "." << method->GetName()->ToModifiedUtf8() << " to super "
-                   << super->GetDescriptor()->ToModifiedUtf8()
+        LOG(ERROR) << "VFY: invalid invoke-super from " << PrettyMethod(method)
+                   << " to super " << super->GetDescriptor()->ToModifiedUtf8()
                    << "." << res_method->GetName()->ToModifiedUtf8()
                    << " " << res_method->GetSignature()->ToModifiedUtf8();
       }
@@ -5271,13 +5156,7 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   return res_method;
 
 bad_sig:
-  if (res_method != NULL) {
-    LOG(ERROR) << "VFY:  rejecting call to "
-               << res_method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << res_method->GetName()->ToModifiedUtf8() << " "
-               << res_method->GetSignature()->ToModifiedUtf8();
-  }
-
+  LOG(ERROR) << "VFY:  rejecting call to " << PrettyMethod(res_method);
   if (*failure == VERIFY_ERROR_NONE)
     *failure = VERIFY_ERROR_GENERIC;
   return NULL;
@@ -5373,18 +5252,14 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
      */
     UniquePtr<RegisterMap> uncompressed_map(UncompressMapDifferential(compress_map));
     if (uncompressed_map.get() == NULL) {
-      LOG(ERROR) << "Map failed to uncompress - "
-                 << vdata->method_->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                 << "." << vdata->method_->GetName()->ToModifiedUtf8();
+      LOG(ERROR) << "Map failed to uncompress - " << PrettyMethod(vdata->method_);
       delete map;
       delete compress_map;
       /* bad - compression is broken or we're out of memory */
       return NULL;
     } else {
       if (!CompareMaps(map, uncompressed_map.get())) {
-        LOG(ERROR) << "Map comparison failed - "
-                   << vdata->method_->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-                   << "." << vdata->method_->GetName()->ToModifiedUtf8();
+        LOG(ERROR) << "Map comparison failed - " << PrettyMethod(vdata->method_);
         delete map;
         delete compress_map;
         /* bad - compression is broken */
@@ -5425,8 +5300,7 @@ DexVerifier::RegisterMap* DexVerifier::GetExpandedRegisterMapHelper(
 
   if (new_map == NULL) {
     LOG(ERROR) << "Map failed to uncompress (fmt=" << format << ") "
-               << method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8()
-               << "." << method->GetName();
+               << PrettyMethod(method);
     return NULL;
   }
 
