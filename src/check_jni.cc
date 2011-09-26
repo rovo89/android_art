@@ -25,6 +25,10 @@
 #include "thread.h"
 #include "runtime.h"
 
+#define LIBCORE_CPP_JNI_HELPERS
+#include <JNIHelp.h> // from libcore
+#undef LIBCORE_CPP_JNI_HELPERS
+
 namespace art {
 
 void JniAbort(const char* jni_function_name) {
@@ -32,7 +36,7 @@ void JniAbort(const char* jni_function_name) {
   const Method* current_method = self->GetCurrentMethod();
 
   std::stringstream os;
-  os << "JNI app bug detected";
+  os << "Aborting because JNI app bug detected (see above for details)";
 
   if (jni_function_name != NULL) {
     os << "\n             in call to " << jni_function_name;
@@ -678,8 +682,8 @@ private:
      */
     if ((flags & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
       LOG(ERROR) << "JNI ERROR: JNI method called with exception pending";
-      LOG(ERROR) << "Pending exception is: TODO"; // TODO
-      // TODO: dvmLogExceptionStackTrace();
+      LOG(ERROR) << "Pending exception is:";
+      LOG(ERROR) << jniGetStackTrace(mEnv);
       JniAbort();
       return;
     }

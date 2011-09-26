@@ -69,10 +69,6 @@ void TestCheckJniAbortHook(const std::string& reason) {
 }
 
 TEST_F(JniInternalTest, FindClass) {
-  // TODO: when these tests start failing because you're calling FindClass
-  // with a pending exception, fix EXPECT_CLASS_NOT_FOUND to assert that an
-  // exception was thrown and clear the exception.
-
   // Reference types...
   EXPECT_CLASS_FOUND("java/lang/String");
   // ...for arrays too, where you must include "L;".

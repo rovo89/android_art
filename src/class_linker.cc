@@ -1529,7 +1529,6 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  LOG(INFO) << "initializing " << PrettyClass(c) << " from " << *self;
   c->MonitorEnter(self);
   InitializeClass(c, can_run_clinit);
   c->MonitorExit(self);
