@@ -94,7 +94,7 @@ jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass, jclass javaClass
 }
 
 bool IsVisibleField(Field* f, bool public_only) {
-  if (public_only && ~f->IsPublic()) {
+  if (public_only && !f->IsPublic()) {
     return false;
   }
   f->InitJavaFields();
