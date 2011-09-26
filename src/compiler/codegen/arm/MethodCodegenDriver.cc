@@ -198,6 +198,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
                       sizeof(int32_t*)* typeIdx, rBase);
         // TUNING: fast path should fall through
+        // TUNING: Try a conditional skip here, might be faster
         ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
@@ -536,19 +537,29 @@ STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
     return state + 1;
 }
 
-/* Load up to 3 arguments in r1..r3 */
 STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
-                       DecodedInstruction* dInsn, int callState,
-                       int *args, NextCallInsn nextCallInsn, ArmLIR* rollback)
+                          DecodedInstruction* dInsn, int callState,
+                          NextCallInsn nextCallInsn, ArmLIR* rollback,
+                          bool skipThis)
 {
-    for (int i = 0; i < 3; i++) {
-        if (args[i] != INVALID_REG) {
-            // Arguments are treated as a series of untyped 32-bit values.
-            RegLocation rlArg = oatGetRawSrc(cUnit, mir, i);
+    int nextReg = r1;
+    int nextArg = 0;
+    if (skipThis) {
+        nextReg++;
+        nextArg++;
+    }
+    for (; (nextReg <= r3) && (nextArg < mir->ssaRep->numUses); nextReg++) {
+        RegLocation rlArg = oatGetRawSrc(cUnit, mir, nextArg++);
+        rlArg = oatUpdateRawLoc(cUnit, rlArg);
+        if (rlArg.wide && (nextReg <= r2)) {
+            loadValueDirectWideFixed(cUnit, rlArg, nextReg, nextReg + 1);
+            nextReg++;
+            nextArg++;
+        } else {
             rlArg.wide = false;
-            loadValueDirectFixed(cUnit, rlArg, r1 + i);
-            callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+            loadValueDirectFixed(cUnit, rlArg, nextReg);
         }
+        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
     return callState;
 }
@@ -724,7 +735,6 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                                 bool skipThis)
 {
     RegLocation rlArg;
-    int registerArgs[3];
 
     /* If no arguments, just return */
     if (dInsn->vA == 0)
@@ -732,40 +742,66 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
 
     callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
 
-    /*
-     * Load frame arguments arg4 & arg5 first. Coded a little odd to
-     * pre-schedule the method pointer target.
-     */
-    for (unsigned int i=3; i < dInsn->vA; i++) {
-        int reg;
-        // Treating args as untyped 32-bit chunks
-        rlArg = oatGetRawSrc(cUnit, mir, i);
-        rlArg.wide = false;
-        rlArg = oatUpdateLoc(cUnit, rlArg);
-        if (rlArg.location == kLocPhysReg) {
-            reg = rlArg.lowReg;
-        } else {
-            // r3 is the last arg register loaded, so can safely be used here
-            reg = r3;
-            loadValueDirectFixed(cUnit, rlArg, reg);
+    DCHECK_LE(dInsn->vA, 5U);
+    if (dInsn->vA > 3) {
+        uint32_t nextUse = 3;
+        //Detect special case of wide arg spanning arg3/arg4
+        RegLocation rlUse0 = oatGetRawSrc(cUnit, mir, 0);
+        RegLocation rlUse1 = oatGetRawSrc(cUnit, mir, 1);
+        RegLocation rlUse2 = oatGetRawSrc(cUnit, mir, 2);
+        if (((!rlUse0.wide && !rlUse1.wide) || rlUse0.wide) &&
+            rlUse2.wide) {
+            int reg;
+            // Wide spans, we need the 2nd half of uses[2].
+            rlArg = oatUpdateLocWide(cUnit, rlUse2);
+            if (rlArg.location == kLocPhysReg) {
+                reg = rlArg.highReg;
+            } else {
+                // r2 & r3 can safely be used here
+                reg = r3;
+                loadWordDisp(cUnit, rSP, rlArg.spOffset + 4, reg);
+                callState = nextCallInsn(cUnit, mir, dInsn, callState,
+                                         rollback);
+            }
+            storeBaseDisp(cUnit, rSP, (nextUse + 1) * 4, reg, kWord);
+            storeBaseDisp(cUnit, rSP, 16 /* (3+1)*4 */, reg, kWord);
+            callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+            nextUse++;
+        }
+        // Loop through the rest
+        while (nextUse < dInsn->vA) {
+            int lowReg;
+            int highReg;
+            rlArg = oatGetRawSrc(cUnit, mir, nextUse);
+            rlArg = oatUpdateRawLoc(cUnit, rlArg);
+            if (rlArg.location == kLocPhysReg) {
+                lowReg = rlArg.lowReg;
+                highReg = rlArg.highReg;
+            } else {
+                lowReg = r2;
+                highReg = r3;
+                if (rlArg.wide) {
+                    loadValueDirectWideFixed(cUnit, rlArg, lowReg, highReg);
+                } else {
+                    loadValueDirectFixed(cUnit, rlArg, lowReg);
+                }
+                callState = nextCallInsn(cUnit, mir, dInsn, callState,
+                                         rollback);
+            }
+            int outsOffset = (nextUse + 1) * 4;
+            if (rlArg.wide) {
+                storeBaseDispWide(cUnit, rSP, outsOffset, lowReg, highReg);
+                nextUse += 2;
+            } else {
+                storeWordDisp(cUnit, rSP, outsOffset, lowReg);
+                nextUse++;
+            }
             callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
         }
-        storeBaseDisp(cUnit, rSP, (i + 1) * 4, reg, kWord);
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
 
-    /* Load register arguments r1..r3 */
-    for (unsigned int i = 0; i < 3; i++) {
-        if (i < dInsn->vA)
-            registerArgs[i] = (isRange) ? dInsn->vC + i : i;
-        else
-            registerArgs[i] = INVALID_REG;
-    }
-    if (skipThis) {
-        registerArgs[0] = INVALID_REG;
-    }
-    callState = loadArgRegs(cUnit, mir, dInsn, callState, registerArgs,
-                            nextCallInsn, rollback);
+    callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
+                            rollback, skipThis);
 
     //TODO: better to move this into CallInsn lists
     // Load direct & need a "this" null check?
@@ -797,7 +833,6 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
 {
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
-    int registerArgs[3];
 
     // If we can treat it as non-range (Jumbo ops will use range form)
     if (numArgs <= 5)
@@ -820,23 +855,21 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      * frame backing storage.
      */
     // Scan the rest of the args - if in physReg flush to memory
-    for (int i = 3; i < numArgs; i++) {
-        RegLocation loc = oatGetRawSrc(cUnit, mir, i);
+    for (int nextArg = 0; nextArg < numArgs;) {
+        RegLocation loc = oatGetRawSrc(cUnit, mir, nextArg);
         if (loc.wide) {
             loc = oatUpdateLocWide(cUnit, loc);
-            if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
+            if ((nextArg >= 2) && (loc.location == kLocPhysReg)) {
                 storeBaseDispWide(cUnit, rSP, loc.spOffset, loc.lowReg,
                                   loc.highReg);
-                callState = nextCallInsn(cUnit, mir, dInsn, callState,
-                                         rollback);
             }
+            nextArg += 2;
         } else {
             loc = oatUpdateLoc(cUnit, loc);
-            if (loc.location == kLocPhysReg) {  // TUNING: if dirty?
+            if ((nextArg >= 3) && (loc.location == kLocPhysReg)) {
                 storeBaseDisp(cUnit, rSP, loc.spOffset, loc.lowReg, kWord);
-                callState = nextCallInsn(cUnit, mir, dInsn, callState,
-                                         rollback);
             }
+            nextArg++;
         }
     }
 
@@ -869,18 +902,8 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
 
-    // Handle the 1st 3 in r1, r2 & r3
-    for (unsigned int i = 0; i < 3; i++) {
-       if (i < dInsn->vA)
-            registerArgs[i] = dInsn->vC + i;
-        else
-            registerArgs[i] = INVALID_REG;
-    }
-    if (skipThis) {
-        registerArgs[0] = INVALID_REG;
-    }
-    callState = loadArgRegs(cUnit, mir, dInsn, callState, registerArgs,
-                            nextCallInsn, rollback);
+    callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
+                            rollback, skipThis);
 
     callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     return callState;
@@ -907,6 +930,7 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     ArmLIR* nullCk;
     ArmLIR** pNullCk = direct ? &nullCk : NULL;
     NextCallInsn nextCallInsn = nextSDCallInsn;
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
@@ -937,6 +961,7 @@ STATIC void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* nullCk;
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
@@ -963,12 +988,12 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
-    ArmLIR* nullCk;
     ArmLIR* rollback;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
     Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
     NextCallInsn nextCallInsn;
     bool fastPath = true;
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
@@ -996,10 +1021,10 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
         rollback->defMask = -1;
     }
     if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER)
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
+        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, NULL,
                                          false, nextCallInsn, rollback, true);
     else
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
+        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, NULL,
                                        nextCallInsn, rollback, true);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
@@ -1015,11 +1040,11 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
-    ArmLIR* nullCk;
     ArmLIR* rollback;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
     Method* method = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
     NextCallInsn nextCallInsn;
+    oatFlushAllRegs(cUnit);    /* Everything to home location */
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
@@ -1035,10 +1060,10 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
         rollback = NULL;
     }
     if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL)
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
+        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, NULL,
                                          false, nextCallInsn, rollback, true);
     else
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
+        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, NULL,
                                        nextCallInsn, rollback, true);
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
@@ -1109,6 +1134,7 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case OP_RETURN_VOID:
+            genSuspendPoll(cUnit, mir);
             break;
 
         case OP_RETURN:
@@ -1889,7 +1915,9 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
 
         oatResetRegPool(cUnit);
-        oatClobberAllRegs(cUnit);
+        if (cUnit->disableOpt & (1 << kTrackLiveTemps)) {
+            oatClobberAllRegs(cUnit);
+        }
 
         if (cUnit->disableOpt & (1 << kSuppressLoads)) {
             oatResetDefTracking(cUnit);

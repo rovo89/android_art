@@ -1954,9 +1954,9 @@ STATIC void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
     int i;
 
     mir->ssaRep->numUses = numUses;
-    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, false);
+    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, true);
     // NOTE: will be filled in during type & size inference pass
-    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, false);
+    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, true);
 
     for (i = 0; i < numUses; i++) {
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->arg[i], i);
@@ -1971,9 +1971,9 @@ STATIC void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
     int i;
 
     mir->ssaRep->numUses = numUses;
-    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, false);
+    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, true);
     // NOTE: will be filled in during type & size inference pass
-    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, false);
+    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, true);
 
     for (i = 0; i < numUses; i++) {
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+i, i);

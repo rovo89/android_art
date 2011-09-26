@@ -828,9 +828,22 @@ STATIC void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-    opRegRegReg(cUnit, secondOp, rlResult.highReg, rlSrc1.highReg,
-                rlSrc2.highReg);
+    // The longs may overlap - use intermediate temp if so
+    if (rlResult.lowReg == rlSrc1.highReg) {
+        //FIXME: review all long arithmetic ops - there may be more of these
+        int tReg = oatAllocTemp(cUnit);
+        genRegCopy(cUnit, tReg, rlSrc1.highReg);
+        opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg,
+                    rlSrc2.lowReg);
+        opRegRegReg(cUnit, secondOp, rlResult.highReg, tReg,
+                    rlSrc2.highReg);
+        oatFreeTemp(cUnit, tReg);
+    } else {
+        opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg,
+                    rlSrc2.lowReg);
+        opRegRegReg(cUnit, secondOp, rlResult.highReg, rlSrc1.highReg,
+                    rlSrc2.highReg);
+    }
     /*
      * NOTE: If rlDest refers to a frame variable in a large frame, the
      * following storeValueWide might need to allocate a temp register.
@@ -864,6 +877,10 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
     // Keep special registers from being allocated
     for (int i = 0; i < numReserved; i++) {
+        if (NO_SUSPEND && (reservedRegs[i] == rSUSPEND)) {
+            //To measure cost of suspend check
+            continue;
+        }
         oatMarkInUse(cUnit, reservedRegs[i]);
     }
     // Mark temp regs - all others not in use can be used for promotion
@@ -872,6 +889,22 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     }
     for (int i = 0; i < numFPTemps; i++) {
         oatMarkTemp(cUnit, fpTemps[i]);
+    }
+    // Construct the alias map.
+    cUnit->phiAliasMap = (int*)oatNew(cUnit->numSSARegs *
+                                      sizeof(cUnit->phiAliasMap[0]), false);
+    for (int i = 0; i < cUnit->numSSARegs; i++) {
+        cUnit->phiAliasMap[i] = i;
+    }
+    for (MIR* phi = cUnit->phiList; phi; phi = phi->meta.phiNext) {
+        int defReg = phi->ssaRep->defs[0];
+        for (int i = 0; i < phi->ssaRep->numUses; i++) {
+           for (int j = 0; j < cUnit->numSSARegs; j++) {
+               if (cUnit->phiAliasMap[j] == phi->ssaRep->uses[i]) {
+                   cUnit->phiAliasMap[j] = defReg;
+               }
+           }
+        }
     }
 }
 
@@ -1674,7 +1707,7 @@ STATIC bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
 /* Check if we need to check for pending suspend request */
 STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 {
-    if (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
+    if (NO_SUSPEND || mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
         return;
     }
     newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
@@ -1693,7 +1726,7 @@ STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 /* Check for pending suspend request.  */
 STATIC void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
 {
-    if (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
+    if (NO_SUSPEND || mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
         return;
     }
     oatLockCallTemps(cUnit);   // Explicit register usage

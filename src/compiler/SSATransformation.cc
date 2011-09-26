@@ -488,6 +488,8 @@ STATIC void insertPhiNodes(CompilationUnit* cUnit)
             phi->dalvikInsn.opcode = (Opcode)kMirOpPhi;
             phi->dalvikInsn.vA = dalvikReg;
             phi->offset = phiBB->startOffset;
+            phi->meta.phiNext = cUnit->phiList;
+            cUnit->phiList = phi;
             oatPrependMIR(phiBB, phi);
         }
     }

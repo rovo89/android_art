@@ -20,6 +20,9 @@
 #include "../../Dalvik.h"
 #include "../../CompilerInternals.h"
 
+// Set to 1 to measure cost of suspend check
+#define NO_SUSPEND 0
+
 /*
  * Runtime register usage conventions.
  *

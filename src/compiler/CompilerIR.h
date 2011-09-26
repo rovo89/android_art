@@ -120,6 +120,8 @@ typedef struct MIR {
         const Method* calleeMethod;
         // Used by the inlined invoke to find the class and method pointers
         CallsiteInfo* callsiteInfo;
+        // Used to quickly locate all Phi opcodes
+        struct MIR* phiNext;
     } meta;
 } MIR;
 
@@ -223,6 +225,8 @@ typedef struct CompilationUnit {
     int* SSALastDefs;                   // length == method->registersSize
     ArenaBitVector* isConstantV;        // length == numSSAReg
     int* constantValues;                // length == numSSAReg
+    int* phiAliasMap;                   // length == numSSAReg
+    MIR* phiList;
 
     /* Map SSA names to location */
     RegLocation* regLocation;

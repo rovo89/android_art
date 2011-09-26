@@ -29,6 +29,7 @@ enum optControlVector {
     kSuppressLoads,
     kNullCheckElimination,
     kPromoteRegs,
+    kTrackLiveTemps,
 };
 
 /* Forward declarations */

@@ -28,6 +28,26 @@ STATIC bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
     return change;
 }
 
+STATIC bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&
+        bb->blockType != kExitBlock)
+        return false;
+
+    for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
+        SSARepresentation *ssaRep = mir->ssaRep;
+        if (ssaRep) {
+            for (int i = 0; i < ssaRep->numUses; i++) {
+                ssaRep->uses[i] = cUnit->phiAliasMap[ssaRep->uses[i]];
+            }
+            for (int i = 0; i < ssaRep->numDefs; i++) {
+                ssaRep->defs[i] = cUnit->phiAliasMap[ssaRep->defs[i]];
+            }
+        }
+    }
+    return false;
+}
+
 /*
  * Infer types and sizes.  We don't need to track change on sizes,
  * as it doesn't propagate.  We're guaranteed at least one pass through
@@ -190,6 +210,11 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
             sReg++;
         }
     }
+
+    /* Remap names */
+    oatDataFlowAnalysisDispatcher(cUnit, remapNames,
+                                  kPreOrderDFSTraversal,
+                                  false /* isIterative */);
 
     /* Do type & size inference pass */
     oatDataFlowAnalysisDispatcher(cUnit, inferTypeAndSize,

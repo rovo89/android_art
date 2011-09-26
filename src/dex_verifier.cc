@@ -4364,6 +4364,10 @@ Class* DexVerifier::ResolveClassAndCheckAccess(const DexFile* dex_file,
 
   if (res_class == NULL) {
     //*failure = VERIFY_ERROR_NO_CLASS;
+#if 1
+    // FIXME - is this correct?  Inserted as a workaround?
+    Thread::Current()->ClearException();
+#endif
     LOG(ERROR) << "VFY: can't find class with index 0x" << std::hex << class_idx << std::dec;
     return NULL;
   }
