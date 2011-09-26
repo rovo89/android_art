@@ -30,6 +30,8 @@ namespace art {
 namespace {
 
 void Runtime_gc(JNIEnv*, jclass) {
+  UNIMPLEMENTED(WARNING);
+  return;
   Heap::CollectGarbage();
 }
 

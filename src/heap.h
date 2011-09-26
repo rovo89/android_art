@@ -87,12 +87,11 @@ class Heap {
   }
   // Implements dalvik.system.VMRuntime.getTargetHeapUtilization.
   static float GetTargetHeapUtilization() {
-    UNIMPLEMENTED(WARNING);
-    return 0.0f;
+    return target_utilization_;
   }
   // Implements dalvik.system.VMRuntime.setTargetHeapUtilization.
   static void SetTargetHeapUtilization(float target) {
-    UNIMPLEMENTED(WARNING);
+    target_utilization_ = target;
   }
 
   // Blocks the caller until the garbage collector becomes idle.
@@ -239,6 +238,9 @@ class Heap {
 
   // offset of java.lang.ref.FinalizerReference.zombie
   static MemberOffset finalizer_reference_zombie_offset_;
+
+  // Target ideal heap utilization ratio
+  static float target_utilization_;
 
   static bool verify_objects_;
 

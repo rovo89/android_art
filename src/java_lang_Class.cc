@@ -48,6 +48,15 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   ClassLoader* class_loader = down_cast<ClassLoader*>(loader);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
+  if (c == NULL) {
+    // Convert NoClassDefFoundError to ClassNotFoundException
+    // TODO: chain exceptions?
+    DCHECK(env->ExceptionCheck());
+    env->ExceptionClear();
+    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;",
+                                         "%s", name.c_str());
+    return NULL;
+  }
   if (initialize) {
     class_linker->EnsureInitialized(c, true);
   }

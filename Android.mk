@@ -51,6 +51,7 @@ build-art: \
 # "mm test-art" to build and run all tests on host and device
 .PHONY: test-art
 test-art: test-art-host test-art-target
+	@echo test-art PASSED
 
 define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
@@ -68,16 +69,19 @@ ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_O
 .PHONY: test-art-host
 test-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,)
+	@echo test-art-host PASSED
 
 # "mm valgrind-art-host" to build and run all host tests under valgrind.
 .PHONY: valgrind-art-host
 valgrind-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,"valgrind")
+	@echo valgrind-art-host PASSED
 
 # "mm tsan-art-host" to build and run all host tests under tsan.
 .PHONY: tsan-art-host
 tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 	$(call run-host-tests-with,"tsan")
+	@echo tsan-art-host PASSED
 
 ########################################################################
 # target test targets
@@ -85,6 +89,7 @@ tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 # "mm test-art-target" to build and run all target tests
 .PHONY: test-art-target
 test-art-target: test-art-target-gtest test-art-target-oat
+	@echo test-art-target PASSED
 
 .PHONY: test-art-target-sync
 test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES)
@@ -101,6 +106,7 @@ test-art-target-gtest: test-art-target-sync
 
 .PHONY: test-art-target-oat
 test-art-target-oat: $(ART_TEST_OAT_TARGETS)
+	@echo test-art-target-oat PASSED
 
 ########################################################################
 # oat_process test targets
@@ -130,19 +136,27 @@ $(eval $(call build-art-framework-oat,$(TARGET_OUT_APPS)/Calculator.apk))
 test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
 	mkdir -p $(TARGET_OUT_DATA)/art-cache
 	unzip $(TARGET_OUT_APPS)/Calculator.apk classes.dex -d $(TARGET_OUT_DATA)/art-cache
-	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(TARGET_OUT_DATA)/art-cache/system@app@Calculator.apk@classes.dex.c96b4ebb # crc32 from "unzip -lv $(TARGET_OUT_APPS)/Calculator.apk"
+	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(TARGET_OUT_DATA)/art-cache/system@app@Calculator.apk@classes.dex.`unzip -lv $(TARGET_OUT_APPS)/Calculator.apk classes.dex | grep classes.dex | sed -E 's/.* ([0-9a-f]+)  classes.dex/\1/'` # note this is extracting the crc32 that is needed as the file extension
 	adb remount
 	adb sync
-	adb shell setprop wrap.com.android.calculator2 "oat_processd"
-	adb shell stop
-	adb shell start
-	sleep 15 # sleep 30
+	if [ "`adb shell getprop wrap.com.android.calculator2 | tr -d '\r'`" = "oat_processd" ]; then \
+	  echo wrap.com.android.calculator2 already set; \
+	else \
+	  echo Setting wrap.com.android.calculator2 and restarting runtime; \
+	  adb shell setprop wrap.com.android.calculator2 "oat_processd"; \
+	  adb shell stop; \
+	  adb shell start; \
+	  sleep 30; \
+	fi
 	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch /sdcard/test-art-target-process-Calculator"
 	$(hide) (adb pull /sdcard/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
 	$(hide) rm /tmp/test-art-target-process-Calculator
 
 ########################################################################
 # oatdump targets
+
+.PHONY: dump-oat
+dump-oat: dump-core-oat dump-boot-oat
 
 .PHONY: dump-core-oat
 dump-core-oat: $(TARGET_CORE_OAT) $(OATDUMP)

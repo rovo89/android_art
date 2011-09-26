@@ -128,7 +128,7 @@ static void setArgv0(const char *argv0, const char *newArgv0)
     strlcpy(const_cast<char *>(argv0), newArgv0, strlen(argv0));
 }
 
-int main(int argc, const char* const argv[])
+int main(int argc, const char* argv[])
 {
     // These are global variables in ProcessState.cpp
     mArgC = argc;
@@ -183,6 +183,18 @@ int main(int argc, const char* const argv[])
     memcpy(heapArgv + (heapArgc - argc), argv, argc * sizeof(*argv));
     argv = heapArgv;
     argc = heapArgc;
+    for (int i = 0; i < argc; i++) {
+        LOGI("argv[%d]=%s", i, argv[i]);
+    }
+
+    // TODO: change the system default to not perform preloading
+    LOGI("Disabling preloading");
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "preload") == 0) {
+            argv[i] = "nopreload";
+            break;
+        }
+    }
     for (int i = 0; i < argc; i++) {
         LOGI("argv[%d]=%s", i, argv[i]);
     }

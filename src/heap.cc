@@ -38,6 +38,8 @@ MemberOffset Heap::reference_queueNext_offset_ = MemberOffset(0);
 MemberOffset Heap::reference_pendingNext_offset_ = MemberOffset(0);
 MemberOffset Heap::finalizer_reference_zombie_offset_ = MemberOffset(0);
 
+float Heap::target_utilization_ = 0.5;
+
 Mutex* Heap::lock_ = NULL;
 
 bool Heap::verify_objects_ = false;

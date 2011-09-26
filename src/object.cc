@@ -1273,11 +1273,14 @@ String* String::Intern() {
   return Runtime::Current()->GetInternTable()->InternWeak(this);
 }
 
-int32_t String::GetHashCode() const {
-  int32_t result = GetField32(
-      OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false);
-  DCHECK(result != 0 ||
-         ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()) == 0);
+int32_t String::GetHashCode() {
+  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false);
+  if (result == 0) {
+    ComputeHashCode();
+  }
+  result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false);
+  DCHECK(result != 0 || ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()) == 0)
+          << ToModifiedUtf8() << " " << result;
   return result;
 }
 

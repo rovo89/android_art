@@ -1711,6 +1711,9 @@ class MANAGED Class : public StaticStorageBase {
                               const StringPiece& descriptor);
 
   Method* FindVirtualMethodForVirtualOrInterface(Method* method) {
+    if (method->IsDirect()) {
+      return method;
+    }
     if (method->GetDeclaringClass()->IsInterface()) {
       return FindVirtualMethodForInterface(method);
     }
@@ -2393,7 +2396,7 @@ class MANAGED String : public Object {
 
   int32_t GetLength() const;
 
-  int32_t GetHashCode() const;
+  int32_t GetHashCode();
 
   void ComputeHashCode() {
     SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
