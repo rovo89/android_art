@@ -1504,6 +1504,33 @@ void X86Assembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
   }
 }
 
+void X86Assembler::Load(ManagedRegister mdest, ThreadOffset src, size_t size) {
+  X86ManagedRegister dest = mdest.AsX86();
+  if (dest.IsNoRegister()) {
+    CHECK_EQ(0u, size);
+  } else if (dest.IsCpuRegister()) {
+    CHECK_EQ(4u, size);
+    fs()->movl(dest.AsCpuRegister(), Address::Absolute(src));
+  } else if (dest.IsRegisterPair()) {
+    CHECK_EQ(8u, size);
+    fs()->movl(dest.AsRegisterPairLow(), Address::Absolute(src));
+    fs()->movl(dest.AsRegisterPairHigh(), Address::Absolute(ThreadOffset(src.Int32Value()+4)));
+  } else if (dest.IsX87Register()) {
+    if (size == 4) {
+      fs()->flds(Address::Absolute(src));
+    } else {
+      fs()->fldl(Address::Absolute(src));
+    }
+  } else {
+    CHECK(dest.IsXmmRegister());
+    if (size == 4) {
+      fs()->movss(dest.AsXmmRegister(), Address::Absolute(src));
+    } else {
+      fs()->movsd(dest.AsXmmRegister(), Address::Absolute(src));
+    }
+  }
+}
+
 void X86Assembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {
   X86ManagedRegister dest = mdest.AsX86();
   CHECK(dest.IsCpuRegister());
@@ -1590,6 +1617,14 @@ void X86Assembler::Copy(FrameOffset dest, ManagedRegister src_base, Offset src_o
   UNIMPLEMENTED(FATAL);
 }
 
+void X86Assembler::Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src,
+                        ManagedRegister scratch, size_t size) {
+  CHECK(scratch.IsNoRegister());
+  CHECK_EQ(size, 4u);
+  pushl(Address(ESP, src));
+  popl(Address(dest_base.AsX86().AsCpuRegister(), dest_offset));
+}
+
 void X86Assembler::Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
                         ManagedRegister mscratch, size_t size) {
   Register scratch = mscratch.AsX86().AsCpuRegister();
@@ -1599,13 +1634,22 @@ void X86Assembler::Copy(FrameOffset dest, FrameOffset src_base, Offset src_offse
   movl(Address(ESP, dest), scratch);
 }
 
-void X86Assembler::Copy(ThreadOffset dest_base, Offset dest_offset, FrameOffset src,
-                        ManagedRegister mscratch, ManagedRegister mscratch2, size_t size) {
-  Register scratch = mscratch.AsX86().AsCpuRegister();
-  CHECK(mscratch2.IsNoRegister());
+void X86Assembler::Copy(ManagedRegister dest, Offset dest_offset,
+                        ManagedRegister src, Offset src_offset,
+                        ManagedRegister scratch, size_t size) {
   CHECK_EQ(size, 4u);
-  fs()->movl(scratch, Address::Absolute(dest_base));
-  pushl(Address(ESP, src));
+  CHECK(scratch.IsNoRegister());
+  pushl(Address(src.AsX86().AsCpuRegister(), src_offset));
+  popl(Address(dest.AsX86().AsCpuRegister(), dest_offset));
+}
+
+void X86Assembler::Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
+                        ManagedRegister mscratch, size_t size) {
+  Register scratch = mscratch.AsX86().AsCpuRegister();
+  CHECK_EQ(size, 4u);
+  CHECK_EQ(dest.Int32Value(), src.Int32Value());
+  movl(scratch, Address(ESP, src));
+  pushl(Address(scratch, src_offset));
   popl(Address(scratch, dest_offset));
 }
 

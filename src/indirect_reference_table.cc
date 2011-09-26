@@ -18,6 +18,7 @@
 #include "jni_internal.h"
 #include "reference_table.h"
 #include "runtime.h"
+#include "thread.h"
 #include "utils.h"
 
 #include <cstdlib>
@@ -148,6 +149,10 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     table_[topIndex++] = obj;
     segment_state_.parts.topIndex = topIndex;
   }
+  if (false) {
+    LOG(INFO) << "+++ added at " << ExtractIndex(result) << " top=" << segment_state_.parts.topIndex
+              << " holes=" << segment_state_.parts.numHoles;
+  }
 
   DCHECK(result != NULL);
   return result;
@@ -173,7 +178,8 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   int idx = ExtractIndex(iref);
   if (idx >= topIndex) {
     /* bad -- stale reference? */
-    LOG(ERROR) << "JNI ERROR (app bug): accessed stale " << kind_ << " " << iref << " (index " << idx << " in a table of size " << topIndex << ")";
+    LOG(ERROR) << "JNI ERROR (app bug): accessed stale " << kind_ << " "
+               << iref << " (index " << idx << " in a table of size " << topIndex << ")";
     AbortMaybe();
     return false;
   }
@@ -230,6 +236,11 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   int idx = ExtractIndex(iref);
 
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  if (GetIndirectRefKind(iref) == kSirtOrInvalid &&
+      Thread::Current()->SirtContains(reinterpret_cast<jobject>(iref))) {
+    LOG(WARNING) << "Attempt to remove local SIRT entry from IRT, ignoring";
+    return true;
+  }
   if (GetIndirectRefKind(iref) == kSirtOrInvalid || vm->work_around_app_jni_bugs) {
     idx = LinearScan(iref, bottomIndex, topIndex, table_);
     if (idx == -1) {
@@ -240,12 +251,14 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
   if (idx < bottomIndex) {
     /* wrong segment */
-    LOG(INFO) << "Attempt to remove index outside index area (" << idx << " vs " << bottomIndex << "-" << topIndex << ")";
+    LOG(INFO) << "Attempt to remove index outside index area (" << idx
+              << " vs " << bottomIndex << "-" << topIndex << ")";
     return false;
   }
   if (idx >= topIndex) {
     /* bad -- stale reference? */
-    LOG(INFO) << "Attempt to remove invalid index " << idx << " (bottom=" << bottomIndex << " top=" << topIndex << ")";
+    LOG(INFO) << "Attempt to remove invalid index " << idx
+              << " (bottom=" << bottomIndex << " top=" << topIndex << ")";
     return false;
   }
 
@@ -260,18 +273,25 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
     if (numHoles != 0) {
       while (--topIndex > bottomIndex && numHoles != 0) {
-        //LOG(INFO) << "+++ checking for hole at " << topIndex-1 << " (cookie=" << cookie << ") val=" << table_[topIndex-1];
+        if (false) {
+          LOG(INFO) << "+++ checking for hole at " << topIndex-1
+                    << " (cookie=" << cookie << ") val=" << table_[topIndex - 1];
+        }
         if (table_[topIndex-1] != NULL) {
           break;
         }
-        //LOG(INFO) << "+++ ate hole at " << (topIndex-1);
+        if (false) {
+          LOG(INFO) << "+++ ate hole at " << (topIndex - 1);
+        }
         numHoles--;
       }
       segment_state_.parts.numHoles = numHoles + prevState.parts.numHoles;
       segment_state_.parts.topIndex = topIndex;
     } else {
       segment_state_.parts.topIndex = topIndex-1;
-      //LOG(INFO) << "+++ ate last entry " << topIndex-1;
+      if (false) {
+        LOG(INFO) << "+++ ate last entry " << topIndex - 1;
+      }
     }
   } else {
     /*
@@ -289,7 +309,9 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
     table_[idx] = NULL;
     segment_state_.parts.numHoles++;
-    //LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segment_state_.parts.numHoles;
+    if (false) {
+      LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segment_state_.parts.numHoles;
+    }
   }
 
   return true;

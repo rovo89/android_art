@@ -68,7 +68,7 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   IndirectReferenceTable& locals = env->locals;
 
-  uint32_t cookie = IRT_FIRST_SEGMENT; // TODO
+  uint32_t cookie = env->local_ref_cookie;
   IndirectRef ref = locals.Add(cookie, obj);
   if (ref == NULL) {
     // TODO: just change Add's DCHECK to CHECK and lose this?
@@ -873,7 +873,7 @@ class JNI {
 
     IndirectReferenceTable& locals = ts.Env()->locals;
 
-    uint32_t cookie = IRT_FIRST_SEGMENT; // TODO
+    uint32_t cookie = ts.Env()->local_ref_cookie;
     IndirectRef ref = locals.Add(cookie, Decode<Object*>(ts, obj));
     return reinterpret_cast<jobject>(ref);
   }
@@ -886,7 +886,7 @@ class JNI {
 
     IndirectReferenceTable& locals = ts.Env()->locals;
 
-    uint32_t cookie = IRT_FIRST_SEGMENT; // TODO
+    uint32_t cookie = ts.Env()->local_ref_cookie;
     if (!locals.Remove(cookie, obj)) {
       // Attempting to delete a local reference that is not in the
       // topmost local reference frame is a no-op.  DeleteLocalRef returns
@@ -2508,15 +2508,20 @@ static const size_t kLocalsMax = 512; // Arbitrary sanity check.
 JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
     : self(self),
       vm(vm),
+      local_ref_cookie(IRT_FIRST_SEGMENT),
+      locals(kLocalsInitial, kLocalsMax, kLocal),
       check_jni(vm->check_jni),
       work_around_app_jni_bugs(vm->work_around_app_jni_bugs),
       critical(false),
-      monitors("monitors", kMonitorsInitial, kMonitorsMax),
-      locals(kLocalsInitial, kLocalsMax, kLocal) {
+      monitors("monitors", kMonitorsInitial, kMonitorsMax) {
   functions = unchecked_functions = &gNativeInterface;
   if (check_jni) {
     functions = GetCheckJniNativeInterface();
   }
+  // The JniEnv local reference values must be at a consistent offset or else cross-compilation
+  // errors will ensue.
+  CHECK_EQ(JNIEnvExt::LocalRefCookieOffset().Int32Value(), 12);
+  CHECK_EQ(JNIEnvExt::SegmentStateOffset().Int32Value(), 16);
 }
 
 JNIEnvExt::~JNIEnvExt() {

@@ -82,7 +82,7 @@ size_t JniCallingConvention::ReferenceCount() const {
   return method->NumReferenceArgs() + (method->IsStatic() ? 1 : 0);
 }
 
-FrameOffset JniCallingConvention::LocalReferenceTable_SegmentStatesOffset() const {
+FrameOffset JniCallingConvention::SavedLocalReferenceCookieOffset() const {
   size_t start_of_sirt = SirtLinkOffset().Int32Value() +  kPointerSize;
   size_t references_size = kPointerSize * ReferenceCount();  // size excluding header
   return FrameOffset(start_of_sirt + references_size);
@@ -90,7 +90,7 @@ FrameOffset JniCallingConvention::LocalReferenceTable_SegmentStatesOffset() cons
 
 FrameOffset JniCallingConvention::ReturnValueSaveLocation() const {
   // Segment state is 4 bytes long
-  return FrameOffset(LocalReferenceTable_SegmentStatesOffset().Int32Value() + 4);
+  return FrameOffset(SavedLocalReferenceCookieOffset().Int32Value() + 4);
 }
 
 bool JniCallingConvention::HasNext() {

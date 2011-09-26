@@ -334,6 +334,8 @@ class Assembler {
   // Load routines
   virtual void Load(ManagedRegister dest, FrameOffset src, size_t size) = 0;
 
+  virtual void Load(ManagedRegister dest, ThreadOffset src, size_t size) = 0;
+
   virtual void LoadRef(ManagedRegister dest, FrameOffset  src) = 0;
 
   virtual void LoadRef(ManagedRegister dest, ManagedRegister base,
@@ -363,11 +365,18 @@ class Assembler {
   virtual void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
                     ManagedRegister scratch, size_t size) = 0;
 
+  virtual void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src,
+                    ManagedRegister scratch, size_t size) = 0;
+
   virtual void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
                     ManagedRegister scratch, size_t size) = 0;
 
-  virtual void Copy(ThreadOffset dest_base, Offset dest_offset, FrameOffset src,
-                    ManagedRegister scratch, ManagedRegister scratch2, size_t size) = 0;
+  virtual void Copy(ManagedRegister dest, Offset dest_offset,
+                    ManagedRegister src, Offset src_offset,
+                    ManagedRegister scratch, size_t size) = 0;
+
+  virtual void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
+                    ManagedRegister scratch, size_t size) = 0;
 
   virtual void MemoryBarrier(ManagedRegister scratch) = 0;
 

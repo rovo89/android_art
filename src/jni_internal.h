@@ -130,8 +130,18 @@ struct JNIEnvExt : public JNIEnv {
                   IndirectReferenceTable::SegmentStateOffset().Int32Value());
   }
 
+  static Offset LocalRefCookieOffset() {
+    return Offset(OFFSETOF_MEMBER(JNIEnvExt, local_ref_cookie));
+  }
+
   Thread* const self;
   JavaVMExt* vm;
+
+  // Cookie used when using the local indirect reference table
+  uint32_t local_ref_cookie;
+
+  // JNI local references.
+  IndirectReferenceTable locals;
 
   // Frequently-accessed fields cached from JavaVM.
   bool check_jni;
@@ -142,9 +152,6 @@ struct JNIEnvExt : public JNIEnv {
 
   // Entered JNI monitors, for bulk exit on thread detach.
   ReferenceTable monitors;
-
-  // JNI local references.
-  IndirectReferenceTable locals;
 
   // Used by -Xcheck:jni.
   const JNINativeInterface* unchecked_functions;

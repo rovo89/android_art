@@ -130,7 +130,7 @@ class JniCallingConvention : public CallingConvention {
   // Number of references in stack indirect reference table
   size_t ReferenceCount() const;
   // Location where the segment state of the local indirect reference table is saved
-  FrameOffset LocalReferenceTable_SegmentStatesOffset() const;
+  FrameOffset SavedLocalReferenceCookieOffset() const;
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
   FrameOffset ReturnValueSaveLocation() const;

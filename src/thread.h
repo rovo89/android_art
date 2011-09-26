@@ -432,6 +432,7 @@ class PACKED Thread {
     native_to_managed_record_ = record;
     top_of_managed_stack_.SetSP(NULL);
   }
+
   void PopNativeToManagedRecord(const NativeToManagedRecord& record) {
     native_to_managed_record_ = record.link_;
     top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack_));

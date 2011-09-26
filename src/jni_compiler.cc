@@ -116,8 +116,10 @@ void JniCompiler::Compile(Method* native_method) {
       // Compute SIRT entry, note null is placed in the SIRT but its boxed value
       // must be NULL
       FrameOffset sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
-      // Check SIRT offset is within frame
+      // Check SIRT offset is within frame and doesn't run into the saved segment state
       CHECK_LT(sirt_offset.Uint32Value(), frame_size);
+      CHECK_NE(sirt_offset.Uint32Value(),
+               jni_conv->SavedLocalReferenceCookieOffset().Uint32Value());
       bool input_in_reg = mr_conv->IsCurrentParamInRegister();
       bool input_on_stack = mr_conv->IsCurrentParamOnStack();
       CHECK(input_in_reg || input_on_stack);
@@ -267,14 +269,26 @@ void JniCompiler::Compile(Method* native_method) {
     ManagedRegister jni_env = jni_conv->CurrentParamRegister();
     DCHECK(!jni_env.Equals(jni_conv->InterproceduralScratchRegister()));
     __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset());
-    __ Copy(jni_conv->LocalReferenceTable_SegmentStatesOffset(), jni_env,
-            JNIEnvExt::SegmentStateOffset(), jni_conv->InterproceduralScratchRegister(), 4);
+    // Frame[saved_local_ref_cookie_offset] = env->local_ref_cookie
+    __ Copy(jni_conv->SavedLocalReferenceCookieOffset(),
+            jni_env, JNIEnvExt::LocalRefCookieOffset(),
+            jni_conv->InterproceduralScratchRegister(), 4);
+    // env->local_ref_cookie = env->locals.segment_state
+    __ Copy(jni_env, JNIEnvExt::LocalRefCookieOffset(),
+            jni_env, JNIEnvExt::SegmentStateOffset(),
+            jni_conv->InterproceduralScratchRegister(), 4);
   } else {
     FrameOffset jni_env = jni_conv->CurrentParamStackOffset();
     __ CopyRawPtrFromThread(jni_env, Thread::JniEnvOffset(),
                             jni_conv->InterproceduralScratchRegister());
-    __ Copy(jni_conv->LocalReferenceTable_SegmentStatesOffset(), jni_env,
-            JNIEnvExt::SegmentStateOffset(), jni_conv->InterproceduralScratchRegister(), 4);
+    // Frame[saved_local_ref_cookie_offset] = env->local_ref_cookie
+    __ Copy(jni_conv->SavedLocalReferenceCookieOffset(),
+            jni_env, JNIEnvExt::LocalRefCookieOffset(),
+            jni_conv->InterproceduralScratchRegister(), 4);
+    // env->local_ref_cookie = env->locals.segment_state
+    __ Copy(jni_env, JNIEnvExt::LocalRefCookieOffset(),
+            jni_env, JNIEnvExt::SegmentStateOffset(),
+            jni_conv->InterproceduralScratchRegister(), 4);
   }
 
   // 9. Plant call to native code associated with method
@@ -387,10 +401,18 @@ void JniCompiler::Compile(Method* native_method) {
   __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister());
 
   // 15. Restore segment state and remove SIRT from thread
-  __ Copy(Thread::JniEnvOffset(), JNIEnvExt::SegmentStateOffset(),
-          jni_conv->LocalReferenceTable_SegmentStatesOffset(),
-          jni_conv->InterproceduralScratchRegister(),
-          jni_conv->ReturnScratchRegister(), 4);
+  {
+    ManagedRegister jni_env = jni_conv->InterproceduralScratchRegister();
+    __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset());
+    // env->locals.segment_state = env->local_ref_cookie
+    __ Copy(jni_env, JNIEnvExt::SegmentStateOffset(),
+            jni_env, JNIEnvExt::LocalRefCookieOffset(),
+            jni_conv->ReturnScratchRegister(), 4);
+    // env->local_ref_cookie = Frame[saved_local_ref_cookie_offset]
+    __ Copy(jni_env, JNIEnvExt::LocalRefCookieOffset(),
+            jni_conv->SavedLocalReferenceCookieOffset(),
+            jni_conv->ReturnScratchRegister(), 4);
+  }
   __ CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv->SirtLinkOffset(),
                         jni_conv->InterproceduralScratchRegister());
 
