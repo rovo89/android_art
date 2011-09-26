@@ -855,9 +855,9 @@ void Class::DumpClass(std::ostream& os, int flags) const {
   }
   if (NumStaticFields() > 0) {
     os << "  static fields (" << NumStaticFields() << " entries):\n";
-    if (IsLoaded() || IsErroneous()) {
+    if (IsResolved() || IsErroneous()) {
       for (size_t i = 0; i < NumStaticFields(); ++i) {
-//        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetStaticField(i)).c_str());
+        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetStaticField(i)).c_str());
       }
     } else {
       os << "    <not yet available>";
@@ -865,9 +865,9 @@ void Class::DumpClass(std::ostream& os, int flags) const {
   }
   if (NumInstanceFields() > 0) {
     os << "  instance fields (" << NumInstanceFields() << " entries):\n";
-    if (IsLoaded() || IsErroneous()) {
+    if (IsResolved() || IsErroneous()) {
       for (size_t i = 0; i < NumInstanceFields(); ++i) {
-//        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
+        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
       }
     } else {
       os << "    <not yet available>";
