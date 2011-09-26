@@ -131,8 +131,9 @@ STATIC void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
     rlDest = oatUpdateLoc(cUnit, rlDest);
     if (rlSrc.location == kLocPhysReg) {
         if (oatIsLive(cUnit, rlSrc.lowReg) ||
+            oatIsPromoted(cUnit, rlSrc.lowReg) ||
             (rlDest.location == kLocPhysReg)) {
-            // Src is live or Dest has assigned reg.
+            // Src is live/promoted or Dest has assigned reg.
             rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
             genRegCopy(cUnit, rlDest.lowReg, rlSrc.lowReg);
         } else {
@@ -192,8 +193,10 @@ STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
     if (rlSrc.location == kLocPhysReg) {
         if (oatIsLive(cUnit, rlSrc.lowReg) ||
             oatIsLive(cUnit, rlSrc.highReg) ||
+            oatIsPromoted(cUnit, rlSrc.lowReg) ||
+            oatIsPromoted(cUnit, rlSrc.highReg) ||
             (rlDest.location == kLocPhysReg)) {
-            // Src is live or Dest has assigned reg.
+            // Src is live or promoted or Dest has assigned reg.
             rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
             genRegCopyWide(cUnit, rlDest.lowReg, rlDest.highReg,
                            rlSrc.lowReg, rlSrc.highReg);
