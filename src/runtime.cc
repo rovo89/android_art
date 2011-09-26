@@ -373,11 +373,13 @@ void Runtime::Start() {
 void Runtime::StartDaemonThreads() {
   signal_catcher_ = new SignalCatcher;
 
-  Class* c = class_linker_->FindSystemClass("Ljava/lang/Daemons;");
+  Thread* self = Thread::Current();
+  JNIEnv* env = self->GetJniEnv();
+  jclass c = env->FindClass("java/lang/Daemons");
   CHECK(c != NULL);
-  Method* m = c->FindDirectMethod("start", "()V");
-  CHECK(m != NULL);
-  m->Invoke(Thread::Current(), NULL, NULL, NULL);
+  jmethodID mid = env->GetStaticMethodID(c, "start", "()V");
+  CHECK(mid != NULL);
+  env->CallStaticVoidMethod(c, mid);
 }
 
 bool Runtime::IsStarted() {
