@@ -218,11 +218,15 @@ void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void
   }
 }
 
-void ThreadList::Register(Thread* thread) {
-  //LOG(INFO) << "ThreadList::Register() " << *thread;
+void ThreadList::Register() {
+  Thread* self = Thread::Current();
+
+  //LOG(INFO) << "ThreadList::Register() " << *self;
+  self->Dump(std::cerr);
+
   MutexLock mu(thread_list_lock_);
-  CHECK(!Contains(thread));
-  list_.push_back(thread);
+  CHECK(!Contains(self));
+  list_.push_back(self);
 }
 
 void ThreadList::Unregister() {

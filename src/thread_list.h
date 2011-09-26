@@ -39,7 +39,7 @@ class ThreadList {
   void SuspendAll();
   void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);
 
-  void Register(Thread* thread);
+  void Register();
   void Unregister();
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;

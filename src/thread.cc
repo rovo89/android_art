@@ -623,14 +623,15 @@ void Thread::Attach(const Runtime* runtime) {
 
   jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 
-  runtime->GetThreadList()->Register(this);
+  runtime->GetThreadList()->Register();
 }
 
 Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
+  LOG(INFO) << "Thread::Attach '" << name << "'";
   Thread* self = new Thread;
   self->Attach(runtime);
 
-  self->SetState(Thread::kRunnable);
+  self->SetState(Thread::kNative);
 
   SetThreadName(name);
 
@@ -653,9 +654,6 @@ jobject GetWellKnownThreadGroup(JNIEnv* env, const char* field_name) {
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon) {
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kNative);
-
   JNIEnv* env = jni_env_;
 
   const char* field_name = (GetThinLockId() == ThreadList::kMainId) ? "mMain" : "mSystem";
@@ -669,7 +667,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
 
   jobject peer = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
   peer_ = DecodeJObject(peer);
-  SetVmData(peer_, self);
+  SetVmData(peer_, Thread::Current());
 
   // Because we mostly run without code available (in the compiler, in tests), we
   // manually assign the fields the constructor should have set.
@@ -1026,6 +1024,8 @@ void MonitorExitVisitor(const Object* object, void*) {
 }
 
 Thread::~Thread() {
+  SetState(Thread::kRunnable);
+
   // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
   if (jni_env_ != NULL) {
     jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
