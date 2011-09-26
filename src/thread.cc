@@ -627,7 +627,6 @@ void Thread::Attach(const Runtime* runtime) {
 }
 
 Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
-  LOG(INFO) << "Thread::Attach '" << name << "'";
   Thread* self = new Thread;
   self->Attach(runtime);
 

@@ -20,8 +20,9 @@
 
 namespace art {
 
-ThreadList::ThreadList()
-    : thread_list_lock_("thread list lock"),
+ThreadList::ThreadList(bool verbose)
+    : verbose_(verbose),
+      thread_list_lock_("thread list lock"),
       thread_start_cond_("thread_start_cond_"),
       thread_exit_cond_("thread_exit_cond_"),
       thread_suspend_count_lock_("thread suspend count lock"),
@@ -60,7 +61,9 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
     return;
   }
 
-  //LOG(INFO) << *thread << " self-suspending";
+  if (verbose_) {
+    LOG(INFO) << *thread << " self-suspending";
+  }
   {
     ScopedThreadStateChange tsc(thread, Thread::kSuspended);
     while (thread->suspend_count_ != 0) {
@@ -73,7 +76,9 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
     }
     CHECK_EQ(thread->suspend_count_, 0);
   }
-  //LOG(INFO) << *thread << " self-reviving";
+  if (verbose_) {
+    LOG(INFO) << *thread << " self-reviving";
+  }
 }
 
 void ThreadList::SuspendAll() {
@@ -81,7 +86,9 @@ void ThreadList::SuspendAll() {
 
   // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
 
-  //LOG(INFO) << *self << " SuspendAll starting...";
+  if (verbose_) {
+    LOG(INFO) << *self << " SuspendAll starting...";
+  }
 
   MutexLock mu(thread_list_lock_);
 
@@ -91,7 +98,9 @@ void ThreadList::SuspendAll() {
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
       if (thread != self) {
-        //LOG(INFO) << "requesting thread suspend: " << *thread;
+        if (verbose_) {
+          LOG(INFO) << "requesting thread suspend: " << *thread;
+        }
         ++thread->suspend_count_;
       }
     }
@@ -115,11 +124,15 @@ void ThreadList::SuspendAll() {
     Thread* thread = *it;
     if (thread != self) {
       thread->WaitUntilSuspended();
-      //LOG(INFO) << "thread suspended: " << *thread;
+      if (verbose_) {
+        LOG(INFO) << "thread suspended: " << *thread;
+      }
     }
   }
 
-  //LOG(INFO) << *self << " SuspendAll complete";
+  if (verbose_) {
+    LOG(INFO) << *self << " SuspendAll complete";
+  }
 }
 
 void ThreadList::Suspend(Thread* thread) {
@@ -127,7 +140,9 @@ void ThreadList::Suspend(Thread* thread) {
 
   // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
 
-  //LOG(INFO) << "Suspend(" << *thread << ") starting...";
+  if (verbose_) {
+    LOG(INFO) << "Suspend(" << *thread << ") starting...";
+  }
 
   MutexLock mu(thread_list_lock_);
   if (!Contains(thread)) {
@@ -141,14 +156,18 @@ void ThreadList::Suspend(Thread* thread) {
 
   thread->WaitUntilSuspended();
 
-  //LOG(INFO) << "Suspend(" << *thread << ") complete";
+  if (verbose_) {
+    LOG(INFO) << "Suspend(" << *thread << ") complete";
+  }
 }
 
 
 void ThreadList::ResumeAll() {
   Thread* self = Thread::Current();
 
-  //LOG(INFO) << *self << " ResumeAll starting";
+  if (verbose_) {
+    LOG(INFO) << *self << " ResumeAll starting";
+  }
 
   // Decrement the suspend counts for all threads.  No need for atomic
   // writes, since nobody should be moving until we decrement the count.
@@ -171,18 +190,24 @@ void ThreadList::ResumeAll() {
   // Broadcast a notification to all suspended threads, some or all of
   // which may choose to wake up.  No need to wait for them.
   {
-    //LOG(INFO) << *self << " ResumeAll waking others";
+    if (verbose_) {
+      LOG(INFO) << *self << " ResumeAll waking others";
+    }
     MutexLock mu(thread_suspend_count_lock_);
     thread_suspend_count_cond_.Broadcast();
   }
 
-  //LOG(INFO) << *self << " ResumeAll complete";
+  if (verbose_) {
+    LOG(INFO) << *self << " ResumeAll complete";
+  }
 }
 
 void ThreadList::Resume(Thread* thread) {
   DCHECK(thread != Thread::Current());
 
-  //LOG(INFO) << "Resume(" << *thread << ") starting...";
+  if (verbose_) {
+    LOG(INFO) << "Resume(" << *thread << ") starting...";
+  }
 
   {
     MutexLock mu1(thread_list_lock_);
@@ -198,12 +223,16 @@ void ThreadList::Resume(Thread* thread) {
   }
 
   {
-    //LOG(INFO) << "Resume(" << *thread << ") waking others";
+    if (verbose_) {
+      LOG(INFO) << "Resume(" << *thread << ") waking others";
+    }
     MutexLock mu(thread_suspend_count_lock_);
     thread_suspend_count_cond_.Broadcast();
   }
 
-  //LOG(INFO) << "Resume(" << *thread << ") complete";
+  if (verbose_) {
+    LOG(INFO) << "Resume(" << *thread << ") complete";
+  }
 }
 
 void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg) {
@@ -221,8 +250,10 @@ void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void
 void ThreadList::Register() {
   Thread* self = Thread::Current();
 
-  //LOG(INFO) << "ThreadList::Register() " << *self;
-  self->Dump(std::cerr);
+  if (verbose_) {
+    LOG(INFO) << "ThreadList::Register() " << *self;
+    self->Dump(std::cerr);
+  }
 
   MutexLock mu(thread_list_lock_);
   CHECK(!Contains(self));
@@ -232,7 +263,10 @@ void ThreadList::Register() {
 void ThreadList::Unregister() {
   Thread* self = Thread::Current();
 
-  //LOG(INFO) << "ThreadList::Unregister() " << *self;
+  if (verbose_) {
+    LOG(INFO) << "ThreadList::Unregister() " << *self;
+  }
+
   MutexLock mu(thread_list_lock_);
 
   // Remove this thread from the list.

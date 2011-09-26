@@ -28,7 +28,7 @@ class ThreadList {
   static const uint32_t kInvalidId = 0;
   static const uint32_t kMainId = 1;
 
-  ThreadList();
+  ThreadList(bool verbose);
   ~ThreadList();
 
   void Dump(std::ostream& os);
@@ -59,6 +59,8 @@ class ThreadList {
   void Suspend(Thread* thread);
   void SuspendAllDaemonThreads();
   void WaitForNonDaemonThreadsToExit();
+
+  bool verbose_;
 
   mutable Mutex thread_list_lock_;
   std::bitset<kMaxThreadId> allocated_ids_;

@@ -405,7 +405,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   default_stack_size_ = options->stack_size_;
 
-  thread_list_ = new ThreadList;
+  thread_list_ = new ThreadList(options->IsVerbose("thread"));
   intern_table_ = new InternTable;
 
   Heap::Init(options->heap_initial_size_, options->heap_maximum_size_,
