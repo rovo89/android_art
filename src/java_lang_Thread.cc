@@ -16,6 +16,7 @@
 
 #include "jni_internal.h"
 #include "object.h"
+#include "ScopedUtfChars.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -72,11 +73,18 @@ void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
 
 void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
   ThreadListLock lock;
-  // TODO: needed for debugging (DDMS) support.
-  //Thread* thread = Thread::FromManagedThread(env, javaThread);
-  //StringObject* nameStr = (StringObject*) dvmDecodeIndirectRef(env, javaName);
-  //int threadId = (thread != NULL) ? thread->threadId : -1;
-  //dvmDdmSendThreadNameChange(threadId, nameStr);
+  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  if (thread != NULL) {
+    ScopedUtfChars name(env, javaName);
+    if (name.c_str() == NULL) {
+      return;
+    }
+    LOG(INFO) << "Thread " << *thread << " changing name to '" << name.c_str() << "'";
+    // TODO: needed for debugging (DDMS) support.
+    //StringObject* nameStr = (StringObject*) dvmDecodeIndirectRef(env, javaName);
+    //int threadId = (thread != NULL) ? thread->threadId : -1;
+    //dvmDdmSendThreadNameChange(threadId, nameStr);
+  }
 }
 
 /*
