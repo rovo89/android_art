@@ -188,8 +188,8 @@ static void SweepMonitorList(Monitor** mon, bool (isUnmarkedObject)(void*)) {
   Monitor handle;
   Monitor *curr;
 
-  assert(mon != NULL);
-  assert(isUnmarkedObject != NULL);
+  DCHECK(mon != NULL);
+  DCHECK(isUnmarkedObject != NULL);
   Monitor* prev = &handle;
   prev->next = curr = *mon;
   while (curr != NULL) {
@@ -660,8 +660,8 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
   long maxSleepDelayNs = 1000000000;  /* 1 second */
   uint32_t thin, newThin, threadId;
 
-  assert(self != NULL);
-  assert(obj != NULL);
+  DCHECK(self != NULL);
+  DCHECK(obj != NULL);
   threadId = self->thin_lock_id_;
 retry:
   thin = *thinp;
@@ -749,6 +749,7 @@ retry:
     }
   } else {
     // The lock is a fat lock.
+    LOG(INFO) << StringPrintf("(%d) locking fat lock %p (%p) %p on a %s", threadId, thinp, LW_MONITOR(*thinp), (void*)*thinp, PrettyTypeOf(obj).c_str());
     DCHECK(LW_MONITOR(*thinp) != NULL);
     LW_MONITOR(*thinp)->Lock(self);
   }
@@ -758,7 +759,7 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
 
   DCHECK(self != NULL);
-  DCHECK_EQ(self->GetState(), Thread::kRunnable);
+  //DCHECK_EQ(self->GetState(), Thread::kRunnable);
   DCHECK(obj != NULL);
 
   /*

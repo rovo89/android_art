@@ -1600,7 +1600,7 @@ class MANAGED Class : public StaticStorageBase {
     kDumpClassInitialized = (1 << 2),
   };
 
-  void DumpClass(std::ostream& os, int flags);
+  void DumpClass(std::ostream& os, int flags) const;
 
   DexCache* GetDexCache() const;
 

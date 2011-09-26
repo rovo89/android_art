@@ -1415,7 +1415,9 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       const Method* method = super->GetVirtualMethod(i);
       if (method != super->GetVirtualMethod(i) &&
           !HasSameMethodDescriptorClasses(method, super, klass)) {
-        ThrowLinkageError("Classes resolve differently in superclass");
+        klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
+
+        ThrowLinkageError("Class %s method %s resolves differently in superclass %s", PrettyDescriptor(klass->GetDescriptor()).c_str(), PrettyMethod(method).c_str(), PrettyDescriptor(super->GetDescriptor()).c_str());
         return false;
       }
     }
@@ -1428,7 +1430,9 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
         const Method* method = interface_entry->GetMethodArray()->Get(j);
         if (!HasSameMethodDescriptorClasses(method, interface,
                                             method->GetDeclaringClass())) {
-          ThrowLinkageError("Classes resolve differently in interface");
+          klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
+
+          ThrowLinkageError("Class %s method %s resolves differently in interface %s", PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor()).c_str(), PrettyMethod(method).c_str(), PrettyDescriptor(interface->GetDescriptor()).c_str());
           return false;
         }
       }
@@ -1440,6 +1444,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
 bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
                                                  const Class* klass1,
                                                  const Class* klass2) {
+  if (method->IsMiranda()) { return true; }
   const DexFile& dex_file = FindDexFile(method->GetDeclaringClass()->GetDexCache());
   const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
   DexFile::ParameterIterator *it;
@@ -1523,6 +1528,8 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
   }
 
   Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  LOG(INFO) << "initializing " << PrettyClass(c) << " from " << *self;
   c->MonitorEnter(self);
   InitializeClass(c, can_run_clinit);
   c->MonitorExit(self);
@@ -1818,8 +1825,6 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
 }
 
 bool ClassLinker::LinkInterfaceMethods(Class* klass) {
-  int miranda_count = 0;
-  int miranda_alloc = 0;
   size_t super_ifcount;
   if (klass->HasSuperClass()) {
     super_ifcount = klass->GetSuperClass()->GetIfTableCount();
@@ -1856,14 +1861,18 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
           PrettyDescriptor(interface->GetDescriptor()).c_str());
       return false;
     }
+    // Add this interface.
     iftable->Set(idx++, AllocInterfaceEntry(interface));
+    // Add this interface's superinterfaces.
     for (int32_t j = 0; j < interface->GetIfTableCount(); j++) {
       iftable->Set(idx++, AllocInterfaceEntry(interface->GetIfTable()->Get(j)->GetInterface()));
     }
   }
   klass->SetIfTable(iftable);
   CHECK_EQ(idx, ifcount);
-  if (klass->IsInterface()) {
+
+  // If we're an interface, we don't need the vtable pointers, so we're done.
+  if (klass->IsInterface() /*|| super_ifcount == ifcount*/) {
     return true;
   }
   std::vector<Method*> miranda_list;
@@ -1876,6 +1885,14 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
       Method* interface_method = interface->GetVirtualMethod(j);
       int32_t k;
+      // For each method listed in the interface's method list, find the
+      // matching method in our class's method list.  We want to favor the
+      // subclass over the superclass, which just requires walking
+      // back from the end of the vtable.  (This only matters if the
+      // superclass defines a private method and this class redefines
+      // it -- otherwise it would use the same vtable slot.  In .dex files
+      // those don't end up in the virtual method table, so it shouldn't
+      // matter which direction we go.  We walk it backward anyway.)
       for (k = vtable->GetLength() - 1; k >= 0; --k) {
         Method* vtable_method = vtable->Get(k);
         if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
@@ -1889,33 +1906,26 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
         }
       }
       if (k < 0) {
-        if (miranda_count == miranda_alloc) {
-          miranda_alloc += 8;
-          if (miranda_list.empty()) {
-            miranda_list.resize(miranda_alloc);
-          } else {
-            miranda_list.resize(miranda_alloc);
-          }
-        }
         Method* miranda_method = NULL;
-        int mir;
-        for (mir = 0; mir < miranda_count; mir++) {
-          miranda_method = miranda_list[mir];
-          if (miranda_method->HasSameNameAndDescriptor(interface_method)) {
+        for (size_t mir = 0; mir < miranda_list.size(); mir++) {
+          if (miranda_list[mir]->HasSameNameAndDescriptor(interface_method)) {
+            miranda_method = miranda_list[mir];
             break;
           }
         }
-        // point the interface table at a phantom slot
-        method_array->Set(j, miranda_method);
-        if (mir == miranda_count) {
-          miranda_list[miranda_count++] = interface_method;
+        if (miranda_method == NULL) {
+          // point the interface table at a phantom slot
+          miranda_method = AllocMethod();
+          memcpy(miranda_method, interface_method, sizeof(Method));
+          miranda_list.push_back(miranda_method);
         }
+        method_array->Set(j, miranda_method);
       }
     }
   }
-  if (miranda_count != 0) {
+  if (!miranda_list.empty()) {
     int old_method_count = klass->NumVirtualMethods();
-    int new_method_count = old_method_count + miranda_count;
+    int new_method_count = old_method_count + miranda_list.size();
     klass->SetVirtualMethods((old_method_count == 0)
                              ? AllocObjectArray<Method>(new_method_count)
                              : klass->GetVirtualMethods()->CopyOf(new_method_count));
@@ -1923,12 +1933,12 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
     CHECK(vtable != NULL);
     int old_vtable_count = vtable->GetLength();
-    int new_vtable_count = old_vtable_count + miranda_count;
+    int new_vtable_count = old_vtable_count + miranda_list.size();
     vtable = vtable->CopyOf(new_vtable_count);
-    for (int i = 0; i < miranda_count; i++) {
-      Method* meth = AllocMethod();
+    for (size_t i = 0; i < miranda_list.size(); ++i) {
+      Method* meth = miranda_list[i]; //AllocMethod();
       // TODO: this shouldn't be a memcpy
-      memcpy(meth, miranda_list[i], sizeof(Method));
+      //memcpy(meth, miranda_list[i], sizeof(Method));
       meth->SetDeclaringClass(klass);
       meth->SetAccessFlags(meth->GetAccessFlags() | kAccMiranda);
       meth->SetMethodIndex(0xFFFF & (old_vtable_count + i));
@@ -1938,6 +1948,14 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     // TODO: do not assign to the vtable field until it is fully constructed.
     klass->SetVTable(vtable);
   }
+
+  ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
+  for (int i = 0; i < vtable->GetLength(); ++i) {
+    CHECK(vtable->Get(i) != NULL);
+  }
+
+//  klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
+
   return true;
 }
 

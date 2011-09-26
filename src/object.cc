@@ -688,7 +688,10 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 
 void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
                      IntArray* mapping_table, ShortArray* vmap_table) {
-  CHECK(GetCode() == NULL || IsNative());
+//  CHECK(GetCode() == NULL || IsNative()) << PrettyMethod(this);
+  if (GetCode() != NULL && !IsNative()) {
+    LOG(WARNING) << "Calling SetCode more than once for " << PrettyMethod(this);
+  }
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
   SetFieldPtr<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
        mapping_table, false);
@@ -807,7 +810,7 @@ Object* Class::AllocObject() {
   return Heap::AllocObject(this, this->object_size_);
 }
 
-void Class::DumpClass(std::ostream& os, int flags) {
+void Class::DumpClass(std::ostream& os, int flags) const {
   if ((flags & kDumpClassFullDetail) == 0) {
     os << PrettyClass(this);
     if ((flags & kDumpClassClassLoader) != 0) {
@@ -844,7 +847,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
   os << "  vtable (" << NumVirtualMethods() << " entries, "
      << (super != NULL ? super->NumVirtualMethods() : 0) << " in super):\n";
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    os << StringPrintf("    %2d: %s\n", i, PrettyMethod(GetVirtualMethod(i)).c_str());
+    os << StringPrintf("    %2d: %s\n", i, PrettyMethod(GetVirtualMethodDuringLinking(i)).c_str());
   }
   os << "  direct methods (" << NumDirectMethods() << " entries):\n";
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
@@ -852,14 +855,22 @@ void Class::DumpClass(std::ostream& os, int flags) {
   }
   if (NumStaticFields() > 0) {
     os << "  static fields (" << NumStaticFields() << " entries):\n";
-    for (size_t i = 0; i < NumStaticFields(); ++i) {
-      os << StringPrintf("    %2d: %s\n", i, PrettyField(GetStaticField(i)).c_str());
+    if (IsLoaded() || IsErroneous()) {
+      for (size_t i = 0; i < NumStaticFields(); ++i) {
+//        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetStaticField(i)).c_str());
+      }
+    } else {
+      os << "    <not yet available>";
     }
   }
   if (NumInstanceFields() > 0) {
     os << "  instance fields (" << NumInstanceFields() << " entries):\n";
-    for (size_t i = 0; i < NumInstanceFields(); ++i) {
-      os << StringPrintf("    %2d: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
+    if (IsLoaded() || IsErroneous()) {
+      for (size_t i = 0; i < NumInstanceFields(); ++i) {
+//        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
+      }
+    } else {
+      os << "    <not yet available>";
     }
   }
 }
