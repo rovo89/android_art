@@ -99,15 +99,35 @@ public:
         jmethodID put = env->GetMethodID(Map,
                                          "put",
                                          "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        jclass BaseDexClassLoader = env->FindClass("dalvik/system/BaseDexClassLoader");
+        jfieldID originalPath = env->GetFieldID(BaseDexClassLoader, "originalPath", "Ljava/lang/String;");
+        jfieldID pathList = env->GetFieldID(BaseDexClassLoader, "pathList", "Ldalvik/system/DexPathList;");
+        jclass DexPathList = env->FindClass("dalvik/system/DexPathList");
+        jmethodID init = env->GetMethodID(DexPathList,
+                                          "<init>",
+                                          "(Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;Ljava/io/File;)V");
 
-        jobject application_loaders = env->CallStaticObjectMethod(ApplicationLoaders, getDefault);
-        jobject loaders = env->GetObjectField(application_loaders, mLoaders);
-        jobject boot_class_loader = env->CallStaticObjectMethod(BootClassLoader, getInstance);
+        // Set the parent of our pre-existing ClassLoader to the non-null BootClassLoader.getInstance()
         const art::ClassLoader* class_loader_object = art::Thread::Current()->GetClassLoaderOverride();
         jobject class_loader = art::AddLocalReference<jobject>(env, class_loader_object);
+        jobject boot_class_loader = env->CallStaticObjectMethod(BootClassLoader, getInstance);
         env->SetObjectField(class_loader, parent, boot_class_loader);
-        jstring apk = env->NewStringUTF("/system/app/Calculator.apk");
-        env->CallObjectMethod(loaders, put, apk, class_loader);
+
+        // Create a DexPathList
+        jstring dex_path = env->NewStringUTF("/system/app/Calculator.apk");
+        jstring library_path = env->NewStringUTF("/data/data/com.android.calculator2/lib");
+        jobject dex_path_list = env->NewObject(DexPathList, init,
+                                               boot_class_loader, dex_path, library_path, NULL);
+
+        // Set DexPathList into our pre-existing ClassLoader
+        env->SetObjectField(class_loader, pathList, dex_path_list);
+        env->SetObjectField(class_loader, originalPath, dex_path);
+
+        // Stash our pre-existing ClassLoader into ApplicationLoaders.getDefault().mLoaders
+        // under the expected name.
+        jobject application_loaders = env->CallStaticObjectMethod(ApplicationLoaders, getDefault);
+        jobject loaders = env->GetObjectField(application_loaders, mLoaders);
+        env->CallObjectMethod(loaders, put, dex_path, class_loader);
     }
 
     virtual void onStarted()
