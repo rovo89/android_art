@@ -1444,7 +1444,9 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
 bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
                                                  const Class* klass1,
                                                  const Class* klass2) {
-  if (method->IsMiranda()) { return true; }
+  if (method->IsMiranda()) {
+      return true;
+  }
   const DexFile& dex_file = FindDexFile(method->GetDeclaringClass()->GetDexCache());
   const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
   DexFile::ParameterIterator *it;
@@ -1463,7 +1465,7 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
   // Check the return type
   const char* descriptor = dex_file.GetReturnTypeDescriptor(proto_id);
   if (descriptor[0] == 'L' || descriptor[0] == '[') {
-    if (HasSameDescriptorClasses(descriptor, klass1, klass2)) {
+    if (!HasSameDescriptorClasses(descriptor, klass1, klass2)) {
       return false;
     }
   }

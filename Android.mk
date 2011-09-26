@@ -156,17 +156,23 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 # oatdump targets
 
 .PHONY: dump-oat
-dump-oat: dump-core-oat dump-boot-oat
+dump-oat: dump-oat-core dump-oat-boot
 
-.PHONY: dump-core-oat
-dump-core-oat: $(TARGET_CORE_OAT) $(OATDUMP)
-	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_CORE_DEX)) --image=$(TARGET_CORE_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
+.PHONY: dump-oat-core
+dump-oat-core: $(TARGET_CORE_OAT) $(OATDUMP)
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_CORE_DEX)) --image=$< --strip-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
 	@echo Output in /tmp/core.oatdump.txt
 
-.PHONY: dump-boot-oat
-dump-boot-oat: $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
+.PHONY: dump-oat-boot
+dump-oat-boot: $(TARGET_BOOT_OAT) $(OATDUMP)
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$< --strip-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
+
+.PHONY: dump-oat-Calculator
+dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_BOOT_OAT) $(OATDUMP)
+	$(OATDUMP) --dex-file=$(TARGET_OUT_APPS)/Calculator.apk --image=$< $(addprefix --boot-dex-file=,$(TARGET_BOOT_DEX)) --boot=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
+	@echo Output in /tmp/Calculator.oatdump.txt
+
 
 ########################################################################
 # cpplint target

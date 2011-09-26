@@ -126,6 +126,9 @@ class OatDump {
     if (obj->IsClass()) {
       Class* klass = obj->AsClass();
       StringAppendF(&summary, "CLASS %s", klass->GetDescriptor()->ToModifiedUtf8().c_str());
+      std::stringstream ss;
+      ss << " (" << klass->GetStatus() << ")";
+      summary += ss.str();
     } else if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
       StringAppendF(&summary, "METHOD %s", PrettyMethod(method).c_str());
@@ -151,21 +154,32 @@ class OatDump {
     //               object_bytes, RoundUp(object_bytes, kObjectAlignment) - object_bytes);
     if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
-      const ByteArray* code = method->GetCodeArray();
       if (!method->IsPhony()) {
-        size_t code_bytes = code->GetLength();
-        if (method->IsNative()) {
-          state->stats_.managed_to_native_code_bytes += code_bytes;
-        } else {
-          state->stats_.managed_code_bytes += code_bytes;
+        const ByteArray* code = method->GetCodeArray();
+        const int8_t* code_base = NULL;
+        const int8_t* code_limit = NULL;
+        if (code != NULL) {
+          size_t code_bytes = code->GetLength();
+          code_base = code->GetData();
+          code_limit = code_base + code_bytes;
+          if (method->IsNative()) {
+            state->stats_.managed_to_native_code_bytes += code_bytes;
+          } else {
+            state->stats_.managed_code_bytes += code_bytes;
+          }
         }
-        StringAppendF(&summary, "\tCODE     %p-%p\n", code->GetData(), code->GetData() + code_bytes);
+        StringAppendF(&summary, "\tCODE     %p-%p\n", code_base, code_limit);
 
         const ByteArray* invoke = method->GetInvokeStubArray();
-        size_t native_to_managed_code_bytes = invoke->GetLength();
-        state->stats_.native_to_managed_code_bytes += native_to_managed_code_bytes;
-        StringAppendF(&summary, "\tJNI STUB %p-%p\n",
-                      invoke->GetData(), invoke->GetData() + native_to_managed_code_bytes);
+        const int8_t* invoke_base = NULL;
+        const int8_t* invoke_limit = NULL;
+        if (invoke != NULL) {
+          size_t native_to_managed_code_bytes = invoke->GetLength();
+          invoke_base = invoke->GetData();
+          invoke_limit = invoke_base + native_to_managed_code_bytes;
+          state->stats_.native_to_managed_code_bytes += native_to_managed_code_bytes;
+          StringAppendF(&summary, "\tJNI STUB %p-%p\n", invoke_base, invoke_limit);
+        }
       }
       if (method->IsNative()) {
         if (method->IsRegistered()) {
@@ -191,8 +205,10 @@ class OatDump {
                                      method->GetRegisterMapData()->GetLength());
         state->stats_.register_map_bytes += register_map_bytes;
 
-        size_t pc_mapping_table_bytes = method->GetMappingTable()->GetLength();
-        state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
+        if (method->GetMappingTable() != NULL) {
+          size_t pc_mapping_table_bytes = method->GetMappingTable()->GetLength();
+          state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
+        }
 
         ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
         class DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();

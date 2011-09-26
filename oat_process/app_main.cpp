@@ -7,6 +7,11 @@
 
 #define LOG_TAG "appproc"
 
+#include "class_loader.h"
+#include "jni_internal.h"
+#include "stringprintf.h"
+#include "thread.h"
+
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
 #include <utils/Log.h>
@@ -72,11 +77,37 @@ public:
         char* slashClassName = toSlashClassName(mClassName);
         mClass = env->FindClass(slashClassName);
         if (mClass == NULL) {
-            LOGE("ERROR: could not find class '%s'\n", mClassName);
+            LOG(ERROR) << StringPrintf("ERROR: could not find class '%s'\n", mClassName);
         }
         free(slashClassName);
 
         mClass = reinterpret_cast<jclass>(env->NewGlobalRef(mClass));
+
+        // TODO: remove this ClassLoader code
+        jclass ApplicationLoaders = env->FindClass("android/app/ApplicationLoaders");
+        jmethodID getDefault = env->GetStaticMethodID(ApplicationLoaders,
+                                                      "getDefault",
+                                                      "()Landroid/app/ApplicationLoaders;");
+        jfieldID mLoaders = env->GetFieldID(ApplicationLoaders, "mLoaders", "Ljava/util/Map;");
+        jclass BootClassLoader = env->FindClass("java/lang/BootClassLoader");
+        jmethodID getInstance = env->GetStaticMethodID(BootClassLoader,
+                                                       "getInstance",
+                                                       "()Ljava/lang/BootClassLoader;");
+        jclass ClassLoader = env->FindClass("java/lang/ClassLoader");
+        jfieldID parent = env->GetFieldID(ClassLoader, "parent", "Ljava/lang/ClassLoader;");
+        jclass Map = env->FindClass("java/util/Map");
+        jmethodID put = env->GetMethodID(Map,
+                                         "put",
+                                         "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+
+        jobject application_loaders = env->CallStaticObjectMethod(ApplicationLoaders, getDefault);
+        jobject loaders = env->GetObjectField(application_loaders, mLoaders);
+        jobject boot_class_loader = env->CallStaticObjectMethod(BootClassLoader, getInstance);
+        const art::ClassLoader* class_loader_object = art::Thread::Current()->GetClassLoaderOverride();
+        jobject class_loader = art::AddLocalReference<jobject>(env, class_loader_object);
+        env->SetObjectField(class_loader, parent, boot_class_loader);
+        jstring apk = env->NewStringUTF("/system/app/Calculator.apk");
+        env->CallObjectMethod(loaders, put, apk, class_loader);
     }
 
     virtual void onStarted()
@@ -150,11 +181,11 @@ int main(int argc, const char* argv[])
 
     // ignore /system/bin/app_process when invoked via WrapperInit
     if (strcmp(argv[0], "/system/bin/app_process") == 0) {
-        LOGI("Removing /system/bin/app_process argument");
+        LOG(INFO) << "Removing /system/bin/app_process argument";
         argc--;
         argv++;
         for (int i = 0; i < argc; i++) {
-            LOGI("argv[%d]=%s", i, argv[i]);
+            LOG(INFO) << StringPrintf("argv[%d]=%s", i, argv[i]);
         }
     }
 
@@ -162,7 +193,7 @@ int main(int argc, const char* argv[])
     int oatArgc = argc + 2;
     const char* oatArgv[oatArgc];
     if (strcmp(argv[0], "-Xbootimage:/system/framework/boot.oat") != 0) {
-        LOGI("Adding oat arguments");
+        LOG(INFO) << "Adding oat arguments";
         oatArgv[0] = "-Xbootimage:/system/framework/boot.oat";
         oatArgv[1] = "-Ximage:/system/app/Calculator.oat";
         setenv("CLASSPATH", "/system/app/Calculator.apk", 1);
@@ -170,12 +201,12 @@ int main(int argc, const char* argv[])
         argv = oatArgv;
         argc = oatArgc;
         for (int i = 0; i < argc; i++) {
-            LOGI("argv[%d]=%s", i, argv[i]);
+            LOG(INFO) << StringPrintf("argv[%d]=%s", i, argv[i]);
         }
     }
 
     // TODO: remove the heap arguments when implicit garbage collection enabled
-    LOGI("Adding heap arguments");
+    LOG(INFO) << "Adding heap arguments";
     int heapArgc = argc + 2;
     const char* heapArgv[heapArgc];
     heapArgv[0] = "-Xms64m";
@@ -184,11 +215,11 @@ int main(int argc, const char* argv[])
     argv = heapArgv;
     argc = heapArgc;
     for (int i = 0; i < argc; i++) {
-        LOGI("argv[%d]=%s", i, argv[i]);
+        LOG(INFO) << StringPrintf("argv[%d]=%s", i, argv[i]);
     }
 
     // TODO: change the system default to not perform preloading
-    LOGI("Disabling preloading");
+    LOG(INFO) << "Disabling preloading";
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "preload") == 0) {
             argv[i] = "nopreload";
@@ -196,7 +227,7 @@ int main(int argc, const char* argv[])
         }
     }
     for (int i = 0; i < argc; i++) {
-        LOGI("argv[%d]=%s", i, argv[i]);
+        LOG(INFO) << StringPrintf("argv[%d]=%s", i, argv[i]);
     }
 
     // Everything up to '--' or first non '-' arg goes to the vm
@@ -249,7 +280,7 @@ int main(int argc, const char* argv[])
     } else {
         fprintf(stderr, "Error: no class name or --zygote supplied.\n");
         app_usage();
-        LOG_ALWAYS_FATAL("oat_process: no class name or --zygote supplied.");
+        LOG(FATAL) << "oat_process: no class name or --zygote supplied.";
         return 10;
     }
 }
