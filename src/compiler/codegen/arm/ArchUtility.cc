@@ -456,30 +456,6 @@ void oatCodegenDump(CompilationUnit* cUnit)
         ToModifiedUtf8();
 
     char buf[256];
-#if 0
-    int linebreak = 0;
-    //TODO: delete when we're sure it's no longer necessary
-    LOG(INFO) << "*/";
-    sprintf(buf,"\n    u1 %s%s_%s_code[] = {", descriptor.c_str(),
-            name.c_str(), signature.c_str());
-    for (unsigned int i = 0; i < strlen(buf); i++)
-        if (buf[i] == ';') buf[i] = '_';
-    LOG(INFO) << buf;
-    strcpy(buf,"        ");
-    u1* pLiterals = (u1*)&cUnit->codeBuffer[0];
-    for (int i = 0; i < cUnit->totalSize; i++) {
-        sprintf(buf+strlen(buf),"0x%02x,", pLiterals[i]);
-        if (++linebreak == 8) {
-            linebreak = 0;
-            LOG(INFO) << buf;
-            strcpy(buf,"        ");
-        }
-    }
-    if (strlen(buf) > 8) {
-        LOG(INFO) << buf;
-    }
-    LOG(INFO) << "    };\n\n";
-#endif
 
     // Dump mapping table
     if (cUnit->mappingTable.size() > 0) {
@@ -498,6 +474,4 @@ void oatCodegenDump(CompilationUnit* cUnit)
         }
         LOG(INFO) <<"    };\n\n";
     }
-
-    // Dump vmap table
 }

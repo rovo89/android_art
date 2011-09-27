@@ -1817,8 +1817,14 @@ STATIC void flushIns(CompilationUnit* cUnit)
         }
         if (loc.location == kLocPhysReg) {
             if (loc.wide) {
-                loadBaseDispWide(cUnit, NULL, rSP, loc.spOffset,
-                                 loc.lowReg, loc.highReg, INVALID_SREG);
+                if (loc.fp && (loc.lowReg & 1) != 0) {
+                    // Misaligned - need to load as a pair of singles
+                    loadWordDisp(cUnit, rSP, loc.spOffset, loc.lowReg);
+                    loadWordDisp(cUnit, rSP, loc.spOffset + 4, loc.highReg);
+                } else {
+                    loadBaseDispWide(cUnit, NULL, rSP, loc.spOffset,
+                                     loc.lowReg, loc.highReg, INVALID_SREG);
+                }
                 i++;
             } else {
                 loadWordDisp(cUnit, rSP, loc.spOffset, loc.lowReg);

@@ -141,6 +141,8 @@ extern void oatClobberCallRegs(CompilationUnit* cUnit);
 
 extern RegisterInfo *oatIsTemp(CompilationUnit* cUnit, int reg);
 
+extern RegisterInfo *oatIsPromoted(CompilationUnit* cUnit, int reg);
+
 extern bool oatIsDirty(CompilationUnit* cUnit, int reg);
 
 extern void oatMarkInUse(CompilationUnit* cUnit, int reg);

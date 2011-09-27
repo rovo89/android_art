@@ -830,7 +830,6 @@ STATIC void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     // The longs may overlap - use intermediate temp if so
     if (rlResult.lowReg == rlSrc1.highReg) {
-        //FIXME: review all long arithmetic ops - there may be more of these
         int tReg = oatAllocTemp(cUnit);
         genRegCopy(cUnit, tReg, rlSrc1.highReg);
         opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg,
@@ -1044,32 +1043,34 @@ STATIC void genCmpLong(CompilationUnit* cUnit, MIR* mir,
                        RegLocation rlDest, RegLocation rlSrc1,
                        RegLocation rlSrc2)
 {
-    RegLocation rlTemp = LOC_C_RETURN; // Just using as template, will change
     ArmLIR* target1;
     ArmLIR* target2;
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-    rlTemp.lowReg = oatAllocTemp(cUnit);
-    loadConstant(cUnit, rlTemp.lowReg, -1);
+    int tReg = oatAllocTemp(cUnit);
+    loadConstant(cUnit, tReg, -1);
     opRegReg(cUnit, kOpCmp, rlSrc1.highReg, rlSrc2.highReg);
     ArmLIR* branch1 = opCondBranch(cUnit, kArmCondLt);
     ArmLIR* branch2 = opCondBranch(cUnit, kArmCondGt);
-    opRegRegReg(cUnit, kOpSub, rlTemp.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
+    opRegRegReg(cUnit, kOpSub, tReg, rlSrc1.lowReg, rlSrc2.lowReg);
     ArmLIR* branch3 = opCondBranch(cUnit, kArmCondEq);
 
     genIT(cUnit, kArmCondHi, "E");
-    newLIR2(cUnit, kThumb2MovImmShift, rlTemp.lowReg, modifiedImmediate(-1));
-    loadConstant(cUnit, rlTemp.lowReg, 1);
+    newLIR2(cUnit, kThumb2MovImmShift, tReg, modifiedImmediate(-1));
+    loadConstant(cUnit, tReg, 1);
     genBarrier(cUnit);
 
     target2 = newLIR0(cUnit, kArmPseudoTargetLabel);
     target2->defMask = -1;
-    opRegReg(cUnit, kOpNeg, rlTemp.lowReg, rlTemp.lowReg);
+    opRegReg(cUnit, kOpNeg, tReg, tReg);
 
     target1 = newLIR0(cUnit, kArmPseudoTargetLabel);
     target1->defMask = -1;
 
+    RegLocation rlTemp = LOC_C_RETURN; // Just using as template, will change
+    rlTemp.lowReg = tReg;
     storeValue(cUnit, rlDest, rlTemp);
+    oatFreeTemp(cUnit, tReg);
 
     branch1->generic.target = (LIR*)target1;
     branch2->generic.target = (LIR*)target2;
@@ -1498,8 +1499,17 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
         case OP_NOT_LONG:
             rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            opRegReg(cUnit, kOpMvn, rlResult.lowReg, rlSrc2.lowReg);
-            opRegReg(cUnit, kOpMvn, rlResult.highReg, rlSrc2.highReg);
+            // Check for destructive overlap
+            if (rlResult.lowReg == rlSrc2.highReg) {
+                int tReg = oatAllocTemp(cUnit);
+                genRegCopy(cUnit, tReg, rlSrc2.highReg);
+                opRegReg(cUnit, kOpMvn, rlResult.lowReg, rlSrc2.lowReg);
+                opRegReg(cUnit, kOpMvn, rlResult.highReg, tReg);
+                oatFreeTemp(cUnit, tReg);
+            } else {
+                opRegReg(cUnit, kOpMvn, rlResult.lowReg, rlSrc2.lowReg);
+                opRegReg(cUnit, kOpMvn, rlResult.highReg, rlSrc2.highReg);
+            }
             storeValueWide(cUnit, rlDest, rlResult);
             return false;
             break;
@@ -1548,15 +1558,25 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
             secondOp = kOpXor;
             break;
         case OP_NEG_LONG: {
-            //TUNING: can improve this using Thumb2 code
-            int tReg = oatAllocTemp(cUnit);
             rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            loadConstantNoClobber(cUnit, tReg, 0);
-            opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
-                        tReg, rlSrc2.lowReg);
-            opRegReg(cUnit, kOpSbc, tReg, rlSrc2.highReg);
-            genRegCopy(cUnit, rlResult.highReg, tReg);
+            int zReg = oatAllocTemp(cUnit);
+            loadConstantNoClobber(cUnit, zReg, 0);
+            // Check for destructive overlap
+            if (rlResult.lowReg == rlSrc2.highReg) {
+                int tReg = oatAllocTemp(cUnit);
+                opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
+                            zReg, rlSrc2.lowReg);
+                opRegRegReg(cUnit, kOpSbc, rlResult.highReg,
+                            zReg, tReg);
+                oatFreeTemp(cUnit, tReg);
+            } else {
+                opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
+                            zReg, rlSrc2.lowReg);
+                opRegRegReg(cUnit, kOpSbc, rlResult.highReg,
+                            zReg, rlSrc2.highReg);
+            }
+            oatFreeTemp(cUnit, zReg);
             storeValueWide(cUnit, rlDest, rlResult);
             return false;
         }

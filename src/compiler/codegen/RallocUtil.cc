@@ -547,6 +547,12 @@ extern RegisterInfo* oatIsTemp(CompilationUnit* cUnit, int reg)
     return (p->isTemp) ? p : NULL;
 }
 
+extern RegisterInfo* oatIsPromoted(CompilationUnit* cUnit, int reg)
+{
+    RegisterInfo* p = getRegInfo(cUnit, reg);
+    return (p->isTemp) ? NULL : p;
+}
+
 extern bool oatIsDirty(CompilationUnit* cUnit, int reg)
 {
     RegisterInfo* p = getRegInfo(cUnit, reg);
@@ -849,7 +855,7 @@ STATIC void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
 /*
  * Return an updated location record with current in-register status.
  * If the value lives in live temps, reflect that fact.  No code
- * is generated.  The the live value is part of an older pair,
+ * is generated.  If the live value is part of an older pair,
  * clobber both low and high.
  * TUNING: clobbering both is a bit heavy-handed, but the alternative
  * is a bit complex when dealing with FP regs.  Examine code to see
