@@ -134,16 +134,16 @@ class ScopedCheck {
 public:
   // For JNIEnv* functions.
   explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName) {
-    init(env, reinterpret_cast<JNIEnvExt*>(env)->vm, flags, functionName, true);
-    checkThread(flags);
+    Init(env, reinterpret_cast<JNIEnvExt*>(env)->vm, flags, functionName, true);
+    CheckThread(flags);
   }
 
   // For JavaVM* functions.
   explicit ScopedCheck(JavaVM* vm, bool hasMethod, const char* functionName) {
-    init(NULL, vm, kFlag_Invocation, functionName, hasMethod);
+    Init(NULL, vm, kFlag_Invocation, functionName, hasMethod);
   }
 
-  bool forceCopy() {
+  bool ForceCopy() {
     return Runtime::Current()->GetJavaVM()->force_copy;
   }
 
@@ -160,9 +160,9 @@ public:
    * We expect "fully-qualified" class names, like "java/lang/Thread" or
    * "[Ljava/lang/Object;".
    */
-  void checkClassName(const char* className) {
+  void CheckClassName(const char* className) {
     if (!IsValidClassName(className, true, false)) {
-      LOG(ERROR) << "JNI ERROR: illegal class name '" << className << "' (" << mFunctionName << ")\n"
+      LOG(ERROR) << "JNI ERROR: illegal class name '" << className << "' (" << function_name_ << ")\n"
                  << "           (should be of the form 'java/lang/String', [Ljava/lang/String;' or '[[B')\n";
       JniAbort();
     }
@@ -174,15 +174,12 @@ public:
    *
    * Works for both static and instance fields.
    */
-  void checkFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic) {
-    if (fid == NULL) {
-      LOG(ERROR) << "JNI ERROR: null jfieldID";
-      JniAbort();
+  void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic) {
+    ScopedJniThreadState ts(env_);
+    Field* f = CheckFieldID(fid);
+    if (f == NULL) {
       return;
     }
-
-    ScopedJniThreadState ts(mEnv);
-    Field* f = DecodeField(fid);
     Class* field_type = f->GetType();
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
@@ -226,18 +223,20 @@ public:
    *
    * Assumes "jobj" has already been validated.
    */
-  void checkInstanceFieldID(jobject java_object, jfieldID fid) {
-    ScopedJniThreadState ts(mEnv);
+  void CheckInstanceFieldID(jobject java_object, jfieldID fid) {
+    ScopedJniThreadState ts(env_);
 
     Object* o = Decode<Object*>(ts, java_object);
-    if (!Heap::IsHeapAddress(o)) {
+    if (o == NULL || !Heap::IsHeapAddress(o)) {
       LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
       JniAbort();
       return;
     }
 
-    CHECK(fid != NULL) << PrettyTypeOf(o);
-    Field* f = DecodeField(fid);
+    Field* f = CheckFieldID(fid);
+    if (f == NULL) {
+      return;
+    }
     Class* f_type = f->GetType();
     // check invariant that all jfieldIDs have resolved types
     DCHECK(f_type != NULL);
@@ -251,7 +250,7 @@ public:
   /*
    * Verify that the pointer value is non-NULL.
    */
-  void checkNonNull(const void* ptr) {
+  void CheckNonNull(const void* ptr) {
     if (ptr == NULL) {
       LOG(ERROR) << "JNI ERROR: invalid null pointer";
       JniAbort();
@@ -262,9 +261,12 @@ public:
    * Verify that the method's return type matches the type of call.
    * 'expectedType' will be "L" for all objects, including arrays.
    */
-  void checkSig(jmethodID mid, const char* expectedType, bool isStatic) {
-    ScopedJniThreadState ts(mEnv);
-    const Method* m = DecodeMethod(mid);
+  void CheckSig(jmethodID mid, const char* expectedType, bool isStatic) {
+    ScopedJniThreadState ts(env_);
+    const Method* m = CheckMethodID(mid);
+    if (m == NULL) {
+      return;
+    }
     if (*expectedType != m->GetShorty()->CharAt(0)) {
       LOG(ERROR) << "JNI ERROR: expected return type '" << *expectedType << "' calling " << PrettyMethod(m);
       JniAbort();
@@ -283,10 +285,13 @@ public:
    *
    * Assumes "java_class" has already been validated.
    */
-  void checkStaticFieldID(jclass java_class, jfieldID fid) {
-    ScopedJniThreadState ts(mEnv);
+  void CheckStaticFieldID(jclass java_class, jfieldID fid) {
+    ScopedJniThreadState ts(env_);
     Class* c = Decode<Class*>(ts, java_class);
-    const Field* f = DecodeField(fid);
+    const Field* f = CheckFieldID(fid);
+    if (f == NULL) {
+      return;
+    }
     if (f->GetDeclaringClass() != c) {
       LOG(ERROR) << "JNI ERROR: static jfieldID " << fid << " not valid for class " << PrettyClass(c);
       JniAbort();
@@ -302,10 +307,13 @@ public:
    *
    * Instances of "jclazz" must be instances of the method's declaring class.
    */
-  void checkStaticMethod(jclass java_class, jmethodID mid) {
-    ScopedJniThreadState ts(mEnv);
+  void CheckStaticMethod(jclass java_class, jmethodID mid) {
+    ScopedJniThreadState ts(env_);
+    const Method* m = CheckMethodID(mid);
+    if (m == NULL) {
+      return;
+    }
     Class* c = Decode<Class*>(ts, java_class);
-    const Method* m = DecodeMethod(mid);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
       LOG(ERROR) << "JNI ERROR: can't call static " << PrettyMethod(m) << " on class " << PrettyClass(c);
       JniAbort();
@@ -319,10 +327,13 @@ public:
    * (Note the mid might point to a declaration in an interface; this
    * will be handled automatically by the instanceof check.)
    */
-  void checkVirtualMethod(jobject java_object, jmethodID mid) {
-    ScopedJniThreadState ts(mEnv);
+  void CheckVirtualMethod(jobject java_object, jmethodID mid) {
+    ScopedJniThreadState ts(env_);
+    const Method* m = CheckMethodID(mid);
+    if (m == NULL) {
+      return;
+    }
     Object* o = Decode<Object*>(ts, java_object);
-    const Method* m = DecodeMethod(mid);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
       LOG(ERROR) << "JNI ERROR: can't call " << PrettyMethod(m) << " on instance of " << PrettyTypeOf(o);
       JniAbort();
@@ -365,20 +376,20 @@ public:
    *
    * Use the kFlag_NullableUtf flag where 'u' field(s) are nullable.
    */
-  void check(bool entry, const char* fmt0, ...) {
+  void Check(bool entry, const char* fmt0, ...) {
     va_list ap;
 
     const Method* traceMethod = NULL;
-    if ((!mVm->trace.empty() || mVm->log_third_party_jni) && mHasMethod) {
+    if ((!vm_->trace.empty() || vm_->log_third_party_jni) && has_method_) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
-      if ((mFlags & kFlag_Invocation) == 0 || self != NULL) {
+      if ((flags_ & kFlag_Invocation) == 0 || self != NULL) {
         traceMethod = self->GetCurrentMethod();
       }
     }
 
-    if (traceMethod != NULL && ShouldTrace(mVm, traceMethod)) {
+    if (traceMethod != NULL && ShouldTrace(vm_, traceMethod)) {
       va_start(ap, fmt0);
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
@@ -496,16 +507,16 @@ public:
       va_end(ap);
 
       if (entry) {
-        if (mHasMethod) {
+        if (has_method_) {
           std::string methodName(PrettyMethod(traceMethod, false));
-          LOG(INFO) << "JNI: " << methodName << " -> " << mFunctionName << "(" << msg << ")";
-          mIndent = methodName.size() + 1;
+          LOG(INFO) << "JNI: " << methodName << " -> " << function_name_ << "(" << msg << ")";
+          indent_ = methodName.size() + 1;
         } else {
-          LOG(INFO) << "JNI: -> " << mFunctionName << "(" << msg << ")";
-          mIndent = 0;
+          LOG(INFO) << "JNI: -> " << function_name_ << "(" << msg << ")";
+          indent_ = 0;
         }
       } else {
-        LOG(INFO) << StringPrintf("JNI: %*s<- %s returned %s", mIndent, "", mFunctionName, msg.c_str());
+        LOG(INFO) << StringPrintf("JNI: %*s<- %s returned %s", indent_, "", function_name_, msg.c_str());
       }
     }
 
@@ -515,24 +526,24 @@ public:
       for (const char* fmt = fmt0; *fmt; ++fmt) {
         char ch = *fmt;
         if (ch == 'a') {
-          checkArray(va_arg(ap, jarray));
+          CheckArray(va_arg(ap, jarray));
         } else if (ch == 'c') {
-          checkInstance(kClass, va_arg(ap, jclass));
+          CheckInstance(kClass, va_arg(ap, jclass));
         } else if (ch == 'L') {
-          checkObject(va_arg(ap, jobject));
+          CheckObject(va_arg(ap, jobject));
         } else if (ch == 'r') {
-          checkReleaseMode(va_arg(ap, jint));
+          CheckReleaseMode(va_arg(ap, jint));
         } else if (ch == 's') {
-          checkInstance(kString, va_arg(ap, jstring));
+          CheckInstance(kString, va_arg(ap, jstring));
         } else if (ch == 'u') {
-          if ((mFlags & kFlag_Release) != 0) {
-            checkNonNull(va_arg(ap, const char*));
+          if ((flags_ & kFlag_Release) != 0) {
+            CheckNonNull(va_arg(ap, const char*));
           } else {
-            bool nullable = ((mFlags & kFlag_NullableUtf) != 0);
-            checkUtfString(va_arg(ap, const char*), nullable);
+            bool nullable = ((flags_ & kFlag_NullableUtf) != 0);
+            CheckUtfString(va_arg(ap, const char*), nullable);
           }
         } else if (ch == 'z') {
-          checkLengthPositive(va_arg(ap, jsize));
+          CheckLengthPositive(va_arg(ap, jsize));
         } else if (strchr("BCISZbfmpEv", ch) != NULL) {
           va_arg(ap, int); // Skip this argument.
         } else if (ch == 'D' || ch == 'F') {
@@ -549,16 +560,16 @@ public:
   }
 
 private:
-  void init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
-    mEnv = reinterpret_cast<JNIEnvExt*>(env);
-    mVm = reinterpret_cast<JavaVMExt*>(vm);
-    mFlags = flags;
-    mFunctionName = functionName;
+  void Init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
+    env_ = reinterpret_cast<JNIEnvExt*>(env);
+    vm_ = reinterpret_cast<JavaVMExt*>(vm);
+    flags_ = flags;
+    function_name_ = functionName;
 
     // Set "hasMethod" to true if we have a valid thread with a method pointer.
     // We won't have one before attaching a thread, after detaching a thread, or
     // after destroying the VM.
-    mHasMethod = hasMethod;
+    has_method_ = hasMethod;
   }
 
   /*
@@ -566,14 +577,14 @@ private:
    *
    * Since we're dealing with objects, switch to "running" mode.
    */
-  void checkArray(jarray java_array) {
+  void CheckArray(jarray java_array) {
     if (java_array == NULL) {
       LOG(ERROR) << "JNI ERROR: received null array";
       JniAbort();
       return;
     }
 
-    ScopedJniThreadState ts(mEnv);
+    ScopedJniThreadState ts(env_);
     Array* a = Decode<Array*>(ts, java_array);
     if (!Heap::IsHeapAddress(a)) {
       LOG(ERROR) << "JNI ERROR: jarray is an invalid " << GetIndirectRefKind(java_array) << ": " << reinterpret_cast<void*>(java_array);
@@ -584,11 +595,41 @@ private:
     }
   }
 
-  void checkLengthPositive(jsize length) {
+  void CheckLengthPositive(jsize length) {
     if (length < 0) {
       LOG(ERROR) << "JNI ERROR: negative jsize: " << length;
       JniAbort();
     }
+  }
+
+  Field* CheckFieldID(jfieldID fid) {
+    if (fid == NULL) {
+      LOG(ERROR) << "JNI ERROR: null jfieldID";
+      JniAbort();
+      return NULL;
+    }
+    Field* f = DecodeField(fid);
+    if (!Heap::IsHeapAddress(f)) {
+      LOG(ERROR) << "JNI ERROR: invalid jfieldID: " << fid;
+      JniAbort();
+      return NULL;
+    }
+    return f;
+  }
+
+  Method* CheckMethodID(jmethodID mid) {
+    if (mid == NULL) {
+      LOG(ERROR) << "JNI ERROR: null jmethodID";
+      JniAbort();
+      return NULL;
+    }
+    Method* m = DecodeMethod(mid);
+    if (!Heap::IsHeapAddress(m)) {
+      LOG(ERROR) << "JNI ERROR: invalid jmethodID: " << mid;
+      JniAbort();
+      return NULL;
+    }
+    return m;
   }
 
   /*
@@ -597,12 +638,12 @@ private:
    *
    * Switches to "running" mode before performing checks.
    */
-  void checkObject(jobject java_object) {
+  void CheckObject(jobject java_object) {
     if (java_object == NULL) {
       return;
     }
 
-    ScopedJniThreadState ts(mEnv);
+    ScopedJniThreadState ts(env_);
 
     Object* o = Decode<Object*>(ts, java_object);
     if (o != NULL && !Heap::IsHeapAddress(o)) {
@@ -616,14 +657,14 @@ private:
    * Verify that the "mode" argument passed to a primitive array Release
    * function is one of the valid values.
    */
-  void checkReleaseMode(jint mode) {
+  void CheckReleaseMode(jint mode) {
     if (mode != 0 && mode != JNI_COMMIT && mode != JNI_ABORT) {
       LOG(ERROR) << "JNI ERROR: bad value for release mode: " << mode;
       JniAbort();
     }
   }
 
-  void checkThread(int flags) {
+  void CheckThread(int flags) {
     Thread* self = Thread::Current();
     if (self == NULL) {
       LOG(ERROR) << "JNI ERROR: non-VM thread making JNI calls";
@@ -638,10 +679,10 @@ private:
      * Verify that the current thread is (a) attached and (b) associated with
      * this particular instance of JNIEnv.
      */
-    if (mEnv != threadEnv) {
-      LOG(ERROR) << "JNI ERROR: thread " << *self << " using JNIEnv* from thread " << *mEnv->self;
+    if (env_ != threadEnv) {
+      LOG(ERROR) << "JNI ERROR: thread " << *self << " using JNIEnv* from thread " << *env_->self;
       // If we're keeping broken code limping along, we need to suppress the abort...
-      if (!mEnv->work_around_app_jni_bugs) {
+      if (!env_->work_around_app_jni_bugs) {
         JniAbort();
         return;
       }
@@ -684,7 +725,7 @@ private:
     if ((flags & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
       LOG(ERROR) << "JNI ERROR: JNI method called with exception pending";
       LOG(ERROR) << "Pending exception is:";
-      LOG(ERROR) << jniGetStackTrace(mEnv);
+      LOG(ERROR) << jniGetStackTrace(env_);
       JniAbort();
       return;
     }
@@ -693,7 +734,7 @@ private:
   /*
    * Verify that "bytes" points to valid "modified UTF-8" data.
    */
-  void checkUtfString(const char* bytes, bool nullable) {
+  void CheckUtfString(const char* bytes, bool nullable) {
     if (bytes == NULL) {
       if (!nullable) {
         LOG(ERROR) << "JNI ERROR: non-nullable const char* was NULL";
@@ -704,7 +745,7 @@ private:
     }
 
     const char* errorKind = NULL;
-    uint8_t utf8 = checkUtfBytes(bytes, &errorKind);
+    uint8_t utf8 = CheckUtfBytes(bytes, &errorKind);
     if (errorKind != NULL) {
       LOG(ERROR) << "JNI ERROR: input is not valid UTF-8: illegal " << errorKind << " byte " << StringPrintf("%#x", utf8);
       LOG(ERROR) << "           string: '" << bytes << "'";
@@ -727,7 +768,7 @@ private:
    * Because we're looking at an object on the GC heap, we have to switch
    * to "running" mode before doing the checks.
    */
-  void checkInstance(InstanceKind kind, jobject java_object) {
+  void CheckInstance(InstanceKind kind, jobject java_object) {
     const char* what = NULL;
     switch (kind) {
     case kClass:
@@ -752,7 +793,7 @@ private:
       return;
     }
 
-    ScopedJniThreadState ts(mEnv);
+    ScopedJniThreadState ts(env_);
     Object* obj = Decode<Object*>(ts, java_object);
     if (!Heap::IsHeapAddress(obj)) {
       LOG(ERROR) << "JNI ERROR: " << what << " is an invalid  " << GetIndirectRefKind(java_object) << ": " << java_object;
@@ -781,7 +822,7 @@ private:
     }
   }
 
-  static uint8_t checkUtfBytes(const char* bytes, const char** errorKind) {
+  static uint8_t CheckUtfBytes(const char* bytes, const char** errorKind) {
     while (*bytes != '\0') {
       uint8_t utf8 = *(bytes++);
       // Switch on the high four bits.
@@ -831,29 +872,29 @@ private:
   }
 
   void JniAbort() {
-    ::art::JniAbort(mFunctionName);
+    ::art::JniAbort(function_name_);
   }
 
-  JNIEnvExt* mEnv;
-  JavaVMExt* mVm;
-  const char* mFunctionName;
-  int mFlags;
-  bool mHasMethod;
-  size_t mIndent;
+  JNIEnvExt* env_;
+  JavaVMExt* vm_;
+  const char* function_name_;
+  int flags_;
+  bool has_method_;
+  size_t indent_;
 
   DISALLOW_COPY_AND_ASSIGN(ScopedCheck);
 };
 
 #define CHECK_JNI_ENTRY(flags, types, args...) \
   ScopedCheck sc(env, flags, __FUNCTION__); \
-  sc.check(true, types, ##args)
+  sc.Check(true, types, ##args)
 
 #define CHECK_JNI_EXIT(type, exp) ({ \
   typeof (exp) _rc = (exp); \
-  sc.check(false, type, _rc); \
+  sc.Check(false, type, _rc); \
   _rc; })
 #define CHECK_JNI_EXIT_VOID() \
-  sc.check(false, "V")
+  sc.Check(false, "V")
 
 /*
  * ===========================================================================
@@ -869,12 +910,12 @@ private:
 struct GuardedCopy {
   uint32_t magic;
   uLong adler;
-  size_t originalLen;
-  const void* originalPtr;
+  size_t original_length;
+  const void* original_ptr;
 
   /* find the GuardedCopy given the pointer into the "live" data */
-  static inline const GuardedCopy* fromData(const void* dataBuf) {
-    return reinterpret_cast<const GuardedCopy*>(actualBuffer(dataBuf));
+  static inline const GuardedCopy* FromData(const void* dataBuf) {
+    return reinterpret_cast<const GuardedCopy*>(ActualBuffer(dataBuf));
   }
 
   /*
@@ -883,9 +924,9 @@ struct GuardedCopy {
    *
    * We use a 16-bit pattern to make a rogue memset less likely to elude us.
    */
-  static void* create(const void* buf, size_t len, bool modOkay) {
-    size_t newLen = actualLength(len);
-    uint8_t* newBuf = debugAlloc(newLen);
+  static void* Create(const void* buf, size_t len, bool modOkay) {
+    size_t newLen = ActualLength(len);
+    uint8_t* newBuf = DebugAlloc(newLen);
 
     /* fill it in with a pattern */
     uint16_t* pat = (uint16_t*) newBuf;
@@ -907,8 +948,8 @@ struct GuardedCopy {
     GuardedCopy* pExtra = reinterpret_cast<GuardedCopy*>(newBuf);
     pExtra->magic = kGuardMagic;
     pExtra->adler = adler;
-    pExtra->originalPtr = buf;
-    pExtra->originalLen = len;
+    pExtra->original_ptr = buf;
+    pExtra->original_length = len;
 
     return newBuf + kGuardLen / 2;
   }
@@ -916,12 +957,12 @@ struct GuardedCopy {
   /*
    * Free up the guard buffer, scrub it, and return the original pointer.
    */
-  static void* destroy(void* dataBuf) {
-    const GuardedCopy* pExtra = GuardedCopy::fromData(dataBuf);
-    void* originalPtr = (void*) pExtra->originalPtr;
-    size_t len = pExtra->originalLen;
-    debugFree(dataBuf, len);
-    return originalPtr;
+  static void* Destroy(void* dataBuf) {
+    const GuardedCopy* pExtra = GuardedCopy::FromData(dataBuf);
+    void* original_ptr = (void*) pExtra->original_ptr;
+    size_t len = pExtra->original_length;
+    DebugFree(dataBuf, len);
+    return original_ptr;
   }
 
   /*
@@ -930,10 +971,10 @@ struct GuardedCopy {
    *
    * The caller has already checked that "dataBuf" is non-NULL.
    */
-  static void check(const char* functionName, const void* dataBuf, bool modOkay) {
+  static void Check(const char* functionName, const void* dataBuf, bool modOkay) {
     static const uint32_t kMagicCmp = kGuardMagic;
-    const uint8_t* fullBuf = actualBuffer(dataBuf);
-    const GuardedCopy* pExtra = GuardedCopy::fromData(dataBuf);
+    const uint8_t* fullBuf = ActualBuffer(dataBuf);
+    const GuardedCopy* pExtra = GuardedCopy::FromData(dataBuf);
 
     /*
      * Before we do anything with "pExtra", check the magic number.  We
@@ -950,7 +991,7 @@ struct GuardedCopy {
       JniAbort(functionName);
     }
 
-    size_t len = pExtra->originalLen;
+    size_t len = pExtra->original_length;
 
     /* check bottom half of guard; skip over optional checksum storage */
     const uint16_t* pat = (uint16_t*) fullBuf;
@@ -999,7 +1040,7 @@ struct GuardedCopy {
   }
 
  private:
-  static uint8_t* debugAlloc(size_t len) {
+  static uint8_t* DebugAlloc(size_t len) {
     void* result = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
     if (result == MAP_FAILED) {
       PLOG(FATAL) << "GuardedCopy::create mmap(" << len << ") failed";
@@ -1007,9 +1048,9 @@ struct GuardedCopy {
     return reinterpret_cast<uint8_t*>(result);
   }
 
-  static void debugFree(void* dataBuf, size_t len) {
-    uint8_t* fullBuf = actualBuffer(dataBuf);
-    size_t totalByteCount = actualLength(len);
+  static void DebugFree(void* dataBuf, size_t len) {
+    uint8_t* fullBuf = ActualBuffer(dataBuf);
+    size_t totalByteCount = ActualLength(len);
     // TODO: we could mprotect instead, and keep the allocation around for a while.
     // This would be even more expensive, but it might catch more errors.
     // if (mprotect(fullBuf, totalByteCount, PROT_NONE) != 0) {
@@ -1020,16 +1061,16 @@ struct GuardedCopy {
     }
   }
 
-  static const uint8_t* actualBuffer(const void* dataBuf) {
+  static const uint8_t* ActualBuffer(const void* dataBuf) {
     return reinterpret_cast<const uint8_t*>(dataBuf) - kGuardLen / 2;
   }
 
-  static uint8_t* actualBuffer(void* dataBuf) {
+  static uint8_t* ActualBuffer(void* dataBuf) {
     return reinterpret_cast<uint8_t*>(dataBuf) - kGuardLen / 2;
   }
 
   // Underlying length of a user allocation of 'length' bytes.
-  static size_t actualLength(size_t length) {
+  static size_t ActualLength(size_t length) {
     return (length + kGuardLen + 1) & ~0x01;
   }
 };
@@ -1043,7 +1084,7 @@ void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy
 
   Array* a = Decode<Array*>(ts, java_array);
   size_t byte_count = a->GetLength() * a->GetClass()->GetComponentSize();
-  void* result = GuardedCopy::create(a->GetRawData(), byte_count, true);
+  void* result = GuardedCopy::Create(a->GetRawData(), byte_count, true);
   if (isCopy != NULL) {
     *isCopy = JNI_TRUE;
   }
@@ -1062,14 +1103,14 @@ void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mod
   ScopedJniThreadState ts(env);
   Array* a = Decode<Array*>(ts, java_array);
 
-  GuardedCopy::check(__FUNCTION__, dataBuf, true);
+  GuardedCopy::Check(__FUNCTION__, dataBuf, true);
 
   if (mode != JNI_ABORT) {
-    size_t len = GuardedCopy::fromData(dataBuf)->originalLen;
+    size_t len = GuardedCopy::FromData(dataBuf)->original_length;
     memcpy(a->GetRawData(), dataBuf, len);
   }
   if (mode != JNI_COMMIT) {
-    GuardedCopy::destroy(dataBuf);
+    GuardedCopy::Destroy(dataBuf);
   }
 }
 
@@ -1088,13 +1129,13 @@ class CheckJNI {
 
   static jclass DefineClass(JNIEnv* env, const char* name, jobject loader, const jbyte* buf, jsize bufLen) {
     CHECK_JNI_ENTRY(kFlag_Default, "EuLpz", env, name, loader, buf, bufLen);
-    sc.checkClassName(name);
+    sc.CheckClassName(name);
     return CHECK_JNI_EXIT("c", baseEnv(env)->DefineClass(env, name, loader, buf, bufLen));
   }
 
   static jclass FindClass(JNIEnv* env, const char* name) {
     CHECK_JNI_ENTRY(kFlag_Default, "Eu", env, name);
-    sc.checkClassName(name);
+    sc.CheckClassName(name);
     return CHECK_JNI_EXIT("c", baseEnv(env)->FindClass(env, name));
   }
 
@@ -1284,27 +1325,27 @@ class CheckJNI {
 #define FIELD_ACCESSORS(_ctype, _jname, _type) \
     static _ctype GetStatic##_jname##Field(JNIEnv* env, jclass clazz, jfieldID fid) { \
         CHECK_JNI_ENTRY(kFlag_Default, "Ecf", env, clazz, fid); \
-        sc.checkStaticFieldID(clazz, fid); \
+        sc.CheckStaticFieldID(clazz, fid); \
         return CHECK_JNI_EXIT(_type, baseEnv(env)->GetStatic##_jname##Field(env, clazz, fid)); \
     } \
     static _ctype Get##_jname##Field(JNIEnv* env, jobject obj, jfieldID fid) { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELf", env, obj, fid); \
-        sc.checkInstanceFieldID(obj, fid); \
+        sc.CheckInstanceFieldID(obj, fid); \
         return CHECK_JNI_EXIT(_type, baseEnv(env)->Get##_jname##Field(env, obj, fid)); \
     } \
     static void SetStatic##_jname##Field(JNIEnv* env, jclass clazz, jfieldID fid, _ctype value) { \
         CHECK_JNI_ENTRY(kFlag_Default, "Ecf" _type, env, clazz, fid, value); \
-        sc.checkStaticFieldID(clazz, fid); \
+        sc.CheckStaticFieldID(clazz, fid); \
         /* "value" arg only used when type == ref */ \
-        sc.checkFieldType((jobject)(uint32_t)value, fid, _type[0], true); \
+        sc.CheckFieldType((jobject)(uint32_t)value, fid, _type[0], true); \
         baseEnv(env)->SetStatic##_jname##Field(env, clazz, fid, value); \
         CHECK_JNI_EXIT_VOID(); \
     } \
     static void Set##_jname##Field(JNIEnv* env, jobject obj, jfieldID fid, _ctype value) { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELf" _type, env, obj, fid, value); \
-        sc.checkInstanceFieldID(obj, fid); \
+        sc.CheckInstanceFieldID(obj, fid); \
         /* "value" arg only used when type == ref */ \
-        sc.checkFieldType((jobject)(uint32_t) value, fid, _type[0], false); \
+        sc.CheckFieldType((jobject)(uint32_t) value, fid, _type[0], false); \
         baseEnv(env)->Set##_jname##Field(env, obj, fid, value); \
         CHECK_JNI_EXIT_VOID(); \
     }
@@ -1325,8 +1366,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jmethodID mid, ...) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELm.", env, obj, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, false); \
-        sc.checkVirtualMethod(obj, mid); \
+        sc.CheckSig(mid, _retsig, false); \
+        sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
@@ -1338,8 +1379,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jmethodID mid, va_list args) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELm.", env, obj, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, false); \
-        sc.checkVirtualMethod(obj, mid); \
+        sc.CheckSig(mid, _retsig, false); \
+        sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         _retasgn baseEnv(env)->Call##_jname##MethodV(env, obj, mid, args); \
         _retok; \
@@ -1348,8 +1389,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jmethodID mid, jvalue* args) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELm.", env, obj, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, false); \
-        sc.checkVirtualMethod(obj, mid); \
+        sc.CheckSig(mid, _retsig, false); \
+        sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         _retasgn baseEnv(env)->Call##_jname##MethodA(env, obj, mid, args); \
         _retok; \
@@ -1359,8 +1400,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jobject obj, jclass clazz, jmethodID mid, ...) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, clazz, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, false); \
-        sc.checkVirtualMethod(obj, mid); \
+        sc.CheckSig(mid, _retsig, false); \
+        sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
@@ -1372,8 +1413,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jobject obj, jclass clazz, jmethodID mid, va_list args) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, clazz, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, false); \
-        sc.checkVirtualMethod(obj, mid); \
+        sc.CheckSig(mid, _retsig, false); \
+        sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         _retasgn baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args); \
         _retok; \
@@ -1382,8 +1423,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jobject obj, jclass clazz, jmethodID mid, jvalue* args) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, clazz, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, false); \
-        sc.checkVirtualMethod(obj, mid); \
+        sc.CheckSig(mid, _retsig, false); \
+        sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         _retasgn baseEnv(env)->CallNonvirtual##_jname##MethodA(env, obj, clazz, mid, args); \
         _retok; \
@@ -1393,8 +1434,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jclass clazz, jmethodID mid, ...) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, true); \
-        sc.checkStaticMethod(clazz, mid); \
+        sc.CheckSig(mid, _retsig, true); \
+        sc.CheckStaticMethod(clazz, mid); \
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
@@ -1406,8 +1447,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jclass clazz, jmethodID mid, va_list args) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, true); \
-        sc.checkStaticMethod(clazz, mid); \
+        sc.CheckSig(mid, _retsig, true); \
+        sc.CheckStaticMethod(clazz, mid); \
         _retdecl; \
         _retasgn baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args); \
         _retok; \
@@ -1416,8 +1457,8 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         jclass clazz, jmethodID mid, jvalue* args) \
     { \
         CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid); /* TODO: args! */ \
-        sc.checkSig(mid, _retsig, true); \
-        sc.checkStaticMethod(clazz, mid); \
+        sc.CheckSig(mid, _retsig, true); \
+        sc.CheckStaticMethod(clazz, mid); \
         _retdecl; \
         _retasgn baseEnv(env)->CallStatic##_jname##MethodA(env, clazz, mid, args); \
         _retok; \
@@ -1450,11 +1491,11 @@ CALL(void, Void, , , VOID_RETURN, "V");
   static const jchar* GetStringChars(JNIEnv* env, jstring java_string, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritOkay, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringChars(env, java_string, isCopy);
-    if (sc.forceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != NULL) {
       ScopedJniThreadState ts(env);
       String* s = Decode<String*>(ts, java_string);
       int byteCount = s->GetLength() * 2;
-      result = (const jchar*) GuardedCopy::create(result, byteCount, false);
+      result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {
         *isCopy = JNI_TRUE;
       }
@@ -1464,10 +1505,10 @@ CALL(void, Void, , , VOID_RETURN, "V");
 
   static void ReleaseStringChars(JNIEnv* env, jstring string, const jchar* chars) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "Esp", env, string, chars);
-    sc.checkNonNull(chars);
-    if (sc.forceCopy()) {
-      GuardedCopy::check(__FUNCTION__, chars, false);
-      chars = (const jchar*) GuardedCopy::destroy((jchar*)chars);
+    sc.CheckNonNull(chars);
+    if (sc.ForceCopy()) {
+      GuardedCopy::Check(__FUNCTION__, chars, false);
+      chars = (const jchar*) GuardedCopy::Destroy((jchar*)chars);
     }
     baseEnv(env)->ReleaseStringChars(env, string, chars);
     CHECK_JNI_EXIT_VOID();
@@ -1486,8 +1527,8 @@ CALL(void, Void, , , VOID_RETURN, "V");
   static const char* GetStringUTFChars(JNIEnv* env, jstring string, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritOkay, "Esp", env, string, isCopy);
     const char* result = baseEnv(env)->GetStringUTFChars(env, string, isCopy);
-    if (sc.forceCopy() && result != NULL) {
-      result = (const char*) GuardedCopy::create(result, strlen(result) + 1, false);
+    if (sc.ForceCopy() && result != NULL) {
+      result = (const char*) GuardedCopy::Create(result, strlen(result) + 1, false);
       if (isCopy != NULL) {
         *isCopy = JNI_TRUE;
       }
@@ -1497,9 +1538,9 @@ CALL(void, Void, , , VOID_RETURN, "V");
 
   static void ReleaseStringUTFChars(JNIEnv* env, jstring string, const char* utf) {
     CHECK_JNI_ENTRY(kFlag_ExcepOkay | kFlag_Release, "Esu", env, string, utf); // TODO: show pointer and truncate string.
-    if (sc.forceCopy()) {
-      GuardedCopy::check(__FUNCTION__, utf, false);
-      utf = (const char*) GuardedCopy::destroy((char*)utf);
+    if (sc.ForceCopy()) {
+      GuardedCopy::Check(__FUNCTION__, utf, false);
+      utf = (const char*) GuardedCopy::Destroy((char*)utf);
     }
     baseEnv(env)->ReleaseStringUTFChars(env, string, utf);
     CHECK_JNI_EXIT_VOID();
@@ -1540,43 +1581,43 @@ NEW_PRIMITIVE_ARRAY(jlongArray, Long);
 NEW_PRIMITIVE_ARRAY(jfloatArray, Float);
 NEW_PRIMITIVE_ARRAY(jdoubleArray, Double);
 
-class ForceCopyGetChecker {
+struct ForceCopyGetChecker {
 public:
   ForceCopyGetChecker(ScopedCheck& sc, jboolean* isCopy) {
-    forceCopy = sc.forceCopy();
-    noCopy = 0;
-    if (forceCopy && isCopy != NULL) {
+    force_copy = sc.ForceCopy();
+    no_copy = 0;
+    if (force_copy && isCopy != NULL) {
       /* capture this before the base call tramples on it */
-      noCopy = *(uint32_t*) isCopy;
+      no_copy = *(uint32_t*) isCopy;
     }
   }
 
   template<typename ResultT>
-  ResultT check(JNIEnv* env, jarray array, jboolean* isCopy, ResultT result) {
-    if (forceCopy && result != NULL) {
-      if (noCopy != kNoCopyMagic) {
+  ResultT Check(JNIEnv* env, jarray array, jboolean* isCopy, ResultT result) {
+    if (force_copy && result != NULL) {
+      if (no_copy != kNoCopyMagic) {
         result = reinterpret_cast<ResultT>(CreateGuardedPACopy(env, array, isCopy));
       }
     }
     return result;
   }
 
-  uint32_t noCopy;
-  bool forceCopy;
+  uint32_t no_copy;
+  bool force_copy;
 };
 
 #define GET_PRIMITIVE_ARRAY_ELEMENTS(_ctype, _jname) \
   static _ctype* Get##_jname##ArrayElements(JNIEnv* env, _ctype##Array array, jboolean* isCopy) { \
     CHECK_JNI_ENTRY(kFlag_Default, "Eap", env, array, isCopy); \
-    _ctype* result = ForceCopyGetChecker(sc, isCopy).check(env, array, isCopy, baseEnv(env)->Get##_jname##ArrayElements(env, array, isCopy)); \
+    _ctype* result = ForceCopyGetChecker(sc, isCopy).Check(env, array, isCopy, baseEnv(env)->Get##_jname##ArrayElements(env, array, isCopy)); \
     return CHECK_JNI_EXIT("p", result); \
   }
 
 #define RELEASE_PRIMITIVE_ARRAY_ELEMENTS(_ctype, _jname) \
   static void Release##_jname##ArrayElements(JNIEnv* env, _ctype##Array array, _ctype* elems, jint mode) { \
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "Eapr", env, array, elems, mode); \
-    sc.checkNonNull(elems); \
-    if (sc.forceCopy()) { \
+    sc.CheckNonNull(elems); \
+    if (sc.ForceCopy()) { \
       ReleaseGuardedPACopy(env, array, elems, mode); \
     } \
     baseEnv(env)->Release##_jname##ArrayElements(env, array, elems, mode); \
@@ -1653,7 +1694,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray array, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritGet, "Eap", env, array, isCopy);
     void* result = baseEnv(env)->GetPrimitiveArrayCritical(env, array, isCopy);
-    if (sc.forceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != NULL) {
       result = CreateGuardedPACopy(env, array, isCopy);
     }
     return CHECK_JNI_EXIT("p", result);
@@ -1661,8 +1702,8 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
 
   static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* carray, jint mode) {
     CHECK_JNI_ENTRY(kFlag_CritRelease | kFlag_ExcepOkay, "Eapr", env, array, carray, mode);
-    sc.checkNonNull(carray);
-    if (sc.forceCopy()) {
+    sc.CheckNonNull(carray);
+    if (sc.ForceCopy()) {
       ReleaseGuardedPACopy(env, array, carray, mode);
     }
     baseEnv(env)->ReleasePrimitiveArrayCritical(env, array, carray, mode);
@@ -1672,11 +1713,11 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritGet, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringCritical(env, java_string, isCopy);
-    if (sc.forceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != NULL) {
       ScopedJniThreadState ts(env);
       String* s = Decode<String*>(ts, java_string);
       int byteCount = s->GetLength() * 2;
-      result = (const jchar*) GuardedCopy::create(result, byteCount, false);
+      result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {
         *isCopy = JNI_TRUE;
       }
@@ -1686,10 +1727,10 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
 
   static void ReleaseStringCritical(JNIEnv* env, jstring string, const jchar* carray) {
     CHECK_JNI_ENTRY(kFlag_CritRelease | kFlag_ExcepOkay, "Esp", env, string, carray);
-    sc.checkNonNull(carray);
-    if (sc.forceCopy()) {
-      GuardedCopy::check(__FUNCTION__, carray, false);
-      carray = (const jchar*) GuardedCopy::destroy((jchar*)carray);
+    sc.CheckNonNull(carray);
+    if (sc.ForceCopy()) {
+      GuardedCopy::Check(__FUNCTION__, carray, false);
+      carray = (const jchar*) GuardedCopy::Destroy((jchar*)carray);
     }
     baseEnv(env)->ReleaseStringCritical(env, string, carray);
     CHECK_JNI_EXIT_VOID();
@@ -1988,36 +2029,36 @@ class CheckJII {
 public:
   static jint DestroyJavaVM(JavaVM* vm) {
     ScopedCheck sc(vm, false, __FUNCTION__);
-    sc.check(true, "v", vm);
-    return CHECK_JNI_EXIT("I", baseVm(vm)->DestroyJavaVM(vm));
+    sc.Check(true, "v", vm);
+    return CHECK_JNI_EXIT("I", BaseVm(vm)->DestroyJavaVM(vm));
   }
 
   static jint AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
     ScopedCheck sc(vm, false, __FUNCTION__);
-    sc.check(true, "vpp", vm, p_env, thr_args);
-    return CHECK_JNI_EXIT("I", baseVm(vm)->AttachCurrentThread(vm, p_env, thr_args));
+    sc.Check(true, "vpp", vm, p_env, thr_args);
+    return CHECK_JNI_EXIT("I", BaseVm(vm)->AttachCurrentThread(vm, p_env, thr_args));
   }
 
   static jint AttachCurrentThreadAsDaemon(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
     ScopedCheck sc(vm, false, __FUNCTION__);
-    sc.check(true, "vpp", vm, p_env, thr_args);
-    return CHECK_JNI_EXIT("I", baseVm(vm)->AttachCurrentThreadAsDaemon(vm, p_env, thr_args));
+    sc.Check(true, "vpp", vm, p_env, thr_args);
+    return CHECK_JNI_EXIT("I", BaseVm(vm)->AttachCurrentThreadAsDaemon(vm, p_env, thr_args));
   }
 
   static jint DetachCurrentThread(JavaVM* vm) {
     ScopedCheck sc(vm, true, __FUNCTION__);
-    sc.check(true, "v", vm);
-    return CHECK_JNI_EXIT("I", baseVm(vm)->DetachCurrentThread(vm));
+    sc.Check(true, "v", vm);
+    return CHECK_JNI_EXIT("I", BaseVm(vm)->DetachCurrentThread(vm));
   }
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {
     ScopedCheck sc(vm, true, __FUNCTION__);
-    sc.check(true, "v", vm);
-    return CHECK_JNI_EXIT("I", baseVm(vm)->GetEnv(vm, env, version));
+    sc.Check(true, "v", vm);
+    return CHECK_JNI_EXIT("I", BaseVm(vm)->GetEnv(vm, env, version));
   }
 
  private:
-  static inline const JNIInvokeInterface* baseVm(JavaVM* vm) {
+  static inline const JNIInvokeInterface* BaseVm(JavaVM* vm) {
     return reinterpret_cast<JavaVMExt*>(vm)->unchecked_functions;
   }
 };
