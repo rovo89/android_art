@@ -293,7 +293,7 @@ class OatDump {
         size_t count = descriptor_to_count[descriptor];
         double average = static_cast<double>(bytes) / static_cast<double>(count);
         double percent = PercentOfObjectBytes(bytes);
-        os << StringPrintf("\t%28s %8d bytes %6d instances "
+        os << StringPrintf("\t%32s %8d bytes %6d instances "
                            "(%3.0f bytes/instance) %2.0f%% of object_bytes\n",
                            descriptor.c_str(), bytes, count,
                            average, percent);
