@@ -24,7 +24,8 @@ namespace art {
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
-    : default_stack_size_(Thread::kDefaultStackSize),
+    : verbose_startup_(false),
+      default_stack_size_(Thread::kDefaultStackSize),
       thread_list_(NULL),
       intern_table_(NULL),
       class_linker_(NULL),
@@ -359,6 +360,9 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 }
 
 void Runtime::Start() {
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::Start entering";
+  }
   InitNativeMethods();
 
   Thread::FinishStartup();
@@ -371,6 +375,10 @@ void Runtime::Start() {
   started_ = true;
 
   StartDaemonThreads();
+
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::Start exiting";
+  }
 }
 
 void Runtime::StartDaemonThreads() {
@@ -396,6 +404,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   if (options.get() == NULL) {
     LOG(WARNING) << "Failed to parse options";
     return false;
+  }
+  verbose_startup_ = options->IsVerbose("startup");
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::Init -verbose:startup enabled";
   }
 
   boot_class_path_ = options->boot_class_path_string_;
@@ -429,10 +441,16 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                                       intern_table_,
                                       Heap::GetBootSpace());
 
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::Init exiting";
+  }
   return true;
 }
 
 void Runtime::InitNativeMethods() {
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::InitNativeMethods entering";
+  }
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -450,6 +468,9 @@ void Runtime::InitNativeMethods() {
   // Most JNI libraries can just use System.loadLibrary, but libcore can't because it's
   // the library that implements System.loadLibrary!
   LoadJniLibrary(instance_->GetJavaVM(), "javacore");
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::InitNativeMethods exiting";
+  }
 }
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
