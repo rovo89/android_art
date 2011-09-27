@@ -24,10 +24,10 @@ Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_b
   }
 }
 
-Space* Space::Create(const char* image_file_name) {
+Space* Space::CreateFromImage(const char* image_file_name) {
   CHECK(image_file_name != NULL);
   UniquePtr<Space> space(new Space());
-  bool success = space->Init(image_file_name);
+  bool success = space->InitFromImage(image_file_name);
   if (!success) {
     return NULL;
   } else {
@@ -58,6 +58,13 @@ void* Space::CreateMallocSpace(void* base,
 }
 
 bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Space::Init entering"
+              << " initial_size=" << initial_size
+              << " maximum_size=" << maximum_size
+              << " requested_base=" << reinterpret_cast<void*>(requested_base);
+  }
   if (!(initial_size <= maximum_size)) {
     LOG(WARNING) << "Failed to create space with initial size > maximum size ("
                  << initial_size << ">" << maximum_size << ")";
@@ -77,6 +84,9 @@ bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base)
     LOG(WARNING) << "Failed to create mspace for space";
     return false;
   }
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Space::Init exiting";
+  }
   return true;
 }
 
@@ -87,7 +97,12 @@ void Space::Init(MemMap* mem_map) {
 }
 
 
-bool Space::Init(const char* image_file_name) {
+bool Space::InitFromImage(const char* image_file_name) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Space::InitFromImage entering"
+              << " image_file_name=" << image_file_name;
+  }
   UniquePtr<File> file(OS::OpenFile(image_file_name, false));
   if (file.get() == NULL) {
     LOG(WARNING) << "Failed to open " << image_file_name;
@@ -121,6 +136,9 @@ bool Space::Init(const char* image_file_name) {
   Runtime::Current()->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method));
 
   Init(map.release());
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Space::InitFromImage exiting";
+  }
   return true;
 }
 

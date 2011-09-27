@@ -160,6 +160,11 @@ ClassLinker::ClassLinker(InternTable* intern_table)
 
 void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
                        const std::vector<const DexFile*>& class_path) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::InitFrom entering";
+  }
+
   CHECK(!init_done_);
 
   // java_lang_Class comes first, its needed for AllocClass
@@ -399,9 +404,17 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit();
+
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::InitFrom exiting";
+  }
 }
 
 void ClassLinker::FinishInit() {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::FinishInit entering";
+  }
 
   // Let the heap know some key offsets into java.lang.ref instances
   // NB we hard code the field indexes here rather than using FindInstanceField
@@ -450,6 +463,10 @@ void ClassLinker::FinishInit() {
   // disable the slow paths in FindClass and CreatePrimitiveClass now
   // that Object, Class, and Object[] are setup
   init_done_ = true;
+
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::FinishInit exiting";
+  }
 }
 
 void ClassLinker::RunRootClinits() {
@@ -477,6 +494,10 @@ struct ClassLinker::InitFromImageCallbackState {
 
 void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_path,
                                 const std::vector<const DexFile*>& class_path) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::InitFromImage entering";
+  }
   CHECK(!init_done_);
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
@@ -548,6 +569,10 @@ void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_pa
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit();
+
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::InitFromImage exiting";
+  }
 }
 
 void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {

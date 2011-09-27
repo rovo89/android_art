@@ -58,13 +58,18 @@ class ScopedHeapLock {
 void Heap::Init(size_t initial_size, size_t maximum_size,
                 const char* boot_image_file_name,
                 std::vector<const char*>& image_file_names) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Heap::Init entering";
+  }
+
   Space* boot_space;
   byte* requested_base;
   if (boot_image_file_name == NULL) {
     boot_space = NULL;
     requested_base = NULL;
   } else {
-    boot_space = Space::Create(boot_image_file_name);
+    boot_space = Space::CreateFromImage(boot_image_file_name);
     if (boot_space == NULL) {
       LOG(FATAL) << "Failed to create space from " << boot_image_file_name;
     }
@@ -74,7 +79,7 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
 
   std::vector<Space*> image_spaces;
   for (size_t i = 0; i < image_file_names.size(); i++) {
-    Space* space = Space::Create(image_file_names[i]);
+    Space* space = Space::CreateFromImage(image_file_names[i]);
     if (space == NULL) {
       LOG(FATAL) << "Failed to create space from " << image_file_names[i];
     }
@@ -134,6 +139,10 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
   lock_ = new Mutex("Heap lock");
+
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Heap::Init exiting";
+  }
 }
 
 void Heap::Destroy() {
@@ -277,6 +286,10 @@ void Heap::RecordFreeLocked(Space* space, const Object* obj) {
 }
 
 void Heap::RecordImageAllocations(Space* space) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Heap::RecordImageAllocations entering";
+  }
   DCHECK(!Runtime::Current()->IsStarted());
   CHECK(space != NULL);
   CHECK(live_bitmap_ != NULL);
@@ -286,6 +299,9 @@ void Heap::RecordImageAllocations(Space* space) {
     const Object* obj = reinterpret_cast<const Object*>(current);
     live_bitmap_->Set(obj);
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
+  }
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "Heap::RecordImageAllocations exiting";
   }
 }
 

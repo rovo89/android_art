@@ -72,6 +72,10 @@ class Runtime {
   // Creates and initializes a new runtime.
   static Runtime* Create(const Options& options, bool ignore_unrecognized);
 
+  bool IsVerboseStartup() const {
+    return verbose_startup_;
+  }
+
   // Starts a runtime, which may cause threads to be started and code to run.
   void Start();
 
@@ -194,6 +198,8 @@ class Runtime {
   void InitNativeMethods();
   void RegisterRuntimeNativeMethods(JNIEnv*);
   void StartDaemonThreads();
+
+  bool verbose_startup_;
 
   std::string boot_class_path_;
   std::string class_path_;

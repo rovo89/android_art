@@ -23,7 +23,7 @@ class Space {
   static Space* Create(size_t initial_size, size_t maximum_size, byte* requested_base);
 
   // create a Space from an image file. cannot be used for future allocation or collected.
-  static Space* Create(const char* image);
+  static Space* CreateFromImage(const char* image);
 
   ~Space();
 
@@ -78,7 +78,7 @@ class Space {
   void Init(MemMap* map);
 
   // Initializes the space from an image file
-  bool Init(const char* image_file_name);
+  bool InitFromImage(const char* image_file_name);
 
   void* CreateMallocSpace(void* base, size_t initial_size, size_t maximum_size);
 
