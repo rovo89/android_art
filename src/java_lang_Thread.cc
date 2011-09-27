@@ -48,8 +48,10 @@ void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong stackSiz
 jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
   ThreadListLock lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  Thread::State state = (thread != NULL) ? thread->GetState() : Thread::kUnknown;
-  return static_cast<jint>(state);
+  if (thread == NULL) {
+    return -1;
+  }
+  return static_cast<jint>(thread->GetState());
 }
 
 jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {

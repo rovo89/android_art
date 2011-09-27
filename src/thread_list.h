@@ -87,12 +87,10 @@ class ThreadListLock {
       // Try to get it from TLS.
       self = Thread::Current();
     }
+    // self may still be NULL during VM shutdown.
     Thread::State old_state;
     if (self != NULL) {
       old_state = self->SetState(Thread::kVmWait);
-    } else {
-      // This happens during VM shutdown.
-      old_state = Thread::kUnknown;
     }
     Runtime::Current()->GetThreadList()->thread_list_lock_.Lock();
     if (self != NULL) {

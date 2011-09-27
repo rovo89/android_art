@@ -27,6 +27,7 @@
 #include "mutex.h"
 #include "object.h"
 #include "thread.h"
+#include "thread_list.h"
 
 namespace art {
 
@@ -638,6 +639,7 @@ void Monitor::Inflate(Thread* self, Object* obj) {
 
   // Allocate and acquire a new monitor.
   Monitor* m = new Monitor(obj);
+  LOG(INFO) << "created monitor " << m << " for object " << obj;
   // Replace the head of the list with the new monitor.
   do {
     m->next_ = gMonitorList;
@@ -699,6 +701,7 @@ retry:
     } else {
       LOG(INFO) << StringPrintf("(%d) spin on lock %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
       // The lock is owned by another thread. Notify the VM that we are about to wait.
+      self->monitor_enter_object_ = obj;
       Thread::State oldStatus = self->SetState(Thread::kBlocked);
       // Spin until the thin lock is released or inflated.
       sleepDelayNs = 0;
@@ -736,12 +739,14 @@ retry:
           // The thin lock was inflated by another thread. Let the VM know we are no longer
           // waiting and try again.
           LOG(INFO) << "(" << threadId << ") lock " << (void*) thinp << " surprise-fattened";
+          self->monitor_enter_object_ = NULL;
           self->SetState(oldStatus);
           goto retry;
         }
       }
       LOG(INFO) << StringPrintf("(%d) spin on lock done %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
       // We have acquired the thin lock. Let the VM know that we are no longer waiting.
+      self->monitor_enter_object_ = NULL;
       self->SetState(oldStatus);
       // Fatten the lock.
       Inflate(self, obj);
@@ -883,6 +888,41 @@ uint32_t Monitor::GetLockOwner(uint32_t raw_lock_word) {
     Thread* owner = LW_MONITOR(raw_lock_word)->owner_;
     return owner ? owner->GetThinLockId() : 0;
   }
+}
+
+void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
+  Thread::State state = thread->GetState();
+
+  Object* object = NULL;
+  uint32_t lock_owner = ThreadList::kInvalidId;
+  if (state == Thread::kWaiting || state == Thread::kTimedWaiting) {
+    os << "  - waiting on ";
+    Monitor* monitor = thread->wait_monitor_;
+    if (monitor != NULL) {
+      object = monitor->obj_;
+    }
+    lock_owner = Thread::LockOwnerFromThreadLock(object);
+  } else if (state == Thread::kBlocked) {
+    os << "  - waiting to lock ";
+    object = thread->monitor_enter_object_;
+    if (object != NULL) {
+      lock_owner = object->GetLockOwner();
+    }
+  } else {
+    // We're not waiting on anything.
+    return;
+  }
+  os << "<" << object << ">";
+
+  // - waiting on <0x613f83d8> (a java.lang.ThreadLock) held by thread 5
+  // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+  os << " (a " << PrettyTypeOf(object) << ")";
+
+  if (lock_owner != ThreadList::kInvalidId) {
+    os << " held by thread " << lock_owner;
+  }
+
+  os << "\n";
 }
 
 }  // namespace art

@@ -151,8 +151,6 @@ class PACKED Thread {
     kMaxPriority = 10,
   };
   enum State {
-    kUnknown = -1,
-
     // These match up with JDWP values.
     kTerminated   = 0,        // TERMINATED
     kRunnable     = 1,        // RUNNABLE or running now
@@ -257,6 +255,7 @@ class PACKED Thread {
   }
 
   static Thread* FromManagedThread(JNIEnv* env, jobject thread);
+  static uint32_t LockOwnerFromThreadLock(Object* thread_lock);
 
   void Dump(std::ostream& os) const;
 
@@ -577,15 +576,28 @@ class PACKED Thread {
   // Our managed peer (an instance of java.lang.Thread).
   Object* peer_;
 
+  // The top_of_managed_stack_ and top_of_managed_stack_pc_ fields are accessed from
+  // compiled code, so we keep them early in the structure to (a) avoid having to keep
+  // fixing the assembler offsets and (b) improve the chances that these will still be aligned.
+
+  // Top of the managed stack, written out prior to the state transition from
+  // kRunnable to kNative. Uses include to give the starting point for scanning
+  // a managed stack when a thread is in native code.
+  Frame top_of_managed_stack_;
+  // PC corresponding to the call out of the top_of_managed_stack_ frame
+  uintptr_t top_of_managed_stack_pc_;
+
   // Guards the 'interrupted_' and 'wait_monitor_' members.
   mutable Mutex* wait_mutex_;
   ConditionVariable* wait_cond_;
   // Pointer to the monitor lock we're currently waiting on (or NULL), guarded by wait_mutex_.
   Monitor* wait_monitor_;
   // Thread "interrupted" status; stays raised until queried or thrown, guarded by wait_mutex_.
-  bool interrupted_;
+  uint32_t interrupted_;
   // The next thread in the wait set this thread is part of.
   Thread* wait_next_;
+  // If we're blocked in MonitorEnter, this is the object we're trying to lock.
+  Object* monitor_enter_object_;
 
   friend class Monitor;
 
@@ -603,14 +615,6 @@ class PACKED Thread {
 
   // The "lowest addressable byte" of the stack
   byte* stack_base_;
-
-  // Top of the managed stack, written out prior to the state transition from
-  // kRunnable to kNative. Uses include to give the starting point for scanning
-  // a managed stack when a thread is in native code.
-  Frame top_of_managed_stack_;
-
-  // PC corresponding to the call out of the top_of_managed_stack_ frame
-  uintptr_t top_of_managed_stack_pc_;
 
   // A linked list (of stack allocated records) recording transitions from
   // native to managed code.

@@ -287,17 +287,15 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     // lock. If somebody else is working on it, we'll block here until
     // they complete.  Because we're waiting on an external resource,
     // we go into native mode.
-    // Note that current_thread can be NULL if we're parsing the bootclasspath
+    // Note that self can be NULL if we're parsing the bootclasspath
     // during JNI_CreateJavaVM.
-    Thread* current_thread = Thread::Current();
-    Thread::State old(Thread::kUnknown);
-    if (current_thread != NULL) {
-        old = current_thread->SetState(Thread::kNative);
+    Thread* self = Thread::Current();
+    UniquePtr<ScopedThreadStateChange> state_changer;
+    if (self != NULL) {
+      state_changer.reset(new ScopedThreadStateChange(self, Thread::kNative));
     }
     UniquePtr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
-    if (current_thread != NULL) {
-        current_thread->SetState(old);
-    }
+    state_changer.reset(NULL);
     if (fd.get() == NULL) {
       return NULL;
     }
