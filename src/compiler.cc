@@ -183,15 +183,8 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
     }
     CHECK(klass->IsResolved()) << PrettyClass(klass);
     class_linker->VerifyClass(klass);
-    CHECK(klass->IsVerified() || klass->IsErroneous()) << PrettyClass(klass);
-    //CHECK(!Thread::Current()->IsExceptionPending());
-    if (klass->IsErroneous()) {
-      Thread* self = Thread::Current();
-      if (self->IsExceptionPending()) {
-        UNIMPLEMENTED(WARNING) << "Verifier failed to cleanup exceptions internally";
-        self->ClearException();
-      }
-    }
+    CHECK(klass->IsVerified() || klass->IsResolved()) << PrettyClass(klass);
+    CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
   }
   dex_file.ChangePermissions(PROT_READ);
 }

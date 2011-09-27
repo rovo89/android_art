@@ -1290,23 +1290,17 @@ void ClassLinker::VerifyClass(Class* klass) {
   }
 
   CHECK_EQ(klass->GetStatus(), Class::kStatusResolved);
-
   klass->SetStatus(Class::kStatusVerifying);
-  if (!DexVerifier::VerifyClass(klass)) {
-    LOG(ERROR) << "Verification failed on class "
-               << klass->GetDescriptor()->ToModifiedUtf8();
-    Object* exception = Thread::Current()->GetException();
-    // CHECK(exception != NULL) << PrettyClass(klass);
-    if (exception == NULL) {
-      UNIMPLEMENTED(ERROR) << "null verification exception for " << PrettyClass(klass);
-    } else {
-      klass->SetVerifyErrorClass(exception->GetClass());
-    }
-    klass->SetStatus(Class::kStatusError);
-    return;
-  }
 
-  klass->SetStatus(Class::kStatusVerified);
+  if (DexVerifier::VerifyClass(klass)) {
+    klass->SetStatus(Class::kStatusVerified);
+  } else {
+    LOG(ERROR) << "Verification failed on class " << PrettyClass(klass);
+    CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
+
+    CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying);
+    klass->SetStatus(Class::kStatusResolved);
+  }
 }
 
 bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
