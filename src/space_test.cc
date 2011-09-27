@@ -2,14 +2,15 @@
 
 #include "space.h"
 
-#include "gtest/gtest.h"
-
+#include "common_test.h"
 #include "globals.h"
 #include "UniquePtr.h"
 
 namespace art {
 
-TEST(SpaceTest, Init) {
+class SpaceTest : public CommonTest {};
+
+TEST_F(SpaceTest, Init) {
   {
     // Less than
     UniquePtr<Space> space(Space::Create(16 * MB, 32 * MB, NULL));
@@ -27,7 +28,7 @@ TEST(SpaceTest, Init) {
   }
 }
 
-TEST(SpaceTest, AllocAndFree) {
+TEST_F(SpaceTest, AllocAndFree) {
   UniquePtr<Space> space(Space::Create(4 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space.get() != NULL);
 
