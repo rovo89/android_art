@@ -135,41 +135,46 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
   switch (f->GetType()->GetPrimitiveType()) {
   case Class::kPrimBoolean:
     f->SetBoolean(o, new_value.z);
-    return;
+    break;
   case Class::kPrimByte:
     f->SetByte(o, new_value.b);
-    return;
+    break;
   case Class::kPrimChar:
     f->SetChar(o, new_value.c);
-    return;
+    break;
   case Class::kPrimDouble:
     f->SetDouble(o, new_value.d);
-    return;
+    break;
   case Class::kPrimFloat:
     f->SetFloat(o, new_value.f);
-    return;
+    break;
   case Class::kPrimInt:
     f->SetInt(o, new_value.i);
-    return;
+    break;
   case Class::kPrimLong:
     f->SetLong(o, new_value.j);
-    return;
+    break;
   case Class::kPrimShort:
     f->SetShort(o, new_value.s);
-    return;
+    break;
   case Class::kPrimNot:
     if (allow_references) {
       f->SetObject(o, new_value.l);
-      return;
+      break;
     }
-    // Else break to report an error.
-    break;
+    // Else fall through to report an error.
   case Class::kPrimVoid:
     // Never okay.
-    break;
+    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+        "Not a primitive field: %s", PrettyField(f).c_str());
+    return;
   }
-  Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-      "Not a primitive field: %s", PrettyField(f).c_str());
+
+  // Special handling for final fields on SMP systems.
+  // We need a store/store barrier here (JMM requirement).
+  if (f->IsFinal()) {
+    ANDROID_MEMBAR_STORE();
+  }
 }
 
 void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor, const JValue& new_value) {
