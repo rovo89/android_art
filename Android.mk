@@ -156,7 +156,7 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 # oatdump targets
 
 .PHONY: dump-oat
-dump-oat: dump-oat-core dump-oat-boot
+dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 
 .PHONY: dump-oat-core
 dump-oat-core: $(TARGET_CORE_OAT) $(OATDUMP)

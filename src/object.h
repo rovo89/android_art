@@ -191,11 +191,9 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
 // C++ mirror of java.lang.Object
 class MANAGED Object {
  public:
-  static bool InstanceOf(const Object* object, const Class* klass) {
-    if (object == NULL) {
-      return false;
-    }
-    return object->InstanceOf(klass);
+  static uint32_t InstanceOfFromCode(const Object* object, const Class* klass) {
+    DCHECK(object != NULL);
+    return object->InstanceOf(klass) ? 1 : 0;
   }
 
   static MemberOffset ClassOffset() {
@@ -1293,6 +1291,11 @@ class MANAGED Class : public StaticStorageBase {
   // Returns true if the class has been verified.
   bool IsVerified() const {
     return GetStatus() >= kStatusVerified;
+  }
+
+  // Returns true if the class is initializing.
+  bool IsInitializing() const {
+    return GetStatus() >= kStatusInitializing;
   }
 
   // Returns true if the class is initialized.

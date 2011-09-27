@@ -236,9 +236,10 @@ public:
       return;
     }
 
+    CHECK(fid != NULL) << PrettyTypeOf(o);
     Field* f = DecodeField(fid);
     Class* f_type = f->GetType();
-    // check invariant that all jfieldIDs have resovled types
+    // check invariant that all jfieldIDs have resolved types
     DCHECK(f_type != NULL);
     Class* c = o->GetClass();
     if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f_type) == NULL) {

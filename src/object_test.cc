@@ -328,18 +328,15 @@ TEST_F(ObjectTest, InstanceOf) {
   ASSERT_TRUE(X != NULL);
   ASSERT_TRUE(Y != NULL);
 
-  EXPECT_FALSE(Object::InstanceOf(NULL, X));
-  EXPECT_FALSE(Object::InstanceOf(NULL, Y));
-
   Object* x = X->AllocObject();
   Object* y = Y->AllocObject();
   ASSERT_TRUE(x != NULL);
   ASSERT_TRUE(y != NULL);
 
-  EXPECT_TRUE(Object::InstanceOf(x, X));
-  EXPECT_FALSE(Object::InstanceOf(x, Y));
-  EXPECT_TRUE(Object::InstanceOf(y, X));
-  EXPECT_TRUE(Object::InstanceOf(y, Y));
+  EXPECT_EQ(1U, Object::InstanceOfFromCode(x, X));
+  EXPECT_EQ(0U, Object::InstanceOfFromCode(x, Y));
+  EXPECT_EQ(1U, Object::InstanceOfFromCode(y, X));
+  EXPECT_EQ(1U, Object::InstanceOfFromCode(y, Y));
 
   EXPECT_TRUE(x->InstanceOf(X));
   EXPECT_FALSE(x->InstanceOf(Y));

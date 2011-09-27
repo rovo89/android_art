@@ -359,13 +359,16 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 }
 
 void Runtime::Start() {
-  started_ = true;
-
   InitNativeMethods();
 
   Thread::FinishStartup();
 
   class_linker_->RunRootClinits();
+
+  // Class::AllocObject asserts that all objects allocated better be
+  // initialized after Runtime::IsStarted is true, so this needs to
+  // come after ClassLinker::RunRootClinits.
+  started_ = true;
 
   StartDaemonThreads();
 }

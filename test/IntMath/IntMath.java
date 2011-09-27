@@ -54,6 +54,10 @@ class IntMath extends IntMathBase {
         IntMathBase a = new IntMathBase();
         IntMath b = new IntMath();
 
+        if (!(null instanceof IntMathBase)) {
+            x = x + 42;
+        }
+
         if (a instanceof IntMathBase) {
             x = x * 2;
         }
@@ -1116,7 +1120,7 @@ class IntMath extends IntMathBase {
         }
 
         res = instanceTest(10);
-        if (res == 1352) {
+        if (res == 1436) {
             System.out.println("instanceTest PASSED");
         } else {
             System.out.println("instanceTest FAILED: " + res);

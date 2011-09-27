@@ -230,6 +230,11 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method) {
       return NULL;  // Failure
     }
   }
+  if (!klass->IsInitialized()
+      && !Runtime::Current()->GetClassLinker()->EnsureInitialized(klass, true)) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return NULL;  // Failure
+  }
   return klass->AllocObject();
 }
 
@@ -497,7 +502,7 @@ void Thread::InitFunctionPointers() {
   pSetObjStatic = Field::SetObjStaticFromCode;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
-  pInstanceofNonTrivialFromCode = Object::InstanceOf;
+  pInstanceofNonTrivialFromCode = Object::InstanceOfFromCode;
   pLockObjectFromCode = LockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = artCheckSuspendFromCode;

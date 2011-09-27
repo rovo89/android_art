@@ -40,6 +40,11 @@ jobject Constructor_constructNative(JNIEnv* env, jobject javaMethod, jobjectArra
     return NULL;
   }
 
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return NULL;
+  }
+
   Object* receiver = c->AllocObject();
   if (receiver == NULL) {
     return NULL;

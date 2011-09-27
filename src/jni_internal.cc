@@ -691,12 +691,12 @@ class JNI {
     ScopedJniThreadState ts(env);
     CHECK_NE(static_cast<jclass>(NULL), clazz); // TODO: ReportJniError
     if (jobj == NULL) {
-      // NB. JNI is different from regular Java instanceof in this respect
+      // Note: JNI is different from regular Java instanceof in this respect
       return JNI_TRUE;
     } else {
       Object* obj = Decode<Object*>(ts, jobj);
       Class* klass = Decode<Class*>(ts, clazz);
-      return Object::InstanceOf(obj, klass) ? JNI_TRUE : JNI_FALSE;
+      return obj->InstanceOf(klass) ? JNI_TRUE : JNI_FALSE;
     }
   }
 

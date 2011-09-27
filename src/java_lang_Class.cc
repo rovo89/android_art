@@ -327,7 +327,7 @@ jboolean Class_isInstance(JNIEnv* env, jobject javaClass, jobject javaObject) {
   if (o == NULL) {
     return JNI_FALSE;
   }
-  return Object::InstanceOf(o, c) ? JNI_TRUE : JNI_FALSE;
+  return o->InstanceOf(c) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean Class_isInterface(JNIEnv* env, jobject javaThis) {

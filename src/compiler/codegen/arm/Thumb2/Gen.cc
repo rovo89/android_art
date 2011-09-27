@@ -707,6 +707,7 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     // At this point, r2 has class
     loadValueDirectFixed(cUnit, rlSrc, r3);  /* Ref */
     /* When taken r0 has NULL which can be used for store directly */
+    loadConstant(cUnit, r0, 0);                /* Assume false */
     ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r3, 0);
     /* load object->clazz */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
