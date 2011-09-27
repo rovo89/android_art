@@ -20,6 +20,8 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#include <iosfwd>
+
 #include "mutex.h"
 
 namespace art {
@@ -70,6 +72,8 @@ class Monitor {
   static void SweepMonitorList(bool (isUnmarkedObject)(void*));
 
   static void FreeMonitorList();
+
+  static void DescribeWait(std::ostream& os, const Thread* thread);
 
  private:
   Monitor(Object* obj);

@@ -30,6 +30,7 @@
 #include "context.h"
 #include "heap.h"
 #include "jni_internal.h"
+#include "monitor.h"
 #include "object.h"
 #include "runtime.h"
 #include "runtime_support.h"
@@ -41,6 +42,7 @@ namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
+static Class* gThreadLock = NULL;
 static Class* gThrowable = NULL;
 static Field* gThread_daemon = NULL;
 static Field* gThread_group = NULL;
@@ -50,6 +52,7 @@ static Field* gThread_priority = NULL;
 static Field* gThread_uncaughtHandler = NULL;
 static Field* gThread_vmData = NULL;
 static Field* gThreadGroup_name = NULL;
+static Field* gThreadLock_thread = NULL;
 static Method* gThread_run = NULL;
 static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
@@ -818,7 +821,8 @@ void Thread::DumpState(std::ostream& os) const {
 }
 
 struct StackDumpVisitor : public Thread::StackVisitor {
-  StackDumpVisitor(std::ostream& os) : os(os) {
+  StackDumpVisitor(std::ostream& os, const Thread* thread)
+      : os(os), thread(thread), frame_count(0) {
   }
 
   virtual ~StackDumpVisitor() {
@@ -828,10 +832,10 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     if (!frame.HasMethod()) {
       return;
     }
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
     Method* m = frame.GetMethod();
     Class* c = m->GetDeclaringClass();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexFile& dex_file = class_linker->FindDexFile(c->GetDexCache());
 
     os << "  at " << PrettyMethod(m, false);
@@ -842,13 +846,19 @@ struct StackDumpVisitor : public Thread::StackVisitor {
       os << "(" << c->GetSourceFile()->ToModifiedUtf8() << ":" << line_number << ")";
     }
     os << "\n";
+
+    if (frame_count++ == 0) {
+      Monitor::DescribeWait(os, thread);
+    }
   }
 
   std::ostream& os;
+  const Thread* thread;
+  int frame_count;
 };
 
 void Thread::DumpStack(std::ostream& os) const {
-  StackDumpVisitor dumper(os);
+  StackDumpVisitor dumper(os, this);
   WalkStack(&dumper);
 }
 
@@ -962,29 +972,61 @@ void Thread::Startup() {
   }
 }
 
+// TODO: make more accessible?
+Class* FindPrimitiveClassOrDie(ClassLinker* class_linker, char descriptor) {
+  Class* c = class_linker->FindPrimitiveClass(descriptor);
+  CHECK(c != NULL) << descriptor;
+  return c;
+}
+
+// TODO: make more accessible?
+Class* FindClassOrDie(ClassLinker* class_linker, const char* descriptor) {
+  Class* c = class_linker->FindSystemClass(descriptor);
+  CHECK(c != NULL) << descriptor;
+  return c;
+}
+
+// TODO: make more accessible?
+Field* FindFieldOrDie(Class* c, const char* name, Class* type) {
+  Field* f = c->FindDeclaredInstanceField(name, type);
+  CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << PrettyClass(type);
+  return f;
+}
+
+// TODO: make more accessible?
+Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
+  Method* m = c->FindVirtualMethod(name, signature);
+  CHECK(m != NULL) << PrettyClass(c) << " " << name << " " << signature;
+  return m;
+}
+
 void Thread::FinishStartup() {
   // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* boolean_class = class_linker->FindPrimitiveClass('Z');
-  Class* int_class = class_linker->FindPrimitiveClass('I');
-  Class* String_class = class_linker->FindSystemClass("Ljava/lang/String;");
-  Class* Thread_class = class_linker->FindSystemClass("Ljava/lang/Thread;");
-  Class* ThreadGroup_class = class_linker->FindSystemClass("Ljava/lang/ThreadGroup;");
-  Class* ThreadLock_class = class_linker->FindSystemClass("Ljava/lang/ThreadLock;");
-  Class* UncaughtExceptionHandler_class = class_linker->FindSystemClass("Ljava/lang/Thread$UncaughtExceptionHandler;");
-  gThrowable = class_linker->FindSystemClass("Ljava/lang/Throwable;");
-  gThread_daemon = Thread_class->FindDeclaredInstanceField("daemon", boolean_class);
-  gThread_group = Thread_class->FindDeclaredInstanceField("group", ThreadGroup_class);
-  gThread_lock = Thread_class->FindDeclaredInstanceField("lock", ThreadLock_class);
-  gThread_name = Thread_class->FindDeclaredInstanceField("name", String_class);
-  gThread_priority = Thread_class->FindDeclaredInstanceField("priority", int_class);
-  gThread_run = Thread_class->FindVirtualMethod("run", "()V");
-  gThread_uncaughtHandler = Thread_class->FindDeclaredInstanceField("uncaughtHandler", UncaughtExceptionHandler_class);
-  gThread_vmData = Thread_class->FindDeclaredInstanceField("vmData", int_class);
-  gThreadGroup_name = ThreadGroup_class->FindDeclaredInstanceField("name", String_class);
-  gThreadGroup_removeThread = ThreadGroup_class->FindVirtualMethod("removeThread", "(Ljava/lang/Thread;)V");
-  gUncaughtExceptionHandler_uncaughtException =
-      UncaughtExceptionHandler_class->FindVirtualMethod("uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
+
+  Class* boolean_class = FindPrimitiveClassOrDie(class_linker, 'Z');
+  Class* int_class = FindPrimitiveClassOrDie(class_linker, 'I');
+  Class* String_class = FindClassOrDie(class_linker, "Ljava/lang/String;");
+  Class* Thread_class = FindClassOrDie(class_linker, "Ljava/lang/Thread;");
+  Class* ThreadGroup_class = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
+  Class* UncaughtExceptionHandler_class = FindClassOrDie(class_linker, "Ljava/lang/Thread$UncaughtExceptionHandler;");
+  gThreadLock = FindClassOrDie(class_linker, "Ljava/lang/ThreadLock;");
+  gThrowable = FindClassOrDie(class_linker, "Ljava/lang/Throwable;");
+
+  gThread_daemon = FindFieldOrDie(Thread_class, "daemon", boolean_class);
+  gThread_group = FindFieldOrDie(Thread_class, "group", ThreadGroup_class);
+  gThread_lock = FindFieldOrDie(Thread_class, "lock", gThreadLock);
+  gThread_name = FindFieldOrDie(Thread_class, "name", String_class);
+  gThread_priority = FindFieldOrDie(Thread_class, "priority", int_class);
+  gThread_uncaughtHandler = FindFieldOrDie(Thread_class, "uncaughtHandler", UncaughtExceptionHandler_class);
+  gThread_vmData = FindFieldOrDie(Thread_class, "vmData", int_class);
+  gThreadGroup_name = FindFieldOrDie(ThreadGroup_class, "name", String_class);
+  gThreadLock_thread = FindFieldOrDie(gThreadLock, "thread", Thread_class);
+
+  gThread_run = FindMethodOrDie(Thread_class, "run", "()V");
+  gThreadGroup_removeThread = FindMethodOrDie(ThreadGroup_class, "removeThread", "(Ljava/lang/Thread;)V");
+  gUncaughtExceptionHandler_uncaughtException = FindMethodOrDie(UncaughtExceptionHandler_class,
+      "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
 
   // Finish attaching the main thread.
   Thread::Current()->CreatePeer("main", false);
@@ -994,27 +1036,45 @@ void Thread::Shutdown() {
   CHECK_PTHREAD_CALL(pthread_key_delete, (Thread::pthread_key_self_), "self key");
 }
 
+uint32_t Thread::LockOwnerFromThreadLock(Object* thread_lock) {
+  if (thread_lock == NULL || thread_lock->GetClass() != gThreadLock) {
+    return ThreadList::kInvalidId;
+  }
+  Object* managed_thread = gThreadLock_thread->GetObject(thread_lock);
+  if (managed_thread == NULL) {
+    return ThreadList::kInvalidId;
+  }
+  uintptr_t vmData = static_cast<uintptr_t>(gThread_vmData->GetInt(managed_thread));
+  Thread* thread = reinterpret_cast<Thread*>(vmData);
+  if (thread == NULL) {
+    return ThreadList::kInvalidId;
+  }
+  return thread->GetThinLockId();
+}
+
 Thread::Thread()
     : peer_(NULL),
+      top_of_managed_stack_(),
+      top_of_managed_stack_pc_(0),
       wait_mutex_(new Mutex("Thread wait mutex")),
       wait_cond_(new ConditionVariable("Thread wait condition variable")),
       wait_monitor_(NULL),
       interrupted_(false),
       wait_next_(NULL),
+      monitor_enter_object_(NULL),
       card_table_(0),
       stack_end_(NULL),
-      top_of_managed_stack_(),
-      top_of_managed_stack_pc_(0),
       native_to_managed_record_(NULL),
       top_sirt_(NULL),
       jni_env_(NULL),
-      state_(Thread::kUnknown),
+      state_(Thread::kNative),
       self_(NULL),
       runtime_(NULL),
       exception_(NULL),
       suspend_count_(0),
       class_loader_override_(NULL),
       long_jump_context_(NULL) {
+  CHECK((sizeof(Thread) % 4) == 0) << sizeof(Thread);
 }
 
 void MonitorExitVisitor(const Object* object, void*) {
@@ -1537,7 +1597,7 @@ static const char* kStateNames[] = {
   "Suspended",
 };
 std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
-  int int_state = static_cast<int>(state);
+  int32_t int_state = static_cast<int32_t>(state);
   if (state >= Thread::kTerminated && state <= Thread::kSuspended) {
     os << kStateNames[int_state];
   } else {
