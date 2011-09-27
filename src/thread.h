@@ -121,6 +121,8 @@ class PACKED Frame {
 
   uintptr_t LoadCalleeSave(int num) const;
 
+  uintptr_t GetVReg(Method* method, int vreg) const;
+
   Method** GetSP() const {
     return sp_;
   }
@@ -460,7 +462,7 @@ class PACKED Thread {
   static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
       jobjectArray output_array = NULL, int* stack_depth = NULL);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
   //
   // Offsets of various members of native Thread class, used by compiled code.

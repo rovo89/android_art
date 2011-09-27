@@ -348,12 +348,13 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
-  UNIMPLEMENTED(FATAL) << "No implicit GC, use larger -Xms -Xmx";
+  LOG(INFO) << "GC_FOR_ALLOC: TODO: test";
   CollectGarbageInternal();
   ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {
     return ptr;
   }
+  UNIMPLEMENTED(FATAL) << "No AllocWithGrowth, use larger -Xms -Xmx";
 
   // Even that didn't work;  this is an exceptional state.
   // Try harder, growing the heap if necessary.

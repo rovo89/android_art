@@ -8,6 +8,8 @@
 #include "jni_compiler.h"
 #include "object.h"
 
+int oatVRegOffsetFromMethod(art::Method* method, int reg);
+
 namespace art {
 
 class Compiler {
@@ -45,7 +47,6 @@ class Compiler {
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(Class* klass);
   void CompileMethod(Method* klass);
-  int oatVRegOffsetFromMethod(Method* method, int reg);
 
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.

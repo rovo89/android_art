@@ -24,6 +24,12 @@ class ArmContext : public Context {
     gprs_[PC] = new_pc;
   }
 
+  virtual uintptr_t GetGPR(uint32_t reg) {
+    CHECK_GE(reg, 0u);
+    CHECK_LT(reg, 16u);
+    return gprs_[reg];
+  }
+
   virtual void DoLongJump();
 
  private:

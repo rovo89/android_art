@@ -5305,14 +5305,14 @@ DexVerifier::RegisterMap* DexVerifier::GetExpandedRegisterMapHelper(
   }
 
   /* Update method, and free compressed map if it was sitting on the heap. */
-  ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
-  ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map));
+  //ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
+  //ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map));
 
-  memcpy(header->GetData(), map->header_, sizeof(RegisterMapHeader));
-  memcpy(data->GetData(), map->data_, ComputeRegisterMapSize(map));
+  //memcpy(header->GetData(), map->header_, sizeof(RegisterMapHeader));
+  //memcpy(data->GetData(), map->data_, ComputeRegisterMapSize(map));
 
-  method->SetRegisterMapHeader(header);
-  method->SetRegisterMapData(data);
+  //method->SetRegisterMapHeader(header);
+  //method->SetRegisterMapData(data);
 
   delete map;
   return new_map;

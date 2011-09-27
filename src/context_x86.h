@@ -26,6 +26,12 @@ class X86Context : public Context {
     eip_ = new_pc;
   }
 
+  virtual uintptr_t GetGPR(uint32_t reg) {
+    CHECK_GE(reg, 0u);
+    CHECK_LT(reg, 8u);
+    return gprs_[reg];
+  }
+
   virtual void DoLongJump();
 
  private:

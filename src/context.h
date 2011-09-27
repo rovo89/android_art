@@ -27,6 +27,9 @@ class Context {
   // Set the program counter value
   virtual void SetPC(uintptr_t new_pc) = 0;
 
+  // Read the given GPR
+  virtual uintptr_t GetGPR(uint32_t reg) = 0;
+
   // Switch execution of the executing context to this context
   virtual void DoLongJump() = 0;
 };

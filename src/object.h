@@ -838,8 +838,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   ShortArray* GetVMapTable() const {
-    return GetFieldObject<ShortArray*>(
-        OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
+    return GetFieldObject<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
   }
 
   size_t GetFrameSizeInBytes() const {

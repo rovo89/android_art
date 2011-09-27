@@ -27,7 +27,9 @@
 #include <list>
 
 #include "class_linker.h"
+#include "compiler.h"
 #include "context.h"
+#include "dex_verifier.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
@@ -530,6 +532,13 @@ bool Frame::HasMethod() const {
 uintptr_t Frame::GetReturnPC() const {
   byte* pc_addr = reinterpret_cast<byte*>(sp_) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
+}
+
+uintptr_t Frame::GetVReg(Method* method, int vreg) const {
+  DCHECK(method == GetMethod());
+  int offset = oatVRegOffsetFromMethod(method, vreg);
+  byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
+  return *reinterpret_cast<uintptr_t*>(vreg_addr);
 }
 
 uintptr_t Frame::LoadCalleeSave(int num) const {
@@ -1576,7 +1585,75 @@ bool Thread::IsDaemon() {
   return gThread_daemon->GetBoolean(peer_);
 }
 
-void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+class ReferenceMapVisitor : public Thread::StackVisitor {
+ public:
+  ReferenceMapVisitor(Context* context, Heap::RootVisitor* root_visitor, void* arg) :
+    context_(context), root_visitor_(root_visitor), arg_(arg) {
+  }
+
+  void VisitFrame(const Frame& frame, uintptr_t pc) {
+    Method* m = frame.GetMethod();
+    LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false);
+
+    // Process register map (which native and callee save methods don't have)
+    if (!m->IsNative() && !m->IsPhony()) {
+      UniquePtr<art::DexVerifier::RegisterMap> map(art::DexVerifier::GetExpandedRegisterMap(m));
+
+      const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(map.get(), m->ToDexPC(pc));
+      CHECK(reg_bitmap != NULL);
+      ShortArray* vmap = m->GetVMapTable();
+      // For all dex registers
+      for (int reg = 0; reg < m->NumRegisters(); ++reg) {
+        // Does this register hold a reference?
+        if (TestBitmap(reg, reg_bitmap)) {
+          // Is the reference in the context or on the stack?
+          bool in_context = false;
+          int vmap_offset = -1;
+          // TODO: take advantage of the registers being ordered
+          for (int i = 0; i < vmap->GetLength(); i++) {
+            if (vmap->Get(i) == reg) {
+              in_context = true;
+              vmap_offset = i;
+              break;
+            }
+          }
+          Object* ref;
+          if (in_context) {
+            // Compute the register we need to load from the context
+            uint32_t spill_mask = m->GetCoreSpillMask();
+            uint32_t reg = 0;
+            for (int i = 0; i < vmap_offset; i++) {
+              while ((spill_mask & 1) == 0) {
+                CHECK_NE(spill_mask, 0u);
+                spill_mask >>= 1;
+                reg++;
+              }
+            }
+            ref = reinterpret_cast<Object*>(context_->GetGPR(reg));
+          } else {
+            ref = reinterpret_cast<Object*>(frame.GetVReg(m ,reg));
+          }
+          root_visitor_(ref, arg_);
+        }
+      }
+    }
+    context_->FillCalleeSaves(frame);
+  }
+
+ private:
+  bool TestBitmap(int reg, const uint8_t* reg_vector) {
+    return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
+  }
+
+  // Context used to build up picture of callee saves
+  Context* context_;
+  // Call-back when we visit a root
+  Heap::RootVisitor* root_visitor_;
+  // Argument to call-back
+  void* arg_;
+};
+
+void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   if (exception_ != NULL) {
     visitor(exception_, arg);
   }
@@ -1585,8 +1662,12 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
   jni_env_->locals.VisitRoots(visitor, arg);
   jni_env_->monitors.VisitRoots(visitor, arg);
-  // visitThreadStack(visitor, thread, arg);
-  UNIMPLEMENTED(WARNING) << "some per-Thread roots not visited";
+  // Cheat and steal the long jump context. Assume that we are not doing a GC during exception
+  // delivery.
+  Context* context = GetLongJumpContext();
+  // Visit roots on this thread's stack
+  ReferenceMapVisitor mapper(context, visitor, arg);
+  WalkStack(&mapper);
 }
 
 static const char* kStateNames[] = {
