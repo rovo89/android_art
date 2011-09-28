@@ -1584,6 +1584,9 @@ bool Thread::IsDaemon() {
   return gThread_daemon->GetBoolean(peer_);
 }
 
+// blx is 2-byte in Thumb2. Need to offset PC back to a call site.
+static const int kThumb2InstSize = 2;
+
 class ReferenceMapVisitor : public Thread::StackVisitor {
  public:
   ReferenceMapVisitor(Context* context, Heap::RootVisitor* root_visitor, void* arg) :
@@ -1592,13 +1595,18 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
 
   void VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
-    LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false);
 
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsPhony()) {
       UniquePtr<art::DexVerifier::RegisterMap> map(art::DexVerifier::GetExpandedRegisterMap(m));
 
-      const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(map.get(), m->ToDexPC(pc));
+      const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(
+          map.get(),
+          m->ToDexPC(pc -kThumb2InstSize));
+
+      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
+                << "@ PC: " << m->ToDexPC(pc - kThumb2InstSize);
+
       CHECK(reg_bitmap != NULL);
       ShortArray* vmap = m->GetVMapTable();
       // For all dex registers
@@ -1632,7 +1640,9 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
           } else {
             ref = reinterpret_cast<Object*>(frame.GetVReg(m ,reg));
           }
-          root_visitor_(ref, arg_);
+          if (ref != NULL) {
+            root_visitor_(ref, arg_);
+          }
         }
       }
     }

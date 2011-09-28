@@ -81,7 +81,6 @@ $(eval $(call declare-test-test-target,SystemMethods,))
 # $(eval $(call declare-test-test-target,StackWalk,))
 # $(eval $(call declare-test-test-target,StackWalk2,))
 
-# TODO: Re-enable this when RegisterMap is working for thread run.
-# $(eval $(call declare-test-test-target,MemUsage,))
+ $(eval $(call declare-test-test-target,MemUsage,))
 
 ########################################################################

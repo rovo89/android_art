@@ -5242,6 +5242,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
 #endif
 
   /* Try to compress the map. */
+#if 0
   RegisterMap* compress_map = CompressMapDifferential(map);
   if (compress_map != NULL) {
     // TODO: Remove this check when it's really running...
@@ -5270,7 +5271,7 @@ DexVerifier::RegisterMap* DexVerifier::GenerateRegisterMapV(VerifierData* vdata)
     delete map;
     map = compress_map;
   }
-
+#endif
   return map;
 }
 
