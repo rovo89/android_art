@@ -35,6 +35,7 @@ namespace art {
 
 class ClassLoader;
 class InternTable;
+class ObjectLock;
 
 class ClassLinker {
  public:
@@ -202,8 +203,6 @@ class ClassLinker {
 
   void FinishInit();
 
-  bool InitializeClass(Class* klass, bool can_run_clinit);
-
   // For early bootstrapping by Init
   Class* AllocClass(Class* java_lang_Class, size_t class_size);
 
@@ -263,11 +262,11 @@ class ClassLinker {
   // was inserted.
   bool InsertClass(const StringPiece& descriptor, Class* klass);
 
-  bool InitializeSuperClass(Class* klass, bool can_run_clinit);
-
-  void InitializeStaticFields(Class* klass);
-
+  bool InitializeClass(Class* klass, bool can_run_clinit);
+  bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);
   bool ValidateSuperClassDescriptors(const Class* klass);
+  bool InitializeSuperClass(Class* klass, bool can_run_clinit);
+  void InitializeStaticFields(Class* klass);
 
   bool HasSameDescriptorClasses(const char* descriptor,
                                 const Class* klass1,

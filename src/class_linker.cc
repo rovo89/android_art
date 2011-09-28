@@ -1304,84 +1304,52 @@ void ClassLinker::VerifyClass(Class* klass) {
 }
 
 bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
-  CHECK(klass->GetStatus() == Class::kStatusResolved ||
-      klass->GetStatus() == Class::kStatusVerified ||
-      klass->GetStatus() == Class::kStatusInitializing ||
-      klass->GetStatus() == Class::kStatusError)
-          << PrettyClass(klass) << " is " << klass->GetStatus();
+  CHECK(klass->IsResolved() || klass->IsErroneous())
+      << PrettyClass(klass) << " is " << klass->GetStatus();
 
   Thread* self = Thread::Current();
 
   Method* clinit = NULL;
   {
+    // see JLS 3rd edition, 12.4.2 "Detailed Initialization Procedure" for the locking protocol
     ObjectLock lock(klass);
 
-    if (klass->GetStatus() < Class::kStatusVerified) {
-      if (klass->IsErroneous()) {
-        ThrowEarlierClassFailure(klass);
-        return false;
-      }
+    if (klass->GetStatus() == Class::kStatusInitialized) {
+      return true;
+    }
 
+    if (klass->IsErroneous()) {
+      ThrowEarlierClassFailure(klass);
+      return false;
+    }
+
+    if (klass->GetStatus() == Class::kStatusResolved) {
       VerifyClass(klass);
       if (klass->GetStatus() != Class::kStatusVerified) {
         return false;
       }
     }
 
-    if (klass->GetStatus() == Class::kStatusInitialized) {
-      return true;
-    }
-
     clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
     if (clinit != NULL && !can_run_clinit) {
-      // if the class has a <clinit>, don't bother going to initializing
+      // if the class has a <clinit> but we can't run it during compilation,
+      // don't bother going to kStatusInitializing
       return false;
     }
 
-    while (klass->GetStatus() == Class::kStatusInitializing) {
+    // If the class is kStatusInitializing, either this thread is
+    // initializing higher up the stack or another thread has beat us
+    // to initializing and we need to wait. Either way, this
+    // invocation of InitializeClass will not be responsible for
+    // running <clinit> and will return.
+    if (klass->GetStatus() == Class::kStatusInitializing) {
       // We caught somebody else in the act; was it us?
       if (klass->GetClinitThreadId() == self->GetTid()) {
-        // Yes. That's fine.
+        // Yes. That's fine. Return so we can continue initializing.
         return true;
       }
-
-      CHECK(!self->IsExceptionPending());
-      lock.Wait();
-      CHECK(!self->IsExceptionPending());
-
-      // When we wake up, repeat the test for init-in-progress.  If
-      // there's an exception pending (only possible if
-      // "interruptShouldThrow" was set), bail out.
-      if (self->IsExceptionPending()) {
-        self->ThrowNewException("Ljava/lang/ExceptionInInitializerError;",
-            "Exception %s thrown while initializing class %s",
-            PrettyTypeOf(self->GetException()).c_str(),
-            PrettyDescriptor(klass->GetDescriptor()).c_str());
-        klass->SetStatus(Class::kStatusError);
-        return false;
-      }
-      if (klass->GetStatus() == Class::kStatusInitializing) {
-        continue;
-      }
-      DCHECK(klass->GetStatus() == Class::kStatusInitialized ||
-             klass->GetStatus() == Class::kStatusError);
-      if (klass->IsErroneous()) {
-        // The caller wants an exception, but it was thrown in a
-        // different thread.  Synthesize one here.
-        self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;",
-            "<clinit> failed for class %s; see exception in other thread",
-            PrettyDescriptor(klass->GetDescriptor()).c_str());
-        return false;
-      }
-      return true;  // otherwise, initialized
-    }
-
-    // see if we failed previously
-    if (klass->IsErroneous()) {
-      // might be wise to unlock before throwing; depends on which class
-      // it is that we have locked
-      ThrowEarlierClassFailure(klass);
-      return false;
+      // No. That's fine. Wait for another thread to finish initializing.
+      return WaitForInitializeClass(klass, self, lock);
     }
 
     if (!ValidateSuperClassDescriptors(klass)) {
@@ -1389,7 +1357,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       return false;
     }
 
-    DCHECK_LT(klass->GetStatus(), Class::kStatusInitializing);
+    DCHECK_EQ(klass->GetStatus(), Class::kStatusVerified);
 
     klass->SetClinitThreadId(self->GetTid());
     klass->SetStatus(Class::kStatusInitializing);
@@ -1409,6 +1377,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     ObjectLock lock(klass);
 
     if (self->IsExceptionPending()) {
+      // TODO: if self->GetException() is not an Error,
+      // wrap in ExceptionInInitializerError
       klass->SetStatus(Class::kStatusError);
     } else {
       ++Runtime::Current()->GetStats()->class_init_count;
@@ -1420,6 +1390,43 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   }
 
   return true;
+}
+
+bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock) {
+  while (true) {
+    CHECK(!self->IsExceptionPending());
+    lock.Wait();
+
+    // When we wake up, repeat the test for init-in-progress.  If
+    // there's an exception pending (only possible if
+    // "interruptShouldThrow" was set), bail out.
+    if (self->IsExceptionPending()) {
+      // TODO: set cause of ExceptionInInitializerError to self->GetException()
+      self->ThrowNewException("Ljava/lang/ExceptionInInitializerError;",
+          "Exception %s thrown while initializing class %s",
+          PrettyTypeOf(self->GetException()).c_str(),
+          PrettyDescriptor(klass->GetDescriptor()).c_str());
+      klass->SetStatus(Class::kStatusError);
+      return false;
+    }
+    // Spurious wakeup? Go back to waiting.
+    if (klass->GetStatus() == Class::kStatusInitializing) {
+      continue;
+    }
+    if (klass->IsErroneous()) {
+      // The caller wants an exception, but it was thrown in a
+      // different thread.  Synthesize one here.
+      self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
+          "<clinit> failed for class %s; see exception in other thread",
+          PrettyDescriptor(klass->GetDescriptor()).c_str());
+      return false;
+    }
+    if (klass->IsInitialized()) {
+      return true;
+    }
+    LOG(FATAL) << "Unexpected class status. " << PrettyClass(klass) << " is " << klass->GetStatus();
+  }
+  LOG(FATAL) << "Not Reached" << PrettyClass(klass);
 }
 
 bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
@@ -1550,9 +1557,7 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  c->MonitorEnter(self);
   InitializeClass(c, can_run_clinit);
-  c->MonitorExit(self);
   return !self->IsExceptionPending();
 }
 

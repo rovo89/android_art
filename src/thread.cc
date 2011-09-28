@@ -232,8 +232,7 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method) {
       return NULL;  // Failure
     }
   }
-  if (!klass->IsInitialized()
-      && !Runtime::Current()->GetClassLinker()->EnsureInitialized(klass, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(klass, true)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;  // Failure
   }
