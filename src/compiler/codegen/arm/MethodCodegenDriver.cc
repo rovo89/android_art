@@ -222,6 +222,11 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         branchOver->generic.target = (LIR*)skipTarget;
         rlSrc = oatGetSrc(cUnit, mir, 0);
         rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
+#if ANDROID_SMP != 0
+        if (field->IsVolatile()) {
+            oatGenMemBarrier(cUnit, kST);
+        }
+#endif
         storeWordDisp(cUnit, rBase, fieldOffset, rlSrc.lowReg);
 #if ANDROID_SMP != 0
         if (field->IsVolatile()) {
@@ -241,7 +246,12 @@ STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     uint32_t typeIdx;
     Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
     oatFlushAllRegs(cUnit);
-    if (SLOW_FIELD_PATH || field == NULL) {
+#if ANDROID_SMP != 0
+    bool isVolatile = (field == NULL) || field->IsVolatile();
+#else
+    bool isVolatile = false;
+#endif
+    if (SLOW_FIELD_PATH || field == NULL || isVolatile) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
@@ -276,11 +286,6 @@ STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
         storeBaseDispWide(cUnit, rBase, fieldOffset, rlSrc.lowReg,
                           rlSrc.highReg);
-#if ANDROID_SMP != 0
-        if (field->IsVolatile()) {
-            oatGenMemBarrier(cUnit, kSY);
-        }
-#endif
         oatFreeTemp(cUnit, rBase);
     }
 }
@@ -292,8 +297,13 @@ STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
     Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+#if ANDROID_SMP != 0
+    bool isVolatile = (field == NULL) || field->IsVolatile();
+#else
+    bool isVolatile = false;
+#endif
     oatFlushAllRegs(cUnit);
-    if (SLOW_FIELD_PATH || field == NULL) {
+    if (SLOW_FIELD_PATH || field == NULL || isVolatile) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
@@ -327,11 +337,6 @@ STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         branchOver->generic.target = (LIR*)skipTarget;
         rlDest = oatGetDestWide(cUnit, mir, 0, 1);
         RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-#if ANDROID_SMP != 0
-        if (field->IsVolatile()) {
-            oatGenMemBarrier(cUnit, kSY);
-        }
-#endif
         loadBaseDispWide(cUnit, NULL, rBase, fieldOffset, rlResult.lowReg,
                          rlResult.highReg, INVALID_SREG);
         oatFreeTemp(cUnit, rBase);

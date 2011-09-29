@@ -500,9 +500,12 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null obj? */
 
         if (isVolatile) {
-            oatGenMemBarrier(cUnit, kSY);
+            oatGenMemBarrier(cUnit, kST);
         }
         storeBaseDisp(cUnit, rlObj.lowReg, fieldOffset, rlSrc.lowReg, size);
+        if (isVolatile) {
+            oatGenMemBarrier(cUnit, kSY);
+        }
     }
     if (isObject) {
         /* NOTE: marking card based on object head */
@@ -513,10 +516,15 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
 STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlObj)
 {
+    RegLocation rlResult;
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedField(mir->dalvikInsn.vC);
-    RegLocation rlResult;
-    if (fieldPtr == NULL) {
+#if ANDROID_SMP != 0
+    bool isVolatile = (fieldPtr == NULL) || fieldPtr->IsVolatile();
+#else
+    bool isVolatile = false;
+#endif
+    if ((fieldPtr == NULL) || isVolatile) {
         getFieldOffset(cUnit, mir);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -525,13 +533,8 @@ STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         opRegReg(cUnit, kOpAdd, r0, rlObj.lowReg);
         loadPair(cUnit, r0, rlResult.lowReg, rlResult.highReg);
         oatGenMemBarrier(cUnit, kSY);
-        storeValue(cUnit, rlDest, rlResult);
+        storeValueWide(cUnit, rlDest, rlResult);
     } else {
-#if ANDROID_SMP != 0
-        bool isVolatile = fieldPtr->IsVolatile();
-#else
-        bool isVolatile = false;
-#endif
         int fieldOffset = fieldPtr->GetOffset().Int32Value();
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         int regPtr = oatAllocTemp(cUnit);
@@ -544,10 +547,6 @@ STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 
         loadPair(cUnit, regPtr, rlResult.lowReg, rlResult.highReg);
 
-        if (isVolatile) {
-            oatGenMemBarrier(cUnit, kSY);
-        }
-
         oatFreeTemp(cUnit, regPtr);
         storeValueWide(cUnit, rlDest, rlResult);
     }
@@ -558,7 +557,12 @@ STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 {
     Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
         GetResolvedField(mir->dalvikInsn.vC);
-    if (fieldPtr == NULL) {
+#if ANDROID_SMP != 0
+    bool isVolatile = (fieldPtr == NULL) || fieldPtr->IsVolatile();
+#else
+    bool isVolatile = false;
+#endif
+    if ((fieldPtr == NULL) || isVolatile) {
         getFieldOffset(cUnit, mir);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -568,11 +572,6 @@ STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         oatGenMemBarrier(cUnit, kSY);
         storePair(cUnit, r0, rlSrc.lowReg, rlSrc.highReg);
     } else {
-#if ANDROID_SMP != 0
-        bool isVolatile = fieldPtr->IsVolatile();
-#else
-        bool isVolatile = false;
-#endif
         int fieldOffset = fieldPtr->GetOffset().Int32Value();
 
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -582,9 +581,6 @@ STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         regPtr = oatAllocTemp(cUnit);
         opRegRegImm(cUnit, kOpAdd, regPtr, rlObj.lowReg, fieldOffset);
 
-        if (isVolatile) {
-            oatGenMemBarrier(cUnit, kSY);
-        }
         storePair(cUnit, regPtr, rlSrc.lowReg, rlSrc.highReg);
 
         oatFreeTemp(cUnit, regPtr);
