@@ -57,6 +57,7 @@ STATIC inline s4 s4FromSwitchData(const void* switchData) {
 
 STATIC ArmLIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
 {
+    oatClobberCalleeSave(cUnit);
     return opReg(cUnit, kOpBlx, reg);
 }
 
@@ -373,7 +374,6 @@ STATIC void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
     // Materialize a pointer to the fill data image
     newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
 }
 
 /*
@@ -406,6 +406,7 @@ STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
 {
     int fieldIdx = mir->dalvikInsn.vC;
+    oatFlushAllRegs(cUnit);
     LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
         << " unresolved at compile time";
     oatLockCallTemps(cUnit);  // Explicit register usage
@@ -607,6 +608,7 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
         storeValue(cUnit, rlDest, rlResult);
     } else {
         // Slow path.  Must test at runtime
+        oatFlushAllRegs(cUnit);
         ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, rlResult.lowReg,
                                           0);
         // Resolved, store and hop over following code
@@ -621,7 +623,6 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
         genRegCopy(cUnit, r1, mReg);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         callRuntimeHelper(cUnit, rLR);
-        oatClobberCallRegs(cUnit);
         RegLocation rlResult = oatGetReturn(cUnit);
         storeValue(cUnit, rlDest, rlResult);
         // Rejoin code paths
@@ -663,13 +664,13 @@ STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
     loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
     loadConstant(cUnit, r0, mir->dalvikInsn.vB);  // arg0 <- type_id
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
 }
 
 void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
+    oatFlushAllRegs(cUnit);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pDeliverException), rLR);
     loadValueDirectFixed(cUnit, rlSrc, r0);  // Get exception object
@@ -679,6 +680,7 @@ void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                           RegLocation rlSrc)
 {
+    oatFlushAllRegs(cUnit);
     // May generate a call - use explicit registers
     oatLockCallTemps(cUnit);
     art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
@@ -721,7 +723,6 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     genRegCopy(cUnit, r0, r3);
     genRegCopy(cUnit, r1, r2);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     /* branch target here */
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
@@ -733,6 +734,7 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 
 STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
+    oatFlushAllRegs(cUnit);
     // May generate a call - use explicit registers
     oatLockCallTemps(cUnit);
     art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
@@ -773,7 +775,6 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     genRegCopy(cUnit, r0, r1);
     genRegCopy(cUnit, r1, r2);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     /* branch target here */
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
@@ -805,10 +806,12 @@ STATIC void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest,
 STATIC void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
                         RegLocation rlFree)
 {
-    if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg))
+    if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
+        (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
+        // No overlap, free both
         oatFreeTemp(cUnit, rlFree.lowReg);
-    if ((rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg))
-        oatFreeTemp(cUnit, rlFree.lowReg);
+        oatFreeTemp(cUnit, rlFree.highReg);
+    }
 }
 
 STATIC void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
@@ -1108,7 +1111,6 @@ STATIC bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
         loadValueDirectWideFixed(cUnit, rlSrc, r0, r1);
     }
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     if (tgtSize == 1) {
         RegLocation rlResult;
         rlDest = oatGetDest(cUnit, mir, 0);
@@ -1163,7 +1165,6 @@ STATIC bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectFixed(cUnit, rlSrc1, r0);
     loadValueDirectFixed(cUnit, rlSrc2, r1);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
     return false;
@@ -1209,7 +1210,6 @@ STATIC bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
     loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     rlResult = oatGetReturnWide(cUnit);
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
@@ -1278,6 +1278,7 @@ STATIC void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
     int lenOffset = Array::LengthOffset().Int32Value();
     int dataOffset = Array::DataOffset().Int32Value();
 
+    oatFlushAllRegs(cUnit);
     /* Make sure it's a legal object Put. Use direct regs at first */
     loadValueDirectFixed(cUnit, rlArray, r1);
     loadValueDirectFixed(cUnit, rlSrc, r0);
@@ -1289,7 +1290,8 @@ STATIC void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
     /* Get the array's clazz */
     loadWordDisp(cUnit, r1, Object::ClassOffset().Int32Value(), r1);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
+    oatFreeTemp(cUnit, r0);
+    oatFreeTemp(cUnit, r1);
 
     // Now, redo loadValues in case they didn't survive the call
 
@@ -1479,7 +1481,6 @@ STATIC bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
     loadValueDirect(cUnit, rlShift, r2);
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     RegLocation rlResult = oatGetReturnWide(cUnit);
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
@@ -1593,7 +1594,6 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
         loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
         loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
         callRuntimeHelper(cUnit, rLR);
-        oatClobberCallRegs(cUnit);
         if (retReg == r0)
             rlResult = oatGetReturnWide(cUnit);
         else
@@ -1715,7 +1715,6 @@ STATIC bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
             genImmedCheck(cUnit, kArmCondEq, r1, 0, mir, kArmThrowDivZero);
         }
         callRuntimeHelper(cUnit, rLR);
-        oatClobberCallRegs(cUnit);
         if (retReg == r0)
             rlResult = oatGetReturn(cUnit);
         else
@@ -1731,6 +1730,7 @@ STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
     if (NO_SUSPEND || mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
         return;
     }
+    oatFlushAllRegs(cUnit);
     newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
     ArmLIR* branch = opCondBranch(cUnit, kArmCondEq);
     ArmLIR* retLab = newLIR0(cUnit, kArmPseudoTargetLabel);
@@ -1750,6 +1750,7 @@ STATIC void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
     if (NO_SUSPEND || mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
         return;
     }
+    oatFlushAllRegs(cUnit);
     oatLockCallTemps(cUnit);   // Explicit register usage
     int rSuspendCount = r1;
     ArmLIR* ld;
@@ -2003,7 +2004,6 @@ STATIC bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF, funcOffset, rLR);
             loadConstant(cUnit, r1, lit);
             callRuntimeHelper(cUnit, rLR);
-            oatClobberCallRegs(cUnit);
             if (isDiv)
                 rlResult = oatGetReturn(cUnit);
             else

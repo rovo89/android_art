@@ -840,9 +840,10 @@ typedef struct ArmLIR {
     struct {
         bool isNop:1;           // LIR is optimized away
         bool insertWrapper:1;   // insert branch to emulate memory accesses
+        bool squashed:1;        // Elminated def
         unsigned int age:4;     // default is 0, set lazily by the optimizer
         unsigned int size:3;    // bytes (2 for thumb, 2/4 for thumb2)
-        unsigned int unused:23;
+        unsigned int unused:22;
     } flags;
     int aliasInfo;              // For Dalvik register & litpool disambiguation
     u8 useMask;                 // Resource mask for use

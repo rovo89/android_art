@@ -137,7 +137,7 @@ extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num);
 extern RegLocation oatGetReturnWide(CompilationUnit* cUnit);
 
 /* Clobber all regs that might be used by an external C call */
-extern void oatClobberCallRegs(CompilationUnit* cUnit);
+extern void oatClobberCalleeSave(CompilationUnit* cUnit);
 
 extern RegisterInfo *oatIsTemp(CompilationUnit* cUnit, int reg);
 
@@ -232,4 +232,7 @@ extern void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
 
 extern void oatDoPromotion(CompilationUnit* cUnit);
 extern int oatVRegOffset(CompilationUnit* cUnit, int reg);
+extern void oatDumpCoreRegPool(CompilationUnit* cUint);
+extern void oatDumpFPRegPool(CompilationUnit* cUint);
+extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);
 #endif // ART_SRC_COMPILER_RALLOC_H_

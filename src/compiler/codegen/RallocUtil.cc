@@ -87,6 +87,16 @@ STATIC void dumpRegPool(RegisterInfo* p, int numRegs)
     LOG(INFO) << "================================================";
 }
 
+void oatDumpCoreRegPool(CompilationUnit* cUnit)
+{
+    dumpRegPool(cUnit->regPool->coreRegs, cUnit->regPool->numCoreRegs);
+}
+
+void oatDumpFpRegPool(CompilationUnit* cUnit)
+{
+    dumpRegPool(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs);
+}
+
 /* Get info for a reg. */
 STATIC RegisterInfo* getRegInfo(CompilationUnit* cUnit, int reg)
 {
@@ -154,12 +164,8 @@ STATIC bool clobberRegBody(CompilationUnit* cUnit, RegisterInfo* p,
     for (i=0; i< numRegs; i++) {
         if (p[i].reg == reg) {
             if (p[i].isTemp) {
-                if (p[i].isTemp && p[i].live && p[i].dirty) {
-                    if (p[i].pair) {
-                        oatFlushRegWide(cUnit, p[i].reg, p[i].partner);
-                    } else {
-                        oatFlushReg(cUnit, p[i].reg);
-                    }
+                if (p[i].live && p[i].dirty) {
+                    LOG(FATAL) << "Live & dirty temp in clobber";
                 }
                 p[i].live = false;
                 p[i].sReg = INVALID_SREG;
@@ -376,6 +382,7 @@ STATIC int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
         next++;
     }
     if (required) {
+        oatCodegenDump(cUnit);
         dumpRegPool(cUnit->regPool->coreRegs,
                     cUnit->regPool->numCoreRegs);
         LOG(FATAL) << "No free temp registers";
@@ -427,7 +434,7 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
         }
         next += 2;
     }
-    LOG(FATAL) << "No free temp registers";
+    LOG(FATAL) << "No free temp registers (pair)";
     return -1;
 }
 
@@ -605,6 +612,7 @@ STATIC void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
         DCHECK_EQ(sReg1, sReg2);
         for (p = start; ;p = p->next) {
             ((ArmLIR *)p)->flags.isNop = true;
+            ((ArmLIR *)p)->flags.squashed = true;
             if (p == finish)
                 break;
         }
@@ -669,8 +677,8 @@ extern RegLocation oatWideToNarrow(CompilationUnit* cUnit,
 extern void oatResetDefLoc(CompilationUnit* cUnit, RegLocation rl)
 {
     DCHECK(!rl.wide);
-    if (!(cUnit->disableOpt & (1 << kSuppressLoads))) {
-        RegisterInfo* p = getRegInfo(cUnit, rl.lowReg);
+    RegisterInfo* p = oatIsTemp(cUnit, rl.lowReg);
+    if (p && !(cUnit->disableOpt & (1 << kSuppressLoads))) {
         DCHECK(!p->pair);
         nullifyRange(cUnit, p->defStart, p->defEnd,
                      p->sReg, rl.sRegLow);
@@ -681,11 +689,15 @@ extern void oatResetDefLoc(CompilationUnit* cUnit, RegLocation rl)
 extern void oatResetDefLocWide(CompilationUnit* cUnit, RegLocation rl)
 {
     DCHECK(rl.wide);
-    if (!(cUnit->disableOpt & (1 << kSuppressLoads))) {
-        RegisterInfo* p = getRegInfo(cUnit, rl.lowReg);
-        DCHECK(p->pair);
-        nullifyRange(cUnit, p->defStart, p->defEnd,
-                     p->sReg, rl.sRegLow);
+    RegisterInfo* pLow = oatIsTemp(cUnit, rl.lowReg);
+    RegisterInfo* pHigh = oatIsTemp(cUnit, rl.highReg);
+    if (pLow && !(cUnit->disableOpt & (1 << kSuppressLoads))) {
+        DCHECK(pLow->pair);
+        nullifyRange(cUnit, pLow->defStart, pLow->defEnd,
+                     pLow->sReg, rl.sRegLow);
+    }
+    if (pHigh && !(cUnit->disableOpt & (1 << kSuppressLoads))) {
+        DCHECK(pHigh->pair);
     }
     oatResetDef(cUnit, rl.lowReg);
     oatResetDef(cUnit, rl.highReg);
@@ -865,6 +877,7 @@ STATIC void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
 extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc)
 {
     DCHECK(!loc.wide);
+    DCHECK(oatCheckCorePoolSanity(cUnit));
     if (loc.location == kLocDalvikFrame) {
         RegisterInfo* infoLo = allocLive(cUnit, loc.sRegLow, kAnyReg);
         if (infoLo) {
@@ -881,11 +894,39 @@ extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc)
     return loc;
 }
 
+bool oatCheckCorePoolSanity(CompilationUnit* cUnit)
+{
+   for (static int i = 0; i < cUnit->regPool->numCoreRegs; i++) {
+       if (cUnit->regPool->coreRegs[i].pair) {
+           static int myReg = cUnit->regPool->coreRegs[i].reg;
+           static int mySreg = cUnit->regPool->coreRegs[i].sReg;
+           static int partnerReg = cUnit->regPool->coreRegs[i].partner;
+           static RegisterInfo* partner = getRegInfo(cUnit, partnerReg);
+           DCHECK(partner != NULL);
+           DCHECK(partner->pair);
+           DCHECK_EQ(myReg, partner->partner);
+           static int partnerSreg = partner->sReg;
+           if (mySreg == INVALID_SREG) {
+               DCHECK_EQ(partnerSreg, INVALID_SREG);
+           } else {
+               int diff = mySreg - partnerSreg;
+               DCHECK((diff == -1) || (diff == 1));
+           }
+       }
+       if (!cUnit->regPool->coreRegs[i].live) {
+           DCHECK(cUnit->regPool->coreRegs[i].defStart == NULL);
+           DCHECK(cUnit->regPool->coreRegs[i].defEnd == NULL);
+       }
+   }
+   return true;
+}
+
 /* see comments for updateLoc */
 extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
                                     RegLocation loc)
 {
     DCHECK(loc.wide);
+    DCHECK(oatCheckCorePoolSanity(cUnit));
     if (loc.location == kLocDalvikFrame) {
         // Are the dalvik regs already live in physical registers?
         RegisterInfo* infoLo = allocLive(cUnit, loc.sRegLow, kAnyReg);

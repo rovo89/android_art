@@ -20,8 +20,23 @@ STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
                                    kLocDalvikFrame, INVALID_REG, INVALID_REG,
                                    INVALID_OFFSET};
-STATIC const RegLocation retLoc = LOC_DALVIK_RETURN_VAL;
-STATIC const RegLocation retLocWide = LOC_DALVIK_RETURN_VAL_WIDE;
+
+/* Mark register usage state and return long retloc */
+STATIC RegLocation getRetLocWide(CompilationUnit* cUnit)
+{
+    RegLocation res = LOC_DALVIK_RETURN_VAL_WIDE;
+    oatLockTemp(cUnit, res.lowReg);
+    oatLockTemp(cUnit, res.highReg);
+    oatMarkPair(cUnit, res.lowReg, res.highReg);
+    return res;
+}
+
+STATIC RegLocation getRetLoc(CompilationUnit* cUnit)
+{
+    RegLocation res = LOC_DALVIK_RETURN_VAL;
+    oatLockTemp(cUnit, res.lowReg);
+    return res;
+}
 
 /*
  * Let helper function take care of everything.  Will call
@@ -38,7 +53,6 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadConstant(cUnit, r0, mir->dalvikInsn.vC);  // arg0 <- type_id
     loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
     callRuntimeHelper(cUnit, rLR);
-    oatClobberCallRegs(cUnit);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
 }
@@ -170,19 +184,18 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
     Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
         // Slow path
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pSetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pSet32Static);
-        oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirect(cUnit, rlSrc, r2);
         callRuntimeHelper(cUnit, rLR);
-        oatClobberCallRegs(cUnit);
     } else {
         // fast path
         int fieldOffset = field->GetOffset().Int32Value();
@@ -227,16 +240,15 @@ STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
     Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
-        oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
         loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
         callRuntimeHelper(cUnit, rLR);
-        oatClobberCallRegs(cUnit);
     } else {
         // fast path
         int fieldOffset = field->GetOffset().Int32Value();
@@ -280,10 +292,10 @@ STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
     Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
-        oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
@@ -335,13 +347,13 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir,
     Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
     bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
+    oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
         LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
             << " unresolved at compile time";
         // Slow path
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pGet32Static);
-        oatFlushAllRegs(cUnit);
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
@@ -950,6 +962,7 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     genShowTarget(cUnit);
 #endif
     opReg(cUnit, kOpBlx, rLR);
+    oatClobberCalleeSave(cUnit);
 }
 
 /*
@@ -982,6 +995,7 @@ STATIC void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     genShowTarget(cUnit);
 #endif
     opReg(cUnit, kOpBlx, rLR);
+    oatClobberCalleeSave(cUnit);
 }
 
 STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
@@ -1034,6 +1048,7 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     genShowTarget(cUnit);
 #endif
     opReg(cUnit, kOpBlx, rLR);
+    oatClobberCalleeSave(cUnit);
 }
 
 STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
@@ -1073,6 +1088,7 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     genShowTarget(cUnit);
 #endif
     opReg(cUnit, kOpBlx, rLR);
+    oatClobberCalleeSave(cUnit);
 }
 
 STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
@@ -1140,44 +1156,25 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         case OP_RETURN:
         case OP_RETURN_OBJECT:
             genSuspendPoll(cUnit, mir);
-            storeValue(cUnit, retLoc, rlSrc[0]);
+            storeValue(cUnit, getRetLoc(cUnit), rlSrc[0]);
             break;
 
         case OP_RETURN_WIDE:
             genSuspendPoll(cUnit, mir);
-            rlDest = retLocWide;
-            rlDest.fp = rlSrc[0].fp;
-            storeValueWide(cUnit, rlDest, rlSrc[0]);
+            storeValueWide(cUnit, getRetLocWide(cUnit), rlSrc[0]);
             break;
 
         case OP_MOVE_RESULT_WIDE:
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
-            /*
-             * Somewhat hacky here.   Because we're now passing
-             * return values in registers, we have to let the
-             * register allocation utilities know that the return
-             * registers are live and may not be used for address
-             * formation in storeValueWide.
-             */
-            DCHECK(retLocWide.lowReg == r0);
-            DCHECK(retLocWide.highReg == r1);
-            oatLockTemp(cUnit, retLocWide.lowReg);
-            oatLockTemp(cUnit, retLocWide.highReg);
-            storeValueWide(cUnit, rlDest, retLocWide);
-            oatFreeTemp(cUnit, retLocWide.lowReg);
-            oatFreeTemp(cUnit, retLocWide.highReg);
+            storeValueWide(cUnit, rlDest, getRetLocWide(cUnit));
             break;
 
         case OP_MOVE_RESULT:
         case OP_MOVE_RESULT_OBJECT:
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
-            /* See comment for OP_MOVE_RESULT_WIDE */
-            DCHECK(retLoc.lowReg == r0);
-            oatLockTemp(cUnit, retLoc.lowReg);
-            storeValue(cUnit, rlDest, retLoc);
-            oatFreeTemp(cUnit, retLoc.lowReg);
+            storeValue(cUnit, rlDest, getRetLoc(cUnit));
             break;
 
         case OP_MOVE:
@@ -1848,7 +1845,10 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     labelList[blockId].opcode = kArmPseudoNormalBlockLabel;
     oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
 
+    /* Reset local optimization data on block boundaries */
+    oatResetRegPool(cUnit);
     oatClobberAllRegs(cUnit);
+    oatResetDefTracking(cUnit);
 
     ArmLIR* headLIR = NULL;
 

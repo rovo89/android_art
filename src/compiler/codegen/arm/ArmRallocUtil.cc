@@ -277,7 +277,7 @@ extern int oatVRegOffsetFromMethod(Method* method, int reg)
 }
 
 /* Clobber all regs that might be used by an external C call */
-extern void oatClobberCallRegs(CompilationUnit *cUnit)
+extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 {
     oatClobber(cUnit, r0);
     oatClobber(cUnit, r1);

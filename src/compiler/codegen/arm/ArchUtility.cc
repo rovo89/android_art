@@ -306,8 +306,6 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
 void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
 {
     ArmLIR* lir = (ArmLIR*) arg;
-    if (lir->flags.isNop)
-        return;
     int offset = lir->generic.offset;
     int dest = lir->operands[0];
     const bool dumpNop = false;
@@ -374,8 +372,10 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
                 buildInsnString(EncodingMap[lir->opcode].fmt, lir, opOperands,
                                 baseAddr, 256);
                 char tBuf[256];
-                snprintf(tBuf, 256, "%p (%04x): %-9s%s%s", baseAddr + offset, offset,
-                         opName, opOperands, lir->flags.isNop ? "(nop)" : "");
+                snprintf(tBuf, 256, "%p (%04x): %-9s%s%s%s",
+                         baseAddr + offset, offset,
+                         opName, opOperands, lir->flags.isNop ? "(nop)" : "",
+                         lir->flags.squashed ? "(squashed)" : "");
                 LOG(INFO) << tBuf;
             }
             break;
