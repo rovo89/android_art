@@ -288,11 +288,10 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
   }
 
   if (method == NULL || method->IsStatic() != is_static) {
-    Thread* self = Thread::Current();
     std::string method_name(PrettyMethod(method));
     // TODO: try searching for the opposite kind of method from is_static
     // for better diagnostics?
-    self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+    ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
         "no %s method %s", is_static ? "static" : "non-static",
         method_name.c_str());
     return NULL;
@@ -2119,16 +2118,14 @@ class JNI {
         m = c->FindVirtualMethod(name, sig);
       }
       if (m == NULL) {
-        Thread* self = Thread::Current();
         std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-        self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+        ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "no method \"%s.%s%s\"",
             class_descriptor.c_str(), name, sig);
         return JNI_ERR;
       } else if (!m->IsNative()) {
-        Thread* self = Thread::Current();
         std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-        self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+        ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
             "method \"%s.%s%s\" is not native",
             class_descriptor.c_str(), name, sig);
         return JNI_ERR;
