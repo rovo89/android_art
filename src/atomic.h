@@ -30,14 +30,20 @@ namespace art {
  * quasiatomic operations that are performed on partially-overlapping
  * memory.
  *
- * None of these provide a memory barrier.
+ * Only the "Sync" functions provide a memory barrier.
  */
 
 /*
  * Swap the 64-bit value at "addr" with "value".  Returns the previous
- * value.
+ * value. No memory barriers.
  */
 int64_t QuasiAtomicSwap64(int64_t value, volatile int64_t* addr);
+
+/*
+ * Swap the 64-bit value at "addr" with "value".  Returns the previous
+ * value. Provides memory barriers.
+ */
+int64_t QuasiAtomicSwap64Sync(int64_t value, volatile int64_t* addr);
 
 /*
  * Read the 64-bit value at "addr".
