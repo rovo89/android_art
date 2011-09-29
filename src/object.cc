@@ -1139,9 +1139,9 @@ Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
 }
 
 Method* Class::FindVirtualMethod(const StringPiece& name,
-                                 const StringPiece& descriptor) {
+                                 const StringPiece& signature) {
   for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredVirtualMethod(name, descriptor);
+    Method* method = klass->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }

@@ -51,6 +51,19 @@ void ThrowLinkageError(const char* fmt, ...) {
   va_end(args);
 }
 
+void ThrowNoSuchMethodError(const char* kind,
+    Class* c, const StringPiece& name, const StringPiece& signature) {
+  DexCache* dex_cache = c->GetDexCache();
+  std::stringstream msg;
+  msg << "no " << kind << " method " << name << "." << signature
+      << " in class " << c->GetDescriptor()->ToModifiedUtf8()
+      << " or its superclasses";
+  if (dex_cache) {
+    msg << " (defined in " << dex_cache->GetLocation()->ToModifiedUtf8() << ")";
+  }
+  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", "%s", msg.str().c_str());
+}
+
 void ThrowEarlierClassFailure(Class* c) {
   /*
    * The class failed to initialize on a previous attempt, so we want to throw
@@ -2263,6 +2276,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
   Class* klass = ResolveType(dex_file, method_id.class_idx_, dex_cache, class_loader);
   if (klass == NULL) {
+    DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
 
@@ -2278,7 +2292,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   if (resolved != NULL) {
     dex_cache->SetResolvedMethod(method_idx, resolved);
   } else {
-    DCHECK(Thread::Current()->IsExceptionPending());
+    ThrowNoSuchMethodError(is_direct ? "direct" : "virtual", klass, name, signature);
   }
   return resolved;
 }
