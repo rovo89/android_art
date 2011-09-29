@@ -384,7 +384,44 @@ const DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
   }
 }
 
-DexFile::~DexFile() {}
+DexFile::~DexFile() {
+  if (dex_object_ != NULL) {
+    UNIMPLEMENTED(WARNING) << "leaked a global reference to an com.android.dex.Dex instance";
+  }
+}
+
+jobject DexFile::GetDexObject(JNIEnv* env) const {
+  MutexLock mu(dex_object_lock_);
+  if (dex_object_ != NULL) {
+    return dex_object_;
+  }
+
+  void* address = const_cast<void*>(reinterpret_cast<const void*>(base_));
+  jobject byte_buffer = env->NewDirectByteBuffer(address, length_);
+  if (byte_buffer == NULL) {
+    return NULL;
+  }
+
+  jclass c = env->FindClass("com/android/dex/Dex");
+  if (c == NULL) {
+    return NULL;
+  }
+
+  jmethodID mid = env->GetStaticMethodID(c, "create", "(Ljava/nio/ByteBuffer;)Lcom/android/dex/Dex;");
+  if (mid == NULL) {
+    return NULL;
+  }
+
+  jvalue args[1];
+  args[0].l = byte_buffer;
+  jobject local = env->CallStaticObjectMethodA(c, mid, args);
+  if (local == NULL) {
+    return NULL;
+  }
+
+  dex_object_ = env->NewGlobalRef(local);
+  return dex_object_;
+}
 
 bool DexFile::Init() {
   InitMembers();

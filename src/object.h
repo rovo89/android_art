@@ -569,7 +569,7 @@ class MANAGED Field : public AccessibleObject {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
 };
 
-// C++ mirror of java.lang.reflect.Method
+// C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED Method : public AccessibleObject {
  public:
   // An function that invokes a method with an array of its arguments.
@@ -2032,7 +2032,8 @@ class MANAGED Class : public StaticStorageBase {
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;
 
-  // Total class size; used when allocating storage on gc heap.
+  // Total size of the Class instance; used when allocating storage on gc heap.
+  // See also object_size_.
   size_t class_size_;
 
   // tid used to check for recursive <clinit> invocation
@@ -2046,6 +2047,7 @@ class MANAGED Class : public StaticStorageBase {
 
   // Total object size; used when allocating storage on gc heap.
   // (For interfaces and abstract classes this will be zero.)
+  // See also class_size_.
   size_t object_size_;
 
   // primitive type index, or kPrimNot (0); set for generated prim classes
@@ -2317,7 +2319,6 @@ class MANAGED FieldClass : public Class {
 
 class MANAGED MethodClass : public Class {
  private:
-  ObjectArray<Object>* NO_ANNOTATIONS_;
   Object* ORDER_BY_SIGNATURE_;
   friend struct MethodClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(MethodClass);
