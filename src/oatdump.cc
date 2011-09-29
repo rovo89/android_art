@@ -22,24 +22,34 @@ namespace art {
 static void usage() {
   fprintf(stderr,
           "Usage: oatdump [options] ...\n"
-          "    Example: oatdump --dex-file=$ANDROID_PRODUCT_OUT/system/framework/core.jar --image=$ANDROID_PRODUCT_OUT/system/framework/boot.oat --strip-prefix=$ANDROID_PRODUCT_OUT\n"
-          "    Example: adb shell oatdump --dex-file=/system/framework/core.jar --image=/system/framework/boot.oat\n"
+          "    Example: oatdump --dex-file=$ANDROID_PRODUCT_OUT/system/framework/core.jar --oat=$ANDROID_PRODUCT_OUT/system/framework/boot.oat --image=$ANDROID_PRODUCT_OUT/system/framework/boot.art --strip-prefix=$ANDROID_PRODUCT_OUT\n"
+          "    Example: adb shell oatdump --dex-file=/system/framework/core.jar --oat=/system/framework/boot.oat --image=/system/framework/boot.art\n"
           "\n");
-  // TODO: remove this by making image contain boot DexFile information?
+  // TODO: remove this by inferring from --image or --oat
   fprintf(stderr,
           "  --dex-file=<dex-file>: specifies a .dex file location. At least one .dex\n"
           "      file must be specified. \n"
           "      Example: --dex-file=/system/framework/core.jar\n"
           "\n");
   fprintf(stderr,
-          "  --image=<file>: specifies the required input image filename.\n"
+          "  --image=<file.art>: specifies the required input image filename.\n"
+          "      Example: --image=/system/framework/boot.art\n"
+          "\n");
+  // TODO: remove this by inferring from --image
+  fprintf(stderr,
+          "  --oat=<file.oat>: specifies the required input oat filename.\n"
           "      Example: --image=/system/framework/boot.oat\n"
           "\n");
   fprintf(stderr,
-          "  --boot=<oat-file>: provide the oat file for the boot class path.\n"
-          "      Example: --boot=/system/framework/boot.oat\n"
+          "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
+          "      Example: --boot-image=/system/framework/boot.art\n"
           "\n");
-  // TODO: remove this by making boot image contain boot DexFile information?
+  // TODO: remove this by inferring from --boot-image
+  fprintf(stderr,
+          "  --boot-oat=<file.oat>: provide the oat file for the boot class path.\n"
+          "      Example: --boot-oat=/system/framework/boot.oat\n"
+          "\n");
+  // TODO: remove this by inderring from --boot-image or --boot-oat
   fprintf(stderr,
           "  --boot-dex-file=<dex-file>: specifies a .dex file that is part of the boot\n"
           "       image specified with --boot. \n"
@@ -59,7 +69,9 @@ static void usage() {
 
 const char* image_roots_descriptions_[] = {
   "kJniStubArray",
-  "kCalleeSaveMethod"
+  "kAbstractMethodErrorStubArray",
+  "kCalleeSaveMethod",
+  "kOatLocation",
 };
 
 class OatDump {
@@ -72,8 +84,11 @@ class OatDump {
     os << "MAGIC:\n";
     os << image_header.GetMagic() << "\n\n";
 
-    os << "BASE:\n";
-    os << reinterpret_cast<void*>(image_header.GetBaseAddr()) << "\n\n";
+    os << "IMAGE BASE:\n";
+    os << reinterpret_cast<void*>(image_header.GetImageBaseAddr()) << "\n\n";
+
+    os << "OAT BASE:\n";
+    os << reinterpret_cast<void*>(image_header.GetOatBaseAddr()) << "\n\n";
 
     os << "ROOTS:\n";
     CHECK_EQ(arraysize(image_roots_descriptions_), size_t(ImageHeader::kImageRootsMax));
@@ -94,7 +109,10 @@ class OatDump {
     os << "STATS:\n" << std::flush;
     UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), false));
     state.stats_.file_bytes = file->Length();
-    state.stats_.header_bytes = sizeof(ImageHeader);
+    size_t header_bytes = sizeof(ImageHeader);
+    state.stats_.header_bytes = header_bytes;
+    size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
+    state.stats_.alignment_bytes += alignment_bytes;
     state.stats_.Dump(os);
 
     os << std::flush;
@@ -167,6 +185,8 @@ class OatDump {
           } else {
             state->stats_.managed_code_bytes += code_bytes;
           }
+        } else {
+          code_base = reinterpret_cast<const int8_t*>(method->GetCode());
         }
         StringAppendF(&summary, "\tCODE     %p-%p\n", code_base, code_limit);
 
@@ -351,7 +371,9 @@ int oatdump(int argc, char** argv) {
 
   std::vector<const char*> dex_filenames;
   const char* image_filename = NULL;
+  const char* oat_filename = NULL;
   const char* boot_image_filename = NULL;
+  const char* boot_oat_filename = NULL;
   std::vector<const char*> boot_dex_filenames;
   std::string strip_location_prefix;
   std::ostream* os = &std::cout;
@@ -363,8 +385,12 @@ int oatdump(int argc, char** argv) {
       dex_filenames.push_back(option.substr(strlen("--dex-file=")).data());
     } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
-    } else if (option.starts_with("--boot=")) {
-      boot_image_filename = option.substr(strlen("--boot=")).data();
+    } else if (option.starts_with("--oat=")) {
+      oat_filename = option.substr(strlen("--oat=")).data();
+    } else if (option.starts_with("--boot-image=")) {
+      boot_image_filename = option.substr(strlen("--boot-image=")).data();
+    } else if (option.starts_with("--boot-oat=")) {
+      boot_oat_filename = option.substr(strlen("--boot-oat=")).data();
     } else if (option.starts_with("--boot-dex-file=")) {
       boot_dex_filenames.push_back(option.substr(strlen("--boot-dex-file=")).data());
     } else if (option.starts_with("--strip-prefix=")) {
@@ -388,8 +414,18 @@ int oatdump(int argc, char** argv) {
    return EXIT_FAILURE;
   }
 
+  if (oat_filename == NULL) {
+   fprintf(stderr, "--oat file name not specified\n");
+   return EXIT_FAILURE;
+  }
+
   if (dex_filenames.empty()) {
    fprintf(stderr, "no --dex-file values specified\n");
+   return EXIT_FAILURE;
+  }
+
+  if ((boot_image_filename != NULL) != (boot_oat_filename != NULL)) {
+   fprintf(stderr, "--boot-image and --boat-oat must be specified together or not at all\n");
    return EXIT_FAILURE;
   }
 
@@ -406,22 +442,31 @@ int oatdump(int argc, char** argv) {
 
   Runtime::Options options;
   std::string image_option;
+  std::string oat_option;
   std::string boot_image_option;
+  std::string boot_oat_option;
   if (boot_image_filename == NULL) {
     // if we don't have multiple images, pass the main one as the boot to match dex2oat
     boot_image_filename = image_filename;
+    boot_oat_filename = oat_filename;
     boot_dex_files = dex_files;
     dex_files.clear();
   } else {
     image_option += "-Ximage:";
     image_option += image_filename;
+    oat_option += "-Xoat:";
+    oat_option += oat_filename;
     options.push_back(std::make_pair("classpath", &dex_files));
     options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair(oat_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
   boot_image_option += "-Xbootimage:";
   boot_image_option += boot_image_filename;
+  boot_oat_option += "-Xbootoat:";
+  boot_oat_option += boot_oat_filename;
   options.push_back(std::make_pair("bootclasspath", &boot_dex_files));
   options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
+  options.push_back(std::make_pair(boot_oat_option.c_str(), reinterpret_cast<void*>(NULL)));
 
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
   if (runtime.get() == NULL) {

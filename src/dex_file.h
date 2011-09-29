@@ -359,6 +359,9 @@ class DexFile {
     return *header_;
   }
 
+  // Looks up a class definition index by its class descriptor.
+  bool FindClassDefIndex(const StringPiece& descriptor, uint32_t& idx) const;
+
   // Looks up a class definition by its class descriptor.
   const ClassDef* FindClassDef(const StringPiece& descriptor) const;
 
@@ -909,8 +912,8 @@ class DexFile {
   // Returns true if the header magic is of the expected value.
   bool IsMagicValid();
 
-  // The index of descriptors to class definitions.
-  typedef std::map<const StringPiece, const DexFile::ClassDef*> Index;
+  // The index of descriptors to class definition indexes.
+  typedef std::map<const StringPiece, uint32_t> Index;
   Index index_;
 
   // The base address of the memory mapping.

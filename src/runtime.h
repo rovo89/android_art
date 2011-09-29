@@ -30,6 +30,7 @@ class Heap;
 class InternTable;
 class JavaVMExt;
 class Method;
+class OatFile;
 class SignalCatcher;
 class String;
 class ThreadList;
@@ -49,7 +50,9 @@ class Runtime {
     std::string class_path_string_;
     std::vector<const DexFile*> class_path_;
     const char* boot_image_;
+    const char* boot_oat_;
     std::vector<const char*> images_;
+    std::vector<const char*> oats_;
     bool check_jni_;
     std::string jni_trace_;
     size_t heap_initial_size_;
@@ -145,35 +148,19 @@ class Runtime {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
-  bool HasJniStubArray() const {
-    return jni_stub_array_ != NULL;
-  }
+  bool HasJniStubArray() const;
+  ByteArray* GetJniStubArray() const;
+  void SetJniStubArray(ByteArray* jni_stub_array);
 
-  ByteArray* GetJniStubArray() const {
-    CHECK(jni_stub_array_ != NULL);
-    return jni_stub_array_;
-  }
-
-  void SetJniStubArray(ByteArray* jni_stub_array) {
-    CHECK(jni_stub_array != NULL);
-    CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array);
-    jni_stub_array_ = jni_stub_array;
-  }
-
-  Method* CreateCalleeSaveMethod(InstructionSet insns);
-
-  bool HasCalleeSaveMethod() const {
-    return callee_save_method_ != NULL;
-  }
+  bool HasAbstractMethodErrorStubArray() const;
+  ByteArray* GetAbstractMethodErrorStubArray() const;
+  void SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
-  Method* GetCalleeSaveMethod() const {
-    return callee_save_method_;
-  }
-
-  void SetCalleeSaveMethod(Method* method) {
-    callee_save_method_ = method;
-  }
+  Method* CreateCalleeSaveMethod(InstructionSet insns);
+  bool HasCalleeSaveMethod() const;
+  Method* GetCalleeSaveMethod() const;
+  void SetCalleeSaveMethod(Method* method);
 
   int32_t GetStat(int kind);
 
@@ -195,6 +182,7 @@ class Runtime {
   void BlockSignals();
 
   bool Init(const Options& options, bool ignore_unrecognized);
+  bool OpenOat(const Space* space, const char* boot_oat_);
   void InitNativeMethods();
   void RegisterRuntimeNativeMethods(JNIEnv*);
   void StartDaemonThreads();
@@ -214,11 +202,15 @@ class Runtime {
 
   ClassLinker* class_linker_;
 
+  std::vector<const OatFile*> oat_files_;
+
   SignalCatcher* signal_catcher_;
 
   JavaVMExt* java_vm_;
 
   ByteArray* jni_stub_array_;
+
+  ByteArray* abstract_method_error_stub_array_;
 
   Method* callee_save_method_;
 

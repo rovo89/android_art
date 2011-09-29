@@ -57,8 +57,8 @@ define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_OAT_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_OAT_FILES)
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_EXECUTABLES)   $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_OAT_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_OAT_FILES)
 
 ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_OUT_EXECUTABLES)/oat_processd
 
@@ -88,7 +88,7 @@ tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
 
 # "mm test-art-target" to build and run all target tests
 .PHONY: test-art-target
-test-art-target: test-art-target-gtest test-art-target-oat
+test-art-target: test-art-target-gtest test-art-target-oat test-art-target-run-test
 	@echo test-art-target PASSED
 
 .PHONY: test-art-target-sync
@@ -108,6 +108,15 @@ test-art-target-gtest: test-art-target-sync
 test-art-target-oat: $(ART_TEST_OAT_TARGETS)
 	@echo test-art-target-oat PASSED
 
+.PHONY: test-art-target-run-test
+test-art-target-run-test: test-art-target-run-test-002
+	@echo test-art-target-run-test PASSED
+
+.PHONY: test-art-target-run-test-002
+test-art-target-run-test-002:
+	art/test/run-test 002
+	@echo test-art-target-run-test-002 PASSED
+
 ########################################################################
 # oat_process test targets
 
@@ -125,7 +134,7 @@ $(eval $(call build-art-framework-oat,$(TARGET_OUT_JAVA_LIBRARIES)/am.jar))
 test-art-target-oat-process-am: $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
 	adb remount
 	adb sync
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start http://android.com && touch /sdcard/test-art-target-process-am"
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.art -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start http://android.com && touch /sdcard/test-art-target-process-am"
 	$(hide) (adb pull /sdcard/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
 	$(hide) rm /tmp/test-art-target-process-am
 
@@ -149,7 +158,7 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 	  sleep 30; \
 	fi
 	adb shell kill `adb shell ps | fgrep com.android.calculator2 | sed -e 's/[^ ]* *\([0-9]*\).*/\1/'`
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.oat -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch /sdcard/test-art-target-process-Calculator"
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Xbootimage:/system/framework/boot.art -Ximage:/system/framework/am.oat /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch /sdcard/test-art-target-process-Calculator"
 	$(hide) (adb pull /sdcard/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
 	$(hide) rm /tmp/test-art-target-process-Calculator
 
@@ -161,17 +170,17 @@ dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 
 .PHONY: dump-oat-core
 dump-oat-core: $(TARGET_CORE_OAT) $(OATDUMP)
-	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_CORE_DEX)) --image=$< --strip-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_CORE_DEX)) --oat=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
 	@echo Output in /tmp/core.oatdump.txt
 
 .PHONY: dump-oat-boot
 dump-oat-boot: $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --image=$< --strip-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
+	$(OATDUMP) $(addprefix --dex-file=,$(TARGET_BOOT_DEX)) --oat=$(TARGET_BOOT_OAT) --image=$(TARGET_BOOT_IMG) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
 
 .PHONY: dump-oat-Calculator
 dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) --dex-file=$(TARGET_OUT_APPS)/Calculator.apk --image=$< $(addprefix --boot-dex-file=,$(TARGET_BOOT_DEX)) --boot=$(TARGET_BOOT_OAT) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
+	$(OATDUMP) --dex-file=$(TARGET_OUT_APPS)/Calculator.apk --oat=$< --image=$(patsubst %.oat,%.art,$<) $(addprefix --boot-dex-file=,$(TARGET_BOOT_DEX)) --boot-oat=$(TARGET_BOOT_OAT) --boot-image=$(TARGET_BOOT_IMG) --strip-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 
 

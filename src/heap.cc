@@ -74,7 +74,9 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
       LOG(FATAL) << "Failed to create space from " << boot_image_file_name;
     }
     spaces_.push_back(boot_space);
-    requested_base = boot_space->GetBase() + RoundUp(boot_space->Size(), kPageSize);
+    byte* oat_limit_addr = boot_space->GetImageHeader().GetOatLimitAddr();
+    requested_base = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr),
+                                                     kPageSize));
   }
 
   std::vector<Space*> image_spaces;
@@ -85,7 +87,9 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
     }
     image_spaces.push_back(space);
     spaces_.push_back(space);
-    requested_base = space->GetBase() + RoundUp(space->Size(), kPageSize);
+    byte* oat_limit_addr = space->GetImageHeader().GetOatLimitAddr();
+    requested_base = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr),
+                                                     kPageSize));
   }
 
   Space* space = Space::Create(initial_size, maximum_size, requested_base);

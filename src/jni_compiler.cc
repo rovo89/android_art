@@ -430,7 +430,7 @@ void JniCompiler::Compile(Method* native_method) {
   CHECK(managed_code != NULL);
   MemoryRegion code(managed_code->GetData(), managed_code->GetLength());
   __ FinalizeInstructions(code);
-  native_method->SetCode(managed_code, instruction_set_);
+  native_method->SetCodeArray(managed_code, instruction_set_);
   native_method->SetFrameSizeInBytes(frame_size);
   native_method->SetReturnPcOffsetInBytes(jni_conv->ReturnPcOffset());
   native_method->SetCoreSpillMask(jni_conv->CoreSpillMask());

@@ -129,6 +129,9 @@ LIBART_COMMON_SRC_FILES := \
 	src/monitor.cc \
 	src/mspace.c \
 	src/mutex.cc \
+	src/oat.cc \
+	src/oat_file.cc \
+	src/oat_writer.cc \
 	src/object.cc \
 	src/object_bitmap.cc \
 	src/offsets.cc \
@@ -187,6 +190,7 @@ TEST_COMMON_SRC_FILES := \
 	src/jni_compiler_test.cc \
 	src/managed_register_arm_test.cc \
 	src/managed_register_x86_test.cc \
+	src/oat_test.cc \
 	src/object_test.cc \
 	src/reference_table_test.cc \
 	src/runtime_test.cc \

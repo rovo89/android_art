@@ -817,8 +817,21 @@ class MANAGED Method : public AccessibleObject {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
   }
 
-  void SetCode(ByteArray* code_array, InstructionSet instruction_set,
-               IntArray* mapping_table = NULL, ShortArray* vmap_table = NULL);
+  void SetCode(void* code) {
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), code, false);
+  }
+
+  uint32_t GetOatCodeOffset() const {
+    CHECK(!Runtime::Current()->IsStarted());
+    return reinterpret_cast<uint32_t>(GetCode());
+  }
+
+  void SetOatCodeOffset(uint32_t code_offset) {
+    CHECK(!Runtime::Current()->IsStarted());
+    SetCode(reinterpret_cast<void*>(code_offset));
+  }
+
+  void SetCodeArray(ByteArray* code_array, InstructionSet instruction_set);
 
   static MemberOffset GetCodeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, code_);
@@ -828,12 +841,19 @@ class MANAGED Method : public AccessibleObject {
   bool IsWithinCode(uintptr_t pc) const;
 
   IntArray* GetMappingTable() const {
-    return GetFieldObject<IntArray*>(
-        OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
+    return GetFieldObject<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
+  }
+
+  void SetMappingTable(IntArray* mapping_table) {
+    SetFieldPtr<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), mapping_table, false);
   }
 
   ShortArray* GetVMapTable() const {
     return GetFieldObject<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
+  }
+
+  void SetVMapTable(ShortArray* vmap_table) {
+    SetFieldPtr<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), vmap_table, false);
   }
 
   size_t GetFrameSizeInBytes() const {
@@ -1300,8 +1320,7 @@ class MANAGED Class : public StaticStorageBase {
   uint32_t GetAccessFlags() const;
 
   void SetAccessFlags(uint32_t new_access_flags) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags,
-               false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags, false);
   }
 
   // Returns true if the class is an interface.
@@ -1362,8 +1381,7 @@ class MANAGED Class : public StaticStorageBase {
 
   void SetPrimitiveType(PrimitiveType new_type) {
     CHECK(sizeof(PrimitiveType) == sizeof(int32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type,
-               false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type, false);
   }
 
   // Returns true if the class is a primitive type.
@@ -1421,8 +1439,7 @@ class MANAGED Class : public StaticStorageBase {
   void SetComponentType(Class* new_component_type) {
     DCHECK(GetComponentType() == NULL);
     DCHECK(new_component_type != NULL);
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, component_type_),
-                   new_component_type, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), new_component_type, false);
   }
 
   size_t GetComponentSize() const {
@@ -1483,15 +1500,13 @@ class MANAGED Class : public StaticStorageBase {
   void SetObjectSize(size_t new_object_size) {
     DCHECK(!IsVariableSize());
     CHECK(sizeof(size_t) == sizeof(int32_t));
-    return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_),
-                      new_object_size, false);
+    return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size, false);
   }
 
   // Returns true if this class is in the same packages as that class.
   bool IsInSamePackage(const Class* that) const;
 
-  static bool IsInSamePackage(const String* descriptor1,
-                              const String* descriptor2);
+  static bool IsInSamePackage(const String* descriptor1, const String* descriptor2);
 
   // Returns true if this class can access that class.
   bool CanAccess(const Class* that) const {
@@ -1572,8 +1587,7 @@ class MANAGED Class : public StaticStorageBase {
         OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
     DCHECK(old_super_class == NULL || old_super_class == new_super_class);
     DCHECK(new_super_class != NULL);
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, super_class_),
-        new_super_class, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), new_super_class, false);
   }
 
   bool HasSuperClass() const {
@@ -1587,8 +1601,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetSuperClassTypeIdx(int32_t new_super_class_idx) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, super_class_type_idx_),
-               new_super_class_idx, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, super_class_type_idx_), new_super_class_idx, false);
   }
 
   const ClassLoader* GetClassLoader() const;
@@ -1761,8 +1774,7 @@ class MANAGED Class : public StaticStorageBase {
   void SetInterfaces(ObjectArray<Class>* new_interfaces) {
     DCHECK(NULL == GetFieldObject<Object*>(
         OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), false));
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, interfaces_),
-                   new_interfaces, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, interfaces_), new_interfaces, false);
   }
 
   void SetInterface(uint32_t i, Class* f) {  // TODO: uint16_t
@@ -1799,15 +1811,13 @@ class MANAGED Class : public StaticStorageBase {
   // Get instance fields
   ObjectArray<Field>* GetIFields() const {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetFieldObject<ObjectArray<Field>*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
+    return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
   }
 
   void SetIFields(ObjectArray<Field>* new_ifields) {
     DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false));
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, ifields_),
-                   new_ifields, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), new_ifields, false);
   }
 
   size_t NumInstanceFields() const {
@@ -1829,27 +1839,23 @@ class MANAGED Class : public StaticStorageBase {
   size_t NumReferenceInstanceFields() const {
     DCHECK(IsResolved() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
   }
 
   size_t NumReferenceInstanceFieldsDuringLinking() const {
     DCHECK(IsLoaded() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), false);
   }
 
   void SetNumReferenceInstanceFields(size_t new_num) {
     DCHECK(sizeof(size_t) == sizeof(int32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_),
-               new_num, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_), new_num, false);
   }
 
   uint32_t GetReferenceInstanceOffsets() const {
     DCHECK(IsResolved() || IsErroneous());
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_), false);
   }
 
   void SetReferenceInstanceOffsets(uint32_t new_reference_offsets);
@@ -1863,34 +1869,29 @@ class MANAGED Class : public StaticStorageBase {
   size_t NumReferenceStaticFields() const {
     DCHECK(IsResolved() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
   }
 
   size_t NumReferenceStaticFieldsDuringLinking() const {
     DCHECK(IsLoaded() || IsErroneous());
     DCHECK(sizeof(size_t) == sizeof(int32_t));
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), false);
   }
 
   void SetNumReferenceStaticFields(size_t new_num) {
     DCHECK(sizeof(size_t) == sizeof(int32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_),
-               new_num, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), new_num, false);
   }
 
   ObjectArray<Field>* GetSFields() const {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetFieldObject<ObjectArray<Field>*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
+    return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
   }
 
   void SetSFields(ObjectArray<Field>* new_sfields) {
     DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false));
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, sfields_),
-                   new_sfields, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), new_sfields, false);
   }
 
   size_t NumStaticFields() const {
@@ -1908,8 +1909,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   uint32_t GetReferenceStaticOffsets() const {
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_), false);
   }
 
   void SetReferenceStaticOffsets(uint32_t new_reference_offsets);
@@ -1930,19 +1930,16 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetClinitThreadId(pid_t new_clinit_thread_id) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_),
-               new_clinit_thread_id, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_), new_clinit_thread_id, false);
   }
 
   Class* GetVerifyErrorClass() const {
     // DCHECK(IsErroneous());
-    return GetFieldObject<Class*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
+    return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
   }
 
   void SetVerifyErrorClass(Class* klass) {
-    klass->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_),
-                          klass, false);
+    klass->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
   }
 
   String* GetSourceFile() const;

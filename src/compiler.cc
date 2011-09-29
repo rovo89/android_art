@@ -24,14 +24,22 @@ namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
 }
 
+ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateAbstractMethodErrorStub();
+    case kX86:
+      return x86::CreateAbstractMethodErrorStub();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      return NULL;
+  }
+}
+
 Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
     verbose_(false) {
   CHECK(!Runtime::Current()->IsStarted());
-  if (insns == kArm || insns == kThumb2) {
-    abstract_method_error_stub_ = arm::CreateAbstractMethodErrorStub();
-  } else if (insns == kX86) {
-    abstract_method_error_stub_ = x86::CreateAbstractMethodErrorStub();
-  }
 }
 
 void Compiler::CompileAll(const ClassLoader* class_loader) {
@@ -273,17 +281,17 @@ void Compiler::CompileMethod(Method* method) {
       method->UnregisterNative();
     }
   } else if (method->IsAbstract()) {
-    DCHECK(abstract_method_error_stub_ != NULL);
+    ByteArray* abstract_method_error_stub = Runtime::Current()->GetAbstractMethodErrorStubArray();
     if (instruction_set_ == kX86) {
-      method->SetCode(abstract_method_error_stub_, kX86);
+      method->SetCodeArray(abstract_method_error_stub, kX86);
     } else {
       CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
-      method->SetCode(abstract_method_error_stub_, kArm);
+      method->SetCodeArray(abstract_method_error_stub, kArm);
     }
   } else {
     oatCompileMethod(*this, method, kThumb2);
   }
-  CHECK(method->GetCode() != NULL);
+  CHECK(method->GetCode() != NULL) << PrettyMethod(method);
 
   if (instruction_set_ == kX86) {
     art::x86::X86CreateInvokeStub(method);

@@ -475,17 +475,25 @@ void DexFile::InitIndex() {
   for (size_t i = 0; i < NumClassDefs(); ++i) {
     const ClassDef& class_def = GetClassDef(i);
     const char* descriptor = GetClassDescriptor(class_def);
-    index_[descriptor] = &class_def;
+    index_[descriptor] = i;
   }
 }
 
-const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) const {
+bool DexFile::FindClassDefIndex(const StringPiece& descriptor, uint32_t& idx) const {
   Index::const_iterator it = index_.find(descriptor);
   if (it == index_.end()) {
-    return NULL;
-  } else {
-    return it->second;
+    return false;
   }
+  idx = it->second;
+  return true;
+}
+
+const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) const {
+  uint32_t idx;
+  if (FindClassDefIndex(descriptor, idx)) {
+    return &GetClassDef(idx);
+  }
+  return NULL;
 }
 
 // Materializes the method descriptor for a method prototype.  Method

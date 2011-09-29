@@ -2,8 +2,6 @@
 
 #include "dex_file.h"
 
-#include <stdio.h>
-
 #include "UniquePtr.h"
 #include "common_test.h"
 

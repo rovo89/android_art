@@ -23,7 +23,8 @@
 
 namespace art {
 
-bool ImageWriter::Write(const char* filename, uintptr_t image_base) {
+bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
+                        const std::string& oat_filename, const std::string& strip_location_prefix) {
   CHECK_NE(image_base, 0U);
   image_base_ = reinterpret_cast<byte*>(image_base);
 
@@ -32,6 +33,12 @@ bool ImageWriter::Write(const char* filename, uintptr_t image_base) {
   CHECK_GE(spaces.size(), 1U);
   source_space_ = spaces[spaces.size()-1];
 
+  oat_file_.reset(OatFile::Open(oat_filename, strip_location_prefix, NULL));
+  if (oat_file_.get() == NULL) {
+    LOG(ERROR) << "Failed to open oat file " << oat_filename;
+    return false;
+  }
+
   if (!Init()) {
     return false;
   }
@@ -39,11 +46,17 @@ bool ImageWriter::Write(const char* filename, uintptr_t image_base) {
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 
-  UniquePtr<File> file(OS::OpenFile(filename, true));
+  UniquePtr<File> file(OS::OpenFile(image_filename, true));
   if (file.get() == NULL) {
+    LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;
   }
-  return file->WriteFully(image_->GetAddress(), image_top_);
+  bool success = file->WriteFully(image_->GetAddress(), image_top_);
+  if (!success) {
+    PLOG(ERROR) << "Failed to write image file " << image_filename;
+    return false;
+  }
+  return true;
 }
 
 bool ImageWriter::Init() {
@@ -52,6 +65,7 @@ bool ImageWriter::Init() {
   size_t length = RoundUp(size, kPageSize);
   image_.reset(MemMap::Map(length, prot));
   if (image_.get() == NULL) {
+    LOG(ERROR) << "Failed to allocate memory for image file generation";
     return false;
   }
   return true;
@@ -94,20 +108,29 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
     if (dex_cache != NULL) {
       image_writer->dex_caches_.insert(dex_cache);
     } else {
-      DCHECK(klass->IsArrayClass() || klass->IsPrimitive());
+      DCHECK(klass->IsArrayClass() || klass->IsPrimitive()) << PrettyClass(klass);
     }
   }
 }
 
-ObjectArray<Object>* CreateImageRoots() {
+ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   // build a Object[] of the roots needed to restore the runtime
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
   ObjectArray<Object>* image_roots = ObjectArray<Object>::Alloc(object_array_class,
                                                                 ImageHeader::kImageRootsMax);
-  image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniStubArray());
-  image_roots->Set(ImageHeader::kCalleeSaveMethod, runtime->GetCalleeSaveMethod());
+  image_roots->Set(ImageHeader::kJniStubArray,
+                   runtime->GetJniStubArray());
+  image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
+                   runtime->GetAbstractMethodErrorStubArray());
+  image_roots->Set(ImageHeader::kCalleeSaveMethod,
+                   runtime->GetCalleeSaveMethod());
+  image_roots->Set(ImageHeader::kOatLocation,
+                   String::AllocFromModifiedUtf8(oat_file_->GetLocation().c_str()));
+  for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
+    CHECK(image_roots->Get(i) != NULL);
+  }
   return image_roots;
 }
 
@@ -125,12 +148,17 @@ void ImageWriter::CalculateNewObjectOffsets() {
   heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
   DCHECK_LT(image_top_, image_->GetLength());
 
+  // Note that image_top_ is left at end of used space
+  oat_base_ = image_base_ +  RoundUp(image_top_, kPageSize);
+  byte* oat_limit = oat_base_ +  oat_file_->GetSize();
+
   // return to write header at start of image with future location of image_roots
   ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
-                           reinterpret_cast<uint32_t>(GetImageAddress(image_roots)));
+                           reinterpret_cast<uint32_t>(GetImageAddress(image_roots)),
+                           oat_file_->GetOatHeader().GetChecksum(),
+                           reinterpret_cast<uint32_t>(oat_base_),
+                           reinterpret_cast<uint32_t>(oat_limit));
   memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
-
-  // Note that top_ is left at end of used space
 }
 
 void ImageWriter::CopyAndFixupObjects() {
@@ -199,14 +227,30 @@ const void* FixupCode(const ByteArray* copy_code_array, const void* orig_code) {
 
 void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
-  copy->code_ = FixupCode(copy->code_array_, orig->code_);
+
+  // OatWriter clears the code_array_ after writing the code.
+  // It replaces the code_ with an offset value we now adjust to be a pointer.
+  DCHECK(copy->code_array_ == NULL)
+          << PrettyMethod(orig)
+          << " orig_code_array_=" << orig->GetCodeArray() << " orig_code_=" << orig->GetCode()
+          << " copy_code_array_=" << copy->code_array_ << " orig_code_=" << copy->code_
+          << " jni_stub=" << Runtime::Current()->GetJniStubArray()
+          << " ame_stub=" << Runtime::Current()->GetAbstractMethodErrorStubArray();
   copy->invoke_stub_ = reinterpret_cast<Method::InvokeStub*>(FixupCode(copy->invoke_stub_array_, reinterpret_cast<void*>(orig->invoke_stub_)));
   if (orig->IsNative()) {
     ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniStubArray();
     ByteArray* copy_jni_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_jni_stub_array_));
     copy->native_method_ = copy_jni_stub_array_->GetData();
+    copy->code_ = oat_base_ + orig->GetOatCodeOffset();
   } else {
-    DCHECK(copy->native_method_ == NULL);
+    DCHECK(copy->native_method_ == NULL) << copy->native_method_;
+    if (orig->IsAbstract()) {
+        ByteArray* orig_ame_stub_array_ = Runtime::Current()->GetAbstractMethodErrorStubArray();
+        ByteArray* copy_ame_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_ame_stub_array_));
+        copy->code_ = copy_ame_stub_array_->GetData();
+    } else {
+        copy->code_ = oat_base_ + orig->GetOatCodeOffset();
+    }
   }
 }
 
