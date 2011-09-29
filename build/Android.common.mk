@@ -222,6 +222,7 @@ TEST_DEX_DIRECTORIES := \
 	StackWalk2 \
 	StaticLeafMethods \
 	Statics \
+	StaticsFromCode \
 	SystemMethods \
 	Invoke \
 	XandY

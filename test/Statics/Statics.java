@@ -1,16 +1,15 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
 class Statics {
-    static boolean s0 = true;
-    static byte s1 = 5;
-    static char s2 = 'a';
-    static short s3 = (short) 65000;
-    static int s4 = 2000000000;
-    static long s5 = 0x123456789abcdefL;
-    static float s6 = 0.5f;
-    static double s7 = 16777217;
-    static Object s8 = "android";
-    static Object[] s9 = { "a", "b" };
+    static final boolean s0 = true;
+    static final byte s1 = 5;
+    static final char s2 = 'a';
+    static final short s3 = (short) 65000;
+    static final int s4 = 2000000000;
+    static final long s5 = 0x1234567890abcdefL;
+    static final float s6 = 0.5f;
+    static final double s7 = 16777217;
+    static final String s8 = "android";
 
     static boolean getS0() {
         return s0;
@@ -36,10 +35,7 @@ class Statics {
     static double getS7() {
         return s7;
     }
-    static Object getS8() {
+    static String getS8() {
         return s8;
-    }
-    static Object[] getS9() {
-        return s9;
     }
 }
