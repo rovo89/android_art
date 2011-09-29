@@ -191,11 +191,6 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
 // C++ mirror of java.lang.Object
 class MANAGED Object {
  public:
-  static uint32_t InstanceOfFromCode(const Object* object, const Class* klass) {
-    DCHECK(object != NULL);
-    return object->InstanceOf(klass) ? 1 : 0;
-  }
-
   static MemberOffset ClassOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Object, klass_);
   }
@@ -1549,6 +1544,14 @@ class MANAGED Class : public StaticStorageBase {
     } else {
       return src->IsSubClass(this);
     }
+  }
+
+  // Assignable test for code, won't throw.  Null and equality tests already performed
+  static uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class)
+  {
+    DCHECK(klass != NULL);
+    DCHECK(ref_class != NULL);
+    return klass->IsAssignableFrom(ref_class) ? 1 : 0;
   }
 
   Class* GetSuperClass() const {

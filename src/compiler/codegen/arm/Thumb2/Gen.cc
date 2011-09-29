@@ -683,6 +683,7 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         Get(mir->dalvikInsn.vC);
     int classReg = r2;   // Fixed usage
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
+    loadValueDirectFixed(cUnit, rlSrc, r0);  /* Ref */
     loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(),
                  classReg);
     loadWordDisp(cUnit, classReg, Array::DataOffset().Int32Value() +
@@ -697,35 +698,34 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         loadConstant(cUnit, r0, mir->dalvikInsn.vC);
         callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
         genRegCopy(cUnit, r2, r0); // Align usage with fast path
+        loadValueDirectFixed(cUnit, rlSrc, r0);  /* reload Ref */
         // Rejoin code paths
         ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
         hopTarget->defMask = ENCODE_ALL;
         hopBranch->generic.target = (LIR*)hopTarget;
     }
-    // At this point, r2 has class
-    loadValueDirectFixed(cUnit, rlSrc, r3);  /* Ref */
-    /* When taken r0 has NULL which can be used for store directly */
-    loadConstant(cUnit, r0, 0);                /* Assume false */
-    ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r3, 0);
+    /* r0 is ref, r2 is class.  If ref==null, use directly as bool result */
+    ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
     /* load object->clazz */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
-    loadWordDisp(cUnit, r3,  Object::ClassOffset().Int32Value(), r1);
-    /* r1 now contains object->clazz */
+    loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
+    /* r0 is ref, r1 is ref->clazz, r2 is class */
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
-    loadConstant(cUnit, r0, 1);                /* Assume true */
-    opRegReg(cUnit, kOpCmp, r1, r2);
-    ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq);
-    genRegCopy(cUnit, r0, r3);
-    genRegCopy(cUnit, r1, r2);
-    callRuntimeHelper(cUnit, rLR);
+    opRegReg(cUnit, kOpCmp, r1, r2);  // Same?
+    genBarrier(cUnit);
+    genIT(cUnit, kArmCondEq, "EE");   // if-convert the test
+    loadConstant(cUnit, r0, 1);       // .eq case - load true
+    genRegCopy(cUnit, r0, r2);        // .ne case - arg0 <= class
+    opReg(cUnit, kOpBlx, rLR);        // .ne case: helper(class, ref->class)
+    genBarrier(cUnit);
+    oatClobberCalleeSave(cUnit);
     /* branch target here */
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
     branch1->generic.target = (LIR*)target;
-    branch2->generic.target = (LIR*)target;
 }
 
 STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)

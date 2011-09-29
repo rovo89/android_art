@@ -118,7 +118,7 @@ void Thread::InitFunctionPointers() {
   pSetObjStatic = Field::SetObjStaticFromCode;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
-  pInstanceofNonTrivialFromCode = Object::InstanceOfFromCode;
+  pInstanceofNonTrivialFromCode = Class::IsAssignableFromCode;
   pLockObjectFromCode = LockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
   pCheckSuspendFromCode = artCheckSuspendFromCode;
