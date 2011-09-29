@@ -146,10 +146,11 @@ LIBART_COMMON_SRC_FILES := \
 	src/sun_misc_Unsafe.cc \
 	src/thread.cc \
 	src/thread_list.cc \
+	src/runtime_support.cc \
 	src/utf.cc \
 	src/utils.cc \
 	src/zip_archive.cc \
-	src/runtime_support.S
+	src/runtime_support_asm.S
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \

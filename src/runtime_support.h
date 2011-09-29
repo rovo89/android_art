@@ -3,6 +3,26 @@
 #ifndef ART_SRC_RUNTIME_SUPPORT_H_
 #define ART_SRC_RUNTIME_SUPPORT_H_
 
+#include "class_linker.h"
+#include "object.h"
+#include "thread_list.h"
+#include "utils.h"
+
+namespace art {
+
+extern void DebugMe(Method* method, uint32_t info);
+extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
+extern void* FindNativeMethod(Thread* thread);
+extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
+extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
+extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
+extern void LockObjectFromCode(Thread* thread, Object* obj);
+extern "C" void artCheckSuspendFromCode(Thread* thread);
+extern int64_t D2L(double d);
+extern int64_t F2L(float f);
+
+}  // namespace art
+
 /* Helper for both JNI and regular compiled code */
 extern "C" void art_deliver_exception_from_code(void*);
 

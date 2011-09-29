@@ -26,25 +26,6 @@
 
 namespace art {
 
-void* FindNativeMethod(Thread* thread) {
-  DCHECK(Thread::Current() == thread);
-
-  Method* method = const_cast<Method*>(thread->GetCurrentMethod());
-  DCHECK(method != NULL);
-
-  // Lookup symbol address for method, on failure we'll return NULL with an
-  // exception set, otherwise we return the address of the method we found.
-  void* native_code = thread->GetJniEnv()->vm->FindCodeForNativeMethod(method);
-  if (native_code == NULL) {
-    DCHECK(thread->IsExceptionPending());
-    return NULL;
-  } else {
-    // Register so that future calls don't come here
-    method->RegisterNative(native_code);
-    return native_code;
-  }
-}
-
 /*
  * Add a local reference for an object to the current stack frame.  When
  * the native function returns, the reference will be discarded.
