@@ -20,6 +20,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "scoped_jni_thread_state.h"
+#include "stl_util.h"
 #include "stringpiece.h"
 #include "thread.h"
 
@@ -555,10 +556,7 @@ class Libraries {
   }
 
   ~Libraries() {
-    // Delete our map values. (The keys will be cleaned up by the map itself.)
-    for (It it = libraries_.begin(); it != libraries_.end(); ++it) {
-      delete it->second;
-    }
+    STLDeleteValues(&libraries_);
   }
 
   SharedLibrary* Get(const std::string& path) {

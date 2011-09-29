@@ -42,6 +42,18 @@ void STLDeleteElements(T *container) {
   container->clear();
 }
 
+// Given an STL container consisting of (key, value) pairs, STLDeleteValues
+// deletes all the "value" components and clears the container.  Does nothing
+// in the case it's given a NULL pointer.
+template <class T>
+void STLDeleteValues(T *v) {
+  if (!v) return;
+  for (typename T::iterator i = v->begin(); i != v->end(); ++i) {
+    delete i->second;
+  }
+  v->clear();
+}
+
 }  // namespace art
 
 #endif  // ART_SRC_STL_UTIL_H_
