@@ -1192,6 +1192,15 @@ bool Thread::SirtContains(jobject obj) {
   return false;
 }
 
+void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
+    size_t num_refs = cur->NumberOfReferences();
+    for (size_t j = 0; j < num_refs; j++) {
+      visitor(cur->References()[j], arg);
+    }
+  }
+}
+
 void Thread::PopSirt() {
   CHECK(top_sirt_ != NULL);
   top_sirt_ = top_sirt_->Link();
@@ -1671,6 +1680,9 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
   jni_env_->locals.VisitRoots(visitor, arg);
   jni_env_->monitors.VisitRoots(visitor, arg);
+
+  SirtVisitRoots(visitor, arg);
+
   // Cheat and steal the long jump context. Assume that we are not doing a GC during exception
   // delivery.
   Context* context = GetLongJumpContext();

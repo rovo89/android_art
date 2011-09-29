@@ -392,6 +392,8 @@ class PACKED Thread {
   // Is the given obj in this thread's stack indirect reference table?
   bool SirtContains(jobject obj);
 
+  void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
+
   // Pop the top SIRT
   void PopSirt();
 
