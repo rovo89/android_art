@@ -200,16 +200,16 @@ TEST_F(ObjectTest, CheckAndArrayAllocFromCode) {
 }
 
 TEST_F(ObjectTest, StaticFieldFromCode) {
-  // pretend we are trying to access 'Static.s8' from Statics.<clinit>
-  const ClassLoader* class_loader = LoadDex("Statics");
+  // pretend we are trying to access 'Static.s0' from StaticsFromCode.<clinit>
+  const ClassLoader* class_loader = LoadDex("StaticsFromCode");
   const DexFile* dex_file = ClassLoader::GetClassPath(class_loader)[0];
   CHECK(dex_file != NULL);
 
-  Class* Statics = class_linker_->FindClass("LStatics;", class_loader);
-  Method* clinit = Statics->FindDirectMethod("<clinit>", "()V");
-  uint32_t field_idx = FindFieldIdxByDescriptorAndName(*dex_file, "LStatics;", "s8");
-  Object* s8 = Field::GetObjStaticFromCode(field_idx, clinit);
-  EXPECT_EQ(NULL, s8);
+  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);
+  Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  uint32_t field_idx = FindFieldIdxByDescriptorAndName(*dex_file, "LStaticsFromCode;", "s0");
+  Object* s0 = Field::GetObjStaticFromCode(field_idx, clinit);
+  EXPECT_EQ(NULL, s0);
 
   CharArray* char_array = CharArray::Alloc(0);
   Field::SetObjStaticFromCode(field_idx, clinit, char_array);

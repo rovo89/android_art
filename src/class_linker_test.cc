@@ -832,63 +832,63 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 }
 
 TEST_F(ClassLinkerTest, StaticFields) {
-  // TODO: uncomment expectations of initial values when InitializeClass works
   const ClassLoader* class_loader = LoadDex("Statics");
   Class* statics = class_linker_->FindClass("LStatics;", class_loader);
   class_linker_->EnsureInitialized(statics, true);
 
-  EXPECT_EQ(10U, statics->NumStaticFields());
+  // Static final primitives that are initialized by a compile-time constant
+  // expression resolve to a copy of a constant value from the constant pool.
+  // So <clinit> should be null.
+  Method* clinit = statics->FindDirectMethod("<clinit>", "()V");
+  EXPECT_TRUE(clinit == NULL);
+
+  EXPECT_EQ(9U, statics->NumStaticFields());
 
   Field* s0 = statics->FindStaticField("s0", class_linker_->FindClass("Z", class_loader));
   EXPECT_TRUE(s0->GetClass()->GetDescriptor()->Equals("Ljava/lang/reflect/Field;"));
   EXPECT_TRUE(s0->GetType()->IsPrimitiveBoolean());
-  // EXPECT_EQ(true, s0->GetBoolean(NULL)); // TODO: needs clinit to be run?
+  EXPECT_EQ(true, s0->GetBoolean(NULL));
   s0->SetBoolean(NULL, false);
 
   Field* s1 = statics->FindStaticField("s1", class_linker_->FindClass("B", class_loader));
   EXPECT_TRUE(s1->GetType()->IsPrimitiveByte());
-  // EXPECT_EQ(5, s1->GetByte(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ(5, s1->GetByte(NULL));
   s1->SetByte(NULL, 6);
 
   Field* s2 = statics->FindStaticField("s2", class_linker_->FindClass("C", class_loader));
   EXPECT_TRUE(s2->GetType()->IsPrimitiveChar());
-  // EXPECT_EQ('a', s2->GetChar(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ('a', s2->GetChar(NULL));
   s2->SetChar(NULL, 'b');
 
   Field* s3 = statics->FindStaticField("s3", class_linker_->FindClass("S", class_loader));
   EXPECT_TRUE(s3->GetType()->IsPrimitiveShort());
-  // EXPECT_EQ(65000, s3->GetShort(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ(65000, s3->GetShort(NULL));
   s3->SetShort(NULL, 65001);
 
   Field* s4 = statics->FindStaticField("s4", class_linker_->FindClass("I", class_loader));
   EXPECT_TRUE(s4->GetType()->IsPrimitiveInt());
-  // EXPECT_EQ(2000000000, s4->GetInt(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ(2000000000, s4->GetInt(NULL));
   s4->SetInt(NULL, 2000000001);
 
   Field* s5 = statics->FindStaticField("s5", class_linker_->FindClass("J", class_loader));
   EXPECT_TRUE(s5->GetType()->IsPrimitiveLong());
-  // EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));
   s5->SetLong(NULL, 0x34567890abcdef12LL);
 
   Field* s6 = statics->FindStaticField("s6", class_linker_->FindClass("F", class_loader));
   EXPECT_TRUE(s6->GetType()->IsPrimitiveFloat());
-  // EXPECT_EQ(0.5, s6->GetFloat(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ(0.5, s6->GetFloat(NULL));
   s6->SetFloat(NULL, 0.75);
 
   Field* s7 = statics->FindStaticField("s7", class_linker_->FindClass("D", class_loader));
   EXPECT_TRUE(s7->GetType()->IsPrimitiveDouble());
-  // EXPECT_EQ(16777217, s7->GetDouble(NULL));  // TODO: needs clinit to be run?
+  EXPECT_EQ(16777217, s7->GetDouble(NULL));
   s7->SetDouble(NULL, 16777219);
 
-  Field* s8 = statics->FindStaticField("s8", class_linker_->FindClass("Ljava/lang/Object;", class_loader));
+  Field* s8 = statics->FindStaticField("s8", class_linker_->FindClass("Ljava/lang/String;", class_loader));
   EXPECT_FALSE(s8->GetType()->IsPrimitive());
-  // EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));  // TODO: needs clinit to be run?
+  EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));
   s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
-
-  Field* s9 = statics->FindStaticField("s9", class_linker_->FindClass("[Ljava/lang/Object;", class_loader));
-  EXPECT_TRUE(s9->GetType()->IsArrayClass());
-  // EXPECT_EQ(NULL, s9->GetObject(NULL));  // TODO: needs clinit to be run?
-  s9->SetObject(NULL, NULL);
 
   EXPECT_EQ(false,                s0->GetBoolean(NULL));
   EXPECT_EQ(6,                    s1->GetByte(NULL));
@@ -946,25 +946,25 @@ TEST_F(ClassLinkerTest, Interfaces) {
 }
 
 TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
-  // pretend we are trying to get the static storage for the Statics class.
+  // pretend we are trying to get the static storage for the StaticsFromCode class.
 
-  // case 1, get the uninitialized storage from Statics.<clinit>
-  // case 2, get the initialized storage from Statics.getS8
+  // case 1, get the uninitialized storage from StaticsFromCode.<clinit>
+  // case 2, get the initialized storage from StaticsFromCode.getS0
 
-  const ClassLoader* class_loader = LoadDex("Statics");
+  const ClassLoader* class_loader = LoadDex("StaticsFromCode");
   const DexFile* dex_file = ClassLoader::GetClassPath(class_loader)[0];
   CHECK(dex_file != NULL);
 
-  Class* Statics = class_linker_->FindClass("LStatics;", class_loader);
-  Method* clinit = Statics->FindDirectMethod("<clinit>", "()V");
-  Method* getS8 = Statics->FindDirectMethod("getS8", "()Ljava/lang/Object;");
-  uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStatics;");
+  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);
+  Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  Method* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
+  uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStaticsFromCode;");
 
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
   StaticStorageBase* uninit = class_linker_->InitializeStaticStorageFromCode(type_idx, clinit);
   EXPECT_TRUE(uninit != NULL);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* init = class_linker_->InitializeStaticStorageFromCode(type_idx, getS8);
+  StaticStorageBase* init = class_linker_->InitializeStaticStorageFromCode(type_idx, getS0);
   EXPECT_TRUE(init != NULL);
   EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
 }
