@@ -546,8 +546,9 @@ void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_pa
     std::string location = dex_cache->GetLocation()->ToModifiedUtf8();
     location_to_dex_cache[location] = dex_cache;
   }
-  CHECK_EQ(boot_class_path.size() + class_path.size(),
-           location_to_dex_cache.size());
+  CHECK(boot_class_path.size() + class_path.size() == location_to_dex_cache.size())
+      << "(" << boot_class_path.size() << " + " << class_path.size()
+      << " != " << location_to_dex_cache.size() << ")";
 
   // reinit boot_class_path with DexFile arguments and found DexCaches
   for (size_t i = 0; i != boot_class_path.size(); ++i) {

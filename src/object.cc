@@ -433,7 +433,7 @@ Class* Method::GetReturnType() const {
     // Do full linkage and set cache value for next call
     result = Runtime::Current()->GetClassLinker()->ResolveType(GetReturnTypeIdx(), this);
   }
-  CHECK(result != NULL);
+  CHECK(result != NULL) << PrettyMethod(this);
   return result;
 }
 

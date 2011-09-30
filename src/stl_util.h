@@ -3,6 +3,8 @@
 #ifndef ART_SRC_STL_UTIL_H_
 #define ART_SRC_STL_UTIL_H_
 
+#include <iostream>
+
 namespace art {
 
 // STLDeleteContainerPointers()
@@ -52,6 +54,20 @@ void STLDeleteValues(T *v) {
     delete i->second;
   }
   v->clear();
+}
+
+template <class T>
+std::string ToString(const T& v) {
+  std::stringstream os;
+  os << "[";
+  for (size_t i = 0; i < v.size(); ++i) {
+    os << v[i];
+    if (i < v.size() - 1) {
+      os << ", ";
+    }
+  }
+  os << "]";
+  return os.str();
 }
 
 }  // namespace art

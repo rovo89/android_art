@@ -16,6 +16,7 @@
 #include "gtest/gtest.h"
 #include "heap.h"
 #include "runtime.h"
+#include "stl_util.h"
 #include "stringprintf.h"
 #include "thread.h"
 #include "unicode/uclean.h"
@@ -296,14 +297,7 @@ namespace std {
 // TODO: isn't gtest supposed to be able to print STL types for itself?
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& rhs) {
-  os << "[";
-  for (size_t i = 0; i < rhs.size(); ++i) {
-    os << rhs[i];
-    if (i < rhs.size() - 1) {
-      os << ", ";
-    }
-  }
-  os << "]";
+  os << ::art::ToString(rhs);
   return os;
 }
 

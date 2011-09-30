@@ -251,6 +251,12 @@ std::string NormalizeJniClassDescriptor(const char* name) {
   return result;
 }
 
+void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const char* name, const char* sig, const char* kind) {
+  std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
+  ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+      "no %s method \"%s.%s%s\"", kind, class_descriptor.c_str(), name, sig);
+}
+
 jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
@@ -270,12 +276,7 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
   }
 
   if (method == NULL || method->IsStatic() != is_static) {
-    std::string method_name(PrettyMethod(method));
-    // TODO: try searching for the opposite kind of method from is_static
-    // for better diagnostics?
-    ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-        "no %s method %s", is_static ? "static" : "non-static",
-        method_name.c_str());
+    ThrowNoSuchMethodError(ts, c, name, sig, is_static ? "static" : "non-static");
     return NULL;
   }
 
@@ -2097,16 +2098,10 @@ class JNI {
         m = c->FindVirtualMethod(name, sig);
       }
       if (m == NULL) {
-        std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-        ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-            "no method \"%s.%s%s\"",
-            class_descriptor.c_str(), name, sig);
+        ThrowNoSuchMethodError(ts, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
-        std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-        ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-            "method \"%s.%s%s\" is not native",
-            class_descriptor.c_str(), name, sig);
+        ThrowNoSuchMethodError(ts, c, name, sig, "native");
         return JNI_ERR;
       }
 
