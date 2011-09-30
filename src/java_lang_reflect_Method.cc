@@ -38,12 +38,18 @@ jint Method_getMethodModifiers(JNIEnv* env, jclass, jclass javaDeclaringClass, j
   return access_flags & kAccMethodFlagsMask;
 }
 
+jint Method_getProtoIndex(JNIEnv* env, jclass, jclass javaDeclaringClass, jobject jmethod, jint slot) {
+  Method* m = Decode<Object*>(env, jmethod)->AsMethod();
+  return m->GetProtoIdx();
+}
+
 jobject Method_invokeNative(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs, jclass, jobject javaParams, jclass, jint, jboolean) {
   return InvokeMethod(env, javaMethod, javaReceiver, javaArgs, javaParams);
 }
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Method, getMethodModifiers, "(Ljava/lang/Class;Ljava/lang/reflect/AccessibleObject;I)I"),
+  NATIVE_METHOD(Method, getProtoIndex, "(Ljava/lang/Class;Ljava/lang/reflect/AccessibleObject;I)I"),
   NATIVE_METHOD(Method, invokeNative, "(Ljava/lang/Object;[Ljava/lang/Object;Ljava/lang/Class;[Ljava/lang/Class;Ljava/lang/Class;IZ)Ljava/lang/Object;"),
 };
 
