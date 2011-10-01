@@ -10,60 +10,60 @@ public class Array {
      * Verify array contents.
      */
     static void checkBytes(byte[] bytes) {
-        assert(bytes[0] == 0);
-        assert(bytes[1] == -1);
-        assert(bytes[2] == -2);
-        assert(bytes[3] == -3);
-        assert(bytes[4] == -4);
+        Main.assertTrue(bytes[0] == 0);
+        Main.assertTrue(bytes[1] == -1);
+        Main.assertTrue(bytes[2] == -2);
+        Main.assertTrue(bytes[3] == -3);
+        Main.assertTrue(bytes[4] == -4);
     }
     static void checkShorts(short[] shorts) {
-        assert(shorts[0] == 20);
-        assert(shorts[1] == 10);
-        assert(shorts[2] == 0);
-        assert(shorts[3] == -10);
-        assert(shorts[4] == -20);
+        Main.assertTrue(shorts[0] == 20);
+        Main.assertTrue(shorts[1] == 10);
+        Main.assertTrue(shorts[2] == 0);
+        Main.assertTrue(shorts[3] == -10);
+        Main.assertTrue(shorts[4] == -20);
     }
     static void checkChars(char[] chars) {
-        assert(chars[0] == 40000);
-        assert(chars[1] == 40001);
-        assert(chars[2] == 40002);
-        assert(chars[3] == 40003);
-        assert(chars[4] == 40004);
+        Main.assertTrue(chars[0] == 40000);
+        Main.assertTrue(chars[1] == 40001);
+        Main.assertTrue(chars[2] == 40002);
+        Main.assertTrue(chars[3] == 40003);
+        Main.assertTrue(chars[4] == 40004);
     }
     static void checkInts(int[] ints) {
-        assert(ints[0] == 70000);
-        assert(ints[1] == 70001);
-        assert(ints[2] == 70002);
-        assert(ints[3] == 70003);
-        assert(ints[4] == 70004);
+        Main.assertTrue(ints[0] == 70000);
+        Main.assertTrue(ints[1] == 70001);
+        Main.assertTrue(ints[2] == 70002);
+        Main.assertTrue(ints[3] == 70003);
+        Main.assertTrue(ints[4] == 70004);
     }
     static void checkBooleans(boolean[] booleans) {
-        assert(booleans[0]);
-        assert(booleans[1]);
-        assert(!booleans[2]);
-        assert(booleans[3]);
-        assert(!booleans[4]);
+        Main.assertTrue(booleans[0]);
+        Main.assertTrue(booleans[1]);
+        Main.assertTrue(!booleans[2]);
+        Main.assertTrue(booleans[3]);
+        Main.assertTrue(!booleans[4]);
     }
     static void checkFloats(float[] floats) {
-        assert(floats[0] == -1.5);
-        assert(floats[1] == -0.5);
-        assert(floats[2] == 0.0);
-        assert(floats[3] == 0.5);
-        assert(floats[4] == 1.5);
+        Main.assertTrue(floats[0] == -1.5);
+        Main.assertTrue(floats[1] == -0.5);
+        Main.assertTrue(floats[2] == 0.0);
+        Main.assertTrue(floats[3] == 0.5);
+        Main.assertTrue(floats[4] == 1.5);
     }
     static void checkLongs(long[] longs) {
-        assert(longs[0] == 0x1122334455667788L);
-        assert(longs[1] == 0x8877665544332211L);
-        assert(longs[2] == 0L);
-        assert(longs[3] == 1L);
-        assert(longs[4] == -1L);
+        Main.assertTrue(longs[0] == 0x1122334455667788L);
+        Main.assertTrue(longs[1] == 0x8877665544332211L);
+        Main.assertTrue(longs[2] == 0L);
+        Main.assertTrue(longs[3] == 1L);
+        Main.assertTrue(longs[4] == -1L);
     }
     static void checkStrings(String[] strings) {
-        assert(strings[0].equals("zero"));
-        assert(strings[1].equals("one"));
-        assert(strings[2].equals("two"));
-        assert(strings[3].equals("three"));
-        assert(strings[4].equals("four"));
+        Main.assertTrue(strings[0].equals("zero"));
+        Main.assertTrue(strings[1].equals("one"));
+        Main.assertTrue(strings[2].equals("two"));
+        Main.assertTrue(strings[3].equals("three"));
+        Main.assertTrue(strings[4].equals("four"));
     }
 
     /*
@@ -73,41 +73,41 @@ public class Array {
         System.out.println("Array.checkRange32");
         int i = 0;
 
-        assert(ints.length == 5);
+        Main.assertTrue(ints.length == 5);
 
         try {
             i = ints[5];            // exact bound
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             ints[5] = i;            // exact bound
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             i = ints[6];            // one past
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             i = ints[negVal1];      // -1
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             ints[negVal1] = i;      // -1
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             i = ints[negVal2];      // min int
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
@@ -115,7 +115,7 @@ public class Array {
 
         try {
             i = empty[1];
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
@@ -128,41 +128,41 @@ public class Array {
         System.out.println("Array.checkRange64");
         long l = 0L;
 
-        assert(longs.length == 5);
+        Main.assertTrue(longs.length == 5);
 
         try {
             l = longs[5];            // exact bound
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             longs[5] = l;            // exact bound
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             l = longs[6];            // one past
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             l = longs[negVal1];      // -1
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             longs[negVal1] = l;      // -1
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
         try {
             l = longs[negVal2];      // min int
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArrayIndexOutOfBoundsException aioobe) {
             // good
         }
@@ -178,14 +178,14 @@ public class Array {
 
         try {
             ints = new int[count];
-            assert(false);
+            Main.assertTrue(false);
         } catch (NegativeArraySizeException nase) {
             // good
         }
 
         try {
             strings = new String[count];
-            assert(false);
+            Main.assertTrue(false);
         } catch (NegativeArraySizeException nase) {
             // good
         }

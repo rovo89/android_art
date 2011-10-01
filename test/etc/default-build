@@ -26,7 +26,14 @@ fi
 
 dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
     --dump-width=1000 classes
-zip test.jar classes.dex
+zip ${ANDROID_PRODUCT_OUT}/system/framework/test.jar classes.dex
+
+dex2oatd -Xms16m -Xmx16m \
+    --boot-dex-file=${ANDROID_PRODUCT_OUT}/system/framework/core.jar \
+    --boot=${ANDROID_PRODUCT_OUT}/system/framework/core.oat \
+    --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/test.jar \
+    --image=${ANDROID_PRODUCT_OUT}/system/framework/test.oat \
+    --strip-prefix=${ANDROID_PRODUCT_OUT}
 
 if [ -r src-ex ]; then
     mkdir classes-ex
@@ -37,7 +44,14 @@ if [ -r src-ex ]; then
     # quick shuffle so that the stored name is "classes.dex"
     mv classes.dex classes-1.dex
     mv classes-ex.dex classes.dex
-    zip test-ex.jar classes.dex
+    zip ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.jar classes.dex
     mv classes.dex classes-ex.dex
     mv classes-1.dex classes.dex
+
+    dex2oatd -Xms16m -Xmx16m \
+        --boot-dex-file=${ANDROID_PRODUCT_OUT}/system/framework/core.jar \
+        --boot=${ANDROID_PRODUCT_OUT}/system/framework/core.oat \
+        --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/test-ex.jar \
+        --image=${ANDROID_PRODUCT_OUT}/system/framework/test-ex.oat \
+        --strip-prefix=${ANDROID_PRODUCT_OUT}
 fi

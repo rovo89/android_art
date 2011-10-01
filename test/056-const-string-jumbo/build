@@ -44,4 +44,11 @@ ${JAVAC} -d classes src/*.java
 
 dx -JXmx500m --debug --dex --no-optimize --positions=none --no-locals \
     --dump-to=classes.lst --output=classes.dex classes
-zip test.jar classes.dex
+zip ${ANDROID_PRODUCT_OUT}/system/framework/test.jar classes.dex
+
+dex2oatd -Xms16m -Xmx16m \
+    --boot-dex-file=${ANDROID_PRODUCT_OUT}/system/framework/core.jar \
+    --boot=${ANDROID_PRODUCT_OUT}/system/framework/core.oat \
+    --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/test.jar \
+    --image=${ANDROID_PRODUCT_OUT}/system/framework/test.oat \
+    --strip-prefix=${ANDROID_PRODUCT_OUT}

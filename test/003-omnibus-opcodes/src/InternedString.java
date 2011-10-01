@@ -33,7 +33,7 @@ public class InternedString {
         s = CONST;
         System.gc();
         // "blahblah" should disappear from the intern list
-        assert(strRef.get() == null);
+        Main.assertTrue(strRef.get() == null);
     }
 
     private static void testImmortalInternedString() {
@@ -41,9 +41,9 @@ public class InternedString {
         System.gc();
         // Class constant string should be entered to the interned table when
         // loaded
-        assert(CONST == CONST.intern());
+        Main.assertTrue(CONST == CONST.intern());
         // and it should survive the gc
-        assert(strRef.get() != null);
+        Main.assertTrue(strRef.get() != null);
 
         String s = CONST;
         // "Class InternedString" should remain on the intern list
@@ -51,6 +51,6 @@ public class InternedString {
         // Kill s, otherwise the string object is still accessible from root set
         s = "";
         System.gc();
-        assert(strRef.get() == CONST);
+        Main.assertTrue(strRef.get() == CONST);
     }
 }

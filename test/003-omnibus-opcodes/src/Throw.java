@@ -30,13 +30,13 @@ public class Throw {
         System.out.println("Throw.one");
         try {
             throwNullPointerException();
-            assert(false);
+            Main.assertTrue(false);
         } catch (Exception ex) {
             // good
             return;
         }
 
-        assert(false);
+        Main.assertTrue(false);
     }
 
     public void twoA() {
@@ -56,9 +56,9 @@ public class Throw {
             gotN = true;
         }
 
-        assert(gotA);
-        assert(!gotN);
-        assert(!gotWeird);
+        Main.assertTrue(gotA);
+        Main.assertTrue(!gotN);
+        Main.assertTrue(!gotWeird);
     }
 
     public void twoN() {
@@ -78,9 +78,9 @@ public class Throw {
             gotN = true;
         }
 
-        assert(!gotA);
-        assert(gotN);
-        assert(!gotWeird);
+        Main.assertTrue(!gotA);
+        Main.assertTrue(gotN);
+        Main.assertTrue(!gotWeird);
     }
 
     public void rethrow() {
@@ -92,10 +92,10 @@ public class Throw {
         try {
             try {
                 throwNullPointerException();
-                assert(false);
+                Main.assertTrue(false);
             } catch (Exception ex) {
                 if (ex instanceof ArithmeticException) {
-                    assert(false);
+                    Main.assertTrue(false);
                 }
                 if (ex instanceof NullPointerException) {
                     caught = true;
@@ -108,9 +108,9 @@ public class Throw {
             second = true;
         }
 
-        assert(caught);
-        assert(lly);
-        assert(second);
+        Main.assertTrue(caught);
+        Main.assertTrue(lly);
+        Main.assertTrue(second);
     }
 
     public static void run() {

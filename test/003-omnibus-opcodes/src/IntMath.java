@@ -18,9 +18,9 @@ public class IntMath {
         i2 = mBytes[4] | mBytes[5] << 8 | mBytes[6] << 16 | mBytes[7] << 24;
         l = i1 | ((long)i2 << 32);
 
-        assert(i1 == 0x44332211);
-        assert(i2 == 0xbbaa9988);
-        assert(l == 0xbbaa998844332211L);
+        Main.assertTrue(i1 == 0x44332211);
+        Main.assertTrue(i2 == 0xbbaa9988);
+        Main.assertTrue(l == 0xbbaa998844332211L);
 
         l = (long)mBytes[0]
             | (long)mBytes[1] << 8
@@ -31,7 +31,7 @@ public class IntMath {
             | (long)mBytes[6] << 48
             | (long)mBytes[7] << 56;
 
-        assert(l == 0xbbaa998844332211L);
+        Main.assertTrue(l == 0xbbaa998844332211L);
     }
 
     static void shiftTest2() {
@@ -49,7 +49,7 @@ public class IntMath {
         long    result = ((a << 56) | (b << 48) | (c << 40) | (d << 32) |
                          (e << 24) | (f << 16) | (g <<  8) | h);
 
-        assert(result == 0x1122334455667788L);
+        Main.assertTrue(result == 0x1122334455667788L);
     }
 
     static void unsignedShiftTest() {
@@ -65,10 +65,10 @@ public class IntMath {
         c >>>= 4;
         i >>>= 4;
 
-        assert((int) b == -1);
-        assert((int) s == -1);
-        assert((int) c == 0x0fff);
-        assert(i == 268435455);
+        Main.assertTrue((int) b == -1);
+        Main.assertTrue((int) s == -1);
+        Main.assertTrue((int) c == 0x0fff);
+        Main.assertTrue(i == 268435455);
     }
 
     static void convTest() {
@@ -82,20 +82,20 @@ public class IntMath {
         /* int --> long */
         i = 7654;
         l = (long) i;
-        assert(l == 7654L);
+        Main.assertTrue(l == 7654L);
 
         i = -7654;
         l = (long) i;
-        assert(l == -7654L);
+        Main.assertTrue(l == -7654L);
 
         /* long --> int (with truncation) */
         l = 5678956789L;
         i = (int) l;
-        assert(i == 1383989493);
+        Main.assertTrue(i == 1383989493);
 
         l = -5678956789L;
         i = (int) l;
-        assert(i == -1383989493);
+        Main.assertTrue(i == -1383989493);
     }
 
     static void charSubTest() {
@@ -107,7 +107,7 @@ public class IntMath {
 
         /* chars are unsigned-expanded to ints before subtraction */
         i = char1 - char2;
-        assert(i == 0xffff00ea);
+        Main.assertTrue(i == 0xffff00ea);
     }
 
     /*
@@ -143,18 +143,18 @@ public class IntMath {
         int negOne = -results[5];
         int plusOne = 1;
         int result = (((minInt + plusOne) - plusOne) / negOne) / negOne;
-        assert(result == minInt);
+        Main.assertTrue(result == minInt);
 
-        assert(results[0] == 69997);
-        assert(results[1] == 70003);
-        assert(results[2] == -210000);
-        assert(results[3] == 605032704);    // overflow / truncate
-        assert(results[4] == -23333);
-        assert(results[5] == 1);
-        assert(results[6] == 70000);
-        assert(results[7] == -3);
-        assert(results[8] == -70003);
-        assert(results[9] == 70000);
+        Main.assertTrue(results[0] == 69997);
+        Main.assertTrue(results[1] == 70003);
+        Main.assertTrue(results[2] == -210000);
+        Main.assertTrue(results[3] == 605032704);    // overflow / truncate
+        Main.assertTrue(results[4] == -23333);
+        Main.assertTrue(results[5] == 1);
+        Main.assertTrue(results[6] == 70000);
+        Main.assertTrue(results[7] == -3);
+        Main.assertTrue(results[8] == -70003);
+        Main.assertTrue(results[9] == 70000);
     }
 
     /*
@@ -177,14 +177,14 @@ public class IntMath {
         return results;
     }
     static void lit16Check(int[] results) {
-        assert(results[0] == 78777);
-        assert(results[1] == -76777);
-        assert(results[2] == 77777000);
-        assert(results[3] == 77);
-        assert(results[4] == 777);
-        assert(results[5] == 960);
-        assert(results[6] == -39);
-        assert(results[7] == -76855);
+        Main.assertTrue(results[0] == 78777);
+        Main.assertTrue(results[1] == -76777);
+        Main.assertTrue(results[2] == 77777000);
+        Main.assertTrue(results[3] == 77);
+        Main.assertTrue(results[4] == 777);
+        Main.assertTrue(results[5] == 960);
+        Main.assertTrue(results[6] == -39);
+        Main.assertTrue(results[7] == -76855);
     }
 
     /*
@@ -213,16 +213,16 @@ public class IntMath {
         /* check this edge case while we're here (div-int/lit8) */
         int minInt = -2147483648;
         int result = minInt / -1;
-        assert(result == minInt);
+        Main.assertTrue(result == minInt);
 
-        assert(results[0] == -55545);
-        assert(results[1] == 55565);
-        assert(results[2] == -555550);
-        assert(results[3] == -5555);
-        assert(results[4] == -5);
-        assert(results[5] == 8);
-        assert(results[6] == -1);
-        assert(results[7] == 55563);
+        Main.assertTrue(results[0] == -55545);
+        Main.assertTrue(results[1] == 55565);
+        Main.assertTrue(results[2] == -555550);
+        Main.assertTrue(results[3] == -5555);
+        Main.assertTrue(results[4] == -5);
+        Main.assertTrue(results[5] == 8);
+        Main.assertTrue(results[6] == -1);
+        Main.assertTrue(results[7] == 55563);
     }
 
 
@@ -244,10 +244,10 @@ public class IntMath {
     static void intShiftCheck(int[] results) {
         System.out.println("IntMath.intShiftCheck");
 
-        assert(results[0] == 0x00aa0100);
-        assert(results[1] == 0xffff00aa);
-        assert(results[2] == 0x00ff00aa);
-        assert(results[3] == 0xaa00);
+        Main.assertTrue(results[0] == 0x00aa0100);
+        Main.assertTrue(results[1] == 0xffff00aa);
+        Main.assertTrue(results[2] == 0x00ff00aa);
+        Main.assertTrue(results[3] == 0xaa00);
     }
 
     /*
@@ -283,20 +283,20 @@ public class IntMath {
         long negOne = -results[5];
         long plusOne = 1;
         long result = (((minLong + plusOne) - plusOne) / negOne) / negOne;
-        assert(result == minLong);
+        Main.assertTrue(result == minLong);
 
-        assert(results[0] == 69999999997L);
-        assert(results[1] == 70000000003L);
-        assert(results[2] == -210000000000L);
-        assert(results[3] == -6833923606740729856L);    // overflow
-        assert(results[4] == -23333333333L);
-        assert(results[5] == 1);
-        assert(results[6] == 70000000000L);
-        assert(results[7] == -3);
-        assert(results[8] == -70000000003L);
-        assert(results[9] == 70000000000L);
+        Main.assertTrue(results[0] == 69999999997L);
+        Main.assertTrue(results[1] == 70000000003L);
+        Main.assertTrue(results[2] == -210000000000L);
+        Main.assertTrue(results[3] == -6833923606740729856L);    // overflow
+        Main.assertTrue(results[4] == -23333333333L);
+        Main.assertTrue(results[5] == 1);
+        Main.assertTrue(results[6] == 70000000000L);
+        Main.assertTrue(results[7] == -3);
+        Main.assertTrue(results[8] == -70000000003L);
+        Main.assertTrue(results[9] == 70000000000L);
 
-        assert(results.length == 10);
+        Main.assertTrue(results.length == 10);
     }
 
     /*
@@ -317,12 +317,12 @@ public class IntMath {
     static long longShiftCheck(long[] results) {
         System.out.println("IntMath.longShiftCheck");
 
-        assert(results[0] == 0x96deff00aa010000L);
-        assert(results[1] == 0xffffd5aa96deff00L);
-        assert(results[2] == 0x0000d5aa96deff00L);
-        assert(results[3] == 0xffff96deff000000L);
+        Main.assertTrue(results[0] == 0x96deff00aa010000L);
+        Main.assertTrue(results[1] == 0xffffd5aa96deff00L);
+        Main.assertTrue(results[2] == 0x0000d5aa96deff00L);
+        Main.assertTrue(results[3] == 0xffff96deff000000L);
 
-        assert(results.length == 4);
+        Main.assertTrue(results.length == 4);
 
         return results[0];      // test return-long
     }
@@ -337,7 +337,7 @@ public class IntMath {
         return x;
     }
     static void unopCheck(int result) {
-        assert(result == 37);
+        Main.assertTrue(result == 37);
     }
 
     static class Shorty {
@@ -359,9 +359,9 @@ public class IntMath {
         return shorts;
     }
     static void truncateCheck(Shorty shorts) {
-        assert(shorts.mShort == -5597);     // 0xea23
-        assert(shorts.mChar == 59939);      // 0xea23
-        assert(shorts.mByte == 35);         // 0x23
+        Main.assertTrue(shorts.mShort == -5597);     // 0xea23
+        Main.assertTrue(shorts.mChar == 59939);      // 0xea23
+        Main.assertTrue(shorts.mByte == 35);         // 0x23
     }
 
     /*
@@ -372,25 +372,25 @@ public class IntMath {
 
         try {
             int x = 100 / z;
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArithmeticException ae) {
         }
 
         try {
             int x = 100 % z;
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArithmeticException ae) {
         }
 
         try {
             long x = 100L / z;
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArithmeticException ae) {
         }
 
         try {
             long x = 100L % z;
-            assert(false);
+            Main.assertTrue(false);
         } catch (ArithmeticException ae) {
         }
     }
@@ -411,10 +411,10 @@ public class IntMath {
         long longDivResult = mostNegLong / ldiv;
         long longModResult = mostNegLong % ldiv;
 
-        assert(intDivResult == mostNegInt);
-        assert(intModResult == 0);
-        assert(longDivResult == mostNegLong);
-        assert(longModResult == 0);
+        Main.assertTrue(intDivResult == mostNegInt);
+        Main.assertTrue(intModResult == 0);
+        Main.assertTrue(longDivResult == mostNegLong);
+        Main.assertTrue(longModResult == 0);
     }
 
     /*
@@ -424,12 +424,12 @@ public class IntMath {
     static void checkConsts(byte small, short medium, int large, long huge) {
         System.out.println("IntMath.checkConsts");
 
-        assert(small == 1);                     // const/4
-        assert(medium == -256);                 // const/16
-        assert(medium == -256L);                // const-wide/16
-        assert(large == -88888);                // const
-        assert(large == -88888L);               // const-wide/32
-        assert(huge == 0x9922334455667788L);    // const-wide
+        Main.assertTrue(small == 1);                     // const/4
+        Main.assertTrue(medium == -256);                 // const/16
+        Main.assertTrue(medium == -256L);                // const-wide/16
+        Main.assertTrue(large == -88888);                // const
+        Main.assertTrue(large == -88888L);               // const-wide/32
+        Main.assertTrue(huge == 0x9922334455667788L);    // const-wide
     }
 
     /*
@@ -440,15 +440,15 @@ public class IntMath {
     static void jlmTests(int ii, long ll) {
         System.out.println("IntMath.jlmTests");
 
-        assert(Math.abs(ii) == ii);
-        assert(Math.abs(-ii) == ii);
-        assert(Math.min(ii, -5) == -5);
-        assert(Math.max(ii, -5) == ii);
+        Main.assertTrue(Math.abs(ii) == ii);
+        Main.assertTrue(Math.abs(-ii) == ii);
+        Main.assertTrue(Math.min(ii, -5) == -5);
+        Main.assertTrue(Math.max(ii, -5) == ii);
 
-        assert(Math.abs(ll) == ll);
-        assert(Math.abs(-ll) == ll);
-        assert(Math.min(ll, -5L) == -5L);
-        assert(Math.max(ll, -5L) == ll);
+        Main.assertTrue(Math.abs(ll) == ll);
+        Main.assertTrue(Math.abs(-ll) == ll);
+        Main.assertTrue(Math.min(ll, -5L) == -5L);
+        Main.assertTrue(Math.max(ll, -5L) == ll);
     }
 
     public static void run() {
@@ -475,7 +475,7 @@ public class IntMath {
         intShiftCheck(intResults);
         longResults = longShiftTest(0xd5aa96deff00aa01L, 16);
         long longRet = longShiftCheck(longResults);
-        assert(longRet == 0x96deff00aa010000L);
+        Main.assertTrue(longRet == 0x96deff00aa010000L);
 
         Shorty shorts = truncateTest(-16717277);    // 0xff00ea23
         truncateCheck(shorts);

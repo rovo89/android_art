@@ -8,71 +8,71 @@ class UnresTest1 {
         UnresStuff stuff = new UnresStuff();
         try {
             int x = stuff.instField;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
         try {       // hit the same one a second time
             int x = stuff.instField;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
         try {
             stuff.instField = 5;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
 
         try {
             double d = stuff.wideInstField;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
         try {
             stuff.wideInstField = 0.0;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
 
         try {
             int y = UnresStuff.staticField;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
         try {
             UnresStuff.staticField = 17;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
 
         try {
             double d = UnresStuff.wideStaticField;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
         try {
             UnresStuff.wideStaticField = 1.0;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchFieldError nsfe) {
             // good
         }
 
         try {
             stuff.virtualMethod();
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchMethodError nsfe) {
             // good
         }
         try {
             UnresStuff.staticMethod();
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoSuchMethodError nsfe) {
             // good
         }

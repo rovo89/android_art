@@ -10,7 +10,7 @@ public class Classes {
     int mSome;
 
     public void subFunc(boolean wantSub) {
-        assert(!wantSub);
+        Main.assertTrue(!wantSub);
     }
 
     void checkCast(Object thisRef, Object moreRef, Object nullRef) {
@@ -20,90 +20,90 @@ public class Classes {
         MoreClasses more;
 
         classes = (Classes) thisRef;
-        assert(thisRef instanceof Classes);
+        Main.assertTrue(thisRef instanceof Classes);
         classes = (Classes) moreRef;
-        assert(moreRef instanceof Classes);
+        Main.assertTrue(moreRef instanceof Classes);
 
         more = (MoreClasses) moreRef;
-        assert(moreRef instanceof MoreClasses);
-        assert(!(thisRef instanceof MoreClasses));
+        Main.assertTrue(moreRef instanceof MoreClasses);
+        Main.assertTrue(!(thisRef instanceof MoreClasses));
 
         try {
             more = (MoreClasses) thisRef;
-            assert(false);
+            Main.assertTrue(false);
         } catch (ClassCastException cce) {
             //System.out.println("  class cast msg: " + cce.getMessage());
             //Dalvik throws terser message than Hotspot VM
-            assert(cce.getMessage().regionMatches(false, 0, "Classes", 0, 7));
+            Main.assertTrue(cce.getMessage().regionMatches(false, 0, "Classes", 0, 7));
         }
-        assert(!(thisRef instanceof MoreClasses));
+        Main.assertTrue(!(thisRef instanceof MoreClasses));
 
         /* hopefully these classes cause a resolve */
         try {
             java.math.RoundingMode mode = (java.math.RoundingMode) thisRef;
-            assert(false);
+            Main.assertTrue(false);
         } catch (ClassCastException cce) {
             //System.out.println("  class cast msg: " + cce.getMessage());
             //Dalvik throws terser message than Hotspot VM
-            assert(cce.getMessage().regionMatches(false, 0, "Classes", 0, 7));
+            Main.assertTrue(cce.getMessage().regionMatches(false, 0, "Classes", 0, 7));
         }
-        assert(!(thisRef instanceof java.math.BigDecimal));
+        Main.assertTrue(!(thisRef instanceof java.math.BigDecimal));
 
         /* try some stuff with a null reference */
         classes = (Classes) nullRef;
         classes = (MoreClasses) nullRef;
         more = (MoreClasses) nullRef;
-        assert(!(nullRef instanceof Classes));
+        Main.assertTrue(!(nullRef instanceof Classes));
 
     }
 
 
     static void xTests(Object x) {
-        assert(  x instanceof Classes);
-        assert(!(x instanceof MoreClasses));
+        Main.assertTrue(  x instanceof Classes);
+        Main.assertTrue(!(x instanceof MoreClasses));
     }
     static void yTests(Object y) {
-        assert(  y instanceof Classes);
-        assert(  y instanceof MoreClasses);
+        Main.assertTrue(  y instanceof Classes);
+        Main.assertTrue(  y instanceof MoreClasses);
     }
     static void xarTests(Object xar) {
-        assert(  xar instanceof Object);
-        assert(!(xar instanceof Classes));
-        assert(  xar instanceof Classes[]);
-        assert(!(xar instanceof MoreClasses[]));
-        assert(  xar instanceof Object[]);
-        assert(!(xar instanceof Object[][]));
+        Main.assertTrue(  xar instanceof Object);
+        Main.assertTrue(!(xar instanceof Classes));
+        Main.assertTrue(  xar instanceof Classes[]);
+        Main.assertTrue(!(xar instanceof MoreClasses[]));
+        Main.assertTrue(  xar instanceof Object[]);
+        Main.assertTrue(!(xar instanceof Object[][]));
     }
     static void yarTests(Object yar) {
-        assert(  yar instanceof Classes[]);
-        assert(  yar instanceof MoreClasses[]);
+        Main.assertTrue(  yar instanceof Classes[]);
+        Main.assertTrue(  yar instanceof MoreClasses[]);
     }
     static void xarararTests(Object xararar) {
-        assert(  xararar instanceof Object);
-        assert(  xararar instanceof Object[]);
-        assert(!(xararar instanceof Classes));
-        assert(!(xararar instanceof Classes[]));
-        assert(!(xararar instanceof Classes[][]));
-        assert(  xararar instanceof Classes[][][]);
-        assert(!(xararar instanceof MoreClasses[][][]));
-        assert(  xararar instanceof Object[][][]);
-        assert(  xararar instanceof Serializable);
-        assert(  xararar instanceof Serializable[]);
-        assert(  xararar instanceof Serializable[][]);
-        assert(!(xararar instanceof Serializable[][][]));
+        Main.assertTrue(  xararar instanceof Object);
+        Main.assertTrue(  xararar instanceof Object[]);
+        Main.assertTrue(!(xararar instanceof Classes));
+        Main.assertTrue(!(xararar instanceof Classes[]));
+        Main.assertTrue(!(xararar instanceof Classes[][]));
+        Main.assertTrue(  xararar instanceof Classes[][][]);
+        Main.assertTrue(!(xararar instanceof MoreClasses[][][]));
+        Main.assertTrue(  xararar instanceof Object[][][]);
+        Main.assertTrue(  xararar instanceof Serializable);
+        Main.assertTrue(  xararar instanceof Serializable[]);
+        Main.assertTrue(  xararar instanceof Serializable[][]);
+        Main.assertTrue(!(xararar instanceof Serializable[][][]));
     }
     static void yarararTests(Object yararar) {
-        assert(  yararar instanceof Classes[][][]);
-        assert(  yararar instanceof MoreClasses[][][]);
+        Main.assertTrue(  yararar instanceof Classes[][][]);
+        Main.assertTrue(  yararar instanceof MoreClasses[][][]);
     }
     static void iarTests(Object iar) {
-        assert(  iar instanceof Object);
-        assert(!(iar instanceof Object[]));
+        Main.assertTrue(  iar instanceof Object);
+        Main.assertTrue(!(iar instanceof Object[]));
     }
     static void iararTests(Object iarar) {
-        assert(  iarar instanceof Object);
-        assert(  iarar instanceof Object[]);
-        assert(!(iarar instanceof Object[][]));
+        Main.assertTrue(  iarar instanceof Object);
+        Main.assertTrue(  iarar instanceof Object[]);
+        Main.assertTrue(!(iarar instanceof Object[][]));
     }
 
     /*
@@ -186,7 +186,7 @@ public class Classes {
         /* this is expected to fail; 1073921584 * 4 overflows 32 bits */
         try {
             String[][][][][] multiX = new String[5][2][3][2][1073921584];
-            assert(false);
+            Main.assertTrue(false);
         } catch (Error e) {
             //System.out.println("  Got expected failure: " + e);
         }
@@ -210,7 +210,7 @@ class MoreClasses extends Classes {
     public MoreClasses() {}
 
     public void subFunc(boolean wantSub) {
-        assert(wantSub);
+        Main.assertTrue(wantSub);
     }
 
     public void superFunc(boolean wantSub) {

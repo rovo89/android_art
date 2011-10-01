@@ -14,42 +14,42 @@ public class Compare {
         System.out.println("IntMath.testIntCompare");
 
         if (minus > plus)
-            assert(false);
+            Main.assertTrue(false);
         if (minus >= plus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus < minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus <= minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus == minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus != plus2)
-            assert(false);
+            Main.assertTrue(false);
 
         /* try a branch-taken */
         if (plus != minus) {
-            assert(true);
+            Main.assertTrue(true);
         } else {
-            assert(false);
+            Main.assertTrue(false);
         }
 
         if (minus > 0)
-            assert(false);
+            Main.assertTrue(false);
         if (minus >= 0)
-            assert(false);
+            Main.assertTrue(false);
         if (plus < 0)
-            assert(false);
+            Main.assertTrue(false);
         if (plus <= 0)
-            assert(false);
+            Main.assertTrue(false);
         if (plus == 0)
-            assert(false);
+            Main.assertTrue(false);
         if (zero != 0)
-            assert(false);
+            Main.assertTrue(false);
 
         if (zero == 0) {
-            assert(true);
+            Main.assertTrue(true);
         } else {
-            assert(false);
+            Main.assertTrue(false);
         }
     }
 
@@ -63,39 +63,39 @@ public class Compare {
 
         System.out.println("IntMath.testLongCompare");
         if (minus > plus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus < minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus == minus)
-            assert(false);
+            Main.assertTrue(false);
 
         if (plus >= plus+1)
-            assert(false);
+            Main.assertTrue(false);
         if (minus >= minus+1)
-            assert(false);
+            Main.assertTrue(false);
 
         /* try a branch-taken */
         if (plus != minus) {
-            assert(true);
+            Main.assertTrue(true);
         } else {
-            assert(false);
+            Main.assertTrue(false);
         }
 
         /* compare when high words are equal but low words differ */
         if (plus > alsoPlus)
-            assert(false);
+            Main.assertTrue(false);
         if (alsoPlus < plus)
-            assert(false);
+            Main.assertTrue(false);
         if (alsoPlus == plus)
-            assert(false);
+            Main.assertTrue(false);
 
         /* high words are equal, low words have apparently different signs */
         if (minus < alsoMinus)      // bug!
-            assert(false);
+            Main.assertTrue(false);
         if (alsoMinus > minus)
-            assert(false);
+            Main.assertTrue(false);
         if (alsoMinus == minus)
-            assert(false);
+            Main.assertTrue(false);
     }
 
     /*
@@ -106,29 +106,29 @@ public class Compare {
 
         System.out.println("IntMath.testFloatCompare");
         if (minus > plus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus < minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus == minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus != plus2)
-            assert(false);
+            Main.assertTrue(false);
 
         if (plus <= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (plus >= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (minus <= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (minus >= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (nan >= plus)
-            assert(false);
+            Main.assertTrue(false);
         if (nan <= plus)
-            assert(false);
+            Main.assertTrue(false);
 
         if (nan == nan)
-            assert(false);
+            Main.assertTrue(false);
     }
 
     static void testDoubleCompare(double minus, double plus, double plus2,
@@ -136,29 +136,29 @@ public class Compare {
 
         System.out.println("IntMath.testDoubleCompare");
         if (minus > plus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus < minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus == minus)
-            assert(false);
+            Main.assertTrue(false);
         if (plus != plus2)
-            assert(false);
+            Main.assertTrue(false);
 
         if (plus <= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (plus >= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (minus <= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (minus >= nan)
-            assert(false);
+            Main.assertTrue(false);
         if (nan >= plus)
-            assert(false);
+            Main.assertTrue(false);
         if (nan <= plus)
-            assert(false);
+            Main.assertTrue(false);
 
         if (nan == nan)
-            assert(false);
+            Main.assertTrue(false);
     }
 
     public static void run() {
