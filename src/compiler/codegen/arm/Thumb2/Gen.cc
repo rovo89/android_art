@@ -37,6 +37,15 @@ std::string fieldNameFromIndex(const Method* method, uint32_t fieldIdx)
     return class_name + "." + field_name;
 }
 
+void warnIfUnresolved(CompilationUnit* cUnit, int fieldIdx, Field* field) {
+  if (field == NULL) {
+    LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
+              << " unresolved at compile time";
+  } else {
+    // We also use the slow path for wide volatile fields.
+  }
+}
+
 /*
  * Construct an s4 from two consecutive half-words of switch data.
  * This needs to check endianness because the DEX optimizer only swaps
@@ -403,12 +412,11 @@ STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
  * Helper function for Iget/put when field not resolved at compile time.
  * Will trash call temps and return with the field offset in r0.
  */
-STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir)
+STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
 {
     int fieldIdx = mir->dalvikInsn.vC;
     oatFlushAllRegs(cUnit);
-    LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
-        << " unresolved at compile time";
+    warnIfUnresolved(cUnit, fieldIdx, fieldPtr);
     oatLockCallTemps(cUnit);  // Explicit register usage
     loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
     loadWordDisp(cUnit, r1,
@@ -447,7 +455,7 @@ STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     RegLocation rlResult;
     RegisterClass regClass = oatRegClassBySize(size);
     if (SLOW_FIELD_PATH || fieldPtr == NULL) {
-        getFieldOffset(cUnit, mir);
+        getFieldOffset(cUnit, mir, fieldPtr);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
@@ -481,7 +489,7 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         GetResolvedField(mir->dalvikInsn.vC);
     RegisterClass regClass = oatRegClassBySize(size);
     if (SLOW_FIELD_PATH || fieldPtr == NULL) {
-        getFieldOffset(cUnit, mir);
+        getFieldOffset(cUnit, mir, fieldPtr);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlSrc = loadValue(cUnit, rlSrc, regClass);
@@ -525,7 +533,7 @@ STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     bool isVolatile = false;
 #endif
     if ((fieldPtr == NULL) || isVolatile) {
-        getFieldOffset(cUnit, mir);
+        getFieldOffset(cUnit, mir, fieldPtr);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
@@ -563,7 +571,7 @@ STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
     bool isVolatile = false;
 #endif
     if ((fieldPtr == NULL) || isVolatile) {
-        getFieldOffset(cUnit, mir);
+        getFieldOffset(cUnit, mir, fieldPtr);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);

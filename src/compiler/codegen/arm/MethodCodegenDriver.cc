@@ -187,8 +187,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
         // Slow path
-        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
-            << " unresolved at compile time";
+        warnIfUnresolved(cUnit, fieldIdx, field);
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pSetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pSet32Static);
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
@@ -252,8 +251,7 @@ STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     bool isVolatile = false;
 #endif
     if (SLOW_FIELD_PATH || field == NULL || isVolatile) {
-        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
-            << " unresolved at compile time";
+        warnIfUnresolved(cUnit, fieldIdx, field);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
@@ -304,8 +302,7 @@ STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
 #endif
     oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL || isVolatile) {
-        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
-            << " unresolved at compile time";
+        warnIfUnresolved(cUnit, fieldIdx, field);
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
         loadConstant(cUnit, r0, mir->dalvikInsn.vB);
         loadCurrMethodDirect(cUnit, r1);
@@ -354,9 +351,8 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir,
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
     oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
-        LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
-            << " unresolved at compile time";
         // Slow path
+        warnIfUnresolved(cUnit, fieldIdx, field);
         int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
                                   : OFFSETOF_MEMBER(Thread, pGet32Static);
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
