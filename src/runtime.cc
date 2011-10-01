@@ -488,7 +488,6 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   REGISTER(register_java_lang_Thread);
   REGISTER(register_java_lang_Throwable);
   REGISTER(register_java_lang_VMClassLoader);
-  //REGISTER(register_java_lang_reflect_AccessibleObject);
   REGISTER(register_java_lang_reflect_Array);
   REGISTER(register_java_lang_reflect_Constructor);
   REGISTER(register_java_lang_reflect_Field);
