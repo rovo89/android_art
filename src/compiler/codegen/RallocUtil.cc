@@ -884,6 +884,7 @@ extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc)
             if (infoLo->pair) {
                 oatClobber(cUnit, infoLo->reg);
                 oatClobber(cUnit, infoLo->partner);
+                oatFreeTemp(cUnit, infoLo->reg);
             } else {
                 loc.lowReg = infoLo->reg;
                 loc.location = kLocPhysReg;
@@ -957,14 +958,16 @@ extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
             DCHECK(!FPREG(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
             return loc;
         }
-        // Can't easily reuse - clobber any overlaps
+        // Can't easily reuse - clobber and free any overlaps
         if (infoLo) {
             oatClobber(cUnit, infoLo->reg);
+            oatFreeTemp(cUnit, infoLo->reg);
             if (infoLo->pair)
                 oatClobber(cUnit, infoLo->partner);
         }
         if (infoHi) {
             oatClobber(cUnit, infoHi->reg);
+            oatFreeTemp(cUnit, infoHi->reg);
             if (infoHi->pair)
                 oatClobber(cUnit, infoHi->partner);
         }

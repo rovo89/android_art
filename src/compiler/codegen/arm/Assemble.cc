@@ -571,8 +571,8 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1,
                  IS_TERTIARY_OP | REG_DEF0_USE1,/* Note: doesn't affect flags */
                  "sub", "!0C,!1C,#!2d", 2),
-    ENCODING_MAP(kThumb2MvnImmShift,  0xf06f0000, /* no setflags encoding */
-                 kFmtBitBlt, 11, 8, kFmtModImm, -1, -1, kFmtUnused, -1, -1,
+    ENCODING_MAP(kThumb2MvnImm12,  0xf06f0000, /* no setflags encoding */
+                 kFmtBitBlt, 11, 8, kFmtImm12, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0,
                  "mvn", "!0C, #!1n", 2),
     ENCODING_MAP(kThumb2Sel,       0xfaa0f080,
@@ -955,6 +955,10 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1,
                  IS_TERTIARY_OP | REG_DEF0_USE1 | SETS_CCODES,
                  "subs", "!0C,!1C,#!2d", 2),
+    ENCODING_MAP(kThumb2OrrRRRs,  0xea500000,
+                 kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16, kFmtBitBlt, 3, 0,
+                 kFmtShift, -1, -1, IS_QUAD_OP | REG_DEF0_USE12 | SETS_CCODES,
+                 "orrs", "!0C, !1C, !2C!3H", 2),
 
 };
 
@@ -1039,7 +1043,7 @@ STATIC void installFillArrayData(CompilationUnit* cUnit)
              &iterator);
         if (tabRec == NULL) break;
         alignBuffer(cUnit->codeBuffer, tabRec->offset);
-        for (int i = 0; i < (tabRec->size / 2) ; i++) {
+        for (int i = 0; i < ((tabRec->size + 1) / 2) ; i++) {
             cUnit->codeBuffer.push_back( tabRec->table[i]);
         }
     }

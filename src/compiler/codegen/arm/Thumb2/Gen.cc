@@ -460,7 +460,7 @@ STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
         genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null object? */
-        loadBaseIndexed(cUnit, rlObj.lowReg, r0, rlResult.lowReg, 0, size);
+        loadBaseIndexed(cUnit, rlObj.lowReg, r0, rlResult.lowReg, 0, kWord);
         oatGenMemBarrier(cUnit, kSY);
         storeValue(cUnit, rlDest, rlResult);
     } else {
@@ -474,7 +474,7 @@ STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
         genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null object? */
         loadBaseDisp(cUnit, mir, rlObj.lowReg, fieldOffset, rlResult.lowReg,
-                     size, rlObj.sRegLow);
+                     kWord, rlObj.sRegLow);
         if (isVolatile) {
             oatGenMemBarrier(cUnit, kSY);
         }
@@ -495,7 +495,7 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         rlSrc = loadValue(cUnit, rlSrc, regClass);
         genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);/* null object? */
         oatGenMemBarrier(cUnit, kSY);
-        storeBaseIndexed(cUnit, rlObj.lowReg, r0, rlSrc.lowReg, 0, size);
+        storeBaseIndexed(cUnit, rlObj.lowReg, r0, rlSrc.lowReg, 0, kWord);
     } else {
 #if ANDROID_SMP != 0
         bool isVolatile = fieldPtr->IsVolatile();
@@ -510,7 +510,7 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         if (isVolatile) {
             oatGenMemBarrier(cUnit, kST);
         }
-        storeBaseDisp(cUnit, rlObj.lowReg, fieldOffset, rlSrc.lowReg, size);
+        storeBaseDisp(cUnit, rlObj.lowReg, fieldOffset, rlSrc.lowReg, kWord);
         if (isVolatile) {
             oatGenMemBarrier(cUnit, kSY);
         }
@@ -1498,6 +1498,7 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
     OpKind firstOp = kOpBkpt;
     OpKind secondOp = kOpBkpt;
     bool callOut = false;
+    bool checkZero = false;
     int funcOffset;
     int retReg = r0;
 
@@ -1538,6 +1539,7 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
         case OP_DIV_LONG:
         case OP_DIV_LONG_2ADDR:
             callOut = true;
+            checkZero = true;
             retReg = r0;
             funcOffset = OFFSETOF_MEMBER(Thread, pLdivmod);
             break;
@@ -1545,6 +1547,7 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
         case OP_REM_LONG:
         case OP_REM_LONG_2ADDR:
             callOut = true;
+            checkZero = true;
             funcOffset = OFFSETOF_MEMBER(Thread, pLdivmod);
             retReg = r2;
             break;
@@ -1592,12 +1595,22 @@ STATIC bool genArithOpLong(CompilationUnit* cUnit, MIR* mir,
     if (!callOut) {
         genLong3Addr(cUnit, mir, firstOp, secondOp, rlDest, rlSrc1, rlSrc2);
     } else {
-        // Adjust return regs in to handle case of rem returning r2/r3
         oatFlushAllRegs(cUnit);   /* Send everything to home location */
-        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
-        loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-        loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+        if (checkZero) {
+            loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+            loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+            loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+            int tReg = oatAllocTemp(cUnit);
+            newLIR4(cUnit, kThumb2OrrRRRs, tReg, r2, r3, 0);
+            oatFreeTemp(cUnit, tReg);
+            genCheck(cUnit, kArmCondEq, mir, kArmThrowDivZero);
+        } else {
+            loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+            loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+            loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+        }
         callRuntimeHelper(cUnit, rLR);
+        // Adjust return regs in to handle case of rem returning r2/r3
         if (retReg == r0)
             rlResult = oatGetReturnWide(cUnit);
         else

@@ -51,6 +51,19 @@ STATIC int loadCurrMethod(CompilationUnit *cUnit)
 #endif
 }
 
+STATIC ArmLIR* genCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
+                        MIR* mir, ArmThrowKind kind)
+{
+    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    tgt->opcode = kArmPseudoThrowTarget;
+    tgt->operands[0] = kind;
+    tgt->operands[1] = mir ? mir->offset : 0;
+    ArmLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
+    // Remember branch target - will process later
+    oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
+}
+
 STATIC ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                              int reg, int immVal, MIR* mir, ArmThrowKind kind)
 {
