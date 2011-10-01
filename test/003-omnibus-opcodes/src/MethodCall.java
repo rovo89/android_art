@@ -26,7 +26,7 @@ public class MethodCall extends MethodCallBase {
     /* overridden method */
     int tryThing() {
         int val = super.tryThing();
-        assert(val == 7);
+        Main.assertTrue(val == 7);
         return val;
     }
 
@@ -43,11 +43,11 @@ public class MethodCall extends MethodCallBase {
         String[][] a27, String[] a28, String a29)
     {
         System.out.println("MethodCalls.manyArgs");
-        assert(a0 == 0);
-        assert(a9 > 8.99 && a9 < 9.01);
-        assert(a16 == -16);
-        assert(a25 == 25);
-        assert(a29.equals("twenty nine"));
+        Main.assertTrue(a0 == 0);
+        Main.assertTrue(a9 > 8.99 && a9 < 9.01);
+        Main.assertTrue(a16 == -16);
+        Main.assertTrue(a25 == 25);
+        Main.assertTrue(a29.equals("twenty nine"));
     }
 
     public static void run() {
@@ -60,7 +60,7 @@ public class MethodCall extends MethodCallBase {
         inst = null;
         try {
             inst.directly();
-            assert(false);
+            Main.assertTrue(false);
         } catch (NullPointerException npe) {
             // good
         }

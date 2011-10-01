@@ -22,15 +22,6 @@ public class Main {
      * Start up.
      */
     public static void main(String[] args) {
-        boolean assertEnabled = false;
-        assert assertEnabled = true;
-        if (!assertEnabled) {
-            System.out.println("FAIL: assert doesn't work (specify '-ea')\n");
-            throw new RuntimeException();
-        } else {
-            System.out.println("(assertions are enabled)");
-        }
-
         Main main = new Main();
         main.run();
 
@@ -78,5 +69,11 @@ public class Main {
             System.out.println("NOTE: UnresTest2 not available");
         }
         InternedString.run();
+    }
+
+    public static void assertTrue(boolean condition) {
+        if (!condition) {
+            throw new Error();
+        }
     }
 }

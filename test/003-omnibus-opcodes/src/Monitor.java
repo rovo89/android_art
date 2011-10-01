@@ -13,7 +13,7 @@ public class Monitor {
         synchronized (obj) {
             mVal++;
             obj = null;     // does NOT cause a failure on exit
-            assert(obj == null);
+            Main.assertTrue(obj == null);
         }
     }
 
@@ -27,7 +27,7 @@ public class Monitor {
             synchronized (obj) {
                 mVal++;
             }
-            assert(false);
+            Main.assertTrue(false);
         } catch (NullPointerException npe) {
             /* expected */
         }
@@ -39,6 +39,6 @@ public class Monitor {
 
         new Monitor().subTest();
 
-        assert(mVal == 2);
+        Main.assertTrue(mVal == 2);
     }
 }

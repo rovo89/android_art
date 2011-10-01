@@ -16,102 +16,102 @@ public class FloatMath {
         /* float --> int */
         f = 1234.5678f;
         i = (int) f;
-        assert(i == 1234);
+        Main.assertTrue(i == 1234);
 
         f = -1234.5678f;
         i = (int) f;
-        assert(i == -1234);
+        Main.assertTrue(i == -1234);
 
         /* float --> long */
         f = 1238.5678f;
         l = (long) f;
-        assert(l == 1238);
+        Main.assertTrue(l == 1238);
 
         f = -1238.5678f;
         l = (long) f;
-        assert(l == -1238);
+        Main.assertTrue(l == -1238);
 
         /* float --> double */
         f = 1238.5678f;
         d = (double) f;
-        assert(d > 1238.567 && d < 1238.568);
+        Main.assertTrue(d > 1238.567 && d < 1238.568);
 
         /* double --> int */
         d = 1234.5678;
         i = (int) d;
-        assert(i == 1234);
+        Main.assertTrue(i == 1234);
 
         d = -1234.5678;
         i = (int) d;
-        assert(i == -1234);
+        Main.assertTrue(i == -1234);
 
         /* double --> long */
         d = 5678956789.0123;
         l = (long) d;
-        assert(l == 5678956789L);
+        Main.assertTrue(l == 5678956789L);
 
         d = -5678956789.0123;
         l = (long) d;
-        assert(l == -5678956789L);
+        Main.assertTrue(l == -5678956789L);
 
         /* double --> float */
         d = 1238.5678;
         f = (float) d;
-        assert(f > 1238.567 && f < 1238.568);
+        Main.assertTrue(f > 1238.567 && f < 1238.568);
 
         /* int --> long */
         i = 7654;
         l = (long) i;
-        assert(l == 7654L);
+        Main.assertTrue(l == 7654L);
 
         i = -7654;
         l = (long) i;
-        assert(l == -7654L);
+        Main.assertTrue(l == -7654L);
 
         /* int --> float */
         i = 1234;
         f = (float) i;
-        assert(f > 1233.9f && f < 1234.1f);
+        Main.assertTrue(f > 1233.9f && f < 1234.1f);
 
         i = -1234;
         f = (float) i;
-        assert(f < -1233.9f && f > -1234.1f);
+        Main.assertTrue(f < -1233.9f && f > -1234.1f);
 
         /* int --> double */
         i = 1238;
         d = (double) i;
-        assert(d > 1237.9f && d < 1238.1f);
+        Main.assertTrue(d > 1237.9f && d < 1238.1f);
 
         i = -1238;
         d = (double) i;
-        assert(d < -1237.9f && d > -1238.1f);
+        Main.assertTrue(d < -1237.9f && d > -1238.1f);
 
         /* long --> int (with truncation) */
         l = 5678956789L;
         i = (int) l;
-        assert(i == 1383989493);
+        Main.assertTrue(i == 1383989493);
 
         l = -5678956789L;
         i = (int) l;
-        assert(i == -1383989493);
+        Main.assertTrue(i == -1383989493);
 
         /* long --> float */
         l = 5678956789L;
         f = (float) l;
-        assert(f > 5.6789564E9 && f < 5.6789566E9);
+        Main.assertTrue(f > 5.6789564E9 && f < 5.6789566E9);
 
         l = -5678956789L;
         f = (float) l;
-        assert(f < -5.6789564E9 && f > -5.6789566E9);
+        Main.assertTrue(f < -5.6789564E9 && f > -5.6789566E9);
 
         /* long --> double */
         l = 6678956789L;
         d = (double) l;
-        assert(d > 6.6789567E9 && d < 6.6789568E9);
+        Main.assertTrue(d > 6.6789567E9 && d < 6.6789568E9);
 
         l = -6678956789L;
         d = (double) l;
-        assert(d < -6.6789567E9 && d > -6.6789568E9);
+        Main.assertTrue(d < -6.6789567E9 && d > -6.6789568E9);
     }
 
     /*
@@ -136,12 +136,12 @@ public class FloatMath {
         return results;
     }
     static void floatOperCheck(float[] results) {
-        assert(results[0] > 69996.99f && results[0] < 69997.01f);
-        assert(results[1] > 70002.99f && results[1] < 70003.01f);
-        assert(results[2] > -210000.01f && results[2] < -209999.99f);
-        assert(results[3] > -23333.34f && results[3] < -23333.32f);
-        assert(results[4] > 0.999f && results[4] < 1.001f);
-        assert(results[8] > 70000.99f && results[8] < 70001.01f);
+        Main.assertTrue(results[0] > 69996.99f && results[0] < 69997.01f);
+        Main.assertTrue(results[1] > 70002.99f && results[1] < 70003.01f);
+        Main.assertTrue(results[2] > -210000.01f && results[2] < -209999.99f);
+        Main.assertTrue(results[3] > -23333.34f && results[3] < -23333.32f);
+        Main.assertTrue(results[4] > 0.999f && results[4] < 1.001f);
+        Main.assertTrue(results[8] > 70000.99f && results[8] < 70001.01f);
     }
 
     /*
@@ -166,12 +166,12 @@ public class FloatMath {
         return results;
     }
     static void doubleOperCheck(double[] results) {
-        assert(results[0] > 69996.99 && results[0] < 69997.01);
-        assert(results[1] > 70002.99 && results[1] < 70003.01);
-        assert(results[2] > -210000.01 && results[2] < -209999.99);
-        assert(results[3] > -23333.34 && results[3] < -23333.32);
-        assert(results[4] > 0.999 && results[4] < 1.001);
-        assert(results[8] > 70000.99 && results[8] < 70001.01);
+        Main.assertTrue(results[0] > 69996.99 && results[0] < 69997.01);
+        Main.assertTrue(results[1] > 70002.99 && results[1] < 70003.01);
+        Main.assertTrue(results[2] > -210000.01 && results[2] < -209999.99);
+        Main.assertTrue(results[3] > -23333.34 && results[3] < -23333.32);
+        Main.assertTrue(results[4] > 0.999 && results[4] < 1.001);
+        Main.assertTrue(results[8] > 70000.99 && results[8] < 70001.01);
     }
 
     /*
@@ -194,12 +194,12 @@ public class FloatMath {
     }
     static void checkConvI(int[] results) {
         System.out.println("FloatMath.checkConvI");
-        assert(results[0] == 0x44332211);
-        assert(results[1] == 123);
-        assert(results[2] == -3);
-        assert(results[3] == 0x7fffffff);
-        assert(results[4] == 0x80000000);
-        assert(results[5] == 0);
+        Main.assertTrue(results[0] == 0x44332211);
+        Main.assertTrue(results[1] == 123);
+        Main.assertTrue(results[2] == -3);
+        Main.assertTrue(results[3] == 0x7fffffff);
+        Main.assertTrue(results[4] == 0x80000000);
+        Main.assertTrue(results[5] == 0);
     }
 
     static long[] convL(int i, float f, double d, double zero) {
@@ -214,12 +214,12 @@ public class FloatMath {
     }
     static void checkConvL(long[] results) {
         System.out.println("FloatMath.checkConvL");
-        assert(results[0] == 0xFFFFFFFF88776655L);
-        assert(results[1] == 123);
-        assert(results[2] == -3);
-        assert(results[3] == 0x7fffffffffffffffL);
-        assert(results[4] == 0x8000000000000000L);
-        assert(results[5] == 0);
+        Main.assertTrue(results[0] == 0xFFFFFFFF88776655L);
+        Main.assertTrue(results[1] == 123);
+        Main.assertTrue(results[2] == -3);
+        Main.assertTrue(results[3] == 0x7fffffffffffffffL);
+        Main.assertTrue(results[4] == 0x8000000000000000L);
+        Main.assertTrue(results[5] == 0);
     }
 
     static float[] convF(int i, long l, double d) {
@@ -231,7 +231,7 @@ public class FloatMath {
     }
     static void checkConvF(float[] results) {
         System.out.println("FloatMath.checkConvF");
-        // TODO: assert values
+        // TODO: Main.assertTrue values
         for (int i = 0; i < results.length; i++)
             System.out.println(" " + i + ": " + results[i]);
         System.out.println("-2.0054409E9, -8.6133031E18, -3.1415927");
@@ -246,7 +246,7 @@ public class FloatMath {
     }
     static void checkConvD(double[] results) {
         System.out.println("FloatMath.checkConvD");
-        // TODO: assert values
+        // TODO: Main.assertTrue values
         for (int i = 0; i < results.length; i++)
             System.out.println(" " + i + ": " + results[i]);
         System.out.println("-2.005440939E9, -8.6133032459203287E18, 123.4560012817382");
@@ -256,10 +256,10 @@ public class FloatMath {
         System.out.println("FloatMath.checkConsts");
 
         float f = 10.0f;        // const/special
-        assert(f > 9.9 && f < 10.1);
+        Main.assertTrue(f > 9.9 && f < 10.1);
 
         double d = 10.0;        // const-wide/special
-        assert(d > 9.9 && d < 10.1);
+        Main.assertTrue(d > 9.9 && d < 10.1);
     }
 
     /*
@@ -289,21 +289,21 @@ public class FloatMath {
     static void jlmTests(float ff, double dd) {
         System.out.println("FloatMath.jlmTests");
 
-        assert(approxEqual(Math.abs(ff), ff, 0.001f));
-        assert(approxEqual(Math.abs(-ff), ff, 0.001f));
-        assert(approxEqual(Math.min(ff, -5.0f), -5.0f, 0.001f));
-        assert(approxEqual(Math.max(ff, -5.0f), ff, 0.001f));
+        Main.assertTrue(approxEqual(Math.abs(ff), ff, 0.001f));
+        Main.assertTrue(approxEqual(Math.abs(-ff), ff, 0.001f));
+        Main.assertTrue(approxEqual(Math.min(ff, -5.0f), -5.0f, 0.001f));
+        Main.assertTrue(approxEqual(Math.max(ff, -5.0f), ff, 0.001f));
 
-        assert(approxEqual(Math.abs(dd), dd, 0.001));
-        assert(approxEqual(Math.abs(-dd), dd, 0.001));
-        assert(approxEqual(Math.min(dd, -5.0), -5.0, 0.001));
-        assert(approxEqual(Math.max(dd, -5.0), dd, 0.001));
+        Main.assertTrue(approxEqual(Math.abs(dd), dd, 0.001));
+        Main.assertTrue(approxEqual(Math.abs(-dd), dd, 0.001));
+        Main.assertTrue(approxEqual(Math.min(dd, -5.0), -5.0, 0.001));
+        Main.assertTrue(approxEqual(Math.max(dd, -5.0), dd, 0.001));
 
         double sq = Math.sqrt(dd);
-        assert(approxEqual(sq*sq, dd, 0.001));
+        Main.assertTrue(approxEqual(sq*sq, dd, 0.001));
 
-        assert(approxEqual(0.5403023058681398, Math.cos(1.0), 0.00000001));
-        assert(approxEqual(0.8414709848078965, Math.sin(1.0), 0.00000001));
+        Main.assertTrue(approxEqual(0.5403023058681398, Math.cos(1.0), 0.00000001));
+        Main.assertTrue(approxEqual(0.8414709848078965, Math.sin(1.0), 0.00000001));
     }
 
     public static void run() {

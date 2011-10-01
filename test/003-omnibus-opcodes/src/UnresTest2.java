@@ -10,13 +10,13 @@ class UnresTest2 {
 
         try {
             UnresClass un = (UnresClass) obj;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
             // good
         }
         try {
             foo = obj instanceof UnresClass;
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
             // good
         }
@@ -31,14 +31,14 @@ class UnresTest2 {
 
         try {
             un = new UnresClass();
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
             // good
         }
 
         try {
             UnresClass[] uar = new UnresClass[3];
-            assert(false);
+            Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
             // good
         }

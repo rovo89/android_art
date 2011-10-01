@@ -54,23 +54,23 @@ public class StaticField {
 
     public static void checkFields() {
         System.out.println("StaticField check...");
-        assert(mBoolean1);
-        assert(!mBoolean2);
-        assert(mByte1 == 127);
-        assert(mByte2 == -128);
-        assert(mChar1 == 32767);
-        assert(mChar2 == 65535);
-        assert(mShort1 == 32767);
-        assert(mShort2 == -32768);
-        assert(mInt1 == 65537);
-        assert(mInt2 == -65537);
-        assert(mFloat1 > 3.141f && mFloat2 < 3.142f);
-        assert(mFloat2 < mFloat1);
-        assert(mLong1 == 1234605616436508552L);
-        assert(mLong2 == -1234605616436508552L);
-        assert(mDouble1 > 3.141592653 && mDouble1 < 3.141592654);
-        assert(mDouble2 > mDouble1);
-        assert(mVolatileLong1 == 1234605616436508551L);
-        assert(mVolatileLong2 == -1234605616436508551L);
+        Main.assertTrue(mBoolean1);
+        Main.assertTrue(!mBoolean2);
+        Main.assertTrue(mByte1 == 127);
+        Main.assertTrue(mByte2 == -128);
+        Main.assertTrue(mChar1 == 32767);
+        Main.assertTrue(mChar2 == 65535);
+        Main.assertTrue(mShort1 == 32767);
+        Main.assertTrue(mShort2 == -32768);
+        Main.assertTrue(mInt1 == 65537);
+        Main.assertTrue(mInt2 == -65537);
+        Main.assertTrue(mFloat1 > 3.141f && mFloat2 < 3.142f);
+        Main.assertTrue(mFloat2 < mFloat1);
+        Main.assertTrue(mLong1 == 1234605616436508552L);
+        Main.assertTrue(mLong2 == -1234605616436508552L);
+        Main.assertTrue(mDouble1 > 3.141592653 && mDouble1 < 3.141592654);
+        Main.assertTrue(mDouble2 > mDouble1);
+        Main.assertTrue(mVolatileLong1 == 1234605616436508551L);
+        Main.assertTrue(mVolatileLong2 == -1234605616436508551L);
     }
 }
