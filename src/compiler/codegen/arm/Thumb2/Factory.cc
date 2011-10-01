@@ -163,7 +163,7 @@ STATIC ArmLIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest,
     }
     modImm = modifiedImmediate(~value);
     if (modImm >= 0) {
-        res = newLIR2(cUnit, kThumb2MvnImmShift, rDest, modImm);
+        res = newLIR2(cUnit, kThumb2MvnImm12, rDest, modImm);
         return res;
     }
     /* 16-bit immediate? */

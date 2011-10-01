@@ -534,7 +534,7 @@ typedef enum ArmOpcode {
                                    [0000] rm[3..0] */
     kThumb2SubRRI12,     /* sub rd, rn, #imm12 [11110] i [01010] rn[19..16]
                                        [0] imm3[14..12] rd[11..8] imm8[7..0] */
-    kThumb2MvnImmShift,  /* mov(T2) rd, #<const> [11110] i [00011011110]
+    kThumb2MvnImm12,     /* mov(T2) rd, #<const> [11110] i [00011011110]
                                        imm3 rd[11..8] imm8 */
     kThumb2Sel,          /* sel rd, rn, rm [111110101010] rn[19-16] rd[11-8]
                                        rm[3-0] */
@@ -691,6 +691,8 @@ typedef enum ArmOpcode {
     kThumb2MovImm16HST,  /* Special purpose version for switch table use */
     kThumb2LdmiaWB,      /* ldmia  [111010011001[ rn[19..16] mask[15..0] */
     kThumb2SubsRRI12,    /* setflags encoding */
+    kThumb2OrrRRRs,      /* orrx [111010100101] rn[19..16] [0000] rd[11..8]
+                                   [0000] rm[3..0] */
     kArmLast,
 } ArmOpcode;
 
