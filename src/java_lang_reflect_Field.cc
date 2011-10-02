@@ -71,17 +71,25 @@ bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
   return false;
 }
 
+bool CheckReceiver(JNIEnv* env, jobject javaObj, jclass javaDeclaringClass, Field* f, Object*& o) {
+  if (f->IsStatic()) {
+    o = NULL;
+    return true;
+  }
+
+  o = Decode<Object*>(env, javaObj);
+  Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
+  if (!VerifyObjectInClass(env, o, declaringClass)) {
+    return false;
+  }
+  return true;
+}
+
 JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
-
-  // Check that the receiver is non-null and an instance of the field's declaring class.
-  Object* o = Decode<Object*>(env, javaObj);
-  bool isStatic = (javaObj == NULL);
-  if (!isStatic) {
-    Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
-    if (!VerifyObjectInClass(env, o, declaringClass)) {
-      return JValue();
-    }
+  Object* o = NULL;
+  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
+    return JValue();
   }
 
   // Read the value.
@@ -179,15 +187,9 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
 
 void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor, const JValue& new_value) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
-
-  // Check that the receiver is non-null and an instance of the field's declaring class.
-  Object* o = Decode<Object*>(env, javaObj);
-  bool isStatic = (javaObj == NULL);
-  if (!isStatic) {
-    Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
-    if (!VerifyObjectInClass(env, o, declaringClass)) {
-      return;
-    }
+  Object* o = NULL;
+  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
+    return;
   }
 
   // Widen the value if necessary (and possible).
@@ -260,13 +262,9 @@ void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass java
   }
 
   // Check that the receiver is non-null and an instance of the field's declaring class.
-  Object* o = Decode<Object*>(env, javaObj);
-  bool isStatic = (javaObj == NULL);
-  if (!isStatic) {
-    Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
-    if (!VerifyObjectInClass(env, o, declaringClass)) {
-      return;
-    }
+  Object* o = NULL;
+  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
+    return;
   }
 
   SetFieldValue(o, f, unboxed_value, true);
@@ -274,15 +272,9 @@ void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass java
 
 jobject Field_getField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
-
-  // Check that the receiver is non-null and an instance of the field's declaring class.
-  Object* o = Decode<Object*>(env, javaObj);
-  bool isStatic = (javaObj == NULL);
-  if (!isStatic) {
-    Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
-    if (!VerifyObjectInClass(env, o, declaringClass)) {
-      return NULL;
-    }
+  Object* o = NULL;
+  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
+    return NULL;
   }
 
   // Get the field's value, boxing if necessary.

@@ -175,6 +175,8 @@ class SubOther extends OtherPackage {
             throw new RuntimeException(nsfe);
         }
 
+        Class<?> accessExceptionClass = null; // art deliberately doesn't throw IllegalAccessException.
+
         /*
          * Get a public field from a class in the same package.
          */
@@ -188,8 +190,7 @@ class SubOther extends OtherPackage {
         /*
          * Get a private field from a class in the same package.
          */
-        this.getValue(localPrivFloatField, samePkgInst, 'F',
-            IllegalAccessException.class);
+        this.getValue(localPrivFloatField, samePkgInst, 'F', accessExceptionClass);
 
         /*
          * Get a protected field from otherInst's superclass.
@@ -200,78 +201,51 @@ class SubOther extends OtherPackage {
          * of OtherPackage does not allow us to modify protected fields in
          * all other subclasses of OtherPackage.
          */
-        this.getValue(otherProtShortField, this, 'S',
-            null);
-        this.getValue(otherProtShortField, otherPkgInst, 'S',
-            IllegalAccessException.class);
-        this.getValue(otherPkgDoubleField, otherPkgInst, 'D',
-            IllegalAccessException.class);
+        this.getValue(otherProtShortField, this, 'S', null);
+        this.getValue(otherProtShortField, otherPkgInst, 'S', accessExceptionClass);
+        this.getValue(otherPkgDoubleField, otherPkgInst, 'D', accessExceptionClass);
 
         /*
-         * Null object.  Different exceptions based on which package
-         * we would be trying to access and whether or not our object
-         * has the correct type.
+         * Null object.
          */
-        localInst.getValue(localPubByteField, null, 'B',
-            NullPointerException.class);
+        localInst.getValue(localPubByteField, null, 'B', NullPointerException.class);
 
-        this.getValue(subProtLongField, null, 'J',
-            NullPointerException.class);
+        this.getValue(subProtLongField, null, 'J', NullPointerException.class);
 
-        this.getValue(localPrivFloatField, null, 'F',
-            IllegalAccessException.class);
+        this.getValue(localPrivFloatField, null, 'F', NullPointerException.class);
 
-        localInst.getValue(otherProtShortField, null, 'S',
-            IllegalAccessException.class);
-        this.getValue(otherProtShortField, null, 'S',
-            IllegalAccessException.class);
-        this.getValue(otherPkgDoubleField, null, 'D',
-            IllegalAccessException.class);
+        localInst.getValue(otherProtShortField, null, 'S', NullPointerException.class);
+        this.getValue(otherProtShortField, null, 'S', NullPointerException.class);
+        this.getValue(otherPkgDoubleField, null, 'D', NullPointerException.class);
 
-        localInst.getValue(otherProtShortField, null, 'Z',
-            IllegalAccessException.class);
-        /* -- Dalvik VM currently throws NPE
-        this.getValue(subProtLongField, null, 'Z',
-            IllegalArgumentException.class);
-        */
+        localInst.getValue(otherProtShortField, null, 'Z', NullPointerException.class);
+        this.getValue(subProtLongField, null, 'Z', NullPointerException.class);
 
         /*
          * Valid object, wrong field type.
          */
-        this.getValue(subProtLongField, this, 'J',
-            null);
-        this.getValue(localProtByteField, samePkgInst, 'Z',
-            IllegalArgumentException.class);
-        this.getValue(subProtLongField, this, 'Z',
-            IllegalArgumentException.class);
-        this.getValue(localPrivFloatField, this, 'Z',
-            IllegalAccessException.class);
-        this.getValue(localPrivFloatField, this, 'Z',
-            IllegalAccessException.class);
-        localInst.getValue(otherProtShortField, otherPkgInst, 'Z',
-            IllegalAccessException.class);
-        this.getValue(otherProtShortField, otherPkgInst, 'Z',
-            IllegalAccessException.class);
+        this.getValue(subProtLongField, this, 'J', null);
+        this.getValue(localProtByteField, samePkgInst, 'Z', IllegalArgumentException.class);
+        this.getValue(subProtLongField, this, 'Z', IllegalArgumentException.class);
+        this.getValue(localPrivFloatField, this, 'Z', IllegalArgumentException.class);
+        this.getValue(localPrivFloatField, this, 'Z', IllegalArgumentException.class);
+        localInst.getValue(otherProtShortField, otherPkgInst, 'Z', IllegalArgumentException.class);
+        this.getValue(otherProtShortField, otherPkgInst, 'Z', IllegalArgumentException.class);
 
         /*
          * Wrong object.
          */
-        this.getValue(subProtLongField, plainObj, 'J',
-            IllegalArgumentException.class);
+        this.getValue(subProtLongField, plainObj, 'J', IllegalArgumentException.class);
 
         /* wrong object + private field */
-        this.getValue(localPrivFloatField, plainObj, 'F',
-            IllegalAccessException.class);
+        this.getValue(localPrivFloatField, plainObj, 'F', IllegalArgumentException.class);
 
         /* wrong object + wrong field type */
-        this.getValue(subProtLongField, plainObj, 'Z',
-            IllegalArgumentException.class);
+        this.getValue(subProtLongField, plainObj, 'Z', IllegalArgumentException.class);
 
         /* wrong object + invalid access */
-        localInst.getValue(otherProtShortField, plainObj, 'S',
-            IllegalAccessException.class);
-        this.getValue(otherProtShortField, plainObj, 'S',
-            IllegalAccessException.class);
+        localInst.getValue(otherProtShortField, plainObj, 'S', IllegalArgumentException.class);
+        this.getValue(otherProtShortField, plainObj, 'S', IllegalArgumentException.class);
 
         System.out.println("good");
     }
