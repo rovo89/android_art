@@ -702,12 +702,12 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     cUnit.printMe = compiler.IsVerbose();
     cUnit.printMeVerbose = compiler.IsVerbose();
     cUnit.disableOpt = 0 |
-         //(1 << kTrackLiveTemps) |
-         //(1 << kLoadStoreElimination) |
-         //(1 << kLoadHoisting) |
-         //(1 << kSuppressLoads) |
-         //(1 << kNullCheckElimination) |
-         //(1 << kPromoteRegs) |
+         (1 << kTrackLiveTemps) |
+         (1 << kLoadStoreElimination) |
+         (1 << kLoadHoisting) |
+         (1 << kSuppressLoads) |
+         (1 << kNullCheckElimination) |
+         (1 << kPromoteRegs) |
          0;
 #endif
 
