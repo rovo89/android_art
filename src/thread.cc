@@ -214,12 +214,32 @@ Thread* Thread::FromManagedThread(JNIEnv* env, jobject java_thread) {
   return reinterpret_cast<Thread*>(static_cast<uintptr_t>(gThread_vmData->GetInt(thread)));
 }
 
-void Thread::Create(Object* peer, size_t stack_size) {
-  CHECK(peer != NULL);
-
+size_t FixStackSize(size_t stack_size) {
+  // A stack size of zero means "use the default".
   if (stack_size == 0) {
     stack_size = Runtime::Current()->GetDefaultStackSize();
   }
+
+  // It's not possible to request a stack smaller than the system-defined PTHREAD_STACK_MIN.
+  if (stack_size < PTHREAD_STACK_MIN) {
+    stack_size = PTHREAD_STACK_MIN;
+  }
+
+  // It's likely that callers are trying to ensure they have at least a certain amount of
+  // stack space, so we should add our reserved space on top of what they requested, rather
+  // than implicitly take it away from them.
+  stack_size += Thread::kStackOverflowReservedBytes;
+
+  // Some systems require the stack size to be a multiple of the system page size, so round up.
+  stack_size = RoundUp(stack_size, kPageSize);
+
+  return stack_size;
+}
+
+void Thread::Create(Object* peer, size_t stack_size) {
+  CHECK(peer != NULL);
+
+  stack_size = FixStackSize(stack_size);
 
   Thread* native_thread = new Thread;
   native_thread->peer_ = peer;
