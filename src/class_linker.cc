@@ -61,7 +61,7 @@ void ThrowNoSuchMethodError(const char* kind,
   if (dex_cache) {
     msg << " (defined in " << dex_cache->GetLocation()->ToModifiedUtf8() << ")";
   }
-  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", "%s", msg.str().c_str());
+  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
 
 void ThrowEarlierClassFailure(Class* c) {
@@ -76,7 +76,7 @@ void ThrowEarlierClassFailure(Class* c) {
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
     std::string error_descriptor(c->GetVerifyErrorClass()->GetDescriptor()->ToModifiedUtf8());
-    Thread::Current()->ThrowNewException(error_descriptor.c_str(), "%s",
+    Thread::Current()->ThrowNewException(error_descriptor.c_str(),
         PrettyDescriptor(c->GetDescriptor()).c_str());
   } else {
     ThrowNoClassDefFoundError("%s", PrettyDescriptor(c->GetDescriptor()).c_str());
@@ -816,7 +816,7 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
     if (!klass->IsResolved() && klass->GetClinitThreadId() == self->GetTid()) {
-      self->ThrowNewException("Ljava/lang/ClassCircularityError;", "%s",
+      self->ThrowNewException("Ljava/lang/ClassCircularityError;",
           PrettyDescriptor(klass->GetDescriptor()).c_str());
       return NULL;
     }
@@ -1416,7 +1416,7 @@ bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock&
     // "interruptShouldThrow" was set), bail out.
     if (self->IsExceptionPending()) {
       // TODO: set cause of ExceptionInInitializerError to self->GetException()
-      self->ThrowNewException("Ljava/lang/ExceptionInInitializerError;",
+      self->ThrowNewExceptionF("Ljava/lang/ExceptionInInitializerError;",
           "Exception %s thrown while initializing class %s",
           PrettyTypeOf(self->GetException()).c_str(),
           PrettyDescriptor(klass->GetDescriptor()).c_str());
@@ -1430,7 +1430,7 @@ bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock&
     if (klass->IsErroneous()) {
       // The caller wants an exception, but it was thrown in a
       // different thread.  Synthesize one here.
-      self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
+      self->ThrowNewExceptionF("Ljava/lang/NoClassDefFoundError;",
           "<clinit> failed for class %s; see exception in other thread",
           PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
@@ -1722,7 +1722,7 @@ bool ClassLinker::LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file) 
     // Verify
     if (!klass->CanAccess(interface)) {
       // TODO: the RI seemed to ignore this in my testing.
-      Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
           "Interface %s implemented by class %s is inaccessible",
           PrettyDescriptor(interface->GetDescriptor()).c_str(),
           PrettyDescriptor(klass->GetDescriptor()).c_str());
@@ -1739,7 +1739,7 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   Class* super = klass->GetSuperClass();
   if (klass->GetDescriptor()->Equals("Ljava/lang/Object;")) {
     if (super != NULL) {
-      Thread::Current()->ThrowNewException("Ljava/lang/ClassFormatError;",
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassFormatError;",
           "java.lang.Object must not have a superclass");
       return false;
     }
@@ -1753,7 +1753,7 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   }
   // Verify
   if (super->IsFinal() || super->IsInterface()) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
         "Superclass %s of %s is %s",
         PrettyDescriptor(super->GetDescriptor()).c_str(),
         PrettyDescriptor(klass->GetDescriptor()).c_str(),
@@ -1761,7 +1761,7 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
     return false;
   }
   if (!klass->CanAccess(super)) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
         "Superclass %s is inaccessible by %s",
         PrettyDescriptor(super->GetDescriptor()).c_str(),
         PrettyDescriptor(klass->GetDescriptor()).c_str());
@@ -1894,7 +1894,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     Class* interface = klass->GetInterface(i);
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
-      Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
           "Class %s implements non-interface class %s",
           PrettyDescriptor(klass->GetDescriptor()).c_str(),
           PrettyDescriptor(interface->GetDescriptor()).c_str());
@@ -1936,7 +1936,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
         Method* vtable_method = vtable->Get(k);
         if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
           if (!vtable_method->IsPublic()) {
-            Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+            Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                 "Implementation not public: %s", PrettyMethod(vtable_method).c_str());
             return false;
           }
@@ -2250,7 +2250,7 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
       Class* check = resolved->IsArrayClass() ? resolved->GetComponentType() : resolved;
       if (dex_cache != check->GetDexCache()) {
         if (check->GetClassLoader() != NULL) {
-          Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;",
+          Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
               "Class with type index %d resolved by unexpected .dex", type_idx);
           resolved = NULL;
         }

@@ -360,7 +360,10 @@ class PACKED Thread {
     top_of_managed_stack_pc_ = pc;
   }
 
-  void ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...)
+  // 'msg' may be NULL.
+  void ThrowNewException(const char* exception_class_descriptor, const char* msg);
+
+  void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__ ((format(printf, 3, 4)));
 
   void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap);

@@ -106,7 +106,8 @@ namespace {
 
 void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) {
   std::string actualType(PrettyTypeOf(array));
-  Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;", "%s is not an array: %s", identifier, actualType.c_str());
+  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
+      "%s is not an array: %s", identifier, actualType.c_str());
 }
 
 void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
@@ -140,7 +141,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
 
   // Bounds checking.
   if (srcPos < 0 || dstPos < 0 || length < 0 || srcPos > srcArray->GetLength() - length || dstPos > dstArray->GetLength() - length) {
-    self->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+    self->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
         "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
         srcArray->GetLength(), srcPos, dstArray->GetLength(), dstPos, length);
     return;
@@ -155,7 +156,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
     if (srcComponentType->IsPrimitive() != dstComponentType->IsPrimitive() || srcComponentType != dstComponentType) {
       std::string srcType(PrettyTypeOf(srcArray));
       std::string dstType(PrettyTypeOf(dstArray));
-      self->ThrowNewException("Ljava/lang/ArrayStoreException;",
+      self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
           "Incompatible types: src=%s, dst=%s", srcType.c_str(), dstType.c_str());
       return;
     }
@@ -231,7 +232,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   if (copyCount != length) {
     std::string actualSrcType(PrettyTypeOf(srcObj[copyCount]));
     std::string dstType(PrettyTypeOf(dstArray));
-    self->ThrowNewException("Ljava/lang/ArrayStoreException;",
+    self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "source[%d] of type %s cannot be stored in destination array of type %s",
         srcPos + copyCount, actualSrcType.c_str(), dstType.c_str());
     return;

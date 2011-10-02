@@ -1360,9 +1360,17 @@ TEST_F(JniInternalTest, ThrowNew) {
   jclass exception_class = env_->FindClass("java/lang/RuntimeException");
   ASSERT_TRUE(exception_class != NULL);
 
+  jthrowable thrown_exception;
+
   EXPECT_EQ(JNI_OK, env_->ThrowNew(exception_class, "hello world"));
   EXPECT_TRUE(env_->ExceptionCheck());
-  jthrowable thrown_exception = env_->ExceptionOccurred();
+  thrown_exception = env_->ExceptionOccurred();
+  env_->ExceptionClear();
+  EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, exception_class));
+
+  EXPECT_EQ(JNI_OK, env_->ThrowNew(exception_class, NULL));
+  EXPECT_TRUE(env_->ExceptionCheck());
+  thrown_exception = env_->ExceptionOccurred();
   env_->ExceptionClear();
   EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, exception_class));
 }

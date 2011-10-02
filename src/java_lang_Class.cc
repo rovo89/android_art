@@ -38,7 +38,7 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   // is especially handy for array types, since we want to avoid
   // auto-generating bogus array classes.
   if (!IsValidClassName(name.c_str(), true, true)) {
-    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassNotFoundException;",
         "Invalid name: %s", name.c_str());
     return NULL;
   }
@@ -53,8 +53,7 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
     // TODO: chain exceptions?
     DCHECK(env->ExceptionCheck());
     env->ExceptionClear();
-    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;",
-                                         "%s", name.c_str());
+    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;", name.c_str());
     return NULL;
   }
   if (initialize) {
@@ -373,7 +372,7 @@ bool CheckMemberAccess(const Class* access_from, const Class* access_to, uint32_
 jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
-    Thread::Current()->ThrowNewException("Ljava/lang/InstantiationException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s can not be instantiated", PrettyDescriptor(c->GetDescriptor()).c_str());
     return NULL;
   }
@@ -384,7 +383,7 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
   Method* init = c->FindDirectMethod("<init>", "()V");
   if (init == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/InstantiationException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s has no default <init>()V constructor", PrettyDescriptor(c->GetDescriptor()).c_str());
     return NULL;
   }
@@ -405,17 +404,17 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   Class* caller_class = caller_caller->GetDeclaringClass();
 
   if (!caller_class->CanAccess(c)) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessException;",
-                                         "Class %s is not accessible from class %s",
-                                         PrettyDescriptor(c->GetDescriptor()).c_str(),
-                                         PrettyDescriptor(caller_class->GetDescriptor()).c_str());
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
+        "Class %s is not accessible from class %s",
+        PrettyDescriptor(c->GetDescriptor()).c_str(),
+        PrettyDescriptor(caller_class->GetDescriptor()).c_str());
     return NULL;
   }
   if (!CheckMemberAccess(caller_class, init->GetDeclaringClass(), init->GetAccessFlags())) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessException;",
-                                         "%s is not accessible from class %s",
-                                         PrettyMethod(init).c_str(),
-                                         PrettyDescriptor(caller_class->GetDescriptor()).c_str());
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
+        "%s is not accessible from class %s",
+        PrettyMethod(init).c_str(),
+        PrettyDescriptor(caller_class->GetDescriptor()).c_str());
     return NULL;
   }
 

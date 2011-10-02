@@ -56,7 +56,7 @@ jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementCla
     return NULL;
   }
   if (length < 0) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d", length);
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
     return NULL;
   }
 

@@ -1225,13 +1225,13 @@ Array* Array::Alloc(Class* array_class, int32_t component_count) {
 }
 
 bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
-  Thread::Current()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
       "length=%i; index=%i", length_, index);
   return false;
 }
 
 bool Array::ThrowArrayStoreException(Object* object) const {
-  Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;",
+  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
       "Can't store an element of type %s into an array of type %s",
       PrettyTypeOf(object).c_str(), PrettyTypeOf(this).c_str());
   return false;
@@ -1296,7 +1296,7 @@ uint16_t String::CharAt(int32_t index) const {
   // bounds check itself.
   if (index < 0 || index >= count_) {
     Thread* self = Thread::Current();
-    self->ThrowNewException("Ljava/lang/StringIndexOutOfBoundsException;",
+    self->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
         "length=%i; index=%i", count_, index);
     return 0;
   }

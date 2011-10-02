@@ -83,7 +83,7 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* thread, Method** sp
   // Place a special frame at the TOS that will save all callee saves
   *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewException("Ljava/lang/NullPointerException;", "unexpected null reference");
+  thread->ThrowNewException("Ljava/lang/NullPointerException;", NULL);
   thread->DeliverException();
 }
 
@@ -101,8 +101,8 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
   // Place a special frame at the TOS that will save all callee saves
   *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
-                            "length=%d; index=%d", limit, index);
+  thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;", "length=%d; index=%d",
+      limit, index);
   thread->DeliverException();
 }
 
@@ -110,9 +110,8 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp) {
   *sp = Runtime::Current()->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewException("Ljava/lang/AbstractMethodError;",
-                            "abstract method \"%s\"",
-                            PrettyMethod(method).c_str());
+  thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;", "abstract method \"%s\"",
+      PrettyMethod(method).c_str());
   thread->DeliverException();
 }
 
@@ -122,9 +121,9 @@ extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Me
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
-  thread->ThrowNewException("Ljava/lang/StackOverflowError;",
-                            "stack size %zdkb; default stack size: %zdkb",
-                            thread->GetStackSize() / KB, runtime->GetDefaultStackSize() / KB);
+  thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;",
+      "stack size %zdkb; default stack size: %zdkb",
+      thread->GetStackSize() / KB, runtime->GetDefaultStackSize() / KB);
   thread->ResetDefaultStackEnd();  // Return to default stack size
   thread->DeliverException();
 }
@@ -135,8 +134,8 @@ extern "C" void artThrowVerificationErrorFromCode(int32_t src1, int32_t ref, Thr
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   LOG(WARNING) << "TODO: verifcation error detail message. src1=" << src1 << " ref=" << ref;
-  thread->ThrowNewException("Ljava/lang/VerifyError;",
-                            "TODO: verifcation error detail message. src1=%d; ref=%d", src1, ref);
+  thread->ThrowNewExceptionF("Ljava/lang/VerifyError;",
+      "TODO: verification error detail message. src1=%d; ref=%d", src1, ref);
   thread->DeliverException();
 }
 
@@ -146,7 +145,7 @@ extern "C" void artThrowInternalErrorFromCode(int32_t errnum, Thread* thread, Me
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   LOG(WARNING) << "TODO: internal error detail message. errnum=" << errnum;
-  thread->ThrowNewException("Ljava/lang/InternalError;", "errnum=%d", errnum);
+  thread->ThrowNewExceptionF("Ljava/lang/InternalError;", "errnum=%d", errnum);
   thread->DeliverException();
 }
 
@@ -156,7 +155,7 @@ extern "C" void artThrowRuntimeExceptionFromCode(int32_t errnum, Thread* thread,
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   LOG(WARNING) << "TODO: runtime exception detail message. errnum=" << errnum;
-  thread->ThrowNewException("Ljava/lang/RuntimeException;", "errnum=%d", errnum);
+  thread->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "errnum=%d", errnum);
   thread->DeliverException();
 }
 
@@ -166,7 +165,7 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* thread,
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
   LOG(WARNING) << "TODO: no such method exception detail message. method_idx=" << method_idx;
-  thread->ThrowNewException("Ljava/lang/NoSuchMethodError;", "method_idx=%d", method_idx);
+  thread->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;", "method_idx=%d", method_idx);
   thread->DeliverException();
 }
 
@@ -176,7 +175,7 @@ extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Metho
   Runtime* runtime = Runtime::Current();
   *sp = runtime->GetCalleeSaveMethod();
   thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d", size);
+  thread->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", size);
   thread->DeliverException();
 }
 
@@ -226,7 +225,7 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method) {
 extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* method,
                                                 int32_t component_count) {
   if (component_count < 0) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);
     return NULL;  // Failure
   }
@@ -240,11 +239,11 @@ extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* metho
   }
   if (klass->IsPrimitive() && !klass->IsPrimitiveInt()) {
     if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
-      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
           "Bad filled array request for type %s",
           PrettyDescriptor(klass->GetDescriptor()).c_str());
     } else {
-      Thread::Current()->ThrowNewException("Ljava/lang/InternalError;",
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/InternalError;",
           "Found type %s; filled-new-array not implemented for anything but \'int\'",
           PrettyDescriptor(klass->GetDescriptor()).c_str());
     }
@@ -259,7 +258,7 @@ extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* metho
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 extern "C" Array* artArrayAllocFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
   if (component_count < 0) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NegativeArraySizeException;", "%d",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);
     return NULL;  // Failure
   }
@@ -282,7 +281,7 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
   if (b->IsAssignableFrom(a)) {
     return 0;  // Success
   } else {
-    Thread::Current()->ThrowNewException("Ljava/lang/ClassCastException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
         "%s cannot be cast to %s",
         PrettyDescriptor(a->GetDescriptor()).c_str(),
         PrettyDescriptor(b->GetDescriptor()).c_str());
@@ -300,7 +299,7 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
   if (component_type->IsAssignableFrom(element_class)) {
     return 0;  // Success
   } else {
-    Thread::Current()->ThrowNewException("Ljava/lang/ArrayStoreException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "Cannot store an object of type %s in to an array of type %s",
         PrettyDescriptor(element_class->GetDescriptor()).c_str(),
         PrettyDescriptor(array_class->GetDescriptor()).c_str());
@@ -343,16 +342,15 @@ extern "C" void artCheckSuspendFromCode(Thread* thread) {
 extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* table) {
   DCHECK_EQ(table[0], 0x0300);
   if (array == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;",
-                                         "null array in fill array");
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
+        "null array in fill array");
     return -1;  // Error
   }
   DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
   uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
   if (static_cast<int32_t>(size) > array->GetLength()) {
-    Thread::Current()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
-                                         "failed array fill. length=%d; index=%d",
-                                         array->GetLength(), size);
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
+        "failed array fill. length=%d; index=%d", array->GetLength(), size);
     return -1;  // Error
   }
   uint16_t width = table[1];
@@ -367,8 +365,8 @@ extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
                                                           Method* caller_method) {
   Thread* thread = Thread::Current();
   if (this_object == NULL) {
-    thread->ThrowNewException("Ljava/lang/NullPointerException;",
-                              "null receiver during interface dispatch");
+    thread->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
+        "null receiver during interface dispatch");
     return 0;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

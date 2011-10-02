@@ -367,7 +367,7 @@ void Monitor::Lock(Thread* self) {
 }
 
 void ThrowIllegalMonitorStateException(const char* msg) {
-  Thread::Current()->ThrowNewException("Ljava/lang/IllegalMonitorStateException;", "%s", msg);
+  Thread::Current()->ThrowNewException("Ljava/lang/IllegalMonitorStateException;", msg);
 }
 
 bool Monitor::Unlock(Thread* self) {
@@ -469,7 +469,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
 
   // Enforce the timeout range.
   if (ms < 0 || ns < 0 || ns > 999999) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "timeout arguments out of range: ms=%lld ns=%d", ms, ns);
     return;
   }
@@ -582,7 +582,7 @@ done:
      */
     self->interrupted_ = false;
     if (interruptShouldThrow) {
-      Thread::Current()->ThrowNewException("Ljava/lang/InterruptedException;", "%s", "");
+      Thread::Current()->ThrowNewException("Ljava/lang/InterruptedException;", NULL);
     }
   }
 }

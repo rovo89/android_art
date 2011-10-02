@@ -66,7 +66,7 @@ bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
     // Never okay.
     break;
   }
-  Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
       "Not a primitive field: %s", PrettyField(f).c_str());
   return false;
 }
@@ -165,7 +165,7 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
     // Else fall through to report an error.
   case Class::kPrimVoid:
     // Never okay.
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "Not a primitive field: %s", PrettyField(f).c_str());
     return;
   }

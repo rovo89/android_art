@@ -253,7 +253,7 @@ std::string NormalizeJniClassDescriptor(const char* name) {
 
 void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const char* name, const char* sig, const char* kind) {
   std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-  ts.Self()->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+  ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
       "no %s method \"%s.%s%s\"", kind, class_descriptor.c_str(), name, sig);
 }
 
@@ -306,7 +306,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
     DCHECK(ts.Self()->IsExceptionPending());
     ts.Self()->ClearException();
     std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-    ts.Self()->ThrowNewException("Ljava/lang/NoSuchFieldError;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
         "no type \"%s\" found and so no field \"%s\" could be found in class "
         "\"%s\" or its superclasses", sig, name, class_descriptor.c_str());
     return NULL;
@@ -318,7 +318,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   }
   if (field == NULL) {
     std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
-    ts.Self()->ThrowNewException("Ljava/lang/NoSuchFieldError;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
         "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
         name, class_descriptor.c_str());
     return NULL;
@@ -366,12 +366,12 @@ void ReleasePrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jint mod
 
 void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize length, const char* identifier) {
   std::string type(PrettyTypeOf(array));
-  ts.Self()->ThrowNewException("Ljava/lang/ArrayIndexOutOfBoundsException;",
+  ts.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
       "%s offset=%d length=%d %s.length=%d",
       type.c_str(), start, length, identifier, array->GetLength());
 }
 void ThrowSIOOBE(ScopedJniThreadState& ts, jsize start, jsize length, jsize array_length) {
-  ts.Self()->ThrowNewException("Ljava/lang/StringIndexOutOfBoundsException;",
+  ts.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
       "offset=%d length=%d string.length()=%d", start, length, array_length);
 }
 
@@ -697,7 +697,7 @@ class JNI {
       return JNI_ERR;
     }
     ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg));
-    if (s.get() == NULL) {
+    if (msg != NULL && s.get() == NULL) {
       return JNI_ERR;
     }
 
@@ -708,8 +708,6 @@ class JNI {
       return JNI_ERR;
     }
 
-    LOG(INFO) << "Throwing " << PrettyTypeOf(Decode<Throwable*>(ts, exception.get()))
-              << ": " << msg;
     ts.Self()->SetException(Decode<Throwable*>(ts, exception.get()));
 
     return JNI_OK;
@@ -2824,7 +2822,7 @@ void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
   }
   // throwing can cause libraries_lock to be reacquired
   if (native_method == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", "%s", detail.c_str());
+    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;
 }

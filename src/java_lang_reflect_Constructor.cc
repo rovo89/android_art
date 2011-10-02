@@ -35,7 +35,7 @@ namespace {
 jobject Constructor_constructNative(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs, jclass javaDeclaringClass, jobjectArray javaParams, jint, jboolean) {
   Class* c = Decode<Class*>(env, javaDeclaringClass);
   if (c->IsAbstract()) {
-    Thread::Current()->ThrowNewException("Ljava/lang/InstantiationException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Can't instantiate abstract class %s", PrettyDescriptor(c->GetDescriptor()).c_str());
     return NULL;
   }

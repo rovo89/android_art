@@ -1076,7 +1076,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   return result;
 }
 
-void Thread::ThrowNewException(const char* exception_class_descriptor, const char* fmt, ...) {
+void Thread::ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowNewExceptionV(exception_class_descriptor, fmt, args);
@@ -1086,7 +1086,10 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
 void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap) {
   std::string msg;
   StringAppendV(&msg, fmt, ap);
+  ThrowNewException(exception_class_descriptor, msg.c_str());
+}
 
+void Thread::ThrowNewException(const char* exception_class_descriptor, const char* msg) {
   // Convert "Ljava/lang/Exception;" into JNI-style "java/lang/Exception".
   CHECK_EQ('L', exception_class_descriptor[0]);
   std::string descriptor(exception_class_descriptor + 1);
@@ -1096,7 +1099,7 @@ void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const ch
   JNIEnv* env = GetJniEnv();
   jclass exception_class = env->FindClass(descriptor.c_str());
   CHECK(exception_class != NULL) << "descriptor=\"" << descriptor << "\"";
-  int rc = env->ThrowNew(exception_class, msg.c_str());
+  int rc = env->ThrowNew(exception_class, msg);
   CHECK_EQ(rc, JNI_OK);
   env->DeleteLocalRef(exception_class);
 }

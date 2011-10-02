@@ -77,7 +77,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   ObjectArray<Class>* classes = Decode<ObjectArray<Class>*>(env, javaParams);
   int32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
   if (arg_count != classes->GetLength()) {
-    self->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+    self->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "wrong number of arguments; expected %d, got %d",
         classes->GetLength(), arg_count);
     return NULL;
@@ -219,7 +219,7 @@ bool ConvertPrimitiveValue(Class* src_class, Class* dst_class, const JValue& src
   default:
     break;
   }
-  Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
       "invalid primitive conversion from %s to %s",
       PrettyDescriptor(src_class->GetDescriptor()).c_str(),
       PrettyDescriptor(dst_class->GetDescriptor()).c_str());
@@ -333,7 +333,7 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
     src_class = class_linker->FindPrimitiveClass('S');
     boxed_value.s = primitive_field->GetShort(o);
   } else {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "%s is not a boxed primitive type", PrettyDescriptor(src_descriptor).c_str());
     return false;
   }
