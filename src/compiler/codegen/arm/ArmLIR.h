@@ -99,6 +99,8 @@
 #define FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
 #define FP_DOUBLE 64
+/* First FP callee save */
+#define FP_CALLEE_SAVE_BASE 16
 /* Reg types */
 #define REGTYPE(x) (x & (FP_REG_OFFSET | FP_DOUBLE))
 #define FPREG(x) ((x & FP_REG_OFFSET) == FP_REG_OFFSET)

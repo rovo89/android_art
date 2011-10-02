@@ -233,7 +233,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
 
     cUnit->coreSpillMask = 0;
     cUnit->fpSpillMask = 0;
-    cUnit->numSpills = 0;
+    cUnit->numCoreSpills = 0;
 
     oatDoPromotion(cUnit);
 
@@ -247,9 +247,10 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     cUnit->numRegs = cUnit->method->NumRegisters() - cUnit->numIns;
     cUnit->numOuts = cUnit->method->NumOuts();
     cUnit->numPadding = (STACK_ALIGN_WORDS -
-        (cUnit->numSpills + cUnit->numRegs +
+        (cUnit->numCoreSpills + cUnit->numFPSpills + cUnit->numRegs +
          cUnit->numOuts + 2)) & (STACK_ALIGN_WORDS-1);
-    cUnit->frameSize = (cUnit->numSpills + cUnit->numRegs + cUnit->numOuts +
+    cUnit->frameSize = (cUnit->numCoreSpills + cUnit->numFPSpills +
+                        cUnit->numRegs + cUnit->numOuts +
                         cUnit->numPadding + 2) * 4;
     cUnit->insOffset = cUnit->frameSize + 4;
     cUnit->regsOffset = (cUnit->numOuts + cUnit->numPadding + 1) * 4;

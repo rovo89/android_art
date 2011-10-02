@@ -75,7 +75,7 @@ STATIC ArmLIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest,
     loadPcRel->operands[1] = r15pc;
     setupResourceMasks(loadPcRel);
     setMemRefType(loadPcRel, true, kLiteral);
-    loadPcRel->aliasInfo = dataTarget->operands[0];
+    loadPcRel->aliasInfo = (intptr_t)dataTarget;
     oatAppendLIR(cUnit, (LIR* ) loadPcRel);
     return loadPcRel;
 }
@@ -183,7 +183,7 @@ STATIC ArmLIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest,
     loadPcRel->operands[0] = rDest;
     setupResourceMasks(loadPcRel);
     setMemRefType(loadPcRel, true, kLiteral);
-    loadPcRel->aliasInfo = dataTarget->operands[0];
+    loadPcRel->aliasInfo = (intptr_t)dataTarget;
     res = loadPcRel;
     oatAppendLIR(cUnit, (LIR* ) loadPcRel);
 
@@ -661,7 +661,7 @@ STATIC ArmLIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo,
             loadPcRel->operands[1] = r15pc;
             setupResourceMasks(loadPcRel);
             setMemRefType(loadPcRel, true, kLiteral);
-            loadPcRel->aliasInfo = dataTarget->operands[0];
+            loadPcRel->aliasInfo = (intptr_t)dataTarget;
             oatAppendLIR(cUnit, (LIR* ) loadPcRel);
             res = loadPcRel;
         }

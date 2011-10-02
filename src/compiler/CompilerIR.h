@@ -266,7 +266,7 @@ typedef struct CompilationUnit {
     int numIns;
     int numOuts;
     int numRegs;            // Unlike struct Method, does not include ins
-    int numSpills;          // NOTE: includes numFPSpills
+    int numCoreSpills;
     int numFPSpills;
     int numPadding;         // # of 4-byte padding cells
     int regsOffset;         // sp-relative offset to beginning of Dalvik regs

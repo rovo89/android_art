@@ -404,7 +404,8 @@ void oatCodegenDump(CompilationUnit* cUnit)
     LOG(INFO) << "Regs (excluding ins) : " << cUnit->numRegs;
     LOG(INFO) << "Ins                  : " << cUnit->numIns;
     LOG(INFO) << "Outs                 : " << cUnit->numOuts;
-    LOG(INFO) << "Spills               : " << cUnit->numSpills;
+    LOG(INFO) << "CoreSpills           : " << cUnit->numCoreSpills;
+    LOG(INFO) << "FPSpills             : " << cUnit->numFPSpills;
     LOG(INFO) << "Padding              : " << cUnit->numPadding;
     LOG(INFO) << "Frame size           : " << cUnit->frameSize;
     LOG(INFO) << "Start of ins         : " << cUnit->insOffset;
