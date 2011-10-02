@@ -178,6 +178,15 @@ jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   return Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache).GetDexObject(env);
 }
 
+jint Class_getModifiers(JNIEnv* env, jclass, jclass javaClass, jboolean ignoreInner) {
+  Class* c = Decode<Class*>(env, javaClass);
+  jint flags = c->GetAccessFlags() & kAccJavaFlagsMask;
+  if (!ignoreInner) {
+    UNIMPLEMENTED(WARNING) << "inner class modifiers";
+  }
+  return flags;
+}
+
 jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
   Object* result = reinterpret_cast<Object*>(const_cast<ClassLoader*>(c->GetClassLoader()));
@@ -443,7 +452,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
   //NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
-  //NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),
+  NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
