@@ -15,16 +15,14 @@
 
 // Determine whether or not the specified method is public.
 static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
-  ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(clazz,
-      method_id, JNI_FALSE));
+  ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(clazz, method_id, JNI_FALSE));
   if (reflected.get() == NULL) {
     fprintf(stderr, "Unable to get reflected method\n");
     return false;
   }
   // We now have a Method instance.  We need to call its
   // getModifiers() method.
-  ScopedLocalRef<jclass> method(env,
-      env->FindClass("java/lang/reflect/Method"));
+  ScopedLocalRef<jclass> method(env, env->FindClass("java/lang/reflect/Method"));
   if (method.get() == NULL) {
     fprintf(stderr, "Unable to find class Method\n");
     return false;
@@ -82,7 +80,11 @@ static int InvokeMain(JNIEnv* env, int argc, char** argv) {
 
   // Invoke main().
   env->CallStaticVoidMethod(klass.get(), method, args.get());
-  return EXIT_SUCCESS;
+
+  // Check whether there was an uncaught exception. We don't log any uncaught exception here;
+  // detaching this thread will do that for us, but it will clear the exception (and invalidate
+  // our JNIEnv), so we need to check here.
+  return env->ExceptionCheck() ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 // Parse arguments.  Most of it just gets passed through to the VM.
