@@ -5,6 +5,8 @@
  */
 public class Main {
     public static void main(String[] args) {
+        System.out.println("Initializing System.out...");
+
         for (int i = 0; i < 512; i++) {
             MyThread myThread = new MyThread();
             myThread.start();

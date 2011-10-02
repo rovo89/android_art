@@ -1,3 +1,4 @@
+Initializing System.out...
 running 0
 running 1
 running 2
