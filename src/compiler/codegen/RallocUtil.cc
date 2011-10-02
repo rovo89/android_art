@@ -227,7 +227,7 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
             coreRegs[i].inUse = true;
             cUnit->coreSpillMask |= (1 << res);
             cUnit->coreVmapTable.push_back(sReg);
-            cUnit->numSpills++;
+            cUnit->numCoreSpills++;
             cUnit->regLocation[sReg].location = kLocPhysReg;
             cUnit->regLocation[sReg].lowReg = res;
             cUnit->regLocation[sReg].home = true;
@@ -235,6 +235,28 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
         }
     }
     return res;
+}
+
+/*
+ * Mark a callee-save fp register as promoted.  Note that
+ * vpush/vpop uses contiguous register lists so we must
+ * include any holes in the mask.  Associate holes with
+ * Dalvik register INVALID_REG (-1).
+ */
+STATIC void markPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
+{
+    DCHECK_GE(reg, FP_REG_MASK + FP_CALLEE_SAVE_BASE);
+    reg = (reg & FP_REG_MASK) - FP_CALLEE_SAVE_BASE;
+    // Ensure fpVmapTable is large enough
+    int tableSize = cUnit->fpVmapTable.size();
+    for (int i = tableSize; i < (reg + 1); i++) {
+        cUnit->fpVmapTable.push_back(INVALID_REG);
+    }
+    // Add the current mapping
+    cUnit->fpVmapTable[reg] = sReg;
+    // Size of fpVmapTable is high-water mark, use to set mask
+    cUnit->numFPSpills = cUnit->fpVmapTable.size();
+    cUnit->fpSpillMask = ((1 << cUnit->numFPSpills) - 1) << FP_CALLEE_SAVE_BASE;
 }
 
 /*
@@ -251,10 +273,7 @@ STATIC int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
             ((FPRegs[i].reg & 0x1) == 0) == even) {
             res = FPRegs[i].reg;
             FPRegs[i].inUse = true;
-            cUnit->fpSpillMask |= (1 << (res & FP_REG_MASK));
-            cUnit->fpVmapTable.push_back(sReg);
-            cUnit->numSpills++;
-            cUnit->numFPSpills++;
+            markPreservedSingle(cUnit, sReg, res);
             cUnit->regLocation[sReg].fpLocation = kLocPhysReg;
             cUnit->regLocation[sReg].fpLowReg = res;
             cUnit->regLocation[sReg].home = true;
@@ -292,10 +311,7 @@ STATIC int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
         res = p->reg;
         p->inUse = true;
         DCHECK_EQ((res & 1), 0);
-        cUnit->fpSpillMask |= (1 << (res & FP_REG_MASK));
-        cUnit->fpVmapTable.push_back(sReg);
-        cUnit->numSpills++;
-        cUnit->numFPSpills ++;
+        markPreservedSingle(cUnit, sReg, res);
     } else {
         RegisterInfo* FPRegs = cUnit->regPool->FPRegs;
         for (int i = 0; i < cUnit->regPool->numFPRegs; i++) {
@@ -306,13 +322,10 @@ STATIC int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
                 (FPRegs[i].reg + 1) == FPRegs[i+1].reg) {
                 res = FPRegs[i].reg;
                 FPRegs[i].inUse = true;
-                cUnit->fpSpillMask |= (1 << (res & FP_REG_MASK));
-                cUnit->fpVmapTable.push_back(sReg);
+                markPreservedSingle(cUnit, sReg, res);
                 FPRegs[i+1].inUse = true;
-                cUnit->fpSpillMask |= (1 << ((res+1) & FP_REG_MASK));
-                cUnit->fpVmapTable.push_back(sReg);
-                cUnit->numSpills += 2;
-                cUnit->numFPSpills += 2;
+                DCHECK_EQ(res + 1, FPRegs[i+1].reg);
+                markPreservedSingle(cUnit, sReg+1, res+1);
                 break;
             }
         }

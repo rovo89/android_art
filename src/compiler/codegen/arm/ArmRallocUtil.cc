@@ -136,7 +136,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
      * machinery is in place, always spill lr.
      */
     cUnit->coreSpillMask |= (1 << rLR);
-    cUnit->numSpills++;
+    cUnit->numCoreSpills++;
     /*
      * Simple hack for testing register allocation.  Just do a static
      * count of the uses of Dalvik registers.  Note that we examine

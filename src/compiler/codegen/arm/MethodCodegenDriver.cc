@@ -1853,6 +1853,7 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 
     ArmLIR* headLIR = NULL;
 
+    int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
     if (bb->blockType == kEntryBlock) {
         /*
          * On entry, r0, r1, r2 & r3 are live.  Let the register allocation
@@ -1882,17 +1883,22 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
         /* Need to spill any FP regs? */
         if (cUnit->numFPSpills) {
+            /*
+             * NOTE: fp spills are a little different from core spills in that
+             * they are pushed as a contiguous block.  When promoting from
+             * the fp set, we must allocate all singles from s16..highest-promoted
+             */
             newLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
         }
         if (!skipOverflowCheck) {
             opRegRegImm(cUnit, kOpSub, rLR, rSP,
-                        cUnit->frameSize - (cUnit->numSpills * 4));
+                        cUnit->frameSize - (spillCount * 4));
             genRegRegCheck(cUnit, kArmCondCc, rLR, r12, NULL,
                            kArmThrowStackOverflow);
             genRegCopy(cUnit, rSP, rLR);         // Establish stack
         } else {
             opRegImm(cUnit, kOpSub, rSP,
-                     cUnit->frameSize - (cUnit->numSpills * 4));
+                     cUnit->frameSize - (spillCount * 4));
         }
         storeBaseDisp(cUnit, rSP, 0, r0, kWord);
         flushIns(cUnit);
@@ -1902,7 +1908,7 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         oatFreeTemp(cUnit, r3);
     } else if (bb->blockType == kExitBlock) {
         newLIR0(cUnit, kArmPseudoMethodExit);
-        opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (cUnit->numSpills * 4));
+        opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (spillCount * 4));
         /* Need to restore any FP callee saves? */
         if (cUnit->numFPSpills) {
             newLIR1(cUnit, kThumb2VPopCS, cUnit->numFPSpills);
@@ -2121,7 +2127,8 @@ STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowStackOverflowFromCode);
                 // Restore stack alignment
-                opRegImm(cUnit, kOpAdd, rSP, cUnit->numSpills * 4);
+                opRegImm(cUnit, kOpAdd, rSP,
+                         (cUnit->numCoreSpills + cUnit->numFPSpills) * 4);
                 break;
             default:
                 LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
