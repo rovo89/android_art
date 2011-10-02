@@ -30,9 +30,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     return false;
   }
   static const int PUBLIC = 0x0001;   // java.lang.reflect.Modifiers.PUBLIC
-  jmethodID get_modifiers = env->GetMethodID(method.get(),
-                                             "getModifiers",
-                                             "()I");
+  jmethodID get_modifiers = env->GetMethodID(method.get(), "getModifiers", "()I");
   if (get_modifiers == NULL) {
     fprintf(stderr, "Unable to find reflect.Method.getModifiers\n");
     return false;
@@ -44,13 +42,14 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
   return true;
 }
 
-static void InvokeMain(JNIEnv* env, int argc, char** argv) {
+static int InvokeMain(JNIEnv* env, int argc, char** argv) {
   // We want to call main() with a String array with our arguments in
   // it.  Create an array and populate it.  Note argv[0] is not
   // included.
   ScopedLocalRef<jobjectArray> args(env, toStringArray(env, argv + 1));
   if (args.get() == NULL) {
-    return;
+    env->ExceptionDescribe();
+    return EXIT_FAILURE;
   }
 
   // Find [class].main(String[]).
@@ -62,27 +61,28 @@ static void InvokeMain(JNIEnv* env, int argc, char** argv) {
   ScopedLocalRef<jclass> klass(env, env->FindClass(class_name.c_str()));
   if (klass.get() == NULL) {
     fprintf(stderr, "Unable to locate class '%s'\n", class_name.c_str());
-    return;
+    env->ExceptionDescribe();
+    return EXIT_FAILURE;
   }
 
-  jmethodID method = env->GetStaticMethodID(klass.get(),
-                                            "main",
-                                            "([Ljava/lang/String;)V");
+  jmethodID method = env->GetStaticMethodID(klass.get(), "main", "([Ljava/lang/String;)V");
   if (method == NULL) {
-    fprintf(stderr, "Unable to find static main(String[]) in '%s'\n",
-            class_name.c_str());
-    return;
+    fprintf(stderr, "Unable to find static main(String[]) in '%s'\n", class_name.c_str());
+    env->ExceptionDescribe();
+    return EXIT_FAILURE;
   }
 
   // Make sure the method is public.  JNI doesn't prevent us from
   // calling a private method, so we have to check it explicitly.
   if (!IsMethodPublic(env, klass.get(), method)) {
-    fprintf(stderr, "Sorry, main() is not public\n");
-    return;
+    fprintf(stderr, "Sorry, main() is not public in '%s'\n", class_name.c_str());
+    env->ExceptionDescribe();
+    return EXIT_FAILURE;
   }
 
   // Invoke main().
   env->CallStaticVoidMethod(klass.get(), method, args.get());
+  return EXIT_SUCCESS;
 }
 
 // Parse arguments.  Most of it just gets passed through to the VM.
@@ -116,8 +116,7 @@ int main(int argc, char** argv) {
 
     // Some options require an additional argument.
     need_extra = false;
-    if (strcmp(argv[arg_idx], "-classpath") == 0 ||
-        strcmp(argv[arg_idx], "-cp") == 0) {
+    if (strcmp(argv[arg_idx], "-classpath") == 0 || strcmp(argv[arg_idx], "-cp") == 0) {
       // others?
       need_extra = true;
     }
@@ -154,11 +153,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  InvokeMain(env, argc - arg_idx, &argv[arg_idx]);
-  int rc = env->ExceptionCheck() ? EXIT_FAILURE : EXIT_SUCCESS;
-  if (rc == EXIT_FAILURE) {
-    env->ExceptionDescribe();
-  }
+  int rc = InvokeMain(env, argc - arg_idx, &argv[arg_idx]);
 
   if (vm->DetachCurrentThread() != JNI_OK) {
     fprintf(stderr, "Warning: unable to detach main thread\n");
