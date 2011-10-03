@@ -12,6 +12,7 @@
 #include "jni.h"
 #include "leb128.h"
 #include "logging.h"
+#include "mem_map.h"
 #include "mutex.h"
 #include "stringpiece.h"
 #include "strutil.h"
@@ -335,13 +336,6 @@ class DexFile {
   // Opens a .jar, .zip, or .apk file from the file system.
   static const DexFile* OpenZip(const std::string& filename,
                                 const std::string& strip_location_prefix);
-
-  // Opens a .dex file from a new allocated pointer.  location is used
-  // to identify the source, for example "/system/framework/core.jar"
-  // or "contrived-test-42". When initializing a ClassLinker from an
-  // image, the location is used to match DexCaches the image to their
-  // corresponding DexFiles.N
-  static const DexFile* OpenPtr(byte* ptr, size_t length, const std::string& location);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -844,45 +838,17 @@ class DexFile {
   void ChangePermissions(int prot) const;
 
  private:
-  // Helper class to deallocate underlying storage.
-  class Closer {
-   public:
-    virtual ~Closer();
-    virtual void ChangePermissions(int prot) = 0;
-  };
-
-  // Helper class to deallocate mmap-backed .dex files.
-  class MmapCloser : public Closer {
-   public:
-    MmapCloser(void* addr, size_t length);
-    virtual ~MmapCloser();
-    virtual void ChangePermissions(int prot);
-   private:
-    void* addr_;
-    size_t length_;
-  };
-
-  // Helper class for deallocating new/delete-backed .dex files.
-  class PtrCloser : public Closer {
-   public:
-    PtrCloser(byte* addr);
-    virtual ~PtrCloser();
-    virtual void ChangePermissions(int prot);
-   private:
-    byte* addr_;
-  };
-
   // Opens a .dex file at the given address.
   static const DexFile* Open(const byte* dex_file,
                              size_t length,
                              const std::string& location,
-                             Closer* closer);
+                             MemMap* mem_map);
 
-  DexFile(const byte* addr, size_t length, const std::string& location, Closer* closer)
+  DexFile(const byte* addr, size_t length, const std::string& location, MemMap* mem_map)
       : base_(addr),
         length_(length),
         location_(location),
-        closer_(closer),
+        mem_map_(mem_map),
         dex_object_lock_("a dex_object_lock_"),
         dex_object_(NULL),
         header_(0),
@@ -894,7 +860,7 @@ class DexFile {
         class_defs_(0) {
     CHECK(addr != NULL);
     CHECK_GT(length, 0U);
-    CHECK(closer != NULL);
+    CHECK(mem_map != NULL);
   }
 
   // Top-level initializer that calls other Init methods.
@@ -928,8 +894,8 @@ class DexFile {
   // path to DexCache::GetLocation when loading from an image.
   const std::string location_;
 
-  // Helper object to free the underlying allocation.
-  UniquePtr<Closer> closer_;
+  // Manages the underlying memory allocation.
+  UniquePtr<MemMap> mem_map_;
 
   // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
   mutable Mutex dex_object_lock_;

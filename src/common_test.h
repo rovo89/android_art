@@ -13,8 +13,10 @@
 #include "compiler.h"
 #include "constants.h"
 #include "dex_file.h"
+#include "file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
+#include "os.h"
 #include "runtime.h"
 #include "stl_util.h"
 #include "stringprintf.h"
@@ -26,11 +28,22 @@ namespace art {
 
 static inline const DexFile* OpenDexFileBase64(const char* base64,
                                                const std::string& location) {
+  // decode base64
   CHECK(base64 != NULL);
   size_t length;
   byte* dex_bytes = DecodeBase64(base64, &length);
   CHECK(dex_bytes != NULL);
-  const DexFile* dex_file = DexFile::OpenPtr(dex_bytes, length, location);
+
+  // write to provided file
+  UniquePtr<File> file(OS::OpenFile(location.c_str(), true));
+  CHECK(file.get() != NULL);
+  if (!file->WriteFully(dex_bytes, length)) {
+    PLOG(FATAL) << "Failed to write base64 as dex file";
+  }
+  file.reset();
+
+  // read dex file
+  const DexFile* dex_file = DexFile::OpenFile(location, location, "");
   CHECK(dex_file != NULL);
   return dex_file;
 }

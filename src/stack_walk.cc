@@ -6,7 +6,6 @@
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_verifier.h"
-// #include "heap.h"
 #include "object.h"
 #include "jni.h"
 

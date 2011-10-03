@@ -14,76 +14,31 @@
 
 namespace art {
 
-// package java.lang;
-// import java.io.IOException;
-// class Object {};
-// public class MyClass {
-//   int f() throws Exception {
-//     try {
-//         g(1);
-//     } catch (IOException e) {
-//         return 1;
-//     } catch (Exception e) {
-//         return 2;
-//     }
-//     try {
-//         g(2);
-//     } catch (IOException e) {
-//         return 3;
-//     }
-//     return 0;
-//   }
-//   void g(int doThrow) throws Exception {
-//     if (doThrow == 1)
-//         throw new Exception();
-//     else if (doThrow == 2)
-//         throw new IOException();
-//   }
-// }
-
-static const char kMyClassExceptionHandleDex[] =
-  "ZGV4CjAzNQC/bXXtLZJLN1GzLr+ncrvPSl70n8t0yAjgAwAAcAAAAHhWNBIAAAAAAAAAACgDAAAN"
-  "AAAAcAAAAAcAAACkAAAAAwAAAMAAAAAAAAAAAAAAAAYAAADkAAAAAgAAABQBAACMAgAAVAEAAD4C"
-  "AABGAgAASQIAAGUCAAB8AgAAkwIAAKgCAAC8AgAAygIAAM0CAADRAgAA1AIAANcCAAABAAAAAgAA"
-  "AAMAAAAEAAAABQAAAAYAAAAIAAAAAQAAAAAAAAAAAAAACAAAAAYAAAAAAAAACQAAAAYAAAA4AgAA"
-  "AgABAAAAAAADAAEAAAAAAAQAAQAAAAAABAAAAAoAAAAEAAIACwAAAAUAAQAAAAAABQAAAAAAAAD/"
-  "////AAAAAAcAAAAAAAAACQMAAAAAAAAEAAAAAQAAAAUAAAAAAAAABwAAABgCAAATAwAAAAAAAAEA"
-  "AAABAwAAAQABAAAAAADeAgAAAQAAAA4AAAABAAEAAQAAAOMCAAAEAAAAcBAFAAAADgAEAAEAAgAC"
-  "AOgCAAAVAAAAEiISERIQbiAEAAMAEiBuIAQAAwASAA8ADQABECj9DQABICj6DQASMCj3AAADAAAA"
-  "AwABAAcAAAADAAYAAgICDAMPAQISAAAAAwACAAEAAAD3AgAAEwAAABIQMwIIACIAAwBwEAEAAAAn"
-  "ABIgMwIIACIAAgBwEAAAAAAnAA4AAAAAAAAAAAAAAAIAAAAAAAAAAwAAAFQBAAAEAAAAVAEAAAEA"
-  "AAAAAAY8aW5pdD4AAUkAGkxkYWx2aWsvYW5ub3RhdGlvbi9UaHJvd3M7ABVMamF2YS9pby9JT0V4"
-  "Y2VwdGlvbjsAFUxqYXZhL2xhbmcvRXhjZXB0aW9uOwATTGphdmEvbGFuZy9NeUNsYXNzOwASTGph"
-  "dmEvbGFuZy9PYmplY3Q7AAxNeUNsYXNzLmphdmEAAVYAAlZJAAFmAAFnAAV2YWx1ZQADAAcOAAQA"
-  "Bw4ABwAHLFFOAnYsLR4tIR4AFQEABw48aTxpAAIBAQwcARgDAAABAAWAgATcAgAAAQICgYAE8AID"
-  "AIgDAQDgAwAAAA8AAAAAAAAAAQAAAAAAAAABAAAADQAAAHAAAAACAAAABwAAAKQAAAADAAAAAwAA"
-  "AMAAAAAFAAAABgAAAOQAAAAGAAAAAgAAABQBAAADEAAAAQAAAFQBAAABIAAABAAAAFwBAAAGIAAA"
-  "AQAAABgCAAABEAAAAQAAADgCAAACIAAADQAAAD4CAAADIAAABAAAAN4CAAAEIAAAAQAAAAEDAAAA"
-  "IAAAAgAAAAkDAAAAEAAAAQAAACgDAAA=";
-
 class ExceptionTest : public CommonTest {
  protected:
   virtual void SetUp() {
     CommonTest::SetUp();
 
-    dex_.reset(OpenDexFileBase64(kMyClassExceptionHandleDex, "kMyClassExceptionHandleDex"));
-    ASSERT_TRUE(dex_.get() != NULL);
-    const ClassLoader* class_loader = AllocPathClassLoader(dex_.get());
-    ASSERT_TRUE(class_loader != NULL);
-    my_klass_ = class_linker_->FindClass("Ljava/lang/MyClass;", class_loader);
+    const ClassLoader* class_loader = LoadDex("ExceptionHandle");
+    my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader);
     ASSERT_TRUE(my_klass_ != NULL);
+
+    dex_ = &Runtime::Current()->GetClassLinker()->FindDexFile(my_klass_->GetDexCache());
+
     ByteArray* fake_code = ByteArray::Alloc(12);
     ASSERT_TRUE(fake_code != NULL);
     IntArray* fake_mapping_data = IntArray::Alloc(2);
     ASSERT_TRUE(fake_mapping_data != NULL);
     fake_mapping_data->Set(0, 3);  // offset 3
     fake_mapping_data->Set(1, 3);  // maps to dex offset 3
+
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
     method_f_->SetReturnPcOffsetInBytes(kStackAlignment-kPointerSize);
     method_f_->SetCodeArray(fake_code, kThumb2);
     method_f_->SetMappingTable(fake_mapping_data);
+
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
@@ -92,7 +47,7 @@ class ExceptionTest : public CommonTest {
     method_g_->SetMappingTable(fake_mapping_data);
   }
 
-  UniquePtr<const DexFile> dex_;
+  const DexFile* dex_;
 
   Method* method_f_;
   Method* method_g_;
@@ -102,7 +57,7 @@ class ExceptionTest : public CommonTest {
 };
 
 TEST_F(ExceptionTest, FindCatchHandler) {
-  const DexFile::CodeItem *code_item = dex_->GetCodeItem(method_f_->GetCodeItemOffset());
+  const DexFile::CodeItem* code_item = dex_->GetCodeItem(method_f_->GetCodeItemOffset());
 
   ASSERT_TRUE(code_item != NULL);
 
@@ -169,16 +124,16 @@ TEST_F(ExceptionTest, StackTraceElement) {
       Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
 
   ASSERT_TRUE(trace_array->Get(0) != NULL);
-  EXPECT_STREQ("java.lang.MyClass",
+  EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-  EXPECT_STREQ("MyClass.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("g", trace_array->Get(0)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22, trace_array->Get(0)->GetLineNumber());
 
   ASSERT_TRUE(trace_array->Get(1) != NULL);
-  EXPECT_STREQ("java.lang.MyClass",
+  EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-  EXPECT_STREQ("MyClass.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(7, trace_array->Get(1)->GetLineNumber());
 }

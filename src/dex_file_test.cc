@@ -41,7 +41,8 @@ static const char kRawDex[] =
   "AAMgAAACAAAAiAIAAAQgAAADAAAAlAIAAAAgAAACAAAAqwIAAAAQAAABAAAAxAIAAA==";
 
 TEST_F(DexFileTest, Header) {
-  UniquePtr<const DexFile> raw(OpenDexFileBase64(kRawDex, "kRawDex"));
+  ScratchFile tmp;
+  UniquePtr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename()));
   ASSERT_TRUE(raw.get() != NULL);
 
   const DexFile::Header& header = raw->GetHeader();

@@ -71,28 +71,10 @@ const DexFile* DexFile::Open(const std::string& filename,
 }
 
 void DexFile::ChangePermissions(int prot) const {
-  closer_->ChangePermissions(prot);
-}
-
-DexFile::Closer::~Closer() {}
-
-DexFile::MmapCloser::MmapCloser(void* addr, size_t length) : addr_(addr), length_(length) {
-  CHECK(addr != NULL);
-}
-DexFile::MmapCloser::~MmapCloser() {
-  if (munmap(addr_, length_) == -1) {
-    PLOG(INFO) << "munmap failed";
-  }
-}
-void DexFile::MmapCloser::ChangePermissions(int prot) {
-  if (mprotect(addr_, length_, prot) != 0) {
+  if (mprotect(mem_map_->GetAddress(), mem_map_->GetLength(), prot) != 0) {
     PLOG(FATAL) << "Failed to change dex file permissions to " << prot;
   }
 }
-
-DexFile::PtrCloser::PtrCloser(byte* addr) : addr_(addr) {}
-DexFile::PtrCloser::~PtrCloser() { delete[] addr_; }
-void DexFile::PtrCloser::ChangePermissions(int prot) {}
 
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& original_location,
@@ -116,16 +98,15 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     return NULL;
   }
   size_t length = sbuf.st_size;
-  void* addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
-  if (addr == MAP_FAILED) {
-    PLOG(ERROR) << "mmap \"" << filename << "\" failed";
+  UniquePtr<MemMap> map(MemMap::Map(length, PROT_READ, MAP_PRIVATE, fd, 0));
+  if (map.get() == NULL) {
+    LOG(ERROR) << "mmap \"" << filename << "\" failed";
     close(fd);
     return NULL;
   }
   close(fd);
-  byte* dex_file = reinterpret_cast<byte*>(addr);
-  Closer* closer = new MmapCloser(addr, length);
-  return Open(dex_file, length, location.ToString(), closer);
+  byte* dex_file = map->GetAddress();
+  return Open(dex_file, length, location.ToString(), map.release());
 }
 
 static const char* kClassesDex = "classes.dex";
@@ -368,15 +349,9 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
   // NOTREACHED
 }
 
-const DexFile* DexFile::OpenPtr(byte* ptr, size_t length, const std::string& location) {
-  CHECK(ptr != NULL);
-  DexFile::Closer* closer = new PtrCloser(ptr);
-  return Open(ptr, length, location, closer);
-}
-
 const DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
-                             const std::string& location, Closer* closer) {
-  UniquePtr<DexFile> dex_file(new DexFile(dex_bytes, length, location, closer));
+                             const std::string& location, MemMap* mem_map) {
+  UniquePtr<DexFile> dex_file(new DexFile(dex_bytes, length, location, mem_map));
   if (!dex_file->Init()) {
     return NULL;
   } else {

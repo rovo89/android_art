@@ -211,6 +211,7 @@ TEST_DEX_DIRECTORIES := \
 	AbstractMethod \
 	AllFields \
 	CreateMethodDescriptor \
+	ExceptionHandle \
 	ExceptionTest \
 	Fibonacci \
 	HelloWorld \
