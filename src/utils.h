@@ -149,6 +149,7 @@ static inline std::string PrintableString(const StringT& s) {
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
 std::string PrettyDescriptor(const String* descriptor);
+std::string PrettyDescriptor(const std::string& descriptor);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').

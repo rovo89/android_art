@@ -107,7 +107,7 @@ art_throw_verification_error_from_code:
     SETUP_CALLEE_SAVE_FRAME
     mov r2, r9                            @ pass Thread::Current
     mov r3, sp                            @ pass SP
-    b   artThrowVerificationErrorFromCode @ artThrowVerificationErrorFromCode(src1, ref, Thread*, SP)
+    b   artThrowVerificationErrorFromCode @ artThrowVerificationErrorFromCode(kind, ref, Thread*, SP)
 
     .global art_invoke_interface_trampoline
     .extern artFindInterfaceMethodInCacheFromCode

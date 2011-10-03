@@ -16,6 +16,8 @@
 
 #include "runtime_support.h"
 
+#include "dex_verifier.h"
+
 namespace art {
 
 // Temporary debugging hook for compiler.
@@ -128,15 +130,136 @@ extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Me
   thread->DeliverException();
 }
 
-extern "C" void artThrowVerificationErrorFromCode(int32_t src1, int32_t ref, Thread* thread, Method** sp) {
+std::string ClassNameFromIndex(Method* method, uint32_t ref, DexVerifier::VerifyErrorRefType ref_type, bool access) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
+
+  uint16_t type_idx = 0;
+  if (ref_type == DexVerifier::VERIFY_ERROR_REF_FIELD) {
+    const DexFile::FieldId& id = dex_file.GetFieldId(ref);
+    type_idx = id.class_idx_;
+  } else if (ref_type == DexVerifier::VERIFY_ERROR_REF_METHOD) {
+    const DexFile::MethodId& id = dex_file.GetMethodId(ref);
+    type_idx = id.class_idx_;
+  } else if (ref_type == DexVerifier::VERIFY_ERROR_REF_CLASS) {
+    type_idx = ref;
+  } else {
+    CHECK(false) << static_cast<int>(ref_type);
+  }
+
+  std::string class_name(PrettyDescriptor(dex_file.dexStringByTypeIdx(type_idx)));
+  if (!access) {
+    return class_name;
+  }
+
+  std::string result;
+  result += "tried to access class ";
+  result += class_name;
+  result += " from class ";
+  result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
+  return result;
+}
+
+std::string FieldNameFromIndex(const Method* method, uint32_t ref, DexVerifier::VerifyErrorRefType ref_type, bool access) {
+  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(DexVerifier::VERIFY_ERROR_REF_FIELD));
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
+
+  const DexFile::FieldId& id = dex_file.GetFieldId(ref);
+  std::string class_name(PrettyDescriptor(dex_file.dexStringByTypeIdx(id.class_idx_)));
+  const char* field_name = dex_file.dexStringById(id.name_idx_);
+  if (!access) {
+    return class_name + "." + field_name;
+  }
+
+  std::string result;
+  result += "tried to access field ";
+  result += class_name + "." + field_name;
+  result += " from class ";
+  result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
+  return result;
+}
+
+std::string MethodNameFromIndex(const Method* method, uint32_t ref, DexVerifier::VerifyErrorRefType ref_type, bool access) {
+  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(DexVerifier::VERIFY_ERROR_REF_METHOD));
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
+
+  const DexFile::MethodId& id = dex_file.GetMethodId(ref);
+  std::string class_name(PrettyDescriptor(dex_file.dexStringByTypeIdx(id.class_idx_)));
+  const char* method_name = dex_file.dexStringById(id.name_idx_);
+  if (!access) {
+    return class_name + "." + method_name;
+  }
+
+  std::string result;
+  result += "tried to access method ";
+  result += class_name + "." + method_name + ":" + dex_file.CreateMethodDescriptor(id.proto_idx_, NULL);
+  result += " from class ";
+  result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
+  return result;
+}
+
+extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thread* self, Method** sp) {
   // Place a special frame at the TOS that will save all callee saves
   Runtime* runtime = Runtime::Current();
   *sp = runtime->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
-  LOG(WARNING) << "TODO: verifcation error detail message. src1=" << src1 << " ref=" << ref;
-  thread->ThrowNewExceptionF("Ljava/lang/VerifyError;",
-      "TODO: verification error detail message. src1=%d; ref=%d", src1, ref);
-  thread->DeliverException();
+  self->SetTopOfStack(sp, 0);
+
+  Frame frame = self->GetTopOfStack();
+  frame.Next();
+  Method* method = frame.GetMethod();
+
+  DexVerifier::VerifyErrorRefType ref_type = static_cast<DexVerifier::VerifyErrorRefType>(kind >> kVerifyErrorRefTypeShift);
+
+  const char* exception_class = "Ljava/lang/VerifyError;";
+  std::string msg;
+
+  switch (static_cast<DexVerifier::VerifyError>(kind & ~(0xff << kVerifyErrorRefTypeShift))) {
+  case DexVerifier::VERIFY_ERROR_NO_CLASS:
+    exception_class = "Ljava/lang/NoClassDefFoundError;";
+    msg = ClassNameFromIndex(method, ref, ref_type, false);
+    break;
+  case DexVerifier::VERIFY_ERROR_NO_FIELD:
+    exception_class = "Ljava/lang/NoSuchFieldError;";
+    msg = FieldNameFromIndex(method, ref, ref_type, false);
+    break;
+  case DexVerifier::VERIFY_ERROR_NO_METHOD:
+    exception_class = "Ljava/lang/NoSuchMethodError;";
+    msg = MethodNameFromIndex(method, ref, ref_type, false);
+    break;
+  case DexVerifier::VERIFY_ERROR_ACCESS_CLASS:
+    exception_class = "Ljava/lang/IllegalAccessError;";
+    msg = ClassNameFromIndex(method, ref, ref_type, true);
+    break;
+  case DexVerifier::VERIFY_ERROR_ACCESS_FIELD:
+    exception_class = "Ljava/lang/IllegalAccessError;";
+    msg = FieldNameFromIndex(method, ref, ref_type, true);
+    break;
+  case DexVerifier::VERIFY_ERROR_ACCESS_METHOD:
+    exception_class = "Ljava/lang/IllegalAccessError;";
+    msg = MethodNameFromIndex(method, ref, ref_type, true);
+    break;
+  case DexVerifier::VERIFY_ERROR_CLASS_CHANGE:
+    exception_class = "Ljava/lang/IncompatibleClassChangeError;";
+    msg = ClassNameFromIndex(method, ref, ref_type, false);
+    break;
+  case DexVerifier::VERIFY_ERROR_INSTANTIATION:
+    exception_class = "Ljava/lang/InstantiationError;";
+    msg = ClassNameFromIndex(method, ref, ref_type, false);
+    break;
+  case DexVerifier::VERIFY_ERROR_GENERIC:
+    // Generic VerifyError; use default exception, no message.
+    break;
+  case DexVerifier::VERIFY_ERROR_NONE:
+    CHECK(false);
+    break;
+  }
+
+  self->ThrowNewException(exception_class, msg.c_str());
+  self->DeliverException();
 }
 
 extern "C" void artThrowInternalErrorFromCode(int32_t errnum, Thread* thread, Method** sp) {

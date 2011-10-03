@@ -51,8 +51,10 @@ std::string PrettyDescriptor(const String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
   }
-  std::string descriptor(java_descriptor->ToModifiedUtf8());
+  return PrettyDescriptor(java_descriptor->ToModifiedUtf8());
+}
 
+std::string PrettyDescriptor(const std::string& descriptor) {
   // Count the number of '['s to get the dimensionality.
   const char* c = descriptor.c_str();
   size_t dim = 0;
