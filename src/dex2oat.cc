@@ -10,6 +10,7 @@
 #include "class_loader.h"
 #include "compiler.h"
 #include "image_writer.h"
+#include "oat_writer.h"
 #include "runtime.h"
 #include "stringpiece.h"
 
@@ -25,7 +26,12 @@ static void usage() {
           "      Example: --dex-file=/system/framework/core.jar\n"
           "\n");
   fprintf(stderr,
-          "  --image=<file>: specifies the required output image filename.\n"
+          "  --image=<file.art>: specifies the required output image filename.\n"
+          "      Example: --image=/system/framework/boot.art\n"
+          "\n");
+  // TODO: remove this by inferring from --image
+  fprintf(stderr,
+          "  --oat=<file.oat>: specifies the required oat filename.\n"
           "      Example: --image=/system/framework/boot.oat\n"
           "\n");
   fprintf(stderr,
@@ -33,10 +39,15 @@ static void usage() {
           "      Example: --base=0x50000000\n"
           "\n");
   fprintf(stderr,
-          "  --boot=<oat-file>: provide the oat file for the boot class path.\n"
-          "      Example: --boot=/system/framework/boot.oat\n"
+          "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
+          "      Example: --boot-image=/system/framework/boot.art\n"
           "\n");
-  // TODO: remove this by making boot image contain boot DexFile information?
+  // TODO: remove this by inferring from --boot-image
+  fprintf(stderr,
+          "  --boot-oat=<file.oat>: provide the oat file for the boot class path.\n"
+          "      Example: --boot-oat=/system/framework/boot.oat\n"
+          "\n");
+  // TODO: remove this by inderring from --boot-image or --boot-oat
   fprintf(stderr,
           "  --boot-dex-file=<dex-file>: specifies a .dex file that is part of the boot\n"
           "      image specified with --boot. \n"
@@ -76,8 +87,10 @@ int dex2oat(int argc, char** argv) {
 
   std::vector<const char*> dex_filenames;
   std::vector<const char*> method_names;
+  std::string oat_filename;
   const char* image_filename = NULL;
   std::string boot_image_option;
+  std::string boot_oat_option;
   std::vector<const char*> boot_dex_filenames;
   uintptr_t image_base = 0;
   std::string strip_location_prefix;
@@ -90,6 +103,8 @@ int dex2oat(int argc, char** argv) {
       dex_filenames.push_back(option.substr(strlen("--dex-file=")).data());
     } else if (option.starts_with("--method=")) {
       method_names.push_back(option.substr(strlen("--method=")).data());
+    } else if (option.starts_with("--oat=")) {
+      oat_filename = option.substr(strlen("--oat=")).data();
     } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--base=")) {
@@ -100,11 +115,16 @@ int dex2oat(int argc, char** argv) {
         fprintf(stderr, "Failed to parse hexadecimal value for option %s\n", option.data());
         usage();
       }
-    } else if (option.starts_with("--boot=")) {
-      const char* boot_image_filename = option.substr(strlen("--boot=")).data();
+    } else if (option.starts_with("--boot-image=")) {
+      const char* boot_image_filename = option.substr(strlen("--boot-image=")).data();
       boot_image_option.clear();
       boot_image_option += "-Xbootimage:";
       boot_image_option += boot_image_filename;
+    } else if (option.starts_with("--boot-oat=")) {
+      const char* boot_oat_filename = option.substr(strlen("--boot-oat=")).data();
+      boot_oat_option.clear();
+      boot_oat_option += "-Xbootoat:";
+      boot_oat_option += boot_oat_filename;
     } else if (option.starts_with("--boot-dex-file=")) {
       boot_dex_filenames.push_back(option.substr(strlen("--boot-dex-file=")).data());
     } else if (option.starts_with("--strip-prefix=")) {
@@ -119,6 +139,11 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
+  if (oat_filename == NULL) {
+   fprintf(stderr, "--oat file name not specified\n");
+   return EXIT_FAILURE;
+  }
+
   if (image_filename == NULL) {
    fprintf(stderr, "--image file name not specified\n");
    return EXIT_FAILURE;
@@ -129,6 +154,11 @@ int dex2oat(int argc, char** argv) {
    return EXIT_FAILURE;
   }
 
+  if (boot_image_option.empty() != boot_oat_option.empty()) {
+   fprintf(stderr, "--boot-image and --boat-oat must be specified together or not at all\n");
+   return EXIT_FAILURE;
+  }
+
   if (boot_image_option.empty()) {
     if (image_base == 0) {
       fprintf(stderr, "non-zero --base not specified\n");
@@ -136,7 +166,7 @@ int dex2oat(int argc, char** argv) {
     }
   } else {
     if (boot_dex_filenames.empty()) {
-      fprintf(stderr, "no --boot-dex-file values specified with --boot\n");
+      fprintf(stderr, "no --boot-dex-file values specified with --boot-image\n");
       return EXIT_FAILURE;
     }
   }
@@ -153,6 +183,7 @@ int dex2oat(int argc, char** argv) {
   } else {
     options.push_back(std::make_pair("bootclasspath", &boot_dex_files));
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair(boot_oat_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
   if (Xms != NULL) {
     options.push_back(std::make_pair(Xms, reinterpret_cast<void*>(NULL)));
@@ -167,11 +198,12 @@ int dex2oat(int argc, char** argv) {
   }
   ClassLinker* class_linker = runtime->GetClassLinker();
 
-  // If we have an existing boot image, position new space after it
+  // If we have an existing boot image, position new space after its oat file
   if (!boot_image_option.empty()) {
     Space* boot_space = Heap::GetBootSpace();
     CHECK(boot_space != NULL);
-    image_base = RoundUp(reinterpret_cast<uintptr_t>(boot_space->GetLimit()), kPageSize);
+    byte* oat_limit_addr = boot_space->GetImageHeader().GetOatLimitAddr();
+    image_base = RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr), kPageSize);
   }
 
   // ClassLoader creation needs to come after Runtime::Create
@@ -185,11 +217,13 @@ int dex2oat(int argc, char** argv) {
     class_loader = PathClassLoader::Alloc(dex_files);
   }
 
-  // if we loaded an existing image, we will reuse its stub array.
+  // if we loaded an existing image, we will reuse values from the image roots.
   if (!runtime->HasJniStubArray()) {
     runtime->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
   }
-  // similarly for the callee save method
+  if (!runtime->HasAbstractMethodErrorStubArray()) {
+    runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kThumb2));
+  }
   if (!runtime->HasCalleeSaveMethod()) {
     runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(kThumb2));
   }
@@ -239,9 +273,14 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  ImageWriter writer;
-  if (!writer.Write(image_filename, image_base)) {
-    fprintf(stderr, "could not write image %s\n", image_filename);
+  if (!OatWriter::Create(oat_filename, class_loader)) {
+    fprintf(stderr, "Failed to create oat file %s\n", oat_filename.c_str());
+    return EXIT_FAILURE;
+  }
+
+  ImageWriter image_writer;
+  if (!image_writer.Write(image_filename, image_base, oat_filename, strip_location_prefix)) {
+    fprintf(stderr, "Failed to create image file %s\n", image_filename);
     return EXIT_FAILURE;
   }
 

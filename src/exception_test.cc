@@ -75,19 +75,21 @@ class ExceptionTest : public CommonTest {
     ByteArray* fake_code = ByteArray::Alloc(12);
     ASSERT_TRUE(fake_code != NULL);
     IntArray* fake_mapping_data = IntArray::Alloc(2);
-    ASSERT_TRUE(fake_mapping_data!= NULL);
+    ASSERT_TRUE(fake_mapping_data != NULL);
     fake_mapping_data->Set(0, 3);  // offset 3
     fake_mapping_data->Set(1, 3);  // maps to dex offset 3
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
     method_f_->SetReturnPcOffsetInBytes(kStackAlignment-kPointerSize);
-    method_f_->SetCode(fake_code, kThumb2, fake_mapping_data);
+    method_f_->SetCodeArray(fake_code, kThumb2);
+    method_f_->SetMappingTable(fake_mapping_data);
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
     method_g_->SetReturnPcOffsetInBytes(kStackAlignment-kPointerSize);
-    method_g_->SetCode(fake_code, kThumb2, fake_mapping_data);
+    method_g_->SetCodeArray(fake_code, kThumb2);
+    method_g_->SetMappingTable(fake_mapping_data);
   }
 
   UniquePtr<const DexFile> dex_;

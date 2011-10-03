@@ -904,7 +904,9 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     memcpy(vmap_table->GetData(),
            reinterpret_cast<const int16_t*>(&cUnit.coreVmapTable[0]),
            vmap_table->GetLength() * sizeof(cUnit.coreVmapTable[0]));
-    method->SetCode(managed_code, art::kThumb2, mapping_table, vmap_table);
+    method->SetCodeArray(managed_code, art::kThumb2);
+    method->SetMappingTable(mapping_table);
+    method->SetVMapTable(vmap_table);
     method->SetFrameSizeInBytes(cUnit.frameSize);
     method->SetReturnPcOffsetInBytes(cUnit.frameSize - sizeof(intptr_t));
     method->SetCoreSpillMask(cUnit.coreSpillMask);

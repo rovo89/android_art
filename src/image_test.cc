@@ -7,6 +7,7 @@
 #include "file.h"
 #include "image.h"
 #include "image_writer.h"
+#include "oat_writer.h"
 #include "signal_catcher.h"
 #include "space.h"
 #include "utils.h"
@@ -16,22 +17,19 @@ namespace art {
 class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
-  // TODO: remove the touching of classes, call Compiler instead
-  for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); i++) {
-    const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
-    const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
-    Class* klass = class_linker_->FindSystemClass(descriptor);
-    ASSERT_TRUE(klass != NULL) << descriptor;
-  }
+  ScratchFile tmp_oat;
+  bool success_oat = OatWriter::Create(tmp_oat.GetFilename(), NULL);
+  ASSERT_TRUE(success_oat);
 
   ImageWriter writer;
-  ScratchFile tmp;
+  ScratchFile tmp_image;
   const uintptr_t image_base = 0x50000000;
-  bool success = writer.Write(tmp.GetFilename(), image_base);
-  ASSERT_TRUE(success);
+  bool success_image = writer.Write(tmp_image.GetFilename(), image_base,
+                                    std::string(tmp_oat.GetFilename()), "");
+  ASSERT_TRUE(success_image);
 
   {
-    UniquePtr<File> file(OS::OpenFile(tmp.GetFilename(), false));
+    UniquePtr<File> file(OS::OpenFile(tmp_image.GetFilename(), false));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
@@ -58,8 +56,11 @@ TEST_F(ImageTest, WriteRead) {
 
   Runtime::Options options;
   options.push_back(std::make_pair("bootclasspath", &boot_class_path));
+  std::string boot_oat("-Xbootoat:");
+  boot_oat.append(tmp_oat.GetFilename());
+  options.push_back(std::make_pair(boot_oat.c_str(), reinterpret_cast<void*>(NULL)));
   std::string boot_image("-Xbootimage:");
-  boot_image.append(tmp.GetFilename());
+  boot_image.append(tmp_image.GetFilename());
   options.push_back(std::make_pair(boot_image.c_str(), reinterpret_cast<void*>(NULL)));
 
   runtime_.reset(Runtime::Create(options, false));

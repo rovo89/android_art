@@ -114,7 +114,7 @@ bool Space::InitFromImage(const char* image_file_name) {
     LOG(WARNING) << "Invalid image header " << image_file_name;
     return false;
   }
-  UniquePtr<MemMap> map(MemMap::Map(image_header.GetBaseAddr(),
+  UniquePtr<MemMap> map(MemMap::Map(image_header.GetImageBaseAddr(),
                                     file->Length(),
                                     // TODO: selectively PROT_EXEC when image contains a code space
                                     PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -125,12 +125,15 @@ bool Space::InitFromImage(const char* image_file_name) {
     LOG(WARNING) << "Failed to map " << image_file_name;
     return false;
   }
-  CHECK_EQ(image_header.GetBaseAddr(), map->GetAddress());
+  CHECK_EQ(image_header.GetImageBaseAddr(), map->GetAddress());
   image_header_ = reinterpret_cast<ImageHeader*>(map->GetAddress());
   DCHECK_EQ(0, memcmp(&image_header, image_header_, sizeof(ImageHeader)));
 
   Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
   Runtime::Current()->SetJniStubArray(down_cast<ByteArray*>(jni_stub_array));
+
+  Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
+  Runtime::Current()->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));
 
   Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
   Runtime::Current()->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method));

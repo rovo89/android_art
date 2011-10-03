@@ -87,9 +87,9 @@ void CheckMapRequest(byte* addr, size_t length) {
     std::string end_str = maps.substr(i+1+8, 8);
     uint32_t start = ParseHex(start_str);
     uint32_t end = ParseHex(end_str);
-    CHECK(!(base >= start && base < end)
-          && !(limit >= start && limit < end)
-          && !(base <= start && limit > end))
+    CHECK(!(base >= start && base < end)       // start of new within old
+          && !(limit > start && limit < end)  // end of new within old
+          && !(base <= start && limit > end))  // start/end of new includes all of old
         << StringPrintf("Requested region %08x-%08x overlaps with existing map %08x-%08x\n",
                         base, limit, start, end)
         << maps;

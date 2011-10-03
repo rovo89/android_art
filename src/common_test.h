@@ -106,19 +106,21 @@ class CommonTest : public testing::Test {
     Runtime::Options options;
     options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
-    options.push_back(std::make_pair("-Xms16m", reinterpret_cast<void*>(NULL)));
-    options.push_back(std::make_pair("-Xmx16m", reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair("-Xms64m", reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair("-Xmx64m", reinterpret_cast<void*>(NULL)));
     runtime_.reset(Runtime::Create(options, false));
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();
 
 #if defined(__i386__)
     runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kX86));
+    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kX86));
     runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(kX86));
     compiler_.reset(new Compiler(kX86));
 #elif defined(__arm__)
     runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
     runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(kThumb2));
+    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kThumb2));
     compiler_.reset(new Compiler(kThumb2));
 #endif
 

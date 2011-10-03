@@ -623,7 +623,9 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
   }
   size_t mapping_table_length = mapping_table->GetLength();
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetCode());
-  CHECK_LT(sought_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
+  if (GetCodeArray() != NULL) {
+    CHECK_LT(sought_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
+  }
   uint32_t best_offset = 0;
   uint32_t best_dex_offset = 0;
   for (size_t i = 0; i < mapping_table_length; i += 2) {
@@ -653,7 +655,9 @@ uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
     uint32_t map_offset = mapping_table->Get(i);
     uint32_t map_dex_offset = mapping_table->Get(i + 1);
     if (map_dex_offset == dex_pc) {
-      DCHECK_LT(map_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
+      if (GetCodeArray() != NULL) {
+        DCHECK_LT(map_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
+      }
       return reinterpret_cast<uintptr_t>(GetCode()) + map_offset;
     }
   }
@@ -686,25 +690,27 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
   return DexFile::kDexNoIndex;
 }
 
-void Method::SetCode(ByteArray* code_array, InstructionSet instruction_set,
-                     IntArray* mapping_table, ShortArray* vmap_table) {
+void Method::SetCodeArray(ByteArray* code_array, InstructionSet instruction_set) {
+// TODO: restore this check or warning when compile time code storage is moved out of Method
 //  CHECK(GetCode() == NULL || IsNative()) << PrettyMethod(this);
-  if (GetCode() != NULL && !IsNative()) {
-    LOG(WARNING) << "Calling SetCode more than once for " << PrettyMethod(this);
-  }
+//  if (GetCode() != NULL && !IsNative()) {
+//    LOG(WARNING) << "Calling SetCode more than once for " << PrettyMethod(this);
+//  }
   SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
-  SetFieldPtr<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
-       mapping_table, false);
-  SetFieldPtr<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_),
-       vmap_table, false);
-  int8_t* code = code_array->GetData();
-  uintptr_t address = reinterpret_cast<uintptr_t>(code);
-  if (instruction_set == kThumb2) {
-    // Set the low-order bit so a BLX will switch to Thumb mode
-    address |= 0x1;
+
+  void* code;
+  if (code_array != NULL) {
+    code = code_array->GetData();
+    if (instruction_set == kThumb2) {
+      uintptr_t address = reinterpret_cast<uintptr_t>(code);
+      // Set the low-order bit so a BLX will switch to Thumb mode
+      address |= 0x1;
+      code = reinterpret_cast<void*>(address);
+    }
+  } else {
+    code = NULL;
   }
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_),
-                           reinterpret_cast<const void*>(address), false);
+  SetCode(code);
 }
 
 bool Method::IsWithinCode(uintptr_t pc) const {
@@ -717,6 +723,9 @@ bool Method::IsWithinCode(uintptr_t pc) const {
 #if defined(__arm__)
     pc &= ~0x1;  // clear any possible thumb instruction mode bit
 #endif
+    if (GetCodeArray() == NULL) {
+      return true;
+    }
     uint32_t rel_offset = pc - reinterpret_cast<uintptr_t>(GetCodeArray()->GetData());
     // Strictly the following test should be a less-than, however, if the last
     // instruction is a call to an exception throw we may see return addresses

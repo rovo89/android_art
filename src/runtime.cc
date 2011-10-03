@@ -10,9 +10,13 @@
 #include "UniquePtr.h"
 #include "class_linker.h"
 #include "heap.h"
+#include "image.h"
 #include "intern_table.h"
 #include "jni_internal.h"
+#include "oat_file.h"
 #include "signal_catcher.h"
+#include "space.h"
+#include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -32,6 +36,7 @@ Runtime::Runtime()
       signal_catcher_(NULL),
       java_vm_(NULL),
       jni_stub_array_(NULL),
+      abstract_method_error_stub_array_(NULL),
       callee_save_method_(NULL),
       started_(false),
       vfprintf_(NULL),
@@ -48,6 +53,7 @@ Runtime::~Runtime() {
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
 
+  STLDeleteElements(&oat_files_);
   delete class_linker_;
   Heap::Destroy();
   delete intern_table_;
@@ -186,6 +192,7 @@ void CreateClassPath(const std::string& class_path,
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
   parsed->boot_image_ = NULL;
+  parsed->boot_oat_ = NULL;
 #ifdef NDEBUG
   // -Xcheck:jni is off by default for regular builds...
   parsed->check_jni_ = false;
@@ -244,10 +251,15 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       const StringPiece& value = options[i].first;
       parsed->class_path_string_ = value.data();
     } else if (option.starts_with("-Xbootimage:")) {
-      // TODO: remove when intern_addr_ is removed, just use -Ximage:
+      // TODO: remove and just use -Ximage:
       parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
+    } else if (option.starts_with("-Xbootoat:")) {
+      // TODO: remove and just use -Xoat:
+      parsed->boot_oat_ = option.substr(strlen("-Xbootoat:")).data();
     } else if (option.starts_with("-Ximage:")) {
       parsed->images_.push_back(option.substr(strlen("-Ximage:")).data());
+    } else if (option.starts_with("-Xoat:")) {
+      parsed->oats_.push_back(option.substr(strlen("-Xoat:")).data());
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (option.starts_with("-Xms")) {
@@ -402,7 +414,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   UniquePtr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
   if (options.get() == NULL) {
-    LOG(WARNING) << "Failed to parse options";
+    LOG(ERROR) << "Failed to parse options";
     return false;
   }
   verbose_startup_ = options->IsVerbose("startup");
@@ -424,7 +436,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   intern_table_ = new InternTable;
 
   Heap::Init(options->heap_initial_size_, options->heap_maximum_size_,
-      options->boot_image_, options->images_);
+             options->boot_image_, options->images_);
 
   BlockSignals();
 
@@ -439,10 +451,65 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   class_linker_ = ClassLinker::Create(options->boot_class_path_,
                                       options->class_path_,
                                       intern_table_,
-                                      Heap::GetBootSpace());
+                                      Heap::GetBootSpace() != NULL);
+  if (Heap::GetBootSpace() != NULL) {
+    if (!OpenOat(Heap::GetBootSpace(), options->boot_oat_)) {
+      LOG(ERROR) << "Failed to open boot oat " << options->boot_oat_;
+      return false;
+    }
+  }
+  for (size_t i = 0; i < options->oats_.size(); i++) {
+    if (!OpenOat(Heap::GetSpaces()[i+1], options->oats_[i])) {
+      LOG(ERROR) << "Failed to open oat " << options->oats_[i];
+      return false;
+    }
+  }
 
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Init exiting";
+  }
+  return true;
+}
+
+bool Runtime::OpenOat(const Space* space, const char* oat) {
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::OpenOat entering " << oat;
+  }
+  // TODO: check in ParsedOptions?
+  if (space == NULL) {
+    LOG(ERROR) << "oat specified without image";
+    return false;
+  }
+  if (oat == NULL) {
+    LOG(ERROR) << "image specified without oat";
+    return false;
+  }
+  const ImageHeader& image_header = space->GetImageHeader();
+  String* oat_location = image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString();
+  std::string oat_filename = oat_location->ToModifiedUtf8();
+  if (!StringPiece(oat).ends_with(oat_filename)) {
+    LOG(ERROR) << "oat file name " << oat
+               << " does not match value found in image: " << oat_filename;
+    return false;
+  }
+  // TODO: we should be able to just use oat_filename instead of oat
+  // if we passed the prefix argument to find it on the host during cross compilation.
+  OatFile* oat_file = OatFile::Open(std::string(oat), "", image_header.GetOatBaseAddr());
+  if (oat_file == NULL) {
+    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image";
+    return false;
+  }
+  uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
+  uint32_t image_oat_checksum = image_header.GetOatChecksum();
+  if (oat_checksum != image_oat_checksum) {
+    LOG(ERROR) << "Failed to match oat filechecksum " << std::hex << oat_checksum
+               << " to expected oat checksum " << std::hex << oat_checksum
+               << " in image";
+    return false;
+  }
+  oat_files_.push_back(oat_file);
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::OpenOat exiting";
   }
   return true;
 }
@@ -598,13 +665,58 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister();
 }
 
+void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  class_linker_->VisitRoots(visitor, arg);
+  intern_table_->VisitRoots(visitor, arg);
+  java_vm_->VisitRoots(visitor, arg);
+  thread_list_->VisitRoots(visitor, arg);
+  visitor(jni_stub_array_, arg);
+  visitor(abstract_method_error_stub_array_, arg);
+  visitor(callee_save_method_, arg);
+
+  //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
+  //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);
+  //(*visitor)(&gDvm.noClassDefFoundErrorObj, 0, ROOT_VM_INTERNAL, arg);
+  UNIMPLEMENTED(WARNING) << "some roots not marked";
+}
+
+bool Runtime::HasJniStubArray() const {
+  return jni_stub_array_ != NULL;
+}
+
+ByteArray* Runtime::GetJniStubArray() const {
+  CHECK(jni_stub_array_ != NULL);
+  return jni_stub_array_;
+}
+
+void Runtime::SetJniStubArray(ByteArray* jni_stub_array) {
+  CHECK(jni_stub_array != NULL);
+  CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array);
+  jni_stub_array_ = jni_stub_array;
+}
+
+bool Runtime::HasAbstractMethodErrorStubArray() const {
+  return abstract_method_error_stub_array_ != NULL;
+}
+
+ByteArray* Runtime::GetAbstractMethodErrorStubArray() const {
+  CHECK(abstract_method_error_stub_array_ != NULL);
+  return abstract_method_error_stub_array_;
+}
+
+void Runtime::SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array) {
+  CHECK(abstract_method_error_stub_array != NULL);
+  CHECK(abstract_method_error_stub_array_ == NULL || abstract_method_error_stub_array_ == abstract_method_error_stub_array);
+  abstract_method_error_stub_array_ = abstract_method_error_stub_array;
+}
+
 Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
   Class* method_class = Method::GetMethodClass();
   Method* method = down_cast<Method*>(method_class->AllocObject());
   method->SetDeclaringClass(method_class);
   method->SetName(intern_table_->InternStrong("$$$callee_save_method$$$"));
   method->SetSignature(intern_table_->InternStrong("()V"));
-  method->SetCode(NULL, insns, NULL);
+  method->SetCodeArray(NULL, insns);
   if ((insns == kThumb2) || (insns == kArm)) {
     size_t frame_size = (12 /* gprs */ + 32 /* fprs */ + 4 /* data */) * kPointerSize;
     method->SetFrameSizeInBytes(frame_size);
@@ -667,18 +779,19 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
   return method;
 }
 
-void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  class_linker_->VisitRoots(visitor, arg);
-  intern_table_->VisitRoots(visitor, arg);
-  java_vm_->VisitRoots(visitor, arg);
-  thread_list_->VisitRoots(visitor, arg);
-  visitor(jni_stub_array_, arg);
-  visitor(callee_save_method_, arg);
-
-  //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
-  //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);
-  //(*visitor)(&gDvm.noClassDefFoundErrorObj, 0, ROOT_VM_INTERNAL, arg);
-  UNIMPLEMENTED(WARNING) << "some roots not marked";
+bool Runtime::HasCalleeSaveMethod() const {
+  return callee_save_method_ != NULL;
 }
+
+// Returns a special method that describes all callee saves being spilled to the stack.
+Method* Runtime::GetCalleeSaveMethod() const {
+  CHECK(callee_save_method_ != NULL);
+  return callee_save_method_;
+}
+
+void Runtime::SetCalleeSaveMethod(Method* method) {
+  callee_save_method_ = method;
+}
+
 
 }  // namespace art

@@ -30,6 +30,10 @@ class Compiler {
     return verbose_;
   }
 
+  // Stub to throw AbstractMethodError
+  // TODO: remove from Compiler
+  static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set);
+
  private:
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
@@ -55,7 +59,6 @@ class Compiler {
 
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
-  ByteArray* abstract_method_error_stub_;
 
   bool verbose_;
 

@@ -36,6 +36,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   size_t cs = assembler->CodeSize();
   ByteArray* abstract_stub = ByteArray::Alloc(cs);
   CHECK(abstract_stub != NULL);
+  CHECK(abstract_stub->GetClass()->GetDescriptor());
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
 

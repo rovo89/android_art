@@ -10,6 +10,7 @@
 #include "UniquePtr.h"
 #include "dex_cache.h"
 #include "mem_map.h"
+#include "oat_file.h"
 #include "object.h"
 #include "os.h"
 #include "space.h"
@@ -21,7 +22,8 @@ class ImageWriter {
 
  public:
   ImageWriter() : source_space_(NULL), image_top_(0), image_base_(NULL) {};
-  bool Write(const char* filename, uintptr_t image_base);
+  bool Write(const char* image_filename, uintptr_t image_base,
+             const std::string& oat_filename, const std::string& strip_location_prefix);
   ~ImageWriter() {};
 
  private:
@@ -82,6 +84,7 @@ class ImageWriter {
   }
 
   void CalculateNewObjectOffsets();
+  ObjectArray<Object>* CreateImageRoots() const;
   static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg);
 
   void CopyAndFixupObjects();
@@ -97,6 +100,9 @@ class ImageWriter {
   void FixupDexCaches();
   void FixupDexCache(const DexCache* orig, DexCache* copy);
 
+  // oat file with code for this image
+  UniquePtr<OatFile> oat_file_;
+
   // Space we are writing objects from
   const Space* source_space_;
 
@@ -106,8 +112,11 @@ class ImageWriter {
   // Offset to the free space in image_
   size_t image_top_;
 
-  // Target base address for the output image
+  // Target image base address for the output image
   byte* image_base_;
+
+  // Target oat base address for the pointers from the output image to its oat file
+  byte* oat_base_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
   typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;

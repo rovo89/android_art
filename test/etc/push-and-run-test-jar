@@ -108,13 +108,17 @@ msg "------------------------------"
 if [ "$QUIET" = "n" ]; then
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.jar /system/framework
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.oat /system/framework
+    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.art /system/framework
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.jar /system/framework
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.oat /system/framework
+    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.art /system/framework
 else
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.jar /system/framework >/dev/null 2>&1
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.oat /system/framework >/dev/null 2>&1
+    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.art /system/framework >/dev/null 2>&1
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.jar /system/framework >/dev/null 2>&1
     adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.oat /system/framework >/dev/null 2>&1
+    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.art /system/framework >/dev/null 2>&1
 fi
 
 if [ "$DEBUG" = "y" ]; then
@@ -130,10 +134,13 @@ fi
 if [ "$ZYGOTE" = "y" ]; then
     adb shell cd /data \; dvz -classpath test.jar Main "$@"
 else
-    cmdline="cd /data; oatexecd -Xbootclasspath:/system/framework/core.jar \
-      -Xbootimage:/system/framework/core.oat \
+    cmdline="cd /data; oatexecd \
+      -Xbootclasspath:/system/framework/core.jar \
+      -Xbootoat:/system/framework/core.oat \
+      -Xbootimage:/system/framework/core.art \
       -classpath /system/framework/test.jar \
-      -Ximage:/system/framework/test.oat Main"
+      -Xoat:/system/framework/test.oat \
+      -Ximage:/system/framework/test.art Main"
     #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
     #    $GC_OPTS -cp test.jar -Xint:${INTERP} -ea Main"
     if [ "$DEV_MODE" = "y" ]; then
