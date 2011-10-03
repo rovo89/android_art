@@ -350,6 +350,30 @@ TEST_F(ObjectTest, IsAssignableFrom) {
   EXPECT_TRUE(X->IsAssignableFrom(Y));
   EXPECT_FALSE(Y->IsAssignableFrom(X));
   EXPECT_TRUE(Y->IsAssignableFrom(Y));
+
+  // class final String implements CharSequence, ..
+  Class* string = class_linker_->FindSystemClass("Ljava/lang/String;");
+  Class* charseq = class_linker_->FindSystemClass("Ljava/lang/CharSequence;");
+  // Can String be assigned to CharSequence without a cast?
+  EXPECT_TRUE(charseq->IsAssignableFrom(string));
+  // Can CharSequence be assigned to String without a cast?
+  EXPECT_FALSE(string->IsAssignableFrom(charseq));
+
+  // Primitive types are only assignable to themselves
+  const char* prims = "ZBCSIJFD";
+  Class* prim_types[strlen(prims)];
+  for (size_t i = 0; i < strlen(prims); i++) {
+    prim_types[i] = class_linker_->FindPrimitiveClass(prims[i]);
+  }
+  for (size_t i = 0; i < strlen(prims); i++) {
+    for (size_t j = 0; i < strlen(prims); i++) {
+      if (i == j) {
+        EXPECT_TRUE(prim_types[i]->IsAssignableFrom(prim_types[j]));
+      } else {
+        EXPECT_FALSE(prim_types[i]->IsAssignableFrom(prim_types[j]));
+      }
+    }
+  }
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {

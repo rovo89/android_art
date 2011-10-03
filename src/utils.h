@@ -175,6 +175,9 @@ std::string PrettyTypeOf(const Object* obj);
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyClass(const Class* c);
 
+// Returns a human-readable form of the name of the given class with its class loader.
+std::string PrettyClassAndClassLoader(const Class* c);
+
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);

@@ -207,7 +207,6 @@ void OatFile::OatMethod::LinkMethod(Method* method) const {
   CHECK(method != NULL);
   method->SetCode(code_);
   method->SetFrameSizeInBytes(frame_size_in_bytes_);
-  method->SetReturnPcOffsetInBytes(return_pc_offset_in_bytes_);
   method->SetCoreSpillMask(core_spill_mask_);
   method->SetFpSpillMask(fp_spill_mask_);
   method->SetMappingTable(mapping_table_);

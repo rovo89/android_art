@@ -703,7 +703,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
     const art::DexFile::CodeItem* code_item =
          dex_file.GetCodeItem(method->GetCodeItemOffset());
     const u2* codePtr = code_item->insns_;
-    const u2* codeEnd = code_item->insns_ + code_item->insns_size_;
+    const u2* codeEnd = code_item->insns_ + code_item->insns_size_in_code_units_;
     int numBlocks = 0;
     unsigned int curOffset = 0;
 
@@ -715,7 +715,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
     cUnit->method = method;
     cUnit->instructionSet = (OatInstructionSetType)insnSet;
     cUnit->insns = code_item->insns_;
-    cUnit->insnsSize = code_item->insns_size_;
+    cUnit->insnsSize = code_item->insns_size_in_code_units_;
     bool useMatch = compilerMethodMatch.length() != 0;
     bool match = useMatch && (compilerFlipMatch ^
         (PrettyMethod(method).find(compilerMethodMatch) != std::string::npos));

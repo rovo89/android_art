@@ -80,6 +80,14 @@ TEST_F(UtilsTest, PrettyClass) {
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyClass(o->GetClass()));
 }
 
+TEST_F(UtilsTest, PrettyClassAndClassLoader) {
+  EXPECT_EQ("null", PrettyClassAndClassLoader(NULL));
+  Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  ASSERT_TRUE(c != NULL);
+  Object* o = ObjectArray<String>::Alloc(c, 0);
+  EXPECT_EQ("java.lang.Class<java.lang.String[],null>", PrettyClassAndClassLoader(o->GetClass()));
+}
+
 TEST_F(UtilsTest, PrettyField) {
   EXPECT_EQ("null", PrettyField(NULL));
 

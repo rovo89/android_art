@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "UniquePtr.h"
+#include "class_loader.h"
 #include "file.h"
 #include "object.h"
 #include "os.h"
@@ -161,6 +162,20 @@ std::string PrettyClass(const Class* c) {
   std::string result;
   result += "java.lang.Class<";
   result += PrettyDescriptor(c->GetDescriptor());
+  result += ">";
+  return result;
+}
+
+std::string PrettyClassAndClassLoader(const Class* c) {
+  if (c == NULL) {
+    return "null";
+  }
+  std::string result;
+  result += "java.lang.Class<";
+  result += PrettyDescriptor(c->GetDescriptor());
+  result += ",";
+  result += PrettyTypeOf(c->GetClassLoader());
+  // TODO: add an identifying hash value for the loader
   result += ">";
   return result;
 }

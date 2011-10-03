@@ -206,7 +206,7 @@ class DexFile {
     uint16_t outs_size_;
     uint16_t tries_size_;
     uint32_t debug_info_off_;  // file offset to debug info stream
-    uint32_t insns_size_;  // size of the insns array, in 2 byte code units
+    uint32_t insns_size_in_code_units_;  // size of the insns array, in 2 byte code units
     uint16_t insns_[1];
    private:
     DISALLOW_COPY_AND_ASSIGN(CodeItem);
@@ -349,6 +349,8 @@ class DexFile {
 
   // Looks up a class definition index by its class descriptor.
   bool FindClassDefIndex(const StringPiece& descriptor, uint32_t& idx) const;
+
+  uint32_t GetVersion() const;
 
   // Looks up a class definition by its class descriptor.
   const ClassDef* FindClassDef(const StringPiece& descriptor) const;
@@ -609,7 +611,7 @@ class DexFile {
   }
 
   static const TryItem* dexGetTryItems(const CodeItem& code_item, uint32_t offset) {
-    const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_];
+    const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_in_code_units_];
     return reinterpret_cast<const TryItem*>
         (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
   }
@@ -808,7 +810,7 @@ class DexFile {
       dexDecodeDebugInfo0(code_item, method, posCb, local_cb, cnxt, stream, local_in_reg);
     }
     for (int reg = 0; reg < code_item->registers_size_; reg++) {
-      InvokeLocalCbIfLive(cnxt, reg, code_item->insns_size_, local_in_reg, local_cb);
+      InvokeLocalCbIfLive(cnxt, reg, code_item->insns_size_in_code_units_, local_in_reg, local_cb);
     }
   }
 

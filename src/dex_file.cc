@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
 #include <sys/mman.h>
@@ -408,6 +409,11 @@ bool DexFile::CheckMagic(const byte* magic) {
     return false;
   }
   return true;
+}
+
+uint32_t DexFile::GetVersion() const {
+  const char* version = reinterpret_cast<const char*>(&GetHeader().magic_[sizeof(kDexMagic)]);
+  return atoi(version);
 }
 
 void DexFile::InitIndex() {

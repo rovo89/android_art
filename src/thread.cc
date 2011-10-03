@@ -1356,8 +1356,8 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
     }
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsCalleeSaveMethod()) {
-      UniquePtr<art::DexVerifier::RegisterMap> map(art::DexVerifier::GetExpandedRegisterMap(m));
-      const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(map.get(), m->ToDexPC(pc));
+      verifier::PcToReferenceMap map(m);
+      const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
       CHECK(reg_bitmap != NULL);
       const uint16_t* vmap = m->GetVmapTable();
       // For all dex registers

@@ -2,6 +2,9 @@
 
 #include "dex_instruction.h"
 
+#include "dex_file.h"
+#include <iomanip>
+
 namespace art {
 
 const char* const Instruction::kInstructionNames[] = {
@@ -191,7 +194,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
   }
 }
 
-size_t Instruction::Size() const {
+size_t Instruction::SizeInCodeUnits() const {
   const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
   if (*insns == kPackedSwitchSignature) {
     return (4 + insns[1] * 2);
@@ -246,9 +249,81 @@ Instruction::Code Instruction::Opcode() const {
 }
 
 const Instruction* Instruction::Next() const {
-  size_t current_size = Size() * sizeof(uint16_t);
+  size_t current_size_in_bytes = SizeInCodeUnits() * sizeof(uint16_t);
   const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-  return reinterpret_cast<const Instruction*>(ptr + current_size);
+  return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+}
+
+void Instruction::DumpHex(std::ostream& os, size_t code_units) const {
+  size_t inst_length = SizeInCodeUnits();
+  if (inst_length > code_units) {
+    inst_length = code_units;
+  }
+  const uint16_t* insn = reinterpret_cast<const uint16_t*>(this);
+  for (size_t i = 0; i < inst_length; i++) {
+    os << "0x" << StringPrintf("0x%04X", insn[i]) << " ";
+  }
+  for (size_t i = inst_length; i < code_units; i++) {
+    os << "       ";
+  }
+}
+
+void Instruction::Dump(std::ostream& os, const DexFile* file) const {
+  DecodedInstruction insn(this);
+  const char* opcode = kInstructionNames[insn.opcode_];
+  switch (Format()) {
+    case k10x: os << opcode; break;
+    case k12x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_; break;
+    case k11n: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
+    case k11x: os << opcode << " v" << insn.vA_; break;
+    case k10t: os << opcode << " +" << (int)insn.vA_; break;
+    case k20bc: os << opcode << " " << insn.vA_ << ", kind@" << insn.vB_; break;
+    case k20t: os << opcode << " +" << (int)insn.vA_; break;
+    case k22x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_; break;
+    case k21t: os << opcode << " v" << insn.vA_ << ", +" << insn.vB_; break;
+    case k21s: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
+    case k21h: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_ << "00000[00000000]"; break;
+    case k21c: os << opcode << " " << insn.vA_ << ", thing@" << insn.vB_; break;
+    case k23x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", v" << insn.vC_; break;
+    case k22b: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", #+" << insn.vC_; break;
+    case k22t: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", +" << insn.vC_; break;
+    case k22s: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", #+" << insn.vC_; break;
+    case k22c: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", thing@" << insn.vC_; break;
+    case k32x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_; break;
+    case k30t: os << opcode << " +" << (int)insn.vA_; break;
+    case k31t: os << opcode << " v" << insn.vA_ << ", +" << insn.vB_; break;
+    case k31i: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
+    case k31c: os << opcode << " v" << insn.vA_ << ", thing@" << insn.vB_; break;
+    case k35c: {
+      switch (insn.opcode_) {
+        case INVOKE_VIRTUAL:
+        case INVOKE_SUPER:
+        case INVOKE_DIRECT:
+        case INVOKE_STATIC:
+        case INVOKE_INTERFACE:
+          if (file != NULL) {
+            const DexFile::MethodId& meth_id = file->GetMethodId(insn.vB_);
+            os << opcode << " {v" << insn.arg_[0] << ", v" << insn.arg_[1] << ", v" << insn.arg_[2]
+                         << ", v" << insn.arg_[3] << ", v" << insn.arg_[4] << "}, "
+                         << file->GetMethodName(meth_id) << file->GetMethodSignature(meth_id)
+                         << " // method@" << insn.vB_;
+            break;
+          }  // else fall-through
+        default:
+          os << opcode << " {v" << insn.arg_[0] << ", v" << insn.arg_[1] << ", v" << insn.arg_[2]
+                       << ", v" << insn.arg_[3] << ", v" << insn.arg_[4] << "}, thing@" << insn.vB_;
+          break;
+      }
+      break;
+    }
+    case k3rc: os << opcode << " {v" << insn.vC_ << " .. v" << (insn.vC_+ insn.vA_ - 1) << "}, method@" << insn.vB_; break;
+    case k51l: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, const Instruction& rhs) {
+  rhs.Dump(os, NULL);
+  return os;
 }
 
 }  // namespace art

@@ -11,12 +11,12 @@ namespace art {
 template<typename T>
 class DexInstructionVisitor {
  public:
-  void Visit(const uint16_t* code, size_t size) {
+  void Visit(const uint16_t* code, size_t size_in_bytes) {
     T* derived = static_cast<T*>(this);
-    const byte* ptr = reinterpret_cast<const byte*>(code);
-    const byte* end = ptr + size;
-    while (ptr != end) {
-      const Instruction* inst = Instruction::At(ptr);
+    size_t size_in_code_units = size_in_bytes / sizeof(uint16_t);
+    size_t i = 0;
+    while (i < size_in_code_units) {
+      const Instruction* inst = Instruction::At(&code[i]);
       switch (inst->Opcode()) {
 #define INSTRUCTION_CASE(o, cname, p, f, r, i, a, v)  \
         case Instruction::cname: {                    \
@@ -30,8 +30,7 @@ class DexInstructionVisitor {
         default:
           CHECK(false);
       }
-      ptr += inst->Size() * sizeof(uint16_t);
-      CHECK_LE(ptr, end);
+      i += inst->SizeInCodeUnits();
     }
   }
 

@@ -775,12 +775,10 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType typ
                                  __builtin_popcount(fp_spills) /* fprs */ +
                                  1 /* Method* */) * kPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
-    method->SetReturnPcOffsetInBytes(frame_size - kPointerSize);
     method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(fp_spills);
   } else if (insns == kX86) {
     method->SetFrameSizeInBytes(32);
-    method->SetReturnPcOffsetInBytes(28);
     method->SetCoreSpillMask((1 << art::x86::EBX) | (1 << art::x86::EBP) | (1 << art::x86::ESI) |
                              (1 << art::x86::EDI));
     method->SetFpSpillMask(0);

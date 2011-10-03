@@ -439,8 +439,7 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "shadow$_dex_cache_resolved_methods_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "shadow$_dex_cache_resolved_types_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_data_),                    "shadow$_register_map_data_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_header_),                  "shadow$_register_map_header_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, gc_map_),                               "shadow$_gc_map_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
 
@@ -461,7 +460,6 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_outs_),                             "shadow$_num_outs_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_registers_),                        "shadow$_num_registers_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, proto_idx_),                            "shadow$_proto_idx_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, return_pc_offset_in_bytes_),            "shadow$_return_pc_offset_in_bytes_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, vmap_table_),                           "shadow$_vmap_table_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_slot_),                            "slot"));
   };

@@ -538,14 +538,6 @@ class MANAGED Method : public AccessibleObject {
 
   void SetName(String* new_name);
 
-  ByteArray* GetRegisterMapData() const;
-
-  void SetRegisterMapData(ByteArray* data);
-
-  ByteArray* GetRegisterMapHeader() const;
-
-  void SetRegisterMapHeader(ByteArray* header);
-
   String* GetShorty() const;
 
   void SetShorty(String* new_shorty);
@@ -857,6 +849,14 @@ class MANAGED Method : public AccessibleObject {
     SetVmapTable(reinterpret_cast<uint16_t*>(vmap_table_offset));
   }
 
+  Object* GetGcMap() const {
+    return GetFieldObject<Object*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
+  }
+
+  void SetGcMap(Object* data) {
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), data, false);
+  }
+
   size_t GetFrameSizeInBytes() const {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
     size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_), false);
@@ -872,15 +872,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   size_t GetReturnPcOffsetInBytes() const {
-    DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, return_pc_offset_in_bytes_), false);
-  }
-
-  void SetReturnPcOffsetInBytes(size_t return_pc_offset_in_bytes) {
-    DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-    DCHECK_LT(return_pc_offset_in_bytes, GetFrameSizeInBytes());
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, return_pc_offset_in_bytes_),
-               return_pc_offset_in_bytes, false);
+    return GetFrameSizeInBytes() - kPointerSize;
   }
 
   bool IsRegistered() const;
@@ -1043,9 +1035,8 @@ class MANAGED Method : public AccessibleObject {
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<String>* dex_cache_strings_;
 
-  // Byte arrays that hold data for the register maps
-  const ByteArray* register_map_data_;
-  const ByteArray* register_map_header_;
+  // Garbage collection map
+  Object* gc_map_;
 
   // The short-form method descriptor string.
   String* shorty_;
@@ -1089,6 +1080,7 @@ class MANAGED Method : public AccessibleObject {
   // Index of the return type
   uint32_t java_return_type_idx_;
 
+  // Mapping from native pc to dex pc
   const uint32_t* mapping_table_;
 
   // For concrete virtual methods, this is the offset of the method in Class::vtable_.
@@ -1111,9 +1103,9 @@ class MANAGED Method : public AccessibleObject {
   // Method prototype descriptor string (return and argument types).
   uint32_t proto_idx_;
 
-  // Offset of return PC within frame for compiled code (in bytes)
-  size_t return_pc_offset_in_bytes_;
-
+  // When a register is promoted into a register, the spill mask holds which registers hold dex
+  // registers. The first promoted register's corresponding dex register is vmap_table_[1], the Nth
+  // is vmap_table_[N]. vmap_table_[0] holds the length of the table.
   const uint16_t* vmap_table_;
 
   uint32_t java_slot_;
@@ -1443,7 +1435,18 @@ class MANAGED Class : public StaticStorageBase {
     return GetPrimitiveType() == kPrimVoid;
   }
 
+  size_t PrimitiveFieldSize() const;
+
   size_t PrimitiveSize() const;
+
+  // Depth of class from java.lang.Object
+  size_t Depth() {
+    size_t depth = 0;
+    for(Class* klass = this; klass->GetSuperClass() != NULL; klass = klass->GetSuperClass()) {
+      depth++;
+    }
+    return depth;
+  }
 
   bool IsArrayClass() const {
     return GetComponentType() != NULL;
@@ -1558,6 +1561,11 @@ class MANAGED Class : public StaticStorageBase {
 
   bool IsSubClass(const Class* klass) const;
 
+  // Can src be assigned to this class? For example, String can be assigned to Object (by an
+  // upcast), however, an Object cannot be assigned to a String as a potentially exception throwing
+  // downcast would be necessary. Similarly for interfaces, a class that implements (or an interface
+  // that extends) another can be assigned to its parent, but not vice-versa. All Classes may assign
+  // to themselves. Classes for primitive types may not assign to each other.
   bool IsAssignableFrom(const Class* src) const {
     DCHECK(src != NULL);
     if (this == src) {
@@ -1571,7 +1579,7 @@ class MANAGED Class : public StaticStorageBase {
     } else if (src->IsArrayClass()) {
       return IsAssignableFromArray(src);
     } else {
-      return src->IsSubClass(this);
+      return !src->IsInterface() && src->IsSubClass(this);
     }
   }
 
@@ -2533,22 +2541,6 @@ inline String* Method::GetName() const {
 
 inline void Method::SetName(String* new_name) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, name_), new_name, false);
-}
-
-inline ByteArray* Method::GetRegisterMapData() const {
-  return GetFieldObject<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), false);
-}
-
-inline void Method::SetRegisterMapData(ByteArray* data) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), data, false);
-}
-
-inline ByteArray* Method::GetRegisterMapHeader() const {
-  return GetFieldObject<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), false);
-}
-
-inline void Method::SetRegisterMapHeader(ByteArray* header) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), header, false);
 }
 
 inline String* Method::GetShorty() const {

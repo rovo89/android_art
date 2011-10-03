@@ -243,7 +243,6 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
   // Note that we leave the offset and values back in the Method where ImageWriter will find them
   method->SetOatCodeOffset(code_offset);
   method->SetFrameSizeInBytes(frame_size_in_bytes);
-  method->SetReturnPcOffsetInBytes(return_pc_offset_in_bytes);
   method->SetCoreSpillMask(core_spill_mask);
   method->SetFpSpillMask(fp_spill_mask);
   method->SetOatMappingTableOffset(mapping_table_offset);

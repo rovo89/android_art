@@ -1635,7 +1635,7 @@ void ClassLinker::VerifyClass(Class* klass) {
   CHECK_EQ(klass->GetStatus(), Class::kStatusResolved);
   klass->SetStatus(Class::kStatusVerifying);
 
-  if (DexVerifier::VerifyClass(klass)) {
+  if (verifier::DexVerifier::VerifyClass(klass)) {
     klass->SetStatus(Class::kStatusVerified);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyClass(klass);

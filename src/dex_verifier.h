@@ -3,21 +3,29 @@
 #ifndef ART_SRC_DEX_VERIFY_H_
 #define ART_SRC_DEX_VERIFY_H_
 
+#include "casts.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "macros.h"
 #include "object.h"
+#include "stl_util.h"
 #include "UniquePtr.h"
 
-namespace art {
+#include <map>
+#include <stack>
+#include <vector>
 
-#define kMaxMonitorStackDepth   (sizeof(MonitorEntries) * 8)
+namespace art {
+namespace verifier {
+
+class DexVerifier;
+class PcToReferenceMap;
+class RegTypeCache;
 
 /*
- * Set this to enable dead code scanning. This is not required, but it's
- * very useful when testing changes to the verifier (to make sure we're not
- * skipping over stuff). The only reason not to do it is that it slightly
- * increases the time required to perform verification.
+ * Set this to enable dead code scanning. This is not required, but it's very useful when testing
+ * changes to the verifier (to make sure we're not skipping over stuff). The only reason not to do
+ * it is that it slightly increases the time required to perform verification.
  */
 #ifndef NDEBUG
 # define DEAD_CODE_SCAN  true
@@ -26,81 +34,15 @@ namespace art {
 #endif
 
 /*
- * We need an extra "pseudo register" to hold the return type briefly. It
- * can be category 1 or 2, so we need two slots.
+ * RegType holds information about the type of data held in a register. For most types it's a simple
+ * enum. For reference types it holds a pointer to the ClassObject, and for uninitialized references
+ * it holds an index into the UninitInstanceMap.
  */
-#define kExtraRegs  2
-#define RESULT_REGISTER(_insnRegCount)  (_insnRegCount)
-
-class DexVerifier {
+class RegType {
  public:
   /*
-   * RegType holds information about the type of data held in a register.
-   * For most types it's a simple enum. For reference types it holds a
-   * pointer to the ClassObject, and for uninitialized references it holds
-   * an index into the UninitInstanceMap.
-   */
-  typedef uint32_t RegType;
-
-  /*
-   * A bit vector indicating which entries in the monitor stack are
-   * associated with this register. The low bit corresponds to the stack's
-   * bottom-most entry.
-   */
-  typedef uint32_t MonitorEntries;
-
-  /*
-   * InsnFlags is a 32-bit integer with the following layout:
-   *   0-15  instruction length (or 0 if this address doesn't hold an opcode)
-   *  16-31  single bit flags:
-   *    InTry: in "try" block; exceptions thrown here may be caught locally
-   *    BranchTarget: other instructions can branch to this instruction
-   *    GcPoint: this instruction is a GC safe point
-   *    Visited: verifier has examined this instruction at least once
-   *    Changed: set/cleared as bytecode verifier runs
-   */
-  typedef uint32_t InsnFlags;
-
-  enum InsnFlag {
-    kInsnFlagWidthMask    = 0x0000ffff,
-    kInsnFlagInTry        = (1 << 16),
-    kInsnFlagBranchTarget = (1 << 17),
-    kInsnFlagGcPoint      = (1 << 18),
-    kInsnFlagVisited      = (1 << 30),
-    kInsnFlagChanged      = (1 << 31),
-  };
-
-  /*
-   * "Direct" and "virtual" methods are stored independently. The type of call
-   * used to invoke the method determines which list we search, and whether
-   * we travel up into superclasses.
-   *
-   * (<clinit>, <init>, and methods declared "private" or "static" are stored
-   * in the "direct" list. All others are stored in the "virtual" list.)
-   */
-  enum MethodType {
-    METHOD_UNKNOWN  = 0,
-    METHOD_DIRECT,      // <init>, private
-    METHOD_STATIC,      // static
-    METHOD_VIRTUAL,     // virtual, super
-    METHOD_INTERFACE    // interface
-  };
-
-  /*
-   * We don't need to store the register data for many instructions, because
-   * we either only need it at branch points (for verification) or GC points
-   * and branches (for verification + type-precise register analysis).
-   */
-  enum RegisterTrackingMode {
-    kTrackRegsBranches,
-    kTrackRegsGcPoints,
-    kTrackRegsAll,
-  };
-
-  /*
-   * Enumeration for register type values. The "hi" piece of a 64-bit value
-   * MUST immediately follow the "lo" piece in the enumeration, so we can check
-   * that hi==lo+1.
+   * Enumeration for register type values. The "hi" piece of a 64-bit value MUST immediately follow
+   * the "lo" piece in the enumeration, so we can check that hi==lo+1.
    *
    * Assignment of constants:
    *   [-MAXINT,-32768)   : integer
@@ -125,572 +67,746 @@ class DexVerifier {
    *
    * In addition, all of the above can convert to "float".
    *
-   * We're more careful with integer values than the spec requires. The
-   * motivation is to restrict byte/char/short to the correct range of values.
-   * For example, if a method takes a byte argument, we don't want to allow
-   * the code to load the constant "1024" and pass it in.
+   * We're more careful with integer values than the spec requires. The motivation is to restrict
+   * byte/char/short to the correct range of values. For example, if a method takes a byte argument,
+   * we don't want to allow the code to load the constant "1024" and pass it in.
    */
-  enum {
-    kRegTypeUnknown = 0,    /* initial state; use value=0 so calloc works */
-    kRegTypeUninit = 1,     /* MUST be odd to distinguish from pointer */
+  enum Type {
+    kRegTypeUnknown = 0,    /* initial state */
     kRegTypeConflict,       /* merge clash makes this reg's type unknowable */
 
     /*
-     * Category-1nr types. The order of these is chiseled into a couple
-     * of tables, so don't add, remove, or reorder if you can avoid it.
+     * Category-1nr types. The order of these is chiseled into a couple of tables, so don't add,
+     * remove, or reorder if you can avoid it.
      */
-#define kRegType1nrSTART    kRegTypeZero
-    kRegTypeZero,           /* 32-bit 0, could be Boolean, Int, Float, or Ref */
-    kRegTypeOne,            /* 32-bit 1, could be Boolean, Int, Float */
-    kRegTypeBoolean,        /* must be 0 or 1 */
-    kRegTypeConstPosByte,   /* const derived byte, known positive */
-    kRegTypeConstByte,      /* const derived byte */
-    kRegTypeConstPosShort,  /* const derived short, known positive */
-    kRegTypeConstShort,     /* const derived short */
-    kRegTypeConstChar,      /* const derived char */
-    kRegTypeConstInteger,   /* const derived integer */
-    kRegTypePosByte,        /* byte, known positive (can become char) */
-    kRegTypeByte,
-    kRegTypePosShort,       /* short, known positive (can become char) */
-    kRegTypeShort,
-    kRegTypeChar,
-    kRegTypeInteger,
-    kRegTypeFloat,
-#define kRegType1nrEND      kRegTypeFloat
-    kRegTypeConstLo,        /* const derived wide, lower half */
-    kRegTypeConstHi,        /* const derived wide, upper half */
+    kRegTypeZero,           /* 0 - 32-bit 0, could be Boolean, Int, Float, or Ref */
+    kRegType1nrSTART = kRegTypeZero,
+    kRegTypeIntegralSTART = kRegTypeZero,
+    kRegTypeOne,            /* 1 - 32-bit 1, could be Boolean, Int, Float */
+    kRegTypeBoolean,        /* Z - must be 0 or 1 */
+    kRegTypeConstPosByte,   /* y - const derived byte, known positive */
+    kRegTypeConstByte,      /* Y - const derived byte */
+    kRegTypeConstPosShort,  /* h - const derived short, known positive */
+    kRegTypeConstShort,     /* H - const derived short */
+    kRegTypeConstChar,      /* c - const derived char */
+    kRegTypeConstInteger,   /* i - const derived integer */
+    kRegTypePosByte,        /* b - byte, known positive (can become char) */
+    kRegTypeByte,           /* B */
+    kRegTypePosShort,       /* s - short, known positive (can become char) */
+    kRegTypeShort,          /* S */
+    kRegTypeChar,           /* C */
+    kRegTypeInteger,        /* I */
+    kRegTypeIntegralEND = kRegTypeInteger,
+    kRegTypeFloat,          /* F */
+    kRegType1nrEND = kRegTypeFloat,
+    kRegTypeConstLo,        /* const derived wide, lower half - could be long or double */
+    kRegTypeConstHi,        /* const derived wide, upper half - could be long or double */
     kRegTypeLongLo,         /* lower-numbered register; endian-independent */
     kRegTypeLongHi,
     kRegTypeDoubleLo,
     kRegTypeDoubleHi,
-
-    /*
-     * Enumeration max; this is used with "full" (32-bit) RegType values.
-     *
-     * Anything larger than this is a ClassObject or uninit ref. Mask off
-     * all but the low 8 bits; if you're left with kRegTypeUninit, pull
-     * the uninit index out of the high 24. Because kRegTypeUninit has an
-     * odd value, there is no risk of a particular ClassObject pointer bit
-     * pattern being confused for it (assuming our class object allocator
-     * uses word alignment).
-     */
-    kRegTypeMAX
-  };
-#define kRegTypeUninitMask  0xff
-#define kRegTypeUninitShift 8
-
-  /*
-   * Register type categories, for type checking.
-   *
-   * The spec says category 1 includes boolean, byte, char, short, int, float,
-   * reference, and returnAddress. Category 2 includes long and double.
-   *
-   * We treat object references separately, so we have "category1nr". We
-   * don't support jsr/ret, so there is no "returnAddress" type.
-   */
-  enum TypeCategory {
-    kTypeCategoryUnknown = 0,
-    kTypeCategory1nr = 1,         // boolean, byte, char, short, int, float
-    kTypeCategory2 = 2,           // long, double
-    kTypeCategoryRef = 3,         // object reference
+    kRegTypeReference,      // Reference type
+    kRegTypeMAX = kRegTypeReference + 1,
   };
 
-  /* An enumeration of problems that can turn up during verification. */
-  enum VerifyError {
-    VERIFY_ERROR_NONE = 0,      /* no error; must be zero */
-    VERIFY_ERROR_GENERIC,       /* VerifyError */
-
-    VERIFY_ERROR_NO_CLASS,      /* NoClassDefFoundError */
-    VERIFY_ERROR_NO_FIELD,      /* NoSuchFieldError */
-    VERIFY_ERROR_NO_METHOD,     /* NoSuchMethodError */
-    VERIFY_ERROR_ACCESS_CLASS,  /* IllegalAccessError */
-    VERIFY_ERROR_ACCESS_FIELD,  /* IllegalAccessError */
-    VERIFY_ERROR_ACCESS_METHOD, /* IllegalAccessError */
-    VERIFY_ERROR_CLASS_CHANGE,  /* IncompatibleClassChangeError */
-    VERIFY_ERROR_INSTANTIATION, /* InstantiationError */
-  };
-
-  /*
-   * Identifies the type of reference in the instruction that generated the
-   * verify error (e.g. VERIFY_ERROR_ACCESS_CLASS could come from a method,
-   * field, or class reference).
-   *
-   * This must fit in two bits.
-   */
-  enum VerifyErrorRefType {
-    VERIFY_ERROR_REF_CLASS  = 0,
-    VERIFY_ERROR_REF_FIELD  = 1,
-    VERIFY_ERROR_REF_METHOD = 2,
-  };
-#define kVerifyErrorRefTypeShift 6
-
-  /*
-   * Format enumeration for RegisterMap data area.
-   */
-  enum RegisterMapFormat {
-    kRegMapFormatUnknown = 0,
-    kRegMapFormatNone,          /* indicates no map data follows */
-    kRegMapFormatCompact8,      /* compact layout, 8-bit addresses */
-    kRegMapFormatCompact16,     /* compact layout, 16-bit addresses */
-    kRegMapFormatDifferential,  /* compressed, differential encoding */
-  };
-
-  /*
-   * During verification, we associate one of these with every "interesting"
-   * instruction. We track the status of all registers, and (if the method
-   * has any monitor-enter instructions) maintain a stack of entered monitors
-   * (identified by code unit offset).
-   *
-   * If live-precise register maps are enabled, the "liveRegs" vector will
-   * be populated. Unlike the other lists of registers here, we do not
-   * track the liveness of the method result register (which is not visible
-   * to the GC).
-   */
-  struct RegisterLine {
-    UniquePtr<RegType[]> reg_types_;
-    UniquePtr<MonitorEntries[]> monitor_entries_;
-    UniquePtr<uint32_t[]> monitor_stack_;
-    uint32_t monitor_stack_top_;
-
-    RegisterLine()
-        : reg_types_(NULL), monitor_entries_(NULL), monitor_stack_(NULL),
-          monitor_stack_top_(0) {
-    }
-
-    /* Allocate space for the fields. */
-    void Alloc(size_t size, bool track_monitors) {
-      reg_types_.reset(new RegType[size]());
-      if (track_monitors) {
-        monitor_entries_.reset(new MonitorEntries[size]);
-        monitor_stack_.reset(new uint32_t[kMaxMonitorStackDepth]);
-      }
-    }
-  };
-
-  /* Big fat collection of register data. */
-  struct RegisterTable {
-    /*
-     * Array of RegisterLine structs, one per address in the method. We only
-     * set the pointers for certain addresses, based on instruction widths
-     * and what we're trying to accomplish.
-     */
-    UniquePtr<RegisterLine[]> register_lines_;
-
-    /*
-     * Number of registers we track for each instruction. This is equal
-     * to the method's declared "registersSize" plus kExtraRegs (2).
-     */
-    size_t      insn_reg_count_plus_;
-
-    /* Storage for a register line we're currently working on. */
-    RegisterLine work_line_;
-
-    /* Storage for a register line we're saving for later. */
-    RegisterLine saved_line_;
-
-    RegisterTable() : register_lines_(NULL), insn_reg_count_plus_(0) {
-    }
-  };
-
-  /* Entries in the UninitInstanceMap. */
-  struct UninitInstanceMapEntry {
-    /* Code offset, or -1 for method arg ("this"). */
-    int addr_;
-
-    /* Class created at this address. */
-    Class* klass_;
-  };
-
-  /*
-   * Table that maps uninitialized instances to classes, based on the
-   * address of the new-instance instruction. One per method.
-   */
-  struct UninitInstanceMap {
-    int num_entries_;
-    UniquePtr<UninitInstanceMapEntry[]> map_;
-
-    explicit UninitInstanceMap(int num_entries)
-        : num_entries_(num_entries),
-          map_(new UninitInstanceMapEntry[num_entries]()) {
-    }
-  };
-  #define kUninitThisArgAddr  (-1)
-  #define kUninitThisArgSlot  0
-
-  /* Various bits of data used by the verifier and register map generator. */
-  struct VerifierData {
-    /* The method we're working on. */
-    Method* method_;
-
-    /* The dex file containing the method. */
-    const DexFile* dex_file_;
-
-    /* The code item containing the code for the method. */
-    const DexFile::CodeItem* code_item_;
-
-    /* Instruction widths and flags, one entry per code unit. */
-    UniquePtr<InsnFlags[]> insn_flags_;
-
-    /*
-     * Uninitialized instance map, used for tracking the movement of
-     * objects that have been allocated but not initialized.
-     */
-    UniquePtr<UninitInstanceMap> uninit_map_;
-
-    /*
-     * Array of RegisterLine structs, one entry per code unit. We only need
-     * entries for code units that hold the start of an "interesting"
-     * instruction. For register map generation, we're only interested
-     * in GC points.
-     */
-    RegisterLine* register_lines_;
-
-    /* The number of occurrences of specific opcodes. */
-    size_t new_instance_count_;
-    size_t monitor_enter_count_;
-
-    VerifierData(Method* method, const DexFile* dex_file,
-        const DexFile::CodeItem* code_item)
-        : method_(method), dex_file_(dex_file), code_item_(code_item),
-          insn_flags_(NULL), uninit_map_(NULL), register_lines_(NULL),
-          new_instance_count_(0), monitor_enter_count_(0) {
-    }
-  };
-
-  /* Header for RegisterMap */
-  struct RegisterMapHeader {
-    uint8_t format_;          /* enum RegisterMapFormat; MUST be first entry */
-    uint8_t reg_width_;       /* bytes per register line, 1+ */
-    uint16_t num_entries_;    /* number of entries */
-
-    RegisterMapHeader(uint8_t format, uint8_t reg_width, uint16_t num_entries)
-        : format_(format), reg_width_(reg_width), num_entries_(num_entries) {
-    }
-  };
-
-  /*
-   * This is a single variable-size structure. It may be allocated on the
-   * heap or mapped out of a (post-dexopt) DEX file.
-   *
-   * 32-bit alignment of the structure is NOT guaranteed. This makes it a
-   * little awkward to deal with as a structure; to avoid accidents we use
-   * only byte types. Multi-byte values are little-endian.
-   *
-   * Size of (format==FormatNone): 1 byte
-   * Size of (format==FormatCompact8): 4 + (1 + reg_width) * num_entries
-   * Size of (format==FormatCompact16): 4 + (2 + reg_width) * num_entries
-   */
-  struct RegisterMap {
-    RegisterMapHeader* header_;
-    uint8_t* data_;
-    bool needs_free_;
-
-    RegisterMap(ByteArray* header, ByteArray* data) {
-      header_ = (RegisterMapHeader*) header->GetData();
-      data_ = (uint8_t*) data->GetData();
-      needs_free_ = false;
-    }
-
-    RegisterMap(uint8_t format, uint8_t reg_width, uint16_t num_entries,
-        uint32_t data_size) {
-      header_ = new RegisterMapHeader(format, reg_width, num_entries);
-      data_ = new uint8_t[data_size]();
-      needs_free_ = true;
-    }
-
-    ~RegisterMap() {
-      if (needs_free_) {
-        delete header_;
-        delete [] data_;
-      }
-    }
-  };
-
-  /*
-   * Merge result table for primitive values. The table is symmetric along
-   * the diagonal.
-   *
-   * Note that 32-bit int/float do not merge into 64-bit long/double. This
-   * is a register merge, not a widening conversion. Only the "implicit"
-   * widening within a category, e.g. byte to short, is allowed.
-   *
-   * Dalvik does not draw a distinction between int and float, but we enforce
-   * that once a value is used as int, it can't be used as float, and vice
-   * versa. We do not allow free exchange between 32-bit int/float and 64-bit
-   * long/double.
-   *
-   * Note that Uninit+Uninit=Uninit. This holds true because we only
-   * use this when the RegType value is exactly equal to kRegTypeUninit, which
-   * can only happen for the zeroeth entry in the table.
-   *
-   * "Unknown" never merges with anything known. The only time a register
-   * transitions from "unknown" to "known" is when we're executing code
-   * for the first time, and we handle that with a simple copy.
-   */
-  static const char merge_table_[kRegTypeMAX][kRegTypeMAX];
-
-  /*
-   * Returns "true" if the flags indicate that this address holds the start
-   * of an instruction.
-   */
-  static inline bool InsnIsOpcode(const InsnFlags insn_flags[], int addr) {
-    return (insn_flags[addr] & kInsnFlagWidthMask) != 0;
+  bool IsUninitializedThisReference() const {
+    return allocation_pc_ == kUninitThisArgAddr;
   }
 
-  /* Extract the unsigned 16-bit instruction width from "flags". */
-  static inline int InsnGetWidth(const InsnFlags insn_flags[], int addr) {
-    return insn_flags[addr] & kInsnFlagWidthMask;
+  Type GetType() const {
+    return type_;
   }
 
-  /* Utilities to check and set kInsnFlagChanged. */
-  static inline bool InsnIsChanged(const InsnFlags insn_flags[], int addr) {
-    return (insn_flags[addr] & kInsnFlagChanged) != 0;
-  }
-  static inline void InsnSetChanged(InsnFlags insn_flags[], int addr,
-      bool changed) {
-    if (changed)
-      insn_flags[addr] |= kInsnFlagChanged;
-    else
-      insn_flags[addr] &= ~kInsnFlagChanged;
+  void Dump(std::ostream& os) const;
+
+  Class* GetClass() const {
+    DCHECK(klass_ != NULL);
+    return klass_;
   }
 
-  /* Utilities to check and set kInsnFlagVisited. */
-  static inline bool InsnIsVisited(const InsnFlags insn_flags[], int addr) {
-      return (insn_flags[addr] & kInsnFlagVisited) != 0;
-  }
-  static inline void InsnSetVisited(InsnFlags insn_flags[], int addr,
-      bool visited) {
-    if (visited)
-      insn_flags[addr] |= kInsnFlagVisited;
-    else
-      insn_flags[addr] &= ~kInsnFlagVisited;
+  bool IsInitialized() const { return allocation_pc_ == kInitArgAddr; }
+  bool IsUninitializedReference() const { return allocation_pc_ != kInitArgAddr; }
+
+  bool IsUnknown() const { return type_ == kRegTypeUnknown; }
+  bool IsConflict() const { return type_ == kRegTypeConflict; }
+  bool IsZero()    const { return type_ == kRegTypeZero; }
+  bool IsOne()     const { return type_ == kRegTypeOne; }
+  bool IsConstLo() const { return type_ == kRegTypeConstLo; }
+  bool IsBoolean() const { return type_ == kRegTypeBoolean; }
+  bool IsByte()    const { return type_ == kRegTypeByte; }
+  bool IsChar()    const { return type_ == kRegTypeChar; }
+  bool IsShort()   const { return type_ == kRegTypeShort; }
+  bool IsInteger() const { return type_ == kRegTypeInteger; }
+  bool IsLong()    const { return type_ == kRegTypeLongLo; }
+  bool IsFloat()   const { return type_ == kRegTypeFloat; }
+  bool IsDouble()  const { return type_ == kRegTypeDoubleLo; }
+  bool IsReference() const { return type_ == kRegTypeReference; }
+
+  bool IsLowHalf() const { return type_ == kRegTypeLongLo ||
+                                  type_ == kRegTypeDoubleLo ||
+                                  type_ == kRegTypeConstLo; }
+  bool IsHighHalf() const { return type_ == kRegTypeLongHi ||
+                                   type_ == kRegTypeDoubleHi ||
+                                   type_ == kRegTypeConstHi; }
+
+  const RegType& HighHalf(RegTypeCache* cache) const;
+
+  bool CheckWidePair(const RegType& type_h) const {
+    return IsLowHalf() && (type_h.type_ == type_ + 1);
   }
 
-  static inline bool InsnIsVisitedOrChanged(const InsnFlags insn_flags[],
-      int addr) {
-    return (insn_flags[addr] & (kInsnFlagVisited |
-                                kInsnFlagChanged)) != 0;
+  uint16_t GetId() const {
+    return cache_id_;
   }
 
-  /* Utilities to check and set kInsnFlagInTry. */
-  static inline bool InsnIsInTry(const InsnFlags insn_flags[], int addr) {
-    return (insn_flags[addr] & kInsnFlagInTry) != 0;
-  }
-  static inline void InsnSetInTry(InsnFlags insn_flags[], int addr) {
-    insn_flags[addr] |= kInsnFlagInTry;
+  bool IsLongOrDoubleTypes() const { return IsLowHalf(); }
+
+  bool IsReferenceTypes() const {
+    return type_ == kRegTypeReference || type_ == kRegTypeZero;
   }
 
-  /* Utilities to check and set kInsnFlagBranchTarget. */
-  static inline bool InsnIsBranchTarget(const InsnFlags insn_flags[], int addr)
-  {
-    return (insn_flags[addr] & kInsnFlagBranchTarget) != 0;
-  }
-  static inline void InsnSetBranchTarget(InsnFlags insn_flags[], int addr) {
-    insn_flags[addr] |= kInsnFlagBranchTarget;
+  bool IsCategory1Types() const {
+    return type_ >= kRegType1nrSTART && type_ <= kRegType1nrEND;
   }
 
-  /* Utilities to check and set kInsnFlagGcPoint. */
-  static inline bool InsnIsGcPoint(const InsnFlags insn_flags[], int addr) {
-    return (insn_flags[addr] & kInsnFlagGcPoint) != 0;
-  }
-  static inline void InsnSetGcPoint(InsnFlags insn_flags[], int addr) {
-    insn_flags[addr] |= kInsnFlagGcPoint;
+  bool IsCategory2Types() const {
+    return IsLowHalf();  // Don't expect explicit testing of high halves
   }
 
-  /* Get the class object at the specified index. */
-  static inline Class* GetUninitInstance(const UninitInstanceMap* uninit_map, int idx) {
-    DCHECK_GE(idx, 0);
-    DCHECK_LT(idx, uninit_map->num_entries_);
-    return uninit_map->map_[idx].klass_;
+  bool IsBooleanTypes() const { return IsBoolean() || IsZero() || IsOne(); }
+
+  bool IsByteTypes() const {
+    return IsByte() || IsBooleanTypes() || type_ == kRegTypeConstPosByte ||
+        type_ == kRegTypeConstByte || type_ == kRegTypePosByte;
   }
 
-  /* Determine if "type" is actually an object reference (init/uninit/zero) */
-  static inline bool RegTypeIsReference(RegType type) {
-    return (type > kRegTypeMAX || type == kRegTypeUninit ||
-            type == kRegTypeZero);
+  bool IsShortTypes() const {
+    return IsShort() || IsByteTypes() || type_ == kRegTypeConstPosShort ||
+        type_ == kRegTypeConstShort || type_ == kRegTypePosShort;
   }
 
-  /* Determine if "type" is an uninitialized object reference */
-  static inline bool RegTypeIsUninitReference(RegType type) {
-    return ((type & kRegTypeUninitMask) == kRegTypeUninit);
+  bool IsCharTypes() const {
+    return IsChar() || IsBooleanTypes() || type_ == kRegTypeConstPosByte ||
+        type_ == kRegTypePosByte || type_ == kRegTypeConstPosShort || type_ == kRegTypePosShort ||
+        type_ == kRegTypeConstChar;
+  }
+
+  bool IsIntegralTypes() const {
+    return type_ >= kRegTypeIntegralSTART && type_ <= kRegTypeIntegralEND;
+  }
+
+  bool IsArrayIndexTypes() const {
+    return IsIntegralTypes();
+  }
+
+  // Float type may be derived from any constant type
+  bool IsFloatTypes() const {
+    return IsFloat() || IsZero() || IsOne() ||
+        type_ == kRegTypeConstPosByte || type_ == kRegTypeConstByte ||
+        type_ == kRegTypeConstPosShort || type_ == kRegTypeConstShort ||
+        type_ == kRegTypeConstChar || type_ == kRegTypeConstInteger;
+  }
+
+  bool IsLongTypes() const {
+    return IsLong() || type_ == kRegTypeConstLo;
+  }
+
+  bool IsDoubleTypes() const {
+    return IsDouble() || type_ == kRegTypeConstLo;
+  }
+
+  const RegType& VerifyAgainst(const RegType& check_type, RegTypeCache* reg_types) const;
+
+  const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const;
+
+  bool Equals(const RegType& other) const {
+    return type_ == other.type_ && klass_ == other.klass_ && allocation_pc_ == other.allocation_pc_;
   }
 
   /*
-   * Convert the initialized reference "type" to a Class pointer
-   * (does not expect uninit ref types or "zero").
+   * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
+   * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is J is the parent of
+   * S and T such that there isn't a parent of both S and T that isn't also the parent of J (ie J
+   * is the deepest (lowest upper bound) parent of S and T).
+   *
+   * This operation applies for regular classes and arrays, however, for interface types there needn't
+   * be a partial ordering on the types. We could solve the problem of a lack of a partial order by
+   * introducing sets of types, however, the only operation permissible on an interface is
+   * invoke-interface. In the tradition of Java verifiers [1] we defer the verification of interface
+   * types until an invoke-interface call on the interface typed reference at runtime and allow
+   * the perversion of Object being assignable to an interface type (note, however, that we don't
+   * allow assignment of Object or Interface to any concrete class and are therefore type safe).
+   *
+   * [1] Java bytecode verifcation: algorithms and formalizations, Xavier Leroy
    */
-  static Class* RegTypeInitializedReferenceToClass(RegType type) {
-    DCHECK(RegTypeIsReference(type) && type != kRegTypeZero);
-    if ((type & 0x01) == 0) {
-      return (Class*) type;
-    } else {
-      LOG(ERROR) << "VFY: attempted to use uninitialized reference";
-      return NULL;
-    }
-  }
-
-  /* Extract the index into the uninitialized instance map table. */
-  static inline int RegTypeToUninitIndex(RegType type) {
-    DCHECK(RegTypeIsUninitReference(type));
-    return (type & ~kRegTypeUninitMask) >> kRegTypeUninitShift;
-  }
-
-  /* Convert the reference "type" to a Class pointer. */
-  static Class* RegTypeReferenceToClass(RegType type,
-      const UninitInstanceMap* uninit_map) {
-    DCHECK(RegTypeIsReference(type) && type != kRegTypeZero);
-    if (RegTypeIsUninitReference(type)) {
-      DCHECK(uninit_map != NULL);
-      return GetUninitInstance(uninit_map, RegTypeToUninitIndex(type));
-    } else {
-        return (Class*) type;
-    }
-  }
-
-  /* Convert the ClassObject pointer to an (initialized) register type. */
-  static inline RegType RegTypeFromClass(Class* klass) {
-    return (uint32_t) klass;
-  }
-
-  /* Return the RegType for the uninitialized reference in slot "uidx". */
-  static inline RegType RegTypeFromUninitIndex(int uidx) {
-    return (uint32_t) (kRegTypeUninit | (uidx << kRegTypeUninitShift));
-  }
-
-  /*
-   * Generate the register map for a method that has just been verified
-   * (i.e. we're doing this as part of verification).
-   *
-   * For type-precise determination we have all the data we need, so we
-   * just need to encode it in some clever fashion.
-   *
-   * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
-   */
-  static RegisterMap* GenerateRegisterMapV(VerifierData* vdata);
-
-  /*
-   * Get the expanded form of the register map associated with the specified
-   * method. May update the RegisterMap, possibly freeing the previous map.
-   *
-   * Returns NULL on failure (e.g. unable to expand map).
-   *
-   * NOTE: this function is not synchronized; external locking is mandatory.
-   * (This is expected to be called at GC time.)
-   */
-  static inline RegisterMap* GetExpandedRegisterMap(Method* method) {
-    if (method->GetRegisterMapHeader() == NULL ||
-        method->GetRegisterMapData() == NULL) {
-      return NULL;
-    }
-    RegisterMap* cur_map = new RegisterMap(method->GetRegisterMapHeader(),
-        method->GetRegisterMapData());
-    uint8_t format = cur_map->header_->format_;
-    if (format == kRegMapFormatCompact8 || format == kRegMapFormatCompact16) {
-      return cur_map;
-    } else {
-      return GetExpandedRegisterMapHelper(method, cur_map);
-    }
-  }
-
-  /*
-   * Get the expanded form of the register map associated with the method.
-   *
-   * If the map is already in one of the uncompressed formats, we return
-   * immediately.  Otherwise, we expand the map and replace method's register
-   * map pointer, freeing it if it was allocated on the heap.
-   *
-   * NOTE: this function is not synchronized; external locking is mandatory
-   * (unless we're in the zygote, where single-threaded access is guaranteed).
-   */
-  static RegisterMap* GetExpandedRegisterMapHelper(Method* method,
-      RegisterMap* map);
-
-  /* Return the data for the specified address, or NULL if not found. */
-  static const uint8_t* RegisterMapGetLine(const RegisterMap* map, int addr);
-
-  /*
-   * Determine if the RegType value is a reference type.
-   *
-   * Ordinarily we include kRegTypeZero in the "is it a reference"
-   * check. There's no value in doing so here, because we know
-   * the register can't hold anything but zero.
-   */
-  static inline bool IsReferenceType(RegType type) {
-    return (type > kRegTypeMAX || type == kRegTypeUninit);
-  }
-
-  /* Toggle the value of the "idx"th bit in "ptr". */
-  static inline void ToggleBit(uint8_t* ptr, int idx) {
-    ptr[idx >> 3] ^= 1 << (idx & 0x07);
-  }
-
-  /*
-   * Given a line of registers, output a bit vector that indicates whether
-   * or not the register holds a reference type (which could be null).
-   *
-   * We use '1' to indicate it's a reference, '0' for anything else (numeric
-   * value, uninitialized data, merge conflict). Register 0 will be found
-   * in the low bit of the first byte.
-   */
-  static void OutputTypeVector(const RegType* regs, int insn_reg_count,
-      uint8_t* data);
-
-  /*
-   * Double-check the map.
-   *
-   * We run through all of the data in the map, and compare it to the original.
-   * Only works on uncompressed data.
-   */
-  static bool VerifyMap(VerifierData* vdata, const RegisterMap* map);
-
-  /* Compare two register maps. Returns true if they're equal, false if not. */
-  static bool CompareMaps(const RegisterMap* map1, const RegisterMap* map2);
-
-  /* Compute the size, in bytes, of a register map. */
-  static size_t ComputeRegisterMapSize(const RegisterMap* map);
-
-  /*
-   * Compute the difference between two bit vectors.
-   *
-   * If "leb_out_buf" is non-NULL, we output the bit indices in ULEB128 format
-   * as we go. Otherwise, we just generate the various counts.
-   *
-   * The bit vectors are compared byte-by-byte, so any unused bits at the
-   * end must be zero.
-   *
-   * Returns the number of bytes required to hold the ULEB128 output.
-   *
-   * If "first_bit_changed_ptr" or "num_bits_changed_ptr" are non-NULL, they
-   * will receive the index of the first changed bit and the number of changed
-   * bits, respectively.
-   */
-  static int ComputeBitDiff(const uint8_t* bits1, const uint8_t* bits2,
-      int byte_width, int* first_bit_changed_ptr, int* num_bits_changed_ptr,
-      uint8_t* leb_out_buf);
-
-  /*
-   * Compress the register map with differential encoding.
-   *
-   * On success, returns a newly-allocated RegisterMap. If the map is not
-   * compatible for some reason, or fails to get smaller, this will return NULL.
-   */
-  static RegisterMap* CompressMapDifferential(const RegisterMap* map);
-
-  /*
-   * Expand a compressed map to an uncompressed form.
-   *
-   * Returns a newly-allocated RegisterMap on success, or NULL on failure.
-   *
-   * TODO: consider using the linear allocator or a custom allocator with
-   * LRU replacement for these instead of the native heap.
-   */
-  static RegisterMap* UncompressMapDifferential(const RegisterMap* map);
-
-
-  /* Verify a class. Returns "true" on success. */
-  static bool VerifyClass(Class* klass);
+  static Class* ClassJoin(Class* s, Class* t);
 
  private:
+  friend class RegTypeCache;
+
+  // Address given to an allocation_pc for an initialized object.
+  static const uint32_t kInitArgAddr = -2;
+
+  // Address given to an uninitialized allocation_pc if an object is uninitialized through being
+  // a constructor.
+  static const uint32_t kUninitThisArgAddr = -1;
+
+  RegType(Type type, Class* klass, uint32_t allocation_pc, uint16_t cache_id) :
+    type_(type), klass_(klass), allocation_pc_(allocation_pc), cache_id_(cache_id) {
+    DCHECK(type >= kRegTypeReference || allocation_pc_ == kInitArgAddr);
+  }
+
+  const Type type_;  // The current type of the register
+
+  // If known the type of the register
+  Class* klass_;
+
+  // Address an uninitialized reference was created
+  const uint32_t allocation_pc_;
+
+  // A RegType cache densely encodes types, this is the location in the cache for this type
+  const uint16_t cache_id_;
+
+  /*
+   * Merge result table for primitive values. The table is symmetric along the diagonal.
+   *
+   * Note that 32-bit int/float do not merge into 64-bit long/double. This is a register merge, not
+   * a widening conversion. Only the "implicit" widening within a category, e.g. byte to short, is
+   * allowed.
+   *
+   * Dalvik does not draw a distinction between int and float, but we enforce that once a value is
+   * used as int, it can't be used as float, and vice-versa. We do not allow free exchange between
+   * 32-bit int/float and 64-bit long/double.
+   *
+   * Note that Uninit + Uninit = Uninit. This holds true because we only use this when the RegType
+   * value is exactly equal to kRegTypeUninit, which can only happen for the zeroth entry in the
+   * table.
+   *
+   * "Unknown" never merges with anything known. The only time a register transitions from "unknown"
+   * to "known" is when we're executing code for the first time, and we handle that with a simple
+   * copy.
+   */
+  static const RegType::Type merge_table_[kRegTypeReference][kRegTypeReference];
+
+  DISALLOW_COPY_AND_ASSIGN(RegType);
+};
+std::ostream& operator<<(std::ostream& os, const RegType& rhs);
+
+class RegTypeCache {
+ public:
+  explicit RegTypeCache() : entries_(RegType::kRegTypeReference) {
+    Unknown();  // ensure Unknown is initialized
+  }
+  ~RegTypeCache() {
+    STLDeleteElements(&entries_);
+  }
+
+  const RegType& GetFromId(uint16_t id) {
+    DCHECK_LT(id, entries_.size());
+    RegType* result = entries_[id];
+    DCHECK(result != NULL);
+    return *result;
+  }
+
+  const RegType& From(RegType::Type type, const ClassLoader* loader, const std::string& descriptor);
+  const RegType& FromClass(Class* klass);
+  const RegType& FromCat1Const(int32_t value);
+  const RegType& FromDescriptor(const ClassLoader* loader, const std::string& descriptor);
+  const RegType& FromType(RegType::Type);
+
+  const RegType& Boolean() { return FromType(RegType::kRegTypeBoolean); }
+  const RegType& Byte()    { return FromType(RegType::kRegTypeByte); }
+  const RegType& Char()    { return FromType(RegType::kRegTypeChar); }
+  const RegType& Short()   { return FromType(RegType::kRegTypeShort); }
+  const RegType& Integer() { return FromType(RegType::kRegTypeInteger); }
+  const RegType& Float()   { return FromType(RegType::kRegTypeFloat); }
+  const RegType& Long()    { return FromType(RegType::kRegTypeLongLo); }
+  const RegType& Double()  { return FromType(RegType::kRegTypeDoubleLo); }
+
+  const RegType& JavaLangClass()  { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Class;"); }
+  const RegType& JavaLangObject() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Object;"); }
+  const RegType& JavaLangString() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/String;"); }
+
+  const RegType& Unknown()  { return FromType(RegType::kRegTypeUnknown); }
+  const RegType& Conflict() { return FromType(RegType::kRegTypeConflict); }
+  const RegType& Zero()     { return FromType(RegType::kRegTypeZero); }
+  const RegType& ConstLo()  { return FromType(RegType::kRegTypeConstLo); }
+
+  const RegType& Uninitialized(Class* klass, uint32_t allocation_pc);
+  const RegType& UninitializedThisArgument(Class* klass);
+
+ private:
+  // The allocated entries
+  std::vector<RegType*> entries_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
+};
+
+class InsnFlags {
+ public:
+  InsnFlags() : length_(0), flags_(0) {}
+
+  void SetLengthInCodeUnits(size_t length) {
+    CHECK_LT(length, 65536u);
+    length_ = length;
+  }
+  size_t GetLengthInCodeUnits() {
+    return length_;
+  }
+  bool IsOpcode() const {
+    return length_ != 0;
+  }
+
+  void SetInTry() {
+    flags_ |= 1 << kInsnFlagInTry;
+  }
+  void ClearInTry() {
+    flags_ &= ~(1 << kInsnFlagInTry);
+  }
+  bool IsInTry() const {
+    return (flags_ & (1 << kInsnFlagInTry)) != 0;
+  }
+
+  void SetBranchTarget() {
+    flags_ |= 1 << kInsnFlagBranchTarget;
+  }
+  void ClearBranchTarget() {
+    flags_ &= ~(1 << kInsnFlagBranchTarget);
+  }
+  bool IsBranchTarget() const {
+    return (flags_ & (1 << kInsnFlagBranchTarget)) != 0;
+  }
+
+  void SetGcPoint() {
+    flags_ |= 1 << kInsnFlagGcPoint;
+  }
+  void ClearGcPoint() {
+    flags_ &= ~(1 << kInsnFlagGcPoint);
+  }
+  bool IsGcPoint() const {
+    return (flags_ & (1 << kInsnFlagGcPoint)) != 0;
+  }
+
+  void SetVisited() {
+    flags_ |= 1 << kInsnFlagVisited;
+  }
+  void ClearVisited() {
+    flags_ &= ~(1 << kInsnFlagVisited);
+  }
+  bool IsVisited() const {
+    return (flags_ & (1 << kInsnFlagVisited)) != 0;
+  }
+
+  void SetChanged() {
+    flags_ |= 1 << kInsnFlagChanged;
+  }
+  void ClearChanged() {
+    flags_ &= ~(1 << kInsnFlagChanged);
+  }
+  bool IsChanged() const {
+    return (flags_ & (1 << kInsnFlagChanged)) != 0;
+  }
+
+  bool IsVisitedOrChanged() const {
+    return IsVisited() || IsChanged();
+  }
+
+  void Dump(std::ostream& os) {
+    char encoding[6];
+    if (!IsOpcode()) {
+      strncpy(encoding, "XXXXX", sizeof(encoding));
+    } else {
+      strncpy(encoding, "-----", sizeof(encoding));
+      if (IsInTry())        encoding[kInsnFlagInTry] = 'T';
+      if (IsBranchTarget()) encoding[kInsnFlagBranchTarget] = 'B';
+      if (IsGcPoint())      encoding[kInsnFlagGcPoint] = 'G';
+      if (IsVisited())      encoding[kInsnFlagVisited] = 'V';
+      if (IsChanged())      encoding[kInsnFlagChanged] = 'C';
+    }
+    os << encoding;
+  }
+ private:
+  enum InsnFlag {
+    kInsnFlagInTry,
+    kInsnFlagBranchTarget,
+    kInsnFlagGcPoint,
+    kInsnFlagVisited,
+    kInsnFlagChanged,
+  };
+
+  // Size of instruction in code units
+  uint16_t length_;
+  uint8_t flags_;
+};
+
+/*
+ * "Direct" and "virtual" methods are stored independently. The type of call used to invoke the
+ * method determines which list we search, and whether we travel up into superclasses.
+ *
+ * (<clinit>, <init>, and methods declared "private" or "static" are stored in the "direct" list.
+ * All others are stored in the "virtual" list.)
+ */
+enum MethodType {
+  METHOD_UNKNOWN  = 0,
+  METHOD_DIRECT,      // <init>, private
+  METHOD_STATIC,      // static
+  METHOD_VIRTUAL,     // virtual, super
+  METHOD_INTERFACE    // interface
+};
+
+const int kRegTypeUninitMask = 0xff;
+const int kRegTypeUninitShift = 8;
+
+/*
+ * Register type categories, for type checking.
+ *
+ * The spec says category 1 includes boolean, byte, char, short, int, float, reference, and
+ * returnAddress. Category 2 includes long and double.
+ *
+ * We treat object references separately, so we have "category1nr". We don't support jsr/ret, so
+ * there is no "returnAddress" type.
+ */
+enum TypeCategory {
+  kTypeCategoryUnknown = 0,
+  kTypeCategory1nr = 1,         // boolean, byte, char, short, int, float
+  kTypeCategory2 = 2,           // long, double
+  kTypeCategoryRef = 3,         // object reference
+};
+
+/*
+ * An enumeration of problems that can turn up during verification.
+ * VERIFY_ERROR_GENERIC denotes a failure that causes the entire class to be rejected. Other errors
+ * denote verification errors that cause bytecode to be rewritten to fail at runtime.
+ */
+enum VerifyError {
+  VERIFY_ERROR_NONE = 0,      /* no error; must be zero */
+  VERIFY_ERROR_GENERIC,       /* VerifyError */
+
+  VERIFY_ERROR_NO_CLASS,      /* NoClassDefFoundError */
+  VERIFY_ERROR_NO_FIELD,      /* NoSuchFieldError */
+  VERIFY_ERROR_NO_METHOD,     /* NoSuchMethodError */
+  VERIFY_ERROR_ACCESS_CLASS,  /* IllegalAccessError */
+  VERIFY_ERROR_ACCESS_FIELD,  /* IllegalAccessError */
+  VERIFY_ERROR_ACCESS_METHOD, /* IllegalAccessError */
+  VERIFY_ERROR_CLASS_CHANGE,  /* IncompatibleClassChangeError */
+  VERIFY_ERROR_INSTANTIATION, /* InstantiationError */
+};
+std::ostream& operator<<(std::ostream& os, const VerifyError& rhs);
+
+/*
+ * Identifies the type of reference in the instruction that generated the verify error
+ * (e.g. VERIFY_ERROR_ACCESS_CLASS could come from a method, field, or class reference).
+ *
+ * This must fit in two bits.
+ */
+enum VerifyErrorRefType {
+  VERIFY_ERROR_REF_CLASS  = 0,
+  VERIFY_ERROR_REF_FIELD  = 1,
+  VERIFY_ERROR_REF_METHOD = 2,
+};
+const int kVerifyErrorRefTypeShift = 6;
+
+/*
+ * Format enumeration for RegisterMap data area.
+ */
+enum RegisterMapFormat {
+  kRegMapFormatUnknown = 0,
+  kRegMapFormatNone,          /* indicates no map data follows */
+  kRegMapFormatCompact8,      /* compact layout, 8-bit addresses */
+  kRegMapFormatCompact16,     /* compact layout, 16-bit addresses */
+};
+
+// During verification, we associate one of these with every "interesting" instruction. We track
+// the status of all registers, and (if the method has any monitor-enter instructions) maintain a
+// stack of entered monitors (identified by code unit offset).
+// If live-precise register maps are enabled, the "liveRegs" vector will be populated. Unlike the
+// other lists of registers here, we do not track the liveness of the method result register
+// (which is not visible to the GC).
+class RegisterLine {
+ public:
+  RegisterLine(size_t num_regs, DexVerifier* verifier) :
+    line_(new uint16_t[num_regs]), verifier_(verifier), num_regs_(num_regs) {
+    memset(line_.get(), 0, num_regs_ * sizeof(uint16_t));
+    result_[0] = RegType::kRegTypeUnknown;
+    result_[1] = RegType::kRegTypeUnknown;
+  }
+
+  // Implement category-1 "move" instructions. Copy a 32-bit value from "vsrc" to "vdst".
+  void CopyRegister1(uint32_t vdst, uint32_t vsrc, TypeCategory cat);
+
+  // Implement category-2 "move" instructions. Copy a 64-bit value from "vsrc" to "vdst". This
+  // copies both halves of the register.
+  void CopyRegister2(uint32_t vdst, uint32_t vsrc);
+
+  // Implement "move-result". Copy the category-1 value from the result register to another
+  // register, and reset the result register.
+  void CopyResultRegister1(uint32_t vdst, bool is_reference);
+
+  // Implement "move-result-wide". Copy the category-2 value from the result register to another
+  // register, and reset the result register.
+  void CopyResultRegister2(uint32_t vdst);
+
+  // Set the invisible result register to unknown
+  void SetResultTypeToUnknown();
+
+  // Set the type of register N, verifying that the register is valid.  If "newType" is the "Lo"
+  // part of a 64-bit value, register N+1 will be set to "newType+1".
+  // The register index was validated during the static pass, so we don't need to check it here.
+  void SetRegisterType(uint32_t vdst, const RegType& new_type);
+
+  /* Set the type of the "result" register. */
+  void SetResultRegisterType(const RegType& new_type);
+
+  // Get the type of register vsrc.
+  const RegType& GetRegisterType(uint32_t vsrc) const;
+
+  bool VerifyRegisterType(uint32_t vsrc, const RegType& check_type);
+
+  void CopyFromLine(const RegisterLine* src) {
+    DCHECK_EQ(num_regs_, src->num_regs_);
+    memcpy(line_.get(), src->line_.get(), num_regs_ * sizeof(uint16_t));
+    monitors_ = src->monitors_;
+    reg_to_lock_depths_ = src->reg_to_lock_depths_;
+  }
+
+  void Dump(std::ostream& os) const {
+    for (size_t i = 0; i < num_regs_; i++) {
+      GetRegisterType(i).Dump(os);
+    }
+  }
+
+  void FillWithGarbage() {
+    memset(line_.get(), 0xf1, num_regs_ * sizeof(uint16_t));
+    while (!monitors_.empty()) {
+      monitors_.pop();
+    }
+    reg_to_lock_depths_.clear();
+  }
+
+  /*
+   * We're creating a new instance of class C at address A. Any registers holding instances
+   * previously created at address A must be initialized by now. If not, we mark them as "conflict"
+   * to prevent them from being used (otherwise, MarkRefsAsInitialized would mark the old ones and
+   * the new ones at the same time).
+   */
+  void MarkUninitRefsAsInvalid(const RegType& uninit_type);
+
+  /*
+   * Update all registers holding "uninit_type" to instead hold the corresponding initialized
+   * reference type. This is called when an appropriate constructor is invoked -- all copies of
+   * the reference must be marked as initialized.
+   */
+  void MarkRefsAsInitialized(const RegType& uninit_type);
+
+  /*
+   * Check constraints on constructor return. Specifically, make sure that the "this" argument got
+   * initialized.
+   * The "this" argument to <init> uses code offset kUninitThisArgAddr, which puts it at the start
+   * of the list in slot 0. If we see a register with an uninitialized slot 0 reference, we know it
+   * somehow didn't get initialized.
+   */
+  bool CheckConstructorReturn() const;
+
+  // Compare two register lines. Returns 0 if they match.
+  // Using this for a sort is unwise, since the value can change based on machine endianness.
+  int CompareLine(const RegisterLine* line2) const {
+    DCHECK(monitors_ == line2->monitors_);
+    // TODO: DCHECK(reg_to_lock_depths_ == line2->reg_to_lock_depths_);
+    return memcmp(line_.get(), line2->line_.get(), num_regs_ * sizeof(uint16_t));
+  }
+
+  size_t NumRegs() const {
+    return num_regs_;
+  }
+
+  /*
+   * Get the "this" pointer from a non-static method invocation. This returns the RegType so the
+   * caller can decide whether it needs the reference to be initialized or not. (Can also return
+   * kRegTypeZero if the reference can only be zero at this point.)
+   *
+   * The argument count is in vA, and the first argument is in vC, for both "simple" and "range"
+   * versions. We just need to make sure vA is >= 1 and then return vC.
+   */
+  const RegType& GetInvocationThis(const Instruction::DecodedInstruction& dec_insn);
+
+  /*
+   * Get the value from a register, and cast it to a Class. Sets "*failure" if something fails.
+   * This fails if the register holds an uninitialized class.
+   * If the register holds kRegTypeZero, this returns a NULL pointer.
+   */
+  Class* GetClassFromRegister(uint32_t vsrc) const;
+
+  /*
+   * Verify types for a simple two-register instruction (e.g. "neg-int").
+   * "dst_type" is stored into vA, and "src_type" is verified against vB.
+   */
+  void CheckUnaryOp(const Instruction::DecodedInstruction& dec_insn,
+                    const RegType& dst_type, const RegType& src_type);
+
+  /*
+   * Verify types for a simple three-register instruction (e.g. "add-int").
+   * "dst_type" is stored into vA, and "src_type1"/"src_type2" are verified
+   * against vB/vC.
+   */
+  void CheckBinaryOp(const Instruction::DecodedInstruction& dec_insn,
+                     const RegType& dst_type, const RegType& src_type1, const RegType& src_type2,
+                     bool check_boolean_op);
+
+  /*
+   * Verify types for a binary "2addr" operation. "src_type1"/"src_type2"
+   * are verified against vA/vB, then "dst_type" is stored into vA.
+   */
+  void CheckBinaryOp2addr(const Instruction::DecodedInstruction& dec_insn,
+                          const RegType& dst_type,
+                          const RegType& src_type1, const RegType& src_type2,
+                          bool check_boolean_op);
+
+  /*
+   * Verify types for A two-register instruction with a literal constant (e.g. "add-int/lit8").
+   * "dst_type" is stored into vA, and "src_type" is verified against vB.
+   *
+   * If "check_boolean_op" is set, we use the constant value in vC.
+   */
+  void CheckLiteralOp(const Instruction::DecodedInstruction& dec_insn,
+                      const RegType& dst_type, const RegType& src_type, bool check_boolean_op);
+
+  // Verify/push monitor onto the monitor stack, locking the value in reg_idx at location insn_idx.
+  void PushMonitor(uint32_t reg_idx, int32_t insn_idx);
+
+  // Verify/pop monitor from monitor stack ensuring that we believe the monitor is locked
+  void PopMonitor(uint32_t reg_idx);
+
+  // Stack of currently held monitors and where they were locked
+  size_t MonitorStackDepth() const {
+    return monitors_.size();
+  }
+
+  // We expect no monitors to be held at certain points, such a method returns. Verify the stack
+  // is empty, failing and returning false if not.
+  bool VerifyMonitorStackEmpty();
+
+  bool MergeRegisters(const RegisterLine* incoming_line);
+
+  size_t GetMaxReferenceReg(size_t max_ref_reg) {
+    size_t i = static_cast<int>(max_ref_reg) < 0 ? 0 : max_ref_reg;
+    for(; i < num_regs_; i++) {
+      if (line_[i] >= RegType::kRegTypeReference) {
+        max_ref_reg = i;
+      }
+    }
+    return max_ref_reg;
+  }
+
+  // Write a bit at each register location that holds a reference
+  void WriteReferenceBitMap(int8_t* data, size_t max_bytes);
+ private:
+
+  void CopyRegToLockDepth(size_t dst, size_t src) {
+    if (reg_to_lock_depths_.count(src) > 0) {
+      uint32_t depths = reg_to_lock_depths_[src];
+      reg_to_lock_depths_[dst] = depths;
+    }
+  }
+
+  bool IsSetLockDepth(size_t reg, size_t depth) {
+    if (reg_to_lock_depths_.count(reg) > 0) {
+      uint32_t depths = reg_to_lock_depths_[reg];
+      return (depths & (1 << depth)) != 0;
+    } else {
+      return false;
+    }
+  }
+
+  void SetRegToLockDepth(size_t reg, size_t depth) {
+    CHECK_LT(depth, 32u);
+    DCHECK(!IsSetLockDepth(reg, depth));
+    uint32_t depths;
+    if (reg_to_lock_depths_.count(reg) > 0) {
+      depths = reg_to_lock_depths_[reg];
+      depths = depths | (1 << depth);
+    } else {
+      depths = 1 << depth;
+    }
+    reg_to_lock_depths_[reg] = depths;
+  }
+
+  void ClearRegToLockDepth(size_t reg, size_t depth) {
+    CHECK_LT(depth, 32u);
+    DCHECK(IsSetLockDepth(reg, depth));
+    uint32_t depths = reg_to_lock_depths_[reg];
+    depths = depths ^ (1 << depth);
+    if (depths != 0) {
+      reg_to_lock_depths_[reg] = depths;
+    } else {
+      reg_to_lock_depths_.erase(reg);
+    }
+  }
+
+  void ClearAllRegToLockDepths(size_t reg) {
+    reg_to_lock_depths_.erase(reg);
+  }
+
+  // Storage for the result register's type, valid after an invocation
+  uint16_t result_[2];
+
+  // An array of RegType Ids associated with each dex register
+  UniquePtr<uint16_t[]> line_;
+
+  // Back link to the verifier
+  DexVerifier* verifier_;
+
+  // Length of reg_types_
+  const size_t num_regs_;
+  // A stack of monitor enter locations
+  std::stack<uint32_t> monitors_;
+  // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
+  // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
+  // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5
+  std::map<uint32_t, uint32_t> reg_to_lock_depths_;
+};
+std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs);
+
+class PcToRegisterLineTable {
+ public:
+  // We don't need to store the register data for many instructions, because we either only need
+  // it at branch points (for verification) or GC points and branches (for verification +
+  // type-precise register analysis).
+  enum RegisterTrackingMode {
+    kTrackRegsBranches,
+    kTrackRegsGcPoints,
+    kTrackRegsAll,
+  };
+  PcToRegisterLineTable() {}
+  ~PcToRegisterLineTable() {
+    STLDeleteValues(&pc_to_register_line_);
+  }
+
+  // Initialize the RegisterTable. Every instruction address can have a different set of information
+  // about what's in which register, but for verification purposes we only need to store it at
+  // branch target addresses (because we merge into that).
+  void Init(RegisterTrackingMode mode, InsnFlags* flags, uint32_t insns_size,
+            uint16_t registers_size, DexVerifier* verifier);
+
+  RegisterLine* GetLine(size_t idx) {
+    return pc_to_register_line_[idx];
+  }
+
+ private:
+  // Map from a dex pc to the register status associated with it
+  std::map<int32_t, RegisterLine*> pc_to_register_line_;
+
+  // Number of registers we track for each instruction. This is equal to the method's declared
+  // "registersSize" plus kExtraRegs (2).
+  size_t insn_reg_count_plus_;
+};
+
+
+
+// The verifier
+class DexVerifier {
+ public:
+  /* Verify a class. Returns "true" on success. */
+  static bool VerifyClass(const Class* klass);
   /*
    * Perform verification on a single method.
    *
@@ -715,12 +831,74 @@ class DexVerifier {
    */
   static bool VerifyMethod(Method* method);
 
+  uint8_t EncodePcToReferenceMapData() const;
+
+  uint32_t DexFileVersion() const {
+    return dex_file_->GetVersion();
+  }
+
+  RegTypeCache* GetRegTypeCache() {
+    return &reg_types_;
+  }
+
+  // Verification failed
+  std::ostream& Fail(VerifyError error) {
+    CHECK_EQ(failure_, VERIFY_ERROR_NONE);
+    failure_ = error;
+    return fail_messages_ << "VFY: " << PrettyMethod(method_)
+                          << '[' << (void*)work_insn_idx_ << "] : ";
+  }
+
+  // Log for verification information
+  std::ostream& LogVerifyInfo() {
+    return info_messages_ << "VFY: " << PrettyMethod(method_)
+                          << '[' << (void*)work_insn_idx_ << "] : ";
+  }
+
+  // Dump the state of the verifier, namely each instruction, what flags are set on it, register
+  // information
+  void Dump(std::ostream& os);
+
+ private:
+
+  explicit DexVerifier(Method* method);
+
+  bool Verify();
+
+  /*
+   * Compute the width of the instruction at each address in the instruction stream, and store it in
+   * insn_flags_. Addresses that are in the middle of an instruction, or that are part of switch
+   * table data, are not touched (so the caller should probably initialize "insn_flags" to zero).
+   *
+   * The "new_instance_count_" and "monitor_enter_count_" fields in vdata are also set.
+   *
+   * Performs some static checks, notably:
+   * - opcode of first instruction begins at index 0
+   * - only documented instructions may appear
+   * - each instruction follows the last
+   * - last byte of last instruction is at (code_length-1)
+   *
+   * Logs an error and returns "false" on failure.
+   */
+  bool ComputeWidthsAndCountOps();
+
+  /*
+   * Set the "in try" flags for all instructions protected by "try" statements. Also sets the
+   * "branch target" flags for exception handlers.
+   *
+   * Call this after widths have been set in "insn_flags".
+   *
+   * Returns "false" if something in the exception table looks fishy, but we're expecting the
+   * exception table to be somewhat sane.
+   */
+  bool ScanTryCatchBlocks();
+
   /*
    * Perform static verification on all instructions in a method.
    *
    * Walks through instructions in a method calling VerifyInstruction on each.
    */
-  static bool VerifyInstructions(VerifierData* vdata);
+  bool VerifyInstructions();
 
   /*
    * Perform static verification on an instruction.
@@ -755,318 +933,82 @@ class DexVerifier {
    * - (earlier) for each exception handler, the handler must start at a valid
    *   instruction
    */
-  static bool VerifyInstruction(VerifierData* vdata,
-      const Instruction* inst, uint32_t code_offset);
-
-  /* Perform detailed code-flow analysis on a single method. */
-  static bool VerifyCodeFlow(VerifierData* vdata);
-
-  /*
-   * Compute the width of the instruction at each address in the instruction
-   * stream, and store it in vdata->insn_flags. Addresses that are in the
-   * middle of an instruction, or that are part of switch table data, are not
-   * touched (so the caller should probably initialize "insn_flags" to zero).
-   *
-   * The "new_instance_count_" and "monitor_enter_count_" fields in vdata are
-   * also set.
-   *
-   * Performs some static checks, notably:
-   * - opcode of first instruction begins at index 0
-   * - only documented instructions may appear
-   * - each instruction follows the last
-   * - last byte of last instruction is at (code_length-1)
-   *
-   * Logs an error and returns "false" on failure.
-   */
-  static bool ComputeWidthsAndCountOps(VerifierData* vdata);
-
-  /*
-   * Set the "in try" flags for all instructions protected by "try" statements.
-   * Also sets the "branch target" flags for exception handlers.
-   *
-   * Call this after widths have been set in "insn_flags".
-   *
-   * Returns "false" if something in the exception table looks fishy, but
-   * we're expecting the exception table to be somewhat sane.
-   */
-  static bool ScanTryCatchBlocks(VerifierData* vdata);
-
-  /*
-   * Extract the relative offset from a branch instruction.
-   *
-   * Returns "false" on failure (e.g. this isn't a branch instruction).
-   */
-  static bool GetBranchOffset(const DexFile::CodeItem* code_item,
-      const InsnFlags insn_flags[], uint32_t cur_offset, int32_t* pOffset,
-      bool* pConditional, bool* selfOkay);
-
-  /*
-   * Verify an array data table. "cur_offset" is the offset of the
-   * fill-array-data instruction.
-   */
-  static bool CheckArrayData(const DexFile::CodeItem* code_item,
-      uint32_t cur_offset);
-
-  /*
-   * Perform static checks on a "new-instance" instruction. Specifically,
-   * make sure the class reference isn't for an array class.
-   *
-   * We don't need the actual class, just a pointer to the class name.
-   */
-  static bool CheckNewInstance(const DexFile* dex_file, uint32_t idx);
-
-  /*
-   * Perform static checks on a "new-array" instruction. Specifically, make
-   * sure they aren't creating an array of arrays that causes the number of
-   * dimensions to exceed 255.
-   */
-  static bool CheckNewArray(const DexFile* dex_file, uint32_t idx);
-
-  /*
-   * Perform static checks on an instruction that takes a class constant.
-   * Ensure that the class index is in the valid range.
-   */
-  static bool CheckTypeIndex(const DexFile* dex_file, uint32_t idx);
-
-  /*
-   * Perform static checks on a field get or set instruction. All we do
-   * here is ensure that the field index is in the valid range.
-   */
-  static bool CheckFieldIndex(const DexFile* dex_file, uint32_t idx);
-
-  /*
-   * Perform static checks on a method invocation instruction. All we do
-   * here is ensure that the method index is in the valid range.
-   */
-  static bool CheckMethodIndex(const DexFile* dex_file, uint32_t idx);
-
-  /* Ensure that the string index is in the valid range. */
-  static bool CheckStringIndex(const DexFile* dex_file, uint32_t idx);
+  bool VerifyInstruction(const Instruction* inst, uint32_t code_offset);
 
   /* Ensure that the register index is valid for this code item. */
-  static bool CheckRegisterIndex(const DexFile::CodeItem* code_item,
-      uint32_t idx);
+  bool CheckRegisterIndex(uint32_t idx);
 
   /* Ensure that the wide register index is valid for this code item. */
-  static bool CheckWideRegisterIndex(const DexFile::CodeItem* code_item,
-      uint32_t idx);
+  bool CheckWideRegisterIndex(uint32_t idx);
 
-  /*
-   * Check the register indices used in a "vararg" instruction, such as
-   * invoke-virtual or filled-new-array.
-   *
-   * vA holds word count (0-5), args[] have values.
-   *
-   * There are some tests we don't do here, e.g. we don't try to verify
-   * that invoking a method that takes a double is done with consecutive
-   * registers. This requires parsing the target method signature, which
-   * we will be doing later on during the code flow analysis.
-   */
-  static bool CheckVarArgRegs(const DexFile::CodeItem* code_item, uint32_t vA,
-      uint32_t arg[]);
+  // Perform static checks on a field get or set instruction. All we do here is ensure that the
+  // field index is in the valid range.
+  bool CheckFieldIndex(uint32_t idx);
 
-  /*
-   * Check the register indices used in a "vararg/range" instruction, such as
-   * invoke-virtual/range or filled-new-array/range.
-   *
-   * vA holds word count, vC holds index of first reg.
-   */
-  static bool CheckVarArgRangeRegs(const DexFile::CodeItem* code_item,
-      uint32_t vA, uint32_t vC);
+  // Perform static checks on a method invocation instruction. All we do here is ensure that the
+  // method index is in the valid range.
+  bool CheckMethodIndex(uint32_t idx);
 
-  /*
-   * Verify a switch table. "cur_offset" is the offset of the switch
-   * instruction.
-   *
-   * Updates "insnFlags", setting the "branch target" flag.
-   */
-  static bool CheckSwitchTargets(const DexFile::CodeItem* code_item,
-      InsnFlags insn_flags[], uint32_t cur_offset);
+  // Perform static checks on a "new-instance" instruction. Specifically, make sure the class
+  // reference isn't for an array class.
+  bool CheckNewInstance(uint32_t idx);
 
-  /*
-   * Verify that the target of a branch instruction is valid.
-   *
-   * We don't expect code to jump directly into an exception handler, but
-   * it's valid to do so as long as the target isn't a "move-exception"
-   * instruction. We verify that in a later stage.
-   *
-   * The dex format forbids certain instructions from branching to itself.
-   *
-   * Updates "insnFlags", setting the "branch target" flag.
-   */
-  static bool CheckBranchTarget(const DexFile::CodeItem* code_item,
-      InsnFlags insn_flags[], uint32_t cur_offset);
+  /* Ensure that the string index is in the valid range. */
+  bool CheckStringIndex(uint32_t idx);
 
-  /*
-   * Initialize the RegisterTable.
-   *
-   * Every instruction address can have a different set of information about
-   * what's in which register, but for verification purposes we only need to
-   * store it at branch target addresses (because we merge into that).
-   *
-   * By zeroing out the regType storage we are effectively initializing the
-   * register information to kRegTypeUnknown.
-   *
-   * We jump through some hoops here to minimize the total number of
-   * allocations we have to perform per method verified.
-   */
-  static bool InitRegisterTable(VerifierData* vdata, RegisterTable* reg_table,
-      RegisterTrackingMode track_regs_for);
+  // Perform static checks on an instruction that takes a class constant. Ensure that the class
+  // index is in the valid range.
+  bool CheckTypeIndex(uint32_t idx);
 
-  /* Get the register line for the given instruction in the current method. */
-  static inline RegisterLine* GetRegisterLine(const RegisterTable* reg_table,
-      int insn_idx) {
-    return &reg_table->register_lines_[insn_idx];
-  }
+  // Perform static checks on a "new-array" instruction. Specifically, make sure they aren't
+  // creating an array of arrays that causes the number of dimensions to exceed 255.
+  bool CheckNewArray(uint32_t idx);
 
-  /* Copy a register line. */
-  static inline void CopyRegisterLine(RegisterLine* dst,
-      const RegisterLine* src, size_t num_regs) {
-    memcpy(dst->reg_types_.get(), src->reg_types_.get(), num_regs * sizeof(RegType));
+  // Verify an array data table. "cur_offset" is the offset of the fill-array-data instruction.
+  bool CheckArrayData(uint32_t cur_offset);
 
-    DCHECK((src->monitor_entries_.get() == NULL && dst->monitor_entries_.get() == NULL) ||
-        (src->monitor_entries_.get() != NULL && dst->monitor_entries_.get() != NULL));
-    if (dst->monitor_entries_.get() != NULL) {
-      DCHECK(dst->monitor_stack_.get() != NULL);
-      memcpy(dst->monitor_entries_.get(), src->monitor_entries_.get(),
-          num_regs * sizeof(MonitorEntries));
-      memcpy(dst->monitor_stack_.get(), src->monitor_stack_.get(),
-          kMaxMonitorStackDepth * sizeof(uint32_t));
-      dst->monitor_stack_top_ = src->monitor_stack_top_;
-    }
-  }
+  // Verify that the target of a branch instruction is valid. We don't expect code to jump directly
+  // into an exception handler, but it's valid to do so as long as the target isn't a
+  // "move-exception" instruction. We verify that in a later stage.
+  // The dex format forbids certain instructions from branching to themselves.
+  // Updates "insnFlags", setting the "branch target" flag.
+  bool CheckBranchTarget(uint32_t cur_offset);
 
-  /* Copy a register line into the table. */
-  static inline void CopyLineToTable(RegisterTable* reg_table, int insn_idx,
-      const RegisterLine* src) {
-    RegisterLine* dst = GetRegisterLine(reg_table, insn_idx);
-    DCHECK(dst->reg_types_.get() != NULL);
-    CopyRegisterLine(dst, src, reg_table->insn_reg_count_plus_);
-  }
+  // Verify a switch table. "cur_offset" is the offset of the switch instruction.
+  // Updates "insnFlags", setting the "branch target" flag.
+  bool CheckSwitchTargets(uint32_t cur_offset);
 
-  /* Copy a register line out of the table. */
-  static inline void CopyLineFromTable(RegisterLine* dst,
-      const RegisterTable* reg_table, int insn_idx) {
-    RegisterLine* src = GetRegisterLine(reg_table, insn_idx);
-    DCHECK(src->reg_types_.get() != NULL);
-    CopyRegisterLine(dst, src, reg_table->insn_reg_count_plus_);
-  }
+  // Check the register indices used in a "vararg" instruction, such as invoke-virtual or
+  // filled-new-array.
+  // - vA holds word count (0-5), args[] have values.
+  // There are some tests we don't do here, e.g. we don't try to verify that invoking a method that
+  // takes a double is done with consecutive registers. This requires parsing the target method
+  // signature, which we will be doing later on during the code flow analysis.
+  bool CheckVarArgRegs(uint32_t vA, uint32_t arg[]);
 
-#ifndef NDEBUG
-  /*
-   * Compare two register lines. Returns 0 if they match.
-   *
-   * Using this for a sort is unwise, since the value can change based on
-   * machine endianness.
-   */
-  static inline int CompareLineToTable(const RegisterTable* reg_table,
-      int insn_idx, const RegisterLine* line2) {
-    const RegisterLine* line1 = GetRegisterLine(reg_table, insn_idx);
-    if (line1->monitor_entries_.get() != NULL) {
-      int result;
+  // Check the register indices used in a "vararg/range" instruction, such as invoke-virtual/range
+  // or filled-new-array/range.
+  // - vA holds word count, vC holds index of first reg.
+  bool CheckVarArgRangeRegs(uint32_t vA, uint32_t vC);
 
-      if (line2->monitor_entries_.get() == NULL)
-        return 1;
-      result = memcmp(line1->monitor_entries_.get(), line2->monitor_entries_.get(),
-          reg_table->insn_reg_count_plus_ * sizeof(MonitorEntries));
-      if (result != 0) {
-        LOG(ERROR) << "monitor_entries_ mismatch";
-        return result;
-      }
-      result = line1->monitor_stack_top_ - line2->monitor_stack_top_;
-      if (result != 0) {
-        LOG(ERROR) << "monitor_stack_top_ mismatch";
-        return result;
-      }
-      result = memcmp(line1->monitor_stack_.get(), line2->monitor_stack_.get(),
-            line1->monitor_stack_top_);
-      if (result != 0) {
-        LOG(ERROR) << "monitor_stack_ mismatch";
-        return result;
-      }
-    }
-    return memcmp(line1->reg_types_.get(), line2->reg_types_.get(),
-        reg_table->insn_reg_count_plus_ * sizeof(RegType));
-  }
-#endif
+  // Extract the relative offset from a branch instruction.
+  // Returns "false" on failure (e.g. this isn't a branch instruction).
+  bool GetBranchOffset(uint32_t cur_offset, int32_t* pOffset, bool* pConditional,
+                       bool* selfOkay);
 
-  /*
-   * Create a new uninitialized instance map.
-   *
-   * The map is allocated and populated with address entries. The addresses
-   * appear in ascending order to allow binary searching.
-   *
-   * Very few methods have 10 or more new-instance instructions; the
-   * majority have 0 or 1. Occasionally a static initializer will have 200+.
-   *
-   * TODO: merge this into the static pass or initRegisterTable; want to
-   * avoid walking through the instructions yet again just to set up this table
-   */
-  static UninitInstanceMap* CreateUninitInstanceMap(VerifierData* vdata);
+  /* Perform detailed code-flow analysis on a single method. */
+  bool VerifyCodeFlow();
 
-  /* Returns true if this method is a constructor. */
-  static bool IsInitMethod(const Method* method);
-
-  /*
-   * Look up a class reference given as a simple string descriptor.
-   *
-   * If we can't find it, return a generic substitute when possible.
-   */
-  static Class* LookupClassByDescriptor(const Method* method,
-      const char* descriptor, VerifyError* failure);
-
-  /*
-   * Look up a class reference in a signature. Could be an arg or the
-   * return value.
-   *
-   * Advances "*sig" to the last character in the signature (that is, to
-   * the ';').
-   *
-   * NOTE: this is also expected to verify the signature.
-   */
-  static Class* LookupSignatureClass(const Method* method, std::string sig,
-      VerifyError* failure);
-
-  /*
-   * Look up an array class reference in a signature. Could be an arg or the
-   * return value.
-   *
-   * Advances "*sig" to the last character in the signature.
-   *
-   * NOTE: this is also expected to verify the signature.
-   */
-  static Class* LookupSignatureArrayClass(const Method* method,
-      std::string sig, VerifyError* failure);
-
-  /*
-   * Set the register types for the first instruction in the method based on
-   * the method signature.
-   *
-   * This has the side-effect of validating the signature.
-   *
-   * Returns "true" on success.
-   */
-  static bool SetTypesFromSignature(VerifierData* vdata, RegType* reg_types);
-
-  /*
-   * Set the class object associated with the instruction at "addr".
-   *
-   * Returns the map slot index, or -1 if the address isn't listed in the map
-   * (shouldn't happen) or if a class is already associated with the address
-   * (bad bytecode).
-   *
-   * Entries, once set, do not change -- a given address can only allocate
-   * one type of object.
-   */
-  static int SetUninitInstance(UninitInstanceMap* uninit_map, int addr,
-      Class* klass);
+  // Set the register types for the first instruction in the method based on the method signature.
+  // This has the side-effect of validating the signature.
+  bool SetTypesFromSignature();
 
   /*
    * Perform code flow on a method.
    *
-   * The basic strategy is as outlined in v3 4.11.1.2: set the "changed" bit
-   * on the first instruction, process it (setting additional "changed" bits),
-   * and repeat until there are no more.
+   * The basic strategy is as outlined in v3 4.11.1.2: set the "changed" bit on the first
+   * instruction, process it (setting additional "changed" bits), and repeat until there are no
+   * more.
    *
    * v3 4.11.1.1
    * - (N/A) operand stack is always the same size
@@ -1075,27 +1017,25 @@ class DexVerifier {
    * - methods are invoked with the appropriate arguments
    * - fields are assigned using values of appropriate types
    * - opcodes have the correct type values in operand registers
-   * - there is never an uninitialized class instance in a local variable in
-   *   code protected by an exception handler (operand stack is okay, because
-   *   the operand stack is discarded when an exception is thrown) [can't
-   *   know what's a local var w/o the debug info -- should fall out of
+   * - there is never an uninitialized class instance in a local variable in code protected by an
+   *   exception handler (operand stack is okay, because the operand stack is discarded when an
+   *   exception is thrown) [can't know what's a local var w/o the debug info -- should fall out of
    *   register typing]
    *
    * v3 4.11.1.2
    * - execution cannot fall off the end of the code
    *
-   * (We also do many of the items described in the "static checks" sections,
-   * because it's easier to do them here.)
+   * (We also do many of the items described in the "static checks" sections, because it's easier to
+   * do them here.)
    *
-   * We need an array of RegType values, one per register, for every
-   * instruction. If the method uses monitor-enter, we need extra data
-   * for every register, and a stack for every "interesting" instruction.
-   * In theory this could become quite large -- up to several megabytes for
-   * a monster function.
+   * We need an array of RegType values, one per register, for every instruction. If the method uses
+   * monitor-enter, we need extra data for every register, and a stack for every "interesting"
+   * instruction. In theory this could become quite large -- up to several megabytes for a monster
+   * function.
    *
    * NOTE:
-   * The spec forbids backward branches when there's an uninitialized reference
-   * in a register. The idea is to prevent something like this:
+   * The spec forbids backward branches when there's an uninitialized reference in a register. The
+   * idea is to prevent something like this:
    *   loop:
    *     move r1, r0
    *     new-instance r0, MyClass
@@ -1103,571 +1043,85 @@ class DexVerifier {
    *     if-eq rN, loop  // once
    *   initialize r0
    *
-   * This leaves us with two different instances, both allocated by the
-   * same instruction, but only one is initialized. The scheme outlined in
-   * v3 4.11.1.4 wouldn't catch this, so they work around it by preventing
-   * backward branches. We achieve identical results without restricting
-   * code reordering by specifying that you can't execute the new-instance
-   * instruction if a register contains an uninitialized instance created
-   * by that same instrutcion.
+   * This leaves us with two different instances, both allocated by the same instruction, but only
+   * one is initialized. The scheme outlined in v3 4.11.1.4 wouldn't catch this, so they work around
+   * it by preventing backward branches. We achieve identical results without restricting code
+   * reordering by specifying that you can't execute the new-instance instruction if a register
+   * contains an uninitialized instance created by that same instruction.
    */
-  static bool CodeFlowVerifyMethod(VerifierData* vdata,
-      RegisterTable* reg_table);
+  bool CodeFlowVerifyMethod();
 
   /*
    * Perform verification for a single instruction.
    *
-   * This requires fully decoding the instruction to determine the effect
-   * it has on registers.
+   * This requires fully decoding the instruction to determine the effect it has on registers.
    *
-   * Finds zero or more following instructions and sets the "changed" flag
-   * if execution at that point needs to be (re-)evaluated. Register changes
-   * are merged into "reg_types_" at the target addresses. Does not set or
-   * clear any other flags in "insn_flags".
+   * Finds zero or more following instructions and sets the "changed" flag if execution at that
+   * point needs to be (re-)evaluated. Register changes are merged into "reg_types_" at the target
+   * addresses. Does not set or clear any other flags in "insn_flags_".
    */
-  static bool CodeFlowVerifyInstruction(VerifierData* vdata,
-      RegisterTable* reg_table, uint32_t insn_idx, size_t* start_guess);
+  bool CodeFlowVerifyInstruction(uint32_t* start_guess);
+
+  // Perform verification of an aget instruction. The destination register's type will be set to
+  // be that of component type of the array unless the array type is unknown, in which case a
+  // bottom type inferred from the type of instruction is used. is_primitive is false for an
+  // aget-object.
+  void VerifyAGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                  bool is_primitive);
+
+  // Perform verification of an aput instruction.
+  void VerifyAPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                  bool is_primitive);
+
+  // Lookup instance field and fail for resolution violations
+  Field* GetInstanceField(const RegType& obj_type, int field_idx);
+
+  // Perform verification of an iget instruction.
+  void VerifyIGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                  bool is_primitive);
+
+  // Perform verification of an iput instruction.
+  void VerifyIPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                  bool is_primitive);
+
+  // Lookup static field and fail for resolution violations
+  Field* GetStaticField(int field_idx);
+
+  // Perform verification of an sget instruction.
+  void VerifySGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                  bool is_primitive);
+
+  // Perform verification of an sput instruction.
+  void VerifySPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                  bool is_primitive);
+
+  // Verify that the arguments in a filled-new-array instruction are valid.
+  // "res_class" is the class refered to by dec_insn->vB_.
+  void VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn, Class* res_class,
+                                bool is_range);
 
   /*
-   * Replace an instruction with "throw-verification-error". This allows us to
-   * defer error reporting until the code path is first used.
-   *
-   * This is expected to be called during "just in time" verification, not
-   * from within dexopt. (Verification failures in dexopt will result in
-   * postponement of verification to first use of the class.)
-   *
-   * The throw-verification-error instruction requires two code units. Some
-   * of the replaced instructions require three; the third code unit will
-   * receive a "nop". The instruction's length will be left unchanged
-   * in "insn_flags".
-   *
-   * The VM postpones setting of debugger breakpoints in unverified classes,
-   * so there should be no clashes with the debugger.
-   *
-   * Returns "true" on success.
-   */
-  static bool ReplaceFailingInstruction(const DexFile::CodeItem* code_item,
-      int insn_idx, VerifyError failure);
-
-  /* Update a 16-bit opcode in a dex file. */
-  static void UpdateCodeUnit(const uint16_t* ptr, uint16_t new_val);
-
-  /* Handle a monitor-enter instruction. */
-  static void HandleMonitorEnter(RegisterLine* work_line, uint32_t reg_idx,
-      uint32_t insn_idx, VerifyError* failure);
-
-  /* Handle a monitor-exit instruction. */
-  static void HandleMonitorExit(RegisterLine* work_line, uint32_t reg_idx,
-      uint32_t insn_idx, VerifyError* failure);
-
-  /*
-   * Look up an instance field, specified by "field_idx", that is going to be
-   * accessed in object "obj_type". This resolves the field and then verifies
-   * that the class containing the field is an instance of the reference in
-   * "obj_type".
-   *
-   * It is possible for "obj_type" to be kRegTypeZero, meaning that we might
-   * have a null reference. This is a runtime problem, so we allow it,
-   * skipping some of the type checks.
-   *
-   * In general, "obj_type" must be an initialized reference. However, we
-   * allow it to be uninitialized if this is an "<init>" method and the field
-   * is declared within the "obj_type" class.
-   *
-   * Returns a Field on success, returns NULL and sets "*failure" on failure.
-   */
-  static Field* GetInstField(VerifierData* vdata, RegType obj_type,
-      int field_idx, VerifyError* failure);
-
-  /*
-   * Look up a static field.
-   *
-   * Returns a StaticField on success, returns NULL and sets "*failure"
-   * on failure.
-   */
-  static Field* GetStaticField(VerifierData* vdata, int field_idx,
-      VerifyError* failure);
-  /*
-   * For the "move-exception" instruction at "insn_idx", which must be at an
-   * exception handler address, determine the first common superclass of
-   * all exceptions that can land here. (For javac output, we're probably
-   * looking at multiple spans of bytecode covered by one "try" that lands
-   * at an exception-specific "catch", but in general the handler could be
-   * shared for multiple exceptions.)
-   *
-   * Returns NULL if no matching exception handler can be found, or if the
-   * exception is not a subclass of Throwable.
-   */
-  static Class* GetCaughtExceptionType(VerifierData* vdata, int insn_idx,
-      VerifyError* failure);
-
-  /*
-   * Get the type of register N.
-   *
-   * The register index was validated during the static pass, so we don't
-   * need to check it here.
-   */
-  static inline RegType GetRegisterType(const RegisterLine* register_line,
-      uint32_t vsrc) {
-    return register_line->reg_types_[vsrc];
-  }
-
-  /*
-   * Return the register type for the method. We can't just use the
-   * already-computed DalvikJniReturnType, because if it's a reference type
-   * we need to do the class lookup.
-   *
-   * Returned references are assumed to be initialized.
-   *
-   * Returns kRegTypeUnknown for "void".
-   */
-  static RegType GetMethodReturnType(const DexFile* dex_file,
-      const Method* method);
-
-  /*
-   * Get the value from a register, and cast it to a Class. Sets
-   * "*failure" if something fails.
-   *
-   * This fails if the register holds an uninitialized class.
-   *
-   * If the register holds kRegTypeZero, this returns a NULL pointer.
-   */
-  static Class* GetClassFromRegister(const RegisterLine* register_line,
-      uint32_t vsrc, VerifyError* failure);
-
-  /*
-   * Get the "this" pointer from a non-static method invocation. This
-   * returns the RegType so the caller can decide whether it needs the
-   * reference to be initialized or not. (Can also return kRegTypeZero
-   * if the reference can only be zero at this point.)
-   *
-   * The argument count is in vA, and the first argument is in vC, for both
-   * "simple" and "range" versions. We just need to make sure vA is >= 1
-   * and then return vC.
-   */
-  static RegType GetInvocationThis(const RegisterLine* register_line,
-      const Instruction::DecodedInstruction* dec_insn, VerifyError* failure);
-
-  /*
-   * Set the type of register N, verifying that the register is valid. If
-   * "new_type" is the "Lo" part of a 64-bit value, register N+1 will be
-   * set to "new_type+1".
-   *
-   * The register index was validated during the static pass, so we don't
-   * need to check it here.
-   *
-   * TODO: clear mon stack bits
-   */
-  static void SetRegisterType(RegisterLine* register_line, uint32_t vdst,
-      RegType new_type);
-
-  /*
-   * Verify that the contents of the specified register have the specified
-   * type (or can be converted to it through an implicit widening conversion).
-   *
-   * This will modify the type of the source register if it was originally
-   * derived from a constant to prevent mixing of int/float and long/double.
-   *
-   * If "vsrc" is a reference, both it and the "vsrc" register must be
-   * initialized ("vsrc" may be Zero). This will verify that the value in
-   * the register is an instance of check_type, or if check_type is an
-   * interface, verify that the register implements check_type.
-   */
-  static void VerifyRegisterType(RegisterLine* register_line, uint32_t vsrc,
-      RegType check_type, VerifyError* failure);
-
-  /* Set the type of the "result" register. */
-  static void SetResultRegisterType(RegisterLine* register_line,
-      const int insn_reg_count, RegType new_type);
-
-  /*
-   * Update all registers holding "uninit_type" to instead hold the
-   * corresponding initialized reference type. This is called when an
-   * appropriate <init> method is invoked -- all copies of the reference
-   * must be marked as initialized.
-   */
-  static void MarkRefsAsInitialized(RegisterLine* register_line,
-      int insn_reg_count, UninitInstanceMap* uninit_map, RegType uninit_type,
-      VerifyError* failure);
-
-  /*
-   * Implement category-1 "move" instructions. Copy a 32-bit value from
-   * "vsrc" to "vdst".
-   */
-  static void CopyRegister1(RegisterLine* register_line, uint32_t vdst,
-      uint32_t vsrc, TypeCategory cat, VerifyError* failure);
-
-  /*
-   * Implement category-2 "move" instructions. Copy a 64-bit value from
-   * "vsrc" to "vdst". This copies both halves of the register.
-   */
-  static void CopyRegister2(RegisterLine* register_line, uint32_t vdst,
-      uint32_t vsrc, VerifyError* failure);
-
-  /*
-   * Implement "move-result". Copy the category-1 value from the result
-   * register to another register, and reset the result register.
-   */
-  static void CopyResultRegister1(RegisterLine* register_line,
-      const int insn_reg_count, uint32_t vdst, TypeCategory cat,
-      VerifyError* failure);
-
-  /*
-   * Implement "move-result-wide". Copy the category-2 value from the result
-   * register to another register, and reset the result register.
-   */
-  static void CopyResultRegister2(RegisterLine* register_line,
-      const int insn_reg_count, uint32_t vdst, VerifyError* failure);
-
-  /*
-   * Compute the "class depth" of a class. This is the distance from the
-   * class to the top of the tree, chasing superclass links. java.lang.Object
-   * has a class depth of 0.
-   */
-  static int GetClassDepth(Class* klass);
-
-  /*
-   * Given two classes, walk up the superclass tree to find a common
-   * ancestor. (Called from findCommonSuperclass().)
-   *
-   * TODO: consider caching the class depth in the class object so we don't
-   * have to search for it here.
-   */
-  static Class* DigForSuperclass(Class* c1, Class* c2);
-
-  /*
-   * Merge two array classes. We can't use the general "walk up to the
-   * superclass" merge because the superclass of an array is always Object.
-   * We want String[] + Integer[] = Object[]. This works for higher dimensions
-   * as well, e.g. String[][] + Integer[][] = Object[][].
-   *
-   * If Foo1 and Foo2 are subclasses of Foo, Foo1[] + Foo2[] = Foo[].
-   *
-   * If Class implements Type, Class[] + Type[] = Type[].
-   *
-   * If the dimensions don't match, we want to convert to an array of Object
-   * with the least dimension, e.g. String[][] + String[][][][] = Object[][].
-   *
-   * Arrays of primitive types effectively have one less dimension when
-   * merging. int[] + float[] = Object, int[] + String[] = Object,
-   * int[][] + float[][] = Object[], int[][] + String[] = Object[]. (The
-   * only time this function doesn't return an array class is when one of
-   * the arguments is a 1-dimensional primitive array.)
-   *
-   * This gets a little awkward because we may have to ask the VM to create
-   * a new array type with the appropriate element and dimensions. However, we
-   * shouldn't be doing this often.
-   */
-  static Class* FindCommonArraySuperclass(Class* c1, Class* c2);
-
-  /*
-   * Find the first common superclass of the two classes. We're not
-   * interested in common interfaces.
-   *
-   * The easiest way to do this for concrete classes is to compute the "class
-   * depth" of each, move up toward the root of the deepest one until they're
-   * at the same depth, then walk both up to the root until they match.
-   *
-   * If both classes are arrays, we need to merge based on array depth and
-   * element type.
-   *
-   * If one class is an interface, we check to see if the other class/interface
-   * (or one of its predecessors) implements the interface. If so, we return
-   * the interface; otherwise, we return Object.
-   *
-   * NOTE: we continue the tradition of "lazy interface handling". To wit,
-   * suppose we have three classes:
-   *   One implements Fancy, Free
-   *   Two implements Fancy, Free
-   *   Three implements Free
-   * where Fancy and Free are unrelated interfaces. The code requires us
-   * to merge One into Two. Ideally we'd use a common interface, which
-   * gives us a choice between Fancy and Free, and no guidance on which to
-   * use. If we use Free, we'll be okay when Three gets merged in, but if
-   * we choose Fancy, we're hosed. The "ideal" solution is to create a
-   * set of common interfaces and carry that around, merging further references
-   * into it. This is a pain. The easy solution is to simply boil them
-   * down to Objects and let the runtime invokeinterface call fail, which
-   * is what we do.
-   */
-  static Class* FindCommonSuperclass(Class* c1, Class* c2);
-
-  /*
-   * Resolves a class based on an index and performs access checks to ensure
-   * the referrer can access the resolved class.
-   *
+   * Resolves a class based on an index and performs access checks to ensure the referrer can
+   * access the resolved class.
    * Exceptions caused by failures are cleared before returning.
-   *
    * Sets "*failure" on failure.
    */
-  static Class* ResolveClassAndCheckAccess(const DexFile* dex_file,
-      uint32_t class_idx, const Class* referrer, VerifyError* failure);
+  Class* ResolveClassAndCheckAccess(uint32_t class_idx);
+
+  /*
+   * For the "move-exception" instruction at "work_insn_idx_", which must be at an exception handler
+   * address, determine the first common superclass of all exceptions that can land here.
+   * Returns NULL if no matching exception handler can be found, or if the exception is not a
+   * subclass of Throwable.
+   */
+  Class* GetCaughtExceptionType();
 
   /*
    * Resolves a method based on an index and performs access checks to ensure
    * the referrer can access the resolved method.
-   *
    * Does not throw exceptions.
-   *
-   * Sets "*failure" on failure.
    */
-  static Method* ResolveMethodAndCheckAccess(const DexFile* dex_file,
-      uint32_t method_idx, const Class* referrer, VerifyError* failure,
-      bool is_direct);
-
-  /*
-   * Resolves a field based on an index and performs access checks to ensure
-   * the referrer can access the resolved field.
-   *
-   * Exceptions caused by failures are cleared before returning.
-   *
-   * Sets "*failure" on failure.
-   */
-  static Field* ResolveFieldAndCheckAccess(const DexFile* dex_file,
-      uint32_t class_idx, const Class* referrer, VerifyError* failure,
-      bool is_static);
-
-  /*
-   * Merge two RegType values.
-   *
-   * Sets "*changed" to "true" if the result doesn't match "type1".
-   */
-  static RegType MergeTypes(RegType type1, RegType type2, bool* changed);
-
-  /*
-   * Merge the bits that indicate which monitor entry addresses on the stack
-   * are associated with this register.
-   *
-   * The merge is a simple bitwise AND.
-   *
-   * Sets "*changed" to "true" if the result doesn't match "ents1".
-   */
-  static MonitorEntries MergeMonitorEntries(MonitorEntries ents1,
-      MonitorEntries ents2, bool* changed);
-
-  /*
-   * We're creating a new instance of class C at address A. Any registers
-   * holding instances previously created at address A must be initialized
-   * by now. If not, we mark them as "conflict" to prevent them from being
-   * used (otherwise, MarkRefsAsInitialized would mark the old ones and the
-   * new ones at the same time).
-   */
-  static void MarkUninitRefsAsInvalid(RegisterLine* register_line,
-      int insn_reg_count, UninitInstanceMap* uninit_map, RegType uninit_type);
-
-  /*
-   * Control can transfer to "next_insn".
-   *
-   * Merge the registers from "work_line" into "reg_table" at "next_insn", and
-   * set the "changed" flag on the target address if any of the registers
-   * has changed.
-   *
-   * Returns "false" if we detect mismatched monitor stacks.
-   */
-  static bool UpdateRegisters(InsnFlags* insn_flags, RegisterTable* reg_table,
-      int next_insn, const RegisterLine* work_line);
-
-  /*
-   * Determine whether we can convert "src_type" to "check_type", where
-   * "check_type" is one of the category-1 non-reference types.
-   *
-   * Constant derived types may become floats, but other values may not.
-   */
-  static bool CanConvertTo1nr(RegType src_type, RegType check_type);
-
-  /* Determine whether the category-2 types are compatible. */
-  static bool CanConvertTo2(RegType src_type, RegType check_type);
-
-  /* Convert a VM PrimitiveType enum value to the equivalent RegType value. */
-  static RegType PrimitiveTypeToRegType(Class::PrimitiveType prim_type);
-
-  /*
-   * Convert a const derived RegType to the equivalent non-const RegType value.
-   * Does nothing if the argument type isn't const derived.
-   */
-  static RegType ConstTypeToRegType(RegType const_type);
-
-  /*
-   * Given a 32-bit constant, return the most-restricted RegType enum entry
-   * that can hold the value. The types used here indicate the value came
-   * from a const instruction, and may not correctly represent the real type
-   * of the value. Upon use, a constant derived type is updated with the
-   * type from the use, which will be unambiguous.
-   */
-  static char DetermineCat1Const(int32_t value);
-
-  /*
-   * If "field" is marked "final", make sure this is the either <clinit>
-   * or <init> as appropriate.
-   *
-   * Sets "*failure" on failure.
-   */
-  static void CheckFinalFieldAccess(const Method* method, const Field* field,
-      VerifyError* failure);
-
-  /*
-   * Make sure that the register type is suitable for use as an array index.
-   *
-   * Sets "*failure" if not.
-   */
-  static void CheckArrayIndexType(const Method* method, RegType reg_type,
-      VerifyError* failure);
-
-  /*
-   * Check constraints on constructor return. Specifically, make sure that
-   * the "this" argument got initialized.
-   *
-   * The "this" argument to <init> uses code offset kUninitThisArgAddr, which
-   * puts it at the start of the list in slot 0. If we see a register with
-   * an uninitialized slot 0 reference, we know it somehow didn't get
-   * initialized.
-   *
-   * Returns "true" if all is well.
-   */
-  static bool CheckConstructorReturn(const Method* method,
-      const RegisterLine* register_line, const int insn_reg_count);
-
-  /*
-   * Verify that the target instruction is not "move-exception". It's important
-   * that the only way to execute a move-exception is as the first instruction
-   * of an exception handler.
-   *
-   * Returns "true" if all is well, "false" if the target instruction is
-   * move-exception.
-   */
-  static bool CheckMoveException(const uint16_t* insns, int insn_idx);
-
-  /*
-   * See if "type" matches "cat". All we're really looking for here is that
-   * we're not mixing and matching 32-bit and 64-bit quantities, and we're
-   * not mixing references with numerics. (For example, the arguments to
-   * "a < b" could be integers of different sizes, but they must both be
-   * integers. Dalvik is less specific about int vs. float, so we treat them
-   * as equivalent here.)
-   *
-   * For category 2 values, "type" must be the "low" half of the value.
-   *
-   * Sets "*failure" if something looks wrong.
-   */
-  static void CheckTypeCategory(RegType type, TypeCategory cat,
-      VerifyError* failure);
-
-  /*
-   * For a category 2 register pair, verify that "type_h" is the appropriate
-   * high part for "type_l".
-   *
-   * Does not verify that "type_l" is in fact the low part of a 64-bit
-   * register pair.
-   */
-  static void CheckWidePair(RegType type_l, RegType type_h,
-      VerifyError* failure);
-
-  /*
-   * Verify types for a simple two-register instruction (e.g. "neg-int").
-   * "dst_type" is stored into vA, and "src_type" is verified against vB.
-   */
-  static void CheckUnop(RegisterLine* register_line,
-      Instruction::DecodedInstruction* dec_insn, RegType dst_type,
-      RegType src_type, VerifyError* failure);
-
-  /*
-   * Verify types for a simple three-register instruction (e.g. "add-int").
-   * "dst_type" is stored into vA, and "src_type1"/"src_type2" are verified
-   * against vB/vC.
-   */
-  static void CheckBinop(RegisterLine* register_line,
-      Instruction::DecodedInstruction* dec_insn, RegType dst_type,
-      RegType src_type1, RegType src_type2, bool check_boolean_op,
-      VerifyError* failure);
-
-  /*
-   * Verify types for a binary "2addr" operation. "src_type1"/"src_type2"
-   * are verified against vA/vB, then "dst_type" is stored into vA.
-   */
-  static void CheckBinop2addr(RegisterLine* register_line,
-      Instruction::DecodedInstruction* dec_insn, RegType dst_type,
-      RegType src_type1, RegType src_type2, bool check_boolean_op,
-      VerifyError* failure);
-
-  /*
-   * Treat right-shifting as a narrowing conversion when possible.
-   *
-   * For example, right-shifting an int 24 times results in a value that can
-   * be treated as a byte.
-   *
-   * Things get interesting when contemplating sign extension. Right-
-   * shifting an integer by 16 yields a value that can be represented in a
-   * "short" but not a "char", but an unsigned right shift by 16 yields a
-   * value that belongs in a char rather than a short. (Consider what would
-   * happen if the result of the shift were cast to a char or short and then
-   * cast back to an int. If sign extension, or the lack thereof, causes
-   * a change in the 32-bit representation, then the conversion was lossy.)
-   *
-   * A signed right shift by 17 on an integer results in a short. An unsigned
-   * right shfit by 17 on an integer results in a posshort, which can be
-   * assigned to a short or a char.
-   *
-   * An unsigned right shift on a short can actually expand the result into
-   * a 32-bit integer. For example, 0xfffff123 >>> 8 becomes 0x00fffff1,
-   * which can't be represented in anything smaller than an int.
-   *
-   * javac does not generate code that takes advantage of this, but some
-   * of the code optimizers do. It's generally a peephole optimization
-   * that replaces a particular sequence, e.g. (bipush 24, ishr, i2b) is
-   * replaced by (bipush 24, ishr). Knowing that shifting a short 8 times
-   * to the right yields a byte is really more than we need to handle the
-   * code that's out there, but support is not much more complex than just
-   * handling integer.
-   *
-   * Right-shifting never yields a boolean value.
-   *
-   * Returns the new register type.
-   */
-  static RegType AdjustForRightShift(RegisterLine* register_line, int reg,
-      unsigned int shift_count, bool is_unsigned_shift);
-
-  /*
-   * We're performing an operation like "and-int/2addr" that can be
-   * performed on booleans as well as integers. We get no indication of
-   * boolean-ness, but we can infer it from the types of the arguments.
-   *
-   * Assumes we've already validated reg1/reg2.
-   *
-   * TODO: consider generalizing this. The key principle is that the
-   * result of a bitwise operation can only be as wide as the widest of
-   * the operands. You can safely AND/OR/XOR two chars together and know
-   * you still have a char, so it's reasonable for the compiler or "dx"
-   * to skip the int-to-char instruction. (We need to do this for boolean
-   * because there is no int-to-boolean operation.)
-   *
-   * Returns true if both args are Boolean, Zero, or One.
-   */
-  static bool UpcastBooleanOp(RegisterLine* register_line, uint32_t reg1,
-      uint32_t reg2);
-
-  /*
-   * Verify types for A two-register instruction with a literal constant
-   * (e.g. "add-int/lit8"). "dst_type" is stored into vA, and "src_type" is
-   * verified against vB.
-   *
-   * If "check_boolean_op" is set, we use the constant value in vC.
-   */
-  static void CheckLitop(RegisterLine* register_line,
-      Instruction::DecodedInstruction* dec_insn, RegType dst_type,
-      RegType src_type, bool check_boolean_op, VerifyError* failure);
-
-  /*
-   * Verify that the arguments in a filled-new-array instruction are valid.
-   *
-   * "res_class" is the class refered to by dec_insn->vB_.
-   */
-  static void VerifyFilledNewArrayRegs(const Method* method,
-      RegisterLine* register_line,
-      const Instruction::DecodedInstruction* dec_insn, Class* res_class,
-      bool is_range, VerifyError* failure);
-
-  /* See if the method matches the MethodType. */
-  static bool IsCorrectInvokeKind(MethodType method_type, Method* res_method);
+  Method* ResolveMethodAndCheckAccess(uint32_t method_idx,  bool is_direct);
 
   /*
    * Verify the arguments to a method. We're executing in "method", making
@@ -1691,19 +1145,170 @@ class DexVerifier {
    * Returns the resolved method on success, NULL on failure (with *failure
    * set appropriately).
    */
-  static Method* VerifyInvocationArgs(VerifierData* vdata,
-      RegisterLine* register_line, const int insn_reg_count,
-      const Instruction::DecodedInstruction* dec_insn, MethodType method_type,
-      bool is_range, bool is_super, VerifyError* failure);
+  Method* VerifyInvocationArgs(const Instruction::DecodedInstruction& dec_insn,
+                               MethodType method_type, bool is_range, bool is_super);
 
-  /* Dump the register types for the specifed address to the log file. */
-  static void DumpRegTypes(const VerifierData* vdata,
-      const RegisterLine* register_line, int addr, const char* addr_name,
-      const UninitInstanceMap* uninit_map);
+  /*
+   * Return the register type for the method. We can't just use the already-computed
+   * DalvikJniReturnType, because if it's a reference type we need to do the class lookup.
+   * Returned references are assumed to be initialized. Returns kRegTypeUnknown for "void".
+   */
+  const RegType& GetMethodReturnType() {
+    return reg_types_.FromClass(method_->GetReturnType());
+  }
 
-  DISALLOW_COPY_AND_ASSIGN(DexVerifier);
+  /*
+   * Verify that the target instruction is not "move-exception". It's important that the only way
+   * to execute a move-exception is as the first instruction of an exception handler.
+   * Returns "true" if all is well, "false" if the target instruction is move-exception.
+   */
+  bool CheckMoveException(const uint16_t* insns, int insn_idx);
+
+  /*
+   * Replace an instruction with "throw-verification-error". This allows us to
+   * defer error reporting until the code path is first used.
+   */
+  void ReplaceFailingInstruction();
+
+  /*
+  * Control can transfer to "next_insn". Merge the registers from merge_line into the table at
+  * next_insn, and set the changed flag on the target address if any of the registers were changed.
+  * Returns "false" if an error is encountered.
+  */
+  bool UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line);
+
+  /*
+   * Generate the GC map for a method that has just been verified (i.e. we're doing this as part of
+   * verification). For type-precise determination we have all the data we need, so we just need to
+   * encode it in some clever fashion.
+   * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
+   */
+  ByteArray* GenerateGcMap();
+
+  // Verify that the GC map associated with method_ is well formed
+  void VerifyGcMap();
+
+  // Compute sizes for GC map data
+  void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
+
+  Class* JavaLangThrowable();
+
+  InsnFlags CurrentInsnFlags() {
+    return insn_flags_[work_insn_idx_];
+  }
+
+  RegTypeCache reg_types_;
+
+  PcToRegisterLineTable reg_table_;
+
+  // Storage for the register status we're currently working on.
+  UniquePtr<RegisterLine> work_line_;
+
+  // Lazily initialized reference to java.lang.Class<java.lang.Throwable>
+  Class* java_lang_throwable_;
+
+  // The address of the instruction we're currently working on, note that this is in 2 byte
+  // quantities
+  uint32_t work_insn_idx_;
+
+  // Storage for the register status we're saving for later.
+  UniquePtr<RegisterLine> saved_line_;
+
+  Method* method_;  // The method we're working on.
+  const DexFile* dex_file_;  // The dex file containing the method.
+  const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
+  UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.
+
+  // The type of any error that occurs
+  VerifyError failure_;
+
+  // Failure message log
+  std::ostringstream fail_messages_;
+  // Info message log
+  std::ostringstream info_messages_;
+
+  // The number of occurrences of specific opcodes.
+  size_t new_instance_count_;
+  size_t monitor_enter_count_;
 };
 
+// Lightweight wrapper for PC to reference bit maps.
+class PcToReferenceMap {
+ public:
+  PcToReferenceMap(Method* m) {
+    data_ = down_cast<ByteArray*>(m->GetGcMap());
+    CHECK(data_ != NULL);
+    // Check the size of the table agrees with the number of entries
+    size_t data_size = data_->GetLength() - 4;
+    DCHECK_EQ(EntryWidth() * NumEntries(), data_size);
+  }
+
+  // The number of entries in the table
+  size_t NumEntries() const {
+    return GetData()[2] | (GetData()[3] << 8);
+  }
+
+  // Get the PC at the given index
+  uint16_t GetPC(size_t index) const {
+    size_t entry_offset = index * EntryWidth();
+    if (PcWidth() == 1) {
+      return Table()[entry_offset];
+    } else {
+      return Table()[entry_offset] | (Table()[entry_offset + 1] << 8);
+    }
+  }
+
+  // Return address of bitmap encoding what are live references
+  const uint8_t* GetBitMap(size_t index) const {
+    size_t entry_offset = index * EntryWidth();
+    return &Table()[entry_offset + PcWidth()];
+  }
+
+  // Find the bitmap associated with the given dex pc
+  const uint8_t* FindBitMap(uint16_t dex_pc, bool error_if_not_present = true) const;
+
+  // The number of bytes used to encode registers
+  size_t RegWidth() const {
+    return GetData()[1];
+  }
+
+ private:
+  // Table of num_entries * (dex pc, bitmap)
+  const uint8_t* Table() const {
+    return GetData() + 4;
+  }
+
+  // The format of the table of the PCs for the table
+  RegisterMapFormat Format() const {
+    return static_cast<RegisterMapFormat>(GetData()[0]);
+  }
+
+  // Number of bytes used to encode a dex pc
+  size_t PcWidth() const {
+    RegisterMapFormat format = Format();
+    switch (format) {
+      case kRegMapFormatCompact8:
+        return 1;
+      case kRegMapFormatCompact16:
+        return 2;
+      default:
+        LOG(FATAL) << "Invalid format " << static_cast<int>(format);
+        return -1;
+    }
+  }
+
+  // The width of an entry in the table
+  size_t EntryWidth() const {
+    return PcWidth() + RegWidth();
+  }
+
+  const uint8_t* GetData() const {
+    return reinterpret_cast<uint8_t*>(data_->GetData());
+  }
+  ByteArray* data_;  // The header and table data
+};
+
+}  // namespace verifier
 }  // namespace art
 
 #endif  // ART_SRC_DEX_VERIFY_H_

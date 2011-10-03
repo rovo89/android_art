@@ -10,15 +10,15 @@
 
 namespace art {
 
-#define REG(method, reg_vector, reg) \
+#define REG(method, reg_bitmap, reg) \
   ( ((reg) < (method)->NumRegisters()) &&                       \
-    (( *((reg_vector) + (reg)/8) >> ((reg) % 8) ) & 0x01) )
+    (( *((reg_bitmap) + (reg)/8) >> ((reg) % 8) ) & 0x01) )
 
 #define CHECK_REGS(...) do {          \
     int t[] = {__VA_ARGS__};             \
     int t_size = sizeof(t) / sizeof(*t);      \
     for (int i = 0; i < t_size; ++i)          \
-      CHECK(REG(m, reg_vector, t[i])) << "Error: Reg " << i << " is not in RegisterMap";  \
+      CHECK(REG(m, reg_bitmap, t[i])) << "Error: Reg " << i << " is not in RegisterMap";  \
   } while(false)
 
 static int gJava_StackWalk_refmap_calls = 0;
@@ -29,31 +29,22 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
 
   void VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
-    if (!m ||m->IsNative()) {
-      return;
-    }
+    CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
-    art::DexVerifier::RegisterMap* map = new art::DexVerifier::RegisterMap(
-        m->GetRegisterMapHeader(),
-        m->GetRegisterMapData());
-
-    if (!pc) {
-      // pc == NULL: m is either a native method or a phony method
-      return;
-    }
-    if (m->IsCalleeSaveMethod()) {
+    if (m->IsCalleeSaveMethod() || m->IsNative()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
+      CHECK_EQ(pc, 0u);
       return;
     }
-
-    const uint8_t* reg_vector = art::DexVerifier::RegisterMapGetLine(map, m->ToDexPC(pc));
-    std::string m_name = m->GetName()->ToModifiedUtf8();
+    verifier::PcToReferenceMap map(m);
+    const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
+    String* m_name = m->GetName();
 
     // Given the method name and the number of times the method has been called,
     // we know the Dex registers with live reference values. Assert that what we
     // find is what is expected.
-    if (m_name.compare("f") == 0) {
+    if (m_name->Equals("f") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(1U, m->ToDexPC(pc));
         CHECK_REGS(1);
@@ -62,7 +53,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         CHECK_EQ(5U, m->ToDexPC(pc));
         CHECK_REGS(1);
       }
-    } else if (m_name.compare("g") == 0) {
+    } else if (m_name->Equals("g") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(0xcU, m->ToDexPC(pc));
         CHECK_REGS(0, 2);  // Note that v1 is not in the minimal root set
@@ -71,7 +62,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         CHECK_EQ(0xcU, m->ToDexPC(pc));
         CHECK_REGS(0, 2);
       }
-    } else if (m_name.compare("shlemiel") == 0) {
+    } else if (m_name->Equals("shlemiel") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(0x380U, m->ToDexPC(pc));
         CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
@@ -81,8 +72,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       }
     }
-
-    LOG(INFO) << reg_vector;
+    LOG(INFO) << reg_bitmap;
   }
 };
 

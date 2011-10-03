@@ -36,14 +36,12 @@ class ExceptionTest : public CommonTest {
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
-    method_f_->SetReturnPcOffsetInBytes(kStackAlignment - kPointerSize);
     method_f_->SetCode(CompiledMethod::CodePointer(&fake_code_[0], kThumb2));
     method_f_->SetMappingTable(&fake_mapping_data_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
-    method_g_->SetReturnPcOffsetInBytes(kStackAlignment - kPointerSize);
     method_g_->SetCode(CompiledMethod::CodePointer(&fake_code_[0], kThumb2));
     method_g_->SetMappingTable(&fake_mapping_data_[0]);
   }
@@ -66,7 +64,7 @@ TEST_F(ExceptionTest, FindCatchHandler) {
   ASSERT_TRUE(code_item != NULL);
 
   ASSERT_EQ(2u, code_item->tries_size_);
-  ASSERT_NE(0u, code_item->insns_size_);
+  ASSERT_NE(0u, code_item->insns_size_in_code_units_);
 
   const struct DexFile::TryItem *t0, *t1;
   t0 = dex_->dexGetTryItems(*code_item, 0);

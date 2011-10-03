@@ -361,22 +361,18 @@ class ImageDump {
         } else {
           StringAppendF(&summary, "\tNATIVE UNREGISTERED\n");
         }
-        DCHECK(method->GetRegisterMapHeader() == NULL) << PrettyMethod(method);
-        DCHECK(method->GetRegisterMapData() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else if (method->IsAbstract()) {
         StringAppendF(&summary, "\tABSTRACT\n");
-        DCHECK(method->GetRegisterMapHeader() == NULL) << PrettyMethod(method);
-        DCHECK(method->GetRegisterMapData() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else if (method->IsCalleeSaveMethod()) {
         StringAppendF(&summary, "\tCALLEE SAVE METHOD\n");
-        DCHECK(method->GetRegisterMapHeader() == NULL) << PrettyMethod(method);
-        DCHECK(method->GetRegisterMapData() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        size_t register_map_bytes = (method->GetRegisterMapHeader()->GetLength() +
-                                     method->GetRegisterMapData()->GetLength());
+        size_t register_map_bytes = method->GetGcMap()->SizeOf();
         state->stats_.register_map_bytes += register_map_bytes;
 
         if (method->GetMappingTable() != NULL) {
@@ -388,7 +384,7 @@ class ImageDump {
         class DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
         const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
         const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
-        size_t dex_instruction_bytes = code_item->insns_size_ * 2;
+        size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
       }
     }

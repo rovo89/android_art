@@ -831,19 +831,21 @@ void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
 size_t Class::PrimitiveSize() const {
   switch (GetPrimitiveType()) {
     case kPrimBoolean:
-    case kPrimByte:
+    case kPrimByte:    return 1;
     case kPrimChar:
-    case kPrimShort:
+    case kPrimShort:   return 2;
     case kPrimInt:
-    case kPrimFloat:
-      return sizeof(int32_t);
+    case kPrimFloat:   return 4;
     case kPrimLong:
-    case kPrimDouble:
-      return sizeof(int64_t);
+    case kPrimDouble:  return 8;
     default:
       LOG(FATAL) << "Primitive type size calculation on invalid type " << this;
       return 0;
   }
+}
+
+size_t Class::PrimitiveFieldSize() const {
+  return PrimitiveSize() <= 4 ? 4 : 8;
 }
 
 size_t Class::GetTypeSize(const String* descriptor) {
@@ -982,14 +984,12 @@ bool Class::IsInSamePackage(const Class* that) const {
 }
 
 const ClassLoader* Class::GetClassLoader() const {
-  return GetFieldObject<const ClassLoader*>(
-      OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
+  return GetFieldObject<const ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
 
 void Class::SetClassLoader(const ClassLoader* new_cl) {
   ClassLoader* new_class_loader = const_cast<ClassLoader*>(new_cl);
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_),
-                 new_class_loader, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
 Method* Class::FindVirtualMethodForInterface(Method* method, bool can_throw) {

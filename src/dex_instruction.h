@@ -9,6 +9,8 @@
 
 namespace art {
 
+class DexFile;
+
 class Instruction {
  public:
   // NOP-encoded switch-statement signatures.
@@ -108,8 +110,8 @@ class Instruction {
   // Decodes this instruction, populating its arguments.
   void Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const;
 
-  // Returns the size in bytes of this instruction.
-  size_t Size() const;
+  // Returns the size in 2 byte code units, for this instruction.
+  size_t SizeInCodeUnits() const;
 
   // Returns a pointer to the next instruction in the stream.
   const Instruction* Next() const;
@@ -123,7 +125,7 @@ class Instruction {
   Code Opcode() const;
 
   // Reads an instruction out of the stream at the specified address.
-  static const Instruction* At(const byte* code) {
+  static const Instruction* At(const uint16_t* code) {
     CHECK(code != NULL);
     return reinterpret_cast<const Instruction*>(code);
   }
@@ -187,6 +189,12 @@ class Instruction {
              kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
   }
 
+  // Dump code_units worth of this instruction, padding to code_units for shorter instructions
+  void DumpHex(std::ostream& os, size_t code_units) const;
+
+  // Dump decoded version of instruction
+  void Dump(std::ostream& os, const DexFile*) const;
+
  private:
   static const char* const kInstructionNames[];
   static InstructionFormat const kInstructionFormats[];
@@ -194,6 +202,7 @@ class Instruction {
   static int const kInstructionVerifyFlags[];
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instruction);
 };
+std::ostream& operator<<(std::ostream& os, const Instruction& rhs);
 
 }  // namespace art
 

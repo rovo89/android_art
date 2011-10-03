@@ -146,18 +146,18 @@ extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Me
 }
 
 static std::string ClassNameFromIndex(Method* method, uint32_t ref,
-                                      DexVerifier::VerifyErrorRefType ref_type, bool access) {
+                                      verifier::VerifyErrorRefType ref_type, bool access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
   uint16_t type_idx = 0;
-  if (ref_type == DexVerifier::VERIFY_ERROR_REF_FIELD) {
+  if (ref_type == verifier::VERIFY_ERROR_REF_FIELD) {
     const DexFile::FieldId& id = dex_file.GetFieldId(ref);
     type_idx = id.class_idx_;
-  } else if (ref_type == DexVerifier::VERIFY_ERROR_REF_METHOD) {
+  } else if (ref_type == verifier::VERIFY_ERROR_REF_METHOD) {
     const DexFile::MethodId& id = dex_file.GetMethodId(ref);
     type_idx = id.class_idx_;
-  } else if (ref_type == DexVerifier::VERIFY_ERROR_REF_CLASS) {
+  } else if (ref_type == verifier::VERIFY_ERROR_REF_CLASS) {
     type_idx = ref;
   } else {
     CHECK(false) << static_cast<int>(ref_type);
@@ -177,8 +177,8 @@ static std::string ClassNameFromIndex(Method* method, uint32_t ref,
 }
 
 static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
-                                      DexVerifier::VerifyErrorRefType ref_type, bool access) {
-  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(DexVerifier::VERIFY_ERROR_REF_FIELD));
+                                      verifier::VerifyErrorRefType ref_type, bool access) {
+  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(verifier::VERIFY_ERROR_REF_FIELD));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
@@ -199,8 +199,8 @@ static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
 }
 
 static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
-                                DexVerifier::VerifyErrorRefType ref_type, bool access) {
-  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(DexVerifier::VERIFY_ERROR_REF_METHOD));
+                                verifier::VerifyErrorRefType ref_type, bool access) {
+  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(verifier::VERIFY_ERROR_REF_METHOD));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
@@ -227,49 +227,49 @@ extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thr
   frame.Next();
   Method* method = frame.GetMethod();
 
-  DexVerifier::VerifyErrorRefType ref_type =
-      static_cast<DexVerifier::VerifyErrorRefType>(kind >> kVerifyErrorRefTypeShift);
+  verifier::VerifyErrorRefType ref_type =
+      static_cast<verifier::VerifyErrorRefType>(kind >> verifier::kVerifyErrorRefTypeShift);
 
   const char* exception_class = "Ljava/lang/VerifyError;";
   std::string msg;
 
-  switch (static_cast<DexVerifier::VerifyError>(kind & ~(0xff << kVerifyErrorRefTypeShift))) {
-  case DexVerifier::VERIFY_ERROR_NO_CLASS:
+  switch (static_cast<verifier::VerifyError>(kind & ~(0xff << verifier::kVerifyErrorRefTypeShift))) {
+  case verifier::VERIFY_ERROR_NO_CLASS:
     exception_class = "Ljava/lang/NoClassDefFoundError;";
     msg = ClassNameFromIndex(method, ref, ref_type, false);
     break;
-  case DexVerifier::VERIFY_ERROR_NO_FIELD:
+  case verifier::VERIFY_ERROR_NO_FIELD:
     exception_class = "Ljava/lang/NoSuchFieldError;";
     msg = FieldNameFromIndex(method, ref, ref_type, false);
     break;
-  case DexVerifier::VERIFY_ERROR_NO_METHOD:
+  case verifier::VERIFY_ERROR_NO_METHOD:
     exception_class = "Ljava/lang/NoSuchMethodError;";
     msg = MethodNameFromIndex(method, ref, ref_type, false);
     break;
-  case DexVerifier::VERIFY_ERROR_ACCESS_CLASS:
+  case verifier::VERIFY_ERROR_ACCESS_CLASS:
     exception_class = "Ljava/lang/IllegalAccessError;";
     msg = ClassNameFromIndex(method, ref, ref_type, true);
     break;
-  case DexVerifier::VERIFY_ERROR_ACCESS_FIELD:
+  case verifier::VERIFY_ERROR_ACCESS_FIELD:
     exception_class = "Ljava/lang/IllegalAccessError;";
     msg = FieldNameFromIndex(method, ref, ref_type, true);
     break;
-  case DexVerifier::VERIFY_ERROR_ACCESS_METHOD:
+  case verifier::VERIFY_ERROR_ACCESS_METHOD:
     exception_class = "Ljava/lang/IllegalAccessError;";
     msg = MethodNameFromIndex(method, ref, ref_type, true);
     break;
-  case DexVerifier::VERIFY_ERROR_CLASS_CHANGE:
+  case verifier::VERIFY_ERROR_CLASS_CHANGE:
     exception_class = "Ljava/lang/IncompatibleClassChangeError;";
     msg = ClassNameFromIndex(method, ref, ref_type, false);
     break;
-  case DexVerifier::VERIFY_ERROR_INSTANTIATION:
+  case verifier::VERIFY_ERROR_INSTANTIATION:
     exception_class = "Ljava/lang/InstantiationError;";
     msg = ClassNameFromIndex(method, ref, ref_type, false);
     break;
-  case DexVerifier::VERIFY_ERROR_GENERIC:
+  case verifier::VERIFY_ERROR_GENERIC:
     // Generic VerifyError; use default exception, no message.
     break;
-  case DexVerifier::VERIFY_ERROR_NONE:
+  case verifier::VERIFY_ERROR_NONE:
     CHECK(false);
     break;
   }
@@ -297,7 +297,7 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, M
   frame.Next();
   Method* method = frame.GetMethod();
   self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-      MethodNameFromIndex(method, method_idx, DexVerifier::VERIFY_ERROR_REF_METHOD, false).c_str());
+      MethodNameFromIndex(method, method_idx, verifier::VERIFY_ERROR_REF_METHOD, false).c_str());
   self->DeliverException();
 }
 
@@ -355,8 +355,8 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
     const DexFile& dex_file = Runtime::Current()->GetClassLinker()
                                   ->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
     const DexFile::CodeItem* code = dex_file.GetCodeItem(caller->GetCodeItemOffset());
-    CHECK_LT(dex_pc, code->insns_size_);
-    const Instruction* instr = Instruction::At(reinterpret_cast<const byte*>(&code->insns_[dex_pc]));
+    CHECK_LT(dex_pc, code->insns_size_in_code_units_);
+    const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
     is_static = (instr_code == Instruction::INVOKE_STATIC) ||
                 (instr_code == Instruction::INVOKE_STATIC_RANGE);
