@@ -18,75 +18,6 @@ import java.lang.reflect.*;
 import java.util.*;
 
 class SystemMethods {
-  public static int test0() {
-    System.logI("hello world");
-    return 123;
-  }
-
-  public static int test1() {
-    String[] digits = new String[] {
-      "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f",
-    };
-    long t = System.currentTimeMillis();
-    for (int i = 7; i >= 0; --i) {
-      int b = ((int) (t >> (i * 8))) & 0xff;
-      System.logI(digits[(b >> 4) & 0xf]);
-      System.logI(digits[b & 0xf]);
-    }
-    return 123;
-  }
-
-  private static String[] STRING_DIGITS = new String[] {
-    "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f",
-  };
-
-  public static int test2() {
-    char[] cs = new char[20];
-    long t = System.currentTimeMillis();
-    StringBuilder sb = new StringBuilder(20);
-    for (int i = 7; i >= 0; --i) {
-      int b = ((int) (t >> (i * 8))) & 0xff;
-      sb.append(STRING_DIGITS[(b >> 4) & 0xf]);
-      sb.append(STRING_DIGITS[b & 0xf]);
-    }
-    String result = sb.toString();
-    System.logI(result);
-    return 123;
-  }
-
-  private static char[] DIGITS = new char[] {
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-    'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-    'u', 'v', 'w', 'x', 'y', 'z'
-  };
-
-  public static int test3() {
-    long t = System.currentTimeMillis();
-
-    long v = t;
-    //        int i = (int) v;
-    //        if (v >= 0 && i == v) {
-    //            return intToHexString(i, false, 0);
-    //        }
-
-    int bufLen = 16;  // Max number of hex digits in a long
-    char[] buf = new char[bufLen];
-    int cursor = bufLen;
-
-    do {
-      buf[--cursor] = DIGITS[((int) v) & 0xF];
-    } while ((v >>>= 4) != 0);
-
-    String s = new String(buf, cursor, bufLen - cursor);
-    System.logI(s);
-
-    System.logI(IntegralToString.longToHexString(t));
-    System.logI(Long.toHexString(t));
-    System.logI(Long.toString(t));
-    return 123;
-  }
-
   private static boolean z = true;
   private static byte b = 8;
   private static char c = 'x';
@@ -96,37 +27,8 @@ class SystemMethods {
   private static long j = 0x0123456789abcdefL;
   private static short s = 16;
 
-  public static int test4() {
-    String s = "int=" + i + " long=" + j;
-    System.logI(s);
-    return 123;
-  }
-
-  public static int test5() throws Exception {
-    System.logI("new Thread...");
-    Thread t = new Thread(new Runnable() {
-      public void run() {
-        System.logI("hello from a new thread!");
-        System.logI(Thread.currentThread().toString());
-        try {
-          System.logI("sleeping for 2s");
-          Thread.sleep(2*1000);
-        } catch (Exception ex) { ex.printStackTrace(); }
-        System.logI("finished sleeping");
-        throw new RuntimeException("uncaught exception");
-      }
-    });
-    System.logI("calling Thread.toString...");
-    System.logI(t.toString());
-    System.logI("calling Thread.start...");
-    t.start();
-    //t.join();
-    System.logI("...done!");
-    return 123;
-  }
-
-  public static void test6() throws Exception {
-    java.lang.reflect.Field f;
+  public static void testFieldReflection() throws Exception {
+    Field f;
 
     f = SystemMethods.class.getDeclaredField("z");
     System.out.println(f.getBoolean(null));
@@ -254,7 +156,7 @@ class SystemMethods {
     System.out.println(o + " (" + (o != null ? o.getClass() : "null") + ")");
   }
 
-  public static void test7() throws Exception {
+  public static void testMethodReflection() throws Exception {
     System.out.println(Arrays.toString(String.class.getDeclaredConstructors()));
     System.out.println(Arrays.toString(String.class.getDeclaredFields()));
     System.out.println(Arrays.toString(String.class.getDeclaredMethods()));
@@ -262,8 +164,8 @@ class SystemMethods {
     System.out.println(Arrays.toString(SystemMethods.class.getInterfaces()));
     System.out.println(Arrays.toString(String.class.getInterfaces()));
 
-//    System.out.println(SystemMethods.class.getModifiers());
-//    System.out.println(String.class.getModifiers());
+    System.out.println(SystemMethods.class.getModifiers());
+    System.out.println(String.class.getModifiers());
 
     System.out.println(String.class.isAssignableFrom(Object.class));
     System.out.println(Object.class.isAssignableFrom(String.class));
@@ -271,7 +173,7 @@ class SystemMethods {
     System.out.println(String.class.isInstance("hello"));
     System.out.println(String.class.isInstance(123));
 
-    java.lang.reflect.Method m;
+    Method m;
 
     m = SystemMethods.class.getDeclaredMethod("IV", int.class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
@@ -316,7 +218,7 @@ class SystemMethods {
     throw new ArithmeticException("surprise!");
   }
 
-  public static int sumArray(int[] xs) {
+  private static int sumArray(int[] xs) {
     int result = 0;
     for (int x : xs) {
       result += x;
@@ -324,7 +226,7 @@ class SystemMethods {
     return result;
   }
 
-  public static String concat(String[] strings) {
+  private static String concat(String[] strings) {
     String result = "";
     for (String s : strings) {
       result += s;
@@ -332,28 +234,28 @@ class SystemMethods {
     return result;
   }
 
-  public static void IV(int i) {
+  private static void IV(int i) {
     System.out.println(i);
   }
 
-  public static void IIV(int i, int j) {
+  private static void IIV(int i, int j) {
     System.out.println(i + " " + j);
   }
 
-  public static int III(int i, int j) {
+  private static int III(int i, int j) {
     System.out.println(i + " " + j);
     return i + j;
   }
 
-  public static void ZBCDFIJSV(boolean z, byte b, char c, double d, float f, int i, long l, short s) {
+  private static void ZBCDFIJSV(boolean z, byte b, char c, double d, float f, int i, long l, short s) {
     System.out.println(z + " " + b + " " + c + " " + d + " " + f + " " + i + " " + l + " " + s);
   }
 
-  public static void ZBCDLFIJSV(boolean z, byte b, char c, double d, String string, float f, int i, long l, short s) {
+  private static void ZBCDLFIJSV(boolean z, byte b, char c, double d, String string, float f, int i, long l, short s) {
     System.out.println(z + " " + b + " " + c + " " + d + " " + " " + string + " " + f + " " + i + " " + l + " " + s);
   }
 
-  public static void test8() throws Exception {
+  public static void testConstructorReflection() throws Exception {
     Constructor<?> ctor;
 
     ctor = String.class.getConstructor(new Class[0]);
@@ -364,7 +266,8 @@ class SystemMethods {
   }
 
   public static void main(String[] args) throws Exception {
-    test7();
-    test8();
+    testFieldReflection();
+    testMethodReflection();
+    testConstructorReflection();
   }
 }
