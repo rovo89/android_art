@@ -2247,7 +2247,10 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
       resolved = FindClass(descriptor, class_loader);
     }
     if (resolved != NULL) {
-      Class* check = resolved->IsArrayClass() ? resolved->GetComponentType() : resolved;
+      Class* check = resolved;
+      while (check->IsArrayClass()) {
+        check = check->GetComponentType();
+      }
       if (dex_cache != check->GetDexCache()) {
         if (check->GetClassLoader() != NULL) {
           Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
