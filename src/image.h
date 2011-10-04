@@ -71,6 +71,7 @@ class PACKED ImageHeader {
     kCalleeSaveMethod,
     kOatLocation,
     kDexCaches,
+    kClassRoots,
     kImageRootsMax,
   };
 

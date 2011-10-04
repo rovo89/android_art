@@ -563,15 +563,6 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
   return oat_file;
 }
 
-struct ClassLinker::InitFromImageCallbackState {
-  ClassLinker* class_linker;
-
-  Class* class_roots[kClassRootsMax];
-
-  typedef std::tr1::unordered_map<std::string, ClassRoot> Table;
-  Table descriptor_to_class_root;
-};
-
 void ClassLinker::InitFromImage() {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
@@ -614,23 +605,12 @@ void ClassLinker::InitFromImage() {
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
 
-  InitFromImageCallbackState state;
-  state.class_linker = this;
-  for (size_t i = 0; i < kClassRootsMax; i++) {
-    ClassRoot class_root = static_cast<ClassRoot>(i);
-    state.descriptor_to_class_root[GetClassRootDescriptor(class_root)] = class_root;
-  }
-
   // reinit clases_ table
-  heap_bitmap->Walk(InitFromImageCallback, &state);
+  heap_bitmap->Walk(InitFromImageCallback, this);
 
   // reinit class_roots_
-  Class* object_array_class = state.class_roots[kObjectArrayClass];
-  class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
-  for (size_t i = 0; i < kClassRootsMax; i++) {
-    ClassRoot class_root = static_cast<ClassRoot>(i);
-    SetClassRoot(class_root, state.class_roots[class_root]);
-  }
+  Object* class_roots_object = spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
+  class_roots_ = class_roots_object->AsObjectArray<Class>();
 
   // reinit array_interfaces_ from any array class instance, they should all be ==
   array_interfaces_ = GetClassRoot(kObjectArrayClass)->GetInterfaces();
@@ -660,10 +640,10 @@ void ClassLinker::InitFromImage() {
 void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
-  InitFromImageCallbackState* state = reinterpret_cast<InitFromImageCallbackState*>(arg);
+  ClassLinker* class_linker = reinterpret_cast<ClassLinker*>(arg);
 
   if (obj->IsString()) {
-    state->class_linker->intern_table_->RegisterStrong(obj->AsString());
+    class_linker->intern_table_->RegisterStrong(obj->AsString());
     return;
   }
   if (!obj->IsClass()) {
@@ -680,15 +660,7 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
 
   std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
   // restore class to ClassLinker::classes_ table
-  state->class_linker->InsertClass(descriptor, klass);
-
-  // check if this is a root, if so, register it
-  typedef InitFromImageCallbackState::Table::const_iterator It;  // TODO: C++0x auto
-  It it = state->descriptor_to_class_root.find(descriptor);
-  if (it != state->descriptor_to_class_root.end()) {
-    ClassRoot class_root = it->second;
-    state->class_roots[class_root] = klass;
-  }
+  class_linker->InsertClass(descriptor, klass);
 }
 
 // Keep in sync with InitCallback. Anything we visit, we need to
@@ -964,8 +936,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     klass->SetDescriptor(intern_table_->InternStrong(descriptor));
   }
   uint32_t access_flags = dex_class_def.access_flags_;
-  // Make sure there aren't any "bonus" flags set, since we use them for runtime
-  // state.
+  // Make sure there aren't any "bonus" flags set, since we use them for runtime state.
   CHECK_EQ(access_flags & ~kAccClassFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);

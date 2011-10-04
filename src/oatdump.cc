@@ -51,6 +51,7 @@ const char* image_roots_descriptions_[] = {
   "kCalleeSaveMethod",
   "kOatLocation",
   "kDexCaches",
+  "kClassRoots",
 };
 
 class OatDump {
@@ -73,8 +74,18 @@ class OatDump {
     CHECK_EQ(arraysize(image_roots_descriptions_), size_t(ImageHeader::kImageRootsMax));
     for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
       ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
-      os << StringPrintf("%s: %p\n",
-                         image_roots_descriptions_[i], image_header.GetImageRoot(image_root));
+      const char* image_root_description = image_roots_descriptions_[i];
+      Object* image_root_object = image_header.GetImageRoot(image_root);
+      os << StringPrintf("%s: %p\n", image_root_description, image_root_object);
+      if (image_root_object->IsObjectArray()) {
+        // TODO: replace down_cast with AsObjectArray (g++ currently has a problem with this)
+        ObjectArray<Object>* image_root_object_array
+            = down_cast<ObjectArray<Object>*>(image_root_object);
+        //  = image_root_object->AsObjectArray<Object>();
+        for (int i = 0; i < image_root_object_array->GetLength(); i++) {
+            os << StringPrintf("\t%d: %p\n", i, image_root_object_array->Get(i));
+        }
+      }
     }
     os << "\n";
 

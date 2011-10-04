@@ -147,6 +147,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                    String::AllocFromModifiedUtf8(oat_file_->GetLocation().c_str()));
   image_roots->Set(ImageHeader::kDexCaches,
                    dex_caches);
+  image_roots->Set(ImageHeader::kClassRoots,
+                   class_linker->GetClassRoots());
   for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
     CHECK(image_roots->Get(i) != NULL);
   }

@@ -191,7 +191,7 @@ class Runtime {
   // The host prefix is used during cross compilation. It is removed
   // from the start of host paths such as:
   //    $ANDROID_PRODUCT_OUT/system/framework/core.oat
-  // to produce target paths such as 
+  // to produce target paths such as
   //    /system/framework/core.oat
   // Similarly it is prepended to target paths to arrive back at a
   // host past. In both cases this is necessary because image and oat
