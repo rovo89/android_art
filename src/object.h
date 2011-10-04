@@ -248,16 +248,10 @@ class MANAGED Object {
   bool IsObjectArray() const;
 
   template<class T>
-  ObjectArray<T>* AsObjectArray() {
-    DCHECK(IsObjectArray());
-    return down_cast<ObjectArray<T>*>(this);
-  }
+  ObjectArray<T>* AsObjectArray();
 
   template<class T>
-  const ObjectArray<T>* AsObjectArray() const {
-    DCHECK(IsObjectArray());
-    return down_cast<const ObjectArray<T>*>(this);
-  }
+  const ObjectArray<T>* AsObjectArray() const;
 
   bool IsArrayInstance() const;
 
@@ -2104,6 +2098,18 @@ inline bool Object::IsClassClass() const {
 
 inline bool Object::IsObjectArray() const {
   return IsArrayInstance() && !GetClass()->GetComponentType()->IsPrimitive();
+}
+
+template<class T>
+inline ObjectArray<T>* Object::AsObjectArray() {
+  DCHECK(IsObjectArray());
+  return down_cast<ObjectArray<T>*>(this);
+}
+
+template<class T>
+inline const ObjectArray<T>* Object::AsObjectArray() const {
+  DCHECK(IsObjectArray());
+  return down_cast<const ObjectArray<T>*>(this);
 }
 
 inline bool Object::IsArrayInstance() const {

@@ -377,6 +377,11 @@ class ClassLinker {
     class_roots_->Set(class_root, klass);
   }
 
+  ObjectArray<Class>* GetClassRoots() {
+    DCHECK(class_roots_ != NULL);
+    return class_roots_;
+  }
+
   static const char* class_roots_descriptors_[];
 
   const char* GetClassRootDescriptor(ClassRoot class_root) {
@@ -397,7 +402,7 @@ class ClassLinker {
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);
-  friend class ImageWriter;  // for GetDexCaches
+  friend class ImageWriter;  // for GetClassRoots
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 
