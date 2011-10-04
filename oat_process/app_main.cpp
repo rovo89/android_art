@@ -212,10 +212,10 @@ int main(int argc, const char* argv[])
     // TODO: remove Calculator special case
     int oatArgc = argc + 2;
     const char* oatArgv[oatArgc];
-    if (strcmp(argv[0], "-Ximage:/system/framework/boot.oat") != 0) {
+    if (strcmp(argv[0], "-Ximage:/system/framework/boot.art") != 0) {
         LOG(INFO) << "Adding oat arguments";
-        oatArgv[0] = "-Ximage:/system/framework/boot.oat";
-        oatArgv[1] = "-Ximage:/system/app/Calculator.oat";
+        oatArgv[0] = "-Ximage:/system/framework/boot.art";
+        oatArgv[1] = "-Ximage:/system/app/Calculator.art";
         setenv("CLASSPATH", "/system/app/Calculator.apk", 1);
         memcpy(oatArgv + (oatArgc - argc), argv, argc * sizeof(*argv));
         argv = oatArgv;
