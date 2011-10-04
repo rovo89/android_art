@@ -491,12 +491,77 @@ void Heap::WaitForConcurrentGcToComplete() {
   lock_->AssertHeld();
 }
 
-// Given the current contents of the active heap, increase the allowed
+/* Terminology:
+ *  1. Footprint: Capacity we allocate from system.
+ *  2. Active space: a.k.a. alloc_space_.
+ *  3. Soft footprint: external allocation + spaces footprint + active space footprint
+ *  4. Overhead: soft footprint excluding active.
+ *
+ * Layout: (Below might be incontiguous, but are lumped together to depict size.)
+ * |---for external allocation---|---spaces footprint ("heap1")---|----active space footprint----|
+ *                                                                |--active space allocated--|
+ * |--------------------soft footprint (include active)--------------------------------------|
+ * |----------------soft footprint excluding active---------------|
+ *                                                                |------------soft limit-------...|
+ * |------------------------------------ideal footprint-----------------------------------------...|
+ *
+ */
+
+// Sets the maximum number of bytes that the heap is allowed to
+// allocate from the system.  Clamps to the appropriate maximum
+// value.
+// Old spaces will count against the ideal size.
+//
+void Heap::SetIdealFootprint(size_t max_allowed_footprint)
+{
+  if (max_allowed_footprint > Heap::maximum_size_) {
+    LOG(INFO) << "Clamp target GC heap from " << max_allowed_footprint
+              << " to " << Heap::maximum_size_;
+    max_allowed_footprint = Heap::maximum_size_;
+  }
+
+  SetSoftLimit(max_allowed_footprint);
+}
+
+void Heap::SetSoftLimit(size_t soft_limit)
+{
+  // Compare against the actual footprint, rather than the
+  // max_allowed, because the heap may not have grown all the
+  // way to the allowed size yet.
+  //
+  size_t current_space_size = mspace_footprint(alloc_space_->mspace_);
+  if (soft_limit < current_space_size) {
+    // Don't let the space grow any more, and impose a soft limit.
+    mspace_set_max_allowed_footprint(alloc_space_->mspace_, current_space_size);
+  } else {
+    // Let the heap grow to the requested max
+    mspace_set_max_allowed_footprint(alloc_space_->mspace_, soft_limit);
+  }
+}
+
+static const size_t kHeapIdealFree = 1024 * 1024 * 2;
+static const size_t kHeapMinFree = kHeapIdealFree / 4;
+
+// Given the current contents of the active space, increase the allowed
 // heap footprint to match the target utilization ratio.  This should
 // only be called immediately after a full garbage collection.
+//
 void Heap::GrowForUtilization() {
   lock_->AssertHeld();
-  UNIMPLEMENTED(ERROR);
+
+  // We know what our utilization is at this moment.
+  // This doesn't actually resize any memory. It just lets the heap grow more
+  // when necessary.
+  size_t target_size = size_t( num_bytes_allocated_ /
+                               Heap::GetTargetHeapUtilization() );
+
+  if (target_size > num_bytes_allocated_ + kHeapIdealFree) {
+    target_size = num_bytes_allocated_ + kHeapIdealFree;
+  } else if (target_size < num_bytes_allocated_ + kHeapMinFree) {
+    target_size = num_bytes_allocated_ + kHeapMinFree;
+  }
+
+  SetIdealFootprint(target_size);
 }
 
 void Heap::Lock() {

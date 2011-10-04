@@ -92,6 +92,8 @@ class Heap {
   static void SetTargetHeapUtilization(float target) {
     target_utilization_ = target;
   }
+  static void SetIdealFootprint(size_t max_allowed_footprint);
+  static void SetSoftLimit(size_t soft_limit);
 
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();

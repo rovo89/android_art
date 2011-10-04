@@ -8,6 +8,7 @@
 #include "image.h"
 #include "macros.h"
 #include "mem_map.h"
+#include "mspace.h"
 
 namespace art {
 
@@ -100,6 +101,8 @@ class Space {
   byte* base_;
 
   byte* limit_;
+
+  friend class Heap;
 
   DISALLOW_COPY_AND_ASSIGN(Space);
 };
