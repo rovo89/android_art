@@ -100,25 +100,30 @@ if [ "$usage" = "yes" ]; then
     exit 1
 fi
 
-passed=0
-failed=0
-failNames=""
-
-for i in *; do
-    if [ -d "$i" -a -r "$i" -a -r "${i}/info.txt" ]; then
-        ./run-test ${run_args} "$i"
-        if [ "$?" = "0" ]; then
-            ((passed += 1))
-        else
-            ((failed += 1))
-            failNames="$failNames $i"
-        fi
-    fi
+# start all the tests
+i=0
+for test_name in *; do
+  if [ -d "$test_name" -a -r "$test_name" -a -r "$test_name/info.txt" ]; then
+    ./run-test ${run_args} "$test_name" &
+    test_pids[i]=$!
+    test_names[test_pids[i]]="$test_name"
+    let i+=1
+  fi
 done
 
-echo "passed: $passed test(s)"
-echo "failed: $failed test(s)"
+# wait for all the tests, collecting the failures
+failure_count=0
+failed_test_names=""
+for pid in ${test_pids[@]}; do
+  wait $pid
+  if [ "$?" != "0" ]; then
+    let failure_count+=1
+    failed_test_names="$failed_test_names $test_names[$pid]"
+  fi
+done
 
-for i in $failNames; do
-    echo "failed: $i"
+echo "failed tests: $failure_count"
+
+for i in $failed_test_names; do
+  echo "failed: $i"
 done

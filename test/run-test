@@ -196,6 +196,8 @@ fi
 chmod 755 "$build"
 chmod 755 "$run"
 
+export TEST_NAME=`basename ${test_dir}`
+
 good="no"
 if [ "$dev_mode" = "yes" ]; then
     "./${build}" 2>&1
@@ -248,7 +250,7 @@ fi
         echo '####################'
         echo ' '
     fi
-    echo "files left in ${tmp_dir}"
+    echo "${TEST_NAME} files left in ${tmp_dir}"
 ) 1>&2
 
 exit 1

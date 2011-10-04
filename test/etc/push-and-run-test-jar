@@ -106,19 +106,19 @@ fi
 msg "------------------------------"
 
 if [ "$QUIET" = "n" ]; then
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.jar /system/framework
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.oat /system/framework
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.art /system/framework
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.jar /system/framework
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.oat /system/framework
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.art /system/framework
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar /system/framework
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.oat /system/framework
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.art /system/framework
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.jar /system/framework
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.oat /system/framework
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.art /system/framework
 else
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.jar /system/framework >/dev/null 2>&1
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.oat /system/framework >/dev/null 2>&1
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test.art /system/framework >/dev/null 2>&1
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.jar /system/framework >/dev/null 2>&1
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.oat /system/framework >/dev/null 2>&1
-    adb push ${ANDROID_PRODUCT_OUT}/system/framework/test-ex.art /system/framework >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar /system/framework >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.oat /system/framework >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.art /system/framework >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.jar /system/framework >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.oat /system/framework >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.art /system/framework >/dev/null 2>&1
 fi
 
 if [ "$DEBUG" = "y" ]; then
@@ -132,16 +132,17 @@ else
 fi
 
 if [ "$ZYGOTE" = "y" ]; then
-    adb shell cd /data \; dvz -classpath test.jar Main "$@"
+  adb shell cd /data \; dvz -classpath $TEST_NAME.jar Main "$@"
 else
-    cmdline="cd /data; oatexecd \
+  cmdline="cd /data; oatexecd \
       -Ximage:/system/framework/core.art \
-      -Ximage:/system/framework/test.art Main"
-    #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
-    #    $GC_OPTS -cp test.jar -Xint:${INTERP} -ea Main"
-    if [ "$DEV_MODE" = "y" ]; then
-        echo $cmdline "$@"
-    fi
+      -Ximage:/system/framework/$TEST_NAME.art \
+      Main"
+  #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
+  #    $GC_OPTS -cp test.jar -Xint:${INTERP} -ea Main"
+  if [ "$DEV_MODE" = "y" ]; then
+    echo $cmdline "$@"
+  fi
 
-    adb shell $cmdline "$@"
+  adb shell $cmdline "$@"
 fi
