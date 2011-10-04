@@ -208,6 +208,7 @@ extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thr
   *sp = runtime->GetCalleeSaveMethod();
   self->SetTopOfStack(sp, 0);
 
+  // We need the calling method as context to interpret 'ref'.
   Frame frame = self->GetTopOfStack();
   frame.Next();
   Method* method = frame.GetMethod();
@@ -282,14 +283,20 @@ extern "C" void artThrowRuntimeExceptionFromCode(int32_t errnum, Thread* thread,
   thread->DeliverException();
 }
 
-extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* thread, Method** sp) {
+extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, Method** sp) {
   // Place a special frame at the TOS that will save all callee saves
   Runtime* runtime = Runtime::Current();
   *sp = runtime->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
-  LOG(WARNING) << "TODO: no such method exception detail message. method_idx=" << method_idx;
-  thread->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;", "method_idx=%d", method_idx);
-  thread->DeliverException();
+  self->SetTopOfStack(sp, 0);
+
+  // We need the calling method as context for the method_idx.
+  Frame frame = self->GetTopOfStack();
+  frame.Next();
+  Method* method = frame.GetMethod();
+
+  self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
+      MethodNameFromIndex(method, method_idx, DexVerifier::VERIFY_ERROR_REF_METHOD, false).c_str());
+  self->DeliverException();
 }
 
 extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Method** sp) {
