@@ -20,12 +20,6 @@
 #include "Codegen.h"
 #include <sys/mman.h>           /* for protection change */
 
-//#define TESTMODE
-#ifdef TESTMODE
-#include <cutils/ashmem.h>      /* for oat testing */
-#include <unistd.h>
-#endif
-
 #define MAX_ASSEMBLER_RETRIES 50
 
 /*

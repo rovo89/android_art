@@ -26,6 +26,39 @@ typedef enum OatInstructionSetType {
     DALVIK_OAT_THUMB2,
 } OatInstructionSetType;
 
+/* Supress optimization if corresponding bit set */
+enum optControlVector {
+    kLoadStoreElimination = 0,
+    kLoadHoisting,
+    kSuppressLoads,
+    kNullCheckElimination,
+    kPromoteRegs,
+    kTrackLiveTemps,
+};
+
+extern uint32_t compilerOptimizerDisableFlags;
+
+/* Force code generation paths for testing */
+enum debugControlVector {
+    kDebugDisplayMissingTargets,
+    kDebugVerbose,
+    kDebugDumpCFG,
+    kDebugSlowFieldPath,
+    kDebugSlowInvokePath,
+    kDebugSlowStringPath,
+    kDebugSlowTypePath,
+    kDebugSlowestFieldPath,
+    kDebugSlowestStringPath,
+};
+
+extern uint32_t compilerDebugFlags;
+
+/* If non-empty, apply optimizer/debug flags only to matching methods */
+extern std::string compilerMethodMatch;
+
+/* Flips sense of compilerMethodMatch - apply flags if doesn't match */
+extern bool compilerFlipMatch;
+
 typedef enum OatMethodAttributes {
     kIsCallee = 0,      /* Code is part of a callee (invoked by a hot trace) */
     kIsHot,             /* Code is part of a hot trace */

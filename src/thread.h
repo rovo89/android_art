@@ -232,12 +232,11 @@ class PACKED Thread {
   void (*pThrowDivZeroFromCode)();
   void (*pThrowVerificationErrorFromCode)(int32_t, int32_t);
   void (*pThrowNegArraySizeFromCode)(int32_t);
-  void (*pThrowRuntimeExceptionFromCode)(int32_t);
-  void (*pThrowInternalErrorFromCode)(int32_t);
   void (*pThrowNoSuchMethodFromCode)(int32_t);
   void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread, Method** sp);
   void* (*pFindNativeMethod)(Thread* thread);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
+  String* (*pResolveStringFromCode)(Method*, int32_t);
 
   class StackVisitor {
    public:

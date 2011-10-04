@@ -178,11 +178,6 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     qsort(coreRegs, numRegs, sizeof(RefCounts), sortCounts);
     qsort(fpRegs, numRegs, sizeof(RefCounts), sortCounts);
 
-    if (cUnit->printMeVerbose) {
-        dumpCounts(coreRegs, numRegs, "coreRegs");
-        dumpCounts(fpRegs, numRegs, "fpRegs");
-    }
-
     if (!(cUnit->disableOpt & (1 << kPromoteRegs))) {
         // Promote fpRegs
         for (int i = 0; (fpRegs[i].count > 0) && (i < numRegs); i++) {

@@ -21,6 +21,33 @@
 #include "object.h"
 #include "runtime.h"
 
+/* Default optimizer/debug setting for the compiler. */
+uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
+     // TODO: enable all of these by default in ToT
+     (1 << kLoadStoreElimination) |
+     (1 << kLoadHoisting) |
+     (1 << kSuppressLoads) |
+     (1 << kNullCheckElimination) |
+     (1 << kPromoteRegs) |
+     (1 << kTrackLiveTemps) |
+     0;
+
+uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
+     // TODO: disable all of these by default in ToT
+     (1 << kDebugDisplayMissingTargets) |
+     //(1 << kDebugVerbose) |
+     //(1 << kDebugDumpCFG) |
+     //(1 << kDebugSlowFieldPath) |
+     //(1 << kDebugSlowInvokePath) |
+     //(1 << kDebugSlowStringPath) |
+     //(1 << kDebugSlowestFieldPath) |
+     //(1 << kDebugSlowestStringPath) |
+     0;
+
+std::string compilerMethodMatch;      // Method name match to apply above flags
+
+bool compilerFlipMatch = false;       // Reverses sense of method name match
+
 STATIC inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;
     Opcode opcode = (Opcode)(instr & 0xff);
@@ -329,10 +356,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
         }
         fprintf(file, "\n");
 
-        /*
-         * If we need to debug the dominator tree, uncomment the following code
-         */
-#if 1
+        /* Display the dominator tree */
         oatGetBlockName(bb, blockName1);
         fprintf(file, "  cfg%s [label=\"%s\", shape=none];\n",
                 blockName1, blockName1);
@@ -341,7 +365,6 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
             fprintf(file, "  cfg%s:s -> cfg%s:n\n\n",
                     blockName2, blockName1);
         }
-#endif
     }
     fprintf(file, "}\n");
     fclose(file);
@@ -687,29 +710,22 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     int numBlocks = 0;
     unsigned int curOffset = 0;
 
-#if 1
-    // FIXME - temp 'till properly integrated
     oatInit(compiler);
-#endif
 
     memset(&cUnit, 0, sizeof(cUnit));
     cUnit.method = method;
     cUnit.instructionSet = (OatInstructionSetType)insnSet;
     cUnit.insns = code_item->insns_;
     cUnit.insnsSize = code_item->insns_size_;
-#if 1
-    // TODO: Use command-line argument passing mechanism
-    cUnit.printMe = compiler.IsVerbose();
-    cUnit.printMeVerbose = compiler.IsVerbose();
-    cUnit.disableOpt = 0 |
-         (1 << kTrackLiveTemps) |
-         (1 << kLoadStoreElimination) |
-         (1 << kLoadHoisting) |
-         (1 << kSuppressLoads) |
-         (1 << kNullCheckElimination) |
-         (1 << kPromoteRegs) |
-         0;
-#endif
+    bool useMatch = compilerMethodMatch.length() != 0;
+    bool match = useMatch && (compilerFlipMatch ^
+        (PrettyMethod(method).find(compilerMethodMatch) != std::string::npos));
+    if (!useMatch || match) {
+        cUnit.disableOpt = compilerOptimizerDisableFlags;
+        cUnit.enableDebug = compilerDebugFlags;
+        cUnit.printMe = compiler.IsVerbose() ||
+            (cUnit.enableDebug & (1 << kDebugVerbose));
+    }
 
     /* Assume non-throwing leaf */
     cUnit.attrs = (METHOD_IS_LEAF | METHOD_IS_THROW_FREE);
@@ -861,7 +877,7 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     oatMethodMIR2LIR(&cUnit);
 
     // Debugging only
-    if (cUnit.dumpCFG) {
+    if (cUnit.enableDebug & (1 << kDebugDumpCFG)) {
         oatDumpCFG(&cUnit, "/sdcard/cfg/");
     }
 
@@ -916,17 +932,12 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
                   << " code at " << reinterpret_cast<void*>(managed_code->GetData())
                   << " (" << managed_code->GetLength() << " bytes)";
     }
-#if 0
-    oatDumpCFG(&cUnit, "/sdcard/cfg/");
-#endif
 
     return true;
 }
 
 void oatInit(const Compiler& compiler)
 {
-#if 1
-    // FIXME - temp hack 'till properly integrated
     static bool initialized = false;
     if (initialized)
         return;
@@ -934,7 +945,6 @@ void oatInit(const Compiler& compiler)
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Initializing compiler";
     }
-#endif
     if (!oatArchInit()) {
         LOG(FATAL) << "Failed to initialize oat";
     }

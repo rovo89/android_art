@@ -357,8 +357,6 @@ typedef enum ArmThrowKind {
     kArmThrowArrayBounds,
     kArmThrowVerificationError,
     kArmThrowNegArraySize,
-    kArmThrowInternalError,
-    kArmThrowRuntimeException,
     kArmThrowNoSuchMethod,
     kArmThrowStackOverflow,
 } ArmThrowKind;

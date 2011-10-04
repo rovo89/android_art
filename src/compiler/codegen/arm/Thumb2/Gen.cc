@@ -22,9 +22,16 @@
  *
  */
 
-#define SLOW_FIELD_PATH 0
-#define SLOW_INVOKE_PATH 0
-//#define EXERCISE_SLOWEST_FIELD_PATH
+#define SLOW_FIELD_PATH (cUnit->enableDebug & (1 << kDebugSlowFieldPath))
+#define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
+#define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
+#define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
+#define EXERCISE_SLOWEST_FIELD_PATH (cUnit->enableDebug & \
+    (1 << kDebugSlowestFieldPath))
+#define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
+    (1 << kDebugSlowestStringPath))
+
+STATIC RegLocation getRetLoc(CompilationUnit* cUnit);
 
 std::string fieldNameFromIndex(const Method* method, uint32_t fieldIdx)
 {
@@ -427,9 +434,10 @@ STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
      * For testing, omit the test for run-time resolution. This will
      * force all accesses to go through the runtime resolution path.
      */
-#ifndef EXERCISE_SLOWEST_FIELD_PATH
-    ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, r0, 0);
-#endif
+    ArmLIR* branchOver = NULL;
+    if (!EXERCISE_SLOWEST_FIELD_PATH) {
+        branchOver = genCmpImmBranch(cUnit, kArmCondNe, r0, 0);
+    }
     // Resolve
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pFindInstanceFieldFromCode), rLR);
@@ -437,9 +445,9 @@ STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
     callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
-#ifndef EXERCISE_SLOWEST_FIELD_PATH
-    branchOver->generic.target = (LIR*)target;
-#endif
+    if (!EXERCISE_SLOWEST_FIELD_PATH) {
+        branchOver->generic.target = (LIR*)target;
+    }
     // Free temps (except for r0)
     oatFreeTemp(cUnit, r1);
     oatFreeTemp(cUnit, r2);
@@ -532,7 +540,7 @@ STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 #else
     bool isVolatile = false;
 #endif
-    if ((fieldPtr == NULL) || isVolatile) {
+    if (SLOW_FIELD_PATH || (fieldPtr == NULL) || isVolatile) {
         getFieldOffset(cUnit, mir, fieldPtr);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -570,7 +578,7 @@ STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 #else
     bool isVolatile = false;
 #endif
-    if ((fieldPtr == NULL) || isVolatile) {
+    if (SLOW_FIELD_PATH || (fieldPtr == NULL) || isVolatile) {
         getFieldOffset(cUnit, mir, fieldPtr);
         // Field offset in r0
         rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -607,7 +615,7 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
                  resReg);
     loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
                  (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
-    if (classPtr != NULL) {
+    if (SLOW_TYPE_PATH || (classPtr == NULL)) {
         // Fast path, we're done - just store result
         storeValue(cUnit, rlDest, rlResult);
     } else {
@@ -640,19 +648,41 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
 STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
-    /* All strings should be available at compile time */
+    /* NOTE: Most strings should be available at compile time */
     const art::String* str = cUnit->method->GetDexCacheStrings()->
         Get(mir->dalvikInsn.vB);
-    DCHECK(str != NULL);
-
-    int mReg = loadCurrMethod(cUnit);
-    int resReg = oatAllocTemp(cUnit);
-    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(),
-                 resReg);
-    loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
-                 (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
-    storeValue(cUnit, rlDest, rlResult);
+    if (SLOW_STRING_PATH || (str == NULL)) {
+        oatFlushAllRegs(cUnit);
+        oatLockCallTemps(cUnit); // Using explicit registers
+        loadCurrMethodDirect(cUnit, r2);
+        loadWordDisp(cUnit, r2, Method::DexCacheStringsOffset().Int32Value(),
+                     r0);
+        // Might call out to helper, which will return resolved string in r0
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pResolveStringFromCode), rLR);
+        loadWordDisp(cUnit, r0, Array::DataOffset().Int32Value() +
+                 (sizeof(String*) * mir->dalvikInsn.vB), r0);
+        loadConstant(cUnit, r1, mir->dalvikInsn.vB);
+        opRegImm(cUnit, kOpCmp, r0, 0);  // Is resolved?
+        genBarrier(cUnit);
+        // For testing, always force through helper
+        if (!EXERCISE_SLOWEST_STRING_PATH) {
+            genIT(cUnit, kArmCondEq, "T");
+        }
+        genRegCopy(cUnit, r0, r2);       // .eq
+        opReg(cUnit, kOpBlx, rLR);       // .eq, helper(Method*, string_idx)
+        genBarrier(cUnit);
+        storeValue(cUnit, rlDest, getRetLoc(cUnit));
+    } else {
+        int mReg = loadCurrMethod(cUnit);
+        int resReg = oatAllocTemp(cUnit);
+        RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+        loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(),
+                     resReg);
+        loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
+                    (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
+        storeValue(cUnit, rlDest, rlResult);
+    }
 }
 
 /*
@@ -1778,25 +1808,8 @@ STATIC void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
                  OFFSETOF_MEMBER(Thread, pCheckSuspendFromCode), rLR);
     genRegCopy(cUnit, r0, rSELF);
     opRegImm(cUnit, kOpCmp, rSuspendCount, 0);
-    /*
-     * FIXME: for efficiency we should use an if-converted suspend
-     * test here.  However, support for IT is a bit weak at the
-     * moment, and requires knowledge of the exact number of instructions
-     * to fall in the skip shadow.  While the exception mechanism
-     * remains in flux, use a compare and branch sequence.  Once
-     * things firm up, restore the conditional skip (and perhaps
-     * fix the utility to handle variable-sized shadows).
-     */
-#if 0
     genIT(cUnit, kArmCondNe, "");
-    callUnwindableHelper(cUnit, rLR); // CheckSuspendFromCode(self)
-#else
-    ArmLIR* branch = opCondBranch(cUnit, kArmCondEq);
-    callRuntimeHelper(cUnit, rLR); // CheckSuspendFromCode(self)
-    ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
-    branch->generic.target = (LIR*)target;
-#endif
+    opReg(cUnit, kOpBlx, rLR);
     oatFreeCallTemps(cUnit);
 }
 

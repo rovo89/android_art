@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#define DISPLAY_MISSING_TARGETS 1
+#define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
+    (1 << kDebugDisplayMissingTargets))
 
 STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
                                    INVALID_REG, INVALID_SREG, 0,
@@ -922,7 +923,6 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     return callState;
 }
 
-#ifdef DISPLAY_MISSING_TARGETS
 // Debugging routine - if null target, branch to DebugMe
 STATIC void genShowTarget(CompilationUnit* cUnit)
 {
@@ -933,7 +933,6 @@ STATIC void genShowTarget(CompilationUnit* cUnit)
     target->defMask = -1;
     branchOver->generic.target = (LIR*)target;
 }
-#endif
 
 STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
                                   bool direct, bool range)
@@ -959,9 +958,9 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, NULL);
     }
-#ifdef DISPLAY_MISSING_TARGETS
-    genShowTarget(cUnit);
-#endif
+    if (DISPLAY_MISSING_TARGETS) {
+        genShowTarget(cUnit);
+    }
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCalleeSave(cUnit);
 }
@@ -992,9 +991,9 @@ STATIC void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
     while (callState >= 0) {
         callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
     }
-#ifdef DISPLAY_MISSING_TARGETS
-    genShowTarget(cUnit);
-#endif
+    if (DISPLAY_MISSING_TARGETS) {
+        genShowTarget(cUnit);
+    }
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCalleeSave(cUnit);
 }
@@ -1045,9 +1044,9 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
-#ifdef DISPLAY_MISSING_TARGETS
-    genShowTarget(cUnit);
-#endif
+    if (DISPLAY_MISSING_TARGETS) {
+        genShowTarget(cUnit);
+    }
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCalleeSave(cUnit);
 }
@@ -1085,9 +1084,9 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
     }
-#ifdef DISPLAY_MISSING_TARGETS
-    genShowTarget(cUnit);
-#endif
+    if (DISPLAY_MISSING_TARGETS) {
+        genShowTarget(cUnit);
+    }
     opReg(cUnit, kOpBlx, rLR);
     oatClobberCalleeSave(cUnit);
 }
@@ -2107,16 +2106,6 @@ STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
                 genRegCopy(cUnit, r0, v1);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNegArraySizeFromCode);
-                break;
-            case kArmThrowInternalError:
-                genRegCopy(cUnit, r0, v1);
-                funcOffset =
-                    OFFSETOF_MEMBER(Thread, pThrowInternalErrorFromCode);
-                break;
-            case kArmThrowRuntimeException:
-                genRegCopy(cUnit, r0, v1);
-                funcOffset =
-                    OFFSETOF_MEMBER(Thread, pThrowRuntimeExceptionFromCode);
                 break;
             case kArmThrowNoSuchMethod:
                 genRegCopy(cUnit, r0, v1);

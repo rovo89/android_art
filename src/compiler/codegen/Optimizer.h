@@ -22,16 +22,6 @@
 #define STACK_ALIGN_WORDS 4
 #define STACK_ALIGNMENT (STACK_ALIGN_WORDS * 4)
 
-/* Supress optimization if corresponding bit set */
-enum optControlVector {
-    kLoadStoreElimination = 0,
-    kLoadHoisting,
-    kSuppressLoads,
-    kNullCheckElimination,
-    kPromoteRegs,
-    kTrackLiveTemps,
-};
-
 /* Forward declarations */
 struct CompilationUnit;
 struct LIR;

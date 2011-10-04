@@ -9,13 +9,13 @@
 #define rLR r14
 #define SUSPEND_CHECK_INTERVAL (1000)
 // Offset of field Thread::top_of_managed_stack_ verified in InitCpu
-#define THREAD_TOP_OF_MANAGED_STACK_OFFSET 276
+#define THREAD_TOP_OF_MANAGED_STACK_OFFSET 272
 // Offset of field Thread::top_of_managed_stack_pc_ verified in InitCpu
-#define THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET 280
+#define THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET 276
 
 #elif defined(__i386__)
 // Offset of field Thread::self_ verified in InitCpu
-#define THREAD_SELF_OFFSET 372
+#define THREAD_SELF_OFFSET 368
 #endif
 
 #endif  // ART_SRC_ASM_SUPPORT_H_

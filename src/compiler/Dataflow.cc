@@ -1987,10 +1987,6 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     if (bb->dataFlowInfo == NULL) return false;
 
-    if (cUnit->printMeVerbose) {
-        LOG(INFO) << "oatDoSSAConversion processing block " << bb->id;
-    }
-
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
         mir->ssaRep = (struct SSARepresentation *)
             oatNew(sizeof(SSARepresentation), true);

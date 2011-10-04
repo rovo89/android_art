@@ -192,7 +192,8 @@ typedef struct CompilationUnit {
     LIR* classPointerList;              // Relocatable
     int numClassPointers;
     LIR* chainCellOffsetLIR;
-    int disableOpt;
+    uint32_t disableOpt;                // optControlVector flags
+    uint32_t enableDebug;               // debugControlVector flags
     int headerSize;                     // bytes before the first code ptr
     int dataOffset;                     // starting offset of literal pool
     int totalSize;                      // header + code size
@@ -203,8 +204,6 @@ typedef struct CompilationUnit {
     std::vector<uint32_t> coreVmapTable;
     std::vector<short> fpVmapTable;
     bool printMe;
-    bool printMeVerbose;
-    bool dumpCFG;
     bool hasClassLiterals;              // Contains class ptrs used as literals
     bool hasLoop;                       // Contains a loop
     bool hasInvoke;                     // Contains an invoke instruction

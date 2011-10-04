@@ -77,14 +77,6 @@ art_throw_neg_array_size_from_code:
     mov r2, sp                        @ pass SP
     b   artThrowNegArraySizeFromCode  @ artThrowNegArraySizeFromCode(size, Thread*, SP)
 
-    .global art_throw_internal_error_from_code
-    .extern artThrowInternalErrorFromCode
-art_throw_internal_error_from_code:
-    SETUP_CALLEE_SAVE_FRAME
-    mov r1, r9                        @ pass Thread::Current
-    mov r2, sp                        @ pass SP
-    b   artThrowInternalErrorFromCode @ artThrowInternalErrorFromCode(errnum, Thread*, SP)
-
     .global art_throw_no_such_method_from_code
     .extern artThrowNoSuchMethodFromCode
 art_throw_no_such_method_from_code:
@@ -92,14 +84,6 @@ art_throw_no_such_method_from_code:
     mov r1, r9                        @ pass Thread::Current
     mov r2, sp                        @ pass SP
     b   artThrowNoSuchMethodFromCode  @ artThrowNoSuchMethodFromCode(method_idx, Thread*, SP)
-
-    .global art_throw_runtime_exception_from_code
-    .extern artThrowRuntimeExceptionFromCode
-art_throw_runtime_exception_from_code:
-    SETUP_CALLEE_SAVE_FRAME
-    mov r1, r9                           @ pass Thread::Current
-    mov r2, sp                           @ pass SP
-    b   artThrowRuntimeExceptionFromCode @ artThrowRuntimeExceptionFromCode(errnum, Thread*, SP)
 
     .global art_throw_verification_error_from_code
     .extern artThrowVerificationErrorFromCode

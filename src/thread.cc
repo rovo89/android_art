@@ -59,6 +59,12 @@ static Method* gThread_run = NULL;
 static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
+// TODO: flesh out and move to appropriate location
+String* ResolveStringFromCode(Method* method, int32_t string_idx) {
+    UNIMPLEMENTED(FATAL) << "Resolve string; handle OOM";
+    return NULL;  // Must return valid string or if exception, doesn't return
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -96,11 +102,9 @@ void Thread::InitFunctionPointers() {
   pTestSuspendFromCode = art_test_suspend;
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
   pThrowDivZeroFromCode = art_throw_div_zero_from_code;
-  pThrowInternalErrorFromCode = art_throw_internal_error_from_code;
   pThrowNegArraySizeFromCode = art_throw_neg_array_size_from_code;
   pThrowNoSuchMethodFromCode = art_throw_no_such_method_from_code;
   pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
-  pThrowRuntimeExceptionFromCode = art_throw_runtime_exception_from_code;
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
@@ -124,6 +128,7 @@ void Thread::InitFunctionPointers() {
   pCheckSuspendFromCode = artCheckSuspendFromCode;
   pFindNativeMethod = FindNativeMethod;
   pDecodeJObjectInThread = DecodeJObjectInThread;
+  pResolveStringFromCode = ResolveStringFromCode;
   pDebugMe = DebugMe;
 }
 
