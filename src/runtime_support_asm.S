@@ -276,17 +276,17 @@ art_alloc_object_from_code:
     mov    r1, sp                  @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
-    .global art_array_alloc_from_code
-    .extern artArrayAllocFromCode
+    .global art_alloc_array_from_code
+    .extern artAllocArrayFromCode
     /*
      * Called by managed code to allocate an array
      */
-art_array_alloc_from_code:
+art_alloc_array_from_code:
     str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
     str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
     stmdb  sp!, {lr}              @ Save LR
     sub    sp, #12                @ Align stack
-    bl     artArrayAllocFromCode  @ (uint32_t type_idx, Method* method, int32_t component_count)
+    bl     artAllocArrayFromCode  @ (uint32_t type_idx, Method* method, int32_t component_count)
     add    sp, #12
     ldmia  sp!, {lr}              @ restore LR
     cmp    r0, #0                 @ success if result is non-null
@@ -297,17 +297,17 @@ art_array_alloc_from_code:
     mov    r1, sp                 @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
-    .global art_check_and_array_alloc_from_code
-    .extern artCheckAndArrayAllocFromCode
+    .global art_check_and_alloc_array_from_code
+    .extern artCheckAndAllocArrayFromCode
     /*
      * Called by managed code to allocate an array
      */
-art_check_and_array_alloc_from_code:
+art_check_and_alloc_array_from_code:
     str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
     str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
     stmdb  sp!, {lr}                      @ Save LR
     sub    sp, #12                        @ Align stack
-    bl     artCheckAndArrayAllocFromCode  @ (uint32_t type_idx, Method* method, int32_t count)
+    bl     artCheckAndAllocArrayFromCode  @ (uint32_t type_idx, Method* method, int32_t count)
     add    sp, #12
     ldmia  sp!, {lr}                      @ restore LR
     cmp    r0, #0                         @ success if result is non-null

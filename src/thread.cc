@@ -86,9 +86,9 @@ void Thread::InitFunctionPointers() {
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
   pAllocObjectFromCode = art_alloc_object_from_code;
-  pArrayAllocFromCode = art_array_alloc_from_code;
+  pAllocArrayFromCode = art_alloc_array_from_code;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
-  pCheckAndArrayAllocFromCode = art_check_and_array_alloc_from_code;
+  pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
   pCheckCastFromCode = art_check_cast_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;

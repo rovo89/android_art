@@ -352,7 +352,7 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method) {
 }
 
 // Helper function to alloc array for OP_FILLED_NEW_ARRAY
-extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* method,
+extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
                                                 int32_t component_count) {
   if (component_count < 0) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
@@ -386,7 +386,7 @@ extern "C" Array* artCheckAndArrayAllocFromCode(uint32_t type_idx, Method* metho
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
 // it cannot be resolved, throw an error. If it can, use it to create an array.
-extern "C" Array* artArrayAllocFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
+extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
   if (component_count < 0) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);

@@ -1220,12 +1220,30 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   DCHECK(array_class != NULL);
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
-  size_t size = SizeOf(component_count, component_size);
+
+  size_t header_size = sizeof(Array);
+  size_t data_size = component_count * component_size;
+  size_t size = header_size + data_size;
+
+  // Check for overflow and throw OutOfMemoryError if this was an unreasonable request.
+  size_t component_shift = sizeof(size_t) * 8 - 1 - CLZ(component_size);
+  if (data_size >> component_shift != size_t(component_count) || size < data_size) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
+        "%s of length %zd exceeds the VM limit",
+        PrettyDescriptor(array_class->GetDescriptor()).c_str(), component_count);
+    return NULL;
+  }
+
   Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
   if (array != NULL) {
     DCHECK(array->IsArrayInstance());
     array->SetLength(component_count);
   }
+
+  // TODO: throw OutOfMemoryError. (here or in Heap::AllocObject?)
+  CHECK(array != NULL) << PrettyClass(array_class)
+                       << " component_count=" << component_count
+                       << " component_size=" << component_size;
   return array;
 }
 
