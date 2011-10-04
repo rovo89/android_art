@@ -1,0 +1,157 @@
+// Copyright 2011 Google Inc. All Rights Reserved.
+
+#include "compiled_method.h"
+
+namespace art {
+
+CompiledMethod::CompiledMethod(InstructionSet instruction_set,
+                               std::vector<short>& short_code,
+                               const size_t frame_size_in_bytes,
+                               const size_t return_pc_offset_in_bytes,
+                               const uint32_t core_spill_mask,
+                               const uint32_t fp_spill_mask,
+                               std::vector<uint32_t>& mapping_table,
+                               std::vector<uint16_t>& vmap_table) {
+  CHECK_NE(short_code.size(), 0U);
+
+  size_t code_byte_count = short_code.size() * sizeof(short_code[0]);
+  std::vector<uint8_t> byte_code(code_byte_count);
+  memcpy(&byte_code[0], &short_code[0], code_byte_count);
+
+  std::vector<uint32_t> length_prefixed_mapping_table;
+  length_prefixed_mapping_table.push_back(mapping_table.size());
+  length_prefixed_mapping_table.insert(length_prefixed_mapping_table.end(),
+                                       mapping_table.begin(),
+                                       mapping_table.end());
+  DCHECK_EQ(mapping_table.size() + 1, length_prefixed_mapping_table.size());
+
+  std::vector<uint16_t> length_prefixed_vmap_table;
+  length_prefixed_vmap_table.push_back(vmap_table.size());
+  length_prefixed_vmap_table.insert(length_prefixed_vmap_table.end(),
+                                    vmap_table.begin(),
+                                    vmap_table.end());
+  DCHECK_EQ(vmap_table.size() + 1, length_prefixed_vmap_table.size());
+
+  instruction_set_ = instruction_set;
+  code_ = byte_code;
+  frame_size_in_bytes_ = frame_size_in_bytes;
+  return_pc_offset_in_bytes_ = return_pc_offset_in_bytes;
+  core_spill_mask_ = core_spill_mask;
+  fp_spill_mask_ = fp_spill_mask;
+  mapping_table_ = length_prefixed_mapping_table;
+  vmap_table_ = length_prefixed_vmap_table;
+}
+
+CompiledMethod::CompiledMethod(InstructionSet instruction_set,
+                               std::vector<uint8_t>& code,
+                               const size_t frame_size_in_bytes,
+                               const size_t return_pc_offset_in_bytes,
+                               const uint32_t core_spill_mask,
+                               const uint32_t fp_spill_mask) {
+  CHECK_NE(code.size(), 0U);
+
+  instruction_set_ = instruction_set;
+  code_ = code;
+  frame_size_in_bytes_ = frame_size_in_bytes;
+  return_pc_offset_in_bytes_ = return_pc_offset_in_bytes;
+  core_spill_mask_ = core_spill_mask;
+  fp_spill_mask_ = fp_spill_mask;
+}
+
+CompiledMethod::~CompiledMethod() {}
+
+InstructionSet CompiledMethod::GetInstructionSet() const {
+  return instruction_set_;
+}
+
+const std::vector<uint8_t>& CompiledMethod::GetCode() const {
+  return code_;
+}
+
+size_t CompiledMethod::GetFrameSizeInBytes() const {
+  return frame_size_in_bytes_;
+}
+
+size_t CompiledMethod::GetReturnPcOffsetInBytes() const {
+  return return_pc_offset_in_bytes_;
+}
+
+uint32_t CompiledMethod::GetCoreSpillMask() const {
+  return core_spill_mask_;
+}
+
+uint32_t CompiledMethod::GetFpSpillMask() const {
+  return fp_spill_mask_;
+}
+
+const std::vector<uint32_t>& CompiledMethod::GetMappingTable() const {
+  return mapping_table_;
+}
+
+const std::vector<uint16_t>& CompiledMethod::GetVmapTable() const {
+  return vmap_table_;
+}
+
+uint32_t CompiledMethod::AlignCode(uint32_t offset) const {
+  return AlignCode(offset, instruction_set_);
+}
+
+uint32_t CompiledMethod::AlignCode(uint32_t offset, InstructionSet instruction_set) {
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return RoundUp(offset, kArmAlignment);
+    case kX86:
+      return offset;
+    default:
+      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      return 0;
+  }
+}
+
+size_t CompiledMethod::CodeDelta() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kX86:
+      return 0;
+    case kThumb2: {
+      // +1 to set the low-order bit so a BLX will switch to Thumb mode
+      return 1;
+    }
+    default:
+      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set_;
+      return NULL;
+  }
+}
+
+const void* CompiledMethod::CodePointer(const void* code_pointer,
+                                        InstructionSet instruction_set) {
+  switch (instruction_set) {
+    case kArm:
+    case kX86:
+      return code_pointer;
+    case kThumb2: {
+      uintptr_t address = reinterpret_cast<uintptr_t>(code_pointer);
+      // Set the low-order bit so a BLX will switch to Thumb mode
+      address |= 0x1;
+      return reinterpret_cast<const void*>(address);
+    }
+    default:
+      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      return NULL;
+  }
+}
+
+
+CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code) {
+  CHECK_NE(code.size(), 0U);
+  code_ = code;
+}
+
+CompiledInvokeStub::~CompiledInvokeStub() {}
+
+const std::vector<uint8_t>& CompiledInvokeStub::GetCode() const {
+  return code_;
+}
+
+}  // namespace art

@@ -60,6 +60,7 @@ typedef art::Compiler Compiler;
 typedef art::Field Field;
 typedef art::JValue JValue;
 typedef art::Method Method;
+typedef art::CompiledMethod CompiledMethod;
 typedef art::Object Object;
 typedef art::String String;
 typedef art::Thread Thread;

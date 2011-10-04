@@ -7,11 +7,12 @@
 
 #include "assembler.h"
 #include "calling_convention.h"
+#include "compiled_method.h"
 #include "constants.h"
 #include "jni_internal.h"
+#include "logging.h"
 #include "macros.h"
 #include "managed_register.h"
-#include "logging.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -38,12 +39,12 @@ ByteArray* JniCompiler::CreateJniStub(InstructionSet instruction_set) {
   }
 }
 
-JniCompiler::JniCompiler(InstructionSet insns) {
-  if (insns == kThumb2) {
+JniCompiler::JniCompiler(InstructionSet instruction_set) {
+  if (instruction_set == kThumb2) {
     // currently only ARM code generation is supported
     instruction_set_ = kArm;
   } else {
-    instruction_set_ = insns;
+    instruction_set_ = instruction_set;
   }
 }
 
@@ -54,7 +55,7 @@ JniCompiler::~JniCompiler() {}
 //   registers, a reference to the method object is supplied as part of this
 //   convention.
 //
-void JniCompiler::Compile(Method* native_method) {
+CompiledMethod* JniCompiler::Compile(const Method* native_method) {
   CHECK(native_method->IsNative());
 
   // Calling conventions used to iterate over parameters to method
@@ -426,15 +427,15 @@ void JniCompiler::Compile(Method* native_method) {
   // 17. Finalize code generation
   __ EmitSlowPaths();
   size_t cs = __ CodeSize();
-  ByteArray* managed_code = ByteArray::Alloc(cs);
-  CHECK(managed_code != NULL);
-  MemoryRegion code(managed_code->GetData(), managed_code->GetLength());
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
-  native_method->SetCodeArray(managed_code, instruction_set_);
-  native_method->SetFrameSizeInBytes(frame_size);
-  native_method->SetReturnPcOffsetInBytes(jni_conv->ReturnPcOffset());
-  native_method->SetCoreSpillMask(jni_conv->CoreSpillMask());
-  native_method->SetFpSpillMask(jni_conv->FpSpillMask());
+  return new CompiledMethod(instruction_set_,
+                            managed_code,
+                            frame_size,
+                            jni_conv->ReturnPcOffset(),
+                            jni_conv->CoreSpillMask(),
+                            jni_conv->FpSpillMask());
 #undef __
 }
 

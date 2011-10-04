@@ -17,7 +17,7 @@ FrameOffset CallingConvention::MethodStackOffset() {
 // Managed runtime calling convention
 
 ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
-    Method* native_method, InstructionSet instruction_set) {
+    const Method* native_method, InstructionSet instruction_set) {
   if (instruction_set == kX86) {
     return new x86::X86ManagedRuntimeCallingConvention(native_method);
   } else {
@@ -67,7 +67,7 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
 
 // JNI calling convention
 
-JniCallingConvention* JniCallingConvention::Create(Method* native_method,
+JniCallingConvention* JniCallingConvention::Create(const Method* native_method,
                                                InstructionSet instruction_set) {
   if (instruction_set == kX86) {
     return new x86::X86JniCallingConvention(native_method);
@@ -152,7 +152,7 @@ size_t JniCallingConvention::CurrentParamSize() {
   }
 }
 
-size_t JniCallingConvention::NumberOfExtraArgumentsForJni(Method* method) {
+size_t JniCallingConvention::NumberOfExtraArgumentsForJni(const Method* method) {
   // The first argument is the JNIEnv*.
   // Static methods have an extra argument which is the jclass.
   return method->IsStatic() ? 2 : 1;

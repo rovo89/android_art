@@ -146,22 +146,56 @@ const OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint32_t class_def_inde
   uint32_t methods_offset = classes_pointer_[class_def_index];
   const byte* methods_pointer = oat_file_->GetBase() + methods_offset;
   CHECK_LT(methods_pointer, oat_file_->GetLimit());
-  return OatClass(oat_file_, reinterpret_cast<const uint32_t*>(methods_pointer));
+  return OatClass(oat_file_, reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
 }
 
-OatFile::OatClass::OatClass(const OatFile* oat_file, const uint32_t* methods_pointer)
+OatFile::OatClass::OatClass(const OatFile* oat_file, const OatMethodOffsets* methods_pointer)
     : oat_file_(oat_file), methods_pointer_(methods_pointer) {}
 
 OatFile::OatClass::~OatClass() {}
 
-const void* OatFile::OatClass::GetMethodCode(uint32_t method_index) const {
-  uint32_t code_offset = methods_pointer_[method_index];
-  if (code_offset == 0) {
-    return NULL;
-  }
-  const void* code_pointer = reinterpret_cast<const void*>(oat_file_->GetBase() + code_offset);
-  CHECK_LT(code_pointer, oat_file_->GetLimit());
-  return code_pointer;
+const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
+  const OatMethodOffsets& oat_method_offsets = methods_pointer_[method_index];
+  return OatMethod(
+      GetOatPointer<const void*>(oat_method_offsets.code_offset_),
+      oat_method_offsets.frame_size_in_bytes_,
+      oat_method_offsets.return_pc_offset_in_bytes_,
+      oat_method_offsets.core_spill_mask_,
+      oat_method_offsets.fp_spill_mask_,
+      GetOatPointer<const uint32_t*>(oat_method_offsets.mapping_table_offset_),
+      GetOatPointer<const uint16_t*>(oat_method_offsets.vmap_table_offset_),
+      GetOatPointer<const Method::InvokeStub*>(oat_method_offsets.invoke_stub_offset_));
+}
+
+OatFile::OatMethod::OatMethod(const void* code,
+                              const size_t frame_size_in_bytes,
+                              const size_t return_pc_offset_in_bytes,
+                              const uint32_t core_spill_mask,
+                              const uint32_t fp_spill_mask,
+                              const uint32_t* mapping_table,
+                              const uint16_t* vmap_table,
+                              const Method::InvokeStub* invoke_stub) :
+  code_(code),
+  frame_size_in_bytes_(frame_size_in_bytes),
+  return_pc_offset_in_bytes_(return_pc_offset_in_bytes),
+  core_spill_mask_(core_spill_mask),
+  fp_spill_mask_(fp_spill_mask),
+  mapping_table_(mapping_table),
+  vmap_table_(vmap_table),
+  invoke_stub_(invoke_stub) {}
+
+OatFile::OatMethod::~OatMethod() {}
+
+void OatFile::OatMethod::LinkMethod(Method* method) {
+  CHECK(method != NULL);
+  method->SetCode(code_);
+  method->SetFrameSizeInBytes(frame_size_in_bytes_);
+  method->SetReturnPcOffsetInBytes(return_pc_offset_in_bytes_);
+  method->SetCoreSpillMask(core_spill_mask_);
+  method->SetFpSpillMask(fp_spill_mask_);
+  method->SetMappingTable(mapping_table_);
+  method->SetVmapTable(vmap_table_);
+  method->SetInvokeStub(invoke_stub_);
 }
 
 }  // namespace art

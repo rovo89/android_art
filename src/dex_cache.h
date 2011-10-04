@@ -26,22 +26,17 @@ class MANAGED CodeAndDirectMethods : public IntArray {
     return reinterpret_cast<Method*>(Get(MethodIndex(method_idx)));
   }
 
-  void SetResolvedDirectMethodTrampoline(uint32_t method_idx, ByteArray* code_array,
-                                         InstructionSet instruction_set) {
-    DCHECK(code_array != NULL);
+  void SetResolvedDirectMethodTrampoline(uint32_t method_idx, ByteArray* code_array) {
+    CHECK(code_array != NULL);
     int32_t code = reinterpret_cast<int32_t>(code_array->GetData());
-    if (instruction_set == kThumb2) {
-      // Set the low-order bit so a BLX will switch to Thumb mode
-      code = code | 0x1;
-    }
     Set(CodeIndex(method_idx), code);
     Set(MethodIndex(method_idx), method_idx);
   }
 
   void SetResolvedDirectMethod(uint32_t method_idx, Method* method) {
     CHECK(method != NULL);
-    CHECK(method->IsDirect());
-    // CHECK(method->GetCode() != NULL);  // TODO enable when all code is compiling
+    CHECK(method->IsDirect()) << PrettyMethod(method);
+    CHECK(method->GetCode() != NULL) << PrettyMethod(method);
     Set(CodeIndex(method_idx),   reinterpret_cast<int32_t>(method->GetCode()));
     Set(MethodIndex(method_idx), reinterpret_cast<int32_t>(method));
   }
@@ -211,12 +206,6 @@ class MANAGED DexCache : public ObjectArray<Object> {
     return obj;
   }
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
-};
-
-struct DexCacheHash {
-  size_t operator()(art::DexCache* const& obj) const {
-    return reinterpret_cast<size_t>(&obj);
-  }
 };
 
 }  // namespace art

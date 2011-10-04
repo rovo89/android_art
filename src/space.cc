@@ -115,7 +115,7 @@ bool Space::InitFromImage(const std::string& image_file_name) {
   }
   UniquePtr<MemMap> map(MemMap::Map(image_header.GetImageBaseAddr(),
                                     file->Length(),
-                                    // TODO: selectively PROT_EXEC when image contains a code space
+                                    // TODO: selectively PROT_EXEC an image subset containing stubs
                                     PROT_READ | PROT_WRITE | PROT_EXEC,
                                     MAP_PRIVATE | MAP_FIXED,
                                     file->Fd(),

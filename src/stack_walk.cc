@@ -43,7 +43,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
       // pc == NULL: m is either a native method or a phony method
       return;
     }
-    if (m->IsPhony()) {
+    if (m->IsCalleeSaveMethod()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
       return;
     }

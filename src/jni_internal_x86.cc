@@ -3,6 +3,7 @@
 #include "jni_internal.h"
 
 #include "assembler.h"
+#include "compiled_method.h"
 #include "object.h"
 
 namespace art {
@@ -24,7 +25,7 @@ namespace x86 {
 // "running" state the remaining responsibilities of this routine are
 // to save the native registers and set up the managed registers. On
 // return, the return value must be store into the result JValue.
-void X86CreateInvokeStub(Method* method) {
+CompiledInvokeStub* X86CreateInvokeStub(const Method* method) {
   UniquePtr<X86Assembler> assembler(
       down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
@@ -79,11 +80,10 @@ void X86CreateInvokeStub(Method* method) {
   }
   __ ret();
   // TODO: store native_entry in the stub table
-  ByteArray* code = ByteArray::Alloc(assembler->CodeSize());
-  MemoryRegion region(code->GetData(), code->GetLength());
+  std::vector<uint8_t> code(assembler->CodeSize());
+  MemoryRegion region(&code[0], code.size());
   assembler->FinalizeInstructions(region);
-  method->SetInvokeStub(code);
-  CHECK(method->GetInvokeStub() != NULL);
+  return new CompiledInvokeStub(code);
 #undef __
 }
 

@@ -73,6 +73,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/class_loader.cc \
+	src/compiled_method.cc \
 	src/compiler.cc \
 	src/compiler/Dataflow.cc \
 	src/compiler/Frontend.cc \

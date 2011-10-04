@@ -10,7 +10,7 @@ namespace x86 {
 
 class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  explicit X86ManagedRuntimeCallingConvention(Method* method) :
+  explicit X86ManagedRuntimeCallingConvention(const Method* method) :
                                      ManagedRuntimeCallingConvention(method) {}
   virtual ~X86ManagedRuntimeCallingConvention() {}
   // Calling convention
@@ -29,7 +29,7 @@ class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
 
 class X86JniCallingConvention : public JniCallingConvention {
  public:
-  explicit X86JniCallingConvention(Method* method) :
+  explicit X86JniCallingConvention(const Method* method) :
                                    JniCallingConvention(method) {}
   virtual ~X86JniCallingConvention() {}
   // Calling convention

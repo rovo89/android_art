@@ -10,26 +10,35 @@
 #include "dex_cache.h"
 #include "jni_compiler.h"
 #include "jni_internal.h"
+#include "oat_file.h"
 #include "runtime.h"
+#include "stl_util.h"
 
-extern bool oatCompileMethod(const art::Compiler& compiler, art::Method*, art::InstructionSet);
+extern art::CompiledMethod* oatCompileMethod(const art::Compiler& compiler,
+                                             const art::Method*,
+                                             art::InstructionSet);
 
 namespace art {
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
-  void ArmCreateInvokeStub(Method* method);
+  CompiledInvokeStub* ArmCreateInvokeStub(const Method* method);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
-  void X86CreateInvokeStub(Method* method);
+  CompiledInvokeStub* X86CreateInvokeStub(const Method* method);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 
-Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
-    verbose_(false) {
+Compiler::Compiler(InstructionSet instruction_set)
+    : instruction_set_(instruction_set), jni_compiler_(instruction_set), verbose_(false) {
   CHECK(!Runtime::Current()->IsStarted());
+}
+
+Compiler::~Compiler() {
+  STLDeleteValues(&compiled_methods_);
+  STLDeleteValues(&compiled_invoke_stubs_);
 }
 
 ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
@@ -62,7 +71,7 @@ void Compiler::CompileAll(const ClassLoader* class_loader) {
   SetCodeAndDirectMethods(class_loader);
 }
 
-void Compiler::CompileOne(Method* method) {
+void Compiler::CompileOne(const Method* method) {
   DCHECK(!Runtime::Current()->IsStarted());
   const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
   Resolve(class_loader);
@@ -276,7 +285,7 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
   }
 }
 
-void Compiler::CompileClass(Class* klass) {
+void Compiler::CompileClass(const Class* klass) {
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     CompileMethod(klass->GetDirectMethod(i));
   }
@@ -285,35 +294,50 @@ void Compiler::CompileClass(Class* klass) {
   }
 }
 
-void Compiler::CompileMethod(Method* method) {
+void Compiler::CompileMethod(const Method* method) {
   if (method->IsNative()) {
-    jni_compiler_.Compile(method);
-    // unregister will install the stub to lookup via dlsym
-    // TODO: this is only necessary for tests
-    if (!method->IsRegistered()) {
-      method->UnregisterNative();
-    }
+    CompiledMethod* compiled_method = jni_compiler_.Compile(method);
+    CHECK(compiled_method != NULL);
+    compiled_methods_[method] = compiled_method;
+    DCHECK_EQ(1U, compiled_methods_.count(method));
+    DCHECK(GetCompiledMethod(method) != NULL) << PrettyMethod(method);
   } else if (method->IsAbstract()) {
-    ByteArray* abstract_method_error_stub = Runtime::Current()->GetAbstractMethodErrorStubArray();
-    if (instruction_set_ == kX86) {
-      method->SetCodeArray(abstract_method_error_stub, kX86);
-    } else {
-      CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
-      method->SetCodeArray(abstract_method_error_stub, kArm);
-    }
   } else {
-    oatCompileMethod(*this, method, kThumb2);
+    CompiledMethod* compiled_method = oatCompileMethod(*this, method, kThumb2);
+    CHECK(compiled_method != NULL);
+    compiled_methods_[method] = compiled_method;
+    DCHECK_EQ(1U, compiled_methods_.count(method));
+    DCHECK(GetCompiledMethod(method) != NULL) << PrettyMethod(method);
   }
-  CHECK(method->GetCode() != NULL) << PrettyMethod(method);
 
+  CompiledInvokeStub* compiled_invoke_stub = NULL;
   if (instruction_set_ == kX86) {
-    art::x86::X86CreateInvokeStub(method);
+    compiled_invoke_stub = art::x86::X86CreateInvokeStub(method);
   } else {
     CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
     // Generates invocation stub using ARM instruction set
-    art::arm::ArmCreateInvokeStub(method);
+    compiled_invoke_stub = art::arm::ArmCreateInvokeStub(method);
   }
-  CHECK(method->GetInvokeStub() != NULL);
+  CHECK(compiled_invoke_stub != NULL);
+  compiled_invoke_stubs_[method] = compiled_invoke_stub;
+}
+
+const CompiledMethod* Compiler::GetCompiledMethod(const Method* method) const {
+    MethodTable::const_iterator it = compiled_methods_.find(method);
+  if (it == compiled_methods_.end()) {
+    return NULL;
+  }
+  CHECK(it->second != NULL);
+  return it->second;
+}
+
+const CompiledInvokeStub* Compiler::GetCompiledInvokeStub(const Method* method) const {
+  InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(method);
+  if (it == compiled_invoke_stubs_.end()) {
+    return NULL;
+  }
+  CHECK(it->second != NULL);
+  return it->second;
 }
 
 void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {
@@ -332,17 +356,10 @@ void Compiler::SetCodeAndDirectMethodsDexFile(const DexFile& dex_file) {
   CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
-    if ((method == NULL) || (method->IsStatic() && !method->GetDeclaringClass()->IsInitialized())) {
+    if (method == NULL || method->IsDirect()) {
       Runtime::TrampolineType type = Runtime::GetTrampolineType(method);
       ByteArray* res_trampoline = runtime->GetResolutionStubArray(type);
-      if (instruction_set_ == kX86) {
-        code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline, kX86);
-      } else {
-        CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
-        code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline, kArm);
-      }
-    } else if (method->IsDirect()) {
-      code_and_direct_methods->SetResolvedDirectMethod(i, method);
+      code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline);
     } else {
       // TODO: we currently leave the entry blank for resolved
       // non-direct methods.  we could put in an error stub.

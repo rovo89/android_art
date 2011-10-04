@@ -258,7 +258,7 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  if (!OatWriter::Create(oat_filename, class_loader)) {
+  if (!OatWriter::Create(oat_filename, class_loader, compiler)) {
     fprintf(stderr, "Failed to create oat file %s\n", oat_filename.c_str());
     return EXIT_FAILURE;
   }

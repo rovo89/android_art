@@ -968,7 +968,7 @@ void Thread::WalkStack(StackVisitor* visitor) const {
 
   while (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
-      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
       visitor->VisitFrame(frame, pc);
       pc = frame.GetReturnPC();
       // Move the PC back 2 bytes as a call will frequently terminate the
@@ -993,7 +993,7 @@ void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) co
 
   if (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
-      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
       visitor->VisitFrame(frame, pc);
       pc = frame.GetReturnPC();
       // Move the PC back 2 bytes as a call will frequently terminate the
@@ -1143,7 +1143,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
         return;
       }
       uint32_t dex_pc = DexFile::kDexNoIndex;
-      if (method->IsPhony()) {
+      if (method->IsCalleeSaveMethod()) {
         // ignore callee save method
       } else if (method->IsNative()) {
         native_method_count_++;
@@ -1229,13 +1229,13 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
   void VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
     // Process register map (which native and callee save methods don't have)
-    if (!m->IsNative() && !m->IsPhony()) {
+    if (!m->IsNative() && !m->IsCalleeSaveMethod()) {
       UniquePtr<art::DexVerifier::RegisterMap> map(art::DexVerifier::GetExpandedRegisterMap(m));
       const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(map.get(), m->ToDexPC(pc));
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
                 << "@ PC: " << m->ToDexPC(pc);
       CHECK(reg_bitmap != NULL);
-      ShortArray* vmap = m->GetVMapTable();
+      const uint16_t* vmap = m->GetVmapTable();
       // For all dex registers
       for (int reg = 0; reg < m->NumRegisters(); ++reg) {
         // Does this register hold a reference?
@@ -1244,8 +1244,8 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
           bool in_context = false;
           uint32_t vmap_offset = 0xEBAD0FF5;
           // TODO: take advantage of the registers being ordered
-          for (int i = 0; i < vmap->GetLength(); i++) {
-            if (vmap->Get(i) == reg) {
+          for (int i = 0; i < m->GetVmapTableLength(); i++) {
+            if (vmap[i] == reg) {
               in_context = true;
               vmap_offset = i;
               break;

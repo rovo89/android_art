@@ -18,34 +18,6 @@ namespace art {
 class CompilerTest : public CommonTest {
  protected:
 
-  void AssertStaticIntMethod(jint expected, const ClassLoader* class_loader,
-                             const char* class_name, const char* method, const char* signature,
-                             ...) {
-    EnsureCompiled(class_loader, class_name, method, signature, false);
-#if defined(__arm__)
-    va_list args;
-    va_start(args, signature);
-    jint result = env_->CallStaticIntMethodV(class_, mid_, args);
-    va_end(args);
-    LOG(INFO) << class_name << "." << method << "(...) result is " << result;
-    EXPECT_EQ(expected, result);
-#endif // __arm__
-  }
-
-  void AssertStaticLongMethod(jlong expected, const ClassLoader* class_loader,
-                              const char* class_name, const char* method, const char* signature,
-                              ...) {
-    EnsureCompiled(class_loader, class_name, method, signature, false);
-#if defined(__arm__)
-    va_list args;
-    va_start(args, signature);
-    jlong result = env_->CallStaticLongMethodV(class_, mid_, args);
-    va_end(args);
-    LOG(INFO) << class_name << "." << method << "(...) result is " << result;
-    EXPECT_EQ(expected, result);
-#endif // __arm__
-  }
-
   void CompileAll(const ClassLoader* class_loader) {
     compiler_->CompileAll(class_loader);
     MakeAllExecutable(class_loader);
@@ -83,24 +55,11 @@ class CompilerTest : public CommonTest {
       Class* c = class_linker->FindClass(descriptor, class_loader);
       CHECK(c != NULL);
       for (size_t i = 0; i < c->NumDirectMethods(); i++) {
-        MakeMethodExecutable(c->GetDirectMethod(i));
+        MakeExecutable(c->GetDirectMethod(i));
       }
       for (size_t i = 0; i < c->NumVirtualMethods(); i++) {
-        MakeMethodExecutable(c->GetVirtualMethod(i));
+        MakeExecutable(c->GetVirtualMethod(i));
       }
-    }
-  }
-
-  void MakeMethodExecutable(Method* m) {
-    if (m->GetCodeArray() != NULL) {
-      MakeExecutable(m->GetCodeArray());
-    } else {
-      LOG(WARNING) << "no code for " << PrettyMethod(m);
-    }
-    if (m->GetInvokeStubArray() != NULL) {
-      MakeExecutable(m->GetInvokeStubArray());
-    } else {
-      LOG(WARNING) << "no invoke stub for " << PrettyMethod(m);
     }
   }
 
@@ -165,6 +124,8 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
+  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+
   const ClassLoader* class_loader = LoadDex("AbstractMethod");
   ASSERT_TRUE(class_loader != NULL);
   EnsureCompiled(class_loader, "AbstractClass", "foo", "()V", true);
@@ -177,7 +138,7 @@ TEST_F(CompilerTest, AbstractMethodErrorStub) {
 
 #if defined(__arm__)
   Class* jlame = class_linker_->FindClass("Ljava/lang/AbstractMethodError;", class_loader);
-  // Force non-virtal call to AbstractClass foo, will throw AbstractMethodError exception.
+  // Force non-virtual call to AbstractClass foo, will throw AbstractMethodError exception.
   env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);
   EXPECT_TRUE(Thread::Current()->IsExceptionPending());
   EXPECT_TRUE(Thread::Current()->GetException()->InstanceOf(jlame));

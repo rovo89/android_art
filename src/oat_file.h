@@ -5,9 +5,11 @@
 
 #include <vector>
 
+#include "constants.h"
 #include "dex_file.h"
 #include "mem_map.h"
 #include "oat.h"
+#include "object.h"
 
 namespace art {
 
@@ -30,20 +32,57 @@ class OatFile {
 
   class OatDexFile;
 
+  class OatMethod {
+   public:
+    // Create an OatMethod backed by an OatFile
+    OatMethod(const void* code,
+              const size_t frame_size_in_bytes,
+              const size_t return_pc_offset_in_bytes,
+              const uint32_t core_spill_mask,
+              const uint32_t fp_spill_mask,
+              const uint32_t* mapping_table,
+              const uint16_t* vmap_table,
+              const Method::InvokeStub* invoke_stub);
+
+    ~OatMethod();
+
+    // Link Method using the contents of this OatMethod
+    void LinkMethod(Method* method);
+
+    const void* code_;
+    size_t frame_size_in_bytes_;
+    size_t return_pc_offset_in_bytes_;
+    uint32_t core_spill_mask_;
+    uint32_t fp_spill_mask_;
+    const uint32_t* mapping_table_;
+    const uint16_t* vmap_table_;
+    const Method::InvokeStub* invoke_stub_;
+  };
+
   class OatClass {
    public:
-    // get the code for the method based on its index into the class
+    // get the OatMethod entry based on its index into the class
     // defintion. direct methods come first, followed by virtual
     // methods. note that runtime created methods such as miranda
     // methods are not included.
-    const void* GetMethodCode(uint32_t method_index) const;
+    const OatMethod GetOatMethod(uint32_t method_idx) const;
     ~OatClass();
 
    private:
-    OatClass(const OatFile* oat_file, const uint32_t* methods_pointer);
+    OatClass(const OatFile* oat_file, const OatMethodOffsets* methods_pointer);
+
+    template<class T>
+    T GetOatPointer(uint32_t offset) const {
+      if (offset == 0) {
+        return NULL;
+      }
+      T pointer = reinterpret_cast<T>(oat_file_->GetBase() + offset);
+      CHECK_LT(pointer, reinterpret_cast<T>(oat_file_->GetLimit()));
+      return pointer;
+    }
 
     const OatFile* oat_file_;
-    const uint32_t* methods_pointer_;
+    const OatMethodOffsets* methods_pointer_;
 
     friend class OatDexFile;
   };

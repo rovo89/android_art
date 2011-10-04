@@ -17,7 +17,7 @@ ManagedRegister ArmJniCallingConvention::InterproceduralScratchRegister() {
   return ArmManagedRegister::FromCoreRegister(IP);  // R12
 }
 
-static ManagedRegister ReturnRegisterForMethod(Method* method) {
+static ManagedRegister ReturnRegisterForMethod(const Method* method) {
   if (method->IsReturnAFloat()) {
     return ArmManagedRegister::FromCoreRegister(R0);
   } else if (method->IsReturnADouble()) {
@@ -99,7 +99,8 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
-ArmJniCallingConvention::ArmJniCallingConvention(Method* method) : JniCallingConvention(method) {
+ArmJniCallingConvention::ArmJniCallingConvention(const Method* method)
+    : JniCallingConvention(method) {
   // Compute padding to ensure longs and doubles are not split in AAPCS
   // TODO: in terms of outgoing argument size this may be overly generous
   // due to padding appearing in the registers
@@ -159,7 +160,7 @@ bool ArmJniCallingConvention::IsMethodRegisterClobberedPreCall() {
 // in even register numbers and stack slots
 void ArmJniCallingConvention::Next() {
   JniCallingConvention::Next();
-  Method* method = GetMethod();
+  const Method* method = GetMethod();
   size_t arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
   if ((itr_args_ >= 2) &&
       (arg_pos < GetMethod()->NumArgs()) &&
@@ -184,7 +185,7 @@ static const Register kJniArgumentRegisters[] = {
 };
 ManagedRegister ArmJniCallingConvention::CurrentParamRegister() {
   CHECK_LT(itr_slots_, 4u);
-  Method* method = GetMethod();
+  const Method* method = GetMethod();
   int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
   if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
     CHECK_EQ(itr_slots_, 2u);
@@ -202,7 +203,7 @@ FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
 }
 
 size_t ArmJniCallingConvention::NumberOfOutgoingStackArgs() {
-  Method* method = GetMethod();
+  const Method* method = GetMethod();
   size_t static_args = method->IsStatic() ? 1 : 0;  // count jclass
   // regular argument parameters and this
   size_t param_args = method->NumArgs() +

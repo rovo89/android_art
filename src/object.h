@@ -404,6 +404,16 @@ class MANAGED Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
+struct ObjectIdentityHash {
+  size_t operator()(const art::Object* const& obj) const {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  // TODO: we'll need to use the Object's internal concept of identity
+    UNIMPLEMENTED(FATAL);
+#endif
+    return reinterpret_cast<size_t>(obj);
+  }
+};
+
 // C++ mirror of java.lang.reflect.AccessibleObject
 class MANAGED AccessibleObject : public Object {
  private:
@@ -667,8 +677,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   void SetMethodIndex(uint16_t new_method_index) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_),
-               new_method_index, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), new_method_index, false);
   }
 
   static MemberOffset MethodIndexOffset() {
@@ -680,8 +689,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   void SetCodeItemOffset(uint32_t new_code_off) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, code_item_offset_),
-               new_code_off, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, code_item_offset_), new_code_off, false);
   }
 
   // Number of 32bit registers that would be required to hold all the arguments
@@ -694,22 +702,19 @@ class MANAGED Method : public AccessibleObject {
   uint16_t NumRegisters() const;
 
   void SetNumRegisters(uint16_t new_num_registers) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_),
-               new_num_registers, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_registers_), new_num_registers, false);
   }
 
   uint16_t NumIns() const;
 
   void SetNumIns(uint16_t new_num_ins) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_),
-               new_num_ins, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_ins_), new_num_ins, false);
   }
 
   uint16_t NumOuts() const;
 
   void SetNumOuts(uint16_t new_num_outs) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_),
-               new_num_outs, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, num_outs_), new_num_outs, false);
   }
 
   uint32_t GetProtoIdx() const;
@@ -806,15 +811,11 @@ class MANAGED Method : public AccessibleObject {
 
   void Invoke(Thread* self, Object* receiver, byte* args, JValue* result) const;
 
-  const ByteArray* GetCodeArray() const {
-    return GetFieldPtr<const ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), false);
-  }
-
   const void* GetCode() const {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
   }
 
-  void SetCode(void* code) {
+  void SetCode(const void* code) {
     SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), code, false);
   }
 
@@ -828,29 +829,77 @@ class MANAGED Method : public AccessibleObject {
     SetCode(reinterpret_cast<void*>(code_offset));
   }
 
-  void SetCodeArray(ByteArray* code_array, InstructionSet instruction_set);
-
   static MemberOffset GetCodeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, code_);
   }
 
-  // Is the given PC within the code array?
-  bool IsWithinCode(uintptr_t pc) const;
-
-  IntArray* GetMappingTable() const {
-    return GetFieldObject<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
+  const uint32_t* GetMappingTable() const {
+    const uint32_t* map = GetMappingTableRaw();
+    if (map == NULL) {
+      return map;
+    }
+    return map + 1;
   }
 
-  void SetMappingTable(IntArray* mapping_table) {
-    SetFieldPtr<IntArray*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), mapping_table, false);
+  uint32_t GetMappingTableLength() const {
+    const uint32_t* map = GetMappingTableRaw();
+    if (map == NULL) {
+      return 0;
+    }
+    return *map;
   }
 
-  ShortArray* GetVMapTable() const {
-    return GetFieldObject<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
+  const uint32_t* GetMappingTableRaw() const {
+    return GetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
   }
 
-  void SetVMapTable(ShortArray* vmap_table) {
-    SetFieldPtr<ShortArray*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), vmap_table, false);
+  void SetMappingTable(const uint32_t* mapping_table) {
+    SetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
+                                 mapping_table, false);
+  }
+
+  uint32_t GetOatMappingTableOffset() const {
+    CHECK(!Runtime::Current()->IsStarted());
+    return reinterpret_cast<uint32_t>(GetMappingTableRaw());
+  }
+
+  void SetOatMappingTableOffset(uint32_t mapping_table_offset) {
+    CHECK(!Runtime::Current()->IsStarted());
+    SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table_offset));
+  }
+
+  const uint16_t* GetVmapTable() const {
+    const uint16_t* vmap = GetVmapTableRaw();
+    if (vmap == NULL) {
+      return vmap;
+    }
+    return vmap + 1;
+  }
+
+  uint16_t GetVmapTableLength() const {
+    const uint16_t* vmap = GetVmapTableRaw();
+    if (vmap == NULL) {
+      return 0;
+    }
+    return *vmap;
+  }
+
+  const uint16_t* GetVmapTableRaw() const {
+    return GetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
+  }
+
+  void SetVmapTable(const uint16_t* vmap_table) {
+    SetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), vmap_table, false);
+  }
+
+  uint32_t GetOatVmapTableOffset() const {
+    CHECK(!Runtime::Current()->IsStarted());
+    return reinterpret_cast<uint32_t>(GetVmapTableRaw());
+  }
+
+  void SetOatVmapTableOffset(uint32_t vmap_table_offset) {
+    CHECK(!Runtime::Current()->IsStarted());
+    SetVmapTable(reinterpret_cast<uint16_t*>(vmap_table_offset));
   }
 
   size_t GetFrameSizeInBytes() const {
@@ -881,7 +930,7 @@ class MANAGED Method : public AccessibleObject {
                return_pc_offset_in_bytes, false);
   }
 
-  bool IsRegistered();
+  bool IsRegistered() const;
 
   void RegisterNative(const void* native_method);
 
@@ -895,19 +944,27 @@ class MANAGED Method : public AccessibleObject {
     return reinterpret_cast<const void*>(GetField32(NativeMethodOffset(), false));
   }
 
-  ByteArray* GetInvokeStubArray() const {
-    ByteArray* result = GetFieldPtr<ByteArray*>(
-        OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_array_), false);
-    // TODO: DCHECK(result != NULL);  should be ahead of time compiled
-    return result;
-  }
-
   // Native to managed invocation stub entry point
   InvokeStub* GetInvokeStub() const {
     InvokeStub* result = GetFieldPtr<InvokeStub*>(
         OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), false);
     // TODO: DCHECK(result != NULL);  should be ahead of time compiled
     return result;
+  }
+
+  void SetInvokeStub(InvokeStub* invoke_stub) {
+    SetFieldPtr<const InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_),
+                                   invoke_stub, false);
+  }
+
+  uint32_t GetOatInvokeStubOffset() const {
+    CHECK(!Runtime::Current()->IsStarted());
+    return reinterpret_cast<uint32_t>(GetInvokeStub());
+  }
+
+  void SetOatInvokeStubOffset(uint32_t invoke_stub_offset) {
+    CHECK(!Runtime::Current()->IsStarted());
+    SetInvokeStub(reinterpret_cast<InvokeStub*>(invoke_stub_offset));
   }
 
   static MemberOffset GetInvokeStubOffset() {
@@ -925,8 +982,6 @@ class MANAGED Method : public AccessibleObject {
   static MemberOffset GetMethodIndexOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
   }
-
-  void SetInvokeStub(const ByteArray* invoke_stub_array);
 
   uint32_t GetCoreSpillMask() const {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_), false);
@@ -947,7 +1002,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   // Is this a hand crafted method used for something like describing callee saves?
-  bool IsPhony() const {
+  bool IsCalleeSaveMethod() const {
     Runtime* runtime = Runtime::Current();
     bool result = false;
     for (int i=0; i < Runtime::kLastCalleeSaveType; i++) {
@@ -1005,9 +1060,6 @@ class MANAGED Method : public AccessibleObject {
   ObjectArray<Class>* java_parameter_types_;
   Class* java_return_type_;
 
-  // Storage for code_
-  const ByteArray* code_array_;
-
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
 
@@ -1025,12 +1077,6 @@ class MANAGED Method : public AccessibleObject {
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<String>* dex_cache_strings_;
-
-  // Storage for invoke_stub_
-  const ByteArray* invoke_stub_array_;
-
-  // Storage for mapping_table_
-  IntArray* mapping_table_;
 
   // Byte arrays that hold data for the register maps
   const ByteArray* register_map_data_;
@@ -1050,9 +1096,6 @@ class MANAGED Method : public AccessibleObject {
   //
   //   (IDLjava/lang/Thread;)Ljava/lang/Object;
   String* signature_;
-
-  // Storage for Dalvik virtual register mapping_table_
-  ShortArray* vmap_table_;
 
   uint32_t java_generic_types_are_initialized_;
 
@@ -1081,6 +1124,8 @@ class MANAGED Method : public AccessibleObject {
   // Index of the return type
   uint32_t java_return_type_idx_;
 
+  const uint32_t* mapping_table_;
+
   // For concrete virtual methods, this is the offset of the method
   // in Class::vtable_.
   //
@@ -1104,6 +1149,8 @@ class MANAGED Method : public AccessibleObject {
 
   // Offset of return PC within frame for compiled code (in bytes)
   size_t return_pc_offset_in_bytes_;
+
+  const uint16_t* vmap_table_;
 
   uint32_t java_slot_;
 

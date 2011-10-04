@@ -620,21 +620,18 @@ bool Method::HasSameNameAndDescriptor(const Method* that) const {
 }
 
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
-  IntArray* mapping_table = GetMappingTable();
+  const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
     DCHECK(IsNative());
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
-  size_t mapping_table_length = mapping_table->GetLength();
+  size_t mapping_table_length = GetMappingTableLength();
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetCode());
-  if (GetCodeArray() != NULL) {
-    CHECK_LT(sought_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
-  }
   uint32_t best_offset = 0;
   uint32_t best_dex_offset = 0;
   for (size_t i = 0; i < mapping_table_length; i += 2) {
-    uint32_t map_offset = mapping_table->Get(i);
-    uint32_t map_dex_offset = mapping_table->Get(i + 1);
+    uint32_t map_offset = mapping_table[i];
+    uint32_t map_dex_offset = mapping_table[i + 1];
     if (map_offset == sought_offset) {
       best_offset = map_offset;
       best_dex_offset = map_dex_offset;
@@ -649,19 +646,16 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
 }
 
 uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
-  IntArray* mapping_table = GetMappingTable();
+  const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
     DCHECK(dex_pc == 0);
     return 0;   // Special no mapping/pc == 0 case
   }
-  size_t mapping_table_length = mapping_table->GetLength();
+  size_t mapping_table_length = GetMappingTableLength();
   for (size_t i = 0; i < mapping_table_length; i += 2) {
-    uint32_t map_offset = mapping_table->Get(i);
-    uint32_t map_dex_offset = mapping_table->Get(i + 1);
+    uint32_t map_offset = mapping_table[i];
+    uint32_t map_dex_offset = mapping_table[i + 1];
     if (map_dex_offset == dex_pc) {
-      if (GetCodeArray() != NULL) {
-        DCHECK_LT(map_offset, static_cast<uint32_t>(GetCodeArray()->GetLength()));
-      }
       return reinterpret_cast<uintptr_t>(GetCode()) + map_offset;
     }
   }
@@ -692,58 +686,6 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
   }
   // Handler not found
   return DexFile::kDexNoIndex;
-}
-
-void Method::SetCodeArray(ByteArray* code_array, InstructionSet instruction_set) {
-// TODO: restore this check or warning when compile time code storage is moved out of Method
-//  CHECK(GetCode() == NULL || IsNative()) << PrettyMethod(this);
-//  if (GetCode() != NULL && !IsNative()) {
-//    LOG(WARNING) << "Calling SetCode more than once for " << PrettyMethod(this);
-//  }
-  SetFieldPtr<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, code_array_), code_array, false);
-
-  void* code;
-  if (code_array != NULL) {
-    code = code_array->GetData();
-    if (instruction_set == kThumb2) {
-      uintptr_t address = reinterpret_cast<uintptr_t>(code);
-      // Set the low-order bit so a BLX will switch to Thumb mode
-      address |= 0x1;
-      code = reinterpret_cast<void*>(address);
-    }
-  } else {
-    code = NULL;
-  }
-  SetCode(code);
-}
-
-bool Method::IsWithinCode(uintptr_t pc) const {
-  if (pc == 0) {
-    // PC of 0 represents the beginning of a stack trace either a native or where we have a callee
-    // save method that has no code
-    DCHECK(IsNative() || IsPhony());
-    return true;
-  } else {
-#if defined(__arm__)
-    pc &= ~0x1;  // clear any possible thumb instruction mode bit
-#endif
-    if (GetCodeArray() == NULL) {
-      return true;
-    }
-    uint32_t rel_offset = pc - reinterpret_cast<uintptr_t>(GetCodeArray()->GetData());
-    // Strictly the following test should be a less-than, however, if the last
-    // instruction is a call to an exception throw we may see return addresses
-    // that are 1 beyond the end of code.
-    return rel_offset <= static_cast<uint32_t>(GetCodeArray()->GetLength());
-  }
-}
-
-void Method::SetInvokeStub(const ByteArray* invoke_stub_array) {
-  const InvokeStub* invoke_stub = reinterpret_cast<InvokeStub*>(invoke_stub_array->GetData());
-  SetFieldPtr<const ByteArray*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_array_), invoke_stub_array, false);
-  SetFieldPtr<const InvokeStub*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), invoke_stub, false);
 }
 
 void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) const {
@@ -779,7 +721,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   self->PopNativeToManagedRecord(record);
 }
 
-bool Method::IsRegistered() {
+bool Method::IsRegistered() const {
   void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_), false);
   void* jni_stub = Runtime::Current()->GetJniStubArray()->GetData();
   return native_method != jni_stub;

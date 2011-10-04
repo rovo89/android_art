@@ -165,34 +165,12 @@ class OatDump {
     //               object_bytes, RoundUp(object_bytes, kObjectAlignment) - object_bytes);
     if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
-      if (!method->IsPhony()) {
-        const ByteArray* code = method->GetCodeArray();
-        const int8_t* code_base = NULL;
-        const int8_t* code_limit = NULL;
-        if (code != NULL) {
-          size_t code_bytes = code->GetLength();
-          code_base = code->GetData();
-          code_limit = code_base + code_bytes;
-          if (method->IsNative()) {
-            state->stats_.managed_to_native_code_bytes += code_bytes;
-          } else {
-            state->stats_.managed_code_bytes += code_bytes;
-          }
-        } else {
-          code_base = reinterpret_cast<const int8_t*>(method->GetCode());
-        }
-        StringAppendF(&summary, "\tCODE     %p-%p\n", code_base, code_limit);
+      if (!method->IsCalleeSaveMethod()) {
+        const int8_t* code =reinterpret_cast<const int8_t*>(method->GetCode());
+        StringAppendF(&summary, "\tCODE     %p\n", code);
 
-        const ByteArray* invoke = method->GetInvokeStubArray();
-        const int8_t* invoke_base = NULL;
-        const int8_t* invoke_limit = NULL;
-        if (invoke != NULL) {
-          size_t native_to_managed_code_bytes = invoke->GetLength();
-          invoke_base = invoke->GetData();
-          invoke_limit = invoke_base + native_to_managed_code_bytes;
-          state->stats_.native_to_managed_code_bytes += native_to_managed_code_bytes;
-          StringAppendF(&summary, "\tJNI STUB %p-%p\n", invoke_base, invoke_limit);
-        }
+        const Method::InvokeStub* invoke_stub = method->GetInvokeStub();
+        StringAppendF(&summary, "\tJNI STUB %p\n", invoke_stub);
       }
       if (method->IsNative()) {
         if (method->IsRegistered()) {
@@ -200,26 +178,26 @@ class OatDump {
         } else {
           StringAppendF(&summary, "\tNATIVE UNREGISTERED\n");
         }
-        DCHECK(method->GetRegisterMapHeader() == NULL);
-        DCHECK(method->GetRegisterMapData() == NULL);
-        DCHECK(method->GetMappingTable() == NULL);
+        DCHECK(method->GetRegisterMapHeader() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetRegisterMapData() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else if (method->IsAbstract()) {
         StringAppendF(&summary, "\tABSTRACT\n");
-        DCHECK(method->GetRegisterMapHeader() == NULL);
-        DCHECK(method->GetRegisterMapData() == NULL);
-        DCHECK(method->GetMappingTable() == NULL);
-      } else if (method->IsPhony()) {
-        StringAppendF(&summary, "\tPHONY\n");
-        DCHECK(method->GetRegisterMapHeader() == NULL);
-        DCHECK(method->GetRegisterMapData() == NULL);
-        DCHECK(method->GetMappingTable() == NULL);
+        DCHECK(method->GetRegisterMapHeader() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetRegisterMapData() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
+      } else if (method->IsCalleeSaveMethod()) {
+        StringAppendF(&summary, "\tCALLEE SAVE METHOD\n");
+        DCHECK(method->GetRegisterMapHeader() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetRegisterMapData() == NULL) << PrettyMethod(method);
+        DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
         size_t register_map_bytes = (method->GetRegisterMapHeader()->GetLength() +
                                      method->GetRegisterMapData()->GetLength());
         state->stats_.register_map_bytes += register_map_bytes;
 
         if (method->GetMappingTable() != NULL) {
-          size_t pc_mapping_table_bytes = method->GetMappingTable()->GetLength();
+          size_t pc_mapping_table_bytes = method->GetMappingTableLength();
           state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
         }
 

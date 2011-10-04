@@ -291,12 +291,12 @@ class ClassLinker {
 
   bool LinkStaticFields(Class* klass);
   bool LinkInstanceFields(Class* klass);
-  bool LinkFields(Class *klass, bool instance);
+  bool LinkFields(Class *klass, bool is_static);
 
 
   void CreateReferenceInstanceOffsets(Class* klass);
   void CreateReferenceStaticOffsets(Class* klass);
-  void CreateReferenceOffsets(Class *klass, bool instance,
+  void CreateReferenceOffsets(Class *klass, bool is_static,
                               uint32_t reference_offsets);
 
   // For use by ImageWriter to find DexCaches for its roots

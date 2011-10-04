@@ -691,7 +691,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-bool oatCompileMethod(const Compiler& compiler, Method* method, art::InstructionSet insnSet)
+CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method, art::InstructionSet insnSet)
 {
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
@@ -894,17 +894,11 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
         }
     }
 
-    art::ByteArray* managed_code =
-        art::ByteArray::Alloc(cUnit.codeBuffer.size() * sizeof(cUnit.codeBuffer[0]));
-    memcpy(managed_code->GetData(),
-           reinterpret_cast<const int8_t*>(&cUnit.codeBuffer[0]),
-           managed_code->GetLength());
-    art::IntArray* mapping_table =
-        art::IntArray::Alloc(cUnit.mappingTable.size());
-    DCHECK_EQ(mapping_table->GetClass()->GetComponentSize(), sizeof(cUnit.mappingTable[0]));
-    memcpy(mapping_table->GetData(),
-           reinterpret_cast<const int32_t*>(&cUnit.mappingTable[0]),
-           mapping_table->GetLength() * sizeof(cUnit.mappingTable[0]));
+    // Combine vmap tables - core regs, then fp regs - into vmapTable
+    std::vector<uint16_t> vmapTable;
+    for (size_t i = 0 ; i < cUnit.coreVmapTable.size(); i++) {
+        vmapTable.push_back(cUnit.coreVmapTable[i]);
+    }
     // Add a marker to take place of lr
     cUnit.coreVmapTable.push_back(INVALID_VREG);
     // Combine vmap tables - core regs, then fp regs
@@ -914,25 +908,25 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
     DCHECK(cUnit.coreVmapTable.size() == (uint32_t)
         (__builtin_popcount(cUnit.coreSpillMask) +
          __builtin_popcount(cUnit.fpSpillMask)));
-    art::ShortArray* vmap_table =
-        art::ShortArray::Alloc(cUnit.coreVmapTable.size());
-    memcpy(vmap_table->GetData(),
-           reinterpret_cast<const int16_t*>(&cUnit.coreVmapTable[0]),
-           vmap_table->GetLength() * sizeof(cUnit.coreVmapTable[0]));
-    method->SetCodeArray(managed_code, art::kThumb2);
-    method->SetMappingTable(mapping_table);
-    method->SetVMapTable(vmap_table);
-    method->SetFrameSizeInBytes(cUnit.frameSize);
-    method->SetReturnPcOffsetInBytes(cUnit.frameSize - sizeof(intptr_t));
-    method->SetCoreSpillMask(cUnit.coreSpillMask);
-    method->SetFpSpillMask(cUnit.fpSpillMask);
+    vmapTable.push_back(-1);
+    for (size_t i = 0; i < cUnit.fpVmapTable.size(); i++) {
+        vmapTable.push_back(cUnit.fpVmapTable[i]);
+    }
+    CompiledMethod* result = new CompiledMethod(art::kThumb2,
+                                                cUnit.codeBuffer,
+                                                cUnit.frameSize,
+                                                cUnit.frameSize - sizeof(intptr_t),
+                                                cUnit.coreSpillMask,
+                                                cUnit.fpSpillMask,
+                                                cUnit.mappingTable,
+                                                cUnit.coreVmapTable);
+
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Compiled " << PrettyMethod(method)
-                  << " code at " << reinterpret_cast<void*>(managed_code->GetData())
-                  << " (" << managed_code->GetLength() << " bytes)";
+                  << " (" << (cUnit.codeBuffer.size() * sizeof(cUnit.codeBuffer[0])) << " bytes)";
     }
 
-    return true;
+    return result;
 }
 
 void oatInit(const Compiler& compiler)

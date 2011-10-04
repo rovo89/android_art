@@ -8,6 +8,7 @@
 #include <cstddef>
 
 #include "UniquePtr.h"
+#include "compiler.h"
 #include "dex_cache.h"
 #include "mem_map.h"
 #include "oat.h"
@@ -30,29 +31,33 @@ namespace art {
 // OatClasses[D]
 //
 // OatMethods[0]     one variable sized OatMethods for each of C DexFile::ClassDefs
-// OatMethods[1]     contains offsets to code
+// OatMethods[1]     contains OatMethod entries with offsets to code, method properities, etc.
 // ...
 // OatMethods[C]
 //
 // padding           if necessary so that the follow code will be page aligned
 //
-// Method::GetCode() one variable sized code blob for each Method::GetCode() value
-// Method::GetCode()
-// Method::GetCode()
-// Method::GetCode()
-// Method::GetCode()
-// Method::GetCode()
+// CompiledMethod    one variable sized blob with the contents of each CompiledMethod
+// CompiledMethod
+// CompiledMethod
+// CompiledMethod
+// CompiledMethod
+// CompiledMethod
 // ...
-// Method::GetCode()
+// CompiledMethod
 //
 class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
-  static bool Create(const std::string& filename, const ClassLoader* class_loader);
+  static bool Create(const std::string& filename,
+                     const ClassLoader* class_loader,
+                     const Compiler& compiler);
 
  private:
 
-  OatWriter(const std::vector<const DexFile*>& dex_files, const ClassLoader* class_loader);
+  OatWriter(const std::vector<const DexFile*>& dex_files,
+            const ClassLoader* class_loader,
+            const Compiler& compiler);
   ~OatWriter();
 
   size_t InitOatHeader();
@@ -128,11 +133,13 @@ class OatWriter {
     bool Write(File* file) const;
 
     // data to write
-    std::vector<uint32_t> method_offsets_;
+    std::vector<OatMethodOffsets> method_offsets_;
 
    private:
     DISALLOW_COPY_AND_ASSIGN(OatMethods);
   };
+
+  const Compiler* compiler_;
 
   // TODO: remove the ClassLoader when the code storage moves out of Method
   const ClassLoader* class_loader_;

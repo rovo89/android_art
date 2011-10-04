@@ -180,7 +180,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
   // Note that image_top_ is left at end of used space
   oat_base_ = image_base_ +  RoundUp(image_top_, kPageSize);
-  byte* oat_limit = oat_base_ +  oat_file_->GetSize();
+  const byte* oat_limit = oat_base_ +  oat_file_->GetSize();
 
   // return to write header at start of image with future location of image_roots
   ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
@@ -258,29 +258,42 @@ const void* FixupCode(const ByteArray* copy_code_array, const void* orig_code) {
 void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
 
-  // OatWriter clears the code_array_ after writing the code.
-  // It replaces the code_ with an offset value we now adjust to be a pointer.
-  DCHECK(copy->code_array_ == NULL)
-          << PrettyMethod(orig)
-          << " orig_code_array_=" << orig->GetCodeArray() << " orig_code_=" << orig->GetCode()
-          << " copy_code_array_=" << copy->code_array_ << " orig_code_=" << copy->code_
-          << " jni_stub=" << Runtime::Current()->GetJniStubArray()
-          << " ame_stub=" << Runtime::Current()->GetAbstractMethodErrorStubArray();
-  copy->invoke_stub_ = reinterpret_cast<Method::InvokeStub*>(FixupCode(copy->invoke_stub_array_, reinterpret_cast<void*>(orig->invoke_stub_)));
+  // OatWriter replaces the code_ and invoke_stub_ with offset values.
+  // Here we readjust to a pointer relative to oat_base_
+
+  // Every type of method can have an invoke stub
+  uint32_t invoke_stub_offset = orig->GetOatInvokeStubOffset();
+  const byte* invoke_stub = (invoke_stub_offset != 0) ? (oat_base_ + invoke_stub_offset) : 0;
+  copy->invoke_stub_ = reinterpret_cast<const Method::InvokeStub*>(invoke_stub);
+
+  if (orig->IsAbstract()) {
+    // Abstract methods are pointed to a stub that will throw AbstractMethodError if they are called
+    ByteArray* orig_ame_stub_array_ = Runtime::Current()->GetAbstractMethodErrorStubArray();
+    ByteArray* copy_ame_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_ame_stub_array_));
+    copy->code_ = copy_ame_stub_array_->GetData();
+    return;
+  }
+
+  // Non-abstract methods typically have code
+  uint32_t code_offset = orig->GetOatCodeOffset();
+  const byte* code = (code_offset != 0) ? (oat_base_ + code_offset) : 0;
+  copy->code_ = code;
+
   if (orig->IsNative()) {
+    // The native method's pointer is directed to a stub to lookup via dlsym.
+    // Note this is not the code_ pointer, that is handled above.
     ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniStubArray();
     ByteArray* copy_jni_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_jni_stub_array_));
     copy->native_method_ = copy_jni_stub_array_->GetData();
-    copy->code_ = oat_base_ + orig->GetOatCodeOffset();
   } else {
-    DCHECK(copy->native_method_ == NULL) << copy->native_method_;
-    if (orig->IsAbstract()) {
-        ByteArray* orig_ame_stub_array_ = Runtime::Current()->GetAbstractMethodErrorStubArray();
-        ByteArray* copy_ame_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_ame_stub_array_));
-        copy->code_ = copy_ame_stub_array_->GetData();
-    } else {
-        copy->code_ = oat_base_ + orig->GetOatCodeOffset();
-    }
+    // normal (non-abstract non-native) methods have mapping tables to relocate
+    uint32_t mapping_table_off = orig->GetOatMappingTableOffset();
+    const byte* mapping_table = (mapping_table_off != 0) ? (oat_base_ + mapping_table_off) : 0;
+    copy->mapping_table_ = reinterpret_cast<const uint32_t*>(mapping_table);
+
+    uint32_t vmap_table_offset = orig->GetOatVmapTableOffset();
+    const byte* vmap_table = (vmap_table_offset != 0) ? (oat_base_ + vmap_table_offset) : 0;
+    copy->vmap_table_ = reinterpret_cast<const uint16_t*>(vmap_table);
   }
 }
 

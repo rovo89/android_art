@@ -16,6 +16,7 @@
 #include "file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
+#include "oat_file.h"
 #include "os.h"
 #include "runtime.h"
 #include "stl_util.h"
@@ -79,10 +80,68 @@ class ScratchFile {
 
 class CommonTest : public testing::Test {
  public:
-  static void MakeExecutable(const ByteArray* byte_array) {
-    uintptr_t data = reinterpret_cast<uintptr_t>(byte_array->GetData());
+
+  static void MakeExecutable(const ByteArray* code_array) {
+    CHECK(code_array != NULL);
+    MakeExecutable(code_array->GetData(), code_array->GetLength());
+  }
+
+  static void MakeExecutable(const std::vector<uint8_t>& code) {
+    CHECK_NE(code.size(), 0U);
+    MakeExecutable(&code[0], code.size());
+  }
+
+  void MakeExecutable(Method* method) {
+    CHECK(method != NULL);
+
+    const CompiledInvokeStub* compiled_invoke_stub = compiler_->GetCompiledInvokeStub(method);
+    CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
+    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
+    MakeExecutable(invoke_stub);
+    const Method::InvokeStub* method_invoke_stub
+        = reinterpret_cast<const Method::InvokeStub*>(&invoke_stub[0]);
+    LOG(INFO) << "MakeExecutable " << PrettyMethod(method)
+              << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
+
+    if (!method->IsAbstract()) {
+      const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
+      CHECK(compiled_method != NULL) << PrettyMethod(method);
+      const std::vector<uint8_t>& code = compiled_method->GetCode();
+      MakeExecutable(code);
+      const void* method_code
+          = CompiledMethod::CodePointer(&code[0], compiled_method->GetInstructionSet());
+      LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
+      OatFile::OatMethod oat_method(method_code,
+                                    compiled_method->GetFrameSizeInBytes(),
+                                    compiled_method->GetReturnPcOffsetInBytes(),
+                                    compiled_method->GetCoreSpillMask(),
+                                    compiled_method->GetFpSpillMask(),
+                                    &compiled_method->GetMappingTable()[0],
+                                    &compiled_method->GetVmapTable()[0],
+                                    method_invoke_stub);
+      oat_method.LinkMethod(method);
+    } else {
+      MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
+      const void* method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
+      LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
+      OatFile::OatMethod oat_method(method_code,
+                                    kStackAlignment,
+                                    0,
+                                    0,
+                                    0,
+                                    NULL,
+                                    NULL,
+                                    method_invoke_stub);
+      oat_method.LinkMethod(method);
+    }
+  }
+
+  static void MakeExecutable(const void* code_start, size_t code_length) {
+    CHECK(code_start != NULL);
+    CHECK_NE(code_length, 0U);
+    uintptr_t data = reinterpret_cast<uintptr_t>(code_start);
     uintptr_t base = RoundDown(data, kPageSize);
-    uintptr_t limit = RoundUp(data + byte_array->GetLength(), kPageSize);
+    uintptr_t limit = RoundUp(data + code_length, kPageSize);
     uintptr_t len = limit - base;
     int result = mprotect(reinterpret_cast<void*>(base), len, PROT_READ | PROT_WRITE | PROT_EXEC);
     CHECK_EQ(result, 0);
@@ -274,9 +333,9 @@ class CommonTest : public testing::Test {
   void CompileMethod(Method* method) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
+    MakeExecutable(method);
+
     MakeExecutable(runtime_->GetJniStubArray());
-    MakeExecutable(method->GetCodeArray());
-    MakeExecutable(method->GetInvokeStubArray());
   }
 
   void CompileDirectMethod(const ClassLoader* class_loader,

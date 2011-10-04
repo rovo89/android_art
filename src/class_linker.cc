@@ -2034,13 +2034,13 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
 
 bool ClassLinker::LinkInstanceFields(Class* klass) {
   CHECK(klass != NULL);
-  return LinkFields(klass, true);
+  return LinkFields(klass, false);
 }
 
 bool ClassLinker::LinkStaticFields(Class* klass) {
   CHECK(klass != NULL);
   size_t allocated_class_size = klass->GetClassSize();
-  bool success = LinkFields(klass, false);
+  bool success = LinkFields(klass, true);
   CHECK_EQ(allocated_class_size, klass->GetClassSize());
   return success;
 }
@@ -2068,26 +2068,26 @@ struct LinkFieldsComparator {
   }
 };
 
-bool ClassLinker::LinkFields(Class* klass, bool instance) {
+bool ClassLinker::LinkFields(Class* klass, bool is_static) {
   size_t num_fields =
-      instance ? klass->NumInstanceFields() : klass->NumStaticFields();
+      is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
 
   ObjectArray<Field>* fields =
-      instance ? klass->GetIFields() : klass->GetSFields();
+      is_static ? klass->GetSFields() : klass->GetIFields();
 
   // Initialize size and field_offset
   size_t size;
   MemberOffset field_offset(0);
-  if (instance) {
+  if (is_static) {
+    size = klass->GetClassSize();
+    field_offset = Class::FieldsOffset();
+  } else {
     Class* super_class = klass->GetSuperClass();
     if (super_class != NULL) {
       CHECK(super_class->IsResolved());
       field_offset = MemberOffset(super_class->GetObjectSize());
     }
     size = field_offset.Uint32Value();
-  } else {
-    size = klass->GetClassSize();
-    field_offset = Class::FieldsOffset();
   }
 
   CHECK_EQ(num_fields == 0, fields == NULL);
@@ -2161,7 +2161,7 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
   }
 
   // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
-  if (instance && klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;")) {
+  if (!is_static && klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;")) {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
@@ -2176,7 +2176,7 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
   for (size_t i = 0; i < num_fields; i++) {
     Field* field = fields->Get(i);
     if (false) {  // enable to debug field layout
-      LOG(INFO) << "LinkFields: " << (instance ? "instance" : "static")
+      LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
                 << " class=" << PrettyClass(klass)
                 << " field=" << PrettyField(field)
                 << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);
@@ -2201,14 +2201,14 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
 #endif
   size = field_offset.Uint32Value();
   // Update klass
-  if (instance) {
+  if (is_static) {
+    klass->SetNumReferenceStaticFields(num_reference_fields);
+    klass->SetClassSize(size);
+  } else {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
       klass->SetObjectSize(size);
     }
-  } else {
-    klass->SetNumReferenceStaticFields(num_reference_fields);
-    klass->SetClassSize(size);
   }
   return true;
 }
@@ -2226,20 +2226,20 @@ void ClassLinker::CreateReferenceInstanceOffsets(Class* klass) {
       return;
     }
   }
-  CreateReferenceOffsets(klass, true, reference_offsets);
+  CreateReferenceOffsets(klass, false, reference_offsets);
 }
 
 void ClassLinker::CreateReferenceStaticOffsets(Class* klass) {
-  CreateReferenceOffsets(klass, false, 0);
+  CreateReferenceOffsets(klass, true, 0);
 }
 
-void ClassLinker::CreateReferenceOffsets(Class* klass, bool instance,
+void ClassLinker::CreateReferenceOffsets(Class* klass, bool is_static,
                                          uint32_t reference_offsets) {
   size_t num_reference_fields =
-      instance ? klass->NumReferenceInstanceFieldsDuringLinking()
-               : klass->NumReferenceStaticFieldsDuringLinking();
+      is_static ? klass->NumReferenceStaticFieldsDuringLinking()
+                : klass->NumReferenceInstanceFieldsDuringLinking();
   const ObjectArray<Field>* fields =
-      instance ? klass->GetIFields() : klass->GetSFields();
+      is_static ? klass->GetSFields() : klass->GetIFields();
   // All of the fields that contain object references are guaranteed
   // to be at the beginning of the fields list.
   for (size_t i = 0; i < num_reference_fields; ++i) {
@@ -2258,10 +2258,10 @@ void ClassLinker::CreateReferenceOffsets(Class* klass, bool instance,
     }
   }
   // Update fields in klass
-  if (instance) {
-    klass->SetReferenceInstanceOffsets(reference_offsets);
-  } else {
+  if (is_static) {
     klass->SetReferenceStaticOffsets(reference_offsets);
+  } else {
+    klass->SetReferenceInstanceOffsets(reference_offsets);
   }
 }
 

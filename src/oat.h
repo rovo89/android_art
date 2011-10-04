@@ -36,6 +36,29 @@ class PACKED OatHeader {
   DISALLOW_COPY_AND_ASSIGN(OatHeader);
 };
 
+class PACKED OatMethodOffsets {
+ public:
+  OatMethodOffsets();
+  OatMethodOffsets(uint32_t code_offset,
+                   uint32_t frame_size_in_bytes,
+                   uint32_t return_pc_offset_in_bytes,
+                   uint32_t core_spill_mask,
+                   uint32_t fp_spill_mask,
+                   uint32_t mapping_table_offset,
+                   uint32_t vmap_table_offset,
+                   uint32_t invoke_stub_offset);
+  ~OatMethodOffsets();
+
+  uint32_t code_offset_;
+  uint32_t frame_size_in_bytes_;
+  uint32_t return_pc_offset_in_bytes_;
+  uint32_t core_spill_mask_;
+  uint32_t fp_spill_mask_;
+  uint32_t mapping_table_offset_;
+  uint32_t vmap_table_offset_;
+  uint32_t invoke_stub_offset_;
+};
+
 }  // namespace art
 
 #endif  // ART_SRC_OAT_H_

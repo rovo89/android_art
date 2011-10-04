@@ -304,7 +304,9 @@ struct CheckOffset {
 
 template <typename T>
 struct CheckOffsets {
-  bool instance;
+  CheckOffsets(bool is_static, const char* class_descriptor)
+      : is_static(is_static), class_descriptor(class_descriptor) {}
+  bool is_static;
   std::string class_descriptor;
   std::vector<CheckOffset> offsets;
 
@@ -314,8 +316,8 @@ struct CheckOffsets {
 
     bool error = false;
 
-    if (!klass->IsClassClass() && instance) {
-      size_t expected_size = instance ? klass->GetObjectSize() : klass->GetClassSize();
+    if (!klass->IsClassClass() && !is_static) {
+      size_t expected_size = is_static ? klass->GetClassSize(): klass->GetObjectSize();
       if (sizeof(T) != expected_size) {
         LG << "Class size mismatch:"
            << " class=" << class_descriptor
@@ -325,7 +327,7 @@ struct CheckOffsets {
       }
     }
 
-    size_t num_fields = instance ? klass->NumInstanceFields() : klass->NumStaticFields();
+    size_t num_fields = is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
     if (offsets.size() != num_fields) {
       LG << "Field count mismatch:"
          << " class=" << class_descriptor
@@ -335,7 +337,7 @@ struct CheckOffsets {
     }
 
     for (size_t i = 0; i < offsets.size(); i++) {
-      Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
+      Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
       if (!field->GetName()->Equals(offsets[i].java_name)) {
         error = true;
       }
@@ -343,7 +345,7 @@ struct CheckOffsets {
     if (error) {
       for (size_t i = 0; i < offsets.size(); i++) {
         CheckOffset& offset = offsets[i];
-        Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
+        Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
         if (!field->GetName()->Equals(offsets[i].java_name)) {
           LG << "JAVA FIELD ORDER MISMATCH NEXT LINE:";
         }
@@ -356,7 +358,7 @@ struct CheckOffsets {
 
     for (size_t i = 0; i < offsets.size(); i++) {
       CheckOffset& offset = offsets[i];
-      Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
+      Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
       if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
         error = true;
       }
@@ -364,7 +366,7 @@ struct CheckOffsets {
     if (error) {
       for (size_t i = 0; i < offsets.size(); i++) {
         CheckOffset& offset = offsets[i];
-        Field* field = instance ? klass->GetInstanceField(i) : klass->GetStaticField(i);
+        Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
         if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
           LG << "OFFSET MISMATCH NEXT LINE:";
         }
@@ -375,15 +377,16 @@ struct CheckOffsets {
 
     return !error;
   };
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(CheckOffsets);
 };
 
 // Note that ClassLinkerTest.ValidateFieldOrderOfJavaCppUnionClasses
 // is first since if it is failing, others are unlikely to succeed.
 
 struct ObjectOffsets : public CheckOffsets<Object> {
-  ObjectOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/Object;";
+  ObjectOffsets() : CheckOffsets<Object>(false, "Ljava/lang/Object;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Object, klass_),   "shadow$_klass_"));
@@ -394,17 +397,14 @@ struct ObjectOffsets : public CheckOffsets<Object> {
 };
 
 struct AccessibleObjectOffsets : public CheckOffsets<AccessibleObject> {
-  AccessibleObjectOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/reflect/AccessibleObject;";
+  AccessibleObjectOffsets()
+      : CheckOffsets<AccessibleObject>(false, "Ljava/lang/reflect/AccessibleObject;") {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AccessibleObject, java_flag_), "flag"));
   };
 };
 
 struct FieldOffsets : public CheckOffsets<Field> {
-  FieldOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/reflect/Field;";
+  FieldOffsets() : CheckOffsets<Field>(false, "Ljava/lang/reflect/Field;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, declaring_class_),               "declaringClass"));
@@ -422,9 +422,7 @@ struct FieldOffsets : public CheckOffsets<Field> {
 };
 
 struct MethodOffsets : public CheckOffsets<Method> {
-  MethodOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/reflect/Method;";
+  MethodOffsets() : CheckOffsets<Method>(false, "Ljava/lang/reflect/Method;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
@@ -436,20 +434,16 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, name_),                                 "name"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_parameter_types_),                 "parameterTypes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_),                     "returnType"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_array_),                           "shadow$_code_array_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_code_and_direct_methods_),    "shadow$_dex_cache_code_and_direct_methods_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "shadow$_dex_cache_initialized_static_storage_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_fields_),            "shadow$_dex_cache_resolved_fields_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "shadow$_dex_cache_resolved_methods_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "shadow$_dex_cache_resolved_types_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "shadow$_dex_cache_strings_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_array_),                    "shadow$_invoke_stub_array_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_data_),                    "shadow$_register_map_data_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, register_map_header_),                  "shadow$_register_map_header_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, shorty_),                               "shadow$_shorty_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, signature_),                            "shadow$_signature_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, vmap_table_),                           "shadow$_vmap_table_"));
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_generic_types_are_initialized_),   "genericTypesAreInitialized"));
@@ -461,6 +455,7 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_),                  "shadow$_frame_size_in_bytes_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),                          "shadow$_invoke_stub_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_return_type_idx_),                 "shadow$_java_return_type_idx_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),                        "shadow$_mapping_table_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_index_),                         "shadow$_method_index_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_method_),                        "shadow$_native_method_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_ins_),                              "shadow$_num_ins_"));
@@ -468,6 +463,7 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, num_registers_),                        "shadow$_num_registers_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, proto_idx_),                            "shadow$_proto_idx_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, return_pc_offset_in_bytes_),            "shadow$_return_pc_offset_in_bytes_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, vmap_table_),                           "shadow$_vmap_table_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_slot_),                            "slot"));
   };
 };
@@ -480,9 +476,7 @@ struct ConstructorOffsets : public MethodOffsets {
 };
 
 struct ClassOffsets : public CheckOffsets<Class> {
-  ClassOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/Class;";
+  ClassOffsets() : CheckOffsets<Class>(false, "Ljava/lang/Class;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
@@ -518,9 +512,7 @@ struct ClassOffsets : public CheckOffsets<Class> {
 };
 
 struct StringOffsets : public CheckOffsets<String> {
-  StringOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/String;";
+  StringOffsets() : CheckOffsets<String>(false, "Ljava/lang/String;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, array_),     "value"));
@@ -533,9 +525,7 @@ struct StringOffsets : public CheckOffsets<String> {
 };
 
 struct ThrowableOffsets : public CheckOffsets<Throwable> {
-  ThrowableOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/Throwable;";
+  ThrowableOffsets() : CheckOffsets<Throwable>(false, "Ljava/lang/Throwable;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, cause_),                 "cause"));
@@ -547,9 +537,7 @@ struct ThrowableOffsets : public CheckOffsets<Throwable> {
 };
 
 struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
-  StackTraceElementOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/StackTraceElement;";
+  StackTraceElementOffsets() : CheckOffsets<StackTraceElement>(false, "Ljava/lang/StackTraceElement;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, declaring_class_), "declaringClass"));
@@ -560,9 +548,7 @@ struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
 };
 
 struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
-  ClassLoaderOffsets() {
-    instance = true;
-    class_descriptor = "Ljava/lang/ClassLoader;";
+  ClassLoaderOffsets() : CheckOffsets<ClassLoader>(false, "Ljava/lang/ClassLoader;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
@@ -571,9 +557,8 @@ struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
 };
 
 struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
-  BaseDexClassLoaderOffsets() {
-    instance = true;
-    class_descriptor = "Ldalvik/system/BaseDexClassLoader;";
+  BaseDexClassLoaderOffsets()
+    : CheckOffsets<BaseDexClassLoader>(false, "Ldalvik/system/BaseDexClassLoader;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_), "originalPath"));
@@ -582,16 +567,12 @@ struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
 };
 
 struct PathClassLoaderOffsets : public CheckOffsets<PathClassLoader> {
-  PathClassLoaderOffsets() {
-    instance = true;
-    class_descriptor = "Ldalvik/system/PathClassLoader;";
-  };
+  PathClassLoaderOffsets()
+    : CheckOffsets<PathClassLoader>(false, "Ldalvik/system/PathClassLoader;") {};
 };
 
 struct ClassClassOffsets : public CheckOffsets<ClassClass> {
-  ClassClassOffsets() {
-    instance = false;
-    class_descriptor = "Ljava/lang/Class;";
+  ClassClassOffsets() : CheckOffsets<ClassClass>(true, "Ljava/lang/Class;") {
 
     // padding 32-bit
     CHECK_EQ(OFFSETOF_MEMBER(ClassClass, padding_) + 4,
@@ -603,9 +584,7 @@ struct ClassClassOffsets : public CheckOffsets<ClassClass> {
 };
 
 struct StringClassOffsets : public CheckOffsets<StringClass> {
-  StringClassOffsets() {
-    instance = false;
-    class_descriptor = "Ljava/lang/String;";
+  StringClassOffsets() : CheckOffsets<StringClass>(true, "Ljava/lang/String;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, ASCII_),                  "ASCII"));
@@ -620,9 +599,7 @@ struct StringClassOffsets : public CheckOffsets<StringClass> {
 };
 
 struct FieldClassOffsets : public CheckOffsets<FieldClass> {
-  FieldClassOffsets() {
-    instance = false;
-    class_descriptor = "Ljava/lang/reflect/Field;";
+  FieldClassOffsets() : CheckOffsets<FieldClass>(true, "Ljava/lang/reflect/Field;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, ORDER_BY_NAME_AND_DECLARING_CLASS_), "ORDER_BY_NAME_AND_DECLARING_CLASS"));
@@ -640,9 +617,7 @@ struct FieldClassOffsets : public CheckOffsets<FieldClass> {
 };
 
 struct MethodClassOffsets : public CheckOffsets<MethodClass> {
-  MethodClassOffsets() {
-    instance = false;
-    class_descriptor = "Ljava/lang/reflect/Method;";
+  MethodClassOffsets() : CheckOffsets<MethodClass>(true, "Ljava/lang/reflect/Method;") {
 
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));

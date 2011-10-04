@@ -22,7 +22,7 @@ ManagedRegister X86JniCallingConvention::ReturnScratchRegister() const {
   return ManagedRegister::NoRegister();  // No free regs, so assembler uses push/pop
 }
 
-static ManagedRegister ReturnRegisterForMethod(Method* method) {
+static ManagedRegister ReturnRegisterForMethod(const Method* method) {
   if (method->IsReturnAFloatOrDouble()) {
     return X86ManagedRegister::FromX87Register(ST0);
   } else if (method->IsReturnALong()) {

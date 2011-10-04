@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "assembler.h"
+#include "compiled_method.h"
 #include "object.h"
 
 namespace art {
@@ -27,7 +28,7 @@ namespace arm {
 // register and transfer arguments from the array into register and on
 // the stack, if needed.  On return, the thread register must be
 // shuffled and the return value must be store into the result JValue.
-void ArmCreateInvokeStub(Method* method) {
+CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
   UniquePtr<ArmAssembler> assembler(
       down_cast<ArmAssembler*>(Assembler::Create(kArm)));
 #define __ assembler->
@@ -118,11 +119,10 @@ void ArmCreateInvokeStub(Method* method) {
   // Pop R4, R9 and the LR into PC
   __ PopList(save | (1 << PC));
   // TODO: store native_entry in the stub table
-  ByteArray* code = ByteArray::Alloc(assembler->CodeSize());
-  MemoryRegion region(code->GetData(), code->GetLength());
+  std::vector<uint8_t> code(assembler->CodeSize());
+  MemoryRegion region(&code[0], code.size());
   assembler->FinalizeInstructions(region);
-  method->SetInvokeStub(code);
-  CHECK(method->GetInvokeStub() != NULL);
+  return new CompiledInvokeStub(code);
 #undef __
 }
 

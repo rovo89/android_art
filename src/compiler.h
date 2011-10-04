@@ -3,28 +3,35 @@
 #ifndef ART_SRC_COMPILER_H_
 #define ART_SRC_COMPILER_H_
 
+#include "compiled_method.h"
 #include "constants.h"
 #include "dex_file.h"
 #include "jni_compiler.h"
+#include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
-
-int oatVRegOffsetFromMethod(art::Method* method, int reg);
+#include "unordered_map.h"
 
 namespace art {
 
 class Compiler {
  public:
-  explicit Compiler(InstructionSet insns);
+  explicit Compiler(InstructionSet instruction_set);
+
+  ~Compiler();
 
   // Compile all Methods of all the Classes of all the DexFiles that are part of a ClassLoader.
   void CompileAll(const ClassLoader* class_loader);
 
   // Compile a single Method
-  void CompileOne(Method* method);
+  void CompileOne(const Method* method);
 
   void SetVerbose(bool verbose) {
     verbose_ = verbose;
+  }
+
+  InstructionSet GetInstructionSet() const {
+    return instruction_set_;
   }
 
   bool IsVerbose() const {
@@ -34,9 +41,13 @@ class Compiler {
   // Stub to throw AbstractMethodError
   static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set);
 
+
   // Generate the trampoline that's invoked by unresolved direct methods
   static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
                                          Runtime::TrampolineType type);
+
+  const CompiledMethod* GetCompiledMethod(const Method* method) const;
+  const CompiledInvokeStub* GetCompiledInvokeStub(const Method* method) const;
 
  private:
   // Attempt to resolve all type, methods, fields, and strings
@@ -53,8 +64,8 @@ class Compiler {
 
   void Compile(const ClassLoader* class_loader);
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
-  void CompileClass(Class* klass);
-  void CompileMethod(Method* klass);
+  void CompileClass(const Class* klass);
+  void CompileMethod(const Method* method);
 
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.
@@ -63,6 +74,12 @@ class Compiler {
 
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
+
+  typedef std::tr1::unordered_map<const Method*, CompiledMethod*, ObjectIdentityHash> MethodTable;
+  MethodTable compiled_methods_;
+
+  typedef std::tr1::unordered_map<const Method*, CompiledInvokeStub*, ObjectIdentityHash> InvokeStubTable;
+  InvokeStubTable compiled_invoke_stubs_;
 
   bool verbose_;
 

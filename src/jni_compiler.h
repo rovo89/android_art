@@ -3,6 +3,7 @@
 #ifndef ART_SRC_JNI_COMPILER_H_
 #define ART_SRC_JNI_COMPILER_H_
 
+#include "compiled_method.h"
 #include "constants.h"
 #include "macros.h"
 #include "object.h"
@@ -10,6 +11,7 @@
 namespace art {
 
 class Assembler;
+class Compiler;
 class JniCallingConvention;
 class ManagedRegister;
 class ManagedRuntimeCallingConvention;
@@ -20,10 +22,10 @@ class Method;
 // TODO: move the responsibility of managing memory to somewhere else
 class JniCompiler {
  public:
-  explicit JniCompiler(InstructionSet insns);
+  explicit JniCompiler(InstructionSet instruction_set);
   ~JniCompiler();
 
-  void Compile(Method* method);
+  CompiledMethod* Compile(const Method* method);
 
   // Stub to perform native method symbol lookup via dlsym
   // TODO: remove from JniCompiler

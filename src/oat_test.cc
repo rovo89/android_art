@@ -14,11 +14,12 @@ TEST_F(OatTest, WriteRead) {
 
   const ClassLoader* class_loader = NULL;
   if (compile) {
+    compiler_.reset(new Compiler(kThumb2));
     compiler_->CompileAll(class_loader);
   }
 
   ScratchFile tmp;
-  bool success = OatWriter::Create(tmp.GetFilename(), class_loader);
+  bool success = OatWriter::Create(tmp.GetFilename(), class_loader, *compiler_.get());
   ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
@@ -29,10 +30,7 @@ TEST_F(OatTest, WriteRead) {
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
 
-  const Runtime* runtime = Runtime::Current();
-  ClassLinker* class_linker = runtime->GetClassLinker();
-  ByteArray* jni_stub_array = runtime->GetJniStubArray();
-  ByteArray* ame_stub_array = runtime->GetAbstractMethodErrorStubArray();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   const DexFile& dex_file = *java_lang_dex_file_.get();
   const OatFile::OatDexFile& oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
@@ -50,27 +48,57 @@ TEST_F(OatTest, WriteRead) {
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {
       Method* method = klass->GetDirectMethod(i);
-      const void* oat_code = oat_class.GetMethodCode(method_index);
-      uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
-      oat_code = reinterpret_cast<const void*>(oat_code_aligned);
-      const ByteArray* code_array = method->GetCodeArray();
-      if (code_array == NULL || code_array == jni_stub_array || code_array == ame_stub_array) {
-        ASSERT_TRUE(oat_code == NULL);
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
+
+      if (compiled_method == NULL) {
+        EXPECT_TRUE(oat_method.code_ == NULL) << PrettyMethod(method) << " " << oat_method.code_;
+        EXPECT_EQ(oat_method.frame_size_in_bytes_, static_cast<uint32_t>(kStackAlignment));
+        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, 0U);
+        EXPECT_EQ(oat_method.core_spill_mask_, 0U);
+        EXPECT_EQ(oat_method.fp_spill_mask_, 0U);
       } else {
-        ASSERT_EQ(0, memcmp(oat_code, code_array->GetData(), code_array->GetLength()));
+        const void* oat_code = oat_method.code_;
+        uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
+        oat_code = reinterpret_cast<const void*>(oat_code_aligned);
+
+        const std::vector<uint8_t>& code = compiled_method->GetCode();
+        size_t code_size = code.size() * sizeof(code[0]);
+        EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
+            << PrettyMethod(method) << " " << code_size;
+        CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
+        EXPECT_EQ(oat_method.frame_size_in_bytes_, compiled_method->GetFrameSizeInBytes());
+        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, compiled_method->GetReturnPcOffsetInBytes());
+        EXPECT_EQ(oat_method.core_spill_mask_, compiled_method->GetCoreSpillMask());
+        EXPECT_EQ(oat_method.fp_spill_mask_, compiled_method->GetFpSpillMask());
       }
     }
     for (size_t i = 0; i < num_virtual_methods; i++, method_index++) {
       Method* method = klass->GetVirtualMethod(i);
-      const void* oat_code = oat_class.GetMethodCode(method_index);
-      uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
-      oat_code = reinterpret_cast<const void*>(oat_code_aligned);
-      const ByteArray* code_array = method->GetCodeArray();
-      if (code_array == NULL || code_array == jni_stub_array || code_array == ame_stub_array) {
-        ASSERT_TRUE(oat_code == NULL);
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
+
+      if (compiled_method == NULL) {
+        EXPECT_TRUE(oat_method.code_ == NULL) << PrettyMethod(method) << " " << oat_method.code_;
+        EXPECT_EQ(oat_method.frame_size_in_bytes_, static_cast<uint32_t>(kStackAlignment));
+        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, 0U);
+        EXPECT_EQ(oat_method.core_spill_mask_, 0U);
+        EXPECT_EQ(oat_method.fp_spill_mask_, 0U);
       } else {
-        ASSERT_TRUE(oat_code != NULL);
-        ASSERT_EQ(0, memcmp(oat_code, code_array->GetData(), code_array->GetLength()));
+        const void* oat_code = oat_method.code_;
+        EXPECT_TRUE(oat_code != NULL) << PrettyMethod(method);
+        uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
+        oat_code = reinterpret_cast<const void*>(oat_code_aligned);
+
+        const std::vector<uint8_t>& code = compiled_method->GetCode();
+        size_t code_size = code.size() * sizeof(code[0]);
+        EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
+            << PrettyMethod(method) << " " << code_size;
+        CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
+        EXPECT_EQ(oat_method.frame_size_in_bytes_, compiled_method->GetFrameSizeInBytes());
+        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, compiled_method->GetReturnPcOffsetInBytes());
+        EXPECT_EQ(oat_method.core_spill_mask_, compiled_method->GetCoreSpillMask());
+        EXPECT_EQ(oat_method.fp_spill_mask_, compiled_method->GetFpSpillMask());
       }
     }
   }

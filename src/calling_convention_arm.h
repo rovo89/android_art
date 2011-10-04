@@ -10,7 +10,7 @@ namespace arm {
 
 class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  explicit ArmManagedRuntimeCallingConvention(Method* method) :
+  explicit ArmManagedRuntimeCallingConvention(const Method* method) :
                                      ManagedRuntimeCallingConvention(method) {}
   virtual ~ArmManagedRuntimeCallingConvention() {}
   // Calling convention
@@ -29,7 +29,7 @@ class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
 
 class ArmJniCallingConvention : public JniCallingConvention {
  public:
-  explicit ArmJniCallingConvention(Method* method);
+  explicit ArmJniCallingConvention(const Method* method);
   virtual ~ArmJniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();

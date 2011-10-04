@@ -19,10 +19,12 @@
 #include "compiler.h"
 #include "object.h"
 
+int oatVRegOffsetFromMethod(art::Method* method, int reg);
+
 namespace art {
 
 bool Frame::HasMethod() const {
-  return GetMethod() != NULL && (!GetMethod()->IsPhony());
+  return GetMethod() != NULL && (!GetMethod()->IsCalleeSaveMethod());
 }
 
 void Frame::Next() {

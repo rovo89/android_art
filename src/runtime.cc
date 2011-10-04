@@ -640,7 +640,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType typ
   }
   method->SetName(intern_table_->InternStrong(name));
   method->SetSignature(intern_table_->InternStrong("()V"));
-  method->SetCodeArray(NULL, insns);
+  method->SetCode(NULL);
   if ((insns == kThumb2) || (insns == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |
                           (1 << art::arm::R8) | (1 << art::arm::R10) | (1 << art::arm::R11);

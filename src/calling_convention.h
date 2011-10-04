@@ -42,10 +42,10 @@ class CallingConvention {
   virtual ~CallingConvention() {}
 
  protected:
-  explicit CallingConvention(Method* method) : displacement_(0),
-                                               method_(method) {}
+  explicit CallingConvention(const Method* method)
+      : displacement_(0), method_(const_cast<Method*>(method)) {}
 
-  Method* GetMethod() const { return method_; }
+  const Method* GetMethod() const { return method_; }
 
   // The slot number for current calling_convention argument.
   // Note that each slot is 32-bit. When the current argument is bigger
@@ -74,8 +74,8 @@ class CallingConvention {
 // | { Method* }             | <-- SP
 class ManagedRuntimeCallingConvention : public CallingConvention {
  public:
-  static ManagedRuntimeCallingConvention* Create(Method* native_method,
-                                                InstructionSet instruction_set);
+  static ManagedRuntimeCallingConvention* Create(const Method* native_method,
+                                                 InstructionSet instruction_set);
 
   size_t FrameSize();
 
@@ -97,7 +97,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   virtual ~ManagedRuntimeCallingConvention() {}
 
  protected:
-  explicit ManagedRuntimeCallingConvention(Method* method) :
+  explicit ManagedRuntimeCallingConvention(const Method* method) :
                                            CallingConvention(method) {}
 };
 
@@ -117,7 +117,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // callee saves for frames above this one.
 class JniCallingConvention : public CallingConvention {
  public:
-  static JniCallingConvention* Create(Method* native_method,
+  static JniCallingConvention* Create(const Method* native_method,
                                       InstructionSet instruction_set);
 
   // Size of frame excluding space for outgoing args (its assumed Method* is
@@ -186,7 +186,7 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  explicit JniCallingConvention(Method* native_method) :
+  explicit JniCallingConvention(const Method* native_method) :
       CallingConvention(native_method) {}
 
   // Number of stack slots for outgoing arguments, above which the SIRT is
@@ -194,7 +194,7 @@ class JniCallingConvention : public CallingConvention {
   virtual size_t NumberOfOutgoingStackArgs() = 0;
 
  protected:
-  static size_t NumberOfExtraArgumentsForJni(Method* method);
+  static size_t NumberOfExtraArgumentsForJni(const Method* method);
 };
 
 }  // namespace art

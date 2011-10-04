@@ -116,10 +116,10 @@ class ImageWriter {
   byte* image_base_;
 
   // Target oat base address for the pointers from the output image to its oat file
-  byte* oat_base_;
+  const byte* oat_base_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
-  typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;
+  typedef std::tr1::unordered_set<DexCache*, ObjectIdentityHash> Set;
   Set dex_caches_;
 };
 

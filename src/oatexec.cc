@@ -17,20 +17,20 @@
 static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
   ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(clazz, method_id, JNI_FALSE));
   if (reflected.get() == NULL) {
-    fprintf(stderr, "Unable to get reflected method\n");
+    fprintf(stderr, "Failed to get reflected method\n");
     return false;
   }
   // We now have a Method instance.  We need to call its
   // getModifiers() method.
   ScopedLocalRef<jclass> method(env, env->FindClass("java/lang/reflect/Method"));
   if (method.get() == NULL) {
-    fprintf(stderr, "Unable to find class Method\n");
+    fprintf(stderr, "Failed to find class Method\n");
     return false;
   }
   static const int PUBLIC = 0x0001;   // java.lang.reflect.Modifiers.PUBLIC
   jmethodID get_modifiers = env->GetMethodID(method.get(), "getModifiers", "()I");
   if (get_modifiers == NULL) {
-    fprintf(stderr, "Unable to find reflect.Method.getModifiers\n");
+    fprintf(stderr, "Failed to find reflect.Method.getModifiers\n");
     return false;
   }
   int modifiers = env->CallIntMethod(reflected.get(), get_modifiers);

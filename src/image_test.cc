@@ -18,7 +18,7 @@ class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
-  bool success_oat = OatWriter::Create(tmp_oat.GetFilename(), NULL);
+  bool success_oat = OatWriter::Create(tmp_oat.GetFilename(), NULL, *compiler_.get());
   ASSERT_TRUE(success_oat);
 
   ImageWriter writer;
@@ -37,6 +37,7 @@ TEST_F(ImageTest, WriteRead) {
 
     ASSERT_EQ(1U, Heap::GetSpaces().size());
     Space* space = Heap::GetSpaces()[0];
+    ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
   }

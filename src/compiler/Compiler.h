@@ -99,7 +99,9 @@ bool oatArchInit(void);
 void oatArchDump(void);
 bool oatStartup(void);
 void oatShutdown(void);
-bool oatCompileMethod(const Compiler& compiler, Method* method, OatInstructionSetType);
+CompiledMethod* oatCompileMethod(const Compiler& compiler,
+                                 const Method* method,
+                                 OatInstructionSetType);
 void oatDumpStats(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);
