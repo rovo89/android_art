@@ -18,6 +18,7 @@
 #include "monitor.h"
 #include "object.h"
 #include "runtime.h"
+#include "ScopedLocalRef.h"
 #include "space.h"
 #include "thread.h"
 #include "UniquePtr.h"
@@ -81,6 +82,35 @@ void ThrowEarlierClassFailure(Class* c) {
   } else {
     ThrowNoClassDefFoundError("%s", PrettyDescriptor(c->GetDescriptor()).c_str());
   }
+}
+
+void WrapExceptionInInitializer() {
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+
+  ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
+  CHECK(cause.get() != NULL);
+
+  env->ExceptionClear();
+
+  // TODO: add java.lang.Error to JniConstants?
+  ScopedLocalRef<jclass> error_class(env, env->FindClass("java/lang/Error"));
+  CHECK(error_class.get() != NULL);
+  if (env->IsInstanceOf(cause.get(), error_class.get())) {
+    // We only wrap non-Error exceptions; an Error can just be used as-is.
+    env->Throw(cause.get());
+    return;
+  }
+
+  // TODO: add java.lang.ExceptionInInitializerError to JniConstants?
+  ScopedLocalRef<jclass> eiie_class(env, env->FindClass("java/lang/ExceptionInInitializerError"));
+  CHECK(eiie_class.get() != NULL);
+
+  jmethodID mid = env->GetMethodID(eiie_class.get(), "<init>" , "(Ljava/lang/Throwable;)V");
+  CHECK(mid != NULL);
+
+  ScopedLocalRef<jthrowable> eiie(env,
+      reinterpret_cast<jthrowable>(env->NewObject(eiie_class.get(), mid, cause.get())));
+  env->Throw(eiie.get());
 }
 
 }
@@ -1391,8 +1421,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     ObjectLock lock(klass);
 
     if (self->IsExceptionPending()) {
-      // TODO: if self->GetException() is not an Error,
-      // wrap in ExceptionInInitializerError
+      WrapExceptionInInitializer();
       klass->SetStatus(Class::kStatusError);
     } else {
       ++Runtime::Current()->GetStats()->class_init_count;
@@ -1415,11 +1444,7 @@ bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock&
     // there's an exception pending (only possible if
     // "interruptShouldThrow" was set), bail out.
     if (self->IsExceptionPending()) {
-      // TODO: set cause of ExceptionInInitializerError to self->GetException()
-      self->ThrowNewExceptionF("Ljava/lang/ExceptionInInitializerError;",
-          "Exception %s thrown while initializing class %s",
-          PrettyTypeOf(self->GetException()).c_str(),
-          PrettyDescriptor(klass->GetDescriptor()).c_str());
+      WrapExceptionInInitializer();
       klass->SetStatus(Class::kStatusError);
       return false;
     }
