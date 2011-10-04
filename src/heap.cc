@@ -2,6 +2,7 @@
 
 #include "heap.h"
 
+#include <limits>
 #include <vector>
 
 #include "UniquePtr.h"
@@ -15,8 +16,6 @@
 namespace art {
 
 std::vector<Space*> Heap::spaces_;
-
-Space* Heap::boot_space_ = NULL;
 
 Space* Heap::alloc_space_ = NULL;
 
@@ -56,29 +55,19 @@ class ScopedHeapLock {
 };
 
 void Heap::Init(size_t initial_size, size_t maximum_size,
-                const char* boot_image_file_name,
-                std::vector<const char*>& image_file_names) {
+                const std::vector<std::string>& image_file_names) {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "Heap::Init entering";
   }
 
-  Space* boot_space;
-  byte* requested_base;
-  if (boot_image_file_name == NULL) {
-    boot_space = NULL;
-    requested_base = NULL;
-  } else {
-    boot_space = Space::CreateFromImage(boot_image_file_name);
-    if (boot_space == NULL) {
-      LOG(FATAL) << "Failed to create space from " << boot_image_file_name;
-    }
-    spaces_.push_back(boot_space);
-    byte* oat_limit_addr = boot_space->GetImageHeader().GetOatLimitAddr();
-    requested_base = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr),
-                                                     kPageSize));
-  }
+  // bounds of all spaces for allocating live and mark bitmaps
+  // there will be at least one space (the alloc space),
+  // so set to base to max and limit to min to start
+  byte* base = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::max());
+  byte* limit = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::min());
 
+  byte* requested_base = NULL;
   std::vector<Space*> image_spaces;
   for (size_t i = 0; i < image_file_names.size(); i++) {
     Space* space = Space::CreateFromImage(image_file_names[i]);
@@ -88,20 +77,20 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
     image_spaces.push_back(space);
     spaces_.push_back(space);
     byte* oat_limit_addr = space->GetImageHeader().GetOatLimitAddr();
-    requested_base = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr),
-                                                     kPageSize));
+    if (oat_limit_addr > requested_base) {
+      requested_base = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr),
+                                                       kPageSize));
+    }
+    base = std::min(base, space->GetBase());
+    limit = std::max(limit, space->GetLimit());
   }
 
   Space* space = Space::Create(initial_size, maximum_size, requested_base);
   if (space == NULL) {
     LOG(FATAL) << "Failed to create alloc space";
   }
-
-  if (boot_space == NULL) {
-    boot_space = space;
-  }
-  byte* base = std::min(boot_space->GetBase(), space->GetBase());
-  byte* limit = std::max(boot_space->GetLimit(), space->GetLimit());
+  base = std::min(base, space->GetBase());
+  limit = std::max(limit, space->GetLimit());
   DCHECK_LT(base, limit);
   size_t num_bytes = limit - base;
 
@@ -128,11 +117,7 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
 
   // TODO: allocate the card table
 
-  // Make objects in boot_space live (after live_bitmap_ is set)
-  if (boot_image_file_name != NULL) {
-    boot_space_ = boot_space;
-    RecordImageAllocations(boot_space);
-  }
+  // Make image objects live (after live_bitmap_ is set)
   for (size_t i = 0; i < image_spaces.size(); i++) {
     RecordImageAllocations(image_spaces[i]);
   }

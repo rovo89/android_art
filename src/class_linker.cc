@@ -16,10 +16,12 @@
 #include "intern_table.h"
 #include "logging.h"
 #include "monitor.h"
+#include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
+#include "stl_util.h"
 #include "thread.h"
 #include "UniquePtr.h"
 #include "utils.h"
@@ -177,17 +179,17 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
-ClassLinker* ClassLinker::Create(const std::vector<const DexFile*>& boot_class_path,
-                                 const std::vector<const DexFile*>& class_path,
-                                 InternTable* intern_table, bool image) {
+ClassLinker* ClassLinker::Create(const std::string& boot_class_path,
+                                 InternTable* intern_table) {
   CHECK_NE(boot_class_path.size(), 0U);
   UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
-  if (image) {
-    class_linker->InitFromImage(boot_class_path, class_path);
-  } else {
-    class_linker->Init(boot_class_path, class_path);
-  }
-  // TODO: check for failure during initialization
+  class_linker->Init(boot_class_path);
+  return class_linker.release();
+}
+
+ClassLinker* ClassLinker::Create(InternTable* intern_table) {
+  UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
+  class_linker->InitFromImage();
   return class_linker.release();
 }
 
@@ -201,8 +203,19 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
 }
 
-void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
-                       const std::vector<const DexFile*>& class_path) {
+void CreateClassPath(const std::string& class_path,
+                     std::vector<const DexFile*>& class_path_vector) {
+  std::vector<std::string> parsed;
+  Split(class_path, ':', parsed);
+  for (size_t i = 0; i < parsed.size(); ++i) {
+    const DexFile* dex_file = DexFile::Open(parsed[i], Runtime::Current()->GetHostPrefix());
+    if (dex_file != NULL) {
+      class_path_vector.push_back(dex_file);
+    }
+  }
+}
+
+void ClassLinker::Init(const std::string& boot_class_path) {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "ClassLinker::InitFrom entering";
@@ -290,15 +303,12 @@ void ClassLinker::Init(const std::vector<const DexFile*>& boot_class_path,
 
   // setup boot_class_path_ and register class_path now that we can
   // use AllocObjectArray to create DexCache instances
-  for (size_t i = 0; i != boot_class_path.size(); ++i) {
-    const DexFile* dex_file = boot_class_path[i];
+  std::vector<const DexFile*> boot_class_path_vector;
+  CreateClassPath(boot_class_path, boot_class_path_vector);
+  for (size_t i = 0; i != boot_class_path_vector.size(); ++i) {
+    const DexFile* dex_file = boot_class_path_vector[i];
     CHECK(dex_file != NULL);
     AppendToBootClassPath(*dex_file);
-  }
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
-    CHECK(dex_file != NULL);
-    RegisterDexFile(*dex_file);
   }
 
   // Constructor, Field, and Method are necessary so that FindClass can link members
@@ -523,6 +533,36 @@ void ClassLinker::RunRootClinits() {
   }
 }
 
+OatFile* ClassLinker::OpenOat(const Space* space) {
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::OpenOat entering";
+  }
+  const ImageHeader& image_header = space->GetImageHeader();
+  String* oat_location = image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString();
+  std::string oat_filename;
+  oat_filename += runtime->GetHostPrefix();
+  oat_filename += oat_location->ToModifiedUtf8();
+  OatFile* oat_file = OatFile::Open(std::string(oat_filename), "", image_header.GetOatBaseAddr());
+  if (oat_file == NULL) {
+    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image";
+    return NULL;
+  }
+  uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
+  uint32_t image_oat_checksum = image_header.GetOatChecksum();
+  if (oat_checksum != image_oat_checksum) {
+    LOG(ERROR) << "Failed to match oat filechecksum " << std::hex << oat_checksum
+               << " to expected oat checksum " << std::hex << oat_checksum
+               << " in image";
+    return NULL;
+  }
+  oat_files_.push_back(oat_file);
+  if (runtime->IsVerboseStartup()) {
+    LOG(INFO) << "ClassLinker::OpenOat exiting";
+  }
+  return oat_file;
+}
+
 struct ClassLinker::InitFromImageCallbackState {
   ClassLinker* class_linker;
 
@@ -530,18 +570,46 @@ struct ClassLinker::InitFromImageCallbackState {
 
   typedef std::tr1::unordered_map<std::string, ClassRoot> Table;
   Table descriptor_to_class_root;
-
-  typedef std::tr1::unordered_set<DexCache*, DexCacheHash> Set;
-  Set dex_caches;
 };
 
-void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_path,
-                                const std::vector<const DexFile*>& class_path) {
+void ClassLinker::InitFromImage() {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "ClassLinker::InitFromImage entering";
   }
   CHECK(!init_done_);
+
+  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  for (size_t i = 0; i < spaces.size(); i++) {
+    Space* space = spaces[i] ;
+    if (space->IsImageSpace()) {
+      OatFile* oat_file = OpenOat(space);
+      CHECK(oat_file != NULL) << "Failed to open oat file for image";
+      Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+      ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
+
+      CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
+               static_cast<uint32_t>(dex_caches->GetLength()));
+      for (int i = 0; i < dex_caches->GetLength(); i++) {
+        DexCache* dex_cache = dex_caches->Get(i);
+        const std::string& dex_file_location = dex_cache->GetLocation()->ToModifiedUtf8();
+
+        std::string dex_filename;
+        dex_filename += runtime->GetHostPrefix();
+        dex_filename += dex_file_location;
+        const DexFile* dex_file = DexFile::Open(dex_filename, runtime->GetHostPrefix());
+        if (dex_file == NULL) {
+          LOG(FATAL) << "Failed to open dex file " << dex_filename
+                     << " referenced from oat file as " << dex_file_location;
+        }
+
+        const OatFile::OatDexFile& oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
+        CHECK_EQ(dex_file->GetHeader().checksum_, oat_dex_file.GetDexFileChecksum());
+
+        RegisterDexFile(*dex_file, dex_cache);
+      }
+    }
+  }
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
@@ -567,36 +635,6 @@ void ClassLinker::InitFromImage(const std::vector<const DexFile*>& boot_class_pa
   // reinit array_interfaces_ from any array class instance, they should all be ==
   array_interfaces_ = GetClassRoot(kObjectArrayClass)->GetInterfaces();
   DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->GetInterfaces());
-
-  // build a map from location to DexCache to match up with DexFile::GetLocation
-  std::tr1::unordered_map<std::string, DexCache*> location_to_dex_cache;
-  typedef InitFromImageCallbackState::Set::const_iterator It;  // TODO: C++0x auto
-  for (It it = state.dex_caches.begin(), end = state.dex_caches.end(); it != end; ++it) {
-    DexCache* dex_cache = *it;
-    std::string location = dex_cache->GetLocation()->ToModifiedUtf8();
-    location_to_dex_cache[location] = dex_cache;
-  }
-  CHECK(boot_class_path.size() + class_path.size() == location_to_dex_cache.size())
-      << "(" << boot_class_path.size() << " + " << class_path.size()
-      << " != " << location_to_dex_cache.size() << ")";
-
-  // reinit boot_class_path with DexFile arguments and found DexCaches
-  for (size_t i = 0; i != boot_class_path.size(); ++i) {
-    const DexFile* dex_file = boot_class_path[i];
-    CHECK(dex_file != NULL);
-    DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
-    CHECK(dex_cache != NULL) << dex_file->GetLocation();
-    AppendToBootClassPath(*dex_file, dex_cache);
-  }
-
-  // register class_path with DexFile arguments and found DexCaches
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
-    CHECK(dex_file != NULL);
-    DexCache* dex_cache = location_to_dex_cache[dex_file->GetLocation()];
-    CHECK(dex_cache != NULL) << dex_file->GetLocation();
-    RegisterDexFile(*dex_file, dex_cache);
-  }
 
   String::SetClass(GetClassRoot(kJavaLangString));
   Field::SetClass(GetClassRoot(kJavaLangReflectField));
@@ -644,14 +682,6 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
   // restore class to ClassLinker::classes_ table
   state->class_linker->InsertClass(descriptor, klass);
 
-  // note DexCache to match with DexFile later
-  DexCache* dex_cache = klass->GetDexCache();
-  if (dex_cache != NULL) {
-    state->dex_caches.insert(dex_cache);
-  } else {
-    DCHECK(klass->IsArrayClass() || klass->IsPrimitive());
-  }
-
   // check if this is a root, if so, register it
   typedef InitFromImageCallbackState::Table::const_iterator It;  // TODO: C++0x auto
   It it = state->descriptor_to_class_root.find(descriptor);
@@ -696,6 +726,8 @@ ClassLinker::~ClassLinker() {
   ShortArray::ResetArrayClass();
   PathClassLoader::ResetClass();
   StackTraceElement::ResetClass();
+  STLDeleteElements(&boot_class_path_);
+  STLDeleteElements(&oat_files_);
 }
 
 DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {

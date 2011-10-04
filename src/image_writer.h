@@ -62,12 +62,12 @@ class ImageWriter {
     object->monitor_ = 0;
   }
 
-  bool InSourceSpace(const Object* object) {
+  bool InSourceSpace(const Object* object) const {
     DCHECK(source_space_ != NULL);
     const byte* o = reinterpret_cast<const byte*>(object);
     return (o >= source_space_->GetBase() && o < source_space_->GetLimit());
   }
-  Object* GetImageAddress(const Object* object) {
+  Object* GetImageAddress(const Object* object) const {
     if (object == NULL) {
       return NULL;
     }
@@ -77,7 +77,7 @@ class ImageWriter {
     }
     return reinterpret_cast<Object*>(image_base_ + GetImageOffset(object));
   }
-  Object* GetLocalAddress(const Object* object) {
+  Object* GetLocalAddress(const Object* object) const {
     size_t offset = GetImageOffset(object);
     byte* dst = image_->GetAddress() + offset;
     return reinterpret_cast<Object*>(dst);

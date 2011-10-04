@@ -41,12 +41,11 @@ class Heap {
 
   typedef void (RootVisitor)(const Object* root, void* arg);
 
-  // Create a heap with the requested sizes. The optional boot image may
-  // be NULL, otherwise it is an image filename created by ImageWriter.
-  // image_file_names specifies application images to load.
+  // Create a heap with the requested sizes. The possible empty
+  // image_file_names names specify Spaces to load based on
+  // ImageWriter output.
   static void Init(size_t starting_size, size_t maximum_size,
-                   const char* boot_image_file_name,
-                   std::vector<const char*>& image_file_names);
+                   const std::vector<std::string>& image_file_names);
 
   static void Destroy();
 
@@ -103,10 +102,6 @@ class Heap {
 
   static const std::vector<Space*>& GetSpaces() {
     return spaces_;
-  }
-
-  static Space* GetBootSpace() {
-    return boot_space_;
   }
 
   static HeapBitmap* GetLiveBits() {
@@ -198,10 +193,6 @@ class Heap {
   static Mutex* lock_;
 
   static std::vector<Space*> spaces_;
-
-  // Space loaded from an image
-  // TODO: remove after intern_addr is removed
-  static Space* boot_space_;
 
   // default Space for allocations
   static Space* alloc_space_;

@@ -32,6 +32,7 @@ bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
   // currently just write the last space, assuming it is the space that was being used for allocation
   CHECK_GE(spaces.size(), 1U);
   source_space_ = spaces[spaces.size()-1];
+  CHECK(!source_space_->IsImageSpace());
 
   oat_file_.reset(OatFile::Open(oat_filename, strip_location_prefix, NULL));
   if (oat_file_.get() == NULL) {
@@ -114,10 +115,26 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
 }
 
 ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
-  // build a Object[] of the roots needed to restore the runtime
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
+
+  // build an Object[] of all the DexCaches used in the source_space_
+  const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
+  std::vector<DexCache*> source_space_dex_caches;
+  for (size_t i = 0; i < all_dex_caches.size(); i++) {
+    DexCache* dex_cache = all_dex_caches[i];
+    if (InSourceSpace(dex_cache)) {
+      source_space_dex_caches.push_back(dex_cache);
+    }
+  }
+  ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(object_array_class,
+                                                               source_space_dex_caches.size());
+  for (size_t i = 0; i < source_space_dex_caches.size(); i++) {
+      dex_caches->Set(i, source_space_dex_caches[i]);
+  }
+
+  // build an Object[] of the roots needed to restore the runtime
   ObjectArray<Object>* image_roots = ObjectArray<Object>::Alloc(object_array_class,
                                                                 ImageHeader::kImageRootsMax);
   image_roots->Set(ImageHeader::kJniStubArray,
@@ -128,6 +145,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                    runtime->GetCalleeSaveMethod());
   image_roots->Set(ImageHeader::kOatLocation,
                    String::AllocFromModifiedUtf8(oat_file_->GetLocation().c_str()));
+  image_roots->Set(ImageHeader::kDexCaches,
+                   dex_caches);
   for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
     CHECK(image_roots->Get(i) != NULL);
   }

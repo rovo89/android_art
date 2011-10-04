@@ -135,11 +135,7 @@ if [ "$ZYGOTE" = "y" ]; then
     adb shell cd /data \; dvz -classpath test.jar Main "$@"
 else
     cmdline="cd /data; oatexecd \
-      -Xbootclasspath:/system/framework/core.jar \
-      -Xbootoat:/system/framework/core.oat \
-      -Xbootimage:/system/framework/core.art \
-      -classpath /system/framework/test.jar \
-      -Xoat:/system/framework/test.oat \
+      -Ximage:/system/framework/core.art \
       -Ximage:/system/framework/test.art Main"
     #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
     #    $GC_OPTS -cp test.jar -Xint:${INTERP} -ea Main"

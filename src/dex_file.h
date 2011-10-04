@@ -324,19 +324,9 @@ class DexFile {
                            std::vector<const DexFile*>& dex_files,
                            const std::string& strip_location_prefix);
 
-  // Opens .dex file, guessing the format based on file extension
+  // Opens .dex file, guessing the container format based on file extension
   static const DexFile* Open(const std::string& filename,
                              const std::string& strip_location_prefix);
-
-  // Opens a .dex file from the file system.
-  static const DexFile* OpenFile(const std::string& filename,
-                                 const std::string& original_location,
-                                 const std::string& strip_location_prefix);
-
-  // Opens a .jar, .zip, or .apk file from the file system.
-  static const DexFile* OpenZip(const std::string& filename,
-                                const std::string& strip_location_prefix);
-
   // Closes a .dex file.
   virtual ~DexFile();
 
@@ -838,11 +828,21 @@ class DexFile {
   void ChangePermissions(int prot) const;
 
  private:
+
+  // Opens a .dex file
+  static const DexFile* OpenFile(const std::string& filename,
+                                 const std::string& original_location,
+                                 const std::string& strip_location_prefix);
+
+  // Opens a dex file from within a .jar, .zip, or .apk file
+  static const DexFile* OpenZip(const std::string& filename,
+                                const std::string& strip_location_prefix);
+
   // Opens a .dex file at the given address.
-  static const DexFile* Open(const byte* dex_file,
-                             size_t length,
-                             const std::string& location,
-                             MemMap* mem_map);
+  static const DexFile* OpenMemory(const byte* dex_file,
+                                   size_t length,
+                                   const std::string& location,
+                                   MemMap* mem_map);
 
   DexFile(const byte* addr, size_t length, const std::string& location, MemMap* mem_map)
       : base_(addr),

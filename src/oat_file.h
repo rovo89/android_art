@@ -51,6 +51,11 @@ class OatFile {
   class OatDexFile {
    public:
     const OatClass GetOatClass(uint32_t class_def_index) const;
+
+    uint32_t GetDexFileChecksum() const {
+      return dex_file_checksum_;
+    }
+
     ~OatDexFile();
    private:
     OatDexFile(const OatFile* oat_file,
@@ -67,7 +72,7 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  const OatDexFile& GetOatDexFile(const DexFile& dex_file);
+  const OatDexFile& GetOatDexFile(const std::string& dex_file_location);
 
   size_t GetSize() const {
     return GetLimit() - GetBase();

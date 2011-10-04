@@ -28,10 +28,8 @@ dx --debug --dex --dump-to=classes.lst --output=classes.dex classes
 zip ${ANDROID_PRODUCT_OUT}/system/framework/test.jar classes.dex
 
 dex2oatd -Xms16m -Xmx16m \
-    --boot-dex-file=${ANDROID_PRODUCT_OUT}/system/framework/core.jar \
-    --boot-oat=${ANDROID_PRODUCT_OUT}/system/framework/core.oat \
     --boot-image=${ANDROID_PRODUCT_OUT}/system/framework/core.art \
     --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/test.jar \
     --oat=${ANDROID_PRODUCT_OUT}/system/framework/test.oat \
     --image=${ANDROID_PRODUCT_OUT}/system/framework/test.art \
-    --strip-prefix=${ANDROID_PRODUCT_OUT}
+    --host-prefix=${ANDROID_PRODUCT_OUT}

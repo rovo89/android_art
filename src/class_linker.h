@@ -25,6 +25,7 @@
 #include "heap.h"
 #include "macros.h"
 #include "mutex.h"
+#include "oat_file.h"
 #include "object.h"
 #include "unordered_map.h"
 #include "unordered_set.h"
@@ -39,10 +40,11 @@ class ObjectLock;
 
 class ClassLinker {
  public:
-  // Initializes the class linker using DexFiles and an optional an image.
-  static ClassLinker* Create(const std::vector<const DexFile*>& boot_class_path,
-                             const std::vector<const DexFile*>& class_path,
-                             InternTable* intern_table, bool image);
+  // Creates the class linker by boot strapping from dex files.
+  static ClassLinker* Create(const std::string& boot_class_path, InternTable* intern_table);
+
+  // Creates the class linker from one or more images.
+  static ClassLinker* Create(InternTable* intern_table);
 
   ~ClassLinker();
 
@@ -191,13 +193,12 @@ class ClassLinker {
  private:
   ClassLinker(InternTable*);
 
-  // Initialize class linker from DexFile instances.
-  void Init(const std::vector<const DexFile*>& boot_class_path_,
-            const std::vector<const DexFile*>& class_path_);
+  // Initialize class linker by bootstraping from dex files
+  void Init(const std::string& boot_class_path);
 
-  // Initialize class linker from pre-initialized image.
-  void InitFromImage(const std::vector<const DexFile*>& boot_class_path_,
-                     const std::vector<const DexFile*>& class_path_);
+  // Initialize class linker from one or more images.
+  void InitFromImage();
+  OatFile* OpenOat(const Space* space);
   static void InitFromImageCallback(Object* obj, void* arg);
   struct InitFromImageCallbackState;
 
@@ -298,8 +299,15 @@ class ClassLinker {
   void CreateReferenceOffsets(Class *klass, bool instance,
                               uint32_t reference_offsets);
 
+  // For use by ImageWriter to find DexCaches for its roots
+  const std::vector<DexCache*>& GetDexCaches() {
+    return dex_caches_;
+  }
+
   // lock to protect ClassLinker state
   mutable Mutex lock_;
+
+  std::vector<const OatFile*> oat_files_;
 
   std::vector<const DexFile*> boot_class_path_;
 
@@ -389,6 +397,7 @@ class ClassLinker {
   friend class ObjectTest;
   FRIEND_TEST(ObjectTest, AllocObjectArray);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);
+  friend class ImageWriter;  // for GetDexCaches
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 

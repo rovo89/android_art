@@ -42,25 +42,14 @@ static void usage() {
           "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
           "      Example: --boot-image=/system/framework/boot.art\n"
           "\n");
-  // TODO: remove this by inferring from --boot-image
-  fprintf(stderr,
-          "  --boot-oat=<file.oat>: provide the oat file for the boot class path.\n"
-          "      Example: --boot-oat=/system/framework/boot.oat\n"
-          "\n");
-  // TODO: remove this by inderring from --boot-image or --boot-oat
-  fprintf(stderr,
-          "  --boot-dex-file=<dex-file>: specifies a .dex file that is part of the boot\n"
-          "      image specified with --boot. \n"
-          "      Example: --boot-dex-file=/system/framework/core.jar\n"
-          "\n");
   fprintf(stderr,
           "  --method may be used to limit compilation to a subset of methods.\n"
           "      Example: --method=Ljava/lang/Object;<init>()V\n"
           "\n");
   fprintf(stderr,
-          "  --strip-prefix may be used to strip a path prefix from dex file names in the\n"
-          "      the generated image to match the target file system layout.\n"
-          "      Example: --strip-prefix=out/target/product/crespo\n"
+          "  --host-prefix may be used to translate host paths to target paths during\n"
+          "      cross compilation.\n"
+          "      Example: --host-prefix=out/target/product/crespo\n"
           "\n");
   fprintf(stderr,
           "  -Xms<n> may be used to specify an initial heap size for the runtime used to\n"
@@ -90,10 +79,8 @@ int dex2oat(int argc, char** argv) {
   std::string oat_filename;
   const char* image_filename = NULL;
   std::string boot_image_option;
-  std::string boot_oat_option;
-  std::vector<const char*> boot_dex_filenames;
   uintptr_t image_base = 0;
-  std::string strip_location_prefix;
+  std::string host_prefix;
   const char* Xms = NULL;
   const char* Xmx = NULL;
 
@@ -118,17 +105,10 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--boot-image=")) {
       const char* boot_image_filename = option.substr(strlen("--boot-image=")).data();
       boot_image_option.clear();
-      boot_image_option += "-Xbootimage:";
+      boot_image_option += "-Ximage:";
       boot_image_option += boot_image_filename;
-    } else if (option.starts_with("--boot-oat=")) {
-      const char* boot_oat_filename = option.substr(strlen("--boot-oat=")).data();
-      boot_oat_option.clear();
-      boot_oat_option += "-Xbootoat:";
-      boot_oat_option += boot_oat_filename;
-    } else if (option.starts_with("--boot-dex-file=")) {
-      boot_dex_filenames.push_back(option.substr(strlen("--boot-dex-file=")).data());
-    } else if (option.starts_with("--strip-prefix=")) {
-      strip_location_prefix = option.substr(strlen("--strip-prefix=")).data();
+    } else if (option.starts_with("--host-prefix=")) {
+      host_prefix = option.substr(strlen("--host-prefix=")).data();
     } else if (option.starts_with("-Xms")) {
       Xms = option.data();
     } else if (option.starts_with("-Xmx")) {
@@ -154,42 +134,34 @@ int dex2oat(int argc, char** argv) {
    return EXIT_FAILURE;
   }
 
-  if (boot_image_option.empty() != boot_oat_option.empty()) {
-   fprintf(stderr, "--boot-image and --boat-oat must be specified together or not at all\n");
-   return EXIT_FAILURE;
-  }
-
   if (boot_image_option.empty()) {
     if (image_base == 0) {
       fprintf(stderr, "non-zero --base not specified\n");
       return EXIT_FAILURE;
     }
-  } else {
-    if (boot_dex_filenames.empty()) {
-      fprintf(stderr, "no --boot-dex-file values specified with --boot-image\n");
-      return EXIT_FAILURE;
-    }
   }
 
-  std::vector<const DexFile*> dex_files;
-  DexFile::OpenDexFiles(dex_filenames, dex_files, strip_location_prefix);
-
-  std::vector<const DexFile*> boot_dex_files;
-  DexFile::OpenDexFiles(boot_dex_filenames, boot_dex_files, strip_location_prefix);
-
   Runtime::Options options;
+ std::string boot_class_path_string;
   if (boot_image_option.empty()) {
-    options.push_back(std::make_pair("bootclasspath", &dex_files));
+    boot_class_path_string += "-Xbootclasspath:";
+    for (size_t i = 0; i < dex_filenames.size()-1; i++) {
+      boot_class_path_string += dex_filenames[i];
+      boot_class_path_string += ":";
+    }
+    boot_class_path_string += dex_filenames[dex_filenames.size()-1];
+    options.push_back(std::make_pair(boot_class_path_string.c_str(), reinterpret_cast<void*>(NULL)));
   } else {
-    options.push_back(std::make_pair("bootclasspath", &boot_dex_files));
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
-    options.push_back(std::make_pair(boot_oat_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
   if (Xms != NULL) {
     options.push_back(std::make_pair(Xms, reinterpret_cast<void*>(NULL)));
   }
   if (Xmx != NULL) {
     options.push_back(std::make_pair(Xmx, reinterpret_cast<void*>(NULL)));
+  }
+  if (!host_prefix.empty()) {
+    options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
   }
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
   if (runtime.get() == NULL) {
@@ -199,10 +171,12 @@ int dex2oat(int argc, char** argv) {
   ClassLinker* class_linker = runtime->GetClassLinker();
 
   // If we have an existing boot image, position new space after its oat file
-  if (!boot_image_option.empty()) {
-    Space* boot_space = Heap::GetBootSpace();
-    CHECK(boot_space != NULL);
-    byte* oat_limit_addr = boot_space->GetImageHeader().GetOatLimitAddr();
+  if (Heap::GetSpaces().size() > 1) {
+    Space* last_image_space = Heap::GetSpaces()[Heap::GetSpaces().size()-2];
+    CHECK(last_image_space != NULL);
+    CHECK(last_image_space->IsImageSpace());
+    CHECK(!Heap::GetSpaces()[Heap::GetSpaces().size()-1]->IsImageSpace());
+    byte* oat_limit_addr = last_image_space->GetImageHeader().GetOatLimitAddr();
     image_base = RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr), kPageSize);
   }
 
@@ -211,6 +185,8 @@ int dex2oat(int argc, char** argv) {
   if (boot_image_option.empty()) {
     class_loader = NULL;
   } else {
+    std::vector<const DexFile*> dex_files;
+    DexFile::OpenDexFiles(dex_filenames, dex_files, host_prefix);
     for (size_t i = 0; i < dex_files.size(); i++) {
       class_linker->RegisterDexFile(*dex_files[i]);
     }
@@ -279,7 +255,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   ImageWriter image_writer;
-  if (!image_writer.Write(image_filename, image_base, oat_filename, strip_location_prefix)) {
+  if (!image_writer.Write(image_filename, image_base, oat_filename, host_prefix)) {
     fprintf(stderr, "Failed to create image file %s\n", image_filename);
     return EXIT_FAILURE;
   }

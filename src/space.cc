@@ -24,7 +24,7 @@ Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_b
   }
 }
 
-Space* Space::CreateFromImage(const char* image_file_name) {
+Space* Space::CreateFromImage(const std::string& image_file_name) {
   CHECK(image_file_name != NULL);
   UniquePtr<Space> space(new Space());
   bool success = space->InitFromImage(image_file_name);
@@ -97,13 +97,13 @@ void Space::Init(MemMap* mem_map) {
 }
 
 
-bool Space::InitFromImage(const char* image_file_name) {
+bool Space::InitFromImage(const std::string& image_file_name) {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "Space::InitFromImage entering"
               << " image_file_name=" << image_file_name;
   }
-  UniquePtr<File> file(OS::OpenFile(image_file_name, false));
+  UniquePtr<File> file(OS::OpenFile(image_file_name.c_str(), false));
   if (file.get() == NULL) {
     LOG(WARNING) << "Failed to open " << image_file_name;
     return false;

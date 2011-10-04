@@ -123,10 +123,10 @@ const byte* OatFile::GetLimit() const {
   return mem_map_->GetLimit();
 }
 
-const OatFile::OatDexFile& OatFile::GetOatDexFile(const DexFile& dex_file) {
-  Table::const_iterator it = oat_dex_files_.find(dex_file.GetLocation());
+const OatFile::OatDexFile& OatFile::GetOatDexFile(const std::string& dex_file_location) {
+  Table::const_iterator it = oat_dex_files_.find(dex_file_location);
   if (it == oat_dex_files_.end()) {
-    LOG(FATAL) << "Failed to find OatDexFile for DexFile " << dex_file.GetLocation();
+    LOG(FATAL) << "Failed to find OatDexFile for DexFile " << dex_file_location;
   }
   return *it->second;
 }

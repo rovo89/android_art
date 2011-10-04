@@ -50,7 +50,7 @@ $(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT)
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
 $(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT)
 	@echo "target dex2oat: $@ ($<)"
-	$(hide) $(DEX2OAT) -Xms32m -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --strip-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) -Xms32m -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 ########################################################################
 # The full system boot classpath
@@ -62,4 +62,4 @@ TARGET_BOOT_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT)
 	@echo "target dex2oat: $@ ($<)"
-	$(hide) $(DEX2OAT) -Xms256m -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --strip-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) -Xms256m -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)

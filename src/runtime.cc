@@ -16,7 +16,6 @@
 #include "oat_file.h"
 #include "signal_catcher.h"
 #include "space.h"
-#include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -53,7 +52,6 @@ Runtime::~Runtime() {
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
 
-  STLDeleteElements(&oat_files_);
   delete class_linker_;
   Heap::Destroy();
   delete intern_table_;
@@ -177,22 +175,16 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
   }
 }
 
-void CreateClassPath(const std::string& class_path,
-                     std::vector<const DexFile*>& class_path_vector) {
-  std::vector<std::string> parsed;
-  Split(class_path, ':', parsed);
-  for (size_t i = 0; i < parsed.size(); ++i) {
-    const DexFile* dex_file = DexFile::Open(parsed[i], "");
-    if (dex_file != NULL) {
-      class_path_vector.push_back(dex_file);
-    }
-  }
-}
-
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
-  parsed->boot_image_ = NULL;
-  parsed->boot_oat_ = NULL;
+  const char* boot_class_path = getenv("BOOTCLASSPATH");
+  if (boot_class_path != NULL) {
+    parsed->boot_class_path_ = getenv("BOOTCLASSPATH");
+  }
+  const char* class_path = getenv("CLASSPATH");
+  if (class_path != NULL) {
+    parsed->class_path_ = getenv("CLASSPATH");
+  }
 #ifdef NDEBUG
   // -Xcheck:jni is off by default for regular builds...
   parsed->check_jni_ = false;
@@ -211,35 +203,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   for (size_t i = 0; i < options.size(); ++i) {
     const StringPiece& option = options[i].first;
+    if (false) {
+      LOG(INFO) << "option[" << i << "]=" << option;
+    }
     if (option.starts_with("-Xbootclasspath:")) {
-      parsed->boot_class_path_string_ = option.substr(strlen("-Xbootclasspath:")).data();
-    } else if (option == "bootclasspath") {
-      UNIMPLEMENTED(WARNING) << "what should VMRuntime.getBootClassPath return here?";
-      const void* dex_vector = options[i].second;
-      const std::vector<const DexFile*>* v
-          = reinterpret_cast<const std::vector<const DexFile*>*>(dex_vector);
-      if (v == NULL) {
-        if (ignore_unrecognized) {
-          continue;
-        }
-        // TODO: usage
-        LOG(FATAL) << "Failed to parse " << option;
-        return NULL;
-      }
-      parsed->boot_class_path_ = *v;
-    } else if (option == "classpath") {
-      const void* dex_vector = options[i].second;
-      const std::vector<const DexFile*>* v
-          = reinterpret_cast<const std::vector<const DexFile*>*>(dex_vector);
-      if (v == NULL) {
-        if (ignore_unrecognized) {
-          continue;
-        }
-        // TODO: usage
-        LOG(FATAL) << "Failed to parse " << option;
-        return NULL;
-      }
-      parsed->class_path_ = *v;
+      parsed->boot_class_path_ = option.substr(strlen("-Xbootclasspath:")).data();
     } else if (option == "-classpath" || option == "-cp") {
       // TODO: support -Djava.class.path
       i++;
@@ -249,17 +217,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       const StringPiece& value = options[i].first;
-      parsed->class_path_string_ = value.data();
-    } else if (option.starts_with("-Xbootimage:")) {
-      // TODO: remove and just use -Ximage:
-      parsed->boot_image_ = option.substr(strlen("-Xbootimage:")).data();
-    } else if (option.starts_with("-Xbootoat:")) {
-      // TODO: remove and just use -Xoat:
-      parsed->boot_oat_ = option.substr(strlen("-Xbootoat:")).data();
+      parsed->class_path_ = value.data();
     } else if (option.starts_with("-Ximage:")) {
       parsed->images_.push_back(option.substr(strlen("-Ximage:")).data());
-    } else if (option.starts_with("-Xoat:")) {
-      parsed->oats_.push_back(option.substr(strlen("-Xoat:")).data());
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (option.starts_with("-Xms")) {
@@ -311,6 +271,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->hook_exit_ = reinterpret_cast<void(*)(jint)>(options[i].second);
     } else if (option == "abort") {
       parsed->hook_abort_ = reinterpret_cast<void(*)()>(options[i].second);
+    } else if (option == "host-prefix") {
+      parsed->host_prefix_ = reinterpret_cast<const char*>(options[i].second);
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
@@ -319,38 +281,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         //return NULL;
       }
     }
-  }
-
-  // Consider it an error if both bootclasspath and -Xbootclasspath: are supplied.
-  // TODO: remove bootclasspath and classpath which are mostly just used by tests?
-  if (!parsed->boot_class_path_.empty() && !parsed->boot_class_path_string_.empty()) {
-    // TODO: usage
-    LOG(FATAL) << "bootclasspath and -Xbootclasspath: are mutually exclusive options.";
-    return NULL;
-  }
-  if (!parsed->class_path_.empty() && !parsed->class_path_string_.empty()) {
-    // TODO: usage
-    LOG(FATAL) << "bootclasspath and -Xbootclasspath: are mutually exclusive options.";
-    return NULL;
-  }
-  if (parsed->boot_class_path_.empty()) {
-    if (parsed->boot_class_path_string_ == NULL) {
-      const char* BOOTCLASSPATH = getenv("BOOTCLASSPATH");
-      if (BOOTCLASSPATH != NULL) {
-        parsed->boot_class_path_string_ = BOOTCLASSPATH;
-      }
-    }
-    CreateClassPath(parsed->boot_class_path_string_, parsed->boot_class_path_);
-  }
-
-  if (parsed->class_path_.empty()) {
-    if (parsed->class_path_string_ == NULL) {
-      const char* CLASSPATH = getenv("CLASSPATH");
-      if (CLASSPATH != NULL) {
-        parsed->class_path_string_ = CLASSPATH;
-      }
-    }
-    CreateClassPath(parsed->class_path_string_, parsed->class_path_);
   }
 
   LOG(INFO) << "CheckJNI is " << (parsed->check_jni_ ? "on" : "off");
@@ -375,6 +305,9 @@ void Runtime::Start() {
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Start entering";
   }
+
+  CHECK(host_prefix_.empty()) << host_prefix_;
+
   InitNativeMethods();
 
   Thread::FinishStartup();
@@ -405,7 +338,7 @@ void Runtime::StartDaemonThreads() {
   env->CallStaticVoidMethod(c, mid);
 }
 
-bool Runtime::IsStarted() {
+bool Runtime::IsStarted() const {
   return started_;
 }
 
@@ -422,8 +355,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     LOG(INFO) << "Runtime::Init -verbose:startup enabled";
   }
 
-  boot_class_path_ = options->boot_class_path_string_;
-  class_path_ = options->class_path_string_;
+  host_prefix_ = options->host_prefix_;
+  boot_class_path_ = options->boot_class_path_;
+  class_path_ = options->class_path_;
   properties_ = options->properties_;
 
   vfprintf_ = options->hook_vfprintf_;
@@ -435,8 +369,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList(options->IsVerbose("thread"));
   intern_table_ = new InternTable;
 
-  Heap::Init(options->heap_initial_size_, options->heap_maximum_size_,
-             options->boot_image_, options->images_);
+  Heap::Init(options->heap_initial_size_, options->heap_maximum_size_, options->images_);
 
   BlockSignals();
 
@@ -448,68 +381,13 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // without creating objects.
   Thread::Attach(this, "main", false);
 
-  class_linker_ = ClassLinker::Create(options->boot_class_path_,
-                                      options->class_path_,
-                                      intern_table_,
-                                      Heap::GetBootSpace() != NULL);
-  if (Heap::GetBootSpace() != NULL) {
-    if (!OpenOat(Heap::GetBootSpace(), options->boot_oat_)) {
-      LOG(ERROR) << "Failed to open boot oat " << options->boot_oat_;
-      return false;
-    }
-  }
-  for (size_t i = 0; i < options->oats_.size(); i++) {
-    if (!OpenOat(Heap::GetSpaces()[i+1], options->oats_[i])) {
-      LOG(ERROR) << "Failed to open oat " << options->oats_[i];
-      return false;
-    }
-  }
+  CHECK_GE(Heap::GetSpaces().size(), 1U);
+  class_linker_ = ((Heap::GetSpaces()[0]->IsImageSpace())
+                   ? ClassLinker::Create(intern_table_)
+                   : ClassLinker::Create(options->boot_class_path_, intern_table_));
 
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Init exiting";
-  }
-  return true;
-}
-
-bool Runtime::OpenOat(const Space* space, const char* oat) {
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::OpenOat entering " << oat;
-  }
-  // TODO: check in ParsedOptions?
-  if (space == NULL) {
-    LOG(ERROR) << "oat specified without image";
-    return false;
-  }
-  if (oat == NULL) {
-    LOG(ERROR) << "image specified without oat";
-    return false;
-  }
-  const ImageHeader& image_header = space->GetImageHeader();
-  String* oat_location = image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString();
-  std::string oat_filename = oat_location->ToModifiedUtf8();
-  if (!StringPiece(oat).ends_with(oat_filename)) {
-    LOG(ERROR) << "oat file name " << oat
-               << " does not match value found in image: " << oat_filename;
-    return false;
-  }
-  // TODO: we should be able to just use oat_filename instead of oat
-  // if we passed the prefix argument to find it on the host during cross compilation.
-  OatFile* oat_file = OatFile::Open(std::string(oat), "", image_header.GetOatBaseAddr());
-  if (oat_file == NULL) {
-    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image";
-    return false;
-  }
-  uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
-  uint32_t image_oat_checksum = image_header.GetOatChecksum();
-  if (oat_checksum != image_oat_checksum) {
-    LOG(ERROR) << "Failed to match oat filechecksum " << std::hex << oat_checksum
-               << " to expected oat checksum " << std::hex << oat_checksum
-               << " in image";
-    return false;
-  }
-  oat_files_.push_back(oat_file);
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::OpenOat exiting";
   }
   return true;
 }

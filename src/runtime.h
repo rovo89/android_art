@@ -30,7 +30,6 @@ class Heap;
 class InternTable;
 class JavaVMExt;
 class Method;
-class OatFile;
 class SignalCatcher;
 class String;
 class ThreadList;
@@ -45,14 +44,10 @@ class Runtime {
     // returns null if problem parsing and ignore_unrecognized is false
     static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
 
-    std::string boot_class_path_string_;
-    std::vector<const DexFile*> boot_class_path_;
-    std::string class_path_string_;
-    std::vector<const DexFile*> class_path_;
-    const char* boot_image_;
-    const char* boot_oat_;
-    std::vector<const char*> images_;
-    std::vector<const char*> oats_;
+    std::string boot_class_path_;
+    std::string class_path_;
+    std::string host_prefix_;
+    std::vector<std::string> images_;
     bool check_jni_;
     std::string jni_trace_;
     size_t heap_initial_size_;
@@ -79,10 +74,15 @@ class Runtime {
     return verbose_startup_;
   }
 
+  const std::string& GetHostPrefix() const {
+    CHECK(!IsStarted());
+    return host_prefix_;
+  }
+
   // Starts a runtime, which may cause threads to be started and code to run.
   void Start();
 
-  bool IsStarted();
+  bool IsStarted() const;
 
   static Runtime* Current() {
     return instance_;
@@ -182,12 +182,23 @@ class Runtime {
   void BlockSignals();
 
   bool Init(const Options& options, bool ignore_unrecognized);
-  bool OpenOat(const Space* space, const char* boot_oat_);
   void InitNativeMethods();
   void RegisterRuntimeNativeMethods(JNIEnv*);
   void StartDaemonThreads();
 
   bool verbose_startup_;
+
+  // The host prefix is used during cross compilation. It is removed
+  // from the start of host paths such as:
+  //    $ANDROID_PRODUCT_OUT/system/framework/core.oat
+  // to produce target paths such as 
+  //    /system/framework/core.oat
+  // Similarly it is prepended to target paths to arrive back at a
+  // host past. In both cases this is necessary because image and oat
+  // files embedded expect paths of dependent files (an image points
+  // to an oat file and an oat files to one or more dex files). These
+  // files contain the expected target path.
+  std::string host_prefix_;
 
   std::string boot_class_path_;
   std::string class_path_;
@@ -201,8 +212,6 @@ class Runtime {
   InternTable* intern_table_;
 
   ClassLinker* class_linker_;
-
-  std::vector<const OatFile*> oat_files_;
 
   SignalCatcher* signal_catcher_;
 

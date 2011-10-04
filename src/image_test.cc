@@ -23,8 +23,8 @@ TEST_F(ImageTest, WriteRead) {
 
   ImageWriter writer;
   ScratchFile tmp_image;
-  const uintptr_t image_base = 0x50000000;
-  bool success_image = writer.Write(tmp_image.GetFilename(), image_base,
+  const uintptr_t requested_image_base = 0x60000000;
+  bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
                                     std::string(tmp_oat.GetFilename()), "");
   ASSERT_TRUE(success_image);
 
@@ -51,17 +51,10 @@ TEST_F(ImageTest, WriteRead) {
   UniquePtr<const DexFile> dex(GetLibCoreDex());
   ASSERT_TRUE(dex.get() != NULL);
 
-  std::vector<const DexFile*> boot_class_path;
-  boot_class_path.push_back(dex.get());
-
   Runtime::Options options;
-  options.push_back(std::make_pair("bootclasspath", &boot_class_path));
-  std::string boot_oat("-Xbootoat:");
-  boot_oat.append(tmp_oat.GetFilename());
-  options.push_back(std::make_pair(boot_oat.c_str(), reinterpret_cast<void*>(NULL)));
-  std::string boot_image("-Xbootimage:");
-  boot_image.append(tmp_image.GetFilename());
-  options.push_back(std::make_pair(boot_image.c_str(), reinterpret_cast<void*>(NULL)));
+  std::string image("-Ximage:");
+  image.append(tmp_image.GetFilename());
+  options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
 
   runtime_.reset(Runtime::Create(options, false));
   ASSERT_TRUE(runtime_.get() != NULL);
@@ -70,23 +63,20 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(runtime_->GetJniStubArray() != NULL);
 
   ASSERT_EQ(2U, Heap::GetSpaces().size());
-  Space* boot_space = Heap::GetBootSpace();
-  ASSERT_TRUE(boot_space != NULL);
+  ASSERT_TRUE(Heap::GetSpaces()[0]->IsImageSpace());
+  ASSERT_FALSE(Heap::GetSpaces()[1]->IsImageSpace());
 
-  // enable to display maps to debug boot_base and boot_limit checking problems below
-  if (false) {
-    SignalCatcher::HandleSigQuit();
-  }
-
-  byte* boot_base = boot_space->GetBase();
-  byte* boot_limit = boot_space->GetLimit();
+  Space* image_space = Heap::GetSpaces()[0];
+  byte* image_base = image_space->GetBase();
+  byte* image_limit = image_space->GetLimit();
+  CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_base));
   for (size_t i = 0; i < dex->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);
     EXPECT_TRUE(klass != NULL) << descriptor;
-    EXPECT_LT(boot_base, reinterpret_cast<byte*>(klass)) << descriptor;
-    EXPECT_LT(reinterpret_cast<byte*>(klass), boot_limit) << descriptor;
+    EXPECT_LT(image_base, reinterpret_cast<byte*>(klass)) << descriptor;
+    EXPECT_LT(reinterpret_cast<byte*>(klass), image_limit) << descriptor;
     EXPECT_EQ(*klass->GetRawLockWordAddress(), 0);  // address should have been removed from monitor
   }
 }

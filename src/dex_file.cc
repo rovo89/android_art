@@ -59,8 +59,7 @@ void DexFile::OpenDexFiles(std::vector<const char*>& dex_filenames,
 const DexFile* DexFile::Open(const std::string& filename,
                              const std::string& strip_location_prefix) {
   if (filename.size() < 4) {
-    LOG(WARNING) << "Ignoring short classpath entry '" << filename << "'";
-    return NULL;
+    LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
   }
   std::string suffix(filename.substr(filename.size() - 4));
   if (suffix == ".zip" || suffix == ".jar" || suffix == ".apk") {
@@ -106,7 +105,7 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
   }
   close(fd);
   byte* dex_file = map->GetAddress();
-  return Open(dex_file, length, location.ToString(), map.release());
+  return OpenMemory(dex_file, length, location.ToString(), map.release());
 }
 
 static const char* kClassesDex = "classes.dex";
@@ -349,8 +348,8 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
   // NOTREACHED
 }
 
-const DexFile* DexFile::Open(const byte* dex_bytes, size_t length,
-                             const std::string& location, MemMap* mem_map) {
+const DexFile* DexFile::OpenMemory(const byte* dex_bytes, size_t length,
+                                   const std::string& location, MemMap* mem_map) {
   UniquePtr<DexFile> dex_file(new DexFile(dex_bytes, length, location, mem_map));
   if (!dex_file->Init()) {
     return NULL;

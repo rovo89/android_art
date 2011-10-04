@@ -43,7 +43,7 @@ static inline const DexFile* OpenDexFileBase64(const char* base64,
   file.reset();
 
   // read dex file
-  const DexFile* dex_file = DexFile::OpenFile(location, location, "");
+  const DexFile* dex_file = DexFile::Open(location, "");
   CHECK(dex_file != NULL);
   return dex_file;
 }
@@ -114,10 +114,12 @@ class CommonTest : public testing::Test {
 
     java_lang_dex_file_.reset(GetLibCoreDex());
 
-    boot_class_path_.push_back(java_lang_dex_file_.get());
+    std::string boot_class_path;
+    boot_class_path += "-Xbootclasspath:";
+    boot_class_path += GetLibCoreDexFileName();
 
     Runtime::Options options;
-    options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
+    options.push_back(std::make_pair(boot_class_path.c_str(), reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair("-Xms64m", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair("-Xmx64m", reinterpret_cast<void*>(NULL)));
@@ -193,7 +195,7 @@ class CommonTest : public testing::Test {
 
   const DexFile* GetLibCoreDex() {
     std::string libcore_dex_file_name = GetLibCoreDexFileName();
-    return DexFile::OpenZip(libcore_dex_file_name, "");
+    return DexFile::Open(libcore_dex_file_name, "");
   }
 
   uint32_t FindTypeIdxByDescriptor(const DexFile& dex_file, const StringPiece& descriptor) {
@@ -239,7 +241,7 @@ class CommonTest : public testing::Test {
     filename += "/system/framework/art-test-dex-";
     filename += name;
     filename += ".jar";
-    const DexFile* dex_file = DexFile::OpenZip(filename, "");
+    const DexFile* dex_file = DexFile::Open(filename, "");
     CHECK(dex_file != NULL) << "Failed to open " << filename;
     return dex_file;
   }
