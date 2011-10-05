@@ -907,7 +907,7 @@ bool oatCompileMethod(const Compiler& compiler, Method* method, art::Instruction
            reinterpret_cast<const int32_t*>(&cUnit.mappingTable[0]),
            mapping_table->GetLength() * sizeof(cUnit.mappingTable[0]));
     // Add a marker to take place of lr
-    cUnit.coreVmapTable.push_back(-1);
+    cUnit.coreVmapTable.push_back(INVALID_VREG);
     // Combine vmap tables - core regs, then fp regs
     for (uint32_t i = 0; i < cUnit.fpVmapTable.size(); i++) {
         cUnit.coreVmapTable.push_back(cUnit.fpVmapTable[i]);

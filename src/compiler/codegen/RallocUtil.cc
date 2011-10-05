@@ -241,7 +241,7 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
  * Mark a callee-save fp register as promoted.  Note that
  * vpush/vpop uses contiguous register lists so we must
  * include any holes in the mask.  Associate holes with
- * Dalvik register INVALID_REG (-1).
+ * Dalvik register INVALID_VREG (0xFFFFU).
  */
 STATIC void markPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
 {
@@ -250,7 +250,7 @@ STATIC void markPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
     // Ensure fpVmapTable is large enough
     int tableSize = cUnit->fpVmapTable.size();
     for (int i = tableSize; i < (reg + 1); i++) {
-        cUnit->fpVmapTable.push_back(INVALID_REG);
+        cUnit->fpVmapTable.push_back(INVALID_VREG);
     }
     // Add the current mapping
     cUnit->fpVmapTable[reg] = sReg;

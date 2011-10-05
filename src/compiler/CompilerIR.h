@@ -47,6 +47,7 @@ typedef struct RegLocation {
 } RegLocation;
 
 #define INVALID_SREG (-1)
+#define INVALID_VREG (0xFFFFU)
 #define INVALID_REG (0x3F)
 #define INVALID_OFFSET (-1)
 
@@ -201,8 +202,8 @@ typedef struct CompilationUnit {
     int assemblerRetries;
     std::vector<short> codeBuffer;
     std::vector<uint32_t> mappingTable;
-    std::vector<uint32_t> coreVmapTable;
-    std::vector<short> fpVmapTable;
+    std::vector<uint16_t> coreVmapTable;
+    std::vector<uint16_t> fpVmapTable;
     bool printMe;
     bool hasClassLiterals;              // Contains class ptrs used as literals
     bool hasLoop;                       // Contains a loop
