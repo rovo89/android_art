@@ -237,6 +237,7 @@ class PACKED Thread {
   void* (*pFindNativeMethod)(Thread* thread);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
   String* (*pResolveStringFromCode)(Method*, int32_t);
+  void (*pObjectInit)(Object*);
 
   class StackVisitor {
    public:

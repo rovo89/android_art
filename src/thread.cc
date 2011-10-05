@@ -61,8 +61,21 @@ static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
 // TODO: flesh out and move to appropriate location
 String* ResolveStringFromCode(Method* method, int32_t string_idx) {
-    UNIMPLEMENTED(FATAL) << "Resolve string; handle OOM";
-    return NULL;  // Must return valid string or if exception, doesn't return
+  UNIMPLEMENTED(FATAL) << "Resolve string; handle OOM";
+  return NULL;  // Must return valid string or if exception, doesn't return
+}
+
+// TODO: move to appropriate location
+static void ObjectInitFromCode(Object* o) {
+  Class* c = o->GetClass();
+  if (c->IsFinalizable()) {
+    o->AddFinalizerReference();
+  }
+  /*
+   * NOTE: once debugger/profiler support is added, we'll need to check
+   * here and branch to actual compiled object.<init> to handle any
+   * breakpoint/logging activites if either is active.
+   */
 }
 
 void Thread::InitFunctionPointers() {
@@ -129,6 +142,7 @@ void Thread::InitFunctionPointers() {
   pFindNativeMethod = FindNativeMethod;
   pDecodeJObjectInThread = DecodeJObjectInThread;
   pResolveStringFromCode = ResolveStringFromCode;
+  pObjectInit = ObjectInitFromCode;
   pDebugMe = DebugMe;
 }
 

@@ -817,8 +817,6 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
                             rollback, skipThis);
 
-    //TODO: better to move this into CallInsn lists
-    // Load direct & need a "this" null check?
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
     }
@@ -920,6 +918,9 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
                             rollback, skipThis);
 
     callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+    if (pcrLabel) {
+        *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
+    }
     return callState;
 }
 
@@ -946,6 +947,24 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
+
+    // Is this the special "Ljava/lang/Object;.<init>:()V" case?
+    if (mir->dalvikInsn.opcode == OP_INVOKE_DIRECT) {
+        int idx = mir->dalvikInsn.vB;
+        Method* target = cUnit->method->GetDexCacheResolvedMethods()->Get(idx);
+        if (target) {
+            if (PrettyMethod(target) == "java.lang.Object.<init>()V") {
+                RegLocation rlArg = oatGetSrc(cUnit, mir, 0);
+                loadValueDirectFixed(cUnit, rlArg, r0);
+                loadWordDisp(cUnit, rSELF,
+                         OFFSETOF_MEMBER(Thread, pObjectInit), rLR);
+                genNullCheck(cUnit, oatSSASrc(mir,0), r0, mir);
+                opReg(cUnit, kOpBlx, rLR);
+                oatClobberCalleeSave(cUnit);
+                return;
+            }
+        }
+    }
 
     if (range) {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
