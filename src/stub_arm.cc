@@ -9,6 +9,46 @@
 namespace art {
 namespace arm {
 
+ByteArray* ArmCreateResolutionTrampoline(bool is_static) {
+  UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
+  RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
+
+  // | Out args |
+  // | Method*  | <- SP on entry
+  // | LR       |    return address into caller
+  // | R3       |    possible argument
+  // | R2       |    possible argument
+  // | R1       |    possible argument
+  // | R0       |    method index (loaded from code and method array - will be converted to Method*)
+  __ PushList(save);
+  __ mov(R1, ShifterOperand(SP));  // Pass address of saved R0... in R1
+  __ LoadFromOffset(kLoadWord, R12, TR,
+                    OFFSETOF_MEMBER(Thread, pUnresolvedDirectMethodTrampolineFromCode));
+  __ mov(R2, ShifterOperand(TR));  // Pass Thread::Current() in R2
+  __ LoadImmediate(R3, is_static ? 1 : 0);
+  __ IncreaseFrameSize(12);        // 3 words of space for alignment
+  // Call to unresolved direct method trampoline (method_idx, sp, Thread*, is_static)
+  __ blx(R12);
+  // Save code address returned into R12
+  __ mov(R12, ShifterOperand(R0));
+  // Restore registers which may have been modified by GC and R0 which will now hold the method*
+  __ DecreaseFrameSize(12);
+  __ PopList(save);
+  // Leaf call to method's code
+  __ mov(PC, ShifterOperand(R12));
+
+  __ bkpt(0);
+
+  assembler->EmitSlowPaths();
+  size_t cs = assembler->CodeSize();
+  ByteArray* resolution_trampoline = ByteArray::Alloc(cs);
+  CHECK(resolution_trampoline != NULL);
+  MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
+  assembler->FinalizeInstructions(code);
+
+  return resolution_trampoline;
+}
+
 typedef void (*ThrowAme)(Method*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {

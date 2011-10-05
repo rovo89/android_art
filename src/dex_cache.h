@@ -26,9 +26,15 @@ class MANAGED CodeAndDirectMethods : public IntArray {
     return reinterpret_cast<Method*>(Get(MethodIndex(method_idx)));
   }
 
-  void SetResolvedDirectMethodTrampoline(uint32_t method_idx) {
-    UNIMPLEMENTED(WARNING) << "need to install a trampoline to resolve the method_idx at runtime";
-    Set(CodeIndex(method_idx),   0xffffffff);
+  void SetResolvedDirectMethodTrampoline(uint32_t method_idx, ByteArray* code_array,
+                                         InstructionSet instruction_set) {
+    DCHECK(code_array != NULL);
+    int32_t code = reinterpret_cast<int32_t>(code_array->GetData());
+    if (instruction_set == kThumb2) {
+      // Set the low-order bit so a BLX will switch to Thumb mode
+      code = code | 0x1;
+    }
+    Set(CodeIndex(method_idx), code);
     Set(MethodIndex(method_idx), method_idx);
   }
 

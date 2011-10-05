@@ -14,6 +14,7 @@ extern void DebugMe(Method* method, uint32_t info);
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
+void* UnresolvedDirectMethodTrampolineFromCode(int32_t, void*, Thread*, bool);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);

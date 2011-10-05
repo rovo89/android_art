@@ -309,6 +309,85 @@ extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Metho
   thread->DeliverException();
 }
 
+void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thread* thread,
+                                               bool is_static) {
+  // TODO: this code is specific to ARM
+  // On entry the stack pointed by sp is:
+  // | argN       |  |
+  // | ...        |  |
+  // | arg4       |  |
+  // | arg3 spill |  |  Caller's frame
+  // | arg2 spill |  |
+  // | arg1 spill |  |
+  // | Method*    | ---
+  // | LR         |
+  // | R3         |    arg3
+  // | R2         |    arg2
+  // | R1         |    arg1
+  // | R0         | <- sp
+  uintptr_t* regs = reinterpret_cast<uintptr_t*>(sp);
+  Method** caller_sp = reinterpret_cast<Method**>(&regs[5]);
+  // Record the last top of the managed stack
+  thread->SetTopOfStack(caller_sp, regs[4]);
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  // Start new JNI local reference state
+  JNIEnvExt* env = thread->GetJniEnv();
+  uint32_t saved_local_ref_cookie = env->local_ref_cookie;
+  env->local_ref_cookie = env->locals.GetSegmentState();
+  // Discover shorty (avoid GCs)
+  const char* shorty = linker->MethodShorty(method_idx, *caller_sp);
+  size_t shorty_len = strlen(shorty);
+  size_t args_in_regs = shorty_len < 3 ? shorty_len : 3;
+  // Handlerize references in registers
+  int cur_arg = 1;   // skip method_idx in R0, first arg is in R1
+  if (!is_static) {
+    Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
+    cur_arg++;
+    AddLocalReference<jobject>(env, obj);
+  }
+  for(size_t i = 0; i < args_in_regs; i++) {
+    char c = shorty[i + 1];  // offset to skip return value
+    if (c == 'L') {
+      Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
+      AddLocalReference<jobject>(env, obj);
+    }
+    cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
+  }
+  // Handlerize references in out going arguments
+  for(size_t i = 3; i < shorty_len; i++) {
+    char c = shorty[i + 1];  // offset to skip return value
+    if (c == 'L') {
+      Object* obj = reinterpret_cast<Object*>(regs[i + 3]);  // skip R0, LR and Method* of caller
+      AddLocalReference<jobject>(env, obj);
+    }
+    cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
+  }
+  // Resolve method filling in dex cache
+  Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
+  if (!thread->IsExceptionPending()) {
+    // We got this far, ensure that the declaring class is initialized
+    linker->EnsureInitialized(called->GetDeclaringClass(), true);
+  }
+  // Restore JNI env state
+  env->locals.SetSegmentState(env->local_ref_cookie);
+  env->local_ref_cookie = saved_local_ref_cookie;
+
+  void* code;
+  if (thread->IsExceptionPending()) {
+    // Something went wrong, go into deliver exception with the pending exception in r0
+    code = reinterpret_cast<void*>(art_deliver_exception_from_code);
+    regs[0] =  reinterpret_cast<uintptr_t>(thread->GetException());
+    thread->ClearException();
+  } else {
+    // Expect class to at least be initializing
+    CHECK(called->GetDeclaringClass()->IsInitializing());
+    // Set up entry into main method
+    regs[0] =  reinterpret_cast<uintptr_t>(called);
+    code = const_cast<void*>(called->GetCode());
+  }
+  return code;
+}
+
 // TODO: placeholder.  Helper function to type
 Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
   /*

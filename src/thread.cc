@@ -125,6 +125,7 @@ void Thread::InitFunctionPointers() {
 #endif
   pDeliverException = art_deliver_exception_from_code;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
+  pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
   pF2l = F2L;
   pD2l = D2L;
   pMemcpy = memcpy;

@@ -207,7 +207,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
         LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
       }
       // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
-      // NB we don't use the accessors here as they have internal sanity checks
+      // Note: we don't use the accessors here as they have internal sanity checks
       // that we don't want to run
       raw_addr = reinterpret_cast<const byte*>(c) +
           Object::ClassOffset().Int32Value();

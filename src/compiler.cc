@@ -18,28 +18,38 @@ namespace art {
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
+  void ArmCreateInvokeStub(Method* method);
+  ByteArray* ArmCreateResolutionTrampoline(bool is_static);
 }
-
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
-}
-
-ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateAbstractMethodErrorStub();
-    case kX86:
-      return x86::CreateAbstractMethodErrorStub();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
-      return NULL;
-  }
+  void X86CreateInvokeStub(Method* method);
+  ByteArray* X86CreateResolutionTrampoline(bool is_static);
 }
 
 Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
     verbose_(false) {
   CHECK(!Runtime::Current()->IsStarted());
+}
+
+ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set, bool is_static) {
+  if (instruction_set == kX86) {
+    return x86::X86CreateResolutionTrampoline(is_static);
+  } else {
+    CHECK(instruction_set == kArm || instruction_set == kThumb2);
+    // Generates resolution stub using ARM instruction set
+    return arm::ArmCreateResolutionTrampoline(is_static);
+  }
+}
+
+ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
+  if (instruction_set == kX86) {
+    return x86::CreateAbstractMethodErrorStub();
+  } else {
+    CHECK(instruction_set == kArm || instruction_set == kThumb2);
+    // Generates resolution stub using ARM instruction set
+    return arm::CreateAbstractMethodErrorStub();
+  }
 }
 
 void Compiler::CompileAll(const ClassLoader* class_loader) {
@@ -265,13 +275,6 @@ void Compiler::CompileClass(Class* klass) {
   }
 }
 
-namespace arm {
-  void ArmCreateInvokeStub(Method* method);
-}
-namespace x86 {
-  void X86CreateInvokeStub(Method* method);
-}
-
 void Compiler::CompileMethod(Method* method) {
   if (method->IsNative()) {
     jni_compiler_.Compile(method);
@@ -313,13 +316,20 @@ void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {
 }
 
 void Compiler::SetCodeAndDirectMethodsDexFile(const DexFile& dex_file) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
-    if (method == NULL) {
-      code_and_direct_methods->SetResolvedDirectMethodTrampoline(i);
+    if ((method == NULL) || (method->IsStatic() && !method->GetDeclaringClass()->IsInitialized())) {
+      ByteArray* res_trampoline = runtime->GetResolutionStubArray(method->IsStatic());
+      if (instruction_set_ == kX86) {
+        code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline, kX86);
+      } else {
+        CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
+        code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline, kArm);
+      }
     } else if (method->IsDirect()) {
       code_and_direct_methods->SetResolvedDirectMethod(i, method);
     } else {

@@ -31,8 +31,10 @@ class Compiler {
   }
 
   // Stub to throw AbstractMethodError
-  // TODO: remove from Compiler
   static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set);
+
+  // Generate the trampoline that's invoked by unresolved direct methods
+  static ByteArray* CreateResolutionStub(InstructionSet instruction_set, bool is_static);
 
  private:
   // Attempt to resolve all type, methods, fields, and strings

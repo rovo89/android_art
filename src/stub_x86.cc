@@ -9,6 +9,22 @@
 namespace art {
 namespace x86 {
 
+ByteArray* X86CreateResolutionTrampoline(bool) {
+  UniquePtr<X86Assembler> assembler( static_cast<X86Assembler*>(Assembler::Create(kX86)) );
+
+  // TODO: unimplemented
+  __ int3();
+
+  assembler->EmitSlowPaths();
+  size_t cs = assembler->CodeSize();
+  ByteArray* resolution_trampoline = ByteArray::Alloc(cs);
+  CHECK(resolution_trampoline != NULL);
+  MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
+  assembler->FinalizeInstructions(code);
+
+  return resolution_trampoline;
+}
+
 typedef void (*ThrowAme)(Method*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {

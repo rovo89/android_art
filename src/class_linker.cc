@@ -2401,6 +2401,14 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   return resolved;
 }
 
+const char* ClassLinker::MethodShorty(uint32_t method_idx, Method* referrer) {
+  Class* declaring_class = referrer->GetDeclaringClass();
+  DexCache* dex_cache = declaring_class->GetDexCache();
+  const DexFile& dex_file = FindDexFile(dex_cache);
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+  return dex_file.GetShorty(method_id.proto_idx_);
+}
+
 void ClassLinker::DumpAllClasses(int flags) const {
   // TODO: at the time this was written, it wasn't safe to call PrettyField with the ClassLinker
   // lock held, because it might need to resolve a field's type, which would try to take the lock.

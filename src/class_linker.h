@@ -155,6 +155,9 @@ class ClassLinker {
                       const ClassLoader* class_loader,
                       bool is_static);
 
+  // Get shorty from method index without resolution. Used to do handlerization.
+  const char* MethodShorty(uint32_t method_idx, Method* referrer);
+
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,
   // given the restriction that no <clinit> execution is possible.

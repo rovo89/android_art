@@ -116,6 +116,7 @@ class PACKED Thread {
   int (*pIdiv)(int, int);
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
+  void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, void*, Thread*, bool);
   void* (*pAllocObjectFromCode)(uint32_t, void*);
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
   void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);

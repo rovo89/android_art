@@ -200,6 +200,12 @@ int dex2oat(int argc, char** argv) {
   if (!runtime->HasAbstractMethodErrorStubArray()) {
     runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kThumb2));
   }
+  if (!runtime->HasResolutionStubArray(false)) {
+    runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2,false), false);
+  }
+  if (!runtime->HasResolutionStubArray(true)) {
+    runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2,true), true);
+  }
   if (!runtime->HasCalleeSaveMethod()) {
     runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(kThumb2));
   }

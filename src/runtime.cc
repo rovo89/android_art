@@ -42,6 +42,8 @@ Runtime::Runtime()
       exit_(NULL),
       abort_(NULL),
       stats_enabled_(false) {
+  resolution_stub_array_[0] = NULL;
+  resolution_stub_array_[1] = NULL;
 }
 
 Runtime::~Runtime() {
@@ -550,6 +552,8 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   thread_list_->VisitRoots(visitor, arg);
   visitor(jni_stub_array_, arg);
   visitor(abstract_method_error_stub_array_, arg);
+  visitor(resolution_stub_array_[0], arg);
+  visitor(resolution_stub_array_[1], arg);
   visitor(callee_save_method_, arg);
 
   //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
@@ -586,6 +590,22 @@ void Runtime::SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_s
   CHECK(abstract_method_error_stub_array != NULL);
   CHECK(abstract_method_error_stub_array_ == NULL || abstract_method_error_stub_array_ == abstract_method_error_stub_array);
   abstract_method_error_stub_array_ = abstract_method_error_stub_array;
+}
+
+bool Runtime::HasResolutionStubArray(bool is_static) const {
+  return resolution_stub_array_[is_static ? 1 : 0] != NULL;
+}
+
+ByteArray* Runtime::GetResolutionStubArray(bool is_static) const {
+  CHECK(HasResolutionStubArray(is_static));
+  return resolution_stub_array_[is_static ? 1 : 0];
+}
+
+void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, bool is_static) {
+  CHECK(resolution_stub_array != NULL);
+  CHECK(!HasResolutionStubArray(is_static) ||
+        resolution_stub_array_[is_static ? 1 : 0] == resolution_stub_array);
+  resolution_stub_array_[is_static ? 1 : 0] = resolution_stub_array;
 }
 
 Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {

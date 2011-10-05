@@ -310,6 +310,14 @@ class IndirectReferenceTable {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
+  uint32_t GetSegmentState() const {
+    return segment_state_.all;
+  }
+
+  void SetSegmentState(uint32_t new_state) {
+    segment_state_.all = new_state;
+  }
+
   static Offset SegmentStateOffset() {
     return Offset(OFFSETOF_MEMBER(IndirectReferenceTable, segment_state_));
   }

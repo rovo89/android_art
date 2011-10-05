@@ -134,6 +134,11 @@ bool Space::InitFromImage(const std::string& image_file_name) {
   Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
   Runtime::Current()->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));
 
+  Object* resolution_stub_array = image_header.GetImageRoot(ImageHeader::kInstanceResolutionStubArray);
+  Runtime::Current()->SetResolutionStubArray(down_cast<ByteArray*>(resolution_stub_array), false);
+  resolution_stub_array = image_header.GetImageRoot(ImageHeader::kStaticResolutionStubArray);
+  Runtime::Current()->SetResolutionStubArray(down_cast<ByteArray*>(resolution_stub_array), true);
+
   Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
   Runtime::Current()->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method));
 
