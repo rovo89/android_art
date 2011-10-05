@@ -969,4 +969,37 @@ TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
 }
 
+TEST_F(ClassLinkerTest, FinalizableBit) {
+  Class* c;
+
+  // Object has a finalize method, but we know it's empty.
+  c = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  EXPECT_FALSE(c->IsFinalizable());
+
+  // Enum has a finalize method to prevent its subclasses from implementing one.
+  c = class_linker_->FindSystemClass("Ljava/lang/Enum;");
+  EXPECT_FALSE(c->IsFinalizable());
+
+  // RoundingMode is an enum.
+  c = class_linker_->FindSystemClass("Ljava/math/RoundingMode;");
+  EXPECT_FALSE(c->IsFinalizable());
+
+  // RandomAccessFile extends Object and overrides finalize.
+  c = class_linker_->FindSystemClass("Ljava/io/RandomAccessFile;");
+  EXPECT_TRUE(c->IsFinalizable());
+
+  // FileInputStream is finalizable and extends InputStream which isn't.
+  c = class_linker_->FindSystemClass("Ljava/io/InputStream;");
+  EXPECT_FALSE(c->IsFinalizable());
+  c = class_linker_->FindSystemClass("Ljava/io/FileInputStream;");
+  EXPECT_TRUE(c->IsFinalizable());
+
+  // ScheduledThreadPoolExecutor doesn't have a finalize method but
+  // extends ThreadPoolExecutor which does.
+  c = class_linker_->FindSystemClass("Ljava/util/concurrent/ThreadPoolExecutor;");
+  EXPECT_TRUE(c->IsFinalizable());
+  c = class_linker_->FindSystemClass("Ljava/util/concurrent/ScheduledThreadPoolExecutor;");
+  EXPECT_TRUE(c->IsFinalizable());
+}
+
 }  // namespace art

@@ -219,7 +219,7 @@ void JniCompiler::Compile(Method* native_method) {
   //    to the convention required for a native call (shuffling). For references
   //    place an index/pointer to the reference after checking whether it is
   //    NULL (which must be encoded as NULL).
-  //    NB. we do this prior to materializing the JNIEnv* and static's jclass to
+  //    Note: we do this prior to materializing the JNIEnv* and static's jclass to
   //    give as many free registers for the shuffle as possible
   mr_conv->ResetIterator(FrameOffset(frame_size+out_arg_size));
   uint32_t args_count = 0;

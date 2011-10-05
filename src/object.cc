@@ -22,6 +22,20 @@
 
 namespace art {
 
+void Object::AddFinalizerReference() {
+  Thread* self = Thread::Current();
+
+  // TODO: cache these somewhere.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* java_lang_ref_FinalizerReference = class_linker->FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+  CHECK(java_lang_ref_FinalizerReference != NULL);
+  Method* m = java_lang_ref_FinalizerReference->FindDirectMethod("add", "(Ljava/lang/Object;)V");
+  CHECK(m != NULL);
+
+  LOG(INFO) << "Object::AddFinalizerReference invoking FinalizerReference.add for " << (void*) this;
+  m->Invoke(self, NULL, reinterpret_cast<byte*>(this), NULL);
+}
+
 Object* Object::Clone() {
   Class* c = GetClass();
   DCHECK(!c->IsClassClass());
@@ -41,10 +55,9 @@ Object* Object::Clone() {
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
 
-  // TODO: Mark the clone as finalizable if appropriate.
-//  if (IS_CLASS_FLAG_SET(clazz, CLASS_ISFINALIZABLE)) {
-//    dvmSetFinalizable(copy);
-//  }
+  if (c->IsFinalizable()) {
+    copy->AddFinalizerReference();
+  }
 
   return copy;
 }
@@ -1384,7 +1397,7 @@ bool String::Equals(const String* that) const {
     // Quick length inequality test
     return false;
   } else {
-    // NB don't short circuit on hash code as we're presumably here as the
+    // Note: don't short circuit on hash code as we're presumably here as the
     // hash code was already equal
     for (int32_t i = 0; i < that->GetLength(); ++i) {
       if (this->CharAt(i) != that->CharAt(i)) {

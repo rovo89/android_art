@@ -1797,7 +1797,7 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
   X86Assembler* sp_asm = down_cast<X86Assembler*>(sasm);
 #define __ sp_asm->
   __ Bind(&entry_);
-  // NB the return value is dead
+  // Note: the return value is dead
   // Pass exception as argument in EAX
   __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset()));
   __ fs()->call(Address::Absolute(OFFSETOF_MEMBER(Thread, pDeliverException)));

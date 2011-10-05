@@ -470,7 +470,7 @@ void ClassLinker::FinishInit() {
   }
 
   // Let the heap know some key offsets into java.lang.ref instances
-  // NB we hard code the field indexes here rather than using FindInstanceField
+  // Note: we hard code the field indexes here rather than using FindInstanceField
   // as the types of the field can't be resolved prior to the runtime being
   // fully initialized
   Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
@@ -1053,16 +1053,32 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
                              Method* dst) {
   const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
   dst->SetDeclaringClass(klass);
+
   String* method_name = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
   dst->SetName(method_name);
   if (method_name->Equals("<init>")) {
     dst->SetClass(GetClassRoot(kJavaLangReflectConstructor));
   }
-  {
-    int32_t utf16_length;
-    std::string utf8(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
-    dst->SetSignature(intern_table_->InternStrong(utf16_length, utf8.c_str()));
+
+  int32_t utf16_length;
+  std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
+  dst->SetSignature(intern_table_->InternStrong(utf16_length, signature.c_str()));
+
+  if (method_name->Equals("finalize") && signature == "()V") {
+    /*
+     * The Enum class declares a "final" finalize() method to prevent subclasses from introducing
+     * a finalizer. We don't want to set the finalizable flag for Enum or its subclasses, so we
+     * exclude it here.
+     *
+     * We also want to avoid setting the flag on Object, where we know that finalize() is empty.
+     */
+    if (klass->GetClassLoader() != NULL ||
+        (!klass->GetDescriptor()->Equals("Ljava/lang/Object;") &&
+            !klass->GetDescriptor()->Equals("Ljava/lang/Enum;"))) {
+      klass->SetFinalizable();
+    }
   }
+
   dst->SetProtoIdx(method_id.proto_idx_);
   dst->SetCodeItemOffset(src.code_off_);
   const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
@@ -1771,7 +1787,6 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
           "java.lang.Object must not have a superclass");
       return false;
     }
-    // TODO: clear finalize attribute
     return true;
   }
   if (super == NULL) {
@@ -1795,6 +1810,12 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
         PrettyDescriptor(klass->GetDescriptor()).c_str());
     return false;
   }
+
+  // Inherit kAccClassIsFinalizable from the superclass in case this class doesn't override finalize.
+  if (super->IsFinalizable()) {
+    klass->SetFinalizable();
+  }
+
 #ifndef NDEBUG
   // Ensure super classes are fully resolved prior to resolving fields..
   while (super != NULL) {

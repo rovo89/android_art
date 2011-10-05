@@ -133,11 +133,13 @@ static const uint32_t kAccMethodFlagsMask = (kAccPublic
                                              | kAccConstructor
                                              | kAccDeclaredSynchronized);
 
-// if only kAccClassIsReference is set, we have a soft reference
-static const uint32_t kAccClassIsReference          = 0x8000000;  // class is a soft/weak/phantom ref
-static const uint32_t kAccClassIsWeakReference      = 0x4000000;  // class is a weak reference
-static const uint32_t kAccClassIsFinalizerReference = 0x2000000;  // class is a finalizer reference
-static const uint32_t kAccClassIsPhantomReference   = 0x1000000;  // class is a phantom reference
+// Special runtime-only flags.
+// Note: if only kAccClassIsReference is set, we have a soft reference.
+static const uint32_t kAccClassIsFinalizable        = 0x80000000;  // class/ancestor overrides finalize()
+static const uint32_t kAccClassIsReference          = 0x08000000;  // class is a soft/weak/phantom ref
+static const uint32_t kAccClassIsWeakReference      = 0x04000000;  // class is a weak reference
+static const uint32_t kAccClassIsFinalizerReference = 0x02000000;  // class is a finalizer reference
+static const uint32_t kAccClassIsPhantomReference   = 0x01000000;  // class is a phantom reference
 
 static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
                                                 | kAccClassIsWeakReference
@@ -296,6 +298,9 @@ class MANAGED Object {
     return down_cast<const Field*>(this);
   }
 
+  // If you're looking for SetFinalizable, this is the moral equivalent.
+  void AddFinalizerReference();
+
   bool IsReferenceInstance() const;
 
   bool IsWeakReferenceInstance() const;
@@ -425,8 +430,7 @@ class MANAGED Field : public AccessibleObject {
   uint32_t GetAccessFlags() const;
 
   void SetAccessFlags(uint32_t new_access_flags) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), new_access_flags,
-               false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), new_access_flags, false);
   }
 
   bool IsPublic() const {
@@ -602,8 +606,7 @@ class MANAGED Method : public AccessibleObject {
   uint32_t GetAccessFlags() const;
 
   void SetAccessFlags(uint32_t new_access_flags) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), new_access_flags,
-               false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), new_access_flags, false);
   }
 
   // Returns true if the method is declared public.
@@ -1325,6 +1328,15 @@ class MANAGED Class : public StaticStorageBase {
   // Returns true if the class is declared final.
   bool IsFinal() const {
     return (GetAccessFlags() & kAccFinal) != 0;
+  }
+
+  bool IsFinalizable() const {
+    return (GetAccessFlags() & kAccClassIsFinalizable) != 0;
+  }
+
+  void SetFinalizable() {
+    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
+    SetAccessFlags(flags | kAccClassIsFinalizable);
   }
 
   // Returns true if the class is abstract.
