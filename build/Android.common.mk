@@ -142,6 +142,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/runtime.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
+	src/stack.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
 	src/stub_arm.cc \

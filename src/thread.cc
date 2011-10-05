@@ -27,7 +27,6 @@
 #include <list>
 
 #include "class_linker.h"
-#include "compiler.h"
 #include "context.h"
 #include "dex_verifier.h"
 #include "heap.h"
@@ -37,6 +36,8 @@
 #include "runtime.h"
 #include "runtime_support.h"
 #include "scoped_jni_thread_state.h"
+#include "stack.h"
+#include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 #include "utils.h"
 
@@ -144,52 +145,6 @@ void Thread::InitFunctionPointers() {
   pResolveStringFromCode = ResolveStringFromCode;
   pObjectInit = ObjectInitFromCode;
   pDebugMe = DebugMe;
-}
-
-void Frame::Next() {
-  size_t frame_size = GetMethod()->GetFrameSizeInBytes();
-  DCHECK_NE(frame_size, 0u);
-  DCHECK_LT(frame_size, 1024u);
-  byte* next_sp = reinterpret_cast<byte*>(sp_) + frame_size;
-  sp_ = reinterpret_cast<Method**>(next_sp);
-  if (*sp_ != NULL) {
-    DCHECK((*sp_)->GetClass() == Method::GetMethodClass() ||
-        (*sp_)->GetClass() == Method::GetConstructorClass());
-  }
-}
-
-bool Frame::HasMethod() const {
-  return GetMethod() != NULL && (!GetMethod()->IsPhony());
-}
-
-uintptr_t Frame::GetReturnPC() const {
-  byte* pc_addr = reinterpret_cast<byte*>(sp_) + GetMethod()->GetReturnPcOffsetInBytes();
-  return *reinterpret_cast<uintptr_t*>(pc_addr);
-}
-
-uintptr_t Frame::GetVReg(Method* method, int vreg) const {
-  DCHECK(method == GetMethod());
-  int offset = oatVRegOffsetFromMethod(method, vreg);
-  byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
-  return *reinterpret_cast<uintptr_t*>(vreg_addr);
-}
-
-uintptr_t Frame::LoadCalleeSave(int num) const {
-  // Callee saves are held at the top of the frame
-  Method* method = GetMethod();
-  DCHECK(method != NULL);
-  size_t frame_size = method->GetFrameSizeInBytes();
-  byte* save_addr = reinterpret_cast<byte*>(sp_) + frame_size - ((num + 1) * kPointerSize);
-#if defined(__i386__)
-  save_addr -= kPointerSize;  // account for return address
-#endif
-  return *reinterpret_cast<uintptr_t*>(save_addr);
-}
-
-Method* Frame::NextMethod() const {
-  byte* next_sp = reinterpret_cast<byte*>(sp_) +
-      GetMethod()->GetFrameSizeInBytes();
-  return *reinterpret_cast<Method**>(next_sp);
 }
 
 void* Thread::CreateCallback(void* arg) {

@@ -19,6 +19,7 @@
 #include "logging.h"
 #include "monitor.h"
 #include "runtime.h"
+#include "stack.h"
 
 namespace art {
 

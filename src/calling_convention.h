@@ -6,6 +6,7 @@
 #include <vector>
 #include "managed_register.h"
 #include "object.h"
+#include "stack_indirect_reference_table.h"
 #include "thread.h"
 
 namespace art {

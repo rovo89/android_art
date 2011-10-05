@@ -33,6 +33,7 @@
 #include "mem_map.h"
 #include "offsets.h"
 #include "runtime_stats.h"
+#include "stack.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -49,100 +50,13 @@ class Runtime;
 class Thread;
 class ThreadList;
 class Throwable;
+class StackIndirectReferenceTable;
 class StackTraceElement;
 class StaticStorageBase;
 
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<int32_t> IntArray;
-
-// Stack allocated indirect reference table, allocated within the bridge frame
-// between managed and native code.
-class StackIndirectReferenceTable {
- public:
-  // Number of references contained within this SIRT
-  size_t NumberOfReferences() {
-    return number_of_references_;
-  }
-
-  // Link to previous SIRT or NULL
-  StackIndirectReferenceTable* Link() {
-    return link_;
-  }
-
-  Object** References() {
-    return references_;
-  }
-
-  // Offset of length within SIRT, used by generated code
-  static size_t NumberOfReferencesOffset() {
-    return OFFSETOF_MEMBER(StackIndirectReferenceTable, number_of_references_);
-  }
-
-  // Offset of link within SIRT, used by generated code
-  static size_t LinkOffset() {
-    return OFFSETOF_MEMBER(StackIndirectReferenceTable, link_);
-  }
-
- private:
-  StackIndirectReferenceTable() {}
-
-  size_t number_of_references_;
-  StackIndirectReferenceTable* link_;
-
-  // Fake array, really allocated and filled in by jni_compiler.
-  Object* references_[0];
-
-  DISALLOW_COPY_AND_ASSIGN(StackIndirectReferenceTable);
-};
-
-struct NativeToManagedRecord {
-  NativeToManagedRecord* link_;
-  void* last_top_of_managed_stack_;
-  uintptr_t last_top_of_managed_stack_pc_;
-};
-
-// Iterator over managed frames up to the first native-to-managed transition
-class PACKED Frame {
- public:
-  Frame() : sp_(NULL) {}
-
-  Method* GetMethod() const {
-    return (sp_ != NULL) ? *sp_ : NULL;
-  }
-
-  bool HasNext() const {
-    return NextMethod() != NULL;
-  }
-
-  void Next();
-
-  uintptr_t GetReturnPC() const;
-
-  uintptr_t LoadCalleeSave(int num) const;
-
-  uintptr_t GetVReg(Method* method, int vreg) const;
-
-  Method** GetSP() const {
-    return sp_;
-  }
-
-  // TODO: this is here for testing, remove when we have exception unit tests
-  // that use the real stack
-  void SetSP(Method** sp) {
-    sp_ = sp;
-  }
-
-  // Is this a frame for a real method (native or with dex code)
-  bool HasMethod() const;
-
- private:
-  Method* NextMethod() const;
-
-  friend class Thread;
-
-  Method** sp_;
-};
 
 class PACKED Thread {
  public:
@@ -589,7 +503,7 @@ class PACKED Thread {
   // fixing the assembler offsets and (b) improve the chances that these will still be aligned.
 
   // Top of the managed stack, written out prior to the state transition from
-  // kRunnable to kNative. Uses include to give the starting point for scanning
+  // kRunnable to kNative. Uses include giving the starting point for scanning
   // a managed stack when a thread is in native code.
   Frame top_of_managed_stack_;
   // PC corresponding to the call out of the top_of_managed_stack_ frame
