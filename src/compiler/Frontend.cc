@@ -33,8 +33,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
-     // TODO: disable all of these by default in ToT
-     (1 << kDebugDisplayMissingTargets) |
+     //(1 << kDebugDisplayMissingTargets) |
      //(1 << kDebugVerbose) |
      //(1 << kDebugDumpCFG) |
      //(1 << kDebugSlowFieldPath) |
