@@ -1089,7 +1089,10 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
       return interface_entry->GetMethodArray()->Get(method->GetMethodIndex());
     }
   }
-  UNIMPLEMENTED(FATAL) << "Need to throw an error of some kind " << PrettyMethod(method);
+  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+      "Class %s does not implement interface %s",
+      PrettyDescriptor(GetDescriptor()).c_str(),
+      PrettyDescriptor(declaring_class->GetDescriptor()).c_str());
   return NULL;
 }
 
