@@ -23,20 +23,6 @@
 
 namespace art {
 
-void Object::AddFinalizerReference() {
-  Thread* self = Thread::Current();
-
-  // TODO: cache these somewhere.
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* java_lang_ref_FinalizerReference = class_linker->FindSystemClass("Ljava/lang/ref/FinalizerReference;");
-  CHECK(java_lang_ref_FinalizerReference != NULL);
-  Method* m = java_lang_ref_FinalizerReference->FindDirectMethod("add", "(Ljava/lang/Object;)V");
-  CHECK(m != NULL);
-
-  LOG(INFO) << "Object::AddFinalizerReference invoking FinalizerReference.add for " << (void*) this;
-  m->Invoke(self, NULL, reinterpret_cast<byte*>(this), NULL);
-}
-
 Object* Object::Clone() {
   Class* c = GetClass();
   DCHECK(!c->IsClassClass());
@@ -57,7 +43,7 @@ Object* Object::Clone() {
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
 
   if (c->IsFinalizable()) {
-    copy->AddFinalizerReference();
+    Heap::AddFinalizerReference(copy);
   }
 
   return copy;

@@ -298,9 +298,6 @@ class MANAGED Object {
     return down_cast<const Field*>(this);
   }
 
-  // If you're looking for SetFinalizable, this is the moral equivalent.
-  void AddFinalizerReference();
-
   bool IsReferenceInstance() const;
 
   bool IsWeakReferenceInstance() const;

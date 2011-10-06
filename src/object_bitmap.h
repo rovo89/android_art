@@ -69,7 +69,7 @@ class HeapBitmap {
   void Clear();
 
   bool Test(const Object* obj) {
-    CHECK(HasAddress(obj));
+    CHECK(HasAddress(obj)) << obj;
     CHECK(words_ != NULL);
     CHECK_GE((uintptr_t)obj, base_);
     if ((uintptr_t)obj <= max_) {

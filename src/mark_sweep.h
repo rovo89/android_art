@@ -49,6 +49,10 @@ class MarkSweep {
   // Sweeps unmarked objects to complete the garbage collection.
   void Sweep();
 
+  Object* GetClearedReferences() {
+    return cleared_reference_list_;
+  }
+
  private:
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const Object* object) const {
@@ -96,26 +100,9 @@ class MarkSweep {
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack();
 
-  // Adds a reference to the tail of a circular queue of references.
-  static void EnqueuePendingReference(Object* ref, Object** list);
-
-  // Removes the reference at the head of a circular queue of
-  // references.
-  static Object* DequeuePendingReference(Object** list);
-
-  // Sets the referent field of a reference object to null.
-  static void ClearReference(Object* reference);
-
-  // Returns true if the reference object has not yet been enqueued.
-  static bool IsEnqueuable(const Object* ref);
-
-  void EnqueueReference(Object* ref);
-
   void EnqueueFinalizerReferences(Object** ref);
 
   void PreserveSomeSoftReferences(Object** ref);
-
-  void EnqueueClearedReferences(Object** cleared_references);
 
   void ClearWhiteReferences(Object** list);
 
