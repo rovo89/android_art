@@ -245,13 +245,13 @@ art_initialize_static_storage_from_code:
      * Called by managed code to allocate an object
      */
 art_alloc_object_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}               @ Save LR
-    sub    sp, #12                 @ Align stack
-    bl     artAllocObjectFromCode  @ (uint32_t type_idx, Method* method)
-    add    sp, #12
-    ldmia  sp!, {lr}               @ restore LR
+    SETUP_CALLEE_SAVE_FRAME
+    mov    r2, r9                  @ pass Thread::Current
+    mov    r3, sp                  @ pass SP
+    bl     artAllocObjectFromCode  @ (uint32_t type_idx, Method* method, Thread*, SP)
+    add    sp, #16
+    vpop   {s0-s31}
+    pop    {r1-r11, lr}
     cmp    r0, #0                  @ success if result is non-null
     movne  pc, lr                  @ return on success
                                    @ set up for throwing exception
@@ -266,13 +266,13 @@ art_alloc_object_from_code:
      * Called by managed code to allocate an array
      */
 art_alloc_array_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}              @ Save LR
-    sub    sp, #12                @ Align stack
-    bl     artAllocArrayFromCode  @ (uint32_t type_idx, Method* method, int32_t component_count)
-    add    sp, #12
-    ldmia  sp!, {lr}              @ restore LR
+    SETUP_CALLEE_SAVE_FRAME
+    mov    r3, r9                 @ pass Thread::Current
+    str    sp, [sp, #0]           @ pass SP
+    bl     artAllocArrayFromCode  @ (uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
+    add    sp, #16
+    vpop   {s0-s31}
+    pop    {r1-r11, lr}
     cmp    r0, #0                 @ success if result is non-null
     movne  pc, lr                 @ return on success
                                   @ set up for throwing exception

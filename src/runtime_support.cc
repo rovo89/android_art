@@ -414,17 +414,22 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
-extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method) {
+extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  self->SetTopOfStack(sp, 0);
+
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   if (klass == NULL) {
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {
-      DCHECK(Thread::Current()->IsExceptionPending());
+      DCHECK(self->IsExceptionPending());
       return NULL;  // Failure
     }
   }
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(klass, true)) {
-    DCHECK(Thread::Current()->IsExceptionPending());
+  if (!runtime->GetClassLinker()->EnsureInitialized(klass, true)) {
+    DCHECK(self->IsExceptionPending());
     return NULL;  // Failure
   }
   return klass->AllocObject();
@@ -465,7 +470,12 @@ extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* metho
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
 // it cannot be resolved, throw an error. If it can, use it to create an array.
-extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count) {
+extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread* self, Method** sp) {
+  // Place a special frame at the TOS that will save all callee saves
+  Runtime* runtime = Runtime::Current();
+  *sp = runtime->GetCalleeSaveMethod();
+  self->SetTopOfStack(sp, 0);
+
   if (component_count < 0) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);

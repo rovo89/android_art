@@ -162,29 +162,6 @@ TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
   TestPrimitiveArray<ShortArray>(class_linker_);
 }
 
-extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method);
-TEST_F(ObjectTest, AllocObjectFromCode) {
-  // pretend we are trying to call 'new String' from Object.toString
-  Class* java_lang_Object = class_linker_->FindSystemClass("Ljava/lang/Object;");
-  Method* toString = java_lang_Object->FindVirtualMethod("toString", "()Ljava/lang/String;");
-  uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "Ljava/lang/String;");
-  Object* string = artAllocObjectFromCode(type_idx, toString);
-  EXPECT_TRUE(string->IsString());
-}
-
-extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count);
-TEST_F(ObjectTest, AllocArrayFromCode) {
-  // pretend we are trying to call 'new char[3]' from String.toCharArray
-  Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
-  Method* toCharArray = java_lang_String->FindVirtualMethod("toCharArray", "()[C");
-  uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "[C");
-  Object* array = artAllocArrayFromCode(type_idx, toCharArray, 3);
-  EXPECT_TRUE(array->IsArrayInstance());
-  EXPECT_EQ(3, array->AsArray()->GetLength());
-  EXPECT_TRUE(array->GetClass()->IsArrayClass());
-  EXPECT_TRUE(array->GetClass()->GetComponentType()->IsPrimitive());
-}
-
 extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
                                                 int32_t component_count);
 TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
