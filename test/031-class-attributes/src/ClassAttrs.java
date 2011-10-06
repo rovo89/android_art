@@ -72,23 +72,16 @@ public class ClassAttrs {
     public static String getSignatureAttribute(Object obj) {
         Method method;
         try {
-            if (obj instanceof AccessibleObject) {
-                method = AccessibleObject.class.getDeclaredMethod(
-                        "getSignatureAttribute");
-            } else {
-                // Should be a Class.
-                method = Class.class.getDeclaredMethod(
-                        "getSignatureAttribute");
-            }
+            Class c = Class.forName("libcore.reflect.AnnotationAccess");
+            method = c.getDeclaredMethod("getSignature", java.lang.reflect.AnnotatedElement.class);
             method.setAccessible(true);
-        } catch (NoSuchMethodException ex) {
-            System.err.println("getSignatureAttribute() not defined.");
+        } catch (Exception ex) {
             ex.printStackTrace();
             return "<unknown>";
         }
 
         try {
-            return (String) method.invoke(obj);
+            return (String) method.invoke(null, obj);
         } catch (IllegalAccessException ex) {
             throw new RuntimeException(ex);
         } catch (InvocationTargetException ex) {
