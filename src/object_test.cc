@@ -343,10 +343,18 @@ TEST_F(ObjectTest, InstanceOf) {
   EXPECT_TRUE(y->InstanceOf(X));
   EXPECT_TRUE(y->InstanceOf(Y));
 
-  Class* Class_class = class_linker_->FindSystemClass("Ljava/lang/Class;");
+  Class* java_lang_Class = class_linker_->FindSystemClass("Ljava/lang/Class;");
   Class* Object_array_class = class_linker_->FindSystemClass("[Ljava/lang/Object;");
-  EXPECT_FALSE(Class_class->InstanceOf(Object_array_class));
-  EXPECT_TRUE(Object_array_class->InstanceOf(Class_class));
+
+  EXPECT_FALSE(java_lang_Class->InstanceOf(Object_array_class));
+  EXPECT_TRUE(Object_array_class->InstanceOf(java_lang_Class));
+
+  // All array classes implement Cloneable and Serializable.
+  Object* array = ObjectArray<Object>::Alloc(Object_array_class, 1);
+  Class* java_lang_Cloneable = class_linker_->FindSystemClass("Ljava/lang/Cloneable;");
+  Class* java_io_Serializable = class_linker_->FindSystemClass("Ljava/io/Serializable;");
+  EXPECT_TRUE(array->InstanceOf(java_lang_Cloneable));
+  EXPECT_TRUE(array->InstanceOf(java_io_Serializable));
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {

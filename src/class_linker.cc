@@ -515,6 +515,9 @@ void ClassLinker::FinishInit() {
     // if possible add new checks there to catch errors early
   }
 
+  CHECK(array_iftable_ != NULL);
+  CHECK(array_interfaces_ != NULL);
+
   // disable the slow paths in FindClass and CreatePrimitiveClass now
   // that Object, Class, and Object[] are setup
   init_done_ = true;
@@ -614,9 +617,11 @@ void ClassLinker::InitFromImage() {
   Object* class_roots_object = spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
   class_roots_ = class_roots_object->AsObjectArray<Class>();
 
-  // reinit array_interfaces_ from any array class instance, they should all be ==
+  // reinit array_interfaces_ and array_iftable_ from any array class instance, they should all be ==
   array_interfaces_ = GetClassRoot(kObjectArrayClass)->GetInterfaces();
   DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->GetInterfaces());
+  array_iftable_ = GetClassRoot(kObjectArrayClass)->GetIfTable();
+  DCHECK(array_iftable_ == GetClassRoot(kBooleanArrayClass)->GetIfTable());
 
   String::SetClass(GetClassRoot(kJavaLangString));
   Field::SetClass(GetClassRoot(kJavaLangReflectField));
@@ -1275,6 +1280,8 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
 
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
+  CHECK(array_interfaces_ != NULL);
+  CHECK(array_iftable_ != NULL);
   new_class->SetInterfaces(array_interfaces_);
   new_class->SetIfTable(array_iftable_);
 
