@@ -795,21 +795,18 @@ void Method::UnregisterNative() {
 }
 
 void Class::SetStatus(Status new_status) {
-  CHECK(new_status > GetStatus() || new_status == kStatusError ||
-      !Runtime::Current()->IsStarted()) << PrettyClass(this);
+  CHECK(new_status > GetStatus() || new_status == kStatusError || !Runtime::Current()->IsStarted())
+      << PrettyClass(this) << " " << GetStatus() << " -> " << new_status;
   CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
-  return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_),
-                    new_status, false);
+  return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
 }
 
 DexCache* Class::GetDexCache() const {
-  return GetFieldObject<DexCache*>(
-      OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
+  return GetFieldObject<DexCache*>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
 }
 
 void Class::SetDexCache(DexCache* new_dex_cache) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_),
-                 new_dex_cache, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache, false);
 }
 
 Object* Class::AllocObject() {
