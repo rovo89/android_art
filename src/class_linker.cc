@@ -871,8 +871,8 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     return NULL;
   }
   // Return the loaded class.  No exceptions should be pending.
-  CHECK(klass->IsResolved());
-  CHECK(!self->IsExceptionPending());
+  CHECK(klass->IsResolved()) << descriptor;
+  CHECK(!self->IsExceptionPending()) << descriptor << " " << PrettyTypeOf(self->GetException());
   return klass;
 }
 
@@ -1848,13 +1848,10 @@ bool ClassLinker::LinkMethods(Class* klass) {
       klass->GetVirtualMethodDuringLinking(i)->SetMethodIndex(i);
     }
     // Link interface method tables
-    LinkInterfaceMethods(klass);
+    return LinkInterfaceMethods(klass);
   } else {
-    // Link virtual method tables
-    LinkVirtualMethods(klass);
-
-    // Link interface method tables
-    LinkInterfaceMethods(klass);
+    // Link virtual and interface method tables
+    return LinkVirtualMethods(klass) && LinkInterfaceMethods(klass);
   }
   return true;
 }
