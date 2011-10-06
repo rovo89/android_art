@@ -1,21 +1,27 @@
 // Copyright 2006 The Android Open Source Project
 
+import java.util.ArrayList;
+
 /**
  * Test some basic thread stuff.
  */
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         System.out.println("Initializing System.out...");
 
+        MyThread[] threads = new MyThread[512];
         for (int i = 0; i < 512; i++) {
-            MyThread myThread = new MyThread();
-            myThread.start();
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException ie) {
-                ie.printStackTrace();
-            }
+            threads[i] = new MyThread();
         }
+
+        for (MyThread thread : threads) {
+            thread.start();
+        }
+        for (MyThread thread : threads) {
+            thread.join();
+        }
+
+        System.out.println("Thread count: " + MyThread.mCount);
 
         go();
         System.out.println("thread test done");
@@ -42,9 +48,11 @@ public class Main {
      * Simple thread capacity test.
      */
     static class MyThread extends Thread {
-        private static int mCount = 0;
+        static int mCount = 0;
         public void run() {
-            System.out.println("running " + (mCount++));
+            synchronized (MyThread.class) {
+                ++mCount;
+            }
         }
     }
 }
