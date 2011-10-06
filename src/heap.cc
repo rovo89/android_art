@@ -353,7 +353,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
   ptr = space->AllocWithGrowth(size);
   if (ptr != NULL) {
     //size_t new_footprint = dvmHeapSourceGetIdealFootprint();
-    size_t new_footprint = space->MaxAllowedFootprint();
+    size_t new_footprint = space->GetMaxAllowedFootprint();
     // TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
@@ -497,8 +497,8 @@ void Heap::WaitForConcurrentGcToComplete() {
  *  3. Soft footprint: external allocation + spaces footprint + active space footprint
  *  4. Overhead: soft footprint excluding active.
  *
- * Layout: (Below might be incontiguous, but are lumped together to depict size.)
- * |---for external allocation---|---spaces footprint ("heap1")---|----active space footprint----|
+ * Layout: (The spaces below might not be contiguous, but are lumped together to depict size.)
+ * |----------------------spaces footprint--------- --------------|----active space footprint----|
  *                                                                |--active space allocated--|
  * |--------------------soft footprint (include active)--------------------------------------|
  * |----------------soft footprint excluding active---------------|
@@ -520,26 +520,14 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint)
     max_allowed_footprint = Heap::maximum_size_;
   }
 
-  SetSoftLimit(max_allowed_footprint);
+  alloc_space_->SetMaxAllowedFootprint(max_allowed_footprint);
 }
 
-void Heap::SetSoftLimit(size_t soft_limit)
-{
-  // Compare against the actual footprint, rather than the
-  // max_allowed, because the heap may not have grown all the
-  // way to the allowed size yet.
-  //
-  size_t current_space_size = mspace_footprint(alloc_space_->mspace_);
-  if (soft_limit < current_space_size) {
-    // Don't let the space grow any more, and impose a soft limit.
-    mspace_set_max_allowed_footprint(alloc_space_->mspace_, current_space_size);
-  } else {
-    // Let the heap grow to the requested max
-    mspace_set_max_allowed_footprint(alloc_space_->mspace_, soft_limit);
-  }
-}
-
-static const size_t kHeapIdealFree = 1024 * 1024 * 2;
+// kHeapIdealFree is the ideal maximum free size, when we grow the heap for
+// utlization.
+static const size_t kHeapIdealFree = 2 * MB;
+// kHeapMinFree guarantees that you always have at least 512 KB free, when
+// you grow for utilization, regardless of target utilization ratio.
 static const size_t kHeapMinFree = kHeapIdealFree / 4;
 
 // Given the current contents of the active space, increase the allowed

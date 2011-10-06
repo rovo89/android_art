@@ -36,7 +36,8 @@ class Space {
 
   void Trim();
 
-  size_t MaxAllowedFootprint();
+  size_t GetMaxAllowedFootprint();
+  void SetMaxAllowedFootprint(size_t limit);
 
   void Grow(size_t num_bytes);
 
@@ -101,8 +102,6 @@ class Space {
   byte* base_;
 
   byte* limit_;
-
-  friend class Heap;
 
   DISALLOW_COPY_AND_ASSIGN(Space);
 };

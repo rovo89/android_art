@@ -203,9 +203,27 @@ void Space::Trim() {
   mspace_walk_free_pages(mspace_, DontNeed, &num_bytes_released);
 }
 
-size_t Space::MaxAllowedFootprint() {
+size_t Space::GetMaxAllowedFootprint() {
   DCHECK(mspace_ != NULL);
   return mspace_max_allowed_footprint(mspace_);
+}
+
+void Space::SetMaxAllowedFootprint(size_t limit)
+{
+  DCHECK(mspace_ != NULL);
+
+  // Compare against the actual footprint, rather than the
+  // max_allowed, because the heap may not have grown all the
+  // way to the allowed size yet.
+  //
+  size_t current_space_size = mspace_footprint(mspace_);
+  if (limit < current_space_size) {
+    // Don't let the space grow any more.
+    mspace_set_max_allowed_footprint(mspace_, current_space_size);
+  } else {
+    // Let the heap grow to the requested limit.
+    mspace_set_max_allowed_footprint(mspace_, limit);
+  }
 }
 
 void Space::Grow(size_t new_size) {

@@ -92,8 +92,9 @@ class Heap {
   static void SetTargetHeapUtilization(float target) {
     target_utilization_ = target;
   }
+  // Sets the maximum number of bytes that the heap is allowed to allocate
+  // from the system.  Clamps to the appropriate maximum value.
   static void SetIdealFootprint(size_t max_allowed_footprint);
-  static void SetSoftLimit(size_t soft_limit);
 
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();
