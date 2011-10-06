@@ -179,7 +179,7 @@ fi
 
 # copy the test to a temp dir and run it
 
-echo "${test_dir}: running..." 1>&2
+echo "${test_dir}: building..." 1>&2
 
 rm -rf "$tmp_dir"
 cp -Rp "$test_dir" "$tmp_dir"
@@ -188,6 +188,8 @@ cd "$tmp_dir"
 if [ '!' -r "$build" ]; then
     cp "${progdir}/etc/default-build" build
 fi
+
+echo "${test_dir}: running..." 1>&2
 
 if [ '!' -r "$run" ]; then
     cp "${progdir}/etc/default-run" run
