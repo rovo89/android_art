@@ -9,7 +9,7 @@
 namespace art {
 namespace x86 {
 
-ByteArray* X86CreateResolutionTrampoline(bool) {
+ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType) {
   UniquePtr<X86Assembler> assembler( static_cast<X86Assembler*>(Assembler::Create(kX86)) );
 
   // TODO: unimplemented

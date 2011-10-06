@@ -128,20 +128,22 @@ class CommonTest : public testing::Test {
     class_linker_ = runtime_->GetClassLinker();
 
 #if defined(__i386__)
-    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kX86));
-    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kX86));
-    runtime_->SetResolutionStubArray(Compiler::CreateResolutionStub(kX86, false), false);
-    runtime_->SetResolutionStubArray(Compiler::CreateResolutionStub(kX86, true), true);
-    runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(kX86));
-    compiler_.reset(new Compiler(kX86));
+    InstructionSet insns = kX86;
 #elif defined(__arm__)
-    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
-    runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(kThumb2));
-    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kThumb2));
-    runtime_->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2, false), false);
-    runtime_->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2, true), true);
-    compiler_.reset(new Compiler(kThumb2));
+    InstructionSet insns = kThumb2;
+#else
+    InstructionSet insns = kNone;
 #endif
+    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(insns));
+    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(insns));
+    runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(insns));
+    for (int i=0; i < Runtime::kMaxTrampolineMethodType; i++) {
+      Runtime::TrampolineType type = Runtime::TrampolineType(i);
+      if (!runtime_->HasResolutionStubArray(type)) {
+        runtime_->SetResolutionStubArray(Compiler::CreateResolutionStub(insns, type), type);
+      }
+    }
+    compiler_.reset(new Compiler(insns));
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }

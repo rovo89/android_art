@@ -9,7 +9,7 @@
 namespace art {
 namespace arm {
 
-ByteArray* ArmCreateResolutionTrampoline(bool is_static) {
+ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
 
@@ -25,7 +25,7 @@ ByteArray* ArmCreateResolutionTrampoline(bool is_static) {
   __ LoadFromOffset(kLoadWord, R12, TR,
                     OFFSETOF_MEMBER(Thread, pUnresolvedDirectMethodTrampolineFromCode));
   __ mov(R2, ShifterOperand(TR));  // Pass Thread::Current() in R2
-  __ LoadImmediate(R3, is_static ? 1 : 0);
+  __ LoadImmediate(R3, type);
   __ IncreaseFrameSize(12);        // 3 words of space for alignment
   // Call to unresolved direct method trampoline (method_idx, sp, Thread*, is_static)
   __ blx(R12);

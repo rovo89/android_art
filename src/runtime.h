@@ -156,9 +156,16 @@ class Runtime {
   ByteArray* GetAbstractMethodErrorStubArray() const;
   void SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array);
 
-  bool HasResolutionStubArray(bool is_static) const;
-  ByteArray* GetResolutionStubArray(bool is_static) const;
-  void SetResolutionStubArray(ByteArray* resolution_stub_array, bool is_static);
+  enum TrampolineType {
+    kInstanceMethod,
+    kStaticMethod,
+    kUnknownMethod,
+    kMaxTrampolineMethodType = kUnknownMethod
+  };
+  static TrampolineType GetTrampolineType(Method* method);
+  bool HasResolutionStubArray(TrampolineType type) const;
+  ByteArray* GetResolutionStubArray(TrampolineType type) const;
+  void SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   Method* CreateCalleeSaveMethod(InstructionSet insns);
@@ -225,7 +232,7 @@ class Runtime {
 
   ByteArray* abstract_method_error_stub_array_;
 
-  ByteArray* resolution_stub_array_[2];
+  ByteArray* resolution_stub_array_[kMaxTrampolineMethodType];
 
   Method* callee_save_method_;
 

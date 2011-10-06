@@ -592,20 +592,30 @@ void Runtime::SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_s
   abstract_method_error_stub_array_ = abstract_method_error_stub_array;
 }
 
-bool Runtime::HasResolutionStubArray(bool is_static) const {
-  return resolution_stub_array_[is_static ? 1 : 0] != NULL;
+
+Runtime::TrampolineType Runtime::GetTrampolineType(Method* method) {
+  if (method == NULL) {
+    return Runtime::kUnknownMethod;
+  } else if (method->IsStatic()) {
+    return Runtime::kStaticMethod;
+  } else {
+    return Runtime::kInstanceMethod;
+  }
 }
 
-ByteArray* Runtime::GetResolutionStubArray(bool is_static) const {
-  CHECK(HasResolutionStubArray(is_static));
-  return resolution_stub_array_[is_static ? 1 : 0];
+bool Runtime::HasResolutionStubArray(TrampolineType type) const {
+  return resolution_stub_array_[type] != NULL;
 }
 
-void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, bool is_static) {
+ByteArray* Runtime::GetResolutionStubArray(TrampolineType type) const {
+  CHECK(HasResolutionStubArray(type));
+  return resolution_stub_array_[type];
+}
+
+void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type) {
   CHECK(resolution_stub_array != NULL);
-  CHECK(!HasResolutionStubArray(is_static) ||
-        resolution_stub_array_[is_static ? 1 : 0] == resolution_stub_array);
-  resolution_stub_array_[is_static ? 1 : 0] = resolution_stub_array;
+  CHECK(!HasResolutionStubArray(type) || resolution_stub_array_[type] == resolution_stub_array);
+  resolution_stub_array_[type] = resolution_stub_array;
 }
 
 Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {

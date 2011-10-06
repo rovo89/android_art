@@ -50,6 +50,7 @@ const char* image_roots_descriptions_[] = {
   "kAbstractMethodErrorStubArray",
   "kInstanceResolutionStubArray",
   "kStaticResolutionStubArray",
+  "kUnknownMethodResolutionStubArray",
   "kCalleeSaveMethod",
   "kOatLocation",
   "kDexCaches",

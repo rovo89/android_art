@@ -70,6 +70,7 @@ class PACKED ImageHeader {
     kAbstractMethodErrorStubArray,
     kInstanceResolutionStubArray,
     kStaticResolutionStubArray,
+    kUnknownMethodResolutionStubArray,
     kCalleeSaveMethod,
     kOatLocation,
     kDexCaches,

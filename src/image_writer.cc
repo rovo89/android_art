@@ -140,8 +140,12 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniStubArray());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
-  image_roots->Set(ImageHeader::kInstanceResolutionStubArray, runtime->GetResolutionStubArray(false));
-  image_roots->Set(ImageHeader::kStaticResolutionStubArray, runtime->GetResolutionStubArray(true));
+  image_roots->Set(ImageHeader::kInstanceResolutionStubArray,
+                   runtime->GetResolutionStubArray(Runtime::kInstanceMethod));
+  image_roots->Set(ImageHeader::kStaticResolutionStubArray,
+                   runtime->GetResolutionStubArray(Runtime::kStaticMethod));
+  image_roots->Set(ImageHeader::kUnknownMethodResolutionStubArray,
+                   runtime->GetResolutionStubArray(Runtime::kUnknownMethod));
   image_roots->Set(ImageHeader::kCalleeSaveMethod, runtime->GetCalleeSaveMethod());
   image_roots->Set(ImageHeader::kOatLocation,
                    String::AllocFromModifiedUtf8(oat_file_->GetLocation().c_str()));
@@ -355,16 +359,8 @@ void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
   CodeAndDirectMethods* orig_cadms = orig->GetCodeAndDirectMethods();
   // The compacted object in local memory but not at the correct image address
   CodeAndDirectMethods* copy_cadms = down_cast<CodeAndDirectMethods*>(GetLocalAddress(orig_cadms));
-  // The lazy resolution stub
-  ByteArray* orig_res_stub_array[2];
-  orig_res_stub_array[0] = Runtime::Current()->GetResolutionStubArray(false);
-  orig_res_stub_array[1] = Runtime::Current()->GetResolutionStubArray(true);
-  DCHECK(orig_res_stub_array[0] != NULL);
-  DCHECK(orig_res_stub_array[1] != NULL);
-  uint32_t orig_res_stub_array_data[2];
-  orig_res_stub_array_data[0] = reinterpret_cast<uint32_t>(orig_res_stub_array[0]->GetData());
-  orig_res_stub_array_data[1] = reinterpret_cast<uint32_t>(orig_res_stub_array[1]->GetData());
 
+  Runtime* runtime = Runtime::Current();
   for (size_t i = 0; i < orig->NumResolvedMethods(); i++) {
     Method* orig_method = orig->GetResolvedMethod(i);
     if (orig_method != NULL && !InSourceSpace(orig_method)) {
@@ -373,35 +369,31 @@ void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
     // if it was resolved in the original, resolve it in the copy
     if (orig_method == NULL || (orig_method->IsStatic() &&
                                 !orig_method->GetDeclaringClass()->IsInitialized())) {
-      // Do we need to relocate this for this space?
-      if (InSourceSpace(orig_res_stub_array[0])) {
-        bool is_static;  // is this static? hard to tell for null methods
-        uint32_t orig_res_stub_code = orig_cadms->Get(CodeAndDirectMethods::CodeIndex(i));
-        if (orig_res_stub_code == 0) {
-          continue;  // NULL maps the same in the image and the original
-        }
-        if (orig_res_stub_code - orig_res_stub_array_data[0] < 1) {
-          DCHECK(orig_method == NULL || !orig_method->IsStatic());
-          is_static = false;
-        } else {
-          DCHECK(orig_method == NULL || orig_method->IsStatic());
-          is_static = true;
-        }
-        // Compute the delta from the start of the resolution stub to its starting code.
-        // For ARM and X86 this is 0, for Thumb2 it is 1.
-        static size_t res_stub_delta = 0xFFFF;
-        if (res_stub_delta == 0xFFFF) {
-          res_stub_delta = orig_res_stub_code - orig_res_stub_array_data[is_static ? 1 : 0];
-          DCHECK(res_stub_delta == 0 || res_stub_delta == 1);
-        }
-        // Compute address in image of resolution stub and the code address
-        ByteArray* image_res_stub_array =
-            down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array[is_static ? 1 : 0]));
-        int32_t image_res_stub_code =
-            reinterpret_cast<int32_t>(image_res_stub_array->GetData()) + res_stub_delta;
-        // Put the image code address in the array
-        copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i), image_res_stub_code);
+      uint32_t orig_res_stub_code = orig_cadms->Get(CodeAndDirectMethods::CodeIndex(i));
+      if (orig_res_stub_code == 0) {
+        continue;  // NULL maps the same in the image and the original
       }
+      Runtime::TrampolineType type = Runtime::GetTrampolineType(orig_method);  // Type of trampoline
+      ByteArray* orig_res_stub_array = runtime->GetResolutionStubArray(type);
+      // Do we need to relocate this for this space?
+      if (!InSourceSpace(orig_res_stub_array)) {
+        continue;
+      }
+      // Compute the delta from the start of the resolution stub to its starting code.
+      // For ARM and X86 this is 0, for Thumb2 it is 1.
+      static size_t res_stub_delta = 0xFFFF;
+      if (res_stub_delta == 0xFFFF) {
+        uint32_t orig_res_stub_array_data =
+            reinterpret_cast<uint32_t>(orig_res_stub_array->GetData());
+        res_stub_delta = orig_res_stub_code - orig_res_stub_array_data;
+        DCHECK(res_stub_delta == 0 || res_stub_delta == 1);
+      }
+      // Compute address in image of resolution stub and the code address
+      ByteArray* image_res_stub_array = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array));
+      int32_t image_res_stub_code =
+          reinterpret_cast<int32_t>(image_res_stub_array->GetData()) + res_stub_delta;
+      // Put the image code address in the array
+      copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i), image_res_stub_code);
     } else if (orig_method->IsDirect()) {
       Method* copy_method = down_cast<Method*>(GetLocalAddress(orig_method));
       copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i),

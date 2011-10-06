@@ -7,6 +7,7 @@
 #include "dex_file.h"
 #include "jni_compiler.h"
 #include "object.h"
+#include "runtime.h"
 
 int oatVRegOffsetFromMethod(art::Method* method, int reg);
 
@@ -34,7 +35,8 @@ class Compiler {
   static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set);
 
   // Generate the trampoline that's invoked by unresolved direct methods
-  static ByteArray* CreateResolutionStub(InstructionSet instruction_set, bool is_static);
+  static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
+                                         Runtime::TrampolineType type);
 
  private:
   // Attempt to resolve all type, methods, fields, and strings

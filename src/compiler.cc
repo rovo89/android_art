@@ -19,12 +19,12 @@ namespace art {
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
   void ArmCreateInvokeStub(Method* method);
-  ByteArray* ArmCreateResolutionTrampoline(bool is_static);
+  ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
   void X86CreateInvokeStub(Method* method);
-  ByteArray* X86CreateResolutionTrampoline(bool is_static);
+  ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 
 Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler_(insns),
@@ -32,13 +32,14 @@ Compiler::Compiler(InstructionSet insns) : instruction_set_(insns), jni_compiler
   CHECK(!Runtime::Current()->IsStarted());
 }
 
-ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set, bool is_static) {
+ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
+                                          Runtime::TrampolineType type) {
   if (instruction_set == kX86) {
-    return x86::X86CreateResolutionTrampoline(is_static);
+    return x86::X86CreateResolutionTrampoline(type);
   } else {
     CHECK(instruction_set == kArm || instruction_set == kThumb2);
     // Generates resolution stub using ARM instruction set
-    return arm::ArmCreateResolutionTrampoline(is_static);
+    return arm::ArmCreateResolutionTrampoline(type);
   }
 }
 
@@ -332,7 +333,8 @@ void Compiler::SetCodeAndDirectMethodsDexFile(const DexFile& dex_file) {
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
     Method* method = dex_cache->GetResolvedMethod(i);
     if ((method == NULL) || (method->IsStatic() && !method->GetDeclaringClass()->IsInitialized())) {
-      ByteArray* res_trampoline = runtime->GetResolutionStubArray(method->IsStatic());
+      Runtime::TrampolineType type = Runtime::GetTrampolineType(method);
+      ByteArray* res_trampoline = runtime->GetResolutionStubArray(type);
       if (instruction_set_ == kX86) {
         code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline, kX86);
       } else {

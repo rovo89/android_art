@@ -200,11 +200,11 @@ int dex2oat(int argc, char** argv) {
   if (!runtime->HasAbstractMethodErrorStubArray()) {
     runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kThumb2));
   }
-  if (!runtime->HasResolutionStubArray(false)) {
-    runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2,false), false);
-  }
-  if (!runtime->HasResolutionStubArray(true)) {
-    runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2,true), true);
+  for (int i=0; i < Runtime::kMaxTrampolineMethodType; i++) {
+    Runtime::TrampolineType type = Runtime::TrampolineType(i);
+    if (!runtime->HasResolutionStubArray(type)) {
+      runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(kThumb2, type), type);
+    }
   }
   if (!runtime->HasCalleeSaveMethod()) {
     runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(kThumb2));
