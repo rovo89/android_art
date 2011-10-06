@@ -183,9 +183,7 @@ void MarkSweep::ScanInstanceFields(const Object* obj) {
 // Scans static storage on a Class.
 void MarkSweep::ScanStaticFields(const Class* klass) {
   DCHECK(klass != NULL);
-  ScanFields(klass,
-             klass->GetReferenceStaticOffsets(),
-             true);
+  ScanFields(klass, klass->GetReferenceStaticOffsets(), true);
 }
 
 void MarkSweep::ScanFields(const Object* obj,
@@ -266,39 +264,6 @@ void MarkSweep::ScanArray(const Object* obj) {
   }
 }
 
-void MarkSweep::EnqueuePendingReference(Object* ref, Object** list) {
-  DCHECK(ref != NULL);
-  DCHECK(list != NULL);
-
-  MemberOffset offset = Heap::GetReferencePendingNextOffset();
-  if (*list == NULL) {
-    ref->SetFieldObject(offset, ref, false);
-    *list = ref;
-  } else {
-    Object* head = (*list)->GetFieldObject<Object*>(offset, false);
-    ref->SetFieldObject(offset, head, false);
-    (*list)->SetFieldObject(offset, ref, false);
-  }
-}
-
-Object* MarkSweep::DequeuePendingReference(Object** list) {
-  DCHECK(list != NULL);
-  DCHECK(*list != NULL);
-  MemberOffset offset = Heap::GetReferencePendingNextOffset();
-  Object* head = (*list)->GetFieldObject<Object*>(offset, false);
-  Object* ref;
-  if (*list == head) {
-    ref = *list;
-    *list = NULL;
-  } else {
-    Object* next = head->GetFieldObject<Object*>(offset, false);
-    (*list)->SetFieldObject(offset, next, false);
-    ref = head;
-  }
-  ref->SetFieldObject(offset, NULL, false);
-  return ref;
-}
-
 // Process the "referent" field in a java.lang.ref.Reference.  If the
 // referent has not yet been marked, put it on the appropriate list in
 // the gcHeap for later processing.
@@ -308,7 +273,7 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
   DCHECK(klass != NULL);
   DCHECK(klass->IsReferenceClass());
   Object* pending = obj->GetFieldObject<Object*>(Heap::GetReferencePendingNextOffset(), false);
-  Object* referent = obj->GetFieldObject<Object*>(Heap::GetReferenceReferentOffset(), false);
+  Object* referent = Heap::GetReferenceReferent(obj);
   if (pending == NULL && referent != NULL && !IsMarked(referent)) {
     Object** list = NULL;
     if (klass->IsSoftReferenceClass()) {
@@ -321,13 +286,13 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
       list = &phantom_reference_list_;
     }
     DCHECK(list != NULL);
-    EnqueuePendingReference(obj, list);
+    Heap::EnqueuePendingReference(obj, list);
   }
 }
 
 // Scans the header and field references of a data object.  If the
 // scanned object is a reference subclass, it is scheduled for later
-// processing
+// processing.
 void MarkSweep::ScanOther(const Object* obj) {
   DCHECK(obj != NULL);
   Class* klass = obj->GetClass();
@@ -367,27 +332,6 @@ void MarkSweep::ScanDirtyObjects() {
   ProcessMarkStack();
 }
 
-void MarkSweep::ClearReference(Object* ref) {
-  DCHECK(ref != NULL);
-  ref->SetFieldObject(Heap::GetReferenceReferentOffset(), NULL, false);
-}
-
-bool MarkSweep::IsEnqueuable(const Object* ref) {
-  DCHECK(ref != NULL);
-  const Object* queue =
-      ref->GetFieldObject<Object*>(Heap::GetReferenceQueueOffset(), false);
-  const Object* queue_next =
-      ref->GetFieldObject<Object*>(Heap::GetReferenceQueueNextOffset(), false);
-  return (queue != NULL) && (queue_next == NULL);
-}
-
-void MarkSweep::EnqueueReference(Object* ref) {
-  DCHECK(ref != NULL);
-  CHECK(ref->GetFieldObject<Object*>(Heap::GetReferenceQueueOffset(), false) != NULL);
-  CHECK(ref->GetFieldObject<Object*>(Heap::GetReferenceQueueNextOffset(), false) == NULL);
-  EnqueuePendingReference(ref, &cleared_reference_list_);
-}
-
 // Walks the reference list marking any references subject to the
 // reference clearing policy.  References with a black referent are
 // removed from the list.  References with white referents biased
@@ -397,8 +341,8 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
   Object* clear = NULL;
   size_t counter = 0;
   while (*list != NULL) {
-    Object* ref = DequeuePendingReference(list);
-    Object* referent = ref->GetFieldObject<Object*>(Heap::GetReferenceReferentOffset(), false);
+    Object* ref = Heap::DequeuePendingReference(list);
+    Object* referent = Heap::GetReferenceReferent(ref);
     if (referent == NULL) {
       // Referent was cleared by the user during marking.
       continue;
@@ -411,7 +355,7 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
     }
     if (!is_marked) {
       // Referent is white, queue it for clearing.
-      EnqueuePendingReference(ref, &clear);
+      Heap::EnqueuePendingReference(ref, &clear);
     }
   }
   *list = clear;
@@ -425,15 +369,14 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
 // scheduled for appending by the heap worker thread.
 void MarkSweep::ClearWhiteReferences(Object** list) {
   DCHECK(list != NULL);
-  MemberOffset offset = Heap::GetReferenceReferentOffset();
   while (*list != NULL) {
-    Object* ref = DequeuePendingReference(list);
-    Object* referent = ref->GetFieldObject<Object*>(offset, false);
+    Object* ref = Heap::DequeuePendingReference(list);
+    Object* referent = Heap::GetReferenceReferent(ref);
     if (referent != NULL && !IsMarked(referent)) {
       // Referent is white, clear it.
-      ClearReference(ref);
-      if (IsEnqueuable(ref)) {
-        EnqueueReference(ref);
+      Heap::ClearReferenceReferent(ref);
+      if (Heap::IsEnqueuable(ref)) {
+        Heap::EnqueueReference(ref, &cleared_reference_list_);
       }
     }
   }
@@ -445,19 +388,18 @@ void MarkSweep::ClearWhiteReferences(Object** list) {
 // referent field is cleared.
 void MarkSweep::EnqueueFinalizerReferences(Object** list) {
   DCHECK(list != NULL);
-  MemberOffset referent_offset = Heap::GetReferenceReferentOffset();
   MemberOffset zombie_offset = Heap::GetFinalizerReferenceZombieOffset();
   bool has_enqueued = false;
   while (*list != NULL) {
-    Object* ref = DequeuePendingReference(list);
-    Object* referent = ref->GetFieldObject<Object*>(referent_offset, false);
+    Object* ref = Heap::DequeuePendingReference(list);
+    Object* referent = Heap::GetReferenceReferent(ref);
     if (referent != NULL && !IsMarked(referent)) {
       MarkObject(referent);
       // If the referent is non-null the reference must queuable.
-      DCHECK(IsEnqueuable(ref));
+      DCHECK(Heap::IsEnqueuable(ref));
       ref->SetFieldObject(zombie_offset, referent, false);
-      ClearReference(ref);
-      EnqueueReference(ref);
+      Heap::ClearReferenceReferent(ref);
+      Heap::EnqueueReference(ref, &cleared_reference_list_);
       has_enqueued = true;
     }
   }
@@ -505,22 +447,6 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
   DCHECK(*weak_references == NULL);
   DCHECK(*finalizer_references == NULL);
   DCHECK(*phantom_references == NULL);
-}
-
-// Pushes a list of cleared references out to the managed heap.
-void MarkSweep::EnqueueClearedReferences(Object** cleared) {
-  DCHECK(cleared != NULL);
-  if (*cleared != NULL) {
-    Thread* self = Thread::Current();
-    DCHECK(self != NULL);
-    // TODO: Method* m = gDvm.methJavaLangRefReferenceQueueAdd;
-    // DCHECK(m != NULL);
-    // Object* reference = *cleared;
-    // args = {reference}
-    // TODO: m->Invoke(self, NULL, args, NULL);
-    UNIMPLEMENTED(FATAL);
-    *cleared = NULL;
-  }
 }
 
 MarkSweep::~MarkSweep() {

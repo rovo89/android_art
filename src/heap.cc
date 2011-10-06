@@ -31,6 +31,9 @@ HeapBitmap* Heap::mark_bitmap_ = NULL;
 
 HeapBitmap* Heap::live_bitmap_ = NULL;
 
+Class* Heap::java_lang_ref_FinalizerReference_ = NULL;
+Class* Heap::java_lang_ref_ReferenceQueue_ = NULL;
+
 MemberOffset Heap::reference_referent_offset_ = MemberOffset(0);
 MemberOffset Heap::reference_queue_offset_ = MemberOffset(0);
 MemberOffset Heap::reference_queueNext_offset_ = MemberOffset(0);
@@ -447,6 +450,7 @@ void Heap::CollectGarbageInternal() {
 
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
+  Object* cleared_references = NULL;
   {
     MarkSweep mark_sweep;
 
@@ -473,10 +477,14 @@ void Heap::CollectGarbageInternal() {
     // TODO: swap bitmaps
 
     mark_sweep.Sweep();
+
+    cleared_references = mark_sweep.GetClearedReferences();
   }
 
   GrowForUtilization();
   thread_list->ResumeAll();
+
+  EnqueueClearedReferences(&cleared_references);
 }
 
 void Heap::WaitForConcurrentGcToComplete() {
@@ -499,6 +507,112 @@ void Heap::Lock() {
 
 void Heap::Unlock() {
   lock_->Unlock();
+}
+
+void Heap::SetWellKnownClasses(Class* java_lang_ref_FinalizerReference,
+    Class* java_lang_ref_ReferenceQueue) {
+  java_lang_ref_FinalizerReference_ = java_lang_ref_FinalizerReference;
+  java_lang_ref_ReferenceQueue_ = java_lang_ref_ReferenceQueue;
+  CHECK(java_lang_ref_FinalizerReference_ != NULL);
+  CHECK(java_lang_ref_ReferenceQueue_ != NULL);
+}
+
+void Heap::SetReferenceOffsets(MemberOffset reference_referent_offset,
+    MemberOffset reference_queue_offset,
+    MemberOffset reference_queueNext_offset,
+    MemberOffset reference_pendingNext_offset,
+    MemberOffset finalizer_reference_zombie_offset) {
+  reference_referent_offset_ = reference_referent_offset;
+  reference_queue_offset_ = reference_queue_offset;
+  reference_queueNext_offset_ = reference_queueNext_offset;
+  reference_pendingNext_offset_ = reference_pendingNext_offset;
+  finalizer_reference_zombie_offset_ = finalizer_reference_zombie_offset;
+  CHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
+  CHECK_NE(reference_queue_offset_.Uint32Value(), 0U);
+  CHECK_NE(reference_queueNext_offset_.Uint32Value(), 0U);
+  CHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
+  CHECK_NE(finalizer_reference_zombie_offset_.Uint32Value(), 0U);
+}
+
+Object* Heap::GetReferenceReferent(Object* reference) {
+  DCHECK(reference != NULL);
+  DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
+  return reference->GetFieldObject<Object*>(reference_referent_offset_, true);
+}
+
+void Heap::ClearReferenceReferent(Object* reference) {
+  DCHECK(reference != NULL);
+  DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
+  reference->SetFieldObject(reference_referent_offset_, NULL, true);
+}
+
+// Returns true if the reference object has not yet been enqueued.
+bool Heap::IsEnqueuable(const Object* ref) {
+  DCHECK(ref != NULL);
+  const Object* queue = ref->GetFieldObject<Object*>(reference_queue_offset_, false);
+  const Object* queue_next = ref->GetFieldObject<Object*>(reference_queueNext_offset_, false);
+  return (queue != NULL) && (queue_next == NULL);
+}
+
+void Heap::EnqueueReference(Object* ref, Object** cleared_reference_list) {
+  DCHECK(ref != NULL);
+  CHECK(ref->GetFieldObject<Object*>(reference_queue_offset_, false) != NULL);
+  CHECK(ref->GetFieldObject<Object*>(reference_queueNext_offset_, false) == NULL);
+  EnqueuePendingReference(ref, cleared_reference_list);
+}
+
+void Heap::EnqueuePendingReference(Object* ref, Object** list) {
+  DCHECK(ref != NULL);
+  DCHECK(list != NULL);
+
+  if (*list == NULL) {
+    ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
+    *list = ref;
+  } else {
+    Object* head = (*list)->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
+    ref->SetFieldObject(reference_pendingNext_offset_, head, false);
+    (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
+  }
+}
+
+Object* Heap::DequeuePendingReference(Object** list) {
+  DCHECK(list != NULL);
+  DCHECK(*list != NULL);
+  Object* head = (*list)->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
+  Object* ref;
+  if (*list == head) {
+    ref = *list;
+    *list = NULL;
+  } else {
+    Object* next = head->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
+    (*list)->SetFieldObject(reference_pendingNext_offset_, next, false);
+    ref = head;
+  }
+  ref->SetFieldObject(reference_pendingNext_offset_, NULL, false);
+  return ref;
+}
+
+void Heap::AddFinalizerReference(Object* object) {
+  static Method* FinalizerReference_add =
+      java_lang_ref_FinalizerReference_->FindDirectMethod("add", "(Ljava/lang/Object;)V");
+  DCHECK(FinalizerReference_add != NULL);
+  Object* args[] = { object };
+  FinalizerReference_add->Invoke(Thread::Current(), NULL, reinterpret_cast<byte*>(&args), NULL);
+}
+
+void Heap::EnqueueClearedReferences(Object** cleared) {
+  DCHECK(cleared != NULL);
+  if (*cleared != NULL) {
+    static Method* ReferenceQueue_add =
+        java_lang_ref_ReferenceQueue_->FindDirectMethod("add", "(Ljava/lang/ref/Reference;)V");
+    DCHECK(ReferenceQueue_add != NULL);
+
+    Thread* self = Thread::Current();
+    ScopedThreadStateChange tsc(self, Thread::kRunnable);
+    Object* args[] = { *cleared };
+    ReferenceQueue_add->Invoke(self, NULL, reinterpret_cast<byte*>(&args), NULL);
+    *cleared = NULL;
+  }
 }
 
 }  // namespace art

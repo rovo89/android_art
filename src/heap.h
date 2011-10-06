@@ -112,37 +112,23 @@ class Heap {
     return mark_bitmap_;
   }
 
+  static void SetWellKnownClasses(Class* java_lang_ref_FinalizerReference,
+      Class* java_lang_ref_ReferenceQueue);
+
   static void SetReferenceOffsets(MemberOffset reference_referent_offset,
                                   MemberOffset reference_queue_offset,
                                   MemberOffset reference_queueNext_offset,
                                   MemberOffset reference_pendingNext_offset,
-                                  MemberOffset finalizer_reference_zombie_offset) {
-    CHECK_NE(reference_referent_offset.Uint32Value(), 0U);
-    CHECK_NE(reference_queue_offset.Uint32Value(), 0U);
-    CHECK_NE(reference_queueNext_offset.Uint32Value(), 0U);
-    CHECK_NE(reference_pendingNext_offset.Uint32Value(), 0U);
-    CHECK_NE(finalizer_reference_zombie_offset.Uint32Value(), 0U);
-    reference_referent_offset_ = reference_referent_offset;
-    reference_queue_offset_ = reference_queue_offset;
-    reference_queueNext_offset_ = reference_queueNext_offset;
-    reference_pendingNext_offset_ = reference_pendingNext_offset;
-    finalizer_reference_zombie_offset_ = finalizer_reference_zombie_offset;
-  }
+                                  MemberOffset finalizer_reference_zombie_offset);
 
-  static MemberOffset GetReferenceReferentOffset() {
-    DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
-    return reference_referent_offset_;
-  }
+  static Object* GetReferenceReferent(Object* reference);
+  static void ClearReferenceReferent(Object* reference);
 
-  static MemberOffset GetReferenceQueueOffset() {
-    DCHECK_NE(reference_queue_offset_.Uint32Value(), 0U);
-    return reference_queue_offset_;
-  }
-
-  static MemberOffset GetReferenceQueueNextOffset() {
-    DCHECK_NE(reference_queueNext_offset_.Uint32Value(), 0U);
-    return reference_queueNext_offset_;
-  }
+  // Returns true if the reference object has not yet been enqueued.
+  static bool IsEnqueuable(const Object* ref);
+  static void EnqueueReference(Object* ref, Object** list);
+  static void EnqueuePendingReference(Object* ref, Object** list);
+  static Object* DequeuePendingReference(Object** list);
 
   static MemberOffset GetReferencePendingNextOffset() {
     DCHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
@@ -174,10 +160,15 @@ class Heap {
 #endif
   }
 
+  static void AddFinalizerReference(Object* object);
+
  private:
   // Allocates uninitialized storage.
   static Object* AllocateLocked(size_t num_bytes);
   static Object* AllocateLocked(Space* space, size_t num_bytes);
+
+  // Pushes a list of cleared references out to the managed heap.
+  static void EnqueueClearedReferences(Object** cleared_references);
 
   static void RecordAllocationLocked(Space* space, const Object* object);
   static void RecordImageAllocations(Space* space);
@@ -214,6 +205,9 @@ class Heap {
   // Number of objects allocated.  Adjusted after each allocation and
   // free.
   static size_t num_objects_allocated_;
+
+  static Class* java_lang_ref_FinalizerReference_;
+  static Class* java_lang_ref_ReferenceQueue_;
 
   // offset of java.lang.ref.Reference.referent
   static MemberOffset reference_referent_offset_;

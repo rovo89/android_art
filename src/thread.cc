@@ -70,7 +70,7 @@ String* ResolveStringFromCode(Method* method, int32_t string_idx) {
 static void ObjectInitFromCode(Object* o) {
   Class* c = o->GetClass();
   if (c->IsFinalizable()) {
-    o->AddFinalizerReference();
+    Heap::AddFinalizerReference(o);
   }
   /*
    * NOTE: once debugger/profiler support is added, we'll need to check

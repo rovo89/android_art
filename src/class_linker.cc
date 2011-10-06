@@ -474,7 +474,10 @@ void ClassLinker::FinishInit() {
   // as the types of the field can't be resolved prior to the runtime being
   // fully initialized
   Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
+  Class* java_lang_ref_ReferenceQueue = FindSystemClass("Ljava/lang/ref/ReferenceQueue;");
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+
+  Heap::SetWellKnownClasses(java_lang_ref_FinalizerReference, java_lang_ref_ReferenceQueue);
 
   Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
   CHECK(pendingNext->GetName()->Equals("pendingNext"));
@@ -482,8 +485,7 @@ void ClassLinker::FinishInit() {
 
   Field* queue = java_lang_ref_Reference->GetInstanceField(1);
   CHECK(queue->GetName()->Equals("queue"));
-  CHECK_EQ(ResolveType(queue->GetTypeIdx(), queue),
-           FindSystemClass("Ljava/lang/ref/ReferenceQueue;"));
+  CHECK_EQ(ResolveType(queue->GetTypeIdx(), queue), java_lang_ref_ReferenceQueue);
 
   Field* queueNext = java_lang_ref_Reference->GetInstanceField(2);
   CHECK(queueNext->GetName()->Equals("queueNext"));
@@ -2108,7 +2110,7 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
   CHECK_EQ(num_fields == 0, fields == NULL);
 
   // we want a relatively stable order so that adding new fields
-  // minimizes distruption of C++ version such as Class and Method.
+  // minimizes disruption of C++ version such as Class and Method.
   std::deque<Field*> grouped_and_sorted_fields;
   for (size_t i = 0; i < num_fields; i++) {
     grouped_and_sorted_fields.push_back(fields->Get(i));
@@ -2175,6 +2177,15 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
     current_field++;
   }
 
+  // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
+  if (instance && klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;")) {
+    // We know there are no non-reference fields in the Reference classes, and we know
+    // that 'referent' is alphabetically last, so this is easy...
+    CHECK_EQ(num_reference_fields, num_fields);
+    CHECK(fields->Get(num_fields - 1)->GetName()->Equals("referent"));
+    --num_reference_fields;
+  }
+
 #ifndef NDEBUG
   // Make sure that all reference fields appear before
   // non-reference fields, and all double-wide fields are aligned.
@@ -2188,7 +2199,11 @@ bool ClassLinker::LinkFields(Class* klass, bool instance) {
                 << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);
     }
     const Class* type = field->GetTypeDuringLinking();
-    if (type != NULL && type->IsPrimitive()) {
+    bool is_primitive = (type != NULL && type->IsPrimitive());
+    if (klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;") && field->GetName()->Equals("referent")) {
+      is_primitive = true; // We lied above, so we have to expect a lie here.
+    }
+    if (is_primitive) {
       if (!seen_non_ref) {
         seen_non_ref = true;
         DCHECK_EQ(num_reference_fields, i);
