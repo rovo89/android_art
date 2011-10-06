@@ -111,42 +111,19 @@ ArmJniCallingConvention::ArmJniCallingConvention(Method* method) : JniCallingCon
     }
   }
   padding_ = padding;
-  if (method->IsSynchronized()) {
-    // Preserve callee saves that may be clobbered during monitor enter where
-    // we copy across R0 to R3
-    if (method->NumArgs() > 0) {
-      callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R4));
-      if (method->NumArgs() > 1) {
-        callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R5));
-        if (method->NumArgs() > 2) {
-          callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R6));
-          if (method->NumArgs() > 3) {
-            callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R7));
-          }
-        }
-      }
-    }
-  }
+
+  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R5));
+  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R6));
+  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R7));
+  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R8));
+  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R10));
+  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R11));
 }
 
 uint32_t ArmJniCallingConvention::CoreSpillMask() const {
   // Compute spill mask to agree with callee saves initialized in the constructor
   uint32_t result = 0;
-  Method* method = GetMethod();
-  if (method->IsSynchronized()) {
-    if (method->NumArgs() > 0) {
-      result |= 1 << R4;
-      if (method->NumArgs() > 1) {
-        result |= 1 << R5;
-        if (method->NumArgs() > 2) {
-          result |= 1 << R6;
-          if (method->NumArgs() > 3) {
-            result |= 1 << R7;
-          }
-        }
-      }
-    }
-  }
+  result =  1 << R5 | 1 << R6 | 1 << R7 | 1 << R8 | 1 << R10 | 1 << R11 | 1 << LR;
   return result;
 }
 
