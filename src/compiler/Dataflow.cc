@@ -2434,13 +2434,30 @@ STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
             // Next should be an OP_MOVE_RESULT_OBJECT
             if (nextMir && nextMir->dalvikInsn.opcode == OP_MOVE_RESULT_OBJECT) {
                 // Mark as null checked
-                oatSetBit(cUnit->tempSSARegisterV, nextMir->ssaRep->uses[0]);
+                oatSetBit(cUnit->tempSSARegisterV, nextMir->ssaRep->defs[0]);
             } else {
                 if (nextMir) {
                     LOG(WARNING) << "Unexpected opcode following new: " <<
                     (int)nextMir->dalvikInsn.opcode;
-                } else {
-                    LOG(WARNING) << "Unexpected termination following new";
+                } else if (bb->fallThrough) {
+                    // Look in next basic block
+                    struct BasicBlock* nextBB = bb->fallThrough;
+                    for (MIR* tmir = nextBB->firstMIRInsn; tmir;
+                         tmir =tmir->next){
+                       if ((int)tmir->dalvikInsn.opcode >= (int)kMirOpFirst) {
+                           continue;
+                       }
+                       // First non-pseudo should be OP_MOVE_RESULT_OBJECT
+                       if (tmir->dalvikInsn.opcode == OP_MOVE_RESULT_OBJECT) {
+                           // Mark as null checked
+                           oatSetBit(cUnit->tempSSARegisterV,
+                                     tmir->ssaRep->defs[0]);
+                       } else {
+                           LOG(WARNING) << "Unexpected op after new: " <<
+                               (int)tmir->dalvikInsn.opcode;
+                       }
+                       break;
+                    }
                 }
             }
         }
