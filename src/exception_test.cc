@@ -98,11 +98,15 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ASSERT_EQ(kStackAlignment, 16);
   ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
+  // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
+  // two dex pc 3, however, we set the return pc to 5 as the stack walker always subtracts two
+  // from a return pc.
+
   // Create/push fake 16byte stack frame for method g
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_g_);
   fake_stack[top_of_stack++] = 0;
   fake_stack[top_of_stack++] = 0;
-  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_->GetCode()) + 3;  // return pc
+  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_->GetCode()) + 5;  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);

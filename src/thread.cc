@@ -957,6 +957,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   jobject local_ref_;
 };
 
+
 void Thread::WalkStack(StackVisitor* visitor) const {
   Frame frame = GetTopOfStack();
   uintptr_t pc = top_of_managed_stack_pc_;
@@ -969,6 +970,11 @@ void Thread::WalkStack(StackVisitor* visitor) const {
       DCHECK(frame.GetMethod()->IsWithinCode(pc));
       visitor->VisitFrame(frame, pc);
       pc = frame.GetReturnPC();
+      // Move the PC back 2 bytes as a call will frequently terminate the
+      // decoding of a particular instruction and we want to make sure we
+      // get the Dex PC of the instruction with the call and not the
+      // instruction following.
+      pc -= 2;
     }
     if (record == NULL) {
       break;
@@ -989,6 +995,11 @@ void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) co
       DCHECK(frame.GetMethod()->IsWithinCode(pc));
       visitor->VisitFrame(frame, pc);
       pc = frame.GetReturnPC();
+      // Move the PC back 2 bytes as a call will frequently terminate the
+      // decoding of a particular instruction and we want to make sure we
+      // get the Dex PC of the instruction with the call and not the
+      // instruction following.
+      pc -= 2;
     }
     if (include_upcall) {
       visitor->VisitFrame(frame, pc);
@@ -1119,7 +1130,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
       if (method == NULL) {
         // This is the upcall, we remember the frame and last_pc so that we may
         // long jump to them
-        handler_pc_ = pc;
+        handler_pc_ = pc + 2;  // We want to return after the call instruction, wind forward 2 again
         handler_frame_ = fr;
         return;
       }
@@ -1129,11 +1140,6 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
       } else if (method->IsNative()) {
         native_method_count_++;
       } else {
-        // Move the PC back 2 bytes as a call will frequently terminate the
-        // decoding of a particular instruction and we want to make sure we
-        // get the Dex PC of the instruction with the call and not the
-        // instruction following.
-        pc -= 2;
         dex_pc = method->ToDexPC(pc);
       }
       if (dex_pc != DexFile::kDexNoIndex) {
@@ -1206,9 +1212,6 @@ bool Thread::IsDaemon() {
   return gThread_daemon->GetBoolean(peer_);
 }
 
-// blx is 2-byte in Thumb2. Need to offset PC back to a call site.
-static const int kThumb2InstSize = 2;
-
 class ReferenceMapVisitor : public Thread::StackVisitor {
  public:
   ReferenceMapVisitor(Context* context, Heap::RootVisitor* root_visitor, void* arg) :
@@ -1217,18 +1220,12 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
 
   void VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
-
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsPhony()) {
       UniquePtr<art::DexVerifier::RegisterMap> map(art::DexVerifier::GetExpandedRegisterMap(m));
-
-      const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(
-          map.get(),
-          m->ToDexPC(pc -kThumb2InstSize));
-
+      const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(map.get(), m->ToDexPC(pc));
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
-                << "@ PC: " << m->ToDexPC(pc - kThumb2InstSize);
-
+                << "@ PC: " << m->ToDexPC(pc);
       CHECK(reg_bitmap != NULL);
       ShortArray* vmap = m->GetVMapTable();
       // For all dex registers
@@ -1237,7 +1234,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
         if (TestBitmap(reg, reg_bitmap)) {
           // Is the reference in the context or on the stack?
           bool in_context = false;
-          int vmap_offset = -1;
+          uint32_t vmap_offset = 0xEBAD0FF5;
           // TODO: take advantage of the registers being ordered
           for (int i = 0; i < vmap->GetLength(); i++) {
             if (vmap->Get(i) == reg) {
@@ -1250,15 +1247,16 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
           if (in_context) {
             // Compute the register we need to load from the context
             uint32_t spill_mask = m->GetCoreSpillMask();
-            uint32_t reg = 0;
-            for (int i = 0; i < vmap_offset; i++) {
-              while ((spill_mask & 1) == 0) {
-                CHECK_NE(spill_mask, 0u);
-                spill_mask >>= 1;
-                reg++;
-              }
+            uint32_t matches = 0;
+            uint32_t spill_shifts = 0;
+            while (matches != (vmap_offset + 1)) {
+              CHECK_NE(spill_mask, 0u);
+              matches += spill_mask & 1;  // Add 1 if the low bit is set
+              spill_mask >>= 1;
+              spill_shifts++;
             }
-            ref = reinterpret_cast<Object*>(context_->GetGPR(reg));
+            spill_shifts--;  // wind back one as we want the last match
+            ref = reinterpret_cast<Object*>(context_->GetGPR(spill_shifts));
           } else {
             ref = reinterpret_cast<Object*>(frame.GetVReg(m ,reg));
           }
