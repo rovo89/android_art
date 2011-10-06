@@ -241,7 +241,11 @@ class ClassLinkerTest : public CommonTest {
       Field* field = klass->GetInstanceField(i);
       Class* field_type = field->GetType();
       ASSERT_TRUE(field_type != NULL);
-      EXPECT_TRUE(field_type->IsPrimitive());
+      if (!field_type->IsPrimitive()) {
+        // While Reference.referent is not primitive, the ClassLinker
+        // treats it as such so that the garbage collector won't scan it.
+        EXPECT_EQ(PrettyField(field), "java.lang.Object java.lang.ref.Reference.referent");
+      }
     }
 
     size_t total_num_reference_instance_fields = 0;
