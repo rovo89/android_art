@@ -696,7 +696,8 @@ Thread::Thread()
       exception_(NULL),
       suspend_count_(0),
       class_loader_override_(NULL),
-      long_jump_context_(NULL) {
+      long_jump_context_(NULL),
+      throwing_OOME_(false) {
   CHECK((sizeof(Thread) % 4) == 0) << sizeof(Thread);
 }
 
@@ -967,14 +968,14 @@ void Thread::WalkStack(StackVisitor* visitor) const {
 
   while (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
-      DCHECK(frame.GetMethod()->IsWithinCode(pc));
-      visitor->VisitFrame(frame, pc);
-      pc = frame.GetReturnPC();
       // Move the PC back 2 bytes as a call will frequently terminate the
       // decoding of a particular instruction and we want to make sure we
       // get the Dex PC of the instruction with the call and not the
       // instruction following.
-      pc -= 2;
+      if (pc > 0) { pc -= 2; }
+      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      visitor->VisitFrame(frame, pc);
+      pc = frame.GetReturnPC();
     }
     if (record == NULL) {
       break;
@@ -992,14 +993,14 @@ void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) co
 
   if (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
-      DCHECK(frame.GetMethod()->IsWithinCode(pc));
-      visitor->VisitFrame(frame, pc);
-      pc = frame.GetReturnPC();
       // Move the PC back 2 bytes as a call will frequently terminate the
       // decoding of a particular instruction and we want to make sure we
       // get the Dex PC of the instruction with the call and not the
       // instruction following.
-      pc -= 2;
+      if (pc > 0) { pc -= 2; }
+      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      visitor->VisitFrame(frame, pc);
+      pc = frame.GetReturnPC();
     }
     if (include_upcall) {
       visitor->VisitFrame(frame, pc);
@@ -1110,8 +1111,15 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
   env->DeleteLocalRef(exception_class);
 }
 
-void Thread::ThrowOutOfMemoryError() {
-  UNIMPLEMENTED(FATAL);
+void Thread::ThrowOutOfMemoryError(Class* c, size_t byte_count) {
+  if (!throwing_OOME_) {
+    throwing_OOME_ = true;
+    ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);
+    LOG(ERROR) << "Failed to allocate a " << PrettyDescriptor(c->GetDescriptor()) << " (" << byte_count << " bytes)";
+  } else {
+    UNIMPLEMENTED(FATAL) << "throw one i prepared earlier...";
+  }
+  throwing_OOME_ = false;
 }
 
 class CatchBlockStackVisitor : public Thread::StackVisitor {

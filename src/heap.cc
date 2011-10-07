@@ -150,18 +150,22 @@ void Heap::Destroy() {
   live_bitmap_ = NULL;
 }
 
-Object* Heap::AllocObject(Class* klass, size_t num_bytes) {
-  ScopedHeapLock lock;
-  DCHECK(klass == NULL
-         || klass->GetDescriptor() == NULL
-         || (klass->IsClassClass() && num_bytes >= sizeof(Class))
-         || (klass->IsVariableSize() || klass->GetObjectSize() == num_bytes));
-  DCHECK(num_bytes >= sizeof(Object));
-  Object* obj = AllocateLocked(num_bytes);
-  if (obj != NULL) {
-    obj->SetClass(klass);
+Object* Heap::AllocObject(Class* klass, size_t byte_count) {
+  {
+    ScopedHeapLock lock;
+    DCHECK(klass == NULL || klass->GetDescriptor() == NULL ||
+        (klass->IsClassClass() && byte_count >= sizeof(Class)) ||
+        (klass->IsVariableSize() || klass->GetObjectSize() == byte_count));
+    DCHECK_GE(byte_count, sizeof(Object));
+    Object* obj = AllocateLocked(byte_count);
+    if (obj != NULL) {
+      obj->SetClass(klass);
+      return obj;
+    }
   }
-  return obj;
+
+  Thread::Current()->ThrowOutOfMemoryError(klass, byte_count);
+  return NULL;
 }
 
 bool Heap::IsHeapAddress(const Object* obj) {
@@ -340,21 +344,21 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
-  LOG(INFO) << "GC_FOR_ALLOC: TODO: test";
+  LOG(INFO) << "GC_FOR_ALLOC: AllocWithoutGrowth: TODO: test";
   CollectGarbageInternal();
   ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {
     return ptr;
   }
-  UNIMPLEMENTED(FATAL) << "No AllocWithGrowth, use larger -Xms -Xmx";
 
+  LOG(INFO) << "GC_FOR_ALLOC: AllocWithGrowth: TODO: test";
   // Even that didn't work;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
   ptr = space->AllocWithGrowth(size);
   if (ptr != NULL) {
     //size_t new_footprint = dvmHeapSourceGetIdealFootprint();
     size_t new_footprint = space->GetMaxAllowedFootprint();
-    // TODO: may want to grow a little bit more so that the amount of
+    // OLD-TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
     LOG(INFO) << "Grow heap (frag case) to " << new_footprint / MB
@@ -368,7 +372,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
   // spec requires that all SoftReferences have been collected and
   // cleared before throwing an OOME.
 
-  // TODO: wait for the finalizers from the previous GC to finish
+  // OLD-TODO: wait for the finalizers from the previous GC to finish
   LOG(INFO) << "Forcing collection of SoftReferences for "
             << size << "-byte allocation";
   CollectGarbageInternal();

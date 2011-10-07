@@ -1803,10 +1803,7 @@ class JNI {
     String* s = Decode<String*>(ts, java_string);
     size_t byte_count = s->GetUtfLength();
     char* bytes = new char[byte_count + 1];
-    if (bytes == NULL) {
-      ts.Self()->ThrowOutOfMemoryError();
-      return NULL;
-    }
+    CHECK(bytes != NULL); // bionic aborts anyway.
     const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
     ConvertUtf16ToModifiedUtf8(bytes, chars, s->GetLength());
     bytes[byte_count] = '\0';

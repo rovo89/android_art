@@ -1239,11 +1239,6 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
     DCHECK(array->IsArrayInstance());
     array->SetLength(component_count);
   }
-
-  // TODO: throw OutOfMemoryError. (here or in Heap::AllocObject?)
-  CHECK(array != NULL) << PrettyClass(array_class)
-                       << " component_count=" << component_count
-                       << " component_size=" << component_size;
   return array;
 }
 

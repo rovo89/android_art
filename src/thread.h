@@ -285,7 +285,7 @@ class PACKED Thread {
   void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap);
 
   // This exception is special, because we need to pre-allocate an instance.
-  void ThrowOutOfMemoryError();
+  void ThrowOutOfMemoryError(Class* c, size_t byte_count);
 
   Frame FindExceptionHandler(void* throw_pc, void** handler_pc);
 
@@ -572,6 +572,9 @@ class PACKED Thread {
 
   // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
   Context* long_jump_context_;
+
+  // A boolean telling us whether we're recursively throwing OOME.
+  uint32_t throwing_OOME_;
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
