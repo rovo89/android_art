@@ -368,7 +368,7 @@ public:
    * m - jmethodID
    * p - void*
    * r - jint (for release mode arguments)
-   * u - const char* (modified UTF-8)
+   * u - const char* (Modified UTF-8)
    * z - jsize (for lengths; use i if negative values are okay)
    * v - JavaVM*
    * E - JNIEnv*
@@ -486,7 +486,7 @@ public:
           } else {
             StringAppendF(&msg, "invalid release mode %d", releaseMode);
           }
-        } else if (ch == 'u') { // const char* (modified UTF-8)
+        } else if (ch == 'u') { // const char* (Modified UTF-8)
           const char* utf = va_arg(ap, const char*);
           if (utf == NULL) {
             msg += "NULL";
@@ -732,7 +732,7 @@ private:
   }
 
   /*
-   * Verify that "bytes" points to valid "modified UTF-8" data.
+   * Verify that "bytes" points to valid Modified UTF-8 data.
    */
   void CheckUtfString(const char* bytes, bool nullable) {
     if (bytes == NULL) {
@@ -747,8 +747,9 @@ private:
     const char* errorKind = NULL;
     uint8_t utf8 = CheckUtfBytes(bytes, &errorKind);
     if (errorKind != NULL) {
-      LOG(ERROR) << "JNI ERROR: input is not valid UTF-8: illegal " << errorKind << " byte " << StringPrintf("%#x", utf8);
-      LOG(ERROR) << "           string: '" << bytes << "'";
+      LOG(ERROR) << "JNI ERROR: input is not valid Modified UTF-8: "
+                 << "illegal " << errorKind << " byte " << StringPrintf("%#x", utf8) << "\n"
+                 << "           string: '" << bytes << "'";
       JniAbort();
       return;
     }
@@ -845,7 +846,7 @@ private:
         /*
          * Bit pattern 10xx or 1111, which are illegal start bytes.
          * Note: 1111 is valid for normal UTF-8, but not the
-         * modified UTF-8 used here.
+         * Modified UTF-8 used here.
          */
         *errorKind = "start";
         return utf8;
