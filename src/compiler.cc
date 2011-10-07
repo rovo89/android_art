@@ -201,6 +201,15 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
     }
     CHECK(klass->IsResolved()) << PrettyClass(klass);
     class_linker->VerifyClass(klass);
+
+    if (klass->IsErroneous()) {
+      // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
+      CHECK(Thread::Current()->IsExceptionPending());
+      Thread::Current()->ClearException();
+      // We want to try verification again at run-time, so move back into the resolved state.
+      klass->SetStatus(Class::kStatusResolved);
+    }
+
     CHECK(klass->IsVerified() || klass->IsResolved()) << PrettyClass(klass);
     CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
   }

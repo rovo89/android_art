@@ -533,7 +533,7 @@ void ClassLinker::RunRootClinits() {
     Class* c = GetClassRoot(ClassRoot(i));
     if (!c->IsArrayClass() && !c->IsPrimitive()) {
       EnsureInitialized(GetClassRoot(ClassRoot(i)), true);
-      CHECK(!self->IsExceptionPending());
+      CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
     }
   }
 }
@@ -1368,10 +1368,12 @@ void ClassLinker::VerifyClass(Class* klass) {
     klass->SetStatus(Class::kStatusVerified);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyClass(klass);
-    CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
-
+    Thread* self = Thread::Current();
+    CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+    self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Verification of %s failed",
+        PrettyDescriptor(klass->GetDescriptor()).c_str());
     CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying);
-    klass->SetStatus(Class::kStatusResolved);
+    klass->SetStatus(Class::kStatusError);
   }
 }
 
@@ -1465,7 +1467,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
 
 bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock) {
   while (true) {
-    CHECK(!self->IsExceptionPending());
+    CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
     lock.Wait();
 
     // When we wake up, repeat the test for init-in-progress.  If
