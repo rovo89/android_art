@@ -97,7 +97,7 @@ void Space::Init(MemMap* mem_map) {
 
 
 bool Space::InitFromImage(const std::string& image_file_name) {
-  const Runtime* runtime = Runtime::Current();
+  Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "Space::InitFromImage entering"
               << " image_file_name=" << image_file_name;
@@ -129,23 +129,27 @@ bool Space::InitFromImage(const std::string& image_file_name) {
   DCHECK_EQ(0, memcmp(&image_header, image_header_, sizeof(ImageHeader)));
 
   Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
-  Runtime::Current()->SetJniStubArray(down_cast<ByteArray*>(jni_stub_array));
+  runtime->SetJniStubArray(down_cast<ByteArray*>(jni_stub_array));
 
   Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
-  Runtime::Current()->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));
+  runtime->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));
 
   Object* resolution_stub_array = image_header.GetImageRoot(ImageHeader::kInstanceResolutionStubArray);
-  Runtime::Current()->SetResolutionStubArray(
+  runtime->SetResolutionStubArray(
       down_cast<ByteArray*>(resolution_stub_array), Runtime::kInstanceMethod);
   resolution_stub_array = image_header.GetImageRoot(ImageHeader::kStaticResolutionStubArray);
-  Runtime::Current()->SetResolutionStubArray(
+  runtime->SetResolutionStubArray(
       down_cast<ByteArray*>(resolution_stub_array), Runtime::kStaticMethod);
   resolution_stub_array = image_header.GetImageRoot(ImageHeader::kUnknownMethodResolutionStubArray);
-  Runtime::Current()->SetResolutionStubArray(
+  runtime->SetResolutionStubArray(
       down_cast<ByteArray*>(resolution_stub_array), Runtime::kUnknownMethod);
 
   Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
-  Runtime::Current()->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method));
+  runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kSaveAll);
+  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
+  runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kRefsOnly);
+  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
+  runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kRefsAndArgs);
 
   Init(map.release());
   if (runtime->IsVerboseStartup()) {

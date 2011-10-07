@@ -121,6 +121,7 @@ void Thread::InitFunctionPointers() {
   pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
+  pLockObjectFromCode = art_lock_object_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
 #endif
   pDeliverException = art_deliver_exception_from_code;
@@ -138,9 +139,8 @@ void Thread::InitFunctionPointers() {
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pInstanceofNonTrivialFromCode = Class::IsAssignableFromCode;
-  pLockObjectFromCode = LockObjectFromCode;
   pFindInstanceFieldFromCode = Field::FindInstanceFieldFromCode;
-  pCheckSuspendFromCode = artCheckSuspendFromCode;
+  pCheckSuspendFromCode = artCheckSuspendFromJni;
   pFindNativeMethod = FindNativeMethod;
   pDecodeJObjectInThread = DecodeJObjectInThread;
   pResolveStringFromCode = ResolveStringFromCode;

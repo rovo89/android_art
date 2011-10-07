@@ -11,8 +11,6 @@ namespace arm {
 
 ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
-  RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
-
   // | Out args |
   // | Method*  | <- SP on entry
   // | LR       |    return address into caller
@@ -20,6 +18,7 @@ ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   // | R2       |    possible argument
   // | R1       |    possible argument
   // | R0       |    method index (loaded from code and method array - will be converted to Method*)
+  RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
   __ PushList(save);
   __ mov(R1, ShifterOperand(SP));  // Pass address of saved R0... in R1
   __ LoadFromOffset(kLoadWord, R12, TR,
@@ -29,13 +28,11 @@ ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ IncreaseFrameSize(12);        // 3 words of space for alignment
   // Call to unresolved direct method trampoline (method_idx, sp, Thread*, is_static)
   __ blx(R12);
-  // Save code address returned into R12
-  __ mov(R12, ShifterOperand(R0));
+  __ mov(R12, ShifterOperand(R0));  // Save code address returned into R12
   // Restore registers which may have been modified by GC and R0 which will now hold the method*
   __ DecreaseFrameSize(12);
   __ PopList(save);
-  // Leaf call to method's code
-  __ mov(PC, ShifterOperand(R12));
+  __ mov(PC, ShifterOperand(R12));  // Leaf call to method's code
 
   __ bkpt(0);
 
@@ -53,21 +50,19 @@ typedef void (*ThrowAme)(Method*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
-
   // Save callee saves and ready frame for exception delivery
-  RegList save = (1 << R1) | (1 << R2) | (1 << R3) | (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) |
-                 (1 << R8) | (1 << R9) | (1 << R10) | (1 << R11) | (1 << LR);
-  __ PushList(save);
-  __ Emit(0xed2d0a20);  // vpush {s0-s31}
-  __ IncreaseFrameSize(16);  // 4 words of space, bottom word will hold callee save Method*
+  RegList save = (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) | (1 << R8) | (1 << R9) |
+                 (1 << R10) | (1 << R11) | (1 << LR);
+  __ PushList(save);         // push {r4-r11, lr} - 9 words of callee saves
+  __ Emit(0xed2d0a20);       // vpush {s0-s31}
+  __ IncreaseFrameSize(12);  // 3 words of space, bottom word will hold callee save Method*
 
   // R0 is the Method* already
   __ mov(R1, ShifterOperand(R9));  // Pass Thread::Current() in R1
   __ mov(R2, ShifterOperand(SP));  // Pass SP in R2
   // Call to throw AbstractMethodError
   __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode));
-  // Leaf call to routine that never returns
-  __ mov(PC, ShifterOperand(R12));
+  __ mov(PC, ShifterOperand(R12));  // Leaf call to routine that never returns
 
   __ bkpt(0);
 
@@ -85,35 +80,20 @@ ByteArray* CreateAbstractMethodErrorStub() {
 
 ByteArray* CreateJniStub() {
   UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
-
+  // Build frame and save argument registers and LR.
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
-
-  // Build frame and save registers. Save 5 registers.
   __ PushList(save);
-  // Ensure 16-byte alignment
-  __ AddConstant(SP, -12);
-
-  // Pass Thread::Current() in R0
-  __ mov(R0, ShifterOperand(R9));
-
+  __ AddConstant(SP, -12);         // Ensure 16-byte alignment
+  __ mov(R0, ShifterOperand(R9));  // Pass Thread::Current() in R0
   // Call FindNativeMethod
   __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pFindNativeMethod));
   __ blx(R12);
-
-  // Save result of FindNativeMethod in R12
-  __ mov(R12, ShifterOperand(R0));
-
-  // Restore registers (including outgoing arguments)
-  __ AddConstant(SP, 12);
+  __ mov(R12, ShifterOperand(R0));  // Save result of FindNativeMethod in R12
+  __ AddConstant(SP, 12);  // Restore registers (including outgoing arguments)
   __ PopList(save);
-
   __ cmp(R12, ShifterOperand(0));
-
-  // If R12 != 0 tail call into native code
-  __ mov(PC, ShifterOperand(R12), NE);
-
-  // Return to caller to handle exception
-  __ mov(PC, ShifterOperand(LR));
+  __ mov(PC, ShifterOperand(R12), NE);  // If R12 != 0 tail call into native code
+  __ mov(PC, ShifterOperand(LR));  // Return to caller to handle exception
 
   assembler->EmitSlowPaths();
 

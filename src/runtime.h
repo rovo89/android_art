@@ -160,7 +160,7 @@ class Runtime {
     kInstanceMethod,
     kStaticMethod,
     kUnknownMethod,
-    kMaxTrampolineMethodType = kUnknownMethod
+    kLastTrampolineMethodType  // Value used for iteration
   };
   static TrampolineType GetTrampolineType(Method* method);
   bool HasResolutionStubArray(TrampolineType type) const;
@@ -168,10 +168,19 @@ class Runtime {
   void SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
-  Method* CreateCalleeSaveMethod(InstructionSet insns);
-  bool HasCalleeSaveMethod() const;
-  Method* GetCalleeSaveMethod() const;
-  void SetCalleeSaveMethod(Method* method);
+  enum CalleeSaveType {
+    kSaveAll,
+    kRefsOnly,
+    kRefsAndArgs,
+    kLastCalleeSaveType  // Value used for iteration
+  };
+  Method* CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType type);
+  bool HasCalleeSaveMethod(CalleeSaveType type) const;
+  Method* GetCalleeSaveMethod(CalleeSaveType type) const;
+  void SetCalleeSaveMethod(Method* method, CalleeSaveType type);
+
+  Method* CreateRefOnlyCalleeSaveMethod(InstructionSet insns);
+  Method* CreateRefAndArgsCalleeSaveMethod(InstructionSet insns);
 
   int32_t GetStat(int kind);
 
@@ -232,9 +241,9 @@ class Runtime {
 
   ByteArray* abstract_method_error_stub_array_;
 
-  ByteArray* resolution_stub_array_[kMaxTrampolineMethodType];
+  ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
-  Method* callee_save_method_;
+  Method* callee_save_method_[kLastCalleeSaveType];
 
   bool started_;
 

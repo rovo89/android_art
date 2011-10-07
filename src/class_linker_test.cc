@@ -162,7 +162,7 @@ class ClassLinkerTest : public CommonTest {
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
       if (klass->NumDirectMethods() == 1) {
-        EXPECT_TRUE(klass->GetDirectMethod(0)->GetName()->Equals("<clinit>"));
+        EXPECT_TRUE(klass->GetDirectMethod(0)->IsClassInitializer());
         EXPECT_TRUE(klass->GetDirectMethod(0)->IsDirect());
       } else {
         EXPECT_EQ(0U, klass->NumDirectMethods());
@@ -949,6 +949,8 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
 }
 
+extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
+
 TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   // pretend we are trying to get the static storage for the StaticsFromCode class.
 
@@ -965,10 +967,10 @@ TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStaticsFromCode;");
 
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* uninit = class_linker_->InitializeStaticStorageFromCode(type_idx, clinit);
+  StaticStorageBase* uninit = InitializeStaticStorage(type_idx, clinit, Thread::Current());
   EXPECT_TRUE(uninit != NULL);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* init = class_linker_->InitializeStaticStorageFromCode(type_idx, getS0);
+  StaticStorageBase* init = InitializeStaticStorage(type_idx, getS0, Thread::Current());
   EXPECT_TRUE(init != NULL);
   EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
 }

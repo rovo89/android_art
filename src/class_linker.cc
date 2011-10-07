@@ -1630,29 +1630,6 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
   return !self->IsExceptionPending();
 }
 
-StaticStorageBase* ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx,
-                                                                const Method* referrer) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* klass = class_linker->ResolveType(type_idx, referrer);
-  if (klass == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
-    return NULL;  // Failure - Indicate to caller to deliver exception
-  }
-  // If we are the <clinit> of this class, just return our storage.
-  //
-  // Do not set the DexCache InitializedStaticStorage, since that
-  // implies <clinit> has finished running.
-  if (klass == referrer->GetDeclaringClass() && referrer->GetName()->Equals("<clinit>")) {
-    return klass;
-  }
-  if (!class_linker->EnsureInitialized(klass, true)) {
-    CHECK(Thread::Current()->IsExceptionPending());
-    return NULL;  // Failure - Indicate to caller to deliver exception
-  }
-  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
-  return klass;
-}
-
 void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
     Class* c, std::map<int, Field*>& field_map) {
   const ClassLoader* cl = c->GetClassLoader();

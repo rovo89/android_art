@@ -127,23 +127,29 @@ class CommonTest : public testing::Test {
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();
 
+    InstructionSet instruction_set = kNone;
 #if defined(__i386__)
-    InstructionSet insns = kX86;
+    instruction_set = kX86;
 #elif defined(__arm__)
-    InstructionSet insns = kThumb2;
-#else
-    InstructionSet insns = kNone;
+    instruction_set = kThumb2;
 #endif
-    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(insns));
-    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(insns));
-    runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(insns));
-    for (int i=0; i < Runtime::kMaxTrampolineMethodType; i++) {
+    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(instruction_set));
+    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
+    for (int i=0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);
       if (!runtime_->HasResolutionStubArray(type)) {
-        runtime_->SetResolutionStubArray(Compiler::CreateResolutionStub(insns, type), type);
+        runtime_->SetResolutionStubArray(
+            Compiler::CreateResolutionStub(instruction_set, type), type);
       }
     }
-    compiler_.reset(new Compiler(insns));
+    for (int i=0; i < Runtime::kLastCalleeSaveType; i++) {
+      Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
+      if (!runtime_->HasCalleeSaveMethod(type)) {
+        runtime_->SetCalleeSaveMethod(
+            runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
+      }
+    }
+    compiler_.reset(new Compiler(instruction_set));
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }

@@ -18,7 +18,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t, void*, Thread*, Runtime:
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
-extern "C" void artCheckSuspendFromCode(Thread* thread);
+extern "C" void artCheckSuspendFromJni(Thread* thread);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
@@ -36,7 +36,7 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void art_check_cast_from_code(void*, void*);
   extern "C" void art_handle_fill_data_from_code(void*, void*);
   extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
-  extern "C" void art_invoke_interface_trampoline(void*, void*, void*, void*);
+  extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
   extern "C" void art_test_suspend();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();
@@ -45,7 +45,8 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void art_throw_null_pointer_exception_from_code();
   extern "C" void art_throw_stack_overflow_from_code(void*);
   extern "C" void art_throw_verification_error_from_code(int32_t src1, int32_t ref);
-  extern "C" void art_unlock_object_from_code(void*, void*);
+  extern "C" void art_lock_object_from_code(void*);
+  extern "C" void art_unlock_object_from_code(void*);
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT

@@ -323,6 +323,10 @@ void Field::SetObject(Object* object, const Object* l) const {
   SetObj(object, l);
 }
 
+bool Method::IsClassInitializer() const {
+  return IsStatic() && GetName()->Equals("<clinit>");
+}
+
 // TODO: get global references for these
 Class* Method::java_lang_reflect_Constructor_ = NULL;
 Class* Method::java_lang_reflect_Method_ = NULL;

@@ -20,6 +20,12 @@
 
 namespace art {
 
+// Place a special frame at the TOS that will save the callee saves for the given type
+static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
+  *sp = Runtime::Current()->GetCalleeSaveMethod(type);
+  self->SetTopOfStack(sp, 0);
+}
+
 // Temporary debugging hook for compiler.
 extern void DebugMe(Method* method, uint32_t info) {
   LOG(INFO) << "DebugMe";
@@ -62,9 +68,7 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
    * and threw a NPE if NULL.  This routine responsible for setting
    * exception_ in thread and delivering the exception.
    */
-  // Place a special frame at the TOS that will save all callee saves
-  *sp = Runtime::Current()->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   if (exception == NULL) {
     thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
   } else {
@@ -75,62 +79,52 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
 
 // Deliver an exception that's pending on thread helping set up a callee save frame on the way
 extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, Method** sp) {
-  *sp = Runtime::Current()->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->DeliverException();
 }
 
 // Called by generated call to throw a NPE exception
 extern "C" void artThrowNullPointerExceptionFromCode(Thread* thread, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  *sp = Runtime::Current()->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewException("Ljava/lang/NullPointerException;", NULL);
   thread->DeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception
 extern "C" void artThrowDivZeroFromCode(Thread* thread, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  *sp = Runtime::Current()->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
   thread->DeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception
 extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  *sp = Runtime::Current()->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;", "length=%d; index=%d",
-      limit, index);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
+  thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
+                             "length=%d; index=%d", limit, index);
   thread->DeliverException();
 }
 
 // Called by the AbstractMethodError stub (not runtime support)
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp) {
-  *sp = Runtime::Current()->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
-  thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;", "abstract method \"%s\"",
-      PrettyMethod(method).c_str());
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
+  thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
+                             "abstract method \"%s\"", PrettyMethod(method).c_str());
   thread->DeliverException();
 }
 
 extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
   thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;",
       "stack size %zdkb; default stack size: %zdkb",
-      thread->GetStackSize() / KB, runtime->GetDefaultStackSize() / KB);
+      thread->GetStackSize() / KB, Runtime::Current()->GetDefaultStackSize() / KB);
   thread->ResetDefaultStackEnd();  // Return to default stack size
   thread->DeliverException();
 }
 
-std::string ClassNameFromIndex(Method* method, uint32_t ref, DexVerifier::VerifyErrorRefType ref_type, bool access) {
+static std::string ClassNameFromIndex(Method* method, uint32_t ref,
+                                      DexVerifier::VerifyErrorRefType ref_type, bool access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
@@ -160,7 +154,8 @@ std::string ClassNameFromIndex(Method* method, uint32_t ref, DexVerifier::Verify
   return result;
 }
 
-std::string FieldNameFromIndex(const Method* method, uint32_t ref, DexVerifier::VerifyErrorRefType ref_type, bool access) {
+static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
+                                      DexVerifier::VerifyErrorRefType ref_type, bool access) {
   CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(DexVerifier::VERIFY_ERROR_REF_FIELD));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -181,7 +176,8 @@ std::string FieldNameFromIndex(const Method* method, uint32_t ref, DexVerifier::
   return result;
 }
 
-std::string MethodNameFromIndex(const Method* method, uint32_t ref, DexVerifier::VerifyErrorRefType ref_type, bool access) {
+static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
+                                DexVerifier::VerifyErrorRefType ref_type, bool access) {
   CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(DexVerifier::VERIFY_ERROR_REF_METHOD));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -196,24 +192,21 @@ std::string MethodNameFromIndex(const Method* method, uint32_t ref, DexVerifier:
 
   std::string result;
   result += "tried to access method ";
-  result += class_name + "." + method_name + ":" + dex_file.CreateMethodDescriptor(id.proto_idx_, NULL);
+  result += class_name + "." + method_name + ":" +
+            dex_file.CreateMethodDescriptor(id.proto_idx_, NULL);
   result += " from class ";
   result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
   return result;
 }
 
 extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thread* self, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  self->SetTopOfStack(sp, 0);
-
-  // We need the calling method as context to interpret 'ref'.
-  Frame frame = self->GetTopOfStack();
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  Frame frame = self->GetTopOfStack();  // We need the calling method as context to interpret 'ref'
   frame.Next();
   Method* method = frame.GetMethod();
 
-  DexVerifier::VerifyErrorRefType ref_type = static_cast<DexVerifier::VerifyErrorRefType>(kind >> kVerifyErrorRefTypeShift);
+  DexVerifier::VerifyErrorRefType ref_type =
+      static_cast<DexVerifier::VerifyErrorRefType>(kind >> kVerifyErrorRefTypeShift);
 
   const char* exception_class = "Ljava/lang/VerifyError;";
   std::string msg;
@@ -258,53 +251,37 @@ extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thr
     CHECK(false);
     break;
   }
-
   self->ThrowNewException(exception_class, msg.c_str());
   self->DeliverException();
 }
 
 extern "C" void artThrowInternalErrorFromCode(int32_t errnum, Thread* thread, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   LOG(WARNING) << "TODO: internal error detail message. errnum=" << errnum;
   thread->ThrowNewExceptionF("Ljava/lang/InternalError;", "errnum=%d", errnum);
   thread->DeliverException();
 }
 
 extern "C" void artThrowRuntimeExceptionFromCode(int32_t errnum, Thread* thread, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   LOG(WARNING) << "TODO: runtime exception detail message. errnum=" << errnum;
   thread->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "errnum=%d", errnum);
   thread->DeliverException();
 }
 
 extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  self->SetTopOfStack(sp, 0);
-
-  // We need the calling method as context for the method_idx.
-  Frame frame = self->GetTopOfStack();
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  Frame frame = self->GetTopOfStack();  // We need the calling method as context for the method_idx
   frame.Next();
   Method* method = frame.GetMethod();
-
   self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
       MethodNameFromIndex(method, method_idx, DexVerifier::VERIFY_ERROR_REF_METHOD, false).c_str());
   self->DeliverException();
 }
 
 extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Method** sp) {
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   LOG(WARNING) << "UNTESTED artThrowNegArraySizeFromCode";
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  thread->SetTopOfStack(sp, 0);
   thread->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", size);
   thread->DeliverException();
 }
@@ -425,11 +402,9 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self, Method** sp) {
   // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  self->SetTopOfStack(sp, 0);
-
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  Runtime* runtime = Runtime::Current();
   if (klass == NULL) {
     klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {
@@ -446,7 +421,7 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thr
 
 // Helper function to alloc array for OP_FILLED_NEW_ARRAY
 extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
-                                                int32_t component_count) {
+                                               int32_t component_count, Thread* self, Method** sp) {
   if (component_count < 0) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);
@@ -479,12 +454,9 @@ extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* metho
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
 // it cannot be resolved, throw an error. If it can, use it to create an array.
-extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread* self, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
-  Runtime* runtime = Runtime::Current();
-  *sp = runtime->GetCalleeSaveMethod();
-  self->SetTopOfStack(sp, 0);
-
+extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+                                        Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   if (component_count < 0) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);
@@ -503,7 +475,8 @@ extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32
 }
 
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
-extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
+extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(a->IsClass()) << PrettyClass(a);
   DCHECK(b->IsClass()) << PrettyClass(b);
   if (b->IsAssignableFrom(a)) {
@@ -519,7 +492,9 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b) {
 
 // Tests whether 'element' can be assigned into an array of type 'array_class'.
 // Returns 0 on success and -1 if an exception is pending.
-extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class* array_class) {
+extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class* array_class,
+                                             Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(array_class != NULL);
   // element can't be NULL as we catch this is screened in runtime_support
   Class* element_class = element->GetClass();
@@ -535,20 +510,56 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
   }
 }
 
-extern "C" int artUnlockObjectFromCode(Thread* thread, Object* obj) {
-  DCHECK(obj != NULL);  // Assumed to have been checked before entry
-  return obj->MonitorExit(thread) ? 0 /* Success */ : -1 /* Failure */;
+Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* klass = class_linker->ResolveType(type_idx, referrer);
+  if (klass == NULL) {
+    CHECK(self->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  // If we are the <clinit> of this class, just return our storage.
+  //
+  // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
+  // running.
+  if (klass == referrer->GetDeclaringClass() && referrer->IsClassInitializer()) {
+    return klass;
+  }
+  if (!class_linker->EnsureInitialized(klass, true)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
+  return klass;
 }
 
-void LockObjectFromCode(Thread* thread, Object* obj) {
+extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Method* referrer,
+                                                     Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return InitializeStaticStorage(type_idx, referrer, self);
+}
+
+extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
-  obj->MonitorEnter(thread);
+  // MonitorExit may throw exception
+  return obj->MonitorExit(self) ? 0 /* Success */ : -1 /* Failure */;
+}
+
+extern "C" void artLockObjectFromCode(Object* obj, Thread* thread, Method** sp) {
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
+  DCHECK(obj != NULL);        // Assumed to have been checked before entry
+  obj->MonitorEnter(thread);  // May block
   DCHECK(thread->HoldsLock(obj));
   // Only possible exception is NPE and is handled before entry
   DCHECK(!thread->IsExceptionPending());
 }
 
-extern "C" void artCheckSuspendFromCode(Thread* thread) {
+extern "C" void artCheckSuspendFromJni(Thread* thread) {
+  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
+}
+
+extern "C" void artCheckSuspendFromCode(Thread* thread, Method** sp) {
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
@@ -567,7 +578,9 @@ extern "C" void artCheckSuspendFromCode(Thread* thread) {
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* table) {
+extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* table,
+                                              Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(table[0], 0x0300);
   if (array == NULL) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
@@ -590,14 +603,17 @@ extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* tabl
 // See comments in runtime_support_asm.S
 extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
                                                           Object* this_object ,
-                                                          Method* caller_method) {
-  Thread* thread = Thread::Current();
+                                                          Thread* thread, Method** sp) {
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
   if (this_object == NULL) {
     thread->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
         "null receiver during interface dispatch");
     return 0;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Frame frame = thread->GetTopOfStack();  // Compute calling method
+  frame.Next();
+  Method* caller_method = frame.GetMethod();
   Method* interface_method = class_linker->ResolveMethod(method_idx, caller_method, false);
   if (interface_method == NULL) {
     // Could not resolve interface method. Throw error and unwind

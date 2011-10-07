@@ -36,14 +36,17 @@ Runtime::Runtime()
       java_vm_(NULL),
       jni_stub_array_(NULL),
       abstract_method_error_stub_array_(NULL),
-      callee_save_method_(NULL),
       started_(false),
       vfprintf_(NULL),
       exit_(NULL),
       abort_(NULL),
       stats_enabled_(false) {
-  resolution_stub_array_[0] = NULL;
-  resolution_stub_array_[1] = NULL;
+  for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
+    resolution_stub_array_[i] = NULL;
+  }
+  for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
+    callee_save_method_[i] = NULL;
+  }
 }
 
 Runtime::~Runtime() {
@@ -552,9 +555,12 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   thread_list_->VisitRoots(visitor, arg);
   visitor(jni_stub_array_, arg);
   visitor(abstract_method_error_stub_array_, arg);
-  visitor(resolution_stub_array_[0], arg);
-  visitor(resolution_stub_array_[1], arg);
-  visitor(callee_save_method_, arg);
+  for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
+    visitor(resolution_stub_array_[i], arg);
+  }
+  for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
+    visitor(callee_save_method_[i], arg);
+  }
 
   //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
   //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);
@@ -609,6 +615,7 @@ bool Runtime::HasResolutionStubArray(TrampolineType type) const {
 
 ByteArray* Runtime::GetResolutionStubArray(TrampolineType type) const {
   CHECK(HasResolutionStubArray(type));
+  DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastTrampolineMethodType));
   return resolution_stub_array_[type];
 }
 
@@ -618,67 +625,52 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
   resolution_stub_array_[type] = resolution_stub_array;
 }
 
-Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
+Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType type) {
   Class* method_class = Method::GetMethodClass();
   Method* method = down_cast<Method*>(method_class->AllocObject());
   method->SetDeclaringClass(method_class);
-  method->SetName(intern_table_->InternStrong("$$$callee_save_method$$$"));
+  const char* name;
+  if (type == kSaveAll) {
+    name = "$$$callee_save_method$$$";
+  } else if (type == kRefsOnly) {
+    name = "$$$refs_only_callee_save_method$$$";
+  } else {
+    DCHECK(type == kRefsAndArgs);
+    name = "$$$refs_and_args_callee_save_method$$$";
+  }
+  method->SetName(intern_table_->InternStrong(name));
   method->SetSignature(intern_table_->InternStrong("()V"));
   method->SetCodeArray(NULL, insns);
   if ((insns == kThumb2) || (insns == kArm)) {
-    size_t frame_size = (12 /* gprs */ + 32 /* fprs */ + 4 /* data */) * kPointerSize;
+    uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |
+                          (1 << art::arm::R8) | (1 << art::arm::R10) | (1 << art::arm::R11);
+    uint32_t arg_spills = (1 << art::arm::R1) | (1 << art::arm::R2) | (1 << art::arm::R3);
+    uint32_t all_spills = (1 << art::arm::R4) | (1 << art::arm::R9);
+    uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills :0) |
+                           (type == kSaveAll ? all_spills :0) | (1 << art::arm::LR);
+    uint32_t fp_all_spills = (1 << art::arm::S0)  | (1 << art::arm::S1)  | (1 << art::arm::S2) |
+                             (1 << art::arm::S3)  | (1 << art::arm::S4)  | (1 << art::arm::S5) |
+                             (1 << art::arm::S6)  | (1 << art::arm::S7)  | (1 << art::arm::S8) |
+                             (1 << art::arm::S9)  | (1 << art::arm::S10) | (1 << art::arm::S11) |
+                             (1 << art::arm::S12) | (1 << art::arm::S13) | (1 << art::arm::S14) |
+                             (1 << art::arm::S15) | (1 << art::arm::S16) | (1 << art::arm::S17) |
+                             (1 << art::arm::S18) | (1 << art::arm::S19) | (1 << art::arm::S20) |
+                             (1 << art::arm::S21) | (1 << art::arm::S22) | (1 << art::arm::S23) |
+                             (1 << art::arm::S24) | (1 << art::arm::S25) | (1 << art::arm::S26) |
+                             (1 << art::arm::S27) | (1 << art::arm::S28) | (1 << art::arm::S29) |
+                             (1 << art::arm::S30) | (1 << art::arm::S31);
+    uint32_t fp_spills = type == kSaveAll ? fp_all_spills : 0;
+    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                 __builtin_popcount(fp_spills) /* fprs */ +
+                                 1 /* Method* */) * kPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetReturnPcOffsetInBytes(frame_size - kPointerSize);
-    method->SetCoreSpillMask((1 << art::arm::R1) |
-                             (1 << art::arm::R2) |
-                             (1 << art::arm::R3) |
-                             (1 << art::arm::R4) |
-                             (1 << art::arm::R5) |
-                             (1 << art::arm::R6) |
-                             (1 << art::arm::R7) |
-                             (1 << art::arm::R8) |
-                             (1 << art::arm::R9) |
-                             (1 << art::arm::R10) |
-                             (1 << art::arm::R11) |
-                             (1 << art::arm::LR));
-    method->SetFpSpillMask((1 << art::arm::S0) |
-                           (1 << art::arm::S1) |
-                           (1 << art::arm::S2) |
-                           (1 << art::arm::S3) |
-                           (1 << art::arm::S4) |
-                           (1 << art::arm::S5) |
-                           (1 << art::arm::S6) |
-                           (1 << art::arm::S7) |
-                           (1 << art::arm::S8) |
-                           (1 << art::arm::S9) |
-                           (1 << art::arm::S10) |
-                           (1 << art::arm::S11) |
-                           (1 << art::arm::S12) |
-                           (1 << art::arm::S13) |
-                           (1 << art::arm::S14) |
-                           (1 << art::arm::S15) |
-                           (1 << art::arm::S16) |
-                           (1 << art::arm::S17) |
-                           (1 << art::arm::S18) |
-                           (1 << art::arm::S19) |
-                           (1 << art::arm::S20) |
-                           (1 << art::arm::S21) |
-                           (1 << art::arm::S22) |
-                           (1 << art::arm::S23) |
-                           (1 << art::arm::S24) |
-                           (1 << art::arm::S25) |
-                           (1 << art::arm::S26) |
-                           (1 << art::arm::S27) |
-                           (1 << art::arm::S28) |
-                           (1 << art::arm::S29) |
-                           (1 << art::arm::S30) |
-                           (1 << art::arm::S31));
+    method->SetCoreSpillMask(core_spills);
+    method->SetFpSpillMask(fp_spills);
   } else if (insns == kX86) {
     method->SetFrameSizeInBytes(32);
     method->SetReturnPcOffsetInBytes(28);
-    method->SetCoreSpillMask((1 << art::x86::EBX) |
-                             (1 << art::x86::EBP) |
-                             (1 << art::x86::ESI) |
+    method->SetCoreSpillMask((1 << art::x86::EBX) | (1 << art::x86::EBP) | (1 << art::x86::ESI) |
                              (1 << art::x86::EDI));
     method->SetFpSpillMask(0);
   } else {
@@ -687,19 +679,19 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns) {
   return method;
 }
 
-bool Runtime::HasCalleeSaveMethod() const {
-  return callee_save_method_ != NULL;
+bool Runtime::HasCalleeSaveMethod(CalleeSaveType type) const {
+  return callee_save_method_[type] != NULL;
 }
 
 // Returns a special method that describes all callee saves being spilled to the stack.
-Method* Runtime::GetCalleeSaveMethod() const {
-  CHECK(callee_save_method_ != NULL);
-  return callee_save_method_;
+Method* Runtime::GetCalleeSaveMethod(CalleeSaveType type) const {
+  CHECK(HasCalleeSaveMethod(type));
+  return callee_save_method_[type];
 }
 
-void Runtime::SetCalleeSaveMethod(Method* method) {
-  callee_save_method_ = method;
+void Runtime::SetCalleeSaveMethod(Method* method, CalleeSaveType type) {
+  DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
+  callee_save_method_[type] = method;
 }
-
 
 }  // namespace art

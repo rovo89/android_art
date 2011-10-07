@@ -623,8 +623,11 @@ class MANAGED Method : public AccessibleObject {
 
   // Returns true if the method is a constructor.
   bool IsConstructor() const {
-    return (access_flags_ & kAccConstructor) != 0;
+    return (GetAccessFlags() & kAccConstructor) != 0;
   }
+
+  // Is this method <clinit>
+  bool IsClassInitializer() const;
 
   // Returns true if the method is static, private, or a constructor.
   bool IsDirect() const {
@@ -945,7 +948,14 @@ class MANAGED Method : public AccessibleObject {
 
   // Is this a hand crafted method used for something like describing callee saves?
   bool IsPhony() const {
-    bool result = this == Runtime::Current()->GetCalleeSaveMethod();
+    Runtime* runtime = Runtime::Current();
+    bool result = false;
+    for (int i=0; i < Runtime::kLastCalleeSaveType; i++) {
+      if (this == runtime->GetCalleeSaveMethod(Runtime::CalleeSaveType(i))) {
+        result = true;
+        break;
+      }
+    }
     // Check that if we do think it is phony it looks like the callee save method
     DCHECK(!result || GetCoreSpillMask() != 0);
     return result;

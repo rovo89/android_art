@@ -8,10 +8,8 @@
 #define rSELF r9
 #define rLR r14
 #define SUSPEND_CHECK_INTERVAL (1000)
-// Offset of field Thread::top_of_managed_stack_ verified in InitCpu
-#define THREAD_TOP_OF_MANAGED_STACK_OFFSET 280
-// Offset of field Thread::top_of_managed_stack_pc_ verified in InitCpu
-#define THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET 284
+// Offset of field Thread::suspend_count_ verified in InitCpu
+#define THREAD_SUSPEND_COUNT_OFFSET 388
 
 #elif defined(__i386__)
 // Offset of field Thread::self_ verified in InitCpu

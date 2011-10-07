@@ -146,7 +146,12 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                    runtime->GetResolutionStubArray(Runtime::kStaticMethod));
   image_roots->Set(ImageHeader::kUnknownMethodResolutionStubArray,
                    runtime->GetResolutionStubArray(Runtime::kUnknownMethod));
-  image_roots->Set(ImageHeader::kCalleeSaveMethod, runtime->GetCalleeSaveMethod());
+  image_roots->Set(ImageHeader::kCalleeSaveMethod,
+                   runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
+  image_roots->Set(ImageHeader::kRefsOnlySaveMethod,
+                   runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
+  image_roots->Set(ImageHeader::kRefsAndArgsSaveMethod,
+                   runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
   image_roots->Set(ImageHeader::kOatLocation,
                    String::AllocFromModifiedUtf8(oat_file_->GetLocation().c_str()));
   image_roots->Set(ImageHeader::kDexCaches,

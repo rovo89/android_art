@@ -131,13 +131,13 @@ class PACKED Thread {
   uint32_t (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
   void (*pCheckCastFromCode) (void*, void*);
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
-  void (*pUnlockObjectFromCode)(void*, void*);
-  void (*pLockObjectFromCode)(Thread*, Object*);
+  void (*pUnlockObjectFromCode)(void*);
+  void (*pLockObjectFromCode)(void*);
   void (*pDeliverException)(void*);
   void (*pHandleFillArrayDataFromCode)(void*, void*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
-  void (*pInvokeInterfaceTrampoline)(void*, void*, void*, void*);
+  void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void* (*pInitializeStaticStorage)(uint32_t, void*);
   Field* (*pFindInstanceFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);

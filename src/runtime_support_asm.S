@@ -9,11 +9,47 @@
     /* Deliver an exception pending on a thread */
     .extern artDeliverPendingException
 
-    /* Macro that sets up the callee save frame to conform with Runtime::CreateCalleeSaveMethod */
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveAll)
+     */
 .macro SETUP_CALLEE_SAVE_FRAME
-    push {r1-r11, lr}
+    push {r4-r11, lr} @ 9 words of callee saves
     vpush {s0-s31}
-    sub sp, #16  @ 4 words of space, bottom word will hold Method*
+    sub sp, #12       @ 3 words of space, bottom word will hold Method*
+.endm
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kRefsOnly)
+     */
+.macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    push {r5-r8, r10-r11, lr} @ 7 words of callee saves
+    sub sp, #4                @ bottom word will hold Method*
+.endm
+
+.macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    add sp, #4
+    pop {r5-r8, r10-r11, lr}  @ 7 words of callee saves
+.endm
+
+.macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    add sp, #4
+    pop {r5-r8, r10-r11, pc}  @ 7 words of callee saves
+.endm
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
+     */
+.macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    push {r1-r3, r5-r8, r10-r11, lr} @ 10 words of callee saves
+    sub sp, #8                       @ 2 words of space, bottom word will hold Method*
+.endm
+
+.macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    add sp, #8
+    pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
 .endm
 
     .global art_deliver_exception_from_code
@@ -112,20 +148,18 @@ art_throw_verification_error_from_code:
      * pointing back to the original caller.
      */
 art_invoke_interface_trampoline:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {r1, r2, r3, lr}
-    ldr    r2, [sp, #16]                         @ load caller's Method*
-    bl     artFindInterfaceMethodInCacheFromCode @ (method_idx, this, callerMethod)
-    mov    r12, r1                               @ save r0->code_
-    ldmia  sp!, {r1, r2, r3, lr}                 @ restore arguments
-    cmp    r0, #0                                @ did we find the target?
-    bxne   r12                                   @ tail call to target if so
-                                                 @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                                @ pass Thread::Current
-    mov    r1, sp                                @ pass SP
-    b      artDeliverPendingExceptionFromCode    @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
+    mov    r2, r9                                 @ pass Thread::Current
+    mov    r3, sp                                 @ pass SP
+    bl     artFindInterfaceMethodInCacheFromCode  @ (method_idx, this, Thread*, SP)
+    mov    r12, r1                                @ save r0->code_
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    cmp    r0, #0                                 @ did we find the target?
+    bxne   r12                                    @ tail call to target if so
+    SETUP_CALLEE_SAVE_FRAME                       @ set up for throwing exception
+    mov    r0, r9                                 @ pass Thread::Current
+    mov    r1, sp                                 @ pass SP
+    b      artDeliverPendingExceptionFromCode     @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_handle_fill_data_from_code
     .extern artHandleFillArrayDataFromCode
@@ -134,20 +168,29 @@ art_invoke_interface_trampoline:
      * failure.
      */
 art_handle_fill_data_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}                          @ Save LR
-    sub    sp, #12                            @ Align stack
-    bl     artHandleFillArrayDataFromCode     @ (Array* array, const uint16_t* table)
-    add    sp, #12
-    ldmia  sp!, {lr}                          @ restore LR
-    cmp    r0, #0                             @ success?
-    moveq  pc, lr                             @ return on success
-                                              @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                             @ pass Thread::Current
-    mov    r1, sp                             @ pass SP
-    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
+    mov    r2, r9                          @ pass Thread::Current
+    mov    r3, sp                          @ pass SP
+    bl     artHandleFillArrayDataFromCode  @ (Array* array, const uint16_t* table, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                          @ success?
+    moveq  pc, lr                          @ return on success
+    SETUP_CALLEE_SAVE_FRAME                @ set up for throwing exception
+    mov    r0, r9                          @ pass Thread::Current
+    mov    r1, sp                          @ pass SP
+    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
+    .global art_lock_object_from_code
+    .extern artLockObjectFromCode
+    /*
+     * Entry from managed code that calls artLockObjectFromCode, may block for GC
+     */
+art_lock_object_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case we block
+    mov    r1, r9                     @ pass Thread::Current
+    mov    r2, sp                     @ pass SP
+    bl     artLockObjectFromCode      @ (Object* obj, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
     .global art_unlock_object_from_code
     .extern artUnlockObjectFromCode
@@ -155,19 +198,16 @@ art_handle_fill_data_from_code:
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      */
 art_unlock_object_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}                          @ Save LR
-    sub    sp, #12                            @ Align stack
-    bl     artUnlockObjectFromCode            @ (Thread* thread, Object* obj)
-    add    sp, #12
-    ldmia  sp!, {lr}                          @ restore LR
-    cmp    r0, #0                             @ success?
-    moveq  pc, lr                             @ return on success
-                                              @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                             @ pass Thread::Current
-    mov    r1, sp                             @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
+    mov    r1, r9                   @ pass Thread::Current
+    mov    r2, sp                   @ pass SP
+    bl     artUnlockObjectFromCode  @ (Object* obj, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                   @ success?
+    moveq  pc, lr                   @ return on success
+    SETUP_CALLEE_SAVE_FRAME         @ set up for throwing exception
+    mov    r0, r9                   @ pass Thread::Current
+    mov    r1, sp                   @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_check_cast_from_code
@@ -176,20 +216,17 @@ art_unlock_object_from_code:
      * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
      */
 art_check_cast_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}                          @ Save LR
-    sub    sp, #12                            @ Align stack
-    bl     artCheckCastFromCode               @ (Class* a, Class* b)
-    add    sp, #12
-    ldmia  sp!, {lr}                          @ restore LR
-    cmp    r0, #0                             @ success?
-    moveq  pc, lr                             @ return on success
-                                              @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                             @ pass Thread::Current
-    mov    r1, sp                             @ pass SP
-    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
+    mov    r2, r9                       @ pass Thread::Current
+    mov    r3, sp                       @ pass SP
+    bl     artCheckCastFromCode         @ (Class* a, Class* b, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                       @ success?
+    moveq  pc, lr                       @ return on success
+    SETUP_CALLEE_SAVE_FRAME             @ set up for throwing exception
+    mov    r0, r9                       @ pass Thread::Current
+    mov    r1, sp                       @ pass SP
+    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_can_put_array_element_from_code
     .extern artCanPutArrayElementFromCode
@@ -198,46 +235,40 @@ art_check_cast_from_code:
      * failure.
      */
 art_can_put_array_element_from_code:
-    cmp    r0, #0                             @ return if element == NULL
+    cmp    r0, #0                         @ return if element == NULL
     moveq  pc, lr
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}                          @ Save LR
-    sub    sp, #12                            @ Align stack
-    bl     artCanPutArrayElementFromCode      @ (Object* element, Class* array_class)
-    add    sp, #12
-    ldmia  sp!, {lr}                          @ restore LR
-    cmp    r0, #0                             @ success?
-    moveq  pc, lr                             @ return on success
-                                              @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                             @ pass Thread::Current
-    mov    r1, sp                             @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
+    mov    r2, r9                         @ pass Thread::Current
+    mov    r3, sp                         @ pass SP
+    bl     artCanPutArrayElementFromCode  @ (Object* element, Class* array_class, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                         @ success?
+    moveq  pc, lr                         @ return on success
+    SETUP_CALLEE_SAVE_FRAME               @ set up for throwing exception
+    mov    r0, r9                         @ pass Thread::Current
+    mov    r1, sp                         @ pass SP
     b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_initialize_static_storage_from_code
-    .extern _ZN3art11ClassLinker31InitializeStaticStorageFromCodeEjPKNS_6MethodE
+    .extern artInitializeStaticStorageFromCode
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class
      * initializer and deliver the exception on error. On success the static storage base is
      * returned.
      */
 art_initialize_static_storage_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}                          @ Save LR
-    sub    sp, #12                            @ Align stack
-    @ ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer)
-    bl     _ZN3art11ClassLinker31InitializeStaticStorageFromCodeEjPKNS_6MethodE
-    add    sp, #12
-    ldmia  sp!, {lr}                          @ restore LR
-    cmp    r0, #0                             @ success if result is non-null
-    movne  pc, lr                             @ return on success
-                                              @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                             @ pass Thread::Current
-    mov    r1, sp                             @ pass SP
-    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
+    mov    r2, r9                              @ pass Thread::Current
+    mov    r3, sp                              @ pass SP
+    @ ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    bl     artInitializeStaticStorageFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                              @ success if result is non-null
+    movne  pc, lr                              @ return on success
+    SETUP_CALLEE_SAVE_FRAME                    @ set up for throwing exception
+    mov    r0, r9                              @ pass Thread::Current
+    mov    r1, sp                              @ pass SP
+    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_alloc_object_from_code
     .extern artAllocObjectFromCode
@@ -245,19 +276,16 @@ art_initialize_static_storage_from_code:
      * Called by managed code to allocate an object
      */
 art_alloc_object_from_code:
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r2, r9                  @ pass Thread::Current
-    mov    r3, sp                  @ pass SP
-    bl     artAllocObjectFromCode  @ (uint32_t type_idx, Method* method, Thread*, SP)
-    add    sp, #16
-    vpop   {s0-s31}
-    pop    {r1-r11, lr}
-    cmp    r0, #0                  @ success if result is non-null
-    movne  pc, lr                  @ return on success
-                                   @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                  @ pass Thread::Current
-    mov    r1, sp                  @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r2, r9                     @ pass Thread::Current
+    mov    r3, sp                     @ pass SP
+    bl     artAllocObjectFromCode     @ (uint32_t type_idx, Method* method, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                     @ success if result is non-null
+    movne  pc, lr                     @ return on success
+    SETUP_CALLEE_SAVE_FRAME           @ set up for throwing exception
+    mov    r0, r9                     @ pass Thread::Current
+    mov    r1, sp                     @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_alloc_array_from_code
@@ -266,19 +294,17 @@ art_alloc_object_from_code:
      * Called by managed code to allocate an array
      */
 art_alloc_array_from_code:
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r3, r9                 @ pass Thread::Current
-    str    sp, [sp, #0]           @ pass SP
-    bl     artAllocArrayFromCode  @ (uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
-    add    sp, #16
-    vpop   {s0-s31}
-    pop    {r1-r11, lr}
-    cmp    r0, #0                 @ success if result is non-null
-    movne  pc, lr                 @ return on success
-                                  @ set up for throwing exception
-    SETUP_CALLEE_SAVE_FRAME
-    mov    r0, r9                 @ pass Thread::Current
-    mov    r1, sp                 @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    str    sp, [sp, #0]               @ pass SP
+    @ artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
+    bl     artAllocArrayFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                     @ success if result is non-null
+    movne  pc, lr                     @ return on success
+    SETUP_CALLEE_SAVE_FRAME           @ set up for throwing exception
+    mov    r0, r9                     @ pass Thread::Current
+    mov    r1, sp                     @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 
     .global art_check_and_alloc_array_from_code
@@ -287,21 +313,31 @@ art_alloc_array_from_code:
      * Called by managed code to allocate an array
      */
 art_check_and_alloc_array_from_code:
-    str    sp, [R9, #THREAD_TOP_OF_MANAGED_STACK_OFFSET]    @ record top of stack and pc in case of
-    str    lr, [R9, #THREAD_TOP_OF_MANAGED_STACK_PC_OFFSET] @ walking stack
-    stmdb  sp!, {lr}                      @ Save LR
-    sub    sp, #12                        @ Align stack
-    bl     artCheckAndAllocArrayFromCode  @ (uint32_t type_idx, Method* method, int32_t count)
-    add    sp, #12
-    ldmia  sp!, {lr}                      @ restore LR
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    str    sp, [sp, #0]               @ pass SP
+    @ artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
+    bl     artCheckAndAllocArrayFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                         @ success if result is non-null
     movne  pc, lr                         @ return on success
-                                          @ set up for throwing exception
-    stmdb  sp!, {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}
-    sub    sp, #16                        @ 4 words of space, bottom word will hold Method*
+    SETUP_CALLEE_SAVE_FRAME               @ set up for throwing exception
     mov    r0, r9                         @ pass Thread::Current
     mov    r1, sp                         @ pass SP
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+
+    .global art_test_suspend
+    .extern artCheckSuspendFromCode
+art_test_suspend:
+    ldr    r0, [rSELF, #THREAD_SUSPEND_COUNT_OFFSET]
+    mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
+    cmp    r0, #0                             @ check Thread::Current()->suspend_count_ == 0
+    bxeq   rLR                                @ return if suspend_count_ == 0
+    mov    r0, rSELF
+    mov    r1, sp
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
+    bl     artCheckSuspendFromCode            @ (Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
     .global art_shl_long
 art_shl_long:
@@ -370,23 +406,6 @@ art_ushr_long:
     movpl   r0, r1, lsr ip              @  if r2 >= 32, r0<-r1 >>> (r2-32)
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     bx      lr
-
-    .balign 4
-    .global art_test_suspend
-    .extern artCheckSuspendFromCode
-art_test_suspend:
-    /*
-     * Check to see if there's a pending suspend request on our thread.
-     * reset rSUSPEND to SUSPEND_CHECK_INTERVAL.
-     * On entry, rSUSPEND holds the suspend request value
-     * [TUNING: move load of suspend check value into this stub.
-     */
-    cmp    rSUSPEND, #0
-    mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL
-    bxeq   rLR
-    mov    r0, rSELF
-    b      artCheckSuspendFromCode
-
 
 #endif
 

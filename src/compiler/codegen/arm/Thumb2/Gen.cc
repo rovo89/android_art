@@ -981,22 +981,22 @@ STATIC void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
 
     oatFlushAllRegs(cUnit);
     DCHECK_EQ(LW_SHAPE_THIN, 0);
-    loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
+    loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
-    loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r3);
-    newLIR3(cUnit, kThumb2Ldrex, r2, r1,
+    genNullCheck(cUnit, rlSrc.sRegLow, r0, mir);
+    loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+    newLIR3(cUnit, kThumb2Ldrex, r1, r0,
             Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
     // Align owner
-    opRegImm(cUnit, kOpLsl, r3, LW_LOCK_OWNER_SHIFT);
+    opRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
-    newLIR4(cUnit, kThumb2Bfi, r3, r2, 0, LW_LOCK_OWNER_SHIFT - 1);
-    newLIR3(cUnit, kThumb2Bfc, r2, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-    hopBranch = newLIR2(cUnit, kThumb2Cbnz, r2, 0);
-    newLIR4(cUnit, kThumb2Strex, r2, r3, r1,
+    newLIR4(cUnit, kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
+    newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
+    hopBranch = newLIR2(cUnit, kThumb2Cbnz, r1, 0);
+    newLIR4(cUnit, kThumb2Strex, r1, r2, r0,
             Object::MonitorOffset().Int32Value() >> 2);
     oatGenMemBarrier(cUnit, kSY);
-    branch = newLIR2(cUnit, kThumb2Cbz, r2, 0);
+    branch = newLIR2(cUnit, kThumb2Cbz, r1, 0);
 
     hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
     hopTarget->defMask = ENCODE_ALL;
@@ -1005,7 +1005,6 @@ STATIC void genMonitorEnter(CompilationUnit* cUnit, MIR* mir,
     // Go expensive route - artLockObjectFromCode(self, obj);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pLockObjectFromCode),
                  rLR);
-    genRegCopy(cUnit, r0, rSELF);
     callRuntimeHelper(cUnit, rLR);
 
     // Resume here
@@ -1030,30 +1029,29 @@ STATIC void genMonitorExit(CompilationUnit* cUnit, MIR* mir,
 
     DCHECK_EQ(LW_SHAPE_THIN, 0);
     oatFlushAllRegs(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, r1);  // Get obj
+    loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, r1, mir);
-    loadWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r2); // Get lock
-    loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r3);
+    genNullCheck(cUnit, rlSrc.sRegLow, r0, mir);
+    loadWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r1); // Get lock
+    loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r2);
     // Is lock unheld on lock or held by us (==threadId) on unlock?
-    opRegRegImm(cUnit, kOpAnd, r12, r2, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
+    opRegRegImm(cUnit, kOpAnd, r3, r1, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
     // Align owner
-    opRegImm(cUnit, kOpLsl, r3, LW_LOCK_OWNER_SHIFT);
-    newLIR3(cUnit, kThumb2Bfc, r2, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-    opRegReg(cUnit, kOpSub, r2, r3);
+    opRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
+    newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
+    opRegReg(cUnit, kOpSub, r1, r2);
     hopBranch = opCondBranch(cUnit, kArmCondNe);
     oatGenMemBarrier(cUnit, kSY);
-    storeWordDisp(cUnit, r1, Object::MonitorOffset().Int32Value(), r12);
+    storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
     branch = opNone(cUnit, kOpUncondBr);
 
     hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
     hopTarget->defMask = ENCODE_ALL;
     hopBranch->generic.target = (LIR*)hopTarget;
 
-    // Go expensive route - UnlockObjectFromCode(self, obj);
+    // Go expensive route - UnlockObjectFromCode(obj);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode),
                  rLR);
-    genRegCopy(cUnit, r0, rSELF);
     callRuntimeHelper(cUnit, rLR);
 
     // Resume here
