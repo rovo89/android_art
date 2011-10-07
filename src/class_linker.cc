@@ -957,7 +957,10 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   size_t num_direct_methods = header.direct_methods_size_;
   size_t num_virtual_methods = header.virtual_methods_size_;
 
-  klass->SetSourceFile(intern_table_->InternStrong(dex_file.dexGetSourceFile(dex_class_def)));
+  const char* source_file = dex_file.dexGetSourceFile(dex_class_def);
+  if (source_file != NULL) {
+    klass->SetSourceFile(intern_table_->InternStrong(source_file));
+  }
 
   // Load class interfaces.
   LoadInterfaces(dex_file, dex_class_def, klass);
