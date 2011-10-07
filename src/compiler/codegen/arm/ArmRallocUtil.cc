@@ -322,3 +322,9 @@ extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
     oatMarkInUse(cUnit, r1);
     return res;
 }
+
+extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
+{
+    return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
+                      : &cUnit->regPool->coreRegs[reg];
+}

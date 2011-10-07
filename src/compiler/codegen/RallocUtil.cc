@@ -97,32 +97,10 @@ void oatDumpFpRegPool(CompilationUnit* cUnit)
     dumpRegPool(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs);
 }
 
-/* Get info for a reg. */
-STATIC RegisterInfo* getRegInfo(CompilationUnit* cUnit, int reg)
-{
-    int numRegs = cUnit->regPool->numCoreRegs;
-    RegisterInfo* p = cUnit->regPool->coreRegs;
-    int i;
-    for (i=0; i< numRegs; i++) {
-        if (p[i].reg == reg) {
-            return &p[i];
-        }
-    }
-    p = cUnit->regPool->FPRegs;
-    numRegs = cUnit->regPool->numFPRegs;
-    for (i=0; i< numRegs; i++) {
-        if (p[i].reg == reg) {
-            return &p[i];
-        }
-    }
-    LOG(FATAL) << "Tried to get info on a non-existant reg :r" << reg;
-    return NULL; // Quiet gcc
-}
-
 void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
 {
-    RegisterInfo* info1 = getRegInfo(cUnit, reg1);
-    RegisterInfo* info2 = getRegInfo(cUnit, reg2);
+    RegisterInfo* info1 = oatGetRegInfo(cUnit, reg1);
+    RegisterInfo* info2 = oatGetRegInfo(cUnit, reg2);
     DCHECK(info1 && info2 && info1->pair && info2->pair &&
            (info1->partner == info2->reg) &&
            (info2->partner == info1->reg));
@@ -146,7 +124,7 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
 
 void oatFlushReg(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* info = getRegInfo(cUnit, reg);
+    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
     if (info->live && info->dirty) {
         info->dirty = false;
         int vReg = oatS2VReg(cUnit, info->sReg);
@@ -156,40 +134,20 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
     }
 }
 
-/* return true if found reg to clobber */
-STATIC bool clobberRegBody(CompilationUnit* cUnit, RegisterInfo* p,
-                           int numRegs, int reg)
-{
-    int i;
-    for (i=0; i< numRegs; i++) {
-        if (p[i].reg == reg) {
-            if (p[i].isTemp) {
-                if (p[i].live && p[i].dirty) {
-                    LOG(FATAL) << "Live & dirty temp in clobber";
-                }
-                p[i].live = false;
-                p[i].sReg = INVALID_SREG;
-            }
-            p[i].defStart = NULL;
-            p[i].defEnd = NULL;
-            if (p[i].pair) {
-                p[i].pair = false;
-                /* partners should be in same pool */
-                clobberRegBody(cUnit, p, numRegs, p[i].partner);
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
 /* Mark a temp register as dead.  Does not affect allocation state. */
 void oatClobber(CompilationUnit* cUnit, int reg)
 {
-    if (!clobberRegBody(cUnit, cUnit->regPool->coreRegs,
-                        cUnit->regPool->numCoreRegs, reg)) {
-        clobberRegBody(cUnit, cUnit->regPool->FPRegs,
-                       cUnit->regPool->numFPRegs, reg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
+    if (p->isTemp) {
+        DCHECK(!(p->live && p->dirty))  << "Live & dirty temp in clobber";
+        p->live = false;
+        p->sReg = INVALID_SREG;
+        p->defStart = NULL;
+        p->defEnd = NULL;
+        if (p->pair) {
+            p->pair = false;
+            oatClobber(cUnit, p->partner);
+        }
     }
 }
 
@@ -302,7 +260,7 @@ STATIC int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
             return res;
         }
         // Is the low reg of the pair free?
-        RegisterInfo* p = getRegInfo(cUnit, highReg-1);
+        RegisterInfo* p = oatGetRegInfo(cUnit, highReg-1);
         if (p->inUse || p->isTemp) {
             // Already allocated or not preserved - fail.
             return res;
@@ -563,19 +521,19 @@ extern RegisterInfo* oatIsLive(CompilationUnit* cUnit, int reg)
 
 extern RegisterInfo* oatIsTemp(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* p = getRegInfo(cUnit, reg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
     return (p->isTemp) ? p : NULL;
 }
 
 extern RegisterInfo* oatIsPromoted(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* p = getRegInfo(cUnit, reg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
     return (p->isTemp) ? NULL : p;
 }
 
 extern bool oatIsDirty(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* p = getRegInfo(cUnit, reg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
     return p->dirty;
 }
 
@@ -612,7 +570,7 @@ extern void oatLockTemp(CompilationUnit* cUnit, int reg)
 
 extern void oatResetDef(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* p = getRegInfo(cUnit, reg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
     p->defStart = NULL;
     p->defEnd = NULL;
 }
@@ -643,7 +601,7 @@ extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl,
     DCHECK(!rl.wide);
     DCHECK(start && start->next);
     DCHECK(finish);
-    RegisterInfo* p = getRegInfo(cUnit, rl.lowReg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, rl.lowReg);
     p->defStart = start->next;
     p->defEnd = finish;
 }
@@ -659,7 +617,7 @@ extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
     DCHECK(rl.wide);
     DCHECK(start && start->next);
     DCHECK(finish);
-    RegisterInfo* p = getRegInfo(cUnit, rl.lowReg);
+    RegisterInfo* p = oatGetRegInfo(cUnit, rl.lowReg);
     oatResetDef(cUnit, rl.highReg);  // Only track low of pair
     p->defStart = start->next;
     p->defEnd = finish;
@@ -670,8 +628,8 @@ extern RegLocation oatWideToNarrow(CompilationUnit* cUnit,
 {
     DCHECK(rl.wide);
     if (rl.location == kLocPhysReg) {
-        RegisterInfo* infoLo = getRegInfo(cUnit, rl.lowReg);
-        RegisterInfo* infoHi = getRegInfo(cUnit, rl.highReg);
+        RegisterInfo* infoLo = oatGetRegInfo(cUnit, rl.lowReg);
+        RegisterInfo* infoHi = oatGetRegInfo(cUnit, rl.highReg);
         if (infoLo->isTemp) {
             infoLo->pair = false;
             infoLo->defStart = NULL;
@@ -798,7 +756,7 @@ STATIC bool regClassMatches(int regClass, int reg)
 
 extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg)
 {
-    RegisterInfo* info = getRegInfo(cUnit, reg);
+    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
     if ((info->reg == reg) && (info->sReg == sReg) && info->live) {
         return;  /* already live */
     } else if (sReg != INVALID_SREG) {
@@ -816,20 +774,20 @@ extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg)
 
 extern void oatMarkTemp(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* info = getRegInfo(cUnit, reg);
+    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
     info->isTemp = true;
 }
 
 extern void oatUnmarkTemp(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* info = getRegInfo(cUnit, reg);
+    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
     info->isTemp = false;
 }
 
 extern void oatMarkPair(CompilationUnit* cUnit, int lowReg, int highReg)
 {
-    RegisterInfo* infoLo = getRegInfo(cUnit, lowReg);
-    RegisterInfo* infoHi = getRegInfo(cUnit, highReg);
+    RegisterInfo* infoLo = oatGetRegInfo(cUnit, lowReg);
+    RegisterInfo* infoHi = oatGetRegInfo(cUnit, highReg);
     infoLo->pair = infoHi->pair = true;
     infoLo->partner = highReg;
     infoHi->partner = lowReg;
@@ -837,10 +795,10 @@ extern void oatMarkPair(CompilationUnit* cUnit, int lowReg, int highReg)
 
 extern void oatMarkClean(CompilationUnit* cUnit, RegLocation loc)
 {
-    RegisterInfo* info = getRegInfo(cUnit, loc.lowReg);
+    RegisterInfo* info = oatGetRegInfo(cUnit, loc.lowReg);
     info->dirty = false;
     if (loc.wide) {
-        info = getRegInfo(cUnit, loc.highReg);
+        info = oatGetRegInfo(cUnit, loc.highReg);
         info->dirty = false;
     }
 }
@@ -851,24 +809,24 @@ extern void oatMarkDirty(CompilationUnit* cUnit, RegLocation loc)
         // If already home, can't be dirty
         return;
     }
-    RegisterInfo* info = getRegInfo(cUnit, loc.lowReg);
+    RegisterInfo* info = oatGetRegInfo(cUnit, loc.lowReg);
     info->dirty = true;
     if (loc.wide) {
-        info = getRegInfo(cUnit, loc.highReg);
+        info = oatGetRegInfo(cUnit, loc.highReg);
         info->dirty = true;
     }
 }
 
 extern void oatMarkInUse(CompilationUnit* cUnit, int reg)
 {
-      RegisterInfo* info = getRegInfo(cUnit, reg);
+      RegisterInfo* info = oatGetRegInfo(cUnit, reg);
       info->inUse = true;
 }
 
 STATIC void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
 {
-    RegisterInfo* newInfo = getRegInfo(cUnit, newReg);
-    RegisterInfo* oldInfo = getRegInfo(cUnit, oldReg);
+    RegisterInfo* newInfo = oatGetRegInfo(cUnit, newReg);
+    RegisterInfo* oldInfo = oatGetRegInfo(cUnit, oldReg);
     // Target temp status must not change
     bool isTemp = newInfo->isTemp;
     *newInfo = *oldInfo;
@@ -915,7 +873,7 @@ bool oatCheckCorePoolSanity(CompilationUnit* cUnit)
            static int myReg = cUnit->regPool->coreRegs[i].reg;
            static int mySreg = cUnit->regPool->coreRegs[i].sReg;
            static int partnerReg = cUnit->regPool->coreRegs[i].partner;
-           static RegisterInfo* partner = getRegInfo(cUnit, partnerReg);
+           static RegisterInfo* partner = oatGetRegInfo(cUnit, partnerReg);
            DCHECK(partner != NULL);
            DCHECK(partner->pair);
            DCHECK_EQ(myReg, partner->partner);

@@ -235,4 +235,5 @@ extern int oatVRegOffset(CompilationUnit* cUnit, int reg);
 extern void oatDumpCoreRegPool(CompilationUnit* cUint);
 extern void oatDumpFPRegPool(CompilationUnit* cUint);
 extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);
+extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg);
 #endif // ART_SRC_COMPILER_RALLOC_H_
