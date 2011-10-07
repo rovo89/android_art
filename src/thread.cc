@@ -958,10 +958,25 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   jobject local_ref_;
 };
 
+// TODO: remove this.
+uintptr_t ManglePc(uintptr_t pc) {
+  // Move the PC back 2 bytes as a call will frequently terminate the
+  // decoding of a particular instruction and we want to make sure we
+  // get the Dex PC of the instruction with the call and not the
+  // instruction following.
+  if (pc > 0) { pc -= 2; }
+  return pc;
+}
+
+// TODO: remove this.
+uintptr_t DemanglePc(uintptr_t pc) {
+  // Revert mangling for the case where we need the PC to return to the upcall
+  return pc + 2;
+}
 
 void Thread::WalkStack(StackVisitor* visitor) const {
   Frame frame = GetTopOfStack();
-  uintptr_t pc = top_of_managed_stack_pc_;
+  uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
   // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
   // CHECK(native_to_managed_record_ != NULL);
   NativeToManagedRecord* record = native_to_managed_record_;
@@ -970,37 +985,27 @@ void Thread::WalkStack(StackVisitor* visitor) const {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
       // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
       visitor->VisitFrame(frame, pc);
-      pc = frame.GetReturnPC();
-      // Move the PC back 2 bytes as a call will frequently terminate the
-      // decoding of a particular instruction and we want to make sure we
-      // get the Dex PC of the instruction with the call and not the
-      // instruction following.
-      if (pc > 0) { pc -= 2; }
+      pc = ManglePc(frame.GetReturnPC());
     }
     if (record == NULL) {
       break;
     }
     // last_tos should return Frame instead of sp?
     frame.SetSP(reinterpret_cast<Method**>(record->last_top_of_managed_stack_));
-    pc = record->last_top_of_managed_stack_pc_;
+    pc = ManglePc(record->last_top_of_managed_stack_pc_);
     record = record->link_;
   }
 }
 
 void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) const {
   Frame frame = GetTopOfStack();
-  uintptr_t pc = top_of_managed_stack_pc_;
+  uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
 
   if (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
       // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
       visitor->VisitFrame(frame, pc);
-      pc = frame.GetReturnPC();
-      // Move the PC back 2 bytes as a call will frequently terminate the
-      // decoding of a particular instruction and we want to make sure we
-      // get the Dex PC of the instruction with the call and not the
-      // instruction following.
-      if (pc > 0) { pc -= 2; }
+      pc = ManglePc(frame.GetReturnPC());
     }
     if (include_upcall) {
       visitor->VisitFrame(frame, pc);
@@ -1138,7 +1143,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
       if (method == NULL) {
         // This is the upcall, we remember the frame and last_pc so that we may
         // long jump to them
-        handler_pc_ = pc + 2;  // We want to return after the call instruction, wind forward 2 again
+        handler_pc_ = DemanglePc(pc);
         handler_frame_ = fr;
         return;
       }

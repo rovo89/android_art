@@ -105,12 +105,13 @@ TEST_F(ExceptionTest, StackTraceElement) {
   // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
   // to dex pc 3, however, we set the return pc to 5 as the stack walker always subtracts two
   // from a return pc.
+  const uintptr_t pc_offset = 3 + 2;
 
   // Create/push fake 16byte stack frame for method g
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_g_);
   fake_stack[top_of_stack++] = 0;
   fake_stack[top_of_stack++] = 0;
-  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_->GetCode()) + 5;  // return pc
+  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_->GetCode()) + pc_offset;  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);
@@ -123,7 +124,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
   // Set up thread to appear as if we called out of method_g_ at pc 3
   Thread* thread = Thread::Current();
-  thread->SetTopOfStack(fake_stack, reinterpret_cast<uintptr_t>(method_g_->GetCode()) + 3);
+  thread->SetTopOfStack(fake_stack, reinterpret_cast<uintptr_t>(method_g_->GetCode()) + pc_offset);  // return pc
 
   JNIEnv* env = thread->GetJniEnv();
   jobject internal = thread->CreateInternalStackTrace(env);
