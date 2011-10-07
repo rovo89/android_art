@@ -968,14 +968,14 @@ void Thread::WalkStack(StackVisitor* visitor) const {
 
   while (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
+      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      visitor->VisitFrame(frame, pc);
+      pc = frame.GetReturnPC();
       // Move the PC back 2 bytes as a call will frequently terminate the
       // decoding of a particular instruction and we want to make sure we
       // get the Dex PC of the instruction with the call and not the
       // instruction following.
       if (pc > 0) { pc -= 2; }
-      DCHECK(frame.GetMethod()->IsWithinCode(pc));
-      visitor->VisitFrame(frame, pc);
-      pc = frame.GetReturnPC();
     }
     if (record == NULL) {
       break;
@@ -993,14 +993,14 @@ void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) co
 
   if (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
+      DCHECK(frame.GetMethod()->IsWithinCode(pc));
+      visitor->VisitFrame(frame, pc);
+      pc = frame.GetReturnPC();
       // Move the PC back 2 bytes as a call will frequently terminate the
       // decoding of a particular instruction and we want to make sure we
       // get the Dex PC of the instruction with the call and not the
       // instruction following.
       if (pc > 0) { pc -= 2; }
-      DCHECK(frame.GetMethod()->IsWithinCode(pc));
-      visitor->VisitFrame(frame, pc);
-      pc = frame.GetReturnPC();
     }
     if (include_upcall) {
       visitor->VisitFrame(frame, pc);
