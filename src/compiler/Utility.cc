@@ -124,7 +124,7 @@ STATIC void expandGrowableList(GrowableList* gList)
 /* Insert a new element into the growable list */
 void oatInsertGrowableList(GrowableList* gList, intptr_t elem)
 {
-    DCHECK(gList->numAllocated != 0);
+    DCHECK_NE(gList->numAllocated, 0U);
     if (gList->numUsed == gList->numAllocated) {
         expandGrowableList(gList);
     }
@@ -212,7 +212,7 @@ ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable)
     ArenaBitVector* bv;
     unsigned int count;
 
-    DCHECK(sizeof(bv->storage[0]) == 4);        /* assuming 32-bit units */
+    DCHECK_EQ(sizeof(bv->storage[0]), 4U);        /* assuming 32-bit units */
 
     bv = (ArenaBitVector*) oatNew(sizeof(ArenaBitVector), false);
 

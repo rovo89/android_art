@@ -25,6 +25,8 @@
 #include "stringprintf.h"
 #include "utils.h"
 
+namespace art {
+
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
 : line_number_(line), severity_(severity), errno_(error)
 {
@@ -36,3 +38,5 @@ void LogMessage::LogLine(const char* line) {
   std::cerr << "IWEF"[severity_] << ' ' << StringPrintf("%5d %5d", getpid(), ::art::GetTid()) << ' '
             << file_ << ':' << line_number_ << "] " << line << std::endl;
 }
+
+}  // namespace art

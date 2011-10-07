@@ -698,7 +698,7 @@ Thread::Thread()
       class_loader_override_(NULL),
       long_jump_context_(NULL),
       throwing_OOME_(false) {
-  CHECK((sizeof(Thread) % 4) == 0) << sizeof(Thread);
+  CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
 }
 
 void MonitorExitVisitor(const Object* object, void*) {

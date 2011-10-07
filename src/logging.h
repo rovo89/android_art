@@ -26,19 +26,44 @@
 
 #define CHECK(x) \
   if (!(x)) \
-    LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
+    ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
         << "Check failed: " #x << " "
 
+namespace art {
+
+template <typename LHS, typename RHS>
+struct EagerEvaluator {
+  EagerEvaluator(LHS lhs, RHS rhs) : lhs(lhs), rhs(rhs) { }
+  LHS lhs;
+  RHS rhs;
+};
+
+
+class LogMessage {
+ public:
+  LogMessage(const char* file, int line, LogSeverity severity, int error);
+  ~LogMessage();
+  std::ostream& stream();
+
+ private:
+  void LogLine(const char*);
+
+  std::stringstream buffer_;
+  const char* file_;
+  int line_number_;
+  LogSeverity severity_;
+  int errno_;
+
+  DISALLOW_COPY_AND_ASSIGN(LogMessage);
+};
+
+}  // namespace art
+
 #define CHECK_OP(LHS, RHS, OP) \
-  do { \
-    typeof (LHS) _lhs = (LHS); \
-    typeof (RHS) _rhs = (RHS); \
-    if (!(_lhs OP _rhs)) { \
-      LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
-          << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
-          << " (" #LHS "=" << _lhs << ", " #RHS "=" << _rhs << ")";  \
-    } \
-  } while (false)
+  for (::art::EagerEvaluator<typeof(LHS), typeof(RHS)> _values(LHS, RHS); !(_values.lhs OP _values.rhs); ) \
+    ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
+        << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
+        << " (" #LHS "=" << _values.lhs << ", " #RHS "=" << _values.rhs << ") "
 
 #define CHECK_EQ(x, y) CHECK_OP(x, y, ==)
 #define CHECK_NE(x, y) CHECK_OP(x, y, !=)
@@ -48,14 +73,11 @@
 #define CHECK_GT(x, y) CHECK_OP(x, y, >)
 
 #define CHECK_STROP(s1, s2, sense) \
-  do { \
-    if ((strcmp(s1, s2) == 0) != sense) { \
-      LOG(FATAL) << "Check failed: " \
-                 << "\"" << s1 << "\"" \
-                 << (sense ? " == " : " != ") \
-                 << "\"" << s2 << "\""; \
-    } \
-  } while (false)
+  if ((strcmp(s1, s2) == 0) != sense) \
+    LOG(FATAL) << "Check failed: " \
+               << "\"" << s1 << "\"" \
+               << (sense ? " == " : " != ") \
+               << "\"" << s2 << "\""
 
 #define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
 #define CHECK_STRNE(s1, s2) CHECK_STROP(s1, s2, false)
@@ -121,29 +143,11 @@
 
 #endif
 
-#define LOG(severity) LogMessage(__FILE__, __LINE__, severity, -1).stream()
-#define PLOG(severity) LogMessage(__FILE__, __LINE__, severity, errno).stream()
+#define LOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, -1).stream()
+#define PLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, errno).stream()
 
 #define LG LOG(INFO)
 
 #define UNIMPLEMENTED(level) LOG(level) << __PRETTY_FUNCTION__ << " unimplemented "
-
-class LogMessage {
- public:
-  LogMessage(const char* file, int line, LogSeverity severity, int error);
-  ~LogMessage();
-  std::ostream& stream();
-
- private:
-  void LogLine(const char*);
-
-  std::stringstream buffer_;
-  const char* file_;
-  int line_number_;
-  LogSeverity severity_;
-  int errno_;
-
-  DISALLOW_COPY_AND_ASSIGN(LogMessage);
-};
 
 #endif  // ART_SRC_LOGGING_H_

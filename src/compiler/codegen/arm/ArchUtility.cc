@@ -122,7 +122,7 @@ STATIC void buildInsnString(const char* fmt, ArmLIR* lir, char* buf,
                 strcpy(tbuf, "!");
             } else {
                DCHECK_LT(fmt, fmtEnd);
-               DCHECK((unsigned)(nc-'0') < 4);
+               DCHECK_LT((unsigned)(nc-'0'), 4U);
                operand = lir->operands[nc-'0'];
                switch(*fmt++) {
                    case 'H':

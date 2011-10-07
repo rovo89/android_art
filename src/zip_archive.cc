@@ -222,7 +222,7 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
     }
   } while (zerr == Z_OK);
 
-  DCHECK(zerr == Z_STREAM_END); // other errors should've been caught
+  DCHECK_EQ(zerr, Z_STREAM_END); // other errors should've been caught
 
   // paranoia
   if (zstream->Get().total_out != uncompressed_length) {

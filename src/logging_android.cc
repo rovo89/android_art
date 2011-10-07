@@ -21,6 +21,8 @@
 
 #include "cutils/log.h"
 
+namespace art {
+
 static const int kLogSeverityToAndroidLogPriority[] = {
   ANDROID_LOG_INFO, ANDROID_LOG_WARN, ANDROID_LOG_ERROR, ANDROID_LOG_FATAL
 };
@@ -36,3 +38,5 @@ void LogMessage::LogLine(const char* line) {
   int priority = kLogSeverityToAndroidLogPriority[severity_];
   LOG_PRI(priority, LOG_TAG, "%s:%d] %s", file_, line_number_, line);
 }
+
+}  // namespace art

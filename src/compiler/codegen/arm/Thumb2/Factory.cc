@@ -341,7 +341,7 @@ STATIC ArmLIR* opRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
             LOG(FATAL) << "Bad opcode: " << (int)op;
             break;
     }
-    DCHECK(opcode >= 0);
+    DCHECK_GE(static_cast<int>(opcode), 0);
     if (EncodingMap[opcode].flags & IS_BINARY_OP)
         return newLIR2(cUnit, opcode, rDestSrc1, rSrc2);
     else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
@@ -418,7 +418,7 @@ STATIC ArmLIR* opRegRegRegShift(CompilationUnit* cUnit, OpKind op,
             LOG(FATAL) << "Bad opcode: " << (int)op;
             break;
     }
-    DCHECK(opcode >= 0);
+    DCHECK_GE(static_cast<int>(opcode), 0);
     if (EncodingMap[opcode].flags & IS_QUAD_OP)
         return newLIR4(cUnit, opcode, rDest, rSrc1, rSrc2, shift);
     else {

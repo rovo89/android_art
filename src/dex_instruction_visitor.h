@@ -28,7 +28,7 @@ class DexInstructionVisitor {
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_CASE
         default:
-          CHECK(true);
+          CHECK(false);
       }
       ptr += inst->Size() * sizeof(uint16_t);
       CHECK_LE(ptr, end);

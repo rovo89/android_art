@@ -648,7 +648,7 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
 uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
-    DCHECK(dex_pc == 0);
+    DCHECK_EQ(dex_pc, 0U);
     return 0;   // Special no mapping/pc == 0 case
   }
   size_t mapping_table_length = GetMappingTableLength();

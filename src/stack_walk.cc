@@ -59,7 +59,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         EXPECT_EQ(0U, m->ToDexPC(pc));
         EXPECT_REGS(1);
       } else {
-        CHECK(gJava_StackWalk_refmap_calls == 2);
+        CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
         EXPECT_EQ(4U, m->ToDexPC(pc));
         EXPECT_REGS(1);  // Note that v1 is not in the minimal root set
       }
@@ -68,7 +68,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         EXPECT_EQ(0xaU, m->ToDexPC(pc));
         EXPECT_REGS(1, 2, 3);
       } else {
-        CHECK(gJava_StackWalk_refmap_calls == 2);
+        CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
         EXPECT_EQ(0xaU, m->ToDexPC(pc));
           EXPECT_REGS(1, 2, 3);
       }
@@ -77,7 +77,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         EXPECT_EQ(0x2d5U, m->ToDexPC(pc));
         EXPECT_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       } else {
-        CHECK(gJava_StackWalk_refmap_calls == 2);
+        CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
         EXPECT_EQ(0x2d5U, m->ToDexPC(pc));
         EXPECT_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       }

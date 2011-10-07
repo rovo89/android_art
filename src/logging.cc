@@ -20,13 +20,11 @@
 #include "thread.h"
 #include "utils.h"
 
-namespace {
+namespace art {
 
 art::Mutex& GetLoggingLock() {
   static art::Mutex lock("LogMessage lock");
   return lock;
-}
-
 }
 
 LogMessage::~LogMessage() {
@@ -62,3 +60,5 @@ LogMessage::~LogMessage() {
 std::ostream& LogMessage::stream() {
   return buffer_;
 }
+
+}  // namespace art

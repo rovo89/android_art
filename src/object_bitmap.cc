@@ -111,7 +111,7 @@ void HeapBitmap::Walk(HeapBitmap::Callback* callback, void* arg) {
 void HeapBitmap::ScanWalk(uintptr_t base, ScanCallback* callback, void* arg) {
   CHECK(words_ != NULL);
   CHECK(callback != NULL);
-  CHECK(base >= base_);
+  CHECK_GE(base, base_);
   uintptr_t end = HB_OFFSET_TO_INDEX(max_ - base);
   for (uintptr_t i = 0; i <= end; ++i) {
     unsigned long word = words_[i];
@@ -141,11 +141,11 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
                            HeapBitmap::SweepCallback* callback, void* arg) {
   CHECK(live_bitmap.words_ != NULL);
   CHECK(mark_bitmap.words_ != NULL);
-  CHECK(live_bitmap.base_ == mark_bitmap.base_);
-  CHECK(live_bitmap.num_bytes_ == mark_bitmap.num_bytes_);
+  CHECK_EQ(live_bitmap.base_, mark_bitmap.base_);
+  CHECK_EQ(live_bitmap.num_bytes_, mark_bitmap.num_bytes_);
   CHECK(callback != NULL);
-  CHECK(base <= max);
-  CHECK(base >= live_bitmap.base_);
+  CHECK_LE(base, max);
+  CHECK_GE(base, live_bitmap.base_);
   max = std::min(max-1, live_bitmap.max_);
   if (live_bitmap.max_ < live_bitmap.base_) {
     // Easy case; both are obviously empty.

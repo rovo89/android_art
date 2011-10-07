@@ -1911,7 +1911,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
   }
   if (ifcount == 0) {
     // TODO: enable these asserts with klass status validation
-    // DCHECK(klass->GetIfTableCount() == 0);
+    // DCHECK_EQ(klass->GetIfTableCount(), 0);
     // DCHECK(klass->GetIfTable() == NULL);
     return true;
   }

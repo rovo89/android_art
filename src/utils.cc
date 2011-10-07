@@ -203,8 +203,8 @@ std::string JniShortName(const Method* m) {
 
   std::string class_name(declaring_class->GetDescriptor()->ToModifiedUtf8());
   // Remove the leading 'L' and trailing ';'...
-  CHECK(class_name[0] == 'L') << class_name;
-  CHECK(class_name[class_name.size() - 1] == ';') << class_name;
+  CHECK_EQ(class_name[0], 'L') << class_name;
+  CHECK_EQ(class_name[class_name.size() - 1], ';') << class_name;
   class_name.erase(0, 1);
   class_name.erase(class_name.size() - 1, 1);
 
