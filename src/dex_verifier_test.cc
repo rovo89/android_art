@@ -13,7 +13,7 @@ namespace art {
 
 class DexVerifierTest : public CommonTest {
  protected:
-  void VerifyClass(ClassLoader* class_loader, const StringPiece& descriptor) {
+  void VerifyClass(ClassLoader* class_loader, const std::string& descriptor) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor);
 

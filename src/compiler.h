@@ -16,7 +16,9 @@ namespace art {
 
 class Compiler {
  public:
-  explicit Compiler(InstructionSet instruction_set);
+  // Create a compiler targeting the requested "instruction_set".
+  // "image" should be true if image specific optimizations should be enabled.
+  explicit Compiler(InstructionSet instruction_set, bool image);
 
   ~Compiler();
 
@@ -26,12 +28,16 @@ class Compiler {
   // Compile a single Method
   void CompileOne(const Method* method);
 
-  void SetVerbose(bool verbose) {
-    verbose_ = verbose;
-  }
-
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
+  }
+
+  bool IsImage() const {
+    return image_;
+  }
+
+  void SetVerbose(bool verbose) {
+    verbose_ = verbose;
   }
 
   bool IsVerbose() const {
@@ -80,6 +86,8 @@ class Compiler {
 
   typedef std::tr1::unordered_map<const Method*, CompiledInvokeStub*, ObjectIdentityHash> InvokeStubTable;
   InvokeStubTable compiled_invoke_stubs_;
+
+  bool image_;
 
   bool verbose_;
 

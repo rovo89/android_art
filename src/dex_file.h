@@ -437,8 +437,13 @@ class DexFile {
   }
 
   // Returns the prototype of a method id.
-  const char* GetMethodPrototype(const MethodId& method_id) const {
-    return dexStringById(method_id.proto_idx_);
+  const ProtoId& GetMethodPrototype(const MethodId& method_id) const {
+    return GetProtoId(method_id.proto_idx_);
+  }
+
+  // Returns the signature of a method id.
+  const std::string GetMethodSignature(const MethodId& method_id) const {
+    return CreateMethodDescriptor(method_id.proto_idx_, NULL);
   }
 
   // Returns the name of a method id.

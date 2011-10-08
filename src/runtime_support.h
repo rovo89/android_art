@@ -44,6 +44,7 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void* art_get_obj_static_from_code(uint32_t, void*);
   extern "C" void art_handle_fill_data_from_code(void*, void*);
   extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
+  extern "C" void* art_resolve_string_from_code(void*, uint32_t);
   extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
   extern "C" int art_set32_static_from_code(uint32_t, void*, int32_t);
   extern "C" int art_set64_static_from_code(uint32_t, void*, int64_t);

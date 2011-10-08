@@ -82,52 +82,6 @@ public:
         free(slashClassName);
 
         mClass = reinterpret_cast<jclass>(env->NewGlobalRef(mClass));
-
-        // TODO: remove this ClassLoader code
-        jclass ApplicationLoaders = env->FindClass("android/app/ApplicationLoaders");
-        jmethodID getDefault = env->GetStaticMethodID(ApplicationLoaders,
-                                                      "getDefault",
-                                                      "()Landroid/app/ApplicationLoaders;");
-        jfieldID mLoaders = env->GetFieldID(ApplicationLoaders, "mLoaders", "Ljava/util/Map;");
-        jclass BootClassLoader = env->FindClass("java/lang/BootClassLoader");
-        jmethodID getInstance = env->GetStaticMethodID(BootClassLoader,
-                                                       "getInstance",
-                                                       "()Ljava/lang/BootClassLoader;");
-        jclass ClassLoader = env->FindClass("java/lang/ClassLoader");
-        jfieldID parent = env->GetFieldID(ClassLoader, "parent", "Ljava/lang/ClassLoader;");
-        jclass Map = env->FindClass("java/util/Map");
-        jmethodID put = env->GetMethodID(Map,
-                                         "put",
-                                         "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
-        jclass BaseDexClassLoader = env->FindClass("dalvik/system/BaseDexClassLoader");
-        jfieldID originalPath = env->GetFieldID(BaseDexClassLoader, "originalPath", "Ljava/lang/String;");
-        jfieldID pathList = env->GetFieldID(BaseDexClassLoader, "pathList", "Ldalvik/system/DexPathList;");
-        jclass DexPathList = env->FindClass("dalvik/system/DexPathList");
-        jmethodID init = env->GetMethodID(DexPathList,
-                                          "<init>",
-                                          "(Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;Ljava/io/File;)V");
-
-        // Set the parent of our pre-existing ClassLoader to the non-null BootClassLoader.getInstance()
-        const art::ClassLoader* class_loader_object = art::Thread::Current()->GetClassLoaderOverride();
-        jobject class_loader = art::AddLocalReference<jobject>(env, class_loader_object);
-        jobject boot_class_loader = env->CallStaticObjectMethod(BootClassLoader, getInstance);
-        env->SetObjectField(class_loader, parent, boot_class_loader);
-
-        // Create a DexPathList
-        jstring dex_path = env->NewStringUTF("/system/app/Calculator.apk");
-        jstring library_path = env->NewStringUTF("/data/data/com.android.calculator2/lib");
-        jobject dex_path_list = env->NewObject(DexPathList, init,
-                                               boot_class_loader, dex_path, library_path, NULL);
-
-        // Set DexPathList into our pre-existing ClassLoader
-        env->SetObjectField(class_loader, pathList, dex_path_list);
-        env->SetObjectField(class_loader, originalPath, dex_path);
-
-        // Stash our pre-existing ClassLoader into ApplicationLoaders.getDefault().mLoaders
-        // under the expected name.
-        jobject application_loaders = env->CallStaticObjectMethod(ApplicationLoaders, getDefault);
-        jobject loaders = env->GetObjectField(application_loaders, mLoaders);
-        env->CallObjectMethod(loaders, put, dex_path, class_loader);
     }
 
     virtual void onStarted()
@@ -209,14 +163,12 @@ int main(int argc, const char* argv[])
         }
     }
 
-    // TODO: remove Calculator special case
-    int oatArgc = argc + 2;
+    // TODO: remove when we default the boot image
+    int oatArgc = argc + 1;
     const char* oatArgv[oatArgc];
     if (strcmp(argv[0], "-Ximage:/system/framework/boot.art") != 0) {
-        LOG(INFO) << "Adding oat arguments";
+        LOG(INFO) << "Adding image arguments";
         oatArgv[0] = "-Ximage:/system/framework/boot.art";
-        oatArgv[1] = "-Ximage:/system/app/Calculator.art";
-        setenv("CLASSPATH", "/system/app/Calculator.apk", 1);
         memcpy(oatArgv + (oatArgc - argc), argv, argc * sizeof(*argv));
         argv = oatArgv;
         argc = oatArgc;

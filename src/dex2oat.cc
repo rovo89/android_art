@@ -124,8 +124,8 @@ int dex2oat(int argc, char** argv) {
    return EXIT_FAILURE;
   }
 
-  if (image_filename == NULL) {
-   fprintf(stderr, "--image file name not specified\n");
+  if (image_filename == NULL && boot_image_option.empty()) {
+   fprintf(stderr, "Either --image or --boot-image must be specified\n");
    return EXIT_FAILURE;
   }
 
@@ -190,7 +190,7 @@ int dex2oat(int argc, char** argv) {
     for (size_t i = 0; i < dex_files.size(); i++) {
       class_linker->RegisterDexFile(*dex_files[i]);
     }
-    class_loader = PathClassLoader::Alloc(dex_files);
+    class_loader = PathClassLoader::AllocCompileTime(dex_files);
   }
 
   // if we loaded an existing image, we will reuse values from the image roots.
@@ -212,7 +212,7 @@ int dex2oat(int argc, char** argv) {
       runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(kThumb2, type), type);
     }
   }
-  Compiler compiler(kThumb2);
+  Compiler compiler(kThumb2, image_filename != NULL);
   if (method_names.empty()) {
     compiler.CompileAll(class_loader);
   } else {
@@ -262,6 +262,11 @@ int dex2oat(int argc, char** argv) {
     fprintf(stderr, "Failed to create oat file %s\n", oat_filename.c_str());
     return EXIT_FAILURE;
   }
+
+  if (image_filename == NULL) {
+    return EXIT_SUCCESS;
+  }
+  CHECK(compiler.IsImage());
 
   ImageWriter image_writer;
   if (!image_writer.Write(image_filename, image_base, oat_filename, host_prefix)) {

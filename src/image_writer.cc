@@ -25,6 +25,8 @@ namespace art {
 
 bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
                         const std::string& oat_filename, const std::string& strip_location_prefix) {
+  CHECK(image_filename != NULL);
+
   CHECK_NE(image_base, 0U);
   image_base_ = reinterpret_cast<byte*>(image_base);
 

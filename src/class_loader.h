@@ -7,19 +7,17 @@
 
 #include "dex_file.h"
 #include "object.h"
+#include "unordered_map.h"
 
 namespace art {
 
 // C++ mirror of java.lang.ClassLoader
-// TODO: add MANAGED when class_path_ removed
-class ClassLoader : public Object {
+class MANAGED ClassLoader : public Object {
  public:
-  static const std::vector<const DexFile*>& GetClassPath(const ClassLoader* class_loader);
-
-  void SetClassPath(std::vector<const DexFile*>& class_path) {
-    DCHECK_EQ(class_path_.size(), 0U);
-    // TODO: use setter
-    class_path_ = class_path;
+  static const std::vector<const DexFile*>& GetCompileTimeClassPath(const ClassLoader* class_loader);
+  static void SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path);
+  static bool UseCompileTimeClassPath() {
+    return use_compile_time_class_path;
   }
 
  private:
@@ -27,8 +25,10 @@ class ClassLoader : public Object {
   Object* packages_;
   ClassLoader* parent_;
 
-  // TODO: remove once we can create a real PathClassLoader
-  std::vector<const DexFile*> class_path_;
+  typedef std::tr1::unordered_map<const ClassLoader*, std::vector<const DexFile*>, ObjectIdentityHash> Table;
+  static Table compile_time_class_paths_;
+
+  static bool use_compile_time_class_path;
 
   friend struct ClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
@@ -50,7 +50,7 @@ class BaseDexClassLoader : public ClassLoader {
 // TODO: add MANAGED when class_path_ removed
 class PathClassLoader : public BaseDexClassLoader {
  public:
-  static const PathClassLoader* Alloc(std::vector<const DexFile*> dex_files);
+  static const PathClassLoader* AllocCompileTime(std::vector<const DexFile*>& dex_files);
   static void SetClass(Class* dalvik_system_PathClassLoader);
   static void ResetClass();
  private:

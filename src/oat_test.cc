@@ -14,7 +14,7 @@ TEST_F(OatTest, WriteRead) {
 
   const ClassLoader* class_loader = NULL;
   if (compile) {
-    compiler_.reset(new Compiler(kThumb2));
+    compiler_.reset(new Compiler(kThumb2, false));
     compiler_->CompileAll(class_loader);
   }
 
@@ -33,7 +33,7 @@ TEST_F(OatTest, WriteRead) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   const DexFile& dex_file = *java_lang_dex_file_.get();
-  const OatFile::OatDexFile& oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
   for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
     const byte* class_data = dex_file.GetClassData(class_def);
@@ -41,14 +41,14 @@ TEST_F(OatTest, WriteRead) {
     size_t num_virtual_methods = header.virtual_methods_size_;
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
 
-    const OatFile::OatClass oat_class = oat_dex_file.GetOatClass(i);
+    UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
 
     Class* klass = class_linker->FindClass(descriptor, class_loader);
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {
       Method* method = klass->GetDirectMethod(i);
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
       const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
 
       if (compiled_method == NULL) {
@@ -75,7 +75,7 @@ TEST_F(OatTest, WriteRead) {
     }
     for (size_t i = 0; i < num_virtual_methods; i++, method_index++) {
       Method* method = klass->GetVirtualMethod(i);
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
       const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
 
       if (compiled_method == NULL) {

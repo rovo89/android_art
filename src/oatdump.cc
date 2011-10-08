@@ -26,7 +26,11 @@ static void usage() {
           "    Example: adb shell oatdump --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
-          "  --image=<file.art>: specifies the required input image filename.\n"
+          "  --oat=<file.oat>: specifies an input oat filename.\n"
+          "      Example: --image=/system/framework/boot.oat\n"
+          "\n");
+  fprintf(stderr,
+          "  --image=<file.art>: specifies an input image filename.\n"
           "      Example: --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
@@ -52,15 +56,168 @@ const char* image_roots_descriptions_[] = {
   "kStaticResolutionStubArray",
   "kUnknownMethodResolutionStubArray",
   "kCalleeSaveMethod",
+  "kRefsOnlySaveMethod",
+  "kRefsAndArgsSaveMethod",
   "kOatLocation",
   "kDexCaches",
   "kClassRoots",
 };
 
 class OatDump {
+ public:
+  static void Dump(const std::string& oat_filename,
+                   const std::string& host_prefix,
+                   std::ostream& os,
+                   const OatFile& oat_file) {
+    const OatHeader& oat_header = oat_file.GetOatHeader();
+
+    os << "MAGIC:\n";
+    os << oat_header.GetMagic() << "\n\n";
+
+    os << "CHECKSUM:\n";
+    os << StringPrintf("%08x\n\n", oat_header.GetChecksum());
+
+    os << "DEX FILE COUNT:\n";
+    os << oat_header.GetDexFileCount() << "\n\n";
+
+    os << "EXECUTABLE OFFSET:\n";
+    os << StringPrintf("%08x\n\n", oat_header.GetExecutableOffset());
+
+    os << "BASE:\n";
+    os << oat_file.GetBase() << "\n\n";
+
+    os << "LIMIT:\n";
+    os << oat_file.GetLimit() << "\n\n";
+
+    os << std::flush;
+
+    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file.GetOatDexFiles() ;
+    for (size_t i = 0; i < oat_dex_files.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+      CHECK(oat_dex_file != NULL);
+      DumpOatDexFile(host_prefix, os, oat_file, *oat_dex_file);
+    }
+  }
+
+ private:
+  static void DumpOatDexFile(const std::string& host_prefix,
+                             std::ostream& os,
+                             const OatFile& oat_file,
+                             const OatFile::OatDexFile& oat_dex_file) {
+    os << "OAT DEX FILE:\n";
+    std::string dex_file_location = oat_dex_file.GetDexFileLocation();
+    os << "location: " << dex_file_location;
+    if (!host_prefix.empty()) {
+      dex_file_location = host_prefix + dex_file_location;
+      os << " (" << dex_file_location << ")\n";
+    }
+    os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileChecksum());
+    const DexFile* dex_file = DexFile::Open(dex_file_location, "");
+    if (dex_file == NULL) {
+      os << "NOT FOUND\n\n";
+      return;
+    }
+    for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
+      const char* descriptor = dex_file->GetClassDescriptor(class_def);
+      os << StringPrintf("%d: %s (type_ide=%d)\n", class_def_index, descriptor, class_def.class_idx_);
+      UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
+      CHECK(oat_class.get() != NULL);
+      DumpOatClass(os, oat_file, *oat_class.get(), *dex_file, class_def);
+    }
+
+    os << std::flush;
+  }
+
+  static void DumpOatClass(std::ostream& os,
+                           const OatFile& oat_file,
+                           const OatFile::OatClass& oat_class,
+                           const DexFile& dex_file,
+                           const DexFile::ClassDef& class_def) {
+    const byte* class_data = dex_file.GetClassData(class_def);
+    DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
+    size_t num_static_fields = header.static_fields_size_;
+    size_t num_instance_fields = header.instance_fields_size_;
+    size_t num_direct_methods = header.direct_methods_size_;
+    size_t num_virtual_methods = header.virtual_methods_size_;
+    uint32_t method_index = 0;
+
+    // just skipping through the fields to advance class_data
+    if (num_static_fields != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_static_fields; ++i) {
+        DexFile::Field dex_field;
+        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
+      }
+    }
+    if (num_instance_fields != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_instance_fields; ++i) {
+        DexFile::Field dex_field;
+        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
+      }
+    }
+
+    if (num_direct_methods != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_direct_methods; ++i, method_index++) {
+        DexFile::Method dex_method;
+        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
+        const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+        DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, dex_method);
+      }
+    }
+    if (num_virtual_methods != 0) {
+      uint32_t last_idx = 0;
+      for (size_t i = 0; i < num_virtual_methods; ++i, method_index++) {
+        DexFile::Method dex_method;
+        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
+        const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+        DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, dex_method);
+      }
+    }
+    os << std::flush;
+  }
+  static void DumpOatMethod(std::ostream& os,
+                            uint32_t method_index,
+                            const OatFile& oat_file,
+                            const OatFile::OatMethod& oat_method,
+                            const DexFile& dex_file,
+                            const DexFile::Method& dex_method) {
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method.method_idx_);
+    const char* name = dex_file.GetMethodName(method_id);
+    std::string signature = dex_file.GetMethodSignature(method_id);
+    os << StringPrintf("\t%d: %s %s (method_idx=%d)\n",
+                       method_index, name, signature.c_str(), dex_method.method_idx_);
+    os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
+                       oat_method.code_,
+                       reinterpret_cast<const byte*>(oat_method.code_) - oat_file.GetBase());
+    os << StringPrintf("\t\tframe_size_in_bytes: %d\n",
+                       oat_method.frame_size_in_bytes_);
+    os << StringPrintf("\t\treturn_pc_offset_in_bytes: %d\n",
+                       oat_method.return_pc_offset_in_bytes_);
+    os << StringPrintf("\t\tcore_spill_mask: %08x\n",
+                       oat_method.core_spill_mask_);
+    os << StringPrintf("\t\tfp_spill_mask: %08x\n",
+                       oat_method.fp_spill_mask_);
+    os << StringPrintf("\t\tmapping_table: %p (offset=%08x)\n",
+                       oat_method.mapping_table_,
+                       reinterpret_cast<const byte*>(oat_method.mapping_table_) - oat_file.GetBase());
+    os << StringPrintf("\t\tvmap_table: %p (offset=%08x)\n",
+                       oat_method.vmap_table_,
+                       reinterpret_cast<const byte*>(oat_method.vmap_table_) - oat_file.GetBase());
+    os << StringPrintf("\t\tinvoke_stub: %p (offset=%08x)\n",
+                       oat_method.invoke_stub_,
+                       reinterpret_cast<const byte*>(oat_method.invoke_stub_) - oat_file.GetBase());
+  }
+
+};
+
+class ImageDump {
 
  public:
   static void Dump(const std::string& image_filename,
+                   const std::string& host_prefix,
                    std::ostream& os,
                    Space& image_space,
                    const ImageHeader& image_header) {
@@ -70,10 +227,17 @@ class OatDump {
     os << "IMAGE BASE:\n";
     os << reinterpret_cast<void*>(image_header.GetImageBaseAddr()) << "\n\n";
 
+    os << "OAT CHECKSUM:\n";
+    os << StringPrintf("%08x\n\n", image_header.GetOatChecksum());
+
     os << "OAT BASE:\n";
     os << reinterpret_cast<void*>(image_header.GetOatBaseAddr()) << "\n\n";
 
+    os << "OAT LIMIT:\n";
+    os << reinterpret_cast<void*>(image_header.GetOatLimitAddr()) << "\n\n";
+
     os << "ROOTS:\n";
+    os << reinterpret_cast<void*>(image_header.GetImageRoots()) << "\n";
     CHECK_EQ(arraysize(image_roots_descriptions_), size_t(ImageHeader::kImageRootsMax));
     for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
       ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
@@ -93,10 +257,10 @@ class OatDump {
     os << "\n";
 
     os << "OBJECTS:\n" << std::flush;
-    OatDump state(image_space, os);
+    ImageDump state(image_space, os);
     HeapBitmap* heap_bitmap = Heap::GetLiveBits();
     DCHECK(heap_bitmap != NULL);
-    heap_bitmap->Walk(OatDump::Callback, &state);
+    heap_bitmap->Walk(ImageDump::Callback, &state);
     os << "\n";
 
     os << "STATS:\n" << std::flush;
@@ -107,22 +271,41 @@ class OatDump {
     size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
     state.stats_.alignment_bytes += alignment_bytes;
     state.stats_.Dump(os);
+    os << "\n";
 
     os << std::flush;
+
+    os << "OAT LOCATION:\n" << std::flush;
+    Object* oat_location_object = image_header.GetImageRoot(ImageHeader::kOatLocation);
+    std::string oat_location = oat_location_object->AsString()->ToModifiedUtf8();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    os << oat_location;
+    if (!host_prefix.empty()) {
+      oat_location = host_prefix + oat_location;
+      os << " (" << oat_location << ")\n";
+    }
+    const OatFile* oat_file = class_linker->FindOatFile(oat_location);
+    if (oat_file == NULL) {
+      os << "NOT FOUND\n";
+      os << std::flush;
+      return;
+    }
+    os << "\n";
+    os << std::flush;
+
+    OatDump::Dump(oat_location, host_prefix, os, *oat_file);
   }
 
  private:
 
-  OatDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space), os_(os) {
-  }
+  ImageDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space), os_(os) {}
 
-  ~OatDump() {
-  }
+  ~ImageDump() {}
 
   static void Callback(Object* obj, void* arg) {
     DCHECK(obj != NULL);
     DCHECK(arg != NULL);
-    OatDump* state = reinterpret_cast<OatDump*>(arg);
+    ImageDump* state = reinterpret_cast<ImageDump*>(arg);
     if (!state->InDumpSpace(obj)) {
       return;
     }
@@ -319,7 +502,6 @@ class OatDump {
                          / static_cast<double>(dex_instruction_bytes));
       os << "\n";
       os << std::flush;
-
     }
   } stats_;
 
@@ -327,7 +509,7 @@ class OatDump {
   const Space& dump_space_;
   std::ostream& os_;
 
-  DISALLOW_COPY_AND_ASSIGN(OatDump);
+  DISALLOW_COPY_AND_ASSIGN(ImageDump);
 };
 
 int oatdump(int argc, char** argv) {
@@ -336,10 +518,11 @@ int oatdump(int argc, char** argv) {
   argc--;
 
   if (argc == 0) {
-    fprintf(stderr, "no arguments specified\n");
+    fprintf(stderr, "No arguments specified\n");
     usage();
   }
 
+  const char* oat_filename = NULL;
   const char* image_filename = NULL;
   const char* boot_image_filename = NULL;
   std::string host_prefix;
@@ -348,7 +531,9 @@ int oatdump(int argc, char** argv) {
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
-    if (option.starts_with("--image=")) {
+    if (option.starts_with("--oat=")) {
+      oat_filename = option.substr(strlen("--oat=")).data();
+    } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
@@ -358,19 +543,34 @@ int oatdump(int argc, char** argv) {
       const char* filename = option.substr(strlen("--output=")).data();
       out.reset(new std::ofstream(filename));
       if (!out->good()) {
-        fprintf(stderr, "failed to open output filename %s\n", filename);
+        fprintf(stderr, "Failed to open output filename %s\n", filename);
         usage();
       }
       os = out.get();
     } else {
-      fprintf(stderr, "unknown argument %s\n", option.data());
+      fprintf(stderr, "Unknown argument %s\n", option.data());
       usage();
     }
   }
 
-  if (image_filename == NULL) {
-   fprintf(stderr, "--image file name not specified\n");
+  if (image_filename == NULL && oat_filename == NULL) {
+   fprintf(stderr, "Either --image or --oat must be specified\n");
    return EXIT_FAILURE;
+  }
+
+  if (image_filename != NULL && oat_filename != NULL) {
+   fprintf(stderr, "Either --image or --oat must be specified but not both\n");
+   return EXIT_FAILURE;
+  }
+
+  if (oat_filename != NULL) {
+    const OatFile* oat_file = OatFile::Open(oat_filename, "", NULL);
+    if (oat_file == NULL) {
+      fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
+      return EXIT_FAILURE;
+    }
+    OatDump::Dump(oat_filename, host_prefix, *os, *oat_file);
+    return EXIT_SUCCESS;
   }
 
   Runtime::Options options;
@@ -383,9 +583,11 @@ int oatdump(int argc, char** argv) {
     boot_image_option += boot_image_filename;
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
-  image_option += "-Ximage:";
-  image_option += image_filename;
-  options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
+  if (image_filename != NULL) {
+    image_option += "-Ximage:";
+    image_option += image_filename;
+    options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
+  }
 
   if (!host_prefix.empty()) {
     options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
@@ -393,7 +595,7 @@ int oatdump(int argc, char** argv) {
 
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
   if (runtime.get() == NULL) {
-    fprintf(stderr, "could not create runtime\n");
+    fprintf(stderr, "Failed to create runtime\n");
     return EXIT_FAILURE;
   }
 
@@ -401,10 +603,10 @@ int oatdump(int argc, char** argv) {
   CHECK(image_space != NULL);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {
-    fprintf(stderr, "invalid image header %s\n", image_filename);
+    fprintf(stderr, "Invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  OatDump::Dump(image_filename, *os, *image_space, image_header);
+  ImageDump::Dump(image_filename, host_prefix, *os, *image_space, image_header);
   return EXIT_SUCCESS;
 }
 

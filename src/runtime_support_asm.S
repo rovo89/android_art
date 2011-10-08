@@ -256,7 +256,7 @@ art_initialize_static_storage_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
-    @ ClassLinker::InitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    @ artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
     bl     artInitializeStaticStorageFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                              @ success if result is non-null
@@ -371,6 +371,24 @@ art_set_obj_static_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_resolve_string_from_code
+    .extern artResolveStringFromCode
+    /*
+     * Entry from managed code to resolve a string, this stub will
+     * allocate a String and deliver an exception on error. On
+     * success the String is returned.
+     */
+ art_resolve_string_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
+    mov    r2, r9                              @ pass Thread::Current
+    mov    r3, sp                              @ pass SP
+    @ artResolveStringFromCode(Method* referrer, uint32_t type_idx, Thread*, SP)
+    bl     artResolveStringFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                              @ success if result is non-null
+    bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_alloc_object_from_code

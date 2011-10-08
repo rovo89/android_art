@@ -40,7 +40,7 @@ define build-art-oat
 # TODO: change DEX2OATD (and perhaps $(2) boot oat) to order-only prerequisite when output is stable
 $(patsubst %.apk,%.oat,$(patsubst %.jar,%.oat,$(1))): $(1) $(2) $(DEX2OAT)
 	@echo "target dex2oat: $$@ ($$<)"
-	$(hide) $(DEX2OAT) -Xms16m -Xmx16m --boot-image=$(patsubst %.oat,%.art,$(2)) $(addprefix --dex-file=,$$<) --oat=$$@ --image=$$(patsubst %.oat,%.art,$$@) --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) -Xms16m -Xmx16m --boot-image=$(patsubst %.oat,%.art,$(2)) $(addprefix --dex-file=,$$<) --oat=$$@ --host-prefix=$(PRODUCT_OUT)
 endef
 
 ########################################################################
@@ -64,7 +64,7 @@ define declare-test-test-target
 test-art-target-oat-$(1): test-art-target-sync
 	adb shell touch /sdcard/test-art-target-oat-$(1)
 	adb shell rm /sdcard/test-art-target-oat-$(1)
-	adb shell sh -c "oatexecd -Ximage:/system/framework/core.art -classpath /system/framework/art-test-dex-$(1).jar -Ximage:/system/framework/art-test-dex-$(1).art $(1) $(2) && touch /sdcard/test-art-target-oat-$(1)"
+	adb shell sh -c "oatexecd -Ximage:/system/framework/core.art -classpath /system/framework/art-test-dex-$(1).jar $(1) $(2) && touch /sdcard/test-art-target-oat-$(1)"
 	$(hide) (adb pull /sdcard/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 

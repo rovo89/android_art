@@ -15,7 +15,7 @@ namespace art {
 
 class ClassLinkerTest : public CommonTest {
  protected:
-  void AssertNonExistentClass(const StringPiece& descriptor) {
+  void AssertNonExistentClass(const std::string& descriptor) {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor) == NULL);
     Thread* self = Thread::Current();
     EXPECT_TRUE(self->IsExceptionPending());
@@ -25,11 +25,11 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(exception->InstanceOf(exception_class));
   }
 
-  void AssertPrimitiveClass(const StringPiece& descriptor) {
+  void AssertPrimitiveClass(const std::string& descriptor) {
     AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor));
   }
 
-  void AssertPrimitiveClass(const StringPiece& descriptor, const Class* primitive) {
+  void AssertPrimitiveClass(const std::string& descriptor, const Class* primitive) {
     ASSERT_TRUE(primitive != NULL);
     ASSERT_TRUE(primitive->GetClass() != NULL);
     ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
@@ -62,8 +62,8 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetIfTable() == NULL);
   }
 
-  void AssertArrayClass(const StringPiece& array_descriptor,
-                        const StringPiece& component_type,
+  void AssertArrayClass(const std::string& array_descriptor,
+                        const std::string& component_type,
                         const ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor, class_loader);
     EXPECT_TRUE(array->GetComponentType()->GetDescriptor()->Equals(component_type));
@@ -71,7 +71,7 @@ class ClassLinkerTest : public CommonTest {
     AssertArrayClass(array_descriptor, array);
   }
 
-  void AssertArrayClass(const StringPiece& array_descriptor, Class* array) {
+  void AssertArrayClass(const std::string& array_descriptor, Class* array) {
     ASSERT_TRUE(array != NULL);
     ASSERT_TRUE(array->GetClass() != NULL);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
@@ -142,7 +142,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(field->GetType() != NULL);
   }
 
-  void AssertClass(const StringPiece& descriptor, Class* klass) {
+  void AssertClass(const std::string& descriptor, Class* klass) {
     EXPECT_TRUE(klass->GetDescriptor()->Equals(descriptor));
     if (klass->GetDescriptor()->Equals(String::AllocFromModifiedUtf8("Ljava/lang/Object;"))) {
       EXPECT_FALSE(klass->HasSuperClass());
@@ -259,7 +259,7 @@ class ClassLinkerTest : public CommonTest {
               total_num_reference_instance_fields == 0);
   }
 
-  void AssertDexFileClass(ClassLoader* class_loader, const StringPiece& descriptor) {
+  void AssertDexFileClass(ClassLoader* class_loader, const std::string& descriptor) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor);
     ASSERT_TRUE(klass != NULL);
@@ -668,11 +668,11 @@ TEST_F(ClassLinkerTest, FindClassNested) {
 }
 
 TEST_F(ClassLinkerTest, FindClass_Primitives) {
-  StringPiece expected = "BCDFIJSZV";
+  const std::string expected("BCDFIJSZV");
   for (int ch = 0; ch < 255; ch++) {
     char* s = reinterpret_cast<char*>(&ch);
-    StringPiece descriptor(s, 1);
-    if (expected.find(ch) == StringPiece::npos) {
+    const std::string descriptor(s, 1);
+    if (expected.find(ch) == std::string::npos) {
       AssertNonExistentClass(descriptor);
     } else {
       AssertPrimitiveClass(descriptor);
@@ -932,7 +932,7 @@ TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   // case 2, get the initialized storage from StaticsFromCode.getS0
 
   const ClassLoader* class_loader = LoadDex("StaticsFromCode");
-  const DexFile* dex_file = ClassLoader::GetClassPath(class_loader)[0];
+  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader)[0];
   CHECK(dex_file != NULL);
 
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);

@@ -39,7 +39,8 @@ class CompilerTest : public CommonTest {
   }
 
   void MakeAllExecutable(const ClassLoader* class_loader) {
-    const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+    const std::vector<const DexFile*>& class_path
+        = ClassLoader::GetCompileTimeClassPath(class_loader);
     for (size_t i = 0; i != class_path.size(); ++i) {
       const DexFile* dex_file = class_path[i];
       CHECK(dex_file != NULL);

@@ -47,7 +47,7 @@ class OatFile {
     ~OatMethod();
 
     // Link Method using the contents of this OatMethod
-    void LinkMethod(Method* method);
+    void LinkMethod(Method* method) const;
 
     const void* code_;
     size_t frame_size_in_bytes_;
@@ -65,7 +65,7 @@ class OatFile {
     // defintion. direct methods come first, followed by virtual
     // methods. note that runtime created methods such as miranda
     // methods are not included.
-    const OatMethod GetOatMethod(uint32_t method_idx) const;
+    const OatMethod GetOatMethod(uint32_t method_index) const;
     ~OatClass();
 
    private:
@@ -89,7 +89,11 @@ class OatFile {
 
   class OatDexFile {
    public:
-    const OatClass GetOatClass(uint32_t class_def_index) const;
+    const OatClass* GetOatClass(uint32_t class_def_index) const;
+
+    const std::string& GetDexFileLocation() const {
+      return dex_file_location_;
+    }
 
     uint32_t GetDexFileChecksum() const {
       return dex_file_checksum_;
@@ -111,7 +115,8 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  const OatDexFile& GetOatDexFile(const std::string& dex_file_location);
+  const OatDexFile* GetOatDexFile(const std::string& dex_file_location) const;
+  std::vector<const OatDexFile*> GetOatDexFiles() const;
 
   size_t GetSize() const {
     return GetLimit() - GetBase();
@@ -137,6 +142,7 @@ class OatFile {
 
   friend class OatClass;
   friend class OatDexFile;
+  friend class OatDump;  // For GetBase and GetLimit
   DISALLOW_COPY_AND_ASSIGN(OatFile);
 };
 

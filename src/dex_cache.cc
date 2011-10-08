@@ -30,6 +30,15 @@ void DexCache::Init(String* location,
   Set(kResolvedFields,           resolved_fields);
   Set(kCodeAndDirectMethods,     code_and_direct_methods);
   Set(kInitializedStaticStorage, initialized_static_storage);
+
+  Runtime* runtime = Runtime::Current();
+  if (runtime->IsStarted()) {
+    Runtime::TrampolineType unknown_method_resolution_type = Runtime::GetTrampolineType(NULL);
+    ByteArray* res_trampoline = runtime->GetResolutionStubArray(unknown_method_resolution_type);
+    for (size_t i = 0; i < NumResolvedMethods(); i++) {
+      code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline);
+    }
+  }
 }
 
 }  // namespace art

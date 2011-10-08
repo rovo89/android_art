@@ -7,20 +7,35 @@
 
 namespace art {
 
-const std::vector<const DexFile*>& ClassLoader::GetClassPath(const ClassLoader* class_loader) {
+bool ClassLoader::use_compile_time_class_path = false;
+ClassLoader::Table ClassLoader::compile_time_class_paths_;
+
+const std::vector<const DexFile*>& ClassLoader::GetCompileTimeClassPath(const ClassLoader* class_loader) {
+  Runtime* runtime = Runtime::Current();
   if (class_loader == NULL) {
-    return Runtime::Current()->GetClassLinker()->GetBootClassPath();
+    return runtime->GetClassLinker()->GetBootClassPath();
   }
-  return class_loader->class_path_;
+  CHECK(ClassLoader::UseCompileTimeClassPath());
+  Table::const_iterator it = compile_time_class_paths_.find(class_loader);
+  CHECK(it != compile_time_class_paths_.end());
+  return it->second;
+}
+
+void ClassLoader::SetCompileTimeClassPath(const ClassLoader* class_loader,
+                                          std::vector<const DexFile*>& class_path) {
+  CHECK(!Runtime::Current()->IsStarted());
+  use_compile_time_class_path = true;
+  compile_time_class_paths_[class_loader] = class_path;
 }
 
 // TODO: get global references for these
 Class* PathClassLoader::dalvik_system_PathClassLoader_ = NULL;
 
-const PathClassLoader* PathClassLoader::Alloc(std::vector<const DexFile*> dex_files) {
+const PathClassLoader* PathClassLoader::AllocCompileTime(std::vector<const DexFile*>& dex_files) {
+  CHECK(!Runtime::Current()->IsStarted());
   DCHECK(dalvik_system_PathClassLoader_ != NULL);
   PathClassLoader* p = down_cast<PathClassLoader*>(dalvik_system_PathClassLoader_->AllocObject());
-  p->SetClassPath(dex_files);
+  SetCompileTimeClassPath(p, dex_files);
   return p;
 }
 

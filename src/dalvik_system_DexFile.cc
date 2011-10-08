@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
+#include "class_loader.h"
+#include "class_linker.h"
+#include "dex_file.h"
 #include "logging.h"
+#include "runtime.h"
 #include "ScopedUtfChars.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -80,20 +84,61 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   if (env->ExceptionOccurred()) {
     return 0;
   }
-  UNIMPLEMENTED(WARNING) << sourceName.c_str();
-  return 0;
+  const DexFile* dex_file = DexFile::Open(sourceName.c_str(), "");
+  if (dex_file == NULL) {
+    jniThrowExceptionFmt(env, "java/io/IOException", "unable to open DEX file: %s",
+                         sourceName.c_str());
+    return NULL;
+  }
+  return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
+}
+
+static const DexFile* toDexFile(JNIEnv* env, int dex_file_address) {
+  const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
+  if ((dex_file == NULL)) {
+    jniThrowNullPointerException(env, "dex_file == null");
+  }
+  return dex_file;
 }
 
 void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
-  UNIMPLEMENTED(WARNING);
+  const DexFile* dex_file = toDexFile(env, cookie);
+  if (dex_file == NULL) {
+    return;
+  }
+  if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
+    return;
+  }
+  delete dex_file;
 }
 
 jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLoader, jint cookie) {
-  UNIMPLEMENTED(ERROR);
-  return NULL;
+  const DexFile* dex_file = toDexFile(env, cookie);
+  if (dex_file == NULL) {
+    return NULL;
+  }
+  String* name = Decode<String*>(env, javaName);
+  const char* class_name = name->ToModifiedUtf8().c_str();
+  const std::string descriptor = DotToDescriptor(class_name);
+  const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+  if (dex_class_def == NULL) {
+    jniThrowExceptionFmt(env, "Ljava/lang/NoClassDefFoundError;", "Class %s not found", class_name);
+    return NULL;
+  }
+
+  Object* class_loader_object = Decode<Object*>(env, javaLoader);
+  ClassLoader* class_loader = down_cast<ClassLoader*>(class_loader_object);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  class_linker->RegisterDexFile(*dex_file);
+  Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+  return AddLocalReference<jclass>(env, result);
 }
 
 jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
+  const DexFile* dex_file = toDexFile(env, cookie);
+  if (dex_file == NULL) {
+    return NULL;
+  }
   UNIMPLEMENTED(ERROR);
   return NULL;
 }

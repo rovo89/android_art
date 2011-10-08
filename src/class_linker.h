@@ -50,21 +50,36 @@ class ClassLinker {
 
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
-  Class* FindClass(const StringPiece& descriptor, const ClassLoader* class_loader);
+  Class* FindClass(const std::string& descriptor, const ClassLoader* class_loader);
+
+  Class* FindSystemClass(const std::string& descriptor) {
+    return FindClass(descriptor, NULL);
+  }
+
+  // Define a new a class based on a ClassDef from a DexFile
+  Class* DefineClass(const std::string& descriptor, const ClassLoader* class_loader,
+                     const DexFile& dex_file, const DexFile::ClassDef& dex_class_def);
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'.
-  Class* LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader);
+  Class* LookupClass(const std::string& descriptor, const ClassLoader* class_loader);
 
   Class* FindPrimitiveClass(char type);
-
-  Class* FindSystemClass(const StringPiece& descriptor) {
-    return FindClass(descriptor, NULL);
-  }
 
   void DumpAllClasses(int flags) const;
 
   size_t NumLoadedClasses() const;
+
+  // Resolve a String with the given index from the DexFile, storing the
+  // result in the DexCache. The referrer is used to identify the
+  // target DexCache and ClassLoader to use for resolution.
+  String* ResolveString(uint32_t string_idx, const Method* referrer) {
+    Class* declaring_class = referrer->GetDeclaringClass();
+    DexCache* dex_cache = declaring_class->GetDexCache();
+    // TODO: we could check for a dex cache hit here
+    const DexFile& dex_file = FindDexFile(dex_cache);
+    return ResolveString(dex_file, string_idx, dex_cache);
+  }
 
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
@@ -175,6 +190,8 @@ class ClassLinker {
 
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
   DexCache* FindDexCache(const DexFile& dex_file) const;
+  bool IsDexFileRegistered(const DexFile& dex_file) const;
+  const OatFile* FindOatFile(const std::string& location);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
@@ -228,7 +245,7 @@ class ClassLinker {
                                   Class::PrimitiveType type);
 
 
-  Class* CreateArrayClass(const StringPiece& descriptor,
+  Class* CreateArrayClass(const std::string& descriptor,
                           const ClassLoader* class_loader);
 
   void AppendToBootClassPath(const DexFile& dex_file);
@@ -261,7 +278,13 @@ class ClassLinker {
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
-  bool InsertClass(const StringPiece& descriptor, Class* klass);
+  bool InsertClass(const std::string& descriptor, Class* klass);
+
+  void RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_cache);
+  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
+
+  // Find, possibily opening, an OatFile corresponding to a DexFile
+  const OatFile* FindOatFile(const DexFile& dex_file);
 
   bool InitializeClass(Class* klass, bool can_run_clinit);
   bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);
@@ -314,7 +337,7 @@ class ClassLinker {
   std::vector<const DexFile*> dex_files_;
   std::vector<DexCache*> dex_caches_;
 
-  // multimap from a StringPiece hash code of a class descriptor to
+  // multimap from a string hash code of a class descriptor to
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
   typedef std::tr1::unordered_multimap<size_t, Class*> Table;

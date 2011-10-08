@@ -136,7 +136,7 @@ if [ "$ZYGOTE" = "y" ]; then
 else
   cmdline="cd /data; oatexecd \
       -Ximage:/system/framework/core.art \
-      -Ximage:/system/framework/$TEST_NAME.art \
+      -cp /system/framework/$TEST_NAME.jar \
       Main"
   #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
   #    $GC_OPTS -cp test.jar -Xint:${INTERP} -ea Main"

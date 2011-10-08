@@ -29,5 +29,4 @@ dex2oatd -Xms16m -Xmx16m \
     --boot-image=${ANDROID_PRODUCT_OUT}/system/framework/core.art \
     --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar \
     --oat=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.oat \
-    --image=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.art \
     --host-prefix=${ANDROID_PRODUCT_OUT}

@@ -82,7 +82,7 @@ class PACKED Thread {
   };
 
   // Space to throw a StackOverflowError in.
-  static const size_t kStackOverflowReservedBytes = 3 * KB;
+  static const size_t kStackOverflowReservedBytes = 4 * KB;
 
   static const size_t kDefaultStackSize = 64 * KB;
 
@@ -139,7 +139,7 @@ class PACKED Thread {
   void (*pLockObjectFromCode)(void*);
   void (*pObjectInit)(Object*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
-  String* (*pResolveStringFromCode)(Method*, int32_t);
+  void* (*pResolveStringFromCode)(void*, uint32_t);
   int (*pSet32Static)(uint32_t, void*, int32_t);
   int (*pSet64Static)(uint32_t, void*, int64_t);
   int (*pSetObjStatic)(uint32_t, void*, void*);

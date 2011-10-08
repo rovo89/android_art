@@ -61,12 +61,6 @@ static Method* gThread_run = NULL;
 static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
-// TODO: flesh out and move to appropriate location
-String* ResolveStringFromCode(Method* method, int32_t string_idx) {
-  UNIMPLEMENTED(FATAL) << "Resolve string; handle OOM";
-  return NULL;  // Must return valid string or if exception, doesn't return
-}
-
 // TODO: move to appropriate location
 static void ObjectInitFromCode(Object* o) {
   Class* c = o->GetClass();
@@ -118,6 +112,7 @@ void Thread::InitFunctionPointers() {
   pGetObjStatic = art_get_obj_static_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
+  pResolveStringFromCode = art_resolve_string_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
   pSet32Static = art_set32_static_from_code;
   pSet64Static = art_set64_static_from_code;
@@ -144,7 +139,6 @@ void Thread::InitFunctionPointers() {
   pInstanceofNonTrivialFromCode = Class::IsAssignableFromCode;
   pObjectInit = ObjectInitFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
-  pResolveStringFromCode = ResolveStringFromCode;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
 }

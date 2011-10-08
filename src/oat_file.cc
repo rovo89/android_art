@@ -123,12 +123,21 @@ const byte* OatFile::GetLimit() const {
   return mem_map_->GetLimit();
 }
 
-const OatFile::OatDexFile& OatFile::GetOatDexFile(const std::string& dex_file_location) {
+const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_file_location) const {
   Table::const_iterator it = oat_dex_files_.find(dex_file_location);
   if (it == oat_dex_files_.end()) {
-    LOG(FATAL) << "Failed to find OatDexFile for DexFile " << dex_file_location;
+    LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_file_location;
+    return NULL;
   }
-  return *it->second;
+  return it->second;
+}
+
+std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
+  std::vector<const OatFile::OatDexFile*> result;
+  for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it ) {
+    result.push_back(it->second);
+  }
+  return result;
 }
 
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
@@ -142,11 +151,11 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
 
 OatFile::OatDexFile::~OatDexFile() {}
 
-const OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {
+const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {
   uint32_t methods_offset = classes_pointer_[class_def_index];
   const byte* methods_pointer = oat_file_->GetBase() + methods_offset;
   CHECK_LT(methods_pointer, oat_file_->GetLimit());
-  return OatClass(oat_file_, reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
+  return new OatClass(oat_file_, reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
 }
 
 OatFile::OatClass::OatClass(const OatFile* oat_file, const OatMethodOffsets* methods_pointer)
@@ -186,7 +195,7 @@ OatFile::OatMethod::OatMethod(const void* code,
 
 OatFile::OatMethod::~OatMethod() {}
 
-void OatFile::OatMethod::LinkMethod(Method* method) {
+void OatFile::OatMethod::LinkMethod(Method* method) const {
   CHECK(method != NULL);
   method->SetCode(code_);
   method->SetFrameSizeInBytes(frame_size_in_bytes_);

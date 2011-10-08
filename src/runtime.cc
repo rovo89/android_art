@@ -7,8 +7,10 @@
 #include <limits>
 #include <vector>
 
+#include "ScopedLocalRef.h"
 #include "UniquePtr.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
@@ -307,6 +309,29 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   return instance_;
 }
 
+void CreateSystemClassLoader() {
+  if (ClassLoader::UseCompileTimeClassPath()) {
+    return;
+  }
+
+  Thread* self = Thread::Current();
+
+  // Must be in the kNative state for calling native methods.
+  CHECK_EQ(self->GetState(), Thread::kNative);
+
+  JNIEnv* env = self->GetJniEnv();
+  ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/ClassLoader"));
+  CHECK(c.get() != NULL);
+  jmethodID mid = env->GetStaticMethodID(c.get(),
+                                         "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
+  CHECK(mid != NULL);
+  ScopedLocalRef<jobject> result(env, env->CallStaticObjectMethod(c.get(), mid));
+  CHECK(result.get() != NULL);
+
+  ClassLoader* class_loader = Decode<ClassLoader*>(env, result.get());
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+}
+
 void Runtime::Start() {
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Start entering";
@@ -327,6 +352,8 @@ void Runtime::Start() {
 
   StartDaemonThreads();
 
+  CreateSystemClassLoader();
+
   Thread::Current()->GetJniEnv()->locals.AssertEmpty();
 
   if (IsVerboseStartup()) {
@@ -338,6 +365,10 @@ void Runtime::StartDaemonThreads() {
   signal_catcher_ = new SignalCatcher;
 
   Thread* self = Thread::Current();
+
+  // Must be in the kNative state for calling native methods.
+  CHECK_EQ(self->GetState(), Thread::kNative);
+
   JNIEnv* env = self->GetJniEnv();
   ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Daemons"));
   CHECK(c.get() != NULL);
@@ -408,7 +439,7 @@ void Runtime::InitNativeMethods() {
   JNIEnv* env = self->GetJniEnv();
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
-  ScopedThreadStateChange tsc(self, Thread::kNative);
+  CHECK_EQ(self->GetState(), Thread::kNative);
 
   // First set up JniConstants, which is used by both the runtime's built-in native
   // methods and libcore.
@@ -581,8 +612,9 @@ ByteArray* Runtime::GetJniStubArray() const {
 }
 
 void Runtime::SetJniStubArray(ByteArray* jni_stub_array) {
-  CHECK(jni_stub_array != NULL);
-  CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array);
+  CHECK(jni_stub_array != NULL)  << " jni_stub_array=" << jni_stub_array;
+  CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array)
+      << "jni_stub_array_=" << jni_stub_array_ << " jni_stub_array=" << jni_stub_array;
   jni_stub_array_ = jni_stub_array;
 }
 

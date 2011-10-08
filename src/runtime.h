@@ -25,6 +25,7 @@ namespace art {
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<int8_t> ByteArray;
 class ClassLinker;
+class ClassLoader;
 class DexFile;
 class Heap;
 class InternTable;
@@ -244,6 +245,9 @@ class Runtime {
   ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
   Method* callee_save_method_[kLastCalleeSaveType];
+
+  // As returned by ClassLoader.getSystemClassLoader()
+  ClassLoader* system_class_loader_;
 
   bool started_;
 

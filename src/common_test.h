@@ -210,7 +210,7 @@ class CommonTest : public testing::Test {
             runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
       }
     }
-    compiler_.reset(new Compiler(instruction_set));
+    compiler_.reset(new Compiler(instruction_set, false));
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }
@@ -301,7 +301,7 @@ class CommonTest : public testing::Test {
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> dex_files;
     dex_files.push_back(dex_file);
-    return PathClassLoader::Alloc(dex_files);
+    return PathClassLoader::AllocCompileTime(dex_files);
   }
 
   const DexFile* OpenTestDexFile(const char* name) {
@@ -326,10 +326,22 @@ class CommonTest : public testing::Test {
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> class_path;
     class_path.push_back(dex_file);
-    const ClassLoader* class_loader = PathClassLoader::Alloc(class_path);
+    const ClassLoader* class_loader = PathClassLoader::AllocCompileTime(class_path);
     CHECK(class_loader != NULL);
     Thread::Current()->SetClassLoaderOverride(class_loader);
     return class_loader;
+  }
+
+  void CompileClass(const ClassLoader* class_loader, const char* class_name) {
+    std::string class_descriptor = DotToDescriptor(class_name);
+    Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
+    CHECK(klass != NULL) << "Class not found " << class_name;
+    for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
+      CompileMethod(klass->GetDirectMethod(i));
+    }
+    for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
+      CompileMethod(klass->GetVirtualMethod(i));
+    }
   }
 
   void CompileMethod(Method* method) {

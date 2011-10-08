@@ -27,6 +27,7 @@ ART_C_INCLUDES := \
 
 art_cflags := \
 	-O2 \
+	-O0 \
 	-ggdb3 \
 	-Wall \
 	-Werror \
@@ -178,6 +179,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \
+	src/compiler_test.cc \
 	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
@@ -198,8 +200,7 @@ TEST_COMMON_SRC_FILES := \
 	src/runtime_test.cc \
 	src/space_test.cc \
 	src/utils_test.cc \
-	src/zip_archive_test.cc \
-	src/compiler_test.cc
+	src/zip_archive_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)

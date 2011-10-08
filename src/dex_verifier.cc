@@ -4934,11 +4934,11 @@ Method* DexVerifier::VerifyInvocationArgs(VerifierData* vdata,
   if (res_method == NULL) {
     const DexFile::MethodId& method_id = dex_file->GetMethodId(dec_insn->vB_);
     const char* method_name = dex_file->GetMethodName(method_id);
-    const char* method_proto = dex_file->GetMethodPrototype(method_id);
+    std::string method_signature = dex_file->GetMethodSignature(method_id);
     const char* class_descriptor = dex_file->GetMethodClassDescriptor(method_id);
 
     LOG(ERROR) << "VFY: unable to resolve method " << dec_insn->vB_ << ": "
-               << class_descriptor << "." << method_name << " " << method_proto;
+               << class_descriptor << "." << method_name << " " << method_signature;
     return NULL;
   }
 

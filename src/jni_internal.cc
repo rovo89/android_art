@@ -2771,7 +2771,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       version = (*jni_on_load)(this, NULL);
     }
 
-    self->SetClassLoaderOverride(old_class_loader);;
+    self->SetClassLoaderOverride(old_class_loader);
 
     if (version != JNI_VERSION_1_2 &&
     version != JNI_VERSION_1_4 &&

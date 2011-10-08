@@ -81,10 +81,14 @@ class PACKED ImageHeader {
   };
 
   Object* GetImageRoot(ImageRoot image_root) const {
-    return reinterpret_cast<ObjectArray<Object>*>(image_roots_)->Get(image_root);
+    return GetImageRoots()->Get(image_root);
   }
 
  private:
+  ObjectArray<Object>* GetImageRoots() const {
+    return reinterpret_cast<ObjectArray<Object>*>(image_roots_);
+  }
+
   static const byte kImageMagic[4];
   static const byte kImageVersion[4];
 
@@ -107,6 +111,7 @@ class PACKED ImageHeader {
   uint32_t image_roots_;
 
   friend class ImageWriter;
+  friend class ImageDump;  // For GetImageRoots()
 };
 
 }  // namespace art

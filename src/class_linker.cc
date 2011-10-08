@@ -436,10 +436,9 @@ void ClassLinker::Init(const std::string& boot_class_path) {
       java_lang_ref_WeakReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsWeakReference);
 
-  // Setup the ClassLoaders, adjusting the object_size_ as necessary
+  // Setup the ClassLoaders, verifying the object_size_
   Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
-  CHECK_LT(java_lang_ClassLoader->GetObjectSize(), sizeof(ClassLoader));
-  java_lang_ClassLoader->SetObjectSize(sizeof(ClassLoader));
+  CHECK_EQ(java_lang_ClassLoader->GetObjectSize(), sizeof(ClassLoader));
   SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
 
   Class* dalvik_system_BaseDexClassLoader = FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
@@ -539,6 +538,7 @@ void ClassLinker::RunRootClinits() {
 }
 
 OatFile* ClassLinker::OpenOat(const Space* space) {
+  MutexLock mu(lock_);
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "ClassLinker::OpenOat entering";
@@ -564,6 +564,37 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
   oat_files_.push_back(oat_file);
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "ClassLinker::OpenOat exiting";
+  }
+  return oat_file;
+}
+
+const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
+  MutexLock mu(lock_);
+  std::string dex_file_location = dex_file.GetLocation();
+  std::string location(dex_file_location);
+  CHECK(StringPiece(location).ends_with(".dex")
+        || StringPiece(location).ends_with(".zip")
+        || StringPiece(location).ends_with(".jar")
+        || StringPiece(location).ends_with(".apk"));
+  location.erase(location.size()-3);
+  location += "oat";
+  // TODO: check if dex_file matches an OatDexFile location and checksum
+  return FindOatFile(location);
+}
+
+const OatFile* ClassLinker::FindOatFile(const std::string& location) {
+  for (size_t i = 0; i < oat_files_.size(); i++) {
+    const OatFile* oat_file = oat_files_[i];
+    DCHECK(oat_file != NULL);
+    if (oat_file->GetLocation() == location) {
+      return oat_file;
+    }
+  }
+
+  const OatFile* oat_file = OatFile::Open(location, "", NULL);
+  if (oat_file == NULL) {
+    LOG(ERROR) << "Failed to open oat file " << location;
+    return NULL;
   }
   return oat_file;
 }
@@ -599,8 +630,8 @@ void ClassLinker::InitFromImage() {
                      << " referenced from oat file as " << dex_file_location;
         }
 
-        const OatFile::OatDexFile& oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
-        CHECK_EQ(dex_file->GetHeader().checksum_, oat_dex_file.GetDexFileChecksum());
+        const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
+        CHECK_EQ(dex_file->GetHeader().checksum_, oat_dex_file->GetDexFileChecksum());
 
         RegisterDexFile(*dex_file, dex_cache);
       }
@@ -653,21 +684,13 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
     class_linker->intern_table_->RegisterStrong(obj->AsString());
     return;
   }
-  if (!obj->IsClass()) {
+  if (obj->IsClass()) {
+    // restore class to ClassLinker::classes_ table
+    Class* klass = obj->AsClass();
+    std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
+    class_linker->InsertClass(descriptor, klass);
     return;
   }
-  Class* klass = obj->AsClass();
-  // TODO: restore ClassLoader's list of DexFiles after image load
-  // CHECK(klass->GetClassLoader() == NULL);
-  const ClassLoader* class_loader = klass->GetClassLoader();
-  if (class_loader != NULL) {
-    // TODO: replace this hack with something based on command line arguments
-    Thread::Current()->SetClassLoaderOverride(class_loader);
-  }
-
-  std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
-  // restore class to ClassLinker::classes_ table
-  class_linker->InsertClass(descriptor, klass);
 }
 
 // Keep in sync with InitCallback. Anything we visit, we need to
@@ -759,100 +782,10 @@ ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t 
       length);
 }
 
-Class* ClassLinker::FindClass(const StringPiece& descriptor,
-                              const ClassLoader* class_loader) {
-  // TODO: remove this contrived parent class loader check when we have a real ClassLoader.
-  if (class_loader != NULL) {
-    Class* klass = FindClass(descriptor, NULL);
-    if (klass != NULL) {
-      return klass;
-    }
-    Thread::Current()->ClearException();
-  }
-
+Class* EnsureResolved(Class* klass) {
+  DCHECK(klass != NULL);
+  // Wait for the class if it has not already been linked.
   Thread* self = Thread::Current();
-  DCHECK(self != NULL);
-  CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
-  // Find the class in the loaded classes table.
-  Class* klass = LookupClass(descriptor, class_loader);
-  if (klass == NULL) {
-    // Class is not yet loaded.
-    if (descriptor[0] == '[' && descriptor[1] != '\0') {
-      return CreateArrayClass(descriptor, class_loader);
-    }
-    const DexFile::ClassPath& class_path = ((class_loader != NULL)
-                                            ? ClassLoader::GetClassPath(class_loader)
-                                            : boot_class_path_);
-    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
-    if (pair.second == NULL) {
-      std::string name(PrintableString(descriptor));
-      ThrowNoClassDefFoundError("Class %s not found in class loader %p", name.c_str(), class_loader);
-      return NULL;
-    }
-    const DexFile& dex_file = *pair.first;
-    const DexFile::ClassDef& dex_class_def = *pair.second;
-    DexCache* dex_cache = FindDexCache(dex_file);
-    // Load the class from the dex file.
-    if (!init_done_) {
-      // finish up init of hand crafted class_roots_
-      if (descriptor == "Ljava/lang/Object;") {
-        klass = GetClassRoot(kJavaLangObject);
-      } else if (descriptor == "Ljava/lang/Class;") {
-        klass = GetClassRoot(kJavaLangClass);
-      } else if (descriptor == "Ljava/lang/String;") {
-        klass = GetClassRoot(kJavaLangString);
-      } else if (descriptor == "Ljava/lang/reflect/Constructor;") {
-        klass = GetClassRoot(kJavaLangReflectConstructor);
-      } else if (descriptor == "Ljava/lang/reflect/Field;") {
-        klass = GetClassRoot(kJavaLangReflectField);
-      } else if (descriptor == "Ljava/lang/reflect/Method;") {
-        klass = GetClassRoot(kJavaLangReflectMethod);
-      } else {
-        klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
-      }
-    } else {
-      klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
-    }
-    if (!klass->IsResolved()) {
-      klass->SetDexCache(dex_cache);
-      LoadClass(dex_file, dex_class_def, klass, class_loader);
-      // Check for a pending exception during load
-      if (self->IsExceptionPending()) {
-        return NULL;
-      }
-      ObjectLock lock(klass);
-      klass->SetClinitThreadId(self->GetTid());
-      // Add the newly loaded class to the loaded classes table.
-      bool success = InsertClass(descriptor, klass);  // TODO: just return collision
-      if (!success) {
-        // We may fail to insert if we raced with another thread.
-        klass->SetClinitThreadId(0);
-        klass = LookupClass(descriptor, class_loader);
-        CHECK(klass != NULL);
-        return klass;
-      } else {
-        // Finish loading (if necessary) by finding parents
-        CHECK(!klass->IsLoaded());
-        if (!LoadSuperAndInterfaces(klass, dex_file)) {
-          // Loading failed.
-          CHECK(self->IsExceptionPending());
-          lock.NotifyAll();
-          return NULL;
-        }
-        CHECK(klass->IsLoaded());
-        // Link the class (if necessary)
-        CHECK(!klass->IsResolved());
-        if (!LinkClass(klass)) {
-          // Linking failed.
-          CHECK(self->IsExceptionPending());
-          lock.NotifyAll();
-          return NULL;
-        }
-        CHECK(klass->IsResolved());
-      }
-    }
-  }
-  // Link the class if it has not already been linked.
   if (!klass->IsResolved() && !klass->IsErroneous()) {
     ObjectLock lock(klass);
     // Check for circular dependencies between classes.
@@ -871,8 +804,134 @@ Class* ClassLinker::FindClass(const StringPiece& descriptor,
     return NULL;
   }
   // Return the loaded class.  No exceptions should be pending.
-  CHECK(klass->IsResolved()) << descriptor;
-  CHECK(!self->IsExceptionPending()) << descriptor << " " << PrettyTypeOf(self->GetException());
+  CHECK(klass->IsResolved()) << PrettyClass(klass);
+  CHECK(!self->IsExceptionPending())
+      << PrettyClass(klass) << " " << PrettyTypeOf(self->GetException());
+  return klass;
+}
+
+Class* ClassLinker::FindClass(const std::string& descriptor,
+                              const ClassLoader* class_loader) {
+  CHECK_NE(descriptor.size(), 0U);
+  Thread* self = Thread::Current();
+  DCHECK(self != NULL);
+  CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+  // Find the class in the loaded classes table.
+  Class* klass = LookupClass(descriptor, class_loader);
+  if (klass != NULL) {
+    return EnsureResolved(klass);
+  }
+  if (descriptor.size() == 1) {
+    // only the descriptors of primitive types should be 1 character long
+    return FindPrimitiveClass(descriptor[0]);
+  }
+  // Class is not yet loaded.
+  if (descriptor[0] == '[') {
+    return CreateArrayClass(descriptor, class_loader);
+  }
+  if (class_loader == NULL) {
+    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
+    if (pair.second == NULL) {
+      std::string name(PrintableString(descriptor));
+      ThrowNoClassDefFoundError("Class %s not found in boot class loader", name.c_str());
+      return NULL;
+    }
+    return DefineClass(descriptor, NULL, *pair.first, *pair.second);
+  }
+
+  if (ClassLoader::UseCompileTimeClassPath()) {
+    const std::vector<const DexFile*>& class_path
+        = ClassLoader::GetCompileTimeClassPath(class_loader);
+    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
+    if (pair.second == NULL) {
+      return FindSystemClass(descriptor);
+    }
+    return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
+  }
+
+  std::string class_name_string = DescriptorToDot(descriptor);
+  ScopedThreadStateChange(self, Thread::kNative);
+  JNIEnv* env = self->GetJniEnv();
+  jclass c = AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader));
+  CHECK(c != NULL);
+  // TODO: cache method?
+  jmethodID mid = env->GetMethodID(c, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+  CHECK(mid != NULL);
+  jobject class_name_object = env->NewStringUTF(class_name_string.c_str());
+  if (class_name_string == NULL) {
+    return NULL;
+  }
+  jobject class_loader_object = AddLocalReference<jobject>(env, class_loader);
+  jobject result = env->CallObjectMethod(class_loader_object, mid, class_name_object);
+  Class* klass_result = Decode<Class*>(env, result);
+  env->DeleteLocalRef(result);
+  env->DeleteLocalRef(class_name_object);
+  env->DeleteLocalRef(c);
+  return klass_result;
+}
+
+Class* ClassLinker::DefineClass(const std::string& descriptor,
+                                const ClassLoader* class_loader,
+                                const DexFile& dex_file,
+                                const DexFile::ClassDef& dex_class_def) {
+  Class* klass;
+  // Load the class from the dex file.
+  if (!init_done_) {
+    // finish up init of hand crafted class_roots_
+    if (descriptor == "Ljava/lang/Object;") {
+      klass = GetClassRoot(kJavaLangObject);
+    } else if (descriptor == "Ljava/lang/Class;") {
+      klass = GetClassRoot(kJavaLangClass);
+    } else if (descriptor == "Ljava/lang/String;") {
+      klass = GetClassRoot(kJavaLangString);
+    } else if (descriptor == "Ljava/lang/reflect/Constructor;") {
+      klass = GetClassRoot(kJavaLangReflectConstructor);
+    } else if (descriptor == "Ljava/lang/reflect/Field;") {
+      klass = GetClassRoot(kJavaLangReflectField);
+    } else if (descriptor == "Ljava/lang/reflect/Method;") {
+      klass = GetClassRoot(kJavaLangReflectMethod);
+    } else {
+      klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
+    }
+  } else {
+    klass = AllocClass(SizeOfClass(dex_file, dex_class_def));
+  }
+  klass->SetDexCache(FindDexCache(dex_file));
+  LoadClass(dex_file, dex_class_def, klass, class_loader);
+  // Check for a pending exception during load
+  Thread* self = Thread::Current();
+  if (self->IsExceptionPending()) {
+    return NULL;
+  }
+  ObjectLock lock(klass);
+  klass->SetClinitThreadId(self->GetTid());
+  // Add the newly loaded class to the loaded classes table.
+  bool success = InsertClass(descriptor, klass);  // TODO: just return collision
+  if (!success) {
+    // We may fail to insert if we raced with another thread.
+    klass->SetClinitThreadId(0);
+    klass = LookupClass(descriptor, class_loader);
+    CHECK(klass != NULL);
+    return klass;
+  }
+  // Finish loading (if necessary) by finding parents
+  CHECK(!klass->IsLoaded());
+  if (!LoadSuperAndInterfaces(klass, dex_file)) {
+    // Loading failed.
+    CHECK(self->IsExceptionPending());
+    lock.NotifyAll();
+    return NULL;
+  }
+  CHECK(klass->IsLoaded());
+  // Link the class (if necessary)
+  CHECK(!klass->IsResolved());
+  if (!LinkClass(klass)) {
+    // Linking failed.
+    CHECK(self->IsExceptionPending());
+    lock.NotifyAll();
+    return NULL;
+  }
+  CHECK(klass->IsResolved());
   return klass;
 }
 
@@ -991,18 +1050,36 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     }
   }
 
+  UniquePtr<const OatFile::OatClass> oat_class;
+  if (Runtime::Current()->IsStarted() && !ClassLoader::UseCompileTimeClassPath()) {
+    const OatFile* oat_file = FindOatFile(dex_file);
+    if (oat_file != NULL) {
+      const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+      if (oat_dex_file != NULL) {
+        uint32_t class_def_index;
+        bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
+        CHECK(found) << descriptor;
+        oat_class.reset(oat_dex_file->GetOatClass(class_def_index));
+      }
+    }
+  }
+  size_t method_index = 0;
+
   // Load direct methods.
   if (num_direct_methods != 0) {
     // TODO: append direct methods to class object
     klass->SetDirectMethods(AllocObjectArray<Method>(num_direct_methods));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_direct_methods; ++i) {
+    for (size_t i = 0; i < num_direct_methods; ++i, ++method_index) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
       klass->SetDirectMethod(i, meth);
       LoadMethod(dex_file, dex_method, klass, meth);
-      // TODO: register maps
+      if (oat_class.get() != NULL) {
+        const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
+        oat_method.LinkMethod(meth);
+      }
     }
   }
 
@@ -1011,13 +1088,16 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     // TODO: append virtual methods to class object
     klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
     uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_virtual_methods; ++i) {
+    for (size_t i = 0; i < num_virtual_methods; ++i, ++method_index) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
       Method* meth = AllocMethod();
       klass->SetVirtualMethod(i, meth);
       LoadMethod(dex_file, dex_method, klass, meth);
-      // TODO: register maps
+      if (oat_class.get() != NULL) {
+        const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
+        oat_method.LinkMethod(meth);
+      }
     }
   }
 }
@@ -1130,16 +1210,40 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_c
   RegisterDexFile(dex_file, dex_cache);
 }
 
-void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
-  RegisterDexFile(dex_file, AllocDexCache(dex_file));
+bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
+  lock_.AssertHeld();
+  for (size_t i = 0; i != dex_files_.size(); ++i) {
+    if (dex_files_[i] == &dex_file) {
+        return true;
+    }
+  }
+  return false;
 }
 
-void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) {
+bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
   MutexLock mu(lock_);
+  return IsDexFileRegistered(dex_file);
+}
+
+void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_cache) {
+  lock_.AssertHeld();
   CHECK(dex_cache != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_files_.push_back(&dex_file);
   dex_caches_.push_back(dex_cache);
+}
+
+void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
+  MutexLock mu(lock_);
+  if (IsDexFileRegisteredLocked(dex_file)) {
+    return;
+  }
+  RegisterDexFileLocked(dex_file, AllocDexCache(dex_file));
+}
+
+void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) {
+  MutexLock mu(lock_);
+  RegisterDexFileLocked(dex_file, dex_cache);
 }
 
 const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
@@ -1191,7 +1295,7 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
 // array class; that always comes from the base element class.
 //
 // Returns NULL with an exception raised on failure.
-Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
+Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
                                      const ClassLoader* class_loader) {
   CHECK_EQ('[', descriptor[0]);
 
@@ -1259,7 +1363,7 @@ Class* ClassLinker::CreateArrayClass(const StringPiece& descriptor,
   if (new_class->GetDescriptor() != NULL) {
     DCHECK(new_class->GetDescriptor()->Equals(descriptor));
   } else {
-    new_class->SetDescriptor(intern_table_->InternStrong(descriptor.ToString().c_str()));
+    new_class->SetDescriptor(intern_table_->InternStrong(descriptor.c_str()));
   }
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);
@@ -1339,14 +1443,14 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
   return NULL;
 }
 
-bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass) {
+bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass) {
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(lock_);
   Table::iterator it = classes_.insert(std::make_pair(hash, klass));
   return ((*it).second == klass);
 }
 
-Class* ClassLinker::LookupClass(const StringPiece& descriptor, const ClassLoader* class_loader) {
+Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader* class_loader) {
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
@@ -2290,12 +2394,7 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
   Class* resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == NULL) {
     const char* descriptor = dex_file.dexStringByTypeIdx(type_idx);
-    if (descriptor[1] == '\0') {
-      // only the descriptors of primitive types should be 1 character long
-      resolved = FindPrimitiveClass(descriptor[0]);
-    } else {
-      resolved = FindClass(descriptor, class_loader);
-    }
+    resolved = FindClass(descriptor, class_loader);
     if (resolved != NULL) {
       Class* check = resolved;
       while (check->IsArrayClass()) {

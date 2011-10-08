@@ -176,6 +176,9 @@ std::string MangleForJni(const std::string& s);
 // Turn "java.lang.String" into "Ljava/lang/String;".
 std::string DotToDescriptor(const char* class_name);
 
+// Turn "Ljava/lang/String;" into "java.lang.String".
+std::string DescriptorToDot(const std::string& descriptor);
+
 // Tests whether 's' is a valid class name.
 // name_or_descriptor
 //     true  => "java/lang/String"

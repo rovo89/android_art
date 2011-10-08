@@ -669,6 +669,17 @@ extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Me
   return InitializeStaticStorage(type_idx, referrer, self);
 }
 
+String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  return class_linker->ResolveString(string_idx, referrer);
+}
+
+extern "C" String* artResolveStringFromCode(Method* referrer, int32_t string_idx,
+                                            Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return ResolveStringFromCode(referrer, string_idx);
+}
+
 extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);  // Assumed to have been checked before entry

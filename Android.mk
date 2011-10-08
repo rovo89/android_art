@@ -166,7 +166,7 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 # oatdump targets
 
 .PHONY: dump-oat
-dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
+dump-oat: dump-oat-core dump-oat-boot # dump-oat-Calculator # TODO: restore when oatdump can dump an oat without an image
 
 .PHONY: dump-oat-core
 dump-oat-core: $(TARGET_CORE_OAT) $(OATDUMP)

@@ -198,6 +198,14 @@ std::string DotToDescriptor(const char* class_name) {
   return descriptor;
 }
 
+std::string DescriptorToDot(const std::string& descriptor) {
+  DCHECK_EQ(descriptor[0], 'L');
+  DCHECK_EQ(descriptor[descriptor.size()-1], ';');
+  std::string dot = descriptor.substr(1, descriptor.size()-2);
+  std::replace(dot.begin(), dot.end(), '/', '.');
+  return dot;
+}
+
 std::string JniShortName(const Method* m) {
   Class* declaring_class = m->GetDeclaringClass();
 

@@ -31,8 +31,11 @@ namespace x86 {
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 
-Compiler::Compiler(InstructionSet instruction_set)
-    : instruction_set_(instruction_set), jni_compiler_(instruction_set), verbose_(false) {
+Compiler::Compiler(InstructionSet instruction_set, bool image)
+    : instruction_set_(instruction_set),
+      jni_compiler_(instruction_set),
+      image_(image),
+      verbose_(false) {
   CHECK(!Runtime::Current()->IsStarted());
 }
 
@@ -82,7 +85,8 @@ void Compiler::CompileOne(const Method* method) {
 }
 
 void Compiler::Resolve(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  const std::vector<const DexFile*>& class_path
+      = ClassLoader::GetCompileTimeClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
@@ -92,11 +96,13 @@ void Compiler::Resolve(const ClassLoader* class_loader) {
 
 void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  DexCache* dex_cache = class_linker->FindDexCache(dex_file);
 
   // Strings are easy, they always are simply resolved to literals in the same file
-  DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-  for (size_t string_idx = 0; string_idx < dex_cache->NumStrings(); string_idx++) {
-    class_linker->ResolveString(dex_file, string_idx, dex_cache);
+  if (IsImage()) {  // Only resolve when we'll have an image, so compiler won't choose fast path
+    for (size_t string_idx = 0; string_idx < dex_cache->NumStrings(); string_idx++) {
+      class_linker->ResolveString(dex_file, string_idx, dex_cache);
+    }
   }
 
   // Class derived values are more complicated, they require the linker and loader.
@@ -188,7 +194,8 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
 }
 
 void Compiler::Verify(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  const std::vector<const DexFile*>& class_path
+      = ClassLoader::GetCompileTimeClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
@@ -227,7 +234,8 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
 }
 
 void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  const std::vector<const DexFile*>& class_path
+      = ClassLoader::GetCompileTimeClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
@@ -260,7 +268,8 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
 }
 
 void Compiler::Compile(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  const std::vector<const DexFile*>& class_path
+      = ClassLoader::GetCompileTimeClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);
@@ -323,7 +332,7 @@ void Compiler::CompileMethod(const Method* method) {
 }
 
 const CompiledMethod* Compiler::GetCompiledMethod(const Method* method) const {
-    MethodTable::const_iterator it = compiled_methods_.find(method);
+  MethodTable::const_iterator it = compiled_methods_.find(method);
   if (it == compiled_methods_.end()) {
     return NULL;
   }
@@ -341,7 +350,8 @@ const CompiledInvokeStub* Compiler::GetCompiledInvokeStub(const Method* method) 
 }
 
 void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path = ClassLoader::GetClassPath(class_loader);
+  const std::vector<const DexFile*>& class_path
+      = ClassLoader::GetCompileTimeClassPath(class_loader);
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
     CHECK(dex_file != NULL);

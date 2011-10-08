@@ -309,7 +309,7 @@ Class* ExtractNextClassFromSignature(ClassLinker* class_linker, const ClassLoade
     }
     ++p; // Either the ';' or the primitive type.
 
-    StringPiece descriptor(start, (p - start));
+    std::string descriptor(start, (p - start));
     return class_linker->FindClass(descriptor, cl);
   } else if (*p == 'L') {
     const char* start = p;
@@ -318,7 +318,7 @@ Class* ExtractNextClassFromSignature(ClassLinker* class_linker, const ClassLoade
     }
     ++p;
     StringPiece descriptor(start, (p - start));
-    return class_linker->FindClass(descriptor, cl);
+    return class_linker->FindClass(descriptor.ToString(), cl);
   } else {
     return class_linker->FindPrimitiveClass(*p++);
   }
