@@ -9,6 +9,7 @@
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
+#include "runtime_support.h"
 
 namespace art {
 
@@ -923,8 +924,6 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1));
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
 }
-
-extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
 
 TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   // pretend we are trying to get the static storage for the StaticsFromCode class.

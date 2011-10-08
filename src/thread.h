@@ -116,31 +116,32 @@ class PACKED Thread {
   int (*pIdiv)(int, int);
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
-  void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, void*, Thread*,
-      Runtime::TrampolineType);
   void* (*pAllocObjectFromCode)(uint32_t, void*);
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
-  void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
-  uint32_t (*pGet32Static)(uint32_t, const Method*);
-  void (*pSet32Static)(uint32_t, const Method*, uint32_t);
-  uint64_t (*pGet64Static)(uint32_t, const Method*);
-  void (*pSet64Static)(uint32_t, const Method*, uint64_t);
-  Object* (*pGetObjStatic)(uint32_t, const Method*);
-  void (*pSetObjStatic)(uint32_t, const Method*, Object*);
   void (*pCanPutArrayElementFromCode)(void*, void*);
-  uint32_t (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
+  void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
   void (*pCheckCastFromCode) (void*, void*);
-  Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
-  void (*pUnlockObjectFromCode)(void*);
-  void (*pLockObjectFromCode)(void*);
-  void (*pDeliverException)(void*);
-  void (*pHandleFillArrayDataFromCode)(void*, void*);
-  Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
-  void (*pResolveMethodFromCode)(Method*, uint32_t);
-  void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
-  void* (*pInitializeStaticStorage)(uint32_t, void*);
-  Field* (*pFindInstanceFieldFromCode)(uint32_t, const Method*);
   void (*pCheckSuspendFromCode)(Thread*);
+  Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
+  void (*pDeliverException)(void*);
+  void* (*pFindInstanceFieldFromCode)(uint32_t, void*);
+  Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
+  void* (*pFindNativeMethod)(Thread* thread);
+  int32_t (*pGet32Static)(uint32_t, void*);
+  int64_t (*pGet64Static)(uint32_t, void*);
+  void* (*pGetObjStatic)(uint32_t, void*);
+  void (*pHandleFillArrayDataFromCode)(void*, void*);
+  void* (*pInitializeStaticStorage)(uint32_t, void*);
+  uint32_t (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
+  void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
+  Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
+  void (*pLockObjectFromCode)(void*);
+  void (*pObjectInit)(Object*);
+  void (*pResolveMethodFromCode)(Method*, uint32_t);
+  String* (*pResolveStringFromCode)(Method*, int32_t);
+  int (*pSet32Static)(uint32_t, void*, int32_t);
+  int (*pSet64Static)(uint32_t, void*, int64_t);
+  int (*pSetObjStatic)(uint32_t, void*, void*);
   void (*pTestSuspendFromCode)();
   void (*pThrowStackOverflowFromCode)(void*);
   void (*pThrowNullPointerFromCode)();
@@ -150,10 +151,9 @@ class PACKED Thread {
   void (*pThrowNegArraySizeFromCode)(int32_t);
   void (*pThrowNoSuchMethodFromCode)(int32_t);
   void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread, Method** sp);
-  void* (*pFindNativeMethod)(Thread* thread);
-  Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
-  String* (*pResolveStringFromCode)(Method*, int32_t);
-  void (*pObjectInit)(Object*);
+  void (*pUnlockObjectFromCode)(void*);
+  void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, void*, Thread*,
+                                                     Runtime::TrampolineType);
 
   class StackVisitor {
    public:

@@ -22,6 +22,7 @@ namespace art {
 
 // Place a special frame at the TOS that will save the callee saves for the given type
 static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
+  // Be aware the store below may well stomp on an incoming argument
   *sp = Runtime::Current()->GetCalleeSaveMethod(type);
   self->SetTopOfStack(sp, 0);
 }
@@ -398,10 +399,135 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
      */
 }
 
+Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Field* f = class_linker->ResolveField(field_idx, referrer, is_static);
+  if (f != NULL) {
+    Class* c = f->GetDeclaringClass();
+    // If the class is already initializing, we must be inside <clinit>, or
+    // we'd still be waiting for the lock.
+    if (c->GetStatus() == Class::kStatusInitializing || class_linker->EnsureInitialized(c, true)) {
+      return f;
+    }
+  }
+  DCHECK(Thread::Current()->IsExceptionPending()); // Throw exception and unwind
+  return NULL;
+}
+
+extern "C" Field* artFindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer,
+                                               Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return FindFieldFromCode(field_idx, referrer, false);
+}
+
+extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                           Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  if (field != NULL) {
+    Class* type = field->GetType();
+    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted read of 32-bit primitive on field '%s'",
+                               PrettyField(field, true).c_str());
+    } else {
+      return field->Get32(NULL);
+    }
+  }
+  return 0;  // Will throw exception by checking with Thread::Current
+}
+
+extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                           Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  if (field != NULL) {
+    Class* type = field->GetType();
+    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted read of 64-bit primitive on field '%s'",
+                               PrettyField(field, true).c_str());
+    } else {
+      return field->Get64(NULL);
+    }
+  }
+  return 0;  // Will throw exception by checking with Thread::Current
+}
+
+extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
+                                           Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  if (field != NULL) {
+    Class* type = field->GetType();
+    if (type->IsPrimitive()) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted read of reference on primitive field '%s'",
+                               PrettyField(field, true).c_str());
+    } else {
+      return field->GetObj(NULL);
+    }
+  }
+  return NULL;  // Will throw exception by checking with Thread::Current
+}
+
+extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                       uint32_t new_value, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  if (field != NULL) {
+    Class* type = field->GetType();
+    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int32_t)) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted write of 32-bit primitive to field '%s'",
+                               PrettyField(field, true).c_str());
+    } else {
+      field->Set32(NULL, new_value);
+      return 0;  // success
+    }
+  }
+  return -1;  // failure
+}
+
+extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                      uint64_t new_value, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  if (field != NULL) {
+    Class* type = field->GetType();
+    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted write of 64-bit primitive to field '%s'",
+                               PrettyField(field, true).c_str());
+    } else {
+      field->Set64(NULL, new_value);
+      return 0;  // success
+    }
+  }
+  return -1;  // failure
+}
+
+extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
+                                       Object* new_value, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  if (field != NULL) {
+    Class* type = field->GetType();
+    if (type->IsPrimitive()) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted write of reference to primitive field '%s'",
+                               PrettyField(field, true).c_str());
+    } else {
+      field->SetObj(NULL, new_value);
+      return 0;  // success
+    }
+  }
+  return -1;  // failure
+}
+
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self, Method** sp) {
-  // Place a special frame at the TOS that will save all callee saves
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
@@ -419,12 +545,10 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thr
   return klass->AllocObject();
 }
 
-// Helper function to alloc array for OP_FILLED_NEW_ARRAY
-extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
-                                               int32_t component_count, Thread* self, Method** sp) {
+Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+                                     Thread* self) {
   if (component_count < 0) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
-                                         component_count);
+    self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
     return NULL;  // Failure
   }
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
@@ -450,6 +574,13 @@ extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* metho
     CHECK(klass->IsArrayClass()) << PrettyClass(klass);
     return Array::Alloc(klass, component_count);
   }
+}
+
+// Helper function to alloc array for OP_FILLED_NEW_ARRAY
+extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
+                                               int32_t component_count, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return CheckAndAllocArrayFromCode(type_idx, method, component_count, self);
 }
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If

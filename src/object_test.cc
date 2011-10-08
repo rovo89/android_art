@@ -10,6 +10,7 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "heap.h"
+#include "runtime_support.h"
 
 namespace art {
 
@@ -162,14 +163,12 @@ TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
   TestPrimitiveArray<ShortArray>(class_linker_);
 }
 
-extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
-                                                int32_t component_count);
 TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
   Method* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
   uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "[I");
-  Object* array = artCheckAndAllocArrayFromCode(type_idx, sort, 3);
+  Object* array = CheckAndAllocArrayFromCode(type_idx, sort, 3, Thread::Current());
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
   EXPECT_TRUE(array->GetClass()->IsArrayClass());
@@ -185,15 +184,16 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);
   Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
   uint32_t field_idx = FindFieldIdxByDescriptorAndName(*dex_file, "LStaticsFromCode;", "s0");
-  Object* s0 = Field::GetObjStaticFromCode(field_idx, clinit);
+  Field* field = FindFieldFromCode(field_idx, clinit, true);
+  Object* s0 = field->GetObj(NULL);
   EXPECT_EQ(NULL, s0);
 
   CharArray* char_array = CharArray::Alloc(0);
-  Field::SetObjStaticFromCode(field_idx, clinit, char_array);
-  EXPECT_EQ(char_array, Field::GetObjStaticFromCode(field_idx, clinit));
+  field->SetObj(NULL, char_array);
+  EXPECT_EQ(char_array, field->GetObj(NULL));
 
-  Field::SetObjStaticFromCode(field_idx, clinit, NULL);
-  EXPECT_EQ(NULL, Field::GetObjStaticFromCode(field_idx, clinit));
+  field->SetObj(NULL, NULL);
+  EXPECT_EQ(NULL, field->GetObj(NULL));
 
   // TODO: more exhaustive tests of all 6 cases of Field::*FromCode
 }
