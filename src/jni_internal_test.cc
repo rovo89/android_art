@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "common_test.h"
+#include "ScopedLocalRef.h"
 
 namespace art {
 
@@ -22,11 +23,19 @@ class JniInternalTest : public CommonTest {
 
     env_ = Thread::Current()->GetJniEnv();
 
-    aioobe_ = env_->FindClass("java/lang/ArrayIndexOutOfBoundsException");
-    CHECK(aioobe_ != NULL);
+    ScopedLocalRef<jclass> aioobe(env_, env_->FindClass("java/lang/ArrayIndexOutOfBoundsException"));
+    CHECK(aioobe.get() != NULL);
+    aioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(aioobe.get()));
 
-    sioobe_ = env_->FindClass("java/lang/StringIndexOutOfBoundsException");
-    CHECK(sioobe_ != NULL);
+    ScopedLocalRef<jclass> sioobe(env_, env_->FindClass("java/lang/StringIndexOutOfBoundsException"));
+    CHECK(sioobe.get() != NULL);
+    sioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(sioobe.get()));
+  }
+
+  virtual void TearDown() {
+    env_->DeleteGlobalRef(aioobe_);
+    env_->DeleteGlobalRef(sioobe_);
+    CommonTest::TearDown();
   }
 
   JavaVMExt* vm_;

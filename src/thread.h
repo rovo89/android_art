@@ -313,9 +313,6 @@ class PACKED Thread {
 
   void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
 
-  // Pop the top SIRT
-  void PopSirt();
-
   // Convert a jobject into a Object*
   Object* DecodeJObject(jobject obj);
 
@@ -574,7 +571,9 @@ class PACKED Thread {
   Context* long_jump_context_;
 
   // A boolean telling us whether we're recursively throwing OOME.
-  uint32_t throwing_OOME_;
+  uint32_t throwing_OutOfMemoryError_;
+
+  Throwable* pre_allocated_OutOfMemoryError_;
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;

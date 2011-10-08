@@ -35,6 +35,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "runtime_support.h"
+#include "ScopedLocalRef.h"
 #include "scoped_jni_thread_state.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
@@ -266,41 +267,48 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
     self->CreatePeer(name, as_daemon);
   }
 
+  self->GetJniEnv()->locals.AssertEmpty();
+
   return self;
 }
 
 jobject GetWellKnownThreadGroup(JNIEnv* env, const char* field_name) {
-  jclass thread_group_class = env->FindClass("java/lang/ThreadGroup");
-  jfieldID fid = env->GetStaticFieldID(thread_group_class, field_name, "Ljava/lang/ThreadGroup;");
-  jobject thread_group = env->GetStaticObjectField(thread_group_class, fid);
-  // This will be null in the compiler (and tests), but never in a running system.
-  //CHECK(thread_group != NULL) << "java.lang.ThreadGroup." << field_name << " not initialized";
-  return thread_group;
+  ScopedLocalRef<jclass> thread_group_class(env, env->FindClass("java/lang/ThreadGroup"));
+  jfieldID fid = env->GetStaticFieldID(thread_group_class.get(), field_name, "Ljava/lang/ThreadGroup;");
+  return env->GetStaticObjectField(thread_group_class.get(), fid);
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon) {
   JNIEnv* env = jni_env_;
 
   const char* field_name = (GetThinLockId() == ThreadList::kMainId) ? "mMain" : "mSystem";
-  jobject thread_group = GetWellKnownThreadGroup(env, field_name);
-  jobject thread_name = env->NewStringUTF(name);
+  ScopedLocalRef<jobject> thread_group(env, GetWellKnownThreadGroup(env, field_name));
+  ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
 
-  jclass c = env->FindClass("java/lang/Thread");
-  jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
+  ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Thread"));
+  jmethodID mid = env->GetMethodID(c.get(), "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
 
-  jobject peer = env->NewObject(c, mid, thread_group, thread_name, thread_priority, thread_is_daemon);
-  peer_ = DecodeJObject(peer);
+  ScopedLocalRef<jobject> peer(env,
+      env->NewObject(c.get(), mid, thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon));
+  peer_ = DecodeJObject(peer.get());
   SetVmData(peer_, Thread::Current());
 
   // Because we mostly run without code available (in the compiler, in tests), we
   // manually assign the fields the constructor should have set.
   // TODO: lose this.
   gThread_daemon->SetBoolean(peer_, thread_is_daemon);
-  gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group));
-  gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name));
+  gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group.get()));
+  gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
   gThread_priority->SetInt(peer_, thread_priority);
+
+  // Pre-allocate an OutOfMemoryError for the double-OOME case.
+  ThrowNewException("Ljava/lang/OutOfMemoryError;",
+      "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
+  ScopedLocalRef<jthrowable> exception(env, env->ExceptionOccurred());
+  env->ExceptionClear();
+  pre_allocated_OutOfMemoryError_ = Decode<Throwable*>(env, exception.get());
 }
 
 void Thread::InitStackHwm() {
@@ -697,7 +705,8 @@ Thread::Thread()
       suspend_count_(0),
       class_loader_override_(NULL),
       long_jump_context_(NULL),
-      throwing_OOME_(false) {
+      throwing_OutOfMemoryError_(false),
+      pre_allocated_OutOfMemoryError_(NULL) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
 }
 
@@ -812,11 +821,6 @@ void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-void Thread::PopSirt() {
-  CHECK(top_sirt_ != NULL);
-  top_sirt_ = top_sirt_->Link();
-}
-
 Object* Thread::DecodeJObject(jobject obj) {
   DCHECK(CanAccessDirectReferences());
   if (obj == NULL) {
@@ -913,12 +917,18 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
 class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
  public:
   explicit BuildInternalStackTraceVisitor(int depth, int skip_depth, ScopedJniThreadState& ts)
-      : skip_depth_(skip_depth), count_(0) {
+      : skip_depth_(skip_depth), count_(0), pc_trace_(NULL), method_trace_(NULL), local_ref_(NULL) {
     // Allocate method trace with an extra slot that will hold the PC trace
     method_trace_ = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1);
+    if (method_trace_ == NULL) {
+      return;
+    }
     // Register a local reference as IntArray::Alloc may trigger GC
     local_ref_ = AddLocalReference<jobject>(ts.Env(), method_trace_);
     pc_trace_ = IntArray::Alloc(depth);
+    if (pc_trace_ == NULL) {
+      return;
+    }
 #ifdef MOVING_GARBAGE_COLLECTOR
     // Re-read after potential GC
     method_trace = Decode<ObjectArray<Object>*>(ts.Env(), local_ref_);
@@ -931,6 +941,9 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   virtual ~BuildInternalStackTraceVisitor() {}
 
   virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+    if (method_trace_ == NULL || pc_trace_ == NULL) {
+      return; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
+    }
     if (skip_depth_ > 0) {
       skip_depth_--;
       return;
@@ -1109,22 +1122,22 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
   descriptor.erase(descriptor.length() - 1);
 
   JNIEnv* env = GetJniEnv();
-  jclass exception_class = env->FindClass(descriptor.c_str());
-  CHECK(exception_class != NULL) << "descriptor=\"" << descriptor << "\"";
-  int rc = env->ThrowNew(exception_class, msg);
+  ScopedLocalRef<jclass> exception_class(env, env->FindClass(descriptor.c_str()));
+  CHECK(exception_class.get() != NULL) << "descriptor=\"" << descriptor << "\"";
+  int rc = env->ThrowNew(exception_class.get(), msg);
   CHECK_EQ(rc, JNI_OK);
-  env->DeleteLocalRef(exception_class);
 }
 
 void Thread::ThrowOutOfMemoryError(Class* c, size_t byte_count) {
-  if (!throwing_OOME_) {
-    throwing_OOME_ = true;
+  LOG(ERROR) << "Failed to allocate a " << PrettyDescriptor(c->GetDescriptor())
+             << " (" << byte_count << " bytes)" << (throwing_OutOfMemoryError_ ? " recursive case" : "");
+  if (!throwing_OutOfMemoryError_) {
+    throwing_OutOfMemoryError_ = true;
     ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);
-    LOG(ERROR) << "Failed to allocate a " << PrettyDescriptor(c->GetDescriptor()) << " (" << byte_count << " bytes)";
   } else {
-    UNIMPLEMENTED(FATAL) << "throw one i prepared earlier...";
+    SetException(pre_allocated_OutOfMemoryError_);
   }
-  throwing_OOME_ = false;
+  throwing_OutOfMemoryError_ = false;
 }
 
 class CatchBlockStackVisitor : public Thread::StackVisitor {
@@ -1192,14 +1205,6 @@ void Thread::DeliverException() {
   CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);
   WalkStackUntilUpCall(&catch_finder, true);
 
-  // Pop any SIRT
-  if (catch_finder.native_method_count_ == 1) {
-    PopSirt();
-  } else {
-    // We only expect the stack crawl to have passed 1 native method as it's terminated
-    // by an up call
-    DCHECK_EQ(catch_finder.native_method_count_, 0u);
-  }
   long_jump_context->SetSP(reinterpret_cast<intptr_t>(catch_finder.handler_frame_.GetSP()));
   long_jump_context->SetPC(catch_finder.handler_pc_);
   long_jump_context->DoLongJump();
@@ -1301,6 +1306,9 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
   if (peer_ != NULL) {
     visitor(peer_, arg);
+  }
+  if (pre_allocated_OutOfMemoryError_ != NULL) {
+    visitor(pre_allocated_OutOfMemoryError_, arg);
   }
   jni_env_->locals.VisitRoots(visitor, arg);
   jni_env_->monitors.VisitRoots(visitor, arg);

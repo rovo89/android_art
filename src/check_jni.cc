@@ -268,13 +268,16 @@ public:
       return;
     }
     if (*expectedType != m->GetShorty()->CharAt(0)) {
-      LOG(ERROR) << "JNI ERROR: expected return type '" << *expectedType << "' calling " << PrettyMethod(m);
+      LOG(ERROR) << "JNI ERROR: the return type of " << function_name_ << " does not match "
+                 << PrettyMethod(m);
       JniAbort();
     } else if (isStatic && !m->IsStatic()) {
       if (isStatic) {
-        LOG(ERROR) << "JNI ERROR: calling non-static method " << PrettyMethod(m) << " with static call";
+        LOG(ERROR) << "JNI ERROR: calling non-static method "
+                   << PrettyMethod(m) << " with " << function_name_;
       } else {
-        LOG(ERROR) << "JNI ERROR: calling static method " << PrettyMethod(m) << " with non-static call";
+        LOG(ERROR) << "JNI ERROR: calling static method "
+                   << PrettyMethod(m) << " with non-static " << function_name_;
       }
       JniAbort();
     }
@@ -723,7 +726,8 @@ private:
      * make any JNI calls other than the Exception* methods.
      */
     if ((flags & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
-      LOG(ERROR) << "JNI ERROR: JNI method called with exception pending";
+      LOG(ERROR) << "JNI ERROR: JNI " << function_name_ << " called with "
+                 << PrettyTypeOf(self->GetException()) << " pending";
       LOG(ERROR) << "Pending exception is:";
       LOG(ERROR) << jniGetStackTrace(env_);
       JniAbort();

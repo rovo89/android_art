@@ -242,6 +242,10 @@ class IrtIterator {
   size_t capacity_;
 };
 
+bool inline operator==(const IrtIterator& lhs, const IrtIterator& rhs) {
+  return lhs.equals(rhs);
+}
+
 bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
   return !lhs.equals(rhs);
 }
@@ -289,6 +293,8 @@ class IndirectReferenceTable {
    * Returns "false" if nothing was removed.
    */
   bool Remove(uint32_t cookie, IndirectRef iref);
+
+  void AssertEmpty();
 
   void Dump() const;
 

@@ -14,6 +14,7 @@
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "oat_file.h"
+#include "ScopedLocalRef.h"
 #include "signal_catcher.h"
 #include "space.h"
 #include "thread.h"
@@ -326,6 +327,8 @@ void Runtime::Start() {
 
   StartDaemonThreads();
 
+  Thread::Current()->GetJniEnv()->locals.AssertEmpty();
+
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Start exiting";
   }
@@ -336,11 +339,11 @@ void Runtime::StartDaemonThreads() {
 
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
-  jclass c = env->FindClass("java/lang/Daemons");
-  CHECK(c != NULL);
-  jmethodID mid = env->GetStaticMethodID(c, "start", "()V");
+  ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Daemons"));
+  CHECK(c.get() != NULL);
+  jmethodID mid = env->GetStaticMethodID(c.get(), "start", "()V");
   CHECK(mid != NULL);
-  env->CallStaticVoidMethod(c, mid);
+  env->CallStaticVoidMethod(c.get(), mid);
 }
 
 bool Runtime::IsStarted() const {

@@ -158,6 +158,13 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
   return result;
 }
 
+void IndirectReferenceTable::AssertEmpty() {
+  if (begin() != end()) {
+    Dump();
+    LOG(FATAL) << "Internal Error: non-empty local reference table";
+  }
+}
+
 /*
  * Verify that the indirect table lookup is valid.
  *
@@ -250,15 +257,15 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   }
 
   if (idx < bottomIndex) {
-    /* wrong segment */
-    LOG(INFO) << "Attempt to remove index outside index area (" << idx
-              << " vs " << bottomIndex << "-" << topIndex << ")";
+    // Wrong segment.
+    LOG(WARNING) << "Attempt to remove index outside index area (" << idx
+                 << " vs " << bottomIndex << "-" << topIndex << ")";
     return false;
   }
   if (idx >= topIndex) {
-    /* bad -- stale reference? */
-    LOG(INFO) << "Attempt to remove invalid index " << idx
-              << " (bottom=" << bottomIndex << " top=" << topIndex << ")";
+    // Bad --- stale reference?
+    LOG(WARNING) << "Attempt to remove invalid index " << idx
+                 << " (bottom=" << bottomIndex << " top=" << topIndex << ")";
     return false;
   }
 

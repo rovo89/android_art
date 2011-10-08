@@ -368,10 +368,7 @@ CompiledMethod* JniCompiler::Compile(const Method* native_method) {
                     jni_conv->ReturnRegister(), return_save_location,
                     jni_conv->SizeOfReturnValue());
 
-  // 13. Check for pending exception and forward if there
-  __ ExceptionPoll(jni_conv->InterproceduralScratchRegister());
-
-  // 14. Place result in correct register possibly loading from indirect
+  // 13. Place result in correct register possibly loading from indirect
   //     reference table
   if (jni_conv->IsReturnAReference()) {
     __ IncreaseFrameSize(out_arg_size);
@@ -401,7 +398,7 @@ CompiledMethod* JniCompiler::Compile(const Method* native_method) {
   }
   __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister());
 
-  // 15. Restore segment state and remove SIRT from thread
+  // 14. Restore segment state and remove SIRT from thread
   {
     ManagedRegister jni_env = jni_conv->InterproceduralScratchRegister();
     __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset());
@@ -417,10 +414,15 @@ CompiledMethod* JniCompiler::Compile(const Method* native_method) {
   __ CopyRawPtrToThread(Thread::TopSirtOffset(), jni_conv->SirtLinkOffset(),
                         jni_conv->InterproceduralScratchRegister());
 
+  // 15. Check for pending exception and forward if there
+  __ ExceptionPoll(jni_conv->InterproceduralScratchRegister());
+
   // 16. Remove activation
   if (native_method->IsSynchronized()) {
     __ RemoveFrame(frame_size, callee_save_regs);
   } else {
+    // no need to restore callee save registers because we didn't
+    // clobber them while locking the monitor.
     __ RemoveFrame(frame_size, std::vector<ManagedRegister>());
   }
 
