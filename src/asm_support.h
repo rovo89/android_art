@@ -10,6 +10,8 @@
 #define SUSPEND_CHECK_INTERVAL (1000)
 // Offset of field Thread::suspend_count_ verified in InitCpu
 #define THREAD_SUSPEND_COUNT_OFFSET 388
+// Offset of field Thread::suspend_count_ verified in InitCpu
+#define THREAD_EXCEPTION_OFFSET 384
 
 #elif defined(__i386__)
 // Offset of field Thread::self_ verified in InitCpu

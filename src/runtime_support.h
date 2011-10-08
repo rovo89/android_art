@@ -10,11 +10,15 @@
 
 namespace art {
 
+extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+                                         Thread* self);
 extern void DebugMe(Method* method, uint32_t info);
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
+extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static);
 extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
 void* UnresolvedDirectMethodTrampolineFromCode(int32_t, void*, Thread*, Runtime::TrampolineType);
+extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
@@ -23,7 +27,6 @@ extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
 }  // namespace art
-
 /* Helper for both JNI and regular compiled code */
 extern "C" void art_deliver_exception_from_code(void*);
 
@@ -34,9 +37,17 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
   extern "C" void art_can_put_array_element_from_code(void*, void*);
   extern "C" void art_check_cast_from_code(void*, void*);
+  extern "C" void* art_find_instance_field_from_code(uint32_t, void*);
+  extern "C" void* art_find_static_field_from_code(uint32_t, void*);
+  extern "C" int32_t art_get32_static_from_code(uint32_t, void*);
+  extern "C" int64_t art_get64_static_from_code(uint32_t, void*);
+  extern "C" void* art_get_obj_static_from_code(uint32_t, void*);
   extern "C" void art_handle_fill_data_from_code(void*, void*);
   extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
   extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
+  extern "C" int art_set32_static_from_code(uint32_t, void*, int32_t);
+  extern "C" int art_set64_static_from_code(uint32_t, void*, int64_t);
+  extern "C" int art_set_obj_static_from_code(uint32_t, void*, void*);
   extern "C" void art_test_suspend();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();

@@ -52,6 +52,17 @@
     pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
 .endm
 
+    /*
+     * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_
+     */
+.macro DELIVER_PENDING_EXCEPTION
+    SETUP_CALLEE_SAVE_FRAME                    @ save callee saves for throw
+    mov    r0, r9                              @ pass Thread::Current
+    mov    r1, sp                              @ pass SP
+    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+.endm
+
     .global art_deliver_exception_from_code
     /*
      * Called by managed code, saves mosts registers (forms basis of long jump context) and passes
@@ -156,10 +167,7 @@ art_invoke_interface_trampoline:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cmp    r0, #0                                 @ did we find the target?
     bxne   r12                                    @ tail call to target if so
-    SETUP_CALLEE_SAVE_FRAME                       @ set up for throwing exception
-    mov    r0, r9                                 @ pass Thread::Current
-    mov    r1, sp                                 @ pass SP
-    b      artDeliverPendingExceptionFromCode     @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_handle_fill_data_from_code
     .extern artHandleFillArrayDataFromCode
@@ -175,10 +183,7 @@ art_handle_fill_data_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                          @ success?
     moveq  pc, lr                          @ return on success
-    SETUP_CALLEE_SAVE_FRAME                @ set up for throwing exception
-    mov    r0, r9                          @ pass Thread::Current
-    mov    r1, sp                          @ pass SP
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_lock_object_from_code
     .extern artLockObjectFromCode
@@ -205,10 +210,7 @@ art_unlock_object_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                   @ success?
     moveq  pc, lr                   @ return on success
-    SETUP_CALLEE_SAVE_FRAME         @ set up for throwing exception
-    mov    r0, r9                   @ pass Thread::Current
-    mov    r1, sp                   @ pass SP
-    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_check_cast_from_code
     .extern artCheckCastFromCode
@@ -223,10 +225,7 @@ art_check_cast_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                       @ success?
     moveq  pc, lr                       @ return on success
-    SETUP_CALLEE_SAVE_FRAME             @ set up for throwing exception
-    mov    r0, r9                       @ pass Thread::Current
-    mov    r1, sp                       @ pass SP
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_can_put_array_element_from_code
     .extern artCanPutArrayElementFromCode
@@ -244,10 +243,7 @@ art_can_put_array_element_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                         @ success?
     moveq  pc, lr                         @ return on success
-    SETUP_CALLEE_SAVE_FRAME               @ set up for throwing exception
-    mov    r0, r9                         @ pass Thread::Current
-    mov    r1, sp                         @ pass SP
-    b      artDeliverPendingExceptionFromCode @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_initialize_static_storage_from_code
     .extern artInitializeStaticStorageFromCode
@@ -265,10 +261,117 @@ art_initialize_static_storage_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                              @ success if result is non-null
     movne  pc, lr                              @ return on success
-    SETUP_CALLEE_SAVE_FRAME                    @ set up for throwing exception
-    mov    r0, r9                              @ pass Thread::Current
-    mov    r1, sp                              @ pass SP
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_find_instance_field_from_code
+    .extern artFindInstanceFieldFromCode
+    /*
+     * Called by managed code to resolve a field of an object
+     */
+art_find_instance_field_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r2, r9                        @ pass Thread::Current
+    mov    r3, sp                        @ pass SP
+    bl     artFindInstanceFieldFromCode  @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                        @ success if result is non-null
+    movne  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_get32_static_from_code
+    .extern artGet32StaticFromCode
+    /*
+     * Called by managed code to resolve a static field and load a 32-bit primitive value
+     */
+art_get32_static_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r2, r9                        @ pass Thread::Current
+    mov    r3, sp                        @ pass SP
+    bl     artGet32StaticFromCode        @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
+    ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r12, #0                       @ success if no exception is pending
+    moveq  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_get64_static_from_code
+    .extern artGet64StaticFromCode
+    /*
+     * Called by managed code to resolve a static field and load a 64-bit primitive value
+     */
+art_get64_static_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r2, r9                        @ pass Thread::Current
+    mov    r3, sp                        @ pass SP
+    bl     artGet64StaticFromCode        @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
+    ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r12, #0                       @ success if no exception is pending
+    moveq  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_get_obj_static_from_code
+    .extern artGetObjStaticFromCode
+    /*
+     * Called by managed code to resolve a static field and load an object reference
+     */
+art_get_obj_static_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r2, r9                        @ pass Thread::Current
+    mov    r3, sp                        @ pass SP
+    bl     artGetObjStaticFromCode       @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
+    ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r12, #0                       @ success if no exception is pending
+    moveq  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_set32_static_from_code
+    .extern artSet32StaticFromCode
+    /*
+     * Called by managed code to resolve a static field and store a 32-bit primitive value
+     */
+art_set32_static_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r3, r9                        @ pass Thread::Current
+    str    sp, [sp, #0]                  @ pass SP
+    bl     artSet32StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                        @ success if result is 0
+    moveq  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_set64_static_from_code
+    .extern artSet32StaticFromCode
+    /*
+     * Called by managed code to resolve a static field and store a 64-bit primitive value
+     */
+art_set64_static_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r12, sp                       @ save SP
+    sub    sp, #8                        @ grow frame for alignment with stack args
+    push   {r9, r12}                     @ pass Thread::Current and SP
+    bl     artSet64StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
+    add    sp, #16                       @ release out args
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
+    cmp    r0, #0                        @ success if result is 0
+    moveq  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_set_obj_static_from_code
+    .extern artSetObjStaticFromCode
+    /*
+     * Called by managed code to resolve a static field and store an object reference
+     */
+art_set_obj_static_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r3, r9                        @ pass Thread::Current
+    str    sp, [sp, #0]                  @ pass SP
+    bl     artSetObjStaticFromCode       @ (field_idx, referrer, new_val, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                        @ success if result is 0
+    moveq  pc, lr                        @ return on success
+    DELIVER_PENDING_EXCEPTION
 
     .global art_alloc_object_from_code
     .extern artAllocObjectFromCode
@@ -283,10 +386,7 @@ art_alloc_object_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     movne  pc, lr                     @ return on success
-    SETUP_CALLEE_SAVE_FRAME           @ set up for throwing exception
-    mov    r0, r9                     @ pass Thread::Current
-    mov    r1, sp                     @ pass SP
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_alloc_array_from_code
     .extern artAllocArrayFromCode
@@ -302,10 +402,7 @@ art_alloc_array_from_code:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     movne  pc, lr                     @ return on success
-    SETUP_CALLEE_SAVE_FRAME           @ set up for throwing exception
-    mov    r0, r9                     @ pass Thread::Current
-    mov    r1, sp                     @ pass SP
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    DELIVER_PENDING_EXCEPTION
 
     .global art_check_and_alloc_array_from_code
     .extern artCheckAndAllocArrayFromCode
@@ -319,12 +416,9 @@ art_check_and_alloc_array_from_code:
     @ artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
     bl     artCheckAndAllocArrayFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cmp    r0, #0                         @ success if result is non-null
-    movne  pc, lr                         @ return on success
-    SETUP_CALLEE_SAVE_FRAME               @ set up for throwing exception
-    mov    r0, r9                         @ pass Thread::Current
-    mov    r1, sp                         @ pass SP
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
+    cmp    r0, #0                     @ success if result is non-null
+    movne  pc, lr                     @ return on success
+    DELIVER_PENDING_EXCEPTION
 
     .global art_test_suspend
     .extern artCheckSuspendFromCode

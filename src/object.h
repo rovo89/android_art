@@ -471,10 +471,6 @@ class MANAGED Field : public AccessibleObject {
     return MemberOffset(OFFSETOF_MEMBER(Field, offset_));
   }
 
-  static Field* FindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer);
-  static Field* FindStaticFieldFromCode(uint32_t field_idx, const Method* referrer);
-  static Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static);
-
   MemberOffset GetOffsetDuringLinking() const;
 
   void SetOffset(MemberOffset num_bytes);
@@ -499,20 +495,13 @@ class MANAGED Field : public AccessibleObject {
   Object* GetObject(const Object* object) const;
   void SetObject(Object* object, const Object* l) const;
 
-  // Slow path routines for static field access when field was unresolved at
-  // compile time
-  static uint32_t Get32StaticFromCode(uint32_t field_idx,
-                                      const Method* referrer);
-  static void Set32StaticFromCode(uint32_t field_idx, const Method* referrer,
-                                  uint32_t new_value);
-  static uint64_t Get64StaticFromCode(uint32_t field_idx,
-                                      const Method* referrer);
-  static void Set64StaticFromCode(uint32_t field_idx, const Method* referrer,
-                                  uint64_t new_value);
-  static Object* GetObjStaticFromCode(uint32_t field_idx,
-                                      const Method* referrer);
-  static void SetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
-                                   Object* new_value);
+  // raw field accesses
+  uint32_t Get32(const Object* object) const;
+  void Set32(Object* object, uint32_t new_value) const;
+  uint64_t Get64(const Object* object) const;
+  void Set64(Object* object, uint64_t new_value) const;
+  Object* GetObj(const Object* object) const;
+  void SetObj(Object* object, const Object* new_value) const;
 
   static Class* GetJavaLangReflectField() {
     DCHECK(java_lang_reflect_Field_ != NULL);
@@ -529,14 +518,6 @@ class MANAGED Field : public AccessibleObject {
   void InitJavaFields();
 
  private:
-  // private implementation of field access using raw data
-  uint32_t Get32(const Object* object) const;
-  void Set32(Object* object, uint32_t new_value) const;
-  uint64_t Get64(const Object* object) const;
-  void Set64(Object* object, uint64_t new_value) const;
-  Object* GetObj(const Object* object) const;
-  void SetObj(Object* object, const Object* new_value) const;
-
   void InitJavaFieldsLocked();
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
