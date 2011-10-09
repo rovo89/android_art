@@ -421,7 +421,7 @@ art_check_and_alloc_array_from_code:
     DELIVER_PENDING_EXCEPTION
 
     .global art_test_suspend
-    .extern artCheckSuspendFromCode
+    .extern artTestSuspendFromCode
 art_test_suspend:
     ldr    r0, [rSELF, #THREAD_SUSPEND_COUNT_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
@@ -430,7 +430,7 @@ art_test_suspend:
     mov    r0, rSELF
     mov    r1, sp
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
-    bl     artCheckSuspendFromCode            @ (Thread*, SP)
+    bl     artTestSuspendFromCode             @ (Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
     .global art_shl_long

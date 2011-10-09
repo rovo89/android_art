@@ -685,11 +685,13 @@ extern "C" void artLockObjectFromCode(Object* obj, Thread* thread, Method** sp) 
   DCHECK(!thread->IsExceptionPending());
 }
 
-extern "C" void artCheckSuspendFromJni(Thread* thread) {
+void CheckSuspendFromCode(Thread* thread) {
+  // Called when thread->suspend_count_ != 0
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
-extern "C" void artCheckSuspendFromCode(Thread* thread, Method** sp) {
+extern "C" void artTestSuspendFromCode(Thread* thread, Method** sp) {
+  // Called when suspend count check value is 0 and thread->suspend_count_ != 0
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }

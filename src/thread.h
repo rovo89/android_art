@@ -116,12 +116,13 @@ class PACKED Thread {
   int (*pIdiv)(int, int);
   long long (*pLmul)(long long, long long);
   long long (*pLdivmod)(long long, long long);
+  void (*pCheckSuspendFromCode)(Thread*);  // Stub that is called when the suspend count is non-zero
+  void (*pTestSuspendFromCode)();  // Stub that is periodically called to test the suspend count
   void* (*pAllocObjectFromCode)(uint32_t, void*);
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
   void (*pCanPutArrayElementFromCode)(void*, void*);
   void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
   void (*pCheckCastFromCode) (void*, void*);
-  void (*pCheckSuspendFromCode)(Thread*);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
   void (*pDeliverException)(void*);
   void* (*pFindInstanceFieldFromCode)(uint32_t, void*);
@@ -142,7 +143,6 @@ class PACKED Thread {
   int (*pSet32Static)(uint32_t, void*, int32_t);
   int (*pSet64Static)(uint32_t, void*, int64_t);
   int (*pSetObjStatic)(uint32_t, void*, void*);
-  void (*pTestSuspendFromCode)();
   void (*pThrowStackOverflowFromCode)(void*);
   void (*pThrowNullPointerFromCode)();
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);

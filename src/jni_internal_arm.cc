@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "asm_support.h"
 #include "assembler.h"
 #include "compiled_method.h"
 #include "object.h"
@@ -44,6 +45,9 @@ CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
 
   // Move the managed thread pointer into R9.
   __ mov(R9, ShifterOperand(R2));
+
+  // Reset R4 to suspend check intercal
+  __ LoadImmediate(R4, SUSPEND_CHECK_INTERVAL);
 
   // Move frame down for arguments less 3 pushed values above
   __ AddConstant(SP, -frame_size + (3 * kPointerSize));

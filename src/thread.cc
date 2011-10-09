@@ -105,6 +105,7 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
+  pTestSuspendFromCode = art_test_suspend;
   pAllocObjectFromCode = art_alloc_object_from_code;
   pAllocArrayFromCode = art_alloc_array_from_code;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
@@ -120,7 +121,6 @@ void Thread::InitFunctionPointers() {
   pSet32Static = art_set32_static_from_code;
   pSet64Static = art_set64_static_from_code;
   pSetObjStatic = art_set_obj_static_from_code;
-  pTestSuspendFromCode = art_test_suspend;
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
   pThrowDivZeroFromCode = art_throw_div_zero_from_code;
   pThrowNegArraySizeFromCode = art_throw_neg_array_size_from_code;
@@ -131,21 +131,21 @@ void Thread::InitFunctionPointers() {
   pLockObjectFromCode = art_lock_object_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
 #endif
-  pDeliverException = art_deliver_exception_from_code;
-  pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
-  pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
   pF2l = F2L;
   pD2l = D2L;
   pMemcpy = memcpy;
-  pInitializeTypeFromCode = InitializeTypeFromCode;
-  pResolveMethodFromCode = ResolveMethodFromCode;
-  pInstanceofNonTrivialFromCode = Class::IsAssignableFromCode;
-  pCheckSuspendFromCode = artCheckSuspendFromJni;
-  pFindNativeMethod = FindNativeMethod;
-  pDecodeJObjectInThread = DecodeJObjectInThread;
-  pResolveStringFromCode = ResolveStringFromCode;
-  pObjectInit = ObjectInitFromCode;
+  pCheckSuspendFromCode = CheckSuspendFromCode;
   pDebugMe = DebugMe;
+  pDecodeJObjectInThread = DecodeJObjectInThread;
+  pDeliverException = art_deliver_exception_from_code;
+  pFindNativeMethod = FindNativeMethod;
+  pInitializeTypeFromCode = InitializeTypeFromCode;
+  pInstanceofNonTrivialFromCode = Class::IsAssignableFromCode;
+  pObjectInit = ObjectInitFromCode;
+  pResolveMethodFromCode = ResolveMethodFromCode;
+  pResolveStringFromCode = ResolveStringFromCode;
+  pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
+  pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
 }
 
 void* Thread::CreateCallback(void* arg) {

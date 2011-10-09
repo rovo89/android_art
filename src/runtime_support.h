@@ -10,6 +10,7 @@
 
 namespace art {
 
+extern void CheckSuspendFromCode(Thread* thread);
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                          Thread* self);
 extern void DebugMe(Method* method, uint32_t info);
@@ -22,7 +23,6 @@ extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer,
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
-extern "C" void artCheckSuspendFromJni(Thread* thread);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
