@@ -428,8 +428,8 @@ art_test_suspend:
     cmp    r0, #0                             @ check Thread::Current()->suspend_count_ == 0
     bxeq   rLR                                @ return if suspend_count_ == 0
     mov    r0, rSELF
-    mov    r1, sp
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
+    mov    r1, sp
     bl     artTestSuspendFromCode             @ (Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
