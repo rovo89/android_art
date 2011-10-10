@@ -100,7 +100,7 @@ JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv* env, jobject thisObj, jint 
 }
 
 extern "C"
-JNIEXPORT jint JNICALL Java_StackWalk_refmap2(JNIEnv* env, jobject thisObj, jint count) {
+JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv* env, jobject thisObj, jint count) {
   gJava_StackWalk_refmap_calls++;
 
   // Visitor

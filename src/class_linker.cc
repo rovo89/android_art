@@ -982,6 +982,23 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
   return size;
 }
 
+void LinkCode(Method* method, const OatFile::OatClass* oat_class, uint32_t method_index) {
+  // Every kind of method should at least get an invoke stub from the oat_method.
+  // non-abstract methods also get their code pointers.
+  const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
+  oat_method.LinkMethod(method);
+
+  if (method->IsAbstract()) {
+    method->SetCode(Runtime::Current()->GetAbstractMethodErrorStubArray()->GetData());
+    return;
+  }
+  if (method->IsNative()) {
+    // unregistering restores the dlsym lookup stub
+    method->UnregisterNative();
+    return;
+  }
+}
+
 void ClassLinker::LoadClass(const DexFile& dex_file,
                             const DexFile::ClassDef& dex_class_def,
                             Class* klass,
@@ -1060,6 +1077,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
         bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
         CHECK(found) << descriptor;
         oat_class.reset(oat_dex_file->GetOatClass(class_def_index));
+        CHECK(oat_class.get() != NULL) << descriptor;
       }
     }
   }
@@ -1073,12 +1091,11 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     for (size_t i = 0; i < num_direct_methods; ++i, ++method_index) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-      Method* meth = AllocMethod();
-      klass->SetDirectMethod(i, meth);
-      LoadMethod(dex_file, dex_method, klass, meth);
+      Method* method = AllocMethod();
+      klass->SetDirectMethod(i, method);
+      LoadMethod(dex_file, dex_method, klass, method);
       if (oat_class.get() != NULL) {
-        const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
-        oat_method.LinkMethod(meth);
+        LinkCode(method, oat_class.get(), method_index);
       }
     }
   }
@@ -1091,12 +1108,11 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     for (size_t i = 0; i < num_virtual_methods; ++i, ++method_index) {
       DexFile::Method dex_method;
       dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-      Method* meth = AllocMethod();
-      klass->SetVirtualMethod(i, meth);
-      LoadMethod(dex_file, dex_method, klass, meth);
+      Method* method = AllocMethod();
+      klass->SetVirtualMethod(i, method);
+      LoadMethod(dex_file, dex_method, klass, method);
       if (oat_class.get() != NULL) {
-        const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
-        oat_method.LinkMethod(meth);
+        LinkCode(method, oat_class.get(), method_index);
       }
     }
   }
@@ -2116,14 +2132,12 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
     int new_vtable_count = old_vtable_count + miranda_list.size();
     vtable = vtable->CopyOf(new_vtable_count);
     for (size_t i = 0; i < miranda_list.size(); ++i) {
-      Method* meth = miranda_list[i]; //AllocMethod();
-      // TODO: this shouldn't be a memcpy
-      //memcpy(meth, miranda_list[i], sizeof(Method));
-      meth->SetDeclaringClass(klass);
-      meth->SetAccessFlags(meth->GetAccessFlags() | kAccMiranda);
-      meth->SetMethodIndex(0xFFFF & (old_vtable_count + i));
-      klass->SetVirtualMethod(old_method_count + i, meth);
-      vtable->Set(old_vtable_count + i, meth);
+      Method* method = miranda_list[i];
+      method->SetDeclaringClass(klass);
+      method->SetAccessFlags(method->GetAccessFlags() | kAccMiranda);
+      method->SetMethodIndex(0xFFFF & (old_vtable_count + i));
+      klass->SetVirtualMethod(old_method_count + i, method);
+      vtable->Set(old_vtable_count + i, method);
     }
     // TODO: do not assign to the vtable field until it is fully constructed.
     klass->SetVTable(vtable);

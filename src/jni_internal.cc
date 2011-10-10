@@ -576,6 +576,7 @@ class Libraries {
     }
     detail += "No implementation found for ";
     detail += PrettyMethod(m);
+    detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
     LOG(ERROR) << detail;
     return NULL;
   }

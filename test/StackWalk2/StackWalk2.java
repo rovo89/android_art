@@ -1,7 +1,5 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 
-package com.example.StackWalk2;
-
 public class StackWalk2 {
   // use v1 for this
 

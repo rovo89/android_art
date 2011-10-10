@@ -77,10 +77,10 @@ $(eval $(call declare-test-test-target,IntMath,))
 $(eval $(call declare-test-test-target,Invoke,))
 $(eval $(call declare-test-test-target,ExceptionTest,))
 $(eval $(call declare-test-test-target,SystemMethods,))
-# TODO: Re-enable the test when System.LoadLibrary is working.
+$(eval $(call declare-test-test-target,MemUsage,))
+
+# TODO: Enable when the StackWalk tests are passing
 # $(eval $(call declare-test-test-target,StackWalk,))
 # $(eval $(call declare-test-test-target,StackWalk2,))
-
- $(eval $(call declare-test-test-target,MemUsage,))
 
 ########################################################################
