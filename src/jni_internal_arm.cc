@@ -46,7 +46,7 @@ CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
   // Move the managed thread pointer into R9.
   __ mov(R9, ShifterOperand(R2));
 
-  // Reset R4 to suspend check intercal
+  // Reset R4 to suspend check interval
   __ LoadImmediate(R4, SUSPEND_CHECK_INTERVAL);
 
   // Move frame down for arguments less 3 pushed values above
@@ -106,15 +106,10 @@ CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
   __ blx(IP);
 
   // If the method returns a value, store it to the result pointer.
-  char ch = method->GetShorty()->CharAt(0);
-  if (ch != 'V') {
+  if (!method->IsReturnVoid()) {
     // Load the result JValue pointer of the stub caller's out args.
     __ LoadFromOffset(kLoadWord, IP, SP, frame_size);
-    if (ch == 'D' || ch == 'J') {
-      __ StoreToOffset(kStoreWordPair, R0, IP, 0);
-    } else {
-      __ StoreToOffset(kStoreWord, R0, IP, 0);
-    }
+    __ StoreToOffset(method->IsReturnALongOrDouble() ? kStoreWordPair : kStoreWord, R0, IP, 0);
   }
 
   // Remove the frame less the spilled R4, R9 and LR

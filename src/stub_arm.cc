@@ -32,7 +32,7 @@ ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   // Restore registers which may have been modified by GC and R0 which will now hold the method*
   __ DecreaseFrameSize(12);
   __ PopList(save);
-  __ mov(PC, ShifterOperand(R12));  // Leaf call to method's code
+  __ bx(R12);  // Leaf call to method's code
 
   __ bkpt(0);
 
@@ -89,11 +89,11 @@ ByteArray* CreateJniStub() {
   __ LoadFromOffset(kLoadWord, R12, TR, OFFSETOF_MEMBER(Thread, pFindNativeMethod));
   __ blx(R12);
   __ mov(R12, ShifterOperand(R0));  // Save result of FindNativeMethod in R12
-  __ AddConstant(SP, 12);  // Restore registers (including outgoing arguments)
+  __ AddConstant(SP, 12);           // Restore registers (including outgoing arguments)
   __ PopList(save);
   __ cmp(R12, ShifterOperand(0));
-  __ mov(PC, ShifterOperand(R12), NE);  // If R12 != 0 tail call into native code
-  __ mov(PC, ShifterOperand(LR));  // Return to caller to handle exception
+  __ bx(R12, NE);                   // If R12 != 0 tail call into native code
+  __ bx(LR);                        // Return to caller to handle exception
 
   assembler->EmitSlowPaths();
 
