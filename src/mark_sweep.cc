@@ -136,7 +136,7 @@ struct InternTableEntryIsUnmarked : public InternTable::Predicate {
 };
 
 void MarkSweep::SweepMonitorList() {
-  UNIMPLEMENTED(FATAL);
+  UNIMPLEMENTED(WARNING);
   //dvmSweepMonitorList(&gDvm.monitorList, isUnmarkedObject);
 }
 
@@ -158,6 +158,8 @@ void MarkSweep::SweepCallback(size_t num_ptrs, void** ptrs, void* arg) {
 }
 
 void MarkSweep::Sweep() {
+  SweepSystemWeaks();
+
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
     if (spaces[i]->IsCondemned()) {
@@ -175,9 +177,7 @@ void MarkSweep::ScanInstanceFields(const Object* obj) {
   DCHECK(obj != NULL);
   Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
-  ScanFields(obj,
-             klass->GetReferenceInstanceOffsets(),
-             false);
+  ScanFields(obj, klass->GetReferenceInstanceOffsets(), false);
 }
 
 // Scans static storage on a Class.
@@ -186,9 +186,7 @@ void MarkSweep::ScanStaticFields(const Class* klass) {
   ScanFields(klass, klass->GetReferenceStaticOffsets(), true);
 }
 
-void MarkSweep::ScanFields(const Object* obj,
-                           uint32_t ref_offsets,
-                           bool is_static) {
+void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static) {
   if (ref_offsets != CLASS_WALK_SUPER) {
     // Found a reference offset bitmap.  Mark the specified offsets.
     while (ref_offsets != 0) {

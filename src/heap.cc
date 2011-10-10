@@ -478,7 +478,8 @@ void Heap::CollectGarbageInternal() {
 
     mark_sweep.ProcessReferences(false);
 
-    // TODO: swap bitmaps
+    // TODO: if concurrent
+    //    swap bitmaps
 
     mark_sweep.Sweep();
 

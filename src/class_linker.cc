@@ -1927,6 +1927,12 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
     klass->SetFinalizable();
   }
 
+  // Inherit reference flags (if any) from the superclass.
+  int reference_flags = (super->GetAccessFlags() & kAccReferenceFlagsMask);
+  if (reference_flags != 0) {
+    klass->SetAccessFlags(klass->GetAccessFlags() | reference_flags);
+  }
+
 #ifndef NDEBUG
   // Ensure super classes are fully resolved prior to resolving fields..
   while (super != NULL) {
