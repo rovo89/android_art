@@ -27,7 +27,6 @@ ART_C_INCLUDES := \
 
 art_cflags := \
 	-O2 \
-	-O0 \
 	-ggdb3 \
 	-Wall \
 	-Werror \

@@ -122,7 +122,7 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   const std::string descriptor = DotToDescriptor(class_name);
   const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
   if (dex_class_def == NULL) {
-    jniThrowExceptionFmt(env, "Ljava/lang/NoClassDefFoundError;", "Class %s not found", class_name);
+    jniThrowExceptionFmt(env, "java/lang/NoClassDefFoundError", "Class %s not found", class_name);
     return NULL;
   }
 
