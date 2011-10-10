@@ -144,6 +144,8 @@ class CommonTest : public testing::Test {
     uintptr_t limit = RoundUp(data + code_length, kPageSize);
     uintptr_t len = limit - base;
     int result = mprotect(reinterpret_cast<void*>(base), len, PROT_READ | PROT_WRITE | PROT_EXEC);
+    // Flush instruction cache
+    __builtin___clear_cache(reinterpret_cast<void*>(base), reinterpret_cast<void*>(base + len));
     CHECK_EQ(result, 0);
   }
 
