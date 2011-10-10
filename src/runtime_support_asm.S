@@ -63,6 +63,19 @@
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 .endm
 
+    .global art_do_long_jump
+art_do_long_jump:
+    /*
+     * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
+     */
+    vldm r1, {s0-s31}     @ load all fprs from argument fprs_
+    ldr  r2, [r0, #60]    @ r2 = r15 (PC from gprs_ 60=4*15)
+    add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
+    ldm  r0, {r3-r14}     @ load remaining gprs from argument gprs_
+    mov  r0, #0           @ clear result registers r0 and r1
+    mov  r1, #0
+    bx   r2               @ do long jump
+
     .global art_deliver_exception_from_code
     /*
      * Called by managed code, saves mosts registers (forms basis of long jump context) and passes
@@ -380,7 +393,7 @@ art_set_obj_static_from_code:
      * allocate a String and deliver an exception on error. On
      * success the String is returned.
      */
- art_resolve_string_from_code:
+art_resolve_string_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP

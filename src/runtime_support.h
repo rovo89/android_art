@@ -37,6 +37,7 @@ extern "C" void art_deliver_exception_from_code(void*);
   extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
   extern "C" void art_can_put_array_element_from_code(void*, void*);
   extern "C" void art_check_cast_from_code(void*, void*);
+  extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
   extern "C" void* art_find_instance_field_from_code(uint32_t, void*);
   extern "C" void* art_find_static_field_from_code(uint32_t, void*);
   extern "C" int32_t art_get32_static_from_code(uint32_t, void*);

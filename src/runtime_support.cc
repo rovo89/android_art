@@ -38,6 +38,9 @@ extern void DebugMe(Method* method, uint32_t info) {
 
 // Return value helper for jobject return types
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
+  if (thread->IsExceptionPending()) {
+    return NULL;
+  }
   return thread->DecodeJObject(obj);
 }
 

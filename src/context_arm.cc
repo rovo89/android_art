@@ -3,6 +3,7 @@
 #include "context_arm.h"
 
 #include "object.h"
+#include "runtime_support.h"
 
 namespace art {
 namespace arm {
@@ -49,15 +50,7 @@ void ArmContext::FillCalleeSaves(const Frame& fr) {
 
 void ArmContext::DoLongJump() {
 #if defined(__arm__)
-  // TODO: Load all GPRs, currently R0 to R3 aren't restored
-  asm volatile ( "vldm %2, {%%s0-%%s31}\n"
-                 "mov %%r0, %0\n"
-                 "mov %%r1, %1\n"
-                 "ldm %%r0, {%%r4-%%r14}\n"
-                 "mov %%pc,%%r1\n"
-      : // output
-      : "r"(&gprs_[4]), "r"(gprs_[R15]), "r"(&fprs_[S0])  // input
-      :);  // clobber
+  art_do_long_jump(&gprs_[0], &fprs_[S0]);
 #else
   UNIMPLEMENTED(FATAL);
 #endif
