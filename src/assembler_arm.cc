@@ -1046,6 +1046,14 @@ void ArmAssembler::blx(Register rm, Condition cond) {
   Emit(encoding);
 }
 
+void ArmAssembler::bx(Register rm, Condition cond) {
+  CHECK_NE(rm, kNoRegister);
+  CHECK_NE(cond, kNoCondition);
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+                     B24 | B21 | (0xfff << 8) | B4 |
+                     (static_cast<int32_t>(rm) << kRmShift);
+  Emit(encoding);
+}
 
 void ArmAssembler::MarkExceptionHandler(Label* label) {
   EmitType01(AL, 1, TST, 1, PC, R0, ShifterOperand(0));

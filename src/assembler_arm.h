@@ -346,6 +346,7 @@ class ArmAssembler : public Assembler {
   void b(Label* label, Condition cond = AL);
   void bl(Label* label, Condition cond = AL);
   void blx(Register rm, Condition cond = AL);
+  void bx(Register rm, Condition cond = AL);
 
   // Macros.
   // Add signed constant value to rd. May clobber IP.

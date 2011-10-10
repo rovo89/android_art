@@ -755,6 +755,10 @@ class MANAGED Method : public AccessibleObject {
 
   bool IsReturnALong() const;
 
+  bool IsReturnALongOrDouble() const {
+    return IsReturnALong() || IsReturnADouble();
+  }
+
   bool IsReturnVoid() const;
 
   // "Args" may refer to any of the 3 levels of "Args."

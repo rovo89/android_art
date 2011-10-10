@@ -182,7 +182,7 @@ art_handle_fill_data_from_code:
     bl     artHandleFillArrayDataFromCode  @ (Array* array, const uint16_t* table, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                          @ success?
-    moveq  pc, lr                          @ return on success
+    bxeq   lr                              @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_lock_object_from_code
@@ -209,7 +209,7 @@ art_unlock_object_from_code:
     bl     artUnlockObjectFromCode  @ (Object* obj, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                   @ success?
-    moveq  pc, lr                   @ return on success
+    bxeq   lr                       @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_check_cast_from_code
@@ -224,7 +224,7 @@ art_check_cast_from_code:
     bl     artCheckCastFromCode         @ (Class* a, Class* b, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                       @ success?
-    moveq  pc, lr                       @ return on success
+    bxeq   lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_can_put_array_element_from_code
@@ -235,14 +235,14 @@ art_check_cast_from_code:
      */
 art_can_put_array_element_from_code:
     cmp    r0, #0                         @ return if element == NULL
-    moveq  pc, lr
+    bxeq   lr
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                         @ pass Thread::Current
     mov    r3, sp                         @ pass SP
     bl     artCanPutArrayElementFromCode  @ (Object* element, Class* array_class, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                         @ success?
-    moveq  pc, lr                         @ return on success
+    bxeq   lr                             @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_initialize_static_storage_from_code
@@ -260,7 +260,7 @@ art_initialize_static_storage_from_code:
     bl     artInitializeStaticStorageFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                              @ success if result is non-null
-    movne  pc, lr                              @ return on success
+    bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_find_instance_field_from_code
@@ -275,7 +275,7 @@ art_find_instance_field_from_code:
     bl     artFindInstanceFieldFromCode  @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is non-null
-    movne  pc, lr                        @ return on success
+    bxne   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_get32_static_from_code
@@ -291,7 +291,7 @@ art_get32_static_from_code:
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
-    moveq  pc, lr                        @ return on success
+    bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_get64_static_from_code
@@ -307,7 +307,7 @@ art_get64_static_from_code:
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
-    moveq  pc, lr                        @ return on success
+    bxeq    lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_get_obj_static_from_code
@@ -323,7 +323,7 @@ art_get_obj_static_from_code:
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
-    moveq  pc, lr                        @ return on success
+    bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_set32_static_from_code
@@ -338,7 +338,7 @@ art_set32_static_from_code:
     bl     artSet32StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
-    moveq  pc, lr                        @ return on success
+    bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_set64_static_from_code
@@ -355,7 +355,7 @@ art_set64_static_from_code:
     add    sp, #16                       @ release out args
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     cmp    r0, #0                        @ success if result is 0
-    moveq  pc, lr                        @ return on success
+    bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_set_obj_static_from_code
@@ -370,7 +370,7 @@ art_set_obj_static_from_code:
     bl     artSetObjStaticFromCode       @ (field_idx, referrer, new_val, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
-    moveq  pc, lr                        @ return on success
+    bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_alloc_object_from_code
@@ -385,7 +385,7 @@ art_alloc_object_from_code:
     bl     artAllocObjectFromCode     @ (uint32_t type_idx, Method* method, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
-    movne  pc, lr                     @ return on success
+    bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_alloc_array_from_code
@@ -401,7 +401,7 @@ art_alloc_array_from_code:
     bl     artAllocArrayFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
-    movne  pc, lr                     @ return on success
+    bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_check_and_alloc_array_from_code
@@ -417,7 +417,7 @@ art_check_and_alloc_array_from_code:
     bl     artCheckAndAllocArrayFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
-    movne  pc, lr                     @ return on success
+    bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_test_suspend
