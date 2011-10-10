@@ -693,6 +693,8 @@ typedef enum ArmOpcode {
     kThumb2SubsRRI12,    /* setflags encoding */
     kThumb2OrrRRRs,      /* orrx [111010100101] rn[19..16] [0000] rd[11..8]
                                    [0000] rm[3..0] */
+    kThumb2Push1,        /* t3 encoding of push */
+    kThumb2Pop1,         /* t3 encoding of pop */
     kArmLast,
 } ArmOpcode;
 

@@ -953,6 +953,16 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16, kFmtBitBlt, 3, 0,
                  kFmtShift, -1, -1, IS_QUAD_OP | REG_DEF0_USE12 | SETS_CCODES,
                  "orrs", "!0C, !1C, !2C!3H", 2),
+    ENCODING_MAP(kThumb2Push1,    0xf84d0d04,
+                 kFmtBitBlt, 15, 12, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1,
+                 IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_USE0
+                 | IS_STORE, "push1", "!0C", 2),
+    ENCODING_MAP(kThumb2Pop1,    0xf85d0b04,
+                 kFmtBitBlt, 15, 12, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1,
+                 IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_DEF0
+                 | IS_LOAD, "pop1", "!0C", 2),
 
 };
 
@@ -1166,6 +1176,30 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 res = kRetryAll;
             } else {
                 lir->operands[1] = delta >> 1;
+            }
+        } else if (lir->opcode == kThumb2Push ||
+                   lir->opcode == kThumb2Pop) {
+            if (__builtin_popcount(lir->operands[0]) == 1) {
+                /*
+                 * The standard push/pop multiple instruction
+                 * requires at least two registers in the list.
+                 * If we've got just one, switch to the single-reg
+                 * encoding.
+                 */
+                lir->opcode = (lir->opcode == kThumb2Push)
+                    ? kThumb2Push1 : kThumb2Pop1;
+                int reg = 0;
+                while (lir->operands[0]) {
+                    if (lir->operands[0] & 0x1) {
+                        break;
+                    } else {
+                        reg++;
+                        lir->operands[0] >>= 1;
+                    }
+                }
+                lir->operands[0] = reg;
+                oatSetupResourceMasks(lir);
+                res = kRetryAll;
             }
         } else if (lir->opcode == kThumbBCond ||
                    lir->opcode == kThumb2BCond) {
