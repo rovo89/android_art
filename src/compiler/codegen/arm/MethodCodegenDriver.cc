@@ -1169,17 +1169,17 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case OP_RETURN_VOID:
-            genSuspendPoll(cUnit, mir);
+            genSuspendTest(cUnit, mir);
             break;
 
         case OP_RETURN:
         case OP_RETURN_OBJECT:
-            genSuspendPoll(cUnit, mir);
+            genSuspendTest(cUnit, mir);
             storeValue(cUnit, getRetLoc(cUnit), rlSrc[0]);
             break;
 
         case OP_RETURN_WIDE:
-            genSuspendPoll(cUnit, mir);
+            genSuspendTest(cUnit, mir);
             storeValueWide(cUnit, getRetLocWide(cUnit), rlSrc[0]);
             break;
 

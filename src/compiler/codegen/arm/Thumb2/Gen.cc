@@ -1789,28 +1789,6 @@ STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
     oatInsertGrowableList(&cUnit->suspendLaunchpads, (intptr_t)target);
 }
 
-/* Check for pending suspend request.  */
-STATIC void genSuspendPoll(CompilationUnit* cUnit, MIR* mir)
-{
-    if (NO_SUSPEND || mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
-        return;
-    }
-    oatFlushAllRegs(cUnit);
-    oatLockCallTemps(cUnit);   // Explicit register usage
-    int rSuspendCount = r1;
-    ArmLIR* ld;
-    ld = loadWordDisp(cUnit, rSELF,
-        art::Thread::SuspendCountOffset().Int32Value(), rSuspendCount);
-    setMemRefType(ld, true /* isLoad */, kMustNotAlias);
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pCheckSuspendFromCode), rLR);
-    genRegCopy(cUnit, r0, rSELF);
-    opRegImm(cUnit, kOpCmp, rSuspendCount, 0);
-    genIT(cUnit, kArmCondNe, "");
-    opReg(cUnit, kOpBlx, rLR);
-    oatFreeCallTemps(cUnit);
-}
-
 /*
  * The following are the first-level codegen routines that analyze the format
  * of each bytecode then either dispatch special purpose codegen routines
