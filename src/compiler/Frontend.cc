@@ -23,12 +23,12 @@
 
 /* Default optimizer/debug setting for the compiler. */
 uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
-     //(1 << kLoadStoreElimination) |
-     //(1 << kLoadHoisting) |
-     //(1 << kSuppressLoads) |
-     //(1 << kNullCheckElimination) |
-     //(1 << kPromoteRegs) |
-     //(1 << kTrackLiveTemps) |
+     (1 << kLoadStoreElimination) |
+     (1 << kLoadHoisting) |
+     (1 << kSuppressLoads) |
+     (1 << kNullCheckElimination) |
+     (1 << kPromoteRegs) |
+     (1 << kTrackLiveTemps) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
