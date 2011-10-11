@@ -124,8 +124,6 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   const std::string descriptor = DotToDescriptor(class_name.c_str());
   const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
   if (dex_class_def == NULL) {
-    jniThrowExceptionFmt(env, "java/lang/NoClassDefFoundError", "Class %s not found",
-                         class_name.c_str());
     return NULL;
   }
 
@@ -134,6 +132,10 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+  if (env->ExceptionCheck()) {
+    env->ExceptionClear();
+    return NULL;
+  }
   return AddLocalReference<jclass>(env, result);
 }
 
