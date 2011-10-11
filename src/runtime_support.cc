@@ -17,6 +17,8 @@
 #include "runtime_support.h"
 
 #include "dex_verifier.h"
+#include "reflection.h"
+#include "ScopedLocalRef.h"
 
 namespace art {
 
@@ -39,8 +41,6 @@ extern void DebugMe(Method* method, uint32_t info) {
 // Return value helper for jobject return types
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
   if (thread->IsExceptionPending()) {
-    // clear any result if an exception is pending to avoid making a
-    // local reference out of garbage.
     return NULL;
   }
   return thread->DecodeJObject(obj);
@@ -315,8 +315,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   thread->SetTopOfStack(caller_sp, caller_pc);
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
-  uint32_t saved_local_ref_cookie = env->local_ref_cookie;
-  env->local_ref_cookie = env->locals.GetSegmentState();
+  ScopedJniEnvLocalRefState env_state(env);
   // Discover shorty (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   const char* shorty = linker->MethodShorty(method_idx, *caller_sp);
@@ -360,10 +359,6 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
     // We got this far, ensure that the declaring class is initialized
     linker->EnsureInitialized(called->GetDeclaringClass(), true);
   }
-  // Restore JNI env state
-  env->locals.SetSegmentState(env->local_ref_cookie);
-  env->local_ref_cookie = saved_local_ref_cookie;
-
   void* code;
   if (thread->IsExceptionPending()) {
     // Something went wrong, go into deliver exception with the pending exception in r0
@@ -780,6 +775,146 @@ extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
   uint64_t code_uint = reinterpret_cast<uint32_t>(code);
   uint64_t result = ((code_uint << 32) | method_uint);
   return result;
+}
+
+// Handler for invocation on proxy methods. On entry a frame will exist for the proxy object method
+// which is responsible for recording callee save registers. We explicitly handlerize incoming
+// reference arguments (so they survive GC) and create a boxed argument array. Finally we invoke
+// the invocation handler which is a field within the proxy object receiver.
+extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
+                                      byte* stack_args, Thread* self) {
+  // Register the top of the managed stack
+  self->SetTopOfStack(reinterpret_cast<Method**>(stack_args + 8), 0);
+  // TODO: ARM specific
+  DCHECK_EQ(proxy_method->GetFrameSizeInBytes(), 48u);
+  // Start new JNI local reference state
+  JNIEnvExt* env = self->GetJniEnv();
+  ScopedJniEnvLocalRefState env_state(env);
+  // Create local ref. copies of proxy method and the receiver
+  jobject rcvr_jobj = AddLocalReference<jobject>(env, receiver);
+  jobject proxy_method_jobj = AddLocalReference<jobject>(env, proxy_method);
+
+  // Place incoming objects in local reference table, replacing original Object* with jobject
+  size_t num_args = proxy_method->NumArgs();
+  if (num_args > 1) {
+    if (proxy_method->IsParamAReference(1)) {
+      Object* obj = *reinterpret_cast<Object**>(stack_args);  // reference from r1
+      jobject jobj = AddLocalReference<jobject>(env, obj);
+      *reinterpret_cast<jobject*>(stack_args) = jobj;
+    }
+    if (num_args > 2) {
+      if (proxy_method->IsParamAReference(2)) {
+        Object* obj = *reinterpret_cast<Object**>(stack_args + kPointerSize);  // reference from r2
+        jobject jobj = AddLocalReference<jobject>(env, obj);
+        *reinterpret_cast<jobject*>(stack_args + kPointerSize) = jobj;
+      }
+      // Possible out arguments are 7 words above the stack args:
+      // r2, r3, LR, Method*, r1 (spill), r2 (spill), r3 (spill)
+      size_t offset = 7 * kPointerSize;
+      for (size_t i = 3; i < num_args; i++) {
+        if (proxy_method->IsParamAReference(i)) {
+          // reference from caller's stack arguments
+          Object* obj = *reinterpret_cast<Object**>(stack_args + offset);
+          jobject jobj = AddLocalReference<jobject>(env, obj);
+          *reinterpret_cast<jobject*>(stack_args + offset) = jobj;
+        } else if (proxy_method->IsParamALongOrDouble(i)) {
+          offset += kPointerSize;
+        }
+        offset += kPointerSize;
+      }
+    }
+  }
+  // Create args array
+  ObjectArray<Object>* args =
+      Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_args - 1);
+  if(args == NULL) {
+    CHECK(self->IsExceptionPending());
+    return;
+  }
+  // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
+  jvalue args_jobj[3];
+  args_jobj[0].l = rcvr_jobj;
+  args_jobj[1].l = proxy_method_jobj;
+  args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
+  // Box arguments
+  ObjectArray<Class>* param_types = proxy_method->GetJavaParameterTypes();
+  if (num_args > 1) {
+    CHECK(param_types != NULL);
+    Object* obj;
+    // Argument from r2
+    Class* param_type = param_types->Get(0);
+    if (!param_type->IsPrimitive()) {
+      obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args));
+    } else {
+      JValue val = *reinterpret_cast<JValue*>(stack_args);
+      BoxPrimitive(env, param_type, val);
+      if (self->IsExceptionPending()) {
+        return;
+      }
+      obj = val.l;
+    }
+    args->Set(0, obj);
+    if (num_args > 2) {
+      // Argument from r3
+      param_type = param_types->Get(1);
+      if (!param_type->IsPrimitive()) {
+        obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + kPointerSize));
+      } else {
+        JValue val = *reinterpret_cast<JValue*>(stack_args + kPointerSize);
+        BoxPrimitive(env, param_type, val);
+        if (self->IsExceptionPending()) {
+          return;
+        }
+        obj = val.l;
+      }
+      args->Set(1, obj);
+      // Arguments are on the stack, again offset to out arguments is 7 words
+      size_t offset = 7 * kPointerSize;
+      for (size_t i = 3; i < num_args && !self->IsExceptionPending(); i++) {
+        param_type = param_types->Get(i - 1);
+        if (proxy_method->IsParamAReference(i)) {
+          obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + offset));
+        } else {
+          JValue val = *reinterpret_cast<JValue*>(stack_args + offset);
+          BoxPrimitive(env, param_type, val);
+          if (self->IsExceptionPending()) {
+            return;
+          }
+          obj = val.l;
+          if (proxy_method->IsParamALongOrDouble(i)) {
+            offset += kPointerSize;
+          }
+        }
+        args->Set(i - 1, obj);
+        offset += kPointerSize;
+      }
+    }
+  }
+  // Get the InvocationHandler method and the field that holds it within the Proxy object
+  static jmethodID inv_hand_invoke_mid = NULL;
+  static jfieldID proxy_inv_hand_fid = NULL;
+  if (proxy_inv_hand_fid == NULL) {
+    ScopedLocalRef<jclass> proxy(env, env->FindClass("java.lang.reflect.Proxy"));
+    proxy_inv_hand_fid = env->GetFieldID(proxy.get(), "h", "Ljava/lang/reflect/InvocationHandler;");
+    ScopedLocalRef<jclass> inv_hand_class(env, env->FindClass("java.lang.reflect.InvocationHandler"));
+    inv_hand_invoke_mid = env->GetMethodID(inv_hand_class.get(), "invoke",
+        "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
+  }
+  DCHECK(env->IsInstanceOf(rcvr_jobj, env->FindClass("java.lang.reflect.Proxy")));
+  jobject inv_hand = env->GetObjectField(rcvr_jobj, proxy_inv_hand_fid);
+  // Call InvocationHandler.invoke
+  jobject result = env->CallObjectMethodA(inv_hand, inv_hand_invoke_mid, args_jobj);
+  // Place result in stack args
+  if (!self->IsExceptionPending()) {
+    Object* result_ref = self->DecodeJObject(result);
+    if (result_ref != NULL) {
+      JValue result_unboxed;
+      UnboxPrimitive(env, result_ref, proxy_method->GetReturnType(), result_unboxed);
+      *reinterpret_cast<JValue*>(stack_args) = result_unboxed;
+    } else {
+      *reinterpret_cast<jobject*>(stack_args) = NULL;
+    }
+  }
 }
 
 /*

@@ -949,6 +949,11 @@ class MANAGED Method : public AccessibleObject {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), fp_spill_mask, false);
   }
 
+  ObjectArray<Class>* GetJavaParameterTypes() const {
+    return GetFieldObject<ObjectArray<Class>*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, java_parameter_types_), false);
+  }
+
   // Is this a hand crafted method used for something like describing callee saves?
   bool IsCalleeSaveMethod() const {
     Runtime* runtime = Runtime::Current();

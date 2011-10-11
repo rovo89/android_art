@@ -21,7 +21,7 @@
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsOnly)
+     * Runtime::CreateCalleeSaveMethod(kRefsOnly). Restoration assumes non-moving GC.
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     push {r5-r8, r10-r11, lr} @ 7 words of callee saves
@@ -29,27 +29,30 @@
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    add sp, #4
-    pop {r5-r8, r10-r11, lr}  @ 7 words of callee saves
+    ldr lr, [sp, #28]  @ restore lr for return
+    add sp, #32        @ unwind stack
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    add sp, #4
-    pop {r5-r8, r10-r11, pc}  @ 7 words of callee saves
+    ldr lr, [sp, #28]  @ restore lr for return
+    add sp, #32        @ unwind stack
+    bx  lr             @ return
 .endm
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
+     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes non-moving GC.
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    push {r1-r3, r5-r8, r10-r11, lr} @ 10 words of callee saves
-    sub sp, #8                       @ 2 words of space, bottom word will hold Method*
+    push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
+    sub sp, #8                        @ 2 words of space, bottom word will hold Method*
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    add sp, #8
-    pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
+    ldr  r1, [sp, #8]          @ restore non-callee save r1
+    ldrd r2, [sp, #12]         @ restore non-callee saves r2-r3
+    ldr  lr, [sp, #44]         @ restore lr
+    add  sp, #48               @ rewind sp
 .endm
 
     /*
@@ -64,10 +67,10 @@
 .endm
 
     .global art_do_long_jump
-art_do_long_jump:
     /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
      */
+art_do_long_jump:
     vldm r1, {s0-s31}     @ load all fprs from argument fprs_
     ldr  r2, [r0, #60]    @ r2 = r15 (PC from gprs_ 60=4*15)
     add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
@@ -453,6 +456,9 @@ art_check_and_alloc_array_from_code:
 
     .global art_test_suspend
     .extern artTestSuspendFromCode
+    /*
+     * Called by managed code when the value in rSUSPEND has been decremented to 0
+     */
 art_test_suspend:
     ldr    r0, [rSELF, #THREAD_SUSPEND_COUNT_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
@@ -463,6 +469,25 @@ art_test_suspend:
     mov    r1, sp
     bl     artTestSuspendFromCode             @ (Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+
+    .global art_proxy_invoke_handler
+    .extern artProxyInvokeHandler
+    /*
+     * Called by managed code that is attempting to call a method on a proxy class. On entry
+     * r0 holds the proxy method; r1, r2 and r3 may contain arguments
+     */
+art_proxy_invoke_handler:
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    str     r0, [sp, #0]           @ place proxy method at bottom of frame
+    mov     r2, r9                 @ pass Thread::Current
+    add     r3, sp, #12            @ pointer to r2/r3/LR/caller's Method**/out-args as second arg
+    blx     artProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, args...)
+    ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    ldrd    r0, [sp, #12]          @ load r0/r1 from r2/r3 that were overwritten with the out args
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    cmp     r12, #0                @ success if no exception is pending
+    bxeq    lr                     @ return on success
+    DELIVER_PENDING_EXCEPTION
 
     .global art_shl_long
 art_shl_long:

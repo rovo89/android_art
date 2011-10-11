@@ -160,6 +160,26 @@ struct JNIEnvExt : public JNIEnv {
 const JNINativeInterface* GetCheckJniNativeInterface();
 const JNIInvokeInterface* GetCheckJniInvokeInterface();
 
+// Used to save and restore the JNIEnvExt state when not going through code created by the JNI
+// compiler
+class ScopedJniEnvLocalRefState {
+ public:
+  ScopedJniEnvLocalRefState(JNIEnvExt* env) : env_(env) {
+    saved_local_ref_cookie_ = env->local_ref_cookie;
+    env->local_ref_cookie = env->locals.GetSegmentState();
+  }
+
+  ~ScopedJniEnvLocalRefState() {
+    env_->locals.SetSegmentState(env_->local_ref_cookie);
+    env_->local_ref_cookie = saved_local_ref_cookie_;
+  }
+
+ private:
+  JNIEnvExt* env_;
+  uint32_t saved_local_ref_cookie_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedJniEnvLocalRefState);
+};
+
 }  // namespace art
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs);
