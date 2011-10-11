@@ -198,6 +198,9 @@ bool ReadFileToString(const std::string& file_name, std::string* result);
 // Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
 std::string GetIsoDate();
 
+// Returns the current time in nanoseconds (using the POSIX CLOCK_MONOTONIC).
+uint64_t NanoTime();
+
 // Splits a string using the given delimiter character into a vector of
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char delim, std::vector<std::string>& result);
