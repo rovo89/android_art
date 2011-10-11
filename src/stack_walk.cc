@@ -56,29 +56,29 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
     // find is what is expected.
     if (m_name.compare("f") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
-        EXPECT_EQ(0U, m->ToDexPC(pc));
+        EXPECT_EQ(1U, m->ToDexPC(pc));
         EXPECT_REGS(1);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        EXPECT_EQ(4U, m->ToDexPC(pc));
+        EXPECT_EQ(5U, m->ToDexPC(pc));
         EXPECT_REGS(1);  // Note that v1 is not in the minimal root set
       }
     } else if (m_name.compare("g") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
-        EXPECT_EQ(0xaU, m->ToDexPC(pc));
-        EXPECT_REGS(1, 2, 3);
+        EXPECT_EQ(0xcU, m->ToDexPC(pc));
+        EXPECT_REGS(2);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        EXPECT_EQ(0xaU, m->ToDexPC(pc));
-          EXPECT_REGS(1, 2, 3);
+        EXPECT_EQ(0xcU, m->ToDexPC(pc));
+          EXPECT_REGS(2);
       }
     } else if (m_name.compare("shlemiel") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
-        EXPECT_EQ(0x2d5U, m->ToDexPC(pc));
+        EXPECT_EQ(0x380U, m->ToDexPC(pc));
         EXPECT_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        EXPECT_EQ(0x2d5U, m->ToDexPC(pc));
+        EXPECT_EQ(0x380U, m->ToDexPC(pc));
         EXPECT_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       }
     }
