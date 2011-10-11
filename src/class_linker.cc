@@ -1932,6 +1932,12 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
   if (reference_flags != 0) {
     klass->SetAccessFlags(klass->GetAccessFlags() | reference_flags);
   }
+  // Disallow custom direct subclasses of java.lang.ref.Reference.
+  if (init_done_ && super->GetDescriptor()->Equals("Ljava/lang/ref/Reference;")) {
+    ThrowLinkageError("Class %s attempts to subclass java.lang.ref.Reference, which is not allowed",
+        PrettyDescriptor(klass->GetDescriptor()).c_str());
+    return false;
+  }
 
 #ifndef NDEBUG
   // Ensure super classes are fully resolved prior to resolving fields..
