@@ -117,12 +117,15 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   if (dex_file == NULL) {
     return NULL;
   }
-  String* name = Decode<String*>(env, javaName);
-  const char* class_name = name->ToModifiedUtf8().c_str();
-  const std::string descriptor = DotToDescriptor(class_name);
+  ScopedUtfChars class_name(env, javaName);
+  if (class_name.c_str() == NULL) {
+    return NULL;
+  }
+  const std::string descriptor = DotToDescriptor(class_name.c_str());
   const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
   if (dex_class_def == NULL) {
-    jniThrowExceptionFmt(env, "java/lang/NoClassDefFoundError", "Class %s not found", class_name);
+    jniThrowExceptionFmt(env, "java/lang/NoClassDefFoundError", "Class %s not found",
+                         class_name.c_str());
     return NULL;
   }
 

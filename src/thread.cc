@@ -27,6 +27,7 @@
 #include <list>
 
 #include "class_linker.h"
+#include "class_loader.h"
 #include "context.h"
 #include "dex_verifier.h"
 #include "heap.h"
@@ -631,6 +632,7 @@ void Thread::FinishStartup() {
 
   Class* boolean_class = FindPrimitiveClassOrDie(class_linker, 'Z');
   Class* int_class = FindPrimitiveClassOrDie(class_linker, 'I');
+  Class* ClassLoader_class = FindClassOrDie(class_linker, "Ljava/lang/ClassLoader;");
   Class* String_class = FindClassOrDie(class_linker, "Ljava/lang/String;");
   Class* Thread_class = FindClassOrDie(class_linker, "Ljava/lang/Thread;");
   Class* ThreadGroup_class = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
@@ -654,7 +656,11 @@ void Thread::FinishStartup() {
       "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
 
   // Finish attaching the main thread.
-  Thread::Current()->CreatePeer("main", false);
+  Thread* self = Thread::Current();
+  self->CreatePeer("main", false);
+
+  const Field* Thread_contextClassLoader = FindFieldOrDie(Thread_class , "contextClassLoader", ClassLoader_class);
+  Thread_contextClassLoader->SetObject(self->GetPeer(), self->GetClassLoaderOverride());
 }
 
 void Thread::Shutdown() {

@@ -633,7 +633,7 @@ void ClassLinker::InitFromImage() {
         const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
         CHECK_EQ(dex_file->GetHeader().checksum_, oat_dex_file->GetDexFileChecksum());
 
-        RegisterDexFile(*dex_file, dex_cache);
+        AppendToBootClassPath(*dex_file, dex_cache);
       }
     }
   }
@@ -852,22 +852,18 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
   std::string class_name_string = DescriptorToDot(descriptor);
   ScopedThreadStateChange(self, Thread::kNative);
   JNIEnv* env = self->GetJniEnv();
-  jclass c = AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader));
-  CHECK(c != NULL);
+  ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
+  CHECK(c.get() != NULL);
   // TODO: cache method?
-  jmethodID mid = env->GetMethodID(c, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+  jmethodID mid = env->GetMethodID(c.get(), "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
   CHECK(mid != NULL);
-  jobject class_name_object = env->NewStringUTF(class_name_string.c_str());
+  ScopedLocalRef<jobject> class_name_object(env, env->NewStringUTF(class_name_string.c_str()));
   if (class_name_string == NULL) {
     return NULL;
   }
-  jobject class_loader_object = AddLocalReference<jobject>(env, class_loader);
-  jobject result = env->CallObjectMethod(class_loader_object, mid, class_name_object);
-  Class* klass_result = Decode<Class*>(env, result);
-  env->DeleteLocalRef(result);
-  env->DeleteLocalRef(class_name_object);
-  env->DeleteLocalRef(c);
-  return klass_result;
+  ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
+  ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid, class_name_object.get()));
+  return Decode<Class*>(env, result.get());
 }
 
 Class* ClassLinker::DefineClass(const std::string& descriptor,
@@ -1608,9 +1604,8 @@ bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock&
     if (klass->IsErroneous()) {
       // The caller wants an exception, but it was thrown in a
       // different thread.  Synthesize one here.
-      self->ThrowNewExceptionF("Ljava/lang/NoClassDefFoundError;",
-          "<clinit> failed for class %s; see exception in other thread",
-          PrettyDescriptor(klass->GetDescriptor()).c_str());
+      ThrowNoClassDefFoundError("<clinit> failed for class %s; see exception in other thread",
+                                PrettyDescriptor(klass->GetDescriptor()).c_str());
       return false;
     }
     if (klass->IsInitialized()) {

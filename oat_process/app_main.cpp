@@ -77,7 +77,7 @@ public:
         char* slashClassName = toSlashClassName(mClassName);
         mClass = env->FindClass(slashClassName);
         if (mClass == NULL) {
-            LOG(ERROR) << StringPrintf("ERROR: could not find class '%s'\n", mClassName);
+            LOG(FATAL) << "Could not find class: " << mClassName;
         }
         free(slashClassName);
 

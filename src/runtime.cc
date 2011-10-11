@@ -320,16 +320,17 @@ void CreateSystemClassLoader() {
   CHECK_EQ(self->GetState(), Thread::kNative);
 
   JNIEnv* env = self->GetJniEnv();
-  ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/ClassLoader"));
-  CHECK(c.get() != NULL);
-  jmethodID mid = env->GetStaticMethodID(c.get(),
-                                         "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
-  CHECK(mid != NULL);
-  ScopedLocalRef<jobject> result(env, env->CallStaticObjectMethod(c.get(), mid));
-  CHECK(result.get() != NULL);
+  ScopedLocalRef<jclass> ClassLoader_class(env, env->FindClass("java/lang/ClassLoader"));
+  CHECK(ClassLoader_class.get() != NULL);
+  jmethodID getSystemClassLoader = env->GetStaticMethodID(ClassLoader_class.get(),
+                                                          "getSystemClassLoader",
+                                                          "()Ljava/lang/ClassLoader;");
+  CHECK(getSystemClassLoader != NULL);
+  ScopedLocalRef<jobject> class_loader(env, env->CallStaticObjectMethod(ClassLoader_class.get(),
+                                                                        getSystemClassLoader));
+  CHECK(class_loader.get() != NULL);
 
-  ClassLoader* class_loader = Decode<ClassLoader*>(env, result.get());
-  Thread::Current()->SetClassLoaderOverride(class_loader);
+  Thread::Current()->SetClassLoaderOverride(Decode<ClassLoader*>(env, class_loader.get()));
 }
 
 void Runtime::Start() {
