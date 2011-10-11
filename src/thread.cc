@@ -816,7 +816,10 @@ void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
     size_t num_refs = cur->NumberOfReferences();
     for (size_t j = 0; j < num_refs; j++) {
-      visitor(cur->References()[j], arg);
+      Object* object = cur->References()[j];
+      if (object != NULL) {
+        visitor(object, arg);
+      }
     }
   }
 }
