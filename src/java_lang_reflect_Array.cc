@@ -27,9 +27,6 @@ namespace {
 
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
-//
-// The dimension we're creating is in dimensions[0], so when we recurse
-// we advance the pointer.
 Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions) {
   int32_t array_length = dimensions->Get(current_dimension++);
   Array* new_array = Array::Alloc(array_class, array_length);
@@ -93,8 +90,10 @@ jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, job
   DCHECK_LE(num_dimensions, 255);
 
   for (int i = 0; i < num_dimensions; i++) {
-    if (dimensions_array->Get(i) < 0) {
-      UNIMPLEMENTED(FATAL) << "ThrowNegativeArraySizeException(dimensions[i])";
+    int dimension = dimensions_array->Get(i);
+    if (dimension < 0) {
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
+          "Dimension %d: %d", i, dimension);
       return NULL;
     }
   }
@@ -124,7 +123,7 @@ jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, ji
   DCHECK(javaElementClass != NULL);
   Class* element_class = Decode<Class*>(env, javaElementClass);
   if (length < 0) {
-    UNIMPLEMENTED(FATAL) << "ThrowNegativeArraySizeException(length)";
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
     return NULL;
   }
   std::string descriptor;

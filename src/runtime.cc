@@ -616,11 +616,6 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     visitor(callee_save_method_[i], arg);
   }
-
-  //(*visitor)(&gDvm.outOfMemoryObj, 0, ROOT_VM_INTERNAL, arg);
-  //(*visitor)(&gDvm.internalErrorObj, 0, ROOT_VM_INTERNAL, arg);
-  //(*visitor)(&gDvm.noClassDefFoundErrorObj, 0, ROOT_VM_INTERNAL, arg);
-  UNIMPLEMENTED(WARNING) << "some roots not marked";
 }
 
 bool Runtime::HasJniStubArray() const {
