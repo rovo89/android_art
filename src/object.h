@@ -77,7 +77,7 @@ static const uint32_t kAccProtected = 0x0004;  // field, method, ic
 static const uint32_t kAccStatic = 0x0008;  // field, method, ic
 static const uint32_t kAccFinal = 0x0010;  // class, field, method, ic
 static const uint32_t kAccSynchronized = 0x0020;  // method (only allowed on natives)
-static const uint32_t kAccSuper = 0x0020;  // class (not used in Dalvik)
+static const uint32_t kAccSuper = 0x0020;  // class (not used in dex)
 static const uint32_t kAccVolatile = 0x0040;  // field
 static const uint32_t kAccBridge = 0x0040;  // method (1.5)
 static const uint32_t kAccTransient = 0x0080;  // field
@@ -94,44 +94,9 @@ static const uint32_t kAccMiranda = 0x8000;  // method
 
 static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources (low 16)
 
-static const uint32_t kAccConstructor = 0x00010000;  // method (Dalvik only)
-static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (Dalvik only)
-static const uint32_t kAccWritable = 0x80000000; // method (Dalvik only)
-
-static const uint32_t kAccClassFlagsMask = (kAccPublic
-                                            | kAccFinal
-                                            | kAccInterface
-                                            | kAccAbstract
-                                            | kAccSynthetic
-                                            | kAccAnnotation
-                                            | kAccEnum);
-static const uint32_t kAccInnerClassFlagsMask = (kAccClassFlagsMask
-                                                 | kAccPrivate
-                                                 | kAccProtected
-                                                 | kAccStatic);
-static const uint32_t kAccFieldFlagsMask = (kAccPublic
-                                            | kAccPrivate
-                                            | kAccProtected
-                                            | kAccStatic
-                                            | kAccFinal
-                                            | kAccVolatile
-                                            | kAccTransient
-                                            | kAccSynthetic
-                                            | kAccEnum);
-static const uint32_t kAccMethodFlagsMask = (kAccPublic
-                                             | kAccPrivate
-                                             | kAccProtected
-                                             | kAccStatic
-                                             | kAccFinal
-                                             | kAccSynchronized
-                                             | kAccBridge
-                                             | kAccVarargs
-                                             | kAccNative
-                                             | kAccAbstract
-                                             | kAccStrict
-                                             | kAccSynthetic
-                                             | kAccConstructor
-                                             | kAccDeclaredSynchronized);
+static const uint32_t kAccConstructor = 0x00010000;  // method (dex only)
+static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (dex only)
+static const uint32_t kAccWritable = 0x80000000; // method (dex only)
 
 // Special runtime-only flags.
 // Note: if only kAccClassIsReference is set, we have a soft reference.

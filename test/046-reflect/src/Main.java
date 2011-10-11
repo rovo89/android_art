@@ -272,15 +272,17 @@ public class Main {
             System.out.println("  cantTouchThis is " + intVal);
             try {
                 field.setInt(instance, 99);
-                System.out.println("ERROR: set-final succeeded");
+                System.out.println("  setAccessible is always true");
             } catch (IllegalAccessException iae) {
-                System.out.println("  got expected set-final failure");
+                System.out.println("ERROR: set-final failed");
             }
             intVal = field.getInt(instance);
             System.out.println("  cantTouchThis is now " + intVal);
 
             field.setAccessible(true);
             field.setInt(instance, 87);     // exercise int version
+            intVal = field.getInt(instance);
+            System.out.println("  cantTouchThis is now " + intVal);
             field.set(instance, 88);        // exercise Object version
             intVal = field.getInt(instance);
             System.out.println("  cantTouchThis is now " + intVal);

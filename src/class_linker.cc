@@ -1015,8 +1015,8 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     klass->SetDescriptor(intern_table_->InternStrong(descriptor));
   }
   uint32_t access_flags = dex_class_def.access_flags_;
-  // Make sure there aren't any "bonus" flags set, since we use them for runtime state.
-  CHECK_EQ(access_flags & ~kAccClassFlagsMask, 0U);
+  // Make sure that none of our runtime-only flags are set.
+  CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
   DCHECK(klass->GetPrimitiveType() == Class::kPrimNot);

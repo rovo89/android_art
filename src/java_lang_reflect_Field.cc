@@ -26,7 +26,7 @@ namespace art {
 namespace {
 
 jint Field_getFieldModifiers(JNIEnv* env, jobject jfield, jclass javaDeclaringClass, jint slot) {
-  return Decode<Object*>(env, jfield)->AsField()->GetAccessFlags() & kAccFieldFlagsMask;
+  return Decode<Object*>(env, jfield)->AsField()->GetAccessFlags() & kAccJavaFlagsMask;
 }
 
 bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
@@ -85,7 +85,7 @@ bool CheckReceiver(JNIEnv* env, jobject javaObj, jclass javaDeclaringClass, Fiel
   return true;
 }
 
-JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor) {
+JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar dst_descriptor) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
   if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
@@ -100,43 +100,43 @@ JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass
 
   // Widen it if necessary (and possible).
   JValue wide_value;
-  Class* targetType = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(targetDescriptor);
-  if (!ConvertPrimitiveValue(f->GetType(), targetType, field_value, wide_value)) {
+  Class* dst_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(dst_descriptor);
+  if (!ConvertPrimitiveValue(f->GetType(), dst_type, field_value, wide_value)) {
     return JValue();
   }
   return wide_value;
 }
 
-jbyte Field_getBField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).b;
+jbyte Field_getBField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).b;
 }
 
-jchar Field_getCField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).c;
+jchar Field_getCField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).c;
 }
 
-jdouble Field_getDField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).d;
+jdouble Field_getDField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).d;
 }
 
-jfloat Field_getFField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).f;
+jfloat Field_getFField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).f;
 }
 
-jint Field_getIField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).i;
+jint Field_getIField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).i;
 }
 
-jlong Field_getJField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).j;
+jlong Field_getJField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).j;
 }
 
-jshort Field_getSField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).s;
+jshort Field_getSField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).s;
 }
 
-jboolean Field_getZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor).z;
+jboolean Field_getZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
+  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).z;
 }
 
 void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
@@ -185,7 +185,7 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
   }
 }
 
-void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar targetDescriptor, const JValue& new_value) {
+void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar src_descriptor, const JValue& new_value) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
   if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
@@ -194,8 +194,8 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
 
   // Widen the value if necessary (and possible).
   JValue wide_value;
-  Class* targetType = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(targetDescriptor);
-  if (!ConvertPrimitiveValue(f->GetType(), targetType, new_value, wide_value)) {
+  Class* src_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(src_descriptor);
+  if (!ConvertPrimitiveValue(src_type, f->GetType(), new_value, wide_value)) {
     return;
   }
 
@@ -203,52 +203,52 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
   SetFieldValue(o, f, wide_value, false);
 }
 
-void Field_setBField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jbyte value) {
+void Field_setBField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jbyte value) {
   JValue v = { 0 };
   v.b = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setCField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jchar value) {
+void Field_setCField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jchar value) {
   JValue v = { 0 };
   v.c = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setDField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jdouble value) {
+void Field_setDField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jdouble value) {
   JValue v = { 0 };
   v.d = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setFField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jfloat value) {
+void Field_setFField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jfloat value) {
   JValue v = { 0 };
   v.f = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setIField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jint value) {
+void Field_setIField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jint value) {
   JValue v = { 0 };
   v.i = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setJField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jlong value) {
+void Field_setJField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jlong value) {
   JValue v = { 0 };
   v.j = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setSField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jshort value) {
+void Field_setSField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jshort value) {
   JValue v = { 0 };
   v.s = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
-void Field_setZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar targetDescriptor, jboolean value) {
+void Field_setZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jboolean value) {
   JValue v = { 0 };
   v.z = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, targetDescriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
 }
 
 void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jobject javaValue) {

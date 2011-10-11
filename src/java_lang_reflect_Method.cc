@@ -35,7 +35,8 @@ jint Method_getMethodModifiers(JNIEnv* env, jclass, jclass javaDeclaringClass, j
   if ((access_flags & kAccDeclaredSynchronized) != 0) {
     access_flags |= kAccSynchronized;
   }
-  return access_flags & kAccMethodFlagsMask;
+
+  return access_flags & kAccJavaFlagsMask;
 }
 
 jint Method_getProtoIndex(JNIEnv* env, jclass, jclass javaDeclaringClass, jobject jmethod, jint slot) {
