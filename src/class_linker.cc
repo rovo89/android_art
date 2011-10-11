@@ -2402,8 +2402,7 @@ String* ClassLinker::ResolveString(const DexFile& dex_file,
   const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
   int32_t utf16_length = dex_file.GetStringLength(string_id);
   const char* utf8_data = dex_file.GetStringData(string_id);
-  // TODO: remote the const_cast below
-  String* string = const_cast<String*>(intern_table_->InternStrong(utf16_length, utf8_data));
+  String* string = intern_table_->InternStrong(utf16_length, utf8_data);
   dex_cache->SetResolvedString(string_idx, string);
   return string;
 }

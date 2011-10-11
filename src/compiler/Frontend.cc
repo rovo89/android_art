@@ -711,6 +711,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
     oatInit(compiler);
 
     memset(&cUnit, 0, sizeof(cUnit));
+    cUnit.compiler = &compiler;
     cUnit.method = method;
     cUnit.instructionSet = (OatInstructionSetType)insnSet;
     cUnit.insns = code_item->insns_;

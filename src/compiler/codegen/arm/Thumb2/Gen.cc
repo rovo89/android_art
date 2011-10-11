@@ -651,7 +651,7 @@ STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
     /* NOTE: Most strings should be available at compile time */
     const art::String* str = cUnit->method->GetDexCacheStrings()->
         Get(mir->dalvikInsn.vB);
-    if (SLOW_STRING_PATH || (str == NULL)) {
+    if (SLOW_STRING_PATH || (str == NULL) || !cUnit->compiler->IsImage()) {
         oatFlushAllRegs(cUnit);
         oatLockCallTemps(cUnit); // Using explicit registers
         loadCurrMethodDirect(cUnit, r2);
