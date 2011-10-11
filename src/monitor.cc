@@ -92,6 +92,12 @@ namespace art {
 #define LW_LOCK_COUNT_SHIFT 19
 #define LW_LOCK_COUNT(x) (((x) >> LW_LOCK_COUNT_SHIFT) & LW_LOCK_COUNT_MASK)
 
+bool Monitor::is_verbose_ = false;
+
+void Monitor::SetVerbose(bool is_verbose) {
+  is_verbose_ = is_verbose;
+}
+
 Monitor::Monitor(Object* obj)
     : owner_(NULL),
       lock_count_(0),
@@ -639,7 +645,9 @@ void Monitor::Inflate(Thread* self, Object* obj) {
 
   // Allocate and acquire a new monitor.
   Monitor* m = new Monitor(obj);
-  LOG(INFO) << "created monitor " << m << " for object " << obj;
+  if (is_verbose_) {
+    LOG(INFO) << "monitor: created monitor " << m << " for object " << obj;
+  }
   // Replace the head of the list with the new monitor.
   do {
     m->next_ = gMonitorList;
@@ -699,7 +707,9 @@ retry:
         goto retry;
       }
     } else {
-      LOG(INFO) << StringPrintf("(%d) spin on lock %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
+      if (is_verbose_) {
+        LOG(INFO) << StringPrintf("monitor: (%d) spin on lock %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
+      }
       // The lock is owned by another thread. Notify the VM that we are about to wait.
       self->monitor_enter_object_ = obj;
       Thread::State oldStatus = self->SetState(Thread::kBlocked);
@@ -738,23 +748,31 @@ retry:
         } else {
           // The thin lock was inflated by another thread. Let the VM know we are no longer
           // waiting and try again.
-          LOG(INFO) << "(" << threadId << ") lock " << (void*) thinp << " surprise-fattened";
+          if (is_verbose_) {
+            LOG(INFO) << "monitor: (" << threadId << ") lock " << (void*) thinp << " surprise-fattened";
+          }
           self->monitor_enter_object_ = NULL;
           self->SetState(oldStatus);
           goto retry;
         }
       }
-      LOG(INFO) << StringPrintf("(%d) spin on lock done %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
+      if (is_verbose_) {
+        LOG(INFO) << StringPrintf("monitor: (%d) spin on lock done %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
+      }
       // We have acquired the thin lock. Let the VM know that we are no longer waiting.
       self->monitor_enter_object_ = NULL;
       self->SetState(oldStatus);
       // Fatten the lock.
       Inflate(self, obj);
-      LOG(INFO) << StringPrintf("(%d) lock %p fattened", threadId, thinp);
+      if (is_verbose_) {
+        LOG(INFO) << StringPrintf("monitor: (%d) lock %p fattened", threadId, thinp);
+      }
     }
   } else {
     // The lock is a fat lock.
-    LOG(INFO) << StringPrintf("(%d) locking fat lock %p (%p) %p on a %s", threadId, thinp, LW_MONITOR(*thinp), (void*)*thinp, PrettyTypeOf(obj).c_str());
+    if (is_verbose_) {
+      LOG(INFO) << StringPrintf("monitor: (%d) locking fat lock %p (%p) %p on a %s", threadId, thinp, LW_MONITOR(*thinp), (void*)*thinp, PrettyTypeOf(obj).c_str());
+    }
     DCHECK(LW_MONITOR(*thinp) != NULL);
     LW_MONITOR(*thinp)->Lock(self);
   }
@@ -840,7 +858,9 @@ void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns, bool inter
      * any other thread gets a chance.
      */
     Inflate(self, obj);
-    LOG(INFO) << StringPrintf("(%d) lock %p fattened by wait()", self->thin_lock_id_, thinp);
+    if (is_verbose_) {
+      LOG(INFO) << StringPrintf("monitor: (%d) lock %p fattened by wait()", self->thin_lock_id_, thinp);
+    }
   }
   LW_MONITOR(*thinp)->Wait(self, ms, ns, interruptShouldThrow);
 }

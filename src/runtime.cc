@@ -15,6 +15,7 @@
 #include "image.h"
 #include "intern_table.h"
 #include "jni_internal.h"
+#include "monitor.h"
 #include "oat_file.h"
 #include "ScopedLocalRef.h"
 #include "signal_catcher.h"
@@ -409,6 +410,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Init -verbose:startup enabled";
   }
+
+  Monitor::SetVerbose(options->IsVerbose("monitor"));
 
   host_prefix_ = options->host_prefix_;
   boot_class_path_ = options->boot_class_path_;

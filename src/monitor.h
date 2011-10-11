@@ -60,6 +60,8 @@ class Monitor {
  public:
   ~Monitor();
 
+  static void SetVerbose(bool is_verbose);
+
   static uint32_t GetLockOwner(uint32_t raw_lock_word);
 
   static void MonitorEnter(Thread* thread, Object* obj);
@@ -90,6 +92,8 @@ class Monitor {
   void NotifyAll(Thread* self);
 
   void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow);
+
+  static bool is_verbose_;
 
   /* Which thread currently owns the lock? */
   Thread* owner_;
