@@ -123,6 +123,7 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "[Ljava/lang/Class;",
   "[Ljava/lang/Object;",
   "Ljava/lang/String;",
+  "Ljava/lang/ref/Reference;",
   "Ljava/lang/reflect/Constructor;",
   "Ljava/lang/reflect/Field;",
   "Ljava/lang/reflect/Method;",
@@ -420,6 +421,8 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   CHECK_EQ(java_lang_reflect_Method, Method_class);
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
+  Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
+  SetClassRoot(kJavaLangRefReference, java_lang_ref_Reference);
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
   java_lang_ref_FinalizerReference->SetAccessFlags(
       java_lang_ref_FinalizerReference->GetAccessFlags() |
@@ -472,7 +475,7 @@ void ClassLinker::FinishInit() {
   // Note: we hard code the field indexes here rather than using FindInstanceField
   // as the types of the field can't be resolved prior to the runtime being
   // fully initialized
-  Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
+  Class* java_lang_ref_Reference = GetClassRoot(kJavaLangRefReference);
   Class* java_lang_ref_ReferenceQueue = FindSystemClass("Ljava/lang/ref/ReferenceQueue;");
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
 
@@ -1928,7 +1931,7 @@ bool ClassLinker::LinkSuperClass(Class* klass) {
     klass->SetAccessFlags(klass->GetAccessFlags() | reference_flags);
   }
   // Disallow custom direct subclasses of java.lang.ref.Reference.
-  if (init_done_ && super->GetDescriptor()->Equals("Ljava/lang/ref/Reference;")) {
+  if (init_done_ && super == GetClassRoot(kJavaLangRefReference)) {
     ThrowLinkageError("Class %s attempts to subclass java.lang.ref.Reference, which is not allowed",
         PrettyDescriptor(klass->GetDescriptor()).c_str());
     return false;
