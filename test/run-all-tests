@@ -43,15 +43,6 @@ while true; do
     elif [ "x$1" = "x--reference" ]; then
         run_args="${run_args} --reference"
         shift
-    elif [ "x$1" = "x--jit" ]; then
-        run_args="${run_args} --jit"
-        shift
-    elif [ "x$1" = "x--fast" ]; then
-        run_args="${run_args} --fast"
-        shift
-    elif [ "x$1" = "x--portable" ]; then
-        run_args="${run_args} --portable"
-        shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
         shift
@@ -93,8 +84,7 @@ if [ "$usage" = "yes" ]; then
         echo "  $prog [options]  Run all tests with the given options."
         echo "  Options are all passed to run-test; refer to that for " \
              "further documentation:"
-        echo "    --debug --dev --fast --host --no-optimize --no-verify" \
-             "--portable"
+        echo "    --debug --dev --host --no-optimize --no-verify"
         echo "    --reference --update --valgrind --zygote"
     ) 1>&2
     exit 1

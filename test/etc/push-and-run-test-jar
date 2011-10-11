@@ -5,9 +5,6 @@
 #
 # Options:
 #   --quiet       -- don't chatter
-#   --fast        -- use the fast interpreter (the default)
-#   --jit         -- use the jit
-#   --portable    -- use the portable interpreter
 #   --debug       -- wait for debugger to attach
 #   --zygote      -- use the zygote (if so, all other options are ignored)
 #   --dev         -- development mode (print the vm invocation cmdline)
@@ -21,7 +18,6 @@ msg() {
     fi
 }
 
-INTERP=""
 DEBUG="n"
 VERIFY="y"
 OPTIMIZE="y"
@@ -33,18 +29,6 @@ DEV_MODE="n"
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
-        shift
-    elif [ "x$1" = "x--fast" ]; then
-        INTERP="fast"
-        msg "Using fast interpreter"
-        shift
-    elif [ "x$1" = "x--jit" ]; then
-        INTERP="jit"
-        msg "Using jit"
-        shift
-    elif [ "x$1" = "x--portable" ]; then
-        INTERP="portable"
-        msg "Using portable interpreter"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUG="y"
@@ -77,11 +61,6 @@ while true; do
 done
 
 if [ "$ZYGOTE" = "n" ]; then
-    if [ "x$INTERP" = "x" ]; then
-        INTERP="fast"
-        msg "Using fast interpreter by default"
-    fi
-
     if [ "$OPTIMIZE" = "y" ]; then
         if [ "$VERIFY" = "y" ]; then
             DEX_OPTIMIZE="-Xdexopt:verified"

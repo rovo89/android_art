@@ -5,9 +5,6 @@
 #
 # Options:
 #   --quiet       -- don't chatter
-#   --fast        -- use the fast interpreter (the default)
-#   --jit         -- use the jit
-#   --portable    -- use the portable interpreter
 #   --debug       -- wait for debugger to attach
 #   --valgrind    -- use valgrind
 #   --no-verify   -- turn off verification (on by default)
@@ -19,7 +16,6 @@ msg() {
     fi
 }
 
-INTERP=""
 DEBUG="n"
 GDB="n"
 VERIFY="y"
@@ -32,18 +28,6 @@ PRECISE="y"
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
-        shift
-    elif [ "x$1" = "x--jit" ]; then
-        INTERP="jit"
-        msg "Using jit"
-        shift
-    elif [ "x$1" = "x--fast" ]; then
-        INTERP="fast"
-        msg "Using fast interpreter"
-        shift
-    elif [ "x$1" = "x--portable" ]; then
-        INTERP="portable"
-        msg "Using portable interpreter"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUG="y"
@@ -76,11 +60,6 @@ while true; do
         break
     fi
 done
-
-if [ "x$INTERP" = "x" ]; then
-    INTERP="fast"
-    msg "Using fast interpreter by default"
-fi
 
 if [ "$OPTIMIZE" = "y" ]; then
     if [ "$VERIFY" = "y" ]; then
@@ -155,5 +134,5 @@ if [ "$GDB" = "y" ]; then
 fi
 
 $valgrind_cmd $gdb $exe $gdbargs "-Xbootclasspath:${bpath}" \
-    $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG $GC_OPTS "-Xint:${INTERP}" -ea \
+    $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG $GC_OPTS -ea \
     -cp test.jar Main "$@"

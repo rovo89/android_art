@@ -31,6 +31,7 @@ Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
     : verbose_startup_(false),
+      is_zygote_(false),
       default_stack_size_(Thread::kDefaultStackSize),
       thread_list_(NULL),
       intern_table_(NULL),
@@ -205,6 +206,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
   parsed->stack_size_ = Thread::kDefaultStackSize;
 
+  parsed->is_zygote_ = false;
+
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = abort;
@@ -267,6 +270,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->properties_.push_back(option.substr(strlen("-D")).data());
     } else if (option.starts_with("-Xjnitrace:")) {
       parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
+    } else if (option == "-Xzygote") {
+      parsed->is_zygote_ = true;
     } else if (option.starts_with("-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);
@@ -351,6 +356,10 @@ void Runtime::Start() {
   // come after ClassLinker::RunRootClinits.
   started_ = true;
 
+  if (!is_zygote_) {
+    signal_catcher_ = new SignalCatcher;
+  }
+
   StartDaemonThreads();
 
   CreateSystemClassLoader();
@@ -363,7 +372,9 @@ void Runtime::Start() {
 }
 
 void Runtime::StartDaemonThreads() {
-  signal_catcher_ = new SignalCatcher;
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::StartDaemonThreads entering";
+  }
 
   Thread* self = Thread::Current();
 
@@ -376,6 +387,10 @@ void Runtime::StartDaemonThreads() {
   jmethodID mid = env->GetStaticMethodID(c.get(), "start", "()V");
   CHECK(mid != NULL);
   env->CallStaticVoidMethod(c.get(), mid);
+
+  if (IsVerboseStartup()) {
+    LOG(INFO) << "Runtime::StartDaemonThreads exiting";
+  }
 }
 
 bool Runtime::IsStarted() const {
@@ -399,6 +414,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   boot_class_path_ = options->boot_class_path_;
   class_path_ = options->class_path_;
   properties_ = options->properties_;
+
+  is_zygote_ = options->is_zygote_;
 
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;

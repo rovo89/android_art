@@ -51,6 +51,7 @@ class Runtime {
     std::vector<std::string> images_;
     bool check_jni_;
     std::string jni_trace_;
+    bool is_zygote_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t stack_size_;
@@ -208,6 +209,7 @@ class Runtime {
   void StartDaemonThreads();
 
   bool verbose_startup_;
+  bool is_zygote_;
 
   // The host prefix is used during cross compilation. It is removed
   // from the start of host paths such as:
