@@ -360,7 +360,7 @@ const DexFile* DexFile::OpenMemory(const byte* dex_bytes, size_t length,
 
 DexFile::~DexFile() {
   if (dex_object_ != NULL) {
-    UNIMPLEMENTED(WARNING) << "leaked a global reference to an com.android.dex.Dex instance";
+    UNIMPLEMENTED(WARNING) << "leaked a global reference to an com.android.dex.Dex instance in " << location_;
   }
 }
 

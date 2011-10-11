@@ -186,7 +186,8 @@ typedef struct CompilationUnit {
     int numInsts;
     int numBlocks;
     GrowableList blockList;
-    const Method *method;
+    const Compiler* compiler;
+    const Method* method;
     LIR* firstLIRInsn;
     LIR* lastLIRInsn;
     LIR* literalList;                   // Constants
