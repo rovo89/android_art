@@ -321,38 +321,47 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   const char* shorty = linker->MethodShorty(method_idx, *caller_sp);
   size_t shorty_len = strlen(shorty);
   size_t args_in_regs = shorty_len < 3 ? shorty_len : 3;
+  bool is_static;
   if (type == Runtime::kUnknownMethod) {
     uint32_t dex_pc = (*caller_sp)->ToDexPC(caller_pc - 2);
-    UNIMPLEMENTED(WARNING) << "Missed argument handlerization in direct method trampoline. "
-        "Need to discover method invoke type at " << PrettyMethod(*caller_sp)
-        << " PC: " << (void*)dex_pc;
+    Method* caller = *caller_sp;
+    const DexFile& dex_file = Runtime::Current()->GetClassLinker()
+                                  ->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
+    const DexFile::CodeItem* code = dex_file.GetCodeItem(caller->GetCodeItemOffset());
+    CHECK_LT(dex_pc, code->insns_size_);
+    const Instruction* instr = Instruction::At(reinterpret_cast<const byte*>(&code->insns_[dex_pc]));
+    Instruction::Code instr_code = instr->Opcode();
+    is_static = (instr_code == Instruction::INVOKE_STATIC) ||
+                (instr_code == Instruction::INVOKE_STATIC_RANGE);
+    DCHECK(is_static || (instr_code == Instruction::INVOKE_DIRECT) ||
+           (instr_code == Instruction::INVOKE_DIRECT_RANGE));
   } else {
-    bool is_static = type == Runtime::kStaticMethod;
-    // Handlerize references in registers
-    int cur_arg = 1;   // skip method_idx in R0, first arg is in R1
-    if (!is_static) {
+    is_static = type == Runtime::kStaticMethod;
+  }
+  // Handlerize references in registers
+  int cur_arg = 1;   // skip method_idx in R0, first arg is in R1
+  if (!is_static) {
+    Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
+    cur_arg++;
+    AddLocalReference<jobject>(env, obj);
+  }
+  for(size_t i = 0; i < args_in_regs; i++) {
+    char c = shorty[i + 1];  // offset to skip return value
+    if (c == 'L') {
       Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
-      cur_arg++;
       AddLocalReference<jobject>(env, obj);
     }
-    for(size_t i = 0; i < args_in_regs; i++) {
-      char c = shorty[i + 1];  // offset to skip return value
-      if (c == 'L') {
-        Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
-        AddLocalReference<jobject>(env, obj);
-      }
-      cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
+    cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
+  }
+  // Handlerize references in out going arguments
+  for(size_t i = 3; i < (shorty_len - 1); i++) {
+    char c = shorty[i + 1];  // offset to skip return value
+    if (c == 'L') {
+      // Plus 6 to skip args 1 to 3, LR and Method* plus the start offset of 3 to skip the spills
+      Object* obj = reinterpret_cast<Object*>(regs[i + 6]);
+      AddLocalReference<jobject>(env, obj);
     }
-    // Handlerize references in out going arguments
-    for(size_t i = 3; i < (shorty_len - 1); i++) {
-      char c = shorty[i + 1];  // offset to skip return value
-      if (c == 'L') {
-        // Plus 6 to skip args 1 to 3, LR and Method* plus the start offset of 3 to skip the spills
-        Object* obj = reinterpret_cast<Object*>(regs[i + 6]);
-        AddLocalReference<jobject>(env, obj);
-      }
-      cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
-    }
+    cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
   // Resolve method filling in dex cache
   Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
