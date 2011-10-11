@@ -344,10 +344,11 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
       cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
     }
     // Handlerize references in out going arguments
-    for(size_t i = 3; i < shorty_len; i++) {
+    for(size_t i = 3; i < (shorty_len - 1); i++) {
       char c = shorty[i + 1];  // offset to skip return value
       if (c == 'L') {
-        Object* obj = reinterpret_cast<Object*>(regs[i + 3]);  // skip R0, LR and Method* of caller
+        // Plus 6 to skip args 1 to 3, LR and Method* plus the start offset of 3 to skip the spills
+        Object* obj = reinterpret_cast<Object*>(regs[i + 6]);
         AddLocalReference<jobject>(env, obj);
       }
       cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
