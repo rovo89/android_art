@@ -1559,6 +1559,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     klass->SetStatus(Class::kStatusInitializing);
   }
 
+  uint64_t t0 = NanoTime();
+
   if (!InitializeSuperClass(klass, can_run_clinit)) {
     return false;
   }
@@ -1569,6 +1571,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     clinit->Invoke(self, NULL, NULL, NULL);
   }
 
+  uint64_t t1 = NanoTime();
+
   {
     ObjectLock lock(klass);
 
@@ -1576,9 +1580,12 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       WrapExceptionInInitializer();
       klass->SetStatus(Class::kStatusError);
     } else {
-      ++Runtime::Current()->GetStats()->class_init_count;
-      ++self->GetStats()->class_init_count;
-      // TODO: class_init_time_ns
+      RuntimeStats* global_stats = Runtime::Current()->GetStats();
+      RuntimeStats* thread_stats = self->GetStats();
+      ++global_stats->class_init_count;
+      ++thread_stats->class_init_count;
+      global_stats->class_init_time_ns += (t1 - t0);
+      thread_stats->class_init_time_ns += (t1 - t0);
       klass->SetStatus(Class::kStatusInitialized);
     }
     lock.NotifyAll();

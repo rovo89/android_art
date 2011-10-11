@@ -454,6 +454,9 @@ void Heap::CollectGarbageInternal() {
 
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
+
+  size_t initial_size = num_bytes_allocated_;
+  uint64_t t0 = NanoTime();
   Object* cleared_references = NULL;
   {
     MarkSweep mark_sweep;
@@ -487,9 +490,24 @@ void Heap::CollectGarbageInternal() {
   }
 
   GrowForUtilization();
+  uint64_t t1 = NanoTime();
   thread_list->ResumeAll();
 
   EnqueueClearedReferences(&cleared_references);
+
+  // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
+  size_t bytes_freed = initial_size - num_bytes_allocated_;
+  bool is_small = (bytes_freed > 0 && bytes_freed < 1024);
+  size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/1024, 1U) : 0);
+
+  size_t footprint = alloc_space_->Size();
+  size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / footprint);
+
+  uint32_t duration = (t1 - t0)/1000/1000;
+  LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
+            << percentFree << "% free "
+            << (num_bytes_allocated_/1024) << "KiB/" << (footprint/1024) << "KiB, "
+            << "paused " << duration << "ms";
 }
 
 void Heap::WaitForConcurrentGcToComplete() {

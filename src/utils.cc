@@ -47,6 +47,12 @@ std::string GetIsoDate() {
       ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
 }
 
+uint64_t NanoTime() {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+}
+
 std::string PrettyDescriptor(const String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
