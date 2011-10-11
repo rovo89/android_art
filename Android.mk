@@ -163,6 +163,30 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 	$(hide) rm /tmp/test-art-target-process-Calculator
 
 ########################################################################
+# zygote targets
+#
+# zygote-oat-process will change to use art to boot the device
+# zygote-app-process will restore to booting with dalvik
+
+.PHONY: zygote-oat-process
+zygote-oat-process: $(TARGET_BOOT_OAT) test-art-target-sync
+	sed s/app_process/oat_process/ < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
+	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
+	adb reboot bootloader
+	fastboot flash boot $(ANDROID_PRODUCT_OUT)/boot.img
+	fastboot reboot
+
+.PHONY: zygote-app-process
+zygote-app-process:
+	sed s/oat_process/app_process/ < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
+	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
+	adb reboot bootloader
+	fastboot flash boot $(ANDROID_PRODUCT_OUT)/boot.img
+	fastboot reboot
+
+########################################################################
 # oatdump targets
 
 .PHONY: dump-oat
