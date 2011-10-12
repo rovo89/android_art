@@ -170,7 +170,7 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 
 .PHONY: zygote-oat-process
 zygote-oat-process: $(TARGET_BOOT_OAT) test-art-target-sync
-	sed s/app_process/oat_process/ < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+	sed -e 's/app_process/oat_process/' -e 's/--start-system-server/--start-system-server --no-preload/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
 	adb reboot bootloader
@@ -179,7 +179,7 @@ zygote-oat-process: $(TARGET_BOOT_OAT) test-art-target-sync
 
 .PHONY: zygote-app-process
 zygote-app-process:
-	sed s/oat_process/app_process/ < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+	cp system/core/rootdir/init.rc $(ANDROID_PRODUCT_OUT)/root/init.rc
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
 	adb reboot bootloader
