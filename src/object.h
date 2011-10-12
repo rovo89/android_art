@@ -294,7 +294,7 @@ class MANAGED Object {
     Heap::VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
     const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
-    if (is_volatile) {
+    if (UNLIKELY(is_volatile)) {
       return android_atomic_acquire_load(word_addr);
     } else {
       return *word_addr;
@@ -307,7 +307,7 @@ class MANAGED Object {
     }
     byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
     uint32_t* word_addr = reinterpret_cast<uint32_t*>(raw_addr);
-    if (is_volatile) {
+    if (UNLIKELY(is_volatile)) {
       /*
        * TODO: add an android_atomic_synchronization_store() function and
        * use it in the 32-bit volatile set handlers.  On some platforms we
@@ -325,7 +325,7 @@ class MANAGED Object {
     Heap::VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
     const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
-    if (is_volatile) {
+    if (UNLIKELY(is_volatile)) {
       uint64_t result = QuasiAtomicRead64(addr);
       ANDROID_MEMBAR_FULL();
       return result;
@@ -338,7 +338,7 @@ class MANAGED Object {
     Heap::VerifyObject(this);
     byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
     int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
-    if (is_volatile) {
+    if (UNLIKELY(is_volatile)) {
       ANDROID_MEMBAR_STORE();
       QuasiAtomicSwap64(new_value, addr);
       // Post-store barrier not required due to use of atomic op or mutex.
@@ -1148,7 +1148,7 @@ class MANAGED Array : public Object {
 
  protected:
   bool IsValidIndex(int32_t index) const {
-    if (index < 0 || index >= length_) {
+    if (UNLIKELY(index < 0 || index >= length_)) {
       return ThrowArrayIndexOutOfBoundsException(index);
     }
     return true;
@@ -1563,14 +1563,6 @@ class MANAGED Class : public StaticStorageBase {
     } else {
       return src->IsSubClass(this);
     }
-  }
-
-  // Assignable test for code, won't throw.  Null and equality tests already performed
-  static uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class)
-  {
-    DCHECK(klass != NULL);
-    DCHECK(ref_class != NULL);
-    return klass->IsAssignableFrom(ref_class) ? 1 : 0;
   }
 
   Class* GetSuperClass() const {

@@ -62,19 +62,6 @@ static Method* gThread_run = NULL;
 static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
-// TODO: move to appropriate location
-static void ObjectInitFromCode(Object* o) {
-  Class* c = o->GetClass();
-  if (c->IsFinalizable()) {
-    Heap::AddFinalizerReference(o);
-  }
-  /*
-   * NOTE: once debugger/profiler support is added, we'll need to check
-   * here and branch to actual compiled object.<init> to handle any
-   * breakpoint/logging activites if either is active.
-   */
-}
-
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -137,7 +124,7 @@ void Thread::InitFunctionPointers() {
   pDeliverException = art_deliver_exception_from_code;
   pFindNativeMethod = FindNativeMethod;
   pInitializeTypeFromCode = InitializeTypeFromCode;
-  pInstanceofNonTrivialFromCode = Class::IsAssignableFromCode;
+  pInstanceofNonTrivialFromCode = IsAssignableFromCode;
   pObjectInit = ObjectInitFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;

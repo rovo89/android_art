@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
 #include "macros.h"
@@ -74,11 +75,14 @@ class ClassLinker {
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   String* ResolveString(uint32_t string_idx, const Method* referrer) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    // TODO: we could check for a dex cache hit here
-    const DexFile& dex_file = FindDexFile(dex_cache);
-    return ResolveString(dex_file, string_idx, dex_cache);
+    String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
+    if (UNLIKELY(resolved_string == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
+      const DexFile& dex_file = FindDexFile(dex_cache);
+      resolved_string = ResolveString(dex_file, string_idx, dex_cache);
+    }
+    return resolved_string;
   }
 
   // Resolve a String with the given index from the DexFile, storing the
@@ -101,21 +105,27 @@ class ClassLinker {
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   Class* ResolveType(uint32_t type_idx, const Method* referrer) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    // TODO: we could check for a dex cache hit here
-    const ClassLoader* class_loader = declaring_class->GetClassLoader();
-    const DexFile& dex_file = FindDexFile(dex_cache);
-    return ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
+    if (UNLIKELY(resolved_type == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
+      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      const DexFile& dex_file = FindDexFile(dex_cache);
+      resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    }
+    return resolved_type;
   }
 
   Class* ResolveType(uint32_t type_idx, const Field* referrer) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
-    // TODO: we could check for a dex cache hit here
-    const ClassLoader* class_loader = declaring_class->GetClassLoader();
-    const DexFile& dex_file = FindDexFile(dex_cache);
-    return ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    Class* resolved_type = dex_cache->GetResolvedType(type_idx);
+    if (UNLIKELY(resolved_type == NULL)) {
+      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      const DexFile& dex_file = FindDexFile(dex_cache);
+      resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
+    }
+    return resolved_type;
   }
 
   // Resolve a type with the given ID from the DexFile, storing the
@@ -139,21 +149,27 @@ class ClassLinker {
                         bool is_direct);
 
   Method* ResolveMethod(uint32_t method_idx, const Method* referrer, bool is_direct) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    // TODO: we could check for a dex cache hit here
-    const ClassLoader* class_loader = declaring_class->GetClassLoader();
-    const DexFile& dex_file = FindDexFile(dex_cache);
-    return ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
+    Method* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
+    if (UNLIKELY(resolved_method == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
+      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      const DexFile& dex_file = FindDexFile(dex_cache);
+      resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
+    }
+    return resolved_method;
   }
 
   Field* ResolveField(uint32_t field_idx, const Method* referrer, bool is_static) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    // TODO: we could check for a dex cache hit here
-    const ClassLoader* class_loader = declaring_class->GetClassLoader();
-    const DexFile& dex_file = FindDexFile(dex_cache);
-    return ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
+    Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
+    if (UNLIKELY(resolved_field == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
+      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      const DexFile& dex_file = FindDexFile(dex_cache);
+      resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
+    }
+    return resolved_field;
   }
 
   // Resolve a field with a given ID from the DexFile, storing the

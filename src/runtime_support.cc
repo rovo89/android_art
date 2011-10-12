@@ -16,7 +16,9 @@
 
 #include "runtime_support.h"
 
+#include "dex_cache.h"
 #include "dex_verifier.h"
+#include "macros.h"
 #include "reflection.h"
 #include "ScopedLocalRef.h"
 
@@ -36,6 +38,18 @@ extern void DebugMe(Method* method, uint32_t info) {
     LOG(INFO) << PrettyMethod(method);
   }
   LOG(INFO) << "Info: " << info;
+}
+
+void ObjectInitFromCode(Object* o) {
+  Class* c = o->GetClass();
+  if (UNLIKELY(c->IsFinalizable())) {
+    Heap::AddFinalizerReference(o);
+  }
+  /*
+   * NOTE: once debugger/profiler support is added, we'll need to check
+   * here and branch to actual compiled object.<init> to handle any
+   * breakpoint/logging activites if either is active.
+   */
 }
 
 // Return value helper for jobject return types
@@ -347,7 +361,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   } else {
     is_static = type == Runtime::kStaticMethod;
   }
-  // Placing into local references incoming arguments from the caller's register arguments
+  // Place into local references incoming arguments from the caller's register arguments
   size_t cur_arg = 1;   // skip method_idx in R0, first arg is in R1
   if (!is_static) {
     Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
@@ -370,7 +384,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
-  // Placing into local references incoming arguments from the caller's stack arguments
+  // Place into local references incoming arguments from the caller's stack arguments
   cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
   while (shorty_index < shorty_len) {
     char c = shorty[shorty_index];
@@ -383,12 +397,12 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   }
   // Resolve method filling in dex cache
   Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
-  if (!thread->IsExceptionPending()) {
+  if (LIKELY(!thread->IsExceptionPending())) {
     // We got this far, ensure that the declaring class is initialized
     linker->EnsureInitialized(called->GetDeclaringClass(), true);
   }
   void* code;
-  if (thread->IsExceptionPending()) {
+  if (UNLIKELY(thread->IsExceptionPending())) {
     // Something went wrong, go into deliver exception with the pending exception in r0
     code = reinterpret_cast<void*>(art_deliver_exception_from_code);
     regs[0] =  reinterpret_cast<uintptr_t>(thread->GetException());
@@ -427,15 +441,33 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
      */
 }
 
+// Fast path field resolution that can't throw exceptions
+static Field* FindFieldFast(uint32_t field_idx, const Method* referrer) {
+  Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
+  if (UNLIKELY(resolved_field == NULL)) {
+    return NULL;
+  }
+  Class* fields_class = resolved_field->GetDeclaringClass();
+  // Check class is initilaized or initializing
+  if (UNLIKELY(!fields_class->IsInitializing())) {
+    return NULL;
+  }
+  return resolved_field;
+}
+
+// Slow path field resolution and declaring class initialization
 Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Field* f = class_linker->ResolveField(field_idx, referrer, is_static);
-  if (f != NULL) {
-    Class* c = f->GetDeclaringClass();
+  Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
+  if (LIKELY(resolved_field != NULL)) {
+    Class* fields_class = resolved_field->GetDeclaringClass();
     // If the class is already initializing, we must be inside <clinit>, or
     // we'd still be waiting for the lock.
-    if (c->GetStatus() == Class::kStatusInitializing || class_linker->EnsureInitialized(c, true)) {
-      return f;
+    if (fields_class->IsInitializing()) {
+      return resolved_field;
+    }
+    if(Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
+      return resolved_field;
     }
   }
   DCHECK(Thread::Current()->IsExceptionPending()); // Throw exception and unwind
@@ -444,17 +476,28 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_sta
 
 extern "C" Field* artFindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer,
                                                Thread* self, Method** sp) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  return FindFieldFromCode(field_idx, referrer, false);
+  Field* resolved_field = FindFieldFast(field_idx, referrer);
+  if (UNLIKELY(resolved_field == NULL)) {
+    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+    resolved_field = FindFieldFromCode(field_idx, referrer, false);
+  }
+  return resolved_field;
 }
 
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer);
+  if (LIKELY(field != NULL)) {
+    Class* type = field->GetType();
+    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int32_t))) {
+      return field->Get32(NULL);
+    }
+  }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
     Class* type = field->GetType();
-    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
+    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int32_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of 32-bit primitive on field '%s'",
                                PrettyField(field, true).c_str());
@@ -467,8 +510,15 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* ref
 
 extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer);
+  if (LIKELY(field != NULL)) {
+    Class* type = field->GetType();
+    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int64_t))) {
+      return field->Get64(NULL);
+    }
+  }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
     Class* type = field->GetType();
     if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
@@ -484,8 +534,15 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* ref
 
 extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer);
+  if (LIKELY(field != NULL)) {
+    Class* type = field->GetType();
+    if (LIKELY(!type->IsPrimitive())) {
+      return field->GetObj(NULL);
+    }
+  }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
     Class* type = field->GetType();
     if (type->IsPrimitive()) {
@@ -501,8 +558,16 @@ extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* ref
 
 extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer,
                                        uint32_t new_value, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer);
+  if (LIKELY(field != NULL)) {
+    Class* type = field->GetType();
+    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int32_t))) {
+      field->Set32(NULL, new_value);
+      return 0;  // success
+    }
+  }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
     Class* type = field->GetType();
     if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int32_t)) {
@@ -519,11 +584,19 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer
 
 extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer,
                                       uint64_t new_value, Thread* self, Method** sp) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Field* field = FindFieldFromCode(field_idx, referrer, true);
-  if (field != NULL) {
+  Field* field = FindFieldFast(field_idx, referrer);
+  if (LIKELY(field != NULL)) {
     Class* type = field->GetType();
-    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
+    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int64_t))) {
+      field->Set64(NULL, new_value);
+      return 0;  // success
+    }
+  }
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  field = FindFieldFromCode(field_idx, referrer, true);
+  if (LIKELY(field != NULL)) {
+    Class* type = field->GetType();
+    if (UNLIKELY(!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t))) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of 64-bit primitive to field '%s'",
                                PrettyField(field, true).c_str());
@@ -537,8 +610,16 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
 
 extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
                                        Object* new_value, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer);
+  if (LIKELY(field != NULL)) {
+    Class* type = field->GetType();
+    if (LIKELY(!type->IsPrimitive())) {
+      field->SetObj(NULL, new_value);
+      return 0;  // success
+    }
+  }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Field* field = FindFieldFromCode(field_idx, referrer, true);
+  field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
     Class* type = field->GetType();
     if (type->IsPrimitive()) {
@@ -555,11 +636,12 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
-extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self, Method** sp) {
+extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
+                                          Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
-  if (klass == NULL) {
+  if (UNLIKELY(klass == NULL)) {
     klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {
       DCHECK(self->IsExceptionPending());
@@ -575,19 +657,19 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method, Thr
 
 Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                      Thread* self) {
-  if (component_count < 0) {
+  if (UNLIKELY(component_count < 0)) {
     self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
     return NULL;  // Failure
   }
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (klass == NULL) {  // Not in dex cache so try to resolve
+  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {  // Error
       DCHECK(Thread::Current()->IsExceptionPending());
       return NULL;  // Failure
     }
   }
-  if (klass->IsPrimitive() && !klass->IsPrimitiveInt()) {
+  if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
     if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
           "Bad filled array request for type %s",
@@ -599,7 +681,7 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t com
     }
     return NULL;  // Failure
   } else {
-    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
+    DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
     return Array::Alloc(klass, component_count);
   }
 }
@@ -616,13 +698,13 @@ extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* metho
 extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                         Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  if (component_count < 0) {
+  if (UNLIKELY(component_count < 0)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                          component_count);
     return NULL;  // Failure
   }
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (klass == NULL) {  // Not in dex cache so try to resolve
+  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {  // Error
       DCHECK(Thread::Current()->IsExceptionPending());
@@ -633,14 +715,21 @@ extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32
   return Array::Alloc(klass, component_count);
 }
 
+// Assignable test for code, won't throw.  Null and equality tests already performed
+uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class) {
+  DCHECK(klass != NULL);
+  DCHECK(ref_class != NULL);
+  return klass->IsAssignableFrom(ref_class) ? 1 : 0;
+}
+
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
 extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self, Method** sp) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(a->IsClass()) << PrettyClass(a);
   DCHECK(b->IsClass()) << PrettyClass(b);
-  if (b->IsAssignableFrom(a)) {
+  if (LIKELY(b->IsAssignableFrom(a))) {
     return 0;  // Success
   } else {
+    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
         "%s cannot be cast to %s",
         PrettyDescriptor(a->GetDescriptor()).c_str(),
@@ -653,14 +742,14 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self
 // Returns 0 on success and -1 if an exception is pending.
 extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class* array_class,
                                              Thread* self, Method** sp) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(array_class != NULL);
   // element can't be NULL as we catch this is screened in runtime_support
   Class* element_class = element->GetClass();
   Class* component_type = array_class->GetComponentType();
-  if (component_type->IsAssignableFrom(element_class)) {
+  if (LIKELY(component_type->IsAssignableFrom(element_class))) {
     return 0;  // Success
   } else {
+    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "Cannot store an object of type %s in to an array of type %s",
         PrettyDescriptor(element_class->GetDescriptor()).c_str(),
@@ -672,7 +761,7 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
 Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* klass = class_linker->ResolveType(type_idx, referrer);
-  if (klass == NULL) {
+  if (UNLIKELY(klass == NULL)) {
     CHECK(self->IsExceptionPending());
     return NULL;  // Failure - Indicate to caller to deliver exception
   }
@@ -754,14 +843,14 @@ extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* tabl
                                               Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(table[0], 0x0300);
-  if (array == NULL) {
+  if (UNLIKELY(array == NULL)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
         "null array in fill array");
     return -1;  // Error
   }
   DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
   uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
-  if (static_cast<int32_t>(size) > array->GetLength()) {
+  if (UNLIKELY(static_cast<int32_t>(size) > array->GetLength())) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
         "failed array fill. length=%d; index=%d", array->GetLength(), size);
     return -1;  // Error
@@ -774,32 +863,39 @@ extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* tabl
 
 // See comments in runtime_support_asm.S
 extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
-                                                          Object* this_object ,
+                                                          Object* this_object,
+                                                          Method* caller_method,
                                                           Thread* thread, Method** sp) {
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
-  if (this_object == NULL) {
-    thread->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-        "null receiver during interface dispatch");
-    return 0;
+  Method* interface_method = caller_method->GetDexCacheResolvedMethods()->Get(method_idx);
+  Method* found_method = NULL;  // The found method
+  if (LIKELY(interface_method != NULL && this_object != NULL)) {
+    found_method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
   }
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Frame frame = thread->GetTopOfStack();  // Compute calling method
-  frame.Next();
-  Method* caller_method = frame.GetMethod();
-  Method* interface_method = class_linker->ResolveMethod(method_idx, caller_method, false);
-  if (interface_method == NULL) {
-    // Could not resolve interface method. Throw error and unwind
-    CHECK(thread->IsExceptionPending());
-    return 0;
+  if (UNLIKELY(found_method == NULL)) {
+    FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
+    if (this_object == NULL) {
+      thread->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
+          "null receiver during interface dispatch");
+      return 0;
+    }
+    if (interface_method == NULL) {
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      interface_method = class_linker->ResolveMethod(method_idx, caller_method, false);
+      if (interface_method == NULL) {
+        // Could not resolve interface method. Throw error and unwind
+        CHECK(thread->IsExceptionPending());
+        return 0;
+      }
+    }
+    found_method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
+    if (found_method == NULL) {
+      CHECK(thread->IsExceptionPending());
+      return 0;
+    }
   }
-  Method* method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
-  if (method == NULL) {
-    CHECK(thread->IsExceptionPending());
-    return 0;
-  }
-  const void* code = method->GetCode();
+  const void* code = found_method->GetCode();
 
-  uint32_t method_uint = reinterpret_cast<uint32_t>(method);
+  uint32_t method_uint = reinterpret_cast<uint32_t>(found_method);
   uint64_t code_uint = reinterpret_cast<uint32_t>(code);
   uint64_t result = ((code_uint << 32) | method_uint);
   return result;
@@ -886,7 +982,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
         // long/double split over regs and stack, mask in high half from stack arguments
         // (7 = 2 reg args + LR + Method* + 3 arg reg spill slots)
         uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (7 * kPointerSize));
-        val.j = (val.j & 0xFFFFFFFFull) | (high_half << 32);
+        val.j = (val.j & 0xffffffffULL) | (high_half << 32);
       }
       BoxPrimitive(env, param_type, val);
       if (self->IsExceptionPending()) {

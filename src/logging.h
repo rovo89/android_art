@@ -25,12 +25,13 @@
 #include "macros.h"
 
 #define CHECK(x) \
-  if (!(x)) \
+  if (UNLIKELY(!(x))) \
     ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
         << "Check failed: " #x << " "
 
 #define CHECK_OP(LHS, RHS, OP) \
-  for (::art::EagerEvaluator<typeof(LHS), typeof(RHS)> _values(LHS, RHS); !(_values.lhs OP _values.rhs); ) \
+  for (::art::EagerEvaluator<typeof(LHS), typeof(RHS)> _values(LHS, RHS); \
+       UNLIKELY(!(_values.lhs OP _values.rhs)); ) \
     ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
         << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
         << " (" #LHS "=" << _values.lhs << ", " #RHS "=" << _values.rhs << ") "
@@ -43,7 +44,7 @@
 #define CHECK_GT(x, y) CHECK_OP(x, y, >)
 
 #define CHECK_STROP(s1, s2, sense) \
-  if ((strcmp(s1, s2) == 0) != sense) \
+  if (UNLIKELY((strcmp(s1, s2) == 0) != sense)) \
     LOG(FATAL) << "Check failed: " \
                << "\"" << s1 << "\"" \
                << (sense ? " == " : " != ") \

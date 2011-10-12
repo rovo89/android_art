@@ -125,4 +125,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 #define PACKED __attribute__ ((__packed__))
 
+#define LIKELY(x)       __builtin_expect((x),true)
+#define UNLIKELY(x)     __builtin_expect((x),false)
+
 #endif  // ART_SRC_MACROS_H_

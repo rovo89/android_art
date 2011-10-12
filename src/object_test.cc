@@ -310,10 +310,10 @@ TEST_F(ObjectTest, InstanceOf) {
   ASSERT_TRUE(x != NULL);
   ASSERT_TRUE(y != NULL);
 
-  EXPECT_EQ(1U, Class::IsAssignableFromCode(X, x->GetClass()));
-  EXPECT_EQ(0U, Class::IsAssignableFromCode(Y, x->GetClass()));
-  EXPECT_EQ(1U, Class::IsAssignableFromCode(X, y->GetClass()));
-  EXPECT_EQ(1U, Class::IsAssignableFromCode(Y, y->GetClass()));
+  EXPECT_EQ(1U, IsAssignableFromCode(X, x->GetClass()));
+  EXPECT_EQ(0U, IsAssignableFromCode(Y, x->GetClass()));
+  EXPECT_EQ(1U, IsAssignableFromCode(X, y->GetClass()));
+  EXPECT_EQ(1U, IsAssignableFromCode(Y, y->GetClass()));
 
   EXPECT_TRUE(x->InstanceOf(X));
   EXPECT_FALSE(x->InstanceOf(Y));

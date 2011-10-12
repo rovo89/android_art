@@ -176,9 +176,10 @@ art_throw_verification_error_from_code:
      */
 art_invoke_interface_trampoline:
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
-    mov    r2, r9                                 @ pass Thread::Current
-    mov    r3, sp                                 @ pass SP
-    bl     artFindInterfaceMethodInCacheFromCode  @ (method_idx, this, Thread*, SP)
+    ldr    r2, [sp, #48]                          @ pass caller Method*
+    mov    r3, r9                                 @ pass Thread::Current
+    str    sp, [sp, #0]                           @ pass SP
+    bl     artFindInterfaceMethodInCacheFromCode  @ (method_idx, this, caller, Thread*, SP)
     mov    r12, r1                                @ save r0->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cmp    r0, #0                                 @ did we find the target?
@@ -392,19 +393,20 @@ art_set_obj_static_from_code:
     .global art_resolve_string_from_code
     .extern artResolveStringFromCode
     /*
-     * Entry from managed code to resolve a string, this stub will
-     * allocate a String and deliver an exception on error. On
-     * success the String is returned.
+     * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
+     * exception on error. On success the String is returned. R0 holds the referring method,
+     * R1 holds the string index. The fast path check for hit in strings cache has already been
+     * performed.
      */
 art_resolve_string_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
-    mov    r2, r9                              @ pass Thread::Current
-    mov    r3, sp                              @ pass SP
-    @ artResolveStringFromCode(Method* referrer, uint32_t type_idx, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r2, r9                     @ pass Thread::Current
+    mov    r3, sp                     @ pass SP
+    @ artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, SP)
     bl     artResolveStringFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cmp    r0, #0                              @ success if result is non-null
-    bxne   lr                                  @ return on success
+    cmp    r0, #0                     @ success if result is non-null
+    bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
     .global art_alloc_object_from_code

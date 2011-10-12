@@ -21,6 +21,8 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
 void* UnresolvedDirectMethodTrampolineFromCode(int32_t, void*, Thread*, Runtime::TrampolineType);
 extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
+uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
+void ObjectInitFromCode(Object* o);
 extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
 extern int64_t D2L(double d);
