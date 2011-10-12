@@ -4,7 +4,6 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
-#include "common_test.h"
 #include "dex_verifier.h"
 #include "object.h"
 #include "jni.h"
@@ -15,11 +14,11 @@ namespace art {
   ( ((reg) < (method)->NumRegisters()) &&                       \
     (( *((reg_vector) + (reg)/8) >> ((reg) % 8) ) & 0x01) )
 
-#define EXPECT_REGS(...) do {          \
+#define CHECK_REGS(...) do {          \
     int t[] = {__VA_ARGS__};             \
     int t_size = sizeof(t) / sizeof(*t);      \
     for (int i = 0; i < t_size; ++i)          \
-      EXPECT_TRUE(REG(m, reg_vector, t[i]));  \
+      CHECK(REG(m, reg_vector, t[i])) << "Error: Reg " << i << " is not in RegisterMap";  \
   } while(false)
 
 static int gJava_StackWalk_refmap_calls = 0;
@@ -56,30 +55,30 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
     // find is what is expected.
     if (m_name.compare("f") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
-        EXPECT_EQ(1U, m->ToDexPC(pc));
-        EXPECT_REGS(1);
+        CHECK_EQ(1U, m->ToDexPC(pc));
+        CHECK_REGS(1);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        EXPECT_EQ(5U, m->ToDexPC(pc));
-        EXPECT_REGS(1);  // Note that v1 is not in the minimal root set
+        CHECK_EQ(5U, m->ToDexPC(pc));
+        CHECK_REGS(1);
       }
     } else if (m_name.compare("g") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
-        EXPECT_EQ(0xcU, m->ToDexPC(pc));
-        EXPECT_REGS(2);
+        CHECK_EQ(0xcU, m->ToDexPC(pc));
+        CHECK_REGS(0, 2);  // Note that v1 is not in the minimal root set
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        EXPECT_EQ(0xcU, m->ToDexPC(pc));
-          EXPECT_REGS(2);
+        CHECK_EQ(0xcU, m->ToDexPC(pc));
+        CHECK_REGS(0, 2);
       }
     } else if (m_name.compare("shlemiel") == 0) {
       if (gJava_StackWalk_refmap_calls == 1) {
-        EXPECT_EQ(0x380U, m->ToDexPC(pc));
-        EXPECT_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
+        CHECK_EQ(0x380U, m->ToDexPC(pc));
+        CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        EXPECT_EQ(0x380U, m->ToDexPC(pc));
-        EXPECT_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
+        CHECK_EQ(0x380U, m->ToDexPC(pc));
+        CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       }
     }
 
@@ -89,7 +88,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
 
 extern "C"
 JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv* env, jobject thisObj, jint count) {
-  EXPECT_EQ(count, 0);
+  CHECK_EQ(count, 0);
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
