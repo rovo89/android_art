@@ -186,9 +186,10 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
             cUnit->coreSpillMask |= (1 << res);
             cUnit->coreVmapTable.push_back(sReg);
             cUnit->numCoreSpills++;
-            cUnit->regLocation[sReg].location = kLocPhysReg;
-            cUnit->regLocation[sReg].lowReg = res;
-            cUnit->regLocation[sReg].home = true;
+            //  Should be promoting based on initial sReg set
+            DCHECK_EQ(sReg, oatS2VReg(cUnit, sReg));
+            cUnit->promotionMap[sReg].coreLocation = kLocPhysReg;
+            cUnit->promotionMap[sReg].coreReg = res;
             break;
         }
     }
@@ -231,10 +232,11 @@ STATIC int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
             ((FPRegs[i].reg & 0x1) == 0) == even) {
             res = FPRegs[i].reg;
             FPRegs[i].inUse = true;
+            //  Should be promoting based on initial sReg set
+            DCHECK_EQ(sReg, oatS2VReg(cUnit, sReg));
             markPreservedSingle(cUnit, sReg, res);
-            cUnit->regLocation[sReg].fpLocation = kLocPhysReg;
-            cUnit->regLocation[sReg].fpLowReg = res;
-            cUnit->regLocation[sReg].home = true;
+            cUnit->promotionMap[sReg].fpLocation = kLocPhysReg;
+            cUnit->promotionMap[sReg].fpReg = res;
             break;
         }
     }
@@ -252,9 +254,11 @@ STATIC int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
 STATIC int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
 {
     int res = -1; // Assume failure
-    if (cUnit->regLocation[sReg+1].fpLocation == kLocPhysReg) {
+    //  Should be promoting based on initial sReg set
+    DCHECK_EQ(sReg, oatS2VReg(cUnit, sReg));
+    if (cUnit->promotionMap[sReg+1].fpLocation == kLocPhysReg) {
         // Upper reg is already allocated.  Can we fit?
-        int highReg = cUnit->regLocation[sReg+1].fpLowReg;
+        int highReg = cUnit->promotionMap[sReg+1].fpReg;
         if ((highReg & 1) == 0) {
             // High reg is even - fail.
             return res;
@@ -289,12 +293,10 @@ STATIC int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
         }
     }
     if (res != -1) {
-        cUnit->regLocation[sReg].fpLocation = kLocPhysReg;
-        cUnit->regLocation[sReg].fpLowReg = res;
-        cUnit->regLocation[sReg].home = true;
-        cUnit->regLocation[sReg+1].fpLocation = kLocPhysReg;
-        cUnit->regLocation[sReg+1].fpLowReg = res + 1;
-        cUnit->regLocation[sReg+1].home = true;
+        cUnit->promotionMap[sReg].fpLocation = kLocPhysReg;
+        cUnit->promotionMap[sReg].fpReg = res;
+        cUnit->promotionMap[sReg+1].fpLocation = kLocPhysReg;
+        cUnit->promotionMap[sReg+1].fpReg = res + 1;
     }
     return res;
 }
@@ -312,7 +314,6 @@ extern int oatAllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
     int res = -1;
     if (doubleStart) {
         res = allocPreservedDouble(cUnit, sReg);
-    } else {
     }
     if (res == -1) {
         res = allocPreservedSingle(cUnit, sReg, false /* try odd # */);

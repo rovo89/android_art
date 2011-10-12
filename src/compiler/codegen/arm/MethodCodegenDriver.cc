@@ -17,10 +17,8 @@
 #define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
     (1 << kDebugDisplayMissingTargets))
 
-STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
-                                   INVALID_REG, INVALID_SREG, 0,
-                                   kLocDalvikFrame, INVALID_REG, INVALID_REG,
-                                   INVALID_OFFSET};
+STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, INVALID_REG,
+                                   INVALID_REG, INVALID_SREG};
 
 /* Mark register usage state and return long retloc */
 STATIC RegLocation getRetLocWide(CompilationUnit* cUnit)
@@ -99,7 +97,8 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
             RegLocation loc = oatUpdateLoc(cUnit,
                 oatGetSrc(cUnit, mir, i));
             if (loc.location == kLocPhysReg) {
-                storeBaseDisp(cUnit, rSP, loc.spOffset, loc.lowReg, kWord);
+                storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, loc.sRegLow),
+                              loc.lowReg, kWord);
             }
         }
         /*
@@ -113,7 +112,8 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         int rVal = rLR;  // Using a lot of temps, rLR is known free here
         // Set up source pointer
         RegLocation rlFirst = oatGetSrc(cUnit, mir, 0);
-        opRegRegImm(cUnit, kOpAdd, rSrc, rSP, rlFirst.spOffset);
+        opRegRegImm(cUnit, kOpAdd, rSrc, rSP,
+                    oatSRegOffset(cUnit, rlFirst.sRegLow));
         // Set up the target pointer
         opRegRegImm(cUnit, kOpAdd, rDst, r0,
                     Array::DataOffset().Int32Value());
@@ -773,7 +773,8 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
             } else {
                 // r2 & r3 can safely be used here
                 reg = r3;
-                loadWordDisp(cUnit, rSP, rlArg.spOffset + 4, reg);
+                loadWordDisp(cUnit, rSP,
+                             oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
                 callState = nextCallInsn(cUnit, mir, dInsn, callState,
                                          rollback);
             }
@@ -872,20 +873,23 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         if (loc.wide) {
             loc = oatUpdateLocWide(cUnit, loc);
             if ((nextArg >= 2) && (loc.location == kLocPhysReg)) {
-                storeBaseDispWide(cUnit, rSP, loc.spOffset, loc.lowReg,
-                                  loc.highReg);
+                storeBaseDispWide(cUnit, rSP,
+                                  oatSRegOffset(cUnit, loc.sRegLow),
+                                  loc.lowReg, loc.highReg);
             }
             nextArg += 2;
         } else {
             loc = oatUpdateLoc(cUnit, loc);
             if ((nextArg >= 3) && (loc.location == kLocPhysReg)) {
-                storeBaseDisp(cUnit, rSP, loc.spOffset, loc.lowReg, kWord);
+                storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, loc.sRegLow),
+                              loc.lowReg, kWord);
             }
             nextArg++;
         }
     }
 
-    int startOffset = cUnit->regLocation[mir->ssaRep->uses[3]].spOffset;
+    int startOffset = oatSRegOffset(cUnit,
+        cUnit->regLocation[mir->ssaRep->uses[3]].sRegLow);
     int outsOffset = 4 /* Method* */ + (3 * 4);
     if (numArgs >= 20) {
         // Generate memcpy
@@ -1790,63 +1794,44 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
     }
 }
 
-/* If there are any ins passed in registers that have not been promoted
- * to a callee-save register, flush them to the frame.
- * Note: at this pointCopy any ins that are passed in register to their
- * home location */
+/*
+ * If there are any ins passed in registers that have not been promoted
+ * to a callee-save register, flush them to the frame.  Perform intial
+ * assignment of promoted arguments.
+ */
 STATIC void flushIns(CompilationUnit* cUnit)
 {
     if (cUnit->method->NumIns() == 0)
         return;
-    int inRegs = (cUnit->method->NumIns() > 2) ? 3
-                                               : cUnit->method->NumIns();
-    int startReg = r1;
-    int startLoc = cUnit->method->NumRegisters() -
+    int firstArgReg = r1;
+    int lastArgReg = r3;
+    int startVReg = cUnit->method->NumRegisters() -
         cUnit->method->NumIns();
-    for (int i = 0; i < inRegs; i++) {
-        RegLocation loc = cUnit->regLocation[startLoc + i];
-        //TUNING: be smarter about flushing ins to frame
-        storeBaseDisp(cUnit, rSP, loc.spOffset, startReg + i, kWord);
-        if (loc.location == kLocPhysReg) {
-            genRegCopy(cUnit, loc.lowReg, startReg + i);
-        }
-    }
-
-    // Handle special case of wide argument half in regs, half in frame
-    if (inRegs == 3) {
-        RegLocation loc = cUnit->regLocation[startLoc + 2];
-        if (loc.wide && loc.location == kLocPhysReg) {
-            // Load the other half of the arg into the promoted pair
-            loadWordDisp(cUnit, rSP, loc.spOffset + 4, loc.highReg);
-            inRegs++;
-        }
-    }
-
-    // Now, do initial assignment of all promoted arguments passed in frame
-    for (int i = inRegs; i < cUnit->method->NumIns();) {
-        RegLocation loc = cUnit->regLocation[startLoc + i];
-        if (loc.fpLocation == kLocPhysReg) {
-            loc.location = kLocPhysReg;
-            loc.fp = true;
-            loc.lowReg = loc.fpLowReg;
-            loc.highReg = loc.fpHighReg;
-        }
-        if (loc.location == kLocPhysReg) {
-            if (loc.wide) {
-                if (loc.fp && (loc.lowReg & 1) != 0) {
-                    // Misaligned - need to load as a pair of singles
-                    loadWordDisp(cUnit, rSP, loc.spOffset, loc.lowReg);
-                    loadWordDisp(cUnit, rSP, loc.spOffset + 4, loc.highReg);
-                } else {
-                    loadBaseDispWide(cUnit, NULL, rSP, loc.spOffset,
-                                     loc.lowReg, loc.highReg, INVALID_SREG);
-                }
-                i++;
-            } else {
-                loadWordDisp(cUnit, rSP, loc.spOffset, loc.lowReg);
+    for (int i = 0; i < cUnit->method->NumIns(); i++) {
+        PromotionMap vMap = cUnit->promotionMap[startVReg + i];
+        // For arguments only, should have at most one promotion kind
+        DCHECK(!((vMap.coreLocation == kLocPhysReg) &&
+                 (vMap.fpLocation == kLocPhysReg)));
+        if (i <= (lastArgReg - firstArgReg)) {
+            // If arriving in register, copy or flush
+            if (vMap.coreLocation == kLocPhysReg) {
+                genRegCopy(cUnit, vMap.coreReg, firstArgReg + i);
+            } else if (vMap.fpLocation == kLocPhysReg) {
+                genRegCopy(cUnit, vMap.fpReg, firstArgReg + i);
+            }
+            // Also put a copy in memory in case we're partially promoted
+            storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
+                          firstArgReg + i, kWord);
+        } else {
+            // If arriving in frame, initialize promoted target regs
+            if (vMap.coreLocation == kLocPhysReg) {
+                loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
+                             vMap.coreReg);
+            } else if (vMap.fpLocation == kLocPhysReg) {
+                loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
+                             vMap.fpReg);
             }
         }
-        i++;
     }
 }
 

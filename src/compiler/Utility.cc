@@ -61,6 +61,7 @@ retry:
          */
         if (currentArena->next) {
             currentArena = currentArena->next;
+            currentArena->bytesAllocated = 0;
             goto retry;
         }
 
@@ -88,12 +89,10 @@ retry:
 /* Reclaim all the arena blocks allocated so far */
 void oatArenaReset(void)
 {
-    ArenaMemBlock *block;
-
-    for (block = arenaHead; block; block = block->next) {
-        block->bytesAllocated = 0;
-    }
     currentArena = arenaHead;
+    if (currentArena) {
+        currentArena->bytesAllocated = 0;
+    }
 }
 
 /* Growable List initialization */
@@ -201,6 +200,15 @@ void oatDumpStats(void)
     oatArchDump();
 }
 
+static uint32_t checkMasks[32] = {
+    0x00000001, 0x00000002, 0x00000004, 0x00000008, 0x00000010,
+    0x00000020, 0x00000040, 0x00000080, 0x00000100, 0x00000200,
+    0x00000400, 0x00000800, 0x00001000, 0x00002000, 0x00004000,
+    0x00008000, 0x00010000, 0x00020000, 0x00040000, 0x00080000,
+    0x00100000, 0x00200000, 0x00400000, 0x00800000, 0x01000000,
+    0x02000000, 0x04000000, 0x08000000, 0x10000000, 0x20000000,
+    0x40000000, 0x80000000 };
+
 /*
  * Allocate a bit vector with enough space to hold at least the specified
  * number of bits.
@@ -231,7 +239,7 @@ bool oatIsBitSet(const ArenaBitVector* pBits, unsigned int num)
 {
     DCHECK_LT(num, pBits->storageSize * sizeof(u4) * 8);
 
-    unsigned int val = pBits->storage[num >> 5] & (1 << (num & 0x1f));
+    unsigned int val = pBits->storage[num >> 5] & checkMasks[num & 0x1f];
     return (val != 0);
 }
 
@@ -270,7 +278,7 @@ bool oatSetBit(ArenaBitVector* pBits, unsigned int num)
         pBits->storageSize = newSize;
     }
 
-    pBits->storage[num >> 5] |= 1 << (num & 0x1f);
+    pBits->storage[num >> 5] |= checkMasks[num & 0x1f];
     return true;
 }
 
@@ -288,7 +296,7 @@ bool oatClearBit(ArenaBitVector* pBits, unsigned int num)
         LOG(FATAL) << "Attempt to clear a bit not set in the vector yet";;
     }
 
-    pBits->storage[num >> 5] &= ~(1 << (num & 0x1f));
+    pBits->storage[num >> 5] &= ~checkMasks[num & 0x1f];
     return true;
 }
 
@@ -462,12 +470,19 @@ int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
     DCHECK_EQ(iterator->bitSize, pBits->storageSize * sizeof(u4) * 8);
     if (bitIndex >= iterator->bitSize) return -1;
 
-    for (; bitIndex < iterator->bitSize; bitIndex++) {
+    for (; bitIndex < iterator->bitSize;) {
         unsigned int wordIndex = bitIndex >> 5;
-        unsigned int mask = 1 << (bitIndex & 0x1f);
-        if (pBits->storage[wordIndex] & mask) {
+        unsigned int bitPos = bitIndex & 0x1f;
+        unsigned int word = pBits->storage[wordIndex];
+        if (word & checkMasks[bitPos]) {
             iterator->idx = bitIndex+1;
             return bitIndex;
+        }
+        if (word == 0) {
+            // Helps if this is a sparse vector
+            bitIndex += (32 - bitPos);
+        } else {
+            bitIndex++;
         }
     }
     /* No more set bits */

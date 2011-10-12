@@ -37,7 +37,7 @@ typedef struct RefCounts {
 
 /* USE SSA names to count references of base Dalvik vRegs. */
 STATIC void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
-                      RefCounts* counts, bool fp)
+                      RefCounts* coreCounts, RefCounts* fpCounts)
 {
     MIR* mir;
     if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&
@@ -47,59 +47,42 @@ STATIC void countRefs(CompilationUnit *cUnit, BasicBlock* bb,
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
         SSARepresentation *ssaRep = mir->ssaRep;
         if (ssaRep) {
-            int i;
-            int attrs = oatDataFlowAttributes[mir->dalvikInsn.opcode];
-            if (fp) {
-                // Mark 1st reg of double pairs
-                int first = 0;
-                int sReg;
-                if ((attrs & (DF_DA_WIDE|DF_FP_A)) == (DF_DA_WIDE|DF_FP_A)) {
-                    sReg = DECODE_REG(
-                        oatConvertSSARegToDalvik(cUnit, ssaRep->defs[0]));
-                    counts[sReg].doubleStart = true;
+            for (int i = 0; i < ssaRep->numDefs;) {
+                RegLocation loc = cUnit->regLocation[ssaRep->defs[i]];
+                RefCounts* counts = loc.fp ? fpCounts : coreCounts;
+                int vReg = oatS2VReg(cUnit, ssaRep->defs[i]);
+                if (loc.defined) {
+                    counts[vReg].count++;
                 }
-                if ((attrs & (DF_UA_WIDE|DF_FP_A)) == (DF_UA_WIDE|DF_FP_A)) {
-                    sReg = DECODE_REG(
-                        oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
-                    counts[sReg].doubleStart = true;
-                }
-                if (attrs & DF_UA_WIDE) {
-                    first += 2;
-                }
-                if ((attrs & (DF_UB_WIDE|DF_FP_B)) == (DF_UB_WIDE|DF_FP_B)) {
-                    sReg = DECODE_REG(
-                        oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
-                    counts[sReg].doubleStart = true;
-                }
-                if (attrs & DF_UB_WIDE) {
-                    first += 2;
-                }
-                if ((attrs & (DF_UC_WIDE|DF_FP_C)) == (DF_UC_WIDE|DF_FP_C)) {
-                    sReg = DECODE_REG(
-                        oatConvertSSARegToDalvik(cUnit, ssaRep->uses[first]));
-                    counts[sReg].doubleStart = true;
+                if (loc.wide) {
+                    if (loc.defined) {
+                        if (loc.fp) {
+                            counts[vReg].doubleStart = true;
+                        }
+                        counts[vReg+1].count++;
+                    }
+                    i += 2;
+                } else {
+                    i++;
                 }
             }
-            for (i=0; i< ssaRep->numUses; i++) {
-                int origSreg = DECODE_REG(
-                    oatConvertSSARegToDalvik(cUnit, ssaRep->uses[i]));
-                DCHECK_LT(origSreg, cUnit->method->NumRegisters());
-                bool fpUse = ssaRep->fpUse ? ssaRep->fpUse[i] : false;
-                if (fp == fpUse) {
-                    counts[origSreg].count++;
+            for (int i = 0; i < ssaRep->numUses;) {
+                RegLocation loc = cUnit->regLocation[ssaRep->uses[i]];
+                RefCounts* counts = loc.fp ? fpCounts : coreCounts;
+                int vReg = oatS2VReg(cUnit, ssaRep->uses[i]);
+                if (loc.defined) {
+                    counts[vReg].count++;
                 }
-            }
-            for (i=0; i< ssaRep->numDefs; i++) {
-                if (attrs & DF_SETS_CONST) {
-                    // CONST opcodes are untyped - don't pollute the counts
-                    continue;
-                }
-                int origSreg = DECODE_REG(
-                    oatConvertSSARegToDalvik(cUnit, ssaRep->defs[i]));
-                DCHECK_LT(origSreg, cUnit->method->NumRegisters());
-                bool fpDef = ssaRep->fpDef ? ssaRep->fpDef[i] : false;
-                if (fp == fpDef) {
-                    counts[origSreg].count++;
+                if (loc.wide) {
+                    if (loc.defined) {
+                        if (loc.fp) {
+                            counts[vReg].doubleStart = true;
+                        }
+                        counts[vReg+1].count++;
+                    }
+                    i += 2;
+                } else {
+                    i++;
                 }
             }
         }
@@ -159,8 +142,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         BasicBlock* bb;
         bb = (BasicBlock*)oatGrowableListIteratorNext(&iterator);
         if (bb == NULL) break;
-        countRefs(cUnit, bb, coreRegs, false);
-        countRefs(cUnit, bb, fpRegs, true);
+        countRefs(cUnit, bb, coreRegs, fpRegs);
     }
 
     /*
@@ -178,21 +160,27 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     qsort(coreRegs, numRegs, sizeof(RefCounts), sortCounts);
     qsort(fpRegs, numRegs, sizeof(RefCounts), sortCounts);
 
+    if (cUnit->printMe) {
+        dumpCounts(coreRegs, numRegs, "Core regs after sort");
+        dumpCounts(fpRegs, numRegs, "Fp regs after sort");
+    }
+
     if (!(cUnit->disableOpt & (1 << kPromoteRegs))) {
         // Promote fpRegs
         for (int i = 0; (fpRegs[i].count > 0) && (i < numRegs); i++) {
-            if (cUnit->regLocation[fpRegs[i].sReg].fpLocation != kLocPhysReg) {
+            if (cUnit->promotionMap[fpRegs[i].sReg].fpLocation != kLocPhysReg) {
                 int reg = oatAllocPreservedFPReg(cUnit, fpRegs[i].sReg,
                     fpRegs[i].doubleStart);
                 if (reg < 0) {
-                   break;  // No more left
+                    break;  // No more left
                 }
             }
         }
 
         // Promote core regs
         for (int i = 0; (coreRegs[i].count > 0) && i < numRegs; i++) {
-            if (cUnit->regLocation[i].location != kLocPhysReg) {
+            if (cUnit->promotionMap[coreRegs[i].sReg].coreLocation !=
+                    kLocPhysReg) {
                 int reg = oatAllocPreservedCoreReg(cUnit, coreRegs[i].sReg);
                 if (reg < 0) {
                    break;  // No more left
@@ -203,57 +191,68 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
 
     // Now, update SSA names to new home locations
     for (int i = 0; i < cUnit->numSSARegs; i++) {
-        int baseSreg = cUnit->regLocation[i].sRegLow;
-        RegLocation *base = &cUnit->regLocation[baseSreg];
-        RegLocation *baseNext = &cUnit->regLocation[baseSreg+1];
         RegLocation *curr = &cUnit->regLocation[i];
-        if (curr->fp) {
-            /* Single or double, check fpLocation of base */
-            if (base->fpLocation == kLocPhysReg) {
-                if (curr->wide) {
-                    /* TUNING: consider alignment during allocation */
-                    if ((base->fpLowReg & 1) ||
-                        (baseNext->fpLocation != kLocPhysReg)) {
-                        /* Half-promoted or bad alignment - demote */
-                        curr->location = kLocDalvikFrame;
-                        curr->lowReg = INVALID_REG;
-                        curr->highReg = INVALID_REG;
-                        continue;
-                    }
-                    curr->highReg = baseNext->fpLowReg;
+        int baseVReg = oatS2VReg(cUnit, curr->sRegLow);
+        if (!curr->wide) {
+            if (curr->fp) {
+                if (cUnit->promotionMap[baseVReg].fpLocation == kLocPhysReg) {
+                    curr->location = kLocPhysReg;
+                    curr->lowReg = cUnit->promotionMap[baseVReg].fpReg;
+                    curr->home = true;
                 }
-                curr->location = kLocPhysReg;
-                curr->lowReg = base->fpLowReg;
-                curr->home = true;
+            } else {
+                if (cUnit->promotionMap[baseVReg].coreLocation == kLocPhysReg) {
+                    curr->location = kLocPhysReg;
+                    curr->lowReg = cUnit->promotionMap[baseVReg].coreReg;
+                    curr->home = true;
+                }
             }
+            curr->highReg = INVALID_REG;
         } else {
-            /* Core or wide */
-            if (base->location == kLocPhysReg) {
-                if (curr->wide) {
-                    /* Make sure upper half is also in reg or skip */
-                    if (baseNext->location != kLocPhysReg) {
-                        /* Only half promoted; demote to frame */
-                        curr->location = kLocDalvikFrame;
-                        curr->lowReg = INVALID_REG;
-                        curr->highReg = INVALID_REG;
-                        continue;
+            if (curr->highWord) {
+                continue;
+            }
+            if (curr->fp) {
+                if ((cUnit->promotionMap[baseVReg].fpLocation == kLocPhysReg) &&
+                    (cUnit->promotionMap[baseVReg+1].fpLocation ==
+                    kLocPhysReg)) {
+                    int lowReg = cUnit->promotionMap[baseVReg].fpReg;
+                    int highReg = cUnit->promotionMap[baseVReg+1].fpReg;
+                    // Doubles require pair of singles starting at even reg
+                    if (((lowReg & 0x1) == 0) && ((lowReg + 1) == highReg)) {
+                        curr->location = kLocPhysReg;
+                        curr->lowReg = lowReg;
+                        curr->highReg = highReg;
+                        curr->home = true;
                     }
-                    curr->highReg = baseNext->lowReg;
                 }
-                curr->location = kLocPhysReg;
-                curr->lowReg = base->lowReg;
-                curr->home = true;
+            } else {
+                if ((cUnit->promotionMap[baseVReg].coreLocation == kLocPhysReg)
+                     && (cUnit->promotionMap[baseVReg+1].coreLocation ==
+                     kLocPhysReg)) {
+                    curr->location = kLocPhysReg;
+                    curr->lowReg = cUnit->promotionMap[baseVReg].coreReg;
+                    curr->highReg = cUnit->promotionMap[baseVReg+1].coreReg;
+                    curr->home = true;
+                }
             }
         }
     }
 }
 
-/* Returns sp-relative offset in bytes */
-extern int oatVRegOffset(CompilationUnit* cUnit, int reg)
+/* Returns sp-relative offset in bytes for a VReg */
+extern int oatVRegOffset(CompilationUnit* cUnit, int vReg)
 {
-    return (reg < cUnit->numRegs) ? cUnit->regsOffset + (reg << 2) :
-            cUnit->insOffset + ((reg - cUnit->numRegs) << 2);
+    return (vReg < cUnit->numRegs) ? cUnit->regsOffset + (vReg << 2) :
+            cUnit->insOffset + ((vReg - cUnit->numRegs) << 2);
 }
+
+/* Returns sp-relative offset in bytes for a SReg */
+extern int oatSRegOffset(CompilationUnit* cUnit, int sReg)
+{
+    return oatVRegOffset(cUnit, oatS2VReg(cUnit, sReg));
+}
+
 
 /* Return sp-relative offset in bytes using Method* */
 extern int oatVRegOffsetFromMethod(Method* method, int reg)

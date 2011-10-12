@@ -232,6 +232,7 @@ extern void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
 
 extern void oatDoPromotion(CompilationUnit* cUnit);
 extern int oatVRegOffset(CompilationUnit* cUnit, int reg);
+extern int oatSRegOffset(CompilationUnit* cUnit, int reg);
 extern void oatDumpCoreRegPool(CompilationUnit* cUint);
 extern void oatDumpFPRegPool(CompilationUnit* cUint);
 extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);

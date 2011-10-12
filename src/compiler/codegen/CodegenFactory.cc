@@ -58,7 +58,7 @@ STATIC void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc,
         genRegCopy(cUnit, reg1, rlSrc.lowReg);
     } else {
         DCHECK(rlSrc.location == kLocDalvikFrame);
-        loadWordDisp(cUnit, rSP, rlSrc.spOffset, reg1);
+        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), reg1);
     }
 }
 
@@ -88,7 +88,8 @@ STATIC void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc,
         genRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
     } else {
         DCHECK(rlSrc.location == kLocDalvikFrame);
-        loadBaseDispWide(cUnit, NULL, rSP, rlSrc.spOffset,
+        loadBaseDispWide(cUnit, NULL, rSP,
+                         oatSRegOffset(cUnit, rlSrc.sRegLow),
                          regLo, regHi, INVALID_SREG);
     }
 }
@@ -156,7 +157,8 @@ STATIC void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
     if (oatIsDirty(cUnit, rlDest.lowReg) &&
         oatLiveOut(cUnit, rlDest.sRegLow)) {
         defStart = (LIR* )cUnit->lastLIRInsn;
-        storeBaseDisp(cUnit, rSP, rlDest.spOffset, rlDest.lowReg, kWord);
+        storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
+                      rlDest.lowReg, kWord);
         oatMarkClean(cUnit, rlDest);
         defEnd = (LIR* )cUnit->lastLIRInsn;
         oatMarkDef(cUnit, rlDest, defStart, defEnd);
@@ -183,10 +185,6 @@ STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
 {
     LIR* defStart;
     LIR* defEnd;
-    if (FPREG(rlSrc.lowReg)!=FPREG(rlSrc.highReg)) {
-        LOG(WARNING) << "rlSrc.lowreg:" << rlSrc.lowReg << ", rlSrc.highReg:"
-                     << rlSrc.highReg;
-    }
     DCHECK_EQ(FPREG(rlSrc.lowReg), FPREG(rlSrc.highReg));
     DCHECK(rlDest.wide);
     DCHECK(rlSrc.wide);
@@ -230,7 +228,7 @@ STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
         defStart = (LIR*)cUnit->lastLIRInsn;
         DCHECK_EQ((oatS2VReg(cUnit, rlDest.sRegLow)+1),
                 oatS2VReg(cUnit, oatSRegHi(rlDest.sRegLow)));
-        storeBaseDispWide(cUnit, rSP, rlDest.spOffset,
+        storeBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
                           rlDest.lowReg, rlDest.highReg);
         oatMarkClean(cUnit, rlDest);
         defEnd = (LIR*)cUnit->lastLIRInsn;

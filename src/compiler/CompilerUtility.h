@@ -19,8 +19,8 @@
 
 #include "Dalvik.h"
 
-/* Each arena page has some overhead, so take a few bytes off 8k */
-#define ARENA_DEFAULT_SIZE 8100
+/* Each arena page has some overhead, so take a few bytes off */
+#define ARENA_DEFAULT_SIZE ((256 * 1024) - 256)
 
 /* Allocate the initial memory block for arena-based allocation */
 bool oatHeapInit(void);
