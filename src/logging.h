@@ -29,36 +29,6 @@
     ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
         << "Check failed: " #x << " "
 
-namespace art {
-
-template <typename LHS, typename RHS>
-struct EagerEvaluator {
-  EagerEvaluator(LHS lhs, RHS rhs) : lhs(lhs), rhs(rhs) { }
-  LHS lhs;
-  RHS rhs;
-};
-
-
-class LogMessage {
- public:
-  LogMessage(const char* file, int line, LogSeverity severity, int error);
-  ~LogMessage();
-  std::ostream& stream();
-
- private:
-  void LogLine(const char*);
-
-  std::stringstream buffer_;
-  const char* file_;
-  int line_number_;
-  LogSeverity severity_;
-  int errno_;
-
-  DISALLOW_COPY_AND_ASSIGN(LogMessage);
-};
-
-}  // namespace art
-
 #define CHECK_OP(LHS, RHS, OP) \
   for (::art::EagerEvaluator<typeof(LHS), typeof(RHS)> _values(LHS, RHS); !(_values.lhs OP _values.rhs); ) \
     ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
@@ -149,5 +119,38 @@ class LogMessage {
 #define LG LOG(INFO)
 
 #define UNIMPLEMENTED(level) LOG(level) << __PRETTY_FUNCTION__ << " unimplemented "
+
+//
+// Implementation details beyond this point.
+//
+
+namespace art {
+
+template <typename LHS, typename RHS>
+struct EagerEvaluator {
+  EagerEvaluator(LHS lhs, RHS rhs) : lhs(lhs), rhs(rhs) { }
+  LHS lhs;
+  RHS rhs;
+};
+
+class LogMessage {
+ public:
+  LogMessage(const char* file, int line, LogSeverity severity, int error);
+  ~LogMessage();
+  std::ostream& stream();
+
+ private:
+  void LogLine(const char*);
+
+  std::stringstream buffer_;
+  const char* file_;
+  int line_number_;
+  LogSeverity severity_;
+  int errno_;
+
+  DISALLOW_COPY_AND_ASSIGN(LogMessage);
+};
+
+}  // namespace art
 
 #endif  // ART_SRC_LOGGING_H_

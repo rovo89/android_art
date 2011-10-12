@@ -24,12 +24,12 @@
 namespace art {
 
 static const int kLogSeverityToAndroidLogPriority[] = {
-  ANDROID_LOG_INFO, ANDROID_LOG_WARN, ANDROID_LOG_ERROR, ANDROID_LOG_FATAL
+  ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO,
+  ANDROID_LOG_WARN, ANDROID_LOG_ERROR, ANDROID_LOG_FATAL
 };
 
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
-: file_(file), line_number_(line), severity_(severity), errno_(error)
-{
+    : file_(file), line_number_(line), severity_(severity), errno_(error) {
   const char* last_slash = strrchr(file, '/');
   file_ = (last_slash == NULL) ? file : last_slash + 1;
 }
