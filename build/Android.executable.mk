@@ -22,50 +22,69 @@ ART_TARGET_EXECUTABLES :=
 # $(3): target or host
 # $(4): ndebug or debug
 define build-art-executable
+  ifneq ($(3),target)
+    ifneq ($(3),host)
+      $$(error expected target or host for argument 3, received $(3))
+    endif
+  endif
+  ifneq ($(4),ndebug)
+    ifneq ($(4),debug)
+      $$(error expected ndebug or debug for argument 4, received $(4))
+    endif
+  endif
+
+  art_executable := $(1)
+  art_source := $(2)
+  art_target_or_host := $(3)
+  art_ndebug_or_debug := $(4)
+
   include $(CLEAR_VARS)
-  ifeq ($(3),target)
+  ifeq ($$(art_target_or_host),target)
     include external/stlport/libstlport.mk
   endif
+
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  ifeq ($(4),ndebug)
-    LOCAL_MODULE := $(1)
-  else
-    LOCAL_MODULE := $(1)d
-  endif
   LOCAL_MODULE_TAGS := optional
-  LOCAL_SRC_FILES := $(2)
-  ifeq ($(3),target)
-    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
-  else
-    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+  LOCAL_SRC_FILES := $$(art_source)
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_SHARED_LIBRARIES := libnativehelper
+
+  ifeq ($$(art_ndebug_or_debug),ndebug)
+    LOCAL_MODULE := $$(art_executable)
+  else #debug
+    LOCAL_MODULE := $$(art_executable)d
   endif
-  ifeq ($(4),debug)
-    ifeq ($(3),target)
+
+  ifeq ($(art_target_or_host),target)
+    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+    ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
-    else
+    endif
+  else # host
+    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+    ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
     endif
   endif
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
-  LOCAL_SHARED_LIBRARIES := libnativehelper
-  ifeq ($(4),ndebug)
+
+  ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_SHARED_LIBRARIES += libart
-  else
+  else # debug
     LOCAL_SHARED_LIBRARIES += libartd
   endif
-  ifeq ($(3),target)
+
+  ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libstlport
   endif
-  ifeq ($(3),target)
+
+  ifeq ($$(art_target_or_host),target)
     include $(BUILD_EXECUTABLE)
-  else
+    ART_TARGET_EXECUTABLES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+  else # host
     include $(BUILD_HOST_EXECUTABLE)
+    ART_HOST_EXECUTABLES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   endif
-  ifeq ($(1),target)
-    ART_TARGET_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
-  else
-    ART_HOST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
-  endif
+
 endef
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)

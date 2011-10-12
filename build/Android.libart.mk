@@ -17,47 +17,62 @@
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart
+  ifneq ($(1),target)
+    ifneq ($(1),host)
+      $$(error expected target or host for argument 1, received $(1))
+    endif
+  endif
+  ifneq ($(2),ndebug)
+    ifneq ($(2),debug)
+      $$(error expected ndebug or debug for argument 2, received $(2))
+    endif
+  endif
+
+  art_target_or_host := $(1)
+  art_ndebug_or_debug := $(2)
+
   include $(CLEAR_VARS)
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
     include external/stlport/libstlport.mk
   endif
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  ifeq ($(2),ndebug)
+  ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart
-  else
+  else # debug
     LOCAL_MODULE := libartd
   endif
+
   LOCAL_MODULE_TAGS := optional
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
     LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
-  else
+  else # host
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
   endif
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
-  else
+  else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
   endif
-  ifeq ($(2),debug)
-    ifeq ($(1),target)
+  ifeq ($$(art_ndebug_or_debug),debug)
+    ifeq ($$(art_target_or_host),target)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
-    else
+    else # host
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
       LOCAL_STATIC_LIBRARIES := libgtest_host
     endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
-  else
+  else # host
     LOCAL_SHARED_LIBRARIES += libz-host
     LOCAL_LDLIBS := -ldl -lpthread -lrt
   endif
   LOCAL_STATIC_LIBRARIES += libdex
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
     include $(BUILD_SHARED_LIBRARY)
-  else
+  else # host
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

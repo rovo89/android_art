@@ -18,37 +18,43 @@ ART_HOST_TEST_EXECUTABLES :=
 ART_TARGET_TEST_EXECUTABLES :=
 
 # $(1): target or host
-# $(2): file name with .cc or .cc.arm extension
+# $(2): file name
 define build-art-test
+  ifneq ($(1),target)
+    ifneq ($(1),host)
+      $$(error expected target or host for argument 1, received $(1))
+    endif
+  endif
+
+  art_target_or_host := $(1)
+  art_gtest_filename := $(2)
+
   include $(CLEAR_VARS)
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
     include external/stlport/libstlport.mk
   endif
+
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  LOCAL_MODULE := $(notdir $(basename $(2:%.arm=%)))
+  LOCAL_MODULE := $(notdir $(basename $$(art_gtest_filename)))
   LOCAL_MODULE_TAGS := tests
-  LOCAL_SRC_FILES := $(2)
+  LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libarttest libartd
-  ifeq ($(1),target)
+
+  ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
-  else
+    include $(BUILD_EXECUTABLE)
+    ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+  else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_main_host
-  endif
-  ifeq ($(1),target)
-    include $(BUILD_EXECUTABLE)
-  else
     include $(BUILD_HOST_EXECUTABLE)
-  endif
-  ifeq ($(1),target)
-    ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
-  else
     ART_HOST_TEST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
   endif
+
 endef
 
 ifeq ($(ART_BUILD_TARGET),true)

@@ -158,7 +158,6 @@ void Thread::InitPthreadKeySelf() {
 
 void Thread::InitAfterFork() {
   InitTid();
-  InitPthread();
   InitPthreadKeySelf();
 }
 

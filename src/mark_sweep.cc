@@ -269,7 +269,7 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
     } else if (klass->IsPhantomReferenceClass()) {
       list = &phantom_reference_list_;
     }
-    DCHECK(list != NULL);
+    DCHECK(list != NULL) << PrettyClass(klass) << " " << std::hex << klass->GetAccessFlags();
     Heap::EnqueuePendingReference(obj, list);
   }
 }

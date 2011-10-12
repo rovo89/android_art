@@ -16,27 +16,33 @@
 
 # $(1): target or host
 define build-libarttest
+  ifneq ($(1),target)
+    ifneq ($(1),host)
+      $$(error expected target or host for argument 1, received $(1))
+    endif
+  endif
+
+  art_target_or_host := $(1)
+
   include $(CLEAR_VARS)
-  ifeq ($(1),target)
+  ifeq ($$(art_target_or_host),target)
    include external/stlport/libstlport.mk
   endif
+
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE := libarttest
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
   LOCAL_SHARED_LIBRARIES := libartd
-  ifeq ($(1),target)
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libstlport
     LOCAL_STATIC_LIBRARIES := libgtest
-  else
+    include $(BUILD_SHARED_LIBRARY)
+  else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_LDLIBS := -ldl -lrt -lpthread
-  endif
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
-  ifeq ($(1),target)
-    include $(BUILD_SHARED_LIBRARY)
-  else
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

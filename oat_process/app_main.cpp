@@ -7,10 +7,8 @@
 
 #define LOG_TAG "appproc"
 
-#include "class_loader.h"
-#include "jni_internal.h"
 #include "stringprintf.h"
-#include "thread.h"
+#include "logging.h"
 
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>

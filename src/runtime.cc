@@ -217,7 +217,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   for (size_t i = 0; i < options.size(); ++i) {
     const StringPiece& option = options[i].first;
-    if (false) {
+    if (true && options[0].first == "-Xzygote") {
       LOG(INFO) << "option[" << i << "]=" << option;
     }
     if (option.starts_with("-Xbootclasspath:")) {
@@ -275,6 +275,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
+      parsed->images_.push_back("/system/framework/boot.art");
     } else if (option.starts_with("-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);

@@ -57,8 +57,11 @@ define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_EXECUTABLES)   $(ART_HOST_TEST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar   $(ART_TEST_OAT_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar $(ART_TEST_OAT_FILES)
+ART_HOST_DEPENDENCIES   := $(ART_HOST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
+ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar
+
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_TEST_OAT_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TEST_OAT_FILES)
 
 ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_OUT_EXECUTABLES)/oat_processd
 
@@ -165,20 +168,34 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 ########################################################################
 # zygote targets
 #
-# zygote-oat-process will change to use art to boot the device
-# zygote-app-process will restore to booting with dalvik
+# zygote-artd will change to use art to boot the device with a debug build
+# zygote-art will change to use art to boot the device with a production build
+# zygote-dalvik will restore to booting with dalvik
+#
+# zygote-artd-target-sync will just push a new artd in place of dvm
+# zygote-art-target-sync will just push a new art in place of dvm
 
-.PHONY: zygote-oat-process
-zygote-oat-process: $(TARGET_BOOT_OAT) test-art-target-sync
-	sed -e 's/app_process/oat_process/' -e 's/--start-system-server/--start-system-server --no-preload/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+.PHONY: zygote-artd-target-sync
+zygote-artd-target-sync: $(ART_TARGET_DEPENDENCIES)
+	cp $(ANDROID_PRODUCT_OUT)/system/lib/libartd.so $(ANDROID_PRODUCT_OUT)/system/lib/libdvm.so
+	cp $(ANDROID_PRODUCT_OUT)/symbols/system/lib/libartd.so $(ANDROID_PRODUCT_OUT)/symbols/system/lib/libdvm.so
+	adb remount
+	adb sync
+
+zygote-artd: $(TARGET_BOOT_OAT) zygote-artd-target-sync
+	sed 's/--start-system-server/--start-system-server --no-preload/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
 	adb reboot bootloader
 	fastboot flash boot $(ANDROID_PRODUCT_OUT)/boot.img
 	fastboot reboot
 
-.PHONY: zygote-app-process
-zygote-app-process:
+.PHONY: zygote-dalvik
+zygote-dalvik:
+	cp $(ANDROID_PRODUCT_OUT)/obj/lib/libdvm.so $(ANDROID_PRODUCT_OUT)/system/lib/libdvm.so
+	cp $(ANDROID_PRODUCT_OUT)/obj/SHARED_LIBRARIES/libdvm_intermediates/LINKED/libdvm.so $(ANDROID_PRODUCT_OUT)/symbols/system/lib/libdvm.so
+	adb remount
+	adb sync
 	cp system/core/rootdir/init.rc $(ANDROID_PRODUCT_OUT)/root/init.rc
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage

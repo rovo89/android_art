@@ -1369,7 +1369,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   bool IsSoftReferenceClass() const {
-    return (GetAccessFlags() & ~kAccReferenceFlagsMask) == kAccClassIsReference;
+    return (GetAccessFlags() & kAccReferenceFlagsMask) == kAccClassIsReference;
   }
 
   bool IsFinalizerReferenceClass() const {
