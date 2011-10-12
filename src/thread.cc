@@ -144,6 +144,24 @@ void Thread::InitFunctionPointers() {
   pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
 }
 
+void Thread::InitTid() {
+  tid_ = ::art::GetTid();
+}
+
+void Thread::InitPthread() {
+  pthread_ = pthread_self();
+}
+
+void Thread::InitPthreadKeySelf() {
+  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach");
+}
+
+void Thread::InitAfterFork() {
+  InitTid();
+  InitPthread();
+  InitPthreadKeySelf();
+}
+
 void* Thread::CreateCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
   Runtime* runtime = Runtime::Current();
@@ -236,12 +254,12 @@ void Thread::Attach(const Runtime* runtime) {
 
   thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
 
-  tid_ = ::art::GetTid();
-  pthread_ = pthread_self();
+  InitTid();
+  InitPthread();
 
   InitStackHwm();
 
-  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach");
+  InitPthreadKeySelf();
 
   jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 

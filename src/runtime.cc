@@ -359,9 +359,7 @@ void Runtime::Start() {
   // come after ClassLinker::RunRootClinits.
   started_ = true;
 
-  if (!is_zygote_) {
-    signal_catcher_ = new SignalCatcher;
-  }
+  StartSignalCatcher();
 
   StartDaemonThreads();
 
@@ -371,6 +369,18 @@ void Runtime::Start() {
 
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Start exiting";
+  }
+}
+
+void Runtime::DidForkFromZygote() {
+  CHECK(is_zygote_);
+  is_zygote_ = false;
+  StartSignalCatcher();
+}
+
+void Runtime::StartSignalCatcher() {
+  if (!is_zygote_) {
+    signal_catcher_ = new SignalCatcher;
   }
 }
 

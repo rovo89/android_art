@@ -77,6 +77,10 @@ class Runtime {
     return verbose_startup_;
   }
 
+  bool IsZygote() const {
+    return is_zygote_;
+  }
+
   const std::string& GetHostPrefix() const {
     CHECK(!IsStarted());
     return host_prefix_;
@@ -201,6 +205,8 @@ class Runtime {
 
   void SetStatsEnabled(bool new_state);
 
+  void DidForkFromZygote();
+
  private:
   static void PlatformAbort(const char*, int);
 
@@ -211,6 +217,7 @@ class Runtime {
   bool Init(const Options& options, bool ignore_unrecognized);
   void InitNativeMethods();
   void RegisterRuntimeNativeMethods(JNIEnv*);
+  void StartSignalCatcher();
   void StartDaemonThreads();
 
   bool verbose_startup_;

@@ -167,6 +167,9 @@ class PACKED Thread {
   // Creates a new thread from the calling thread.
   static Thread* Attach(const Runtime* runtime, const char* name, bool as_daemon);
 
+  // Reset internal state of child thread after fork.
+  void InitAfterFork();
+
   static Thread* Current() {
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
     return reinterpret_cast<Thread*>(thread);
@@ -206,7 +209,9 @@ class PACKED Thread {
   static int GetNativePriority();
 
   bool CanAccessDirectReferences() const {
+#ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
+#endif
     return true;
   }
 
@@ -469,6 +474,9 @@ class PACKED Thread {
 
   void InitCpu();
   void InitFunctionPointers();
+  void InitTid();
+  void InitPthread();
+  void InitPthreadKeySelf();
   void InitStackHwm();
 
   void NotifyLocked() {
