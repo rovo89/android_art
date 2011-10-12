@@ -178,13 +178,9 @@ jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   return Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache).GetDexObject(env);
 }
 
-jint Class_getModifiers(JNIEnv* env, jclass, jclass javaClass, jboolean ignoreInner) {
+jint Class_getNonInnerClassModifiers(JNIEnv* env, jclass, jclass javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
-  jint flags = c->GetAccessFlags() & kAccJavaFlagsMask;
-  if (!ignoreInner) {
-    UNIMPLEMENTED(WARNING) << "inner class modifiers";
-  }
-  return flags;
+  return c->GetAccessFlags() & kAccJavaFlagsMask;
 }
 
 jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
@@ -313,11 +309,6 @@ jclass Class_getSuperclass(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
   Class* result = c->GetSuperClass();
   return AddLocalReference<jclass>(env, result);
-}
-
-jboolean Class_isAnonymousClass(JNIEnv* env, jobject javaThis) {
-  UNIMPLEMENTED(WARNING) << "needs annotations";
-  return JNI_FALSE;
 }
 
 jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
@@ -451,11 +442,9 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
-  //NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
-  NATIVE_METHOD(Class, getModifiers, "(Ljava/lang/Class;Z)I"),
+  NATIVE_METHOD(Class, getNonInnerClassModifiers, "(Ljava/lang/Class;)I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
   NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, isInterface, "()Z"),
