@@ -31,6 +31,7 @@ class Heap;
 class InternTable;
 class JavaVMExt;
 class Method;
+class MonitorList;
 class SignalCatcher;
 class String;
 class ThreadList;
@@ -140,6 +141,10 @@ class Runtime {
     return properties_;
   }
 
+  MonitorList* GetMonitorList() const {
+    return monitor_list_;
+  }
+
   ThreadList* GetThreadList() const {
     return thread_list_;
   }
@@ -229,6 +234,8 @@ class Runtime {
 
   // The default stack size for managed threads created by the runtime.
   size_t default_stack_size_;
+
+  MonitorList* monitor_list_;
 
   ThreadList* thread_list_;
 

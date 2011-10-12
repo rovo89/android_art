@@ -119,11 +119,12 @@ bool InternTable::ContainsWeak(String* s) {
   return found == s;
 }
 
-void InternTable::RemoveWeakIf(const Predicate& predicate) {
+void InternTable::SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg) {
   MutexLock mu(intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
-    if (predicate(it->second)) {
+    Object* object = it->second;
+    if (!is_marked(object, arg)) {
       weak_interns_.erase(it++);
     } else {
       ++it;

@@ -59,6 +59,10 @@ class MarkSweep {
     return mark_bitmap_->Test(object);
   }
 
+  static bool IsMarked(const Object* object, void* arg) {
+    return reinterpret_cast<MarkSweep*>(arg)->IsMarked(object);
+  }
+
   static void MarkObjectVisitor(const Object* root, void* arg);
 
   // Marks an object.
@@ -112,7 +116,6 @@ class MarkSweep {
                          Object** phantom_references);
 
   void SweepSystemWeaks();
-  void SweepMonitorList();
   void SweepJniWeakGlobals();
 
   MarkStack* mark_stack_;

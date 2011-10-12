@@ -36,9 +36,9 @@ TEST_F(InternTableTest, Size) {
   EXPECT_EQ(2U, t.Size());
 }
 
-class TestPredicate : public InternTable::Predicate {
+class TestPredicate {
  public:
-  bool operator()(const String* s) const {
+  bool IsMarked(const Object* s) const {
     bool erased = false;
     typedef std::vector<const String*>::iterator It; // TODO: C++0x auto
     for (It it = expected_.begin(), end = expected_.end(); it != end; ++it) {
@@ -49,7 +49,7 @@ class TestPredicate : public InternTable::Predicate {
       }
     }
     EXPECT_TRUE(erased);
-    return true;
+    return false;
   }
 
   void Expect(const String* s) {
@@ -64,7 +64,11 @@ class TestPredicate : public InternTable::Predicate {
   mutable std::vector<const String*> expected_;
 };
 
-TEST_F(InternTableTest, RemoveWeakIf) {
+bool IsMarked(const Object* object, void* arg) {
+  return reinterpret_cast<TestPredicate*>(arg)->IsMarked(object);
+}
+
+TEST_F(InternTableTest, SweepInternTableWeaks) {
   InternTable t;
   t.InternStrong(3, "foo");
   t.InternStrong(3, "bar");
@@ -77,7 +81,7 @@ TEST_F(InternTableTest, RemoveWeakIf) {
   TestPredicate p;
   p.Expect(s0);
   p.Expect(s1);
-  t.RemoveWeakIf(p);
+  t.SweepInternTableWeaks(IsMarked, &p);
 
   EXPECT_EQ(2U, t.Size());
 

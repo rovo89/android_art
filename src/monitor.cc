@@ -26,6 +26,7 @@
 
 #include "mutex.h"
 #include "object.h"
+#include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -94,6 +95,10 @@ namespace art {
 
 bool Monitor::is_verbose_ = false;
 
+bool Monitor::IsVerbose() {
+  return is_verbose_;
+}
+
 void Monitor::SetVerbose(bool is_verbose) {
   is_verbose_ = is_verbose;
 }
@@ -104,7 +109,6 @@ Monitor::Monitor(Object* obj)
       obj_(obj),
       wait_set_(NULL),
       lock_("a monitor lock"),
-      next_(NULL),
       owner_filename_(NULL),
       owner_line_number_(0) {
 }
@@ -174,48 +178,8 @@ void Monitor::RemoveFromWaitSet(Thread *thread) {
   }
 }
 
-// Global list of all monitors. Used for cleanup.
-static Monitor* gMonitorList = NULL;
-
-void Monitor::FreeMonitorList() {
-  Monitor* m = gMonitorList;
-  while (m != NULL) {
-    Monitor* next = m->next_;
-    delete m;
-    m = next;
-  }
-}
-
-/*
- * Frees monitor objects belonging to unmarked objects.
- */
-static void SweepMonitorList(Monitor** mon, bool (isUnmarkedObject)(void*)) {
-  UNIMPLEMENTED(FATAL);
-#if 0
-  Monitor handle;
-  Monitor *curr;
-
-  DCHECK(mon != NULL);
-  DCHECK(isUnmarkedObject != NULL);
-  Monitor* prev = &handle;
-  prev->next = curr = *mon;
-  while (curr != NULL) {
-    Object* obj = curr->obj;
-    if ((*isUnmarkedObject)(obj) != 0) {
-      prev->next = curr->next;
-      delete curr;
-      curr = prev->next;
-    } else {
-      prev = curr;
-      curr = curr->next;
-    }
-  }
-  *mon = handle.next;
-#endif
-}
-
-void Monitor::SweepMonitorList(bool (isUnmarkedObject)(void*)) {
-  ::art::SweepMonitorList(&gMonitorList, isUnmarkedObject);
+Object* Monitor::GetObject() {
+  return obj_;
 }
 
 /*
@@ -648,10 +612,7 @@ void Monitor::Inflate(Thread* self, Object* obj) {
   if (is_verbose_) {
     LOG(INFO) << "monitor: created monitor " << m << " for object " << obj;
   }
-  // Replace the head of the list with the new monitor.
-  do {
-    m->next_ = gMonitorList;
-  } while (android_atomic_release_cas((int32_t)m->next_, (int32_t)m, (int32_t*)(void*)&gMonitorList) != 0);
+  Runtime::Current()->GetMonitorList()->Add(m);
   m->Lock(self);
   // Propagate the lock state.
   uint32_t thin = *obj->GetRawLockWordAddress();
@@ -943,6 +904,37 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   }
 
   os << "\n";
+}
+
+MonitorList::MonitorList() : lock_("MonitorList lock") {
+}
+
+MonitorList::~MonitorList() {
+  MutexLock mu(lock_);
+  STLDeleteElements(&list_);
+}
+
+void MonitorList::Add(Monitor* m) {
+  MutexLock mu(lock_);
+  list_.push_front(m);
+}
+
+void MonitorList::SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg) {
+  MutexLock mu(lock_);
+  typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
+  It it = list_.begin();
+  while (it != list_.end()) {
+    Monitor* m = *it;
+    if (!is_marked(m->GetObject(), arg)) {
+      if (Monitor::IsVerbose()) {
+        LOG(INFO) << "freeing monitor " << m << " belonging to unmarked object " << m->GetObject();
+      }
+      delete m;
+      it = list_.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 }  // namespace art

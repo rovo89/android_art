@@ -41,14 +41,7 @@ class InternTable {
   // Used when reinitializing InternTable from an image.
   void RegisterStrong(String* s);
 
-  // Removes all weak interns for which the predicate functor 'p' returns true.
-  // (We use an explicit Predicate type rather than a template to keep implementation
-  // out of the header file.)
-  struct Predicate {
-    virtual ~Predicate() {}
-    virtual bool operator()(const String*) const = 0;
-  };
-  void RemoveWeakIf(const Predicate& p);
+  void SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg);
 
   bool ContainsWeak(String* s);
 

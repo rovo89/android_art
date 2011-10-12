@@ -34,6 +34,7 @@ Runtime::Runtime()
     : verbose_startup_(false),
       is_zygote_(false),
       default_stack_size_(Thread::kDefaultStackSize),
+      monitor_list_(NULL),
       thread_list_(NULL),
       intern_table_(NULL),
       class_linker_(NULL),
@@ -61,6 +62,7 @@ Runtime::~Runtime() {
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
+  delete monitor_list_;
 
   delete class_linker_;
   Heap::Destroy();
@@ -426,6 +428,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   default_stack_size_ = options->stack_size_;
 
+  monitor_list_ = new MonitorList;
   thread_list_ = new ThreadList(options->IsVerbose("thread"));
   intern_table_ = new InternTable;
 

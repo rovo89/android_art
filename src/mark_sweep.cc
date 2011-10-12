@@ -13,6 +13,7 @@
 #include "logging.h"
 #include "macros.h"
 #include "mark_stack.h"
+#include "monitor.h"
 #include "object.h"
 #include "runtime.h"
 #include "space.h"
@@ -125,24 +126,9 @@ void MarkSweep::SweepJniWeakGlobals() {
   }
 }
 
-struct InternTableEntryIsUnmarked : public InternTable::Predicate {
-  InternTableEntryIsUnmarked(MarkSweep* ms) : ms_(ms) { }
-
-  bool operator()(const String* s) const {
-    return !ms_->IsMarked(s);
-  }
-
-  MarkSweep* ms_;
-};
-
-void MarkSweep::SweepMonitorList() {
-  UNIMPLEMENTED(WARNING);
-  //dvmSweepMonitorList(&gDvm.monitorList, isUnmarkedObject);
-}
-
 void MarkSweep::SweepSystemWeaks() {
-  Runtime::Current()->GetInternTable()->RemoveWeakIf(InternTableEntryIsUnmarked(this));
-  SweepMonitorList();
+  Runtime::Current()->GetInternTable()->SweepInternTableWeaks(IsMarked, this);
+  Runtime::Current()->GetMonitorList()->SweepMonitorList(IsMarked, this);
   SweepJniWeakGlobals();
 }
 

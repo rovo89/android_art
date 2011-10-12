@@ -21,7 +21,9 @@
 #include <stdint.h>
 
 #include <iosfwd>
+#include <list>
 
+#include "heap.h"
 #include "mutex.h"
 
 namespace art {
@@ -60,6 +62,7 @@ class Monitor {
  public:
   ~Monitor();
 
+  static bool IsVerbose();
   static void SetVerbose(bool is_verbose);
 
   static uint32_t GetLockOwner(uint32_t raw_lock_word);
@@ -71,11 +74,9 @@ class Monitor {
   static void NotifyAll(Thread* self, Object* obj);
   static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow);
 
-  static void SweepMonitorList(bool (isUnmarkedObject)(void*));
-
-  static void FreeMonitorList();
-
   static void DescribeWait(std::ostream& os, const Thread* thread);
+
+  Object* GetObject();
 
  private:
   Monitor(Object* obj);
@@ -109,8 +110,6 @@ class Monitor {
 
   Mutex lock_;
 
-  Monitor* next_;
-
   /*
    * Who last acquired this monitor, when lock sampling is enabled.
    * Even when enabled, ownerFileName may be NULL.
@@ -119,6 +118,23 @@ class Monitor {
   uint32_t owner_line_number_;
 
   friend class Object;
+  DISALLOW_COPY_AND_ASSIGN(Monitor);
+};
+
+class MonitorList {
+ public:
+  MonitorList();
+  ~MonitorList();
+
+  void Add(Monitor* m);
+
+  void SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg);
+
+ private:
+  Mutex lock_;
+  std::list<Monitor*> list_;
+
+  DISALLOW_COPY_AND_ASSIGN(MonitorList);
 };
 
 /*

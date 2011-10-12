@@ -40,6 +40,7 @@ class Heap {
   static const size_t kMaximumSize = 16 * MB;
 
   typedef void (RootVisitor)(const Object* root, void* arg);
+  typedef bool (IsMarkedTester)(const Object* object, void* arg);
 
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
