@@ -35,7 +35,7 @@ define build-art-test
   endif
 
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  LOCAL_MODULE := $(notdir $(basename $$(art_gtest_filename)))
+  LOCAL_MODULE := $$(notdir $$(basename $$(art_gtest_filename)))
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
