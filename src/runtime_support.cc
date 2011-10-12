@@ -323,8 +323,9 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   size_t args_in_regs = shorty_len < 3 ? shorty_len : 3;
   bool is_static;
   if (type == Runtime::kUnknownMethod) {
-    uint32_t dex_pc = (*caller_sp)->ToDexPC(caller_pc - 2);
     Method* caller = *caller_sp;
+    // less two as return address may span into next dex instruction
+    uint32_t dex_pc = caller->ToDexPC(caller_pc - 2);
     const DexFile& dex_file = Runtime::Current()->GetClassLinker()
                                   ->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
     const DexFile::CodeItem* code = dex_file.GetCodeItem(caller->GetCodeItemOffset());
