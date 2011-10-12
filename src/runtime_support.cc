@@ -320,7 +320,15 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   const char* shorty = linker->MethodShorty(method_idx, *caller_sp);
   size_t shorty_len = strlen(shorty);
-  size_t args_in_regs = shorty_len < 3 ? shorty_len : 3;
+  size_t args_in_regs = 0;
+  for (size_t i = 1; i < shorty_len; i++) {
+    char c = shorty[i];
+    args_in_regs = args_in_regs + (c == 'J' || c == 'D' ? 2 : 1);
+    if (args_in_regs > 3) {
+      args_in_regs = 3;
+      break;
+    }
+  }
   bool is_static;
   if (type == Runtime::kUnknownMethod) {
     Method* caller = *caller_sp;
@@ -339,27 +347,36 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   } else {
     is_static = type == Runtime::kStaticMethod;
   }
-  // Handlerize references in registers
-  int cur_arg = 1;   // skip method_idx in R0, first arg is in R1
+  // Placing into local references incoming arguments from the caller's register arguments
+  size_t cur_arg = 1;   // skip method_idx in R0, first arg is in R1
   if (!is_static) {
     Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
     cur_arg++;
+    if (args_in_regs < 3) {
+      // If we thought we had fewer than 3 arguments in registers, account for the receiver
+      args_in_regs++;
+    }
     AddLocalReference<jobject>(env, obj);
   }
-  for(size_t i = 0; i < args_in_regs; i++) {
-    char c = shorty[i + 1];  // offset to skip return value
+  size_t shorty_index = 1;  // skip return value
+  // Iterate while arguments and arguments in registers (less 1 from cur_arg which is offset to skip
+  // R0)
+  while ((cur_arg - 1) < args_in_regs && shorty_index < shorty_len) {
+    char c = shorty[shorty_index];
+    shorty_index++;
     if (c == 'L') {
       Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
       AddLocalReference<jobject>(env, obj);
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
-  // Handlerize references in out going arguments
-  for(size_t i = 3; i < (shorty_len - 1); i++) {
-    char c = shorty[i + 1];  // offset to skip return value
+  // Placing into local references incoming arguments from the caller's stack arguments
+  cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
+  while (shorty_index < shorty_len) {
+    char c = shorty[shorty_index];
+    shorty_index++;
     if (c == 'L') {
-      // Plus 6 to skip args 1 to 3, LR and Method* plus the start offset of 3 to skip the spills
-      Object* obj = reinterpret_cast<Object*>(regs[i + 6]);
+      Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
       AddLocalReference<jobject>(env, obj);
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
@@ -805,39 +822,42 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   jobject rcvr_jobj = AddLocalReference<jobject>(env, receiver);
   jobject proxy_method_jobj = AddLocalReference<jobject>(env, proxy_method);
 
-  // Place incoming objects in local reference table, replacing original Object* with jobject
-  size_t num_args = proxy_method->NumArgs();
-  if (num_args > 1) {
-    if (proxy_method->IsParamAReference(1)) {
-      Object* obj = *reinterpret_cast<Object**>(stack_args);  // reference from r1
+  // Placing into local references incoming arguments from the caller's register arguments,
+  // replacing original Object* with jobject
+  const size_t num_params = proxy_method->NumArgs();
+  size_t args_in_regs = 0;
+  for (size_t i = 1; i < num_params; i++) {  // skip receiver
+    args_in_regs = args_in_regs + (proxy_method->IsParamALongOrDouble(i) ? 2 : 1);
+    if (args_in_regs > 2) {
+      args_in_regs = 2;
+      break;
+    }
+  }
+  size_t cur_arg = 0;  // current stack location to read
+  size_t param_index = 1;  // skip receiver
+  while (cur_arg < args_in_regs && param_index < num_params) {
+    if (proxy_method->IsParamAReference(param_index)) {
+      Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
       jobject jobj = AddLocalReference<jobject>(env, obj);
-      *reinterpret_cast<jobject*>(stack_args) = jobj;
+      *reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)) = jobj;
     }
-    if (num_args > 2) {
-      if (proxy_method->IsParamAReference(2)) {
-        Object* obj = *reinterpret_cast<Object**>(stack_args + kPointerSize);  // reference from r2
-        jobject jobj = AddLocalReference<jobject>(env, obj);
-        *reinterpret_cast<jobject*>(stack_args + kPointerSize) = jobj;
-      }
-      // Possible out arguments are 7 words above the stack args:
-      // r2, r3, LR, Method*, r1 (spill), r2 (spill), r3 (spill)
-      size_t offset = 7 * kPointerSize;
-      for (size_t i = 3; i < num_args; i++) {
-        if (proxy_method->IsParamAReference(i)) {
-          // reference from caller's stack arguments
-          Object* obj = *reinterpret_cast<Object**>(stack_args + offset);
-          jobject jobj = AddLocalReference<jobject>(env, obj);
-          *reinterpret_cast<jobject*>(stack_args + offset) = jobj;
-        } else if (proxy_method->IsParamALongOrDouble(i)) {
-          offset += kPointerSize;
-        }
-        offset += kPointerSize;
-      }
+    cur_arg = cur_arg + (proxy_method->IsParamALongOrDouble(param_index) ? 2 : 1);
+    param_index++;
+  }
+  // Placing into local references incoming arguments from the caller's stack arguments
+  cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
+  while (param_index < num_params) {
+    if (proxy_method->IsParamAReference(param_index)) {
+      Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
+      jobject jobj = AddLocalReference<jobject>(env, obj);
+      *reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)) = jobj;
     }
+    cur_arg = cur_arg + (proxy_method->IsParamALongOrDouble(param_index) ? 2 : 1);
+    param_index++;
   }
   // Create args array
   ObjectArray<Object>* args =
-      Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_args - 1);
+      Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
   if(args == NULL) {
     CHECK(self->IsExceptionPending());
     return;
@@ -848,58 +868,54 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   args_jobj[1].l = proxy_method_jobj;
   args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
   // Box arguments
+  cur_arg = 0;  // reset stack location to read to start
+  // reset index, will index into param type array which doesn't include the receiver
+  param_index = 0;
   ObjectArray<Class>* param_types = proxy_method->GetJavaParameterTypes();
-  if (num_args > 1) {
-    CHECK(param_types != NULL);
+  CHECK(param_types != NULL);
+  // Check number of parameter types agrees with number from the Method - less 1 for the receiver.
+  CHECK_EQ(static_cast<size_t>(param_types->GetLength()), num_params - 1);
+  while (cur_arg < args_in_regs && param_index < (num_params - 1)) {
+    Class* param_type = param_types->Get(param_index);
     Object* obj;
-    // Argument from r2
-    Class* param_type = param_types->Get(0);
     if (!param_type->IsPrimitive()) {
-      obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args));
+      obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)));
     } else {
-      JValue val = *reinterpret_cast<JValue*>(stack_args);
+      JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
+      if (cur_arg == 1 && (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble())) {
+        // long/double split over regs and stack, mask in high half from stack arguments
+        // (7 = 2 reg args + LR + Method* + 3 arg reg spill slots)
+        uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (7 * kPointerSize));
+        val.j = (val.j & 0xFFFFFFFFull) | (high_half << 32);
+      }
       BoxPrimitive(env, param_type, val);
       if (self->IsExceptionPending()) {
         return;
       }
       obj = val.l;
     }
-    args->Set(0, obj);
-    if (num_args > 2) {
-      // Argument from r3
-      param_type = param_types->Get(1);
-      if (!param_type->IsPrimitive()) {
-        obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + kPointerSize));
-      } else {
-        JValue val = *reinterpret_cast<JValue*>(stack_args + kPointerSize);
-        BoxPrimitive(env, param_type, val);
-        if (self->IsExceptionPending()) {
-          return;
-        }
-        obj = val.l;
+    args->Set(param_index, obj);
+    cur_arg = cur_arg + (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble() ? 2 : 1);
+    param_index++;
+  }
+  // Placing into local references incoming arguments from the caller's stack arguments
+  cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
+  while (param_index < num_params) {
+    Class* param_type = param_types->Get(param_index);
+    Object* obj;
+    if (!param_type->IsPrimitive()) {
+      obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)));
+    } else {
+      JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
+      BoxPrimitive(env, param_type, val);
+      if (self->IsExceptionPending()) {
+        return;
       }
-      args->Set(1, obj);
-      // Arguments are on the stack, again offset to out arguments is 7 words
-      size_t offset = 7 * kPointerSize;
-      for (size_t i = 3; i < num_args && !self->IsExceptionPending(); i++) {
-        param_type = param_types->Get(i - 1);
-        if (proxy_method->IsParamAReference(i)) {
-          obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + offset));
-        } else {
-          JValue val = *reinterpret_cast<JValue*>(stack_args + offset);
-          BoxPrimitive(env, param_type, val);
-          if (self->IsExceptionPending()) {
-            return;
-          }
-          obj = val.l;
-          if (proxy_method->IsParamALongOrDouble(i)) {
-            offset += kPointerSize;
-          }
-        }
-        args->Set(i - 1, obj);
-        offset += kPointerSize;
-      }
+      obj = val.l;
     }
+    args->Set(param_index, obj);
+    cur_arg = cur_arg + (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble() ? 2 : 1);
+    param_index++;
   }
   // Get the InvocationHandler method and the field that holds it within the Proxy object
   static jmethodID inv_hand_invoke_mid = NULL;
