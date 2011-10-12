@@ -209,6 +209,7 @@ int main(int argc, const char* argv[])
     // Parse runtime arguments.  Stop at first unrecognized option.
     bool zygote = false;
     bool startSystemServer = false;
+    bool noPreload = false;
     bool application = false;
     const char* parentDir = NULL;
     const char* niceName = NULL;
@@ -222,6 +223,8 @@ int main(int argc, const char* argv[])
             niceName = "zygote";
         } else if (strcmp(arg, "--start-system-server") == 0) {
             startSystemServer = true;
+        } else if (strcmp(arg, "--no-preload") == 0) {
+            noPreload = true;
         } else if (strcmp(arg, "--application") == 0) {
             application = true;
         } else if (strncmp(arg, "--nice-name=", 12) == 0) {
@@ -240,8 +243,14 @@ int main(int argc, const char* argv[])
     runtime.mParentDir = parentDir;
 
     if (zygote) {
-        runtime.start("com.android.internal.os.ZygoteInit",
-                startSystemServer ? "start-system-server" : "");
+        std::string options;
+        if (startSystemServer) {
+            options += "start-system-server ";
+        }
+        if (noPreload) {
+            options += "no-preload ";
+        }
+        runtime.start("com.android.internal.os.ZygoteInit", options.c_str());
     } else if (className) {
         // Remainder of args get passed to startup class main()
         runtime.mClassName = className;
