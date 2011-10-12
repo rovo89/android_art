@@ -949,6 +949,10 @@ class MANAGED Method : public AccessibleObject {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), fp_spill_mask, false);
   }
 
+  void SetExceptionTypes(Object* exception_types) {
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_exception_types_), exception_types, false);
+  }
+
   ObjectArray<Class>* GetJavaParameterTypes() const {
     return GetFieldObject<ObjectArray<Class>*>(
         OFFSET_OF_OBJECT_MEMBER(Method, java_parameter_types_), false);
@@ -2765,6 +2769,22 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
   };
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(InterfaceEntry);
+};
+
+class MANAGED ProxyClass : public Class {
+ private:
+  int32_t NextClassNameIndex_;
+  int64_t serialVersionUID_;
+  friend struct ProxyClassOffsets;  // for verifying offset information
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ProxyClass);
+};
+
+class MANAGED Proxy : public Object {
+ private:
+  Object* h_;
+
+  friend struct ProxyOffsets;  // for verifying offset information
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Proxy);
 };
 
 }  // namespace art

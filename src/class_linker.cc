@@ -1513,6 +1513,77 @@ void ClassLinker::VerifyClass(Class* klass) {
   }
 }
 
+Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interfaces,
+    ClassLoader* loader, ObjectArray<Method>* methods, ObjectArray<Object>* throws) {
+  Class* klass = AllocClass(GetClassRoot(kJavaLangClass), sizeof(ProxyClass));
+  CHECK(klass != NULL);
+  klass->SetObjectSize(sizeof(Proxy));
+  klass->SetDescriptor(intern_table_->InternStrong(name));
+  klass->SetAccessFlags(kAccPublic | kAccFinal);
+  klass->SetClassLoader(loader);
+  klass->SetStatus(Class::kStatusInitialized);
+  klass->SetInterfaces(interfaces);
+
+  klass->SetDirectMethods(AllocObjectArray<Method>(1));
+  klass->SetDirectMethod(0, CreateProxyConstructor(klass));
+
+  size_t num_virtual_methods = methods->GetLength();
+  klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
+  for (size_t i = 0; i < num_virtual_methods; ++i) {
+    Method* prototype = methods->Get(i);
+    klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype, throws->Get(i)));
+  }
+
+  if (!LinkMethods(klass)) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return NULL;
+  }
+
+  return klass;
+}
+
+Method* ClassLinker::CreateProxyConstructor(Class* klass) {
+  Method* constructor = AllocMethod();
+  constructor->SetDeclaringClass(klass);
+  constructor->SetName(intern_table_->InternStrong("<init>"));
+  constructor->SetSignature(intern_table_->InternStrong("(Ljava/lang/reflect/InvocationHandler;)V"));
+  constructor->SetShorty(intern_table_->InternStrong("LV"));
+  constructor->SetAccessFlags(kAccPublic | kAccNative);
+
+  // TODO: return type
+  // TODO: code block
+
+  return constructor;
+}
+
+Method* ClassLinker::CreateProxyMethod(Class* klass, Method* prototype, Object* throws) {
+  Method* method = AllocMethod();
+  method->SetDeclaringClass(klass);
+  method->SetName(const_cast<String*>(prototype->GetName()));
+  method->SetSignature(const_cast<String*>(prototype->GetSignature()));
+  method->SetShorty(prototype->GetShorty());
+  method->SetAccessFlags(prototype->GetAccessFlags());
+  method->SetExceptionTypes(throws);
+
+  // TODO: return type
+  // method->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
+
+  // TODO: code block
+  // method->SetCodeItemOffset(src.code_off_);
+  // method->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+  // method->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
+  // method->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
+  // method->SetDexCacheResolvedFields(klass->GetDexCache()->GetResolvedFields());
+  // method->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
+  // method->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
+  // method->SetNumRegisters(code_item->registers_size_);
+  // method->SetNumIns(code_item->ins_size_);
+  // method->SetNumOuts(code_item->outs_size_);
+  // LinkCode(method, oat_class.get(), method_index);
+
+  return method;
+}
+
 bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   CHECK(klass->IsResolved() || klass->IsErroneous())
       << PrettyClass(klass) << " is " << klass->GetStatus();

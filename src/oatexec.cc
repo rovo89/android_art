@@ -12,6 +12,7 @@
 #include "jni.h"
 #include "logging.h"
 #include "toStringArray.h"
+#include "object.h"
 
 // Determine whether or not the specified method is public.
 static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
@@ -27,14 +28,13 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     fprintf(stderr, "Failed to find class Method\n");
     return false;
   }
-  static const int PUBLIC = 0x0001;   // java.lang.reflect.Modifiers.PUBLIC
   jmethodID get_modifiers = env->GetMethodID(method.get(), "getModifiers", "()I");
   if (get_modifiers == NULL) {
     fprintf(stderr, "Failed to find reflect.Method.getModifiers\n");
     return false;
   }
   int modifiers = env->CallIntMethod(reflected.get(), get_modifiers);
-  if ((modifiers & PUBLIC) == 0) {
+  if ((modifiers & art::kAccPublic) == 0) {
     return false;
   }
   return true;

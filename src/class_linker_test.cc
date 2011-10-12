@@ -573,6 +573,14 @@ struct PathClassLoaderOffsets : public CheckOffsets<PathClassLoader> {
     : CheckOffsets<PathClassLoader>(false, "Ldalvik/system/PathClassLoader;") {};
 };
 
+struct ProxyOffsets : public CheckOffsets<Proxy> {
+  ProxyOffsets() : CheckOffsets<Proxy>(false, "Ljava/lang/reflect/Proxy;") {
+
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Proxy, h_), "h"));
+  };
+};
+
 struct ClassClassOffsets : public CheckOffsets<ClassClass> {
   ClassClassOffsets() : CheckOffsets<ClassClass>(true, "Ljava/lang/Class;") {
 
@@ -626,6 +634,17 @@ struct MethodClassOffsets : public CheckOffsets<MethodClass> {
   };
 };
 
+struct ProxyClassOffsets : public CheckOffsets<ProxyClass> {
+  ProxyClassOffsets() : CheckOffsets<ProxyClass>(true, "Ljava/lang/reflect/Proxy;") {
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ProxyClass, NextClassNameIndex_), "NextClassNameIndex"));
+
+    // alphabetical 64-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ProxyClass, serialVersionUID_), "serialVersionUID"));
+  };
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -642,11 +661,13 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ClassLoaderOffsets().Check());
   EXPECT_TRUE(BaseDexClassLoaderOffsets().Check());
   EXPECT_TRUE(PathClassLoaderOffsets().Check());
+  EXPECT_TRUE(ProxyOffsets().Check());
 
   EXPECT_TRUE(ClassClassOffsets().Check());
   EXPECT_TRUE(StringClassOffsets().Check());
   EXPECT_TRUE(FieldClassOffsets().Check());
   EXPECT_TRUE(MethodClassOffsets().Check());
+  EXPECT_TRUE(ProxyClassOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {

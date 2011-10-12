@@ -226,6 +226,9 @@ class ClassLinker {
 
   void VerifyClass(Class* klass);
 
+  Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
+      ObjectArray<Method>* methods, ObjectArray<Object>* throws);
+
  private:
   ClassLinker(InternTable*);
 
@@ -342,6 +345,9 @@ class ClassLinker {
   const std::vector<DexCache*>& GetDexCaches() {
     return dex_caches_;
   }
+
+  Method* CreateProxyConstructor(Class* klass);
+  Method* CreateProxyMethod(Class* klass, Method* prototype, Object* throws);
 
   // lock to protect ClassLinker state
   mutable Mutex lock_;
