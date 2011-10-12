@@ -24,6 +24,7 @@ class MANAGED ClassLoader : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   Object* packages_;
   ClassLoader* parent_;
+  Object* proxyCache_;
 
   typedef std::tr1::unordered_map<const ClassLoader*, std::vector<const DexFile*>, ObjectIdentityHash> Table;
   static Table compile_time_class_paths_;

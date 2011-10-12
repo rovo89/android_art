@@ -554,6 +554,7 @@ struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),   "parent"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, proxyCache_),   "proxyCache"));
   };
 };
 
