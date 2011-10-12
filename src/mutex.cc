@@ -67,8 +67,16 @@ void Mutex::Unlock() {
 }
 
 pid_t Mutex::GetOwner() {
-#ifdef __BIONIC__
+#if defined(__BIONIC__)
   return static_cast<pid_t>((mutex_.value >> 16) & 0xffff);
+#elif defined(__GLIBC__)
+  struct __attribute__((__may_alias__)) glibc_pthread_t {
+    int lock;
+    unsigned int count;
+    int owner;
+    // ...other stuff we don't care about.
+  };
+  return reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner;
 #else
   UNIMPLEMENTED(FATAL);
   return 0;

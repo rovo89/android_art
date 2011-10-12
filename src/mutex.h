@@ -45,15 +45,11 @@ class Mutex {
   }
 
   void AssertHeld() {
-#ifdef __BIONIC__
     DCHECK_EQ(GetOwner(), GetTid());
-#endif
   }
 
   void AssertNotHeld() {
-#ifdef __BIONIC__
     DCHECK_NE(GetOwner(), GetTid());
-#endif
   }
 
  private:

@@ -148,17 +148,19 @@ void Thread::InitTid() {
   tid_ = ::art::GetTid();
 }
 
-void Thread::InitPthread() {
-  pthread_ = pthread_self();
-}
-
-void Thread::InitPthreadKeySelf() {
-  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach");
-}
-
 void Thread::InitAfterFork() {
   InitTid();
-  InitPthreadKeySelf();
+#if defined(__BIONIC__)
+  // Work around a bionic bug.
+  struct bionic_pthread_internal_t {
+    void*  next;
+    void** pref;
+    pthread_attr_t attr;
+    pid_t kernel_id;
+    // et cetera. we just need 'kernel_id' so we can stop here.
+  };
+  reinterpret_cast<bionic_pthread_internal_t*>(pthread_self())->kernel_id = tid_;
+#endif
 }
 
 void* Thread::CreateCallback(void* arg) {
@@ -236,11 +238,12 @@ void Thread::Create(Object* peer, size_t stack_size) {
   // and know that we're not racing to assign it.
   SetVmData(peer, native_thread);
 
+  pthread_t new_pthread;
   pthread_attr_t attr;
   CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
   CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
   CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
-  CHECK_PTHREAD_CALL(pthread_create, (&native_thread->pthread_, &attr, Thread::CreateCallback, native_thread), "new thread");
+  CHECK_PTHREAD_CALL(pthread_create, (&new_pthread, &attr, Thread::CreateCallback, native_thread), "new thread");
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
 
   // Let the child know when it's safe to start running.
@@ -254,11 +257,9 @@ void Thread::Attach(const Runtime* runtime) {
   thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
 
   InitTid();
-  InitPthread();
-
   InitStackHwm();
 
-  InitPthreadKeySelf();
+  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach");
 
   jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 
@@ -325,7 +326,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
 
 void Thread::InitStackHwm() {
   pthread_attr_t attributes;
-  CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_, &attributes), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_self(), &attributes), __FUNCTION__);
 
   void* temp_stack_base;
   CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &temp_stack_base, &stack_size_),
@@ -406,7 +407,7 @@ void Thread::DumpState(std::ostream& os) const {
 
   int policy;
   sched_param sp;
-  CHECK_PTHREAD_CALL(pthread_getschedparam, (pthread_, &policy, &sp), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_getschedparam, (pthread_self(), &policy, &sp), __FUNCTION__);
 
   std::string scheduler_group(GetSchedulerGroup(GetTid()));
   if (scheduler_group.empty()) {
@@ -431,7 +432,7 @@ void Thread::DumpState(std::ostream& os) const {
      << " nice=" << getpriority(PRIO_PROCESS, GetTid())
      << " sched=" << policy << "/" << sp.sched_priority
      << " cgrp=" << scheduler_group
-     << " handle=" << GetImpl() << "\n";
+     << " handle=" << pthread_self() << "\n";
 
   // Grab the scheduler stats for this thread.
   std::string scheduler_stats;
@@ -1369,7 +1370,6 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   os << "Thread[" << &thread
-     << ",pthread_t=" << thread.GetImpl()
      << ",tid=" << thread.GetTid()
      << ",id=" << thread.GetThinLockId()
      << ",state=" << thread.GetState()

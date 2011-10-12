@@ -223,10 +223,6 @@ class PACKED Thread {
     return tid_;
   }
 
-  pthread_t GetImpl() const {
-    return pthread_;
-  }
-
   Object* GetPeer() const {
     return peer_;
   }
@@ -475,7 +471,6 @@ class PACKED Thread {
   void InitCpu();
   void InitFunctionPointers();
   void InitTid();
-  void InitPthread();
   void InitPthreadKeySelf();
   void InitStackHwm();
 
@@ -498,9 +493,6 @@ class PACKED Thread {
 
   // System thread id.
   pid_t tid_;
-
-  // Native thread handle.
-  pthread_t pthread_;
 
   // Our managed peer (an instance of java.lang.Thread).
   Object* peer_;
