@@ -359,9 +359,10 @@ const DexFile* DexFile::OpenMemory(const byte* dex_bytes, size_t length,
 }
 
 DexFile::~DexFile() {
-  if (dex_object_ != NULL) {
-    UNIMPLEMENTED(WARNING) << "leaked a global reference to an com.android.dex.Dex instance in " << location_;
-  }
+  // We don't call DeleteGlobalRef on dex_object_ because we're only called by DestroyJavaVM, and
+  // that's only called after DetachCurrentThread, which means there's no JNIEnv. We could
+  // re-attach, but cleaning up these global references is not obviously useful. It's not as if
+  // the global reference table is otherwise empty!
 }
 
 jobject DexFile::GetDexObject(JNIEnv* env) const {
