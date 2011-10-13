@@ -98,18 +98,24 @@ String* InternTable::Insert(String* s, bool is_strong) {
 }
 
 String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
-  return Insert(String::AllocFromModifiedUtf8(utf16_length, utf8_data), true);
+  return InternStrong(String::AllocFromModifiedUtf8(utf16_length, utf8_data));
 }
 
 String* InternTable::InternStrong(const char* utf8_data) {
-  return Insert(String::AllocFromModifiedUtf8(utf8_data), true);
+  return InternStrong(String::AllocFromModifiedUtf8(utf8_data));
 }
 
 String* InternTable::InternStrong(String* s) {
+  if (s == NULL) {
+    return NULL;
+  }
   return Insert(s, true);
 }
 
 String* InternTable::InternWeak(String* s) {
+  if (s == NULL) {
+    return NULL;
+  }
   return Insert(s, false);
 }
 
