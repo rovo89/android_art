@@ -69,4 +69,7 @@ TARGET_BOOT_IMG := $(ART_CACHE_OUT)/boot.art
 
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($<)"
+	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) -Xms256m -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
+
+$(TARGET_BOOT_IMG): $(TARGET_BOOT_OAT)
