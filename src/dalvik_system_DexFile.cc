@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+#include <unistd.h>
+
 #include "class_loader.h"
 #include "class_linker.h"
 #include "dex_file.h"
 #include "logging.h"
+#include "os.h"
 #include "runtime.h"
 #include "toStringArray.h"
 #include "ScopedUtfChars.h"
@@ -158,10 +161,34 @@ jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
 jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
-    return JNI_FALSE;
+    return JNI_TRUE;
   }
-  // TODO: return true if we need to extract dex or run dex2oat
-  UNIMPLEMENTED(WARNING) << filename.c_str();
+
+  if (!OS::FileExists(filename.c_str())) {
+    jniThrowExceptionFmt(env, "java/io/FileNotFoundException", "%s", filename.c_str());
+    return JNI_TRUE;
+  }
+
+  // Always treat elements of the bootclasspath as up-to-date.  The
+  // fact that code is running at all means that this should be true.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
+  for (size_t i = 0; i < boot_class_path.size(); i++) {
+    if (boot_class_path[i]->GetLocation() == filename.c_str()) {
+      return JNI_FALSE;
+    }
+  }
+
+  UniquePtr<const DexFile> dex_file(DexFile::Open(filename.c_str(), ""));
+  if (dex_file.get() == NULL) {
+    return JNI_TRUE;
+  }
+
+  UniquePtr<const OatFile> oat_file(class_linker->FindOatFile(*dex_file.get()));
+  if (oat_file.get() == NULL) {
+    return JNI_TRUE;
+  }
+
   return JNI_FALSE;
 }
 

@@ -207,6 +207,9 @@ class ClassLinker {
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
   DexCache* FindDexCache(const DexFile& dex_file) const;
   bool IsDexFileRegistered(const DexFile& dex_file) const;
+
+  // Find, possibily opening, an OatFile corresponding to a DexFile
+  const OatFile* FindOatFile(const DexFile& dex_file);
   const OatFile* FindOatFile(const std::string& location);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
@@ -298,9 +301,6 @@ class ClassLinker {
 
   void RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_cache);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
-
-  // Find, possibily opening, an OatFile corresponding to a DexFile
-  const OatFile* FindOatFile(const DexFile& dex_file);
 
   bool InitializeClass(Class* klass, bool can_run_clinit);
   bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);
