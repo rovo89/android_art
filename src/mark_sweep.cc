@@ -144,6 +144,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, void** ptrs, void* arg) {
   for (size_t i = 0; i < num_ptrs; ++i) {
     Object* obj = static_cast<Object*>(ptrs[i]);
     freed_bytes += space->AllocationSize(obj);
+    Heap::GetLiveBits()->Clear(obj);
     space->Free(obj);
   }
   Heap::RecordFreeLocked(freed_objects, freed_bytes);
