@@ -11,6 +11,7 @@
 #include "object.h"
 #include "space.h"
 #include "stl_util.h"
+#include "timing_logger.h"
 #include "thread_list.h"
 
 namespace art {
@@ -88,12 +89,12 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
     limit = std::max(limit, space->GetLimit());
   }
 
-  Space* space = Space::Create(initial_size, maximum_size, requested_base);
-  if (space == NULL) {
+  alloc_space_ = Space::Create("alloc space", initial_size, maximum_size, requested_base);
+  if (alloc_space_ == NULL) {
     LOG(FATAL) << "Failed to create alloc space";
   }
-  base = std::min(base, space->GetBase());
-  limit = std::max(limit, space->GetLimit());
+  base = std::min(base, alloc_space_->GetBase());
+  limit = std::max(limit, alloc_space_->GetLimit());
   DCHECK_LT(base, limit);
   size_t num_bytes = limit - base;
 
@@ -109,8 +110,7 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
     LOG(FATAL) << "Failed to create mark bitmap";
   }
 
-  alloc_space_ = space;
-  spaces_.push_back(space);
+  spaces_.push_back(alloc_space_);
   maximum_size_ = maximum_size;
   live_bitmap_ = live_bitmap.release();
   mark_bitmap_ = mark_bitmap.release();
@@ -257,18 +257,18 @@ void Heap::RecordAllocationLocked(Space* space, const Object* obj) {
   live_bitmap_->Set(obj);
 }
 
-void Heap::RecordFreeLocked(Space* space, const Object* obj) {
+void Heap::RecordFreeLocked(size_t freed_objects, size_t freed_bytes) {
   lock_->AssertHeld();
-  size_t size = space->AllocationSize(obj);
-  DCHECK_NE(size, 0u);
-  if (size < num_bytes_allocated_) {
-    num_bytes_allocated_ -= size;
+
+  if (freed_objects < num_objects_allocated_) {
+    num_objects_allocated_ -= freed_objects;
+  } else {
+    num_objects_allocated_ = 0;
+  }
+  if (freed_bytes < num_bytes_allocated_) {
+    num_bytes_allocated_ -= freed_bytes;
   } else {
     num_bytes_allocated_ = 0;
-  }
-  live_bitmap_->Clear(obj);
-  if (num_objects_allocated_ > 0) {
-    num_objects_allocated_ -= 1;
   }
 
   if (Runtime::Current()->HasStatsEnabled()) {
@@ -276,8 +276,8 @@ void Heap::RecordFreeLocked(Space* space, const Object* obj) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
     ++global_stats->freed_objects;
     ++thread_stats->freed_objects;
-    global_stats->freed_bytes += size;
-    thread_stats->freed_bytes += size;
+    global_stats->freed_bytes += freed_bytes;
+    thread_stats->freed_bytes += freed_bytes;
   }
 }
 
@@ -456,14 +456,18 @@ void Heap::CollectGarbageInternal() {
   thread_list->SuspendAll();
 
   size_t initial_size = num_bytes_allocated_;
+  TimingLogger timings("CollectGarbageInternal");
   uint64_t t0 = NanoTime();
   Object* cleared_references = NULL;
   {
     MarkSweep mark_sweep;
+    timings.AddSplit("ctor");
 
     mark_sweep.Init();
+    timings.AddSplit("Init");
 
     mark_sweep.MarkRoots();
+    timings.AddSplit("MarkRoots");
 
     // Push marked roots onto the mark stack
 
@@ -472,6 +476,7 @@ void Heap::CollectGarbageInternal() {
     //   thread_list->ResumeAll();
 
     mark_sweep.RecursiveMark();
+    timings.AddSplit("RecursiveMark");
 
     // TODO: if concurrent
     //   lock heap
@@ -480,16 +485,19 @@ void Heap::CollectGarbageInternal() {
     //   scan dirty objects
 
     mark_sweep.ProcessReferences(false);
+    timings.AddSplit("ProcessReferences");
 
     // TODO: if concurrent
     //    swap bitmaps
 
     mark_sweep.Sweep();
+    timings.AddSplit("Sweep");
 
     cleared_references = mark_sweep.GetClearedReferences();
   }
 
   GrowForUtilization();
+  timings.AddSplit("GrowForUtilization");
   uint64_t t1 = NanoTime();
   thread_list->ResumeAll();
 
@@ -508,6 +516,7 @@ void Heap::CollectGarbageInternal() {
             << percentFree << "% free "
             << (num_bytes_allocated_/1024) << "KiB/" << (footprint/1024) << "KiB, "
             << "paused " << duration << "ms";
+  timings.Dump();
 }
 
 void Heap::WaitForConcurrentGcToComplete() {

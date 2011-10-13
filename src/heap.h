@@ -153,7 +153,7 @@ class Heap {
   }
 
   // Callers must hold the heap lock.
-  static void RecordFreeLocked(Space* space, const Object* object);
+  static void RecordFreeLocked(size_t freed_objects, size_t freed_bytes);
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.

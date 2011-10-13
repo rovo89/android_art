@@ -770,12 +770,12 @@ class MANAGED Method : public AccessibleObject {
   }
 
   uint32_t GetOatCodeOffset() const {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     return reinterpret_cast<uint32_t>(GetCode());
   }
 
   void SetOatCodeOffset(uint32_t code_offset) {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     SetCode(reinterpret_cast<void*>(code_offset));
   }
 
@@ -809,12 +809,12 @@ class MANAGED Method : public AccessibleObject {
   }
 
   uint32_t GetOatMappingTableOffset() const {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     return reinterpret_cast<uint32_t>(GetMappingTableRaw());
   }
 
   void SetOatMappingTableOffset(uint32_t mapping_table_offset) {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table_offset));
   }
 
@@ -843,12 +843,12 @@ class MANAGED Method : public AccessibleObject {
   }
 
   uint32_t GetOatVmapTableOffset() const {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     return reinterpret_cast<uint32_t>(GetVmapTableRaw());
   }
 
   void SetOatVmapTableOffset(uint32_t vmap_table_offset) {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     SetVmapTable(reinterpret_cast<uint16_t*>(vmap_table_offset));
   }
 
@@ -906,12 +906,12 @@ class MANAGED Method : public AccessibleObject {
   }
 
   uint32_t GetOatInvokeStubOffset() const {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     return reinterpret_cast<uint32_t>(GetInvokeStub());
   }
 
   void SetOatInvokeStubOffset(uint32_t invoke_stub_offset) {
-    CHECK(!Runtime::Current()->IsStarted());
+    DCHECK(!Runtime::Current()->IsStarted());
     SetInvokeStub(reinterpret_cast<InvokeStub*>(invoke_stub_offset));
   }
 

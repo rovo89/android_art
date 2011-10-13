@@ -1,7 +1,23 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef ART_SRC_SPACE_H_
 #define ART_SRC_SPACE_H_
+
+#include <string>
 
 #include "UniquePtr.h"
 #include "globals.h"
@@ -21,7 +37,8 @@ class Space {
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call GetBase on the returned space to confirm
   // the request was granted.
-  static Space* Create(size_t initial_size, size_t maximum_size, byte* requested_base);
+  static Space* Create(const std::string& name,
+      size_t initial_size, size_t maximum_size, byte* requested_base);
 
   // create a Space from an image file. cannot be used for future allocation or collected.
   static Space* CreateFromImage(const std::string& image);
@@ -49,6 +66,10 @@ class Space {
     return limit_;
   }
 
+  const std::string& GetName() const {
+    return name_;
+  }
+
   size_t Size() const {
     return limit_ - base_;
   }
@@ -64,10 +85,6 @@ class Space {
 
   size_t AllocationSize(const Object* obj);
 
-  bool IsCondemned() const {
-    return mspace_ != NULL;
-  }
-
  private:
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
@@ -75,7 +92,9 @@ class Space {
   // create a Space from an existing memory mapping, taking ownership of the address space.
   static Space* Create(MemMap* mem_map);
 
-  Space() : mspace_(NULL), maximum_size_(0), image_header_(NULL), base_(0), limit_(0) {}
+  Space(const std::string& name)
+      : name_(name), mspace_(NULL), maximum_size_(0), image_header_(NULL), base_(0), limit_(0) {
+  }
 
   // Initializes the space and underlying storage.
   bool Init(size_t initial_size, size_t maximum_size, byte* requested_base);
@@ -89,6 +108,8 @@ class Space {
   void* CreateMallocSpace(void* base, size_t initial_size, size_t maximum_size);
 
   static void DontNeed(void* start, void* end, void* num_bytes);
+
+  std::string name_;
 
   // TODO: have a Space subclass for non-image Spaces with mspace_ and maximum_size_
   void* mspace_;

@@ -13,8 +13,8 @@
 
 namespace art {
 
-Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_base) {
-  UniquePtr<Space> space(new Space());
+Space* Space::Create(const std::string& name, size_t initial_size, size_t maximum_size, byte* requested_base) {
+  UniquePtr<Space> space(new Space(name));
   bool success = space->Init(initial_size, maximum_size, requested_base);
   if (!success) {
     return NULL;
@@ -25,7 +25,7 @@ Space* Space::Create(size_t initial_size, size_t maximum_size, byte* requested_b
 
 Space* Space::CreateFromImage(const std::string& image_file_name) {
   CHECK(image_file_name != NULL);
-  UniquePtr<Space> space(new Space());
+  UniquePtr<Space> space(new Space(image_file_name));
   bool success = space->InitFromImage(image_file_name);
   if (!success) {
     return NULL;

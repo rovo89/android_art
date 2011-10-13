@@ -82,7 +82,7 @@ class Runtime {
   }
 
   const std::string& GetHostPrefix() const {
-    CHECK(!IsStarted());
+    DCHECK(!IsStarted());
     return host_prefix_;
   }
 

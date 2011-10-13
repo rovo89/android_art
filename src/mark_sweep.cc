@@ -17,6 +17,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "space.h"
+#include "timing_logger.h"
 #include "thread.h"
 
 namespace art {
@@ -88,7 +89,6 @@ void MarkSweep::ScanBitmapCallback(Object* obj, void* finger, void* arg) {
 // Populates the mark stack based on the set of marked objects and
 // recursively marks until the mark stack is emptied.
 void MarkSweep::RecursiveMark() {
-
   // RecursiveMark will build the lists of known instances of the Reference classes.
   // See DelayReferenceReferent for details.
   CHECK(soft_reference_list_ == NULL);
@@ -97,16 +97,20 @@ void MarkSweep::RecursiveMark() {
   CHECK(phantom_reference_list_ == NULL);
   CHECK(cleared_reference_list_ == NULL);
 
+  TimingLogger timings("MarkSweep::RecursiveMark");
   void* arg = reinterpret_cast<void*>(this);
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
-    if (spaces[i]->IsCondemned()) {
+    if (!spaces[i]->IsImageSpace()) {
       uintptr_t base = reinterpret_cast<uintptr_t>(spaces[i]->GetBase());
       mark_bitmap_->ScanWalk(base, &MarkSweep::ScanBitmapCallback, arg);
     }
+    timings.AddSplit(StringPrintf("ScanWalk space #%i (%s)", i, spaces[i]->GetName().c_str()));
   }
   finger_ = reinterpret_cast<Object*>(~0);
   ProcessMarkStack();
+  timings.AddSplit("ProcessMarkStack");
+  timings.Dump();
 }
 
 void MarkSweep::ReMarkRoots() {
@@ -134,12 +138,15 @@ void MarkSweep::SweepSystemWeaks() {
 
 void MarkSweep::SweepCallback(size_t num_ptrs, void** ptrs, void* arg) {
   // TODO, lock heap if concurrent
+  size_t freed_objects = num_ptrs;
+  size_t freed_bytes = 0;
   Space* space = static_cast<Space*>(arg);
   for (size_t i = 0; i < num_ptrs; ++i) {
     Object* obj = static_cast<Object*>(ptrs[i]);
-    Heap::RecordFreeLocked(space, obj);
+    freed_bytes += space->AllocationSize(obj);
     space->Free(obj);
   }
+  Heap::RecordFreeLocked(freed_objects, freed_bytes);
   // TODO, unlock heap if concurrent
 }
 
@@ -148,7 +155,7 @@ void MarkSweep::Sweep() {
 
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
-    if (spaces[i]->IsCondemned()) {
+    if (!spaces[i]->IsImageSpace()) {
       uintptr_t base = reinterpret_cast<uintptr_t>(spaces[i]->GetBase());
       uintptr_t limit = reinterpret_cast<uintptr_t>(spaces[i]->GetLimit());
       void* arg = static_cast<void*>(spaces[i]);
