@@ -26,6 +26,7 @@ define build-art-test-dex
   LOCAL_SRC_FILES := $(call all-java-files-under, test/$(1))
   LOCAL_JAVA_LIBRARIES := core
   LOCAL_NO_STANDARD_LIBRARIES := true
+  LOCAL_MODULE_PATH := $(ART_TEST_OUT)
   include $(BUILD_JAVA_LIBRARY)
   ART_TEST_DEX_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/$$(LOCAL_MODULE).jar
 endef
@@ -48,8 +49,8 @@ ART_TEST_OAT_FILES :=
 
 # $(1): directory
 define build-art-test-oat
-  $(call build-art-oat,$(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).jar,$(TARGET_CORE_OAT),$(TARGET_CORE_DEX))
-  ART_TEST_OAT_FILES += $(TARGET_OUT_JAVA_LIBRARIES)/art-test-dex-$(1).oat
+  $(call build-art-oat,$(ART_TEST_OUT)/art-test-dex-$(1).jar,$(TARGET_CORE_OAT),$(TARGET_CORE_DEX))
+  ART_TEST_OAT_FILES += $(ART_TEST_OUT)/art-test-dex-$(1).oat
 endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))
 
@@ -62,10 +63,10 @@ ART_TEST_OAT_TARGETS :=
 define declare-test-test-target
 .PHONY: test-art-target-oat-$(1)
 test-art-target-oat-$(1): test-art-target-sync
-	adb shell touch /sdcard/test-art-target-oat-$(1)
-	adb shell rm /sdcard/test-art-target-oat-$(1)
-	adb shell sh -c "oatexecd -Ximage:/system/framework/core.art -classpath /system/framework/art-test-dex-$(1).jar $(1) $(2) && touch /sdcard/test-art-target-oat-$(1)"
-	$(hide) (adb pull /sdcard/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
+	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
+	adb shell rm $(ART_TEST_DIR)/test-art-target-oat-$(1)
+	adb shell sh -c "oatexecd -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/art-test-dex-$(1).jar $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
+	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 
 ART_TEST_OAT_TARGETS += test-art-target-oat-$(1)

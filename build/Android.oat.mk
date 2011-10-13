@@ -37,27 +37,29 @@ HOST_CORE_DEX   := $(foreach jar,$(HOST_CORE_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/
 TARGET_CORE_DEX := $(foreach jar,$(TARGET_CORE_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
 
 HOST_CORE_OAT := $(HOST_OUT_JAVA_LIBRARIES)/core.oat
-TARGET_CORE_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/core.oat
+TARGET_CORE_OAT := $(ART_TEST_OUT)/core.oat
 
 HOST_CORE_IMG := $(HOST_OUT_JAVA_LIBRARIES)/core.art
-TARGET_CORE_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/core.art
+TARGET_CORE_IMG := $(ART_TEST_OUT)/core.art
 
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
 $(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT)
 	@echo "host dex2oat: $@ ($<)"
+	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) -Xms16m -Xmx16m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(HOST_CORE_IMG) --base=$(IMG_HOST_BASE_ADDRESS)
 
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
 $(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT)
 	@echo "target dex2oat: $@ ($<)"
+	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) -Xms32m -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 ########################################################################
 # The full system boot classpath
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
 TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
-TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
-TARGET_BOOT_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
+TARGET_BOOT_OAT := $(ART_CACHE_OUT)/boot.oat
+TARGET_BOOT_IMG := $(ART_CACHE_OUT)/boot.art
 
 # TODO: change DEX2OATD to order-only prerequisite when output is stable
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT)

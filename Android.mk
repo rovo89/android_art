@@ -53,12 +53,16 @@ build-art: \
 test-art: test-art-host test-art-target
 	@echo test-art PASSED
 
+.PHONY: test-art-gtest
+test-art-gtest: test-art-host test-art-target-gtest
+	@echo test-art-gtest PASSED
+
 define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
-ART_HOST_DEPENDENCIES   := $(ART_HOST_EXECUTABLES)   $(ANDROID_HOST_OUT)/framework/core-hostdex.jar
-ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(ANDROID_PRODUCT_OUT)/system/framework/core.jar
+ART_HOST_DEPENDENCIES   := $(ART_HOST_EXECUTABLES)   $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
+ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar
 
 ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_TEST_OAT_FILES)
 ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TEST_OAT_FILES)
@@ -70,8 +74,7 @@ ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_O
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: $(ART_HOST_TEST_DEPENDENCIES)
-	$(call run-host-tests-with,)
+test-art-host: $(ART_HOST_TEST_DEPENDENCIES) $(ART_HOST_TEST_TARGETS)
 	@echo test-art-host PASSED
 
 # "mm valgrind-art-host" to build and run all host tests under valgrind.
@@ -98,14 +101,10 @@ test-art-target: test-art-target-gtest test-art-target-oat test-art-target-run-t
 test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES)
 	adb remount
 	adb sync
+	adb shell mkdir -p $(ART_TEST_DIR)
 
 .PHONY: test-art-target-gtest
-test-art-target-gtest: test-art-target-sync
-	adb shell touch /sdcard/test-art-target-gtest
-	adb shell rm /sdcard/test-art-target-gtest
-	adb shell sh -c "$(foreach file,$(sort $(ART_TARGET_TEST_EXECUTABLES)), /system/bin/$(notdir $(file)) &&) touch /sdcard/test-art-target-gtest"
-	$(hide) (adb pull /sdcard/test-art-target-gtest /tmp/ && echo test-art-target-gtest PASSED) || echo test-art-target-gtest FAILED
-	$(hide) rm /tmp/test-art-target-gtest
+test-art-target-gtest: $(ART_TARGET_TEST_TARGETS)
 
 .PHONY: test-art-target-oat
 test-art-target-oat: $(ART_TEST_OAT_TARGETS)
@@ -137,8 +136,8 @@ $(eval $(call build-art-framework-oat,$(TARGET_OUT_JAVA_LIBRARIES)/am.jar))
 test-art-target-oat-process-am: $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
 	adb remount
 	adb sync
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:/system/framework/boot.art /system/bin com.android.commands.am.Am start http://android.com && touch /sdcard/test-art-target-process-am"
-	$(hide) (adb pull /sdcard/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:$(ART_CACHE_DIR)/boot.art /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
+	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
 	$(hide) rm /tmp/test-art-target-process-am
 
 $(eval $(call build-art-framework-oat,$(TARGET_OUT_APPS)/Calculator.apk))
@@ -146,9 +145,9 @@ $(eval $(call build-art-framework-oat,$(TARGET_OUT_APPS)/Calculator.apk))
 .PHONY: test-art-target-oat-process-Calculator
 # Note that using this instead of "adb shell am start" make sure that the /data/art-cache is up-to-date
 test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
-	mkdir -p $(TARGET_OUT_DATA)/art-cache
+	mkdir -p $(ART_CACHE_OUT)
 	unzip $(TARGET_OUT_APPS)/Calculator.apk classes.dex -d $(TARGET_OUT_DATA)/art-cache
-	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(TARGET_OUT_DATA)/art-cache/system@app@Calculator.apk@classes.dex.`unzip -lv $(TARGET_OUT_APPS)/Calculator.apk classes.dex | grep classes.dex | sed -E 's/.* ([0-9a-f]+)  classes.dex/\1/'` # note this is extracting the crc32 that is needed as the file extension
+	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(ART_CACHE_OUT)/system@app@Calculator.apk@classes.dex.`unzip -lv $(TARGET_OUT_APPS)/Calculator.apk classes.dex | grep classes.dex | sed -E 's/.* ([0-9a-f]+)  classes.dex/\1/'` # note this is extracting the crc32 that is needed as the file extension
 	adb remount
 	adb sync
 	if [ "`adb shell getprop wrap.com.android.calculator2 | tr -d '\r'`" = "oat_processd" ]; then \
@@ -161,8 +160,8 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 	  sleep 30; \
 	fi
 	adb shell kill `adb shell ps | fgrep com.android.calculator2 | sed -e 's/[^ ]* *\([0-9]*\).*/\1/'`
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:/system/framework/boot.art /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch /sdcard/test-art-target-process-Calculator"
-	$(hide) (adb pull /sdcard/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:$(ART_CACHE_DIR)/boot.art /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
+	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
 	$(hide) rm /tmp/test-art-target-process-Calculator
 
 ########################################################################
@@ -177,11 +176,12 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 
 .PHONY: zygote-artd-target-sync
 zygote-artd-target-sync: $(ART_TARGET_DEPENDENCIES)
-	cp $(ANDROID_PRODUCT_OUT)/system/lib/libartd.so $(ANDROID_PRODUCT_OUT)/system/lib/libdvm.so
-	cp $(ANDROID_PRODUCT_OUT)/symbols/system/lib/libartd.so $(ANDROID_PRODUCT_OUT)/symbols/system/lib/libdvm.so
+	cp $(TARGET_OUT_SHARED_LIBRARIES)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
+	cp $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
 	adb remount
 	adb sync
 
+.PHONY: zygote-artd
 zygote-artd: $(TARGET_BOOT_OAT) zygote-artd-target-sync
 	sed 's/--start-system-server/--start-system-server --no-preload/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
@@ -192,8 +192,8 @@ zygote-artd: $(TARGET_BOOT_OAT) zygote-artd-target-sync
 
 .PHONY: zygote-dalvik
 zygote-dalvik:
-	cp $(ANDROID_PRODUCT_OUT)/obj/lib/libdvm.so $(ANDROID_PRODUCT_OUT)/system/lib/libdvm.so
-	cp $(ANDROID_PRODUCT_OUT)/obj/SHARED_LIBRARIES/libdvm_intermediates/LINKED/libdvm.so $(ANDROID_PRODUCT_OUT)/symbols/system/lib/libdvm.so
+	cp $(TARGET_OUT_INTERMEDIATE_LIBRARIES)/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
+	cp $(call intermediates-dir-for,SHARED_LIBRARIES,libdvm)/LINKED/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
 	adb remount
 	adb sync
 	cp system/core/rootdir/init.rc $(ANDROID_PRODUCT_OUT)/root/init.rc

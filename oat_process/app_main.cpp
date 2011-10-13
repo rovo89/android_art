@@ -164,9 +164,9 @@ int main(int argc, const char* argv[])
     // TODO: remove when we default the boot image
     int oatArgc = argc + 1;
     const char* oatArgv[oatArgc];
-    if (strcmp(argv[0], "-Ximage:/system/framework/boot.art") != 0) {
+    if (strcmp(argv[0], "-Ximage:/data/art-cache/boot.art") != 0) {
         LOG(INFO) << "Adding image arguments";
-        oatArgv[0] = "-Ximage:/system/framework/boot.art";
+        oatArgv[0] = "-Ximage:/data/art-cache/boot.art";
         memcpy(oatArgv + (oatArgc - argc), argv, argc * sizeof(*argv));
         argv = oatArgv;
         argc = oatArgc;

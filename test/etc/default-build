@@ -26,12 +26,12 @@ fi
 
 dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
     --dump-width=1000 classes
-zip ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar classes.dex
+zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
 
 dex2oatd -Xms16m -Xmx16m \
-    --boot-image=${ANDROID_PRODUCT_OUT}/system/framework/core.art \
-    --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar \
-    --oat=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.oat \
+    --boot-image=${ANDROID_PRODUCT_OUT}/data/art-test/core.art \
+    --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar \
+    --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat \
     --host-prefix=${ANDROID_PRODUCT_OUT}
 
 if [ -r src-ex ]; then
@@ -43,13 +43,13 @@ if [ -r src-ex ]; then
     # quick shuffle so that the stored name is "classes.dex"
     mv classes.dex classes-1.dex
     mv classes-ex.dex classes.dex
-    zip ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.jar classes.dex
+    zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar classes.dex
     mv classes.dex classes-ex.dex
     mv classes-1.dex classes.dex
 
     dex2oatd -Xms16m -Xmx16m \
-        --boot-image=${ANDROID_PRODUCT_OUT}/system/framework/core.art \
-        --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.jar \
-        --oat=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME-ex.oat \
+        --boot-image=${ANDROID_PRODUCT_OUT}/data/art-test/core.art \
+        --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar \
+        --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.oat \
         --host-prefix=${ANDROID_PRODUCT_OUT}
 fi

@@ -27,12 +27,12 @@ static void usage() {
           "\n");
   fprintf(stderr,
           "  --image=<file.art>: specifies the required output image filename.\n"
-          "      Example: --image=/system/framework/boot.art\n"
+          "      Example: --image=/data/art-cache/boot.art\n"
           "\n");
   // TODO: remove this by inferring from --image
   fprintf(stderr,
           "  --oat=<file.oat>: specifies the required oat filename.\n"
-          "      Example: --image=/system/framework/boot.oat\n"
+          "      Example: --image=/data/art-cache/boot.oat\n"
           "\n");
   fprintf(stderr,
           "  --base=<hex-address>: specifies the base address when creating a boot image.\n"
@@ -40,7 +40,7 @@ static void usage() {
           "\n");
   fprintf(stderr,
           "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
-          "      Example: --boot-image=/system/framework/boot.art\n"
+          "      Example: --boot-image=/data/art-cache/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --method may be used to limit compilation to a subset of methods.\n"

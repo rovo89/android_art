@@ -275,7 +275,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
-      parsed->images_.push_back("/system/framework/boot.art");
+      parsed->images_.push_back("/data/art-cache/boot.art");
     } else if (option.starts_with("-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);

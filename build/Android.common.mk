@@ -14,6 +14,14 @@
 # limitations under the License.
 #
 
+# art-cache
+ART_CACHE_DIR := /data/art-cache
+ART_CACHE_OUT := $(TARGET_OUT_DATA)/art-cache
+
+# directory used for tests on device
+ART_TEST_DIR := /data/art-test
+ART_TEST_OUT := $(TARGET_OUT_DATA)/art-test
+
 ART_CPP_EXTENSION := .cc
 
 ART_C_INCLUDES := \

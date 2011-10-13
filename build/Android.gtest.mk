@@ -16,6 +16,8 @@
 
 ART_HOST_TEST_EXECUTABLES :=
 ART_TARGET_TEST_EXECUTABLES :=
+ART_HOST_TEST_TARGETS :=
+ART_TARGET_TEST_TARGETS :=
 
 # $(1): target or host
 # $(2): file name
@@ -29,13 +31,15 @@ define build-art-test
   art_target_or_host := $(1)
   art_gtest_filename := $(2)
 
+  art_gtest_name := $$(notdir $$(basename $$(art_gtest_filename)))
+
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
     include external/stlport/libstlport.mk
   endif
 
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  LOCAL_MODULE := $$(notdir $$(basename $$(art_gtest_filename)))
+  LOCAL_MODULE := $$(art_gtest_name)
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
@@ -45,16 +49,38 @@ define build-art-test
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
+    LOCAL_MODULE_PATH := $(ART_TEST_OUT)
     include $(BUILD_EXECUTABLE)
-    ART_TARGET_TEST_EXECUTABLES += $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+    art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+    ART_TARGET_TEST_EXECUTABLES += $$(art_gtest_exe)
   else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_main_host
     include $(BUILD_HOST_EXECUTABLE)
-    ART_HOST_TEST_EXECUTABLES += $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+    art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
+    ART_HOST_TEST_EXECUTABLES += $$(art_gtest_exe)
   endif
 
+art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
+ifeq ($$(art_target_or_host),target)
+.PHONY: $$(art_gtest_target)
+$$(art_gtest_target): $$(art_gtest_exe) test-art-target-sync
+	adb shell touch $(ART_TEST_DIR)/$$@
+	adb shell rm $(ART_TEST_DIR)/$$@
+	adb shell sh -c "$(ART_TEST_DIR)/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
+	$(hide) (adb pull $(ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
+	$(hide) rm /tmp/$$@
+
+ART_TARGET_TEST_TARGETS += $$(art_gtest_target)
+else
+.PHONY: $$(art_gtest_target)
+$$(art_gtest_target): $$(art_gtest_exe)
+	$$<
+	@echo $$@ PASSED
+
+ART_HOST_TEST_TARGETS += $$(art_gtest_target)
+endif
 endef
 
 ifeq ($(ART_BUILD_TARGET),true)
