@@ -31,6 +31,9 @@ class DexFile {
   static const byte kDexMagicVersion[];
   static const size_t kSha1DigestSize = 20;
 
+  // name of the DexFile entry within a zip archive
+  static const char* kClassesDex;
+
   static const byte kEncodedValueTypeMask = 0x1f;  // 0b11111
   static const byte kEncodedValueArgShift = 5;
 

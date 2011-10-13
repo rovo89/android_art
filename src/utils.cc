@@ -514,6 +514,14 @@ std::string GetArtCacheOrDie() {
   return art_cache;
 }
 
+std::string GetArtCacheOatFilenameOrDie(const std::string& location) {
+  std::string art_cache = GetArtCacheOrDie();
+  CHECK_EQ(location[0], '/');
+  std::string cache_file(location, 1); // skip leading slash
+  std::replace(cache_file.begin(), cache_file.end(), '/', '@');
+  return art_cache + "/" + cache_file;
+}
+
 }  // namespace art
 
 // Neither bionic nor glibc exposes gettid(2).

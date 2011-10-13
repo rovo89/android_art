@@ -212,8 +212,11 @@ pid_t GetTid();
 // implementation-defined limit.
 void SetThreadName(const char* name);
 
-// Returns the art-cache location or dies trying
+// Returns the art-cache location, or dies trying.
 std::string GetArtCacheOrDie();
+
+// Returns the art-cache location for an OatFile, or dies trying.
+std::string GetArtCacheOatFilenameOrDie(const std::string& location);
 
 }  // namespace art
 

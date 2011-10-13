@@ -109,8 +109,9 @@ class OatDump {
     os << "location: " << dex_file_location;
     if (!host_prefix.empty()) {
       dex_file_location = host_prefix + dex_file_location;
-      os << " (" << dex_file_location << ")\n";
+      os << " (" << dex_file_location << ")";
     }
+    os << "\n";
     os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileChecksum());
     const DexFile* dex_file = DexFile::Open(dex_file_location, "");
     if (dex_file == NULL) {
@@ -282,8 +283,9 @@ class ImageDump {
     os << oat_location;
     if (!host_prefix.empty()) {
       oat_location = host_prefix + oat_location;
-      os << " (" << oat_location << ")\n";
+      os << " (" << oat_location << ")";
     }
+    os << "\n";
     const OatFile* oat_file = class_linker->FindOatFile(oat_location);
     if (oat_file == NULL) {
       os << "NOT FOUND\n";

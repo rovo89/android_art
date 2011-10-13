@@ -107,7 +107,7 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
   return OpenMemory(dex_file, length, location.ToString(), map.release());
 }
 
-static const char* kClassesDex = "classes.dex";
+const char* DexFile::kClassesDex = "classes.dex";
 
 class LockedFd {
  public:
@@ -643,7 +643,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
   ParameterIterator* it = GetParameterIterator(GetProtoId(method->GetProtoIdx()));
   for (uint32_t i = 0; i < parameters_size && it->HasNext(); ++i, it->Next()) {
     if (arg_reg >= code_item->registers_size_) {
-      LOG(FATAL) << "invalid stream";
+      LOG(ERROR) << "invalid stream";
       return;
     }
     int32_t id = DecodeUnsignedLeb128P1(&stream);
@@ -669,7 +669,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
   }
 
   if (it->HasNext()) {
-    LOG(FATAL) << "invalid stream";
+    LOG(ERROR) << "invalid stream";
     return;
   }
 
@@ -695,7 +695,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_START_LOCAL_EXTENDED:
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
-          LOG(FATAL) << "invalid stream";
+          LOG(ERROR) << "invalid stream";
           return;
         }
 
@@ -718,7 +718,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_END_LOCAL:
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
-          LOG(FATAL) << "invalid stream";
+          LOG(ERROR) << "invalid stream";
           return;
         }
 
@@ -731,13 +731,13 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_RESTART_LOCAL:
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
-          LOG(FATAL) << "invalid stream";
+          LOG(ERROR) << "invalid stream";
           return;
         }
 
         if (need_locals) {
           if (local_in_reg[reg].name_ == NULL || local_in_reg[reg].descriptor_ == NULL) {
-            LOG(FATAL) << "invalid stream";
+            LOG(ERROR) << "invalid stream";
             return;
           }
 

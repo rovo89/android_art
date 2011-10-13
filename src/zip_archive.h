@@ -102,7 +102,10 @@ class ZipArchive {
   static const int32_t kCDECommentLen   = 32;  // offset to comment length
   static const int32_t kCDELocalOffset  = 42;  // offset to local hdr
 
+  // return new ZipArchive instance on success, NULL on error.
   static ZipArchive* Open(const std::string& filename);
+  static ZipArchive* Open(int fd);
+
   ZipEntry* Find(const char * name);
 
   ~ZipArchive() {

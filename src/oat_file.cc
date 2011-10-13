@@ -10,6 +10,17 @@
 
 namespace art {
 
+std::string OatFile::DexFileToOatFilename(const DexFile& dex_file) {
+  std::string location(dex_file.GetLocation());
+  CHECK(StringPiece(location).ends_with(".dex")
+        || StringPiece(location).ends_with(".zip")
+        || StringPiece(location).ends_with(".jar")
+        || StringPiece(location).ends_with(".apk"));
+  location.erase(location.size()-3);
+  location += "oat";
+  return location;
+}
+
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& strip_location_prefix,
                        byte* requested_base) {

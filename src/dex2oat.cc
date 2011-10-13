@@ -86,6 +86,9 @@ int dex2oat(int argc, char** argv) {
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
+    if (false) {
+      LOG(INFO) << "dex2oat: option[" << i << "]=" << argv[i];
+    }
     if (option.starts_with("--dex-file=")) {
       dex_filenames.push_back(option.substr(strlen("--dex-file=")).data());
     } else if (option.starts_with("--method=")) {
@@ -142,7 +145,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   Runtime::Options options;
- std::string boot_class_path_string;
+  std::string boot_class_path_string;
   if (boot_image_option.empty()) {
     boot_class_path_string += "-Xbootclasspath:";
     for (size_t i = 0; i < dex_filenames.size()-1; i++) {

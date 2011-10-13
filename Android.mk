@@ -186,12 +186,15 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 zygote-artd-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
 	cp $(TARGET_OUT_SHARED_LIBRARIES)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
 	cp $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
+	cp $(TARGET_OUT_EXECUTABLES)/oatoptd $(TARGET_OUT_EXECUTABLES)/dexopt
+	cp $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/oatoptd $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
 	adb remount
 	adb sync
 
 .PHONY: zygote-artd
 zygote-artd: zygote-artd-target-sync
-	sed 's/--start-system-server/--start-system-server --no-preload/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+	sed -e 's/--start-system-server/--start-system-server --no-preload/' -e 's/art-cache 0771/art-cache 0777/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
+	adb shell rm -f $(ART_CACHE_DIR)
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
 	adb reboot bootloader
@@ -202,6 +205,8 @@ zygote-artd: zygote-artd-target-sync
 zygote-dalvik:
 	cp $(TARGET_OUT_INTERMEDIATE_LIBRARIES)/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
 	cp $(call intermediates-dir-for,SHARED_LIBRARIES,libdvm)/LINKED/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
+	cp $(call intermediates-dir-for,EXECUTABLES,dexopt)/dexopt $(TARGET_OUT_EXECUTABLES)/dexopt
+	cp $(call intermediates-dir-for,EXECUTABLES,dexopt)/LINKED/dexopt $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
 	adb remount
 	adb sync
 	cp system/core/rootdir/init.rc $(ANDROID_PRODUCT_OUT)/root/init.rc

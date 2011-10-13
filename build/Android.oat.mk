@@ -20,8 +20,8 @@ DEX2OATD := $(HOST_OUT_EXECUTABLES)/dex2oatd$(HOST_EXECUTABLE_SUFFIX)
 DEX2OAT := $(DEX2OATD)
 
 # TODO: change DEX2OAT_DEPENDENCY to order-only prerequisite when output is stable
+# DEX2OAT_DEPENDENCY := | $(DEX2OAT)  # only build dex2oat if needed to build oat files
 DEX2OAT_DEPENDENCY := $(DEX2OAT)    # when dex2oat changes, rebuild all oat files
-DEX2OAT_DEPENDENCY := | $(DEX2OAT)  # only build dex2oat if needed to build oat files
 
 OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
 OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)

@@ -257,7 +257,6 @@ bool ZipEntry::Extract(File& file) {
   }
 }
 
-// return new ZipArchive instance on success, NULL on error.
 ZipArchive* ZipArchive::Open(const std::string& filename) {
   DCHECK(!filename.empty());
   int fd = open(filename.c_str(), O_RDONLY | O_CLOEXEC, 0);
@@ -265,6 +264,10 @@ ZipArchive* ZipArchive::Open(const std::string& filename) {
     PLOG(WARNING) << "Unable to open '" << filename << "'";
     return NULL;
   }
+  return Open(fd);
+}
+
+ZipArchive* ZipArchive::Open(int fd) {
   UniquePtr<ZipArchive> zip_archive(new ZipArchive(fd));
   if (zip_archive.get() == NULL) {
       return NULL;
