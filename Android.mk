@@ -215,7 +215,7 @@ zygote-dalvik:
 # oatdump targets
 
 .PHONY: dump-oat
-dump-oat: dump-oat-core dump-oat-boot # dump-oat-Calculator # TODO: restore when oatdump can dump an oat without an image
+dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 
 .PHONY: dump-oat-core
 dump-oat-core: $(TARGET_CORE_OAT) $(OATDUMP)
@@ -228,8 +228,8 @@ dump-oat-boot: $(TARGET_BOOT_OAT) $(OATDUMP)
 	@echo Output in /tmp/boot.oatdump.txt
 
 .PHONY: dump-oat-Calculator
-dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) --image=$(patsubst %.oat,%.art,$<) --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
+dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(TARGET_BOOT_OAT) $(OATDUMP)
+	$(OATDUMP) --oat=$< --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 
 

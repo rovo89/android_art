@@ -38,8 +38,7 @@ $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,$(dir)))
 # $(2): output oat filename
 # $(3): boot image
 define build-art-oat
-# TODO: change DEX2OATD (and perhaps $(2) boot oat) to order-only prerequisite when output is stable
-$(2): $(1) $(3) $(DEX2OAT)
+$(2): $(1) $(3) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$<)"
 	$(hide) $(DEX2OAT) -Xms16m -Xmx16m --boot-image=$(3) $(addprefix --dex-file=,$$<) --oat=$$@ --host-prefix=$(PRODUCT_OUT)
 endef

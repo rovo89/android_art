@@ -19,6 +19,7 @@
 #include "dex_file.h"
 #include "logging.h"
 #include "runtime.h"
+#include "toStringArray.h"
 #include "ScopedUtfChars.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -144,13 +145,23 @@ jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
   if (dex_file == NULL) {
     return NULL;
   }
-  UNIMPLEMENTED(ERROR);
-  return NULL;
+
+  std::vector<std::string> class_names;
+  for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+    const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+    const char* descriptor = dex_file->GetClassDescriptor(class_def);
+    class_names.push_back(DescriptorToDot(descriptor));
+  }
+  return toStringArray(env, class_names);
 }
 
 jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
-  // TODO: run dex2oat?
-  UNIMPLEMENTED(WARNING);
+  ScopedUtfChars filename(env, javaFilename);
+  if (filename.c_str() == NULL) {
+    return JNI_FALSE;
+  }
+  // TODO: return true if we need to extract dex or run dex2oat
+  UNIMPLEMENTED(WARNING) << filename.c_str();
   return JNI_FALSE;
 }
 

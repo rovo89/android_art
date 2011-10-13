@@ -19,6 +19,10 @@ DEX2OATD := $(HOST_OUT_EXECUTABLES)/dex2oatd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
 DEX2OAT := $(DEX2OATD)
 
+# TODO: change DEX2OAT_DEPENDENCY to order-only prerequisite when output is stable
+DEX2OAT_DEPENDENCY := $(DEX2OAT)    # when dex2oat changes, rebuild all oat files
+DEX2OAT_DEPENDENCY := | $(DEX2OAT)  # only build dex2oat if needed to build oat files
+
 OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
 OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
@@ -42,14 +46,12 @@ TARGET_CORE_OAT := $(ART_TEST_OUT)/core.oat
 HOST_CORE_IMG := $(HOST_OUT_JAVA_LIBRARIES)/core.art
 TARGET_CORE_IMG := $(ART_TEST_OUT)/core.art
 
-# TODO: change DEX2OATD to order-only prerequisite when output is stable
-$(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT)
+$(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($<)"
 	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) -Xms16m -Xmx16m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(HOST_CORE_IMG) --base=$(IMG_HOST_BASE_ADDRESS)
 
-# TODO: change DEX2OATD to order-only prerequisite when output is stable
-$(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT)
+$(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($<)"
 	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) -Xms32m -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
@@ -61,7 +63,6 @@ TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES
 TARGET_BOOT_OAT := $(ART_CACHE_OUT)/boot.oat
 TARGET_BOOT_IMG := $(ART_CACHE_OUT)/boot.art
 
-# TODO: change DEX2OATD to order-only prerequisite when output is stable
-$(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT)
+$(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($<)"
 	$(hide) $(DEX2OAT) -Xms256m -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)

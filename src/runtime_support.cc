@@ -182,7 +182,7 @@ static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
   const DexFile::FieldId& id = dex_file.GetFieldId(ref);
-  std::string class_name(PrettyDescriptor(dex_file.dexStringByTypeIdx(id.class_idx_)));
+  std::string class_name(PrettyDescriptor(dex_file.GetFieldClassDescriptor(id)));
   const char* field_name = dex_file.dexStringById(id.name_idx_);
   if (!access) {
     return class_name + "." + field_name;
@@ -204,7 +204,7 @@ static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
   const DexFile::MethodId& id = dex_file.GetMethodId(ref);
-  std::string class_name(PrettyDescriptor(dex_file.dexStringByTypeIdx(id.class_idx_)));
+  std::string class_name(PrettyDescriptor(dex_file.GetMethodClassDescriptor(id)));
   const char* method_name = dex_file.dexStringById(id.name_idx_);
   if (!access) {
     return class_name + "." + method_name;
