@@ -1226,8 +1226,14 @@ String* String::AllocFromUtf16(int32_t utf16_length,
                                const uint16_t* utf16_data_in,
                                int32_t hash_code) {
   String* string = Alloc(GetJavaLangString(), utf16_length);
+  if (string == NULL) {
+    return NULL;
+  }
   // TODO: use 16-bit wide memset variant
   CharArray* array = const_cast<CharArray*>(string->GetCharArray());
+  if (array == NULL) {
+    return NULL;
+  }
   for (int i = 0; i < utf16_length; i++) {
     array->Set(i, utf16_data_in[i]);
   }
@@ -1247,6 +1253,9 @@ String* String::AllocFromModifiedUtf8(const char* utf) {
 String* String::AllocFromModifiedUtf8(int32_t utf16_length,
                                       const char* utf8_data_in) {
   String* string = Alloc(GetJavaLangString(), utf16_length);
+  if (string == NULL) {
+    return NULL;
+  }
   uint16_t* utf16_data_out =
       const_cast<uint16_t*>(string->GetCharArray()->GetData());
   ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
@@ -1255,11 +1264,18 @@ String* String::AllocFromModifiedUtf8(int32_t utf16_length,
 }
 
 String* String::Alloc(Class* java_lang_String, int32_t utf16_length) {
-  return Alloc(java_lang_String, CharArray::Alloc(utf16_length));
+  CharArray* array = CharArray::Alloc(utf16_length);
+  if (array == NULL) {
+    return NULL;
+  }
+  return Alloc(java_lang_String, array);
 }
 
 String* String::Alloc(Class* java_lang_String, CharArray* array) {
   String* string = down_cast<String*>(java_lang_String->AllocObject());
+  if (string == NULL) {
+    return NULL;
+  }
   string->SetArray(array);
   string->SetCount(array->GetLength());
   return string;
