@@ -212,6 +212,9 @@ pid_t GetTid();
 // implementation-defined limit.
 void SetThreadName(const char* name);
 
+// Returns the art-cache location or dies trying
+std::string GetArtCacheOrDie();
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_H_

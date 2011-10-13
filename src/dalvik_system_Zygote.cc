@@ -277,6 +277,11 @@ pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
   return pid;
 }
 
+jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
+                                    jint debugFlags, jobjectArray rlimits) {
+  return forkAndSpecializeCommon(env, uid, gid, gids, debugFlags, rlimits, 0, 0);
+}
+
 jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
                                    jint debugFlags, jobjectArray rlimits,
                                    jlong permittedCapabilities, jlong effectiveCapabilities) {
@@ -301,7 +306,7 @@ jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, ji
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Zygote, nativeExecShell, "(Ljava/lang/String;)V"),
   //NATIVE_METHOD(Zygote, nativeFork, "()I"),
-  //NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[I)I"),
+  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[I)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
 

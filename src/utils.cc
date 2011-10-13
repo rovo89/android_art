@@ -4,6 +4,7 @@
 #include "utils.h"
 
 #include <pthread.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -480,6 +481,37 @@ void SetThreadName(const char *threadName) {
 #else
 #error no implementation for SetThreadName
 #endif
+}
+
+std::string GetArtCacheOrDie() {
+  const char* data_root = getenv("ANDROID_DATA");
+  if (data_root == NULL) {
+    if (OS::DirectoryExists("/data")) {
+      data_root = "/data";
+    } else {
+      data_root = "/tmp";
+    }
+  }
+  if (!OS::DirectoryExists(data_root)) {
+    LOG(FATAL) << "Failed to find ANDROID_DATA directory " << data_root;
+    return "";
+  }
+
+  std::string art_cache = StringPrintf("%s/art-cache", data_root);
+
+  if (!OS::DirectoryExists(art_cache.c_str())) {
+    if (StringPiece(art_cache).starts_with("/tmp/")) {
+      int result = mkdir(art_cache.c_str(), 0700);
+      if (result != 0) {
+        LOG(FATAL) << "Failed to create art-cache directory " << art_cache;
+        return "";
+      }
+    } else {
+      LOG(FATAL) << "Failed to find art-cache directory " << art_cache;
+      return "";
+    }
+  }
+  return art_cache;
 }
 
 }  // namespace art

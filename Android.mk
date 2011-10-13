@@ -122,29 +122,37 @@ test-art-target-run-test-002: test-art-target-sync
 ########################################################################
 # oat_process test targets
 
+# $(1): jar or apk name
+define art-cache-oat
+  $(ART_CACHE_OUT)/$(subst /,@,$(patsubst %.apk,%.oat,$(patsubst %.jar,%.oat,$(1))))
+endef
+
+ART_CACHE_OATS :=
 # $(1): name
-define build-art-framework-oat
-  $(call build-art-oat,$(1),$(TARGET_BOOT_OAT),$(TARGET_BOOT_DEX))
+define build-art-cache-oat
+  $(call build-art-oat,$(PRODUCT_OUT)/$(1),$(call art-cache-oat,$(1)),$(TARGET_BOOT_IMG))
+  ART_CACHE_OATS += $(call art-cache-oat,$(1))
 endef
 
 .PHONY: test-art-target-oat-process
 test-art-target-oat-process: test-art-target-oat-process-am # test-art-target-oat-process-Calculator
 
-$(eval $(call build-art-framework-oat,$(TARGET_OUT_JAVA_LIBRARIES)/am.jar))
+$(eval $(call build-art-cache-oat,system/framework/am.jar))
+$(eval $(call build-art-cache-oat,system/app/Calculator.apk))
+$(eval $(call build-art-cache-oat,system/app/SettingsProvider.apk))
+$(eval $(call build-art-cache-oat,system/app/SystemUI.apk))
 
 .PHONY: test-art-target-oat-process-am
-test-art-target-oat-process-am: $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
+test-art-target-oat-process-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
 	adb remount
 	adb sync
 	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:$(ART_CACHE_DIR)/boot.art /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
 	$(hide) rm /tmp/test-art-target-process-am
 
-$(eval $(call build-art-framework-oat,$(TARGET_OUT_APPS)/Calculator.apk))
-
 .PHONY: test-art-target-oat-process-Calculator
 # Note that using this instead of "adb shell am start" make sure that the /data/art-cache is up-to-date
-test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARGET_OUT_JAVA_LIBRARIES)/am.oat test-art-target-sync
+test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
 	mkdir -p $(ART_CACHE_OUT)
 	unzip $(TARGET_OUT_APPS)/Calculator.apk classes.dex -d $(TARGET_OUT_DATA)/art-cache
 	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(ART_CACHE_OUT)/system@app@Calculator.apk@classes.dex.`unzip -lv $(TARGET_OUT_APPS)/Calculator.apk classes.dex | grep classes.dex | sed -E 's/.* ([0-9a-f]+)  classes.dex/\1/'` # note this is extracting the crc32 that is needed as the file extension
@@ -175,14 +183,14 @@ test-art-target-oat-process-Calculator: $(TARGET_OUT_APPS)/Calculator.oat $(TARG
 # zygote-art-target-sync will just push a new art in place of dvm
 
 .PHONY: zygote-artd-target-sync
-zygote-artd-target-sync: $(ART_TARGET_DEPENDENCIES)
+zygote-artd-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
 	cp $(TARGET_OUT_SHARED_LIBRARIES)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
 	cp $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
 	adb remount
 	adb sync
 
 .PHONY: zygote-artd
-zygote-artd: $(TARGET_BOOT_OAT) zygote-artd-target-sync
+zygote-artd: zygote-artd-target-sync
 	sed 's/--start-system-server/--start-system-server --no-preload/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
