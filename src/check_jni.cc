@@ -726,10 +726,13 @@ private:
      * make any JNI calls other than the Exception* methods.
      */
     if ((flags & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
-      LOG(ERROR) << "JNI ERROR: JNI " << function_name_ << " called with "
-                 << PrettyTypeOf(self->GetException()) << " pending";
-      LOG(ERROR) << "Pending exception is:";
-      LOG(ERROR) << jniGetStackTrace(env_);
+      std::string type(PrettyTypeOf(self->GetException()));
+      LOG(ERROR) << "JNI ERROR: JNI " << function_name_ << " called with " << type << " pending";
+      // TODO: write native code that doesn't require allocation for dumping an exception.
+      if (type != "java.lang.OutOfMemoryError") {
+        LOG(ERROR) << "Pending exception is: ";
+        LOG(ERROR) << jniGetStackTrace(env_);
+      }
       JniAbort();
       return;
     }

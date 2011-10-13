@@ -224,9 +224,8 @@ void ClassLinker::Init(const std::string& boot_class_path) {
 
   CHECK(!init_done_);
 
-  // java_lang_Class comes first, its needed for AllocClass
-  Class* java_lang_Class = down_cast<Class*>(
-      Heap::AllocObject(NULL, sizeof(ClassClass)));
+  // java_lang_Class comes first, it's needed for AllocClass
+  Class* java_lang_Class = down_cast<Class*>(Heap::AllocObject(NULL, sizeof(ClassClass)));
   CHECK(java_lang_Class != NULL);
   java_lang_Class->SetClass(java_lang_Class);
   java_lang_Class->SetClassSize(sizeof(ClassClass));
@@ -272,6 +271,7 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   // Create storage for root classes, save away our work so far (requires
   // descriptors)
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class, kClassRootsMax);
+  CHECK(class_roots_ != NULL);
   SetClassRoot(kJavaLangClass, java_lang_Class);
   SetClassRoot(kJavaLangObject, java_lang_Object);
   SetClassRoot(kClassArrayClass, class_array_class);
@@ -750,8 +750,16 @@ ClassLinker::~ClassLinker() {
 }
 
 DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
+  String* location = intern_table_->InternStrong(dex_file.GetLocation().c_str());
+  if (location == NULL) {
+    return NULL;
+  }
   DexCache* dex_cache = down_cast<DexCache*>(AllocObjectArray<Object>(DexCache::LengthAsArray()));
-  dex_cache->Init(intern_table_->InternStrong(dex_file.GetLocation().c_str()),
+  if (dex_cache == NULL) {
+    return NULL;
+  }
+  // TODO: lots of missing null checks hidden in this call...
+  dex_cache->Init(location,
                   AllocObjectArray<String>(dex_file.NumStringIds()),
                   AllocClassArray(dex_file.NumTypeIds()),
                   AllocObjectArray<Method>(dex_file.NumMethodIds()),
@@ -875,7 +883,7 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
   jmethodID mid = env->GetMethodID(c.get(), "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
   CHECK(mid != NULL);
   ScopedLocalRef<jobject> class_name_object(env, env->NewStringUTF(class_name_string.c_str()));
-  if (class_name_string == NULL) {
+  if (class_name_object.get() == NULL) {
     return NULL;
   }
   ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
@@ -1030,6 +1038,9 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     DCHECK(klass->GetDescriptor()->Equals(descriptor));
   } else {
     klass->SetDescriptor(intern_table_->InternStrong(descriptor));
+    if (klass->GetDescriptor() == NULL) {
+      return;
+    }
   }
   uint32_t access_flags = dex_class_def.access_flags_;
   // Make sure that none of our runtime-only flags are set.
@@ -1048,7 +1059,11 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
 
   const char* source_file = dex_file.dexGetSourceFile(dex_class_def);
   if (source_file != NULL) {
-    klass->SetSourceFile(intern_table_->InternStrong(source_file));
+    String* source_file_string = intern_table_->InternStrong(source_file);
+    if (source_file_string == NULL) {
+      return;
+    }
+    klass->SetSourceFile(source_file_string);
   }
 
   // Load class interfaces.
@@ -1174,6 +1189,9 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->SetDeclaringClass(klass);
 
   String* method_name = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
+  if (method_name == NULL) {
+    return;
+  }
   dst->SetName(method_name);
   if (method_name->Equals("<init>")) {
     dst->SetClass(GetClassRoot(kJavaLangReflectConstructor));
@@ -1181,7 +1199,11 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
 
   int32_t utf16_length;
   std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
-  dst->SetSignature(intern_table_->InternStrong(utf16_length, signature.c_str()));
+  String* signature_string = intern_table_->InternStrong(utf16_length, signature.c_str());
+  if (signature_string == NULL) {
+    return;
+  }
+  dst->SetSignature(signature_string);
 
   if (method_name->Equals("finalize") && signature == "()V") {
     /*
@@ -1201,7 +1223,11 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   dst->SetProtoIdx(method_id.proto_idx_);
   dst->SetCodeItemOffset(src.code_off_);
   const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
-  dst->SetShorty(intern_table_->InternStrong(shorty));
+  String* shorty_string = intern_table_->InternStrong(shorty);
+  dst->SetShorty(shorty_string);
+  if (shorty_string == NULL) {
+    return;
+  }
   dst->SetAccessFlags(src.access_flags_);
   dst->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
 
@@ -1304,6 +1330,7 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
   CHECK(primitive_class != NULL);
   primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
   primitive_class->SetDescriptor(intern_table_->InternStrong(descriptor));
+  CHECK(primitive_class->GetDescriptor() != NULL);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(Class::kStatusInitialized);
   bool success = InsertClass(descriptor, primitive_class);
@@ -1393,6 +1420,9 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
     DCHECK(new_class->GetDescriptor()->Equals(descriptor));
   } else {
     new_class->SetDescriptor(intern_table_->InternStrong(descriptor.c_str()));
+    if (new_class->GetDescriptor() == NULL) {
+      return NULL;
+    }
   }
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);

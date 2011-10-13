@@ -801,7 +801,7 @@ class DexFile {
                            DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
                            void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
 
-  void dexDecodeDebugInfo(const CodeItem* code_item, const art::Method *method,
+  void dexDecodeDebugInfo(const CodeItem* code_item, const art::Method* method,
                           DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
                           void* cnxt) const {
     const byte* stream = dexGetDebugInfoStream(code_item);

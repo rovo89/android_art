@@ -909,6 +909,9 @@ class JNI {
       return NULL;
     }
     Object* result = c->AllocObject();
+    if (result == NULL) {
+      return NULL;
+    }
     jobject local_result = AddLocalReference<jobject>(env, result);
     CallNonvirtualVoidMethodV(env, local_result, java_class, mid, args);
     return local_result;
@@ -921,6 +924,9 @@ class JNI {
       return NULL;
     }
     Object* result = c->AllocObject();
+    if (result == NULL) {
+      return NULL;
+    }
     jobject local_result = AddLocalReference<jobjectArray>(env, result);
     CallNonvirtualVoidMethodA(env, local_result, java_class, mid, args);
     return local_result;

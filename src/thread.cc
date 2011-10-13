@@ -1076,6 +1076,9 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   } else {
     // Create java_trace array and place in local reference table
     java_traces = class_linker->AllocStackTraceElementArray(depth);
+    if (java_traces == NULL) {
+      return NULL;
+    }
     result = AddLocalReference<jobjectArray>(ts.Env(), java_traces);
   }
 
@@ -1096,8 +1099,10 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
         StackTraceElement::Alloc(String::AllocFromModifiedUtf8(class_name.c_str()),
                                  method->GetName(),
                                  klass->GetSourceFile(),
-                                 dex_file.GetLineNumFromPC(method,
-                                     method->ToDexPC(native_pc)));
+                                 dex_file.GetLineNumFromPC(method, method->ToDexPC(native_pc)));
+    if (obj == NULL) {
+      return NULL;
+    }
 #ifdef MOVING_GARBAGE_COLLECTOR
     // Re-read after potential GC
     java_traces = Decode<ObjectArray<Object>*>(ts.Env(), result);
@@ -1131,14 +1136,25 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
 
   JNIEnv* env = GetJniEnv();
   ScopedLocalRef<jclass> exception_class(env, env->FindClass(descriptor.c_str()));
-  CHECK(exception_class.get() != NULL) << "descriptor=\"" << descriptor << "\"";
+  if (exception_class.get() == NULL) {
+    LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI FindClass failed: "
+               << PrettyTypeOf(GetException());
+    CHECK(IsExceptionPending());
+    return;
+  }
   int rc = env->ThrowNew(exception_class.get(), msg);
-  CHECK_EQ(rc, JNI_OK);
+  if (rc != JNI_OK) {
+    LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI ThrowNew failed: "
+               << PrettyTypeOf(GetException());
+    CHECK(IsExceptionPending());
+    return;
+  }
 }
 
 void Thread::ThrowOutOfMemoryError(Class* c, size_t byte_count) {
-  LOG(ERROR) << "Failed to allocate a " << PrettyDescriptor(c->GetDescriptor())
-             << " (" << byte_count << " bytes)" << (throwing_OutOfMemoryError_ ? " recursive case" : "");
+  LOG(ERROR) << "Failed to allocate a " << byte_count << "-byte "
+             << PrettyDescriptor(c->GetDescriptor())
+             << (throwing_OutOfMemoryError_ ? " (recursive case)" : "");
   if (!throwing_OutOfMemoryError_) {
     throwing_OutOfMemoryError_ = true;
     ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);

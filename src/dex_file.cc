@@ -627,32 +627,37 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
   uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
   uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
   uint32_t address = 0;
+  bool need_locals = (local_cb != NULL);
 
   if (!method->IsStatic()) {
-    local_in_reg[arg_reg].name_ = String::AllocFromModifiedUtf8("this");
-    local_in_reg[arg_reg].descriptor_ = method->GetDeclaringClass()->GetDescriptor();
-    local_in_reg[arg_reg].signature_ = NULL;
-    local_in_reg[arg_reg].start_address_ = 0;
-    local_in_reg[arg_reg].is_live_ = true;
+    if (need_locals) {
+      local_in_reg[arg_reg].name_ = String::AllocFromModifiedUtf8("this");
+      local_in_reg[arg_reg].descriptor_ = method->GetDeclaringClass()->GetDescriptor();
+      local_in_reg[arg_reg].signature_ = NULL;
+      local_in_reg[arg_reg].start_address_ = 0;
+      local_in_reg[arg_reg].is_live_ = true;
+    }
     arg_reg++;
   }
 
-  ParameterIterator *it = GetParameterIterator(GetProtoId(method->GetProtoIdx()));
+  ParameterIterator* it = GetParameterIterator(GetProtoId(method->GetProtoIdx()));
   for (uint32_t i = 0; i < parameters_size && it->HasNext(); ++i, it->Next()) {
     if (arg_reg >= code_item->registers_size_) {
       LOG(FATAL) << "invalid stream";
       return;
     }
-
-    String* descriptor = String::AllocFromModifiedUtf8(it->GetDescriptor());
-    String* name = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
-
-    local_in_reg[arg_reg].name_ = name;
-    local_in_reg[arg_reg].descriptor_ = descriptor;
-    local_in_reg[arg_reg].signature_ = NULL;
-    local_in_reg[arg_reg].start_address_ = address;
-    local_in_reg[arg_reg].is_live_ = true;
-    switch (descriptor->CharAt(0)) {
+    int32_t id = DecodeUnsignedLeb128P1(&stream);
+    const char* descriptor_utf8 = it->GetDescriptor();
+    if (need_locals) {
+      String* descriptor = String::AllocFromModifiedUtf8(descriptor_utf8);
+      String* name = dexArtStringById(id);
+      local_in_reg[arg_reg].name_ = name;
+      local_in_reg[arg_reg].descriptor_ = descriptor;
+      local_in_reg[arg_reg].signature_ = NULL;
+      local_in_reg[arg_reg].start_address_ = address;
+      local_in_reg[arg_reg].is_live_ = true;
+    }
+    switch (*descriptor_utf8) {
       case 'D':
       case 'J':
         arg_reg += 2;
@@ -695,17 +700,19 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
         }
 
         // Emit what was previously there, if anything
-        InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
+        if (need_locals) {
+          InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
 
-        local_in_reg[reg].name_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
-        local_in_reg[reg].descriptor_ = dexArtStringByTypeIdx(DecodeUnsignedLeb128P1(&stream));
-        if (opcode == DBG_START_LOCAL_EXTENDED) {
-          local_in_reg[reg].signature_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
-        } else {
-          local_in_reg[reg].signature_ = NULL;
+          local_in_reg[reg].name_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
+          local_in_reg[reg].descriptor_ = dexArtStringByTypeIdx(DecodeUnsignedLeb128P1(&stream));
+          if (opcode == DBG_START_LOCAL_EXTENDED) {
+            local_in_reg[reg].signature_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
+          } else {
+            local_in_reg[reg].signature_ = NULL;
+          }
+          local_in_reg[reg].start_address_ = address;
+          local_in_reg[reg].is_live_ = true;
         }
-        local_in_reg[reg].start_address_ = address;
-        local_in_reg[reg].is_live_ = true;
         break;
 
       case DBG_END_LOCAL:
@@ -715,8 +722,10 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
           return;
         }
 
-        InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
-        local_in_reg[reg].is_live_ = false;
+        if (need_locals) {
+          InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
+          local_in_reg[reg].is_live_ = false;
+        }
         break;
 
       case DBG_RESTART_LOCAL:
@@ -726,17 +735,18 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
           return;
         }
 
-        if (local_in_reg[reg].name_ == NULL
-            || local_in_reg[reg].descriptor_ == NULL) {
-          LOG(FATAL) << "invalid stream";
-          return;
-        }
+        if (need_locals) {
+          if (local_in_reg[reg].name_ == NULL || local_in_reg[reg].descriptor_ == NULL) {
+            LOG(FATAL) << "invalid stream";
+            return;
+          }
 
-        // If the register is live, the "restart" is superfluous,
-        // and we don't want to mess with the existing start address.
-        if (!local_in_reg[reg].is_live_) {
-          local_in_reg[reg].start_address_ = address;
-          local_in_reg[reg].is_live_ = true;
+          // If the register is live, the "restart" is superfluous,
+          // and we don't want to mess with the existing start address.
+          if (!local_in_reg[reg].is_live_) {
+            local_in_reg[reg].start_address_ = address;
+            local_in_reg[reg].is_live_ = true;
+          }
         }
         break;
 
