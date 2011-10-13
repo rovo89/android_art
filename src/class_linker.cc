@@ -551,9 +551,9 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
-  OatFile* oat_file = OatFile::Open(std::string(oat_filename), "", image_header.GetOatBaseAddr());
+  OatFile* oat_file = OatFile::Open(oat_filename, "", image_header.GetOatBaseAddr());
   if (oat_file == NULL) {
-    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image";
+    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
     return NULL;
   }
   uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
@@ -596,8 +596,22 @@ const OatFile* ClassLinker::FindOatFile(const std::string& location) {
 
   const OatFile* oat_file = OatFile::Open(location, "", NULL);
   if (oat_file == NULL) {
-    LOG(ERROR) << "Failed to open oat file " << location;
-    return NULL;
+    if (location.empty() || location[0] != '/') {
+      LOG(ERROR) << "Failed to open oat file from " << location;
+      return NULL;
+    }
+    // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
+    std::string art_cache = GetArtCacheOrDie();
+    std::string cache_file(location, 1); // skip leading slash
+    std::replace(cache_file.begin(), cache_file.end(), '/', '@');
+    std::string cache_location = art_cache + "/" + cache_file;
+    oat_file = OatFile::Open(cache_location, "", NULL);
+    if (oat_file  == NULL) {
+      LOG(ERROR) << "Failed to open oat file from " << location << " or " << cache_location << ".";
+      return NULL;
+    }
+
+
   }
   return oat_file;
 }
