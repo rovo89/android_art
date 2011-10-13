@@ -56,6 +56,10 @@ $(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) -Xms32m -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
+$(HOST_CORE_IMG): $(HOST_CORE_OAT)
+
+$(TARGET_CORE_IMG): $(TARGET_CORE_OAT)
+
 ########################################################################
 # The full system boot classpath
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
