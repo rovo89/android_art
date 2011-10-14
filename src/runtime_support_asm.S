@@ -485,8 +485,9 @@ art_proxy_invoke_handler:
     add     r3, sp, #12            @ pointer to r2/r3/LR/caller's Method**/out-args as second arg
     blx     artProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, args...)
     ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    ldrd    r0, [sp, #12]          @ load r0/r1 from r2/r3 that were overwritten with the out args
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    ldr     lr,  [sp, #44]         @ restore lr
+    ldrd    r0,  [sp, #12]         @ load r0/r1 from r2/r3 that were overwritten with the out args
+    add     sp,  #48               @ pop frame
     cmp     r12, #0                @ success if no exception is pending
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
@@ -586,6 +587,11 @@ art_deliver_exception_from_code:
     pushl %fs:THREAD_SELF_OFFSET      // pass fs:offsetof(Thread,self_)
     pushl %eax                        // pass Throwable*
     call artDeliverExceptionFromCode  // artDeliverExceptionFromCode(Throwable*, Thread*, SP)
+    int3
+
+    // TODO
+    .global art_proxy_invoke_handler
+art_proxy_invoke_handler:
     int3
 
 #endif

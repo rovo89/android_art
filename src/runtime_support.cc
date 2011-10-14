@@ -901,14 +901,36 @@ extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
   return result;
 }
 
+static void ThrowNewUndeclaredThrowableException(Thread* self, JNIEnv* env, Throwable* exception) {
+  ScopedLocalRef<jclass> jlr_UTE_class(env,
+      env->FindClass("java/lang/reflect/UndeclaredThrowableException"));
+  if (jlr_UTE_class.get() == NULL) {
+    LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
+  } else {
+    jmethodID jlre_UTE_constructor = env->GetMethodID(jlr_UTE_class.get(), "<init>",
+                                                      "(Ljava/lang/Throwable;)V");
+    jthrowable jexception = AddLocalReference<jthrowable>(env, exception);
+    ScopedLocalRef<jthrowable> jlr_UTE(env,
+        reinterpret_cast<jthrowable>(env->NewObject(jlr_UTE_class.get(), jlre_UTE_constructor,
+                                                    jexception)));
+    int rc = env->Throw(jlr_UTE.get());
+    if (rc != JNI_OK) {
+      LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
+    }
+  }
+  CHECK(self->IsExceptionPending());
+}
+
 // Handler for invocation on proxy methods. On entry a frame will exist for the proxy object method
 // which is responsible for recording callee save registers. We explicitly handlerize incoming
 // reference arguments (so they survive GC) and create a boxed argument array. Finally we invoke
 // the invocation handler which is a field within the proxy object receiver.
 extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
-                                      byte* stack_args, Thread* self) {
+                                      Thread* self, byte* stack_args) {
   // Register the top of the managed stack
-  self->SetTopOfStack(reinterpret_cast<Method**>(stack_args + 8), 0);
+  Method** proxy_sp = reinterpret_cast<Method**>(stack_args - 12);
+  DCHECK_EQ(*proxy_sp, proxy_method);
+  self->SetTopOfStack(proxy_sp, 0);
   // TODO: ARM specific
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(), 48u);
   // Start new JNI local reference state
@@ -941,7 +963,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     param_index++;
   }
   // Placing into local references incoming arguments from the caller's stack arguments
-  cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
+  cur_arg += 11;  // skip callee saves, LR, Method* and out arg spills for R1 to R3
   while (param_index < num_params) {
     if (proxy_method->IsParamAReference(param_index)) {
       Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
@@ -951,23 +973,31 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     cur_arg = cur_arg + (proxy_method->IsParamALongOrDouble(param_index) ? 2 : 1);
     param_index++;
   }
-  // Create args array
-  ObjectArray<Object>* args =
-      Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
-  if(args == NULL) {
-    CHECK(self->IsExceptionPending());
-    return;
-  }
   // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
   jvalue args_jobj[3];
   args_jobj[0].l = rcvr_jobj;
   args_jobj[1].l = proxy_method_jobj;
-  args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
+  // Args array, if no arguments then NULL (don't include receiver in argument count)
+  args_jobj[2].l = NULL;
+  ObjectArray<Object>* args = NULL;
+  if ((num_params - 1) > 0) {
+    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
+    if(args == NULL) {
+      CHECK(self->IsExceptionPending());
+      return;
+    }
+    args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
+  }
+  // Convert proxy method into expected interface method
+  Method* interface_method = proxy_method->FindOverriddenMethod();
+  CHECK(interface_method != NULL);
+  args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
+  LOG(INFO) << "Interface method is " << PrettyMethod(interface_method, true);
   // Box arguments
   cur_arg = 0;  // reset stack location to read to start
   // reset index, will index into param type array which doesn't include the receiver
   param_index = 0;
-  ObjectArray<Class>* param_types = proxy_method->GetJavaParameterTypes();
+  ObjectArray<Class>* param_types = interface_method->GetJavaParameterTypes();
   CHECK(param_types != NULL);
   // Check number of parameter types agrees with number from the Method - less 1 for the receiver.
   CHECK_EQ(static_cast<size_t>(param_types->GetLength()), num_params - 1);
@@ -980,8 +1010,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
       if (cur_arg == 1 && (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble())) {
         // long/double split over regs and stack, mask in high half from stack arguments
-        // (7 = 2 reg args + LR + Method* + 3 arg reg spill slots)
-        uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (7 * kPointerSize));
+        uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (13 * kPointerSize));
         val.j = (val.j & 0xffffffffULL) | (high_half << 32);
       }
       BoxPrimitive(env, param_type, val);
@@ -995,8 +1024,8 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     param_index++;
   }
   // Placing into local references incoming arguments from the caller's stack arguments
-  cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
-  while (param_index < num_params) {
+  cur_arg += 11;  // skip callee saves, LR, Method* and out arg spills for R1 to R3
+  while (param_index < (num_params - 1)) {
     Class* param_type = param_types->Get(param_index);
     Object* obj;
     if (!param_type->IsPrimitive()) {
@@ -1017,13 +1046,13 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   static jmethodID inv_hand_invoke_mid = NULL;
   static jfieldID proxy_inv_hand_fid = NULL;
   if (proxy_inv_hand_fid == NULL) {
-    ScopedLocalRef<jclass> proxy(env, env->FindClass("java.lang.reflect.Proxy"));
+    ScopedLocalRef<jclass> proxy(env, env->FindClass("java/lang/reflect/Proxy"));
     proxy_inv_hand_fid = env->GetFieldID(proxy.get(), "h", "Ljava/lang/reflect/InvocationHandler;");
-    ScopedLocalRef<jclass> inv_hand_class(env, env->FindClass("java.lang.reflect.InvocationHandler"));
+    ScopedLocalRef<jclass> inv_hand_class(env, env->FindClass("java/lang/reflect/InvocationHandler"));
     inv_hand_invoke_mid = env->GetMethodID(inv_hand_class.get(), "invoke",
         "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
   }
-  DCHECK(env->IsInstanceOf(rcvr_jobj, env->FindClass("java.lang.reflect.Proxy")));
+  DCHECK(env->IsInstanceOf(rcvr_jobj, env->FindClass("java/lang/reflect/Proxy")));
   jobject inv_hand = env->GetObjectField(rcvr_jobj, proxy_inv_hand_fid);
   // Call InvocationHandler.invoke
   jobject result = env->CallObjectMethodA(inv_hand, inv_hand_invoke_mid, args_jobj);
@@ -1032,10 +1061,31 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     Object* result_ref = self->DecodeJObject(result);
     if (result_ref != NULL) {
       JValue result_unboxed;
-      UnboxPrimitive(env, result_ref, proxy_method->GetReturnType(), result_unboxed);
+      UnboxPrimitive(env, result_ref, interface_method->GetReturnType(), result_unboxed);
       *reinterpret_cast<JValue*>(stack_args) = result_unboxed;
     } else {
       *reinterpret_cast<jobject*>(stack_args) = NULL;
+    }
+  } else {
+    // In the case of checked exceptions that aren't declared, the exception must be wrapped by
+    // a UndeclaredThrowableException.
+    Throwable* exception = self->GetException();
+    self->ClearException();
+    if (!exception->IsCheckedException()) {
+      self->SetException(exception);
+    } else {
+      ObjectArray<Class>* declared_exceptions = proxy_method->GetExceptionTypes();
+      Class* exception_class = exception->GetClass();
+      bool declares_exception = false;
+      for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
+        Class* declared_exception = declared_exceptions->Get(i);
+        declares_exception = declared_exception->IsAssignableFrom(exception_class);
+      }
+      if (declares_exception) {
+        self->SetException(exception);
+      } else {
+        ThrowNewUndeclaredThrowableException(self, env, exception);
+      }
     }
   }
 }

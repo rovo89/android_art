@@ -201,12 +201,12 @@ void Field::SetChar(Object* object, uint16_t c) const {
   Set32(object, c);
 }
 
-uint16_t Field::GetShort(const Object* object) const {
+int16_t Field::GetShort(const Object* object) const {
   DCHECK(GetType()->IsPrimitiveShort());
   return Get32(object);
 }
 
-void Field::SetShort(Object* object, uint16_t s) const {
+void Field::SetShort(Object* object, int16_t s) const {
   DCHECK(GetType()->IsPrimitiveShort());
   Set32(object, s);
 }
@@ -560,9 +560,28 @@ size_t Method::ReturnSize() const {
   return ShortyCharToSize(GetShorty()->CharAt(0));
 }
 
-bool Method::HasSameNameAndDescriptor(const Method* that) const {
-  return (this->GetName()->Equals(that->GetName()) &&
-          this->GetSignature()->Equals(that->GetSignature()));
+Method* Method::FindOverriddenMethod() const {
+  if (IsStatic()) {
+    return NULL;
+  }
+  Class* declaring_class = GetDeclaringClass();
+  Class* super_class = declaring_class->GetSuperClass();
+  uint16_t method_index = GetMethodIndex();
+  ObjectArray<Method>* super_class_vtable = super_class->GetVTable();
+  Method* result = NULL;
+  if (super_class_vtable != NULL && method_index < super_class_vtable->GetLength()) {
+    result = super_class_vtable->Get(method_index);
+  } else {
+    ObjectArray<Class>* interfaces = declaring_class->GetInterfaces();
+    String* name = GetName();
+    String* signature = GetSignature();
+    for (int32_t i = 0; i < interfaces->GetLength() && result == NULL; i++) {
+      Class* interface = interfaces->Get(i);
+      result = interface->FindInterfaceMethod(name, signature);
+    }
+  }
+  DCHECK (result == NULL || HasSameNameAndSignature(result));
+  return result;
 }
 
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
@@ -990,8 +1009,7 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
   return NULL;
 }
 
-Method* Class::FindInterfaceMethod(const StringPiece& name,
-                                   const StringPiece& signature) {
+Method* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& signature) const {
   // Check the current class before checking the interfaces.
   Method* method = FindVirtualMethod(name, signature);
   if (method != NULL) {
@@ -1002,6 +1020,24 @@ Method* Class::FindInterfaceMethod(const StringPiece& name,
   ObjectArray<InterfaceEntry>* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
     method = iftable->Get(i)->GetInterface()->FindVirtualMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindInterfaceMethod(String* name,  String* signature) const {
+  // Check the current class before checking the interfaces.
+  Method* method = FindVirtualMethod(name, signature);
+  if (method != NULL) {
+    return method;
+  }
+  int32_t iftable_count = GetIfTableCount();
+  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  for (int32_t i = 0; i < iftable_count; i++) {
+    Class* interface = iftable->Get(i)->GetInterface();
+    method = interface->FindVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -1033,20 +1069,41 @@ Method* Class::FindDirectMethod(const StringPiece& name,
 }
 
 Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
-                                         const StringPiece& signature) {
+                                         const StringPiece& signature) const {
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     Method* method = GetVirtualMethod(i);
-    if (method->GetName()->Equals(name) &&
-        method->GetSignature()->Equals(signature)) {
+    if (method->GetName()->Equals(name) && method->GetSignature()->Equals(signature)) {
       return method;
     }
   }
   return NULL;
 }
 
-Method* Class::FindVirtualMethod(const StringPiece& name,
-                                 const StringPiece& signature) {
-  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+Method* Class::FindDeclaredVirtualMethod(String* name, String* signature) const {
+  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
+    Method* method = GetVirtualMethod(i);
+    if (method->GetName() == name && method->GetSignature() == signature) {
+      return method;
+    } else {
+      LOG(INFO) << "Find (" << name->ToModifiedUtf8() << ", " << signature->ToModifiedUtf8()
+          << ") != " << PrettyMethod(method);
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    Method* method = klass->FindDeclaredVirtualMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindVirtualMethod(String* name, String* signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     Method* method = klass->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
@@ -1174,6 +1231,9 @@ template class PrimitiveArray<float>;     // FloatArray
 template class PrimitiveArray<int32_t>;   // IntArray
 template class PrimitiveArray<int64_t>;   // LongArray
 template class PrimitiveArray<int16_t>;   // ShortArray
+
+// Explicitly instantiate Class[][]
+template class ObjectArray<ObjectArray<Class> >;
 
 // TODO: get global references for these
 Class* String::java_lang_String_ = NULL;
@@ -1348,6 +1408,15 @@ std::string String::ToModifiedUtf8() const {
   std::string result(byte_count, char(0));
   ConvertUtf16ToModifiedUtf8(&result[0], chars, GetLength());
   return result;
+}
+
+bool Throwable::IsCheckedException() const {
+  Class* error = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Error;");
+  if (InstanceOf(error)) {
+    return false;
+  }
+  Class* jlre = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/RuntimeException;");
+  return !InstanceOf(jlre);
 }
 
 Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;

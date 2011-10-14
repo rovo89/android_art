@@ -32,6 +32,8 @@ extern int64_t F2L(float f);
 /* Helper for both JNI and regular compiled code */
 extern "C" void art_deliver_exception_from_code(void*);
 
+extern "C" void art_proxy_invoke_handler();
+
 #if defined(__arm__)
   /* Compiler helpers */
   extern "C" void* art_alloc_object_from_code(uint32_t type_idx, void* method);

@@ -864,8 +864,8 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   Field* s3 = statics->FindStaticField("s3", class_linker_->FindClass("S", class_loader));
   EXPECT_TRUE(s3->GetType()->IsPrimitiveShort());
-  EXPECT_EQ(65000, s3->GetShort(NULL));
-  s3->SetShort(NULL, 65001);
+  EXPECT_EQ(-536, s3->GetShort(NULL));
+  s3->SetShort(NULL, -535);
 
   Field* s4 = statics->FindStaticField("s4", class_linker_->FindClass("I", class_loader));
   EXPECT_TRUE(s4->GetType()->IsPrimitiveInt());
@@ -895,7 +895,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_EQ(false,                s0->GetBoolean(NULL));
   EXPECT_EQ(6,                    s1->GetByte(NULL));
   EXPECT_EQ('b',                  s2->GetChar(NULL));
-  EXPECT_EQ(65001,                s3->GetShort(NULL));
+  EXPECT_EQ(-535,                 s3->GetShort(NULL));
   EXPECT_EQ(2000000001,           s4->GetInt(NULL));
   EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong(NULL));
   EXPECT_EQ(0.75,                 s6->GetFloat(NULL));

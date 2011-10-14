@@ -447,8 +447,8 @@ class MANAGED Field : public AccessibleObject {
   void SetByte(Object* object, int8_t b) const;
   uint16_t GetChar(const Object* object) const;
   void SetChar(Object* object, uint16_t c) const;
-  uint16_t GetShort(const Object* object) const;
-  void SetShort(Object* object, uint16_t s) const;
+  int16_t GetShort(const Object* object) const;
+  void SetShort(Object* object, int16_t s) const;
   int32_t GetInt(const Object* object) const;
   void SetInt(Object* object, int32_t i) const;
   int64_t GetLong(const Object* object) const;
@@ -534,7 +534,7 @@ class MANAGED Method : public AccessibleObject {
   }
 
   // Returns the method name, e.g. "<init>" or "eatLunch"
-  const String* GetName() const;
+  String* GetName() const;
 
   void SetName(String* new_name);
 
@@ -550,11 +550,13 @@ class MANAGED Method : public AccessibleObject {
 
   void SetShorty(String* new_shorty);
 
-  const String* GetSignature() const;
+  String* GetSignature() const;
 
   void SetSignature(String* new_signature);
 
-  bool HasSameNameAndDescriptor(const Method* that) const;
+  bool HasSameNameAndSignature(const Method* that) const {
+    return GetName() == that->GetName() && GetSignature() == that->GetSignature();
+  }
 
   uint32_t GetAccessFlags() const;
 
@@ -703,6 +705,9 @@ class MANAGED Method : public AccessibleObject {
 
   ObjectArray<StaticStorageBase>* GetDexCacheInitializedStaticStorage() const;
   void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value);
+
+  // Find the method that this method overrides
+  Method* FindOverriddenMethod() const;
 
   void SetReturnTypeIdx(uint32_t new_return_type_idx);
 
@@ -949,9 +954,12 @@ class MANAGED Method : public AccessibleObject {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), fp_spill_mask, false);
   }
 
-  void SetExceptionTypes(Object* exception_types) {
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_exception_types_), exception_types, false);
+  ObjectArray<Class>* GetExceptionTypes() const {
+    return GetFieldObject<ObjectArray<Class>*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, java_exception_types_), false);
   }
+
+  void SetExceptionTypes(ObjectArray<Class>* exception_types);
 
   ObjectArray<Class>* GetJavaParameterTypes() const {
     return GetFieldObject<ObjectArray<Class>*>(
@@ -1083,11 +1091,10 @@ class MANAGED Method : public AccessibleObject {
 
   const uint32_t* mapping_table_;
 
-  // For concrete virtual methods, this is the offset of the method
-  // in Class::vtable_.
+  // For concrete virtual methods, this is the offset of the method in Class::vtable_.
   //
-  // For abstract methods in an interface class, this is the offset
-  // of the method in "iftable_->Get(n)->GetMethodArray()".
+  // For abstract methods in an interface class, this is the offset of the method in
+  // "iftable_->Get(n)->GetMethodArray()".
   uint32_t method_index_;
 
   // The target native method registered with this method
@@ -1722,8 +1729,8 @@ class MANAGED Class : public StaticStorageBase {
   // method for this class.
   Method* FindVirtualMethodForInterface(Method* method);
 
-  Method* FindInterfaceMethod(const StringPiece& name,
-                              const StringPiece& descriptor);
+  Method* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const;
+  Method* FindInterfaceMethod(String* name, String* descriptor) const;
 
   Method* FindVirtualMethodForVirtualOrInterface(Method* method) {
     if (method->IsDirect()) {
@@ -1735,11 +1742,11 @@ class MANAGED Class : public StaticStorageBase {
     return FindVirtualMethodForVirtual(method);
   }
 
-  Method* FindDeclaredVirtualMethod(const StringPiece& name,
-                                    const StringPiece& signature);
+  Method* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const;
+  Method* FindDeclaredVirtualMethod(String* name, String* signature) const;
 
-  Method* FindVirtualMethod(const StringPiece& name,
-                            const StringPiece& descriptor);
+  Method* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const;
+  Method* FindVirtualMethod(String* name, String* descriptor) const;
 
   Method* FindDeclaredDirectMethod(const StringPiece& name,
                                    const StringPiece& signature);
@@ -2529,11 +2536,9 @@ inline MemberOffset Field::GetOffsetDuringLinking() const {
       GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
 }
 
-inline const String* Method::GetName() const {
+inline String* Method::GetName() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  const String* result =
-      GetFieldObject<const String*>(
-          OFFSET_OF_OBJECT_MEMBER(Method, name_), false);
+  String* result = GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Method, name_), false);
   DCHECK(result != NULL);
   return result;
 }
@@ -2577,10 +2582,9 @@ inline void Method::SetShorty(String* new_shorty) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), new_shorty, false);
 }
 
-inline const String* Method::GetSignature() const {
+inline String* Method::GetSignature() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  const String* result =
-      GetFieldObject<const String*>(OFFSET_OF_OBJECT_MEMBER(Method, signature_), false);
+  String* result = GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Method, signature_), false);
   DCHECK(result != NULL);
   return result;
 }
@@ -2588,6 +2592,10 @@ inline const String* Method::GetSignature() const {
 inline void Method::SetSignature(String* new_signature) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, signature_),
                  new_signature, false);
+}
+
+inline void Method::SetExceptionTypes(ObjectArray<Class>* exception_types) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_exception_types_), exception_types, false);
 }
 
 inline uint32_t Class::GetAccessFlags() const {
@@ -2656,6 +2664,7 @@ class MANAGED Throwable : public Object {
                    new_detail_message, false);
   }
 
+  bool IsCheckedException() const;
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   Throwable* cause_;

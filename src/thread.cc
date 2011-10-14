@@ -1091,15 +1091,17 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     Method* method = down_cast<Method*>(method_trace->Get(i));
     uint32_t native_pc = pc_trace->Get(i);
     Class* klass = method->GetDeclaringClass();
-    const DexFile& dex_file = class_linker->FindDexFile(klass->GetDexCache());
     std::string class_name(PrettyDescriptor(klass->GetDescriptor()));
-
+    int32_t line_number = -1;
+    DexCache* dex_cache = klass->GetDexCache();
+    if (dex_cache != NULL) {
+      const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+      line_number = dex_file.GetLineNumFromPC(method, method->ToDexPC(native_pc));
+    }
     // Allocate element, potentially triggering GC
     StackTraceElement* obj =
         StackTraceElement::Alloc(String::AllocFromModifiedUtf8(class_name.c_str()),
-                                 method->GetName(),
-                                 klass->GetSourceFile(),
-                                 dex_file.GetLineNumFromPC(method, method->ToDexPC(native_pc)));
+                                 method->GetName(), klass->GetSourceFile(), line_number);
     if (obj == NULL) {
       return NULL;
     }
