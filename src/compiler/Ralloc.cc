@@ -21,8 +21,25 @@
 
 STATIC bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
     bool change = false;
+    if (cUnit->regLocation[index].highWord) {
+        return change;
+    }
     if (isFP && !cUnit->regLocation[index].fp) {
         cUnit->regLocation[index].fp = true;
+        cUnit->regLocation[index].defined = true;
+        change = true;
+    }
+    return change;
+}
+
+STATIC bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
+    bool change = false;
+    if (cUnit->regLocation[index].highWord) {
+        return change;
+    }
+    if (isCore && !cUnit->regLocation[index].defined) {
+        cUnit->regLocation[index].core = true;
+        cUnit->regLocation[index].defined = true;
         change = true;
     }
     return change;
@@ -66,21 +83,60 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         SSARepresentation *ssaRep = mir->ssaRep;
         if (ssaRep) {
             int attrs = oatDataFlowAttributes[mir->dalvikInsn.opcode];
+
+            // Handle defs
+            if (attrs & (DF_DA | DF_DA_WIDE)) {
+                if (attrs & DF_CORE_A) {
+                    changed |= setCore(cUnit, ssaRep->defs[0], true);
+                }
+                if (attrs & DF_DA_WIDE) {
+                    cUnit->regLocation[ssaRep->defs[0]].wide = true;
+                    cUnit->regLocation[ssaRep->defs[1]].highWord = true;
+                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->defs[0])+1,
+                              oatS2VReg(cUnit, ssaRep->defs[1]));
+                }
+            }
+
+            // Handles uses
             int next = 0;
-            if (attrs & DF_DA_WIDE) {
-                cUnit->regLocation[ssaRep->defs[0]].wide = true;
+            if (attrs & (DF_UA | DF_UA_WIDE)) {
+                if (attrs & DF_CORE_A) {
+                    changed |= setCore(cUnit, ssaRep->uses[next], true);
+                }
+                if (attrs & DF_UA_WIDE) {
+                    cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                    cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
+                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[next])+1,
+                              oatS2VReg(cUnit, ssaRep->uses[next + 1]));
+                    next += 2;
+                } else {
+                    next++;
+                }
             }
-            if (attrs & DF_UA_WIDE) {
-                cUnit->regLocation[ssaRep->uses[next]].wide = true;
-                next += 2;
+            if (attrs & (DF_UB | DF_UB_WIDE)) {
+                if (attrs & DF_CORE_B) {
+                    changed |= setCore(cUnit, ssaRep->uses[next], true);
+                }
+                if (attrs & DF_UB_WIDE) {
+                    cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                    cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
+                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[next])+1,
+                              oatS2VReg(cUnit, ssaRep->uses[next + 1]));
+                    next += 2;
+                } else {
+                    next++;
+                }
             }
-            if (attrs & DF_UB_WIDE) {
-                cUnit->regLocation[ssaRep->uses[next]].wide = true;
-                next += 2;
-            }
-            if (attrs & DF_UC_WIDE) {
-                cUnit->regLocation[ssaRep->uses[next]].wide = true;
-                next += 2;
+            if (attrs & (DF_UC | DF_UC_WIDE)) {
+                if (attrs & DF_CORE_C) {
+                    changed |= setCore(cUnit, ssaRep->uses[next], true);
+                }
+                if (attrs & DF_UC_WIDE) {
+                    cUnit->regLocation[ssaRep->uses[next]].wide = true;
+                    cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
+                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[next])+1,
+                              oatS2VReg(cUnit, ssaRep->uses[next + 1]));
+                }
             }
 
            // Special-case handling for format 35c/3rc invokes
@@ -97,6 +153,8 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 // If this is a non-static invoke, skip implicit "this"
                 if (((mir->dalvikInsn.opcode != OP_INVOKE_STATIC) &&
                      (mir->dalvikInsn.opcode != OP_INVOKE_STATIC_RANGE))) {
+                   cUnit->regLocation[ssaRep->uses[next]].defined = true;
+                   cUnit->regLocation[ssaRep->uses[next]].core = true;
                    next++;
                 }
                 uint32_t cpos = 1;
@@ -108,16 +166,26 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                                 ssaRep->fpUse[i] = true;
                                 ssaRep->fpUse[i+1] = true;
                                 cUnit->regLocation[ssaRep->uses[i]].wide = true;
+                                cUnit->regLocation[ssaRep->uses[i+1]].highWord
+                                    = true;
+                                DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[i])+1,
+                                          oatS2VReg(cUnit, ssaRep->uses[i+1]));
                                 i++;
                                 break;
                             case 'J':
                                 cUnit->regLocation[ssaRep->uses[i]].wide = true;
+                                cUnit->regLocation[ssaRep->uses[i+1]].highWord
+                                    = true;
+                                DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[i])+1,
+                                          oatS2VReg(cUnit, ssaRep->uses[i+1]));
+                                changed |= setCore(cUnit, ssaRep->uses[i],true);
                                 i++;
                                break;
                             case 'F':
                                 ssaRep->fpUse[i] = true;
                                 break;
                            default:
+                                changed |= setCore(cUnit,ssaRep->uses[i], true);
                                 break;
                         }
                         i++;
@@ -135,13 +203,25 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
             }
             // Special-case handling for moves & Phi
             if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
-                bool isFP = cUnit->regLocation[ssaRep->defs[0]].fp;
+                // If any of our inputs or outputs is defined, set all
+                bool definedFP = false;
+                bool definedCore = false;
+                definedFP |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
+                              cUnit->regLocation[ssaRep->defs[0]].fp);
+                definedCore |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
+                                cUnit->regLocation[ssaRep->defs[0]].core);
                 for (int i = 0; i < ssaRep->numUses; i++) {
-                    isFP |= cUnit->regLocation[ssaRep->uses[i]].fp;
+                    definedFP |= (cUnit->regLocation[ssaRep->uses[i]].defined &&
+                                  cUnit->regLocation[ssaRep->uses[i]].fp);
+                    definedCore |= (cUnit->regLocation[ssaRep->uses[i]].defined
+                                  && cUnit->regLocation[ssaRep->uses[i]].core);
                 }
-                changed |= setFp(cUnit, ssaRep->defs[0], isFP);
+                DCHECK(!(definedFP && definedCore));
+                changed |= setFp(cUnit, ssaRep->defs[0], definedFP);
+                changed |= setCore(cUnit, ssaRep->defs[0], definedCore);
                 for (int i = 0; i < ssaRep->numUses; i++) {
-                    changed |= setFp(cUnit, ssaRep->uses[i], isFP);
+                    changed |= setFp(cUnit, ssaRep->uses[i], definedFP);
+                    changed |= setCore(cUnit, ssaRep->uses[i], definedCore);
                 }
             }
         }
@@ -155,20 +235,19 @@ void oatDumpRegLocTable(RegLocation* table, int count)
 {
     for (int i = 0; i < count; i++) {
         char buf[100];
-        snprintf(buf, 100, "Loc[%02d] : %s, %c %c r%d r%d S%d : %s s%d s%d",
+        snprintf(buf, 100, "Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
              i, storageName[table[i].location], table[i].wide ? 'W' : 'N',
-             table[i].fp ? 'F' : 'C', table[i].lowReg, table[i].highReg,
-             table[i].sRegLow, storageName[table[i].fpLocation],
-             table[i].fpLowReg & FP_REG_MASK, table[i].fpHighReg &
-             FP_REG_MASK);
+             table[i].defined ? 'D' : 'U', table[i].fp ? 'F' : 'C',
+             table[i].highWord ? 'H' : 'L', table[i].home ? 'h' : 't',
+             FPREG(table[i].lowReg) ? 's' : 'r', table[i].lowReg & FP_REG_MASK,
+             FPREG(table[i].highReg) ? 's' : 'r', table[i].highReg & FP_REG_MASK,
+             table[i].sRegLow);
         LOG(INFO) << buf;
     }
 }
 
-static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, INVALID_REG,
-                                     INVALID_REG, INVALID_SREG, 0,
-                                     kLocDalvikFrame, INVALID_REG, INVALID_REG,
-                                     INVALID_OFFSET};
+static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
+                                     INVALID_REG, INVALID_REG, INVALID_SREG};
 
 /*
  * Simple register allocation.  Some Dalvik virtual registers may
@@ -189,6 +268,10 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     }
     cUnit->regLocation = loc;
 
+    /* Allocation the promotion map */
+    cUnit->promotionMap = (PromotionMap*)oatNew( cUnit->method->NumRegisters()
+                           * sizeof(cUnit->promotionMap[0]), true);
+
     /* Add types of incoming arguments based on signature */
     int numRegs = cUnit->method->NumRegisters();
     int numIns = cUnit->method->NumIns();
@@ -196,16 +279,39 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
         int sReg = numRegs - numIns;
         if (!cUnit->method->IsStatic()) {
             // Skip past "this"
+            cUnit->regLocation[sReg].defined = true;
+            cUnit->regLocation[sReg].core = true;
             sReg++;
         }
         const String* shorty = cUnit->method->GetShorty();
         for (int i = 1; i < shorty->GetLength(); i++) {
-            char arg = shorty->CharAt(i);
-            // Is it wide?
-            if ((arg == 'D') || (arg == 'J')) {
-                cUnit->regLocation[sReg].wide = true;
-                cUnit->regLocation[sReg+1].fp = cUnit->regLocation[sReg].fp;
-                sReg++;  // Skip to next
+            switch(shorty->CharAt(i)) {
+                case 'D':
+                    cUnit->regLocation[sReg].wide = true;
+                    cUnit->regLocation[sReg+1].highWord = true;
+                    DCHECK_EQ(oatS2VReg(cUnit, sReg)+1,
+                              oatS2VReg(cUnit, sReg+1));
+                    cUnit->regLocation[sReg].fp = true;
+                    cUnit->regLocation[sReg].defined = true;
+                    sReg++;
+                    break;
+                case 'J':
+                    cUnit->regLocation[sReg].wide = true;
+                    cUnit->regLocation[sReg+1].highWord = true;
+                    DCHECK_EQ(oatS2VReg(cUnit, sReg)+1,
+                              oatS2VReg(cUnit, sReg+1));
+                    cUnit->regLocation[sReg].core = true;
+                    cUnit->regLocation[sReg].defined = true;
+                    sReg++;
+                    break;
+                case 'F':
+                    cUnit->regLocation[sReg].fp = true;
+                    cUnit->regLocation[sReg].defined = true;
+                    break;
+                default:
+                    cUnit->regLocation[sReg].core = true;
+                    cUnit->regLocation[sReg].defined = true;
+                    break;
             }
             sReg++;
         }
@@ -254,10 +360,4 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
                         cUnit->numPadding + 2) * 4;
     cUnit->insOffset = cUnit->frameSize + 4;
     cUnit->regsOffset = (cUnit->numOuts + cUnit->numPadding + 1) * 4;
-
-    /* Compute sp-relative home location offsets */
-    for (i = 0; i < cUnit->numSSARegs; i++) {
-        int vReg = oatS2VReg(cUnit, cUnit->regLocation[i].sRegLow);
-        cUnit->regLocation[i].spOffset = oatVRegOffset(cUnit, vReg);
-    }
 }

@@ -50,13 +50,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
 
     // 07 OP_MOVE_OBJECT vA, vB
-    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE,
+    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
 
     // 08 OP_MOVE_OBJECT_FROM16 vAA, vBBBB
-    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE,
+    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
 
     // 09 OP_MOVE_OBJECT_16 vAAAA, vBBBB
-    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE,
+    DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
 
     // 0A OP_MOVE_RESULT vAA
     DF_DA,
@@ -65,10 +65,10 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE,
 
     // 0C OP_MOVE_RESULT_OBJECT vAA
-    DF_DA,
+    DF_DA | DF_CORE_A,
 
     // 0D OP_MOVE_EXCEPTION vAA
-    DF_DA,
+    DF_DA | DF_CORE_A,
 
     // 0E OP_RETURN_VOID
     DF_NOP,
@@ -80,7 +80,7 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA_WIDE,
 
     // 11 OP_RETURN_OBJECT vAA
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 12 OP_CONST_4 vA, #+B
     DF_DA | DF_SETS_CONST,
@@ -107,34 +107,34 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_SETS_CONST,
 
     // 1A OP_CONST_STRING vAA, string@BBBB
-    DF_DA,
+    DF_DA | DF_CORE_A,
 
     // 1B OP_CONST_STRING_JUMBO vAA, string@BBBBBBBB
-    DF_DA,
+    DF_DA | DF_CORE_A,
 
     // 1C OP_CONST_CLASS vAA, type@BBBB
-    DF_DA,
+    DF_DA | DF_CORE_A,
 
     // 1D OP_MONITOR_ENTER vAA
-    DF_UA | DF_NULL_CHK_0,
+    DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
 
     // 1E OP_MONITOR_EXIT vAA
-    DF_UA | DF_NULL_CHK_0,
+    DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
 
     // 1F OP_CHK_CAST vAA, type@BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 20 OP_INSTANCE_OF vA, vB, type@CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 21 OP_ARRAY_LENGTH vA, vB
-    DF_DA | DF_UB | DF_NULL_CHK_0,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
 
     // 22 OP_NEW_INSTANCE vAA, type@BBBB
-    DF_DA | DF_NON_NULL_DST,
+    DF_DA | DF_NON_NULL_DST | DF_CORE_A,
 
     // 23 OP_NEW_ARRAY vA, vB, type@CCCC
-    DF_DA | DF_UB | DF_NON_NULL_DST,
+    DF_DA | DF_UB | DF_NON_NULL_DST | DF_CORE_A | DF_CORE_B,
 
     // 24 OP_FILLED_NEW_ARRAY {vD, vE, vF, vG, vA}
     DF_FORMAT_35C | DF_NON_NULL_RET,
@@ -143,10 +143,10 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_FORMAT_3RC | DF_NON_NULL_RET,
 
     // 26 OP_FILL_ARRAY_DATA vAA, +BBBBBBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 27 OP_THROW vAA
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 28 OP_GOTO
     DF_NOP,
@@ -164,56 +164,56 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA,
 
     // 2D OP_CMPL_FLOAT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C,
+    DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C | DF_CORE_A,
 
     // 2E OP_CMPG_FLOAT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C,
+    DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C | DF_CORE_A,
 
     // 2F OP_CMPL_DOUBLE vAA, vBB, vCC
-    DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C,
+    DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
 
     // 30 OP_CMPG_DOUBLE vAA, vBB, vCC
-    DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C,
+    DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
 
     // 31 OP_CMP_LONG vAA, vBB, vCC
-    DF_DA | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 32 OP_IF_EQ vA, vB, +CCCC
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 33 OP_IF_NE vA, vB, +CCCC
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 34 OP_IF_LT vA, vB, +CCCC
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 35 OP_IF_GE vA, vB, +CCCC
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 36 OP_IF_GT vA, vB, +CCCC
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 37 OP_IF_LE vA, vB, +CCCC
-    DF_UA | DF_UB,
+    DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
 
     // 38 OP_IF_EQZ vAA, +BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 39 OP_IF_NEZ vAA, +BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 3A OP_IF_LTZ vAA, +BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 3B OP_IF_GEZ vAA, +BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 3C OP_IF_GTZ vAA, +BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 3D OP_IF_LEZ vAA, +BBBB
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // 3E OP_UNUSED_3E
     DF_NOP,
@@ -234,88 +234,88 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // 44 OP_AGET vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 45 OP_AGET_WIDE vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 46 OP_AGET_OBJECT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 47 OP_AGET_BOOLEAN vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 48 OP_AGET_BYTE vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 49 OP_AGET_CHAR vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 4A OP_AGET_SHORT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
     // 4B OP_APUT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 4C OP_APUT_WIDE vAA, vBB, vCC
-    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 4D OP_APUT_OBJECT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 4E OP_APUT_BOOLEAN vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 4F OP_APUT_BYTE vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 50 OP_APUT_CHAR vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 51 OP_APUT_SHORT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 52 OP_IGET vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 53 OP_IGET_WIDE vA, vB, field@CCCC
-    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 54 OP_IGET_OBJECT vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 55 OP_IGET_BOOLEAN vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 56 OP_IGET_BYTE vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 57 OP_IGET_CHAR vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 58 OP_IGET_SHORT vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
     // 59 OP_IPUT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5A OP_IPUT_WIDE vA, vB, field@CCCC
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5B OP_IPUT_OBJECT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5C OP_IPUT_BOOLEAN vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5D OP_IPUT_BYTE vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5E OP_IPUT_CHAR vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5F OP_IPUT_SHORT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 60 OP_SGET vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
@@ -324,7 +324,7 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_IS_GETTER,
 
     // 62 OP_SGET_OBJECT vAA, field@BBBB
-    DF_DA | DF_IS_GETTER,
+    DF_DA | DF_IS_GETTER | DF_CORE_A,
 
     // 63 OP_SGET_BOOLEAN vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
@@ -345,7 +345,7 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA_WIDE | DF_IS_SETTER,
 
     // 69 OP_SPUT_OBJECT vAA, field@BBBB
-    DF_UA | DF_IS_SETTER,
+    DF_UA | DF_IS_SETTER | DF_CORE_A,
 
     // 6A OP_SPUT_BOOLEAN vAA, field@BBBB
     DF_UA | DF_IS_SETTER,
@@ -399,16 +399,16 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // 7B OP_NEG_INT vA, vB
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 7C OP_NOT_INT vA, vB
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 7D OP_NEG_LONG vA, vB
-    DF_DA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // 7E OP_NOT_LONG vA, vB
-    DF_DA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // 7F OP_NEG_FLOAT vA, vB
     DF_DA | DF_UB | DF_FP_A | DF_FP_B,
@@ -417,115 +417,115 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
     // 81 OP_INT_TO_LONG vA, vB
-    DF_DA_WIDE | DF_UB,
+    DF_DA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 82 OP_INT_TO_FLOAT vA, vB
-    DF_DA | DF_UB | DF_FP_A,
+    DF_DA | DF_UB | DF_FP_A | DF_CORE_B,
 
     // 83 OP_INT_TO_DOUBLE vA, vB
-    DF_DA_WIDE | DF_UB | DF_FP_A,
+    DF_DA_WIDE | DF_UB | DF_FP_A | DF_CORE_B,
 
     // 84 OP_LONG_TO_INT vA, vB
-    DF_DA | DF_UB_WIDE,
+    DF_DA | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // 85 OP_LONG_TO_FLOAT vA, vB
-    DF_DA | DF_UB_WIDE | DF_FP_A,
+    DF_DA | DF_UB_WIDE | DF_FP_A | DF_CORE_B,
 
     // 86 OP_LONG_TO_DOUBLE vA, vB
-    DF_DA_WIDE | DF_UB_WIDE | DF_FP_A,
+    DF_DA_WIDE | DF_UB_WIDE | DF_FP_A | DF_CORE_B,
 
     // 87 OP_FLOAT_TO_INT vA, vB
-    DF_DA | DF_UB | DF_FP_B,
+    DF_DA | DF_UB | DF_FP_B | DF_CORE_A,
 
     // 88 OP_FLOAT_TO_LONG vA, vB
-    DF_DA_WIDE | DF_UB | DF_FP_B,
+    DF_DA_WIDE | DF_UB | DF_FP_B | DF_CORE_A,
 
     // 89 OP_FLOAT_TO_DOUBLE vA, vB
     DF_DA_WIDE | DF_UB | DF_FP_A | DF_FP_B,
 
     // 8A OP_DOUBLE_TO_INT vA, vB
-    DF_DA | DF_UB_WIDE | DF_FP_B,
+    DF_DA | DF_UB_WIDE | DF_FP_B | DF_CORE_A,
 
     // 8B OP_DOUBLE_TO_LONG vA, vB
-    DF_DA_WIDE | DF_UB_WIDE | DF_FP_B,
+    DF_DA_WIDE | DF_UB_WIDE | DF_FP_B | DF_CORE_A,
 
     // 8C OP_DOUBLE_TO_FLOAT vA, vB
     DF_DA | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
     // 8D OP_INT_TO_BYTE vA, vB
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 8E OP_INT_TO_CHAR vA, vB
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 8F OP_INT_TO_SHORT vA, vB
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // 90 OP_ADD_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_IS_LINEAR,
+    DF_DA | DF_UB | DF_UC | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 91 OP_SUB_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_IS_LINEAR,
+    DF_DA | DF_UB | DF_UC | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 92 OP_MUL_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 93 OP_DIV_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 94 OP_REM_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 95 OP_AND_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 96 OP_OR_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 97 OP_XOR_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 98 OP_SHL_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 99 OP_SHR_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 9A OP_USHR_INT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC,
+    DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 9B OP_ADD_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 9C OP_SUB_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 9D OP_MUL_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 9E OP_DIV_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // 9F OP_REM_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A0 OP_AND_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A1 OP_OR_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A2 OP_XOR_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A3 OP_SHL_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A4 OP_SHR_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A5 OP_USHR_LONG vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB_WIDE | DF_UC,
+    DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
     // A6 OP_ADD_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
@@ -558,70 +558,70 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
     // B0 OP_ADD_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B1 OP_SUB_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B2 OP_MUL_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B3 OP_DIV_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B4 OP_REM_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B5 OP_AND_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B6 OP_OR_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B7 OP_XOR_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B8 OP_SHL_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // B9 OP_SHR_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // BA OP_USHR_INT_2ADDR vA, vB
-    DF_DA | DF_UA | DF_UB,
+    DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // BB OP_ADD_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // BC OP_SUB_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // BD OP_MUL_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // BE OP_DIV_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // BF OP_REM_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // C0 OP_AND_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // C1 OP_OR_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // C2 OP_XOR_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
     // C3 OP_SHL_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // C4 OP_SHR_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // C5 OP_USHR_LONG_2ADDR vA, vB
-    DF_DA_WIDE | DF_UA_WIDE | DF_UB,
+    DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // C6 OP_ADD_FLOAT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
@@ -654,67 +654,67 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
     // D0 OP_ADD_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D1 OP_RSUB_INT vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D2 OP_MUL_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D3 OP_DIV_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D4 OP_REM_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D5 OP_AND_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D6 OP_OR_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D7 OP_XOR_INT_LIT16 vA, vB, #+CCCC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // D8 OP_ADD_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB | DF_IS_LINEAR,
+    DF_DA | DF_UB | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B,
 
     // D9 OP_RSUB_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // DA OP_MUL_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // DB OP_DIV_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // DC OP_REM_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // DD OP_AND_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // DE OP_OR_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // DF OP_XOR_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // E0 OP_SHL_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // E1 OP_SHR_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // E2 OP_USHR_INT_LIT8 vAA, vBB, #+CC
-    DF_DA | DF_UB,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
     // E3 OP_IGET_VOLATILE
-    DF_DA | DF_UB | DF_NULL_CHK_0,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // E4 OP_IPUT_VOLATILE
-    DF_UA | DF_UB | DF_NULL_CHK_1,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // E5 OP_SGET_VOLATILE
     DF_DA,
@@ -723,13 +723,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA,
 
     // E7 OP_IGET_OBJECT_VOLATILE
-    DF_DA | DF_UB | DF_NULL_CHK_0,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
 
     // E8 OP_IGET_WIDE_VOLATILE
-    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // E9 OP_IPUT_WIDE_VOLATILE
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // EA OP_SGET_WIDE_VOLATILE
     DF_DA_WIDE,
@@ -786,13 +786,13 @@ int oatDataFlowAttributes[kMirOpLast] = {
     DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
     // FC OP_IPUT_OBJECT_VOLATILE
-    DF_UA | DF_UB | DF_NULL_CHK_1,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_A | DF_CORE_B,
 
     // FD OP_SGET_OBJECT_VOLATILE
-    DF_DA,
+    DF_DA | DF_CORE_A,
 
     // FE OP_SPUT_OBJECT_VOLATILE
-    DF_UA,
+    DF_UA | DF_CORE_A,
 
     // FF OP_DISPATCH_FF
     DF_NOP,

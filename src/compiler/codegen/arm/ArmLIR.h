@@ -123,16 +123,13 @@
 #define rNone   (-1)
 
 /* RegisterLocation templates return values (r0, or r0/r1) */
-#define LOC_C_RETURN {kLocPhysReg, 0, 0, r0, INVALID_REG, INVALID_SREG, \
-                      1, kLocPhysReg, r0, INVALID_REG, INVALID_OFFSET}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, r0, r1, INVALID_SREG, \
-                      1, kLocPhysReg, r0, r1, INVALID_OFFSET}
+#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 1, r0, INVALID_REG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG}
 /* RegisterLocation templates for interpState->retVal; */
-#define LOC_DALVIK_RETURN_VAL {kLocPhysReg, 0, 0, r0, INVALID_REG, \
-                      INVALID_SREG, 1, kLocPhysReg, r0, INVALID_REG, \
-                      INVALID_OFFSET}
-#define LOC_DALVIK_RETURN_VAL_WIDE {kLocPhysReg, 1, 0, r0, r1, \
-                      INVALID_SREG, 1, kLocPhysReg, r0, r1, INVALID_OFFSET}
+#define LOC_DALVIK_RETURN_VAL {kLocPhysReg, 0, 0, 0, 0, 0, 1, r0, INVALID_REG, \
+                      INVALID_SREG}
+#define LOC_DALVIK_RETURN_VAL_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r0, r1, \
+                      INVALID_SREG}
 
  /*
  * Data structure tracking the mapping between a Dalvik register (pair) and a

@@ -32,23 +32,30 @@ typedef enum RegLocationType {
     kLocSpill,
 } RegLocationType;
 
+typedef struct PromotionMap {
+   RegLocationType coreLocation:3;
+   u1 coreReg;
+   RegLocationType fpLocation:3;
+   u1 fpReg;
+   bool firstInPair;
+} PromotionMap;
+
 typedef struct RegLocation {
-    RegLocationType location:2;
+    RegLocationType location:3;
     unsigned wide:1;
-    unsigned fp:1;      // Hint for float/double
-    u1 lowReg:6;        // First physical register
-    u1 highReg:6;       // 2nd physical register (if wide)
-    s2 sRegLow;         // SSA name for low Dalvik word
-    unsigned home:1;    // Does this represent the home location?
-    RegLocationType fpLocation:2; // Used only for non-SSA loc records
-    u1 fpLowReg:6;                // Used only for non-SSA loc records
-    u1 fpHighReg:6;               // Used only for non-SSA loc records
-    int spOffset:17;
+    unsigned defined:1;   // Do we know the type?
+    unsigned fp:1;        // Floating point?
+    unsigned core:1;      // Non-floating point?
+    unsigned highWord:1;  // High word of pair?
+    unsigned home:1;      // Does this represent the home location?
+    u1 lowReg;            // First physical register
+    u1 highReg;           // 2nd physical register (if wide)
+    s2 sRegLow;           // SSA name for low Dalvik word
 } RegLocation;
 
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
-#define INVALID_REG (0x3F)
+#define INVALID_REG (0xFF)
 #define INVALID_OFFSET (-1)
 
 typedef enum BBType {
@@ -232,6 +239,9 @@ typedef struct CompilationUnit {
     /* Map SSA names to location */
     RegLocation* regLocation;
     int sequenceNumber;
+
+    /* Keep track of Dalvik vReg to physical register mappings */
+    PromotionMap* promotionMap;
 
     /*
      * Set to the Dalvik PC of the switch instruction if it has more than

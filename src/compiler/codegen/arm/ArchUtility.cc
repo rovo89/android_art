@@ -16,6 +16,7 @@
 
 #include "../../CompilerInternals.h"
 #include "ArmLIR.h"
+#include "../Ralloc.h"
 
 static const char* coreRegNames[16] = {
     "r0",
@@ -391,6 +392,38 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     }
 }
 
+void oatDumpPromotionMap(CompilationUnit *cUnit)
+{
+    const Method *method = cUnit->method;
+    for (int i = 0; i < method->NumRegisters(); i++) {
+        PromotionMap vRegMap = cUnit->promotionMap[i];
+        char buf[100];
+        if (vRegMap.fpLocation == kLocPhysReg) {
+            snprintf(buf, 100, " : s%d", vRegMap.fpReg & FP_REG_MASK);
+        } else {
+            buf[0] = 0;
+        }
+        char buf2[100];
+        snprintf(buf2, 100, "V[%02d] -> %s%d%s", i,
+                 vRegMap.coreLocation == kLocPhysReg ?
+                 "r" : "SP+", vRegMap.coreLocation == kLocPhysReg ?
+                 vRegMap.coreReg : oatSRegOffset(cUnit, i), buf);
+        LOG(INFO) << buf2;
+    }
+}
+
+void oatDumpFullPromotionMap(CompilationUnit *cUnit)
+{
+    const Method *method = cUnit->method;
+    for (int i = 0; i < method->NumRegisters(); i++) {
+        PromotionMap vRegMap = cUnit->promotionMap[i];
+        LOG(INFO) << i << " -> " << "CL:" << (int)vRegMap.coreLocation <<
+            ", CR:" << (int)vRegMap.coreReg << ", FL:" <<
+            (int)vRegMap.fpLocation << ", FR:" << (int)vRegMap.fpReg <<
+            ", - " << (int)vRegMap.firstInPair;
+    }
+}
+
 /* Dump instructions and constant pool contents */
 void oatCodegenDump(CompilationUnit* cUnit)
 {
@@ -414,22 +447,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
         " bytes, Dalvik size is " << insnsSize * 2;
     LOG(INFO) << "expansion factor: " <<
          (float)cUnit->totalSize / (float)(insnsSize * 2);
-    for (int i = 0; i < method->NumRegisters(); i++) {
-        RegLocation loc = cUnit->regLocation[i];
-        char buf[100];
-        if (loc.fpLocation == kLocPhysReg) {
-            snprintf(buf, 100, " : s%d", loc.fpLowReg & FP_REG_MASK);
-        } else {
-            buf[0] = 0;
-        }
-        char buf2[100];
-        snprintf(buf2, 100, "V[%02d] -> %s%d%s", i,
-                 loc.location == kLocPhysReg ?
-                 "r" : "SP+", loc.location == kLocPhysReg ?
-                 loc.lowReg : loc.spOffset, buf);
-        LOG(INFO) << buf2;
-
-    }
+    oatDumpPromotionMap(cUnit);
     for (lirInsn = cUnit->firstLIRInsn; lirInsn; lirInsn = lirInsn->next) {
         oatDumpLIRInsn(cUnit, lirInsn, 0);
     }

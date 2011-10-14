@@ -47,6 +47,9 @@ typedef enum DataFlowAttributePos {
     kFPA,
     kFPB,
     kFPC,
+    kCoreA,
+    kCoreB,
+    kCoreC,
     kGetter,
     kSetter,
 } DataFlowAttributes;
@@ -78,6 +81,9 @@ typedef enum DataFlowAttributePos {
 #define DF_FP_A                 (1 << kFPA)
 #define DF_FP_B                 (1 << kFPB)
 #define DF_FP_C                 (1 << kFPC)
+#define DF_CORE_A               (1 << kCoreA)
+#define DF_CORE_B               (1 << kCoreB)
+#define DF_CORE_C               (1 << kCoreC)
 #define DF_IS_GETTER            (1 << kGetter)
 #define DF_IS_SETTER            (1 << kSetter)
 

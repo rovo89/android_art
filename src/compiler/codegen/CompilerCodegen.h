@@ -27,6 +27,8 @@ void oatAssembleLIR(CompilationUnit* cUnit);
 
 /* Implemented in the codegen/<target>/ArchUtility.c */
 void oatCodegenDump(CompilationUnit* cUnit);
+void oatDumpPromotionMap(CompilationUnit* cUnit);
+void oatDumpFullPromotionMap(CompilationUnit* cUnit);
 
 /* Implemented in codegen/<target>/Ralloc.c */
 void oatSimpleRegAlloc(CompilationUnit* cUnit);
