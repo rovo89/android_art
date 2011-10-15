@@ -717,7 +717,7 @@ class DexFile {
                                      const String* signature);
 
   static bool LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num) {
-    LineNumFromPcContext *context = (LineNumFromPcContext *)cnxt;
+    LineNumFromPcContext* context = (LineNumFromPcContext*) cnxt;
 
     // We know that this callback will be called in
     // ascending address order, so keep going until we find

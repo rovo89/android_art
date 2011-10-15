@@ -675,9 +675,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
 
   for (;;)  {
     uint8_t opcode = *stream++;
-    uint8_t adjopcode = opcode - DBG_FIRST_SPECIAL;
     uint16_t reg;
-
 
     switch (opcode) {
       case DBG_END_SEQUENCE:
@@ -755,7 +753,9 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_SET_FILE:
         break;
 
-      default:
+      default: {
+        int adjopcode = opcode - DBG_FIRST_SPECIAL;
+
         address += adjopcode / DBG_LINE_RANGE;
         line += DBG_LINE_BASE + (adjopcode % DBG_LINE_RANGE);
 
@@ -766,6 +766,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
           }
         }
         break;
+      }
     }
   }
 }
