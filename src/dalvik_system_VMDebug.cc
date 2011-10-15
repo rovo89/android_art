@@ -231,7 +231,7 @@ void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
  * for seeing both interpreted and native stack traces.
  */
 void VMDebug_crash(JNIEnv*, jclass) {
-  std::stringstream os;
+  std::ostringstream os;
   os << "Crashing VM on request:\n";
   Thread::Current()->Dump(os);
   LOG(FATAL) << os.str();

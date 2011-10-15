@@ -58,7 +58,7 @@ void STLDeleteValues(T *v) {
 
 template <class T>
 std::string ToString(const T& v) {
-  std::stringstream os;
+  std::ostringstream os;
   os << "[";
   for (size_t i = 0; i < v.size(); ++i) {
     os << v[i];

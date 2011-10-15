@@ -194,8 +194,8 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     return NULL;
   }
 
-  char resolved[PATH_MAX];
-  char* absolute_path = realpath(filename.c_str(), resolved);
+  UniquePtr<char[]> resolved(new char[PATH_MAX]);
+  char* absolute_path = realpath(filename.c_str(), resolved.get());
   if (absolute_path == NULL) {
       LOG(ERROR) << "Failed to create absolute path for " << filename
                  << " when looking for classes.dex";

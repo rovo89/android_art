@@ -44,6 +44,12 @@ art_cflags := \
 	-fno-align-jumps \
 	-fstrict-aliasing
 
+art_non_debug_cflags := \
+	-Wframe-larger-than=1728
+
+art_debug_cflags := \
+	-UNDEBUG
+
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1
 
 ART_TARGET_CFLAGS := $(art_cflags)
@@ -53,7 +59,9 @@ else
   ART_TARGET_CFLAGS += -DANDROID_SMP=0
 endif
 
-art_debug_cflags := -UNDEBUG
+ART_HOST_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
+ART_TARGET_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
+
 # TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4
 ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)

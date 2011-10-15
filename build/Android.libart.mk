@@ -60,6 +60,12 @@ define build-libart
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
       LOCAL_STATIC_LIBRARIES := libgtest_host
     endif
+  else
+    ifeq ($$(art_target_or_host),target)
+      LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
+    else # host
+      LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
+    endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper

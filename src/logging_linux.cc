@@ -28,15 +28,15 @@
 namespace art {
 
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
-    : line_number_(line), severity_(severity), errno_(error) {
+    : data_(new LogMessageData(line, severity, error)) {
   const char* last_slash = strrchr(file, '/');
-  file_ = (last_slash == NULL) ? file : last_slash + 1;
+  data_->file = (last_slash == NULL) ? file : last_slash + 1;
 }
 
 void LogMessage::LogLine(const char* line) {
-  std::cerr << "VDIWEF"[severity_] << ' '
+  std::cerr << "VDIWEF"[data_->severity] << ' '
             << StringPrintf("%5d %5d", getpid(), ::art::GetTid()) << ' '
-            << file_ << ':' << line_number_ << "] " << line << std::endl;
+            << data_->file << ':' << data_->line_number << "] " << line << std::endl;
 }
 
 }  // namespace art

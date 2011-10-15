@@ -697,7 +697,6 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
     }
     oatArenaReset();
 
-    CompilationUnit cUnit;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
     const art::DexFile& dex_file = class_linker->FindDexFile(
          method->GetDeclaringClass()->GetDexCache());
@@ -710,59 +709,59 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
 
     oatInit(compiler);
 
-    memset(&cUnit, 0, sizeof(cUnit));
-    cUnit.compiler = &compiler;
-    cUnit.method = method;
-    cUnit.instructionSet = (OatInstructionSetType)insnSet;
-    cUnit.insns = code_item->insns_;
-    cUnit.insnsSize = code_item->insns_size_;
+    UniquePtr<CompilationUnit> cUnit(new CompilationUnit);
+    memset(cUnit.get(), 0, sizeof(*cUnit));
+    cUnit->compiler = &compiler;
+    cUnit->method = method;
+    cUnit->instructionSet = (OatInstructionSetType)insnSet;
+    cUnit->insns = code_item->insns_;
+    cUnit->insnsSize = code_item->insns_size_;
     bool useMatch = compilerMethodMatch.length() != 0;
     bool match = useMatch && (compilerFlipMatch ^
         (PrettyMethod(method).find(compilerMethodMatch) != std::string::npos));
     if (!useMatch || match) {
-        cUnit.disableOpt = compilerOptimizerDisableFlags;
-        cUnit.enableDebug = compilerDebugFlags;
-        cUnit.printMe = compiler.IsVerbose() ||
-            (cUnit.enableDebug & (1 << kDebugVerbose));
+        cUnit->disableOpt = compilerOptimizerDisableFlags;
+        cUnit->enableDebug = compilerDebugFlags;
+        cUnit->printMe = compiler.IsVerbose() || (cUnit->enableDebug & (1 << kDebugVerbose));
     }
 
     /* Assume non-throwing leaf */
-    cUnit.attrs = (METHOD_IS_LEAF | METHOD_IS_THROW_FREE);
+    cUnit->attrs = (METHOD_IS_LEAF | METHOD_IS_THROW_FREE);
 
     /* Initialize the block list */
-    oatInitGrowableList(&cUnit.blockList, 40);
+    oatInitGrowableList(&cUnit->blockList, 40);
 
     /* Initialize the switchTables list */
-    oatInitGrowableList(&cUnit.switchTables, 4);
+    oatInitGrowableList(&cUnit->switchTables, 4);
 
     /* Intialize the fillArrayData list */
-    oatInitGrowableList(&cUnit.fillArrayData, 4);
+    oatInitGrowableList(&cUnit->fillArrayData, 4);
 
     /* Intialize the throwLaunchpads list */
-    oatInitGrowableList(&cUnit.throwLaunchpads, 4);
+    oatInitGrowableList(&cUnit->throwLaunchpads, 4);
 
     /* Intialize the suspendLaunchpads list */
-    oatInitGrowableList(&cUnit.suspendLaunchpads, 4);
+    oatInitGrowableList(&cUnit->suspendLaunchpads, 4);
 
     /* Allocate the bit-vector to track the beginning of basic blocks */
-    ArenaBitVector *tryBlockAddr = oatAllocBitVector(cUnit.insnsSize,
+    ArenaBitVector *tryBlockAddr = oatAllocBitVector(cUnit->insnsSize,
                                                      true /* expandable */);
-    cUnit.tryBlockAddr = tryBlockAddr;
+    cUnit->tryBlockAddr = tryBlockAddr;
 
     /* Create the default entry and exit blocks and enter them to the list */
     BasicBlock *entryBlock = oatNewBB(kEntryBlock, numBlocks++);
     BasicBlock *exitBlock = oatNewBB(kExitBlock, numBlocks++);
 
-    cUnit.entryBlock = entryBlock;
-    cUnit.exitBlock = exitBlock;
+    cUnit->entryBlock = entryBlock;
+    cUnit->exitBlock = exitBlock;
 
-    oatInsertGrowableList(&cUnit.blockList, (intptr_t) entryBlock);
-    oatInsertGrowableList(&cUnit.blockList, (intptr_t) exitBlock);
+    oatInsertGrowableList(&cUnit->blockList, (intptr_t) entryBlock);
+    oatInsertGrowableList(&cUnit->blockList, (intptr_t) exitBlock);
 
     /* Current block to record parsed instructions */
     BasicBlock *curBlock = oatNewBB(kDalvikByteCode, numBlocks++);
     curBlock->startOffset = 0;
-    oatInsertGrowableList(&cUnit.blockList, (intptr_t) curBlock);
+    oatInsertGrowableList(&cUnit->blockList, (intptr_t) curBlock);
     entryBlock->fallThrough = curBlock;
     oatSetBit(curBlock->predecessors, entryBlock->id);
 
@@ -770,10 +769,10 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
      * Store back the number of blocks since new blocks may be created of
      * accessing cUnit.
      */
-    cUnit.numBlocks = numBlocks;
+    cUnit->numBlocks = numBlocks;
 
     /* Identify code range in try blocks and set up the empty catch blocks */
-    processTryCatchBlocks(&cUnit);
+    processTryCatchBlocks(cUnit.get());
 
     /* Parse all instructions and put them into containing basic blocks */
     while (codePtr < codeEnd) {
@@ -792,7 +791,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
         int flags = dexGetFlagsFromOpcode(insn->dalvikInsn.opcode);
 
         if (flags & kInstrCanBranch) {
-            processCanBranch(&cUnit, curBlock, insn, curOffset, width, flags,
+            processCanBranch(cUnit.get(), curBlock, insn, curOffset, width, flags,
                              codePtr, codeEnd);
         } else if (flags & kInstrCanReturn) {
             curBlock->fallThrough = exitBlock;
@@ -807,7 +806,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
                  * (incl. OP_NOP).
                  */
                 if (contentIsInsn(codePtr)) {
-                    findBlock(&cUnit, curOffset + width,
+                    findBlock(cUnit.get(), curOffset + width,
                               /* split */
                               false,
                               /* create */
@@ -815,13 +814,13 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
                 }
             }
         } else if (flags & kInstrCanThrow) {
-            processCanThrow(&cUnit, curBlock, insn, curOffset, width, flags,
+            processCanThrow(cUnit.get(), curBlock, insn, curOffset, width, flags,
                             tryBlockAddr, codePtr, codeEnd);
         } else if (flags & kInstrCanSwitch) {
-            processCanSwitch(&cUnit, curBlock, insn, curOffset, width, flags);
+            processCanSwitch(cUnit.get(), curBlock, insn, curOffset, width, flags);
         }
         curOffset += width;
-        BasicBlock *nextBlock = findBlock(&cUnit, curOffset,
+        BasicBlock *nextBlock = findBlock(cUnit.get(), curOffset,
                                           /* split */
                                           false,
                                           /* create */
@@ -846,84 +845,74 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
         }
     }
 
-    if (cUnit.printMe) {
-        oatDumpCompilationUnit(&cUnit);
+    if (cUnit->printMe) {
+        oatDumpCompilationUnit(cUnit.get());
     }
 
     /* Adjust this value accordingly once inlining is performed */
-    cUnit.numDalvikRegisters = cUnit.method->NumRegisters();
+    cUnit->numDalvikRegisters = cUnit->method->NumRegisters();
 
 
     /* Verify if all blocks are connected as claimed */
-    oatDataFlowAnalysisDispatcher(&cUnit, verifyPredInfo,
-                                          kAllNodes,
-                                          false /* isIterative */);
-
-
+    oatDataFlowAnalysisDispatcher(cUnit.get(), verifyPredInfo, kAllNodes, false /* isIterative */);
 
     /* Perform SSA transformation for the whole method */
-    oatMethodSSATransformation(&cUnit);
+    oatMethodSSATransformation(cUnit.get());
 
     /* Perform null check elimination */
-    oatMethodNullCheckElimination(&cUnit);
+    oatMethodNullCheckElimination(cUnit.get());
 
-    oatInitializeRegAlloc(&cUnit);  // Needs to happen after SSA naming
+    oatInitializeRegAlloc(cUnit.get());  // Needs to happen after SSA naming
 
     /* Allocate Registers using simple local allocation scheme */
-    oatSimpleRegAlloc(&cUnit);
+    oatSimpleRegAlloc(cUnit.get());
 
     /* Convert MIR to LIR, etc. */
-    oatMethodMIR2LIR(&cUnit);
+    oatMethodMIR2LIR(cUnit.get());
 
     // Debugging only
-    if (cUnit.enableDebug & (1 << kDebugDumpCFG)) {
-        oatDumpCFG(&cUnit, "/sdcard/cfg/");
+    if (cUnit->enableDebug & (1 << kDebugDumpCFG)) {
+        oatDumpCFG(cUnit.get(), "/sdcard/cfg/");
     }
 
     /* Method is not empty */
-    if (cUnit.firstLIRInsn) {
+    if (cUnit->firstLIRInsn) {
 
         // mark the targets of switch statement case labels
-        oatProcessSwitchTables(&cUnit);
+        oatProcessSwitchTables(cUnit.get());
 
         /* Convert LIR into machine code. */
-        oatAssembleLIR(&cUnit);
+        oatAssembleLIR(cUnit.get());
 
-        if (cUnit.printMe) {
-            oatCodegenDump(&cUnit);
+        if (cUnit->printMe) {
+            oatCodegenDump(cUnit.get());
         }
     }
 
     // Combine vmap tables - core regs, then fp regs - into vmapTable
     std::vector<uint16_t> vmapTable;
-    for (size_t i = 0 ; i < cUnit.coreVmapTable.size(); i++) {
-        vmapTable.push_back(cUnit.coreVmapTable[i]);
+    for (size_t i = 0 ; i < cUnit->coreVmapTable.size(); i++) {
+        vmapTable.push_back(cUnit->coreVmapTable[i]);
     }
     // Add a marker to take place of lr
-    cUnit.coreVmapTable.push_back(INVALID_VREG);
+    cUnit->coreVmapTable.push_back(INVALID_VREG);
     // Combine vmap tables - core regs, then fp regs
-    for (uint32_t i = 0; i < cUnit.fpVmapTable.size(); i++) {
-        cUnit.coreVmapTable.push_back(cUnit.fpVmapTable[i]);
+    for (uint32_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
+        cUnit->coreVmapTable.push_back(cUnit->fpVmapTable[i]);
     }
-    DCHECK(cUnit.coreVmapTable.size() == (uint32_t)
-        (__builtin_popcount(cUnit.coreSpillMask) +
-         __builtin_popcount(cUnit.fpSpillMask)));
+    DCHECK(cUnit->coreVmapTable.size() == (uint32_t)
+        (__builtin_popcount(cUnit->coreSpillMask) + __builtin_popcount(cUnit->fpSpillMask)));
     vmapTable.push_back(-1);
-    for (size_t i = 0; i < cUnit.fpVmapTable.size(); i++) {
-        vmapTable.push_back(cUnit.fpVmapTable[i]);
+    for (size_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
+        vmapTable.push_back(cUnit->fpVmapTable[i]);
     }
     CompiledMethod* result = new CompiledMethod(art::kThumb2,
-                                                cUnit.codeBuffer,
-                                                cUnit.frameSize,
-                                                cUnit.frameSize - sizeof(intptr_t),
-                                                cUnit.coreSpillMask,
-                                                cUnit.fpSpillMask,
-                                                cUnit.mappingTable,
-                                                cUnit.coreVmapTable);
+        cUnit->codeBuffer, cUnit->frameSize, cUnit->frameSize - sizeof(intptr_t),
+        cUnit->coreSpillMask, cUnit->fpSpillMask, cUnit->mappingTable, cUnit->coreVmapTable);
 
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Compiled " << PrettyMethod(method)
-                  << " (" << (cUnit.codeBuffer.size() * sizeof(cUnit.codeBuffer[0])) << " bytes)";
+                  << " (" << (cUnit->codeBuffer.size() * sizeof(cUnit->codeBuffer[0])) << " bytes)";
     }
 
     return result;

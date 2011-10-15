@@ -14,9 +14,10 @@ namespace art {
 void Thread::InitCpu() {
   // Read LDT
   CHECK_EQ((size_t)LDT_ENTRY_SIZE, sizeof(uint64_t));
-  uint64_t ldt[LDT_ENTRIES];
-  memset(ldt, 0, sizeof(ldt));
-  syscall(SYS_modify_ldt, 0, ldt, sizeof(ldt));
+  std::vector<uint64_t> ldt(LDT_ENTRIES);
+  size_t ldt_size(sizeof(uint64_t) * ldt.size());
+  memset(&ldt[0], 0, ldt_size);
+  syscall(SYS_modify_ldt, 0, &ldt[0], ldt_size);
   // Create empty slot to point at current Thread*
   user_desc ldt_entry;
   memset(&ldt_entry, 0, sizeof(ldt_entry));

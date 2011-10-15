@@ -64,7 +64,7 @@ bool SignalCatcher::ShouldHalt() {
 void SignalCatcher::HandleSigQuit() {
   Runtime::Current()->GetThreadList()->SuspendAll();
 
-  std::stringstream os;
+  std::ostringstream os;
   os << "\n"
      << "\n"
      << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";

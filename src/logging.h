@@ -134,6 +134,27 @@ struct EagerEvaluator {
   RHS rhs;
 };
 
+// This indirection greatly reduces the stack impact of having
+// lots of checks/logging in a function.
+struct LogMessageData {
+ public:
+  LogMessageData(int line, LogSeverity severity, int error)
+      : file(NULL),
+        line_number(line),
+        severity(severity),
+        error(error) {
+  }
+
+  std::ostringstream buffer;
+  const char* file;
+  int line_number;
+  LogSeverity severity;
+  int error;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LogMessageData);
+};
+
 class LogMessage {
  public:
   LogMessage(const char* file, int line, LogSeverity severity, int error);
@@ -143,11 +164,7 @@ class LogMessage {
  private:
   void LogLine(const char*);
 
-  std::stringstream buffer_;
-  const char* file_;
-  int line_number_;
-  LogSeverity severity_;
-  int errno_;
+  LogMessageData* data_;
 
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };

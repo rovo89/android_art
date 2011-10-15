@@ -96,9 +96,7 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 TEST_F(ExceptionTest, StackTraceElement) {
   runtime_->Start();
 
-  enum {STACK_SIZE = 1000};
-  uint32_t top_of_stack = 0;
-  uintptr_t fake_stack[STACK_SIZE];
+  std::vector<uintptr_t> fake_stack;
   ASSERT_EQ(kStackAlignment, 16);
   ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
@@ -108,23 +106,23 @@ TEST_F(ExceptionTest, StackTraceElement) {
   const uintptr_t pc_offset = 3 + 2;
 
   // Create/push fake 16byte stack frame for method g
-  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_g_);
-  fake_stack[top_of_stack++] = 0;
-  fake_stack[top_of_stack++] = 0;
-  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_->GetCode()) + pc_offset;  // return pc
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_->GetCode()) + pc_offset);  // return pc
 
   // Create/push fake 16byte stack frame for method f
-  fake_stack[top_of_stack++] = reinterpret_cast<uintptr_t>(method_f_);
-  fake_stack[top_of_stack++] = 0;
-  fake_stack[top_of_stack++] = 0;
-  fake_stack[top_of_stack++] = 0xEBAD6070;  // return pc
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(0xEBAD6070);  // return pc
 
   // Pull Method* of NULL to terminate the trace
-  fake_stack[top_of_stack++] = NULL;
+  fake_stack.push_back(NULL);
 
   // Set up thread to appear as if we called out of method_g_ at pc 3
   Thread* thread = Thread::Current();
-  thread->SetTopOfStack(fake_stack, reinterpret_cast<uintptr_t>(method_g_->GetCode()) + pc_offset);  // return pc
+  thread->SetTopOfStack(&fake_stack[0], reinterpret_cast<uintptr_t>(method_g_->GetCode()) + pc_offset);  // return pc
 
   JNIEnv* env = thread->GetJniEnv();
   jobject internal = thread->CreateInternalStackTrace(env);

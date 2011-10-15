@@ -29,10 +29,10 @@ art::Mutex& GetLoggingLock() {
 
 LogMessage::~LogMessage() {
   // Finish constructing the message.
-  if (errno_ != -1) {
-    buffer_ << ": " << strerror(errno_);
+  if (data_->error != -1) {
+    data_->buffer << ": " << strerror(data_->error);
   }
-  std::string msg(buffer_.str());
+  std::string msg(data_->buffer.str());
 
   // Do the actual logging with the lock held.
   {
@@ -52,13 +52,15 @@ LogMessage::~LogMessage() {
   }
 
   // Abort if necessary.
-  if (severity_ == FATAL) {
-    art::Runtime::Abort(file_, line_number_);
+  if (data_->severity == FATAL) {
+    art::Runtime::Abort(data_->file, data_->line_number);
   }
+
+  delete data_;
 }
 
 std::ostream& LogMessage::stream() {
-  return buffer_;
+  return data_->buffer;
 }
 
 }  // namespace art

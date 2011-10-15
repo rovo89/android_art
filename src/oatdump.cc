@@ -322,7 +322,7 @@ class ImageDump {
     if (obj->IsClass()) {
       Class* klass = obj->AsClass();
       StringAppendF(&summary, "CLASS %s", klass->GetDescriptor()->ToModifiedUtf8().c_str());
-      std::stringstream ss;
+      std::ostringstream ss;
       ss << " (" << klass->GetStatus() << ")";
       summary += ss.str();
     } else if (obj->IsMethod()) {

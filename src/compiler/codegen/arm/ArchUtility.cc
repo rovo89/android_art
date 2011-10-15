@@ -18,6 +18,8 @@
 #include "ArmLIR.h"
 #include "../Ralloc.h"
 
+#include <string>
+
 static const char* coreRegNames[16] = {
     "r0",
     "r1",
@@ -104,11 +106,10 @@ const char* ccNames[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-STATIC void buildInsnString(const char* fmt, ArmLIR* lir, char* buf,
-                            unsigned char* baseAddr, int size)
+STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* baseAddr)
 {
+    std::string buf;
     int i;
-    char* bufEnd = &buf[size-1];
     const char* fmtEnd = &fmt[strlen(fmt)];
     char tbuf[256];
     const char* name;
@@ -233,21 +234,14 @@ STATIC void buildInsnString(const char* fmt, ArmLIR* lir, char* buf,
                    default:
                        strcpy(tbuf,"DecodeError1");
                        break;
-               }
-               if (buf+strlen(tbuf) <= bufEnd) {
-                   strcpy(buf, tbuf);
-                   buf += strlen(tbuf);
-               } else {
-                   break;
-               }
+                }
+                buf += tbuf;
             }
         } else {
-           *buf++ = *fmt++;
+           buf += *fmt++;
         }
-        if (buf == bufEnd)
-            break;
     }
-    *buf = 0;
+    return buf;
 }
 
 void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
@@ -365,19 +359,11 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
             if (lir->flags.isNop && !dumpNop) {
                 break;
             } else {
-                // TODO: rewrite using string
-                char opOperands[256];
-                char opName[256];
-                buildInsnString(EncodingMap[lir->opcode].name, lir, opName,
-                                baseAddr, 256);
-                buildInsnString(EncodingMap[lir->opcode].fmt, lir, opOperands,
-                                baseAddr, 256);
-                char tBuf[256];
-                snprintf(tBuf, 256, "%p (%04x): %-9s%s%s%s",
-                         baseAddr + offset, offset,
-                         opName, opOperands, lir->flags.isNop ? "(nop)" : "",
-                         lir->flags.squashed ? "(squashed)" : "");
-                LOG(INFO) << tBuf;
+                std::string op_name(buildInsnString(EncodingMap[lir->opcode].name, lir, baseAddr));
+                std::string op_operands(buildInsnString(EncodingMap[lir->opcode].fmt, lir, baseAddr));
+                LOG(INFO) << StringPrintf("%p (%04x): %-9s%s%s%s", baseAddr + offset, offset,
+                    op_name.c_str(), op_operands.c_str(), lir->flags.isNop ? "(nop)" : "",
+                    lir->flags.squashed ? "(squashed)" : "");
             }
             break;
     }
@@ -453,20 +439,14 @@ void oatCodegenDump(CompilationUnit* cUnit)
     }
     for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
         armLIR = (ArmLIR*) lirInsn;
-        char buf[100];
-        snprintf(buf, 100, "%x (%04x): .class (%s)",
-             armLIR->generic.offset, armLIR->generic.offset,
-             ((CallsiteInfo *) armLIR->operands[0])->classDescriptor);
-        LOG(INFO) << buf;
+        LOG(INFO) << StringPrintf("%x (%04x): .class (%s)",
+            armLIR->generic.offset, armLIR->generic.offset,
+            ((CallsiteInfo *) armLIR->operands[0])->classDescriptor);
     }
     for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
         armLIR = (ArmLIR*) lirInsn;
-        char buf[100];
-        snprintf(buf, 100, "%x (%04x): .word (%#x)",
-             armLIR->generic.offset, armLIR->generic.offset,
-             armLIR->operands[0]);
-        LOG(INFO) << buf;
-
+        LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)",
+            armLIR->generic.offset, armLIR->generic.offset, armLIR->operands[0]);
     }
 
     std::string signature = method->GetSignature()->ToModifiedUtf8();
@@ -474,22 +454,16 @@ void oatCodegenDump(CompilationUnit* cUnit)
     std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->
         ToModifiedUtf8();
 
-    char buf[256];
-
     // Dump mapping table
     if (cUnit->mappingTable.size() > 0) {
-        sprintf(buf,"\n    MappingTable %s%s_%s_mappingTable[%d] = {",
-                descriptor.c_str(), name.c_str(), signature.c_str(),
-                cUnit->mappingTable.size());
-        for (unsigned int i = 0; i < strlen(buf); i++)
-            if (buf[i] == ';') buf[i] = '_';
-        LOG(INFO) << buf;
-        strcpy(buf,"       ");
+        std::string line(StringPrintf("\n    MappingTable %s%s_%s_mappingTable[%d] = {",
+            descriptor.c_str(), name.c_str(), signature.c_str(), cUnit->mappingTable.size()));
+        std::replace(line.begin(), line.end(), ';', '_');
+        LOG(INFO) << line;
         for (uint32_t i = 0; i < cUnit->mappingTable.size(); i+=2) {
-            sprintf(buf+strlen(buf)," {0x%08x, 0x%04x},",
+            line = StringPrintf("        {0x%08x, 0x%04x},",
                 cUnit->mappingTable[i], cUnit->mappingTable[i+1]);
-            LOG(INFO) << buf;
-            strcpy(buf,"       ");
+            LOG(INFO) << line;
         }
         LOG(INFO) <<"    };\n\n";
     }

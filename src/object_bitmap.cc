@@ -152,8 +152,9 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
     // TODO: this should never happen
     return;
   }
-  void* pointer_buf[4 * kBitsPerWord];
-  void** pb = pointer_buf;
+  // TODO: rewrite the callbacks to accept a std::vector<void*> rather than a void**?
+  std::vector<void*> pointer_buf(4 * kBitsPerWord);
+  void** pb = &pointer_buf[0];
   size_t start = HB_OFFSET_TO_INDEX(base - live_bitmap.base_);
   size_t end = HB_OFFSET_TO_INDEX(max - live_bitmap.base_);
   word* live = live_bitmap.words_;
@@ -170,14 +171,14 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
       }
       // Make sure that there are always enough slots available for an
       // entire word of one bits.
-      if (pb >= &pointer_buf[ARRAYSIZE_UNSAFE(pointer_buf) - kBitsPerWord]) {
-        (*callback)(pb - pointer_buf, pointer_buf, arg);
-        pb = pointer_buf;
+      if (pb >= &pointer_buf[pointer_buf.size() - kBitsPerWord]) {
+        (*callback)(pb - &pointer_buf[0], &pointer_buf[0], arg);
+        pb = &pointer_buf[0];
       }
     }
   }
-  if (pb > pointer_buf) {
-    (*callback)(pb - pointer_buf, pointer_buf, arg);
+  if (pb > &pointer_buf[0]) {
+    (*callback)(pb - &pointer_buf[0], &pointer_buf[0], arg);
   }
 }
 

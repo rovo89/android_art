@@ -26,16 +26,16 @@ bool ReadFileToString(const std::string& file_name, std::string* result) {
     return false;
   }
 
-  char buf[8 * KB];
+  std::vector<char> buf(8 * KB);
   while (true) {
-    int64_t n = file->Read(buf, sizeof(buf));
+    int64_t n = file->Read(&buf[0], buf.size());
     if (n == -1) {
       return false;
     }
     if (n == 0) {
       return true;
     }
-    result->append(buf, n);
+    result->append(&buf[0], n);
   }
 }
 

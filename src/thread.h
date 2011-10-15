@@ -419,8 +419,12 @@ class PACKED Thread {
   // Set the stack end to that to be used during a stack overflow
   void SetStackEndForStackOverflow() {
     // During stack overflow we allow use of the full stack
-    CHECK(stack_end_ != stack_base_) << "Need to increase: kStackOverflowReservedBytes ("
-                                     << kStackOverflowReservedBytes << ")";
+    if (stack_end_ == stack_base_) {
+      DumpStack(std::cerr);
+      LOG(FATAL) << "Need to increase kStackOverflowReservedBytes (currently "
+                 << kStackOverflowReservedBytes << ")";
+    }
+
     stack_end_ = stack_base_;
   }
 

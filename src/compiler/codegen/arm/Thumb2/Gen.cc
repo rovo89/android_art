@@ -2037,10 +2037,9 @@ void oatArchDump(void)
 {
     /* Print compiled opcode in this VM instance */
     int i, start, streak;
-    char buf[1024];
+    std::string buf;
 
     streak = i = 0;
-    buf[0] = 0;
     while (opcodeCoverage[i] == 0 && i < kNumPackedOpcodes) {
         i++;
     }
@@ -2052,9 +2051,9 @@ void oatArchDump(void)
             streak++;
         } else {
             if (streak == 1) {
-                sprintf(buf+strlen(buf), "%x,", start);
+                StringAppendF(&buf, "%x,", start);
             } else {
-                sprintf(buf+strlen(buf), "%x-%x,", start, start + streak - 1);
+                StringAppendF(&buf, "%x-%x,", start, start + streak - 1);
             }
             streak = 0;
             while (opcodeCoverage[i] == 0 && i < kNumPackedOpcodes) {
@@ -2068,12 +2067,12 @@ void oatArchDump(void)
     }
     if (streak) {
         if (streak == 1) {
-            sprintf(buf+strlen(buf), "%x", start);
+            StringAppendF(&buf, "%x", start);
         } else {
-            sprintf(buf+strlen(buf), "%x-%x", start, start + streak - 1);
+            StringAppendF(&buf, "%x-%x", start, start + streak - 1);
         }
     }
-    if (strlen(buf)) {
+    if (!buf.empty()) {
         LOG(INFO) << "dalvik.vm.oat.op = " << buf;
     }
 }

@@ -16,6 +16,8 @@
 
 #include "zip_archive.h"
 
+#include <vector>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -24,6 +26,8 @@
 #include "UniquePtr.h"
 
 namespace art {
+
+static const size_t kBufSize = 32 * KB;
 
 // Get 2 little-endian bytes.
 static uint32_t Le16ToHost(const byte* src) {
@@ -117,16 +121,14 @@ off_t ZipEntry::GetDataOffset() {
 }
 
 static bool CopyFdToFile(File& file, int in, size_t count) {
-  const size_t kBufSize = 32768;
-  uint8_t buf[kBufSize];
-
+  std::vector<uint8_t> buf(kBufSize);
   while (count != 0) {
     size_t bytes_to_read = (count > kBufSize) ? kBufSize : count;
-    ssize_t actual = TEMP_FAILURE_RETRY(read(in, buf, bytes_to_read));
+    ssize_t actual = TEMP_FAILURE_RETRY(read(in, &buf[0], bytes_to_read));
     if (actual != static_cast<ssize_t>(bytes_to_read)) {
       return false;
     }
-    if (!file.WriteFully(buf, bytes_to_read)) {
+    if (!file.WriteFully(&buf[0], bytes_to_read)) {
       return false;
     }
     count -= bytes_to_read;
@@ -161,7 +163,6 @@ class ZStream {
 };
 
 static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t compressed_length) {
-  const size_t kBufSize = 32768;
   UniquePtr<uint8_t[]> read_buf(new uint8_t[kBufSize]);
   UniquePtr<uint8_t[]> write_buf(new uint8_t[kBufSize]);
   if (read_buf.get() == NULL || write_buf.get() == NULL) {

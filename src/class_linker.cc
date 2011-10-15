@@ -58,7 +58,7 @@ void ThrowLinkageError(const char* fmt, ...) {
 void ThrowNoSuchMethodError(const char* kind,
     Class* c, const StringPiece& name, const StringPiece& signature) {
   DexCache* dex_cache = c->GetDexCache();
-  std::stringstream msg;
+  std::ostringstream msg;
   msg << "no " << kind << " method " << name << "." << signature
       << " in class " << c->GetDescriptor()->ToModifiedUtf8()
       << " or its superclasses";
@@ -2310,7 +2310,7 @@ bool ClassLinker::LinkStaticFields(Class* klass) {
 }
 
 struct LinkFieldsComparator {
-  bool operator()(const Field* field1, const Field* field2){
+  bool operator()(const Field* field1, const Field* field2) {
 
     // First come reference fields, then 64-bit, and finally 32-bit
     const Class* type1 = field1->GetTypeDuringLinking();

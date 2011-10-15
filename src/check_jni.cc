@@ -35,7 +35,7 @@ void JniAbort(const char* jni_function_name) {
   Thread* self = Thread::Current();
   const Method* current_method = self->GetCurrentMethod();
 
-  std::stringstream os;
+  std::ostringstream os;
   os << "Aborting because JNI app bug detected (see above for details)";
 
   if (jni_function_name != NULL) {

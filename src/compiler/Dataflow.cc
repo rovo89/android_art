@@ -1689,7 +1689,7 @@ char *oatFullDisassembler(const CompilationUnit* cUnit,
                                   const MIR* mir)
 {
     char buffer[256];
-    char operand0[256], operand1[256];
+    char operand0[32], operand1[32];
     const DecodedInstruction *insn = &mir->dalvikInsn;
     int opcode = insn->opcode;
     int dfAttributes = oatDataFlowAttributes[opcode];
