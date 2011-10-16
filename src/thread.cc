@@ -1245,6 +1245,20 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
+const Method* Thread::GetCurrentMethod() const {
+  Method* m = top_of_managed_stack_.GetMethod();
+  // We use JNI internally for exception throwing, so it's possible to arrive
+  // here via a "FromCode" function, in which case there's a synthetic
+  // callee-save method at the top of the stack. These shouldn't be user-visible,
+  // so if we find one, skip it and return the compiled method underneath.
+  if (m->IsCalleeSaveMethod()) {
+    Frame f = top_of_managed_stack_;
+    f.Next();
+    m = f.GetMethod();
+  }
+  return m;
+}
+
 bool Thread::HoldsLock(Object* object) {
   if (object == NULL) {
     return false;

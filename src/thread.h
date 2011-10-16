@@ -233,9 +233,7 @@ class PACKED Thread {
 
   // Returns the Method* for the current method.
   // This is used by the JNI implementation for logging and diagnostic purposes.
-  const Method* GetCurrentMethod() const {
-    return top_of_managed_stack_.GetMethod();
-  }
+  const Method* GetCurrentMethod() const;
 
   bool IsExceptionPending() const {
     return exception_ != NULL;
