@@ -686,7 +686,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
         break;
 
       case DBG_ADVANCE_LINE:
-        line += DecodeUnsignedLeb128(&stream);
+        line += DecodeSignedLeb128(&stream);
         break;
 
       case DBG_START_LOCAL:
