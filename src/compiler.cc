@@ -310,7 +310,7 @@ void Compiler::CompileMethod(const Method* method) {
     CHECK(compiled_method != NULL);
   } else if (method->IsAbstract()) {
   } else {
-    CompiledMethod* compiled_method = oatCompileMethod(*this, method, kThumb2);
+    compiled_method = oatCompileMethod(*this, method, kThumb2);
     CHECK(compiled_method != NULL);
   }
 
