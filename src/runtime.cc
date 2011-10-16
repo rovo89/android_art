@@ -189,6 +189,7 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
+  bool compiler = false;
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   if (boot_class_path != NULL) {
     parsed->boot_class_path_ = getenv("BOOTCLASSPATH");
@@ -273,9 +274,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->properties_.push_back(option.substr(strlen("-D")).data());
     } else if (option.starts_with("-Xjnitrace:")) {
       parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
+    } else if (option == "compiler") {
+      compiler = true;
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
-      parsed->images_.push_back("/data/art-cache/boot.art");
     } else if (option.starts_with("-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);
@@ -298,6 +300,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         //return NULL;
       }
     }
+  }
+
+  if (!compiler && parsed->images_.empty()) {
+    parsed->images_.push_back("/data/art-cache/boot.art");
   }
 
   LOG(INFO) << "CheckJNI is " << (parsed->check_jni_ ? "on" : "off");
