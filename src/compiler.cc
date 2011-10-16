@@ -304,18 +304,20 @@ void Compiler::CompileClass(const Class* klass) {
 }
 
 void Compiler::CompileMethod(const Method* method) {
+  CompiledMethod* compiled_method = NULL;
   if (method->IsNative()) {
-    CompiledMethod* compiled_method = jni_compiler_.Compile(method);
+    compiled_method = jni_compiler_.Compile(method);
     CHECK(compiled_method != NULL);
-    compiled_methods_[method] = compiled_method;
-    DCHECK_EQ(1U, compiled_methods_.count(method));
-    DCHECK(GetCompiledMethod(method) != NULL) << PrettyMethod(method);
   } else if (method->IsAbstract()) {
   } else {
     CompiledMethod* compiled_method = oatCompileMethod(*this, method, kThumb2);
     CHECK(compiled_method != NULL);
+  }
+
+  if (compiled_method != NULL) {
+    CHECK(compiled_methods_.find(method) == compiled_methods_.end()) << PrettyMethod(method);
     compiled_methods_[method] = compiled_method;
-    DCHECK_EQ(1U, compiled_methods_.count(method));
+    DCHECK(compiled_methods_.find(method) != compiled_methods_.end()) << PrettyMethod(method);
     DCHECK(GetCompiledMethod(method) != NULL) << PrettyMethod(method);
   }
 
@@ -328,6 +330,8 @@ void Compiler::CompileMethod(const Method* method) {
     compiled_invoke_stub = art::arm::ArmCreateInvokeStub(method);
   }
   CHECK(compiled_invoke_stub != NULL);
+  // TODO: this fails if we have an abstract method defined in more than one input dex file.
+  CHECK(compiled_invoke_stubs_.find(method) == compiled_invoke_stubs_.end()) << PrettyMethod(method);
   compiled_invoke_stubs_[method] = compiled_invoke_stub;
 }
 

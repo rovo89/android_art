@@ -386,9 +386,7 @@ size_t OatWriter::WriteCodeClassDef(File* file,
   return code_offset;
 }
 
-size_t OatWriter::WriteCodeMethod(File* file,
-                                  size_t code_offset,
-                                  Method* method) {
+size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, Method* method) {
   const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
   if (compiled_method != NULL) {
     uint32_t aligned_code_offset = compiled_method->AlignCode(code_offset);
@@ -484,7 +482,7 @@ size_t OatWriter::WriteCodeMethod(File* file,
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     size_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
     DCHECK((invoke_stub_size == 0 && method->GetOatInvokeStubOffset() == 0)
-           || code_offset == method->GetOatInvokeStubOffset());
+        || code_offset == method->GetOatInvokeStubOffset()) << PrettyMethod(method);
     if (!file->WriteFully(&invoke_stub[0], invoke_stub_size)) {
       PLOG(ERROR) << "Failed to write invoke stub code for " << PrettyMethod(method);
       return false;
