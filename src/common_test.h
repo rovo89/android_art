@@ -180,6 +180,7 @@ class CommonTest : public testing::Test {
     boot_class_path += GetLibCoreDexFileName();
 
     Runtime::Options options;
+    options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(boot_class_path.c_str(), reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair("-Xms64m", reinterpret_cast<void*>(NULL)));
