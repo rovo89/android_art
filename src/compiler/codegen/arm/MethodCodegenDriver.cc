@@ -118,7 +118,7 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         opRegRegImm(cUnit, kOpAdd, rDst, r0,
                     Array::DataOffset().Int32Value());
         // Set up the loop counter (known to be > 0)
-        loadConstant(cUnit, rIdx, dInsn->vA);
+        loadConstant(cUnit, rIdx, dInsn->vA - 1);
         // Generate the copy loop.  Going backwards for convenience
         ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
         target->defMask = ENCODE_ALL;
@@ -127,7 +127,7 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         storeBaseIndexed(cUnit, rDst, rIdx, rVal, 2, kWord);
         // Use setflags encoding here
         newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-        ArmLIR* branch = opCondBranch(cUnit, kArmCondNe);
+        ArmLIR* branch = opCondBranch(cUnit, kArmCondGe);
         branch->generic.target = (LIR*)target;
     } else if (!isRange) {
         // TUNING: interleave
