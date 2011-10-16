@@ -186,7 +186,8 @@ LIBART_HOST_SRC_FILES := \
 LIBARTTEST_COMMON_SRC_FILES := \
 	src/base64.cc \
 	src/jni_tests.cc \
-	src/stack_walk.cc
+	src/stack_walk.cc \
+	src/stack_walk_refmap.cc
 
 TEST_COMMON_SRC_FILES := \
 	src/class_linker_test.cc \
@@ -238,6 +239,7 @@ TEST_DEX_DIRECTORIES := \
 	Nested \
 	ProtoCompare \
 	ProtoCompare2 \
+	ReferenceMap \
 	StackWalk \
 	StackWalk2 \
 	StaticLeafMethods \

@@ -78,6 +78,7 @@ $(eval $(call declare-test-test-target,Invoke,))
 $(eval $(call declare-test-test-target,ExceptionTest,))
 $(eval $(call declare-test-test-target,SystemMethods,))
 $(eval $(call declare-test-test-target,MemUsage,))
+$(eval $(call declare-test-test-target,ReferenceMap,))
 $(eval $(call declare-test-test-target,StackWalk,))
 
 # TODO: Enable when the StackWalk2 tests are passing
