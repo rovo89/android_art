@@ -376,7 +376,8 @@ void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
 }
 
 Class* Method::GetReturnType() const {
-  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
+  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous())
+      << PrettyMethod(this);
   // Short-cut
   Class* result = GetDexCacheResolvedTypes()->Get(GetReturnTypeIdx());
   if (result == NULL) {
@@ -587,7 +588,7 @@ Method* Method::FindOverriddenMethod() const {
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
-    DCHECK(IsNative());
+    DCHECK(IsNative()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = GetMappingTableLength();
@@ -698,14 +699,14 @@ bool Method::IsRegistered() const {
 }
 
 void Method::RegisterNative(const void* native_method) {
-  CHECK(IsNative());
-  CHECK(native_method != NULL);
+  CHECK(IsNative()) << PrettyMethod(this);
+  CHECK(native_method != NULL) << PrettyMethod(this);
   SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
                            native_method, false);
 }
 
 void Method::UnregisterNative() {
-  CHECK(IsNative());
+  CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(Runtime::Current()->GetJniStubArray()->GetData());
 }

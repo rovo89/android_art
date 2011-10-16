@@ -146,7 +146,7 @@ $(eval $(call build-art-cache-oat,system/app/SystemUI.apk))
 test-art-target-oat-process-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
 	adb remount
 	adb sync
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:$(ART_CACHE_DIR)/boot.art /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
 	$(hide) rm /tmp/test-art-target-process-am
 
@@ -168,7 +168,7 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 	  sleep 30; \
 	fi
 	adb shell kill `adb shell ps | fgrep com.android.calculator2 | sed -e 's/[^ ]* *\([0-9]*\).*/\1/'`
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process -Ximage:$(ART_CACHE_DIR)/boot.art /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
 	$(hide) rm /tmp/test-art-target-process-Calculator
 

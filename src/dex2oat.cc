@@ -145,6 +145,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   Runtime::Options options;
+  options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::string boot_class_path_string;
   if (boot_image_option.empty()) {
     boot_class_path_string += "-Xbootclasspath:";
