@@ -26,10 +26,10 @@ ${JAVAC} -source 1.4 -target 1.4 -d classes `find src -name '*.java'`
 dx --debug --dex --dump-to=classes.lst --output=classes.dex \
     --dump-width=1000 classes 2>/dev/null
 
-zip ${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar classes.dex
+zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
 
 dex2oatd -Xms16m -Xmx16m \
-    --boot-image=${ANDROID_PRODUCT_OUT}/system/framework/core.art \
-    --dex-file=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.jar \
-    --oat=${ANDROID_PRODUCT_OUT}/system/framework/$TEST_NAME.oat \
+    --boot-image=${ANDROID_PRODUCT_OUT}/data/art-test/core.art \
+    --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar \
+    --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat \
     --host-prefix=${ANDROID_PRODUCT_OUT}
