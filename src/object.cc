@@ -588,7 +588,7 @@ Method* Method::FindOverriddenMethod() const {
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
-    DCHECK(IsNative()) << PrettyMethod(this);
+    DCHECK(IsNative() || IsCalleeSaveMethod()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = GetMappingTableLength();
