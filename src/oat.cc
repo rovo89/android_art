@@ -51,13 +51,13 @@ void OatHeader::UpdateChecksum(const void* data, size_t length) {
 
 uint32_t OatHeader::GetExecutableOffset() const {
   DCHECK(IsValid());
-  DCHECK(IsAligned(executable_offset_, kPageSize));
+  DCHECK_ALIGNED(executable_offset_, kPageSize);
   CHECK_GT(executable_offset_, sizeof(OatHeader));
   return executable_offset_;
 }
 
 void OatHeader::SetExecutableOffset(uint32_t executable_offset) {
-  DCHECK(IsAligned(executable_offset, kPageSize));
+  DCHECK_ALIGNED(executable_offset, kPageSize);
   CHECK_GT(executable_offset, sizeof(OatHeader));
   DCHECK(IsValid());
   DCHECK_EQ(executable_offset_, 0U);

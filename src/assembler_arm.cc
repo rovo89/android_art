@@ -1091,7 +1091,7 @@ void ArmAssembler::EncodeUint32InTstInstructions(uint32_t data) {
 int32_t ArmAssembler::EncodeBranchOffset(int offset, int32_t inst) {
   // The offset is off by 8 due to the way the ARM CPUs read PC.
   offset -= 8;
-  CHECK(IsAligned(offset, 4));
+  CHECK_ALIGNED(offset, 4);
   CHECK(IsInt(CountOneBits(kBranchOffsetMask), offset));
 
   // Properly preserve only the bits supported in the instruction.
@@ -1423,7 +1423,7 @@ void ArmAssembler::Rrx(Register rd, Register rm, Condition cond) {
 
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& callee_save_regs) {
-  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
 
   // Push callee saves and link register
@@ -1447,7 +1447,7 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
 void ArmAssembler::RemoveFrame(size_t frame_size,
                               const std::vector<ManagedRegister>& callee_save_regs) {
-  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_ALIGNED(frame_size, kStackAlignment);
   // Compute callee saves to pop and PC
   RegList pop_list = 1 << PC;
   size_t pop_values = 1;

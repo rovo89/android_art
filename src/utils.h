@@ -25,16 +25,22 @@ static inline bool IsPowerOfTwo(T x) {
   return (x & (x - 1)) == 0;
 }
 
-template<typename T>
-static inline bool IsAligned(T x, int n) {
-  CHECK(IsPowerOfTwo(n));
+template<int n, typename T>
+static inline bool IsAligned(T x) {
+  COMPILE_ASSERT((n & (n - 1)) == 0, n_not_power_of_two);
   return (x & (n - 1)) == 0;
 }
 
-template<typename T>
-static inline bool IsAligned(T* x, int n) {
-  return IsAligned(reinterpret_cast<uintptr_t>(x), n);
+template<int n, typename T>
+static inline bool IsAligned(T* x) {
+  return IsAligned<n>(reinterpret_cast<uintptr_t>(x));
 }
+
+#define CHECK_ALIGNED(value, alignment) \
+  CHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<void*>(value)
+
+#define DCHECK_ALIGNED(value, alignment) \
+  DCHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<void*>(value)
 
 // Check whether an N-bit two's-complement representation can hold value.
 static inline bool IsInt(int N, word value) {

@@ -2173,43 +2173,36 @@ inline void Field::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   Class* type = GetTypeDuringLinking();
   if (type != NULL && (type->IsPrimitiveDouble() || type->IsPrimitiveLong())) {
-    DCHECK(IsAligned(num_bytes.Uint32Value(), 8));
+    DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
   }
-  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_),
-             num_bytes.Uint32Value(), false);
+  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), num_bytes.Uint32Value(), false);
 }
 
 inline Class* Field::GetDeclaringClass() const {
-  Class* result = GetFieldObject<Class*>(
-      OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), false);
+  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), false);
   DCHECK(result != NULL);
   DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
 inline void Field::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_),
-                 new_declaring_class, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), new_declaring_class, false);
 }
 
 inline Class* Method::GetDeclaringClass() const {
-  Class* result =
-      GetFieldObject<Class*>(
-          OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
+  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
   DCHECK(result != NULL);
   DCHECK(result->IsIdxLoaded() || result->IsErroneous());
   return result;
 }
 
 inline void Method::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_),
-                 new_declaring_class, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), new_declaring_class, false);
 }
 
 inline uint32_t Method::GetReturnTypeIdx() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_idx_),
-                    false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_idx_), false);
 }
 
 inline bool Method::IsReturnAReference() const {

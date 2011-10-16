@@ -179,7 +179,7 @@ class Address {
     const uint32_t offset_mask = (1 << 12) - 1;
     uint32_t offset = encoding_ & offset_mask;
     CHECK(IsAbsoluteUint(10, offset));  // In the range -1020 to +1020.
-    CHECK(IsAligned(offset, 2));  // Multiple of 4.
+    CHECK_ALIGNED(offset, 2);  // Multiple of 4.
     int mode = encoding_ & ((8|4|1) << 21);
     CHECK((mode == Offset) || (mode == NegOffset));
     uint32_t vencoding = (encoding_ & (0xf << kRnShift)) | (offset >> 2);

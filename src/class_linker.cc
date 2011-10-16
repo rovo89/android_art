@@ -2387,7 +2387,7 @@ bool ClassLinker::LinkFields(Class* klass, bool is_static) {
   // Now we want to pack all of the double-wide fields together.  If
   // we're not aligned, though, we want to shuffle one 32-bit field
   // into place.  If we can't find one, we'll have to pad it.
-  if (current_field != num_fields && !IsAligned(field_offset.Uint32Value(), 8)) {
+  if (current_field != num_fields && !IsAligned<8>(field_offset.Uint32Value())) {
     for (size_t i = 0; i < grouped_and_sorted_fields.size(); i++) {
       Field* field = grouped_and_sorted_fields[i];
       const Class* type = field->GetTypeDuringLinking();
@@ -2408,7 +2408,7 @@ bool ClassLinker::LinkFields(Class* klass, bool is_static) {
 
   // Alignment is good, shuffle any double-wide fields forward, and
   // finish assigning field offsets to all fields.
-  DCHECK(current_field == num_fields || IsAligned(field_offset.Uint32Value(), 8));
+  DCHECK(current_field == num_fields || IsAligned<8>(field_offset.Uint32Value()));
   while (!grouped_and_sorted_fields.empty()) {
     Field* field = grouped_and_sorted_fields.front();
     grouped_and_sorted_fields.pop_front();

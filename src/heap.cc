@@ -171,7 +171,7 @@ Object* Heap::AllocObject(Class* klass, size_t byte_count) {
 bool Heap::IsHeapAddress(const Object* obj) {
   // Note: we deliberately don't take the lock here, and mustn't test anything that would
   // require taking the lock.
-  if (!IsAligned(obj, kObjectAlignment)) {
+  if (!IsAligned<kObjectAlignment>(obj)) {
     return false;
   }
   // TODO
@@ -191,7 +191,7 @@ void Heap::VerifyObject(const Object* obj) {
 void Heap::VerifyObjectLocked(const Object* obj) {
   lock_->AssertHeld();
   if (obj != NULL) {
-    if (!IsAligned(obj, kObjectAlignment)) {
+    if (!IsAligned<kObjectAlignment>(obj)) {
       LOG(FATAL) << "Object isn't aligned: " << obj;
     } else if (!live_bitmap_->Test(obj)) {
       // TODO: we don't hold a lock here as it is assumed the live bit map
@@ -205,7 +205,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
       const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
       if (c == NULL) {
         LOG(FATAL) << "Null class" << " in object: " << obj;
-      } else if (!IsAligned(c, kObjectAlignment)) {
+      } else if (!IsAligned<kObjectAlignment>(c)) {
         LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
       } else if (!live_bitmap_->Test(c)) {
         LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
@@ -291,7 +291,7 @@ void Heap::RecordImageAllocations(Space* space) {
   CHECK(live_bitmap_ != NULL);
   byte* current = space->GetBase() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
   while (current < space->GetLimit()) {
-    DCHECK(IsAligned(current, kObjectAlignment));
+    DCHECK_ALIGNED(current, kObjectAlignment);
     const Object* obj = reinterpret_cast<const Object*>(current);
     live_bitmap_->Set(obj);
     current += RoundUp(obj->SizeOf(), kObjectAlignment);

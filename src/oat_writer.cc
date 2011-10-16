@@ -180,7 +180,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
   if (compiled_method != NULL) {
 
     offset = compiled_method->AlignCode(offset);
-    DCHECK(IsAligned(offset, kArmAlignment)) << std::hex << offset;
+    DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& code = compiled_method->GetCode();
     size_t code_size = code.size() * sizeof(code[0]);
     uint32_t thumb_offset = compiled_method->CodeDelta();
@@ -224,7 +224,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
   const CompiledInvokeStub* compiled_invoke_stub = compiler_->GetCompiledInvokeStub(method);
   if (compiled_invoke_stub != NULL) {
     offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
-    DCHECK(IsAligned(offset, kArmAlignment)) << std::hex << offset;
+    DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     size_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
     invoke_stub_offset = (invoke_stub_size == 0) ? 0 : offset;
@@ -403,7 +403,7 @@ size_t OatWriter::WriteCodeMethod(File* file,
       code_offset += aligned_code_delta;
       DCHECK_CODE_OFFSET();
     }
-    DCHECK(IsAligned(code_offset, kArmAlignment)) << std::hex << code_offset;
+    DCHECK_ALIGNED(code_offset, kArmAlignment);
     const std::vector<uint8_t>& code = compiled_method->GetCode();
     size_t code_size = code.size() * sizeof(code[0]);
     DCHECK((code_size == 0 && method->GetOatCodeOffset() == 0)
@@ -480,7 +480,7 @@ size_t OatWriter::WriteCodeMethod(File* file,
       code_offset += aligned_code_delta;
       DCHECK_CODE_OFFSET();
     }
-    DCHECK(IsAligned(code_offset, kArmAlignment)) << std::hex << code_offset;
+    DCHECK_ALIGNED(code_offset, kArmAlignment);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     size_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
     DCHECK((invoke_stub_size == 0 && method->GetOatInvokeStubOffset() == 0)

@@ -1379,7 +1379,7 @@ void X86Assembler::EmitGenericShift(int rm,
 
 void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& spill_regs) {
-  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
   // return address then method on stack
   addl(ESP, Immediate(-frame_size + kPointerSize /*method*/ +
@@ -1389,19 +1389,19 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
 void X86Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
-  CHECK(IsAligned(frame_size, kStackAlignment));
+  CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
   addl(ESP, Immediate(frame_size - kPointerSize));
   ret();
 }
 
 void X86Assembler::IncreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, kStackAlignment));
+  CHECK_ALIGNED(adjust, kStackAlignment);
   addl(ESP, Immediate(-adjust));
 }
 
 void X86Assembler::DecreaseFrameSize(size_t adjust) {
-  CHECK(IsAligned(adjust, kStackAlignment));
+  CHECK_ALIGNED(adjust, kStackAlignment);
   addl(ESP, Immediate(adjust));
 }
 
