@@ -22,6 +22,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * Do some basic tests.
@@ -70,6 +71,11 @@ public class BasicTest {
          */
         System.out.println("");
         Method[] methods = proxy.getClass().getDeclaredMethods();
+        Arrays.sort(methods, new Comparator<Method>() {
+          public int compare(Method o1, Method o2) {
+            return o1.getName().compareTo(o2.getName());
+          }
+        });
         System.out.println("Proxy methods: " + Arrays.deepToString(methods));
         Method meth = methods[methods.length -1];
         System.out.println("Decl annos: " + Arrays.deepToString(meth.getDeclaredAnnotations()));
@@ -77,6 +83,11 @@ public class BasicTest {
         System.out.println("Param annos (" + paramAnnos.length + ") : "
             + Arrays.deepToString(paramAnnos));
         Field[] fields = proxy.getClass().getDeclaredFields();
+        Arrays.sort(fields, new Comparator<Field>() {
+          public int compare(Field o1, Field o2) {
+            return o1.getName().compareTo(o2.getName());
+          }
+        });
         System.out.println("Proxy fields: " + Arrays.deepToString(fields));
     }
 

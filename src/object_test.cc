@@ -278,17 +278,17 @@ TEST_F(ObjectTest, DescriptorCompare) {
   Method* m4_2 = klass2->GetVirtualMethod(3);
   EXPECT_TRUE(m4_2->GetName()->Equals("m4"));
 
-  EXPECT_TRUE(m1_1->HasSameNameAndDescriptor(m1_2));
-  EXPECT_TRUE(m1_2->HasSameNameAndDescriptor(m1_1));
+  EXPECT_TRUE(m1_1->HasSameNameAndSignature(m1_2));
+  EXPECT_TRUE(m1_2->HasSameNameAndSignature(m1_1));
 
-  EXPECT_TRUE(m2_1->HasSameNameAndDescriptor(m2_2));
-  EXPECT_TRUE(m2_2->HasSameNameAndDescriptor(m2_1));
+  EXPECT_TRUE(m2_1->HasSameNameAndSignature(m2_2));
+  EXPECT_TRUE(m2_2->HasSameNameAndSignature(m2_1));
 
-  EXPECT_TRUE(m3_1->HasSameNameAndDescriptor(m3_2));
-  EXPECT_TRUE(m3_2->HasSameNameAndDescriptor(m3_1));
+  EXPECT_TRUE(m3_1->HasSameNameAndSignature(m3_2));
+  EXPECT_TRUE(m3_2->HasSameNameAndSignature(m3_1));
 
-  EXPECT_TRUE(m4_1->HasSameNameAndDescriptor(m4_2));
-  EXPECT_TRUE(m4_2->HasSameNameAndDescriptor(m4_1));
+  EXPECT_TRUE(m4_1->HasSameNameAndSignature(m4_2));
+  EXPECT_TRUE(m4_2->HasSameNameAndSignature(m4_1));
 }
 
 

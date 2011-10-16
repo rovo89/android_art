@@ -29,7 +29,7 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobject
   ObjectArray<Class>* interfaces = Decode<ObjectArray<Class>*>(env, javaInterfaces);
   ClassLoader* loader = Decode<ClassLoader*>(env, javaLoader);
   ObjectArray<Method>* methods = Decode<ObjectArray<Method>*>(env, javaMethods);
-  ObjectArray<Object>* throws = Decode<ObjectArray<Object>*>(env, javaThrows);
+  ObjectArray<ObjectArray<Class> >* throws = Decode<ObjectArray<ObjectArray<Class> >*>(env, javaThrows);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* result = class_linker->CreateProxyClass(name, interfaces, loader, methods, throws);
   return AddLocalReference<jclass>(env, result);

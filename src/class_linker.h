@@ -227,7 +227,7 @@ class ClassLinker {
   void VerifyClass(Class* klass);
 
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
-      ObjectArray<Method>* methods, ObjectArray<Object>* throws);
+      ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
 
  private:
   ClassLinker(InternTable*);
@@ -347,7 +347,7 @@ class ClassLinker {
   }
 
   Method* CreateProxyConstructor(Class* klass);
-  Method* CreateProxyMethod(Class* klass, Method* prototype, Object* throws);
+  Method* CreateProxyMethod(Class* klass, Method* prototype, ObjectArray<Class>* throws);
 
   // lock to protect ClassLinker state
   mutable Mutex lock_;
@@ -377,6 +377,7 @@ class ClassLinker {
     kJavaLangReflectConstructor,
     kJavaLangReflectField,
     kJavaLangReflectMethod,
+    kJavaLangReflectProxy,
     kJavaLangClassLoader,
     kDalvikSystemBaseDexClassLoader,
     kDalvikSystemPathClassLoader,

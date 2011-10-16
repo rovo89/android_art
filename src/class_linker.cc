@@ -19,6 +19,7 @@
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
+#include "runtime_support.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
 #include "stl_util.h"
@@ -127,6 +128,7 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/reflect/Constructor;",
   "Ljava/lang/reflect/Field;",
   "Ljava/lang/reflect/Method;",
+  "Ljava/lang/reflect/Proxy;",
   "Ljava/lang/ClassLoader;",
   "Ldalvik/system/BaseDexClassLoader;",
   "Ldalvik/system/PathClassLoader;",
@@ -419,6 +421,12 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   java_lang_reflect_Method->SetStatus(Class::kStatusNotReady);
   Class* Method_class = FindSystemClass("Ljava/lang/reflect/Method;");
   CHECK_EQ(java_lang_reflect_Method, Method_class);
+
+  // End of special init trickery, subsequent classes may be loaded via FindSystemClass
+
+  // Create java.lang.reflect.Proxy root
+  Class* java_lang_reflect_Proxy = FindSystemClass("Ljava/lang/reflect/Proxy;");
+  SetClassRoot(kJavaLangReflectProxy, java_lang_reflect_Proxy);
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
@@ -1291,6 +1299,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) 
 }
 
 const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
+  CHECK(dex_cache != NULL);
   MutexLock mu(lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     if (dex_caches_[i] == dex_cache) {
@@ -1533,72 +1542,85 @@ void ClassLinker::VerifyClass(Class* klass) {
 }
 
 Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interfaces,
-    ClassLoader* loader, ObjectArray<Method>* methods, ObjectArray<Object>* throws) {
+    ClassLoader* loader, ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws) {
   Class* klass = AllocClass(GetClassRoot(kJavaLangClass), sizeof(ProxyClass));
   CHECK(klass != NULL);
   klass->SetObjectSize(sizeof(Proxy));
-  klass->SetDescriptor(intern_table_->InternStrong(name));
+  const char* descriptor = DotToDescriptor(name->ToModifiedUtf8().c_str()).c_str();;
+  klass->SetDescriptor(intern_table_->InternStrong(descriptor));
   klass->SetAccessFlags(kAccPublic | kAccFinal);
   klass->SetClassLoader(loader);
-  klass->SetStatus(Class::kStatusInitialized);
-  klass->SetInterfaces(interfaces);
+  klass->SetStatus(Class::kStatusInitialized);  // no loading or initializing necessary
+  Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
+  klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
+  klass->SetInterfaces(interfaces);  // The interfaces are the array of interfaces specified
 
+  // Proxies have 1 direct method, the constructor
   klass->SetDirectMethods(AllocObjectArray<Method>(1));
   klass->SetDirectMethod(0, CreateProxyConstructor(klass));
 
+  // Create virtual method using specified prototypes
   size_t num_virtual_methods = methods->GetLength();
   klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     Method* prototype = methods->Get(i);
     klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype, throws->Get(i)));
   }
-
+  // Link the virtual methods, creating vtable and iftables
   if (!LinkMethods(klass)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
-
   return klass;
 }
 
 Method* ClassLinker::CreateProxyConstructor(Class* klass) {
-  Method* constructor = AllocMethod();
+  // Create constructor for Proxy that must initialize h
+  Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
+  ObjectArray<Method>* proxy_direct_methods = proxy_class->GetDirectMethods();
+  CHECK_EQ(proxy_direct_methods->GetLength(), 12);
+  Method* proxy_constructor = proxy_direct_methods->Get(2);
+  // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
+  // code_ too)
+  Method* constructor = down_cast<Method*>(proxy_constructor->Clone());
+  // Make this constructor public and fix the class to be our Proxy version
+  constructor->SetAccessFlags((constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
   constructor->SetDeclaringClass(klass);
-  constructor->SetName(intern_table_->InternStrong("<init>"));
-  constructor->SetSignature(intern_table_->InternStrong("(Ljava/lang/reflect/InvocationHandler;)V"));
-  constructor->SetShorty(intern_table_->InternStrong("LV"));
-  constructor->SetAccessFlags(kAccPublic | kAccNative);
-
-  // TODO: return type
-  // TODO: code block
-
+  // Sanity checks
+  CHECK(constructor->IsConstructor());
+  CHECK(constructor->GetName()->Equals("<init>"));
+  CHECK(constructor->GetSignature()->Equals("(Ljava/lang/reflect/InvocationHandler;)V"));
+  DCHECK(constructor->IsPublic());
   return constructor;
 }
 
-Method* ClassLinker::CreateProxyMethod(Class* klass, Method* prototype, Object* throws) {
-  Method* method = AllocMethod();
+Method* ClassLinker::CreateProxyMethod(Class* klass, Method* prototype,
+                                       ObjectArray<Class>* throws) {
+  // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialise
+  // as necessary
+  Method* method = down_cast<Method*>(prototype->Clone());
+
+  // Set class to be the concrete proxy class and clear the abstract flag, modify exceptions to
+  // the intersection of throw exceptions as defined in Proxy
   method->SetDeclaringClass(klass);
-  method->SetName(const_cast<String*>(prototype->GetName()));
-  method->SetSignature(const_cast<String*>(prototype->GetSignature()));
-  method->SetShorty(prototype->GetShorty());
-  method->SetAccessFlags(prototype->GetAccessFlags());
+  method->SetAccessFlags((method->GetAccessFlags() & ~kAccAbstract) | kAccFinal);
   method->SetExceptionTypes(throws);
 
-  // TODO: return type
-  // method->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
+  // At runtime the method looks like a reference and argument saving method, clone the code
+  // related parameters from this method.
+  Method* refs_and_args = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+  method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
+  method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
+  method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
+  method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
 
-  // TODO: code block
-  // method->SetCodeItemOffset(src.code_off_);
-  // method->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
-  // method->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
-  // method->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
-  // method->SetDexCacheResolvedFields(klass->GetDexCache()->GetResolvedFields());
-  // method->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
-  // method->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
-  // method->SetNumRegisters(code_item->registers_size_);
-  // method->SetNumIns(code_item->ins_size_);
-  // method->SetNumOuts(code_item->outs_size_);
-  // LinkCode(method, oat_class.get(), method_index);
+  // Basic sanity
+  DCHECK(method->GetName()->Equals(prototype->GetName()));
+  DCHECK(method->GetSignature()->Equals(prototype->GetSignature()));
+  DCHECK(method->GetShorty()->Equals(prototype->GetShorty()));
+
+  // More complex sanity - via dex cache
+  CHECK_EQ(method->GetReturnType(), prototype->GetReturnType());
 
   return method;
 }
@@ -2092,7 +2114,7 @@ bool ClassLinker::LinkVirtualMethods(Class* klass) {
       size_t j = 0;
       for (; j < actual_count; ++j) {
         Method* super_method = vtable->Get(j);
-        if (local_method->HasSameNameAndDescriptor(super_method)) {
+        if (local_method->HasSameNameAndSignature(super_method)) {
           // Verify
           if (super_method->IsFinal()) {
             ThrowLinkageError("Method %s.%s overrides final method in class %s",
@@ -2212,7 +2234,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       // matter which direction we go.  We walk it backward anyway.)
       for (k = vtable->GetLength() - 1; k >= 0; --k) {
         Method* vtable_method = vtable->Get(k);
-        if (interface_method->HasSameNameAndDescriptor(vtable_method)) {
+        if (interface_method->HasSameNameAndSignature(vtable_method)) {
           if (!vtable_method->IsPublic()) {
             Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                 "Implementation not public: %s", PrettyMethod(vtable_method).c_str());
@@ -2225,7 +2247,7 @@ bool ClassLinker::LinkInterfaceMethods(Class* klass) {
       if (k < 0) {
         Method* miranda_method = NULL;
         for (size_t mir = 0; mir < miranda_list.size(); mir++) {
-          if (miranda_list[mir]->HasSameNameAndDescriptor(interface_method)) {
+          if (miranda_list[mir]->HasSameNameAndSignature(interface_method)) {
             miranda_method = miranda_list[mir];
             break;
           }

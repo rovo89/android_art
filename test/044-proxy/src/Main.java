@@ -19,6 +19,7 @@
  */
 public class Main {
     public static void main(String[] args) {
+        ReturnsAndArgPassing.main(null);
         BasicTest.main(null);
         Clash.main(null);
         Clash2.main(null);

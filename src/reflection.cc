@@ -70,6 +70,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
 
     // Find the actual implementation of the virtual method.
     m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
+    mid = reinterpret_cast<jmethodID>(m);
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
@@ -310,13 +311,13 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
   Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
   if (src_descriptor->Equals("Ljava/lang/Boolean;")) {
     src_class = class_linker->FindPrimitiveClass('Z');
-    boxed_value.z = primitive_field->GetBoolean(o);
+    boxed_value.i = primitive_field->GetBoolean(o);  // and extend read value to 32bits
   } else if (src_descriptor->Equals("Ljava/lang/Byte;")) {
     src_class = class_linker->FindPrimitiveClass('B');
-    boxed_value.b = primitive_field->GetByte(o);
+    boxed_value.i = primitive_field->GetByte(o);  // and extend read value to 32bits
   } else if (src_descriptor->Equals("Ljava/lang/Character;")) {
     src_class = class_linker->FindPrimitiveClass('C');
-    boxed_value.c = primitive_field->GetChar(o);
+    boxed_value.i = primitive_field->GetChar(o);  // and extend read value to 32bits
   } else if (src_descriptor->Equals("Ljava/lang/Float;")) {
     src_class = class_linker->FindPrimitiveClass('F');
     boxed_value.f = primitive_field->GetFloat(o);
@@ -331,7 +332,7 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
     boxed_value.j = primitive_field->GetLong(o);
   } else if (src_descriptor->Equals("Ljava/lang/Short;")) {
     src_class = class_linker->FindPrimitiveClass('S');
-    boxed_value.s = primitive_field->GetShort(o);
+    boxed_value.i = primitive_field->GetShort(o);  // and extend read value to 32bits
   } else {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "%s is not a boxed primitive type", PrettyDescriptor(src_descriptor).c_str());

@@ -93,6 +93,7 @@ template Class* Decode<Class*>(JNIEnv*, jobject);
 template ClassLoader* Decode<ClassLoader*>(JNIEnv*, jobject);
 template Object* Decode<Object*>(JNIEnv*, jobject);
 template ObjectArray<Class>* Decode<ObjectArray<Class>*>(JNIEnv*, jobject);
+template ObjectArray<ObjectArray<Class> >* Decode<ObjectArray<ObjectArray<Class> >*>(JNIEnv*, jobject);
 template ObjectArray<Object>* Decode<ObjectArray<Object>*>(JNIEnv*, jobject);
 template ObjectArray<StackTraceElement>* Decode<ObjectArray<StackTraceElement>*>(JNIEnv*, jobject);
 template ObjectArray<Method>* Decode<ObjectArray<Method>*>(JNIEnv*, jobject);
