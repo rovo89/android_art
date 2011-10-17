@@ -409,6 +409,23 @@ art_resolve_string_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
+    .global art_object_init_from_code
+    .extern artObjectInitFromCode
+    /*
+     * Entry from managed code to perform Object.<init> string. R0 holds the object to initialize.
+     * On success, 0 is returned. Otherwise there is a pending exception to deliver.
+     */
+art_object_init_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r1, r9                     @ pass Thread::Current
+    mov    r2, sp                     @ pass SP
+    @ artObjectInitFromCode(Object* o, Thread*, SP)
+    bl     artObjectInitFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                     @ success if result is zero
+    bxeq   lr                         @ return on success
+    DELIVER_PENDING_EXCEPTION
+
     .global art_alloc_object_from_code
     .extern artAllocObjectFromCode
     /*

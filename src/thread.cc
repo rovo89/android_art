@@ -88,9 +88,8 @@ void Thread::InitFunctionPointers() {
   pFmod = fmod;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
-  pTestSuspendFromCode = art_test_suspend;
-  pAllocObjectFromCode = art_alloc_object_from_code;
   pAllocArrayFromCode = art_alloc_array_from_code;
+  pAllocObjectFromCode = art_alloc_object_from_code;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
   pCheckCastFromCode = art_check_cast_from_code;
@@ -100,11 +99,14 @@ void Thread::InitFunctionPointers() {
   pGetObjStatic = art_get_obj_static_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
-  pResolveStringFromCode = art_resolve_string_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
+  pLockObjectFromCode = art_lock_object_from_code;
+  pObjectInit = art_object_init_from_code;
+  pResolveStringFromCode = art_resolve_string_from_code;
   pSet32Static = art_set32_static_from_code;
   pSet64Static = art_set64_static_from_code;
   pSetObjStatic = art_set_obj_static_from_code;
+  pTestSuspendFromCode = art_test_suspend;
   pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
   pThrowDivZeroFromCode = art_throw_div_zero_from_code;
   pThrowNegArraySizeFromCode = art_throw_neg_array_size_from_code;
@@ -112,7 +114,6 @@ void Thread::InitFunctionPointers() {
   pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
-  pLockObjectFromCode = art_lock_object_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
 #endif
   pF2l = F2L;
@@ -125,7 +126,6 @@ void Thread::InitFunctionPointers() {
   pFindNativeMethod = FindNativeMethod;
   pInitializeTypeFromCode = InitializeTypeFromCode;
   pInstanceofNonTrivialFromCode = IsAssignableFromCode;
-  pObjectInit = ObjectInitFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;

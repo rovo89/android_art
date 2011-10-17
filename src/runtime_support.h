@@ -36,24 +36,18 @@ extern "C" void art_proxy_invoke_handler();
 
 #if defined(__arm__)
   /* Compiler helpers */
-  extern "C" void* art_alloc_object_from_code(uint32_t type_idx, void* method);
-  extern "C" void* art_alloc_array_from_code(uint32_t, void*, int32_t);
-  extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
-  extern "C" void art_can_put_array_element_from_code(void*, void*);
-  extern "C" void art_check_cast_from_code(void*, void*);
-  extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
-  extern "C" void* art_find_instance_field_from_code(uint32_t, void*);
-  extern "C" void* art_find_static_field_from_code(uint32_t, void*);
-  extern "C" int32_t art_get32_static_from_code(uint32_t, void*);
-  extern "C" int64_t art_get64_static_from_code(uint32_t, void*);
-  extern "C" void* art_get_obj_static_from_code(uint32_t, void*);
-  extern "C" void art_handle_fill_data_from_code(void*, void*);
-  extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
-  extern "C" void* art_resolve_string_from_code(void*, uint32_t);
-  extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
   extern "C" int art_set32_static_from_code(uint32_t, void*, int32_t);
   extern "C" int art_set64_static_from_code(uint32_t, void*, int64_t);
   extern "C" int art_set_obj_static_from_code(uint32_t, void*, void*);
+  extern "C" int32_t art_get32_static_from_code(uint32_t, void*);
+  extern "C" int64_t art_get64_static_from_code(uint32_t, void*);
+  extern "C" void art_can_put_array_element_from_code(void*, void*);
+  extern "C" void art_check_cast_from_code(void*, void*);
+  extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
+  extern "C" void art_handle_fill_data_from_code(void*, void*);
+  extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
+  extern "C" void art_lock_object_from_code(void*);
+  extern "C" void art_object_init_from_code(void*);
   extern "C" void art_test_suspend();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();
@@ -62,8 +56,15 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_throw_null_pointer_exception_from_code();
   extern "C" void art_throw_stack_overflow_from_code(void*);
   extern "C" void art_throw_verification_error_from_code(int32_t src1, int32_t ref);
-  extern "C" void art_lock_object_from_code(void*);
   extern "C" void art_unlock_object_from_code(void*);
+  extern "C" void* art_alloc_array_from_code(uint32_t, void*, int32_t);
+  extern "C" void* art_alloc_object_from_code(uint32_t type_idx, void* method);
+  extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
+  extern "C" void* art_find_instance_field_from_code(uint32_t, void*);
+  extern "C" void* art_find_static_field_from_code(uint32_t, void*);
+  extern "C" void* art_get_obj_static_from_code(uint32_t, void*);
+  extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
+  extern "C" void* art_resolve_string_from_code(void*, uint32_t);
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT
