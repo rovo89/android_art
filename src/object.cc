@@ -378,6 +378,10 @@ void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
 Class* Method::GetReturnType() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous())
       << PrettyMethod(this);
+  Class* java_return_type = java_return_type_;
+  if (java_return_type != NULL) {
+      return java_return_type;
+  }
   // Short-cut
   Class* result = GetDexCacheResolvedTypes()->Get(GetReturnTypeIdx());
   if (result == NULL) {
