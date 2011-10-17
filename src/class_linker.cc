@@ -1288,7 +1288,7 @@ bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
 
 bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
   MutexLock mu(lock_);
-  return IsDexFileRegistered(dex_file);
+  return IsDexFileRegisteredLocked(dex_file);
 }
 
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_cache) {
