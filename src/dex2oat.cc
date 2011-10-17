@@ -83,6 +83,7 @@ int dex2oat(int argc, char** argv) {
   std::string host_prefix;
   const char* Xms = NULL;
   const char* Xmx = NULL;
+  const char* verbose = NULL;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -116,6 +117,8 @@ int dex2oat(int argc, char** argv) {
       Xms = option.data();
     } else if (option.starts_with("-Xmx")) {
       Xmx = option.data();
+    } else if (option.starts_with("-verbose:")) {
+      verbose = option.data();
     } else {
       fprintf(stderr, "unknown argument %s\n", option.data());
       usage();
@@ -163,6 +166,9 @@ int dex2oat(int argc, char** argv) {
   }
   if (Xmx != NULL) {
     options.push_back(std::make_pair(Xmx, reinterpret_cast<void*>(NULL)));
+  }
+  if (verbose != NULL) {
+    options.push_back(std::make_pair(verbose, reinterpret_cast<void*>(NULL)));
   }
   if (!host_prefix.empty()) {
     options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));

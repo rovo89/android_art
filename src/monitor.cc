@@ -605,12 +605,13 @@ void Monitor::Inflate(Thread* self, Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   DCHECK_EQ(LW_SHAPE(*obj->GetRawLockWordAddress()), LW_SHAPE_THIN);
-  DCHECK_EQ(LW_LOCK_OWNER(*obj->GetRawLockWordAddress()), static_cast<int32_t>(self->thin_lock_id_));
+  DCHECK_EQ(LW_LOCK_OWNER(*obj->GetRawLockWordAddress()), static_cast<int32_t>(self->GetThinLockId()));
 
   // Allocate and acquire a new monitor.
   Monitor* m = new Monitor(obj);
   if (is_verbose_) {
-    LOG(INFO) << "monitor: created monitor " << m << " for object " << obj;
+    LOG(INFO) << "monitor: thread " << self->GetThinLockId()
+              << " created monitor " << m << " for object " << obj;
   }
   Runtime::Current()->GetMonitorList()->Add(m);
   m->Lock(self);
@@ -629,11 +630,11 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
   long sleepDelayNs;
   long minSleepDelayNs = 1000000;  /* 1 millisecond */
   long maxSleepDelayNs = 1000000000;  /* 1 second */
-  uint32_t thin, newThin, threadId;
+  uint32_t thin, newThin;
 
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
-  threadId = self->thin_lock_id_;
+  uint32_t threadId = self->GetThinLockId();
 retry:
   thin = *thinp;
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
@@ -669,7 +670,8 @@ retry:
       }
     } else {
       if (is_verbose_) {
-        LOG(INFO) << StringPrintf("monitor: (%d) spin on lock %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
+        LOG(INFO) << StringPrintf("monitor: thread %d spin on lock %p (a %s) owned by %d",
+            threadId, thinp, PrettyTypeOf(obj).c_str(), LW_LOCK_OWNER(thin));
       }
       // The lock is owned by another thread. Notify the VM that we are about to wait.
       self->monitor_enter_object_ = obj;
@@ -710,7 +712,8 @@ retry:
           // The thin lock was inflated by another thread. Let the VM know we are no longer
           // waiting and try again.
           if (is_verbose_) {
-            LOG(INFO) << "monitor: (" << threadId << ") lock " << (void*) thinp << " surprise-fattened";
+            LOG(INFO) << "monitor: thread " << threadId
+                      << " found lock " << (void*) thinp << " surprise-fattened by another thread";
           }
           self->monitor_enter_object_ = NULL;
           self->SetState(oldStatus);
@@ -718,7 +721,7 @@ retry:
         }
       }
       if (is_verbose_) {
-        LOG(INFO) << StringPrintf("monitor: (%d) spin on lock done %p: %#x (%#x) %#x", threadId, thinp, 0, *thinp, thin);
+        LOG(INFO) << StringPrintf("monitor: thread %d spin on lock %p done", threadId, thinp);
       }
       // We have acquired the thin lock. Let the VM know that we are no longer waiting.
       self->monitor_enter_object_ = NULL;
@@ -726,13 +729,14 @@ retry:
       // Fatten the lock.
       Inflate(self, obj);
       if (is_verbose_) {
-        LOG(INFO) << StringPrintf("monitor: (%d) lock %p fattened", threadId, thinp);
+        LOG(INFO) << StringPrintf("monitor: thread %d fattened lock %p", threadId, thinp);
       }
     }
   } else {
     // The lock is a fat lock.
     if (is_verbose_) {
-      LOG(INFO) << StringPrintf("monitor: (%d) locking fat lock %p (%p) %p on a %s", threadId, thinp, LW_MONITOR(*thinp), (void*)*thinp, PrettyTypeOf(obj).c_str());
+      LOG(INFO) << StringPrintf("monitor: thread %d locking fat lock %p (%p) %p on a %s",
+          threadId, thinp, LW_MONITOR(*thinp), (void*)*thinp, PrettyTypeOf(obj).c_str());
     }
     DCHECK(LW_MONITOR(*thinp) != NULL);
     LW_MONITOR(*thinp)->Lock(self);
@@ -756,7 +760,7 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
      * The lock is thin.  We must ensure that the lock is owned
      * by the given thread before unlocking it.
      */
-    if (LW_LOCK_OWNER(thin) == self->thin_lock_id_) {
+    if (LW_LOCK_OWNER(thin) == self->GetThinLockId()) {
       /*
        * We are the lock owner.  It is safe to update the lock
        * without CAS as lock ownership guards the lock itself.
@@ -808,7 +812,7 @@ void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns, bool inter
   uint32_t thin = *thinp;
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     // Make sure that 'self' holds the lock.
-    if (LW_LOCK_OWNER(thin) != self->thin_lock_id_) {
+    if (LW_LOCK_OWNER(thin) != self->GetThinLockId()) {
       ThrowIllegalMonitorStateException("object not locked by thread before wait()");
       return;
     }
@@ -820,7 +824,7 @@ void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns, bool inter
      */
     Inflate(self, obj);
     if (is_verbose_) {
-      LOG(INFO) << StringPrintf("monitor: (%d) lock %p fattened by wait()", self->thin_lock_id_, thinp);
+      LOG(INFO) << StringPrintf("monitor: thread %d fattened lock %p by wait()", self->GetThinLockId(), thinp);
     }
   }
   LW_MONITOR(*thinp)->Wait(self, ms, ns, interruptShouldThrow);
@@ -833,7 +837,7 @@ void Monitor::Notify(Thread* self, Object *obj) {
   // waiting on an object forces lock fattening.
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     // Make sure that 'self' holds the lock.
-    if (LW_LOCK_OWNER(thin) != self->thin_lock_id_) {
+    if (LW_LOCK_OWNER(thin) != self->GetThinLockId()) {
       ThrowIllegalMonitorStateException("object not locked by thread before notify()");
       return;
     }
@@ -851,7 +855,7 @@ void Monitor::NotifyAll(Thread* self, Object *obj) {
   // waiting on an object forces lock fattening.
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     // Make sure that 'self' holds the lock.
-    if (LW_LOCK_OWNER(thin) != self->thin_lock_id_) {
+    if (LW_LOCK_OWNER(thin) != self->GetThinLockId()) {
       ThrowIllegalMonitorStateException("object not locked by thread before notifyAll()");
       return;
     }
