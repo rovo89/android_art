@@ -54,8 +54,9 @@ public class Main {
             testDexClassLoader();
         } finally {
             // shouldn't be necessary, but it's good to be tidy
-            if (p != null)
+            if (p != null) {
                 p.destroy();
+            }
 
             // let the ProcessManager's daemon thread finish before we shut down
             // (avoids the occasional segmentation fault)
@@ -78,7 +79,7 @@ public class Main {
         try {
             anotherClass = dexClassLoader.loadClass("Another");
         } catch (ClassNotFoundException cnfe) {
-            throw new RuntimeException("Another?");
+            throw new RuntimeException("Another?", cnfe);
         }
 
         Object another;
@@ -102,26 +103,30 @@ public class Main {
     private static ClassLoader getDexClassLoader() {
         String odexDir;
 
-        /*
-        String androidData = System.getenv("ANDROID_DATA");
-        if (androidData == null)
-            androidData = "";
-        odexDir = androidData + "/" + ODEX_DIR;
-        */
+        if (false) {
+            String androidData = System.getenv("ANDROID_DATA");
+            if (androidData == null) {
+                androidData = "";
+            }
+            odexDir = androidData + "/" + ODEX_DIR;
+        }
 
         File test = new File(ODEX_DIR);
-        if (test.isDirectory())
+        if (test.isDirectory()) {
             odexDir = ODEX_DIR;
-        else
+        } else {
             odexDir = ODEX_ALT;
-        //System.out.println("Output dir is " + odexDir);
+        }
+        if (false) {
+            System.out.println("Output dir is " + odexDir);
+        }
 
         ClassLoader myLoader = Main.class.getClassLoader();
         Class dclClass;
         try {
             dclClass = myLoader.loadClass("dalvik.system.DexClassLoader");
         } catch (ClassNotFoundException cnfe) {
-            throw new RuntimeException("dalvik.system.DexClassLoader not found");
+            throw new RuntimeException("dalvik.system.DexClassLoader not found", cnfe);
         }
 
         Constructor ctor;

@@ -36,7 +36,7 @@ namespace {
 // passed a null jstring. The correct idiom is:
 //
 //   NullableScopedUtfChars name(env, javaName);
-//   if (env->ExceptionOccurred()) {
+//   if (env->ExceptionCheck()) {
 //       return NULL;
 //   }
 //   // ... use name.c_str()
@@ -85,8 +85,12 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
     return 0;
   }
   NullableScopedUtfChars outputName(env, javaOutputName);
-  if (env->ExceptionOccurred()) {
+  if (env->ExceptionCheck()) {
     return 0;
+  }
+  if (outputName.c_str() != NULL) {
+    // TODO: extract dex and run dex2oat like oatopt
+    UNIMPLEMENTED(FATAL) << sourceName.c_str() << " " << outputName.c_str();
   }
   const DexFile* dex_file = DexFile::Open(sourceName.c_str(), "");
   if (dex_file == NULL) {
