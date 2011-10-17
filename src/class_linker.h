@@ -230,7 +230,7 @@ class ClassLinker {
       ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
 
  private:
-  ClassLinker(InternTable*);
+  explicit ClassLinker(InternTable*);
 
   // Initialize class linker by bootstraping from dex files
   void Init(const std::string& boot_class_path);

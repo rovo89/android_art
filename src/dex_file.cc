@@ -148,14 +148,14 @@ class LockedFd {
   }
 
  private:
-  LockedFd(int fd) : fd_(fd) {}
+  explicit LockedFd(int fd) : fd_(fd) {}
 
   int fd_;
 };
 
 class TmpFile {
  public:
-  TmpFile(const std::string name) : name_(name) {}
+  explicit TmpFile(const std::string& name) : name_(name) {}
   ~TmpFile() {
     unlink(name_.c_str());
   }

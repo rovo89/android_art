@@ -44,7 +44,7 @@ class ManagedRegister {
   static const int kNoRegister = -1;
 
   ManagedRegister() : id_(kNoRegister) { }
-  ManagedRegister(int reg_id) : id_(reg_id) { }
+  explicit ManagedRegister(int reg_id) : id_(reg_id) { }
 
   int id_;
 };

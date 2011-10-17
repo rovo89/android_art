@@ -92,7 +92,7 @@ class Space {
   // create a Space from an existing memory mapping, taking ownership of the address space.
   static Space* Create(MemMap* mem_map);
 
-  Space(const std::string& name)
+  explicit Space(const std::string& name)
       : name_(name), mspace_(NULL), maximum_size_(0), image_header_(NULL), base_(0), limit_(0) {
   }
 

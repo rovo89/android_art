@@ -233,7 +233,7 @@ class DexFile {
         catch_all_ = false;
       }
 
-      CatchHandlerIterator(const byte* handler_data) {
+      explicit CatchHandlerIterator(const byte* handler_data) {
         current_data_ = handler_data;
         remaining_count_ = DecodeSignedLeb128(&current_data_);
 

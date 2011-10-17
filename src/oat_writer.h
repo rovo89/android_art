@@ -96,7 +96,7 @@ class OatWriter {
 
   class OatDexFile {
    public:
-    OatDexFile(const DexFile& dex_file);
+    explicit OatDexFile(const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(File* file) const;
@@ -113,7 +113,7 @@ class OatWriter {
 
   class OatClasses {
    public:
-    OatClasses(const DexFile& dex_file);
+    explicit OatClasses(const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(File* file) const;
@@ -127,7 +127,7 @@ class OatWriter {
 
   class OatMethods {
    public:
-    OatMethods(uint32_t methods_count);
+    explicit OatMethods(uint32_t methods_count);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(File* file) const;

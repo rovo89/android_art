@@ -70,7 +70,7 @@ class CompiledMethod {
 
 class CompiledInvokeStub {
  public:
-  CompiledInvokeStub(std::vector<uint8_t>& code);
+  explicit CompiledInvokeStub(std::vector<uint8_t>& code);
   ~CompiledInvokeStub();
   const std::vector<uint8_t>& GetCode() const;
  private:

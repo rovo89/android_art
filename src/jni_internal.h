@@ -172,7 +172,7 @@ const JNIInvokeInterface* GetCheckJniInvokeInterface();
 // compiler
 class ScopedJniEnvLocalRefState {
  public:
-  ScopedJniEnvLocalRefState(JNIEnvExt* env) : env_(env) {
+  explicit ScopedJniEnvLocalRefState(JNIEnvExt* env) : env_(env) {
     saved_local_ref_cookie_ = env->local_ref_cookie;
     env->local_ref_cookie = env->locals.GetSegmentState();
   }
