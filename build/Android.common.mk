@@ -245,6 +245,7 @@ TEST_DEX_DIRECTORIES := \
 	MyClass \
 	MyClassNatives \
 	Nested \
+	ParallelGC \
 	ProtoCompare \
 	ProtoCompare2 \
 	ReferenceMap \

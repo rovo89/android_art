@@ -61,7 +61,7 @@ ART_TEST_OAT_TARGETS :=
 # $(2): arguments
 define declare-test-test-target
 .PHONY: test-art-target-oat-$(1)
-test-art-target-oat-$(1): test-art-target-sync
+test-art-target-oat-$(1): $(ART_TEST_OUT)/art-test-dex-$(1).jar test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
 	adb shell rm $(ART_TEST_DIR)/test-art-target-oat-$(1)
 	adb shell sh -c "oatexecd -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/art-test-dex-$(1).jar $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
@@ -83,5 +83,8 @@ $(eval $(call declare-test-test-target,StackWalk,))
 
 # TODO: Enable when the StackWalk2 tests are passing
 # $(eval $(call declare-test-test-target,StackWalk2,))
+
+# TODO: Enable when ParallelGC does not cause hang
+# $(eval $(call declare-test-test-target,ParallelGC,))
 
 ########################################################################
