@@ -71,20 +71,18 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/art-test-dex-$(1).jar test-art-target-
 ART_TEST_OAT_TARGETS += test-art-target-oat-$(1)
 endef
 
-$(eval $(call declare-test-test-target,HelloWorld,))
+$(eval $(call declare-test-test-target,ExceptionTest,))
 $(eval $(call declare-test-test-target,Fibonacci,10))
+$(eval $(call declare-test-test-target,HelloWorld,))
 $(eval $(call declare-test-test-target,IntMath,))
 $(eval $(call declare-test-test-target,Invoke,))
-$(eval $(call declare-test-test-target,ExceptionTest,))
-$(eval $(call declare-test-test-target,SystemMethods,))
 $(eval $(call declare-test-test-target,MemUsage,))
+$(eval $(call declare-test-test-target,ParallelGC,))
 $(eval $(call declare-test-test-target,ReferenceMap,))
 $(eval $(call declare-test-test-target,StackWalk,))
+$(eval $(call declare-test-test-target,SystemMethods,))
 
 # TODO: Enable when the StackWalk2 tests are passing
 # $(eval $(call declare-test-test-target,StackWalk2,))
-
-# TODO: Enable when ParallelGC does not cause hang
-$(eval $(call declare-test-test-target,ParallelGC,))
 
 ########################################################################

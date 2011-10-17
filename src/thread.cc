@@ -1198,7 +1198,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
 }
 
 
-Thread* Thread::CurrentFromGdb() const {
+Thread* Thread::CurrentFromGdb() {
   return Thread::Current();
 }
 
