@@ -344,19 +344,8 @@ class PACKED Thread {
   }
 
   // Linked list recording transitions from native to managed code
-  void PushNativeToManagedRecord(NativeToManagedRecord* record) {
-    record->last_top_of_managed_stack_ = reinterpret_cast<void*>(top_of_managed_stack_.GetSP());
-    record->last_top_of_managed_stack_pc_ = top_of_managed_stack_pc_;
-    record->link_ = native_to_managed_record_;
-    native_to_managed_record_ = record;
-    top_of_managed_stack_.SetSP(NULL);
-  }
-
-  void PopNativeToManagedRecord(const NativeToManagedRecord& record) {
-    native_to_managed_record_ = record.link_;
-    top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack_));
-    top_of_managed_stack_pc_ = record.last_top_of_managed_stack_pc_;
-  }
+  void PushNativeToManagedRecord(NativeToManagedRecord* record);
+  void PopNativeToManagedRecord(const NativeToManagedRecord& record);
 
   const ClassLoader* GetClassLoaderOverride() {
     // TODO: need to place the class_loader_override_ in a handle

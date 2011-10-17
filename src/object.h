@@ -1727,7 +1727,7 @@ class MANAGED Class : public StaticStorageBase {
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
-  Method* FindVirtualMethodForInterface(Method* method);
+  Method* FindVirtualMethodForInterface(Method* method, bool can_throw);
 
   Method* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const;
   Method* FindInterfaceMethod(String* name, String* descriptor) const;
@@ -1737,7 +1737,7 @@ class MANAGED Class : public StaticStorageBase {
       return method;
     }
     if (method->GetDeclaringClass()->IsInterface()) {
-      return FindVirtualMethodForInterface(method);
+      return FindVirtualMethodForInterface(method, true);
     }
     return FindVirtualMethodForVirtual(method);
   }

@@ -869,7 +869,7 @@ extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
   Method* interface_method = caller_method->GetDexCacheResolvedMethods()->Get(method_idx);
   Method* found_method = NULL;  // The found method
   if (LIKELY(interface_method != NULL && this_object != NULL)) {
-    found_method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
+    found_method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method, false);
   }
   if (UNLIKELY(found_method == NULL)) {
     FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
@@ -887,7 +887,7 @@ extern "C" uint64_t artFindInterfaceMethodInCacheFromCode(uint32_t method_idx,
         return 0;
       }
     }
-    found_method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
+    found_method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method, true);
     if (found_method == NULL) {
       CHECK(thread->IsExceptionPending());
       return 0;

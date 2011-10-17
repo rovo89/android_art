@@ -990,7 +990,7 @@ void Class::SetClassLoader(const ClassLoader* new_cl) {
                  new_class_loader, false);
 }
 
-Method* Class::FindVirtualMethodForInterface(Method* method) {
+Method* Class::FindVirtualMethodForInterface(Method* method, bool can_throw) {
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != NULL) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
@@ -1003,10 +1003,12 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
       return interface_entry->GetMethodArray()->Get(method->GetMethodIndex());
     }
   }
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-      "Class %s does not implement interface %s",
-      PrettyDescriptor(GetDescriptor()).c_str(),
-      PrettyDescriptor(declaring_class->GetDescriptor()).c_str());
+  if (can_throw) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+        "Class %s does not implement interface %s",
+        PrettyDescriptor(GetDescriptor()).c_str(),
+        PrettyDescriptor(declaring_class->GetDescriptor()).c_str());
+  }
   return NULL;
 }
 

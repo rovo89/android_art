@@ -939,9 +939,9 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_NE(Jj2, Aj2);
   EXPECT_EQ(Kj1, Jj1);
   EXPECT_EQ(Kj2, Jj2);
-  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii));
-  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1));
-  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2));
+  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii, true));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1, true));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2, true));
   EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii));
   EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1));
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));

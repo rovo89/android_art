@@ -451,6 +451,28 @@ void Thread::DumpState(std::ostream& os) const {
      << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
 }
 
+void Thread::PushNativeToManagedRecord(NativeToManagedRecord* record) {
+  Method **sp = top_of_managed_stack_.GetSP();
+#ifndef NDEBUG
+  if (sp != NULL) {
+    Method* m = *sp;
+    Heap::VerifyObject(m);
+    DCHECK((m == NULL) || m->IsMethod());
+  }
+#endif
+  record->last_top_of_managed_stack_ = reinterpret_cast<void*>(sp);
+  record->last_top_of_managed_stack_pc_ = top_of_managed_stack_pc_;
+  record->link_ = native_to_managed_record_;
+  native_to_managed_record_ = record;
+  top_of_managed_stack_.SetSP(NULL);
+}
+
+void Thread::PopNativeToManagedRecord(const NativeToManagedRecord& record) {
+  native_to_managed_record_ = record.link_;
+  top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack_));
+  top_of_managed_stack_pc_ = record.last_top_of_managed_stack_pc_;
+}
+
 struct StackDumpVisitor : public Thread::StackVisitor {
   StackDumpVisitor(std::ostream& os, const Thread* thread)
       : os(os), thread(thread), frame_count(0) {
