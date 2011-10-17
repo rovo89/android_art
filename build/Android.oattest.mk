@@ -85,6 +85,6 @@ $(eval $(call declare-test-test-target,StackWalk,))
 # $(eval $(call declare-test-test-target,StackWalk2,))
 
 # TODO: Enable when ParallelGC does not cause hang
-# $(eval $(call declare-test-test-target,ParallelGC,))
+$(eval $(call declare-test-test-target,ParallelGC,))
 
 ########################################################################

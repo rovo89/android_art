@@ -52,9 +52,10 @@ class Mutex {
     DCHECK_NE(GetOwner(), GetTid());
   }
 
- private:
   pid_t GetOwner();
-  pid_t GetTid();
+
+ private:
+  static pid_t GetTid();
 
   std::string name_;
 

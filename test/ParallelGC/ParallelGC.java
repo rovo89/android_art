@@ -41,9 +41,7 @@ class ParallelGC implements Runnable {
         List l = new ArrayList();
         for (int i = 0; i < 1000; i++) {
             l.add(new ArrayList(i));
-            if (false) {
-                System.out.print(id);
-            }
+            System.out.print(id);
         }
     }
 }

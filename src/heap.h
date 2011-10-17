@@ -100,8 +100,8 @@ class Heap {
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();
 
+  static uint32_t GetLockOwner(); // For SignalCatcher.
   static void Lock();
-
   static void Unlock();
 
   static const std::vector<Space*>& GetSpaces() {

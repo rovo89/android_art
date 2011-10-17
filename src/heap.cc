@@ -584,6 +584,10 @@ void Heap::GrowForUtilization() {
   SetIdealFootprint(target_size);
 }
 
+uint32_t Heap::GetLockOwner() {
+  return lock_->GetOwner();
+}
+
 void Heap::Lock() {
   // Grab the lock, but put ourselves into Thread::kVmWait if it looks
   // like we're going to have to wait on the mutex. This prevents

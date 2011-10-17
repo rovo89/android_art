@@ -62,7 +62,13 @@ bool SignalCatcher::ShouldHalt() {
 }
 
 void SignalCatcher::HandleSigQuit() {
-  Runtime::Current()->GetThreadList()->SuspendAll();
+  Runtime* runtime = Runtime::Current();
+  ThreadList* thread_list = runtime->GetThreadList();
+
+  LOG(INFO) << "Heap lock owner: " << Heap::GetLockOwner() << "\n"
+            << "Thread lock owner: " << thread_list->GetLockOwner() << "\n";
+
+  thread_list->SuspendAll();
 
   std::ostringstream os;
   os << "\n"
@@ -75,7 +81,7 @@ void SignalCatcher::HandleSigQuit() {
     os << "Cmd line: " << cmdline << "\n";
   }
 
-  Runtime::Current()->Dump(os);
+  runtime->Dump(os);
 
   std::string maps;
   if (ReadFileToString("/proc/self/maps", &maps)) {
@@ -84,7 +90,7 @@ void SignalCatcher::HandleSigQuit() {
 
   os << "----- end " << getpid() << " -----";
 
-  Runtime::Current()->GetThreadList()->ResumeAll();
+  thread_list->ResumeAll();
 
   LOG(INFO) << os.str();
 }

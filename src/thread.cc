@@ -751,34 +751,9 @@ Thread::~Thread() {
   }
 
   if (peer_ != NULL) {
-    Object* group = gThread_group->GetObject(peer_);
-
-    // Handle any pending exception.
-    if (IsExceptionPending()) {
-      // Get and clear the exception.
-      Object* exception = GetException();
-      ClearException();
-
-      // If the thread has its own handler, use that.
-      Object* handler = gThread_uncaughtHandler->GetObject(peer_);
-      if (handler == NULL) {
-        // Otherwise use the thread group's default handler.
-        handler = group;
-      }
-
-      // Call the handler.
-      Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(gUncaughtExceptionHandler_uncaughtException);
-      Object* args[2];
-      args[0] = peer_;
-      args[1] = exception;
-      m->Invoke(this, handler, reinterpret_cast<byte*>(&args), NULL);
-
-      // If the handler threw, clear that exception too.
-      ClearException();
-    }
-
     // this.group.removeThread(this);
     // group can be null if we're in the compiler or a test.
+    Object* group = gThread_group->GetObject(peer_);
     if (group != NULL) {
       Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
       Object* args = peer_;
@@ -814,6 +789,35 @@ Thread::~Thread() {
   delete wait_mutex_;
 
   delete long_jump_context_;
+}
+
+void Thread::HandleUncaughtExceptions() {
+  if (!IsExceptionPending()) {
+    return;
+  }
+
+  ScopedThreadStateChange tsc(this, Thread::kRunnable);
+
+  // Get and clear the exception.
+  Object* exception = GetException();
+  ClearException();
+
+  // If the thread has its own handler, use that.
+  Object* handler = gThread_uncaughtHandler->GetObject(peer_);
+  if (handler == NULL) {
+    // Otherwise use the thread group's default handler.
+    handler = gThread_group->GetObject(peer_);
+  }
+
+  // Call the handler.
+  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(gUncaughtExceptionHandler_uncaughtException);
+  Object* args[2];
+  args[0] = peer_;
+  args[1] = exception;
+  m->Invoke(this, handler, reinterpret_cast<byte*>(&args), NULL);
+
+  // If the handler threw, clear that exception too.
+  ClearException();
 }
 
 size_t Thread::NumSirtReferences() {
@@ -1186,11 +1190,20 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
       msg, (throwing_OutOfMemoryError_ ? " (recursive case)" : ""));
   if (!throwing_OutOfMemoryError_) {
     throwing_OutOfMemoryError_ = true;
-    ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
+    ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);
   } else {
     SetException(pre_allocated_OutOfMemoryError_);
   }
   throwing_OutOfMemoryError_ = false;
+}
+
+
+Thread* Thread::CurrentFromGdb() const {
+  return Thread::Current();
+}
+
+void Thread::DumpFromGdb() const {
+  Dump(std::cerr);
 }
 
 class CatchBlockStackVisitor : public Thread::StackVisitor {

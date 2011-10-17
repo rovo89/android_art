@@ -43,6 +43,10 @@ bool ThreadList::Contains(Thread* thread) {
   return find(list_.begin(), list_.end(), thread) != list_.end();
 }
 
+uint32_t ThreadList::GetLockOwner() {
+  return thread_list_lock_.GetOwner();
+}
+
 void ThreadList::Dump(std::ostream& os) {
   MutexLock mu(thread_list_lock_);
   os << "DALVIK THREADS (" << list_.size() << "):\n";
@@ -266,6 +270,10 @@ void ThreadList::Unregister() {
   if (verbose_) {
     LOG(INFO) << "ThreadList::Unregister() " << *self;
   }
+
+  // This may need to call user-supplied managed code. Make sure we do this before we start tearing
+  // down the Thread* and removing it from the thread list (or start taking any locks).
+  self->HandleUncaughtExceptions();
 
   MutexLock mu(thread_list_lock_);
 

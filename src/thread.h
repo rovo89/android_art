@@ -457,8 +457,14 @@ class PACKED Thread {
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const;
 
+  // Out-of-line conveniences for debugging in gdb.
+  Thread* CurrentFromGdb() const; // Like Thread::Current.
+  void DumpFromGdb() const; // Like Thread::Dump(std::cerr).
+
   void Attach(const Runtime* runtime);
   static void* CreateCallback(void* arg);
+
+  void HandleUncaughtExceptions();
 
   void InitCpu();
   void InitFunctionPointers();
