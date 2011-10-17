@@ -585,9 +585,15 @@ void Heap::GrowForUtilization() {
 }
 
 void Heap::Lock() {
-  // TODO: grab the lock, but put ourselves into Thread::kVmWait if it looks like
-  // we're going to have to wait on the mutex.
-  lock_->Lock();
+  // Grab the lock, but put ourselves into Thread::kVmWait if it looks
+  // like we're going to have to wait on the mutex. This prevents
+  // deadlock if another thread is calling CollectGarbageInternal,
+  // since they will have the heap lock and be waiting for mutators to
+  // suspend.
+  if (!lock_->TryLock()) {
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+    lock_->Lock();
+  }
 }
 
 void Heap::Unlock() {

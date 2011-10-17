@@ -184,11 +184,17 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
     return JNI_TRUE;
   }
 
-  UniquePtr<const OatFile> oat_file(class_linker->FindOatFile(*dex_file.get()));
-  if (oat_file.get() == NULL) {
+  const OatFile* oat_file = class_linker->FindOatFile(*dex_file.get());
+  if (oat_file == NULL) {
     return JNI_TRUE;
   }
-
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation());
+  if (oat_dex_file == NULL) {
+    return JNI_TRUE;
+  }
+  if (oat_dex_file->GetDexFileChecksum() != dex_file->GetHeader().checksum_) {
+    return JNI_TRUE;
+  }
   return JNI_FALSE;
 }
 

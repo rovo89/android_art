@@ -346,6 +346,8 @@ class ClassLinker {
     return dex_caches_;
   }
 
+  const OatFile* FindOpenedOatFile(const std::string& location);
+
   Method* CreateProxyConstructor(Class* klass);
   Method* CreateProxyMethod(Class* klass, Method* prototype, ObjectArray<Class>* throws);
 

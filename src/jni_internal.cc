@@ -696,7 +696,9 @@ class JNI {
   static jint ThrowNew(JNIEnv* env, jclass c, const char* msg) {
     ScopedJniThreadState ts(env);
     // TODO: check for a pending exception to decide what constructor to call.
-    jmethodID mid = env->GetMethodID(c, "<init>", "(Ljava/lang/String;)V");
+    jmethodID mid = ((msg != NULL)
+                     ? env->GetMethodID(c, "<init>", "(Ljava/lang/String;)V")
+                     : env->GetMethodID(c, "<init>", "()V"));
     if (mid == NULL) {
       return JNI_ERR;
     }

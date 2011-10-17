@@ -585,7 +585,7 @@ const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
   return FindOatFile(OatFile::DexFileToOatFilename(dex_file));
 }
 
-const OatFile* ClassLinker::FindOatFile(const std::string& location) {
+const OatFile* ClassLinker::FindOpenedOatFile(const std::string& location) {
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
@@ -593,23 +593,37 @@ const OatFile* ClassLinker::FindOatFile(const std::string& location) {
       return oat_file;
     }
   }
+  return NULL;
+}
 
-  const OatFile* oat_file = OatFile::Open(location, "", NULL);
+const OatFile* ClassLinker::FindOatFile(const std::string& location) {
+  const OatFile* oat_file = FindOpenedOatFile(location);
+  if (oat_file != NULL) {
+    return oat_file;
+  }
+
+  oat_file = OatFile::Open(location, "", NULL);
   if (oat_file == NULL) {
     if (location.empty() || location[0] != '/') {
       LOG(ERROR) << "Failed to open oat file from " << location;
       return NULL;
     }
+
     // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
     std::string cache_location = GetArtCacheOatFilenameOrDie(location);
+    oat_file = FindOpenedOatFile(cache_location);
+    if (oat_file != NULL) {
+      return oat_file;
+    }
     oat_file = OatFile::Open(cache_location, "", NULL);
     if (oat_file  == NULL) {
       LOG(ERROR) << "Failed to open oat file from " << location << " or " << cache_location << ".";
       return NULL;
     }
-
-
   }
+
+  CHECK(oat_file != NULL) << location;
+  oat_files_.push_back(oat_file);
   return oat_file;
 }
 
