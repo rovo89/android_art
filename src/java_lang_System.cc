@@ -54,7 +54,7 @@ extern "C" void _memmove_words(void* dst, const void* src, size_t n);
 #define move32 _memmove_words
 #else
 static void move16(void* dst, const void* src, size_t n) {
-  DCHECK((((uintptr_t) dst | (uintptr_t) src | n) & 0x01) == 0);
+  DCHECK_EQ((((uintptr_t) dst | (uintptr_t) src | n) & 0x01), 0U);
 
   uint16_t* d = reinterpret_cast<uint16_t*>(dst);
   const uint16_t* s = reinterpret_cast<const uint16_t*>(src);
@@ -77,7 +77,7 @@ static void move16(void* dst, const void* src, size_t n) {
 }
 
 static void move32(void* dst, const void* src, size_t n) {
-  DCHECK((((uintptr_t) dst | (uintptr_t) src | n) & 0x03) == 0);
+  DCHECK_EQ((((uintptr_t) dst | (uintptr_t) src | n) & 0x03), 0U);
 
   uint32_t* d = reinterpret_cast<uint32_t*>(dst);
   const uint32_t* s = reinterpret_cast<const uint32_t*>(src);

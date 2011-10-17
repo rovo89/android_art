@@ -32,7 +32,7 @@ size_t ParseHex(const std::string& string) {
   char* end;
   size_t value = strtoul(str, &end, 16);
   CHECK(end != str) << "Failed to parse hexadecimal value from " << string;
-  CHECK(*end == '\0') << "Failed to parse hexadecimal value from " << string;
+  CHECK_EQ(*end, '\0') << "Failed to parse hexadecimal value from " << string;
   return value;
 }
 
@@ -155,9 +155,9 @@ MemMap::~MemMap() {
 MemMap::MemMap(byte* addr, size_t length, void* base_addr, size_t base_length)
     : addr_(addr), length_(length), base_addr_(base_addr), base_length_(base_length) {
   CHECK(addr_ != NULL);
-  CHECK(length_ != 0);
+  CHECK_NE(length_, 0U);
   CHECK(base_addr_ != NULL);
-  CHECK(base_length_ != 0);
+  CHECK_NE(base_length_, 0U);
 };
 
 }  // namespace art

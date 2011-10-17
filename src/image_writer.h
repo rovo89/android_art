@@ -33,7 +33,7 @@ class ImageWriter {
   // we use the lock word to store the offset of the object in the image
   void AssignImageOffset(Object* object) {
     DCHECK(object != NULL);
-    DCHECK(object->monitor_ == 0);  // should be no lock
+    DCHECK_EQ(object->monitor_, 0U);  // should be no lock
     SetImageOffset(object, image_top_);
     image_top_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
     DCHECK_LT(image_top_, image_->GetLength());
@@ -58,7 +58,7 @@ class ImageWriter {
   }
   static void ResetImageOffset(Object* object) {
     DCHECK(object != NULL);
-    DCHECK(object->monitor_ != 0);  // should be an offset
+    DCHECK_NE(object->monitor_, 0U);  // should be an offset
     object->monitor_ = 0;
   }
 

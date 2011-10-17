@@ -338,21 +338,21 @@ TEST_F(JniInternalTest, RegisterNatives) {
   env_->set_region_fn(a, 0, size, src_buf); \
   /* Copy back only part. */ \
   env_->get_region_fn(a, 1, size - 2, &dst_buf[1]); \
-  EXPECT_FALSE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "short copy equal"; \
+  EXPECT_NE(memcmp(src_buf, dst_buf, sizeof(src_buf)), 0) << "short copy equal"; \
   /* Copy the missing pieces. */ \
   env_->get_region_fn(a, 0, 1, dst_buf); \
   env_->get_region_fn(a, size - 1, 1, &dst_buf[size - 1]); \
-  EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "fixed copy not equal"; \
+  EXPECT_EQ(memcmp(src_buf, dst_buf, sizeof(src_buf)), 0) << "fixed copy not equal"; \
   /* Copy back the whole array. */ \
   env_->get_region_fn(a, 0, size, dst_buf); \
-  EXPECT_TRUE(memcmp(src_buf, dst_buf, sizeof(src_buf)) == 0) << "full copy not equal"; \
+  EXPECT_EQ(memcmp(src_buf, dst_buf, sizeof(src_buf)), 0) << "full copy not equal"; \
   /* GetPrimitiveArrayCritical */ \
   void* v = env_->GetPrimitiveArrayCritical(a, NULL); \
-  EXPECT_TRUE(memcmp(src_buf, v, sizeof(src_buf)) == 0) << "GetPrimitiveArrayCritical not equal"; \
+  EXPECT_EQ(memcmp(src_buf, v, sizeof(src_buf)), 0) << "GetPrimitiveArrayCritical not equal"; \
   env_->ReleasePrimitiveArrayCritical(a, v, 0); \
   /* GetXArrayElements */ \
   scalar_type* xs = env_->get_elements_fn(a, NULL); \
-  EXPECT_TRUE(memcmp(src_buf, xs, sizeof(src_buf)) == 0) << # get_elements_fn " not equal"; \
+  EXPECT_EQ(memcmp(src_buf, xs, sizeof(src_buf)), 0) << # get_elements_fn " not equal"; \
   env_->release_elements_fn(a, xs, 0); \
   EXPECT_EQ(reinterpret_cast<uintptr_t>(v), reinterpret_cast<uintptr_t>(xs))
 
