@@ -204,17 +204,17 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   return true;
 }
 
-static int LinearScan(IndirectRef iref, int bottomIndex, int topIndex, const Object** table) {
+static int Find(Object* direct_pointer, int bottomIndex, int topIndex, const Object** table) {
   for (int i = bottomIndex; i < topIndex; ++i) {
-    if (table[i] == reinterpret_cast<const Object*>(iref)) {
+    if (table[i] == direct_pointer) {
       return i;
     }
   }
   return -1;
 }
 
-bool IndirectReferenceTable::Contains(IndirectRef iref) const {
-  return LinearScan(iref, 0, segment_state_.parts.topIndex, table_) != -1;
+bool IndirectReferenceTable::ContainsDirectPointer(Object* direct_pointer) const {
+  return Find(direct_pointer, 0, segment_state_.parts.topIndex, table_) != -1;
 }
 
 /*
@@ -249,7 +249,8 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     return true;
   }
   if (GetIndirectRefKind(iref) == kSirtOrInvalid || vm->work_around_app_jni_bugs) {
-    idx = LinearScan(iref, bottomIndex, topIndex, table_);
+    Object* direct_pointer = reinterpret_cast<Object*>(iref);
+    idx = Find(direct_pointer, bottomIndex, topIndex, table_);
     if (idx == -1) {
       LOG(WARNING) << "trying to work around app JNI bugs, but didn't find " << iref << " in table!";
       return false;

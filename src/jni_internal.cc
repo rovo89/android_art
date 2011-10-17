@@ -24,6 +24,21 @@
 #include "stringpiece.h"
 #include "thread.h"
 
+static const size_t kMonitorsInitial = 32; // Arbitrary.
+static const size_t kMonitorsMax = 4096; // Arbitrary sanity check.
+
+static const size_t kLocalsInitial = 64; // Arbitrary.
+static const size_t kLocalsMax = 512; // Arbitrary sanity check.
+
+static const size_t kPinTableInitial = 16; // Arbitrary.
+static const size_t kPinTableMax = 1024; // Arbitrary sanity check.
+
+static const size_t kGlobalsInitial = 512; // Arbitrary.
+static const size_t kGlobalsMax = 51200; // Arbitrary sanity check.
+
+static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
+static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
+
 namespace art {
 
 /*
@@ -780,22 +795,40 @@ class JNI {
     LOG(FATAL) << "JNI FatalError called: " << msg;
   }
 
-  static jint PushLocalFrame(JNIEnv* env, jint cap) {
+  static jint PushLocalFrame(JNIEnv* env, jint capacity) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(WARNING) << "ignoring PushLocalFrame(" << cap << ")";
+    if (EnsureLocalCapacity(ts, capacity, "PushLocalFrame") != JNI_OK) {
+      return JNI_ERR;
+    }
+    ts.Env()->PushFrame(capacity);
     return JNI_OK;
   }
 
-  static jobject PopLocalFrame(JNIEnv* env, jobject res) {
+  static jobject PopLocalFrame(JNIEnv* env, jobject java_survivor) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(WARNING) << "ignoring PopLocalFrame " << res;
-    return res;
+    Object* survivor = Decode<Object*>(ts, java_survivor);
+    ts.Env()->PopFrame();
+    return AddLocalReference<jobject>(env, survivor);
   }
 
-  static jint EnsureLocalCapacity(JNIEnv* env, jint cap) {
+  static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity) {
     ScopedJniThreadState ts(env);
-    UNIMPLEMENTED(WARNING) << "ignoring EnsureLocalCapacity(" << cap << ")";
-    return 0;
+    return EnsureLocalCapacity(ts, desired_capacity, "EnsureLocalCapacity");
+  }
+
+  static jint EnsureLocalCapacity(ScopedJniThreadState& ts, jint desired_capacity, const char* caller) {
+    // TODO: we should try to expand the table if necessary.
+    if (desired_capacity < 1 || desired_capacity > static_cast<jint>(kLocalsMax)) {
+      LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
+      return JNI_ERR;
+    }
+    // TODO: this isn't quite right, since "capacity" includes holes.
+    size_t capacity = ts.Env()->locals.Capacity();
+    bool okay = (static_cast<jint>(kLocalsMax - capacity) >= desired_capacity);
+    if (!okay) {
+      ts.Self()->ThrowOutOfMemoryError(caller);
+    }
+    return okay ? JNI_OK : JNI_ERR;
   }
 
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
@@ -2213,7 +2246,10 @@ class JNI {
     IndirectRefKind kind = GetIndirectRefKind(ref);
     switch (kind) {
     case kLocal:
-      return JNILocalRefType;
+      if (ts.Env()->locals.Get(ref) != kInvalidIndirectRefObject) {
+        return JNILocalRefType;
+      }
+      return JNIInvalidRefType;
     case kGlobal:
       return JNIGlobalRefType;
     case kWeakGlobal:
@@ -2231,7 +2267,7 @@ class JNI {
       // If we're handing out direct pointers, check whether it's a direct pointer
       // to a local reference.
       if (Decode<Object*>(ts, java_object) == reinterpret_cast<Object*>(java_object)) {
-        if (ts.Env()->locals.Contains(java_object)) {
+        if (ts.Env()->locals.ContainsDirectPointer(reinterpret_cast<Object*>(java_object))) {
           return JNILocalRefType;
         }
       }
@@ -2477,12 +2513,6 @@ const JNINativeInterface gNativeInterface = {
   JNI::GetObjectRefType,
 };
 
-static const size_t kMonitorsInitial = 32; // Arbitrary.
-static const size_t kMonitorsMax = 4096; // Arbitrary sanity check.
-
-static const size_t kLocalsInitial = 64; // Arbitrary.
-static const size_t kLocalsMax = 512; // Arbitrary sanity check.
-
 JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
     : self(self),
       vm(vm),
@@ -2508,6 +2538,17 @@ JNIEnvExt::~JNIEnvExt() {
 void JNIEnvExt::DumpReferenceTables() {
   locals.Dump();
   monitors.Dump();
+}
+
+void JNIEnvExt::PushFrame(int capacity) {
+  stacked_local_ref_cookies.push_back(local_ref_cookie);
+  local_ref_cookie = locals.GetSegmentState();
+}
+
+void JNIEnvExt::PopFrame() {
+  locals.SetSegmentState(local_ref_cookie);
+  local_ref_cookie = stacked_local_ref_cookies.back();
+  stacked_local_ref_cookies.pop_back();
 }
 
 // JNI Invocation interface.
@@ -2609,15 +2650,6 @@ const JNIInvokeInterface gInvokeInterface = {
   JII::AttachCurrentThreadAsDaemon
 };
 
-static const size_t kPinTableInitialSize = 16;
-static const size_t kPinTableMaxSize = 1024;
-
-static const size_t kGlobalsInitial = 512; // Arbitrary.
-static const size_t kGlobalsMax = 51200; // Arbitrary sanity check.
-
-static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
-static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
-
 JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
     : runtime(runtime),
       check_jni_abort_hook(NULL),
@@ -2628,7 +2660,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       trace(options->jni_trace_),
       work_around_app_jni_bugs(false), // TODO: add a way to enable this
       pins_lock("JNI pin table lock"),
-      pin_table("pin table", kPinTableInitialSize, kPinTableMaxSize),
+      pin_table("pin table", kPinTableInitial, kPinTableMax),
       globals_lock("JNI global reference table lock"),
       globals(kGlobalsInitial, kGlobalsMax, kGlobal),
       weak_globals_lock("JNI weak global reference table lock"),

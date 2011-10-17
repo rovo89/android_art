@@ -1176,12 +1176,17 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
 }
 
 void Thread::ThrowOutOfMemoryError(Class* c, size_t byte_count) {
-  LOG(ERROR) << "Failed to allocate a " << byte_count << "-byte "
-             << PrettyDescriptor(c->GetDescriptor())
-             << (throwing_OutOfMemoryError_ ? " (recursive case)" : "");
+  std::string msg(StringPrintf("Failed to allocate a %zd-byte %s", byte_count,
+      PrettyDescriptor(c->GetDescriptor()).c_str()));
+  ThrowOutOfMemoryError(msg.c_str());
+}
+
+void Thread::ThrowOutOfMemoryError(const char* msg) {
+  LOG(ERROR) << StringPrintf("Throwing OutOfMemoryError \"%s\"%s",
+      msg, (throwing_OutOfMemoryError_ ? " (recursive case)" : ""));
   if (!throwing_OutOfMemoryError_) {
     throwing_OutOfMemoryError_ = true;
-    ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);
+    ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
   } else {
     SetException(pre_allocated_OutOfMemoryError_);
   }

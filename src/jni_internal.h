@@ -125,6 +125,9 @@ struct JNIEnvExt : public JNIEnv {
 
   void DumpReferenceTables();
 
+  void PushFrame(int capacity);
+  void PopFrame();
+
   static Offset SegmentStateOffset() {
     return Offset(OFFSETOF_MEMBER(JNIEnvExt, locals) +
                   IndirectReferenceTable::SegmentStateOffset().Int32Value());
@@ -137,11 +140,16 @@ struct JNIEnvExt : public JNIEnv {
   Thread* const self;
   JavaVMExt* vm;
 
-  // Cookie used when using the local indirect reference table
+  // Cookie used when using the local indirect reference table.
   uint32_t local_ref_cookie;
 
   // JNI local references.
   IndirectReferenceTable locals;
+
+  // Stack of cookies corresponding to PushLocalFrame/PopLocalFrame calls.
+  // TODO: to avoid leaks (and bugs), we need to clear this vector on entry (or return)
+  // to a native method.
+  std::vector<uint32_t> stacked_local_ref_cookies;
 
   // Frequently-accessed fields cached from JavaVM.
   bool check_jni;

@@ -720,7 +720,7 @@ TEST_F(JniInternalTest, NewLocalRef) {
   EXPECT_TRUE(o != NULL);
   EXPECT_TRUE(o != s);
 
-  // TODO: check that o is a local reference.
+  EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(o));
 }
 
 TEST_F(JniInternalTest, DeleteLocalRef_NULL) {
@@ -744,6 +744,43 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
 
   env_->DeleteLocalRef(s);
   env_->DeleteLocalRef(o);
+}
+
+TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
+  jobject original = env_->NewStringUTF("");
+  ASSERT_TRUE(original != NULL);
+
+  jobject outer;
+  jobject inner1, inner2;
+  Object* inner2_direct_pointer;
+  {
+    env_->PushLocalFrame(4);
+    outer = env_->NewLocalRef(original);
+
+    {
+      env_->PushLocalFrame(4);
+      inner1 = env_->NewLocalRef(outer);
+      inner2 = env_->NewStringUTF("survivor");
+      inner2_direct_pointer = Decode<Object*>(env_, inner2);
+      env_->PopLocalFrame(inner2);
+    }
+
+    EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(original));
+    EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(outer));
+    EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(inner1));
+
+    // Our local reference for the survivor is invalid because the survivor
+    // gets a new local reference...
+    EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(inner2));
+    // ...but the survivor should be in the local reference table.
+    EXPECT_TRUE(env_->locals.ContainsDirectPointer(inner2_direct_pointer));
+
+    env_->PopLocalFrame(NULL);
+  }
+  EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(original));
+  EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(outer));
+  EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(inner1));
+  EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(inner2));
 }
 
 TEST_F(JniInternalTest, NewGlobalRef_NULL) {

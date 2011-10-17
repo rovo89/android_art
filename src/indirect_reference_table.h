@@ -281,7 +281,7 @@ class IndirectReferenceTable {
   }
 
   // TODO: remove when we remove work_around_app_jni_bugs support.
-  bool Contains(IndirectRef iref) const;
+  bool ContainsDirectPointer(Object* direct_pointer) const;
 
   /*
    * Remove an existing entry.

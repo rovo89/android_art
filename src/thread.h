@@ -283,7 +283,8 @@ class PACKED Thread {
 
   void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap);
 
-  // This exception is special, because we need to pre-allocate an instance.
+  // OutOfMemoryError is special, because we need to pre-allocate an instance.
+  void ThrowOutOfMemoryError(const char* msg);
   void ThrowOutOfMemoryError(Class* c, size_t byte_count);
 
   Frame FindExceptionHandler(void* throw_pc, void** handler_pc);
