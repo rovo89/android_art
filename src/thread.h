@@ -137,7 +137,7 @@ class PACKED Thread {
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pLockObjectFromCode)(void*);
-  void (*pObjectInit)(Object*);
+  void (*pObjectInit)(void*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);
   void* (*pResolveStringFromCode)(void*, uint32_t);
   int (*pSet32Static)(uint32_t, void*, int32_t);

@@ -40,7 +40,8 @@ extern void DebugMe(Method* method, uint32_t info) {
   LOG(INFO) << "Info: " << info;
 }
 
-void ObjectInitFromCode(Object* o) {
+extern "C" uint32_t artObjectInitFromCode(Object* o, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   Class* c = o->GetClass();
   if (UNLIKELY(c->IsFinalizable())) {
     Heap::AddFinalizerReference(o);
@@ -50,6 +51,7 @@ void ObjectInitFromCode(Object* o) {
    * here and branch to actual compiled object.<init> to handle any
    * breakpoint/logging activites if either is active.
    */
+  return self->IsExceptionPending() ? -1 : 0;
 }
 
 // Return value helper for jobject return types
