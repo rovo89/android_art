@@ -247,7 +247,9 @@ dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(TARGET_BO
 # "mm cpplint-art" to style check art source files
 .PHONY: cpplint-art
 cpplint-art:
-	$(LOCAL_PATH)/tools/cpplint.py $(LOCAL_PATH)/src/*.h $(LOCAL_PATH)/src/*.cc
+	./art/tools/cpplint.py \
+	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-build/header_guard,-readability/streams,-readability/todo,-runtime/references \
+	    art/src/*.h art/src/*.cc
 
 ########################################################################
 

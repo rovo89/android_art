@@ -630,7 +630,7 @@ class ArmAssembler : public Assembler {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class ArmExceptionSlowPath : public SlowPath {
  public:
-  ArmExceptionSlowPath(ArmManagedRegister scratch) : scratch_(scratch) {}
+  explicit ArmExceptionSlowPath(ArmManagedRegister scratch) : scratch_(scratch) {}
   virtual void Emit(Assembler *sp_asm);
  private:
   const ArmManagedRegister scratch_;

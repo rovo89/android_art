@@ -174,7 +174,7 @@ class X86ManagedRegister : public ManagedRegister {
 
   friend class ManagedRegister;
 
-  X86ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+  explicit X86ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
 
   static X86ManagedRegister FromRegId(int reg_id) {
     X86ManagedRegister reg(reg_id);

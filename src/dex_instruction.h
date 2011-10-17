@@ -99,7 +99,7 @@ class Instruction {
     uint32_t arg_[5];         /* vC/D/E/F/G in invoke or filled-new-array */
     Code     opcode_;
 
-    DecodedInstruction(const Instruction* inst) {
+    explicit DecodedInstruction(const Instruction* inst) {
       inst->Decode(vA_, vB_, vB_wide_, vC_, arg_);
       opcode_ = inst->Opcode();
     }

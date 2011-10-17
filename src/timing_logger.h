@@ -29,7 +29,7 @@ namespace art {
 
 class TimingLogger {
 public:
-  TimingLogger(const char* name) : name_(name) {
+  explicit TimingLogger(const char* name) : name_(name) {
     AddSplit("");
   }
 

@@ -79,7 +79,7 @@ class Monitor {
   Object* GetObject();
 
  private:
-  Monitor(Object* obj);
+  explicit Monitor(Object* obj);
 
   void AppendToWaitSet(Thread* thread);
   void RemoveFromWaitSet(Thread* thread);

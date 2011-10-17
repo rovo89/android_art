@@ -81,7 +81,7 @@ class MutexLock {
 
 class ConditionVariable {
  public:
-  ConditionVariable(const std::string& name);
+  explicit ConditionVariable(const std::string& name);
   ~ConditionVariable();
 
   void Broadcast();

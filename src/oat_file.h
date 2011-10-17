@@ -126,7 +126,7 @@ class OatFile {
   }
 
  private:
-  OatFile(const std::string& filename);
+  explicit OatFile(const std::string& filename);
   bool Read(const std::string& filename, byte* requested_base);
 
   const byte* GetBase() const;

@@ -309,7 +309,7 @@ class DexVerifier {
     int num_entries_;
     UniquePtr<UninitInstanceMapEntry[]> map_;
 
-    UninitInstanceMap(int num_entries)
+    explicit UninitInstanceMap(int num_entries)
         : num_entries_(num_entries),
           map_(new UninitInstanceMapEntry[num_entries]()) {
     }

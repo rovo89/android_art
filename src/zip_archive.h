@@ -113,7 +113,7 @@ class ZipArchive {
   }
 
  private:
-  ZipArchive(int fd) : fd_(fd), num_entries_(0), dir_offset_(0) {}
+  explicit ZipArchive(int fd) : fd_(fd), num_entries_(0), dir_offset_(0) {}
 
   bool MapCentralDirectory();
   bool Parse();

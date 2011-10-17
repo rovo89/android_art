@@ -236,7 +236,7 @@ class ArmManagedRegister : public ManagedRegister {
 
   friend class ManagedRegister;
 
-  ArmManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+  explicit ArmManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
 
   static ArmManagedRegister FromRegId(int reg_id) {
     ArmManagedRegister reg(reg_id);
