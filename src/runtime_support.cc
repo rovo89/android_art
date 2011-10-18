@@ -399,6 +399,10 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   }
   // Resolve method filling in dex cache
   Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
+  // Update CodeAndDirectMethod table
+  Method* caller = *caller_sp;
+  DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
+  dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, called);
   if (LIKELY(!thread->IsExceptionPending())) {
     // We got this far, ensure that the declaring class is initialized
     linker->EnsureInitialized(called->GetDeclaringClass(), true);

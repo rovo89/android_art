@@ -2626,9 +2626,6 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   }
   if (resolved != NULL) {
     dex_cache->SetResolvedMethod(method_idx, resolved);
-    if (is_direct && resolved->GetCode() != NULL) {
-      dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, resolved);
-    }
   } else {
     ThrowNoSuchMethodError(is_direct ? "direct" : "virtual", klass, name, signature);
   }
