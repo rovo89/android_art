@@ -197,7 +197,8 @@ ClassLinker* ClassLinker::Create(InternTable* intern_table) {
 }
 
 ClassLinker::ClassLinker(InternTable* intern_table)
-    : lock_("ClassLinker lock"),
+    : dex_lock_("ClassLinker dex lock"),
+      classes_lock_("ClassLinker classes lock"),
       class_roots_(NULL),
       array_interfaces_(NULL),
       array_iftable_(NULL),
@@ -549,7 +550,7 @@ void ClassLinker::RunRootClinits() {
 }
 
 OatFile* ClassLinker::OpenOat(const Space* space) {
-  MutexLock mu(lock_);
+  MutexLock mu(dex_lock_);
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "ClassLinker::OpenOat entering";
@@ -580,7 +581,7 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
 }
 
 const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
-  MutexLock mu(lock_);
+  MutexLock mu(dex_lock_);
   // TODO: check if dex_file matches an OatDexFile location and checksum
   return FindOatFile(OatFile::DexFileToOatFilename(dex_file));
 }
@@ -732,7 +733,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 
   {
-    MutexLock mu(lock_);
+    MutexLock mu(classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
@@ -1277,7 +1278,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_c
 }
 
 bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
-  lock_.AssertHeld();
+  dex_lock_.AssertHeld();
   for (size_t i = 0; i != dex_files_.size(); ++i) {
     if (dex_files_[i] == &dex_file) {
         return true;
@@ -1287,12 +1288,12 @@ bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
 }
 
 bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
-  MutexLock mu(lock_);
+  MutexLock mu(dex_lock_);
   return IsDexFileRegisteredLocked(dex_file);
 }
 
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_cache) {
-  lock_.AssertHeld();
+  dex_lock_.AssertHeld();
   CHECK(dex_cache != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_files_.push_back(&dex_file);
@@ -1300,21 +1301,33 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_c
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
-  MutexLock mu(lock_);
-  if (IsDexFileRegisteredLocked(dex_file)) {
-    return;
+  {
+    MutexLock mu(dex_lock_);
+    if (IsDexFileRegisteredLocked(dex_file)) {
+      return;
+    }
   }
-  RegisterDexFileLocked(dex_file, AllocDexCache(dex_file));
+  // Don't alloc while holding the lock, since allocation may need to
+  // suspend all threads and another thread may need the dex_lock_ to
+  // get to a suspend point.
+  DexCache* dex_cache = AllocDexCache(dex_file);
+  {
+    MutexLock mu(dex_lock_);
+    if (IsDexFileRegisteredLocked(dex_file)) {
+      return;
+    }
+    RegisterDexFileLocked(dex_file, dex_cache);
+  }
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache) {
-  MutexLock mu(lock_);
+  MutexLock mu(dex_lock_);
   RegisterDexFileLocked(dex_file, dex_cache);
 }
 
 const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
   CHECK(dex_cache != NULL);
-  MutexLock mu(lock_);
+  MutexLock mu(dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     if (dex_caches_[i] == dex_cache) {
         return *dex_files_[i];
@@ -1325,7 +1338,7 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
 }
 
 DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
-  MutexLock mu(lock_);
+  MutexLock mu(dex_lock_);
   for (size_t i = 0; i != dex_files_.size(); ++i) {
     if (dex_files_[i] == &dex_file) {
         return dex_caches_[i];
@@ -1516,14 +1529,14 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
 
 bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass) {
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(lock_);
+  MutexLock mu(classes_lock_);
   Table::iterator it = classes_.insert(std::make_pair(hash, klass));
   return ((*it).second == klass);
 }
 
 Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader* class_loader) {
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(lock_);
+  MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
@@ -2671,7 +2684,7 @@ void ClassLinker::DumpAllClasses(int flags) const {
   // lock held, because it might need to resolve a field's type, which would try to take the lock.
   std::vector<Class*> all_classes;
   {
-    MutexLock mu(lock_);
+    MutexLock mu(classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       all_classes.push_back(it->second);
@@ -2684,12 +2697,16 @@ void ClassLinker::DumpAllClasses(int flags) const {
 }
 
 size_t ClassLinker::NumLoadedClasses() const {
-  MutexLock mu(lock_);
+  MutexLock mu(classes_lock_);
   return classes_.size();
 }
 
-pid_t ClassLinker::GetLockOwner() {
-  return lock_.GetOwner();
+pid_t ClassLinker::GetClassesLockOwner() {
+  return classes_lock_.GetOwner();
+}
+
+pid_t ClassLinker::GetDexLockOwner() {
+  return dex_lock_.GetOwner();
 }
 
 }  // namespace art

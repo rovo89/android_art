@@ -69,7 +69,8 @@ void SignalCatcher::HandleSigQuit() {
 
   LOG(INFO) << "Heap lock owner tid: " << Heap::GetLockOwner() << "\n"
             << "ThreadList lock owner tid: " << thread_list->GetLockOwner() << "\n"
-            << "ClassLinker lock owner tid: " << class_linker->GetLockOwner() << "\n";
+            << "ClassLinker classes lock owner tid: " << class_linker->GetClassesLockOwner() << "\n"
+            << "ClassLinker dex lock owner tid: " << class_linker->GetDexLockOwner() << "\n";
 
   thread_list->SuspendAll();
 

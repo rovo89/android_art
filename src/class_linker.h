@@ -229,7 +229,8 @@ class ClassLinker {
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
       ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
 
-  pid_t GetLockOwner(); // For SignalCatcher.
+  pid_t GetClassesLockOwner(); // For SignalCatcher.
+  pid_t GetDexLockOwner(); // For SignalCatcher.
 
  private:
   explicit ClassLinker(InternTable*);
@@ -353,21 +354,22 @@ class ClassLinker {
   Method* CreateProxyConstructor(Class* klass);
   Method* CreateProxyMethod(Class* klass, Method* prototype, ObjectArray<Class>* throws);
 
-  // lock to protect ClassLinker state
-  mutable Mutex lock_;
-
-  std::vector<const OatFile*> oat_files_;
-
   std::vector<const DexFile*> boot_class_path_;
 
   std::vector<const DexFile*> dex_files_;
   std::vector<DexCache*> dex_caches_;
+  std::vector<const OatFile*> oat_files_;
+  // lock to protect concurrent access to dex_files_, dex_caches_, and oat_files_
+  mutable Mutex dex_lock_;
+
 
   // multimap from a string hash code of a class descriptor to
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
+  // Protected by classes_lock_
   typedef std::tr1::unordered_multimap<size_t, Class*> Table;
   Table classes_;
+  mutable Mutex classes_lock_;
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.
