@@ -229,6 +229,8 @@ class ClassLinker {
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
       ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
 
+  pid_t GetLockOwner(); // For SignalCatcher.
+
  private:
   explicit ClassLinker(InternTable*);
 

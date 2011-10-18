@@ -866,7 +866,7 @@ void Monitor::NotifyAll(Thread* self, Object *obj) {
   }
 }
 
-uint32_t Monitor::GetLockOwner(uint32_t raw_lock_word) {
+uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
   if (LW_SHAPE(raw_lock_word) == LW_SHAPE_THIN) {
     return LW_LOCK_OWNER(raw_lock_word);
   } else {
@@ -891,7 +891,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     os << "  - waiting to lock ";
     object = thread->monitor_enter_object_;
     if (object != NULL) {
-      lock_owner = object->GetLockOwner();
+      lock_owner = object->GetThinLockId();
     }
   } else {
     // We're not waiting on anything.

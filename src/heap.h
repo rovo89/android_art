@@ -100,7 +100,7 @@ class Heap {
   // Blocks the caller until the garbage collector becomes idle.
   static void WaitForConcurrentGcToComplete();
 
-  static uint32_t GetLockOwner(); // For SignalCatcher.
+  static pid_t GetLockOwner(); // For SignalCatcher.
   static void Lock();
   static void Unlock();
 

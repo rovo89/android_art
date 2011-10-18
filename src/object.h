@@ -184,7 +184,7 @@ class MANAGED Object {
     return const_cast<volatile int32_t*>(word_addr);
   }
 
-  uint32_t GetLockOwner();
+  uint32_t GetThinLockId();
 
   void MonitorEnter(Thread* thread);
 

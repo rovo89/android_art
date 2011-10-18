@@ -22,6 +22,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include "class_linker.h"
 #include "heap.h"
 #include "runtime.h"
 #include "thread.h"
@@ -64,9 +65,11 @@ bool SignalCatcher::ShouldHalt() {
 void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
   ThreadList* thread_list = runtime->GetThreadList();
+  ClassLinker* class_linker = runtime->GetClassLinker();
 
-  LOG(INFO) << "Heap lock owner: " << Heap::GetLockOwner() << "\n"
-            << "Thread lock owner: " << thread_list->GetLockOwner() << "\n";
+  LOG(INFO) << "Heap lock owner tid: " << Heap::GetLockOwner() << "\n"
+            << "ThreadList lock owner tid: " << thread_list->GetLockOwner() << "\n"
+            << "ClassLinker lock owner tid: " << class_linker->GetLockOwner() << "\n";
 
   thread_list->SuspendAll();
 

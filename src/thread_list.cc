@@ -43,7 +43,7 @@ bool ThreadList::Contains(Thread* thread) {
   return find(list_.begin(), list_.end(), thread) != list_.end();
 }
 
-uint32_t ThreadList::GetLockOwner() {
+pid_t ThreadList::GetLockOwner() {
   return thread_list_lock_.GetOwner();
 }
 

@@ -1303,7 +1303,7 @@ bool Thread::HoldsLock(Object* object) {
   if (object == NULL) {
     return false;
   }
-  return object->GetLockOwner() == thin_lock_id_;
+  return object->GetThinLockId() == thin_lock_id_;
 }
 
 bool Thread::IsDaemon() {

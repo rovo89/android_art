@@ -49,8 +49,8 @@ Object* Object::Clone() {
   return copy;
 }
 
-uint32_t Object::GetLockOwner() {
-  return Monitor::GetLockOwner(monitor_);
+uint32_t Object::GetThinLockId() {
+  return Monitor::GetThinLockId(monitor_);
 }
 
 bool Object::IsString() const {

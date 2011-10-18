@@ -65,7 +65,7 @@ class Monitor {
   static bool IsVerbose();
   static void SetVerbose(bool is_verbose);
 
-  static uint32_t GetLockOwner(uint32_t raw_lock_word);
+  static uint32_t GetThinLockId(uint32_t raw_lock_word);
 
   static void MonitorEnter(Thread* thread, Object* obj);
   static bool MonitorExit(Thread* thread, Object* obj);

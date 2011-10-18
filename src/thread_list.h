@@ -32,7 +32,7 @@ class ThreadList {
   ~ThreadList();
 
   void Dump(std::ostream& os);
-  uint32_t GetLockOwner(); // For SignalCatcher.
+  pid_t GetLockOwner(); // For SignalCatcher.
 
   // Thread suspension support.
   void FullSuspendCheck(Thread* thread);

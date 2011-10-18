@@ -584,7 +584,7 @@ void Heap::GrowForUtilization() {
   SetIdealFootprint(target_size);
 }
 
-uint32_t Heap::GetLockOwner() {
+pid_t Heap::GetLockOwner() {
   return lock_->GetOwner();
 }
 
