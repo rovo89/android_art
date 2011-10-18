@@ -31,18 +31,20 @@ class Thread;
  */
 class SignalCatcher {
  public:
-  SignalCatcher();
+  SignalCatcher(const std::string& stack_trace_file);
   ~SignalCatcher();
 
-  static void HandleSigQuit();
+  void HandleSigQuit();
 
  private:
   static void* Run(void* arg);
-  static void HandleSigUsr1();
 
+  void HandleSigUsr1();
+  void Output(const std::string& s);
   void SetHaltFlag(bool new_value);
   bool ShouldHalt();
 
+  std::string stack_trace_file_;
   mutable Mutex lock_;
   bool halt_;
   ConditionVariable cond_;

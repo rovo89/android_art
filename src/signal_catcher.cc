@@ -16,14 +16,19 @@
 
 #include "signal_catcher.h"
 
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "class_linker.h"
+#include "file.h"
 #include "heap.h"
+#include "os.h"
 #include "runtime.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -31,8 +36,11 @@
 
 namespace art {
 
-SignalCatcher::SignalCatcher()
-    : lock_("SignalCatcher lock"), cond_("SignalCatcher::cond_"), thread_(NULL) {
+SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
+    : stack_trace_file_(stack_trace_file),
+      lock_("SignalCatcher lock"),
+      cond_("SignalCatcher::cond_"),
+      thread_(NULL) {
   SetHaltFlag(false);
 
   // Create a raw pthread; its start routine will attach to the runtime.
@@ -60,6 +68,27 @@ void SignalCatcher::SetHaltFlag(bool new_value) {
 bool SignalCatcher::ShouldHalt() {
   MutexLock mu(lock_);
   return halt_;
+}
+
+void SignalCatcher::Output(const std::string& s) {
+  if (stack_trace_file_.empty()) {
+    LOG(INFO) << s;
+    return;
+  }
+
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+  int fd = open(stack_trace_file_.c_str(), O_APPEND | O_CREAT | O_WRONLY, 0666);
+  if (fd == -1) {
+    PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
+    return;
+  }
+  UniquePtr<File> file(OS::FileFromFd(stack_trace_file_.c_str(), fd));
+  if (!file->WriteFully(s.data(), s.size())) {
+    PLOG(ERROR) << "Failed to write stack traces to '" << stack_trace_file_ << "'";
+  } else {
+    LOG(INFO) << "Wrote stack traces to '" << stack_trace_file_ << "'";
+  }
+  close(fd);
 }
 
 void SignalCatcher::HandleSigQuit() {
@@ -92,11 +121,11 @@ void SignalCatcher::HandleSigQuit() {
     os << "/proc/self/maps:\n" << maps;
   }
 
-  os << "----- end " << getpid() << " -----";
+  os << "----- end " << getpid() << " -----\n";
 
   thread_list->ResumeAll();
 
-  LOG(INFO) << os.str();
+  Output(os.str());
 }
 
 void SignalCatcher::HandleSigUsr1() {
@@ -151,10 +180,10 @@ void* SignalCatcher::Run(void* arg) {
     LOG(INFO) << *signal_catcher->thread_ << ": reacting to signal " << signal_number;
     switch (signal_number) {
     case SIGQUIT:
-      HandleSigQuit();
+      signal_catcher->HandleSigQuit();
       break;
     case SIGUSR1:
-      HandleSigUsr1();
+      signal_catcher->HandleSigUsr1();
       break;
     default:
       LOG(ERROR) << "Unexpected signal %d" << signal_number;

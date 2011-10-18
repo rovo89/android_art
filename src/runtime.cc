@@ -306,6 +306,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->jni_globals_max_ = ParseIntegerOrDie(option);
     } else if (option.starts_with("-Xlockprofthreshold:")) {
       parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
+    } else if (option.starts_with("-Xstacktracefile:")) {
+      parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:")).data();
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
     } else if (option == "vfprintf") {
@@ -411,7 +413,7 @@ void Runtime::DidForkFromZygote() {
 
 void Runtime::StartSignalCatcher() {
   if (!is_zygote_) {
-    signal_catcher_ = new SignalCatcher;
+    signal_catcher_ = new SignalCatcher(stack_trace_file_);
   }
 }
 
@@ -469,6 +471,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   abort_ = options->hook_abort_;
 
   default_stack_size_ = options->stack_size_;
+  stack_trace_file_ = options->stack_trace_file_;
 
   monitor_list_ = new MonitorList;
   thread_list_ = new ThreadList(options->IsVerbose("thread"));

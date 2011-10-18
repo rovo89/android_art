@@ -58,6 +58,7 @@ class Runtime {
     size_t stack_size_;
     size_t jni_globals_max_;
     size_t lock_profiling_threshold_;
+    std::string stack_trace_file_;
     bool (*hook_is_sensitive_thread_)();
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
     void (*hook_exit_)(jint status);
@@ -254,6 +255,7 @@ class Runtime {
   ClassLinker* class_linker_;
 
   SignalCatcher* signal_catcher_;
+  std::string stack_trace_file_;
 
   JavaVMExt* java_vm_;
 
