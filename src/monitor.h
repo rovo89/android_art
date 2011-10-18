@@ -63,7 +63,8 @@ class Monitor {
   ~Monitor();
 
   static bool IsVerbose();
-  static void SetVerbose(bool is_verbose);
+  static bool IsSensitiveThread();
+  static void Init(bool is_verbose, uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)());
 
   static uint32_t GetThinLockId(uint32_t raw_lock_word);
 
@@ -86,6 +87,8 @@ class Monitor {
 
   static void Inflate(Thread* self, Object* obj);
 
+  void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent, const char* owner_filename, uint32_t owner_line_number);
+
   void Lock(Thread* self);
   bool Unlock(Thread* thread);
 
@@ -94,7 +97,9 @@ class Monitor {
 
   void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow);
 
+  static bool (*is_sensitive_thread_hook_)();
   static bool is_verbose_;
+  static uint32_t lock_profiling_threshold_;
 
   /* Which thread currently owns the lock? */
   Thread* owner_;

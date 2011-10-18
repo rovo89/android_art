@@ -93,14 +93,25 @@ namespace art {
 #define LW_LOCK_COUNT_SHIFT 19
 #define LW_LOCK_COUNT(x) (((x) >> LW_LOCK_COUNT_SHIFT) & LW_LOCK_COUNT_MASK)
 
+bool (*Monitor::is_sensitive_thread_hook_)() = NULL;
 bool Monitor::is_verbose_ = false;
+uint32_t Monitor::lock_profiling_threshold_ = 0;
 
 bool Monitor::IsVerbose() {
   return is_verbose_;
 }
 
-void Monitor::SetVerbose(bool is_verbose) {
+bool Monitor::IsSensitiveThread() {
+  if (is_sensitive_thread_hook_ != NULL) {
+    return (*is_sensitive_thread_hook_)();
+  }
+  return false;
+}
+
+void Monitor::Init(bool is_verbose, uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)()) {
   is_verbose_ = is_verbose;
+  lock_profiling_threshold_ = lock_profiling_threshold;
+  is_sensitive_thread_hook_ = is_sensitive_thread_hook;
 }
 
 Monitor::Monitor(Object* obj)
@@ -182,158 +193,52 @@ Object* Monitor::GetObject() {
   return obj_;
 }
 
-/*
-static char *logWriteInt(char *dst, int value) {
-  *dst++ = EVENT_TYPE_INT;
-  set4LE((uint8_t *)dst, value);
-  return dst + 4;
-}
-
-static char *logWriteString(char *dst, const char *value, size_t len) {
-  *dst++ = EVENT_TYPE_STRING;
-  len = len < 32 ? len : 32;
-  set4LE((uint8_t *)dst, len);
-  dst += 4;
-  memcpy(dst, value, len);
-  return dst + len;
-}
-
-#define EVENT_LOG_TAG_dvm_lock_sample 20003
-
-static void logContentionEvent(Thread *self, uint32_t waitMs, uint32_t samplePercent,
-                               const char *ownerFileName, uint32_t ownerLineNumber)
-{
-    const StackSaveArea *saveArea;
-    const Method *meth;
-    uint32_t relativePc;
-    char eventBuffer[174];
-    const char *fileName;
-    char procName[33];
-    char *cp;
-    size_t len;
-    int fd;
-
-    saveArea = SAVEAREA_FROM_FP(self->interpSave.curFrame);
-    meth = saveArea->method;
-    cp = eventBuffer;
-
-    // Emit the event list length, 1 byte.
-    *cp++ = 9;
-
-    // Emit the process name, <= 37 bytes.
-    fd = open("/proc/self/cmdline", O_RDONLY);
-    memset(procName, 0, sizeof(procName));
-    read(fd, procName, sizeof(procName) - 1);
-    close(fd);
-    len = strlen(procName);
-    cp = logWriteString(cp, procName, len);
-
-    // Emit the sensitive thread ("main thread") status, 5 bytes.
-    bool isSensitive = false;
-    if (gDvm.isSensitiveThreadHook != NULL) {
-        isSensitive = gDvm.isSensitiveThreadHook();
-    }
-    cp = logWriteInt(cp, isSensitive);
-
-    // Emit self thread name string, <= 37 bytes.
-    std::string selfName = dvmGetThreadName(self);
-    cp = logWriteString(cp, selfName.c_str(), selfName.size());
-
-    // Emit the wait time, 5 bytes.
-    cp = logWriteInt(cp, waitMs);
-
-    // Emit the source code file name, <= 37 bytes.
-    fileName = dvmGetMethodSourceFile(meth);
-    if (fileName == NULL) fileName = "";
-    cp = logWriteString(cp, fileName, strlen(fileName));
-
-    // Emit the source code line number, 5 bytes.
-    relativePc = saveArea->xtra.currentPc - saveArea->method->insns;
-    cp = logWriteInt(cp, dvmLineNumFromPC(meth, relativePc));
-
-    // Emit the lock owner source code file name, <= 37 bytes.
-    if (ownerFileName == NULL) {
-        ownerFileName = "";
-    } else if (strcmp(fileName, ownerFileName) == 0) {
-        // Common case, so save on log space.
-        ownerFileName = "-";
-    }
-    cp = logWriteString(cp, ownerFileName, strlen(ownerFileName));
-
-    // Emit the source code line number, 5 bytes.
-    cp = logWriteInt(cp, ownerLineNumber);
-
-    // Emit the sample percentage, 5 bytes.
-    cp = logWriteInt(cp, samplePercent);
-
-    assert((size_t)(cp - eventBuffer) <= sizeof(eventBuffer));
-    android_btWriteLog(EVENT_LOG_TAG_dvm_lock_sample,
-                       EVENT_TYPE_LIST,
-                       eventBuffer,
-                       (size_t)(cp - eventBuffer));
-}
-*/
-
 void Monitor::Lock(Thread* self) {
-//  uint32_t waitThreshold, samplePercent;
-//  uint64_t waitStart, waitEnd, waitMs;
-
   if (owner_ == self) {
     lock_count_++;
     return;
   }
+
+  uint64_t waitStart, waitEnd;
   if (!lock_.TryLock()) {
+    uint32_t wait_threshold = lock_profiling_threshold_;
+    const char* current_owner_filename = NULL;
+    uint32_t current_owner_line_number = -1;
     {
       ScopedThreadStateChange tsc(self, Thread::kBlocked);
-//      waitThreshold = gDvm.lockProfThreshold;
-//      if (waitThreshold) {
-//        waitStart = dvmGetRelativeTimeUsec();
-//      }
-//      const char* currentOwnerFileName = mon->ownerFileName;
-//      uint32_t currentOwnerLineNumber = mon->ownerLineNumber;
+      if (wait_threshold != 0) {
+        waitStart = NanoTime() / 1000;
+      }
+      current_owner_filename = owner_filename_;
+      current_owner_line_number = owner_line_number_;
 
       lock_.Lock();
-//      if (waitThreshold) {
-//        waitEnd = dvmGetRelativeTimeUsec();
-//      }
+      if (wait_threshold != 0) {
+        waitEnd = NanoTime() / 1000;
+      }
     }
-//    if (waitThreshold) {
-//      waitMs = (waitEnd - waitStart) / 1000;
-//      if (waitMs >= waitThreshold) {
-//        samplePercent = 100;
-//      } else {
-//        samplePercent = 100 * waitMs / waitThreshold;
-//      }
-//      if (samplePercent != 0 && ((uint32_t)rand() % 100 < samplePercent)) {
-//        logContentionEvent(self, waitMs, samplePercent, currentOwnerFileName, currentOwnerLineNumber);
-//      }
-//    }
+
+    if (wait_threshold != 0) {
+      uint64_t wait_ms = (waitEnd - waitStart) / 1000;
+      uint32_t sample_percent;
+      if (wait_ms >= wait_threshold) {
+        sample_percent = 100;
+      } else {
+        sample_percent = 100 * wait_ms / wait_threshold;
+      }
+      if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
+        LogContentionEvent(self, wait_ms, sample_percent, current_owner_filename, current_owner_line_number);
+      }
+    }
   }
   owner_ = self;
   DCHECK_EQ(lock_count_, 0);
 
   // When debugging, save the current monitor holder for future
   // acquisition failures to use in sampled logging.
-//  if (gDvm.lockProfThreshold > 0) {
-//    const StackSaveArea *saveArea;
-//    const Method *meth;
-//    mon->ownerLineNumber = 0;
-//    if (self->interpSave.curFrame == NULL) {
-//      mon->ownerFileName = "no_frame";
-//    } else if ((saveArea = SAVEAREA_FROM_FP(self->interpSave.curFrame)) == NULL) {
-//      mon->ownerFileName = "no_save_area";
-//    } else if ((meth = saveArea->method) == NULL) {
-//      mon->ownerFileName = "no_method";
-//    } else {
-//      uint32_t relativePc = saveArea->xtra.currentPc - saveArea->method->insns;
-//      mon->ownerFileName = (char*) dvmGetMethodSourceFile(meth);
-//      if (mon->ownerFileName == NULL) {
-//        mon->ownerFileName = "no_method_file";
-//      } else {
-//        mon->ownerLineNumber = dvmLineNumFromPC(meth, relativePc);
-//      }
-//    }
-//  }
+  if (lock_profiling_threshold_ != 0) {
+    self->GetCurrentLocation(owner_filename_, owner_line_number_);
+  }
 }
 
 void ThrowIllegalMonitorStateException(const char* msg) {

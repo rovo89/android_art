@@ -212,6 +212,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->is_zygote_ = false;
 
+  parsed->lock_profiling_threshold_ = 0;
+  parsed->hook_is_sensitive_thread_ = NULL;
+
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = abort;
@@ -284,6 +287,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         parsed->verbose_.insert(verbose_options[i]);
       }
+    } else if (option.starts_with("-Xlockprofthreshold:")) {
+      parsed->lock_profiling_threshold_ = atoi(option.substr(strlen("-Xlockprofthreshold:")).data());
+    } else if (option == "sensitiveThread") {
+      parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
     } else if (option == "vfprintf") {
       parsed->hook_vfprintf_ = reinterpret_cast<int (*)(FILE *, const char*, va_list)>(options[i].second);
     } else if (option == "exit") {
@@ -430,7 +437,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     LOG(INFO) << "Runtime::Init -verbose:startup enabled";
   }
 
-  Monitor::SetVerbose(options->IsVerbose("monitor"));
+  Monitor::Init(options->IsVerbose("monitor"), options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
 
   host_prefix_ = options->host_prefix_;
   boot_class_path_ = options->boot_class_path_;

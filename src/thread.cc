@@ -364,6 +364,10 @@ std::string GetSchedulerGroup(pid_t tid) {
   return "";
 }
 
+String* Thread::GetName() const {
+  return (peer_ != NULL) ? reinterpret_cast<String*>(gThread_name->GetObject(peer_)) : NULL;
+}
+
 void Thread::DumpState(std::ostream& os) const {
   std::string thread_name("<native thread without managed peer>");
   std::string group_name;
@@ -1140,6 +1144,27 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     java_traces->Set(i, obj);
   }
   return result;
+}
+
+void Thread::GetCurrentLocation(const char*& source_file, uint32_t& line_number) const {
+  Frame f = top_of_managed_stack_;
+  Method* m = f.GetMethod();
+  // TODO: can this ever happen?
+  if (m->IsCalleeSaveMethod()) {
+    f.Next();
+    m = f.GetMethod();
+  }
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* c = m->GetDeclaringClass();
+  DexCache* dex_cache = c->GetDexCache();
+  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+  const DexFile::ClassDef* class_def = dex_file.FindClassDef(c->GetDescriptor()->ToModifiedUtf8());
+
+  source_file = dex_file.dexGetSourceFile(*class_def);
+
+  uint32_t pc = ManglePc(f.GetReturnPC());
+  line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
 }
 
 void Thread::ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...) {

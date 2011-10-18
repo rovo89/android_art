@@ -56,6 +56,8 @@ class Runtime {
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t stack_size_;
+    uint32_t lock_profiling_threshold_;
+    bool (*hook_is_sensitive_thread_)();
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
