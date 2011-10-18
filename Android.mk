@@ -250,7 +250,7 @@ dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(TARGET_BO
 cpplint-art:
 	./art/tools/cpplint.py \
 	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-build/header_guard,-readability/streams,-readability/todo,-runtime/references \
-	    art/src/*.h art/src/*.cc
+	    $(ANDROID_BUILD_TOP)/art/src/*.h $(ANDROID_BUILD_TOP)/art/src/*.cc
 
 ########################################################################
 

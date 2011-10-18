@@ -47,7 +47,7 @@ void Runtime::PlatformAbort(const char* file, int line) {
   // "[0xf7b62057]"
 
   // We extract the pieces and demangle, so we can produce output like this:
-  // libartd.so:-1] 	#00 art::Runtime::PlatformAbort(char const*, int) +0x15b [0xf770dd51]
+  // libartd.so:-1]    #00 art::Runtime::PlatformAbort(char const*, int) +0x15b [0xf770dd51]
 
   for (size_t i = 0; i < frame_count; ++i) {
     std::string text(symbols[i]);

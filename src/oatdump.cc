@@ -211,11 +211,9 @@ class OatDump {
                        oat_method.invoke_stub_,
                        reinterpret_cast<const byte*>(oat_method.invoke_stub_) - oat_file.GetBase());
   }
-
 };
 
 class ImageDump {
-
  public:
   static void Dump(const std::string& image_filename,
                    const std::string& host_prefix,
@@ -556,13 +554,13 @@ int oatdump(int argc, char** argv) {
   }
 
   if (image_filename == NULL && oat_filename == NULL) {
-   fprintf(stderr, "Either --image or --oat must be specified\n");
-   return EXIT_FAILURE;
+    fprintf(stderr, "Either --image or --oat must be specified\n");
+    return EXIT_FAILURE;
   }
 
   if (image_filename != NULL && oat_filename != NULL) {
-   fprintf(stderr, "Either --image or --oat must be specified but not both\n");
-   return EXIT_FAILURE;
+    fprintf(stderr, "Either --image or --oat must be specified but not both\n");
+    return EXIT_FAILURE;
   }
 
   if (oat_filename != NULL) {

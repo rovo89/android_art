@@ -113,7 +113,6 @@ int FromZip(const int argc, const char* const argv[]) {
 }
 
 int oatopt(int argc, char** argv) {
-
   setvbuf(stdout, NULL, _IONBF, 0);
 
   if (true) {

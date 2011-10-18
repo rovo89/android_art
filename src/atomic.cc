@@ -82,7 +82,7 @@ static inline int64_t QuasiAtomicSwap64Impl(int64_t new_value, volatile int64_t*
   int64_t prev;
   int status;
   do {
-    __asm__ __volatile__ ("@ QuasiAtomicSwap64\n"
+    __asm__ __volatile__("@ QuasiAtomicSwap64\n"
         "ldrexd     %0, %H0, [%3]\n"
         "strexd     %1, %4, %H4, [%3]"
         : "=&r" (prev), "=&r" (status), "+m"(*addr)
@@ -107,7 +107,7 @@ int QuasiAtomicCas64(int64_t old_value, int64_t new_value, volatile int64_t* add
   int64_t prev;
   int status;
   do {
-    __asm__ __volatile__ ("@ QuasiAtomicCas64\n"
+    __asm__ __volatile__("@ QuasiAtomicCas64\n"
         "ldrexd     %0, %H0, [%3]\n"
         "mov        %1, #0\n"
         "teq        %0, %4\n"
@@ -122,7 +122,7 @@ int QuasiAtomicCas64(int64_t old_value, int64_t new_value, volatile int64_t* add
 
 int64_t QuasiAtomicRead64(volatile const int64_t* addr) {
   int64_t value;
-  __asm__ __volatile__ ("@ QuasiAtomicRead64\n"
+  __asm__ __volatile__("@ QuasiAtomicRead64\n"
       "ldrexd     %0, %H0, [%1]"
       : "=&r" (value)
       : "r" (addr));

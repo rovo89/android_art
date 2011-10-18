@@ -572,8 +572,7 @@ void Heap::GrowForUtilization() {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more
   // when necessary.
-  size_t target_size = size_t( num_bytes_allocated_ /
-                               Heap::GetTargetHeapUtilization() );
+  size_t target_size(num_bytes_allocated_ / Heap::GetTargetHeapUtilization());
 
   if (target_size > num_bytes_allocated_ + kHeapIdealFree) {
     target_size = num_bytes_allocated_ + kHeapIdealFree;

@@ -13,7 +13,6 @@ namespace art {
 class DexCacheTest : public CommonTest {};
 
 TEST_F(DexCacheTest, Open) {
-
   DexCache* dex_cache = class_linker_->AllocDexCache(*java_lang_dex_file_.get());
   ASSERT_TRUE(dex_cache != NULL);
 

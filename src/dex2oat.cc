@@ -126,18 +126,18 @@ int dex2oat(int argc, char** argv) {
   }
 
   if (oat_filename == NULL) {
-   fprintf(stderr, "--oat file name not specified\n");
-   return EXIT_FAILURE;
+    fprintf(stderr, "--oat file name not specified\n");
+    return EXIT_FAILURE;
   }
 
   if (image_filename == NULL && boot_image_option.empty()) {
-   fprintf(stderr, "Either --image or --boot-image must be specified\n");
-   return EXIT_FAILURE;
+    fprintf(stderr, "Either --image or --boot-image must be specified\n");
+    return EXIT_FAILURE;
   }
 
   if (dex_filenames.empty()) {
-   fprintf(stderr, "no --dex-file values specified\n");
-   return EXIT_FAILURE;
+    fprintf(stderr, "no --dex-file values specified\n");
+    return EXIT_FAILURE;
   }
 
   if (boot_image_option.empty()) {

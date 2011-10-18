@@ -111,7 +111,7 @@ const char* DexFile::kClassesDex = "classes.dex";
 
 class LockedFd {
  public:
-   static LockedFd* CreateAndLock(std::string& name, mode_t mode) {
+  static LockedFd* CreateAndLock(std::string& name, mode_t mode) {
     int fd = open(name.c_str(), O_CREAT | O_RDWR, mode);
     if (fd == -1) {
       PLOG(ERROR) << "Failed to open file '" << name << "'";
@@ -125,17 +125,17 @@ class LockedFd {
         LOG(WARNING) << "sleeping while locking file " << name;
         result = flock(fd, LOCK_EX);
     }
-    if (result == -1 ) {
+    if (result == -1) {
       PLOG(ERROR) << "Failed to lock file '" << name << "'";
       close(fd);
       return NULL;
     }
     return new LockedFd(fd);
-   }
+  }
 
-   int GetFd() const {
-     return fd_;
-   }
+  int GetFd() const {
+    return fd_;
+  }
 
   ~LockedFd() {
     if (fd_ != -1) {
@@ -166,7 +166,6 @@ class TmpFile {
 // Open classes.dex from within a .zip, .jar, .apk, ...
 const DexFile* DexFile::OpenZip(const std::string& filename,
                                 const std::string& strip_location_prefix) {
-
   // First, look for a ".dex" alongside the jar file.  It will have
   // the same name/path except for the extension.
 

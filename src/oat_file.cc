@@ -145,7 +145,7 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_file_lo
 
 std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
   std::vector<const OatFile::OatDexFile*> result;
-  for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it ) {
+  for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
     result.push_back(it->second);
   }
   return result;

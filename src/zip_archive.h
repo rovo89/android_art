@@ -37,7 +37,6 @@ class ZipArchive;
 class MemMap;
 
 class ZipEntry {
-
  public:
   // Uncompress an entry, in its entirety, to an open file descriptor.
   bool Extract(File& file);
@@ -46,7 +45,7 @@ class ZipEntry {
 
  private:
 
-  ZipEntry(ZipArchive* zip_archive, const byte* ptr) : zip_archive_(zip_archive), ptr_(ptr) {};
+  ZipEntry(ZipArchive* zip_archive, const byte* ptr) : zip_archive_(zip_archive), ptr_(ptr) {}
 
   // Zip compression methods
   enum {

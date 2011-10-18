@@ -108,7 +108,7 @@ void setSigchldHandler() {
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = sigchldHandler;
 
-  int err = sigaction (SIGCHLD, &sa, NULL);
+  int err = sigaction(SIGCHLD, &sa, NULL);
   if (err < 0) {
     PLOG(WARNING) << "Error setting SIGCHLD handler";
   }
@@ -120,7 +120,7 @@ void unsetSigchldHandler() {
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = SIG_DFL;
 
-  int err = sigaction (SIGCHLD, &sa, NULL);
+  int err = sigaction(SIGCHLD, &sa, NULL);
   if (err < 0) {
     PLOG(WARNING) << "Error unsetting SIGCHLD handler";
   }

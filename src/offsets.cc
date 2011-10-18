@@ -10,4 +10,4 @@ std::ostream& operator<<(std::ostream& os, const Offset& offs) {
   return os << offs.Int32Value();
 }
 
-}
+}  // namespace art

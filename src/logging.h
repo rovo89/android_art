@@ -31,7 +31,7 @@
 
 #define CHECK_OP(LHS, RHS, OP) \
   for (::art::EagerEvaluator<typeof(LHS), typeof(RHS)> _values(LHS, RHS); \
-       UNLIKELY(!(_values.lhs OP _values.rhs)); ) \
+       UNLIKELY(!(_values.lhs OP _values.rhs)); /* empty */) \
     ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
         << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
         << " (" #LHS "=" << _values.lhs << ", " #RHS "=" << _values.rhs << ") "

@@ -300,7 +300,7 @@ class DexFile {
   struct Field {
     uint32_t field_idx_;  // index into the field_ids list for the identity of this field
     uint32_t access_flags_;  // access flags for the field
-    Field() {};
+    Field() {}
    private:
     DISALLOW_COPY_AND_ASSIGN(Field);
   };
@@ -310,7 +310,7 @@ class DexFile {
     uint32_t method_idx_;
     uint32_t access_flags_;
     uint32_t code_off_;
-    Method() {};
+    Method() {}
    private:
     DISALLOW_COPY_AND_ASSIGN(Method);
   };

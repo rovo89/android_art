@@ -970,7 +970,7 @@ class MANAGED Method : public AccessibleObject {
   bool IsCalleeSaveMethod() const {
     Runtime* runtime = Runtime::Current();
     bool result = false;
-    for (int i=0; i < Runtime::kLastCalleeSaveType; i++) {
+    for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       if (this == runtime->GetCalleeSaveMethod(Runtime::CalleeSaveType(i))) {
         result = true;
         break;
@@ -2267,7 +2267,7 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
     Class* array_class = dst->GetClass();
     if (array_class == src->GetClass()) {
       // No need for array store checks if arrays are of the same type
-      for (size_t i=0; i < length; i++) {
+      for (size_t i = 0; i < length; i++) {
         Object* object = src->GetFieldObject<Object*>(src_offset, false);
         dst->SetFieldObject(dst_offset, object, false);
         src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
@@ -2276,7 +2276,7 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
     } else {
       Class* element_class = array_class->GetComponentType();
       CHECK(!element_class->IsPrimitive());
-      for (size_t i=0; i < length; i++) {
+      for (size_t i = 0; i < length; i++) {
         Object* object = src->GetFieldObject<Object*>(src_offset, false);
         if (object != NULL && !object->InstanceOf(element_class)) {
           dst->ThrowArrayStoreException(object);
@@ -2495,16 +2495,14 @@ class MANAGED String : public Object {
 };
 
 inline const String* Field::GetName() const {
-   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-   String* result =
-       GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Field, name_), false);
-   DCHECK(result != NULL);
-   return result;
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
+  String* result = GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Field, name_), false);
+  DCHECK(result != NULL);
+  return result;
 }
 
 inline void Field::SetName(String* new_name) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, name_),
-                 new_name, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, name_), new_name, false);
 }
 
 inline uint32_t Field::GetAccessFlags() const {
@@ -2519,14 +2517,12 @@ inline uint32_t Field::GetTypeIdx() const {
 
 inline MemberOffset Field::GetOffset() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(
-      GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
+  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
 }
 
 inline MemberOffset Field::GetOffsetDuringLinking() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(
-      GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
+  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
 }
 
 inline String* Method::GetName() const {
@@ -2537,40 +2533,32 @@ inline String* Method::GetName() const {
 }
 
 inline void Method::SetName(String* new_name) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, name_),
-                 new_name, false);
-
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, name_), new_name, false);
 }
 
 inline ByteArray* Method::GetRegisterMapData() const {
-  return GetFieldObject<ByteArray*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), false);
+  return GetFieldObject<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), false);
 }
 
 inline void Method::SetRegisterMapData(ByteArray* data) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_),
-                 data, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_data_), data, false);
 }
 
 inline ByteArray* Method::GetRegisterMapHeader() const {
-  return GetFieldObject<ByteArray*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), false);
+  return GetFieldObject<ByteArray*>(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), false);
 }
 
 inline void Method::SetRegisterMapHeader(ByteArray* header) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_),
-                 header, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, register_map_header_), header, false);
 }
 
 inline String* Method::GetShorty() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetFieldObject<String*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false);
+  return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false);
 }
 
 inline void Method::SetShorty(String* new_shorty) {
-  DCHECK(NULL == GetFieldObject<String*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false));
+  DCHECK(NULL == GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), false));
   DCHECK_LE(1, new_shorty->GetLength());
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, shorty_), new_shorty, false);
 }
@@ -2583,8 +2571,7 @@ inline String* Method::GetSignature() const {
 }
 
 inline void Method::SetSignature(String* new_signature) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, signature_),
-                 new_signature, false);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, signature_), new_signature, false);
 }
 
 inline void Method::SetExceptionTypes(ObjectArray<Class>* exception_types) {

@@ -10,7 +10,7 @@ namespace art {
 namespace x86 {
 
 ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType) {
-  UniquePtr<X86Assembler> assembler( static_cast<X86Assembler*>(Assembler::Create(kX86)) );
+  UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // TODO: unimplemented
   __ int3();
@@ -28,7 +28,7 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType) {
 typedef void (*ThrowAme)(Method*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {
-  UniquePtr<X86Assembler> assembler( static_cast<X86Assembler*>(Assembler::Create(kX86)) );
+  UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // Pad stack to ensure 16-byte alignment
   __ pushl(Immediate(0));
@@ -55,7 +55,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 }
 
 ByteArray* CreateJniStub() {
-  UniquePtr<X86Assembler> assembler( static_cast<X86Assembler*>(Assembler::Create(kX86)) );
+  UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // Pad stack to ensure 16-byte alignment
   __ pushl(Immediate(0));

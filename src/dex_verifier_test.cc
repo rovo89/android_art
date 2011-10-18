@@ -31,7 +31,6 @@ class DexVerifierTest : public CommonTest {
       VerifyClass(class_loader, descriptor);
     }
   }
-
 };
 
 TEST_F(DexVerifierTest, LibCore) {

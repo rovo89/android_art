@@ -446,10 +446,8 @@ ObjectArray<StaticStorageBase>* Method::GetDexCacheInitializedStaticStorage() co
 }
 
 void Method::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {
-  SetFieldObject(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_initialized_static_storage_),
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_initialized_static_storage_),
       new_value, false);
-
 }
 
 size_t Method::NumArgRegisters(const StringPiece& shorty) {
@@ -585,7 +583,7 @@ Method* Method::FindOverriddenMethod() const {
       result = interface->FindInterfaceMethod(name, signature);
     }
   }
-  DCHECK (result == NULL || HasSameNameAndSignature(result));
+  DCHECK(result == NULL || HasSameNameAndSignature(result));
   return result;
 }
 

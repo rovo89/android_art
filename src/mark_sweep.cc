@@ -137,7 +137,7 @@ void MarkSweep::SweepSystemWeaks() {
 }
 
 void MarkSweep::SweepCallback(size_t num_ptrs, void** ptrs, void* arg) {
-  // TODO, lock heap if concurrent
+  // TODO: lock heap if concurrent
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
   Space* space = static_cast<Space*>(arg);
@@ -148,7 +148,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, void** ptrs, void* arg) {
     space->Free(obj);
   }
   Heap::RecordFreeLocked(freed_objects, freed_bytes);
-  // TODO, unlock heap if concurrent
+  // TODO: unlock heap if concurrent
 }
 
 void MarkSweep::Sweep() {

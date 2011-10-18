@@ -228,7 +228,7 @@ class ClassLinkerTest : public CommonTest {
       Field* field = klass->GetStaticField(i);
       AssertField(klass, field);
       EXPECT_TRUE(field->IsStatic());
-   }
+    }
 
     // Confirm that all instances fields are packed together at the start
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
@@ -388,7 +388,6 @@ struct CheckOffsets {
 
 struct ObjectOffsets : public CheckOffsets<Object> {
   ObjectOffsets() : CheckOffsets<Object>(false, "Ljava/lang/Object;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Object, klass_),   "shadow$_klass_"));
 
@@ -406,7 +405,6 @@ struct AccessibleObjectOffsets : public CheckOffsets<AccessibleObject> {
 
 struct FieldOffsets : public CheckOffsets<Field> {
   FieldOffsets() : CheckOffsets<Field>(false, "Ljava/lang/reflect/Field;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, declaring_class_),               "declaringClass"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, generic_type_),                  "genericType"));
@@ -424,7 +422,6 @@ struct FieldOffsets : public CheckOffsets<Field> {
 
 struct MethodOffsets : public CheckOffsets<Method> {
   MethodOffsets() : CheckOffsets<Method>(false, "Ljava/lang/reflect/Method;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, java_exception_types_),                 "exceptionTypes"));
@@ -478,7 +475,6 @@ struct ConstructorOffsets : public MethodOffsets {
 
 struct ClassOffsets : public CheckOffsets<Class> {
   ClassOffsets() : CheckOffsets<Class>(false, "Ljava/lang/Class;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "shadow$_class_loader_"));
@@ -514,7 +510,6 @@ struct ClassOffsets : public CheckOffsets<Class> {
 
 struct StringOffsets : public CheckOffsets<String> {
   StringOffsets() : CheckOffsets<String>(false, "Ljava/lang/String;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, array_),     "value"));
 
@@ -527,7 +522,6 @@ struct StringOffsets : public CheckOffsets<String> {
 
 struct ThrowableOffsets : public CheckOffsets<Throwable> {
   ThrowableOffsets() : CheckOffsets<Throwable>(false, "Ljava/lang/Throwable;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, cause_),                 "cause"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, detail_message_),        "detailMessage"));
@@ -539,7 +533,6 @@ struct ThrowableOffsets : public CheckOffsets<Throwable> {
 
 struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
   StackTraceElementOffsets() : CheckOffsets<StackTraceElement>(false, "Ljava/lang/StackTraceElement;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, declaring_class_), "declaringClass"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, file_name_),       "fileName"));
@@ -550,7 +543,6 @@ struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
 
 struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
   ClassLoaderOffsets() : CheckOffsets<ClassLoader>(false, "Ljava/lang/ClassLoader;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),   "parent"));
@@ -561,7 +553,6 @@ struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
 struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
   BaseDexClassLoaderOffsets()
     : CheckOffsets<BaseDexClassLoader>(false, "Ldalvik/system/BaseDexClassLoader;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_), "originalPath"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),     "pathList"));
@@ -570,12 +561,11 @@ struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
 
 struct PathClassLoaderOffsets : public CheckOffsets<PathClassLoader> {
   PathClassLoaderOffsets()
-    : CheckOffsets<PathClassLoader>(false, "Ldalvik/system/PathClassLoader;") {};
+    : CheckOffsets<PathClassLoader>(false, "Ldalvik/system/PathClassLoader;") {}
 };
 
 struct ProxyOffsets : public CheckOffsets<Proxy> {
   ProxyOffsets() : CheckOffsets<Proxy>(false, "Ljava/lang/reflect/Proxy;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Proxy, h_), "h"));
   };
@@ -583,7 +573,6 @@ struct ProxyOffsets : public CheckOffsets<Proxy> {
 
 struct ClassClassOffsets : public CheckOffsets<ClassClass> {
   ClassClassOffsets() : CheckOffsets<ClassClass>(true, "Ljava/lang/Class;") {
-
     // padding 32-bit
     CHECK_EQ(OFFSETOF_MEMBER(ClassClass, padding_) + 4,
              OFFSETOF_MEMBER(ClassClass, serialVersionUID_));
@@ -595,7 +584,6 @@ struct ClassClassOffsets : public CheckOffsets<ClassClass> {
 
 struct StringClassOffsets : public CheckOffsets<StringClass> {
   StringClassOffsets() : CheckOffsets<StringClass>(true, "Ljava/lang/String;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, ASCII_),                  "ASCII"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
@@ -610,7 +598,6 @@ struct StringClassOffsets : public CheckOffsets<StringClass> {
 
 struct FieldClassOffsets : public CheckOffsets<FieldClass> {
   FieldClassOffsets() : CheckOffsets<FieldClass>(true, "Ljava/lang/reflect/Field;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, ORDER_BY_NAME_AND_DECLARING_CLASS_), "ORDER_BY_NAME_AND_DECLARING_CLASS"));
 
@@ -628,7 +615,6 @@ struct FieldClassOffsets : public CheckOffsets<FieldClass> {
 
 struct MethodClassOffsets : public CheckOffsets<MethodClass> {
   MethodClassOffsets() : CheckOffsets<MethodClass>(true, "Ljava/lang/reflect/Method;") {
-
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));
   };
@@ -636,7 +622,6 @@ struct MethodClassOffsets : public CheckOffsets<MethodClass> {
 
 struct ProxyClassOffsets : public CheckOffsets<ProxyClass> {
   ProxyClassOffsets() : CheckOffsets<ProxyClass>(true, "Ljava/lang/reflect/Proxy;") {
-
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ProxyClass, NextClassNameIndex_), "NextClassNameIndex"));
 

@@ -55,9 +55,9 @@ class MANAGED CodeAndDirectMethods : public IntArray {
     return (CodeIndex(method_idx) * sizeof(ElementType) + Array::DataOffset().Int32Value());
   }
 
- size_t NumCodeAndDirectMethods() const {
-   return GetLength() / kMax;
- }
+  size_t NumCodeAndDirectMethods() const {
+    return GetLength() / kMax;
+  }
 
  private:
   enum TupleIndex {

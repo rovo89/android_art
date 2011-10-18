@@ -468,7 +468,7 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_sta
     if (fields_class->IsInitializing()) {
       return resolved_field;
     }
-    if(Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
+    if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
       return resolved_field;
     }
   }
@@ -984,7 +984,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   ObjectArray<Object>* args = NULL;
   if ((num_params - 1) > 0) {
     args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
-    if(args == NULL) {
+    if (args == NULL) {
       CHECK(self->IsExceptionPending());
       return;
     }

@@ -141,7 +141,6 @@ TEST_F(DexFileTest, CreateMethodDescriptor) {
     std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
     ASSERT_EQ("(ZSC)LCreateMethodDescriptor;", descriptor);
   }
-
 }
 
 }  // namespace art

@@ -31,7 +31,7 @@ namespace art {
 
 namespace {
 
-void ThrowNoClassDefFoundError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowNoClassDefFoundError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
 void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -39,7 +39,7 @@ void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_end(args);
 }
 
-void ThrowClassFormatError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowClassFormatError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
 void ThrowClassFormatError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -47,7 +47,7 @@ void ThrowClassFormatError(const char* fmt, ...) {
   va_end(args);
 }
 
-void ThrowLinkageError(const char* fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
+void ThrowLinkageError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
 void ThrowLinkageError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -116,7 +116,7 @@ void WrapExceptionInInitializer() {
   env->Throw(eiie.get());
 }
 
-}
+}  // namespace
 
 const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/Class;",
@@ -2325,7 +2325,6 @@ bool ClassLinker::LinkStaticFields(Class* klass) {
 
 struct LinkFieldsComparator {
   bool operator()(const Field* field1, const Field* field2) {
-
     // First come reference fields, then 64-bit, and finally 32-bit
     const Class* type1 = field1->GetTypeDuringLinking();
     const Class* type2 = field2->GetTypeDuringLinking();

@@ -197,14 +197,14 @@ class CommonTest : public testing::Test {
 #endif
     runtime_->SetJniStubArray(JniCompiler::CreateJniStub(instruction_set));
     runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
-    for (int i=0; i < Runtime::kLastTrampolineMethodType; i++) {
+    for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);
       if (!runtime_->HasResolutionStubArray(type)) {
         runtime_->SetResolutionStubArray(
             Compiler::CreateResolutionStub(instruction_set, type), type);
       }
     }
-    for (int i=0; i < Runtime::kLastCalleeSaveType; i++) {
+    for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime_->HasCalleeSaveMethod(type)) {
         runtime_->SetCalleeSaveMethod(

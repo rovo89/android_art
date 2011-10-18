@@ -19,12 +19,11 @@ namespace art {
 
 // Write a Space built during compilation for use during execution.
 class ImageWriter {
-
  public:
-  ImageWriter() : source_space_(NULL), image_top_(0), image_base_(NULL) {};
+  ImageWriter() : source_space_(NULL), image_top_(0), image_base_(NULL) {}
   bool Write(const char* image_filename, uintptr_t image_base,
              const std::string& oat_filename, const std::string& strip_location_prefix);
-  ~ImageWriter() {};
+  ~ImageWriter() {}
 
  private:
 

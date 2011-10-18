@@ -25,7 +25,7 @@ void X86Context::FillCalleeSaves(const Frame& fr) {
   if (spill_count > 0) {
     // Lowest number spill is furthest away, walk registers and fill into context
     int j = 1;
-    for(int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
       if (((core_spills >> i) & 1) != 0) {
         gprs_[i] = fr.LoadCalleeSave(spill_count - j);
         j++;
@@ -39,7 +39,7 @@ void X86Context::DoLongJump() {
   // Load ESP and EIP
   gprs_[ESP] -= 4;  // push EIP for return
   *((uintptr_t*)(gprs_[ESP])) = eip_;
-  asm volatile (
+  asm volatile(
       "pushl %4\n\t"
       "pushl %0\n\t"
       "pushl %1\n\t"

@@ -10,7 +10,7 @@ namespace art {
 namespace arm {
 
 ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
-  UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
+  UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
   // | Out args |
   // | Method*  | <- SP on entry
   // | LR       |    return address into caller
@@ -49,7 +49,7 @@ ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
 typedef void (*ThrowAme)(Method*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {
-  UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
+  UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
   // Save callee saves and ready frame for exception delivery
   RegList save = (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) | (1 << R8) | (1 << R9) |
                  (1 << R10) | (1 << R11) | (1 << LR);
@@ -79,7 +79,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 }
 
 ByteArray* CreateJniStub() {
-  UniquePtr<ArmAssembler> assembler( static_cast<ArmAssembler*>(Assembler::Create(kArm)) );
+  UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
   // Build frame and save argument registers and LR.
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
   __ PushList(save);

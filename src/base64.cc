@@ -73,4 +73,4 @@ byte* DecodeBase64(const char* src, size_t* dst_size) {
   return dst.release();
 }
 
-};
+}  // namespace art

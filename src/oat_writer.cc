@@ -178,7 +178,6 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
 
   const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
   if (compiled_method != NULL) {
-
     offset = compiled_method->AlignCode(offset);
     DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& code = compiled_method->GetCode();
@@ -207,7 +206,6 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
   oat_header_->UpdateChecksum(&fp_spill_mask, sizeof(fp_spill_mask));
 
   if (compiled_method != NULL) {
-
     const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
     mapping_table_offset = (mapping_table_size == 0) ? 0 : offset;
@@ -259,7 +257,6 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
   DCHECK_EQ(static_cast<off_t>(code_offset), lseek(file->Fd(), 0, SEEK_CUR))
 
 bool OatWriter::Write(const std::string& filename) {
-
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), true));
   if (file.get() == NULL) {
     return false;

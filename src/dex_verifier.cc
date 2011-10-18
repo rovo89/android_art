@@ -1760,7 +1760,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(VerifierData* vdata,
         SetRegisterType(work_line, dec_insn.vA_, uninit_type);
       }
       break;
-   case Instruction::NEW_ARRAY:
+    case Instruction::NEW_ARRAY:
       res_class = ResolveClassAndCheckAccess(dex_file, dec_insn.vC_, klass, &failure);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file->dexStringByTypeIdx(dec_insn.vC_);
@@ -2030,7 +2030,6 @@ aget_1nr_common:
             failure = VERIFY_ERROR_GENERIC;
             break;
           }
-
         }
         SetRegisterType(work_line, dec_insn.vA_, tmp_type);
       }
@@ -5887,10 +5886,11 @@ void DexVerifier::DumpRegTypes(const VerifierData* vdata,
   char reg_chars[reg_char_size + 1];
   memset(reg_chars, ' ', reg_char_size);
   reg_chars[0] = '[';
-  if (reg_count == 0)
+  if (reg_count == 0) {
     reg_chars[1] = ']';
-  else
-    reg_chars[1 + (reg_count - 1) + (reg_count -1 ) / 4 + 1] = ']';
+  } else {
+    reg_chars[1 + (reg_count - 1) + (reg_count - 1) / 4 + 1] = ']';
+  }
   reg_chars[reg_char_size] = '\0';
 
   for (i = 0; i < reg_count + kExtraRegs; i++) {

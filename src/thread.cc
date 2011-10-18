@@ -1383,7 +1383,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
             spill_shifts--;  // wind back one as we want the last match
             ref = reinterpret_cast<Object*>(context_->GetGPR(spill_shifts));
           } else {
-            ref = reinterpret_cast<Object*>(frame.GetVReg(m ,reg));
+            ref = reinterpret_cast<Object*>(frame.GetVReg(m, reg));
           }
           if (ref != NULL) {
             root_visitor_(ref, arg_);

@@ -1532,10 +1532,9 @@ void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
 
 void ArmAssembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {
   ArmManagedRegister dest = mdest.AsArm();
-   CHECK(dest.IsCoreRegister());
-   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
-                  SP, src.Int32Value());
- }
+  CHECK(dest.IsCoreRegister());
+  LoadFromOffset(kLoadWord, dest.AsCoreRegister(), SP, src.Int32Value());
+}
 
 void ArmAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
                            Offset offs) {

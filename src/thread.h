@@ -122,7 +122,7 @@ class PACKED Thread {
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
   void (*pCanPutArrayElementFromCode)(void*, void*);
   void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
-  void (*pCheckCastFromCode) (void*, void*);
+  void (*pCheckCastFromCode)(void*, void*);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
   void (*pDeliverException)(void*);
   void* (*pFindInstanceFieldFromCode)(uint32_t, void*);
@@ -133,7 +133,7 @@ class PACKED Thread {
   void* (*pGetObjStatic)(uint32_t, void*);
   void (*pHandleFillArrayDataFromCode)(void*, void*);
   void* (*pInitializeStaticStorage)(uint32_t, void*);
-  uint32_t (*pInstanceofNonTrivialFromCode) (const Class*, const Class*);
+  uint32_t (*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   Class* (*pInitializeTypeFromCode)(uint32_t, Method*);
   void (*pLockObjectFromCode)(void*);
@@ -285,7 +285,7 @@ class PACKED Thread {
   void ThrowNewException(const char* exception_class_descriptor, const char* msg);
 
   void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
-      __attribute__ ((format(printf, 3, 4)));
+      __attribute__((format(printf, 3, 4)));
 
   void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap);
 

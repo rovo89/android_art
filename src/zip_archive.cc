@@ -236,7 +236,6 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
 }
 
 bool ZipEntry::Extract(File& file) {
-
   off_t data_offset = GetDataOffset();
   if (data_offset == -1) {
     return false;
