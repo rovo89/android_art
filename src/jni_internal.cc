@@ -24,6 +24,8 @@
 #include "stringpiece.h"
 #include "thread.h"
 
+namespace art {
+
 static const size_t kMonitorsInitial = 32; // Arbitrary.
 static const size_t kMonitorsMax = 4096; // Arbitrary sanity check.
 
@@ -33,13 +35,18 @@ static const size_t kLocalsMax = 512; // Arbitrary sanity check.
 static const size_t kPinTableInitial = 16; // Arbitrary.
 static const size_t kPinTableMax = 1024; // Arbitrary sanity check.
 
-static const size_t kGlobalsInitial = 512; // Arbitrary.
-static const size_t kGlobalsMax = 51200; // Arbitrary sanity check.
+static size_t gGlobalsInitial = 512; // Arbitrary.
+static size_t gGlobalsMax = 51200; // Arbitrary sanity check.
 
 static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
 
-namespace art {
+void SetJniGlobalsMax(size_t max) {
+  if (max != 0) {
+    gGlobalsMax = max;
+    gGlobalsInitial = std::min(gGlobalsInitial, gGlobalsMax);
+  }
+}
 
 /*
  * Add a local reference for an object to the current stack frame.  When
@@ -2662,7 +2669,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       pins_lock("JNI pin table lock"),
       pin_table("pin table", kPinTableInitial, kPinTableMax),
       globals_lock("JNI global reference table lock"),
-      globals(kGlobalsInitial, kGlobalsMax, kGlobal),
+      globals(gGlobalsInitial, gGlobalsMax, kGlobal),
       weak_globals_lock("JNI weak global reference table lock"),
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
       libraries_lock("JNI shared libraries map lock"),

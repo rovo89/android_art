@@ -23,6 +23,7 @@ class Libraries;
 class Method;
 class Thread;
 
+void SetJniGlobalsMax(size_t max);
 void JniAbort(const char* jni_function_name);
 void* FindNativeMethod(Thread* thread);
 

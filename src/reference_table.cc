@@ -22,9 +22,8 @@
 
 namespace art {
 
-ReferenceTable::ReferenceTable(const char* name,
-    size_t initial_size, size_t max_size)
-        : name_(name), max_size_(max_size) {
+ReferenceTable::ReferenceTable(const char* name, size_t initial_size, size_t max_size)
+    : name_(name), max_size_(max_size) {
   CHECK_LE(initial_size, max_size);
   entries_.reserve(initial_size);
 }

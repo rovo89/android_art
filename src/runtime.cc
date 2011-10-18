@@ -177,6 +177,20 @@ size_t ParseMemoryOption(const char *s, size_t div) {
   return 0;
 }
 
+size_t ParseIntegerOrDie(const StringPiece& s) {
+  StringPiece::size_type colon = s.find(':');
+  if (colon == StringPiece::npos) {
+    LOG(FATAL) << "Missing integer: " << s;
+  }
+  const char* begin = &s.data()[colon + 1];
+  char* end;
+  size_t result = strtoul(begin, &end, 10);
+  if (begin == end || *end != '\0') {
+    LOG(FATAL) << "Failed to parse integer in: " << s;
+  }
+  return result;
+}
+
 void LoadJniLibrary(JavaVMExt* vm, const char* name) {
   // TODO: OS_SHARED_LIB_FORMAT_STR
   std::string mapped_name(StringPrintf("lib%s.so", name));
@@ -212,6 +226,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->is_zygote_ = false;
 
+  parsed->jni_globals_max_ = 0;
   parsed->lock_profiling_threshold_ = 0;
   parsed->hook_is_sensitive_thread_ = NULL;
 
@@ -287,8 +302,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         parsed->verbose_.insert(verbose_options[i]);
       }
+    } else if (option.starts_with("-Xjnigreflimit:")) {
+      parsed->jni_globals_max_ = ParseIntegerOrDie(option);
     } else if (option.starts_with("-Xlockprofthreshold:")) {
-      parsed->lock_profiling_threshold_ = atoi(option.substr(strlen("-Xlockprofthreshold:")).data());
+      parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
     } else if (option == "vfprintf") {
@@ -437,6 +454,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     LOG(INFO) << "Runtime::Init -verbose:startup enabled";
   }
 
+  SetJniGlobalsMax(options->jni_globals_max_);
   Monitor::Init(options->IsVerbose("monitor"), options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
 
   host_prefix_ = options->host_prefix_;

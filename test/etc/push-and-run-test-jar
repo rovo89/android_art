@@ -23,7 +23,6 @@ VERIFY="y"
 OPTIMIZE="y"
 ZYGOTE="n"
 QUIET="n"
-PRECISE="y"
 DEV_MODE="n"
 
 while true; do
@@ -45,9 +44,6 @@ while true; do
         shift
     elif [ "x$1" = "x--no-optimize" ]; then
         OPTIMIZE="n"
-        shift
-    elif [ "x$1" = "x--no-precise" ]; then
-        PRECISE="n"
         shift
     elif [ "x$1" = "x--" ]; then
         shift
@@ -104,21 +100,15 @@ if [ "$DEBUG" = "y" ]; then
     DEX_DEBUG="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
 fi
 
-if [ "$PRECISE" = "y" ]; then
-    GC_OPTS="-Xgc:precise -Xgenregmap"
-else
-    GC_OPTS="-Xgc:noprecise"
-fi
-
 if [ "$ZYGOTE" = "y" ]; then
   adb shell cd /data \; dvz -classpath $TEST_NAME.jar Main "$@"
 else
-  cmdline="cd /data; oatexecd \
+  cmdline="cd /data; oatexecd -Xjnigreflimit:256 \
       -Ximage:/data/art-test/core.art \
       -cp /data/art-test/$TEST_NAME.jar \
       Main"
   #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
-  #    $GC_OPTS -cp test.jar -Xint:${INTERP} -ea Main"
+  #     -cp test.jar -Xint:${INTERP} -ea Main"
   if [ "$DEV_MODE" = "y" ]; then
     echo $cmdline "$@"
   fi
