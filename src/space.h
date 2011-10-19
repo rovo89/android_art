@@ -83,6 +83,11 @@ class Space {
     return *image_header_;
   }
 
+  const std::string& GetImageFilename() const {
+    CHECK(IsImageSpace());
+    return name_;
+  }
+
   size_t AllocationSize(const Object* obj);
 
  private:
