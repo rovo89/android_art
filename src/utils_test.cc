@@ -11,8 +11,8 @@ class UtilsTest : public CommonTest {
 
 #define EXPECT_DESCRIPTOR(pretty_descriptor, descriptor) \
   do { \
-    String* s = String::AllocFromModifiedUtf8(descriptor); \
-    std::string result(PrettyDescriptor(s)); \
+    SirtRef<String> s(String::AllocFromModifiedUtf8(descriptor)); \
+    std::string result(PrettyDescriptor(s.get())); \
     EXPECT_EQ(pretty_descriptor, result); \
   } while (false)
 
@@ -59,11 +59,11 @@ TEST_F(UtilsTest, PrettyDescriptor_PrimitiveScalars) {
 TEST_F(UtilsTest, PrettyTypeOf) {
   EXPECT_EQ("null", PrettyTypeOf(NULL));
 
-  String* s = String::AllocFromModifiedUtf8("");
-  EXPECT_EQ("java.lang.String", PrettyTypeOf(s));
+  SirtRef<String> s(String::AllocFromModifiedUtf8(""));
+  EXPECT_EQ("java.lang.String", PrettyTypeOf(s.get()));
 
-  ShortArray* a = ShortArray::Alloc(2);
-  EXPECT_EQ("short[]", PrettyTypeOf(a));
+  SirtRef<ShortArray> a(ShortArray::Alloc(2));
+  EXPECT_EQ("short[]", PrettyTypeOf(a.get()));
 
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);

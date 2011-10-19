@@ -19,8 +19,8 @@ class ExceptionTest : public CommonTest {
   virtual void SetUp() {
     CommonTest::SetUp();
 
-    const ClassLoader* class_loader = LoadDex("ExceptionHandle");
-    my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader);
+    SirtRef<ClassLoader> class_loader(LoadDex("ExceptionHandle"));
+    my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader.get());
     ASSERT_TRUE(my_klass_ != NULL);
 
     dex_ = &Runtime::Current()->GetClassLinker()->FindDexFile(my_klass_->GetDexCache());

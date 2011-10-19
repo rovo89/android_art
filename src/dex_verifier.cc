@@ -345,14 +345,20 @@ bool DexVerifier::VerifyCodeFlow(VerifierData* vdata) {
 
   /* Generate a register map and add it to the method. */
   UniquePtr<RegisterMap> map(GenerateRegisterMapV(vdata));
-  ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
-  ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map.get()));
+  SirtRef<ByteArray> header(ByteArray::Alloc(sizeof(RegisterMapHeader)));
+  if (header.get() == NULL) {
+    return false;
+  }
+  SirtRef<ByteArray> data(ByteArray::Alloc(ComputeRegisterMapSize(map.get())));
+  if (data.get() == NULL) {
+    return false;
+  }
 
   memcpy(header->GetData(), map.get()->header_, sizeof(RegisterMapHeader));
   memcpy(data->GetData(), map.get()->data_, ComputeRegisterMapSize(map.get()));
 
-  method->SetRegisterMapHeader(header);
-  method->SetRegisterMapData(data);
+  method->SetRegisterMapHeader(header.get());
+  method->SetRegisterMapData(data.get());
 
   return true;
 }
@@ -5305,8 +5311,14 @@ DexVerifier::RegisterMap* DexVerifier::GetExpandedRegisterMapHelper(
   }
 
   /* Update method, and free compressed map if it was sitting on the heap. */
-  //ByteArray* header = ByteArray::Alloc(sizeof(RegisterMapHeader));
-  //ByteArray* data = ByteArray::Alloc(ComputeRegisterMapSize(map));
+  //SirtRef<ByteArray> header(ByteArray::Alloc(sizeof(RegisterMapHeader)));
+  //if (header.get() == NULL) {
+  //  return NULL;
+  //}
+  //SirtRef<ByteArray> data(ByteArray::Alloc(ComputeRegisterMapSize(map)));
+  //if (data.get() == NULL) {
+  //  return NULL;
+  //}
 
   //memcpy(header->GetData(), map->header_, sizeof(RegisterMapHeader));
   //memcpy(data->GetData(), map->data_, ComputeRegisterMapSize(map));

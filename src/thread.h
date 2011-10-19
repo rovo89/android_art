@@ -47,12 +47,12 @@ class Method;
 class Monitor;
 class Object;
 class Runtime;
-class Thread;
-class ThreadList;
-class Throwable;
 class StackIndirectReferenceTable;
 class StackTraceElement;
 class StaticStorageBase;
+class Thread;
+class ThreadList;
+class Throwable;
 
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
@@ -445,6 +445,9 @@ class PACKED Thread {
   static ThreadOffset TopOfManagedStackPcOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_pc_));
   }
+
+  void PushSirt(StackIndirectReferenceTable* sirt);
+  StackIndirectReferenceTable* PopSirt();
 
   static ThreadOffset TopSirtOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));

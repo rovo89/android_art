@@ -826,7 +826,7 @@ void Thread::HandleUncaughtExceptions() {
 
 size_t Thread::NumSirtReferences() {
   size_t count = 0;
-  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
+  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     count += cur->NumberOfReferences();
   }
   return count;
@@ -834,13 +834,8 @@ size_t Thread::NumSirtReferences() {
 
 bool Thread::SirtContains(jobject obj) {
   Object** sirt_entry = reinterpret_cast<Object**>(obj);
-  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
-    size_t num_refs = cur->NumberOfReferences();
-    // A SIRT should always have a jobject/jclass as a native method is passed
-    // in a this pointer or a class
-    DCHECK_GT(num_refs, 0u);
-    if ((&cur->References()[0] <= sirt_entry) &&
-        (sirt_entry <= (&cur->References()[num_refs - 1]))) {
+  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
+    if (cur->Contains(sirt_entry)) {
       return true;
     }
   }
@@ -848,10 +843,10 @@ bool Thread::SirtContains(jobject obj) {
 }
 
 void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
-  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->Link()) {
+  for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     size_t num_refs = cur->NumberOfReferences();
     for (size_t j = 0; j < num_refs; j++) {
-      Object* object = cur->References()[j];
+      Object* object = cur->GetReference(j);
       if (object != NULL) {
         visitor(object, arg);
       }
@@ -1025,6 +1020,18 @@ uintptr_t DemanglePc(uintptr_t pc) {
   return pc + 2;
 }
 
+void Thread::PushSirt(StackIndirectReferenceTable* sirt) {
+  sirt->SetLink(top_sirt_);
+  top_sirt_ = sirt;
+}
+
+StackIndirectReferenceTable* Thread::PopSirt() {
+  CHECK(top_sirt_ != NULL);
+  StackIndirectReferenceTable* sirt = top_sirt_;
+  top_sirt_ = top_sirt_->GetLink();
+  return sirt;
+}
+
 void Thread::WalkStack(StackVisitor* visitor) const {
   Frame frame = GetTopOfStack();
   uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
@@ -1129,9 +1136,15 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
       line_number = dex_file.GetLineNumFromPC(method, method->ToDexPC(native_pc));
     }
     // Allocate element, potentially triggering GC
-    StackTraceElement* obj =
-        StackTraceElement::Alloc(String::AllocFromModifiedUtf8(class_name.c_str()),
-                                 method->GetName(), klass->GetSourceFile(), line_number);
+    // TODO: reuse class_name_object via Class::name_?
+    SirtRef<String> class_name_object(String::AllocFromModifiedUtf8(class_name.c_str()));
+    if (class_name_object.get() == NULL) {
+      return NULL;
+    }
+    StackTraceElement* obj = StackTraceElement::Alloc(class_name_object.get(),
+                                                      method->GetName(),
+                                                      klass->GetSourceFile(),
+                                                      line_number);
     if (obj == NULL) {
       return NULL;
     }
@@ -1416,6 +1429,9 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
   if (pre_allocated_OutOfMemoryError_ != NULL) {
     visitor(pre_allocated_OutOfMemoryError_, arg);
+  }
+  if (class_loader_override_ != NULL) {
+    visitor(class_loader_override_, arg);
   }
   jni_env_->locals.VisitRoots(visitor, arg);
   jni_env_->monitors.VisitRoots(visitor, arg);

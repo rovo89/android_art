@@ -30,23 +30,23 @@ Object* Object::Clone() {
   // Object::SizeOf gets the right size even if we're an array.
   // Using c->AllocObject() here would be wrong.
   size_t num_bytes = SizeOf();
-  Object* copy = Heap::AllocObject(c, num_bytes);
-  if (copy == NULL) {
+  SirtRef<Object> copy(Heap::AllocObject(c, num_bytes));
+  if (copy.get() == NULL) {
     return NULL;
   }
 
   // Copy instance data.  We assume memcpy copies by words.
   // TODO: expose and use move32.
   byte* src_bytes = reinterpret_cast<byte*>(this);
-  byte* dst_bytes = reinterpret_cast<byte*>(copy);
+  byte* dst_bytes = reinterpret_cast<byte*>(copy.get());
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
 
   if (c->IsFinalizable()) {
-    Heap::AddFinalizerReference(copy);
+    Heap::AddFinalizerReference(copy.get());
   }
 
-  return copy;
+  return copy.get();
 }
 
 uint32_t Object::GetThinLockId() {
@@ -1329,14 +1329,15 @@ String* String::AllocFromModifiedUtf8(int32_t utf16_length,
 }
 
 String* String::Alloc(Class* java_lang_String, int32_t utf16_length) {
-  CharArray* array = CharArray::Alloc(utf16_length);
-  if (array == NULL) {
+  SirtRef<CharArray> array(CharArray::Alloc(utf16_length));
+  if (array.get() == NULL) {
     return NULL;
   }
-  return Alloc(java_lang_String, array);
+  return Alloc(java_lang_String, array.get());
 }
 
 String* String::Alloc(Class* java_lang_String, CharArray* array) {
+  SirtRef<CharArray> array_ref(array);  // hold reference in case AllocObject causes GC
   String* string = down_cast<String*>(java_lang_String->AllocObject());
   if (string == NULL) {
     return NULL;

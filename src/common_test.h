@@ -297,14 +297,6 @@ class CommonTest : public testing::Test {
     return 0;
   }
 
-  const ClassLoader* AllocPathClassLoader(const DexFile* dex_file) {
-    CHECK(dex_file != NULL);
-    class_linker_->RegisterDexFile(*dex_file);
-    std::vector<const DexFile*> dex_files;
-    dex_files.push_back(dex_file);
-    return PathClassLoader::AllocCompileTime(dex_files);
-  }
-
   const DexFile* OpenTestDexFile(const char* name) {
     CHECK(name != NULL);
     std::string filename;
@@ -320,17 +312,17 @@ class CommonTest : public testing::Test {
     return dex_file;
   }
 
-  const ClassLoader* LoadDex(const char* dex_name) {
+  ClassLoader* LoadDex(const char* dex_name) {
     const DexFile* dex_file = OpenTestDexFile(dex_name);
     CHECK(dex_file != NULL);
     loaded_dex_files_.push_back(dex_file);
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> class_path;
     class_path.push_back(dex_file);
-    const ClassLoader* class_loader = PathClassLoader::AllocCompileTime(class_path);
-    CHECK(class_loader != NULL);
-    Thread::Current()->SetClassLoaderOverride(class_loader);
-    return class_loader;
+    SirtRef<ClassLoader> class_loader(PathClassLoader::AllocCompileTime(class_path));
+    CHECK(class_loader.get() != NULL);
+    Thread::Current()->SetClassLoaderOverride(class_loader.get());
+    return class_loader.get();
   }
 
   void CompileClass(const ClassLoader* class_loader, const char* class_name) {
@@ -353,7 +345,7 @@ class CommonTest : public testing::Test {
     MakeExecutable(runtime_->GetJniStubArray());
   }
 
-  void CompileDirectMethod(const ClassLoader* class_loader,
+  void CompileDirectMethod(ClassLoader* class_loader,
                            const char* class_name,
                            const char* method_name,
                            const char* signature) {
@@ -366,7 +358,7 @@ class CommonTest : public testing::Test {
     CompileMethod(method);
   }
 
-  void CompileVirtualMethod(const ClassLoader* class_loader,
+  void CompileVirtualMethod(ClassLoader* class_loader,
                             const char* class_name,
                             const char* method_name,
                             const char* signature) {

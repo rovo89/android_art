@@ -216,29 +216,8 @@ inline void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool 
 // Scans the header, static field references, and interface pointers
 // of a class object.
 inline void MarkSweep::ScanClass(const Object* obj) {
-  DCHECK(obj != NULL);
-  DCHECK(obj->IsClass());
-  const Class* klass = obj->AsClass();
-  MarkObject(klass->GetClass());
   ScanInstanceFields(obj);
-  MarkObject(klass->GetDescriptor());
-  MarkObject(klass->GetDexCache());
-  MarkObject(klass->GetVerifyErrorClass());
-  if (klass->IsArrayClass()) {
-    MarkObject(klass->GetComponentType());
-  }
-  if (klass->IsLoaded()) {
-    MarkObject(klass->GetSuperClass());
-  }
-  MarkObject(klass->GetClassLoader());
-  if (klass->IsLoaded()) {
-    MarkObject(klass->GetInterfaces());
-    MarkObject(klass->GetDirectMethods());
-    MarkObject(klass->GetVirtualMethods());
-    MarkObject(klass->GetIFields());
-    MarkObject(klass->GetSFields());
-  }
-  ScanStaticFields(klass);
+  ScanStaticFields(obj->AsClass());
 }
 
 // Scans the header of all array objects.  If the array object is

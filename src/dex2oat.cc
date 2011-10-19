@@ -191,16 +191,14 @@ int dex2oat(int argc, char** argv) {
   }
 
   // ClassLoader creation needs to come after Runtime::Create
-  const ClassLoader* class_loader;
-  if (boot_image_option.empty()) {
-    class_loader = NULL;
-  } else {
+  SirtRef<ClassLoader> class_loader(NULL);
+  if (!boot_image_option.empty()) {
     std::vector<const DexFile*> dex_files;
     DexFile::OpenDexFiles(dex_filenames, dex_files, host_prefix);
     for (size_t i = 0; i < dex_files.size(); i++) {
       class_linker->RegisterDexFile(*dex_files[i]);
     }
-    class_loader = PathClassLoader::AllocCompileTime(dex_files);
+    class_loader.reset(PathClassLoader::AllocCompileTime(dex_files));
   }
 
   // if we loaded an existing image, we will reuse values from the image roots.
@@ -224,7 +222,7 @@ int dex2oat(int argc, char** argv) {
   }
   Compiler compiler(kThumb2, image_filename != NULL);
   if (method_names.empty()) {
-    compiler.CompileAll(class_loader);
+    compiler.CompileAll(class_loader.get());
   } else {
     for (size_t i = 0; i < method_names.size(); i++) {
       // names are actually class_descriptor + name + signature.
@@ -246,7 +244,7 @@ int dex2oat(int argc, char** argv) {
                                             end_of_name - end_of_class_descriptor).ToString();
       std::string signature = method_name.substr(end_of_name).ToString();
 
-      Class* klass = class_linker->FindClass(class_descriptor, class_loader);
+      Class* klass = class_linker->FindClass(class_descriptor, class_loader.get());
       if (klass == NULL) {
         fprintf(stderr, "could not find class for descriptor %s in method %s\n",
                 class_descriptor.c_str(), method_name.data());
@@ -268,7 +266,7 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  if (!OatWriter::Create(oat_filename, class_loader, compiler)) {
+  if (!OatWriter::Create(oat_filename, class_loader.get(), compiler)) {
     fprintf(stderr, "Failed to create oat file %s\n", oat_filename.c_str());
     return EXIT_FAILURE;
   }

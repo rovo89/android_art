@@ -89,14 +89,14 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
       DCHECK_EQ(obj, obj->AsString()->Intern());
       return;
     }
-    String* interned = obj->AsString()->Intern();
-    if (obj != interned) {
-      if (!IsImageOffsetAssigned(interned)) {
+    SirtRef<String> interned(obj->AsString()->Intern());
+    if (obj != interned.get()) {
+      if (!IsImageOffsetAssigned(interned.get())) {
         // interned obj is after us, allocate its location early
-        image_writer->AssignImageOffset(interned);
+        image_writer->AssignImageOffset(interned.get());
       }
       // point those looking for this object to the interned version.
-      SetImageOffset(obj, GetImageOffset(interned));
+      SetImageOffset(obj, GetImageOffset(interned.get()));
       return;
     }
     // else (obj == interned), nothing to do but fall through to the normal case
@@ -137,8 +137,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   }
 
   // build an Object[] of the roots needed to restore the runtime
-  ObjectArray<Object>* image_roots = ObjectArray<Object>::Alloc(object_array_class,
-                                                                ImageHeader::kImageRootsMax);
+  SirtRef<ObjectArray<Object> > image_roots(
+      ObjectArray<Object>::Alloc(object_array_class, ImageHeader::kImageRootsMax));
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniStubArray());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
@@ -163,11 +163,11 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
     CHECK(image_roots->Get(i) != NULL);
   }
-  return image_roots;
+  return image_roots.get();
 }
 
 void ImageWriter::CalculateNewObjectOffsets() {
-  ObjectArray<Object>* image_roots = CreateImageRoots();
+  SirtRef<ObjectArray<Object> > image_roots(CreateImageRoots());
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
@@ -186,7 +186,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
   // return to write header at start of image with future location of image_roots
   ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
-                           reinterpret_cast<uint32_t>(GetImageAddress(image_roots)),
+                           reinterpret_cast<uint32_t>(GetImageAddress(image_roots.get())),
                            oat_file_->GetOatHeader().GetChecksum(),
                            reinterpret_cast<uint32_t>(oat_base_),
                            reinterpret_cast<uint32_t>(oat_limit));

@@ -27,7 +27,7 @@ class ObjectTest : public CommonTest {
       utf16_expected[i] = ch;
     }
 
-    String* string = String::AllocFromModifiedUtf8(length, utf8_in);
+    SirtRef<String> string(String::AllocFromModifiedUtf8(length, utf8_in));
     ASSERT_EQ(length, string->GetLength());
     ASSERT_TRUE(string->GetCharArray() != NULL);
     ASSERT_TRUE(string->GetCharArray()->GetData() != NULL);
@@ -42,20 +42,22 @@ class ObjectTest : public CommonTest {
 
 TEST_F(ObjectTest, IsInSamePackage) {
   // Matches
-  EXPECT_TRUE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("Ljava/lang/Object;"),
-                                     String::AllocFromModifiedUtf8("Ljava/lang/Class")));
-  EXPECT_TRUE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("LFoo;"),
-                                     String::AllocFromModifiedUtf8("LBar;")));
+  SirtRef<String> Object_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/Object;"));
+  SirtRef<String> Class_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/Class;"));
+  EXPECT_TRUE(Class::IsInSamePackage(Object_descriptor.get(), Class_descriptor.get()));
+  SirtRef<String> Foo_descriptor(String::AllocFromModifiedUtf8("LFoo;"));
+  SirtRef<String> Bar_descriptor(String::AllocFromModifiedUtf8("LBar;"));
+  EXPECT_TRUE(Class::IsInSamePackage(Foo_descriptor.get(), Bar_descriptor.get()));
 
   // Mismatches
-  EXPECT_FALSE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("Ljava/lang/Object;"),
-                                      String::AllocFromModifiedUtf8("Ljava/io/File;")));
-  EXPECT_FALSE(Class::IsInSamePackage(String::AllocFromModifiedUtf8("Ljava/lang/Object;"),
-                                      String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;")));
+  SirtRef<String> File_descriptor(String::AllocFromModifiedUtf8("Ljava/io/File;"));
+  EXPECT_FALSE(Class::IsInSamePackage(Object_descriptor.get(), File_descriptor.get()));
+  SirtRef<String> Method_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;"));
+  EXPECT_FALSE(Class::IsInSamePackage(Object_descriptor.get(), Method_descriptor.get()));
 }
 
 TEST_F(ObjectTest, Clone) {
-  ObjectArray<Object>* a1 = class_linker_->AllocObjectArray<Object>(256);
+  SirtRef<ObjectArray<Object> > a1(class_linker_->AllocObjectArray<Object>(256));
   size_t s1 = a1->SizeOf();
   Object* clone = a1->Clone();
   EXPECT_EQ(s1, clone->SizeOf());
@@ -63,16 +65,16 @@ TEST_F(ObjectTest, Clone) {
 }
 
 TEST_F(ObjectTest, AllocObjectArray) {
-  ObjectArray<Object>* oa = class_linker_->AllocObjectArray<Object>(2);
+  SirtRef<ObjectArray<Object> > oa(class_linker_->AllocObjectArray<Object>(2));
   EXPECT_EQ(2, oa->GetLength());
   EXPECT_TRUE(oa->Get(0) == NULL);
   EXPECT_TRUE(oa->Get(1) == NULL);
-  oa->Set(0, oa);
-  EXPECT_TRUE(oa->Get(0) == oa);
+  oa->Set(0, oa.get());
+  EXPECT_TRUE(oa->Get(0) == oa.get());
   EXPECT_TRUE(oa->Get(1) == NULL);
-  oa->Set(1, oa);
-  EXPECT_TRUE(oa->Get(0) == oa);
-  EXPECT_TRUE(oa->Get(1) == oa);
+  oa->Set(1, oa.get());
+  EXPECT_TRUE(oa->Get(0) == oa.get());
+  EXPECT_TRUE(oa->Get(1) == oa.get());
 
   Thread* self = Thread::Current();
   Class* aioobe = class_linker_->FindSystemClass("Ljava/lang/ArrayIndexOutOfBoundsException;");
@@ -97,15 +99,15 @@ TEST_F(ObjectTest, AllocObjectArray) {
 
 TEST_F(ObjectTest, AllocArray) {
   Class* c = class_linker_->FindSystemClass("[I");
-  Array* a = Array::Alloc(c, 1);
+  SirtRef<Array> a(Array::Alloc(c, 1));
   ASSERT_TRUE(c == a->GetClass());
 
   c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
-  a = Array::Alloc(c, 1);
+  a.reset(Array::Alloc(c, 1));
   ASSERT_TRUE(c == a->GetClass());
 
   c = class_linker_->FindSystemClass("[[Ljava/lang/Object;");
-  a = Array::Alloc(c, 1);
+  a.reset(Array::Alloc(c, 1));
   ASSERT_TRUE(c == a->GetClass());
 }
 
@@ -177,20 +179,20 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
 
 TEST_F(ObjectTest, StaticFieldFromCode) {
   // pretend we are trying to access 'Static.s0' from StaticsFromCode.<clinit>
-  const ClassLoader* class_loader = LoadDex("StaticsFromCode");
-  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader)[0];
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticsFromCode"));
+  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader.get())[0];
   CHECK(dex_file != NULL);
 
-  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
   Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
   uint32_t field_idx = FindFieldIdxByDescriptorAndName(*dex_file, "LStaticsFromCode;", "s0");
   Field* field = FindFieldFromCode(field_idx, clinit, true);
   Object* s0 = field->GetObj(NULL);
   EXPECT_EQ(NULL, s0);
 
-  CharArray* char_array = CharArray::Alloc(0);
-  field->SetObj(NULL, char_array);
-  EXPECT_EQ(char_array, field->GetObj(NULL));
+  SirtRef<CharArray> char_array(CharArray::Alloc(0));
+  field->SetObj(NULL, char_array.get());
+  EXPECT_EQ(char_array.get(), field->GetObj(NULL));
 
   field->SetObj(NULL, NULL);
   EXPECT_EQ(NULL, field->GetObj(NULL));
@@ -222,7 +224,7 @@ TEST_F(ObjectTest, String) {
 }
 
 TEST_F(ObjectTest, StringEqualsUtf8) {
-  String* string = String::AllocFromModifiedUtf8("android");
+  SirtRef<String> string(String::AllocFromModifiedUtf8("android"));
   EXPECT_TRUE(string->Equals("android"));
   EXPECT_FALSE(string->Equals("Android"));
   EXPECT_FALSE(string->Equals("ANDROID"));
@@ -230,21 +232,22 @@ TEST_F(ObjectTest, StringEqualsUtf8) {
   EXPECT_FALSE(string->Equals("and"));
   EXPECT_FALSE(string->Equals("androids"));
 
-  String* empty = String::AllocFromModifiedUtf8("");
+  SirtRef<String> empty(String::AllocFromModifiedUtf8(""));
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
 }
 
 TEST_F(ObjectTest, StringEquals) {
-  String* string = String::AllocFromModifiedUtf8("android");
-  EXPECT_TRUE(string->Equals(String::AllocFromModifiedUtf8("android")));
+  SirtRef<String> string(String::AllocFromModifiedUtf8("android"));
+  SirtRef<String> string_2(String::AllocFromModifiedUtf8("android"));
+  EXPECT_TRUE(string->Equals(string_2.get()));
   EXPECT_FALSE(string->Equals("Android"));
   EXPECT_FALSE(string->Equals("ANDROID"));
   EXPECT_FALSE(string->Equals(""));
   EXPECT_FALSE(string->Equals("and"));
   EXPECT_FALSE(string->Equals("androids"));
 
-  String* empty = String::AllocFromModifiedUtf8("");
+  SirtRef<String> empty(String::AllocFromModifiedUtf8(""));
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
 }
@@ -252,12 +255,12 @@ TEST_F(ObjectTest, StringEquals) {
 TEST_F(ObjectTest, DescriptorCompare) {
   ClassLinker* linker = class_linker_;
 
-  const ClassLoader* class_loader_1 = LoadDex("ProtoCompare");
-  const ClassLoader* class_loader_2 = LoadDex("ProtoCompare2");
+  SirtRef<ClassLoader> class_loader_1(LoadDex("ProtoCompare"));
+  SirtRef<ClassLoader> class_loader_2(LoadDex("ProtoCompare2"));
 
-  Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
+  Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1.get());
   ASSERT_TRUE(klass1 != NULL);
-  Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2);
+  Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2.get());
   ASSERT_TRUE(klass2 != NULL);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);
@@ -293,22 +296,26 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
 
 TEST_F(ObjectTest, StringHashCode) {
-  EXPECT_EQ(0, String::AllocFromModifiedUtf8("")->GetHashCode());
-  EXPECT_EQ(65, String::AllocFromModifiedUtf8("A")->GetHashCode());
-  EXPECT_EQ(64578, String::AllocFromModifiedUtf8("ABC")->GetHashCode());
+  SirtRef<String> empty(String::AllocFromModifiedUtf8(""));
+  SirtRef<String> A(String::AllocFromModifiedUtf8("A"));
+  SirtRef<String> ABC(String::AllocFromModifiedUtf8("ABC"));
+
+  EXPECT_EQ(0, empty->GetHashCode());
+  EXPECT_EQ(65, A->GetHashCode());
+  EXPECT_EQ(64578, ABC->GetHashCode());
 }
 
 TEST_F(ObjectTest, InstanceOf) {
-  const ClassLoader* class_loader = LoadDex("XandY");
-  Class* X = class_linker_->FindClass("LX;", class_loader);
-  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  SirtRef<ClassLoader> class_loader(LoadDex("XandY"));
+  Class* X = class_linker_->FindClass("LX;", class_loader.get());
+  Class* Y = class_linker_->FindClass("LY;", class_loader.get());
   ASSERT_TRUE(X != NULL);
   ASSERT_TRUE(Y != NULL);
 
-  Object* x = X->AllocObject();
-  Object* y = Y->AllocObject();
-  ASSERT_TRUE(x != NULL);
-  ASSERT_TRUE(y != NULL);
+  SirtRef<Object> x(X->AllocObject());
+  SirtRef<Object> y(Y->AllocObject());
+  ASSERT_TRUE(x.get() != NULL);
+  ASSERT_TRUE(y.get() != NULL);
 
   EXPECT_EQ(1U, IsAssignableFromCode(X, x->GetClass()));
   EXPECT_EQ(0U, IsAssignableFromCode(Y, x->GetClass()));
@@ -335,9 +342,9 @@ TEST_F(ObjectTest, InstanceOf) {
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {
-  const ClassLoader* class_loader = LoadDex("XandY");
-  Class* X = class_linker_->FindClass("LX;", class_loader);
-  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  SirtRef<ClassLoader> class_loader(LoadDex("XandY"));
+  Class* X = class_linker_->FindClass("LX;", class_loader.get());
+  Class* Y = class_linker_->FindClass("LY;", class_loader.get());
 
   EXPECT_TRUE(X->IsAssignableFrom(X));
   EXPECT_TRUE(X->IsAssignableFrom(Y));
@@ -346,18 +353,18 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {
-  const ClassLoader* class_loader = LoadDex("XandY");
-  Class* X = class_linker_->FindClass("LX;", class_loader);
-  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  SirtRef<ClassLoader> class_loader(LoadDex("XandY"));
+  Class* X = class_linker_->FindClass("LX;", class_loader.get());
+  Class* Y = class_linker_->FindClass("LY;", class_loader.get());
   ASSERT_TRUE(X != NULL);
   ASSERT_TRUE(Y != NULL);
 
-  Class* YA = class_linker_->FindClass("[LY;", class_loader);
-  Class* YAA = class_linker_->FindClass("[[LY;", class_loader);
+  Class* YA = class_linker_->FindClass("[LY;", class_loader.get());
+  Class* YAA = class_linker_->FindClass("[[LY;", class_loader.get());
   ASSERT_TRUE(YA != NULL);
   ASSERT_TRUE(YAA != NULL);
 
-  Class* XAA = class_linker_->FindClass("[[LX;", class_loader);
+  Class* XAA = class_linker_->FindClass("[[LX;", class_loader.get());
   ASSERT_TRUE(XAA != NULL);
 
   Class* O = class_linker_->FindSystemClass("Ljava/lang/Object;");
@@ -397,8 +404,8 @@ TEST_F(ObjectTest, IsAssignableFromArray) {
 }
 
 TEST_F(ObjectTest, FindInstanceField) {
-  String* s = String::AllocFromModifiedUtf8("ABC");
-  ASSERT_TRUE(s != NULL);
+  SirtRef<String> s(String::AllocFromModifiedUtf8("ABC"));
+  ASSERT_TRUE(s.get() != NULL);
   Class* c = s->GetClass();
   ASSERT_TRUE(c != NULL);
 
@@ -429,8 +436,8 @@ TEST_F(ObjectTest, FindInstanceField) {
 }
 
 TEST_F(ObjectTest, FindStaticField) {
-  String* s = String::AllocFromModifiedUtf8("ABC");
-  ASSERT_TRUE(s != NULL);
+  SirtRef<String> s(String::AllocFromModifiedUtf8("ABC"));
+  ASSERT_TRUE(s.get() != NULL);
   Class* c = s->GetClass();
   ASSERT_TRUE(c != NULL);
 

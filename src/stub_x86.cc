@@ -3,6 +3,7 @@
 #include "assembler_x86.h"
 #include "jni_internal.h"
 #include "object.h"
+#include "stack_indirect_reference_table.h"
 
 #define __ assembler->
 
@@ -17,12 +18,12 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType) {
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
-  ByteArray* resolution_trampoline = ByteArray::Alloc(cs);
-  CHECK(resolution_trampoline != NULL);
+  SirtRef<ByteArray> resolution_trampoline(ByteArray::Alloc(cs));
+  CHECK(resolution_trampoline.get() != NULL);
   MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
   assembler->FinalizeInstructions(code);
 
-  return resolution_trampoline;
+  return resolution_trampoline.get();
 }
 
 typedef void (*ThrowAme)(Method*, Thread*);
@@ -46,12 +47,12 @@ ByteArray* CreateAbstractMethodErrorStub() {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  ByteArray* abstract_stub = ByteArray::Alloc(cs);
-  CHECK(abstract_stub != NULL);
+  SirtRef<ByteArray> abstract_stub(ByteArray::Alloc(cs));
+  CHECK(abstract_stub.get() != NULL);
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
 
-  return abstract_stub;
+  return abstract_stub.get();
 }
 
 ByteArray* CreateJniStub() {
@@ -79,12 +80,12 @@ ByteArray* CreateJniStub() {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  ByteArray* jni_stub = ByteArray::Alloc(cs);
-  CHECK(jni_stub != NULL);
+  SirtRef<ByteArray> jni_stub(ByteArray::Alloc(cs));
+  CHECK(jni_stub.get() != NULL);
   MemoryRegion code(jni_stub->GetData(), jni_stub->GetLength());
   assembler->FinalizeInstructions(code);
 
-  return jni_stub;
+  return jni_stub.get();
 }
 
 } // namespace x86

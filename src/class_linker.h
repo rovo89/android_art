@@ -28,6 +28,7 @@
 #include "mutex.h"
 #include "oat_file.h"
 #include "object.h"
+#include "stack_indirect_reference_table.h"
 #include "unordered_map.h"
 #include "unordered_set.h"
 
@@ -196,7 +197,7 @@ class ClassLinker {
   void RunRootClinits();
 
   void RegisterDexFile(const DexFile& dex_file);
-  void RegisterDexFile(const DexFile& dex_file, DexCache* dex_cache);
+  void RegisterDexFile(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
 
   const std::vector<const DexFile*>& GetBootClassPath() {
     return boot_class_path_;
@@ -274,7 +275,7 @@ class ClassLinker {
                           const ClassLoader* class_loader);
 
   void AppendToBootClassPath(const DexFile& dex_file);
-  void AppendToBootClassPath(const DexFile& dex_file, DexCache* dex_cache);
+  void AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
 
   void ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
       Class* c, std::map<int, Field*>& field_map);
@@ -284,28 +285,28 @@ class ClassLinker {
 
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
-                 Class* klass,
+                 SirtRef<Class>& klass,
                  const ClassLoader* class_loader);
 
   void LoadInterfaces(const DexFile& dex_file,
                       const DexFile::ClassDef& dex_class_def,
-                      Class *klass);
+                      SirtRef<Class>& klass);
 
   void LoadField(const DexFile& dex_file,
                  const DexFile::Field& dex_field,
-                 Class* klass,
-                 Field* dst);
+                 SirtRef<Class>& klass,
+                 SirtRef<Field>& dst);
 
   void LoadMethod(const DexFile& dex_file,
                   const DexFile::Method& dex_method,
-                  Class* klass,
-                  Method* dst);
+                  SirtRef<Class>& klass,
+                  SirtRef<Method>& dst);
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
   bool InsertClass(const std::string& descriptor, Class* klass);
 
-  void RegisterDexFileLocked(const DexFile& dex_file, DexCache* dex_cache);
+  void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
 
   bool InitializeClass(Class* klass, bool can_run_clinit);
@@ -322,26 +323,26 @@ class ClassLinker {
                                       const Class* klass1,
                                       const Class* klass2);
 
-  bool LinkClass(Class* klass);
+  bool LinkClass(SirtRef<Class>& klass);
 
-  bool LinkSuperClass(Class* klass);
+  bool LinkSuperClass(SirtRef<Class>& klass);
 
-  bool LoadSuperAndInterfaces(Class* klass, const DexFile& dex_file);
+  bool LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& dex_file);
 
-  bool LinkMethods(Class* klass);
+  bool LinkMethods(SirtRef<Class>& klass);
 
-  bool LinkVirtualMethods(Class* klass);
+  bool LinkVirtualMethods(SirtRef<Class>& klass);
 
-  bool LinkInterfaceMethods(Class* klass);
+  bool LinkInterfaceMethods(SirtRef<Class>& klass);
 
-  bool LinkStaticFields(Class* klass);
-  bool LinkInstanceFields(Class* klass);
-  bool LinkFields(Class *klass, bool is_static);
+  bool LinkStaticFields(SirtRef<Class>& klass);
+  bool LinkInstanceFields(SirtRef<Class>& klass);
+  bool LinkFields(SirtRef<Class>& klass, bool is_static);
 
 
-  void CreateReferenceInstanceOffsets(Class* klass);
-  void CreateReferenceStaticOffsets(Class* klass);
-  void CreateReferenceOffsets(Class *klass, bool is_static,
+  void CreateReferenceInstanceOffsets(SirtRef<Class>& klass);
+  void CreateReferenceStaticOffsets(SirtRef<Class>& klass);
+  void CreateReferenceOffsets(SirtRef<Class>& klass, bool is_static,
                               uint32_t reference_offsets);
 
   // For use by ImageWriter to find DexCaches for its roots
@@ -351,8 +352,8 @@ class ClassLinker {
 
   const OatFile* FindOpenedOatFile(const std::string& location);
 
-  Method* CreateProxyConstructor(Class* klass);
-  Method* CreateProxyMethod(Class* klass, Method* prototype, ObjectArray<Class>* throws);
+  Method* CreateProxyConstructor(SirtRef<Class>& klass);
+  Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype, ObjectArray<Class>* throws);
 
   std::vector<const DexFile*> boot_class_path_;
 

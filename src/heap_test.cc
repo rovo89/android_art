@@ -11,7 +11,7 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
 
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
   for (size_t i = 0; i < 1024; ++i) {
-    ObjectArray<Object>* array = ObjectArray<Object>::Alloc(c, 2048);
+    SirtRef<ObjectArray<Object> > array(ObjectArray<Object>::Alloc(c, 2048));
     for (size_t j = 0; j < 2048; ++j) {
       array->Set(j, String::AllocFromModifiedUtf8("hello, world!"));
     }

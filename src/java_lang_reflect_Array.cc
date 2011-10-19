@@ -29,13 +29,13 @@ namespace {
 // Objects or primitive types.
 Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions) {
   int32_t array_length = dimensions->Get(current_dimension++);
-  Array* new_array = Array::Alloc(array_class, array_length);
-  if (new_array == NULL) {
+  SirtRef<Array> new_array(Array::Alloc(array_class, array_length));
+  if (new_array.get() == NULL) {
     CHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
   if (current_dimension == dimensions->GetLength()) {
-    return new_array;
+    return new_array.get();
   }
 
   if (!array_class->GetComponentType()->IsArrayClass()) {
@@ -53,16 +53,16 @@ Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dim
   }
   DCHECK(sub_array_class->IsArrayClass());
   // Create a new sub-array in every element of the array.
-  ObjectArray<Array>* object_array = new_array->AsObjectArray<Array>();
+  SirtRef<ObjectArray<Array> > object_array(new_array->AsObjectArray<Array>());
   for (int32_t i = 0; i < array_length; i++) {
-    Array* sub_array = CreateMultiArray(sub_array_class, current_dimension, dimensions);
-    if (sub_array == NULL) {
+    SirtRef<Array> sub_array(CreateMultiArray(sub_array_class, current_dimension, dimensions));
+    if (sub_array.get() == NULL) {
       CHECK(Thread::Current()->IsExceptionPending());
       return NULL;
     }
-    object_array->Set(i, sub_array);
+    object_array->Set(i, sub_array.get());
   }
-  return new_array;
+  return new_array.get();
 }
 
 // Create a multi-dimensional array of Objects or primitive types.

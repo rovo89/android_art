@@ -127,9 +127,9 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
 
-  const ClassLoader* class_loader = LoadDex("AbstractMethod");
-  ASSERT_TRUE(class_loader != NULL);
-  EnsureCompiled(class_loader, "AbstractClass", "foo", "()V", true);
+  SirtRef<ClassLoader> class_loader(LoadDex("AbstractMethod"));
+  ASSERT_TRUE(class_loader.get() != NULL);
+  EnsureCompiled(class_loader.get(), "AbstractClass", "foo", "()V", true);
 
   // Create a jobj_ of ConcreteClass, NOT AbstractClass.
   jclass c_class = env_->FindClass("ConcreteClass");
@@ -138,7 +138,7 @@ TEST_F(CompilerTest, AbstractMethodErrorStub) {
   ASSERT_TRUE(jobj_ != NULL);
 
 #if defined(__arm__)
-  Class* jlame = class_linker_->FindClass("Ljava/lang/AbstractMethodError;", class_loader);
+  Class* jlame = class_linker_->FindClass("Ljava/lang/AbstractMethodError;", class_loader.get());
   // Force non-virtual call to AbstractClass foo, will throw AbstractMethodError exception.
   env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);
   EXPECT_TRUE(Thread::Current()->IsExceptionPending());

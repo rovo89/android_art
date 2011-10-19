@@ -726,7 +726,7 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
 
 Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType type) {
   Class* method_class = Method::GetMethodClass();
-  Method* method = down_cast<Method*>(method_class->AllocObject());
+  SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
   const char* name;
   if (type == kSaveAll) {
@@ -777,7 +777,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType typ
   } else {
     UNIMPLEMENTED(FATAL);
   }
-  return method;
+  return method.get();
 }
 
 bool Runtime::HasCalleeSaveMethod(CalleeSaveType type) const {

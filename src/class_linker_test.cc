@@ -144,7 +144,8 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertClass(const std::string& descriptor, Class* klass) {
     EXPECT_TRUE(klass->GetDescriptor()->Equals(descriptor));
-    if (klass->GetDescriptor()->Equals(String::AllocFromModifiedUtf8("Ljava/lang/Object;"))) {
+    SirtRef<String> Object_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/Object;"));
+    if (klass->GetDescriptor()->Equals(Object_descriptor.get())) {
       EXPECT_FALSE(klass->HasSuperClass());
     } else {
       EXPECT_TRUE(klass->HasSuperClass());
@@ -661,14 +662,14 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  const ClassLoader* class_loader = LoadDex("Nested");
+  SirtRef<ClassLoader> class_loader(LoadDex("Nested"));
 
-  Class* outer = class_linker_->FindClass("LNested;", class_loader);
+  Class* outer = class_linker_->FindClass("LNested;", class_loader.get());
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader);
+  Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader.get());
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
@@ -720,9 +721,9 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, JavaLangObject->NumInterfaces());
 
-  const ClassLoader* class_loader = LoadDex("MyClass");
+  SirtRef<ClassLoader> class_loader(LoadDex("MyClass"));
   AssertNonExistentClass("LMyClass;");
-  Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
+  Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader.get());
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
@@ -730,7 +731,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   ASSERT_TRUE(MyClass->GetDescriptor()->Equals("LMyClass;"));
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
-  EXPECT_EQ(class_loader, MyClass->GetClassLoader());
+  EXPECT_EQ(class_loader.get(), MyClass->GetClassLoader());
   EXPECT_EQ(Class::kStatusResolved, MyClass->GetStatus());
   EXPECT_FALSE(MyClass->IsErroneous());
   EXPECT_TRUE(MyClass->IsLoaded());
@@ -758,7 +759,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   AssertArrayClass("[Ljava/lang/Object;", "Ljava/lang/Object;", NULL);
   // synthesized on the fly
   AssertArrayClass("[[C", "[C", NULL);
-  AssertArrayClass("[[[LMyClass;", "[[LMyClass;", class_loader);
+  AssertArrayClass("[[[LMyClass;", "[[LMyClass;", class_loader.get());
   // or not available at all
   AssertNonExistentClass("[[[[LNonExistentClass;");
 }
@@ -779,9 +780,9 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 }
 
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
-  LongArray* array = LongArray::Alloc(0);
+  SirtRef<LongArray> array(LongArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[J"), array->GetClass());
-  uint32_t array_offset = reinterpret_cast<uint32_t>(array);
+  uint32_t array_offset = reinterpret_cast<uint32_t>(array.get());
   uint32_t data_offset = reinterpret_cast<uint32_t>(array->GetData());
   EXPECT_EQ(16U, data_offset - array_offset);
 }
@@ -809,18 +810,18 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
-  const ClassLoader* class_loader_1 = LoadDex("MyClass");
-  const ClassLoader* class_loader_2 = LoadDex("MyClass");
-  Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1);
-  Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2);
+  SirtRef<ClassLoader> class_loader_1(LoadDex("MyClass"));
+  SirtRef<ClassLoader> class_loader_2(LoadDex("MyClass"));
+  Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1.get());
+  Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2.get());
   EXPECT_TRUE(MyClass_1 != NULL);
   EXPECT_TRUE(MyClass_2 != NULL);
   EXPECT_NE(MyClass_1, MyClass_2);
 }
 
 TEST_F(ClassLinkerTest, StaticFields) {
-  const ClassLoader* class_loader = LoadDex("Statics");
-  Class* statics = class_linker_->FindClass("LStatics;", class_loader);
+  SirtRef<ClassLoader> class_loader(LoadDex("Statics"));
+  Class* statics = class_linker_->FindClass("LStatics;", class_loader.get());
   class_linker_->EnsureInitialized(statics, true);
 
   // Static final primitives that are initialized by a compile-time constant
@@ -831,48 +832,48 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   EXPECT_EQ(9U, statics->NumStaticFields());
 
-  Field* s0 = statics->FindStaticField("s0", class_linker_->FindClass("Z", class_loader));
+  Field* s0 = statics->FindStaticField("s0", class_linker_->FindClass("Z", class_loader.get()));
   EXPECT_TRUE(s0->GetClass()->GetDescriptor()->Equals("Ljava/lang/reflect/Field;"));
   EXPECT_TRUE(s0->GetType()->IsPrimitiveBoolean());
   EXPECT_EQ(true, s0->GetBoolean(NULL));
   s0->SetBoolean(NULL, false);
 
-  Field* s1 = statics->FindStaticField("s1", class_linker_->FindClass("B", class_loader));
+  Field* s1 = statics->FindStaticField("s1", class_linker_->FindClass("B", class_loader.get()));
   EXPECT_TRUE(s1->GetType()->IsPrimitiveByte());
   EXPECT_EQ(5, s1->GetByte(NULL));
   s1->SetByte(NULL, 6);
 
-  Field* s2 = statics->FindStaticField("s2", class_linker_->FindClass("C", class_loader));
+  Field* s2 = statics->FindStaticField("s2", class_linker_->FindClass("C", class_loader.get()));
   EXPECT_TRUE(s2->GetType()->IsPrimitiveChar());
   EXPECT_EQ('a', s2->GetChar(NULL));
   s2->SetChar(NULL, 'b');
 
-  Field* s3 = statics->FindStaticField("s3", class_linker_->FindClass("S", class_loader));
+  Field* s3 = statics->FindStaticField("s3", class_linker_->FindClass("S", class_loader.get()));
   EXPECT_TRUE(s3->GetType()->IsPrimitiveShort());
   EXPECT_EQ(-536, s3->GetShort(NULL));
   s3->SetShort(NULL, -535);
 
-  Field* s4 = statics->FindStaticField("s4", class_linker_->FindClass("I", class_loader));
+  Field* s4 = statics->FindStaticField("s4", class_linker_->FindClass("I", class_loader.get()));
   EXPECT_TRUE(s4->GetType()->IsPrimitiveInt());
   EXPECT_EQ(2000000000, s4->GetInt(NULL));
   s4->SetInt(NULL, 2000000001);
 
-  Field* s5 = statics->FindStaticField("s5", class_linker_->FindClass("J", class_loader));
+  Field* s5 = statics->FindStaticField("s5", class_linker_->FindClass("J", class_loader.get()));
   EXPECT_TRUE(s5->GetType()->IsPrimitiveLong());
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));
   s5->SetLong(NULL, 0x34567890abcdef12LL);
 
-  Field* s6 = statics->FindStaticField("s6", class_linker_->FindClass("F", class_loader));
+  Field* s6 = statics->FindStaticField("s6", class_linker_->FindClass("F", class_loader.get()));
   EXPECT_TRUE(s6->GetType()->IsPrimitiveFloat());
   EXPECT_EQ(0.5, s6->GetFloat(NULL));
   s6->SetFloat(NULL, 0.75);
 
-  Field* s7 = statics->FindStaticField("s7", class_linker_->FindClass("D", class_loader));
+  Field* s7 = statics->FindStaticField("s7", class_linker_->FindClass("D", class_loader.get()));
   EXPECT_TRUE(s7->GetType()->IsPrimitiveDouble());
   EXPECT_EQ(16777217, s7->GetDouble(NULL));
   s7->SetDouble(NULL, 16777219);
 
-  Field* s8 = statics->FindStaticField("s8", class_linker_->FindClass("Ljava/lang/String;", class_loader));
+  Field* s8 = statics->FindStaticField("s8", class_linker_->FindClass("Ljava/lang/String;", class_loader.get()));
   EXPECT_FALSE(s8->GetType()->IsPrimitive());
   EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));
   s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
@@ -889,12 +890,12 @@ TEST_F(ClassLinkerTest, StaticFields) {
 }
 
 TEST_F(ClassLinkerTest, Interfaces) {
-  const ClassLoader* class_loader = LoadDex("Interfaces");
-  Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader);
-  Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader);
-  Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader);
-  Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader);
-  Class* B = class_linker_->FindClass("LInterfaces$B;", class_loader);
+  SirtRef<ClassLoader> class_loader(LoadDex("Interfaces"));
+  Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader.get());
+  Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader.get());
+  Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader.get());
+  Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader.get());
+  Class* B = class_linker_->FindClass("LInterfaces$B;", class_loader.get());
   EXPECT_TRUE(I->IsAssignableFrom(A));
   EXPECT_TRUE(J->IsAssignableFrom(A));
   EXPECT_TRUE(J->IsAssignableFrom(K));
@@ -938,11 +939,11 @@ TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   // case 1, get the uninitialized storage from StaticsFromCode.<clinit>
   // case 2, get the initialized storage from StaticsFromCode.getS0
 
-  const ClassLoader* class_loader = LoadDex("StaticsFromCode");
-  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader)[0];
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticsFromCode"));
+  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader.get())[0];
   CHECK(dex_file != NULL);
 
-  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
   Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
   Method* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
   uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStaticsFromCode;");
