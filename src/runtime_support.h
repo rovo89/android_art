@@ -18,7 +18,7 @@ extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static);
 extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
-void* UnresolvedDirectMethodTrampolineFromCode(int32_t, void*, Thread*, Runtime::TrampolineType);
+void* UnresolvedDirectMethodTrampolineFromCode(int32_t, Method**, Thread*, Runtime::TrampolineType);
 extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);

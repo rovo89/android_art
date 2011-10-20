@@ -152,7 +152,7 @@ class PACKED Thread {
   void (*pThrowNoSuchMethodFromCode)(int32_t);
   void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread, Method** sp);
   void (*pUnlockObjectFromCode)(void*);
-  void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, void*, Thread*,
+  void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, Method**, Thread*,
                                                      Runtime::TrampolineType);
 
   class StackVisitor {
