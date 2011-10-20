@@ -6,7 +6,6 @@
 # Options:
 #   --quiet       -- don't chatter
 #   --debug       -- wait for debugger to attach
-#   --valgrind    -- use valgrind
 #   --no-verify   -- turn off verification (on by default)
 #   --no-optimize -- turn off optimization (on by default)
 
@@ -20,7 +19,7 @@ DEBUG="n"
 GDB="n"
 VERIFY="y"
 OPTIMIZE="y"
-VALGRIND="n"
+INVOKE_WITH=""
 DEV_MODE="n"
 QUIET="n"
 
@@ -34,8 +33,9 @@ while true; do
     elif [ "x$1" = "x--gdb" ]; then
         GDB="y"
         shift
-    elif [ "x$1" = "x--valgrind" ]; then
-        VALGRIND="y"
+    elif [ "x$1" = "x--invoke-with" ]; then
+        shift
+        INVOKE_WITH="$1"
         shift
     elif [ "x$1" = "x--dev" ]; then
         DEV_MODE="y"
@@ -50,7 +50,7 @@ while true; do
         shift
         break
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
-        echo "unknown option: $1" 1>&2
+        echo "unknown $0 option: $1" 1>&2
         exit 1
     else
         break
@@ -75,14 +75,6 @@ if [ "$VERIFY" = "y" ]; then
 else
     DEX_VERIFY="-Xverify:none"
     msg "Skipping verification"
-fi
-
-if [ "$VALGRIND" = "y" ]; then
-    msg "Running with valgrind"
-    valgrind_cmd="valgrind"
-    #valgrind_cmd="valgrind --leak-check=full"
-else
-    valgrind_cmd=""
 fi
 
 msg "------------------------------"
@@ -123,6 +115,6 @@ if [ "$GDB" = "y" ]; then
     gdbargs="--args $exe"
 fi
 
-$valgrind_cmd $gdb $exe $gdbargs "-Xbootclasspath:${bpath}" \
+$INVOKE_WITH $gdb $exe $gdbargs "-Xbootclasspath:${bpath}" \
     $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG -ea \
     -cp test.jar Main "$@"

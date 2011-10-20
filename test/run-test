@@ -57,6 +57,9 @@ while true; do
     elif [ "x$1" = "x--reference" ]; then
         RUN="${progdir}/etc/reference-run-test-classes"
         shift
+    elif [ "x$1" = "x-d" ]; then
+        run_args="${run_args} -d"
+        shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
         shift
@@ -76,8 +79,10 @@ while true; do
     elif [ "x$1" = "x--no-precise" ]; then
         run_args="${run_args} --no-precise"
         shift
-    elif [ "x$1" = "x--valgrind" ]; then
-        run_args="${run_args} --valgrind"
+    elif [ "x$1" = "x--invoke-with" ]; then
+        shift
+        what="$1"
+        run_args="${run_args} --invoke-with \"${what}\""
         shift
     elif [ "x$1" = "x--dev" ]; then
         run_args="${run_args} --dev"
@@ -90,7 +95,7 @@ while true; do
         usage="yes"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
-        echo "unknown option: $1" 1>&2
+        echo "unknown $0 option: $1" 1>&2
         usage="yes"
         break
     else

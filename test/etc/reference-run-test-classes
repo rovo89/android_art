@@ -36,7 +36,7 @@ while true; do
         shift
         break
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
-        echo "unknown option: $1" 1>&2
+        echo "unknown $0 option: $1" 1>&2
         exit 1
     else
         break
