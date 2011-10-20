@@ -18,16 +18,21 @@ msg() {
     fi
 }
 
+OATEXEC="oatexec"
 DEBUG="n"
 VERIFY="y"
 OPTIMIZE="y"
 ZYGOTE="n"
 QUIET="n"
 DEV_MODE="n"
+INVOKE_WITH=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
+        shift
+    elif [ "x$1" = "x-d" ]; then
+        OATEXEC="oatexecd"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUG="y"
@@ -39,6 +44,10 @@ while true; do
     elif [ "x$1" = "x--dev" ]; then
         DEV_MODE="y"
         shift
+    elif [ "x$1" = "x--invoke-with" ]; then
+        shift
+        INVOKE_WITH="$1"
+        shift
     elif [ "x$1" = "x--no-verify" ]; then
         VERIFY="n"
         shift
@@ -49,7 +58,7 @@ while true; do
         shift
         break
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
-        echo "unknown option: $1" 1>&2
+        echo "unknown $0 option: $1" 1>&2
         exit 1
     else
         break
@@ -99,7 +108,7 @@ fi
 if [ "$ZYGOTE" = "y" ]; then
   adb shell cd /data \; dvz -classpath $TEST_NAME.jar Main "$@"
 else
-  cmdline="cd /data; oatexecd -Xjnigreflimit:256 \
+  cmdline="cd /data; $INVOKE_WITH $OATEXEC -Xjnigreflimit:256 \
       -Ximage:/data/art-test/core.art \
       -cp /data/art-test/$TEST_NAME.jar \
       Main"
