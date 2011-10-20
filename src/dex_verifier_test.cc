@@ -38,8 +38,8 @@ TEST_F(DexVerifierTest, LibCore) {
 }
 
 TEST_F(DexVerifierTest, IntMath) {
-  const ClassLoader* class_loader = LoadDex("IntMath");
-  Class* klass = class_linker_->FindClass("LIntMath;", class_loader);
+  SirtRef<ClassLoader> class_loader(LoadDex("IntMath"));
+  Class* klass = class_linker_->FindClass("LIntMath;", class_loader.get());
   ASSERT_TRUE(DexVerifier::VerifyClass(klass));
 }
 

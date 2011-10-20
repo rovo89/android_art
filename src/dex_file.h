@@ -575,8 +575,6 @@ class DexFile {
     return dexStringById(idx, &unicode_length);
   }
 
-  String* dexArtStringById(int32_t idx) const;
-
   // Get the descriptor string associated with a given type index.
   const char* dexStringByTypeIdx(uint32_t idx, int32_t* unicode_length) const {
     const TypeId& type_id = GetTypeId(idx);
@@ -586,11 +584,6 @@ class DexFile {
   const char* dexStringByTypeIdx(uint32_t idx) const {
     const TypeId& type_id = GetTypeId(idx);
     return dexStringById(type_id.descriptor_idx_);
-  }
-
-  String* dexArtStringByTypeIdx(int32_t idx) const {
-    const TypeId& type_id = GetTypeId(idx);
-    return dexArtStringById(type_id.descriptor_idx_);
   }
 
   // TODO: encoded_field is actually a stream of bytes
@@ -712,9 +705,9 @@ class DexFile {
   typedef void (*DexDebugNewLocalCb)(void* cnxt, uint16_t reg,
                                      uint32_t startAddress,
                                      uint32_t endAddress,
-                                     const String* name,
-                                     const String* descriptor,
-                                     const String* signature);
+                                     const char* name,
+                                     const char* descriptor,
+                                     const char* signature);
 
   static bool LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num) {
     LineNumFromPcContext* context = (LineNumFromPcContext*) cnxt;
@@ -751,16 +744,16 @@ class DexFile {
   };
 
   struct LocalInfo {
-    LocalInfo() : name_(NULL), descriptor_(NULL), signature_(NULL), start_address_(0), is_live_(false) {}
+    LocalInfo() : name_(NULL), start_address_(0), is_live_(false) {}
 
     // E.g., list
-    const String* name_;
+    const char* name_;
 
     // E.g., Ljava/util/LinkedList;
-    const String* descriptor_;
+    const char* descriptor_;
 
     // E.g., java.util.LinkedList<java.lang.Integer>
-    const String* signature_;
+    const char* signature_;
 
     // PC location where the local is first defined.
     uint16_t start_address_;

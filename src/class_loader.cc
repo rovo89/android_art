@@ -31,12 +31,12 @@ void ClassLoader::SetCompileTimeClassPath(const ClassLoader* class_loader,
 // TODO: get global references for these
 Class* PathClassLoader::dalvik_system_PathClassLoader_ = NULL;
 
-const PathClassLoader* PathClassLoader::AllocCompileTime(std::vector<const DexFile*>& dex_files) {
+PathClassLoader* PathClassLoader::AllocCompileTime(std::vector<const DexFile*>& dex_files) {
   CHECK(!Runtime::Current()->IsStarted());
   DCHECK(dalvik_system_PathClassLoader_ != NULL);
-  PathClassLoader* p = down_cast<PathClassLoader*>(dalvik_system_PathClassLoader_->AllocObject());
-  SetCompileTimeClassPath(p, dex_files);
-  return p;
+  SirtRef<PathClassLoader> p(down_cast<PathClassLoader*>(dalvik_system_PathClassLoader_->AllocObject()));
+  SetCompileTimeClassPath(p.get(), dex_files);
+  return p.get();
 }
 
 void PathClassLoader::SetClass(Class* dalvik_system_PathClassLoader) {

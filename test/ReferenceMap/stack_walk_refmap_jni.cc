@@ -29,7 +29,7 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
 
   void VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
-    if (!m ||m->IsNative()) {
+    if (!m || m->IsNative()) {
       return;
     }
     LOG(INFO) << "At " << PrettyMethod(m, false);

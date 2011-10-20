@@ -51,7 +51,7 @@ class BaseDexClassLoader : public ClassLoader {
 // TODO: add MANAGED when class_path_ removed
 class PathClassLoader : public BaseDexClassLoader {
  public:
-  static const PathClassLoader* AllocCompileTime(std::vector<const DexFile*>& dex_files);
+  static PathClassLoader* AllocCompileTime(std::vector<const DexFile*>& dex_files);
   static void SetClass(Class* dalvik_system_PathClassLoader);
   static void ResetClass();
  private:

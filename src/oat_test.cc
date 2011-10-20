@@ -12,18 +12,18 @@ class OatTest : public CommonTest {};
 TEST_F(OatTest, WriteRead) {
   const bool compile = false;  // DISABLED_ due to the time to compile libcore
 
-  const ClassLoader* class_loader = NULL;
+  SirtRef<ClassLoader> class_loader(NULL);
   if (compile) {
     compiler_.reset(new Compiler(kThumb2, false));
-    compiler_->CompileAll(class_loader);
+    compiler_->CompileAll(class_loader.get());
   }
 
   ScratchFile tmp;
-  bool success = OatWriter::Create(tmp.GetFilename(), class_loader, *compiler_.get());
+  bool success = OatWriter::Create(tmp.GetFilename(), class_loader.get(), *compiler_.get());
   ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
-    compiler_->CompileAll(class_loader);
+    compiler_->CompileAll(class_loader.get());
   }
   UniquePtr<OatFile> oat_file(OatFile::Open(std::string(tmp.GetFilename()), "", NULL));
   ASSERT_TRUE(oat_file.get() != NULL);
@@ -43,7 +43,7 @@ TEST_F(OatTest, WriteRead) {
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
 
-    Class* klass = class_linker->FindClass(descriptor, class_loader);
+    Class* klass = class_linker->FindClass(descriptor, class_loader.get());
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {

@@ -652,7 +652,7 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
-  LoadDex("AllFields");
+  SirtRef<ClassLoader> class_loader(LoadDex("AllFields"));
   runtime_->Start();
 
   jclass c = env_->FindClass("AllFields");
@@ -680,7 +680,7 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
-  LoadDex("AllFields");
+  SirtRef<ClassLoader> class_loader(LoadDex("AllFields"));
   runtime_->Start();
 
   jclass c = env_->FindClass("AllFields");
@@ -865,10 +865,10 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
 
 #if defined(__arm__)
 TEST_F(JniInternalTest, StaticMainMethod) {
-  const ClassLoader* class_loader = LoadDex("Main");
-  CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
+  SirtRef<ClassLoader> class_loader(LoadDex("Main"));
+  CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
 
-  Class* klass = class_linker_->FindClass("LMain;", class_loader);
+  Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
@@ -882,10 +882,10 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "nop", "()V");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "nop", "()V");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("nop", "()V");
@@ -897,10 +897,10 @@ TEST_F(JniInternalTest, StaticNopMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "identity", "(B)B");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(B)B");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("identity", "(B)B");
@@ -933,10 +933,10 @@ TEST_F(JniInternalTest, StaticIdentityByteMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "identity", "(I)I");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(I)I");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("identity", "(I)I");
@@ -969,10 +969,10 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "identity", "(D)D");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(D)D");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("identity", "(D)D");
@@ -1005,10 +1005,10 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(II)I");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(II)I");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(II)I");
@@ -1051,10 +1051,10 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(III)I");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(III)I");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(III)I");
@@ -1102,10 +1102,10 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(IIII)I");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(IIII)I");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(IIII)I");
@@ -1158,10 +1158,10 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(IIIII)I");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(IIIII)I");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(IIIII)I");
@@ -1219,10 +1219,10 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DD)D");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DD)D");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(DD)D");
@@ -1265,10 +1265,10 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DDD)D");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DDD)D");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(DDD)D");
@@ -1302,10 +1302,10 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DDDD)D");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DDDD)D");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(DDDD)D");
@@ -1342,10 +1342,10 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
-  const ClassLoader* class_loader = LoadDex("StaticLeafMethods");
-  CompileDirectMethod(class_loader, "StaticLeafMethods", "sum", "(DDDDD)D");
+  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
+  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DDDDD)D");
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader);
+  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
   Method* method = klass->FindDirectMethod("sum", "(DDDDD)D");

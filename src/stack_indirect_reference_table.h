@@ -23,22 +23,55 @@ namespace art {
 
 class Object;
 
-// Stack allocated indirect reference table, allocated within the bridge frame
-// between managed and native code.
+// Stack allocated indirect reference table. It can allocated within
+// the bridge frame between managed and native code backed by stack
+// storage or manually allocated by SirtRef to hold one reference.
 class StackIndirectReferenceTable {
 public:
+
+  StackIndirectReferenceTable(Object* object) {
+    number_of_references_ = 1;
+    references_[0] = object;
+    Thread::Current()->PushSirt(this);
+  }
+
+  ~StackIndirectReferenceTable() {
+    StackIndirectReferenceTable* sirt = Thread::Current()->PopSirt();
+    CHECK_EQ(this, sirt);
+  }
+
   // Number of references contained within this SIRT
-  size_t NumberOfReferences() {
+  size_t NumberOfReferences() const {
     return number_of_references_;
   }
 
   // Link to previous SIRT or NULL
-  StackIndirectReferenceTable* Link() {
+  StackIndirectReferenceTable* GetLink() const {
     return link_;
   }
 
-  Object** References() {
-    return references_;
+  void SetLink(StackIndirectReferenceTable* sirt) {
+    DCHECK_NE(this, sirt);
+    link_ = sirt;
+  }
+
+  Object* GetReference(size_t i) const {
+    DCHECK_LT(i, number_of_references_);
+    return references_[i];
+  }
+
+  void SetReference(size_t i, Object* object) {
+    DCHECK_LT(i, number_of_references_);
+    references_[i] = object;
+  }
+
+  bool Contains(Object** sirt_entry) const {
+    // A SIRT should always contain something. One created by the
+    // jni_compiler should have a jobject/jclass as a native method is
+    // passed in a this pointer or a class
+    DCHECK_GT(number_of_references_, 0U);
+    return ((&references_[0] <= sirt_entry)
+            && (sirt_entry <= (&references_[number_of_references_ - 1])));
   }
 
   // Offset of length within SIRT, used by generated code
@@ -57,10 +90,32 @@ private:
   size_t number_of_references_;
   StackIndirectReferenceTable* link_;
 
-  // Fake array, really allocated and filled in by jni_compiler.
-  Object* references_[0];
+  // number_of_references_ are available if this is allocated and filled in by jni_compiler.
+  Object* references_[1];
 
   DISALLOW_COPY_AND_ASSIGN(StackIndirectReferenceTable);
+};
+
+template<class T>
+class SirtRef {
+public:
+  SirtRef(T* object) : sirt_(object) {}
+  ~SirtRef() {}
+
+  T& operator*() const { return *get(); }
+  T* operator->() const { return get(); }
+  T* get() const {
+    return down_cast<T*>(sirt_.GetReference(0));
+  }
+
+  void reset(T* object = NULL) {
+    sirt_.SetReference(0, object);
+  }
+
+private:
+  StackIndirectReferenceTable sirt_;
+
+  DISALLOW_COPY_AND_ASSIGN(SirtRef);
 };
 
 }  // namespace art

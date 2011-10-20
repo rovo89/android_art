@@ -596,13 +596,6 @@ DexFile::ValueType DexFile::ReadEncodedValue(const byte** stream,
   return static_cast<ValueType>(type);
 }
 
-String* DexFile::dexArtStringById(int32_t idx) const {
-  if (idx == -1) {
-    return NULL;
-  }
-  return String::AllocFromModifiedUtf8(dexStringById(idx));
-}
-
 int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
@@ -630,9 +623,11 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
 
   if (!method->IsStatic()) {
     if (need_locals) {
-      local_in_reg[arg_reg].name_ = String::AllocFromModifiedUtf8("this");
-      local_in_reg[arg_reg].descriptor_ = method->GetDeclaringClass()->GetDescriptor();
-      local_in_reg[arg_reg].signature_ = NULL;
+      std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8();
+      const ClassDef* class_def = FindClassDef(descriptor);
+      CHECK(class_def != NULL) << descriptor;
+      local_in_reg[arg_reg].name_ = "this";
+      local_in_reg[arg_reg].descriptor_ = GetClassDescriptor(*class_def);
       local_in_reg[arg_reg].start_address_ = 0;
       local_in_reg[arg_reg].is_live_ = true;
     }
@@ -646,17 +641,15 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       return;
     }
     int32_t id = DecodeUnsignedLeb128P1(&stream);
-    const char* descriptor_utf8 = it->GetDescriptor();
+    const char* descriptor = it->GetDescriptor();
     if (need_locals) {
-      String* descriptor = String::AllocFromModifiedUtf8(descriptor_utf8);
-      String* name = dexArtStringById(id);
+      const char* name = dexStringById(id);
       local_in_reg[arg_reg].name_ = name;
       local_in_reg[arg_reg].descriptor_ = descriptor;
-      local_in_reg[arg_reg].signature_ = NULL;
       local_in_reg[arg_reg].start_address_ = address;
       local_in_reg[arg_reg].is_live_ = true;
     }
-    switch (*descriptor_utf8) {
+    switch (*descriptor) {
       case 'D':
       case 'J':
         arg_reg += 2;
@@ -700,12 +693,10 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
         if (need_locals) {
           InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
 
-          local_in_reg[reg].name_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
-          local_in_reg[reg].descriptor_ = dexArtStringByTypeIdx(DecodeUnsignedLeb128P1(&stream));
+          local_in_reg[reg].name_ = dexStringById(DecodeUnsignedLeb128P1(&stream));
+          local_in_reg[reg].descriptor_ = dexStringByTypeIdx(DecodeUnsignedLeb128P1(&stream));
           if (opcode == DBG_START_LOCAL_EXTENDED) {
-            local_in_reg[reg].signature_ = dexArtStringById(DecodeUnsignedLeb128P1(&stream));
-          } else {
-            local_in_reg[reg].signature_ = NULL;
+            local_in_reg[reg].signature_ = dexStringById(DecodeUnsignedLeb128P1(&stream));
           }
           local_in_reg[reg].start_address_ = address;
           local_in_reg[reg].is_live_ = true;
