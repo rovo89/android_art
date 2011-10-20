@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "globals.h"
-#include "object_bitmap.h"
+#include "heap_bitmap.h"
 #include "offsets.h"
 
 #define VERIFY_OBJECT_ENABLED 0

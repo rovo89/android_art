@@ -5,7 +5,7 @@
 
 #include "macros.h"
 #include "mark_stack.h"
-#include "object_bitmap.h"
+#include "heap_bitmap.h"
 #include "offsets.h"
 
 namespace art {

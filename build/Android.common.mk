@@ -118,6 +118,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/file.cc \
 	src/file_linux.cc \
 	src/heap.cc \
+	src/heap_bitmap.cc \
 	src/image.cc \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
@@ -154,7 +155,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/oat_file.cc \
 	src/oat_writer.cc \
 	src/object.cc \
-	src/object_bitmap.cc \
 	src/offsets.cc \
 	src/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
 	src/os_linux.cc \

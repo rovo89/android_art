@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef ART_SRC_OBJECT_BITMAP_H_
-#define ART_SRC_OBJECT_BITMAP_H_
+#ifndef ART_SRC_HEAP_BITMAP_H_
+#define ART_SRC_HEAP_BITMAP_H_
 
 #include <limits.h>
 #include <stdint.h>
@@ -137,4 +137,4 @@ class HeapBitmap {
 
 }  // namespace art
 
-#endif  // ART_SRC_OBJECT_BITMAP_H_
+#endif  // ART_SRC_HEAP_BITMAP_H_
