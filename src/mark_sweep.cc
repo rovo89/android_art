@@ -40,7 +40,7 @@ bool MarkSweep::Init() {
   return true;
 }
 
-void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
+inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
   DCHECK(obj != NULL);
   if (obj < condemned_) {
     DCHECK(IsMarked(obj));
@@ -62,7 +62,7 @@ void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
 // objects.  Any newly-marked objects whose addresses are lower than
 // the finger won't be visited by the bitmap scan, so those objects
 // need to be added to the mark stack.
-void MarkSweep::MarkObject(const Object* obj) {
+inline void MarkSweep::MarkObject(const Object* obj) {
   if (obj != NULL) {
     MarkObject0(obj, true);
   }
@@ -167,7 +167,7 @@ void MarkSweep::Sweep() {
 }
 
 // Scans instance fields.
-void MarkSweep::ScanInstanceFields(const Object* obj) {
+inline void MarkSweep::ScanInstanceFields(const Object* obj) {
   DCHECK(obj != NULL);
   Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
@@ -175,12 +175,12 @@ void MarkSweep::ScanInstanceFields(const Object* obj) {
 }
 
 // Scans static storage on a Class.
-void MarkSweep::ScanStaticFields(const Class* klass) {
+inline void MarkSweep::ScanStaticFields(const Class* klass) {
   DCHECK(klass != NULL);
   ScanFields(klass, klass->GetReferenceStaticOffsets(), true);
 }
 
-void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static) {
+inline void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static) {
   if (ref_offsets != CLASS_WALK_SUPER) {
     // Found a reference offset bitmap.  Mark the specified offsets.
     while (ref_offsets != 0) {
@@ -215,7 +215,7 @@ void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool is_stat
 
 // Scans the header, static field references, and interface pointers
 // of a class object.
-void MarkSweep::ScanClass(const Object* obj) {
+inline void MarkSweep::ScanClass(const Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(obj->IsClass());
   const Class* klass = obj->AsClass();
@@ -243,7 +243,7 @@ void MarkSweep::ScanClass(const Object* obj) {
 
 // Scans the header of all array objects.  If the array object is
 // specialized to a reference type, scans the array data as well.
-void MarkSweep::ScanArray(const Object* obj) {
+inline void MarkSweep::ScanArray(const Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(obj->GetClass() != NULL);
   MarkObject(obj->GetClass());
@@ -285,7 +285,7 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
 // Scans the header and field references of a data object.  If the
 // scanned object is a reference subclass, it is scheduled for later
 // processing.
-void MarkSweep::ScanOther(const Object* obj) {
+inline void MarkSweep::ScanOther(const Object* obj) {
   DCHECK(obj != NULL);
   Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
@@ -298,7 +298,7 @@ void MarkSweep::ScanOther(const Object* obj) {
 
 // Scans an object reference.  Determines the type of the reference
 // and dispatches to a specialized scanning routine.
-void MarkSweep::ScanObject(const Object* obj) {
+inline void MarkSweep::ScanObject(const Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(obj->GetClass() != NULL);
   DCHECK(IsMarked(obj));

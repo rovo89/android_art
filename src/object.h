@@ -1450,8 +1450,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Class* GetComponentType() const {
-    return GetFieldObject<Class*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
+    return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
   }
 
   void SetComponentType(Class* new_component_type) {

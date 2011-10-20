@@ -36,13 +36,12 @@ class Object;
     ((index_) * kAlignment * kBitsPerWord)
 
 #define HB_OFFSET_TO_BYTE_INDEX(offset_) \
-  (HB_OFFSET_TO_INDEX(offset_) * sizeof(*((HeapBitmap *)0)->words_))
+  (HB_OFFSET_TO_INDEX(offset_) * sizeof(*(reinterpret_cast<HeapBitmap*>(0))->words_))
 
 // Pack the bits in backwards so they come out in address order
 // when using CLZ.
 #define HB_OFFSET_TO_MASK(offset_) \
-    (1 << \
-        (31-(((uintptr_t)(offset_) / kAlignment) % kBitsPerWord)))
+    (1 << (31-(((uintptr_t)(offset_) / kAlignment) % kBitsPerWord)))
 
 class HeapBitmap {
  public:
@@ -58,26 +57,26 @@ class HeapBitmap {
 
   ~HeapBitmap();
 
-  void Set(const Object* obj) {
+  inline void Set(const Object* obj) {
     Modify(obj, true);
   }
 
-  void Clear(const Object* obj) {
+  inline void Clear(const Object* obj) {
     Modify(obj, false);
   }
 
   void Clear();
 
-  bool Test(const Object* obj) {
-    CHECK(HasAddress(obj)) << obj;
-    CHECK(words_ != NULL);
-    CHECK_GE((uintptr_t)obj, base_);
-    if ((uintptr_t)obj <= max_) {
-        const uintptr_t offset = (uintptr_t)obj - base_;
-        unsigned long word = words_[HB_OFFSET_TO_INDEX(offset)];
-        return (word & HB_OFFSET_TO_MASK(offset)) != 0;
+  inline bool Test(const Object* obj) {
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    DCHECK(HasAddress(obj)) << obj;
+    DCHECK(words_ != NULL);
+    DCHECK_GE(addr, base_);
+    if (addr <= max_) {
+      const uintptr_t offset = addr - base_;
+      return (words_[HB_OFFSET_TO_INDEX(offset)] & HB_OFFSET_TO_MASK(offset)) != 0;
     } else {
-        return false;
+      return false;
     }
   }
 
@@ -99,13 +98,13 @@ class HeapBitmap {
         base_(reinterpret_cast<uintptr_t>(base)) {
   };
 
-  void Modify(const Object* obj, bool do_set) {
+  inline void Modify(const Object* obj, bool do_set) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    CHECK_GE(addr, base_);
+    DCHECK_GE(addr, base_);
     const uintptr_t offset = addr - base_;
     const size_t index = HB_OFFSET_TO_INDEX(offset);
-    const unsigned long mask = HB_OFFSET_TO_MASK(offset);
-    CHECK_LT(index, num_bytes_ / kWordSize);
+    const word mask = HB_OFFSET_TO_MASK(offset);
+    DCHECK_LT(index, num_bytes_ / kWordSize);
     if (do_set) {
       if (addr > max_) {
         max_ = addr;
