@@ -258,11 +258,6 @@ jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname
   return NULL;
 }
 
-jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
-  UNIMPLEMENTED(WARNING) << "needs annotations";
-  return NULL;
-}
-
 /*
  * private native String getNameNative()
  *
@@ -440,7 +435,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
-  NATIVE_METHOD(Class, getDeclaringClass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
   NATIVE_METHOD(Class, getNonInnerClassModifiers, "(Ljava/lang/Class;)I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
