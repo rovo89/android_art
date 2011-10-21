@@ -94,7 +94,13 @@ void ThreadList::SuspendAll() {
     LOG(INFO) << *self << " SuspendAll starting...";
   }
 
-  MutexLock mu(thread_list_lock_);
+  // Avoid deadlock between two threads trying to SuspendAll
+  // simultaneously by going to kVmWait if the lock cannot be
+  // immediately acquired.
+  if (!thread_list_lock_.TryLock()) {
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+    thread_list_lock_.Lock();
+  }
 
   {
     // Increment everybody's suspend count (except our own).
@@ -133,6 +139,8 @@ void ThreadList::SuspendAll() {
       }
     }
   }
+
+  thread_list_lock_.Unlock();
 
   if (verbose_) {
     LOG(INFO) << *self << " SuspendAll complete";
@@ -338,16 +346,18 @@ void ThreadList::WaitForGo() {
   Thread* self = Thread::Current();
   DCHECK(Contains(self));
 
-  MutexLock mu(thread_list_lock_);
+  {
+    MutexLock mu(thread_list_lock_);
 
-  // Tell our parent that we're in the thread list.
-  self->SetState(Thread::kStarting);
-  thread_start_cond_.Broadcast();
+    // Tell our parent that we're in the thread list.
+    self->SetState(Thread::kStarting);
+    thread_start_cond_.Broadcast();
 
-  // Wait until our parent tells us there's no suspend still pending
-  // from before we were on the thread list.
-  while (self->GetState() != Thread::kVmWait) {
-    thread_start_cond_.Wait(thread_list_lock_);
+    // Wait until our parent tells us there's no suspend still pending
+    // from before we were on the thread list.
+    while (self->GetState() != Thread::kVmWait) {
+      thread_start_cond_.Wait(thread_list_lock_);
+    }
   }
 
   // Enter the runnable state. We know that any pending suspend will affect us now.
