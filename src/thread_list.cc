@@ -20,6 +20,29 @@
 
 namespace art {
 
+// TODO: merge with ThreadListLock?
+class ThreadListLocker {
+ public:
+
+  explicit ThreadListLocker(const ThreadList* thread_list) : thread_list_(thread_list) {
+    // Avoid deadlock between two threads trying to SuspendAll
+    // simultaneously by going to kVmWait if the lock cannot be
+    // immediately acquired.
+    if (!thread_list_->thread_list_lock_.TryLock()) {
+      ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+      thread_list_->thread_list_lock_.Lock();
+    }
+  }
+
+  ~ThreadListLocker() {
+    thread_list_->thread_list_lock_.Unlock();
+  }
+
+ private:
+  const ThreadList* thread_list_;
+  DISALLOW_COPY_AND_ASSIGN(ThreadListLocker);
+};
+
 ThreadList::ThreadList(bool verbose)
     : verbose_(verbose),
       thread_list_lock_("thread list lock"),
@@ -48,7 +71,7 @@ pid_t ThreadList::GetLockOwner() {
 }
 
 void ThreadList::Dump(std::ostream& os) {
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
   os << "DALVIK THREADS (" << list_.size() << "):\n";
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
@@ -94,13 +117,7 @@ void ThreadList::SuspendAll() {
     LOG(INFO) << *self << " SuspendAll starting...";
   }
 
-  // Avoid deadlock between two threads trying to SuspendAll
-  // simultaneously by going to kVmWait if the lock cannot be
-  // immediately acquired.
-  if (!thread_list_lock_.TryLock()) {
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
-    thread_list_lock_.Lock();
-  }
+  ThreadListLocker locker(this);
 
   {
     // Increment everybody's suspend count (except our own).
@@ -140,8 +157,6 @@ void ThreadList::SuspendAll() {
     }
   }
 
-  thread_list_lock_.Unlock();
-
   if (verbose_) {
     LOG(INFO) << *self << " SuspendAll complete";
   }
@@ -156,7 +171,7 @@ void ThreadList::Suspend(Thread* thread) {
     LOG(INFO) << "Suspend(" << *thread << ") starting...";
   }
 
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
   if (!Contains(thread)) {
     return;
   }
@@ -185,8 +200,8 @@ void ThreadList::ResumeAll() {
   // writes, since nobody should be moving until we decrement the count.
   // We do need to hold the thread list because of JNI attaches.
   {
-    MutexLock mu1(thread_list_lock_);
-    MutexLock mu2(thread_suspend_count_lock_);
+    ThreadListLocker locker(this);
+    MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
       if (thread != self) {
@@ -222,8 +237,8 @@ void ThreadList::Resume(Thread* thread) {
   }
 
   {
-    MutexLock mu1(thread_list_lock_);
-    MutexLock mu2(thread_suspend_count_lock_);
+    ThreadListLocker locker(this);
+    MutexLock mu(thread_suspend_count_lock_);
     if (!Contains(thread)) {
       return;
     }
@@ -267,7 +282,7 @@ void ThreadList::Register() {
     self->Dump(std::cerr);
   }
 
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
   CHECK(!Contains(self));
   list_.push_back(self);
 }
@@ -283,7 +298,7 @@ void ThreadList::Unregister() {
   // down the Thread* and removing it from the thread list (or start taking any locks).
   self->HandleUncaughtExceptions();
 
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
 
   // Remove this thread from the list.
   CHECK(Contains(self));
@@ -303,7 +318,7 @@ void ThreadList::Unregister() {
 }
 
 void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->VisitRoots(visitor, arg);
   }
@@ -325,7 +340,7 @@ void ThreadList::SignalGo(Thread* child) {
   CHECK(child != self);
 
   {
-    MutexLock mu(thread_list_lock_);
+    ThreadListLocker locker(this);
 
     // We wait for the child to tell us that it's in the thread list.
     while (child->GetState() != Thread::kStarting) {
@@ -347,7 +362,7 @@ void ThreadList::WaitForGo() {
   DCHECK(Contains(self));
 
   {
-    MutexLock mu(thread_list_lock_);
+    ThreadListLocker locker(this);
 
     // Tell our parent that we're in the thread list.
     self->SetState(Thread::kStarting);
@@ -376,14 +391,14 @@ bool ThreadList::AllThreadsAreDaemons() {
 }
 
 void ThreadList::WaitForNonDaemonThreadsToExit() {
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
   while (!AllThreadsAreDaemons()) {
     thread_exit_cond_.Wait(thread_list_lock_);
   }
 }
 
 void ThreadList::SuspendAllDaemonThreads() {
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
 
   // Tell all the daemons it's time to suspend. (At this point, we know
   // all threads are daemons.)
@@ -417,7 +432,7 @@ void ThreadList::SuspendAllDaemonThreads() {
 }
 
 uint32_t ThreadList::AllocThreadId() {
-  MutexLock mu(thread_list_lock_);
+  ThreadListLocker locker(this);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);

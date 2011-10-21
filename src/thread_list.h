@@ -77,6 +77,7 @@ class ThreadList {
 
   friend class Thread;
   friend class ThreadListLock;
+  friend class ThreadListLocker;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };
