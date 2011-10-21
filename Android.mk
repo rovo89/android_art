@@ -139,8 +139,6 @@ test-art-target-oat-process: test-art-target-oat-process-am # test-art-target-oa
 
 $(eval $(call build-art-cache-oat,system/framework/am.jar))
 $(eval $(call build-art-cache-oat,system/app/Calculator.apk))
-$(eval $(call build-art-cache-oat,system/app/SettingsProvider.apk))
-$(eval $(call build-art-cache-oat,system/app/SystemUI.apk))
 
 .PHONY: test-art-target-oat-process-am
 test-art-target-oat-process-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync

@@ -257,6 +257,7 @@ TEST_DEX_DIRECTORIES := \
 	Statics \
 	StaticsFromCode \
 	SystemMethods \
+	ThreadStress \
 	Invoke \
 	XandY
 

@@ -85,4 +85,7 @@ $(eval $(call declare-test-test-target,SystemMethods,))
 # TODO: Enable when the StackWalk2 tests are passing
 # $(eval $(call declare-test-test-target,StackWalk2,))
 
+# TODO: Enable when ThreadStress passes
+# $(eval $(call declare-test-test-target,ThreadStress,))
+
 ########################################################################

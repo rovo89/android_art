@@ -307,7 +307,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option.starts_with("-Xlockprofthreshold:")) {
       parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
     } else if (option.starts_with("-Xstacktracefile:")) {
+// always show stack traces in debug builds
+#ifdef NDEBUG
       parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:")).data();
+#endif
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
     } else if (option == "vfprintf") {
