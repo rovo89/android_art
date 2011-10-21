@@ -1356,14 +1356,14 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
 
   void VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
+    if (false) {
+      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
+                << "@ PC: " << m->ToDexPC(pc);
+    }
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsCalleeSaveMethod()) {
       UniquePtr<art::DexVerifier::RegisterMap> map(art::DexVerifier::GetExpandedRegisterMap(m));
       const uint8_t* reg_bitmap = art::DexVerifier::RegisterMapGetLine(map.get(), m->ToDexPC(pc));
-      if (false) {
-        LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
-                  << "@ PC: " << m->ToDexPC(pc);
-      }
       CHECK(reg_bitmap != NULL);
       const uint16_t* vmap = m->GetVmapTable();
       // For all dex registers

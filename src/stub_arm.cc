@@ -15,24 +15,30 @@ ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   // | Out args |
   // | Method*  | <- SP on entry
   // | LR       |    return address into caller
+  // | ...      |    callee saves
   // | R3       |    possible argument
   // | R2       |    possible argument
   // | R1       |    possible argument
-  // | R0       |    method index (loaded from code and method array - will be converted to Method*)
-  RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
+  // | R0       |    junk on call to UnresolvedDirectMethodTrampolineFromCode, holds result Method*
+  // | Method*  |    Callee save Method* set up by UnresolvedDirectMethodTrampolineFromCode
+  // Save callee saves and ready frame for exception delivery
+  RegList save = (1 << R1) | (1 << R2) | (1 << R3) | (1 << R5) | (1 << R6) | (1 << R7) | (1 << R8) |
+                 (1 << R10) | (1 << R11) | (1 << LR);
+  // TODO: enable when GetCalleeSaveMethod is available at stub generation time
+  // DCHECK_EQ(save, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetCoreSpillMask());
   __ PushList(save);
-  __ mov(R1, ShifterOperand(SP));  // Pass address of saved R0... in R1
   __ LoadFromOffset(kLoadWord, R12, TR,
                     OFFSETOF_MEMBER(Thread, pUnresolvedDirectMethodTrampolineFromCode));
   __ mov(R2, ShifterOperand(TR));  // Pass Thread::Current() in R2
   __ LoadImmediate(R3, type);
-  __ IncreaseFrameSize(12);        // 3 words of space for alignment
+  __ IncreaseFrameSize(8);         // 2 words of space for alignment
+  __ mov(R1, ShifterOperand(SP));  // Pass SP
   // Call to unresolved direct method trampoline (method_idx, sp, Thread*, is_static)
   __ blx(R12);
   __ mov(R12, ShifterOperand(R0));  // Save code address returned into R12
-  // Restore registers which may have been modified by GC and R0 which will now hold the method*
-  __ DecreaseFrameSize(12);
-  __ PopList(save);
+  // Restore registers which may have been modified by GC, "R0" will hold the Method*
+  __ DecreaseFrameSize(4);
+  __ PopList((1 << R0) | save);
   __ bx(R12);  // Leaf call to method's code
 
   __ bkpt(0);
@@ -54,8 +60,13 @@ ByteArray* CreateAbstractMethodErrorStub() {
   // Save callee saves and ready frame for exception delivery
   RegList save = (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) | (1 << R8) | (1 << R9) |
                  (1 << R10) | (1 << R11) | (1 << LR);
+  // TODO: enable when GetCalleeSaveMethod is available at stub generation time
+  // DCHECK_EQ(save, Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAll)->GetCoreSpillMask());
   __ PushList(save);         // push {r4-r11, lr} - 9 words of callee saves
+  // TODO: enable when GetCalleeSaveMethod is available at stub generation time
+  // DCHECK_EQ(Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAll)->GetFpSpillMask(), 0xFFFFU);
   __ Emit(0xed2d0a20);       // vpush {s0-s31}
+
   __ IncreaseFrameSize(12);  // 3 words of space, bottom word will hold callee save Method*
 
   // R0 is the Method* already

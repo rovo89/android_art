@@ -308,7 +308,7 @@ extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Metho
   thread->DeliverException();
 }
 
-void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thread* thread,
+void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, Thread* thread,
                                                Runtime::TrampolineType type) {
   // TODO: this code is specific to ARM
   // On entry the stack pointed by sp is:
@@ -320,15 +320,17 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
   // | arg1 spill |  |
   // | Method*    | ---
   // | LR         |
+  // | ...        |    callee saves
   // | R3         |    arg3
   // | R2         |    arg2
   // | R1         |    arg1
-  // | R0         | <- sp
-  uintptr_t* regs = reinterpret_cast<uintptr_t*>(sp);
-  Method** caller_sp = reinterpret_cast<Method**>(&regs[5]);
-  uintptr_t caller_pc = regs[4];
-  // Record the last top of the managed stack
-  thread->SetTopOfStack(caller_sp, caller_pc);
+  // | R0         |
+  // | Method*    |  <- sp
+  uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
+  DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+  Method** caller_sp = reinterpret_cast<Method**>(reinterpret_cast<byte*>(sp) + 48);
+  uintptr_t caller_pc = regs[10];
+  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
   ScopedJniEnvLocalRefState env_state(env);
@@ -387,7 +389,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, void* sp, Thr
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
   // Place into local references incoming arguments from the caller's stack arguments
-  cur_arg += 5;  // skip LR, Method* and spills for R1 to R3
+  cur_arg += 11;  // skip LR, Method* and spills for R1 to R3 and callee saves
   while (shorty_index < shorty_len) {
     char c = shorty[shorty_index];
     shorty_index++;

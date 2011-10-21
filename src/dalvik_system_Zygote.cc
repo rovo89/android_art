@@ -87,7 +87,8 @@ void sigchldHandler(int s) {
     // so that it is restarted by init and system server will be restarted
     // from there.
     if (pid == gSystemServerPid) {
-      LOG(FATAL) << "Exit zygote because system server (" << pid << ") has terminated";
+      LOG(ERROR) << "Exit zygote because system server (" << pid << ") has terminated";
+      kill(getpid(), SIGKILL);
     }
   }
 
