@@ -47,7 +47,7 @@ int ProcessZipFile(int zip_fd, int cache_fd, const char* zip_name, const char *f
   dex_file_option += zip_name;
 
   std::string oat_file_option("--oat=");
-  oat_file_option += GetArtCacheOatFilenameOrDie(OatFile::DexFileToOatFilename(*dex_file.get()));
+  oat_file_option += GetArtCacheFilenameOrDie(OatFile::DexFilenameToOatFilename(dex_file.get()->GetLocation()));
 
   execl("/system/bin/dex2oatd",
         "/system/bin/dex2oatd",

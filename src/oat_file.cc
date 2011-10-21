@@ -10,15 +10,12 @@
 
 namespace art {
 
-std::string OatFile::DexFileToOatFilename(const DexFile& dex_file) {
-  std::string location(dex_file.GetLocation());
-  CHECK(StringPiece(location).ends_with(".dex")
-        || StringPiece(location).ends_with(".zip")
-        || StringPiece(location).ends_with(".jar")
-        || StringPiece(location).ends_with(".apk"));
-  location.erase(location.size()-3);
-  location += "oat";
-  return location;
+std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
+  LOG(INFO) << "dexfilenametooatfilename " << location;
+  CHECK(IsValidDexFilename(location) || IsValidZipFilename(location));
+  std::string oat_location = location.substr(0, location.size()-3);
+  oat_location += "oat";
+  return oat_location;
 }
 
 OatFile* OatFile::Open(const std::string& filename,

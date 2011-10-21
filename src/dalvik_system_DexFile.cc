@@ -19,11 +19,9 @@
 #include "class_loader.h"
 #include "class_linker.h"
 #include "dex_file.h"
-#include "file.h"
 #include "logging.h"
 #include "os.h"
 #include "runtime.h"
-#include "space.h"
 #include "zip_archive.h"
 #include "toStringArray.h"
 #include "ScopedUtfChars.h"
@@ -91,79 +89,43 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   if (env->ExceptionCheck()) {
     return 0;
   }
-  if (outputName.c_str() != NULL) {
-    // Check that output name ends in .dex.
-    if (!StringPiece(outputName.c_str()).ends_with(".dex")) {
-      LOG(ERROR) << "Output filename '" << outputName.c_str() << "' does not end with .dex";
-      return 0;
-    }
-
-    // Extract the dex file.
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(sourceName.c_str()));
-    if (zip_archive.get() == NULL) {
-      LOG(ERROR) << "Failed to open " << sourceName.c_str() << " when looking for classes.dex";
-      return 0;
-    }
-
-    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(DexFile::kClassesDex));
-    if (zip_entry.get() == NULL) {
-      LOG(ERROR) << "Failed to find classes.dex within " << sourceName.c_str();
-      return 0;
-    }
-
-    UniquePtr<File> file(OS::OpenFile(outputName.c_str(), true));
-    bool success = zip_entry->Extract(*file);
-    if (!success) {
-      LOG(ERROR) << "Failed to extract classes.dex from " << sourceName.c_str();
-      return 0;
-    }
-
-    // Fork and exec dex2oat.
-    pid_t pid = fork();
-    if (pid == 0) {
-      std::string boot_image_option("--boot-image=");
-      boot_image_option += Heap::GetSpaces()[0]->GetImageFilename();
-
-      std::string dex_file_option("--dex-file=");
-      dex_file_option += outputName.c_str();
-
-      std::string oat_file_option("--oat=");
-      oat_file_option += outputName.c_str();
-      oat_file_option.erase(oat_file_option.size() - 3);
-      oat_file_option += "oat";
-
-      execl("/system/bin/dex2oatd",
-            "/system/bin/dex2oatd",
-            "-Xms64m",
-            "-Xmx64m",
-            boot_image_option.c_str(),
-            dex_file_option.c_str(),
-            oat_file_option.c_str(),
-            NULL);
-
-      PLOG(FATAL) << "execl(dex2oatd) failed";
-      return 0;
-    } else {
-      // Wait for dex2oat to finish.
-      int status;
-      pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-      if (got_pid != pid) {
-        PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
-        return 0;
-      }
-      if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        LOG(ERROR) << "dex2oatd failed with dex-file=" << outputName.c_str();
-        return 0;
-      }
-    }
-  }
-
   const DexFile* dex_file;
   if (outputName.c_str() == NULL) {
     dex_file = DexFile::Open(sourceName.c_str(), "");
   } else {
+    // Sanity check the arguments.
+    if (!IsValidZipFilename(sourceName.c_str()) || !IsValidDexFilename(outputName.c_str())) {
+      LOG(ERROR) << "Bad filenames extracting dex '" << outputName.c_str()
+                 << "' from zip '" << sourceName.c_str() << "'";
+      return NULL;
+    }
+
+    // Extract classes.dex from the input zip file to the output dex file
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(sourceName.c_str()));
+    if (zip_archive.get() == NULL) {
+      LOG(ERROR) << "Failed to open " << sourceName.c_str() << " when looking for classes.dex";
+      return NULL;
+    }
+    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(DexFile::kClassesDex));
+    if (zip_entry.get() == NULL) {
+      LOG(ERROR) << "Failed to find classes.dex within " << sourceName.c_str();
+      return NULL;
+    }
+    UniquePtr<File> file(OS::OpenFile(outputName.c_str(), true));
+    bool success = zip_entry->Extract(*file);
+    if (!success) {
+      LOG(ERROR) << "Failed to extract classes.dex from " << sourceName.c_str();
+      return NULL;
+    }
     dex_file = DexFile::Open(outputName.c_str(), "");
+
+    // Generate the oat file for the newly extracted dex file
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    if (class_linker->GenerateOatFile(outputName.c_str()) == NULL) {
+      return 0;
+    }
   }
+
   if (dex_file == NULL) {
     jniThrowExceptionFmt(env, "java/io/IOException", "unable to open DEX file: %s",
                          sourceName.c_str());

@@ -221,8 +221,12 @@ void SetThreadName(const char* name);
 // Returns the art-cache location, or dies trying.
 std::string GetArtCacheOrDie();
 
-// Returns the art-cache location for an OatFile, or dies trying.
-std::string GetArtCacheOatFilenameOrDie(const std::string& location);
+// Returns the art-cache location for a DexFile or OatFile, or dies trying.
+std::string GetArtCacheFilenameOrDie(const std::string& location);
+
+// Check whether the given filename has a valid zip or dex extension
+bool IsValidZipFilename(const std::string& filename);
+bool IsValidDexFilename(const std::string& filename);
 
 }  // namespace art
 

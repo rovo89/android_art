@@ -550,6 +550,48 @@ void ClassLinker::RunRootClinits() {
   }
 }
 
+const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
+  std::string oat_filename(GetArtCacheFilenameOrDie(OatFile::DexFilenameToOatFilename(filename)));
+
+  // fork and exec dex2oat
+  pid_t pid = fork();
+  if (pid == 0) {
+    std::string boot_image_option("--boot-image=");
+    boot_image_option += Heap::GetSpaces()[0]->GetImageFilename();
+
+    std::string dex_file_option("--dex-file=");
+    dex_file_option += filename;
+
+    std::string oat_file_option("--oat=");
+    oat_file_option += oat_filename;
+
+    execl("/system/bin/dex2oatd",
+          "/system/bin/dex2oatd",
+          "-Xms64m",
+          "-Xmx64m",
+          boot_image_option.c_str(),
+          dex_file_option.c_str(),
+          oat_file_option.c_str(),
+          NULL);
+
+    PLOG(FATAL) << "execl(dex2oatd) failed";
+    return NULL;
+  } else {
+    // wait for dex2oat to finish
+    int status;
+    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
+    if (got_pid != pid) {
+      PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
+      return NULL;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+      LOG(ERROR) << "dex2oatd failed with dex-file=" << filename;
+      return NULL;
+    }
+  }
+  return OatFile::Open(oat_filename, "", NULL);
+}
+
 OatFile* ClassLinker::OpenOat(const Space* space) {
   MutexLock mu(dex_lock_);
   const Runtime* runtime = Runtime::Current();
@@ -584,7 +626,18 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
 const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
   MutexLock mu(dex_lock_);
   // TODO: check if dex_file matches an OatDexFile location and checksum
-  return FindOatFile(OatFile::DexFileToOatFilename(dex_file));
+  const OatFile* oat_file = FindOatFile(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
+  if (oat_file != NULL) {
+    return oat_file;
+  }
+  // generate oat file if it wasn't found
+  oat_file = GenerateOatFile(dex_file.GetLocation());
+  if (oat_file == NULL) {
+    LOG(ERROR) << "Failed to generate oat file from dex file " << dex_file.GetLocation();
+    return NULL;
+  }
+  oat_files_.push_back(oat_file);
+  return oat_file;
 }
 
 const OatFile* ClassLinker::FindOpenedOatFile(const std::string& location) {
@@ -612,14 +665,14 @@ const OatFile* ClassLinker::FindOatFile(const std::string& location) {
     }
 
     // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
-    std::string cache_location = GetArtCacheOatFilenameOrDie(location);
+    std::string cache_location = GetArtCacheFilenameOrDie(location);
     oat_file = FindOpenedOatFile(cache_location);
     if (oat_file != NULL) {
       return oat_file;
     }
     oat_file = OatFile::Open(cache_location, "", NULL);
     if (oat_file  == NULL) {
-      LOG(ERROR) << "Failed to open oat file from " << location << " or " << cache_location << ".";
+      LOG(INFO) << "Failed to open oat file from " << location << " or " << cache_location << ".";
       return NULL;
     }
   }

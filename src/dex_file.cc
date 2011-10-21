@@ -57,13 +57,12 @@ void DexFile::OpenDexFiles(std::vector<const char*>& dex_filenames,
 
 const DexFile* DexFile::Open(const std::string& filename,
                              const std::string& strip_location_prefix) {
-  if (filename.size() < 4) {
-    LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
-  }
-  std::string suffix(filename.substr(filename.size() - 4));
-  if (suffix == ".zip" || suffix == ".jar" || suffix == ".apk") {
+  if (IsValidZipFilename(filename)) {
     return DexFile::OpenZip(filename, strip_location_prefix);
   } else {
+    if (!IsValidDexFilename(filename)) {
+      LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
+    }
     return DexFile::OpenFile(filename, filename, strip_location_prefix);
   }
 }
@@ -200,14 +199,9 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
                  << " when looking for classes.dex";
       return NULL;
   }
-  std::string cache_file(absolute_path+1); // skip leading slash
-  std::replace(cache_file.begin(), cache_file.end(), '/', '@');
-  cache_file.push_back('@');
-  cache_file.append(kClassesDex);
-  // Example cache_file = parent@dir@foo.jar@classes.dex
-
-  std::string art_cache = GetArtCacheOrDie();
-  std::string cache_path_tmp = art_cache + "/" + cache_file;
+  std::string cache_path_tmp(GetArtCacheFilenameOrDie(absolute_path));
+  cache_path_tmp.push_back('@');
+  cache_path_tmp.append(kClassesDex);
   // Example cache_path_tmp = /data/art-cache/parent@dir@foo.jar@classes.dex
 
   UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));

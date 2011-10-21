@@ -330,6 +330,7 @@ class DexFile {
   // Opens .dex file, guessing the container format based on file extension
   static const DexFile* Open(const std::string& filename,
                              const std::string& strip_location_prefix);
+
   // Closes a .dex file.
   virtual ~DexFile();
 

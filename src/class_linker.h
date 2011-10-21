@@ -209,6 +209,9 @@ class ClassLinker {
   DexCache* FindDexCache(const DexFile& dex_file) const;
   bool IsDexFileRegistered(const DexFile& dex_file) const;
 
+  // Generate an oat file from a dex file
+  const OatFile* GenerateOatFile(const std::string& filename);
+
   // Find, possibily opening, an OatFile corresponding to a DexFile
   const OatFile* FindOatFile(const DexFile& dex_file);
   const OatFile* FindOatFile(const std::string& location);
