@@ -1632,7 +1632,7 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass) {
   // Create constructor for Proxy that must initialize h
   Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
   ObjectArray<Method>* proxy_direct_methods = proxy_class->GetDirectMethods();
-  CHECK_EQ(proxy_direct_methods->GetLength(), 12);
+  CHECK_EQ(proxy_direct_methods->GetLength(), 15);
   Method* proxy_constructor = proxy_direct_methods->Get(2);
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)

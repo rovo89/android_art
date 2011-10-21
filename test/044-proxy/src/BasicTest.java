@@ -73,7 +73,11 @@ public class BasicTest {
         Method[] methods = proxy.getClass().getDeclaredMethods();
         Arrays.sort(methods, new Comparator<Method>() {
           public int compare(Method o1, Method o2) {
-            return o1.getName().compareTo(o2.getName());
+            int result = o1.getName().compareTo(o2.getName());
+            if (result != 0) {
+                return result;
+            }
+            return o1.getReturnType().getName().compareTo(o2.getReturnType().getName());
           }
         });
         System.out.println("Proxy methods: " + Arrays.deepToString(methods));
@@ -82,13 +86,6 @@ public class BasicTest {
         Annotation[][] paramAnnos = meth.getParameterAnnotations();
         System.out.println("Param annos (" + paramAnnos.length + ") : "
             + Arrays.deepToString(paramAnnos));
-        Field[] fields = proxy.getClass().getDeclaredFields();
-        Arrays.sort(fields, new Comparator<Field>() {
-          public int compare(Field o1, Field o2) {
-            return o1.getName().compareTo(o2.getName());
-          }
-        });
-        System.out.println("Proxy fields: " + Arrays.deepToString(fields));
     }
 
     static Object createProxy(Object proxyMe) {
