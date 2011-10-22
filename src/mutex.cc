@@ -83,6 +83,23 @@ pid_t Mutex::GetOwner() {
 #endif
 }
 
+void Mutex::ClearOwner() {
+#if defined(__BIONIC__)
+  mutex_.value = 0;
+#elif defined(__GLIBC__)
+  struct __attribute__((__may_alias__)) glibc_pthread_t {
+    int lock;
+    unsigned int count;
+    int owner;
+    // ...other stuff we don't care about.
+  };
+  reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner = 0;
+#else
+  UNIMPLEMENTED(FATAL);
+  return 0;
+#endif
+}
+
 pid_t Mutex::GetTid() {
   return art::GetTid();
 }

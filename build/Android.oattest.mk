@@ -81,11 +81,9 @@ $(eval $(call declare-test-test-target,ParallelGC,))
 $(eval $(call declare-test-test-target,ReferenceMap,))
 $(eval $(call declare-test-test-target,StackWalk,))
 $(eval $(call declare-test-test-target,SystemMethods,))
+$(eval $(call declare-test-test-target,ThreadStress,))
 
 # TODO: Enable when the StackWalk2 tests are passing
 # $(eval $(call declare-test-test-target,StackWalk2,))
-
-# TODO: Enable when ThreadStress passes
-# $(eval $(call declare-test-test-target,ThreadStress,))
 
 ########################################################################

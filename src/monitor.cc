@@ -129,14 +129,9 @@ Monitor::~Monitor() {
   DCHECK_EQ(LW_SHAPE(*obj_->GetRawLockWordAddress()), LW_SHAPE_FAT);
 
 #ifndef NDEBUG
-  /* This lock is associated with an object
-   * that's being swept.  The only possible way
-   * anyone could be holding this lock would be
-   * if some JNI code locked but didn't unlock
-   * the object, in which case we've got some bad
-   * native code somewhere.
-   */
-  DCHECK(lock_.TryLock());
+  // This lock is associated with an object that's being swept.
+  bool locked = lock_.TryLock();
+  DCHECK(locked) << obj_;
   lock_.Unlock();
 #endif
 }
@@ -820,6 +815,20 @@ MonitorList::MonitorList() : lock_("MonitorList lock") {
 
 MonitorList::~MonitorList() {
   MutexLock mu(lock_);
+
+  // In case there is a daemon thread with the monitor locked, clear
+  // the owner here so we can destroy the mutex, which will otherwise
+  // fail in pthread_mutex_destroy.
+  typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
+  for (It it = list_.begin(); it != list_.end(); it++) {
+      Monitor* monitor = *it;
+      Mutex& lock = monitor->lock_;
+      if (lock.GetOwner() != 0) {
+        DCHECK_EQ(lock.GetOwner(), monitor->owner_->GetTid());
+        lock.ClearOwner();
+      }
+  }
+
   STLDeleteElements(&list_);
 }
 

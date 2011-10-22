@@ -745,22 +745,12 @@ void MonitorExitVisitor(const Object* object, void*) {
 }
 
 Thread::~Thread() {
-  SetState(Thread::kRunnable);
-
   // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
   if (jni_env_ != NULL) {
     jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
   }
 
   if (peer_ != NULL) {
-    // this.group.removeThread(this);
-    // group can be null if we're in the compiler or a test.
-    Object* group = gThread_group->GetObject(peer_);
-    if (group != NULL) {
-      Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
-      Object* args = peer_;
-      m->Invoke(this, group, reinterpret_cast<byte*>(&args), NULL);
-    }
 
     // this.vmData = 0;
     SetVmData(peer_, NULL);
@@ -795,8 +785,6 @@ void Thread::HandleUncaughtExceptions() {
     return;
   }
 
-  ScopedThreadStateChange tsc(this, Thread::kRunnable);
-
   // Get and clear the exception.
   Object* exception = GetException();
   ClearException();
@@ -817,6 +805,17 @@ void Thread::HandleUncaughtExceptions() {
 
   // If the handler threw, clear that exception too.
   ClearException();
+}
+
+void Thread::RemoveFromThreadGroup() {
+  // this.group.removeThread(this);
+  // group can be null if we're in the compiler or a test.
+  Object* group = gThread_group->GetObject(peer_);
+  if (group != NULL) {
+    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
+    Object* args = peer_;
+    m->Invoke(this, group, reinterpret_cast<byte*>(&args), NULL);
+  }
 }
 
 size_t Thread::NumSirtReferences() {

@@ -474,6 +474,7 @@ class PACKED Thread {
   static void* CreateCallback(void* arg);
 
   void HandleUncaughtExceptions();
+  void RemoveFromThreadGroup();
 
   void InitCpu();
   void InitFunctionPointers();

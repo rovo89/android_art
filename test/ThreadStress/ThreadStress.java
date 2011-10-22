@@ -25,7 +25,7 @@ import java.util.Map;
 //   javac ThreadTest.java && java ThreadStress && rm *.class
 class ThreadStress implements Runnable {
 
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
 
     enum Operation {
         OOM(1),
@@ -214,9 +214,12 @@ class ThreadStress implements Runnable {
                         break;
                     }
                     case ALLOC: {
-                        List<byte[]> l = new ArrayList<byte[]>();
-                        for (int i = 0; i < 1024; i++) {
-                            l.add(new byte[1024]);
+                        try {
+                            List<byte[]> l = new ArrayList<byte[]>();
+                            for (int i = 0; i < 1024; i++) {
+                                l.add(new byte[1024]);
+                            }
+                        } catch (OutOfMemoryError e) {
                         }
                         break;
                     }
@@ -225,8 +228,7 @@ class ThreadStress implements Runnable {
                     }
                 }
             }
-        }
-        finally {
+        } finally {
             if (DEBUG) {
                 System.out.println("Finishing ThreadStress for " + id);
             }

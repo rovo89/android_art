@@ -101,27 +101,26 @@ class Monitor {
   static bool is_verbose_;
   static uint32_t lock_profiling_threshold_;
 
-  /* Which thread currently owns the lock? */
+  // Which thread currently owns the lock?
   Thread* owner_;
 
-  /* Owner's recursive lock depth */
+  // Owner's recursive lock depth.
   int lock_count_;
 
-  /* What object are we part of (for debugging). */
+  // What object are we part of (for debugging).
   Object* obj_;
 
-  /* Threads currently waiting on this monitor. */
+  // Threads currently waiting on this monitor.
   Thread* wait_set_;
 
   Mutex lock_;
 
-  /*
-   * Who last acquired this monitor, when lock sampling is enabled.
-   * Even when enabled, ownerFileName may be NULL.
-   */
+  // Who last acquired this monitor, when lock sampling is enabled.
+  // Even when enabled, owner_filename_ may be NULL.
   const char* owner_filename_;
   uint32_t owner_line_number_;
 
+  friend class MonitorList;
   friend class Object;
   DISALLOW_COPY_AND_ASSIGN(Monitor);
 };
@@ -142,9 +141,7 @@ class MonitorList {
   DISALLOW_COPY_AND_ASSIGN(MonitorList);
 };
 
-/*
- * Relative timed wait on condition
- */
+// Relative timed wait on condition
 int dvmRelativeCondWait(pthread_cond_t* cond, pthread_mutex_t* mutex, int64_t msec, int32_t nsec);
 
 }  // namespace art

@@ -29,8 +29,13 @@ class ThreadListLocker {
     // simultaneously by going to kVmWait if the lock cannot be
     // immediately acquired.
     if (!thread_list_->thread_list_lock_.TryLock()) {
-      ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
-      thread_list_->thread_list_lock_.Lock();
+      Thread* self = Thread::Current();
+      if (self == NULL) {
+          thread_list_->thread_list_lock_.Lock();
+      } else {
+          ScopedThreadStateChange tsc(self, Thread::kVmWait);
+          thread_list_->thread_list_lock_.Lock();
+      }
     }
   }
 
@@ -294,9 +299,18 @@ void ThreadList::Unregister() {
     LOG(INFO) << "ThreadList::Unregister() " << *self;
   }
 
-  // This may need to call user-supplied managed code. Make sure we do this before we start tearing
-  // down the Thread* and removing it from the thread list (or start taking any locks).
-  self->HandleUncaughtExceptions();
+  if (self->GetPeer() != NULL) {
+      self->SetState(Thread::kRunnable);
+
+      // This may need to call user-supplied managed code. Make sure we do this before we start tearing
+      // down the Thread* and removing it from the thread list (or start taking any locks).
+      self->HandleUncaughtExceptions();
+
+      // Make sure we remove from ThreadGroup before taking the
+      // thread_list_lock_ since it allocates an Iterator which can cause
+      // a GC which will want to suspend.
+      self->RemoveFromThreadGroup();
+  }
 
   ThreadListLocker locker(this);
 
