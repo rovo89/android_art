@@ -63,4 +63,78 @@ std::ostream& LogMessage::stream() {
   return data_->buffer;
 }
 
+/*
+ * Print a hex dump in this format:
+ *
+ * 01234567: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef\n
+ *
+ * Does not use printf() or other string-formatting calls.
+ */
+void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
+  static const char gHexDigit[] = "0123456789abcdef";
+  const unsigned char* addr = reinterpret_cast<const unsigned char*>(address);
+  char out[77];           /* exact fit */
+  unsigned int offset;    /* offset to show while printing */
+
+  if (show_actual_address) {
+    offset = (int) addr;
+  } else {
+    offset = 0;
+  }
+  memset(out, ' ', sizeof(out)-1);
+  out[8] = ':';
+  out[sizeof(out)-2] = '\n';
+  out[sizeof(out)-1] = '\0';
+
+  int gap = (int) offset & 0x0f;
+  while (byte_count) {
+    unsigned int lineOffset = offset & ~0x0f;
+    int i, count;
+
+    char* hex = out;
+    char* asc = out + 59;
+
+    for (i = 0; i < 8; i++) {
+      *hex++ = gHexDigit[lineOffset >> 28];
+      lineOffset <<= 4;
+    }
+    hex++;
+    hex++;
+
+    count = ((int)byte_count > 16-gap) ? 16-gap : (int)byte_count; /* cap length */
+    CHECK_NE(count, 0);
+    CHECK_LE(count + gap, 16);
+
+    if (gap) {
+      /* only on first line */
+      hex += gap * 3;
+      asc += gap;
+    }
+
+    for (i = gap ; i < count+gap; i++) {
+      *hex++ = gHexDigit[*addr >> 4];
+      *hex++ = gHexDigit[*addr & 0x0f];
+      hex++;
+      if (*addr >= 0x20 && *addr < 0x7f /*isprint(*addr)*/)
+      *asc++ = *addr;
+      else
+      *asc++ = '.';
+      addr++;
+    }
+    for ( ; i < 16; i++) {
+      /* erase extra stuff; only happens on last line */
+      *hex++ = ' ';
+      *hex++ = ' ';
+      hex++;
+      *asc++ = ' ';
+    }
+
+    LOG(INFO) << out;
+
+    gap = 0;
+    byte_count -= count;
+    offset += count;
+  }
+}
+
 }  // namespace art

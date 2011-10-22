@@ -169,6 +169,8 @@ class LogMessage {
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
 
+void HexDump(const void* address, size_t byte_count, bool show_actual_address = false);
+
 }  // namespace art
 
 #endif  // ART_SRC_LOGGING_H_

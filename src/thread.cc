@@ -26,6 +26,7 @@
 #include <iostream>
 #include <list>
 
+#include "debugger.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "context.h"
@@ -165,10 +166,7 @@ void* Thread::CreateCallback(void* arg) {
   // in progress while we were starting up.)
   runtime->GetThreadList()->WaitForGo();
 
-  // TODO: say "hi" to the debugger.
-  //if (gDvm.debuggerConnected) {
-  //  dvmDbgPostThreadStart(self);
-  //}
+  Dbg::PostThreadStart(self);
 
   // Invoke the 'run' method of our java.lang.Thread.
   CHECK(self->peer_ != NULL);
@@ -767,10 +765,7 @@ Thread::~Thread() {
     // this.vmData = 0;
     SetVmData(peer_, NULL);
 
-    // TODO: say "bye" to the debugger.
-    //if (gDvm.debuggerConnected) {
-    //  dvmDbgPostThreadDeath(self);
-    //}
+    Dbg::PostThreadDeath(this);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock
     // object. Signal anyone who is waiting.

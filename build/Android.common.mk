@@ -111,6 +111,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/dalvik_system_VMRuntime.cc \
 	src/dalvik_system_VMStack.cc \
 	src/dalvik_system_Zygote.cc \
+	src/debugger.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_instruction.cc \
@@ -137,6 +138,12 @@ LIBART_COMMON_SRC_FILES := \
 	src/java_lang_reflect_Method.cc \
 	src/java_lang_reflect_Proxy.cc \
 	src/java_util_concurrent_atomic_AtomicLong.cc \
+	src/jdwp/jdwp_constants.cc \
+	src/jdwp/jdwp_event.cc \
+	src/jdwp/jdwp_expand_buf.cc \
+	src/jdwp/jdwp_handler.cc \
+	src/jdwp/jdwp_main.cc \
+	src/jdwp/jdwp_socket.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
 	src/jni_internal_arm.cc \
@@ -179,6 +186,7 @@ LIBART_COMMON_SRC_FILES := \
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
+	src/jdwp/jdwp_adb.cc \
 	src/logging_android.cc \
 	src/monitor_android.cc \
 	src/runtime_android.cc \

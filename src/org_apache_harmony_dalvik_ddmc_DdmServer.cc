@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "debugger.h"
 #include "logging.h"
 
 #include "JniConstants.h"  // Last to avoid problems with LOG redefinition.
@@ -28,7 +29,7 @@ static void DdmServer_nativeSendChunk(JNIEnv* env, jclass, jint type,
 {
   ScopedByteArrayRO data(env, javaData);
   DCHECK_LE(offset + length, static_cast<int32_t>(data.size()));
-  UNIMPLEMENTED(WARNING) << "dvmDbgDdmSendChunk(type, length, data->get() + offset);";
+  Dbg::DdmSendChunk(type, length, reinterpret_cast<const uint8_t*>(&data[offset]));
 }
 
 static JNINativeMethod gMethods[] = {

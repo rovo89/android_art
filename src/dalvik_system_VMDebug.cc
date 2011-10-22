@@ -15,6 +15,7 @@
  */
 
 #include "class_linker.h"
+#include "debugger.h"
 #include "jni_internal.h"
 #include "ScopedUtfChars.h"
 #include "toStringArray.h"
@@ -112,18 +113,15 @@ void VMDebug_stopEmulatorTracing(JNIEnv*, jclass) {
 }
 
 jboolean VMDebug_isDebuggerConnected(JNIEnv*, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return JNI_FALSE; //dvmDbgIsDebuggerConnected();
+  return Dbg::IsDebuggerConnected();
 }
 
 jboolean VMDebug_isDebuggingEnabled(JNIEnv*, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return JNI_FALSE; //return gDvm.jdwpConfigured;
+  return Dbg::IsDebuggingEnabled();
 }
 
 jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return 0; //dvmDbgLastDebuggerActivity();
+  return Dbg::LastDebuggerActivity();
 }
 
 void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
