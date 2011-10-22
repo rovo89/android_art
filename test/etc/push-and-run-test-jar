@@ -102,13 +102,13 @@ else
 fi
 
 if [ "$DEBUG" = "y" ]; then
-    DEX_DEBUG="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
+  DEX_DEBUG="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
 fi
 
 if [ "$ZYGOTE" = "y" ]; then
   adb shell cd /data \; dvz -classpath $TEST_NAME.jar Main "$@"
 else
-  cmdline="cd /data; $INVOKE_WITH $OATEXEC -Xjnigreflimit:256 \
+  cmdline="cd /data; $INVOKE_WITH $OATEXEC ${DEX_DEBUG} -Xjnigreflimit:256 \
       -Ximage:/data/art-test/core.art \
       -cp /data/art-test/$TEST_NAME.jar \
       Main"

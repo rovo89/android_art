@@ -23,8 +23,10 @@
 
 #include <pthread.h>
 
-#include "object.h"
+#include <string>
+
 #include "jdwp/jdwp.h"
+#include "object.h"
 
 namespace art {
 
@@ -62,6 +64,7 @@ struct DebugInvokeReq {
 
 class Dbg {
 public:
+  static bool ParseJdwpOptions(const std::string& options);
   static bool DebuggerStartup();
   static void DebuggerShutdown();
 

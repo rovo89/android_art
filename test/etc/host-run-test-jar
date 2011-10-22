@@ -116,5 +116,5 @@ if [ "$GDB" = "y" ]; then
 fi
 
 $INVOKE_WITH $gdb $exe $gdbargs "-Xbootclasspath:${bpath}" \
-    $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG -ea \
+    $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG ${DEBUG_OPTS} -ea \
     -cp test.jar Main "$@"

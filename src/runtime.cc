@@ -7,10 +7,9 @@
 #include <limits>
 #include <vector>
 
-#include "ScopedLocalRef.h"
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "debugger.h"
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
@@ -22,6 +21,7 @@
 #include "space.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "UniquePtr.h"
 
 // TODO: this drags in cutil/log.h, which conflicts with our logging.h.
 #include "JniConstants.h"
@@ -255,6 +255,13 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->images_.push_back(option.substr(strlen("-Ximage:")).data());
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
+    } else if (option.starts_with("-Xrunjdwp:") || option.starts_with("-agentlib:jdwp=")) {
+      std::string tail = option.substr(option[1] == 'X' ? 10 : 15).ToString();
+      if (tail == "help" || !Dbg::ParseJdwpOptions(tail)) {
+        LOG(FATAL) << "Example: -Xrunjdwp:transport=dt_socket,address=8000,server=y\n"
+                   << "Example: -Xrunjdwp:transport=dt_socket,address=localhost:6500,server=n";
+        return NULL;
+      }
     } else if (option.starts_with("-Xms")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
       if (size == 0) {

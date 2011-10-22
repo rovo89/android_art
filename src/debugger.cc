@@ -16,7 +16,130 @@
 
 #include "debugger.h"
 
+#include <sys/uio.h>
+
 namespace art {
+
+// Was there a -Xrunjdwp or -agent argument on the command-line?
+static bool gJdwpConfigured = false;
+
+// Broken-down JDWP options. (Only valid if gJdwpConfigured is true.)
+static JDWP::JdwpTransportType gJdwpTransport;
+static bool gJdwpServer;
+static bool gJdwpSuspend;
+static std::string gJdwpHost;
+static int gJdwpPort;
+
+// Runtime JDWP state.
+static JDWP::JdwpState* gJdwpState = NULL;
+static bool gDebuggerConnected;  // debugger or DDMS is connected.
+static bool gDebuggerActive;     // debugger is making requests.
+
+/*
+ * Handle one of the JDWP name/value pairs.
+ *
+ * JDWP options are:
+ *  help: if specified, show help message and bail
+ *  transport: may be dt_socket or dt_shmem
+ *  address: for dt_socket, "host:port", or just "port" when listening
+ *  server: if "y", wait for debugger to attach; if "n", attach to debugger
+ *  timeout: how long to wait for debugger to connect / listen
+ *
+ * Useful with server=n (these aren't supported yet):
+ *  onthrow=<exception-name>: connect to debugger when exception thrown
+ *  onuncaught=y|n: connect to debugger when uncaught exception thrown
+ *  launch=<command-line>: launch the debugger itself
+ *
+ * The "transport" option is required, as is "address" if server=n.
+ */
+static bool ParseJdwpOption(const std::string& name, const std::string& value) {
+  if (name == "transport") {
+    if (value == "dt_socket") {
+      gJdwpTransport = JDWP::kJdwpTransportSocket;
+    } else if (value == "dt_android_adb") {
+      gJdwpTransport = JDWP::kJdwpTransportAndroidAdb;
+    } else {
+      LOG(ERROR) << "JDWP transport not supported: " << value;
+      return false;
+    }
+  } else if (name == "server") {
+    if (value == "n") {
+      gJdwpServer = false;
+    } else if (value == "y") {
+      gJdwpServer = true;
+    } else {
+      LOG(ERROR) << "JDWP option 'server' must be 'y' or 'n'";
+      return false;
+    }
+  } else if (name == "suspend") {
+    if (value == "n") {
+      gJdwpSuspend = false;
+    } else if (value == "y") {
+      gJdwpSuspend = true;
+    } else {
+      LOG(ERROR) << "JDWP option 'suspend' must be 'y' or 'n'";
+      return false;
+    }
+  } else if (name == "address") {
+    /* this is either <port> or <host>:<port> */
+    std::string port_string;
+    gJdwpHost.clear();
+    std::string::size_type colon = value.find(':');
+    if (colon != std::string::npos) {
+      gJdwpHost = value.substr(0, colon);
+      port_string = value.substr(colon + 1);
+    } else {
+      port_string = value;
+    }
+    if (port_string.empty()) {
+      LOG(ERROR) << "JDWP address missing port: " << value;
+      return false;
+    }
+    char* end;
+    long port = strtol(port_string.c_str(), &end, 10);
+    if (*end != '\0') {
+      LOG(ERROR) << "JDWP address has junk in port field: " << value;
+      return false;
+    }
+    gJdwpPort = port;
+  } else if (name == "launch" || name == "onthrow" || name == "oncaught" || name == "timeout") {
+    /* valid but unsupported */
+    LOG(INFO) << "Ignoring JDWP option '" << name << "'='" << value << "'";
+  } else {
+    LOG(INFO) << "Ignoring unrecognized JDWP option '" << name << "'='" << value << "'";
+  }
+
+  return true;
+}
+
+/*
+ * Parse the latter half of a -Xrunjdwp/-agentlib:jdwp= string, e.g.:
+ * "transport=dt_socket,address=8000,server=y,suspend=n"
+ */
+bool Dbg::ParseJdwpOptions(const std::string& options) {
+  std::vector<std::string> pairs;
+  Split(options, ',', pairs);
+
+  for (size_t i = 0; i < pairs.size(); ++i) {
+    std::string::size_type equals = pairs[i].find('=');
+    if (equals == std::string::npos) {
+      LOG(ERROR) << "Can't parse JDWP option '" << pairs[i] << "' in '" << options << "'";
+      return false;
+    }
+    ParseJdwpOption(pairs[i].substr(0, equals), pairs[i].substr(equals + 1));
+  }
+
+  if (gJdwpTransport == JDWP::kJdwpTransportUnknown) {
+    LOG(ERROR) << "Must specify JDWP transport: " << options;
+  }
+  if (!gJdwpServer && (gJdwpHost.empty() || gJdwpPort == 0)) {
+    LOG(ERROR) << "Must specify JDWP host and port when server=n: " << options;
+    return false;
+  }
+
+  gJdwpConfigured = true;
+  return true;
+}
 
 bool Dbg::DebuggerStartup() {
   UNIMPLEMENTED(FATAL);
@@ -33,7 +156,9 @@ DebugInvokeReq* Dbg::GetInvokeReq() {
 }
 
 void Dbg::Connected() {
-  UNIMPLEMENTED(FATAL);
+  CHECK(!gDebuggerConnected);
+  LOG(VERBOSE) << "JDWP has attached";
+  gDebuggerConnected = true;
 }
 
 void Dbg::Active() {
@@ -45,13 +170,11 @@ void Dbg::Disconnected() {
 }
 
 bool Dbg::IsDebuggerConnected() {
-  UNIMPLEMENTED(WARNING);
-  return false;
+  return gDebuggerActive;
 }
 
 bool Dbg::IsDebuggingEnabled() {
-  UNIMPLEMENTED(WARNING);
-  return false; //return gDvm.jdwpConfigured;
+  return gJdwpConfigured;
 }
 
 int64_t Dbg::LastDebuggerActivity() {
@@ -376,10 +499,16 @@ void Dbg::PostException(void* throwFp, int throwRelPc, void* catchFp, int catchR
 }
 
 void Dbg::PostThreadStart(Thread* t) {
+  if (!gDebuggerConnected) {
+    return;
+  }
   UNIMPLEMENTED(WARNING);
 }
 
 void Dbg::PostThreadDeath(Thread* t) {
+  if (!gDebuggerConnected) {
+    return;
+  }
   UNIMPLEMENTED(WARNING);
 }
 
@@ -431,12 +560,20 @@ void Dbg::DdmDisconnected() {
   UNIMPLEMENTED(FATAL);
 }
 
-void Dbg::DdmSendChunk(int type, size_t length, const uint8_t* buf) {
-  UNIMPLEMENTED(WARNING) << "DdmSendChunk(" << type << ", " << length << ", " << (void*) buf << ");";
+void Dbg::DdmSendChunk(int type, size_t byte_count, const uint8_t* buf) {
+  CHECK(buf != NULL);
+  iovec vec[1];
+  vec[0].iov_base = reinterpret_cast<void*>(const_cast<uint8_t*>(buf));
+  vec[0].iov_len = byte_count;
+  Dbg::DdmSendChunkV(type, vec, 1);
 }
 
 void Dbg::DdmSendChunkV(int type, const struct iovec* iov, int iovcnt) {
-  UNIMPLEMENTED(FATAL);
+  if (gJdwpState == NULL) {
+    LOG(VERBOSE) << "Debugger thread not active, ignoring DDM send: " << type;
+  } else {
+    JDWP::DdmSendChunkV(gJdwpState, type, iov, iovcnt);
+  }
 }
 
 }  // namespace art
