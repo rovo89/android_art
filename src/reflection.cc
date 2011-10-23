@@ -114,7 +114,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   }
 
   // Box if necessary and return.
-  BoxPrimitive(env, m->GetReturnType(), value);
+  BoxPrimitive(env, m->GetReturnType()->GetPrimitiveType(), value);
   return AddLocalReference<jobject>(env, value.l);
 }
 
@@ -153,66 +153,65 @@ bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
  * Returns the width in 32-bit words of the destination primitive, or
  * -1 if the conversion is not allowed.
  */
-bool ConvertPrimitiveValue(Class* src_class, Class* dst_class, const JValue& src, JValue& dst) {
-  Class::PrimitiveType srcType = src_class->GetPrimitiveType();
-  Class::PrimitiveType dstType = dst_class->GetPrimitiveType();
+bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
+                           const JValue& src, JValue& dst) {
   switch (dstType) {
-  case Class::kPrimBoolean:
-  case Class::kPrimChar:
-  case Class::kPrimByte:
+  case Primitive::kPrimBoolean:
+  case Primitive::kPrimChar:
+  case Primitive::kPrimByte:
     if (srcType == dstType) {
       dst.i = src.i;
       return true;
     }
     break;
-  case Class::kPrimShort:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimShort) {
+  case Primitive::kPrimShort:
+    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimShort) {
       dst.i = src.i;
       return true;
     }
     break;
-  case Class::kPrimInt:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
+  case Primitive::kPrimInt:
+    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
+        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
       dst.i = src.i;
       return true;
     }
     break;
-  case Class::kPrimLong:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
+  case Primitive::kPrimLong:
+    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
+        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
       dst.j = src.i;
       return true;
-    } else if (srcType == Class::kPrimLong) {
+    } else if (srcType == Primitive::kPrimLong) {
       dst.j = src.j;
       return true;
     }
     break;
-  case Class::kPrimFloat:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
+  case Primitive::kPrimFloat:
+    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
+        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
       dst.f = src.i;
       return true;
-    } else if (srcType == Class::kPrimLong) {
+    } else if (srcType == Primitive::kPrimLong) {
       dst.f = src.j;
       return true;
-    } else if (srcType == Class::kPrimFloat) {
+    } else if (srcType == Primitive::kPrimFloat) {
       dst.i = src.i;
       return true;
     }
     break;
-  case Class::kPrimDouble:
-    if (srcType == Class::kPrimByte || srcType == Class::kPrimChar ||
-        srcType == Class::kPrimShort || srcType == Class::kPrimInt) {
+  case Primitive::kPrimDouble:
+    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
+        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
       dst.d = src.i;
       return true;
-    } else if (srcType == Class::kPrimLong) {
+    } else if (srcType == Primitive::kPrimLong) {
       dst.d = src.j;
       return true;
-    } else if (srcType == Class::kPrimFloat) {
+    } else if (srcType == Primitive::kPrimFloat) {
       dst.d = src.f;
       return true;
-    } else if (srcType == Class::kPrimDouble) {
+    } else if (srcType == Primitive::kPrimDouble) {
       dst.j = src.j;
       return true;
     }
@@ -221,59 +220,59 @@ bool ConvertPrimitiveValue(Class* src_class, Class* dst_class, const JValue& src
     break;
   }
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-      "invalid primitive conversion from %s to %s",
-      PrettyDescriptor(src_class->GetDescriptor()).c_str(),
-      PrettyDescriptor(dst_class->GetDescriptor()).c_str());
+                                        "invalid primitive conversion from %s to %s",
+                                        PrettyDescriptor(srcType).c_str(),
+                                        PrettyDescriptor(dstType).c_str());
   return false;
 }
 
-void BoxPrimitive(JNIEnv* env, Class* src_class, JValue& value) {
-  if (!src_class->IsPrimitive()) {
+void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value) {
+  if (src_class == Primitive::kPrimNot) {
     return;
   }
 
   Method* m = NULL;
   UniquePtr<byte[]> args(new byte[8]);
   memset(&args[0], 0, 8);
-  switch (src_class->GetPrimitiveType()) {
-  case Class::kPrimBoolean:
+  switch (src_class) {
+  case Primitive::kPrimBoolean:
     m = gBoolean_valueOf;
     *reinterpret_cast<uint32_t*>(&args[0]) = value.z;
     break;
-  case Class::kPrimByte:
+  case Primitive::kPrimByte:
     m = gByte_valueOf;
     *reinterpret_cast<uint32_t*>(&args[0]) = value.b;
     break;
-  case Class::kPrimChar:
+  case Primitive::kPrimChar:
     m = gCharacter_valueOf;
     *reinterpret_cast<uint32_t*>(&args[0]) = value.c;
     break;
-  case Class::kPrimDouble:
+  case Primitive::kPrimDouble:
     m = gDouble_valueOf;
     *reinterpret_cast<double*>(&args[0]) = value.d;
     break;
-  case Class::kPrimFloat:
+  case Primitive::kPrimFloat:
     m = gFloat_valueOf;
     *reinterpret_cast<float*>(&args[0]) = value.f;
     break;
-  case Class::kPrimInt:
+  case Primitive::kPrimInt:
     m = gInteger_valueOf;
     *reinterpret_cast<uint32_t*>(&args[0]) = value.i;
     break;
-  case Class::kPrimLong:
+  case Primitive::kPrimLong:
     m = gLong_valueOf;
     *reinterpret_cast<uint64_t*>(&args[0]) = value.j;
     break;
-  case Class::kPrimShort:
+  case Primitive::kPrimShort:
     m = gShort_valueOf;
     *reinterpret_cast<uint32_t*>(&args[0]) = value.s;
     break;
-  case Class::kPrimVoid:
+  case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
     value.l = NULL;
     return;
   default:
-    LOG(FATAL) << PrettyClass(src_class);
+    LOG(FATAL) << static_cast<int>(src_class);
   }
 
   Thread* self = Thread::Current();
@@ -282,7 +281,7 @@ void BoxPrimitive(JNIEnv* env, Class* src_class, JValue& value) {
 }
 
 bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value) {
-  if (dst_class->GetPrimitiveType() == Class::kPrimNot) {
+  if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
       jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
           "expected object of type %s, but got %s",
@@ -292,7 +291,7 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
     }
     unboxed_value.l = o;
     return true;
-  } else if (dst_class->GetPrimitiveType() == Class::kPrimVoid) {
+  } else if (dst_class->GetPrimitiveType() == Primitive::kPrimVoid) {
     Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
         "can't unbox to void");
     return false;
@@ -339,7 +338,8 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
     return false;
   }
 
-  return ConvertPrimitiveValue(src_class, dst_class, boxed_value, unboxed_value);
+  return ConvertPrimitiveValue(src_class->GetPrimitiveType(), dst_class->GetPrimitiveType(),
+                               boxed_value, unboxed_value);
 }
 
 }  // namespace art

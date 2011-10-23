@@ -16,6 +16,10 @@
 
 namespace art {
 
+bool Heap::is_verbose_heap_ = false;
+
+bool Heap::is_verbose_gc_ = false;
+
 std::vector<Space*> Heap::spaces_;
 
 Space* Heap::alloc_space_ = NULL;
@@ -58,10 +62,14 @@ class ScopedHeapLock {
   }
 };
 
-void Heap::Init(size_t initial_size, size_t maximum_size,
+void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
+                size_t initial_size, size_t maximum_size,
                 const std::vector<std::string>& image_file_names) {
+  is_verbose_heap_ = is_verbose_heap;
+  is_verbose_gc_ = is_verbose_gc;
+
   const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
+  if (is_verbose_heap_ || runtime->IsVerboseStartup()) {
     LOG(INFO) << "Heap::Init entering";
   }
 
@@ -132,7 +140,7 @@ void Heap::Init(size_t initial_size, size_t maximum_size,
   // make it clear that you can't use locks during heap initialization.
   lock_ = new Mutex("Heap lock");
 
-  if (runtime->IsVerboseStartup()) {
+  if (is_verbose_heap_ || runtime->IsVerboseStartup()) {
     LOG(INFO) << "Heap::Init exiting";
   }
 }
@@ -283,7 +291,7 @@ void Heap::RecordFreeLocked(size_t freed_objects, size_t freed_bytes) {
 
 void Heap::RecordImageAllocations(Space* space) {
   const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
+  if (is_verbose_heap_ || runtime->IsVerboseStartup()) {
     LOG(INFO) << "Heap::RecordImageAllocations entering";
   }
   DCHECK(!Runtime::Current()->IsStarted());
@@ -296,7 +304,7 @@ void Heap::RecordImageAllocations(Space* space) {
     live_bitmap_->Set(obj);
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
   }
-  if (runtime->IsVerboseStartup()) {
+  if (is_verbose_heap_ || runtime->IsVerboseStartup()) {
     LOG(INFO) << "Heap::RecordImageAllocations exiting";
   }
 }
@@ -344,14 +352,12 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
-  LOG(INFO) << "GC_FOR_ALLOC: AllocWithoutGrowth: TODO: test";
   CollectGarbageInternal();
   ptr = space->AllocWithoutGrowth(size);
   if (ptr != NULL) {
     return ptr;
   }
 
-  LOG(INFO) << "GC_FOR_ALLOC: AllocWithGrowth: TODO: test";
   // Even that didn't work;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
   ptr = space->AllocWithGrowth(size);
@@ -361,8 +367,10 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     // OLD-TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
-    LOG(INFO) << "Grow heap (frag case) to " << new_footprint / MB
-              << "for " << size << "-byte allocation";
+    if (is_verbose_gc_) {
+      LOG(INFO) << "Grow heap (frag case) to " << new_footprint / MB
+                << "for " << size << "-byte allocation";
+    }
     return ptr;
   }
 
@@ -373,8 +381,10 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
   // cleared before throwing an OOME.
 
   // OLD-TODO: wait for the finalizers from the previous GC to finish
-  LOG(INFO) << "Forcing collection of SoftReferences for "
-            << size << "-byte allocation";
+  if (is_verbose_gc_) {
+    LOG(INFO) << "Forcing collection of SoftReferences for "
+              << size << "-byte allocation";
+  }
   CollectGarbageInternal();
   ptr = space->AllocWithGrowth(size);
   if (ptr != NULL) {
@@ -512,11 +522,15 @@ void Heap::CollectGarbageInternal() {
   size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / footprint);
 
   uint32_t duration = (t1 - t0)/1000/1000;
-  LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
-            << percentFree << "% free "
-            << (num_bytes_allocated_/1024) << "KiB/" << (footprint/1024) << "KiB, "
-            << "paused " << duration << "ms";
-  timings.Dump();
+  if (is_verbose_gc_) {
+    LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
+              << percentFree << "% free "
+              << (num_bytes_allocated_/1024) << "KiB/" << (footprint/1024) << "KiB, "
+              << "paused " << duration << "ms";
+  }
+  if (is_verbose_heap_) {
+    timings.Dump();
+  }
 }
 
 void Heap::WaitForConcurrentGcToComplete() {
@@ -547,8 +561,10 @@ void Heap::WaitForConcurrentGcToComplete() {
 void Heap::SetIdealFootprint(size_t max_allowed_footprint)
 {
   if (max_allowed_footprint > Heap::maximum_size_) {
-    LOG(INFO) << "Clamp target GC heap from " << max_allowed_footprint
-              << " to " << Heap::maximum_size_;
+    if (is_verbose_gc_) {
+      LOG(INFO) << "Clamp target GC heap from " << max_allowed_footprint
+                << " to " << Heap::maximum_size_;
+    }
     max_allowed_footprint = Heap::maximum_size_;
   }
 

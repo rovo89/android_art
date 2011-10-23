@@ -495,7 +495,11 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList(options->IsVerbose("thread"));
   intern_table_ = new InternTable;
 
-  Heap::Init(options->heap_initial_size_, options->heap_maximum_size_, options->images_);
+  Heap::Init(options->IsVerbose("heap"),
+             options->IsVerbose("gc"),
+             options->heap_initial_size_,
+             options->heap_maximum_size_,
+             options->images_);
 
   BlockSignals();
 

@@ -288,7 +288,7 @@ class CommonTest : public testing::Test {
                                            const StringPiece& field_name) {
     for (size_t i = 0; i < dex_file.NumFieldIds(); i++) {
       const DexFile::FieldId& field_id = dex_file.GetFieldId(i);
-      if (class_descriptor == dex_file.GetFieldClassDescriptor(field_id)
+      if (class_descriptor == dex_file.GetFieldDeclaringClassDescriptor(field_id)
           && field_name == dex_file.GetFieldName(field_id)) {
         return i;
       }

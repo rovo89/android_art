@@ -328,9 +328,6 @@ class ImageDump {
       StringAppendF(&summary, "METHOD %s", PrettyMethod(method).c_str());
     } else if (obj->IsField()) {
       Field* field = obj->AsField();
-      Class* type = field->GetType();
-      std::string type_string;
-      type_string += (type == NULL) ? "<UNKNOWN>" : type->GetDescriptor()->ToModifiedUtf8();
       StringAppendF(&summary, "FIELD %s", PrettyField(field).c_str());
     } else if (obj->IsArrayInstance()) {
       StringAppendF(&summary, "ARRAY %d", obj->AsArray()->GetLength());

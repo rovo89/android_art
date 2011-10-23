@@ -434,16 +434,16 @@ TEST_F(ObjectTest, FindInstanceField) {
   ASSERT_TRUE(c != NULL);
 
   // Wrong type.
-  EXPECT_TRUE(c->FindDeclaredInstanceField("count", class_linker_->FindSystemClass("J")) == NULL);
-  EXPECT_TRUE(c->FindInstanceField("count", class_linker_->FindSystemClass("J")) == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "J") == NULL);
+  EXPECT_TRUE(c->FindInstanceField("count", "J") == NULL);
 
   // Wrong name.
-  EXPECT_TRUE(c->FindDeclaredInstanceField("Count", class_linker_->FindSystemClass("I")) == NULL);
-  EXPECT_TRUE(c->FindInstanceField("Count", class_linker_->FindSystemClass("I")) == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("Count", "I") == NULL);
+  EXPECT_TRUE(c->FindInstanceField("Count", "I") == NULL);
 
   // Right name and type.
-  Field* f1 = c->FindDeclaredInstanceField("count", class_linker_->FindSystemClass("I"));
-  Field* f2 = c->FindInstanceField("count", class_linker_->FindSystemClass("I"));
+  Field* f1 = c->FindDeclaredInstanceField("count", "I");
+  Field* f2 = c->FindInstanceField("count", "I");
   EXPECT_TRUE(f1 != NULL);
   EXPECT_TRUE(f2 != NULL);
   EXPECT_EQ(f1, f2);
@@ -454,9 +454,9 @@ TEST_F(ObjectTest, FindInstanceField) {
   c = class_linker_->FindSystemClass("Ljava/lang/StringBuilder;");
   ASSERT_TRUE(c != NULL);
   // No StringBuilder.count...
-  EXPECT_TRUE(c->FindDeclaredInstanceField("count", class_linker_->FindSystemClass("I")) == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "I") == NULL);
   // ...but there is an AbstractStringBuilder.count.
-  EXPECT_TRUE(c->FindInstanceField("count", class_linker_->FindSystemClass("I")) != NULL);
+  EXPECT_TRUE(c->FindInstanceField("count", "I") != NULL);
 }
 
 TEST_F(ObjectTest, FindStaticField) {
@@ -466,16 +466,16 @@ TEST_F(ObjectTest, FindStaticField) {
   ASSERT_TRUE(c != NULL);
 
   // Wrong type.
-  EXPECT_TRUE(c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", class_linker_->FindSystemClass("I")) == NULL);
-  EXPECT_TRUE(c->FindStaticField("CASE_INSENSITIVE_ORDER", class_linker_->FindSystemClass("I")) == NULL);
+  EXPECT_TRUE(c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "I") == NULL);
+  EXPECT_TRUE(c->FindStaticField("CASE_INSENSITIVE_ORDER", "I") == NULL);
 
   // Wrong name.
-  EXPECT_TRUE(c->FindDeclaredStaticField("cASE_INSENSITIVE_ORDER", class_linker_->FindSystemClass("Ljava/util/Comparator;")) == NULL);
-  EXPECT_TRUE(c->FindStaticField("cASE_INSENSITIVE_ORDER", class_linker_->FindSystemClass("Ljava/util/Comparator;")) == NULL);
+  EXPECT_TRUE(c->FindDeclaredStaticField("cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == NULL);
+  EXPECT_TRUE(c->FindStaticField("cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == NULL);
 
   // Right name and type.
-  Field* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", class_linker_->FindSystemClass("Ljava/util/Comparator;"));
-  Field* f2 = c->FindStaticField("CASE_INSENSITIVE_ORDER", class_linker_->FindSystemClass("Ljava/util/Comparator;"));
+  Field* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  Field* f2 = c->FindStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
   EXPECT_TRUE(f1 != NULL);
   EXPECT_TRUE(f2 != NULL);
   EXPECT_EQ(f1, f2);

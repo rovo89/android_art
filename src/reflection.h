@@ -18,6 +18,7 @@
 #define ART_SRC_REFLECTION_H_
 
 #include "jni.h"
+#include "primitive.h"
 
 namespace art {
 
@@ -26,10 +27,10 @@ union JValue;
 class Object;
 
 void InitBoxingMethods(JNIEnv* env);
-void BoxPrimitive(JNIEnv* env, Class* src_class, JValue& value);
+void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value);
 bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value);
 
-bool ConvertPrimitiveValue(Class* src_class, Class* dst_class, const JValue& src, JValue& dst);
+bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src, JValue& dst);
 
 jobject InvokeMethod(JNIEnv* env, jobject method, jobject receiver, jobject args, jobject params);
 

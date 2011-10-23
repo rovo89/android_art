@@ -237,12 +237,12 @@ public:
     if (f == NULL) {
       return;
     }
-    Class* f_type = f->GetType();
     // check invariant that all jfieldIDs have resolved types
-    DCHECK(f_type != NULL);
+    DCHECK(f->GetType() != NULL);
     Class* c = o->GetClass();
-    if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f_type) == NULL) {
-      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f) << " not valid for an object of class " << PrettyTypeOf(o);
+    if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f->GetTypeDescriptor()) == NULL) {
+      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f) 
+                 << " not valid for an object of class " << PrettyTypeOf(o);
       JniAbort();
     }
   }

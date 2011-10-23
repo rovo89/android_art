@@ -35,7 +35,7 @@ class RegTypeCache;
 
 /*
  * RegType holds information about the type of data held in a register. For most types it's a simple
- * enum. For reference types it holds a pointer to the ClassObject, and for uninitialized references
+ * enum. For reference types it holds a pointer to the Class*, and for uninitialized references
  * it holds an index into the UninitInstanceMap.
  */
 class RegType {

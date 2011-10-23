@@ -116,9 +116,11 @@ void SignalCatcher::HandleSigQuit() {
 
   runtime->Dump(os);
 
-  std::string maps;
-  if (ReadFileToString("/proc/self/maps", &maps)) {
-    os << "/proc/self/maps:\n" << maps;
+  if (false) {
+    std::string maps;
+    if (ReadFileToString("/proc/self/maps", &maps)) {
+      os << "/proc/self/maps:\n" << maps;
+    }
   }
 
   os << "----- end " << getpid() << " -----\n";

@@ -235,6 +235,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
       Field* field = klass->GetInstanceField(i);
+      ASSERT_TRUE(!field->IsPrimitiveType());
       Class* field_type = field->GetType();
       ASSERT_TRUE(field_type != NULL);
       ASSERT_TRUE(!field_type->IsPrimitive());
@@ -243,7 +244,7 @@ class ClassLinkerTest : public CommonTest {
       Field* field = klass->GetInstanceField(i);
       Class* field_type = field->GetType();
       ASSERT_TRUE(field_type != NULL);
-      if (!field_type->IsPrimitive()) {
+      if (!field->IsPrimitiveType() || !field_type->IsPrimitive()) {
         // While Reference.referent is not primitive, the ClassLinker
         // treats it as such so that the garbage collector won't scan it.
         EXPECT_EQ(PrettyField(field), "java.lang.Object java.lang.ref.Reference.referent");
@@ -830,49 +831,49 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   EXPECT_EQ(9U, statics->NumStaticFields());
 
-  Field* s0 = statics->FindStaticField("s0", class_linker_->FindClass("Z", class_loader.get()));
+  Field* s0 = statics->FindStaticField("s0", "Z");
   EXPECT_TRUE(s0->GetClass()->GetDescriptor()->Equals("Ljava/lang/reflect/Field;"));
-  EXPECT_TRUE(s0->GetType()->IsPrimitiveBoolean());
+  EXPECT_TRUE(s0->GetPrimitiveType() == Primitive::kPrimBoolean);
   EXPECT_EQ(true, s0->GetBoolean(NULL));
   s0->SetBoolean(NULL, false);
 
-  Field* s1 = statics->FindStaticField("s1", class_linker_->FindClass("B", class_loader.get()));
-  EXPECT_TRUE(s1->GetType()->IsPrimitiveByte());
+  Field* s1 = statics->FindStaticField("s1", "B");
+  EXPECT_TRUE(s1->GetPrimitiveType() == Primitive::kPrimByte);
   EXPECT_EQ(5, s1->GetByte(NULL));
   s1->SetByte(NULL, 6);
 
-  Field* s2 = statics->FindStaticField("s2", class_linker_->FindClass("C", class_loader.get()));
-  EXPECT_TRUE(s2->GetType()->IsPrimitiveChar());
+  Field* s2 = statics->FindStaticField("s2", "C");
+  EXPECT_TRUE(s2->GetPrimitiveType() == Primitive::kPrimChar);
   EXPECT_EQ('a', s2->GetChar(NULL));
   s2->SetChar(NULL, 'b');
 
-  Field* s3 = statics->FindStaticField("s3", class_linker_->FindClass("S", class_loader.get()));
-  EXPECT_TRUE(s3->GetType()->IsPrimitiveShort());
+  Field* s3 = statics->FindStaticField("s3", "S");
+  EXPECT_TRUE(s3->GetPrimitiveType() == Primitive::kPrimShort);
   EXPECT_EQ(-536, s3->GetShort(NULL));
   s3->SetShort(NULL, -535);
 
-  Field* s4 = statics->FindStaticField("s4", class_linker_->FindClass("I", class_loader.get()));
-  EXPECT_TRUE(s4->GetType()->IsPrimitiveInt());
+  Field* s4 = statics->FindStaticField("s4", "I");
+  EXPECT_TRUE(s4->GetPrimitiveType() == Primitive::kPrimInt);
   EXPECT_EQ(2000000000, s4->GetInt(NULL));
   s4->SetInt(NULL, 2000000001);
 
-  Field* s5 = statics->FindStaticField("s5", class_linker_->FindClass("J", class_loader.get()));
-  EXPECT_TRUE(s5->GetType()->IsPrimitiveLong());
+  Field* s5 = statics->FindStaticField("s5", "J");
+  EXPECT_TRUE(s5->GetPrimitiveType() == Primitive::kPrimLong);
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));
   s5->SetLong(NULL, 0x34567890abcdef12LL);
 
-  Field* s6 = statics->FindStaticField("s6", class_linker_->FindClass("F", class_loader.get()));
-  EXPECT_TRUE(s6->GetType()->IsPrimitiveFloat());
+  Field* s6 = statics->FindStaticField("s6", "F");
+  EXPECT_TRUE(s6->GetPrimitiveType() == Primitive::kPrimFloat);
   EXPECT_EQ(0.5, s6->GetFloat(NULL));
   s6->SetFloat(NULL, 0.75);
 
-  Field* s7 = statics->FindStaticField("s7", class_linker_->FindClass("D", class_loader.get()));
-  EXPECT_TRUE(s7->GetType()->IsPrimitiveDouble());
+  Field* s7 = statics->FindStaticField("s7", "D");
+  EXPECT_TRUE(s7->GetPrimitiveType() == Primitive::kPrimDouble);
   EXPECT_EQ(16777217, s7->GetDouble(NULL));
   s7->SetDouble(NULL, 16777219);
 
-  Field* s8 = statics->FindStaticField("s8", class_linker_->FindClass("Ljava/lang/String;", class_loader.get()));
-  EXPECT_FALSE(s8->GetType()->IsPrimitive());
+  Field* s8 = statics->FindStaticField("s8", "Ljava/lang/String;");
+  EXPECT_TRUE(s8->GetPrimitiveType() == Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));
   s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
 

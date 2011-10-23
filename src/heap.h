@@ -45,10 +45,19 @@ class Heap {
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
-  static void Init(size_t starting_size, size_t maximum_size,
+  static void Init(bool is_verbose_heap, bool is_verbose_gc,
+                   size_t starting_size, size_t maximum_size,
                    const std::vector<std::string>& image_file_names);
 
   static void Destroy();
+
+  static bool IsVerboseHeap() {
+    return is_verbose_heap_;
+  }
+
+  static bool IsVerboseGc() {
+    return is_verbose_gc_;
+  }
 
   // Allocates and initializes storage for an object instance.
   static Object* AllocObject(Class* klass, size_t num_bytes);
@@ -186,6 +195,10 @@ class Heap {
   static void VerificationCallback(Object* obj, void* arg);
 
   static Mutex* lock_;
+
+  static bool is_verbose_heap_;
+
+  static bool is_verbose_gc_;
 
   static std::vector<Space*> spaces_;
 

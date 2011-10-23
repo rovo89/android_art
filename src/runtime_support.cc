@@ -184,7 +184,7 @@ static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
   const DexFile::FieldId& id = dex_file.GetFieldId(ref);
-  std::string class_name(PrettyDescriptor(dex_file.GetFieldClassDescriptor(id)));
+  std::string class_name(PrettyDescriptor(dex_file.GetFieldDeclaringClassDescriptor(id)));
   const char* field_name = dex_file.dexStringById(id.name_idx_);
   if (!access) {
     return class_name + "." + field_name;
@@ -206,7 +206,7 @@ static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
   const DexFile::MethodId& id = dex_file.GetMethodId(ref);
-  std::string class_name(PrettyDescriptor(dex_file.GetMethodClassDescriptor(id)));
+  std::string class_name(PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(id)));
   const char* method_name = dex_file.dexStringById(id.name_idx_);
   if (!access) {
     return class_name + "." + method_name;
@@ -496,16 +496,14 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* ref
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int32_t))) {
+    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int32_t))) {
       return field->Get32(NULL);
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    Class* type = field->GetType();
-    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int32_t)) {
+    if (!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int32_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of 32-bit primitive on field '%s'",
                                PrettyField(field, true).c_str());
@@ -520,16 +518,14 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* ref
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int64_t))) {
+    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int64_t))) {
       return field->Get64(NULL);
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    Class* type = field->GetType();
-    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t)) {
+    if (!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int64_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of 64-bit primitive on field '%s'",
                                PrettyField(field, true).c_str());
@@ -544,16 +540,14 @@ extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* ref
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (LIKELY(!type->IsPrimitive())) {
+    if (LIKELY(!field->IsPrimitiveType())) {
       return field->GetObj(NULL);
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    Class* type = field->GetType();
-    if (type->IsPrimitive()) {
+    if (field->IsPrimitiveType()) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of reference on primitive field '%s'",
                                PrettyField(field, true).c_str());
@@ -568,8 +562,7 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer
                                        uint32_t new_value, Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int32_t))) {
+    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int32_t))) {
       field->Set32(NULL, new_value);
       return 0;  // success
     }
@@ -577,8 +570,7 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    Class* type = field->GetType();
-    if (!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int32_t)) {
+    if (!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int32_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of 32-bit primitive to field '%s'",
                                PrettyField(field, true).c_str());
@@ -594,8 +586,7 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
                                       uint64_t new_value, Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (LIKELY(type->IsPrimitive() && type->PrimitiveSize() == sizeof(int64_t))) {
+    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int64_t))) {
       field->Set64(NULL, new_value);
       return 0;  // success
     }
@@ -603,8 +594,7 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (UNLIKELY(!type->IsPrimitive() || type->PrimitiveSize() != sizeof(int64_t))) {
+    if (UNLIKELY(!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int64_t))) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of 64-bit primitive to field '%s'",
                                PrettyField(field, true).c_str());
@@ -620,8 +610,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
                                        Object* new_value, Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    Class* type = field->GetType();
-    if (LIKELY(!type->IsPrimitive())) {
+    if (LIKELY(!field->IsPrimitiveType())) {
       field->SetObj(NULL, new_value);
       return 0;  // success
     }
@@ -629,8 +618,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    Class* type = field->GetType();
-    if (type->IsPrimitive()) {
+    if (field->IsPrimitiveType()) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of reference to primitive field '%s'",
                                PrettyField(field, true).c_str());
@@ -1021,7 +1009,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
         uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (13 * kPointerSize));
         val.j = (val.j & 0xffffffffULL) | (high_half << 32);
       }
-      BoxPrimitive(env, param_type, val);
+      BoxPrimitive(env, param_type->GetPrimitiveType(), val);
       if (self->IsExceptionPending()) {
         return;
       }
@@ -1040,7 +1028,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)));
     } else {
       JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
-      BoxPrimitive(env, param_type, val);
+      BoxPrimitive(env, param_type->GetPrimitiveType(), val);
       if (self->IsExceptionPending()) {
         return;
       }

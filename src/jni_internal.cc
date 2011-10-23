@@ -336,10 +336,11 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
         "\"%s\" or its superclasses", sig, name, class_descriptor.c_str());
     return NULL;
   }
+  std::string field_type_descriptor = field_type->GetDescriptor()->ToModifiedUtf8();
   if (is_static) {
-    field = c->FindStaticField(name, field_type);
+    field = c->FindStaticField(name, field_type_descriptor);
   } else {
-    field = c->FindInstanceField(name, field_type);
+    field = c->FindInstanceField(name, field_type_descriptor);
   }
   if (field == NULL) {
     std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());

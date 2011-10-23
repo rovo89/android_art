@@ -642,9 +642,9 @@ Class* FindClassOrDie(ClassLinker* class_linker, const char* descriptor) {
 }
 
 // TODO: make more accessible?
-Field* FindFieldOrDie(Class* c, const char* name, Class* type) {
-  Field* f = c->FindDeclaredInstanceField(name, type);
-  CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << PrettyClass(type);
+Field* FindFieldOrDie(Class* c, const char* name, const char* descriptor) {
+  Field* f = c->FindDeclaredInstanceField(name, descriptor);
+  CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << descriptor;
   return f;
 }
 
@@ -659,25 +659,21 @@ void Thread::FinishStartup() {
   // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
-  Class* boolean_class = FindPrimitiveClassOrDie(class_linker, 'Z');
-  Class* int_class = FindPrimitiveClassOrDie(class_linker, 'I');
-  Class* ClassLoader_class = FindClassOrDie(class_linker, "Ljava/lang/ClassLoader;");
-  Class* String_class = FindClassOrDie(class_linker, "Ljava/lang/String;");
   Class* Thread_class = FindClassOrDie(class_linker, "Ljava/lang/Thread;");
   Class* ThreadGroup_class = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
   Class* UncaughtExceptionHandler_class = FindClassOrDie(class_linker, "Ljava/lang/Thread$UncaughtExceptionHandler;");
   gThreadLock = FindClassOrDie(class_linker, "Ljava/lang/ThreadLock;");
   gThrowable = FindClassOrDie(class_linker, "Ljava/lang/Throwable;");
 
-  gThread_daemon = FindFieldOrDie(Thread_class, "daemon", boolean_class);
-  gThread_group = FindFieldOrDie(Thread_class, "group", ThreadGroup_class);
-  gThread_lock = FindFieldOrDie(Thread_class, "lock", gThreadLock);
-  gThread_name = FindFieldOrDie(Thread_class, "name", String_class);
-  gThread_priority = FindFieldOrDie(Thread_class, "priority", int_class);
-  gThread_uncaughtHandler = FindFieldOrDie(Thread_class, "uncaughtHandler", UncaughtExceptionHandler_class);
-  gThread_vmData = FindFieldOrDie(Thread_class, "vmData", int_class);
-  gThreadGroup_name = FindFieldOrDie(ThreadGroup_class, "name", String_class);
-  gThreadLock_thread = FindFieldOrDie(gThreadLock, "thread", Thread_class);
+  gThread_daemon = FindFieldOrDie(Thread_class, "daemon", "Z");
+  gThread_group = FindFieldOrDie(Thread_class, "group", "Ljava/lang/ThreadGroup;");
+  gThread_lock = FindFieldOrDie(Thread_class, "lock", "Ljava/lang/ThreadLock;");
+  gThread_name = FindFieldOrDie(Thread_class, "name", "Ljava/lang/String;");
+  gThread_priority = FindFieldOrDie(Thread_class, "priority", "I");
+  gThread_uncaughtHandler = FindFieldOrDie(Thread_class, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
+  gThread_vmData = FindFieldOrDie(Thread_class, "vmData", "I");
+  gThreadGroup_name = FindFieldOrDie(ThreadGroup_class, "name", "Ljava/lang/String;");
+  gThreadLock_thread = FindFieldOrDie(gThreadLock, "thread", "Ljava/lang/Thread;");
 
   gThread_run = FindMethodOrDie(Thread_class, "run", "()V");
   gThreadGroup_removeThread = FindMethodOrDie(ThreadGroup_class, "removeThread", "(Ljava/lang/Thread;)V");
@@ -688,7 +684,7 @@ void Thread::FinishStartup() {
   Thread* self = Thread::Current();
   self->CreatePeer("main", false);
 
-  const Field* Thread_contextClassLoader = FindFieldOrDie(Thread_class , "contextClassLoader", ClassLoader_class);
+  const Field* Thread_contextClassLoader = FindFieldOrDie(Thread_class , "contextClassLoader", "Ljava/lang/ClassLoader;");
   Thread_contextClassLoader->SetObject(self->GetPeer(), self->GetClassLoaderOverride());
 }
 
@@ -1235,7 +1231,15 @@ Thread* Thread::CurrentFromGdb() {
 }
 
 void Thread::DumpFromGdb() const {
-  Dump(std::cerr);
+  std::ostringstream ss;
+  Dump(ss);
+  std::string str = ss.str();
+  // log to stderr for debugging command line processes
+  std::cerr << str;
+#ifdef HAVE_ANDROID_OS
+  // log to logcat for debugging frameworks processes
+  LOG(INFO) << str;
+#endif
 }
 
 class CatchBlockStackVisitor : public Thread::StackVisitor {

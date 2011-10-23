@@ -289,18 +289,18 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
   }
 }
 
-static RegType::Type RegTypeFromPrimitiveType(Class::PrimitiveType prim_type) {
+static RegType::Type RegTypeFromPrimitiveType(Primitive::Type prim_type) {
   switch (prim_type) {
-    case Class::kPrimBoolean: return RegType::kRegTypeBoolean;
-    case Class::kPrimByte:    return RegType::kRegTypeByte;
-    case Class::kPrimShort:   return RegType::kRegTypeShort;
-    case Class::kPrimChar:    return RegType::kRegTypeChar;
-    case Class::kPrimInt:     return RegType::kRegTypeInteger;
-    case Class::kPrimLong:    return RegType::kRegTypeLongLo;
-    case Class::kPrimFloat:   return RegType::kRegTypeFloat;
-    case Class::kPrimDouble:  return RegType::kRegTypeDoubleLo;
-    case Class::kPrimVoid:
-    default:                  return RegType::kRegTypeUnknown;
+    case Primitive::kPrimBoolean: return RegType::kRegTypeBoolean;
+    case Primitive::kPrimByte:    return RegType::kRegTypeByte;
+    case Primitive::kPrimShort:   return RegType::kRegTypeShort;
+    case Primitive::kPrimChar:    return RegType::kRegTypeChar;
+    case Primitive::kPrimInt:     return RegType::kRegTypeInteger;
+    case Primitive::kPrimLong:    return RegType::kRegTypeLongLo;
+    case Primitive::kPrimFloat:   return RegType::kRegTypeFloat;
+    case Primitive::kPrimDouble:  return RegType::kRegTypeDoubleLo;
+    case Primitive::kPrimVoid:
+    default:                      return RegType::kRegTypeUnknown;
   }
 }
 
@@ -2134,7 +2134,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             if (array_data[0] != Instruction::kArrayDataSignature) {
               Fail(VERIFY_ERROR_GENERIC) << "invalid magic for array-data";
             } else {
-              size_t elem_width = component_type->PrimitiveSize();
+              size_t elem_width = Primitive::ComponentSize(component_type->GetPrimitiveType());
               // Since we don't compress the data in Dex, expect to see equal width of data stored
               // in the table and expected from the array class.
               if (array_data[1] != elem_width) {
@@ -2952,7 +2952,7 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
       DCHECK(failure_ != VERIFY_ERROR_NONE);
       return NULL;
     }
-    const char* name = dex_file_->dexStringById(method_id.name_idx_);
+    const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodDescriptor(method_id.proto_idx_, NULL));
     if (is_direct) {
       res_method = klass->FindDirectMethod(name, signature);
@@ -2989,7 +2989,7 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(dec_insn.vB_);
     const char* method_name = dex_file_->GetMethodName(method_id);
     std::string method_signature = dex_file_->GetMethodSignature(method_id);
-    const char* class_descriptor = dex_file_->GetMethodClassDescriptor(method_id);
+    const char* class_descriptor = dex_file_->GetMethodDeclaringClassDescriptor(method_id);
     Fail(VERIFY_ERROR_GENERIC) << "unable to resolve method " << dec_insn.vB_ << ": "
                                << class_descriptor << "." << method_name << " " << method_signature;
     return NULL;
@@ -3236,7 +3236,7 @@ Field* DexVerifier::GetStaticField(int field_idx) {
     const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
     Fail(VERIFY_ERROR_NO_FIELD) << "unable to resolve static field " << field_idx << " ("
                                 << dex_file_->GetFieldName(field_id) << ") in "
-                                << dex_file_->GetFieldClassDescriptor(field_id);
+                                << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     return NULL;
@@ -3357,7 +3357,7 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
     const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
     Fail(VERIFY_ERROR_NO_FIELD) << "unable to resolve instance field " << field_idx << " ("
                                 << dex_file_->GetFieldName(field_id) << ") in "
-                                << dex_file_->GetFieldClassDescriptor(field_id);
+                                << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     return NULL;

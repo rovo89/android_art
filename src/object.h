@@ -29,6 +29,7 @@
 #include "logging.h"
 #include "macros.h"
 #include "offsets.h"
+#include "primitive.h"
 #include "runtime.h"
 #include "stringpiece.h"
 #include "thread.h"
@@ -425,6 +426,14 @@ class MANAGED Field : public AccessibleObject {
   // if type isn't yet resolved
   Class* GetTypeDuringLinking() const;
 
+  bool IsPrimitiveType() const;
+
+  Primitive::Type GetPrimitiveType() const;
+
+  size_t PrimitiveSize() const;
+
+  const char* GetTypeDescriptor() const;
+
   // Performs full resolution, may return null and set exceptions if type cannot
   // be resolved
   Class* GetType() const;
@@ -492,9 +501,9 @@ class MANAGED Field : public AccessibleObject {
 
   Object* generic_type_;
 
-  const String* name_;
+  String* name_;
 
-  // Type of the field
+  // The possibly null type of the field
   mutable Class* type_;
 
   uint32_t generic_types_are_initialized_;
@@ -1263,19 +1272,6 @@ class MANAGED Class : public StaticStorageBase {
     kStatusInitialized = 7,  // ready to go
   };
 
-  enum PrimitiveType {
-    kPrimNot = 0,
-    kPrimBoolean,
-    kPrimByte,
-    kPrimChar,
-    kPrimShort,
-    kPrimInt,
-    kPrimLong,
-    kPrimFloat,
-    kPrimDouble,
-    kPrimVoid,
-  };
-
   Status GetStatus() const {
     DCHECK_EQ(sizeof(Status), sizeof(uint32_t));
     return static_cast<Status>(GetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), false));
@@ -1383,61 +1379,57 @@ class MANAGED Class : public StaticStorageBase {
     return (GetAccessFlags() & kAccClassIsPhantomReference) != 0;
   }
 
-  PrimitiveType GetPrimitiveType() const {
-    DCHECK_EQ(sizeof(PrimitiveType), sizeof(int32_t));
-    return static_cast<PrimitiveType>(
+  Primitive::Type GetPrimitiveType() const {
+    DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
+    return static_cast<Primitive::Type>(
         GetField32(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), false));
   }
 
-  void SetPrimitiveType(PrimitiveType new_type) {
-    DCHECK_EQ(sizeof(PrimitiveType), sizeof(int32_t));
+  void SetPrimitiveType(Primitive::Type new_type) {
+    DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
     SetField32(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type, false);
   }
 
   // Returns true if the class is a primitive type.
   bool IsPrimitive() const {
-    return GetPrimitiveType() != kPrimNot;
+    return GetPrimitiveType() != Primitive::kPrimNot;
   }
 
   bool IsPrimitiveBoolean() const {
-    return GetPrimitiveType() == kPrimBoolean;
+    return GetPrimitiveType() == Primitive::kPrimBoolean;
   }
 
   bool IsPrimitiveByte() const {
-    return GetPrimitiveType() == kPrimByte;
+    return GetPrimitiveType() == Primitive::kPrimByte;
   }
 
   bool IsPrimitiveChar() const {
-    return GetPrimitiveType() == kPrimChar;
+    return GetPrimitiveType() == Primitive::kPrimChar;
   }
 
   bool IsPrimitiveShort() const {
-    return GetPrimitiveType() == kPrimShort;
+    return GetPrimitiveType() == Primitive::kPrimShort;
   }
 
   bool IsPrimitiveInt() const {
-    return GetPrimitiveType() == kPrimInt;
+    return GetPrimitiveType() == Primitive::kPrimInt;
   }
 
   bool IsPrimitiveLong() const {
-    return GetPrimitiveType() == kPrimLong;
+    return GetPrimitiveType() == Primitive::kPrimLong;
   }
 
   bool IsPrimitiveFloat() const {
-    return GetPrimitiveType() == kPrimFloat;
+    return GetPrimitiveType() == Primitive::kPrimFloat;
   }
 
   bool IsPrimitiveDouble() const {
-    return GetPrimitiveType() == kPrimDouble;
+    return GetPrimitiveType() == Primitive::kPrimDouble;
   }
 
   bool IsPrimitiveVoid() const {
-    return GetPrimitiveType() == kPrimVoid;
+    return GetPrimitiveType() == Primitive::kPrimVoid;
   }
-
-  size_t PrimitiveFieldSize() const;
-
-  size_t PrimitiveSize() const;
 
   // Depth of class from java.lang.Object
   size_t Depth() {
@@ -1463,7 +1455,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   size_t GetComponentSize() const {
-    return GetTypeSize(GetComponentType()->GetDescriptor());
+    return Primitive::ComponentSize(GetComponentType()->GetPrimitiveType());
   }
 
   bool IsObjectClass() const {
@@ -1472,8 +1464,6 @@ class MANAGED Class : public StaticStorageBase {
 
   // Creates a raw object instance but does not invoke the default constructor.
   Object* AllocObject();
-
-  static size_t GetTypeSize(const String* descriptor);
 
   const String* GetDescriptor() const {
     const String* result = GetFieldObject<const String*>(
@@ -1923,14 +1913,18 @@ class MANAGED Class : public StaticStorageBase {
   void SetReferenceStaticOffsets(uint32_t new_reference_offsets);
 
   // Finds the given instance field in this class or a superclass.
-  Field* FindInstanceField(const StringPiece& name, Class* type);
+  Field* FindInstanceField(const StringPiece& name, const StringPiece& type);
+  Field* FindInstanceField(String* name, String* type);
 
-  Field* FindDeclaredInstanceField(const StringPiece& name, Class* type);
+  Field* FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type);
+  Field* FindDeclaredInstanceField(String* name, String* type);
 
   // Finds the given static field in this class or a superclass.
-  Field* FindStaticField(const StringPiece& name, Class* type);
+  Field* FindStaticField(const StringPiece& name, const StringPiece& type);
+  Field* FindStaticField(String* name, String* type);
 
-  Field* FindDeclaredStaticField(const StringPiece& name, Class* type);
+  Field* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type);
+  Field* FindDeclaredStaticField(String* name, String* type);
 
   pid_t GetClinitThreadId() const {
     DCHECK(IsIdxLoaded() || IsErroneous());
@@ -2058,8 +2052,8 @@ class MANAGED Class : public StaticStorageBase {
   // See also class_size_.
   size_t object_size_;
 
-  // primitive type index, or kPrimNot (0); set for generated prim classes
-  PrimitiveType primitive_type_;
+  // primitive type index, or Primitive::kPrimNot (0); set for generated prim classes
+  Primitive::Type primitive_type_;
 
   // Bitmap of offsets of ifields.
   uint32_t reference_instance_offsets_;
@@ -2178,8 +2172,8 @@ inline size_t Object::SizeOf() const {
 
 inline void Field::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  Class* type = GetTypeDuringLinking();
-  if (type != NULL && (type->IsPrimitiveDouble() || type->IsPrimitiveLong())) {
+  Primitive::Type type = GetPrimitiveType();
+  if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {
     DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
   }
   SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), num_bytes.Uint32Value(), false);

@@ -92,14 +92,12 @@ TEST_F(UtilsTest, PrettyField) {
   EXPECT_EQ("null", PrettyField(NULL));
 
   Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
-  Class* int_class = class_linker_->FindPrimitiveClass('I');
-  Class* char_array_class = class_linker_->FindSystemClass("[C");
 
   Field* f;
-  f = java_lang_String->FindDeclaredInstanceField("count", int_class);
+  f = java_lang_String->FindDeclaredInstanceField("count", "I");
   EXPECT_EQ("int java.lang.String.count", PrettyField(f));
   EXPECT_EQ("java.lang.String.count", PrettyField(f, false));
-  f = java_lang_String->FindDeclaredInstanceField("value", char_array_class);
+  f = java_lang_String->FindDeclaredInstanceField("value", "[C");
   EXPECT_EQ("char[] java.lang.String.value", PrettyField(f));
   EXPECT_EQ("java.lang.String.value", PrettyField(f, false));
 }

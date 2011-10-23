@@ -30,39 +30,39 @@ jint Field_getFieldModifiers(JNIEnv* env, jobject jfield, jclass javaDeclaringCl
 }
 
 bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
-  switch (f->GetType()->GetPrimitiveType()) {
-  case Class::kPrimBoolean:
+  switch (f->GetPrimitiveType()) {
+  case Primitive::kPrimBoolean:
     value.z = f->GetBoolean(o);
     return true;
-  case Class::kPrimByte:
+  case Primitive::kPrimByte:
     value.b = f->GetByte(o);
     return true;
-  case Class::kPrimChar:
+  case Primitive::kPrimChar:
     value.c = f->GetChar(o);
     return true;
-  case Class::kPrimDouble:
+  case Primitive::kPrimDouble:
     value.d = f->GetDouble(o);
     return true;
-  case Class::kPrimFloat:
+  case Primitive::kPrimFloat:
     value.f = f->GetFloat(o);
     return true;
-  case Class::kPrimInt:
+  case Primitive::kPrimInt:
     value.i = f->GetInt(o);
     return true;
-  case Class::kPrimLong:
+  case Primitive::kPrimLong:
     value.j = f->GetLong(o);
     return true;
-  case Class::kPrimShort:
+  case Primitive::kPrimShort:
     value.s = f->GetShort(o);
     return true;
-  case Class::kPrimNot:
+  case Primitive::kPrimNot:
     if (allow_references) {
       value.l = f->GetObject(o);
       return true;
     }
     // Else break to report an error.
     break;
-  case Class::kPrimVoid:
+  case Primitive::kPrimVoid:
     // Never okay.
     break;
   }
@@ -101,7 +101,8 @@ JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass
   // Widen it if necessary (and possible).
   JValue wide_value;
   Class* dst_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(dst_descriptor);
-  if (!ConvertPrimitiveValue(f->GetType(), dst_type, field_value, wide_value)) {
+  if (!ConvertPrimitiveValue(f->GetPrimitiveType(), dst_type->GetPrimitiveType(),
+                             field_value, wide_value)) {
     return JValue();
   }
   return wide_value;
@@ -140,38 +141,38 @@ jboolean Field_getZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass
 }
 
 void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
-  switch (f->GetType()->GetPrimitiveType()) {
-  case Class::kPrimBoolean:
+  switch (f->GetPrimitiveType()) {
+  case Primitive::kPrimBoolean:
     f->SetBoolean(o, new_value.z);
     break;
-  case Class::kPrimByte:
+  case Primitive::kPrimByte:
     f->SetByte(o, new_value.b);
     break;
-  case Class::kPrimChar:
+  case Primitive::kPrimChar:
     f->SetChar(o, new_value.c);
     break;
-  case Class::kPrimDouble:
+  case Primitive::kPrimDouble:
     f->SetDouble(o, new_value.d);
     break;
-  case Class::kPrimFloat:
+  case Primitive::kPrimFloat:
     f->SetFloat(o, new_value.f);
     break;
-  case Class::kPrimInt:
+  case Primitive::kPrimInt:
     f->SetInt(o, new_value.i);
     break;
-  case Class::kPrimLong:
+  case Primitive::kPrimLong:
     f->SetLong(o, new_value.j);
     break;
-  case Class::kPrimShort:
+  case Primitive::kPrimShort:
     f->SetShort(o, new_value.s);
     break;
-  case Class::kPrimNot:
+  case Primitive::kPrimNot:
     if (allow_references) {
       f->SetObject(o, new_value.l);
       break;
     }
     // Else fall through to report an error.
-  case Class::kPrimVoid:
+  case Primitive::kPrimVoid:
     // Never okay.
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "Not a primitive field: %s", PrettyField(f).c_str());
@@ -195,7 +196,8 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
   // Widen the value if necessary (and possible).
   JValue wide_value;
   Class* src_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(src_descriptor);
-  if (!ConvertPrimitiveValue(src_type, f->GetType(), new_value, wide_value)) {
+  if (!ConvertPrimitiveValue(src_type->GetPrimitiveType(), f->GetPrimitiveType(),
+                             new_value, wide_value)) {
     return;
   }
 
@@ -282,7 +284,7 @@ jobject Field_getField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
   if (!GetFieldValue(o, f, value, true)) {
     return NULL;
   }
-  BoxPrimitive(env, f->GetType(), value);
+  BoxPrimitive(env, f->GetPrimitiveType(), value);
 
   return AddLocalReference<jobject>(env, value.l);
 }

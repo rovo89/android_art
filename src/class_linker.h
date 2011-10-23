@@ -265,13 +265,12 @@ class ClassLinker {
   CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
   InterfaceEntry* AllocInterfaceEntry(Class* interface);
 
-  Class* CreatePrimitiveClass(const char* descriptor,
-                              Class::PrimitiveType type) {
+  Class* CreatePrimitiveClass(const char* descriptor, Primitive::Type type) {
     return InitializePrimitiveClass(AllocClass(sizeof(Class)), descriptor, type);
   }
   Class* InitializePrimitiveClass(Class* primitive_class,
                                   const char* descriptor,
-                                  Class::PrimitiveType type);
+                                  Primitive::Type type);
 
 
   Class* CreateArrayClass(const std::string& descriptor,

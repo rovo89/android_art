@@ -102,6 +102,31 @@ Class* Field::GetTypeDuringLinking() const {
   return GetDeclaringClass()->GetDexCache()->GetResolvedType(GetTypeIdx());
 }
 
+bool Field::IsPrimitiveType() const {
+  Class* type = GetTypeDuringLinking();
+  return (type == NULL || type->IsPrimitive());
+}
+
+Primitive::Type Field::GetPrimitiveType() const {
+  Class* type = GetTypeDuringLinking();
+  if (type == NULL) {
+    return Primitive::kPrimNot;
+  }
+  return type->GetPrimitiveType();
+}
+
+size_t Field::PrimitiveSize() const {
+  return Primitive::FieldSize(GetPrimitiveType());
+}
+
+const char* Field::GetTypeDescriptor() const {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(GetDeclaringClass()->GetDexCache());
+  const char* descriptor = dex_file.dexStringByTypeIdx(GetTypeIdx());
+  DCHECK(descriptor != NULL);
+  return descriptor;
+}
+
 Class* Field::GetType() const {
   if (type_ == NULL) {
     type_ = Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
@@ -120,11 +145,11 @@ void Field::InitJavaFields() {
 }
 
 void Field::InitJavaFieldsLocked() {
-  GetType(); // Sets type_ as a side-effect. May throw.
+  GetType(); // Resolves type as a side-effect. May throw.
 }
 
 uint32_t Field::Get32(const Object* object) const {
-  CHECK((object == NULL) == IsStatic());
+  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
   if (IsStatic()) {
     object = declaring_class_;
   }
@@ -132,7 +157,7 @@ uint32_t Field::Get32(const Object* object) const {
 }
 
 void Field::Set32(Object* object, uint32_t new_value) const {
-  CHECK((object == NULL) == IsStatic());
+  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
   if (IsStatic()) {
     object = declaring_class_;
   }
@@ -140,7 +165,7 @@ void Field::Set32(Object* object, uint32_t new_value) const {
 }
 
 uint64_t Field::Get64(const Object* object) const {
-  CHECK((object == NULL) == IsStatic());
+  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
   if (IsStatic()) {
     object = declaring_class_;
   }
@@ -148,7 +173,7 @@ uint64_t Field::Get64(const Object* object) const {
 }
 
 void Field::Set64(Object* object, uint64_t new_value) const {
-  CHECK((object == NULL) == IsStatic());
+  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
   if (IsStatic()) {
     object = declaring_class_;
   }
@@ -156,7 +181,7 @@ void Field::Set64(Object* object, uint64_t new_value) const {
 }
 
 Object* Field::GetObj(const Object* object) const {
-  CHECK((object == NULL) == IsStatic());
+  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
   if (IsStatic()) {
     object = declaring_class_;
   }
@@ -164,7 +189,7 @@ Object* Field::GetObj(const Object* object) const {
 }
 
 void Field::SetObj(Object* object, const Object* new_value) const {
-  CHECK((object == NULL) == IsStatic());
+  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
   if (IsStatic()) {
     object = declaring_class_;
   }
@@ -172,100 +197,100 @@ void Field::SetObj(Object* object, const Object* new_value) const {
 }
 
 bool Field::GetBoolean(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveBoolean());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimBoolean) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetBoolean(Object* object, bool z) const {
-  DCHECK(GetType()->IsPrimitiveBoolean());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimBoolean) << PrettyField(this);
   Set32(object, z);
 }
 
 int8_t Field::GetByte(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveByte());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimByte) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetByte(Object* object, int8_t b) const {
-  DCHECK(GetType()->IsPrimitiveByte());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimByte) << PrettyField(this);
   Set32(object, b);
 }
 
 uint16_t Field::GetChar(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveChar());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimChar) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetChar(Object* object, uint16_t c) const {
-  DCHECK(GetType()->IsPrimitiveChar());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimChar) << PrettyField(this);
   Set32(object, c);
 }
 
 int16_t Field::GetShort(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveShort());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimShort) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetShort(Object* object, int16_t s) const {
-  DCHECK(GetType()->IsPrimitiveShort());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimShort) << PrettyField(this);
   Set32(object, s);
 }
 
 int32_t Field::GetInt(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveInt());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimInt) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetInt(Object* object, int32_t i) const {
-  DCHECK(GetType()->IsPrimitiveInt()) << PrettyField(this);
+  DCHECK(GetPrimitiveType() == Primitive::kPrimInt) << PrettyField(this);
   Set32(object, i);
 }
 
 int64_t Field::GetLong(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveLong());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimLong) << PrettyField(this);
   return Get64(object);
 }
 
 void Field::SetLong(Object* object, int64_t j) const {
-  DCHECK(GetType()->IsPrimitiveLong());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimLong) << PrettyField(this);
   Set64(object, j);
 }
 
 float Field::GetFloat(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveFloat());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimFloat) << PrettyField(this);
   JValue float_bits;
   float_bits.i = Get32(object);
   return float_bits.f;
 }
 
 void Field::SetFloat(Object* object, float f) const {
-  DCHECK(GetType()->IsPrimitiveFloat());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimFloat) << PrettyField(this);
   JValue float_bits;
   float_bits.f = f;
   Set32(object, float_bits.i);
 }
 
 double Field::GetDouble(const Object* object) const {
-  DCHECK(GetType()->IsPrimitiveDouble());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimDouble) << PrettyField(this);
   JValue double_bits;
   double_bits.j = Get64(object);
   return double_bits.d;
 }
 
 void Field::SetDouble(Object* object, double d) const {
-  DCHECK(GetType()->IsPrimitiveDouble());
+  DCHECK(GetPrimitiveType() == Primitive::kPrimDouble) << PrettyField(this);
   JValue double_bits;
   double_bits.d = d;
   Set64(object, double_bits.j);
 }
 
 Object* Field::GetObject(const Object* object) const {
-  CHECK(!GetType()->IsPrimitive());
+  CHECK(GetPrimitiveType() == Primitive::kPrimNot) << PrettyField(this);
   return GetObj(object);
 }
 
 void Field::SetObject(Object* object, const Object* l) const {
-  CHECK(!GetType()->IsPrimitive());
+  CHECK(GetPrimitiveType() == Primitive::kPrimNot) << PrettyField(this);
   SetObj(object, l);
 }
 
@@ -828,44 +853,6 @@ void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
              new_reference_offsets, false);
 }
 
-size_t Class::PrimitiveSize() const {
-  switch (GetPrimitiveType()) {
-    case kPrimBoolean:
-    case kPrimByte:    return 1;
-    case kPrimChar:
-    case kPrimShort:   return 2;
-    case kPrimInt:
-    case kPrimFloat:   return 4;
-    case kPrimLong:
-    case kPrimDouble:  return 8;
-    default:
-      LOG(FATAL) << "Primitive type size calculation on invalid type " << this;
-      return 0;
-  }
-}
-
-size_t Class::PrimitiveFieldSize() const {
-  return PrimitiveSize() <= 4 ? 4 : 8;
-}
-
-size_t Class::GetTypeSize(const String* descriptor) {
-  switch (descriptor->CharAt(0)) {
-  case 'B': return 1;  // byte
-  case 'C': return 2;  // char
-  case 'D': return 8;  // double
-  case 'F': return 4;  // float
-  case 'I': return 4;  // int
-  case 'J': return 8;  // long
-  case 'S': return 2;  // short
-  case 'Z': return 1;  // boolean
-  case 'L': return sizeof(Object*);
-  case '[': return sizeof(Array*);
-  default:
-    LOG(ERROR) << "Unknown type " << descriptor;
-    return 0;
-  }
-}
-
 bool Class::Implements(const Class* klass) const {
   DCHECK(klass != NULL);
   DCHECK(klass->IsInterface()) << PrettyClass(this);
@@ -1089,9 +1076,6 @@ Method* Class::FindDeclaredVirtualMethod(String* name, String* signature) const 
     Method* method = GetVirtualMethod(i);
     if (method->GetName() == name && method->GetSignature() == signature) {
       return method;
-    } else {
-      LOG(INFO) << "Find (" << name->ToModifiedUtf8() << ", " << signature->ToModifiedUtf8()
-          << ") != " << PrettyMethod(method);
     }
   }
   return NULL;
@@ -1117,19 +1101,32 @@ Method* Class::FindVirtualMethod(String* name, String* signature) const {
   return NULL;
 }
 
-Field* Class::FindDeclaredInstanceField(const StringPiece& name, Class* type) {
+Field* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class?
   // Interfaces are not relevant because they can't contain instance fields.
   for (size_t i = 0; i < NumInstanceFields(); ++i) {
     Field* f = GetInstanceField(i);
-    if (f->GetName()->Equals(name) && type == f->GetType()) {
+    if (f->GetName()->Equals(name) &&
+        StringPiece(f->GetTypeDescriptor()) == type) {
       return f;
     }
   }
   return NULL;
 }
 
-Field* Class::FindInstanceField(const StringPiece& name, Class* type) {
+Field* Class::FindDeclaredInstanceField(String* name, String* type) {
+  // Is the field in this class?
+  // Interfaces are not relevant because they can't contain instance fields.
+  for (size_t i = 0; i < NumInstanceFields(); ++i) {
+    Field* f = GetInstanceField(i);
+    if (f->GetName() == name && type->Equals(f->GetTypeDescriptor())) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class, or any of its superclasses?
   // Interfaces are not relevant because they can't contain instance fields.
   for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
@@ -1141,18 +1138,64 @@ Field* Class::FindInstanceField(const StringPiece& name, Class* type) {
   return NULL;
 }
 
-Field* Class::FindDeclaredStaticField(const StringPiece& name, Class* type) {
-  DCHECK(type != NULL);
-  for (size_t i = 0; i < NumStaticFields(); ++i) {
-    Field* f = GetStaticField(i);
-    if (f->GetName()->Equals(name) && f->GetType() == type) {
+Field* Class::FindInstanceField(String* name, String* type) {
+  // Is the field in this class, or any of its superclasses?
+  // Interfaces are not relevant because they can't contain instance fields.
+  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
+    Field* f = c->FindDeclaredInstanceField(name, type);
+    if (f != NULL) {
       return f;
     }
   }
   return NULL;
 }
 
-Field* Class::FindStaticField(const StringPiece& name, Class* type) {
+Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& type) {
+  DCHECK(type != NULL);
+  for (size_t i = 0; i < NumStaticFields(); ++i) {
+    Field* f = GetStaticField(i);
+    if (f->GetName()->Equals(name) && StringPiece(f->GetTypeDescriptor()) == type) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindDeclaredStaticField(String* name, String* type) {
+  DCHECK(type != NULL);
+  for (size_t i = 0; i < NumStaticFields(); ++i) {
+    Field* f = GetStaticField(i);
+    if (f->GetName() == name && type->Equals(f->GetTypeDescriptor())) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
+  // Is the field in this class (or its interfaces), or any of its
+  // superclasses (or their interfaces)?
+  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
+    // Is the field in this class?
+    Field* f = c->FindDeclaredStaticField(name, type);
+    if (f != NULL) {
+      return f;
+    }
+
+    // Is this field in any of this class' interfaces?
+    for (int32_t i = 0; i < c->GetIfTableCount(); ++i) {
+      InterfaceEntry* interface_entry = c->GetIfTable()->Get(i);
+      Class* interface = interface_entry->GetInterface();
+      f = interface->FindDeclaredStaticField(name, type);
+      if (f != NULL) {
+        return f;
+      }
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindStaticField(String* name, String* type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
   for (Class* c = this; c != NULL; c = c->GetSuperClass()) {

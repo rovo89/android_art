@@ -110,13 +110,19 @@ std::string PrettyDescriptor(const std::string& descriptor) {
   return result;
 }
 
+std::string PrettyDescriptor(Primitive::Type type) {
+  char descriptor_char = Primitive::DescriptorChar(type);
+  std::string descriptor_string(1, descriptor_char);
+  return PrettyDescriptor(descriptor_string);
+}
+
 std::string PrettyField(const Field* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
   std::string result;
   if (with_type) {
-    result += PrettyDescriptor(f->GetType()->GetDescriptor());
+    result += PrettyDescriptor(f->GetTypeDescriptor());
     result += ' ';
   }
   result += PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor());

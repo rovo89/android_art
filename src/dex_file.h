@@ -425,9 +425,15 @@ class DexFile {
     return dexStringById(type_id.descriptor_idx_);
   }
 
-  // Returns the class descriptor string of a field id.
-  const char* GetFieldClassDescriptor(const FieldId& field_id) const {
+  // Returns the declaring class descriptor string of a field id.
+  const char* GetFieldDeclaringClassDescriptor(const FieldId& field_id) const {
     const DexFile::TypeId& type_id = GetTypeId(field_id.class_idx_);
+    return GetTypeDescriptor(type_id);
+  }
+
+  // Returns the class descriptor string of a field id.
+  const char* GetFieldTypeDescriptor(const FieldId& field_id) const {
+    const DexFile::TypeId& type_id = GetTypeId(field_id.type_idx_);
     return GetTypeDescriptor(type_id);
   }
 
@@ -436,8 +442,8 @@ class DexFile {
     return dexStringById(field_id.name_idx_);
   }
 
-  // Returns the class descriptor string of a method id.
-  const char* GetMethodClassDescriptor(const MethodId& method_id) const {
+  // Returns the declaring class descriptor string of a method id.
+  const char* GetMethodDeclaringClassDescriptor(const MethodId& method_id) const {
     const DexFile::TypeId& type_id = GetTypeId(method_id.class_idx_);
     return GetTypeDescriptor(type_id);
   }

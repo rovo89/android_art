@@ -284,14 +284,14 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   SetClassRoot(kJavaLangString, java_lang_String.get());
 
   // Setup the primitive type classes.
-  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z", Class::kPrimBoolean));
-  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B", Class::kPrimByte));
-  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S", Class::kPrimShort));
-  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I", Class::kPrimInt));
-  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J", Class::kPrimLong));
-  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass("F", Class::kPrimFloat));
-  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D", Class::kPrimDouble));
-  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V", Class::kPrimVoid));
+  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z", Primitive::kPrimBoolean));
+  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B", Primitive::kPrimByte));
+  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S", Primitive::kPrimShort));
+  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I", Primitive::kPrimInt));
+  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J", Primitive::kPrimLong));
+  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass("F", Primitive::kPrimFloat));
+  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D", Primitive::kPrimDouble));
+  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V", Primitive::kPrimVoid));
 
   // Create array interface entries to populate once we can load system classes
   array_interfaces_ = AllocClassArray(2);
@@ -343,7 +343,7 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   // now we can use FindSystemClass
 
   // run char class through InitializePrimitiveClass to finish init
-  InitializePrimitiveClass(char_class.get(), "C", Class::kPrimChar);
+  InitializePrimitiveClass(char_class.get(), "C", Primitive::kPrimChar);
   SetClassRoot(kPrimitiveChar, char_class.get());  // needs descriptor
 
   // Object and String need to be rerun through FindSystemClass to finish init
@@ -875,7 +875,7 @@ InterfaceEntry* ClassLinker::AllocInterfaceEntry(Class* interface) {
 Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
   DCHECK_GE(class_size, sizeof(Class));
   SirtRef<Class> klass(Heap::AllocObject(java_lang_Class, class_size)->AsClass());
-  klass->SetPrimitiveType(Class::kPrimNot);  // default to not being primitive
+  klass->SetPrimitiveType(Primitive::kPrimNot);  // default to not being primitive
   klass->SetClassSize(class_size);
   return klass.get();
 }
@@ -1062,7 +1062,7 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
       DexFile::Field dex_field;
       dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
       const DexFile::FieldId& field_id = dex_file.GetFieldId(dex_field.field_idx_);
-      const char* descriptor = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+      const char* descriptor = dex_file.GetFieldTypeDescriptor(field_id);
       char c = descriptor[0];
       if (c == 'L' || c == '[') {
         num_ref++;
@@ -1138,7 +1138,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
-  DCHECK(klass->GetPrimitiveType() == Class::kPrimNot);
+  DCHECK(klass->GetPrimitiveType() == Primitive::kPrimNot);
   klass->SetStatus(Class::kStatusIdx);
 
   klass->SetSuperClassTypeIdx(dex_class_def.superclass_idx_);
@@ -1264,7 +1264,7 @@ void ClassLinker::LoadField(const DexFile& dex_file,
 
   // In order to access primitive types using GetTypeDuringLinking we need to
   // ensure they are resolved into the dex cache
-  const char* descriptor = dex_file.dexStringByTypeIdx(field_id.type_idx_);
+  const char* descriptor = dex_file.GetFieldTypeDescriptor(field_id);
   if (descriptor[1] == '\0') {
     // only the descriptors of primitive types should be 1 character long
     Class* resolved = ResolveType(dex_file, field_id.type_idx_, klass.get());
@@ -1430,7 +1430,7 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
 
 Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
                                              const char* descriptor,
-                                             Class::PrimitiveType type) {
+                                             Primitive::Type type) {
   // TODO: deduce one argument from the other
   CHECK(primitive_class != NULL);
   primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
@@ -1532,7 +1532,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);
   new_class->SetVTable(java_lang_Object->GetVTable());
-  new_class->SetPrimitiveType(Class::kPrimNot);
+  new_class->SetPrimitiveType(Primitive::kPrimNot);
   new_class->SetClassLoader(component_type->GetClassLoader());
   new_class->SetStatus(Class::kStatusInitialized);
   // don't need to set new_class->SetObjectSize(..)
@@ -1582,25 +1582,27 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
 }
 
 Class* ClassLinker::FindPrimitiveClass(char type) {
-  switch (type) {
-    case 'B':
+  switch (Primitive::GetType(type)) {
+    case Primitive::kPrimByte:
       return GetClassRoot(kPrimitiveByte);
-    case 'C':
+    case Primitive::kPrimChar:
       return GetClassRoot(kPrimitiveChar);
-    case 'D':
+    case Primitive::kPrimDouble:
       return GetClassRoot(kPrimitiveDouble);
-    case 'F':
+    case Primitive::kPrimFloat:
       return GetClassRoot(kPrimitiveFloat);
-    case 'I':
+    case Primitive::kPrimInt:
       return GetClassRoot(kPrimitiveInt);
-    case 'J':
+    case Primitive::kPrimLong:
       return GetClassRoot(kPrimitiveLong);
-    case 'S':
+    case Primitive::kPrimShort:
       return GetClassRoot(kPrimitiveShort);
-    case 'Z':
+    case Primitive::kPrimBoolean:
       return GetClassRoot(kPrimitiveBoolean);
-    case 'V':
+    case Primitive::kPrimVoid:
       return GetClassRoot(kPrimitiveVoid);
+    case Primitive::kPrimNot:
+      break;
   }
   std::string printable_type(PrintableChar(type));
   ThrowNoClassDefFoundError("Not a primitive type: %s", printable_type.c_str());
@@ -2419,12 +2421,12 @@ bool ClassLinker::LinkStaticFields(SirtRef<Class>& klass) {
 struct LinkFieldsComparator {
   bool operator()(const Field* field1, const Field* field2) {
     // First come reference fields, then 64-bit, and finally 32-bit
-    const Class* type1 = field1->GetTypeDuringLinking();
-    const Class* type2 = field2->GetTypeDuringLinking();
-    bool isPrimitive1 = type1 != NULL && type1->IsPrimitive();
-    bool isPrimitive2 = type2 != NULL && type2->IsPrimitive();
-    bool is64bit1 = isPrimitive1 && (type1->IsPrimitiveLong() || type1->IsPrimitiveDouble());
-    bool is64bit2 = isPrimitive2 && (type2->IsPrimitiveLong() || type2->IsPrimitiveDouble());
+    Primitive::Type type1 = field1->GetPrimitiveType();
+    Primitive::Type type2 = field2->GetPrimitiveType();
+    bool isPrimitive1 = type1 != Primitive::kPrimNot;
+    bool isPrimitive2 = type2 != Primitive::kPrimNot;
+    bool is64bit1 = isPrimitive1 && (type1 == Primitive::kPrimLong || type1 == Primitive::kPrimDouble);
+    bool is64bit2 = isPrimitive2 && (type2 == Primitive::kPrimLong || type2 == Primitive::kPrimDouble);
     int order1 = (!isPrimitive1 ? 0 : (is64bit1 ? 1 : 2));
     int order2 = (!isPrimitive2 ? 0 : (is64bit2 ? 1 : 2));
     if (order1 != order2) {
@@ -2477,9 +2479,8 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   size_t num_reference_fields = 0;
   for (; current_field < num_fields; current_field++) {
     Field* field = grouped_and_sorted_fields.front();
-    const Class* type = field->GetTypeDuringLinking();
-    // if a field's type at this point is NULL it isn't primitive
-    bool isPrimitive = type != NULL && type->IsPrimitive();
+    Primitive::Type type = field->GetPrimitiveType();
+    bool isPrimitive = type != Primitive::kPrimNot;
     if (isPrimitive) {
       break; // past last reference, move on to the next phase
     }
@@ -2496,10 +2497,9 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   if (current_field != num_fields && !IsAligned<8>(field_offset.Uint32Value())) {
     for (size_t i = 0; i < grouped_and_sorted_fields.size(); i++) {
       Field* field = grouped_and_sorted_fields[i];
-      const Class* type = field->GetTypeDuringLinking();
-      CHECK(type != NULL);  // should only be working on primitive types
-      DCHECK(type->IsPrimitive());
-      if (type->IsPrimitiveLong() || type->IsPrimitiveDouble()) {
+      Primitive::Type type = field->GetPrimitiveType();
+      CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
+      if (type == Primitive::kPrimLong || type == Primitive::kPrimDouble) {
         continue;
       }
       fields->Set(current_field++, field);
@@ -2518,13 +2518,12 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   while (!grouped_and_sorted_fields.empty()) {
     Field* field = grouped_and_sorted_fields.front();
     grouped_and_sorted_fields.pop_front();
-    const Class* type = field->GetTypeDuringLinking();
-    CHECK(type != NULL);  // should only be working on primitive types
-    DCHECK(type->IsPrimitive());
+    Primitive::Type type = field->GetPrimitiveType();
+    CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
     fields->Set(current_field, field);
     field->SetOffset(field_offset);
     field_offset = MemberOffset(field_offset.Uint32Value() +
-                                ((type->IsPrimitiveLong() || type->IsPrimitiveDouble())
+                                ((type == Primitive::kPrimLong || type == Primitive::kPrimDouble)
                                  ? sizeof(uint64_t)
                                  : sizeof(uint32_t)));
     current_field++;
@@ -2551,8 +2550,8 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
                 << " field=" << PrettyField(field)
                 << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);
     }
-    const Class* type = field->GetTypeDuringLinking();
-    bool is_primitive = (type != NULL && type->IsPrimitive());
+    Primitive::Type type = field->GetPrimitiveType();
+    bool is_primitive = type != Primitive::kPrimNot;
     if (klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;") && field->GetName()->Equals("referent")) {
       is_primitive = true; // We lied above, so we have to expect a lie here.
     }
@@ -2727,23 +2726,18 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
     return NULL;
   }
 
-  const char* name = dex_file.dexStringById(field_id.name_idx_);
-  Class* field_type = ResolveType(dex_file, field_id.type_idx_, dex_cache, class_loader);
-  if (field_type == NULL) {
-    // TODO: LinkageError?
-    UNIMPLEMENTED(WARNING) << "Failed to resolve type of field " << name
-                           << " in " << PrettyClass(klass);
-    return NULL;
-}
+  const char* name = dex_file.GetFieldName(field_id);
+  const char* type = dex_file.GetFieldTypeDescriptor(field_id);
   if (is_static) {
-    resolved = klass->FindStaticField(name, field_type);
+    resolved = klass->FindStaticField(name, type);
   } else {
-    resolved = klass->FindInstanceField(name, field_type);
+    resolved = klass->FindInstanceField(name, type);
   }
   if (resolved != NULL) {
     dex_cache->SetResolvedField(field_idx, resolved);
   } else {
-    DCHECK(Thread::Current()->IsExceptionPending());
+    DCHECK(Thread::Current()->IsExceptionPending())
+        << PrettyClass(klass) << " " << name << " " << type << " " << is_static;
   }
   return resolved;
 }

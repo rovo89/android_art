@@ -71,9 +71,12 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/art-test-dex-$(1).jar test-art-target-
 ART_TEST_OAT_TARGETS += test-art-target-oat-$(1)
 endef
 
-$(eval $(call declare-test-test-target,ExceptionTest,))
-$(eval $(call declare-test-test-target,Fibonacci,10))
+# Delcare the simplest test first
 $(eval $(call declare-test-test-target,HelloWorld,))
+$(eval $(call declare-test-test-target,Fibonacci,10))
+
+# The rest are alphabetical
+$(eval $(call declare-test-test-target,ExceptionTest,))
 $(eval $(call declare-test-test-target,IntMath,))
 $(eval $(call declare-test-test-target,Invoke,))
 $(eval $(call declare-test-test-target,MemUsage,))

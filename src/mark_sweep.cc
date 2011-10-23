@@ -110,7 +110,9 @@ void MarkSweep::RecursiveMark() {
   finger_ = reinterpret_cast<Object*>(~0);
   ProcessMarkStack();
   timings.AddSplit("ProcessMarkStack");
-  timings.Dump();
+  if (Heap::IsVerboseHeap()) {
+    timings.Dump();
+  }
 }
 
 void MarkSweep::ReMarkRoots() {
