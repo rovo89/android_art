@@ -56,6 +56,8 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  Dbg::StopJdwp();
+
   // Make sure our internal threads are dead before we start tearing down things they're using.
   delete signal_catcher_;
   // TODO: GC thread.
@@ -402,7 +404,9 @@ void Runtime::Start() {
   // come after ClassLinker::RunRootClinits.
   started_ = true;
 
-  StartSignalCatcher();
+  if (!is_zygote_) {
+    DidForkFromZygote();
+  }
 
   StartDaemonThreads();
 
@@ -416,9 +420,13 @@ void Runtime::Start() {
 }
 
 void Runtime::DidForkFromZygote() {
-  CHECK(is_zygote_);
   is_zygote_ = false;
+
   StartSignalCatcher();
+
+  // Start the JDWP thread. If the command-line debugger flags specified "suspend=y",
+  // this will pause the runtime, so we probably want this to come last.
+  Dbg::StartJdwp();
 }
 
 void Runtime::StartSignalCatcher() {

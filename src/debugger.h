@@ -65,10 +65,10 @@ struct DebugInvokeReq {
 class Dbg {
 public:
   static bool ParseJdwpOptions(const std::string& options);
-  static bool DebuggerStartup();
-  static void DebuggerShutdown();
-
   static void SetJdwpAllowed(bool allowed);
+
+  static void StartJdwp();
+  static void StopJdwp();
 
   // Return the DebugInvokeReq for the current thread.
   static DebugInvokeReq* GetInvokeReq();

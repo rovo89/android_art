@@ -407,14 +407,14 @@ static bool establishConnection(JdwpState* state) {
   struct hostent he;
   char auxBuf[128];
   int error;
-  int cc = gethostbyname_r(state->params.host, &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
+  int cc = gethostbyname_r(state->params.host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
   if (cc != 0) {
     LOG(WARNING) << "gethostbyname_r('" << state->params.host << "') failed: " << hstrerror(error);
     return false;
   }
 #else
   h_errno = 0;
-  pEntry = gethostbyname(state->params.host);
+  pEntry = gethostbyname(state->params.host.c_str());
   if (pEntry == NULL) {
     PLOG(WARNING) << "gethostbyname('" << state->params.host << "') failed";
     return false;

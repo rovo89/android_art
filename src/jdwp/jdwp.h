@@ -93,9 +93,8 @@ struct JdwpStartupParams {
   JdwpTransportType transport;
   bool server;
   bool suspend;
-  char host[64];
+  std::string host;
   short port;
-  /* more will be here someday */
 };
 
 /*

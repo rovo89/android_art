@@ -311,7 +311,7 @@ static void* jdwpThreadStart(void* arg) {
   android_atomic_release_store(true, &state->debug_thread_started_);
 
   state->thread_start_lock_.Lock();
-  state->thread_start_cond_.Wait(state->thread_start_lock_);
+  state->thread_start_cond_.Broadcast();
   state->thread_start_lock_.Unlock();
 
   /* set the thread state to VMWAIT so GCs don't wait for us */

@@ -144,13 +144,36 @@ bool Dbg::ParseJdwpOptions(const std::string& options) {
   return true;
 }
 
-bool Dbg::DebuggerStartup() {
-  UNIMPLEMENTED(FATAL);
-  return false;
+void Dbg::StartJdwp() {
+  // Init JDWP if the debugger is enabled. This may connect out to a
+  // debugger, passively listen for a debugger, or block waiting for a
+  // debugger.
+  if (gJdwpAllowed && gJdwpConfigured) {
+    JDWP::JdwpStartupParams params;
+    params.host = gJdwpHost;
+    params.transport = gJdwpTransport;
+    params.server = gJdwpServer;
+    params.suspend = gJdwpSuspend;
+    params.port = gJdwpPort;
+
+    gJdwpState = JDWP::JdwpStartup(&params);
+    if (gJdwpState == NULL) {
+      LOG(WARNING) << "debugger thread failed to initialize";
+    }
+  }
+
+  // If a debugger has already attached, send the "welcome" message.
+  // This may cause us to suspend all threads.
+  if (JDWP::JdwpIsActive(gJdwpState)) {
+    //ScopedThreadStateChange(Thread::Current(), Thread::kRunnable);
+    if (!JDWP::PostVMStart(gJdwpState, gJdwpSuspend)) {
+      LOG(WARNING) << "failed to post 'start' message to debugger";
+    }
+  }
 }
 
-void Dbg::DebuggerShutdown() {
-  UNIMPLEMENTED(FATAL);
+void Dbg::StopJdwp() {
+  JDWP::JdwpShutdown(gJdwpState);
 }
 
 void Dbg::SetJdwpAllowed(bool allowed) {
@@ -190,13 +213,11 @@ int64_t Dbg::LastDebuggerActivity() {
 }
 
 int Dbg::ThreadRunning() {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return static_cast<int>(Thread::Current()->SetState(Thread::kRunnable));
 }
 
 int Dbg::ThreadWaiting() {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return static_cast<int>(Thread::Current()->SetState(Thread::kVmWait));
 }
 
 int Dbg::ThreadContinuing(int status) {
