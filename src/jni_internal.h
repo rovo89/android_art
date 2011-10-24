@@ -82,6 +82,8 @@ struct JavaVMExt : public JavaVM {
 
   void DumpReferenceTables();
 
+  void EnableCheckJni();
+
   void VisitRoots(Heap::RootVisitor*, void*);
 
   Runtime* runtime;
@@ -125,6 +127,8 @@ struct JNIEnvExt : public JNIEnv {
   ~JNIEnvExt();
 
   void DumpReferenceTables();
+
+  void EnableCheckJni();
 
   void PushFrame(int capacity);
   void PopFrame();

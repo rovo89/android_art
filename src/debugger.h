@@ -68,6 +68,8 @@ public:
   static bool DebuggerStartup();
   static void DebuggerShutdown();
 
+  static void SetJdwpAllowed(bool allowed);
+
   // Return the DebugInvokeReq for the current thread.
   static DebugInvokeReq* GetInvokeReq();
 

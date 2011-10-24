@@ -2525,13 +2525,13 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
       vm(vm),
       local_ref_cookie(IRT_FIRST_SEGMENT),
       locals(kLocalsInitial, kLocalsMax, kLocal),
-      check_jni(vm->check_jni),
+      check_jni(false),
       work_around_app_jni_bugs(vm->work_around_app_jni_bugs),
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax) {
   functions = unchecked_functions = &gNativeInterface;
-  if (check_jni) {
-    functions = GetCheckJniNativeInterface();
+  if (vm->check_jni) {
+    EnableCheckJni();
   }
   // The JniEnv local reference values must be at a consistent offset or else cross-compilation
   // errors will ensue.
@@ -2540,6 +2540,11 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
 }
 
 JNIEnvExt::~JNIEnvExt() {
+}
+
+void JNIEnvExt::EnableCheckJni() {
+  check_jni = true;
+  functions = GetCheckJniNativeInterface();
 }
 
 void JNIEnvExt::DumpReferenceTables() {
@@ -2660,7 +2665,7 @@ const JNIInvokeInterface gInvokeInterface = {
 JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
     : runtime(runtime),
       check_jni_abort_hook(NULL),
-      check_jni(options->check_jni_),
+      check_jni(false),
       force_copy(false), // TODO: add a way to enable this
       verbose_jni(options->IsVerbose("jni")),
       log_third_party_jni(options->IsVerbose("third-party-jni")),
@@ -2675,13 +2680,18 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       libraries_lock("JNI shared libraries map lock"),
       libraries(new Libraries) {
   functions = unchecked_functions = &gInvokeInterface;
-  if (check_jni) {
-    functions = GetCheckJniInvokeInterface();
+  if (options->check_jni_) {
+    EnableCheckJni();
   }
 }
 
 JavaVMExt::~JavaVMExt() {
   delete libraries;
+}
+
+void JavaVMExt::EnableCheckJni() {
+  check_jni = true;
+  functions = GetCheckJniInvokeInterface();
 }
 
 void JavaVMExt::DumpReferenceTables() {

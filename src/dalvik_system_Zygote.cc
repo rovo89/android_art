@@ -14,14 +14,6 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
-#include "JNIHelp.h"
-#include "ScopedLocalRef.h"
-#include "ScopedPrimitiveArray.h"
-#include "ScopedUtfChars.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 #include <grp.h>
 #include <paths.h>
 #include <stdlib.h>
@@ -30,6 +22,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "debugger.h"
+#include "jni_internal.h"
+#include "JniConstants.h"
+#include "JNIHelp.h"
+#include "ScopedLocalRef.h"
+#include "ScopedPrimitiveArray.h"
+#include "ScopedUtfChars.h"
 #include "thread.h"
 
 namespace art {
@@ -52,7 +51,7 @@ void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
 
 
 // This signal handler is for zygote mode, since the zygote must reap its children
-void sigchldHandler(int s) {
+void SigChldHandler(int s) {
   pid_t pid;
   int status;
 
@@ -104,10 +103,10 @@ void sigchldHandler(int s) {
 //
 // This ends up being called repeatedly before each fork(), but there's
 // no real harm in that.
-void setSigchldHandler() {
+void SetSigChldHandler() {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = sigchldHandler;
+  sa.sa_handler = SigChldHandler;
 
   int err = sigaction(SIGCHLD, &sa, NULL);
   if (err < 0) {
@@ -116,7 +115,7 @@ void setSigchldHandler() {
 }
 
 // Set the SIGCHLD handler back to default behavior in zygote children
-void unsetSigchldHandler() {
+void UnsetSigChldHandler() {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = SIG_DFL;
@@ -129,7 +128,7 @@ void unsetSigchldHandler() {
 
 // Calls POSIX setgroups() using the int[] object as an argument.
 // A NULL argument is tolerated.
-int setGids(JNIEnv* env, jintArray javaGids) {
+int SetGids(JNIEnv* env, jintArray javaGids) {
   if (javaGids == NULL) {
     return 0;
   }
@@ -148,7 +147,7 @@ int setGids(JNIEnv* env, jintArray javaGids) {
 // treated as an empty array.
 //
 // -1 is returned on error.
-int setRlimits(JNIEnv* env, jobjectArray javaRlimits) {
+int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   if (javaRlimits == NULL) {
     return 0;
   }
@@ -178,7 +177,7 @@ int setRlimits(JNIEnv* env, jobjectArray javaRlimits) {
 // Set Linux capability flags.
 //
 // Returns 0 on success, errno on failure.
-int setCapabilities(int64_t permitted, int64_t effective) {
+int SetCapabilities(int64_t permitted, int64_t effective) {
 #ifdef HAVE_ANDROID_OS
   struct __user_cap_header_struct capheader;
   struct __user_cap_data_struct capdata;
@@ -200,13 +199,74 @@ int setCapabilities(int64_t permitted, int64_t effective) {
   return 0;
 }
 
+void EnableDebugFeatures(uint32_t debug_flags) {
+  // Must match values in dalvik.system.Zygote.
+  enum {
+    DEBUG_ENABLE_DEBUGGER           = 1,
+    DEBUG_ENABLE_CHECKJNI           = 1 << 1,
+    DEBUG_ENABLE_ASSERT             = 1 << 2,
+    DEBUG_ENABLE_SAFEMODE           = 1 << 3,
+    DEBUG_ENABLE_JNI_LOGGING        = 1 << 4,
+  };
+
+  if ((debug_flags & DEBUG_ENABLE_CHECKJNI) != 0) {
+    Runtime* runtime = Runtime::Current();
+    JavaVMExt* vm = runtime->GetJavaVM();
+    if (!vm->check_jni) {
+      LOG(DEBUG) << "Late-enabling -Xcheck:jni";
+      vm->EnableCheckJni();
+      // There's only one thread running at this point, so only one JNIEnv to fix up.
+      Thread::Current()->GetJniEnv()->EnableCheckJni();
+    } else {
+      LOG(DEBUG) << "Not late-enabling -Xcheck:jni (already on)";
+    }
+    debug_flags &= ~DEBUG_ENABLE_CHECKJNI;
+  }
+
+  if ((debug_flags & DEBUG_ENABLE_JNI_LOGGING) != 0) {
+    Runtime::Current()->GetJavaVM()->log_third_party_jni = true;
+    debug_flags &= ~DEBUG_ENABLE_JNI_LOGGING;
+  }
+
+  Dbg::SetJdwpAllowed((debug_flags & DEBUG_ENABLE_DEBUGGER) != 0);
+#ifdef HAVE_ANDROID_OS
+  if ((debug_flags & DEBUG_ENABLE_DEBUGGER) != 0) {
+    /* To let a non-privileged gdbserver attach to this
+     * process, we must set its dumpable bit flag. However
+     * we are not interested in generating a coredump in
+     * case of a crash, so also set the coredump size to 0
+     * to disable that
+     */
+    if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) < 0) {
+      PLOG(ERROR) << "could not set dumpable bit flag for pid " << getpid();
+    } else {
+      struct rlimit rl;
+      rl.rlim_cur = 0;
+      rl.rlim_max = RLIM_INFINITY;
+      if (setrlimit(RLIMIT_CORE, &rl) < 0) {
+        PLOG(ERROR) << "could not disable core file generation for pid " << getpid();
+      }
+    }
+  }
+#endif
+  debug_flags &= ~DEBUG_ENABLE_DEBUGGER;
+
+  // These two are for backwards compatibility with Dalvik.
+  debug_flags &= ~DEBUG_ENABLE_ASSERT;
+  debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
+
+  if (debug_flags != 0) {
+    LOG(ERROR) << StringPrintf("Unknown bits set in debug_flags: %#x", debug_flags);
+  }
+}
+
 #ifdef HAVE_ANDROID_OS
 extern "C" int gMallocLeakZygoteChild;
 #endif
 
 // Utility routine to fork zygote and specialize the child process.
-pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
-                              jint debugFlags, jobjectArray javaRlimits,
+pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
+                              jint debug_flags, jobjectArray javaRlimits,
                               jlong permittedCapabilities, jlong effectiveCapabilities)
 {
   Runtime* runtime = Runtime::Current();
@@ -215,7 +275,7 @@ pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
     LOG(FATAL) << "pre-fork heap failed";
   }
 
-  setSigchldHandler();
+  SetSigChldHandler();
 
   // Grab thread before fork potentially makes Thread::pthread_key_self_ unusable.
   Thread* self = Thread::Current();
@@ -238,12 +298,12 @@ pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
     }
 #endif // HAVE_ANDROID_OS
 
-    int err = setGids(env, javaGids);
+    int err = SetGids(env, javaGids);
     if (err < 0) {
         PLOG(FATAL) << "cannot setgroups()";
     }
 
-    err = setRlimits(env, javaRlimits);
+    err = SetRLimits(env, javaRlimits);
     if (err < 0) {
       PLOG(FATAL) << "cannot setrlimit()";
     }
@@ -258,7 +318,7 @@ pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
       PLOG(FATAL) << "cannot setuid(" << uid << ")";
     }
 
-    err = setCapabilities(permittedCapabilities, effectiveCapabilities);
+    err = SetCapabilities(permittedCapabilities, effectiveCapabilities);
     if (err != 0) {
       PLOG(FATAL) << "cannot set capabilities ("
                   << permittedCapabilities << "," << effectiveCapabilities << ")";
@@ -267,10 +327,9 @@ pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
     // Our system thread ID, etc, has changed so reset Thread state.
     self->InitAfterFork();
 
-    // configure additional debug options
-    // enableDebugFeatures(debugFlags);  // TODO: debugger
+    EnableDebugFeatures(debug_flags);
 
-    unsetSigchldHandler();
+    UnsetSigChldHandler();
     runtime->DidForkFromZygote();
   } else if (pid > 0) {
     // the parent process
@@ -279,15 +338,15 @@ pid_t forkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
 }
 
 jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
-                                    jint debugFlags, jobjectArray rlimits) {
-  return forkAndSpecializeCommon(env, uid, gid, gids, debugFlags, rlimits, 0, 0);
+                                    jint debug_flags, jobjectArray rlimits) {
+  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0);
 }
 
 jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
-                                   jint debugFlags, jobjectArray rlimits,
+                                   jint debug_flags, jobjectArray rlimits,
                                    jlong permittedCapabilities, jlong effectiveCapabilities) {
-  pid_t pid = forkAndSpecializeCommon(env, uid, gid, gids,
-                                      debugFlags, rlimits,
+  pid_t pid = ForkAndSpecializeCommon(env, uid, gid, gids,
+                                      debug_flags, rlimits,
                                       permittedCapabilities, effectiveCapabilities);
   if (pid > 0) {
       // The zygote process checks whether the child process has died or not.

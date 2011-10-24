@@ -20,6 +20,9 @@
 
 namespace art {
 
+// JDWP is allowed unless the Zygote forbids it.
+static bool gJdwpAllowed = true;
+
 // Was there a -Xrunjdwp or -agent argument on the command-line?
 static bool gJdwpConfigured = false;
 
@@ -148,6 +151,10 @@ bool Dbg::DebuggerStartup() {
 
 void Dbg::DebuggerShutdown() {
   UNIMPLEMENTED(FATAL);
+}
+
+void Dbg::SetJdwpAllowed(bool allowed) {
+  gJdwpAllowed = allowed;
 }
 
 DebugInvokeReq* Dbg::GetInvokeReq() {
