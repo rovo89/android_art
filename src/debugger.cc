@@ -27,11 +27,7 @@ static bool gJdwpAllowed = true;
 static bool gJdwpConfigured = false;
 
 // Broken-down JDWP options. (Only valid if gJdwpConfigured is true.)
-static JDWP::JdwpTransportType gJdwpTransport;
-static bool gJdwpServer;
-static bool gJdwpSuspend;
-static std::string gJdwpHost;
-static int gJdwpPort;
+static JDWP::JdwpOptions gJdwpOptions;
 
 // Runtime JDWP state.
 static JDWP::JdwpState* gJdwpState = NULL;
@@ -58,27 +54,27 @@ static bool gDebuggerActive;     // debugger is making requests.
 static bool ParseJdwpOption(const std::string& name, const std::string& value) {
   if (name == "transport") {
     if (value == "dt_socket") {
-      gJdwpTransport = JDWP::kJdwpTransportSocket;
+      gJdwpOptions.transport = JDWP::kJdwpTransportSocket;
     } else if (value == "dt_android_adb") {
-      gJdwpTransport = JDWP::kJdwpTransportAndroidAdb;
+      gJdwpOptions.transport = JDWP::kJdwpTransportAndroidAdb;
     } else {
       LOG(ERROR) << "JDWP transport not supported: " << value;
       return false;
     }
   } else if (name == "server") {
     if (value == "n") {
-      gJdwpServer = false;
+      gJdwpOptions.server = false;
     } else if (value == "y") {
-      gJdwpServer = true;
+      gJdwpOptions.server = true;
     } else {
       LOG(ERROR) << "JDWP option 'server' must be 'y' or 'n'";
       return false;
     }
   } else if (name == "suspend") {
     if (value == "n") {
-      gJdwpSuspend = false;
+      gJdwpOptions.suspend = false;
     } else if (value == "y") {
-      gJdwpSuspend = true;
+      gJdwpOptions.suspend = true;
     } else {
       LOG(ERROR) << "JDWP option 'suspend' must be 'y' or 'n'";
       return false;
@@ -86,10 +82,10 @@ static bool ParseJdwpOption(const std::string& name, const std::string& value) {
   } else if (name == "address") {
     /* this is either <port> or <host>:<port> */
     std::string port_string;
-    gJdwpHost.clear();
+    gJdwpOptions.host.clear();
     std::string::size_type colon = value.find(':');
     if (colon != std::string::npos) {
-      gJdwpHost = value.substr(0, colon);
+      gJdwpOptions.host = value.substr(0, colon);
       port_string = value.substr(colon + 1);
     } else {
       port_string = value;
@@ -104,7 +100,7 @@ static bool ParseJdwpOption(const std::string& name, const std::string& value) {
       LOG(ERROR) << "JDWP address has junk in port field: " << value;
       return false;
     }
-    gJdwpPort = port;
+    gJdwpOptions.port = port;
   } else if (name == "launch" || name == "onthrow" || name == "oncaught" || name == "timeout") {
     /* valid but unsupported */
     LOG(INFO) << "Ignoring JDWP option '" << name << "'='" << value << "'";
@@ -132,10 +128,10 @@ bool Dbg::ParseJdwpOptions(const std::string& options) {
     ParseJdwpOption(pairs[i].substr(0, equals), pairs[i].substr(equals + 1));
   }
 
-  if (gJdwpTransport == JDWP::kJdwpTransportUnknown) {
+  if (gJdwpOptions.transport == JDWP::kJdwpTransportUnknown) {
     LOG(ERROR) << "Must specify JDWP transport: " << options;
   }
-  if (!gJdwpServer && (gJdwpHost.empty() || gJdwpPort == 0)) {
+  if (!gJdwpOptions.server && (gJdwpOptions.host.empty() || gJdwpOptions.port == 0)) {
     LOG(ERROR) << "Must specify JDWP host and port when server=n: " << options;
     return false;
   }
@@ -145,35 +141,31 @@ bool Dbg::ParseJdwpOptions(const std::string& options) {
 }
 
 void Dbg::StartJdwp() {
+  if (!gJdwpAllowed || !gJdwpConfigured) {
+    // No JDWP for you!
+    return;
+  }
+
   // Init JDWP if the debugger is enabled. This may connect out to a
   // debugger, passively listen for a debugger, or block waiting for a
   // debugger.
-  if (gJdwpAllowed && gJdwpConfigured) {
-    JDWP::JdwpStartupParams params;
-    params.host = gJdwpHost;
-    params.transport = gJdwpTransport;
-    params.server = gJdwpServer;
-    params.suspend = gJdwpSuspend;
-    params.port = gJdwpPort;
-
-    gJdwpState = JDWP::JdwpStartup(&params);
-    if (gJdwpState == NULL) {
-      LOG(WARNING) << "debugger thread failed to initialize";
-    }
+  gJdwpState = JDWP::JdwpState::Create(&gJdwpOptions);
+  if (gJdwpState == NULL) {
+    LOG(WARNING) << "debugger thread failed to initialize";
   }
 
   // If a debugger has already attached, send the "welcome" message.
   // This may cause us to suspend all threads.
-  if (JDWP::JdwpIsActive(gJdwpState)) {
+  if (gJdwpState->IsActive()) {
     //ScopedThreadStateChange(Thread::Current(), Thread::kRunnable);
-    if (!JDWP::PostVMStart(gJdwpState, gJdwpSuspend)) {
+    if (!gJdwpState->PostVMStart()) {
       LOG(WARNING) << "failed to post 'start' message to debugger";
     }
   }
 }
 
 void Dbg::StopJdwp() {
-  JDWP::JdwpShutdown(gJdwpState);
+  delete gJdwpState;
 }
 
 void Dbg::SetJdwpAllowed(bool allowed) {
@@ -600,7 +592,7 @@ void Dbg::DdmSendChunkV(int type, const struct iovec* iov, int iovcnt) {
   if (gJdwpState == NULL) {
     LOG(VERBOSE) << "Debugger thread not active, ignoring DDM send: " << type;
   } else {
-    JDWP::DdmSendChunkV(gJdwpState, type, iov, iovcnt);
+    gJdwpState->DdmSendChunkV(type, iov, iovcnt);
   }
 }
 

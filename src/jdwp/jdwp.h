@@ -20,6 +20,7 @@
 #include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_expand_buf.h"
+#include "../mutex.h" // TODO: fix our include path!
 
 #include <pthread.h>
 #include <stddef.h>
@@ -31,8 +32,6 @@ struct iovec;
 namespace art {
 
 namespace JDWP {
-
-struct JdwpState;       /* opaque */
 
 /*
  * Fundamental types.
@@ -65,7 +64,6 @@ static inline void expandBufAddObjectId(ExpandBuf* pReply, ObjectId id) { expand
 static inline void expandBufAddRefTypeId(ExpandBuf* pReply, RefTypeId id) { expandBufAdd8BE(pReply, id); }
 static inline void expandBufAddFrameId(ExpandBuf* pReply, FrameId id) { expandBufAdd8BE(pReply, id); }
 
-
 /*
  * Holds a JDWP "location".
  */
@@ -86,10 +84,7 @@ enum JdwpTransportType {
 };
 std::ostream& operator<<(std::ostream& os, const JdwpTransportType& rhs);
 
-/*
- * Holds collection of JDWP initialization parameters.
- */
-struct JdwpStartupParams {
+struct JdwpOptions {
   JdwpTransportType transport;
   bool server;
   bool suspend;
@@ -97,121 +92,208 @@ struct JdwpStartupParams {
   short port;
 };
 
-/*
- * Perform one-time initialization.
- *
- * Among other things, this binds to a port to listen for a connection from
- * the debugger.
- *
- * Returns a newly-allocated JdwpState struct on success, or NULL on failure.
- */
-JdwpState* JdwpStartup(const JdwpStartupParams* params);
+struct JdwpEvent;
+struct JdwpNetState;
+struct JdwpReqHeader;
+struct JdwpTransport;
 
 /*
- * Shut everything down.
+ * State for JDWP functions.
  */
-void JdwpShutdown(JdwpState* state);
+struct JdwpState {
+  /*
+   * Perform one-time initialization.
+   *
+   * Among other things, this binds to a port to listen for a connection from
+   * the debugger.
+   *
+   * Returns a newly-allocated JdwpState struct on success, or NULL on failure.
+   */
+  static JdwpState* Create(const JdwpOptions* options);
 
-/*
- * Returns "true" if a debugger or DDM is connected.
- */
-bool JdwpIsActive(JdwpState* state);
+  ~JdwpState();
 
-/*
- * Return the debugger thread's handle, or 0 if the debugger thread isn't
- * running.
- */
-pthread_t GetDebugThread(JdwpState* state);
+  /*
+   * Returns "true" if a debugger or DDM is connected.
+   */
+  bool IsActive();
 
-/*
- * Get time, in milliseconds, since the last debugger activity.
- */
-int64_t LastDebuggerActivity(JdwpState* state);
+  /*
+   * Return the debugger thread's handle, or 0 if the debugger thread isn't
+   * running.
+   */
+  pthread_t GetDebugThread();
 
-/*
- * When we hit a debugger event that requires suspension, it's important
- * that we wait for the thread to suspend itself before processing any
- * additional requests.  (Otherwise, if the debugger immediately sends a
- * "resume thread" command, the resume might arrive before the thread has
- * suspended itself.)
- *
- * The thread should call the "set" function before sending the event to
- * the debugger.  The main JDWP handler loop calls "get" before processing
- * an event, and will wait for thread suspension if it's set.  Once the
- * thread has suspended itself, the JDWP handler calls "clear" and
- * continues processing the current event.  This works in the suspend-all
- * case because the event thread doesn't suspend itself until everything
- * else has suspended.
- *
- * It's possible that multiple threads could encounter thread-suspending
- * events at the same time, so we grab a mutex in the "set" call, and
- * release it in the "clear" call.
- */
-//ObjectId GetWaitForEventThread(JdwpState* state);
-void SetWaitForEventThread(JdwpState* state, ObjectId threadId);
-void ClearWaitForEventThread(JdwpState* state);
+  /*
+   * Get time, in milliseconds, since the last debugger activity.
+   */
+  int64_t LastDebuggerActivity();
 
-/*
- * These notify the debug code that something interesting has happened.  This
- * could be a thread starting or ending, an exception, or an opportunity
- * for a breakpoint.  These calls do not mean that an event the debugger
- * is interested has happened, just that something has happened that the
- * debugger *might* be interested in.
- *
- * The item of interest may trigger multiple events, some or all of which
- * are grouped together in a single response.
- *
- * The event may cause the current thread or all threads (except the
- * JDWP support thread) to be suspended.
- */
+  /*
+   * When we hit a debugger event that requires suspension, it's important
+   * that we wait for the thread to suspend itself before processing any
+   * additional requests.  (Otherwise, if the debugger immediately sends a
+   * "resume thread" command, the resume might arrive before the thread has
+   * suspended itself.)
+   *
+   * The thread should call the "set" function before sending the event to
+   * the debugger.  The main JDWP handler loop calls "get" before processing
+   * an event, and will wait for thread suspension if it's set.  Once the
+   * thread has suspended itself, the JDWP handler calls "clear" and
+   * continues processing the current event.  This works in the suspend-all
+   * case because the event thread doesn't suspend itself until everything
+   * else has suspended.
+   *
+   * It's possible that multiple threads could encounter thread-suspending
+   * events at the same time, so we grab a mutex in the "set" call, and
+   * release it in the "clear" call.
+   */
+  //ObjectId GetWaitForEventThread();
+  void SetWaitForEventThread(ObjectId threadId);
+  void ClearWaitForEventThread();
 
-/*
- * The VM has finished initializing.  Only called when the debugger is
- * connected at the time initialization completes.
- */
-bool PostVMStart(JdwpState* state, bool suspend);
+  /*
+   * These notify the debug code that something interesting has happened.  This
+   * could be a thread starting or ending, an exception, or an opportunity
+   * for a breakpoint.  These calls do not mean that an event the debugger
+   * is interested has happened, just that something has happened that the
+   * debugger *might* be interested in.
+   *
+   * The item of interest may trigger multiple events, some or all of which
+   * are grouped together in a single response.
+   *
+   * The event may cause the current thread or all threads (except the
+   * JDWP support thread) to be suspended.
+   */
 
-/*
- * A location of interest has been reached.  This is used for breakpoints,
- * single-stepping, and method entry/exit.  (JDWP requires that these four
- * events are grouped together in a single response.)
- *
- * In some cases "*pLoc" will just have a method and class name, e.g. when
- * issuing a MethodEntry on a native method.
- *
- * "eventFlags" indicates the types of events that have occurred.
- */
-bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags);
+  /*
+   * The VM has finished initializing.  Only called when the debugger is
+   * connected at the time initialization completes.
+   */
+  bool PostVMStart();
 
-/*
- * An exception has been thrown.
- *
- * Pass in a zeroed-out "*pCatchLoc" if the exception wasn't caught.
- */
-bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
-    ObjectId excepId, RefTypeId excepClassId, const JdwpLocation* pCatchLoc,
-    ObjectId thisPtr);
+  /*
+   * A location of interest has been reached.  This is used for breakpoints,
+   * single-stepping, and method entry/exit.  (JDWP requires that these four
+   * events are grouped together in a single response.)
+   *
+   * In some cases "*pLoc" will just have a method and class name, e.g. when
+   * issuing a MethodEntry on a native method.
+   *
+   * "eventFlags" indicates the types of events that have occurred.
+   */
+  bool PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags);
 
-/*
- * A thread has started or stopped.
- */
-bool PostThreadChange(JdwpState* state, ObjectId threadId, bool start);
+  /*
+   * An exception has been thrown.
+   *
+   * Pass in a zeroed-out "*pCatchLoc" if the exception wasn't caught.
+   */
+  bool PostException(const JdwpLocation* pThrowLoc, ObjectId excepId, RefTypeId excepClassId, const JdwpLocation* pCatchLoc, ObjectId thisPtr);
 
-/*
- * Class has been prepared.
- */
-bool PostClassPrepare(JdwpState* state, int tag, RefTypeId refTypeId,
-    const char* signature, int status);
+  /*
+   * A thread has started or stopped.
+   */
+  bool PostThreadChange(ObjectId threadId, bool start);
 
-/*
- * The VM is about to stop.
- */
-bool PostVMDeath(JdwpState* state);
+  /*
+   * Class has been prepared.
+   */
+  bool PostClassPrepare(int tag, RefTypeId refTypeId, const char* signature, int status);
 
-/*
- * Send up a chunk of DDM data.
- */
-void DdmSendChunkV(JdwpState* state, int type, const iovec* iov, int iovcnt);
+  /*
+   * The VM is about to stop.
+   */
+  bool PostVMDeath();
+
+  /*
+   * Send up a chunk of DDM data.
+   */
+  void DdmSendChunkV(int type, const iovec* iov, int iovcnt);
+
+  /*
+   * Process a request from the debugger.
+   *
+   * "buf" points past the header, to the content of the message.  "dataLen"
+   * can therefore be zero.
+   */
+  void ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf, int dataLen, ExpandBuf* pReply);
+
+  /*
+   * Send an event, formatted into "pReq", to the debugger.
+   *
+   * (Messages are sent asynchronously, and do not receive a reply.)
+   */
+  bool SendRequest(ExpandBuf* pReq);
+
+  void ResetState();
+
+  /* atomic ops to get next serial number */
+  uint32_t NextRequestSerial();
+  uint32_t NextEventSerial();
+
+  void Run();
+
+ private:
+  JdwpState(const JdwpOptions* options);
+  bool IsConnected();
+
+public: // TODO: fix privacy
+  const JdwpOptions* options_;
+private:
+
+  /* wait for creation of the JDWP thread */
+  Mutex thread_start_lock_;
+  ConditionVariable thread_start_cond_;
+
+  volatile int32_t debug_thread_started_;
+  pthread_t debugThreadHandle;
+public: // TODO: fix privacy
+  ObjectId debugThreadId;
+private:
+  bool run;
+
+  const JdwpTransport* transport;
+public: // TODO: fix privacy
+  JdwpNetState* netState;
+private:
+
+  /* for wait-for-debugger */
+  Mutex attach_lock_;
+  ConditionVariable attach_cond_;
+
+  /* time of last debugger activity, in milliseconds */
+  int64_t lastActivityWhen;
+
+  /* global counters and a mutex to protect them */
+  uint32_t requestSerial;
+  uint32_t eventSerial;
+  Mutex serial_lock_;
+
+  /*
+   * Events requested by the debugger (breakpoints, class prep, etc).
+   */
+public: // TODO: fix privacy
+  int numEvents;      /* #of elements in eventList */
+  JdwpEvent* eventList;      /* linked list of events */
+  Mutex event_lock_;      /* guards numEvents/eventList */
+private:
+
+  /*
+   * Synchronize suspension of event thread (to avoid receiving "resume"
+   * events before the thread has finished suspending itself).
+   */
+  Mutex event_thread_lock_;
+  ConditionVariable event_thread_cond_;
+  ObjectId eventThreadId;
+
+  /*
+   * DDM support.
+   */
+public: // TODO: fix privacy
+  bool ddmActive;
+private:
+};
 
 }  // namespace JDWP
 

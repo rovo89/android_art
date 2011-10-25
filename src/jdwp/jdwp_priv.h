@@ -24,7 +24,6 @@
 #include "debugger.h"
 #include "jdwp/jdwp.h"
 #include "jdwp/jdwp_event.h"
-#include "../mutex.h" // TODO: fix our include path!
 
 #include <pthread.h>
 #include <sys/uio.h>
@@ -53,7 +52,7 @@ struct JdwpState;
  * Transport functions.
  */
 struct JdwpTransport {
-  bool (*startup)(JdwpState* state, const JdwpStartupParams* pParams);
+  bool (*startup)(JdwpState* state, const JdwpOptions* options);
   bool (*accept)(JdwpState* state);
   bool (*establish)(JdwpState* state);
   void (*close)(JdwpState* state);
@@ -69,60 +68,6 @@ struct JdwpTransport {
 const JdwpTransport* SocketTransport();
 const JdwpTransport* AndroidAdbTransport();
 
-
-/*
- * State for JDWP functions.
- */
-struct JdwpState {
-  JdwpState();
-
-  JdwpStartupParams params;
-
-  /* wait for creation of the JDWP thread */
-  Mutex thread_start_lock_;
-  ConditionVariable thread_start_cond_;
-
-  volatile int32_t debug_thread_started_;
-  pthread_t debugThreadHandle;
-  ObjectId debugThreadId;
-  bool run;
-
-  const JdwpTransport* transport;
-  JdwpNetState* netState;
-
-  /* for wait-for-debugger */
-  Mutex attach_lock_;
-  ConditionVariable attach_cond_;
-
-  /* time of last debugger activity, in milliseconds */
-  int64_t lastActivityWhen;
-
-  /* global counters and a mutex to protect them */
-  uint32_t requestSerial;
-  uint32_t eventSerial;
-  Mutex serial_lock_;
-
-  /*
-   * Events requested by the debugger (breakpoints, class prep, etc).
-   */
-  int numEvents;      /* #of elements in eventList */
-  JdwpEvent* eventList;      /* linked list of events */
-  Mutex event_lock_;      /* guards numEvents/eventList */
-
-  /*
-   * Synchronize suspension of event thread (to avoid receiving "resume"
-   * events before the thread has finished suspending itself).
-   */
-  Mutex event_thread_lock_;
-  ConditionVariable event_thread_cond_;
-  ObjectId eventThreadId;
-
-  /*
-   * DDM support.
-   */
-  bool ddmActive;
-};
-
 /*
  * Base class for JdwpNetState
  */
@@ -137,14 +82,6 @@ public:
 private:
   Mutex socket_lock_;
 };
-
-
-/* reset all session-specific data */
-void ResetState(JdwpState* state);
-
-/* atomic ops to get next serial number */
-uint32_t NextRequestSerial(JdwpState* state);
-uint32_t NextEventSerial(JdwpState* state);
 
 /* get current time, in msec */
 int64_t GetNowMsec();

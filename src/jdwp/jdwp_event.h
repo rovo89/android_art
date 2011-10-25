@@ -123,13 +123,6 @@ void UnregisterEventById(JdwpState* state, uint32_t requestId);
  */
 void UnregisterAll(JdwpState* state);
 
-/*
- * Send an event, formatted into "pReq", to the debugger.
- *
- * (Messages are sent asynchronously, and do not receive a reply.)
- */
-bool SendRequest(JdwpState* state, ExpandBuf* pReq);
-
 }  // namespace JDWP
 
 }  // namespace art
