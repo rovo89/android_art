@@ -383,7 +383,8 @@ void JdwpState::Run() {
   /* back to running, for thread shutdown */
   Dbg::ThreadRunning();
 
-  LOG(VERBOSE) << "JDWP: thread exiting";
+  LOG(VERBOSE) << "JDWP: thread detaching and exiting...";
+  runtime->DetachCurrentThread();
 }
 
 pthread_t JdwpState::GetDebugThread() {

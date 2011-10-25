@@ -212,9 +212,8 @@ int Dbg::ThreadWaiting() {
   return static_cast<int>(Thread::Current()->SetState(Thread::kVmWait));
 }
 
-int Dbg::ThreadContinuing(int status) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+int Dbg::ThreadContinuing(int new_state) {
+  return static_cast<int>(Thread::Current()->SetState(static_cast<Thread::State>(new_state)));
 }
 
 void Dbg::UndoDebuggerSuspensions() {

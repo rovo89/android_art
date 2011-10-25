@@ -158,6 +158,7 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 	adb sync
 	if [ "`adb shell getprop wrap.com.android.calculator2 | tr -d '\r'`" = "oat_processd" ]; then \
 	  echo wrap.com.android.calculator2 already set; \
+	  adb shell start; \
 	else \
 	  echo Setting wrap.com.android.calculator2 and restarting runtime; \
 	  adb shell setprop wrap.com.android.calculator2 "oat_processd"; \
