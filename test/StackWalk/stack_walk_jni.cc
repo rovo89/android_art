@@ -44,7 +44,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
     // Given the method name and the number of times the method has been called,
     // we know the Dex registers with live reference values. Assert that what we
     // find is what is expected.
-    if (m_name->Equals("f") == 0) {
+    if (m_name->Equals("f")) {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(1U, m->ToDexPC(pc));
         CHECK_REGS(1);
@@ -53,7 +53,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         CHECK_EQ(5U, m->ToDexPC(pc));
         CHECK_REGS(1);
       }
-    } else if (m_name->Equals("g") == 0) {
+    } else if (m_name->Equals("g")) {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(0xcU, m->ToDexPC(pc));
         CHECK_REGS(0, 2);  // Note that v1 is not in the minimal root set
@@ -62,7 +62,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         CHECK_EQ(0xcU, m->ToDexPC(pc));
         CHECK_REGS(0, 2);
       }
-    } else if (m_name->Equals("shlemiel") == 0) {
+    } else if (m_name->Equals("shlemiel")) {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(0x380U, m->ToDexPC(pc));
         CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
