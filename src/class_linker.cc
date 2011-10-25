@@ -567,8 +567,8 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
 
     execl("/system/bin/dex2oatd",
           "/system/bin/dex2oatd",
-          "-Xms64m",
-          "-Xmx64m",
+          "--runtime-arg", "-Xms64m",
+          "--runtime-arg", "-Xmx64m",
           boot_image_option.c_str(),
           dex_file_option.c_str(),
           oat_file_option.c_str(),

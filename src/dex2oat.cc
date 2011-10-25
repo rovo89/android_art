@@ -52,14 +52,10 @@ static void usage() {
           "      Example: --host-prefix=out/target/product/crespo\n"
           "\n");
   fprintf(stderr,
-          "  -Xms<n> may be used to specify an initial heap size for the runtime used to\n"
-          "      run dex2oat\n"
-          "      Example: -Xms256m\n"
-          "\n");
-  fprintf(stderr,
-          "  -Xmx<n> may be used to specify a maximum heap size for the runtime used to\n"
-          "      run dex2oat\n"
-          "      Example: -Xmx256m\n"
+          "  --runtime-arg <argument>: used to specify various arguments for the runtime,\n"
+          "      such as initial heap size, maximum heap size, and verbose output.\n"
+          "      Use a separate --runtime-arg switch for each argument.\n"
+          "      Example: --runtime-arg -Xms256m\n"
           "\n");
   exit(EXIT_FAILURE);
 }
@@ -81,9 +77,7 @@ int dex2oat(int argc, char** argv) {
   std::string boot_image_option;
   uintptr_t image_base = 0;
   std::string host_prefix;
-  const char* Xms = NULL;
-  const char* Xmx = NULL;
-  const char* verbose = NULL;
+  std::vector<const char*> runtime_args;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -113,12 +107,12 @@ int dex2oat(int argc, char** argv) {
       boot_image_option += boot_image_filename;
     } else if (option.starts_with("--host-prefix=")) {
       host_prefix = option.substr(strlen("--host-prefix=")).data();
-    } else if (option.starts_with("-Xms")) {
-      Xms = option.data();
-    } else if (option.starts_with("-Xmx")) {
-      Xmx = option.data();
-    } else if (option.starts_with("-verbose:")) {
-      verbose = option.data();
+    } else if (option == "--runtime-arg") {
+      if (++i >= argc) {
+        fprintf(stderr, "Missing required argument for --runtime-arg\n");
+        usage();
+      }
+      runtime_args.push_back(argv[i]);
     } else {
       fprintf(stderr, "unknown argument %s\n", option.data());
       usage();
@@ -161,17 +155,11 @@ int dex2oat(int argc, char** argv) {
   } else {
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
-  if (Xms != NULL) {
-    options.push_back(std::make_pair(Xms, reinterpret_cast<void*>(NULL)));
-  }
-  if (Xmx != NULL) {
-    options.push_back(std::make_pair(Xmx, reinterpret_cast<void*>(NULL)));
-  }
-  if (verbose != NULL) {
-    options.push_back(std::make_pair(verbose, reinterpret_cast<void*>(NULL)));
-  }
   if (!host_prefix.empty()) {
     options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
+  }
+  for (size_t i = 0; i < runtime_args.size(); i++) {
+    options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
   if (runtime.get() == NULL) {

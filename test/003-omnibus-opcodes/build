@@ -24,9 +24,3 @@ ${JAVAC} -d classes `find src2 -name '*.java'`
 
 dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex classes
 zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
-
-dex2oatd -Xms16m -Xmx16m \
-    --boot-image=${ANDROID_PRODUCT_OUT}/data/art-test/core.art \
-    --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar \
-    --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat \
-    --host-prefix=${ANDROID_PRODUCT_OUT}

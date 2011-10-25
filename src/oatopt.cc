@@ -51,8 +51,8 @@ int ProcessZipFile(int zip_fd, int cache_fd, const char* zip_name, const char *f
 
   execl("/system/bin/dex2oatd",
         "/system/bin/dex2oatd",
-        "-Xms64m",
-        "-Xmx64m",
+        "--runtime-arg", "-Xms64m",
+        "--runtime-arg", "-Xmx64m",
         "--boot-image=/data/art-cache/boot.art",
         dex_file_option.c_str(),
         oat_file_option.c_str(),
