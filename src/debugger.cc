@@ -18,7 +18,34 @@
 
 #include <sys/uio.h>
 
+#include "thread_list.h"
+
 namespace art {
+
+class ObjectRegistry {
+ public:
+  ObjectRegistry() : lock_("ObjectRegistry lock") {
+  }
+
+  JDWP::ObjectId Add(Object* o) {
+    if (o == NULL) {
+      return 0;
+    }
+    JDWP::ObjectId id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(o));
+    MutexLock mu(lock_);
+    map_[id] = o;
+    return id;
+  }
+
+  bool Contains(JDWP::ObjectId id) {
+    MutexLock mu(lock_);
+    return map_.find(id) != map_.end();
+  }
+
+ private:
+  Mutex lock_;
+  std::map<JDWP::ObjectId, Object*> map_;
+};
 
 // JDWP is allowed unless the Zygote forbids it.
 static bool gJdwpAllowed = true;
@@ -33,6 +60,8 @@ static JDWP::JdwpOptions gJdwpOptions;
 static JDWP::JdwpState* gJdwpState = NULL;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
 static bool gDebuggerActive;     // debugger is making requests.
+
+static ObjectRegistry* gRegistry = NULL;
 
 /*
  * Handle one of the JDWP name/value pairs.
@@ -146,12 +175,16 @@ void Dbg::StartJdwp() {
     return;
   }
 
+  CHECK(gRegistry == NULL);
+  gRegistry = new ObjectRegistry;
+
   // Init JDWP if the debugger is enabled. This may connect out to a
   // debugger, passively listen for a debugger, or block waiting for a
   // debugger.
   gJdwpState = JDWP::JdwpState::Create(&gJdwpOptions);
   if (gJdwpState == NULL) {
     LOG(WARNING) << "debugger thread failed to initialize";
+    return;
   }
 
   // If a debugger has already attached, send the "welcome" message.
@@ -166,6 +199,8 @@ void Dbg::StartJdwp() {
 
 void Dbg::StopJdwp() {
   delete gJdwpState;
+  delete gRegistry;
+  gRegistry = NULL;
 }
 
 void Dbg::SetJdwpAllowed(bool allowed) {
@@ -173,8 +208,15 @@ void Dbg::SetJdwpAllowed(bool allowed) {
 }
 
 DebugInvokeReq* Dbg::GetInvokeReq() {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+  return Thread::Current()->GetInvokeReq();
+}
+
+Thread* Dbg::GetDebugThread() {
+  return (gJdwpState != NULL) ? gJdwpState->GetDebugThread() : NULL;
+}
+
+void Dbg::ClearWaitForEventThread() {
+  gJdwpState->ClearWaitForEventThread();
 }
 
 void Dbg::Connected() {
@@ -472,16 +514,15 @@ bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrame
 }
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return gRegistry->Add(Thread::Current()->GetPeer());
 }
 
-void Dbg::SuspendVM(bool isEvent) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::SuspendVM() {
+  Runtime::Current()->GetThreadList()->SuspendAll(true);
 }
 
 void Dbg::ResumeVM() {
-  UNIMPLEMENTED(FATAL);
+  Runtime::Current()->GetThreadList()->ResumeAll(true);
 }
 
 void Dbg::SuspendThread(JDWP::ObjectId threadId) {
@@ -493,7 +534,7 @@ void Dbg::ResumeThread(JDWP::ObjectId threadId) {
 }
 
 void Dbg::SuspendSelf() {
-  UNIMPLEMENTED(FATAL);
+  Runtime::Current()->GetThreadList()->SuspendSelfForDebugger();
 }
 
 bool Dbg::GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {

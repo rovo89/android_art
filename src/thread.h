@@ -43,6 +43,7 @@ class Class;
 class ClassLinker;
 class ClassLoader;
 class Context;
+class DebugInvokeReq;
 class Method;
 class Monitor;
 class Object;
@@ -455,6 +456,10 @@ class PACKED Thread {
 
   void WalkStack(StackVisitor* visitor) const;
 
+  DebugInvokeReq* GetInvokeReq() {
+    return debug_invoke_req_;
+  }
+
  private:
   Thread();
   ~Thread();
@@ -582,6 +587,9 @@ class PACKED Thread {
   uint32_t throwing_OutOfMemoryError_;
 
   Throwable* pre_allocated_OutOfMemoryError_;
+
+  // JDWP invoke-during-breakpoint support.
+  DebugInvokeReq* debug_invoke_req_;
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;

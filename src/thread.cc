@@ -731,7 +731,8 @@ Thread::Thread()
       class_loader_override_(NULL),
       long_jump_context_(NULL),
       throwing_OutOfMemoryError_(false),
-      pre_allocated_OutOfMemoryError_(NULL) {
+      pre_allocated_OutOfMemoryError_(NULL),
+      debug_invoke_req_(new DebugInvokeReq) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
 }
 
@@ -774,6 +775,8 @@ Thread::~Thread() {
   delete wait_mutex_;
 
   delete long_jump_context_;
+
+  delete debug_invoke_req_;
 }
 
 void Thread::HandleUncaughtExceptions() {

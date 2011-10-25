@@ -36,8 +36,9 @@ class ThreadList {
 
   // Thread suspension support.
   void FullSuspendCheck(Thread* thread);
-  void ResumeAll();
-  void SuspendAll();
+  void ResumeAll(bool for_debugger = false);
+  void SuspendAll(bool for_debugger = false);
+  void SuspendSelfForDebugger();
   void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);
 
   void Register();

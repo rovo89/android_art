@@ -539,7 +539,7 @@ static void suspendByPolicy(JdwpState* state, JdwpSuspendPolicy suspendPolicy) {
   }
 
   if (suspendPolicy == SP_ALL) {
-    Dbg::SuspendVM(true);
+    Dbg::SuspendVM();
   } else {
     CHECK_EQ(suspendPolicy, SP_EVENT_THREAD);
   }
@@ -560,7 +560,7 @@ static void suspendByPolicy(JdwpState* state, JdwpSuspendPolicy suspendPolicy) {
      * The JDWP thread has told us (and possibly all other threads) to
      * resume.  See if it has left anything in our DebugInvokeReq mailbox.
      */
-    if (!pReq->invokeNeeded) {
+    if (!pReq->invoke_needed) {
       /*LOGD("suspendByPolicy: no invoke needed");*/
       break;
     }
@@ -568,14 +568,14 @@ static void suspendByPolicy(JdwpState* state, JdwpSuspendPolicy suspendPolicy) {
     /* grab this before posting/suspending again */
     state->SetWaitForEventThread(Dbg::GetThreadSelfId());
 
-    /* leave pReq->invokeNeeded raised so we can check reentrancy */
+    /* leave pReq->invoke_needed raised so we can check reentrancy */
     LOG(VERBOSE) << "invoking method...";
     Dbg::ExecuteMethod(pReq);
 
-    pReq->err = ERR_NONE;
+    pReq->error = ERR_NONE;
 
     /* clear this before signaling */
-    pReq->invokeNeeded = false;
+    pReq->invoke_needed = false;
 
     LOG(VERBOSE) << "invoke complete, signaling and self-suspending";
     MutexLock mu(pReq->lock_);
@@ -587,12 +587,12 @@ static void suspendByPolicy(JdwpState* state, JdwpSuspendPolicy suspendPolicy) {
  * Determine if there is a method invocation in progress in the current
  * thread.
  *
- * We look at the "invokeNeeded" flag in the per-thread DebugInvokeReq
+ * We look at the "invoke_needed" flag in the per-thread DebugInvokeReq
  * state.  If set, we're in the process of invoking a method.
  */
 static bool invokeInProgress(JdwpState* state) {
   DebugInvokeReq* pReq = Dbg::GetInvokeReq();
-  return pReq->invokeNeeded;
+  return pReq->invoke_needed;
 }
 
 /*
