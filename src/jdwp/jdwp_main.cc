@@ -33,7 +33,7 @@ namespace art {
 
 namespace JDWP {
 
-static void* jdwpThreadStart(void* arg);
+static void* StartJdwpThread(void* arg);
 
 /*
  * JdwpNetStateBase class implementation
@@ -58,56 +58,35 @@ ssize_t JdwpNetStateBase::writeBufferedPacket(const iovec* iov, int iovcnt) {
   return writev(clientSock, iov, iovcnt);
 }
 
-bool NetStartup(JdwpState* state, const JdwpStartupParams* pParams) {
-  return (*state->transport->startup)(state, pParams);
+bool JdwpState::IsConnected() {
+  return (*transport->isConnected)(this);
 }
 
-bool AcceptConnection(JdwpState* state) {
-  return (*state->transport->accept)(state);
+bool JdwpState::SendRequest(ExpandBuf* pReq) {
+  return (*transport->sendRequest)(this, pReq);
 }
 
-bool EstablishConnection(JdwpState* state) {
-  return (*state->transport->establish)(state);
+/*
+ * Get the next "request" serial number.  We use this when sending
+ * packets to the debugger.
+ */
+uint32_t JdwpState::NextRequestSerial() {
+  MutexLock mu(serial_lock_);
+  return requestSerial++;
 }
 
-void CloseConnection(JdwpState* state) {
-  (*state->transport->close)(state);
+/*
+ * Get the next "event" serial number.  We use this in the response to
+ * message type EventRequest.Set.
+ */
+uint32_t JdwpState::NextEventSerial() {
+  MutexLock mu(serial_lock_);
+  return eventSerial++;
 }
 
-void NetShutdown(JdwpState* state) {
-  (*state->transport->shutdown)(state);
-}
-
-void NetFree(JdwpState* state) {
-  (*state->transport->free)(state);
-}
-
-bool IsTransportDefined(JdwpState* state) {
-  return state != NULL && state->transport != NULL;
-}
-
-bool JdwpIsConnected(JdwpState* state) {
-  return state != NULL && (*state->transport->isConnected)(state);
-}
-
-bool AwaitingHandshake(JdwpState* state) {
-  return (*state->transport->awaitingHandshake)(state);
-}
-
-bool ProcessIncoming(JdwpState* state) {
-  return (*state->transport->processIncoming)(state);
-}
-
-bool SendRequest(JdwpState* state, ExpandBuf* pReq) {
-  return (*state->transport->sendRequest)(state, pReq);
-}
-
-static void CreateJdwpThread(JdwpState* state) {
-  CHECK_PTHREAD_CALL(pthread_create, (&state->debugThreadHandle, NULL, jdwpThreadStart, state), "JDWP thread");
-}
-
-JdwpState::JdwpState()
-    : thread_start_lock_("JDWP thread start lock"),
+JdwpState::JdwpState(const JdwpOptions* options)
+    : options_(options),
+      thread_start_lock_("JDWP thread start lock"),
       thread_start_cond_("JDWP thread start condition variable"),
       debug_thread_started_(false),
       debugThreadId(0),
@@ -135,15 +114,12 @@ JdwpState::JdwpState()
  * Does not return until JDWP thread is running, but may return before
  * the thread is accepting network connections.
  */
-JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
+JdwpState* JdwpState::Create(const JdwpOptions* options) {
   /* comment this out when debugging JDWP itself */
   //android_setMinPriority(LOG_TAG, ANDROID_LOG_DEBUG);
 
-  JdwpState* state = new JdwpState;
-
-  state->params = *pParams;
-
-  switch (pParams->transport) {
+  JdwpState* state = new JdwpState(options);
+  switch (options->transport) {
   case kJdwpTransportSocket:
     // LOGD("prepping for JDWP over TCP");
     state->transport = SocketTransport();
@@ -155,10 +131,10 @@ JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
     break;
 #endif
   default:
-    LOG(FATAL) << "Unknown transport: " << pParams->transport;
+    LOG(FATAL) << "Unknown transport: " << options->transport;
   }
 
-  if (!NetStartup(state, pParams)) {
+  if (!(*state->transport->startup)(state, options)) {
     goto fail;
   }
 
@@ -167,7 +143,7 @@ JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
    * won't signal the cond var before we're waiting.
    */
   state->thread_start_lock_.Lock();
-  if (pParams->suspend) {
+  if (options->suspend) {
     state->attach_lock_.Lock();
   }
 
@@ -175,7 +151,7 @@ JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
    * We have bound to a port, or are trying to connect outbound to a
    * debugger.  Create the JDWP thread and let it continue the mission.
    */
-  CreateJdwpThread(state);
+  CHECK_PTHREAD_CALL(pthread_create, (&state->debugThreadHandle, NULL, StartJdwpThread, state), "JDWP thread");
 
   /*
    * Wait until the thread finishes basic initialization.
@@ -192,7 +168,7 @@ JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
    * times out (for timeout=xxx), so we have to check to see what happened
    * when we wake up.
    */
-  if (pParams->suspend) {
+  if (options->suspend) {
     {
       ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
 
@@ -200,7 +176,7 @@ JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
       state->attach_lock_.Unlock();
     }
 
-    if (!JdwpIsActive(state)) {
+    if (!state->IsActive()) {
       LOG(ERROR) << "JDWP connection failed";
       goto fail;
     }
@@ -217,7 +193,7 @@ JdwpState* JdwpStartup(const JdwpStartupParams* pParams) {
   return state;
 
 fail:
-  JdwpShutdown(state);     // frees state
+  delete state;     // frees state
   return NULL;
 }
 
@@ -228,17 +204,17 @@ fail:
  *
  * This includes freeing up the debugger event list.
  */
-void ResetState(JdwpState* state) {
+void JdwpState::ResetState() {
   /* could reset the serial numbers, but no need to */
 
-  UnregisterAll(state);
-  CHECK(state->eventList == NULL);
+  UnregisterAll(this);
+  CHECK(eventList == NULL);
 
   /*
    * Should not have one of these in progress.  If the debugger went away
    * mid-request, though, we could see this.
    */
-  if (state->eventThreadId != 0) {
+  if (eventThreadId != 0) {
     LOG(WARNING) << "resetting state while event in progress";
     DCHECK(false);
   }
@@ -247,72 +223,71 @@ void ResetState(JdwpState* state) {
 /*
  * Tell the JDWP thread to shut down.  Frees "state".
  */
-void JdwpShutdown(JdwpState* state) {
-  void* threadReturn;
-
-  if (state == NULL) {
-    return;
-  }
-
-  if (IsTransportDefined(state)) {
-    if (JdwpIsConnected(state)) {
-      PostVMDeath(state);
+JdwpState::~JdwpState() {
+  if (transport != NULL) {
+    if (IsConnected()) {
+      PostVMDeath();
     }
 
     /*
      * Close down the network to inspire the thread to halt.
      */
     LOG(DEBUG) << "JDWP shutting down net...";
-    NetShutdown(state);
+    (*transport->shutdown)(this);
 
-    if (state->debug_thread_started_) {
-      state->run = false;
-      if (pthread_join(state->debugThreadHandle, &threadReturn) != 0) {
+    if (debug_thread_started_) {
+      run = false;
+      void* threadReturn;
+      if (pthread_join(debugThreadHandle, &threadReturn) != 0) {
         LOG(WARNING) << "JDWP thread join failed";
       }
     }
 
     LOG(DEBUG) << "JDWP freeing netstate...";
-    NetFree(state);
-    state->netState = NULL;
+    (*transport->free)(this);
+    netState = NULL;
   }
-  CHECK(state->netState == NULL);
+  CHECK(netState == NULL);
 
-  ResetState(state);
-  free(state);
+  ResetState();
 }
 
 /*
  * Are we talking to a debugger?
  */
-bool JdwpIsActive(JdwpState* state) {
-  return JdwpIsConnected(state);
+bool JdwpState::IsActive() {
+  return IsConnected();
 }
 
 /*
  * Entry point for JDWP thread.  The thread was created through the VM
  * mechanisms, so there is a java/lang/Thread associated with us.
  */
-static void* jdwpThreadStart(void* arg) {
+static void* StartJdwpThread(void* arg) {
   JdwpState* state = reinterpret_cast<JdwpState*>(arg);
   CHECK(state != NULL);
 
+  state->Run();
+  return NULL;
+}
+
+void JdwpState::Run() {
   Runtime* runtime = Runtime::Current();
   runtime->AttachCurrentThread("JDWP", true);
 
   LOG(VERBOSE) << "JDWP: thread running";
 
   /*
-   * Finish initializing "state", then notify the creating thread that
+   * Finish initializing, then notify the creating thread that
    * we're running.
    */
-  state->debugThreadHandle = pthread_self();
-  state->run = true;
-  android_atomic_release_store(true, &state->debug_thread_started_);
+  debugThreadHandle = pthread_self();
+  run = true;
+  android_atomic_release_store(true, &debug_thread_started_);
 
-  state->thread_start_lock_.Lock();
-  state->thread_start_cond_.Broadcast();
-  state->thread_start_lock_.Unlock();
+  thread_start_lock_.Lock();
+  thread_start_cond_.Broadcast();
+  thread_start_lock_.Unlock();
 
   /* set the thread state to VMWAIT so GCs don't wait for us */
   Dbg::ThreadWaiting();
@@ -325,15 +300,13 @@ static void* jdwpThreadStart(void* arg) {
    * We broadcast a notification when a debugger attaches, after we
    * successfully process the handshake.
    */
-  while (state->run) {
-    bool first;
-
-    if (state->params.server) {
+  while (run) {
+    if (options_->server) {
       /*
        * Block forever, waiting for a connection.  To support the
        * "timeout=xxx" option we'll need to tweak this.
        */
-      if (!AcceptConnection(state)) {
+      if (!(*transport->accept)(this)) {
         break;
       }
     } else {
@@ -343,10 +316,10 @@ static void* jdwpThreadStart(void* arg) {
        * have a timeout if the handshake reply isn't received in a
        * reasonable amount of time.
        */
-      if (!EstablishConnection(state)) {
+      if (!(*transport->establish)(this)) {
         /* wake anybody who was waiting for us to succeed */
-        MutexLock mu(state->attach_lock_);
-        state->attach_cond_.Broadcast();
+        MutexLock mu(attach_lock_);
+        attach_cond_.Broadcast();
         break;
       }
     }
@@ -355,7 +328,7 @@ static void* jdwpThreadStart(void* arg) {
     Dbg::Connected();
 
     /* process requests until the debugger drops */
-    first = true;
+    bool first = true;
     while (true) {
       // sanity check -- shouldn't happen?
       if (Thread::Current()->GetState() != Thread::kVmWait) {
@@ -363,28 +336,28 @@ static void* jdwpThreadStart(void* arg) {
         Dbg::ThreadWaiting();
       }
 
-      if (!ProcessIncoming(state)) {
+      if (!(*transport->processIncoming)(this)) {
         /* blocking read */
         break;
       }
 
-      if (first && !AwaitingHandshake(state)) {
+      if (first && !(*transport->awaitingHandshake)(this)) {
         /* handshake worked, tell the interpreter that we're active */
         first = false;
 
         /* set thread ID; requires object registry to be active */
-        state->debugThreadId = Dbg::GetThreadSelfId();
+        debugThreadId = Dbg::GetThreadSelfId();
 
         /* wake anybody who's waiting for us */
-        MutexLock mu(state->attach_lock_);
-        state->attach_cond_.Broadcast();
+        MutexLock mu(attach_lock_);
+        attach_cond_.Broadcast();
       }
     }
 
-    CloseConnection(state);
+    (*transport->close)(this);
 
-    if (state->ddmActive) {
-      state->ddmActive = false;
+    if (ddmActive) {
+      ddmActive = false;
 
       /* broadcast the disconnect; must be in RUNNING state */
       Dbg::ThreadRunning();
@@ -393,7 +366,7 @@ static void* jdwpThreadStart(void* arg) {
     }
 
     /* release session state, e.g. remove breakpoint instructions */
-    ResetState(state);
+    ResetState();
 
     /* tell the interpreter that the debugger is no longer around */
     Dbg::Disconnected();
@@ -402,8 +375,8 @@ static void* jdwpThreadStart(void* arg) {
     Dbg::UndoDebuggerSuspensions();
 
     /* if we connected out, this was a one-shot deal */
-    if (!state->params.server) {
-      state->run = false;
+    if (!options_->server) {
+      run = false;
     }
   }
 
@@ -411,18 +384,10 @@ static void* jdwpThreadStart(void* arg) {
   Dbg::ThreadRunning();
 
   LOG(VERBOSE) << "JDWP: thread exiting";
-  return NULL;
 }
 
-
-/*
- * Return the thread handle, or (pthread_t)0 if the debugger isn't running.
- */
-pthread_t GetDebugThread(JdwpState* state) {
-  if (state == NULL) {
-    return 0;
-  }
-  return state->debugThreadHandle;
+pthread_t JdwpState::GetDebugThread() {
+  return debugThreadHandle;
 }
 
 /*
@@ -466,13 +431,13 @@ int64_t GetNowMsec() {
  * Returns -1 if no debugger is attached, or 0 if we're in the middle of
  * processing a debugger request.
  */
-int64_t LastDebuggerActivity(JdwpState* state) {
+int64_t JdwpState::LastDebuggerActivity() {
   if (!Dbg::IsDebuggerConnected()) {
     LOG(DEBUG) << "no active debugger";
     return -1;
   }
 
-  int64_t last = QuasiAtomicRead64(&state->lastActivityWhen);
+  int64_t last = QuasiAtomicRead64(&lastActivityWhen);
 
   /* initializing or in the middle of something? */
   if (last == 0) {

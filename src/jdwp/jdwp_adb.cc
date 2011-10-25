@@ -118,8 +118,8 @@ static void adbStateFree(JdwpNetState* netState) {
  * runs in the main thread, before the JDWP thread starts, so it shouldn't
  * do anything that might block forever.
  */
-static bool startup(JdwpState* state, const JdwpStartupParams* pParams) {
-  JdwpNetState*  netState;
+static bool startup(JdwpState* state, const JdwpOptions*) {
+  JdwpNetState* netState;
 
   LOG(VERBOSE) << "ADB transport startup";
 
@@ -445,7 +445,7 @@ static bool handlePacket(JdwpState* state) {
     hdr.id = id;
     hdr.cmdSet = cmdSet;
     hdr.cmd = cmd;
-    ProcessRequest(state, &hdr, buf, dataLen, pReply);
+    state->ProcessRequest(&hdr, buf, dataLen, pReply);
     if (expandBufGetLength(pReply) > 0) {
       ssize_t cc = netState->writePacket(pReply);
 

@@ -35,15 +35,6 @@ struct JdwpReqHeader {
   uint8_t cmd;
 };
 
-/*
- * Process a request from the debugger.
- *
- * "buf" points past the header, to the content of the message.  "dataLen"
- * can therefore be zero.
- */
-void ProcessRequest(JdwpState* state, const JdwpReqHeader* pHeader,
-    const uint8_t* buf, int dataLen, ExpandBuf* pReply);
-
 /* helper function */
 void AddLocation(ExpandBuf* pReply, const JdwpLocation* pLoc);
 

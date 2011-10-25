@@ -68,8 +68,7 @@ struct JdwpNetState : public JdwpNetStateBase {
     unsigned char  inputBuffer[kInputBufferSize];
     int     inputCount;
 
-    JdwpNetState()
-    {
+    JdwpNetState() {
         listenPort  = 0;
         listenSock  = -1;
         wakePipe[0] = -1;
@@ -86,13 +85,13 @@ static JdwpNetState* netStartup(short port);
 /*
  * Set up some stuff for transport=dt_socket.
  */
-static bool prepareSocket(JdwpState* state, const JdwpStartupParams* pParams) {
+static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
   unsigned short port;
 
-  if (pParams->server) {
-    if (pParams->port != 0) {
+  if (options->server) {
+    if (options->port != 0) {
       /* try only the specified port */
-      port = pParams->port;
+      port = options->port;
       state->netState = netStartup(port);
     } else {
       /* scan through a range of ports, binding to the first available */
@@ -104,18 +103,18 @@ static bool prepareSocket(JdwpState* state, const JdwpStartupParams* pParams) {
       }
     }
     if (state->netState == NULL) {
-      LOG(ERROR) << "JDWP net startup failed (req port=" << pParams->port << ")";
+      LOG(ERROR) << "JDWP net startup failed (req port=" << options->port << ")";
       return false;
     }
   } else {
-    port = pParams->port;   // used in a debug msg later
+    port = options->port;   // used in a debug msg later
     state->netState = netStartup(-1);
   }
 
-  if (pParams->suspend) {
+  if (options->suspend) {
     LOG(INFO) << "JDWP will wait for debugger on port " << port;
   } else {
-    LOG(INFO) << "JDWP will " << (pParams->server ? "listen" : "connect") << " on port " << port;
+    LOG(INFO) << "JDWP will " << (options->server ? "listen" : "connect") << " on port " << port;
   }
 
   return true;
@@ -394,9 +393,9 @@ static bool establishConnection(JdwpState* state) {
   struct hostent* pEntry;
 
   CHECK(state != NULL && state->netState != NULL);
-  CHECK(!state->params.server);
-  CHECK_NE(state->params.host[0], '\0');
-  CHECK_NE(state->params.port, 0);
+  CHECK(!state->options_->server);
+  CHECK(!state->options_->host.empty());
+  CHECK_NE(state->options_->port, 0);
 
   /*
    * Start by resolving the host name.
@@ -407,16 +406,16 @@ static bool establishConnection(JdwpState* state) {
   struct hostent he;
   char auxBuf[128];
   int error;
-  int cc = gethostbyname_r(state->params.host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
+  int cc = gethostbyname_r(state->options_->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
   if (cc != 0) {
-    LOG(WARNING) << "gethostbyname_r('" << state->params.host << "') failed: " << hstrerror(error);
+    LOG(WARNING) << "gethostbyname_r('" << state->options_->host << "') failed: " << hstrerror(error);
     return false;
   }
 #else
   h_errno = 0;
-  pEntry = gethostbyname(state->params.host.c_str());
+  pEntry = gethostbyname(state->options_->host.c_str());
   if (pEntry == NULL) {
-    PLOG(WARNING) << "gethostbyname('" << state->params.host << "') failed";
+    PLOG(WARNING) << "gethostbyname('" << state->options_->host << "') failed";
     return false;
   }
 #endif
@@ -425,7 +424,7 @@ static bool establishConnection(JdwpState* state) {
   memcpy(&addr.addrInet.sin_addr, pEntry->h_addr, pEntry->h_length);
   addr.addrInet.sin_family = pEntry->h_addrtype;
 
-  addr.addrInet.sin_port = htons(state->params.port);
+  addr.addrInet.sin_port = htons(state->options_->port);
 
   LOG(INFO) << "Connecting out to " << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port);
 
@@ -450,7 +449,7 @@ static bool establishConnection(JdwpState* state) {
     return false;
   }
 
-  LOG(INFO) << "Connection established to " << state->params.host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
+  LOG(INFO) << "Connection established to " << state->options_->host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
   netState->awaitingHandshake = true;
   netState->inputCount = 0;
 
@@ -522,102 +521,99 @@ static void consumeBytes(JdwpNetState* netState, int count) {
  * Dump the contents of a packet to stdout.
  */
 #if 0
-static void dumpPacket(const unsigned char* packetBuf)
-{
-    const unsigned char* buf = packetBuf;
-    uint32_t length, id;
-    uint8_t flags, cmdSet, cmd;
-    uint16_t error;
-    bool reply;
-    int dataLen;
+static void dumpPacket(const unsigned char* packetBuf) {
+  const unsigned char* buf = packetBuf;
+  uint32_t length, id;
+  uint8_t flags, cmdSet, cmd;
+  uint16_t error;
+  bool reply;
+  int dataLen;
 
-    cmd = cmdSet = 0xcc;
+  cmd = cmdSet = 0xcc;
 
-    length = read4BE(&buf);
-    id = read4BE(&buf);
-    flags = read1(&buf);
-    if ((flags & kJDWPFlagReply) != 0) {
-        reply = true;
-        error = read2BE(&buf);
-    } else {
-        reply = false;
-        cmdSet = read1(&buf);
-        cmd = read1(&buf);
-    }
+  length = read4BE(&buf);
+  id = read4BE(&buf);
+  flags = read1(&buf);
+  if ((flags & kJDWPFlagReply) != 0) {
+    reply = true;
+    error = read2BE(&buf);
+  } else {
+    reply = false;
+    cmdSet = read1(&buf);
+    cmd = read1(&buf);
+  }
 
-    dataLen = length - (buf - packetBuf);
+  dataLen = length - (buf - packetBuf);
 
-    LOG(VERBOSE) << StringPrintf("--- %s: dataLen=%u id=0x%08x flags=0x%02x cmd=%d/%d",
-        reply ? "reply" : "req",
-        dataLen, id, flags, cmdSet, cmd);
-    if (dataLen > 0) {
-      HexDump(buf, dataLen);
-    }
+  LOG(VERBOSE) << StringPrintf("--- %s: dataLen=%u id=0x%08x flags=0x%02x cmd=%d/%d",
+      reply ? "reply" : "req", dataLen, id, flags, cmdSet, cmd);
+  if (dataLen > 0) {
+    HexDump(buf, dataLen);
+  }
 }
 #endif
 
 /*
  * Handle a packet.  Returns "false" if we encounter a connection-fatal error.
  */
-static bool handlePacket(JdwpState* state)
-{
-    JdwpNetState* netState = state->netState;
-    const unsigned char* buf = netState->inputBuffer;
-    JdwpReqHeader hdr;
-    uint32_t length, id;
-    uint8_t flags, cmdSet, cmd;
-    uint16_t error;
-    bool reply;
-    int dataLen;
+static bool handlePacket(JdwpState* state) {
+  JdwpNetState* netState = state->netState;
+  const unsigned char* buf = netState->inputBuffer;
+  JdwpReqHeader hdr;
+  uint32_t length, id;
+  uint8_t flags, cmdSet, cmd;
+  uint16_t error;
+  bool reply;
+  int dataLen;
 
-    cmd = cmdSet = 0;       // shut up gcc
+  cmd = cmdSet = 0;       // shut up gcc
 
-    /*dumpPacket(netState->inputBuffer);*/
+  /*dumpPacket(netState->inputBuffer);*/
 
-    length = read4BE(&buf);
-    id = read4BE(&buf);
-    flags = read1(&buf);
-    if ((flags & kJDWPFlagReply) != 0) {
-        reply = true;
-        error = read2BE(&buf);
-    } else {
-        reply = false;
-        cmdSet = read1(&buf);
-        cmd = read1(&buf);
-    }
+  length = read4BE(&buf);
+  id = read4BE(&buf);
+  flags = read1(&buf);
+  if ((flags & kJDWPFlagReply) != 0) {
+    reply = true;
+    error = read2BE(&buf);
+  } else {
+    reply = false;
+    cmdSet = read1(&buf);
+    cmd = read1(&buf);
+  }
 
-    CHECK_LE((int) length, netState->inputCount);
-    dataLen = length - (buf - netState->inputBuffer);
+  CHECK_LE((int) length, netState->inputCount);
+  dataLen = length - (buf - netState->inputBuffer);
 
-    if (!reply) {
-        ExpandBuf* pReply = expandBufAlloc();
+  if (!reply) {
+    ExpandBuf* pReply = expandBufAlloc();
 
-        hdr.length = length;
-        hdr.id = id;
-        hdr.cmdSet = cmdSet;
-        hdr.cmd = cmd;
-        ProcessRequest(state, &hdr, buf, dataLen, pReply);
-        if (expandBufGetLength(pReply) > 0) {
-            ssize_t cc = netState->writePacket(pReply);
+    hdr.length = length;
+    hdr.id = id;
+    hdr.cmdSet = cmdSet;
+    hdr.cmd = cmd;
+    state->ProcessRequest(&hdr, buf, dataLen, pReply);
+    if (expandBufGetLength(pReply) > 0) {
+      ssize_t cc = netState->writePacket(pReply);
 
-            if (cc != (ssize_t) expandBufGetLength(pReply)) {
-              PLOG(ERROR) << "Failed sending reply to debugger";
-              expandBufFree(pReply);
-              return false;
-            }
-        } else {
-          LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
-        }
+      if (cc != (ssize_t) expandBufGetLength(pReply)) {
+        PLOG(ERROR) << "Failed sending reply to debugger";
         expandBufFree(pReply);
+        return false;
+      }
     } else {
-      LOG(ERROR) << "reply?!";
-      DCHECK(false);
+      LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
     }
+    expandBufFree(pReply);
+  } else {
+    LOG(ERROR) << "reply?!";
+    DCHECK(false);
+  }
 
-    LOG(VERBOSE) << "----------";
+  LOG(VERBOSE) << "----------";
 
-    consumeBytes(netState, length);
-    return true;
+  consumeBytes(netState, length);
+  return true;
 }
 
 /*

@@ -120,24 +120,6 @@ struct ModBasket {
 };
 
 /*
- * Get the next "request" serial number.  We use this when sending
- * packets to the debugger.
- */
-uint32_t NextRequestSerial(JdwpState* state) {
-  MutexLock mu(state->serial_lock_);
-  return state->requestSerial++;
-}
-
-/*
- * Get the next "event" serial number.  We use this in the response to
- * message type EventRequest.Set.
- */
-uint32_t NextEventSerial(JdwpState* state) {
-  MutexLock mu(state->serial_lock_);
-  return state->eventSerial++;
-}
-
-/*
  * Lock the "event" mutex, which guards the list of registered events.
  */
 static void lockEventMutex(JdwpState* state) {
@@ -584,7 +566,7 @@ static void suspendByPolicy(JdwpState* state, JdwpSuspendPolicy suspendPolicy) {
     }
 
     /* grab this before posting/suspending again */
-    SetWaitForEventThread(state, Dbg::GetThreadSelfId());
+    state->SetWaitForEventThread(Dbg::GetThreadSelfId());
 
     /* leave pReq->invokeNeeded raised so we can check reentrancy */
     LOG(VERBOSE) << "invoking method...";
@@ -623,47 +605,47 @@ static bool invokeInProgress(JdwpState* state) {
  * This could go to sleep waiting for another thread, so it's important
  * that the thread be marked as VMWAIT before calling here.
  */
-void SetWaitForEventThread(JdwpState* state, ObjectId threadId) {
+void JdwpState::SetWaitForEventThread(ObjectId threadId) {
   bool waited = false;
 
   /* this is held for very brief periods; contention is unlikely */
-  MutexLock mu(state->event_thread_lock_);
+  MutexLock mu(event_thread_lock_);
 
   /*
    * If another thread is already doing stuff, wait for it.  This can
    * go to sleep indefinitely.
    */
-  while (state->eventThreadId != 0) {
-    LOG(VERBOSE) << StringPrintf("event in progress (0x%llx), 0x%llx sleeping", state->eventThreadId, threadId);
+  while (eventThreadId != 0) {
+    LOG(VERBOSE) << StringPrintf("event in progress (0x%llx), 0x%llx sleeping", eventThreadId, threadId);
     waited = true;
-    state->event_thread_cond_.Wait(state->event_thread_lock_);
+    event_thread_cond_.Wait(event_thread_lock_);
   }
 
   if (waited || threadId != 0) {
     LOG(VERBOSE) << StringPrintf("event token grabbed (0x%llx)", threadId);
   }
   if (threadId != 0) {
-    state->eventThreadId = threadId;
+    eventThreadId = threadId;
   }
 }
 
 /*
  * Clear the threadId and signal anybody waiting.
  */
-void ClearWaitForEventThread(JdwpState* state) {
+void JdwpState::ClearWaitForEventThread() {
   /*
    * Grab the mutex.  Don't try to go in/out of VMWAIT mode, as this
    * function is called by dvmSuspendSelf(), and the transition back
    * to RUNNING would confuse it.
    */
-  MutexLock mu(state->event_thread_lock_);
+  MutexLock mu(event_thread_lock_);
 
-  CHECK_NE(state->eventThreadId, 0U);
-  LOG(VERBOSE) << StringPrintf("cleared event token (0x%llx)", state->eventThreadId);
+  CHECK_NE(eventThreadId, 0U);
+  LOG(VERBOSE) << StringPrintf("cleared event token (0x%llx)", eventThreadId);
 
-  state->eventThreadId = 0;
+  eventThreadId = 0;
 
-  state->event_thread_cond_.Signal();
+  event_thread_cond_.Signal();
 }
 
 
@@ -686,12 +668,12 @@ static void eventFinish(JdwpState* state, ExpandBuf* pReq) {
   uint8_t* buf = expandBufGetBuffer(pReq);
 
   set4BE(buf, expandBufGetLength(pReq));
-  set4BE(buf+4, NextRequestSerial(state));
+  set4BE(buf+4, state->NextRequestSerial());
   set1(buf+8, 0);     /* flags */
   set1(buf+9, kJdwpEventCommandSet);
   set1(buf+10, kJdwpCompositeCommand);
 
-  SendRequest(state, pReq);
+  state->SendRequest(pReq);
 
   expandBufFree(pReq);
 }
@@ -705,18 +687,18 @@ static void eventFinish(JdwpState* state, ExpandBuf* pReq) {
  * any application code has been executed".  The thread ID in the message
  * must be for the main thread.
  */
-bool PostVMStart(JdwpState* state, bool suspend) {
+bool JdwpState::PostVMStart() {
   JdwpSuspendPolicy suspendPolicy;
   ObjectId threadId = Dbg::GetThreadSelfId();
 
-  if (suspend) {
+  if (options_->suspend) {
     suspendPolicy = SP_ALL;
   } else {
     suspendPolicy = SP_NONE;
   }
 
   /* probably don't need this here */
-  lockEventMutex(state);
+  lockEventMutex(this);
 
   ExpandBuf* pReq = NULL;
   if (true) {
@@ -732,19 +714,19 @@ bool PostVMStart(JdwpState* state, bool suspend) {
     expandBufAdd8BE(pReq, threadId);
   }
 
-  unlockEventMutex(state);
+  unlockEventMutex(this);
 
   /* send request and possibly suspend ourselves */
   if (pReq != NULL) {
-    int oldStatus = Dbg::ThreadWaiting();
+    int old_state = Dbg::ThreadWaiting();
     if (suspendPolicy != SP_NONE) {
-      SetWaitForEventThread(state, threadId);
+      SetWaitForEventThread(threadId);
     }
 
-    eventFinish(state, pReq);
+    eventFinish(this, pReq);
 
-    suspendByPolicy(state, suspendPolicy);
-    Dbg::ThreadContinuing(oldStatus);
+    suspendByPolicy(this, suspendPolicy);
+    Dbg::ThreadContinuing(old_state);
   }
 
   return true;
@@ -861,15 +843,15 @@ bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId this
 
   /* send request and possibly suspend ourselves */
   if (pReq != NULL) {
-    int oldStatus = Dbg::ThreadWaiting();
+    int old_state = Dbg::ThreadWaiting();
     if (suspendPolicy != SP_NONE) {
-      SetWaitForEventThread(state, basket.threadId);
+      state->SetWaitForEventThread(basket.threadId);
     }
 
     eventFinish(state, pReq);
 
     suspendByPolicy(state, suspendPolicy);
-    Dbg::ThreadContinuing(oldStatus);
+    Dbg::ThreadContinuing(old_state);
   }
 
   free(nameAlloc);
@@ -934,14 +916,14 @@ bool PostThreadChange(JdwpState* state, ObjectId threadId, bool start) {
 
   /* send request and possibly suspend ourselves */
   if (pReq != NULL) {
-    int oldStatus = Dbg::ThreadWaiting();
+    int old_state = Dbg::ThreadWaiting();
     if (suspendPolicy != SP_NONE) {
-      SetWaitForEventThread(state, basket.threadId);
+      state->SetWaitForEventThread(basket.threadId);
     }
     eventFinish(state, pReq);
 
     suspendByPolicy(state, suspendPolicy);
-    Dbg::ThreadContinuing(oldStatus);
+    Dbg::ThreadContinuing(old_state);
   }
 
   return matchCount != 0;
@@ -952,7 +934,7 @@ bool PostThreadChange(JdwpState* state, ObjectId threadId, bool start) {
  *
  * Skips the usual "event token" stuff.
  */
-bool PostVMDeath(JdwpState* state) {
+bool JdwpState::PostVMDeath() {
   LOG(VERBOSE) << "EVENT: " << EK_VM_DEATH;
 
   ExpandBuf* pReq = eventPrep();
@@ -961,7 +943,7 @@ bool PostVMDeath(JdwpState* state) {
 
   expandBufAdd1(pReq, EK_VM_DEATH);
   expandBufAdd4BE(pReq, 0);
-  eventFinish(state, pReq);
+  eventFinish(this, pReq);
   return true;
 }
 
@@ -1054,15 +1036,15 @@ bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
 
   /* send request and possibly suspend ourselves */
   if (pReq != NULL) {
-    int oldStatus = Dbg::ThreadWaiting();
+    int old_state = Dbg::ThreadWaiting();
     if (suspendPolicy != SP_NONE) {
-      SetWaitForEventThread(state, basket.threadId);
+      state->SetWaitForEventThread(basket.threadId);
     }
 
     eventFinish(state, pReq);
 
     suspendByPolicy(state, suspendPolicy);
-    Dbg::ThreadContinuing(oldStatus);
+    Dbg::ThreadContinuing(old_state);
   }
 
   free(nameAlloc);
@@ -1143,22 +1125,18 @@ bool PostClassPrepare(JdwpState* state, int tag, RefTypeId refTypeId, const char
 
   /* send request and possibly suspend ourselves */
   if (pReq != NULL) {
-    int oldStatus = Dbg::ThreadWaiting();
+    int old_state = Dbg::ThreadWaiting();
     if (suspendPolicy != SP_NONE) {
-      SetWaitForEventThread(state, basket.threadId);
+      state->SetWaitForEventThread(basket.threadId);
     }
     eventFinish(state, pReq);
 
     suspendByPolicy(state, suspendPolicy);
-    Dbg::ThreadContinuing(oldStatus);
+    Dbg::ThreadContinuing(old_state);
   }
 
   free(nameAlloc);
   return matchCount != 0;
-}
-
-bool SendBufferedRequest(JdwpState* state, const iovec* iov, int iovcnt) {
-  return (*state->transport->sendBufferedRequest)(state, iov, iovcnt);
 }
 
 /*
@@ -1168,7 +1146,7 @@ bool SendBufferedRequest(JdwpState* state, const iovec* iov, int iovcnt) {
  * other debugger traffic, and can't suspend the VM, so we skip all of
  * the fun event token gymnastics.
  */
-void DdmSendChunkV(JdwpState* state, int type, const iovec* iov, int iovcnt) {
+void JdwpState::DdmSendChunkV(int type, const iovec* iov, int iovcnt) {
   uint8_t header[kJDWPHeaderLen + 8];
   size_t dataLen = 0;
 
@@ -1188,7 +1166,7 @@ void DdmSendChunkV(JdwpState* state, int type, const iovec* iov, int iovcnt) {
 
   /* form the header (JDWP plus DDMS) */
   set4BE(header, sizeof(header) + dataLen);
-  set4BE(header+4, NextRequestSerial(state));
+  set4BE(header+4, NextRequestSerial());
   set1(header+8, 0);     /* flags */
   set1(header+9, kJDWPDdmCmdSet);
   set1(header+10, kJDWPDdmCmd);
@@ -1201,9 +1179,9 @@ void DdmSendChunkV(JdwpState* state, int type, const iovec* iov, int iovcnt) {
   /*
    * Make sure we're in VMWAIT in case the write blocks.
    */
-  int oldStatus = Dbg::ThreadWaiting();
-  SendBufferedRequest(state, wrapiov, iovcnt+1);
-  Dbg::ThreadContinuing(oldStatus);
+  int old_state = Dbg::ThreadWaiting();
+  (*transport->sendBufferedRequest)(this, wrapiov, iovcnt + 1);
+  Dbg::ThreadContinuing(old_state);
 }
 
 }  // namespace JDWP

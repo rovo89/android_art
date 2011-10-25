@@ -1412,7 +1412,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
   /*
    * We reply with an integer "requestID".
    */
-  uint32_t requestId = NextEventSerial(state);
+  uint32_t requestId = state->NextEventSerial();
   expandBufAdd4BE(pReply, requestId);
 
   pEvent->requestId = requestId;
@@ -1722,7 +1722,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
  *
  * On entry, the JDWP thread is in VMWAIT.
  */
-void ProcessRequest(JdwpState* state, const JdwpReqHeader* pHeader, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   JdwpError result = ERR_NONE;
   int i, respLen;
 
@@ -1733,7 +1733,7 @@ void ProcessRequest(JdwpState* state, const JdwpReqHeader* pHeader, const uint8_
      * so waitForDebugger() doesn't return if we stall for a bit here.
      */
     Dbg::Active();
-    QuasiAtomicSwap64(0, &state->lastActivityWhen);
+    QuasiAtomicSwap64(0, &lastActivityWhen);
   }
 
   /*
@@ -1752,7 +1752,7 @@ void ProcessRequest(JdwpState* state, const JdwpReqHeader* pHeader, const uint8_
    * thread up, or risk waiting for the thread to suspend after we've
    * told it to resume.
    */
-  SetWaitForEventThread(state, 0);
+  SetWaitForEventThread(0);
 
   /*
    * Tell the VM that we're running and shouldn't be interrupted by GC.
@@ -1765,7 +1765,7 @@ void ProcessRequest(JdwpState* state, const JdwpReqHeader* pHeader, const uint8_
   for (i = 0; i < (int) arraysize(gHandlerMap); i++) {
     if (gHandlerMap[i].cmdSet == pHeader->cmdSet && gHandlerMap[i].cmd == pHeader->cmd) {
       LOG(VERBOSE) << StringPrintf("REQ: %s (cmd=%d/%d dataLen=%d id=0x%06x)", gHandlerMap[i].descr, pHeader->cmdSet, pHeader->cmd, dataLen, pHeader->id);
-      result = (*gHandlerMap[i].func)(state, buf, dataLen, pReply);
+      result = (*gHandlerMap[i].func)(this, buf, dataLen, pReply);
       break;
     }
   }
@@ -1806,7 +1806,7 @@ void ProcessRequest(JdwpState* state, const JdwpReqHeader* pHeader, const uint8_
    * the initial setup.  Only update if this is a non-DDMS packet.
    */
   if (pHeader->cmdSet != kJDWPDdmCmdSet) {
-    QuasiAtomicSwap64(GetNowMsec(), &state->lastActivityWhen);
+    QuasiAtomicSwap64(GetNowMsec(), &lastActivityWhen);
   }
 
   /* tell the VM that GC is okay again */
