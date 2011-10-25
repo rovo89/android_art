@@ -1807,27 +1807,37 @@ STATIC void flushIns(CompilationUnit* cUnit)
     int lastArgReg = r3;
     int startVReg = cUnit->method->NumRegisters() -
         cUnit->method->NumIns();
+    /*
+     * Arguments passed in registers should be flushed
+     * to their backing locations in the frame for now.
+     * Also, we need to do initial assignment for promoted
+     * arguments.  NOTE: an older version of dx had an issue
+     * in which it would reuse static method argument registers.
+     * This could result in the same Dalvik virtual register
+     * being promoted to both core and fp regs.  In those
+     * cases, copy argument to both.  This will be uncommon
+     * enough that it isn't worth attempting to optimize.
+     */
     for (int i = 0; i < cUnit->method->NumIns(); i++) {
         PromotionMap vMap = cUnit->promotionMap[startVReg + i];
-        // For arguments only, should have at most one promotion kind
-        DCHECK(!((vMap.coreLocation == kLocPhysReg) &&
-                 (vMap.fpLocation == kLocPhysReg)));
         if (i <= (lastArgReg - firstArgReg)) {
-            // If arriving in register, copy or flush
+            // If arriving in register
             if (vMap.coreLocation == kLocPhysReg) {
                 genRegCopy(cUnit, vMap.coreReg, firstArgReg + i);
-            } else if (vMap.fpLocation == kLocPhysReg) {
+            }
+            if (vMap.fpLocation == kLocPhysReg) {
                 genRegCopy(cUnit, vMap.fpReg, firstArgReg + i);
             }
             // Also put a copy in memory in case we're partially promoted
             storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
                           firstArgReg + i, kWord);
         } else {
-            // If arriving in frame, initialize promoted target regs
+            // If arriving in frame & promoted
             if (vMap.coreLocation == kLocPhysReg) {
                 loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
                              vMap.coreReg);
-            } else if (vMap.fpLocation == kLocPhysReg) {
+            }
+            if (vMap.fpLocation == kLocPhysReg) {
                 loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
                              vMap.fpReg);
             }
