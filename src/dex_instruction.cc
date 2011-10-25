@@ -254,22 +254,25 @@ const Instruction* Instruction::Next() const {
   return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
 }
 
-void Instruction::DumpHex(std::ostream& os, size_t code_units) const {
+std::string Instruction::DumpHex(size_t code_units) const {
   size_t inst_length = SizeInCodeUnits();
   if (inst_length > code_units) {
     inst_length = code_units;
   }
+  std::ostringstream os;
   const uint16_t* insn = reinterpret_cast<const uint16_t*>(this);
   for (size_t i = 0; i < inst_length; i++) {
-    os << "0x" << StringPrintf("0x%04X", insn[i]) << " ";
+    os << StringPrintf("0x%04x", insn[i]) << " ";
   }
   for (size_t i = inst_length; i < code_units; i++) {
     os << "       ";
   }
+  return os.str();
 }
 
-void Instruction::Dump(std::ostream& os, const DexFile* file) const {
+std::string Instruction::DumpString(const DexFile* file) const {
   DecodedInstruction insn(this);
+  std::ostringstream os;
   const char* opcode = kInstructionNames[insn.opcode_];
   switch (Format()) {
     case k10x: os << opcode; break;
@@ -318,12 +321,9 @@ void Instruction::Dump(std::ostream& os, const DexFile* file) const {
     }
     case k3rc: os << opcode << " {v" << insn.vC_ << " .. v" << (insn.vC_+ insn.vA_ - 1) << "}, method@" << insn.vB_; break;
     case k51l: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
+    default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
-}
-
-std::ostream& operator<<(std::ostream& os, const Instruction& rhs) {
-  rhs.Dump(os, NULL);
-  return os;
+  return os.str();
 }
 
 }  // namespace art
