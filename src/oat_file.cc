@@ -190,15 +190,28 @@ OatFile::OatMethod::OatMethod(const void* code,
                               const uint32_t fp_spill_mask,
                               const uint32_t* mapping_table,
                               const uint16_t* vmap_table,
-                              const Method::InvokeStub* invoke_stub) :
-  code_(code),
-  frame_size_in_bytes_(frame_size_in_bytes),
-  return_pc_offset_in_bytes_(return_pc_offset_in_bytes),
-  core_spill_mask_(core_spill_mask),
-  fp_spill_mask_(fp_spill_mask),
-  mapping_table_(mapping_table),
-  vmap_table_(vmap_table),
-  invoke_stub_(invoke_stub) {}
+                              const Method::InvokeStub* invoke_stub)
+  : code_(code),
+    frame_size_in_bytes_(frame_size_in_bytes),
+    return_pc_offset_in_bytes_(return_pc_offset_in_bytes),
+    core_spill_mask_(core_spill_mask),
+    fp_spill_mask_(fp_spill_mask),
+    mapping_table_(mapping_table),
+    vmap_table_(vmap_table),
+    invoke_stub_(invoke_stub) {
+
+#ifndef NDEBUG
+  if (mapping_table != NULL) {  // implies non-native, non-stub code
+    if (vmap_table_ == NULL) {
+      DCHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
+    } else {
+      DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
+    }
+  } else {
+    DCHECK(vmap_table_ == NULL);
+  }
+#endif
+}
 
 OatFile::OatMethod::~OatMethod() {}
 

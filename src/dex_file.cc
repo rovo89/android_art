@@ -60,12 +60,11 @@ const DexFile* DexFile::Open(const std::string& filename,
                              const std::string& strip_location_prefix) {
   if (IsValidZipFilename(filename)) {
     return DexFile::OpenZip(filename, strip_location_prefix);
-  } else {
-    if (!IsValidDexFilename(filename)) {
-      LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
-    }
-    return DexFile::OpenFile(filename, filename, strip_location_prefix);
   }
+  if (!IsValidDexFilename(filename)) {
+    LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
+  }
+  return DexFile::OpenFile(filename, filename, strip_location_prefix);
 }
 
 void DexFile::ChangePermissions(int prot) const {
@@ -243,6 +242,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     UniquePtr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
     state_changer.reset(NULL);
     if (fd.get() == NULL) {
+      PLOG(ERROR) << "Failed to lock file '" << cache_path_tmp << "'";
       return NULL;
     }
 
@@ -270,10 +270,12 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     TmpFile tmp_file(cache_path_tmp);
     UniquePtr<File> file(OS::FileFromFd(cache_path_tmp.c_str(), fd->GetFd()));
     if (file.get() == NULL) {
+      LOG(ERROR) << "Failed to create file for '" << cache_path_tmp << "'";
       return NULL;
     }
     bool success = zip_entry->Extract(*file);
     if (!success) {
+      LOG(ERROR) << "Failed to extract classes.dex to '" << cache_path_tmp << "'";
       return NULL;
     }
 
@@ -282,11 +284,13 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     // Compute checksum and compare to zip. If things look okay, rename from tmp.
     off_t lseek_result = lseek(fd->GetFd(), 0, SEEK_SET);
     if (lseek_result == -1) {
+      PLOG(ERROR) << "Failed to seek to start of '" << cache_path_tmp << "'";
       return NULL;
     }
     const size_t kBufSize = 32768;
     UniquePtr<uint8_t[]> buf(new uint8_t[kBufSize]);
     if (buf.get() == NULL) {
+      LOG(ERROR) << "Failed to allocate buffer to checksum '" << cache_path_tmp << "'";
       return NULL;
     }
     uint32_t computed_crc = crc32(0L, Z_NULL, 0);
@@ -302,6 +306,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
       computed_crc = crc32(computed_crc, buf.get(), bytes_read);
     }
     if (computed_crc != zip_entry->GetCrc32()) {
+      LOG(ERROR) << "Failed to validate checksum for '" << cache_path_tmp << "'";
       return NULL;
     }
     int rename_result = rename(cache_path_tmp.c_str(), cache_path.c_str());

@@ -1359,7 +1359,8 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
     Method* m = frame.GetMethod();
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
-                << "@ PC: " << m->ToDexPC(pc);
+                << StringPrintf("@ PC:%04x", m->ToDexPC(pc));
+
     }
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsCalleeSaveMethod()) {
@@ -1367,8 +1368,9 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
       const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
       CHECK(reg_bitmap != NULL);
       const uint16_t* vmap = m->GetVmapTable();
-      // For all dex registers
-      for (int reg = 0; reg < m->NumRegisters(); ++reg) {
+      // For all dex registers in the bitmap
+      size_t num_regs = std::min(map.RegWidth() * 8, static_cast<size_t>(m->NumRegisters()));
+      for (size_t reg = 0; reg < num_regs; ++reg) {
         // Does this register hold a reference?
         if (TestBitmap(reg, reg_bitmap)) {
           // Is the reference in the context or on the stack?
@@ -1376,6 +1378,10 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
           uint32_t vmap_offset = 0xEBAD0FF5;
           // TODO: take advantage of the registers being ordered
           for (int i = 0; i < m->GetVmapTableLength(); i++) {
+            // stop if we find what we are are looking for or the INVALID_VREG that marks lr
+            if (vmap[i] == 0xffff) {
+              break;
+            }
             if (vmap[i] == reg) {
               in_context = true;
               vmap_offset = i;
@@ -1386,10 +1392,11 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
           if (in_context) {
             // Compute the register we need to load from the context
             uint32_t spill_mask = m->GetCoreSpillMask();
+            CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
             uint32_t matches = 0;
             uint32_t spill_shifts = 0;
             while (matches != (vmap_offset + 1)) {
-              CHECK_NE(spill_mask, 0u);
+              DCHECK_NE(spill_mask, 0u);
               matches += spill_mask & 1;  // Add 1 if the low bit is set
               spill_mask >>= 1;
               spill_shifts++;

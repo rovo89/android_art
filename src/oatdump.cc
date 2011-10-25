@@ -84,10 +84,10 @@ class OatDump {
     os << StringPrintf("%08x\n\n", oat_header.GetExecutableOffset());
 
     os << "BASE:\n";
-    os << oat_file.GetBase() << "\n\n";
+    os << reinterpret_cast<const void*>(oat_file.GetBase()) << "\n\n";
 
     os << "LIMIT:\n";
-    os << oat_file.GetLimit() << "\n\n";
+    os << reinterpret_cast<const void*>(oat_file.GetLimit()) << "\n\n";
 
     os << std::flush;
 
@@ -121,7 +121,7 @@ class OatDump {
     for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
-      os << StringPrintf("%d: %s (type_ide=%d)\n", class_def_index, descriptor, class_def.class_idx_);
+      os << StringPrintf("%d: %s (type_idx=%d)\n", class_def_index, descriptor, class_def.class_idx_);
       UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
       CHECK(oat_class.get() != NULL);
       DumpOatClass(os, oat_file, *oat_class.get(), *dex_file, class_def);

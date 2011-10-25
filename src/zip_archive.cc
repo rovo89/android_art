@@ -126,9 +126,11 @@ static bool CopyFdToFile(File& file, int in, size_t count) {
     size_t bytes_to_read = (count > kBufSize) ? kBufSize : count;
     ssize_t actual = TEMP_FAILURE_RETRY(read(in, &buf[0], bytes_to_read));
     if (actual != static_cast<ssize_t>(bytes_to_read)) {
+      PLOG(WARNING) << "Zip: short read writing to file " << file.name();
       return false;
     }
     if (!file.WriteFully(&buf[0], bytes_to_read)) {
+      PLOG(WARNING) << "Zip: failed to write to file " << file.name();
       return false;
     }
     count -= bytes_to_read;
@@ -166,6 +168,7 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
   UniquePtr<uint8_t[]> read_buf(new uint8_t[kBufSize]);
   UniquePtr<uint8_t[]> write_buf(new uint8_t[kBufSize]);
   if (read_buf.get() == NULL || write_buf.get() == NULL) {
+    LOG(WARNING) << "Zip: failed to alloctate buffer to inflate to file " << out.name();
     return false;
   }
 
@@ -216,6 +219,7 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
         (zerr == Z_STREAM_END && zstream->Get().avail_out != kBufSize)) {
       size_t bytes_to_write = zstream->Get().next_out - write_buf.get();
       if (!out.WriteFully(write_buf.get(), bytes_to_write)) {
+        PLOG(WARNING) << "Zip: failed to write to file " << out.name();
         return false;
       }
       zstream->Get().next_out = write_buf.get();
@@ -238,6 +242,7 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
 bool ZipEntry::Extract(File& file) {
   off_t data_offset = GetDataOffset();
   if (data_offset == -1) {
+    LOG(WARNING) << "Zip: data_offset=" << data_offset;
     return false;
   }
   if (lseek(zip_archive_->fd_, data_offset, SEEK_SET) != data_offset) {
@@ -253,6 +258,7 @@ bool ZipEntry::Extract(File& file) {
     case kCompressDeflated:
       return InflateToFile(file, zip_archive_->fd_, GetUncompressedLength(), GetCompressedLength());
     default:
+      LOG(WARNING) << "Zip: unknown compression method " << std::hex << GetCompressionMethod();
       return false;
   }
 }

@@ -895,20 +895,19 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
         vmapTable.push_back(cUnit->coreVmapTable[i]);
     }
     // Add a marker to take place of lr
-    cUnit->coreVmapTable.push_back(INVALID_VREG);
+    vmapTable.push_back(INVALID_VREG);
     // Combine vmap tables - core regs, then fp regs
     for (uint32_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
-        cUnit->coreVmapTable.push_back(cUnit->fpVmapTable[i]);
-    }
-    DCHECK(cUnit->coreVmapTable.size() == (uint32_t)
-        (__builtin_popcount(cUnit->coreSpillMask) + __builtin_popcount(cUnit->fpSpillMask)));
-    vmapTable.push_back(-1);
-    for (size_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->fpVmapTable[i]);
     }
+    DCHECK_EQ(vmapTable.size(),
+              static_cast<uint32_t>(__builtin_popcount(cUnit->coreSpillMask)
+                                    + __builtin_popcount(cUnit->fpSpillMask)));
+    DCHECK_GE(vmapTable.size(), 1U);  // should always at least one INVALID_VREG for lr
+
     CompiledMethod* result = new CompiledMethod(art::kThumb2,
         cUnit->codeBuffer, cUnit->frameSize, cUnit->frameSize - sizeof(intptr_t),
-        cUnit->coreSpillMask, cUnit->fpSpillMask, cUnit->mappingTable, cUnit->coreVmapTable);
+        cUnit->coreSpillMask, cUnit->fpSpillMask, cUnit->mappingTable, vmapTable);
 
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Compiled " << PrettyMethod(method)

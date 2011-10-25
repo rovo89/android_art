@@ -214,7 +214,9 @@ void CreateClassPath(const std::string& class_path,
   Split(class_path, ':', parsed);
   for (size_t i = 0; i < parsed.size(); ++i) {
     const DexFile* dex_file = DexFile::Open(parsed[i], Runtime::Current()->GetHostPrefix());
-    if (dex_file != NULL) {
+    if (dex_file == NULL) {
+      LOG(WARNING) << "Failed to open dex file " << parsed[i];
+    } else {
       class_path_vector.push_back(dex_file);
     }
   }
@@ -223,7 +225,7 @@ void CreateClassPath(const std::string& class_path,
 void ClassLinker::Init(const std::string& boot_class_path) {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::InitFrom entering";
+    LOG(INFO) << "ClassLinker::InitFrom entering boot_class_path=" << boot_class_path;
   }
 
   CHECK(!init_done_);
@@ -310,6 +312,7 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   // use AllocObjectArray to create DexCache instances
   std::vector<const DexFile*> boot_class_path_vector;
   CreateClassPath(boot_class_path, boot_class_path_vector);
+  CHECK_NE(0U, boot_class_path_vector.size());
   for (size_t i = 0; i != boot_class_path_vector.size(); ++i) {
     const DexFile* dex_file = boot_class_path_vector[i];
     CHECK(dex_file != NULL);
