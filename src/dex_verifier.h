@@ -117,7 +117,7 @@ class RegType {
     return type_;
   }
 
-  void Dump(std::ostream& os) const;
+  std::string Dump() const;
 
   Class* GetClass() const {
     DCHECK(klass_ != NULL);
@@ -254,6 +254,7 @@ class RegType {
   RegType(Type type, Class* klass, uint32_t allocation_pc, uint16_t cache_id) :
     type_(type), klass_(klass), allocation_pc_(allocation_pc), cache_id_(cache_id) {
     DCHECK(type >= kRegTypeReference || allocation_pc_ == kInitArgAddr);
+    if (type >= kRegTypeReference) DCHECK(klass != NULL);
   }
 
   const Type type_;  // The current type of the register
@@ -411,7 +412,7 @@ class InsnFlags {
     return IsVisited() || IsChanged();
   }
 
-  void Dump(std::ostream& os) {
+  std::string Dump() {
     char encoding[6];
     if (!IsOpcode()) {
       strncpy(encoding, "XXXXX", sizeof(encoding));
@@ -423,7 +424,7 @@ class InsnFlags {
       if (IsVisited())      encoding[kInsnFlagVisited] = 'V';
       if (IsChanged())      encoding[kInsnFlagChanged] = 'C';
     }
-    os << encoding;
+    return std::string(encoding);
   }
  private:
   enum InsnFlag {
@@ -569,10 +570,12 @@ class RegisterLine {
     reg_to_lock_depths_ = src->reg_to_lock_depths_;
   }
 
-  void Dump(std::ostream& os) const {
+  std::string Dump() const {
+    std::string result;
     for (size_t i = 0; i < num_regs_; i++) {
-      GetRegisterType(i).Dump(os);
+      result += GetRegisterType(i).Dump();
     }
+    return result;
   }
 
   void FillWithGarbage() {

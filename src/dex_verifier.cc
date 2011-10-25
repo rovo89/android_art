@@ -17,23 +17,27 @@
 namespace art {
 namespace verifier {
 
+static const bool gDebugVerify = false;
+
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs) {
   return os << (int)rhs;
 }
 
 static const char type_chars[RegType::kRegTypeMAX + 1 /* for '\0' */ ] = "UX01ZyYhHcibBsSCIFNnJjDdL";
 
-void RegType::Dump(std::ostream& os) const {
+std::string RegType::Dump() const {
   DCHECK(type_ < kRegTypeMAX);
+  std::ostringstream os;
   os << type_chars[type_];
   if (type_ == kRegTypeReference) {
     if (IsUninitializedReference()) {
-      os << "[uninitialized-" << PrettyClass(GetClass())
+      os << "[uninitialized-" << PrettyDescriptor(GetClass()->GetDescriptor())
           << ", allocated@" << allocation_pc_ <<"]";
     } else {
       os << "[" << PrettyDescriptor(GetClass()->GetDescriptor()) << "]";
     }
   }
+  return os.str();
 }
 
 const RegType& RegType::HighHalf(RegTypeCache* cache) const {
@@ -146,7 +150,10 @@ const RegType& RegType::VerifyAgainst(const RegType& check_type, RegTypeCache* r
           return check_type;
         } else if (IsUninitializedReference()) {
           return reg_types->Conflict();  // Nonsensical to Join two uninitialized classes
-        } else if (IsReference() && check_type.GetClass()->IsAssignableFrom(GetClass())) {
+        } else if (IsReference() && (check_type.GetClass()->IsAssignableFrom(GetClass()) ||
+            (GetClass()->IsObjectClass() && check_type.GetClass()->IsInterface()))) {
+          // Either we're assignable or this is trying to assign Object to an Interface, which
+          // is allowed (see comment in ClassJoin)
           return check_type;
         } else {
           return reg_types->Conflict();
@@ -319,7 +326,7 @@ static RegType::Type RegTypeFromDescriptor(const std::string& descriptor) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RegType& rhs) {
-  rhs.Dump(os);
+  os << rhs.Dump();
   return os;
 }
 
@@ -353,9 +360,14 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
       }
     }
     Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor, loader);
-    RegType* entry = new RegType(type, klass, RegType::kInitArgAddr, entries_.size());
-    entries_.push_back(entry);
-    return *entry;
+    if (klass != NULL) {
+      RegType* entry = new RegType(type, klass, RegType::kInitArgAddr, entries_.size());
+      entries_.push_back(entry);
+      return *entry;
+    } else {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return FromType(RegType::kRegTypeUnknown);
+    }
   }
 }
 
@@ -778,7 +790,7 @@ void RegisterLine::WriteReferenceBitMap(int8_t* data, size_t max_bytes) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs) {
-  rhs.Dump(os);
+  os << rhs.Dump();
   return os;
 }
 
@@ -864,7 +876,9 @@ bool DexVerifier::VerifyMethod(Method* method) {
   } else {
     LOG(INFO) << "Verification error in " << PrettyMethod(method) << " "
                << verifier.fail_messages_.str() << std::endl << verifier.info_messages_.str();
-    verifier.Dump(std::cout);
+    if (gDebugVerify) {
+      verifier.Dump(std::cout);
+    }
     DCHECK_EQ(verifier.failure_, VERIFY_ERROR_GENERIC);
   }
   return success;
@@ -993,7 +1007,8 @@ bool DexVerifier::VerifyInstructions() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   for(uint32_t dex_pc = 0; dex_pc < insns_size;) {
     if (!VerifyInstruction(inst, dex_pc)) {
-      Fail(VERIFY_ERROR_GENERIC) << "rejecting opcode " << inst->Name() << " at " << dex_pc;
+      DCHECK_NE(failure_, VERIFY_ERROR_NONE);
+      fail_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_) << " at " << dex_pc;
       return false;
     }
     /* Flag instructions that are garbage collection points */
@@ -1399,7 +1414,8 @@ bool DexVerifier::VerifyCodeFlow() {
 
   /* Initialize register types of method arguments. */
   if (!SetTypesFromSignature()) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad signature in " << PrettyMethod(method_);
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
+    fail_messages_ << "Bad signature in " << PrettyMethod(method_);
     return false;
   }
   /* Perform code flow verification. */
@@ -1428,19 +1444,11 @@ void DexVerifier::Dump(std::ostream& os) {
   const Instruction* inst = Instruction::At(code_item_->insns_);
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
       dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits()) {
-    std::ios::fmtflags saved_flags(os.flags());
-    os << std::hex << std::showbase << std::setfill('0') << std::setw(4) << dex_pc << ": ";
-    os.flags(saved_flags);
-    insn_flags_[dex_pc].Dump(os);
-    os << " ";
-    inst->DumpHex(os, 5);
-    os << " ";
-    inst->Dump(os, dex_file_);
-    os << std::endl;
+    os << StringPrintf("0x%04x", dex_pc) << ": " << insn_flags_[dex_pc].Dump()
+        << " " << inst->DumpHex(5) << " " << inst->DumpString(dex_file_) << std::endl;
     RegisterLine* reg_line = reg_table_.GetLine(dex_pc);
     if (reg_line != NULL) {
-      reg_line->Dump(os);
-      os << std::endl;
+      os << reg_line->Dump() << std::endl;
     }
     inst = inst->Next();
   }
@@ -1507,14 +1515,15 @@ bool DexVerifier::SetTypesFromSignature() {
         {
           const RegType& reg_type =
               reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
-          if (reg_type.IsUnknown()) {
+          if (!reg_type.IsUnknown()) {
+            reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
+          } else {
             DCHECK(Thread::Current()->IsExceptionPending());
             Thread::Current()->ClearException();
-            Fail(VERIFY_ERROR_GENERIC)
-                << "Unable to resolve descriptor in signature " << descriptor;
-            return false;
+            LOG(WARNING) << "Unable to resolve descriptor in signature " << descriptor
+                << " using Object";
+            reg_line->SetRegisterType(arg_start + cur_arg, reg_types_.JavaLangObject());
           }
-          reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
         }
         break;
       case 'Z':
@@ -1726,9 +1735,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
   int32_t branch_target = 0;
   bool just_set_result = false;
-  if (false) {
+  if (gDebugVerify) {
     // Generate processing back trace to debug verifier
-    LogVerifyInfo() << "Processing " << *inst << std::endl << *work_line_.get();
+    LogVerifyInfo() << "Processing " << inst->DumpString(dex_file_) << std::endl << *work_line_.get();
   }
 
   /*
@@ -2675,7 +2684,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::UNUSED_7A:
     case Instruction::UNUSED_EC:
     case Instruction::UNUSED_FF:
-      Fail(VERIFY_ERROR_GENERIC) << "Unexpected opcode " << *inst;
+      Fail(VERIFY_ERROR_GENERIC) << "Unexpected opcode " << inst->DumpString(dex_file_);
       break;
 
     /*
@@ -2687,11 +2696,11 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   if (failure_ != VERIFY_ERROR_NONE) {
     if (failure_ == VERIFY_ERROR_GENERIC) {
       /* immediate failure, reject class */
-      fail_messages_ << std::endl << "Rejecting opcode " << *inst;
+      fail_messages_ << std::endl << "Rejecting opcode " << inst->DumpString(dex_file_);
       return false;
     } else {
       /* replace opcode and continue on */
-      fail_messages_ << std::endl << "Replacing opcode " << *inst;
+      fail_messages_ << std::endl << "Replacing opcode " << inst->DumpString(dex_file_);
       ReplaceFailingInstruction();
       /* IMPORTANT: method->insns may have been changed */
       insns = code_item_->insns_ + work_insn_idx_;
@@ -3103,9 +3112,12 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
     if (reg_type.IsUnknown()) {
       DCHECK(Thread::Current()->IsExceptionPending());
       Thread::Current()->ClearException();
-      Fail(VERIFY_ERROR_GENERIC) << "Rejecting invocation of " << PrettyMethod(res_method)
-         << " bad descriptor '" << descriptor << "' in signature " << sig;
-      return NULL;
+      LOG(WARNING) << "Unable to resolve descriptor in signature " << descriptor
+          << " using Object";
+      uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
+      if (!work_line_->VerifyRegisterType(get_reg, reg_types_.JavaLangObject())) {
+        return NULL;
+      }
     } else {
       uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
       if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
@@ -3287,20 +3299,43 @@ void DexVerifier::VerifySPut(const Instruction::DecodedInstruction& dec_insn,
       return;
     }
     Class* field_class = field->GetType();
+    const RegType& field_type = reg_types_.FromClass(field_class);
     Class* insn_class = insn_type.GetClass();
     if (is_primitive) {
-      if (field_class == insn_class ||
-          (field_class->IsPrimitiveFloat() && insn_class->IsPrimitiveInt()) ||
-          (field_class->IsPrimitiveDouble() && insn_class->IsPrimitiveLong())) {
-        // expected that read is of the correct primitive type or that int reads are reading
-        // floats or long reads are reading doubles
+      // Primitive field assignability rules are weaker than regular assignability rules
+      bool instruction_compatible;
+      bool value_compatible;
+      const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA_);
+      if (field_type.IsIntegralTypes()) {
+        instruction_compatible = insn_type.IsIntegralTypes();
+        value_compatible = value_type.IsIntegralTypes();
+      } else if (field_type.IsFloat()) {
+        instruction_compatible = insn_type.IsInteger();  // no sput-float, so expect sput-int
+        value_compatible = value_type.IsFloatTypes();
+      } else if (field_type.IsLong()) {
+        instruction_compatible = insn_type.IsLong();
+        value_compatible = value_type.IsLongTypes();
+      } else if (field_type.IsDouble()) {
+        instruction_compatible = insn_type.IsLong();    // no sput-double, so expect sput-long
+        value_compatible = value_type.IsDoubleTypes();
       } else {
+        instruction_compatible = false;  // reference field with primitive store
+        value_compatible = false;  // unused
+      }
+      if (!instruction_compatible) {
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
                                    << " to be of type " << PrettyClass(insn_class)
                                    << " but found type " << PrettyClass(field_class) << " in sput";
+        return;
+      }
+      if (!value_compatible) {
+        Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA_
+                                   << " of type " << value_type
+                                   << " but expected " << field_type
+                                   << " for store to " << PrettyField(field) << " in sput";
         return;
       }
     } else {
@@ -3311,8 +3346,8 @@ void DexVerifier::VerifySPut(const Instruction::DecodedInstruction& dec_insn,
                                   << " in sput-object";
         return;
       }
+      work_line_->VerifyRegisterType(dec_insn.vA_, field_type);
     }
-    work_line_->VerifyRegisterType(dec_insn.vA_, reg_types_.FromClass(field_class));
   }
 }
 
@@ -3364,7 +3399,6 @@ void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
   const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
   Field* field = GetInstanceField(object_type, dec_insn.vC_);
   if (field != NULL) {
-    DCHECK(field->GetDeclaringClass()->IsResolved());
     Class* field_class = field->GetType();
     Class* insn_class = insn_type.GetClass();
     if (is_primitive) {
@@ -3399,21 +3433,36 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
   const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
   Field* field = GetInstanceField(object_type, dec_insn.vC_);
   if (field != NULL) {
-    DCHECK(field->GetDeclaringClass()->IsResolved());
     if (field->IsFinal() && field->GetDeclaringClass() != method_->GetDeclaringClass()) {
       Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
                                << " from other class " << PrettyClass(method_->GetDeclaringClass());
       return;
     }
     Class* field_class = field->GetType();
+    const RegType& field_type = reg_types_.FromClass(field_class);
     Class* insn_class = insn_type.GetClass();
     if (is_primitive) {
-      if (field_class == insn_class ||
-          (field_class->IsPrimitiveFloat() && insn_class->IsPrimitiveInt()) ||
-          (field_class->IsPrimitiveDouble() && insn_class->IsPrimitiveLong())) {
-        // expected that read is of the correct primitive type or that int reads are reading
-        // floats or long reads are reading doubles
+      // Primitive field assignability rules are weaker than regular assignability rules
+      bool instruction_compatible;
+      bool value_compatible;
+      const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA_);
+      if (field_type.IsIntegralTypes()) {
+        instruction_compatible = insn_type.IsIntegralTypes();
+        value_compatible = value_type.IsIntegralTypes();
+      } else if (field_type.IsFloat()) {
+        instruction_compatible = insn_type.IsInteger();  // no iput-float, so expect iput-int
+        value_compatible = value_type.IsFloatTypes();
+      } else if (field_type.IsLong()) {
+        instruction_compatible = insn_type.IsLong();
+        value_compatible = value_type.IsLongTypes();
+      } else if (field_type.IsDouble()) {
+        instruction_compatible = insn_type.IsLong();  // no iput-double, so expect iput-long
+        value_compatible = value_type.IsDoubleTypes();
       } else {
+        instruction_compatible = false;  // reference field with primitive store
+        value_compatible = false;  // unused
+      }
+      if (!instruction_compatible) {
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
@@ -3422,16 +3471,23 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
                                    << " but found type " << PrettyClass(field_class) << " in iput";
         return;
       }
+      if (!value_compatible) {
+        Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA_
+                                   << " of type " << value_type
+                                   << " but expected " << field_type
+                                   << " for store to " << PrettyField(field) << " in iput";
+        return;
+      }
     } else {
       if (!insn_class->IsAssignableFrom(field_class)) {
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be compatible with type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class)
-                                   << " in iput-object";
+                                  << " to be compatible with type " << insn_type
+                                  << " but found type " << PrettyClass(field_class)
+                                  << " in iput-object";
         return;
       }
+      work_line_->VerifyRegisterType(dec_insn.vA_, field_type);
     }
-    work_line_->VerifyRegisterType(dec_insn.vA_, reg_types_.FromClass(field_class));
   }
 }
 
@@ -3525,7 +3581,7 @@ void DexVerifier::ReplaceFailingInstruction() {
       ref_type = VERIFY_ERROR_REF_METHOD;
       break;
     default:
-      LOG(FATAL) << "Error: verifier asked to replace instruction " << *inst;
+      LOG(FATAL) << "Error: verifier asked to replace instruction " << inst->DumpString(dex_file_);
       return;
   }
   uint16_t* insns = const_cast<uint16_t*>(code_item_->insns_);
@@ -3565,7 +3621,7 @@ bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_
     if (failure_ != VERIFY_ERROR_NONE) {
       return false;
     }
-    if (changed) {
+    if (gDebugVerify && changed) {
       LogVerifyInfo() << "Merging at [" << (void*)work_insn_idx_ << "] to [" <<(void*)next_insn << "]: " << std::endl
                       << *copy.get() << "  MERGE" << std::endl
                       << *merge_line << "  ==" << std::endl

@@ -189,11 +189,11 @@ class Instruction {
              kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
   }
 
-  // Dump code_units worth of this instruction, padding to code_units for shorter instructions
-  void DumpHex(std::ostream& os, size_t code_units) const;
-
   // Dump decoded version of instruction
-  void Dump(std::ostream& os, const DexFile*) const;
+  std::string DumpString(const DexFile*) const;
+
+  // Dump code_units worth of this instruction, padding to code_units for shorter instructions
+  std::string DumpHex(size_t code_units) const;
 
  private:
   static const char* const kInstructionNames[];
