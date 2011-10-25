@@ -39,7 +39,7 @@ static JNINativeMethod gMethods[] = {
 }  // namespace
 
 void register_org_apache_harmony_dalvik_ddmc_DdmServer(JNIEnv* env) {
-    jniRegisterNativeMethods(env, "org/apache/harmony/dalvik/ddmc/DdmServer", gMethods, NELEM(gMethods));
+  jniRegisterNativeMethods(env, "org/apache/harmony/dalvik/ddmc/DdmServer", gMethods, NELEM(gMethods));
 }
 
 }  // namespace art

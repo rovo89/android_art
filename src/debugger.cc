@@ -18,6 +18,7 @@
 
 #include <sys/uio.h>
 
+#include "ScopedPrimitiveArray.h"
 #include "thread_list.h"
 
 namespace art {
@@ -607,17 +608,120 @@ void Dbg::RegisterObjectId(JDWP::ObjectId id) {
   UNIMPLEMENTED(FATAL);
 }
 
+/*
+ * "buf" contains a full JDWP packet, possibly with multiple chunks.  We
+ * need to process each, accumulate the replies, and ship the whole thing
+ * back.
+ *
+ * Returns "true" if we have a reply.  The reply buffer is newly allocated,
+ * and includes the chunk type/length, followed by the data.
+ *
+ * TODO: we currently assume that the request and reply include a single
+ * chunk.  If this becomes inconvenient we will need to adapt.
+ */
 bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+  CHECK_GE(dataLen, 0);
+
+  Thread* self = Thread::Current();
+  JNIEnv* env = self->GetJniEnv();
+
+  static jclass Chunk_class = env->FindClass("org/apache/harmony/dalvik/ddmc/Chunk");
+  static jclass DdmServer_class = env->FindClass("org/apache/harmony/dalvik/ddmc/DdmServer");
+  static jmethodID dispatch_mid = env->GetStaticMethodID(DdmServer_class, "dispatch",
+      "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
+  static jfieldID data_fid = env->GetFieldID(Chunk_class, "data", "[B");
+  static jfieldID length_fid = env->GetFieldID(Chunk_class, "length", "I");
+  static jfieldID offset_fid = env->GetFieldID(Chunk_class, "offset", "I");
+  static jfieldID type_fid = env->GetFieldID(Chunk_class, "type", "I");
+
+  // Create a byte[] corresponding to 'buf'.
+  jbyteArray dataArray = env->NewByteArray(dataLen);
+  if (dataArray == NULL) {
+    LOG(WARNING) << "byte[] allocation failed: " << dataLen;
+    env->ExceptionClear();
+    return false;
+  }
+  env->SetByteArrayRegion(dataArray, 0, dataLen, reinterpret_cast<const jbyte*>(buf));
+
+  const int kChunkHdrLen = 8;
+
+  // Run through and find all chunks.  [Currently just find the first.]
+  ScopedByteArrayRO contents(env, dataArray);
+  jint type = JDWP::get4BE(reinterpret_cast<const uint8_t*>(&contents[0]));
+  jint length = JDWP::get4BE(reinterpret_cast<const uint8_t*>(&contents[4]));
+  jint offset = kChunkHdrLen;
+  if (offset + length > dataLen) {
+    LOG(WARNING) << StringPrintf("bad chunk found (len=%u pktLen=%d)", length, dataLen);
+    return false;
+  }
+
+  // Call "private static Chunk dispatch(int type, byte[] data, int offset, int length)".
+  jobject chunk = env->CallStaticObjectMethod(DdmServer_class, dispatch_mid, type, dataArray, offset, length);
+  if (env->ExceptionCheck()) {
+    LOG(INFO) << StringPrintf("Exception thrown by dispatcher for 0x%08x", type);
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+    return false;
+  }
+
+  if (chunk == NULL) {
+    return false;
+  }
+
+  /*
+   * Pull the pieces out of the chunk.  We copy the results into a
+   * newly-allocated buffer that the caller can free.  We don't want to
+   * continue using the Chunk object because nothing has a reference to it.
+   *
+   * We could avoid this by returning type/data/offset/length and having
+   * the caller be aware of the object lifetime issues, but that
+   * integrates the JDWP code more tightly into the VM, and doesn't work
+   * if we have responses for multiple chunks.
+   *
+   * So we're pretty much stuck with copying data around multiple times.
+   */
+  jbyteArray replyData = reinterpret_cast<jbyteArray>(env->GetObjectField(chunk, data_fid));
+  length = env->GetIntField(chunk, length_fid);
+  offset = env->GetIntField(chunk, offset_fid);
+  type = env->GetIntField(chunk, type_fid);
+
+  LOG(VERBOSE) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData, offset, length);
+  if (length == 0 || replyData == NULL) {
+    return false;
+  }
+
+  jsize replyLength = env->GetArrayLength(replyData);
+  if (offset + length > replyLength) {
+    LOG(WARNING) << StringPrintf("chunk off=%d len=%d exceeds reply array len %d", offset, length, replyLength);
+    return false;
+  }
+
+  uint8_t* reply = new uint8_t[length + kChunkHdrLen];
+  if (reply == NULL) {
+    LOG(WARNING) << "malloc failed: " << (length + kChunkHdrLen);
+    return false;
+  }
+  JDWP::set4BE(reply + 0, type);
+  JDWP::set4BE(reply + 4, length);
+  env->GetByteArrayRegion(replyData, offset, length, reinterpret_cast<jbyte*>(reply + kChunkHdrLen));
+
+  *pReplyBuf = reply;
+  *pReplyLen = length + kChunkHdrLen;
+
+  LOG(VERBOSE) << StringPrintf("dvmHandleDdm returning type=%.4s buf=%p len=%d", (char*) reply, reply, length);
+  return true;
 }
 
 void Dbg::DdmConnected() {
-  UNIMPLEMENTED(FATAL);
+  LOG(VERBOSE) << "Broadcasting DDM connect...";
+  //broadcast(CONNECTED);
+  UNIMPLEMENTED(WARNING);
 }
 
 void Dbg::DdmDisconnected() {
-  UNIMPLEMENTED(FATAL);
+  LOG(VERBOSE) << "Broadcasting DDM disconnect...";
+  //broadcast(DISCONNECTED);
+  //gDvm.ddmThreadNotification = false;
 }
 
 void Dbg::DdmSendChunk(int type, size_t byte_count, const uint8_t* buf) {

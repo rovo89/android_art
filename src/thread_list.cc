@@ -132,12 +132,13 @@ void ThreadList::SuspendAll(bool for_debugger) {
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread != self && thread != debug_thread) {
-        if (verbose_) {
-          LOG(INFO) << "requesting thread suspend: " << *thread;
-        }
-        ++thread->suspend_count_;
+      if (thread == self || (for_debugger && thread == debug_thread)) {
+        continue;
       }
+      if (verbose_) {
+        LOG(INFO) << "requesting thread suspend: " << *thread;
+      }
+      ++thread->suspend_count_;
     }
   }
 
@@ -157,11 +158,12 @@ void ThreadList::SuspendAll(bool for_debugger) {
    */
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     Thread* thread = *it;
-    if (thread != self && thread != debug_thread) {
-      thread->WaitUntilSuspended();
-      if (verbose_) {
-        LOG(INFO) << "thread suspended: " << *thread;
-      }
+    if (thread == self || (for_debugger && thread == debug_thread)) {
+      continue;
+    }
+    thread->WaitUntilSuspended();
+    if (verbose_) {
+      LOG(INFO) << "thread suspended: " << *thread;
     }
   }
 
@@ -257,12 +259,13 @@ void ThreadList::ResumeAll(bool for_debugger) {
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread != self && thread != debug_thread) {
-        if (thread->suspend_count_ > 0) {
-          --thread->suspend_count_;
-        } else {
-          LOG(WARNING) << *thread << " suspend count already zero";
-        }
+      if (thread == self || (for_debugger && thread == debug_thread)) {
+        continue;
+      }
+      if (thread->suspend_count_ > 0) {
+        --thread->suspend_count_;
+      } else {
+        LOG(WARNING) << *thread << " suspend count already zero";
       }
     }
   }

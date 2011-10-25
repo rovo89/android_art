@@ -35,6 +35,7 @@ namespace {
  */
 jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
   std::vector<std::string> features;
+  // TODO: we might need to uncomment these to make them work.
   //features.push_back("method-trace-profiling");
   //features.push_back("method-trace-profiling-streaming");
   //features.push_back("hprof-heap-dump");

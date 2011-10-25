@@ -164,6 +164,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/object.cc \
 	src/offsets.cc \
 	src/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
+	src/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
 	src/os_linux.cc \
 	src/reference_table.cc \
 	src/reflection.cc \

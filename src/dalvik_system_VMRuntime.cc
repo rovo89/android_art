@@ -15,6 +15,7 @@
  */
 
 #include "class_linker.h"
+#include "debugger.h"
 #include "jni_internal.h"
 #include "object.h"
 #include "thread.h"
@@ -87,8 +88,7 @@ void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
 }
 
 jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
-  // TODO: debugger!
-  return JNI_FALSE;
+  return Dbg::IsDebuggerConnected();
 }
 
 jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
