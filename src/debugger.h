@@ -36,26 +36,29 @@ struct Thread;
  * Invoke-during-breakpoint support.
  */
 struct DebugInvokeReq {
+  DebugInvokeReq() : lock_("a DebugInvokeReq lock"), cond_("a DebugInvokeReq condition variable") {
+  }
+
   /* boolean; only set when we're in the tail end of an event handler */
   bool ready;
 
   /* boolean; set if the JDWP thread wants this thread to do work */
-  bool invokeNeeded;
+  bool invoke_needed;
 
   /* request */
   Object* obj;        /* not used for ClassType.InvokeMethod */
   Object* thread;
   Class* class_;
   Method* method;
-  uint32_t numArgs;
-  uint64_t* argArray;   /* will be NULL if numArgs==0 */
+  uint32_t num_args;
+  uint64_t* arg_array;   /* will be NULL if numArgs==0 */
   uint32_t options;
 
   /* result */
-  JDWP::JdwpError err;
-  uint8_t resultTag;
-  JValue resultValue;
-  JDWP::ObjectId exceptObj;
+  JDWP::JdwpError error;
+  uint8_t result_tag;
+  JValue result_value;
+  JDWP::ObjectId exception;
 
   /* condition variable to wait on while the method executes */
   Mutex lock_;
@@ -72,6 +75,9 @@ public:
 
   // Return the DebugInvokeReq for the current thread.
   static DebugInvokeReq* GetInvokeReq();
+
+  static Thread* GetDebugThread();
+  static void ClearWaitForEventThread();
 
   /*
    * Enable/disable breakpoints and step modes.  Used to provide a heads-up
@@ -182,7 +188,7 @@ public:
   static bool GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc);
 
   static JDWP::ObjectId GetThreadSelfId();
-  static void SuspendVM(bool isEvent);
+  static void SuspendVM();
   static void ResumeVM();
   static void SuspendThread(JDWP::ObjectId threadId);
   static void ResumeThread(JDWP::ObjectId threadId);

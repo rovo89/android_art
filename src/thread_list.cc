@@ -18,6 +18,8 @@
 
 #include <unistd.h>
 
+#include "debugger.h"
+
 namespace art {
 
 // TODO: merge with ThreadListLock?
@@ -113,23 +115,24 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
   }
 }
 
-void ThreadList::SuspendAll() {
+void ThreadList::SuspendAll(bool for_debugger) {
   Thread* self = Thread::Current();
 
   // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
 
   if (verbose_) {
-    LOG(INFO) << *self << " SuspendAll starting...";
+    LOG(INFO) << *self << " SuspendAll starting..." << (for_debugger ? " (debugger)" : "");
   }
 
   ThreadListLocker locker(this);
+  Thread* debug_thread = Dbg::GetDebugThread();
 
   {
     // Increment everybody's suspend count (except our own).
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread != self) {
+      if (thread != self && thread != debug_thread) {
         if (verbose_) {
           LOG(INFO) << "requesting thread suspend: " << *thread;
         }
@@ -154,7 +157,7 @@ void ThreadList::SuspendAll() {
    */
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     Thread* thread = *it;
-    if (thread != self) {
+    if (thread != self && thread != debug_thread) {
       thread->WaitUntilSuspended();
       if (verbose_) {
         LOG(INFO) << "thread suspended: " << *thread;
@@ -193,12 +196,56 @@ void ThreadList::Suspend(Thread* thread) {
   }
 }
 
+void ThreadList::SuspendSelfForDebugger() {
+  Thread* self = Thread::Current();
 
-void ThreadList::ResumeAll() {
+  // The debugger thread must not suspend itself due to debugger activity!
+  Thread* debug_thread = Dbg::GetDebugThread();
+  CHECK(debug_thread != NULL);
+  CHECK(self != debug_thread);
+
+  // Collisions with other suspends aren't really interesting. We want
+  // to ensure that we're the only one fiddling with the suspend count
+  // though.
+  ThreadListLocker locker(this);
+  MutexLock mu(thread_suspend_count_lock_);
+  ++self->suspend_count_;
+
+  // Suspend ourselves.
+  CHECK_GT(self->suspend_count_, 0);
+  self->SetState(Thread::kSuspended);
+  if (verbose_) {
+    LOG(INFO) << *self << " self-suspending (dbg)";
+  }
+
+  // Tell JDWP that we've completed suspension. The JDWP thread can't
+  // tell us to resume before we're fully asleep because we hold the
+  // suspend count lock.
+  Dbg::ClearWaitForEventThread();
+
+  while (self->suspend_count_ != 0) {
+    thread_suspend_count_cond_.Wait(thread_suspend_count_lock_);
+    if (self->suspend_count_ != 0) {
+      // The condition was signaled but we're still suspended. This
+      // can happen if the debugger lets go while a SIGQUIT thread
+      // dump event is pending (assuming SignalCatcher was resumed for
+      // just long enough to try to grab the thread-suspend lock).
+      LOG(DEBUG) << *self << " still suspended after undo "
+                 << "(suspend count=" << self->suspend_count_ << ")";
+    }
+  }
+  CHECK_EQ(self->suspend_count_, 0);
+  self->SetState(Thread::kRunnable);
+  if (verbose_) {
+    LOG(INFO) << *self << " self-reviving (dbg)";
+  }
+}
+
+void ThreadList::ResumeAll(bool for_debugger) {
   Thread* self = Thread::Current();
 
   if (verbose_) {
-    LOG(INFO) << *self << " ResumeAll starting";
+    LOG(INFO) << *self << " ResumeAll starting" << (for_debugger ? " (debugger)" : "");
   }
 
   // Decrement the suspend counts for all threads.  No need for atomic
@@ -206,10 +253,11 @@ void ThreadList::ResumeAll() {
   // We do need to hold the thread list because of JNI attaches.
   {
     ThreadListLocker locker(this);
+    Thread* debug_thread = Dbg::GetDebugThread();
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread != self) {
+      if (thread != self && thread != debug_thread) {
         if (thread->suspend_count_ > 0) {
           --thread->suspend_count_;
         } else {

@@ -151,7 +151,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    * We have bound to a port, or are trying to connect outbound to a
    * debugger.  Create the JDWP thread and let it continue the mission.
    */
-  CHECK_PTHREAD_CALL(pthread_create, (&state->debugThreadHandle, NULL, StartJdwpThread, state), "JDWP thread");
+  CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state), "JDWP thread");
 
   /*
    * Wait until the thread finishes basic initialization.
@@ -238,7 +238,7 @@ JdwpState::~JdwpState() {
     if (debug_thread_started_) {
       run = false;
       void* threadReturn;
-      if (pthread_join(debugThreadHandle, &threadReturn) != 0) {
+      if (pthread_join(pthread_, &threadReturn) != 0) {
         LOG(WARNING) << "JDWP thread join failed";
       }
     }
@@ -281,7 +281,7 @@ void JdwpState::Run() {
    * Finish initializing, then notify the creating thread that
    * we're running.
    */
-  debugThreadHandle = pthread_self();
+  thread_ = Thread::Current();
   run = true;
   android_atomic_release_store(true, &debug_thread_started_);
 
@@ -387,8 +387,8 @@ void JdwpState::Run() {
   runtime->DetachCurrentThread();
 }
 
-pthread_t JdwpState::GetDebugThread() {
-  return debugThreadHandle;
+Thread* JdwpState::GetDebugThread() {
+  return thread_;
 }
 
 /*

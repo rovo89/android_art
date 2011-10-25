@@ -310,7 +310,7 @@ static JdwpError handleVM_Dispose(JdwpState* state, const uint8_t* buf, int data
  * This needs to increment the "suspend count" on all threads.
  */
 static JdwpError handleVM_Suspend(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  Dbg::SuspendVM(false);
+  Dbg::SuspendVM();
   return ERR_NONE;
 }
 

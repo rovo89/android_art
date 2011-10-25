@@ -31,6 +31,8 @@ struct iovec;
 
 namespace art {
 
+struct Thread;
+
 namespace JDWP {
 
 /*
@@ -118,11 +120,10 @@ struct JdwpState {
    */
   bool IsActive();
 
-  /*
-   * Return the debugger thread's handle, or 0 if the debugger thread isn't
-   * running.
+  /**
+   * Returns the Thread* for the JDWP daemon thread.
    */
-  pthread_t GetDebugThread();
+  Thread* GetDebugThread();
 
   /*
    * Get time, in milliseconds, since the last debugger activity.
@@ -247,7 +248,8 @@ private:
   ConditionVariable thread_start_cond_;
 
   volatile int32_t debug_thread_started_;
-  pthread_t debugThreadHandle;
+  pthread_t pthread_;
+  Thread* thread_;
 public: // TODO: fix privacy
   ObjectId debugThreadId;
 private:
