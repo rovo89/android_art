@@ -151,59 +151,39 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
   }
 }
 
-const RegType& RegType::VerifyAgainst(const RegType& check_type, RegTypeCache* reg_types) const {
-  if (Equals(check_type)) {
-    return *this;
+bool RegType::IsAssignableFrom(const RegType& src) const {
+  if (Equals(src)) {
+    return true;
   } else {
-    switch (check_type.GetType()) {
-      case RegType::kRegTypeBoolean:
-        return IsBooleanTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeByte:
-        return IsByteTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeShort:
-        return IsShortTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeChar:
-        return IsCharTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeInteger:
-        return IsIntegralTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeFloat:
-        return IsFloatTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeLongLo:
-        return IsLongTypes() ? check_type : reg_types->Conflict();
-        break;
-      case RegType::kRegTypeDoubleLo:
-        return IsDoubleTypes() ? check_type : reg_types->Conflict();
-        break;
+    switch (GetType()) {
+      case RegType::kRegTypeBoolean:  return IsBooleanTypes();
+      case RegType::kRegTypeByte:     return IsByteTypes();
+      case RegType::kRegTypeShort:    return IsShortTypes();
+      case RegType::kRegTypeChar:     return IsCharTypes();
+      case RegType::kRegTypeInteger:  return IsIntegralTypes();
+      case RegType::kRegTypeFloat:    return IsFloatTypes();
+      case RegType::kRegTypeLongLo:   return IsLongTypes();
+      case RegType::kRegTypeDoubleLo: return IsDoubleTypes();
       default:
-        if (!check_type.IsReferenceTypes()) {
-          LOG(FATAL) << "Unexpected register type verification against " << check_type;
+        if (!IsReferenceTypes()) {
+          LOG(FATAL) << "Unexpected register type in IsAssignableFrom: '" << src << "'";
         }
-        if (IsZero()) {
-          return check_type;
+        if (src.IsZero()) {
+          return true;
         } else if (IsUninitializedReference()) {
-          return reg_types->Conflict();  // Nonsensical to Join two uninitialized classes
-        } else if (IsReference() && check_type.IsReference() &&
-                   (check_type.GetClass()->IsAssignableFrom(GetClass()) ||
-                    (GetClass()->IsObjectClass() && check_type.GetClass()->IsInterface()))) {
+          return false;  // Nonsensical to Join two uninitialized classes
+        } else if (IsReference() && src.IsReference() &&
+                   (GetClass()->IsAssignableFrom(src.GetClass()) ||
+                    (src.GetClass()->IsObjectClass() && GetClass()->IsInterface()) ||
+                    (GetClass()->IsObjectClass() && src.GetClass()->IsInterface()))) {
           // Either we're assignable or this is trying to assign Object to an Interface, which
           // is allowed (see comment for ClassJoin)
-          return check_type;
-        } else if (IsUnresolvedReference() && check_type.IsReference() &&
-                   check_type.GetClass()->IsObjectClass()) {
-          // We're an unresolved reference being checked to see if we're an Object, which is ok
-          return *this;
-        } else if (check_type.IsUnresolvedReference() && IsReference() &&
-                   GetClass()->IsObjectClass()) {
-          // As with the last case but with the types reversed
-          return check_type;
+          return true;
+        } else if (src.IsUnresolvedReference() && IsReference() && GetClass()->IsObjectClass()) {
+          // We're an object being assigned an unresolved reference, which is ok
+          return true;
         } else {
-          return reg_types->Conflict();
+          return false;
         }
     }
   }
@@ -568,8 +548,7 @@ Class* RegisterLine::GetClassFromRegister(uint32_t vsrc) const {
 bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) {
   // Verify the src register type against the check type refining the type of the register
   const RegType& src_type = GetRegisterType(vsrc);
-  const RegType& lub_type = src_type.VerifyAgainst(check_type, verifier_->GetRegTypeCache());
-  if (lub_type.IsConflict()) {
+  if (!check_type.IsAssignableFrom(src_type)) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "register v" << vsrc << " has type " << src_type
                                           << " but expected " << check_type;
     return false;
@@ -1929,7 +1908,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        Fail(failure_) << "unable to resolve const-class " << dec_insn.vB_
+        fail_messages_ << "unable to resolve const-class " << dec_insn.vB_
                        << " (" << bad_class_desc << ") in "
                        << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
         DCHECK(failure_ != VERIFY_ERROR_GENERIC);
@@ -1978,7 +1957,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        Fail(failure_) << "unable to resolve check-cast " << dec_insn.vB_
+        fail_messages_ << "unable to resolve check-cast " << dec_insn.vB_
                        << " (" << bad_class_desc << ") in "
                        << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
         DCHECK(failure_ != VERIFY_ERROR_GENERIC);
@@ -2002,7 +1981,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         Class* res_class = ResolveClassAndCheckAccess(dec_insn.vC_);
         if (res_class == NULL) {
           const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vC_);
-          Fail(failure_) << "unable to resolve instance of " << dec_insn.vC_
+          fail_messages_ << "unable to resolve instance of " << dec_insn.vC_
                          << " (" << bad_class_desc << ") in "
                          << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
           DCHECK(failure_ != VERIFY_ERROR_GENERIC);
@@ -2028,7 +2007,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        Fail(failure_) << "unable to resolve new-instance " << dec_insn.vB_
+        fail_messages_ << "unable to resolve new-instance " << dec_insn.vB_
                        << " (" << bad_class_desc << ") in "
                        << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
         DCHECK(failure_ != VERIFY_ERROR_GENERIC);
@@ -2054,7 +2033,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Class* res_class = ResolveClassAndCheckAccess(dec_insn.vC_);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vC_);
-        Fail(failure_) << "unable to resolve new-array " << dec_insn.vC_
+        fail_messages_ << "unable to resolve new-array " << dec_insn.vC_
                        << " (" << bad_class_desc << ") in "
                        << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
         DCHECK(failure_ != VERIFY_ERROR_GENERIC);
@@ -2073,7 +2052,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
       if (res_class == NULL) {
         const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        Fail(failure_) << "unable to resolve filled-array " << dec_insn.vB_
+        fail_messages_ << "unable to resolve filled-array " << dec_insn.vB_
                        << " (" << bad_class_desc << ") in "
                        << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
         DCHECK(failure_ != VERIFY_ERROR_GENERIC);
@@ -3002,8 +2981,9 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
     const char* method_name = dex_file_->GetMethodName(method_id);
     std::string method_signature = dex_file_->GetMethodSignature(method_id);
     const char* class_descriptor = dex_file_->GetMethodDeclaringClassDescriptor(method_id);
-    Fail(VERIFY_ERROR_GENERIC) << "unable to resolve method " << dec_insn.vB_ << ": "
-                               << class_descriptor << "." << method_name << " " << method_signature;
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
+    fail_messages_ << "unable to resolve method " << dec_insn.vB_ << ": "
+                   << class_descriptor << "." << method_name << " " << method_signature;
     return NULL;
   }
   // Make sure calls to constructors are "direct". There are additional restrictions but we don't
@@ -3400,12 +3380,13 @@ void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
   const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
   Field* field = GetInstanceField(object_type, dec_insn.vC_);
   if (field != NULL) {
-    Class* field_class = field->GetType();
-    Class* insn_class = insn_type.GetClass();
+    const RegType& field_type =
+        reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
+                                  field->GetTypeDescriptor());
     if (is_primitive) {
-      if (field_class == insn_class ||
-          (field_class->IsPrimitiveFloat() && insn_class->IsPrimitiveInt()) ||
-          (field_class->IsPrimitiveDouble() && insn_class->IsPrimitiveLong())) {
+      if (field_type.Equals(insn_type) ||
+          (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
+          (field_type.IsDouble() && insn_type.IsLongTypes())) {
         // expected that read is of the correct primitive type or that int reads are reading
         // floats or long reads are reading doubles
       } else {
@@ -3413,19 +3394,20 @@ void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
         // the descriptors for the type should have been consistent within the same file at
         // compile time
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class) << " in iget";
+                                   << " to be of type '" << insn_type
+                                   << "' but found type '" << field_type << "' in iget";
         return;
       }
     } else {
-      if (!insn_class->IsAssignableFrom(field_class)) {
+      if (!insn_type.IsAssignableFrom(field_type)) {
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be compatible with type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class) << " in iget-object";
+                                   << " to be compatible with type '" << insn_type
+                                   << "' but found type '" << field_type
+                                   << "' in iget-object";
         return;
       }
     }
-    work_line_->SetRegisterType(dec_insn.vA_, reg_types_.FromClass(field_class));
+    work_line_->SetRegisterType(dec_insn.vA_, field_type);
   }
 }
 
@@ -3439,9 +3421,9 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
                                << " from other class " << PrettyClass(method_->GetDeclaringClass());
       return;
     }
-    Class* field_class = field->GetType();
-    const RegType& field_type = reg_types_.FromClass(field_class);
-    Class* insn_class = insn_type.GetClass();
+    const RegType& field_type =
+        reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
+                                  field->GetTypeDescriptor());
     if (is_primitive) {
       // Primitive field assignability rules are weaker than regular assignability rules
       bool instruction_compatible;
@@ -3468,8 +3450,9 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
         // the descriptors for the type should have been consistent within the same file at
         // compile time
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class) << " in iput";
+                                   << " to be of type '" << insn_type
+                                   << "' but found type '" << field_type
+                                   << "' in iput";
         return;
       }
       if (!value_compatible) {
@@ -3480,11 +3463,11 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
         return;
       }
     } else {
-      if (!insn_class->IsAssignableFrom(field_class)) {
+      if (!insn_type.IsAssignableFrom(field_type)) {
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                  << " to be compatible with type " << insn_type
-                                  << " but found type " << PrettyClass(field_class)
-                                  << " in iput-object";
+                                  << " to be compatible with type '" << insn_type
+                                  << "' but found type '" << field_type
+                                  << "' in iput-object";
         return;
       }
       work_line_->VerifyRegisterType(dec_insn.vA_, field_type);

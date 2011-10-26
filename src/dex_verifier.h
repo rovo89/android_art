@@ -204,7 +204,7 @@ class RegType {
 
   std::string Dump() const;
 
-  const RegType& VerifyAgainst(const RegType& check_type, RegTypeCache* reg_types) const;
+  bool IsAssignableFrom(const RegType& src) const;
 
   const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const;
 
