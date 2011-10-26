@@ -41,6 +41,9 @@ class ThreadList {
   void SuspendSelfForDebugger();
   void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);
 
+  // Iterates over all the threads. The caller must hold the thread list lock.
+  void ForEach(void (*callback)(Thread*));
+
   void Register();
   void Unregister();
 

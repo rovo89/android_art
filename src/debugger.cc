@@ -19,6 +19,7 @@
 #include <sys/uio.h>
 
 #include "ScopedPrimitiveArray.h"
+#include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 
 namespace art {
@@ -61,6 +62,8 @@ static JDWP::JdwpOptions gJdwpOptions;
 static JDWP::JdwpState* gJdwpState = NULL;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
 static bool gDebuggerActive;     // debugger is making requests.
+
+static bool gDdmThreadNotification = false;
 
 static ObjectRegistry* gRegistry = NULL;
 
@@ -146,6 +149,8 @@ static bool ParseJdwpOption(const std::string& name, const std::string& value) {
  * "transport=dt_socket,address=8000,server=y,suspend=n"
  */
 bool Dbg::ParseJdwpOptions(const std::string& options) {
+  LOG(VERBOSE) << "ParseJdwpOptions: " << options;
+
   std::vector<std::string> pairs;
   Split(options, ',', pairs);
 
@@ -559,20 +564,6 @@ void Dbg::PostException(void* throwFp, int throwRelPc, void* catchFp, int catchR
   UNIMPLEMENTED(FATAL);
 }
 
-void Dbg::PostThreadStart(Thread* t) {
-  if (!gDebuggerConnected) {
-    return;
-  }
-  UNIMPLEMENTED(WARNING);
-}
-
-void Dbg::PostThreadDeath(Thread* t) {
-  if (!gDebuggerConnected) {
-    return;
-  }
-  UNIMPLEMENTED(WARNING);
-}
-
 void Dbg::PostClassPrepare(Class* c) {
   UNIMPLEMENTED(FATAL);
 }
@@ -712,16 +703,101 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   return true;
 }
 
+void DdmBroadcast(bool connect) {
+  LOG(VERBOSE) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
+
+  Thread* self = Thread::Current();
+  if (self->GetState() != Thread::kRunnable) {
+    LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
+    /* try anyway? */
+  }
+
+  JNIEnv* env = self->GetJniEnv();
+  static jclass DdmServer_class = env->FindClass("org/apache/harmony/dalvik/ddmc/DdmServer");
+  static jmethodID broadcast_mid = env->GetStaticMethodID(DdmServer_class, "broadcast", "(I)V");
+  jint event = connect ? 1 /*DdmServer.CONNECTED*/ : 2 /*DdmServer.DISCONNECTED*/;
+  env->CallStaticVoidMethod(DdmServer_class, broadcast_mid, event);
+  if (env->ExceptionCheck()) {
+    LOG(ERROR) << "DdmServer.broadcast " << event << " failed";
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+  }
+}
+
 void Dbg::DdmConnected() {
-  LOG(VERBOSE) << "Broadcasting DDM connect...";
-  //broadcast(CONNECTED);
-  UNIMPLEMENTED(WARNING);
+  DdmBroadcast(true);
 }
 
 void Dbg::DdmDisconnected() {
-  LOG(VERBOSE) << "Broadcasting DDM disconnect...";
-  //broadcast(DISCONNECTED);
-  //gDvm.ddmThreadNotification = false;
+  DdmBroadcast(false);
+  gDdmThreadNotification = false;
+}
+
+/*
+ * Send a notification when a thread starts or stops.
+ *
+ * Because we broadcast the full set of threads when the notifications are
+ * first enabled, it's possible for "thread" to be actively executing.
+ */
+void DdmSendThreadNotification(Thread* t, bool started) {
+  if (!gDdmThreadNotification) {
+    return;
+  }
+
+  if (started) {
+    SirtRef<String> name(t->GetName());
+    size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
+
+    size_t byte_count = char_count*2 + sizeof(uint32_t)*2;
+    std::vector<uint8_t> buf(byte_count);
+    JDWP::set4BE(&buf[0], t->GetThinLockId());
+    JDWP::set4BE(&buf[4], char_count);
+    if (char_count > 0) {
+      // Copy the UTF-16 string, transforming to big-endian.
+      const jchar* src = name->GetCharArray()->GetData();
+      jchar* dst = reinterpret_cast<jchar*>(&buf[8]);
+      while (char_count--) {
+        JDWP::set2BE(reinterpret_cast<uint8_t*>(dst++), *src++);
+      }
+    }
+    Dbg::DdmSendChunk(CHUNK_TYPE("THCR"), buf.size(), &buf[0]);
+  } else {
+    uint8_t buf[4];
+    JDWP::set4BE(&buf[0], t->GetThinLockId());
+    Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
+  }
+}
+
+void DdmSendThreadStartCallback(Thread* t) {
+  DdmSendThreadNotification(t, true);
+}
+
+void Dbg::DdmSetThreadNotification(bool enable) {
+  // We lock the thread list to avoid sending duplicate events or missing
+  // a thread change. We should be okay holding this lock while sending
+  // the messages out. (We have to hold it while accessing a live thread.)
+  ThreadListLock lock;
+
+  gDdmThreadNotification = enable;
+  if (enable) {
+    Runtime::Current()->GetThreadList()->ForEach(DdmSendThreadStartCallback);
+  }
+}
+
+void PostThreadStartOrStop(Thread* t, bool is_start) {
+  if (gDebuggerActive) {
+    JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
+    gJdwpState->PostThreadChange(id, is_start);
+  }
+  DdmSendThreadNotification(t, is_start);
+}
+
+void Dbg::PostThreadStart(Thread* t) {
+  PostThreadStartOrStop(t, true);
+}
+
+void Dbg::PostThreadDeath(Thread* t) {
+  PostThreadStartOrStop(t, false);
 }
 
 void Dbg::DdmSendChunk(int type, size_t byte_count, const uint8_t* buf) {

@@ -85,8 +85,7 @@ static jboolean DdmVmInternal_heapSegmentNotify(JNIEnv* env, jclass, jint when, 
 }
 
 static void DdmVmInternal_threadNotify(JNIEnv* env, jclass, jboolean enable) {
-  UNIMPLEMENTED(WARNING);
-  //dvmDdmSetThreadNotification(enable);
+  Dbg::DdmSetThreadNotification(enable);
 }
 
 static JNINativeMethod gMethods[] = {

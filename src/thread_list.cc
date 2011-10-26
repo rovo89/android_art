@@ -382,6 +382,13 @@ void ThreadList::Unregister() {
   thread_exit_cond_.Signal();
 }
 
+void ThreadList::ForEach(void (*callback)(Thread*)) {
+  thread_list_lock_.AssertHeld();
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    callback(*it);
+  }
+}
+
 void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   ThreadListLocker locker(this);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
