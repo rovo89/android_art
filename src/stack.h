@@ -17,6 +17,7 @@
 #ifndef ART_SRC_STACK_H_
 #define ART_SRC_STACK_H_
 
+#include "jni.h"
 #include "macros.h"
 
 #include <stdint.h>
@@ -25,6 +26,8 @@ namespace art {
 
 class Method;
 class Thread;
+
+jobject GetThreadStack(JNIEnv*, Thread*);
 
 struct NativeToManagedRecord {
   NativeToManagedRecord* link_;

@@ -680,6 +680,7 @@ void Runtime::DetachCurrentThread() {
 }
 
 void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  Dbg::VisitRoots(visitor, arg);
   class_linker_->VisitRoots(visitor, arg);
   intern_table_->VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);

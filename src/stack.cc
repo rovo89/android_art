@@ -18,6 +18,7 @@
 
 #include "compiler.h"
 #include "object.h"
+#include "thread_list.h"
 
 int oatVRegOffsetFromMethod(art::Method* method, int reg);
 
@@ -66,6 +67,36 @@ uintptr_t Frame::LoadCalleeSave(int num) const {
 Method* Frame::NextMethod() const {
   byte* next_sp = reinterpret_cast<byte*>(sp_) + GetMethod()->GetFrameSizeInBytes();
   return *reinterpret_cast<Method**>(next_sp);
+}
+
+class StackGetter {
+ public:
+  StackGetter(JNIEnv* env, Thread* thread) : env_(env), thread_(thread), trace_(NULL) {
+  }
+
+  static void Callback(void* arg) {
+    reinterpret_cast<StackGetter*>(arg)->Callback();
+  }
+
+  jobject GetTrace() {
+    return trace_;
+  }
+
+ private:
+  void Callback() {
+    trace_ = thread_->CreateInternalStackTrace(env_);
+  }
+
+  JNIEnv* env_;
+  Thread* thread_;
+  jobject trace_;
+};
+
+jobject GetThreadStack(JNIEnv* env, Thread* thread) {
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  StackGetter stack_getter(env, thread);
+  thread_list->RunWhileSuspended(thread, StackGetter::Callback, &stack_getter);
+  return stack_getter.GetTrace();
 }
 
 }  // namespace art

@@ -16,6 +16,8 @@
 
 #include "debugger.h"
 #include "logging.h"
+#include "stack.h"
+#include "thread_list.h"
 
 #include "JniConstants.h"  // Last to avoid problems with LOG redefinition.
 #include "ScopedPrimitiveArray.h"  // Last to avoid problems with LOG redefinition.
@@ -47,23 +49,108 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv* env, jclass) {
   //return (gDvm.allocRecords != NULL);
 }
 
+static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
+  struct ThreadFinder {
+    ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
+    }
+
+    static void Callback(Thread* t, void* context) {
+      ThreadFinder* finder = reinterpret_cast<ThreadFinder*>(context);
+      if (t->GetThinLockId() == finder->thin_lock_id) {
+        finder->thread = t;
+      }
+    }
+
+    uint32_t thin_lock_id;
+    Thread* thread;
+  };
+  ThreadFinder finder(thin_lock_id);
+  Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
+  return finder.thread;
+}
+
 /*
  * Get a stack trace as an array of StackTraceElement objects.  Returns
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
-static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint threadId) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
-  //ArrayObject* trace = dvmDdmGetStackTraceById(threadId);
-  //return reinterpret_cast<jobjectArray>(addLocalReference(env, trace));
+static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
+  ThreadListLock thread_list_lock;
+  Thread* thread = FindThreadByThinLockId(static_cast<uint32_t>(thin_lock_id));
+  if (thread == NULL) {
+    return NULL;
+  }
+  jobject stack = GetThreadStack(env, thread);
+  return (stack != NULL) ? Thread::InternalStackTraceToStackTraceElementArray(env, stack) : NULL;
+}
+
+static void ThreadCountCallback(Thread*, void* context) {
+  uint16_t& count = *reinterpret_cast<uint16_t*>(context);
+  ++count;
+}
+
+static const int kThstBytesPerEntry = 18;
+static const int kThstHeaderLen = 4;
+
+static void ThreadStatsGetterCallback(Thread* t, void* context) {
+  uint8_t** ptr = reinterpret_cast<uint8_t**>(context);
+  uint8_t* buf = *ptr;
+
+  /*
+   * Generate the contents of a THST chunk.  The data encompasses all known
+   * threads.
+   *
+   * Response has:
+   *  (1b) header len
+   *  (1b) bytes per entry
+   *  (2b) thread count
+   * Then, for each thread:
+   *  (4b) threadId
+   *  (1b) thread status
+   *  (4b) tid
+   *  (4b) utime
+   *  (4b) stime
+   *  (1b) is daemon?
+   *
+   * The length fields exist in anticipation of adding additional fields
+   * without wanting to break ddms or bump the full protocol version.  I don't
+   * think it warrants full versioning.  They might be extraneous and could
+   * be removed from a future version.
+   */
+  int utime, stime, task_cpu;
+  GetTaskStats(t->GetTid(), utime, stime, task_cpu);
+
+  JDWP::set4BE(buf+0, t->GetThinLockId());
+  JDWP::set1(buf+4, t->GetState());
+  JDWP::set4BE(buf+5, t->GetTid());
+  JDWP::set4BE(buf+9, utime);
+  JDWP::set4BE(buf+13, stime);
+  JDWP::set1(buf+17, t->IsDaemon());
+
+  *ptr += kThstBytesPerEntry;
 }
 
 static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
-  //ArrayObject* result = dvmDdmGenerateThreadStats();
-  //dvmReleaseTrackedAlloc(result, NULL);
-  //return reinterpret_cast<jbyteArray>(addLocalReference(env, result));
+  std::vector<uint8_t> bytes;
+  {
+    ThreadListLock thread_list_lock;
+    ThreadList* thread_list = Runtime::Current()->GetThreadList();
+
+    uint16_t thread_count;
+    thread_list->ForEach(ThreadCountCallback, &thread_count);
+
+    bytes.resize(kThstHeaderLen + thread_count * kThstBytesPerEntry);
+
+    JDWP::set1(&bytes[0], kThstHeaderLen);
+    JDWP::set1(&bytes[1], kThstBytesPerEntry);
+    JDWP::set2BE(&bytes[2], thread_count);
+
+    uint8_t* ptr = &bytes[kThstHeaderLen];
+    thread_list->ForEach(ThreadStatsGetterCallback, &ptr);
+  }
+
+  jbyteArray result = env->NewByteArray(bytes.size());
+  env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte*>(&bytes[0]));
+  return result;
 }
 
 static jint DdmVmInternal_heapInfoNotify(JNIEnv* env, jclass, jint when) {

@@ -25,38 +25,10 @@ namespace art {
 
 namespace {
 
-class StackGetter {
- public:
-  StackGetter(JNIEnv* env, Thread* thread) : env_(env), thread_(thread), trace_(NULL) {
-  }
-
-  static void Callback(void* arg) {
-    reinterpret_cast<StackGetter*>(arg)->Callback();
-  }
-
-  jobject GetTrace() {
-    return trace_;
-  }
-
- private:
-  void Callback() {
-    trace_ = thread_->CreateInternalStackTrace(env_);
-  }
-
-  JNIEnv* env_;
-  Thread* thread_;
-  jobject trace_;
-};
-
-jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
+static jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
+  ThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  if (thread == NULL) {
-    return NULL;
-  }
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  StackGetter stack_getter(env, thread);
-  thread_list->RunWhileSuspended(thread, StackGetter::Callback, &stack_getter);
-  return stack_getter.GetTrace();
+  return (thread != NULL) ? GetThreadStack(env, thread) : NULL;
 }
 
 jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, jobjectArray javaSteArray) {

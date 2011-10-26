@@ -43,7 +43,7 @@ class ThreadList {
   void UndoDebuggerSuspensions();
 
   // Iterates over all the threads. The caller must hold the thread list lock.
-  void ForEach(void (*callback)(Thread*));
+  void ForEach(void (*callback)(Thread*, void*), void* context);
 
   void Register();
   void Unregister();

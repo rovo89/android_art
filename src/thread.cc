@@ -433,17 +433,7 @@ void Thread::DumpState(std::ostream& os) const {
   int utime = 0;
   int stime = 0;
   int task_cpu = 0;
-  std::string stats;
-  if (ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
-    // Skip the command, which may contain spaces.
-    stats = stats.substr(stats.find(')') + 2);
-    // Extract the three fields we care about.
-    std::vector<std::string> fields;
-    Split(stats, ' ', fields);
-    utime = strtoull(fields[11].c_str(), NULL, 10);
-    stime = strtoull(fields[12].c_str(), NULL, 10);
-    task_cpu = strtoull(fields[36].c_str(), NULL, 10);
-  }
+  GetTaskStats(GetTid(), utime, stime, task_cpu);
 
   os << "  | schedstat=( " << scheduler_stats << " )"
      << " utm=" << utime

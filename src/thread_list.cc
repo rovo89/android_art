@@ -194,6 +194,7 @@ void ThreadList::SuspendAll(bool for_debugger) {
 
 void ThreadList::Suspend(Thread* thread) {
   DCHECK(thread != Thread::Current());
+  thread_list_lock_.AssertHeld();
 
   // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
 
@@ -201,7 +202,6 @@ void ThreadList::Suspend(Thread* thread) {
     LOG(INFO) << "Suspend(" << *thread << ") starting...";
   }
 
-  ThreadListLocker locker(this);
   if (!Contains(thread)) {
     return;
   }
@@ -303,13 +303,13 @@ void ThreadList::ResumeAll(bool for_debugger) {
 
 void ThreadList::Resume(Thread* thread) {
   DCHECK(thread != Thread::Current());
+  thread_list_lock_.AssertHeld();
 
   if (verbose_) {
     LOG(INFO) << "Resume(" << *thread << ") starting...";
   }
 
   {
-    ThreadListLocker locker(this);
     MutexLock mu(thread_suspend_count_lock_);
     if (!Contains(thread)) {
       return;
@@ -423,10 +423,10 @@ void ThreadList::Unregister() {
   thread_exit_cond_.Signal();
 }
 
-void ThreadList::ForEach(void (*callback)(Thread*)) {
+void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
   thread_list_lock_.AssertHeld();
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    callback(*it);
+    callback(*it, context);
   }
 }
 

@@ -116,6 +116,8 @@ public:
   // The debugger wants the VM to exit.
   static void Exit(int status);
 
+  static void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+
   /*
    * Class, Object, Array
    */

@@ -50,6 +50,14 @@ class ObjectRegistry {
     return map_.find(id) != map_.end();
   }
 
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+    MutexLock mu(lock_);
+    typedef std::map<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
+    for (It it = map_.begin(); it != map_.end(); ++it) {
+      visitor(it->second, arg);
+    }
+  }
+
  private:
   Mutex lock_;
   std::map<JDWP::ObjectId, Object*> map_;
@@ -283,6 +291,12 @@ void Dbg::UndoDebuggerSuspensions() {
 
 void Dbg::Exit(int status) {
   UNIMPLEMENTED(FATAL);
+}
+
+void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  if (gRegistry != NULL) {
+    gRegistry->VisitRoots(visitor, arg);
+  }
 }
 
 const char* Dbg::GetClassDescriptor(JDWP::RefTypeId id) {
@@ -781,7 +795,7 @@ void DdmSendThreadNotification(Thread* t, bool started) {
   }
 }
 
-void DdmSendThreadStartCallback(Thread* t) {
+void DdmSendThreadStartCallback(Thread* t, void*) {
   DdmSendThreadNotification(t, true);
 }
 
@@ -793,7 +807,7 @@ void Dbg::DdmSetThreadNotification(bool enable) {
 
   gDdmThreadNotification = enable;
   if (enable) {
-    Runtime::Current()->GetThreadList()->ForEach(DdmSendThreadStartCallback);
+    Runtime::Current()->GetThreadList()->ForEach(DdmSendThreadStartCallback, NULL);
   }
 }
 

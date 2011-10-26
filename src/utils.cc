@@ -504,6 +504,22 @@ void SetThreadName(const char *threadName) {
 #endif
 }
 
+void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
+  utime = stime = task_cpu = 0;
+  std::string stats;
+  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
+    return;
+  }
+  // Skip the command, which may contain spaces.
+  stats = stats.substr(stats.find(')') + 2);
+  // Extract the three fields we care about.
+  std::vector<std::string> fields;
+  Split(stats, ' ', fields);
+  utime = strtoull(fields[11].c_str(), NULL, 10);
+  stime = strtoull(fields[12].c_str(), NULL, 10);
+  task_cpu = strtoull(fields[36].c_str(), NULL, 10);
+}
+
 std::string GetArtCacheOrDie() {
   const char* data_root = getenv("ANDROID_DATA");
   if (data_root == NULL) {
