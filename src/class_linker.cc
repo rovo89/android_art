@@ -625,12 +625,17 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
 
 const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
   MutexLock mu(dex_lock_);
-  // TODO: check if dex_file matches an OatDexFile location and checksum
   const OatFile* oat_file = FindOatFile(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
   if (oat_file != NULL) {
-    return oat_file;
+    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+    if (dex_file.GetHeader().checksum_ == oat_dex_file->GetDexFileChecksum()) {
+      return oat_file;
+    }
+    LOG(WARNING) << ".oat file " << oat_file->GetLocation()
+                 << " is older than " << dex_file.GetLocation() << " --- regenerating";
+    // Fall through...
   }
-  // generate oat file if it wasn't found
+  // Generate oat file if it wasn't found or was obsolete.
   oat_file = GenerateOatFile(dex_file.GetLocation());
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to generate oat file from dex file " << dex_file.GetLocation();
