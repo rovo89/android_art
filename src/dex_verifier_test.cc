@@ -52,7 +52,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(bool_reg_type.IsConflict());
   EXPECT_FALSE(bool_reg_type.IsZero());
   EXPECT_FALSE(bool_reg_type.IsOne());
-  EXPECT_FALSE(bool_reg_type.IsConstLo());
+  EXPECT_FALSE(bool_reg_type.IsLongConstant());
   EXPECT_TRUE(bool_reg_type.IsBoolean());
   EXPECT_FALSE(bool_reg_type.IsByte());
   EXPECT_FALSE(bool_reg_type.IsChar());
@@ -83,7 +83,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(byte_reg_type.IsConflict());
   EXPECT_FALSE(byte_reg_type.IsZero());
   EXPECT_FALSE(byte_reg_type.IsOne());
-  EXPECT_FALSE(byte_reg_type.IsConstLo());
+  EXPECT_FALSE(byte_reg_type.IsLongConstant());
   EXPECT_FALSE(byte_reg_type.IsBoolean());
   EXPECT_TRUE(byte_reg_type.IsByte());
   EXPECT_FALSE(byte_reg_type.IsChar());
@@ -114,7 +114,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(char_reg_type.IsConflict());
   EXPECT_FALSE(char_reg_type.IsZero());
   EXPECT_FALSE(char_reg_type.IsOne());
-  EXPECT_FALSE(char_reg_type.IsConstLo());
+  EXPECT_FALSE(char_reg_type.IsLongConstant());
   EXPECT_FALSE(char_reg_type.IsBoolean());
   EXPECT_FALSE(char_reg_type.IsByte());
   EXPECT_TRUE(char_reg_type.IsChar());
@@ -145,7 +145,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(short_reg_type.IsConflict());
   EXPECT_FALSE(short_reg_type.IsZero());
   EXPECT_FALSE(short_reg_type.IsOne());
-  EXPECT_FALSE(short_reg_type.IsConstLo());
+  EXPECT_FALSE(short_reg_type.IsLongConstant());
   EXPECT_FALSE(short_reg_type.IsBoolean());
   EXPECT_FALSE(short_reg_type.IsByte());
   EXPECT_FALSE(short_reg_type.IsChar());
@@ -176,7 +176,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(int_reg_type.IsConflict());
   EXPECT_FALSE(int_reg_type.IsZero());
   EXPECT_FALSE(int_reg_type.IsOne());
-  EXPECT_FALSE(int_reg_type.IsConstLo());
+  EXPECT_FALSE(int_reg_type.IsLongConstant());
   EXPECT_FALSE(int_reg_type.IsBoolean());
   EXPECT_FALSE(int_reg_type.IsByte());
   EXPECT_FALSE(int_reg_type.IsChar());
@@ -207,7 +207,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(long_reg_type.IsConflict());
   EXPECT_FALSE(long_reg_type.IsZero());
   EXPECT_FALSE(long_reg_type.IsOne());
-  EXPECT_FALSE(long_reg_type.IsConstLo());
+  EXPECT_FALSE(long_reg_type.IsLongConstant());
   EXPECT_FALSE(long_reg_type.IsBoolean());
   EXPECT_FALSE(long_reg_type.IsByte());
   EXPECT_FALSE(long_reg_type.IsChar());
@@ -238,7 +238,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(float_reg_type.IsConflict());
   EXPECT_FALSE(float_reg_type.IsZero());
   EXPECT_FALSE(float_reg_type.IsOne());
-  EXPECT_FALSE(float_reg_type.IsConstLo());
+  EXPECT_FALSE(float_reg_type.IsLongConstant());
   EXPECT_FALSE(float_reg_type.IsBoolean());
   EXPECT_FALSE(float_reg_type.IsByte());
   EXPECT_FALSE(float_reg_type.IsChar());
@@ -269,7 +269,7 @@ TEST_F(DexVerifierTest, RegTypes_Primitives) {
   EXPECT_FALSE(double_reg_type.IsConflict());
   EXPECT_FALSE(double_reg_type.IsZero());
   EXPECT_FALSE(double_reg_type.IsOne());
-  EXPECT_FALSE(double_reg_type.IsConstLo());
+  EXPECT_FALSE(double_reg_type.IsLongConstant());
   EXPECT_FALSE(double_reg_type.IsBoolean());
   EXPECT_FALSE(double_reg_type.IsByte());
   EXPECT_FALSE(double_reg_type.IsChar());

@@ -10,6 +10,7 @@
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
 #include "dex_verifier.h"
+#include "intern_table.h"
 #include "logging.h"
 #include "runtime.h"
 #include "stringpiece.h"
@@ -23,21 +24,55 @@ std::ostream& operator<<(std::ostream& os, const VerifyError& rhs) {
   return os << (int)rhs;
 }
 
-static const char type_chars[RegType::kRegTypeMAX + 1 /* for '\0' */ ] = "UX01ZyYhHcibBsSCIFNnJjDdL";
+static const char* type_strings[] = {
+    "Unknown",
+    "Conflict",
+    "Boolean",
+    "Byte",
+    "Short",
+    "Char",
+    "Integer",
+    "Float",
+    "Long (Low Half)",
+    "Long (High Half)",
+    "Double (Low Half)",
+    "Double (High Half)",
+    "64-bit Constant (Low Half)",
+    "64-bit Constant (High Half)",
+    "32-bit Constant",
+    "Unresolved Reference",
+    "Uninitialized Reference",
+    "Uninitialized This Reference",
+    "Unresolved And Uninitialized This Reference",
+    "Reference",
+};
 
 std::string RegType::Dump() const {
-  DCHECK(type_ < kRegTypeMAX);
-  std::ostringstream os;
-  os << type_chars[type_];
-  if (type_ == kRegTypeReference) {
-    if (IsUninitializedReference()) {
-      os << "[uninitialized-" << PrettyDescriptor(GetClass()->GetDescriptor())
-          << ", allocated@" << allocation_pc_ <<"]";
+  DCHECK(type_ >=  kRegTypeUnknown && type_ <= kRegTypeReference);
+  std::string result;
+  if (IsConstant()) {
+    uint32_t val = ConstantValue();
+    if (val == 0) {
+      result = "Zero";
     } else {
-      os << "[" << PrettyDescriptor(GetClass()->GetDescriptor()) << "]";
+      if(IsConstantShort()) {
+        result = StringPrintf("32-bit Constant: %d", val);
+      } else {
+        result = StringPrintf("32-bit Constant: 0x%x", val);
+      }
+    }
+  } else {
+    result = type_strings[type_];
+    if (IsReferenceTypes()) {
+      result += ": ";
+      if (IsUnresolvedReference()) {
+        result += PrettyDescriptor(GetDescriptor());
+      } else {
+        result += PrettyDescriptor(GetClass()->GetDescriptor());
+      }
     }
   }
-  return os.str();
+  return result;
 }
 
 const RegType& RegType::HighHalf(RegTypeCache* cache) const {
@@ -145,147 +180,133 @@ const RegType& RegType::VerifyAgainst(const RegType& check_type, RegTypeCache* r
       case RegType::kRegTypeDoubleLo:
         return IsDoubleTypes() ? check_type : reg_types->Conflict();
         break;
-      case RegType::kRegTypeReference:
+      default:
+        if (!check_type.IsReferenceTypes()) {
+          LOG(FATAL) << "Unexpected register type verification against " << check_type;
+        }
         if (IsZero()) {
           return check_type;
         } else if (IsUninitializedReference()) {
           return reg_types->Conflict();  // Nonsensical to Join two uninitialized classes
-        } else if (IsReference() && (check_type.GetClass()->IsAssignableFrom(GetClass()) ||
-            (GetClass()->IsObjectClass() && check_type.GetClass()->IsInterface()))) {
+        } else if (IsReference() && check_type.IsReference() &&
+                   (check_type.GetClass()->IsAssignableFrom(GetClass()) ||
+                    (GetClass()->IsObjectClass() && check_type.GetClass()->IsInterface()))) {
           // Either we're assignable or this is trying to assign Object to an Interface, which
-          // is allowed (see comment in ClassJoin)
+          // is allowed (see comment for ClassJoin)
+          return check_type;
+        } else if (IsUnresolvedReference() && check_type.IsReference() &&
+                   check_type.GetClass()->IsObjectClass()) {
+          // We're an unresolved reference being checked to see if we're an Object, which is ok
+          return *this;
+        } else if (check_type.IsUnresolvedReference() && IsReference() &&
+                   GetClass()->IsObjectClass()) {
+          // As with the last case but with the types reversed
           return check_type;
         } else {
           return reg_types->Conflict();
         }
-      default:
-        LOG(FATAL) << "Unexpected register type verification against " << check_type;
-        return reg_types->Conflict();
     }
   }
 }
 
-#define k_  RegType::kRegTypeUnknown
-#define kX  RegType::kRegTypeConflict
-#define k0  RegType::kRegTypeZero
-#define k1  RegType::kRegTypeOne
-#define kZ  RegType::kRegTypeBoolean
-#define ky  RegType::kRegTypeConstPosByte
-#define kY  RegType::kRegTypeConstByte
-#define kh  RegType::kRegTypeConstPosShort
-#define kH  RegType::kRegTypeConstShort
-#define kc  RegType::kRegTypeConstChar
-#define ki  RegType::kRegTypeConstInteger
-#define kb  RegType::kRegTypePosByte
-#define kB  RegType::kRegTypeByte
-#define ks  RegType::kRegTypePosShort
-#define kS  RegType::kRegTypeShort
-#define kC  RegType::kRegTypeChar
-#define kI  RegType::kRegTypeInteger
-#define kF  RegType::kRegTypeFloat
-#define kN  RegType::kRegTypeConstLo
-#define kn  RegType::kRegTypeConstHi
-#define kJ  RegType::kRegTypeLongLo
-#define kj  RegType::kRegTypeLongHi
-#define kD  RegType::kRegTypeDoubleLo
-#define kd  RegType::kRegTypeDoubleHi
-
-const RegType::Type RegType::merge_table_[kRegTypeReference][kRegTypeReference] =
-  {
-    /* chk:  _ X  0  1  Z  y  Y  h  H  c  i  b  B  s  S  C  I  F  N  n  J  j  D  d */
-    { /*_*/ k_,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX },
-    { /*X*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX },
-    { /*0*/ kX,kX,k0,kZ,kZ,ky,kY,kh,kH,kc,ki,kb,kB,ks,kS,kC,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*1*/ kX,kX,kZ,k1,kZ,ky,kY,kh,kH,kc,ki,kb,kB,ks,kS,kC,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*Z*/ kX,kX,kZ,kZ,kZ,ky,kY,kh,kH,kc,ki,kb,kB,ks,kS,kC,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*y*/ kX,kX,ky,ky,ky,ky,kY,kh,kH,kc,ki,kb,kB,ks,kS,kC,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*Y*/ kX,kX,kY,kY,kY,kY,kY,kh,kH,kc,ki,kB,kB,kS,kS,kI,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*h*/ kX,kX,kh,kh,kh,kh,kh,kh,kH,kc,ki,ks,kS,ks,kS,kC,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*H*/ kX,kX,kH,kH,kH,kH,kH,kH,kH,kc,ki,kS,kS,kS,kS,kI,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*c*/ kX,kX,kc,kc,kc,kc,kc,kc,kc,kc,ki,kC,kI,kC,kI,kC,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*i*/ kX,kX,ki,ki,ki,ki,ki,ki,ki,ki,ki,kI,kI,kI,kI,kI,kI,kF,kX,kX,kX,kX,kX,kX },
-    { /*b*/ kX,kX,kb,kb,kb,kb,kB,ks,kS,kC,kI,kb,kB,ks,kS,kC,kI,kX,kX,kX,kX,kX,kX,kX },
-    { /*B*/ kX,kX,kB,kB,kB,kB,kB,kS,kS,kI,kI,kB,kB,kS,kS,kI,kI,kX,kX,kX,kX,kX,kX,kX },
-    { /*s*/ kX,kX,ks,ks,ks,ks,kS,ks,kS,kC,kI,ks,kS,ks,kS,kC,kI,kX,kX,kX,kX,kX,kX,kX },
-    { /*S*/ kX,kX,kS,kS,kS,kS,kS,kS,kS,kI,kI,kS,kS,kS,kS,kI,kI,kX,kX,kX,kX,kX,kX,kX },
-    { /*C*/ kX,kX,kC,kC,kC,kC,kI,kC,kI,kC,kI,kC,kI,kC,kI,kC,kI,kX,kX,kX,kX,kX,kX,kX },
-    { /*I*/ kX,kX,kI,kI,kI,kI,kI,kI,kI,kI,kI,kI,kI,kI,kI,kI,kI,kX,kX,kX,kX,kX,kX,kX },
-    { /*F*/ kX,kX,kF,kF,kF,kF,kF,kF,kF,kF,kF,kX,kX,kX,kX,kX,kX,kF,kX,kX,kX,kX,kX,kX },
-    { /*N*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kN,kX,kJ,kX,kD,kX },
-    { /*n*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kn,kX,kj,kX,kd },
-    { /*J*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kJ,kX,kJ,kX,kX,kX },
-    { /*j*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kj,kX,kj,kX,kX },
-    { /*D*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kD,kX,kX,kX,kD,kX },
-    { /*d*/ kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kX,kd,kX,kX,kX,kd },
-  };
-
-#undef k_
-#undef kX
-#undef k0
-#undef k1
-#undef kZ
-#undef ky
-#undef kY
-#undef kh
-#undef kH
-#undef kc
-#undef ki
-#undef kb
-#undef kB
-#undef ks
-#undef kS
-#undef kC
-#undef kI
-#undef kF
-#undef kN
-#undef kn
-#undef kJ
-#undef kj
-#undef kD
-#undef kd
+static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
+  return a.IsConstant() ? b : a;
+}
 
 const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const {
   DCHECK(!Equals(incoming_type));  // Trivial equality handled by caller
-  if (type_ < kRegTypeReference) {
-    if (incoming_type.type_ < kRegTypeReference) {
-      // Merge of primitive types, unknown or conflict use lookup table
-      RegType::Type table_type = merge_table_[type_][incoming_type.type_];
-      // Check if we got an identity result before hitting the cache
-      if (type_ == table_type) {
+  if (IsUnknown() && incoming_type.IsUnknown()) {
+    return *this;  // Unknown MERGE Unknown => Unknown
+  } else if (IsConflict()) {
+    return *this;  // Conflict MERGE * => Conflict
+  } else if (incoming_type.IsConflict()) {
+    return incoming_type;  // * MERGE Conflict => Conflict
+  } else if (IsUnknown() || incoming_type.IsUnknown()) {
+    return reg_types->Conflict();  // Unknown MERGE * => Conflict
+  } else if(IsConstant() && incoming_type.IsConstant()) {
+    int32_t val1 = ConstantValue();
+    int32_t val2 = incoming_type.ConstantValue();
+    if (val1 >= 0 && val2 >= 0) {
+      // +ve1 MERGE +ve2 => MAX(+ve1, +ve2)
+      if (val1 >= val2) {
         return *this;
-      } else if (incoming_type.type_ == table_type) {
+      } else {
+        return incoming_type;
+      }
+    } else if (val1 < 0 && val2 < 0) {
+      // -ve1 MERGE -ve2 => MIN(-ve1, -ve2)
+      if (val1 <= val2) {
+        return *this;
+      } else {
+        return incoming_type;
+      }
+    } else {
+      // Values are +ve and -ve, choose smallest signed type in which they both fit
+      if (IsConstantByte()) {
+        if (incoming_type.IsConstantByte()) {
+          return reg_types->ByteConstant();
+        } else if (incoming_type.IsConstantShort()) {
+          return reg_types->ShortConstant();
+        } else {
+          return reg_types->IntConstant();
+        }
+      } else if (IsConstantShort()) {
+        if (incoming_type.IsShort()) {
+          return reg_types->ShortConstant();
+        } else {
+          return reg_types->IntConstant();
+        }
+      } else {
+        return reg_types->IntConstant();
+      }
+    }
+  } else if (IsIntegralTypes() && incoming_type.IsIntegralTypes()) {
+    if (IsBooleanTypes() && incoming_type.IsBooleanTypes()) {
+      return reg_types->Boolean();  // boolean MERGE boolean => boolean
+    }
+    if (IsByteTypes() && incoming_type.IsByteTypes()) {
+      return reg_types->Byte();  // byte MERGE byte => byte
+    }
+    if (IsShortTypes() && incoming_type.IsShortTypes()) {
+      return reg_types->Short();  // short MERGE short => short
+    }
+    if (IsCharTypes() && incoming_type.IsCharTypes()) {
+      return reg_types->Char();  // char MERGE char => char
+    }
+    return reg_types->Integer();  // int MERGE * => int
+  } else if ((IsFloatTypes() && incoming_type.IsFloatTypes()) ||
+             (IsLongTypes() && incoming_type.IsLongTypes()) ||
+             (IsLongHighTypes() && incoming_type.IsLongHighTypes()) ||
+             (IsDoubleTypes() && incoming_type.IsDoubleTypes()) ||
+             (IsDoubleHighTypes() && incoming_type.IsDoubleHighTypes())) {
+    // check constant case was handled prior to entry
+    DCHECK(!IsConstant() || !incoming_type.IsConstant());
+    // float/long/double MERGE float/long/double_constant => float/long/double
+    return SelectNonConstant(*this, incoming_type);
+  } else if (IsReferenceTypes() && incoming_type.IsReferenceTypes()) {
+    if (IsZero() | incoming_type.IsZero()) {
+      return SelectNonConstant(*this, incoming_type);  // 0 MERGE ref => ref
+    } else  if (IsUnresolvedReference() || IsUninitializedReference() ||
+                IsUninitializedThisReference()) {
+      // Can only merge an uninitialized or unresolved type with itself or 0, we've already checked
+      // these so => Conflict
+      return reg_types->Conflict();
+    } else {  // Two reference types, compute Join
+      Class* c1 = GetClass();
+      Class* c2 = incoming_type.GetClass();
+      DCHECK(c1 != NULL && !c1->IsPrimitive());
+      DCHECK(c2 != NULL && !c2->IsPrimitive());
+      Class* join_class = ClassJoin(c1, c2);
+      if (c1 == join_class) {
+        return *this;
+      } else if (c2 == join_class) {
         return incoming_type;
       } else {
-        return reg_types->FromType(table_type);
+        return reg_types->FromClass(join_class);
       }
-    } else if (IsZero()) {  // Merge of primitive zero and reference => reference
-      return incoming_type;
-    } else {  // Merge with non-zero with reference => conflict
-      return reg_types->Conflict();
     }
-  } else if (!incoming_type.IsReference()) {
-    DCHECK(IsReference());
-    if (incoming_type.IsZero()) {  // Merge of primitive zero and reference => reference
-      return *this;
-    } else {  // Merge with non-zero with reference => conflict
-      return reg_types->Conflict();
-    }
-  } else if (IsUninitializedReference()) {
-    // Can only merge an uninitialized type with itself, but we already checked this
-    return reg_types->Conflict();
-  } else {  // Two reference types, compute Join
-    Class* c1 = GetClass();
-    Class* c2 = incoming_type.GetClass();
-    DCHECK(c1 != NULL && !c1->IsPrimitive());
-    DCHECK(c2 != NULL && !c2->IsPrimitive());
-    Class* join_class = ClassJoin(c1, c2);
-    if (c1 == join_class) {
-      return *this;
-    } else if (c2 == join_class) {
-      return incoming_type;
-    } else {
-      return reg_types->FromClass(join_class);
-    }
+  } else {
+    return reg_types->Conflict();  // Unexpected types => Conflict
   }
 }
 
@@ -337,36 +358,47 @@ const RegType& RegTypeCache::FromDescriptor(const ClassLoader* loader,
 
 const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
                                   const std::string& descriptor) {
-  if (type < RegType::kRegTypeReference) {
+  if (type <= RegType::kRegTypeLastFixedLocation) {
     // entries should be sized greater than primitive types
     DCHECK_GT(entries_.size(), static_cast<size_t>(type));
     RegType* entry = entries_[type];
     if (entry == NULL) {
-      Class *klass = NULL;
+      Class* klass = NULL;
       if (descriptor.size() != 0) {
         klass = Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor);
       }
-      entry = new RegType(type, klass, RegType::kInitArgAddr, type);
+      entry = new RegType(type, klass, 0, type);
       entries_[type] = entry;
     }
     return *entry;
   } else {
     DCHECK (type == RegType::kRegTypeReference);
-    for (size_t i = RegType::kRegTypeReference; i < entries_.size(); i++) {
+    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
-      if (cur_entry->IsInitialized() &&
-          cur_entry->GetClass()->GetDescriptor()->Equals(descriptor)) {
+      // check resolved and unresolved references, ignore uninitialized references
+      if (cur_entry->IsReference() && cur_entry->GetClass()->GetDescriptor()->Equals(descriptor)) {
+        return *cur_entry;
+      } else if (cur_entry->IsUnresolvedReference() &&
+                 cur_entry->GetDescriptor()->Equals(descriptor)) {
         return *cur_entry;
       }
     }
     Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor, loader);
     if (klass != NULL) {
-      RegType* entry = new RegType(type, klass, RegType::kInitArgAddr, entries_.size());
+      // Able to resolve so create resolved register type
+      RegType* entry = new RegType(type, klass, 0, entries_.size());
       entries_.push_back(entry);
       return *entry;
     } else {
+      // Unable to resolve so create unresolved register type
       DCHECK(Thread::Current()->IsExceptionPending());
-      return FromType(RegType::kRegTypeUnknown);
+      Thread::Current()->ClearException();
+      String* string_descriptor =
+          Runtime::Current()->GetInternTable()->InternStrong(descriptor.c_str());
+      RegType* entry = new RegType(RegType::kRegTypeUnresolvedReference, string_descriptor, 0,
+                                   entries_.size());
+      entries_.push_back(entry);
+      return *entry;
     }
   }
 }
@@ -378,44 +410,44 @@ const RegType& RegTypeCache::FromClass(Class* klass) {
     DCHECK_GT(entries_.size(), static_cast<size_t>(type));
     RegType* entry = entries_[type];
     if (entry == NULL) {
-      entry = new RegType(type, klass, RegType::kInitArgAddr, type);
+      entry = new RegType(type, klass, 0, type);
       entries_[type] = entry;
     }
     return *entry;
   } else {
-    for (size_t i = RegType::kRegTypeReference; i < entries_.size(); i++) {
+    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
-      if (cur_entry->IsInitialized() && cur_entry->GetClass() == klass) {
+      if (cur_entry->IsReference() && cur_entry->GetClass() == klass) {
         return *cur_entry;
       }
     }
-    RegType* entry = new RegType(RegType::kRegTypeReference, klass, RegType::kInitArgAddr,
-                                 entries_.size());
+    RegType* entry = new RegType(RegType::kRegTypeReference, klass, 0, entries_.size());
     entries_.push_back(entry);
     return *entry;
   }
 }
 
 const RegType& RegTypeCache::Uninitialized(Class* klass, uint32_t allocation_pc) {
-  for (size_t i = RegType::kRegTypeReference; i < entries_.size(); i++) {
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
-    if (cur_entry->allocation_pc_ == allocation_pc && cur_entry->GetClass() == klass) {
+    if (cur_entry->IsUninitializedReference() && cur_entry->GetAllocationPc() == allocation_pc &&
+        cur_entry->GetClass() == klass) {
       return *cur_entry;
     }
   }
-  RegType* entry = new RegType(RegType::kRegTypeReference, klass, allocation_pc, entries_.size());
+  RegType* entry = new RegType(RegType::kRegTypeUninitializedReference, klass, allocation_pc, entries_.size());
   entries_.push_back(entry);
   return *entry;
 }
 
 const RegType& RegTypeCache::UninitializedThisArgument(Class* klass) {
-  for (size_t i = RegType::kRegTypeReference; i < entries_.size(); i++) {
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
     if (cur_entry->IsUninitializedThisReference() && cur_entry->GetClass() == klass) {
       return *cur_entry;
     }
   }
-  RegType* entry = new RegType(RegType::kRegTypeReference, klass, RegType::kUninitThisArgAddr,
+  RegType* entry = new RegType(RegType::kRegTypeUninitializedThisReference, klass, 0,
                                entries_.size());
   entries_.push_back(entry);
   return *entry;
@@ -439,25 +471,15 @@ const RegType& RegTypeCache::FromType(RegType::Type type) {
 }
 
 const RegType& RegTypeCache::FromCat1Const(int32_t value) {
-  if (value < -32768) {
-    return FromType(RegType::kRegTypeConstInteger);
-  } else if (value < -128) {
-    return FromType(RegType::kRegTypeConstShort);
-  } else if (value < 0) {
-    return FromType(RegType::kRegTypeConstByte);
-  } else if (value == 0) {
-    return FromType(RegType::kRegTypeZero);
-  } else if (value == 1) {
-    return FromType(RegType::kRegTypeOne);
-  } else if (value < 128) {
-    return FromType(RegType::kRegTypeConstPosByte);
-  } else if (value < 32768) {
-    return FromType(RegType::kRegTypeConstPosShort);
-  } else if (value < 65536) {
-    return FromType(RegType::kRegTypeConstChar);
-  } else {
-    return FromType(RegType::kRegTypeConstInteger);
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+    RegType* cur_entry = entries_[i];
+    if (cur_entry->IsConstant() && cur_entry->ConstantValue() == value) {
+      return *cur_entry;
+    }
   }
+  RegType* entry = new RegType(RegType::kRegTypeConst, NULL, value, entries_.size());
+  entries_.push_back(entry);
+  return *entry;
 }
 
 bool RegisterLine::CheckConstructorReturn() const {
@@ -778,7 +800,7 @@ void RegisterLine::WriteReferenceBitMap(int8_t* data, size_t max_bytes) {
     uint8_t val = 0;
     for (size_t j = 0; j < 8 && (i + j) < num_regs_; j++) {
       // Note: we write 1 for a Reference but not for Null
-      if (GetRegisterType(i + j).IsReference()) {
+      if (GetRegisterType(i + j).IsNonZeroReferenceTypes()) {
         val |= 1 << j;
       }
     }
@@ -1515,15 +1537,7 @@ bool DexVerifier::SetTypesFromSignature() {
         {
           const RegType& reg_type =
               reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
-          if (!reg_type.IsUnknown()) {
-            reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
-          } else {
-            DCHECK(Thread::Current()->IsExceptionPending());
-            Thread::Current()->ClearException();
-            LOG(WARNING) << "Unable to resolve descriptor in signature " << descriptor
-                << " using Object";
-            reg_line->SetRegisterType(arg_start + cur_arg, reg_types_.JavaLangObject());
-          }
+          reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
         }
         break;
       case 'Z':
@@ -1842,7 +1856,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           /* check the register contents */
           work_line_->VerifyRegisterType(dec_insn.vA_, use_src ? src_type : return_type);
           if (failure_ != VERIFY_ERROR_NONE) {
-            Fail(VERIFY_ERROR_GENERIC) << "return-1nr on invalid register v" << dec_insn.vA_;
+            fail_messages_ << " return-1nr on invalid register v" << dec_insn.vA_;
           }
         }
       }
@@ -1857,7 +1871,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           /* check the register contents */
           work_line_->VerifyRegisterType(dec_insn.vA_, return_type);
           if (failure_ != VERIFY_ERROR_NONE) {
-            Fail(failure_) << "return-wide on invalid register pair v" << dec_insn.vA_;
+            fail_messages_ << " return-wide on invalid register pair v" << dec_insn.vA_;
           }
         }
       }
@@ -2382,17 +2396,15 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           }
 
           /* arg must be an uninitialized reference */
-          if (this_type.IsInitialized()) {
+          if (!this_type.IsUninitializedTypes()) {
             Fail(VERIFY_ERROR_GENERIC) << "Expected initialization on uninitialized reference "
                 << this_type;
             break;
           }
 
           /*
-           * Replace the uninitialized reference with an initialized
-           * one, and clear the entry in the uninit map. We need to
-           * do this for all registers that have the same object
-           * instance in them, not just the "this" register.
+           * Replace the uninitialized reference with an initialized one. We need to do this for all
+           * registers that have the same object instance in them, not just the "this" register.
            */
           work_line_->MarkRefsAsInitialized(this_type);
           if (failure_ != VERIFY_ERROR_NONE)
@@ -3109,20 +3121,9 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
     }
     const RegType& reg_type =
         reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
-    if (reg_type.IsUnknown()) {
-      DCHECK(Thread::Current()->IsExceptionPending());
-      Thread::Current()->ClearException();
-      LOG(WARNING) << "Unable to resolve descriptor in signature " << descriptor
-          << " using Object";
-      uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
-      if (!work_line_->VerifyRegisterType(get_reg, reg_types_.JavaLangObject())) {
-        return NULL;
-      }
-    } else {
-      uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
-      if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
-        return NULL;
-      }
+    uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
+    if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
+      return NULL;
     }
     actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
   }
@@ -3644,7 +3645,7 @@ void DexVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
       local_gc_points++;
       max_insn = i;
       RegisterLine* line = reg_table_.GetLine(i);
-      max_ref_reg = line->GetMaxReferenceReg(max_ref_reg);
+      max_ref_reg = line->GetMaxNonZeroReferenceReg(max_ref_reg);
     }
   }
   *gc_points = local_gc_points;
@@ -3732,7 +3733,7 @@ void DexVerifier::VerifyGcMap() {
       map_index++;
       RegisterLine* line = reg_table_.GetLine(i);
       for(size_t j = 0; j < code_item_->registers_size_; j++) {
-        if (line->GetRegisterType(j).IsReference()) {
+        if (line->GetRegisterType(j).IsNonZeroReferenceTypes()) {
           CHECK_LT(j / 8, map.RegWidth());
           CHECK_EQ((reg_bitmap[j / 8] >> (j % 8)) & 1, 1);
         } else if ((j / 8) < map.RegWidth()) {

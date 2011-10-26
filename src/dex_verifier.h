@@ -11,6 +11,7 @@
 #include "stl_util.h"
 #include "UniquePtr.h"
 
+#include <limits>
 #include <map>
 #include <stack>
 #include <vector>
@@ -34,104 +35,44 @@ class RegTypeCache;
 #endif
 
 /*
- * RegType holds information about the type of data held in a register. For most types it's a simple
- * enum. For reference types it holds a pointer to the Class*, and for uninitialized references
- * it holds an index into the UninitInstanceMap.
+ * RegType holds information about the "type" of data held in a register.
  */
 class RegType {
  public:
-  /*
-   * Enumeration for register type values. The "hi" piece of a 64-bit value MUST immediately follow
-   * the "lo" piece in the enumeration, so we can check that hi==lo+1.
-   *
-   * Assignment of constants:
-   *   [-MAXINT,-32768)   : integer
-   *   [-32768,-128)      : short
-   *   [-128,0)           : byte
-   *   0                  : zero
-   *   1                  : one
-   *   [2,128)            : posbyte
-   *   [128,32768)        : posshort
-   *   [32768,65536)      : char
-   *   [65536,MAXINT]     : integer
-   *
-   * Allowed "implicit" widening conversions:
-   *   zero -> boolean, posbyte, byte, posshort, short, char, integer, ref (null)
-   *   one -> boolean, posbyte, byte, posshort, short, char, integer
-   *   boolean -> posbyte, byte, posshort, short, char, integer
-   *   posbyte -> posshort, short, integer, char
-   *   byte -> short, integer
-   *   posshort -> integer, char
-   *   short -> integer
-   *   char -> integer
-   *
-   * In addition, all of the above can convert to "float".
-   *
-   * We're more careful with integer values than the spec requires. The motivation is to restrict
-   * byte/char/short to the correct range of values. For example, if a method takes a byte argument,
-   * we don't want to allow the code to load the constant "1024" and pass it in.
-   */
   enum Type {
     kRegTypeUnknown = 0,    /* initial state */
     kRegTypeConflict,       /* merge clash makes this reg's type unknowable */
-
-    /*
-     * Category-1nr types. The order of these is chiseled into a couple of tables, so don't add,
-     * remove, or reorder if you can avoid it.
-     */
-    kRegTypeZero,           /* 0 - 32-bit 0, could be Boolean, Int, Float, or Ref */
-    kRegType1nrSTART = kRegTypeZero,
-    kRegTypeIntegralSTART = kRegTypeZero,
-    kRegTypeOne,            /* 1 - 32-bit 1, could be Boolean, Int, Float */
-    kRegTypeBoolean,        /* Z - must be 0 or 1 */
-    kRegTypeConstPosByte,   /* y - const derived byte, known positive */
-    kRegTypeConstByte,      /* Y - const derived byte */
-    kRegTypeConstPosShort,  /* h - const derived short, known positive */
-    kRegTypeConstShort,     /* H - const derived short */
-    kRegTypeConstChar,      /* c - const derived char */
-    kRegTypeConstInteger,   /* i - const derived integer */
-    kRegTypePosByte,        /* b - byte, known positive (can become char) */
+    kRegTypeBoolean,        /* Z */
+    kRegType1nrSTART = kRegTypeBoolean,
+    kRegTypeIntegralSTART = kRegTypeBoolean,
     kRegTypeByte,           /* B */
-    kRegTypePosShort,       /* s - short, known positive (can become char) */
     kRegTypeShort,          /* S */
     kRegTypeChar,           /* C */
     kRegTypeInteger,        /* I */
     kRegTypeIntegralEND = kRegTypeInteger,
     kRegTypeFloat,          /* F */
     kRegType1nrEND = kRegTypeFloat,
+    kRegTypeLongLo,         /* J - lower-numbered register; endian-independent */
+    kRegTypeLongHi,
+    kRegTypeDoubleLo,       /* D */
+    kRegTypeDoubleHi,
     kRegTypeConstLo,        /* const derived wide, lower half - could be long or double */
     kRegTypeConstHi,        /* const derived wide, upper half - could be long or double */
-    kRegTypeLongLo,         /* lower-numbered register; endian-independent */
-    kRegTypeLongHi,
-    kRegTypeDoubleLo,
-    kRegTypeDoubleHi,
-    kRegTypeReference,      // Reference type
-    kRegTypeMAX = kRegTypeReference + 1,
+    kRegTypeLastFixedLocation = kRegTypeConstHi,
+    kRegTypeConst,          /* 32-bit constant derived value - could be float or int */
+    kRegTypeUnresolvedReference,        // Reference type that couldn't be resolved
+    kRegTypeUninitializedReference,     // Freshly allocated reference type
+    kRegTypeUninitializedThisReference, // Freshly allocated reference passed as "this"
+    kRegTypeUnresolvedAndUninitializedReference, // Freshly allocated unresolved reference type
+    kRegTypeReference,                  // Reference type
   };
-
-  bool IsUninitializedThisReference() const {
-    return allocation_pc_ == kUninitThisArgAddr;
-  }
 
   Type GetType() const {
     return type_;
   }
 
-  std::string Dump() const;
-
-  Class* GetClass() const {
-    DCHECK(klass_ != NULL);
-    return klass_;
-  }
-
-  bool IsInitialized() const { return allocation_pc_ == kInitArgAddr; }
-  bool IsUninitializedReference() const { return allocation_pc_ != kInitArgAddr; }
-
   bool IsUnknown() const { return type_ == kRegTypeUnknown; }
   bool IsConflict() const { return type_ == kRegTypeConflict; }
-  bool IsZero()    const { return type_ == kRegTypeZero; }
-  bool IsOne()     const { return type_ == kRegTypeOne; }
-  bool IsConstLo() const { return type_ == kRegTypeConstLo; }
   bool IsBoolean() const { return type_ == kRegTypeBoolean; }
   bool IsByte()    const { return type_ == kRegTypeByte; }
   bool IsChar()    const { return type_ == kRegTypeChar; }
@@ -140,7 +81,17 @@ class RegType {
   bool IsLong()    const { return type_ == kRegTypeLongLo; }
   bool IsFloat()   const { return type_ == kRegTypeFloat; }
   bool IsDouble()  const { return type_ == kRegTypeDoubleLo; }
+  bool IsUnresolvedReference() const { return type_ == kRegTypeUnresolvedReference; }
+  bool IsUninitializedReference() const { return type_ == kRegTypeUninitializedReference; }
+  bool IsUninitializedThisReference() const { return type_ == kRegTypeUninitializedThisReference; }
+  bool IsUnresolvedAndUninitializedReference() const {
+    return type_ == kRegTypeUnresolvedAndUninitializedReference;
+  }
   bool IsReference() const { return type_ == kRegTypeReference; }
+  bool IsUninitializedTypes() const {
+    return IsUninitializedReference() || IsUninitializedThisReference() ||
+        IsUnresolvedAndUninitializedReference();
+  }
 
   bool IsLowHalf() const { return type_ == kRegTypeLongLo ||
                                   type_ == kRegTypeDoubleLo ||
@@ -149,79 +100,115 @@ class RegType {
                                    type_ == kRegTypeDoubleHi ||
                                    type_ == kRegTypeConstHi; }
 
-  const RegType& HighHalf(RegTypeCache* cache) const;
+  bool IsLongOrDoubleTypes() const { return IsLowHalf(); }
 
+  // Check this is the low half, and that type_h is its matching high-half
   bool CheckWidePair(const RegType& type_h) const {
     return IsLowHalf() && (type_h.type_ == type_ + 1);
+  }
+
+  // The high half that corresponds to this low half
+  const RegType& HighHalf(RegTypeCache* cache) const;
+
+  bool IsConstant() const { return type_ == kRegTypeConst; }
+  bool IsLongConstant() const { return type_ == kRegTypeConstLo; }
+  bool IsLongConstantHigh() const { return type_ == kRegTypeConstHi; }
+
+  // If this is a 32-bit constant, what is the value? This value may just
+  // approximate to the actual constant value by virtue of merging.
+  int32_t ConstantValue() const {
+    DCHECK(IsConstant());
+    return allocation_pc_or_constant_;
+  }
+
+  bool IsZero()         const { return IsConstant() && ConstantValue() == 0; }
+  bool IsOne()          const { return IsConstant() && ConstantValue() == 1; }
+  bool IsConstantBoolean() const { return IsZero() || IsOne(); }
+  bool IsConstantByte() const {
+    return IsConstant() &&
+        ConstantValue() >= std::numeric_limits<jbyte>::min() &&
+        ConstantValue() <= std::numeric_limits<jbyte>::max();
+  }
+  bool IsConstantShort() const {
+    return IsConstant() &&
+        ConstantValue() >= std::numeric_limits<jshort>::min() &&
+        ConstantValue() <= std::numeric_limits<jshort>::max();
+  }
+  bool IsConstantChar() const {
+    return IsConstant() && ConstantValue() >= 0 &&
+        ConstantValue() <= std::numeric_limits<jchar>::max();
+  }
+
+  bool IsReferenceTypes() const {
+    return IsReference() || IsUnresolvedReference() || IsUninitializedReference() ||
+        IsUninitializedThisReference() || IsZero();
+  }
+  bool IsNonZeroReferenceTypes() const {
+    return IsReference() || IsUnresolvedReference() || IsUninitializedReference() ||
+        IsUninitializedThisReference();
+  }
+  bool IsCategory1Types() const {
+    return (type_ >= kRegType1nrSTART && type_ <= kRegType1nrEND) || IsConstant();
+  }
+  bool IsCategory2Types() const {
+    return IsLowHalf();  // Don't expect explicit testing of high halves
+  }
+
+  bool IsBooleanTypes() const { return IsBoolean() || IsConstantBoolean(); }
+  bool IsByteTypes() const { return IsByte() || IsBoolean() || IsConstantByte(); }
+  bool IsShortTypes() const { return IsShort() || IsByte() || IsBoolean() || IsConstantShort(); }
+  bool IsCharTypes() const { return IsChar() || IsBooleanTypes() || IsConstantChar(); }
+  bool IsIntegralTypes() const {
+    return (type_ >= kRegTypeIntegralSTART && type_ <= kRegTypeIntegralEND) || IsConstant();
+  }
+  bool IsArrayIndexTypes() const { return IsIntegralTypes(); }
+
+  // Float type may be derived from any constant type
+  bool IsFloatTypes() const { return IsFloat() || IsConstant(); }
+
+  bool IsLongTypes() const {
+    return IsLong() || IsLongConstant();
+  }
+  bool IsLongHighTypes() const {
+    return type_ == kRegTypeLongHi || type_ == kRegTypeConstHi;
+  }
+  bool IsDoubleTypes() const {
+    return IsDouble() || IsLongConstant();
+  }
+  bool IsDoubleHighTypes() const {
+    return type_ == kRegTypeDoubleHi || type_ == kRegTypeConstHi;
+  }
+
+  uint32_t GetAllocationPc() const {
+    DCHECK(IsUninitializedReference());
+    return allocation_pc_or_constant_;
+  }
+
+  Class* GetClass() const {
+    DCHECK(!IsUnresolvedReference());
+    DCHECK(klass_or_descriptor_ != NULL);
+    DCHECK(klass_or_descriptor_->IsClass());
+    return down_cast<Class*>(klass_or_descriptor_);
+  }
+
+  String* GetDescriptor() const {
+    DCHECK(IsUnresolvedReference());
+    DCHECK(klass_or_descriptor_ != NULL);
+    DCHECK(klass_or_descriptor_->IsString());
+    return down_cast<String*>(klass_or_descriptor_);
   }
 
   uint16_t GetId() const {
     return cache_id_;
   }
 
-  bool IsLongOrDoubleTypes() const { return IsLowHalf(); }
-
-  bool IsReferenceTypes() const {
-    return type_ == kRegTypeReference || type_ == kRegTypeZero;
-  }
-
-  bool IsCategory1Types() const {
-    return type_ >= kRegType1nrSTART && type_ <= kRegType1nrEND;
-  }
-
-  bool IsCategory2Types() const {
-    return IsLowHalf();  // Don't expect explicit testing of high halves
-  }
-
-  bool IsBooleanTypes() const { return IsBoolean() || IsZero() || IsOne(); }
-
-  bool IsByteTypes() const {
-    return IsByte() || IsBooleanTypes() || type_ == kRegTypeConstPosByte ||
-        type_ == kRegTypeConstByte || type_ == kRegTypePosByte;
-  }
-
-  bool IsShortTypes() const {
-    return IsShort() || IsByteTypes() || type_ == kRegTypeConstPosShort ||
-        type_ == kRegTypeConstShort || type_ == kRegTypePosShort;
-  }
-
-  bool IsCharTypes() const {
-    return IsChar() || IsBooleanTypes() || type_ == kRegTypeConstPosByte ||
-        type_ == kRegTypePosByte || type_ == kRegTypeConstPosShort || type_ == kRegTypePosShort ||
-        type_ == kRegTypeConstChar;
-  }
-
-  bool IsIntegralTypes() const {
-    return type_ >= kRegTypeIntegralSTART && type_ <= kRegTypeIntegralEND;
-  }
-
-  bool IsArrayIndexTypes() const {
-    return IsIntegralTypes();
-  }
-
-  // Float type may be derived from any constant type
-  bool IsFloatTypes() const {
-    return IsFloat() || IsZero() || IsOne() ||
-        type_ == kRegTypeConstPosByte || type_ == kRegTypeConstByte ||
-        type_ == kRegTypeConstPosShort || type_ == kRegTypeConstShort ||
-        type_ == kRegTypeConstChar || type_ == kRegTypeConstInteger;
-  }
-
-  bool IsLongTypes() const {
-    return IsLong() || type_ == kRegTypeConstLo;
-  }
-
-  bool IsDoubleTypes() const {
-    return IsDouble() || type_ == kRegTypeConstLo;
-  }
+  std::string Dump() const;
 
   const RegType& VerifyAgainst(const RegType& check_type, RegTypeCache* reg_types) const;
 
   const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const;
 
-  bool Equals(const RegType& other) const {
-    return type_ == other.type_ && klass_ == other.klass_ && allocation_pc_ == other.allocation_pc_;
-  }
+  bool Equals(const RegType& other) const { return GetId() == other.GetId(); }
 
   /*
    * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
@@ -244,50 +231,31 @@ class RegType {
  private:
   friend class RegTypeCache;
 
-  // Address given to an allocation_pc for an initialized object.
-  static const uint32_t kInitArgAddr = -2;
-
-  // Address given to an uninitialized allocation_pc if an object is uninitialized through being
-  // a constructor.
-  static const uint32_t kUninitThisArgAddr = -1;
-
-  RegType(Type type, Class* klass, uint32_t allocation_pc, uint16_t cache_id) :
-    type_(type), klass_(klass), allocation_pc_(allocation_pc), cache_id_(cache_id) {
-    DCHECK(type >= kRegTypeReference || allocation_pc_ == kInitArgAddr);
-    if (type >= kRegTypeReference) DCHECK(klass != NULL);
+  RegType(Type type, Object* klass_or_descriptor, uint32_t allocation_pc_or_constant, uint16_t cache_id) :
+    type_(type), klass_or_descriptor_(klass_or_descriptor), allocation_pc_or_constant_(allocation_pc_or_constant),
+    cache_id_(cache_id) {
+    DCHECK(IsConstant() || IsUninitializedReference() || allocation_pc_or_constant == 0);
+    if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUnknown() &&
+        !IsConflict()) {
+      DCHECK(klass_or_descriptor != NULL);
+      DCHECK(IsUnresolvedReference() || klass_or_descriptor_->IsClass());
+      DCHECK(!IsUnresolvedReference() || klass_or_descriptor_->IsString());
+    }
   }
 
   const Type type_;  // The current type of the register
 
-  // If known the type of the register
-  Class* klass_;
+  // If known the type of the register, else a String for the descriptor
+  Object* klass_or_descriptor_;
 
-  // Address an uninitialized reference was created
-  const uint32_t allocation_pc_;
+  // Overloaded field that:
+  //   - if IsConstant() holds a 32bit constant value
+  //   - is IsReference() holds the allocation_pc or kInitArgAddr for an initialized reference or
+  //     kUninitThisArgAddr for an uninitialized this ptr
+  const uint32_t allocation_pc_or_constant_;
 
   // A RegType cache densely encodes types, this is the location in the cache for this type
   const uint16_t cache_id_;
-
-  /*
-   * Merge result table for primitive values. The table is symmetric along the diagonal.
-   *
-   * Note that 32-bit int/float do not merge into 64-bit long/double. This is a register merge, not
-   * a widening conversion. Only the "implicit" widening within a category, e.g. byte to short, is
-   * allowed.
-   *
-   * Dalvik does not draw a distinction between int and float, but we enforce that once a value is
-   * used as int, it can't be used as float, and vice-versa. We do not allow free exchange between
-   * 32-bit int/float and 64-bit long/double.
-   *
-   * Note that Uninit + Uninit = Uninit. This holds true because we only use this when the RegType
-   * value is exactly equal to kRegTypeUninit, which can only happen for the zeroth entry in the
-   * table.
-   *
-   * "Unknown" never merges with anything known. The only time a register transitions from "unknown"
-   * to "known" is when we're executing code for the first time, and we handle that with a simple
-   * copy.
-   */
-  static const RegType::Type merge_table_[kRegTypeReference][kRegTypeReference];
 
   DISALLOW_COPY_AND_ASSIGN(RegType);
 };
@@ -295,7 +263,7 @@ std::ostream& operator<<(std::ostream& os, const RegType& rhs);
 
 class RegTypeCache {
  public:
-  explicit RegTypeCache() : entries_(RegType::kRegTypeReference) {
+  explicit RegTypeCache() : entries_(RegType::kRegTypeLastFixedLocation + 1) {
     Unknown();  // ensure Unknown is initialized
   }
   ~RegTypeCache() {
@@ -330,12 +298,18 @@ class RegTypeCache {
 
   const RegType& Unknown()  { return FromType(RegType::kRegTypeUnknown); }
   const RegType& Conflict() { return FromType(RegType::kRegTypeConflict); }
-  const RegType& Zero()     { return FromType(RegType::kRegTypeZero); }
   const RegType& ConstLo()  { return FromType(RegType::kRegTypeConstLo); }
+  const RegType& Zero()     { return FromCat1Const(0); }
 
   const RegType& Uninitialized(Class* klass, uint32_t allocation_pc);
   const RegType& UninitializedThisArgument(Class* klass);
 
+  // Representatives of various constant types. When merging constants we can't infer a type,
+  // (an int may later be used as a float) so we select these representative values meaning future
+  // merges won't know the exact constant value but have some notion of its size.
+  const RegType& ByteConstant() { return FromCat1Const(std::numeric_limits<jbyte>::min()); }
+  const RegType& ShortConstant() { return FromCat1Const(std::numeric_limits<jshort>::min()); }
+  const RegType& IntConstant() { return FromCat1Const(std::numeric_limits<jint>::max()); }
  private:
   // The allocated entries
   std::vector<RegType*> entries_;
@@ -573,7 +547,9 @@ class RegisterLine {
   std::string Dump() const {
     std::string result;
     for (size_t i = 0; i < num_regs_; i++) {
+      result += StringPrintf("%d:[", i);
       result += GetRegisterType(i).Dump();
+      result += "],";
     }
     return result;
   }
@@ -690,10 +666,10 @@ class RegisterLine {
 
   bool MergeRegisters(const RegisterLine* incoming_line);
 
-  size_t GetMaxReferenceReg(size_t max_ref_reg) {
+  size_t GetMaxNonZeroReferenceReg(size_t max_ref_reg) {
     size_t i = static_cast<int>(max_ref_reg) < 0 ? 0 : max_ref_reg;
     for(; i < num_regs_; i++) {
-      if (line_[i] >= RegType::kRegTypeReference) {
+      if (GetRegisterType(i).IsNonZeroReferenceTypes()) {
         max_ref_reg = i;
       }
     }
