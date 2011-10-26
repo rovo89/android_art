@@ -227,6 +227,7 @@ public:
   /*
    * DDM support.
    */
+  static void DdmSetThreadNotification(bool enable);
   static bool DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen);
   static void DdmConnected();
   static void DdmDisconnected();
