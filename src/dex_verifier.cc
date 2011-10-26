@@ -2234,91 +2234,91 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
 
     case Instruction::IGET_BOOLEAN:
-      VerifyIGet(dec_insn, reg_types_.Boolean(), true);
+      VerifyISGet(dec_insn, reg_types_.Boolean(), true, false);
       break;
     case Instruction::IGET_BYTE:
-      VerifyIGet(dec_insn, reg_types_.Byte(), true);
+      VerifyISGet(dec_insn, reg_types_.Byte(), true, false);
       break;
     case Instruction::IGET_CHAR:
-      VerifyIGet(dec_insn, reg_types_.Char(), true);
+      VerifyISGet(dec_insn, reg_types_.Char(), true, false);
       break;
     case Instruction::IGET_SHORT:
-      VerifyIGet(dec_insn, reg_types_.Short(), true);
+      VerifyISGet(dec_insn, reg_types_.Short(), true, false);
       break;
     case Instruction::IGET:
-      VerifyIGet(dec_insn, reg_types_.Integer(), true);
+      VerifyISGet(dec_insn, reg_types_.Integer(), true, false);
       break;
     case Instruction::IGET_WIDE:
-      VerifyIGet(dec_insn, reg_types_.Long(), true);
+      VerifyISGet(dec_insn, reg_types_.Long(), true, false);
       break;
     case Instruction::IGET_OBJECT:
-      VerifyIGet(dec_insn, reg_types_.JavaLangObject(), false);
+      VerifyISGet(dec_insn, reg_types_.JavaLangObject(), false, false);
       break;
 
     case Instruction::IPUT_BOOLEAN:
-      VerifyIPut(dec_insn, reg_types_.Boolean(), true);
+      VerifyISPut(dec_insn, reg_types_.Boolean(), true, false);
       break;
     case Instruction::IPUT_BYTE:
-      VerifyIPut(dec_insn, reg_types_.Byte(), true);
+      VerifyISPut(dec_insn, reg_types_.Byte(), true, false);
       break;
     case Instruction::IPUT_CHAR:
-      VerifyIPut(dec_insn, reg_types_.Char(), true);
+      VerifyISPut(dec_insn, reg_types_.Char(), true, false);
       break;
     case Instruction::IPUT_SHORT:
-      VerifyIPut(dec_insn, reg_types_.Short(), true);
+      VerifyISPut(dec_insn, reg_types_.Short(), true, false);
       break;
     case Instruction::IPUT:
-      VerifyIPut(dec_insn, reg_types_.Integer(), true);
+      VerifyISPut(dec_insn, reg_types_.Integer(), true, false);
       break;
     case Instruction::IPUT_WIDE:
-      VerifyIPut(dec_insn, reg_types_.Long(), true);
+      VerifyISPut(dec_insn, reg_types_.Long(), true, false);
       break;
     case Instruction::IPUT_OBJECT:
-      VerifyIPut(dec_insn, reg_types_.JavaLangObject(), false);
+      VerifyISPut(dec_insn, reg_types_.JavaLangObject(), false, false);
       break;
 
     case Instruction::SGET_BOOLEAN:
-      VerifySGet(dec_insn, reg_types_.Boolean(), true);
+      VerifyISGet(dec_insn, reg_types_.Boolean(), true, true);
       break;
     case Instruction::SGET_BYTE:
-      VerifySGet(dec_insn, reg_types_.Byte(), true);
+      VerifyISGet(dec_insn, reg_types_.Byte(), true, true);
       break;
     case Instruction::SGET_CHAR:
-      VerifySGet(dec_insn, reg_types_.Char(), true);
+      VerifyISGet(dec_insn, reg_types_.Char(), true, true);
       break;
     case Instruction::SGET_SHORT:
-      VerifySGet(dec_insn, reg_types_.Short(), true);
+      VerifyISGet(dec_insn, reg_types_.Short(), true, true);
       break;
     case Instruction::SGET:
-      VerifySGet(dec_insn, reg_types_.Integer(), true);
+      VerifyISGet(dec_insn, reg_types_.Integer(), true, true);
       break;
     case Instruction::SGET_WIDE:
-      VerifySGet(dec_insn, reg_types_.Long(), true);
+      VerifyISGet(dec_insn, reg_types_.Long(), true, true);
       break;
     case Instruction::SGET_OBJECT:
-      VerifySGet(dec_insn, reg_types_.JavaLangObject(), false);
+      VerifyISGet(dec_insn, reg_types_.JavaLangObject(), false, true);
       break;
 
     case Instruction::SPUT_BOOLEAN:
-      VerifySPut(dec_insn, reg_types_.Boolean(), true);
+      VerifyISPut(dec_insn, reg_types_.Boolean(), true, true);
       break;
     case Instruction::SPUT_BYTE:
-      VerifySPut(dec_insn, reg_types_.Byte(), true);
+      VerifyISPut(dec_insn, reg_types_.Byte(), true, true);
       break;
     case Instruction::SPUT_CHAR:
-      VerifySPut(dec_insn, reg_types_.Char(), true);
+      VerifyISPut(dec_insn, reg_types_.Char(), true, true);
       break;
     case Instruction::SPUT_SHORT:
-      VerifySPut(dec_insn, reg_types_.Short(), true);
+      VerifyISPut(dec_insn, reg_types_.Short(), true, true);
       break;
     case Instruction::SPUT:
-      VerifySPut(dec_insn, reg_types_.Integer(), true);
+      VerifyISPut(dec_insn, reg_types_.Integer(), true, true);
       break;
     case Instruction::SPUT_WIDE:
-      VerifySPut(dec_insn, reg_types_.Long(), true);
+      VerifyISPut(dec_insn, reg_types_.Long(), true, true);
       break;
     case Instruction::SPUT_OBJECT:
-      VerifySPut(dec_insn, reg_types_.JavaLangObject(), false);
+      VerifyISPut(dec_insn, reg_types_.JavaLangObject(), false, true);
       break;
 
     case Instruction::INVOKE_VIRTUAL:
@@ -2425,16 +2425,16 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             if (this_type.IsZero()) {
               /* null pointer always passes (and always fails at runtime) */
             } else {
-              Class* this_class = this_type.GetClass();
-              if (this_type.IsUninitializedReference() || this_class == NULL) {
-                Fail(VERIFY_ERROR_GENERIC) << "interface call on uninitialized";
+              if (this_type.IsUninitializedTypes()) {
+                Fail(VERIFY_ERROR_GENERIC) << "interface call on uninitialized object "
+                    << this_type;
                 break;
               }
-              if (!this_class->IsObjectClass() && !called_interface->IsAssignableFrom(this_class)) {
+              if (this_type.IsReference() && !this_type.GetClass()->IsObjectClass() &&
+                  !called_interface->IsAssignableFrom(this_type.GetClass())) {
                 Fail(VERIFY_ERROR_GENERIC) << "unable to match abstract method '"
                                            << PrettyMethod(abs_method) << "' with "
-                                           << PrettyDescriptor(this_class->GetDescriptor())
-                                           << " interfaces";
+                                           << this_type << "'s implemented interfaces";
                 break;
               }
             }
@@ -3234,104 +3234,6 @@ Field* DexVerifier::GetStaticField(int field_idx) {
   }
 }
 
-void DexVerifier::VerifySGet(const Instruction::DecodedInstruction& dec_insn,
-                             const RegType& insn_type, bool is_primitive) {
-  Field* field = GetStaticField(dec_insn.vB_);
-  if (field != NULL) {
-    DCHECK(field->GetDeclaringClass()->IsResolved());
-    Class* field_class = field->GetType();
-    Class* insn_class = insn_type.GetClass();
-    if (is_primitive) {
-      if (field_class == insn_class ||
-          (field_class->IsPrimitiveFloat() && insn_class->IsPrimitiveInt()) ||
-          (field_class->IsPrimitiveDouble() && insn_class->IsPrimitiveLong())) {
-        // expected that read is of the correct primitive type or that int reads are reading
-        // floats or long reads are reading doubles
-      } else {
-        // This is a global failure rather than a class change failure as the instructions and
-        // the descriptors for the type should have been consistent within the same file at
-        // compile time
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class) << " in sget";
-        return;
-      }
-    } else {
-      if (!insn_class->IsAssignableFrom(field_class)) {
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class)
-                                   << " in sget-object";
-        return;
-      }
-    }
-    work_line_->SetRegisterType(dec_insn.vA_, reg_types_.FromClass(field_class));
-  }
-}
-
-void DexVerifier::VerifySPut(const Instruction::DecodedInstruction& dec_insn,
-                             const RegType& insn_type, bool is_primitive) {
-  Field* field = GetStaticField(dec_insn.vB_);
-  if (field != NULL) {
-    DCHECK(field->GetDeclaringClass()->IsResolved());
-    if (field->IsFinal() && field->GetDeclaringClass() != method_->GetDeclaringClass()) {
-      Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final static field " << PrettyField(field)
-                               << " from other class " << PrettyClass(method_->GetDeclaringClass());
-      return;
-    }
-    Class* field_class = field->GetType();
-    const RegType& field_type = reg_types_.FromClass(field_class);
-    Class* insn_class = insn_type.GetClass();
-    if (is_primitive) {
-      // Primitive field assignability rules are weaker than regular assignability rules
-      bool instruction_compatible;
-      bool value_compatible;
-      const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA_);
-      if (field_type.IsIntegralTypes()) {
-        instruction_compatible = insn_type.IsIntegralTypes();
-        value_compatible = value_type.IsIntegralTypes();
-      } else if (field_type.IsFloat()) {
-        instruction_compatible = insn_type.IsInteger();  // no sput-float, so expect sput-int
-        value_compatible = value_type.IsFloatTypes();
-      } else if (field_type.IsLong()) {
-        instruction_compatible = insn_type.IsLong();
-        value_compatible = value_type.IsLongTypes();
-      } else if (field_type.IsDouble()) {
-        instruction_compatible = insn_type.IsLong();    // no sput-double, so expect sput-long
-        value_compatible = value_type.IsDoubleTypes();
-      } else {
-        instruction_compatible = false;  // reference field with primitive store
-        value_compatible = false;  // unused
-      }
-      if (!instruction_compatible) {
-        // This is a global failure rather than a class change failure as the instructions and
-        // the descriptors for the type should have been consistent within the same file at
-        // compile time
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type " << PrettyClass(insn_class)
-                                   << " but found type " << PrettyClass(field_class) << " in sput";
-        return;
-      }
-      if (!value_compatible) {
-        Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA_
-                                   << " of type " << value_type
-                                   << " but expected " << field_type
-                                   << " for store to " << PrettyField(field) << " in sput";
-        return;
-      }
-    } else {
-      if (!insn_class->IsAssignableFrom(field_class)) {
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                  << " to be compatible with type " << insn_type
-                                  << " but found type " << PrettyClass(field_class)
-                                  << " in sput-object";
-        return;
-      }
-      work_line_->VerifyRegisterType(dec_insn.vA_, field_type);
-    }
-  }
-}
-
 Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, method_, false);
   if (field == NULL) {
@@ -3375,10 +3277,15 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   }
 }
 
-void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
-                             const RegType& insn_type, bool is_primitive) {
-  const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
-  Field* field = GetInstanceField(object_type, dec_insn.vC_);
+void DexVerifier::VerifyISGet(const Instruction::DecodedInstruction& dec_insn,
+                              const RegType& insn_type, bool is_primitive, bool is_static) {
+  Field* field;
+  if (is_static) {
+    field = GetStaticField(dec_insn.vB_);
+  } else {
+    const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
+    field = GetInstanceField(object_type, dec_insn.vC_);
+  }
   if (field != NULL) {
     const RegType& field_type =
         reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
@@ -3395,7 +3302,7 @@ void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
         // compile time
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
                                    << " to be of type '" << insn_type
-                                   << "' but found type '" << field_type << "' in iget";
+                                   << "' but found type '" << field_type << "' in get";
         return;
       }
     } else {
@@ -3403,7 +3310,7 @@ void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
                                    << " to be compatible with type '" << insn_type
                                    << "' but found type '" << field_type
-                                   << "' in iget-object";
+                                   << "' in get-object";
         return;
       }
     }
@@ -3411,10 +3318,15 @@ void DexVerifier::VerifyIGet(const Instruction::DecodedInstruction& dec_insn,
   }
 }
 
-void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
-                             const RegType& insn_type, bool is_primitive) {
-  const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
-  Field* field = GetInstanceField(object_type, dec_insn.vC_);
+void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
+                              const RegType& insn_type, bool is_primitive, bool is_static) {
+  Field* field;
+  if (is_static) {
+    field = GetStaticField(dec_insn.vB_);
+  } else {
+    const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
+    field = GetInstanceField(object_type, dec_insn.vC_);
+  }
   if (field != NULL) {
     if (field->IsFinal() && field->GetDeclaringClass() != method_->GetDeclaringClass()) {
       Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
@@ -3433,13 +3345,13 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
         instruction_compatible = insn_type.IsIntegralTypes();
         value_compatible = value_type.IsIntegralTypes();
       } else if (field_type.IsFloat()) {
-        instruction_compatible = insn_type.IsInteger();  // no iput-float, so expect iput-int
+        instruction_compatible = insn_type.IsInteger();  // no [is]put-float, so expect [is]put-int
         value_compatible = value_type.IsFloatTypes();
       } else if (field_type.IsLong()) {
         instruction_compatible = insn_type.IsLong();
         value_compatible = value_type.IsLongTypes();
       } else if (field_type.IsDouble()) {
-        instruction_compatible = insn_type.IsLong();  // no iput-double, so expect iput-long
+        instruction_compatible = insn_type.IsLong();  // no [is]put-double, so expect [is]put-long
         value_compatible = value_type.IsDoubleTypes();
       } else {
         instruction_compatible = false;  // reference field with primitive store
@@ -3452,14 +3364,14 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
                                    << " to be of type '" << insn_type
                                    << "' but found type '" << field_type
-                                   << "' in iput";
+                                   << "' in put";
         return;
       }
       if (!value_compatible) {
         Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA_
                                    << " of type " << value_type
                                    << " but expected " << field_type
-                                   << " for store to " << PrettyField(field) << " in iput";
+                                   << " for store to " << PrettyField(field) << " in put";
         return;
       }
     } else {
@@ -3467,7 +3379,7 @@ void DexVerifier::VerifyIPut(const Instruction::DecodedInstruction& dec_insn,
         Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
                                   << " to be compatible with type '" << insn_type
                                   << "' but found type '" << field_type
-                                  << "' in iput-object";
+                                  << "' in put-object";
         return;
       }
       work_line_->VerifyRegisterType(dec_insn.vA_, field_type);

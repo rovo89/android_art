@@ -1055,24 +1055,16 @@ class DexVerifier {
   // Lookup instance field and fail for resolution violations
   Field* GetInstanceField(const RegType& obj_type, int field_idx);
 
-  // Perform verification of an iget instruction.
-  void VerifyIGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
-                  bool is_primitive);
-
-  // Perform verification of an iput instruction.
-  void VerifyIPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
-                  bool is_primitive);
-
   // Lookup static field and fail for resolution violations
   Field* GetStaticField(int field_idx);
 
-  // Perform verification of an sget instruction.
-  void VerifySGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
-                  bool is_primitive);
+  // Perform verification of an iget or sget instruction.
+  void VerifyISGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                   bool is_primitive, bool is_static);
 
-  // Perform verification of an sput instruction.
-  void VerifySPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
-                  bool is_primitive);
+  // Perform verification of an iput or sput instruction.
+  void VerifyISPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+                   bool is_primitive, bool is_static);
 
   // Verify that the arguments in a filled-new-array instruction are valid.
   // "res_class" is the class refered to by dec_insn->vB_.
