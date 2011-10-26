@@ -97,9 +97,9 @@ const RegType& RegType::HighHalf(RegTypeCache* cache) const {
  * introducing sets of types, however, the only operation permissible on an interface is
  * invoke-interface. In the tradition of Java verifiers we defer the verification of interface
  * types until an invoke-interface call on the interface typed reference at runtime and allow
- * the perversion of Object being assignable to an interface type (note, however, that we don't
- * allow assignment of Object or Interface to any concrete class and are therefore type safe;
- * further the Join on a Object cannot result in a sub-class by definition).
+ * the perversion of any Object being assignable to an interface type (note, however, that we don't
+ * allow assignment of Object or Interface to any concrete subclass of Object and are therefore type
+ * safe; further the Join on a Object cannot result in a sub-class by definition).
  */
 Class* RegType::ClassJoin(Class* s, Class* t) {
   DCHECK(!s->IsPrimitive()) << PrettyClass(s);
@@ -172,12 +172,11 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
           return true;
         } else if (IsUninitializedReference()) {
           return false;  // Nonsensical to Join two uninitialized classes
+        } else if (GetClass()->IsInterface()) {
+          return true;  // We allow assignment to any interface, see comment in ClassJoin
         } else if (IsReference() && src.IsReference() &&
-                   (GetClass()->IsAssignableFrom(src.GetClass()) ||
-                    (src.GetClass()->IsObjectClass() && GetClass()->IsInterface()) ||
-                    (GetClass()->IsObjectClass() && src.GetClass()->IsInterface()))) {
-          // Either we're assignable or this is trying to assign Object to an Interface, which
-          // is allowed (see comment for ClassJoin)
+                   GetClass()->IsAssignableFrom(src.GetClass())) {
+          // We're assignable from the Class point-of-view
           return true;
         } else if (src.IsUnresolvedReference() && IsReference() && GetClass()->IsObjectClass()) {
           // We're an object being assigned an unresolved reference, which is ok
@@ -876,8 +875,9 @@ bool DexVerifier::VerifyMethod(Method* method) {
     }
   } else {
     LOG(INFO) << "Verification error in " << PrettyMethod(method) << " "
-               << verifier.fail_messages_.str() << std::endl << verifier.info_messages_.str();
+               << verifier.fail_messages_.str();
     if (gDebugVerify) {
+      std::cout << std::endl << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
     DCHECK_EQ(verifier.failure_, VERIFY_ERROR_GENERIC);
@@ -1730,7 +1730,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   bool just_set_result = false;
   if (gDebugVerify) {
     // Generate processing back trace to debug verifier
-    LogVerifyInfo() << "Processing " << inst->DumpString(dex_file_) << std::endl << *work_line_.get();
+    LogVerifyInfo() << "Processing " << inst->DumpString(dex_file_) << std::endl
+                    << *work_line_.get() << std::endl;
   }
 
   /*
@@ -2430,13 +2431,13 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                     << this_type;
                 break;
               }
-              if (this_type.IsReference() && !this_type.GetClass()->IsObjectClass() &&
-                  !called_interface->IsAssignableFrom(this_type.GetClass())) {
-                Fail(VERIFY_ERROR_GENERIC) << "unable to match abstract method '"
-                                           << PrettyMethod(abs_method) << "' with "
-                                           << this_type << "'s implemented interfaces";
-                break;
-              }
+              // In the past we have tried to assert that "called_interface" is assignable
+              // from "this_type.GetClass()", however, as we do an imprecise Join
+              // (RegType::JoinClass) we don't have full information on what interfaces are
+              // implemented by "this_type". For example, two classes may implement the same
+              // interfaces and have a common parent that doesn't implement the interface. The
+              // join will set "this_type" to the parent class and a test that this implements
+              // the interface will incorrectly fail.
             }
           }
         }

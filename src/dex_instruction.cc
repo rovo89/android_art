@@ -308,6 +308,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
             const DexFile::MethodId& meth_id = file->GetMethodId(insn.vB_);
             os << opcode << " {v" << insn.arg_[0] << ", v" << insn.arg_[1] << ", v" << insn.arg_[2]
                          << ", v" << insn.arg_[3] << ", v" << insn.arg_[4] << "}, "
+                         << file->GetMethodDeclaringClassDescriptor(meth_id) << "."
                          << file->GetMethodName(meth_id) << file->GetMethodSignature(meth_id)
                          << " // method@" << insn.vB_;
             break;
