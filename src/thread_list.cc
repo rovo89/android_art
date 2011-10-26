@@ -118,12 +118,11 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
 void ThreadList::SuspendAll(bool for_debugger) {
   Thread* self = Thread::Current();
 
-  // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
-
   if (verbose_) {
     LOG(INFO) << *self << " SuspendAll starting..." << (for_debugger ? " (debugger)" : "");
   }
 
+  CHECK_EQ(self->GetState(), Thread::kRunnable);
   ThreadListLocker locker(this);
   Thread* debug_thread = Dbg::GetDebugThread();
 

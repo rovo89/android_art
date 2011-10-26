@@ -369,7 +369,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     //       utilization slop for the new allocation.
     if (is_verbose_gc_) {
       LOG(INFO) << "Grow heap (frag case) to " << new_footprint / MB
-                << "for " << size << "-byte allocation";
+                << " for " << size << "-byte allocation";
     }
     return ptr;
   }

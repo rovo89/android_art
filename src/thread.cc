@@ -498,7 +498,9 @@ struct StackDumpVisitor : public Thread::StackVisitor {
       os << "(Native method)";
     } else {
       int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
-      os << "(" << c->GetSourceFile()->ToModifiedUtf8() << ":" << line_number << ")";
+      SirtRef<String> source_file(c->GetSourceFile());
+      os << "(" << (source_file.get() != NULL ? source_file->ToModifiedUtf8() : "unavailable")
+         << ":" << line_number << ")";
     }
     os << "\n";
 
