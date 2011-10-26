@@ -159,6 +159,7 @@ void* SignalCatcher::Run(void* arg) {
 
   Runtime* runtime = Runtime::Current();
   runtime->AttachCurrentThread("Signal Catcher", true);
+  Thread::Current()->SetState(Thread::kRunnable);
 
   {
     MutexLock mu(signal_catcher->lock_);

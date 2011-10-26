@@ -393,6 +393,9 @@ void Runtime::Start() {
 
   CHECK(host_prefix_.empty()) << host_prefix_;
 
+  // Restore main thread state to kNative as expected by native code
+  Thread::Current()->SetState(Thread::kNative);
+
   InitNativeMethods();
 
   Thread::FinishStartup();
@@ -510,6 +513,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // ClassLinker needs an attached thread, but we can't fully attach a thread
   // without creating objects.
   Thread::Attach(this, "main", false);
+
+  // Set us to runnable so tools using a runtime can allocate and GC by default
+  Thread::Current()->SetState(Thread::kRunnable);
 
   CHECK_GE(Heap::GetSpaces().size(), 1U);
   class_linker_ = ((Heap::GetSpaces()[0]->IsImageSpace())
