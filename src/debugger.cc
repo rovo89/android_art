@@ -39,6 +39,12 @@ class ObjectRegistry {
     return id;
   }
 
+  void Clear() {
+    MutexLock mu(lock_);
+    LOG(DEBUG) << "Debugger has detached; object registry had " << map_.size() << " entries";
+    map_.clear();
+  }
+
   bool Contains(JDWP::ObjectId id) {
     MutexLock mu(lock_);
     return map_.find(id) != map_.end();
@@ -236,7 +242,14 @@ void Dbg::Active() {
 }
 
 void Dbg::Disconnected() {
-  UNIMPLEMENTED(FATAL);
+  CHECK(gDebuggerConnected);
+
+  gDebuggerActive = false;
+
+  //dvmDisableAllSubMode(kSubModeDebuggerActive);
+
+  gRegistry->Clear();
+  gDebuggerConnected = false;
 }
 
 bool Dbg::IsDebuggerConnected() {
@@ -265,7 +278,7 @@ int Dbg::ThreadContinuing(int new_state) {
 }
 
 void Dbg::UndoDebuggerSuspensions() {
-  UNIMPLEMENTED(FATAL);
+  Runtime::Current()->GetThreadList()->UndoDebuggerSuspensions();
 }
 
 void Dbg::Exit(int status) {

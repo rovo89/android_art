@@ -864,13 +864,13 @@ bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId this
  * Valid mods:
  *  Count, ThreadOnly
  */
-bool PostThreadChange(JdwpState* state, ObjectId threadId, bool start) {
+bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
   CHECK_EQ(threadId, Dbg::GetThreadSelfId());
 
   /*
    * I don't think this can happen.
    */
-  if (invokeInProgress(state)) {
+  if (invokeInProgress(this)) {
     LOG(WARNING) << "Not posting thread change during invoke";
     return false;
   }
@@ -879,50 +879,50 @@ bool PostThreadChange(JdwpState* state, ObjectId threadId, bool start) {
   memset(&basket, 0, sizeof(basket));
   basket.threadId = threadId;
 
-  /* don't allow the list to be updated while we scan it */
-  lockEventMutex(state);
-
-  JdwpEvent** matchList = allocMatchList(state);
-  int matchCount = 0;
-
-  if (start) {
-    findMatchingEvents(state, EK_THREAD_START, &basket, matchList, &matchCount);
-  } else {
-    findMatchingEvents(state, EK_THREAD_DEATH, &basket, matchList, &matchCount);
-  }
-
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspendPolicy = SP_NONE;
-  if (matchCount != 0) {
-    LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
-                 << "thread=" << (void*) basket.threadId << ")";
+  int matchCount = 0;
+  {
+    // Don't allow the list to be updated while we scan it.
+    MutexLock mu(event_lock_);
+    JdwpEvent** matchList = allocMatchList(this);
 
-    suspendPolicy = scanSuspendPolicy(matchList, matchCount);
-    LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
-
-    pReq = eventPrep();
-    expandBufAdd1(pReq, suspendPolicy);
-    expandBufAdd4BE(pReq, matchCount);
-
-    for (int i = 0; i < matchCount; i++) {
-      expandBufAdd1(pReq, matchList[i]->eventKind);
-      expandBufAdd4BE(pReq, matchList[i]->requestId);
-      expandBufAdd8BE(pReq, basket.threadId);
+    if (start) {
+      findMatchingEvents(this, EK_THREAD_START, &basket, matchList, &matchCount);
+    } else {
+      findMatchingEvents(this, EK_THREAD_DEATH, &basket, matchList, &matchCount);
     }
-  }
 
-  cleanupMatchList(state, matchList, matchCount);
-  unlockEventMutex(state);
+    if (matchCount != 0) {
+      LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+                   << "thread=" << (void*) basket.threadId << ")";
+
+      suspendPolicy = scanSuspendPolicy(matchList, matchCount);
+      LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
+
+      pReq = eventPrep();
+      expandBufAdd1(pReq, suspendPolicy);
+      expandBufAdd4BE(pReq, matchCount);
+
+      for (int i = 0; i < matchCount; i++) {
+        expandBufAdd1(pReq, matchList[i]->eventKind);
+        expandBufAdd4BE(pReq, matchList[i]->requestId);
+        expandBufAdd8BE(pReq, basket.threadId);
+      }
+    }
+
+    cleanupMatchList(this, matchList, matchCount);
+  }
 
   /* send request and possibly suspend ourselves */
   if (pReq != NULL) {
     int old_state = Dbg::ThreadWaiting();
     if (suspendPolicy != SP_NONE) {
-      state->SetWaitForEventThread(basket.threadId);
+      SetWaitForEventThread(basket.threadId);
     }
-    eventFinish(state, pReq);
+    eventFinish(this, pReq);
 
-    suspendByPolicy(state, suspendPolicy);
+    suspendByPolicy(this, suspendPolicy);
     Dbg::ThreadContinuing(old_state);
   }
 

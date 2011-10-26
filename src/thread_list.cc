@@ -86,6 +86,27 @@ void ThreadList::Dump(std::ostream& os) {
   }
 }
 
+void ThreadList::ModifySuspendCount(Thread* thread, int delta, bool for_debugger) {
+#ifndef NDEBUG
+  DCHECK(delta == -1 || delta == +1 || delta == thread->debug_suspend_count_) << delta;
+  DCHECK_GE(thread->suspend_count_, thread->debug_suspend_count_);
+  if (delta == -1) {
+    DCHECK_GT(thread->suspend_count_, 0);
+    if (for_debugger) {
+      DCHECK_GT(thread->debug_suspend_count_, 0);
+    }
+  }
+#else
+  if (delta == -1 && thread->suspend_count_ <= 0) {
+    LOG(FATAL) << *thread << " suspend count already zero";
+  }
+#endif
+  thread->suspend_count_ += delta;
+  if (for_debugger) {
+    thread->debug_suspend_count_ += delta;
+  }
+}
+
 void ThreadList::FullSuspendCheck(Thread* thread) {
   CHECK(thread != NULL);
   CHECK_GE(thread->suspend_count_, 0);
@@ -137,7 +158,7 @@ void ThreadList::SuspendAll(bool for_debugger) {
       if (verbose_) {
         LOG(INFO) << "requesting thread suspend: " << *thread;
       }
-      ++thread->suspend_count_;
+      ModifySuspendCount(thread, +1, for_debugger);
     }
   }
 
@@ -187,7 +208,7 @@ void ThreadList::Suspend(Thread* thread) {
 
   {
     MutexLock mu(thread_suspend_count_lock_);
-    ++thread->suspend_count_;
+    ModifySuspendCount(thread, +1, false);
   }
 
   thread->WaitUntilSuspended();
@@ -210,7 +231,7 @@ void ThreadList::SuspendSelfForDebugger() {
   // though.
   ThreadListLocker locker(this);
   MutexLock mu(thread_suspend_count_lock_);
-  ++self->suspend_count_;
+  ModifySuspendCount(self, +1, true);
 
   // Suspend ourselves.
   CHECK_GT(self->suspend_count_, 0);
@@ -261,11 +282,7 @@ void ThreadList::ResumeAll(bool for_debugger) {
       if (thread == self || (for_debugger && thread == debug_thread)) {
         continue;
       }
-      if (thread->suspend_count_ > 0) {
-        --thread->suspend_count_;
-      } else {
-        LOG(WARNING) << *thread << " suspend count already zero";
-      }
+      ModifySuspendCount(thread, -1, for_debugger);
     }
   }
 
@@ -297,11 +314,7 @@ void ThreadList::Resume(Thread* thread) {
     if (!Contains(thread)) {
       return;
     }
-    if (thread->suspend_count_ > 0) {
-      --thread->suspend_count_;
-    } else {
-      LOG(WARNING) << *thread << " suspend count already zero";
-    }
+    ModifySuspendCount(thread, -1, false);
   }
 
   {
@@ -326,6 +339,35 @@ void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void
   callback(arg);
   if (thread != self) {
     Resume(thread);
+  }
+}
+
+void ThreadList::UndoDebuggerSuspensions() {
+  Thread* self = Thread::Current();
+
+  if (verbose_) {
+    LOG(INFO) << *self << " UndoDebuggerSuspensions starting";
+  }
+
+  {
+    ThreadListLocker locker(this);
+    MutexLock mu(thread_suspend_count_lock_);
+    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+      Thread* thread = *it;
+      if (thread == self || thread->debug_suspend_count_ == 0) {
+        continue;
+      }
+      ModifySuspendCount(thread, -thread->debug_suspend_count_, true);
+    }
+  }
+
+  {
+    MutexLock mu(thread_suspend_count_lock_);
+    thread_suspend_count_cond_.Broadcast();
+  }
+
+  if (verbose_) {
+    LOG(INFO) << "UndoDebuggerSuspensions(" << *self << ") complete";
   }
 }
 

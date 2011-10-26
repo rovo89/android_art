@@ -575,6 +575,9 @@ class PACKED Thread {
   // A non-zero value is used to tell the current thread to enter a safe point
   // at the next poll.
   int suspend_count_;
+  // How much of 'suspend_count_' is by request of the debugger, used to set things right
+  // when the debugger detaches. Must be <= suspend_count_.
+  int debug_suspend_count_;
 
   // Needed to get the right ClassLoader in JNI_OnLoad, but also
   // useful for testing.

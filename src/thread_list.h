@@ -40,6 +40,7 @@ class ThreadList {
   void SuspendAll(bool for_debugger = false);
   void SuspendSelfForDebugger();
   void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);
+  void UndoDebuggerSuspensions();
 
   // Iterates over all the threads. The caller must hold the thread list lock.
   void ForEach(void (*callback)(Thread*));
@@ -64,6 +65,8 @@ class ThreadList {
   void Suspend(Thread* thread);
   void SuspendAllDaemonThreads();
   void WaitForNonDaemonThreadsToExit();
+
+  static void ModifySuspendCount(Thread* thread, int delta, bool for_debugger);
 
   bool verbose_;
 

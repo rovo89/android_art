@@ -411,10 +411,9 @@ void Thread::DumpState(std::ostream& os) const {
      << " tid=" << GetThinLockId()
      << " " << GetState() << "\n";
 
-  int debug_suspend_count = 0; // TODO
   os << "  | group=\"" << group_name << "\""
      << " sCount=" << suspend_count_
-     << " dsCount=" << debug_suspend_count
+     << " dsCount=" << debug_suspend_count_
      << " obj=" << reinterpret_cast<void*>(peer_)
      << " self=" << reinterpret_cast<const void*>(this) << "\n";
   os << "  | sysTid=" << GetTid()
@@ -730,6 +729,7 @@ Thread::Thread()
       runtime_(NULL),
       exception_(NULL),
       suspend_count_(0),
+      debug_suspend_count_(0),
       class_loader_override_(NULL),
       long_jump_context_(NULL),
       throwing_OutOfMemoryError_(false),
