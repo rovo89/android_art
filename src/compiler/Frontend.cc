@@ -675,11 +675,13 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                                                      /* create */
                                                      true);
             /*
-             * OP_THROW and OP_THROW_VERIFICATION_ERROR are unconditional
-             * branches.
+             * OP_THROW is an unconditional branch.  NOTE:
+             * OP_THROW_VERIFICATION_ERROR is also an unconditional
+             * branch, but we shouldn't treat it as such until we have
+             * a dead code elimination pass (which won't be important
+             * until inlining w/ constant propogation is implemented.
              */
-            if (insn->dalvikInsn.opcode != OP_THROW_VERIFICATION_ERROR &&
-                insn->dalvikInsn.opcode != OP_THROW) {
+            if (insn->dalvikInsn.opcode != OP_THROW) {
                 curBlock->fallThrough = fallthroughBlock;
                 oatSetBit(fallthroughBlock->predecessors, curBlock->id);
             }

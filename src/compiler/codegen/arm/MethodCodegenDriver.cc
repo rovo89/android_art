@@ -483,7 +483,6 @@ STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                            DecodedInstruction* dInsn, int state,
                            ArmLIR* rollback)
 {
-    DCHECK(rollback == NULL);
     RegLocation rlArg;
     ArmLIR* skipBranch;
     ArmLIR* skipTarget;
@@ -583,6 +582,7 @@ STATIC int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
                                  DecodedInstruction* dInsn, int state,
                                  ArmLIR* rollback)
 {
+    DCHECK(rollback == NULL);
     switch(state) {
         case 0: // Load trampoline target
             loadWordDisp(cUnit, rSELF,
@@ -659,7 +659,6 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                                DecodedInstruction* dInsn, int state,
                                ArmLIR* rollback)
 {
-    DCHECK(rollback == NULL);
     RegLocation rlArg;
     ArmLIR* skipBranch;
     ArmLIR* skipTarget;
