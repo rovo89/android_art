@@ -651,6 +651,13 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
   return klass->AllocObject();
 }
 
+extern "C" Object* artAllocObjectFromCodeSlowPath(uint32_t type_idx,
+                                                  Method* method,
+                                                  Thread* self, Method** sp) {
+  //TODO: Add delayed verification checks here
+  return artAllocObjectFromCode(type_idx, method, self, sp);
+}
+
 Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                      Thread* self) {
   if (UNLIKELY(component_count < 0)) {
