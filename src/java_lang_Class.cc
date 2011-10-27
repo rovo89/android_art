@@ -78,7 +78,7 @@ bool IsVisibleConstructor(Method* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
     return false;
   }
-  if (m->IsMiranda() || m->IsStatic()) {
+  if (m->IsStatic()) {
     return false;
   }
   if (m->GetName()->CharAt(0) != '<') {
@@ -132,9 +132,6 @@ jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass, jclass javaClass, jboo
 
 bool IsVisibleMethod(Method* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
-    return false;
-  }
-  if (m->IsMiranda()) {
     return false;
   }
   if (m->GetName()->CharAt(0) == '<') {

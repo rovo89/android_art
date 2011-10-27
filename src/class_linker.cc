@@ -1328,7 +1328,9 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     return;
   }
   dst->SetAccessFlags(src.access_flags_);
-  dst->SetReturnTypeIdx(dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_);
+  uint32_t return_type_idx = dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_;
+  DCHECK_LT(return_type_idx, dex_file.NumTypeIds());
+  dst->SetReturnTypeIdx(return_type_idx);
 
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
@@ -1910,8 +1912,8 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
 bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
                                                  const Class* klass1,
                                                  const Class* klass2) {
-  if (method->IsMiranda()) {
-      return true;
+  if (klass1 == klass2) {
+    return true;
   }
   const DexFile& dex_file = FindDexFile(method->GetDeclaringClass()->GetDexCache());
   const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
@@ -1946,6 +1948,9 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
   CHECK(descriptor != NULL);
   CHECK(klass1 != NULL);
   CHECK(klass2 != NULL);
+  if (klass1 == klass2) {
+    return true;
+  }
   Class* found1 = FindClass(descriptor, klass1->GetClassLoader());
   // TODO: found1 == NULL
   Class* found2 = FindClass(descriptor, klass2->GetClassLoader());
@@ -1953,13 +1958,10 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
   // TODO: lookup found1 in initiating loader list
   if (found1 == NULL || found2 == NULL) {
     Thread::Current()->ClearException();
-    if (found1 == found2) {
-      return true;
-    } else {
-      return false;
-    }
+    return found1 == found2;
+  } else {
+    return true;
   }
-  return true;
 }
 
 bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
@@ -2393,7 +2395,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
     vtable = vtable->CopyOf(new_vtable_count);
     for (size_t i = 0; i < miranda_list.size(); ++i) {
       Method* method = miranda_list[i];
-      method->SetDeclaringClass(klass.get());
+      // Leave the declaring class alone as type indices are relative to it
       method->SetAccessFlags(method->GetAccessFlags() | kAccMiranda);
       method->SetMethodIndex(0xFFFF & (old_vtable_count + i));
       klass->SetVirtualMethod(old_method_count + i, method);

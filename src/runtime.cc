@@ -82,7 +82,21 @@ void Runtime::Abort(const char* file, int line) {
 
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
-  LogMessage(file, line, ERROR, -1).stream() << "Runtime aborting...";
+  {
+    LogMessage log(file, line, ERROR, -1);
+    log.stream() << "Runtime aborting..." << std::endl;
+    // Add Java stack trace if possible
+    Thread* thread = Thread::Current();
+    if (thread != NULL) {
+      log.stream() << "Java stack trace of aborting thread:" << std::endl;
+      thread->DumpStack(log.stream());
+      if (thread->IsExceptionPending()) {
+        Throwable* e = thread->GetException();
+        log.stream() << "Pending exception on thread: " << PrettyTypeOf(e) << std::endl;
+        log.stream() << e->Dump();
+      }
+    }
+  }
 
   // Perform any platform-specific pre-abort actions.
   PlatformAbort(file, line);

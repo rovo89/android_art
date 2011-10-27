@@ -1081,11 +1081,10 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     jobjectArray output_array, int* stack_depth) {
   // Transition into runnable state to work on Object*/Array*
   ScopedJniThreadState ts(env);
-
   // Decode the internal stack trace into the depth, method trace and PC trace
   ObjectArray<Object>* method_trace =
       down_cast<ObjectArray<Object>*>(Decode<Object*>(ts.Env(), internal));
-  int32_t depth = method_trace->GetLength()-1;
+  int32_t depth = method_trace->GetLength() - 1;
   IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

@@ -712,6 +712,8 @@ class MANAGED Method : public AccessibleObject {
 
   void SetReturnTypeIdx(uint32_t new_return_type_idx);
 
+  const char* GetReturnTypeDescriptor() const;
+
   Class* GetReturnType() const;
 
   bool IsReturnAReference() const;
@@ -2026,9 +2028,10 @@ class MANAGED Class : public StaticStorageBase {
   // virtual methods defined in this class; invoked through vtable
   ObjectArray<Method>* virtual_methods_;
 
-  // Virtual method table (vtable), for use by "invoke-virtual".  The
-  // vtable from the superclass is copied in, and virtual methods from
-  // our class either replace those from the super or are appended.
+  // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
+  // copied in, and virtual methods from our class either replace those from the super or are
+  // appended. For abstract classes, methods may be created in the vtable that aren't in
+  // virtual_ methods_ for miranda methods.
   ObjectArray<Method>* vtable_;
 
   // access flags; low 16 bits are defined by VM spec
@@ -2207,23 +2210,24 @@ inline uint32_t Method::GetReturnTypeIdx() const {
 }
 
 inline bool Method::IsReturnAReference() const {
-  return !GetReturnType()->IsPrimitive();
+  char d = GetReturnTypeDescriptor()[0];
+  return d == 'L' || d == '[';
 }
 
 inline bool Method::IsReturnAFloat() const {
-  return GetReturnType()->IsPrimitiveFloat();
+  return GetReturnTypeDescriptor()[0] == 'F';
 }
 
 inline bool Method::IsReturnADouble() const {
-  return GetReturnType()->IsPrimitiveDouble();
+  return GetReturnTypeDescriptor()[0] == 'D';
 }
 
 inline bool Method::IsReturnALong() const {
-  return GetReturnType()->IsPrimitiveLong();
+  return GetReturnTypeDescriptor()[0] == 'J';
 }
 
 inline bool Method::IsReturnVoid() const {
-  return GetReturnType()->IsPrimitiveVoid();
+  return GetReturnTypeDescriptor()[0] == 'V';
 }
 
 inline size_t Array::SizeOf() const {
@@ -2628,9 +2632,14 @@ class MANAGED Throwable : public Object {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_),
                    new_detail_message, false);
   }
+  std::string Dump() const;
 
   bool IsCheckedException() const;
  private:
+  Object* GetStackState() const {
+    return GetFieldObject<Object*>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), true);
+  }
+
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   Throwable* cause_;
   String* detail_message_;

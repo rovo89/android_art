@@ -400,6 +400,16 @@ void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
              new_return_type_idx, false);
 }
 
+const char* Method::GetReturnTypeDescriptor() const {
+  Class* declaring_class = GetDeclaringClass();
+  DexCache* dex_cache = declaring_class->GetDexCache();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+  const char* descriptor = dex_file.dexStringByTypeIdx(GetReturnTypeIdx());
+  DCHECK(descriptor != NULL);
+  return descriptor;
+}
+
 Class* Method::GetReturnType() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous())
       << PrettyMethod(this);
@@ -1466,6 +1476,25 @@ bool Throwable::IsCheckedException() const {
   }
   Class* jlre = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/RuntimeException;");
   return !InstanceOf(jlre);
+}
+
+std::string Throwable::Dump() const {
+  Object* stack_state = GetStackState();
+  if (stack_state == NULL || !stack_state->IsObjectArray()) {
+    // missing or corrupt stack state
+    return "";
+  }
+  // Decode the internal stack trace into the depth and method trace
+  ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
+  int32_t depth = method_trace->GetLength() - 1;
+  std::string result;
+  for (int32_t i = 0; i < depth; ++i) {
+    Method* method = down_cast<Method*>(method_trace->Get(i));
+    result += "  at ";
+    result += PrettyMethod(method, true);
+    result += "\n";
+  }
+  return result;
 }
 
 Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;

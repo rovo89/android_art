@@ -92,7 +92,9 @@ class RegType {
     return IsUninitializedReference() || IsUninitializedThisReference() ||
         IsUnresolvedAndUninitializedReference();
   }
-
+  bool IsUnresolvedTypes() const {
+    return IsUnresolvedReference() || IsUnresolvedAndUninitializedReference();
+  }
   bool IsLowHalf() const { return type_ == kRegTypeLongLo ||
                                   type_ == kRegTypeDoubleLo ||
                                   type_ == kRegTypeConstLo; }
@@ -191,6 +193,9 @@ class RegType {
     return down_cast<Class*>(klass_or_descriptor_);
   }
 
+  bool IsJavaLangObject() const {
+    return IsReference() && GetClass()->IsObjectClass();
+  }
   String* GetDescriptor() const {
     DCHECK(IsUnresolvedReference());
     DCHECK(klass_or_descriptor_ != NULL);
@@ -1125,7 +1130,8 @@ class DexVerifier {
    * Returned references are assumed to be initialized. Returns kRegTypeUnknown for "void".
    */
   const RegType& GetMethodReturnType() {
-    return reg_types_.FromClass(method_->GetReturnType());
+    return reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(),
+                                     method_->GetReturnTypeDescriptor());
   }
 
   /*

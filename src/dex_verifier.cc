@@ -156,30 +156,29 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
     return true;
   } else {
     switch (GetType()) {
-      case RegType::kRegTypeBoolean:  return IsBooleanTypes();
-      case RegType::kRegTypeByte:     return IsByteTypes();
-      case RegType::kRegTypeShort:    return IsShortTypes();
-      case RegType::kRegTypeChar:     return IsCharTypes();
-      case RegType::kRegTypeInteger:  return IsIntegralTypes();
-      case RegType::kRegTypeFloat:    return IsFloatTypes();
-      case RegType::kRegTypeLongLo:   return IsLongTypes();
-      case RegType::kRegTypeDoubleLo: return IsDoubleTypes();
+      case RegType::kRegTypeBoolean:  return src.IsBooleanTypes();
+      case RegType::kRegTypeByte:     return src.IsByteTypes();
+      case RegType::kRegTypeShort:    return src.IsShortTypes();
+      case RegType::kRegTypeChar:     return src.IsCharTypes();
+      case RegType::kRegTypeInteger:  return src.IsIntegralTypes();
+      case RegType::kRegTypeFloat:    return src.IsFloatTypes();
+      case RegType::kRegTypeLongLo:   return src.IsLongTypes();
+      case RegType::kRegTypeDoubleLo: return src.IsDoubleTypes();
       default:
         if (!IsReferenceTypes()) {
           LOG(FATAL) << "Unexpected register type in IsAssignableFrom: '" << src << "'";
         }
         if (src.IsZero()) {
-          return true;
-        } else if (IsUninitializedReference()) {
-          return false;  // Nonsensical to Join two uninitialized classes
-        } else if (GetClass()->IsInterface()) {
+          return true;  // all reference types can be assigned null
+        } else if (!src.IsReferenceTypes()) {
+          return false;  // expect src to be a reference type
+        } else if (IsJavaLangObject()) {
+          return true;  // all reference types can be assigned to Object
+        } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
           return true;  // We allow assignment to any interface, see comment in ClassJoin
-        } else if (IsReference() && src.IsReference() &&
+        } else if (!IsUnresolvedTypes() && !src.IsUnresolvedTypes() &&
                    GetClass()->IsAssignableFrom(src.GetClass())) {
           // We're assignable from the Class point-of-view
-          return true;
-        } else if (src.IsUnresolvedReference() && IsReference() && GetClass()->IsObjectClass()) {
-          // We're an object being assigned an unresolved reference, which is ok
           return true;
         } else {
           return false;
@@ -263,12 +262,14 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
     // float/long/double MERGE float/long/double_constant => float/long/double
     return SelectNonConstant(*this, incoming_type);
   } else if (IsReferenceTypes() && incoming_type.IsReferenceTypes()) {
-    if (IsZero() | incoming_type.IsZero()) {
+    if (IsZero() || incoming_type.IsZero()) {
       return SelectNonConstant(*this, incoming_type);  // 0 MERGE ref => ref
-    } else  if (IsUnresolvedReference() || IsUninitializedReference() ||
-                IsUninitializedThisReference()) {
-      // Can only merge an uninitialized or unresolved type with itself or 0, we've already checked
-      // these so => Conflict
+    } else if (IsJavaLangObject() || incoming_type.IsJavaLangObject()) {
+      return reg_types->JavaLangObject();  // Object MERGE ref => Object
+    } else if (IsUninitializedTypes() || incoming_type.IsUninitializedTypes() ||
+               IsUnresolvedTypes() || incoming_type.IsUnresolvedTypes()) {
+      // Can only merge an unresolved or uninitialized type with itself, 0 or Object, we've already
+      // checked these so => Conflict
       return reg_types->Conflict();
     } else {  // Two reference types, compute Join
       Class* c1 = GetClass();
@@ -1865,18 +1866,14 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           /* return_type is the *expected* return type, not register value */
           DCHECK(!return_type.IsZero());
           DCHECK(!return_type.IsUninitializedReference());
-          // Verify that the reference in vAA is an instance of the type in "return_type". The Zero
-          // type is allowed here. If the method is declared to return an interface, then any
-          // initialized reference is acceptable.
-          // Note GetClassFromRegister fails if the register holds an uninitialized reference, so
-          // we do not allow them to be returned.
-          Class* decl_class = return_type.GetClass();
-          Class* res_class = work_line_->GetClassFromRegister(dec_insn.vA_);
-          if (res_class != NULL && failure_ == VERIFY_ERROR_NONE) {
-            if (!decl_class->IsInterface() && !decl_class->IsAssignableFrom(res_class)) {
-              Fail(VERIFY_ERROR_GENERIC) << "returning " << PrettyClassAndClassLoader(res_class)
-                                         << ", declared " << PrettyClassAndClassLoader(res_class);
-            }
+          const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA_);
+          // Disallow returning uninitialized values and verify that the reference in vAA is an
+          // instance of the "return_type"
+          if (reg_type.IsUninitializedTypes()) {
+            Fail(VERIFY_ERROR_GENERIC) << "returning uninitialized object '" << reg_type << "'";
+          } else if (!return_type.IsAssignableFrom(reg_type)) {
+            Fail(VERIFY_ERROR_GENERIC) << "returning '" << reg_type
+                << "', but expected from declaration '" << return_type << "'";
           }
         }
       }
@@ -2332,7 +2329,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                         dec_insn.opcode_ == Instruction::INVOKE_SUPER_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_VIRTUAL, is_range, is_super);
       if (failure_ == VERIFY_ERROR_NONE) {
-        const RegType& return_type = reg_types_.FromClass(called_method->GetReturnType());
+        const RegType& return_type =
+            reg_types_.FromDescriptor(called_method->GetDeclaringClass()->GetClassLoader(),
+                                      called_method->GetReturnTypeDescriptor());
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -2390,7 +2389,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           if (failure_ != VERIFY_ERROR_NONE)
             break;
         }
-        const RegType& return_type = reg_types_.FromClass(called_method->GetReturnType());
+        const RegType& return_type =
+            reg_types_.FromDescriptor(called_method->GetDeclaringClass()->GetClassLoader(),
+                                      called_method->GetReturnTypeDescriptor());
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -2401,7 +2402,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         bool is_range = (dec_insn.opcode_ == Instruction::INVOKE_STATIC_RANGE);
         Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_STATIC, is_range, false);
         if (failure_ == VERIFY_ERROR_NONE) {
-          const RegType& return_type =  reg_types_.FromClass(called_method->GetReturnType());
+          const RegType& return_type =
+              reg_types_.FromDescriptor(called_method->GetDeclaringClass()->GetClassLoader(),
+                                        called_method->GetReturnTypeDescriptor());
           work_line_->SetResultRegisterType(return_type);
           just_set_result = true;
         }
@@ -2445,7 +2448,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          * We don't have an object instance, so we can't find the concrete method. However, all of
          * the type information is in the abstract method, so we're good.
          */
-        const RegType& return_type = reg_types_.FromClass(abs_method->GetReturnType());
+        const RegType& return_type =
+            reg_types_.FromDescriptor(abs_method->GetDeclaringClass()->GetClassLoader(),
+                                      abs_method->GetReturnTypeDescriptor());
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -3057,11 +3062,10 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
       return NULL;
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
-      Class* actual_this_ref = actual_arg_type.GetClass();
-      if (!res_method->GetDeclaringClass()->IsAssignableFrom(actual_this_ref)) {
-        Fail(VERIFY_ERROR_GENERIC) << "'this' arg '"
-            << PrettyDescriptor(actual_this_ref->GetDescriptor()) << "' not instance of '"
-            << PrettyDescriptor(res_method->GetDeclaringClass()->GetDescriptor()) << "'";
+      const RegType& res_method_class = reg_types_.FromClass(res_method->GetDeclaringClass());
+      if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
+        Fail(VERIFY_ERROR_GENERIC) << "'this' arg '" << actual_arg_type << "' not instance of '"
+            << res_method_class << "'";
         return NULL;
       }
     }
