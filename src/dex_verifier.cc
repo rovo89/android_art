@@ -3502,6 +3502,12 @@ void DexVerifier::ReplaceFailingInstruction() {
   insns[work_insn_idx_] = new_instruction;
   // The 2nd code unit (higher in memory) with the reference in, comes from the instruction we
   // rewrote, so nothing to do here.
+  LOG(INFO) << "Verification error, replacing instructions in " << PrettyMethod(method_) << " "
+            << fail_messages_.str();
+  if (gDebugVerify) {
+    std::cout << std::endl << info_messages_.str();
+    Dump(std::cout);
+  }
 }
 
 bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line) {

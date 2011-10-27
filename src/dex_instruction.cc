@@ -213,6 +213,7 @@ size_t Instruction::SizeInCodeUnits() const {
       case k11x:
       case k10t:
         return 1;
+      case k20bc:
       case k20t:
       case k22x:
       case k21t:
