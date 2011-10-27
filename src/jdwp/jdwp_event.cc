@@ -667,11 +667,11 @@ static ExpandBuf* eventPrep() {
 static void eventFinish(JdwpState* state, ExpandBuf* pReq) {
   uint8_t* buf = expandBufGetBuffer(pReq);
 
-  set4BE(buf, expandBufGetLength(pReq));
-  set4BE(buf+4, state->NextRequestSerial());
-  set1(buf+8, 0);     /* flags */
-  set1(buf+9, kJdwpEventCommandSet);
-  set1(buf+10, kJdwpCompositeCommand);
+  Set4BE(buf, expandBufGetLength(pReq));
+  Set4BE(buf+4, state->NextRequestSerial());
+  Set1(buf+8, 0);     /* flags */
+  Set1(buf+9, kJdwpEventCommandSet);
+  Set1(buf+10, kJdwpCompositeCommand);
 
   state->SendRequest(pReq);
 
@@ -1165,13 +1165,13 @@ void JdwpState::DdmSendChunkV(int type, const iovec* iov, int iovcnt) {
   }
 
   /* form the header (JDWP plus DDMS) */
-  set4BE(header, sizeof(header) + dataLen);
-  set4BE(header+4, NextRequestSerial());
-  set1(header+8, 0);     /* flags */
-  set1(header+9, kJDWPDdmCmdSet);
-  set1(header+10, kJDWPDdmCmd);
-  set4BE(header+11, type);
-  set4BE(header+15, dataLen);
+  Set4BE(header, sizeof(header) + dataLen);
+  Set4BE(header+4, NextRequestSerial());
+  Set1(header+8, 0);     /* flags */
+  Set1(header+9, kJDWPDdmCmdSet);
+  Set1(header+10, kJDWPDdmCmd);
+  Set4BE(header+11, type);
+  Set4BE(header+15, dataLen);
 
   wrapiov[0].iov_base = header;
   wrapiov[0].iov_len = sizeof(header);

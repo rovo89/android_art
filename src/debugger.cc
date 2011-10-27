@@ -687,8 +687,8 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
 
   // Run through and find all chunks.  [Currently just find the first.]
   ScopedByteArrayRO contents(env, dataArray);
-  jint type = JDWP::get4BE(reinterpret_cast<const uint8_t*>(&contents[0]));
-  jint length = JDWP::get4BE(reinterpret_cast<const uint8_t*>(&contents[4]));
+  jint type = JDWP::Get4BE(reinterpret_cast<const uint8_t*>(&contents[0]));
+  jint length = JDWP::Get4BE(reinterpret_cast<const uint8_t*>(&contents[4]));
   jint offset = kChunkHdrLen;
   if (offset + length > dataLen) {
     LOG(WARNING) << StringPrintf("bad chunk found (len=%u pktLen=%d)", length, dataLen);
@@ -741,8 +741,8 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
     LOG(WARNING) << "malloc failed: " << (length + kChunkHdrLen);
     return false;
   }
-  JDWP::set4BE(reply + 0, type);
-  JDWP::set4BE(reply + 4, length);
+  JDWP::Set4BE(reply + 0, type);
+  JDWP::Set4BE(reply + 4, length);
   env->GetByteArrayRegion(replyData, offset, length, reinterpret_cast<jbyte*>(reply + kChunkHdrLen));
 
   *pReplyBuf = reply;
@@ -799,20 +799,20 @@ void DdmSendThreadNotification(Thread* t, bool started) {
 
     size_t byte_count = char_count*2 + sizeof(uint32_t)*2;
     std::vector<uint8_t> buf(byte_count);
-    JDWP::set4BE(&buf[0], t->GetThinLockId());
-    JDWP::set4BE(&buf[4], char_count);
+    JDWP::Set4BE(&buf[0], t->GetThinLockId());
+    JDWP::Set4BE(&buf[4], char_count);
     if (char_count > 0) {
       // Copy the UTF-16 string, transforming to big-endian.
       const jchar* src = name->GetCharArray()->GetData();
       jchar* dst = reinterpret_cast<jchar*>(&buf[8]);
       while (char_count--) {
-        JDWP::set2BE(reinterpret_cast<uint8_t*>(dst++), *src++);
+        JDWP::Set2BE(reinterpret_cast<uint8_t*>(dst++), *src++);
       }
     }
     Dbg::DdmSendChunk(CHUNK_TYPE("THCR"), buf.size(), &buf[0]);
   } else {
     uint8_t buf[4];
-    JDWP::set4BE(&buf[0], t->GetThinLockId());
+    JDWP::Set4BE(&buf[0], t->GetThinLockId());
     Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
   }
 }

@@ -119,12 +119,12 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
   int utime, stime, task_cpu;
   GetTaskStats(t->GetTid(), utime, stime, task_cpu);
 
-  JDWP::set4BE(buf+0, t->GetThinLockId());
-  JDWP::set1(buf+4, t->GetState());
-  JDWP::set4BE(buf+5, t->GetTid());
-  JDWP::set4BE(buf+9, utime);
-  JDWP::set4BE(buf+13, stime);
-  JDWP::set1(buf+17, t->IsDaemon());
+  JDWP::Set4BE(buf+0, t->GetThinLockId());
+  JDWP::Set1(buf+4, t->GetState());
+  JDWP::Set4BE(buf+5, t->GetTid());
+  JDWP::Set4BE(buf+9, utime);
+  JDWP::Set4BE(buf+13, stime);
+  JDWP::Set1(buf+17, t->IsDaemon());
 
   *ptr += kThstBytesPerEntry;
 }
@@ -140,9 +140,9 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
 
     bytes.resize(kThstHeaderLen + thread_count * kThstBytesPerEntry);
 
-    JDWP::set1(&bytes[0], kThstHeaderLen);
-    JDWP::set1(&bytes[1], kThstBytesPerEntry);
-    JDWP::set2BE(&bytes[2], thread_count);
+    JDWP::Set1(&bytes[0], kThstHeaderLen);
+    JDWP::Set1(&bytes[1], kThstBytesPerEntry);
+    JDWP::Set2BE(&bytes[2], thread_count);
 
     uint8_t* ptr = &bytes[kThstHeaderLen];
     thread_list->ForEach(ThreadStatsGetterCallback, &ptr);

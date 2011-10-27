@@ -26,21 +26,21 @@ namespace art {
 
 namespace JDWP {
 
-static inline uint32_t get4BE(unsigned char const* pSrc) {
+static inline uint32_t Get4BE(unsigned char const* pSrc) {
   return (pSrc[0] << 24) | (pSrc[1] << 16) | (pSrc[2] << 8) | pSrc[3];
 }
 
-static inline uint8_t read1(unsigned const char** ppSrc) {
+static inline uint8_t Read1(unsigned const char** ppSrc) {
   return *(*ppSrc)++;
 }
 
-static inline uint16_t read2BE(unsigned char const** ppSrc) {
+static inline uint16_t Read2BE(unsigned char const** ppSrc) {
   const unsigned char* pSrc = *ppSrc;
   *ppSrc = pSrc + 2;
   return pSrc[0] << 8 | pSrc[1];
 }
 
-static inline uint32_t read4BE(unsigned char const** ppSrc) {
+static inline uint32_t Read4BE(unsigned char const** ppSrc) {
   const unsigned char* pSrc = *ppSrc;
   uint32_t result = pSrc[0] << 24;
   result |= pSrc[1] << 16;
@@ -50,7 +50,7 @@ static inline uint32_t read4BE(unsigned char const** ppSrc) {
   return result;
 }
 
-static inline uint64_t read8BE(unsigned char const** ppSrc) {
+static inline uint64_t Read8BE(unsigned char const** ppSrc) {
   const unsigned char* pSrc = *ppSrc;
   uint32_t high = pSrc[0];
   high = (high << 8) | pSrc[1];
@@ -70,8 +70,8 @@ static inline uint64_t read8BE(unsigned char const** ppSrc) {
  * Returns the string and its length.  (The latter is probably unnecessary
  * for the way we're using UTF8.)
  */
-static inline char* readNewUtf8String(unsigned char const** ppSrc, size_t* pLength) {
-  uint32_t length = read4BE(ppSrc);
+static inline char* ReadNewUtf8String(unsigned char const** ppSrc, size_t* pLength) {
+  uint32_t length = Read4BE(ppSrc);
   char* buf = (char*) malloc(length+1);
   memcpy(buf, *ppSrc, length);
   buf[length] = '\0';
@@ -80,23 +80,23 @@ static inline char* readNewUtf8String(unsigned char const** ppSrc, size_t* pLeng
   return buf;
 }
 
-static inline void set1(uint8_t* buf, uint8_t val) {
+static inline void Set1(uint8_t* buf, uint8_t val) {
   *buf = (uint8_t)(val);
 }
 
-static inline void set2BE(uint8_t* buf, uint16_t val) {
+static inline void Set2BE(uint8_t* buf, uint16_t val) {
   *buf++ = (uint8_t)(val >> 8);
   *buf = (uint8_t)(val);
 }
 
-static inline void set4BE(uint8_t* buf, uint32_t val) {
+static inline void Set4BE(uint8_t* buf, uint32_t val) {
   *buf++ = (uint8_t)(val >> 24);
   *buf++ = (uint8_t)(val >> 16);
   *buf++ = (uint8_t)(val >> 8);
   *buf = (uint8_t)(val);
 }
 
-static inline void set8BE(uint8_t* buf, uint64_t val) {
+static inline void Set8BE(uint8_t* buf, uint64_t val) {
   *buf++ = (uint8_t)(val >> 56);
   *buf++ = (uint8_t)(val >> 48);
   *buf++ = (uint8_t)(val >> 40);
@@ -110,9 +110,9 @@ static inline void set8BE(uint8_t* buf, uint64_t val) {
 /*
  * Stuff a UTF-8 string into the buffer.
  */
-static inline void setUtf8String(uint8_t* buf, const uint8_t* str) {
+static inline void SetUtf8String(uint8_t* buf, const uint8_t* str) {
   uint32_t strLen = strlen((const char*)str);
-  set4BE(buf, strLen);
+  Set4BE(buf, strLen);
   memcpy(buf + sizeof(uint32_t), str, strLen);
 }
 

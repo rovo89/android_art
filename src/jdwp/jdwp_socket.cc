@@ -494,7 +494,7 @@ static bool haveFullPacket(JdwpNetState* netState) {
   if (netState->inputCount < 4) {
     return false;
   }
-  long length = get4BE(netState->inputBuffer);
+  long length = Get4BE(netState->inputBuffer);
   return (netState->inputCount >= length);
 }
 
@@ -531,16 +531,16 @@ static void dumpPacket(const unsigned char* packetBuf) {
 
   cmd = cmdSet = 0xcc;
 
-  length = read4BE(&buf);
-  id = read4BE(&buf);
-  flags = read1(&buf);
+  length = Read4BE(&buf);
+  id = Read4BE(&buf);
+  flags = Read1(&buf);
   if ((flags & kJDWPFlagReply) != 0) {
     reply = true;
-    error = read2BE(&buf);
+    error = Read2BE(&buf);
   } else {
     reply = false;
-    cmdSet = read1(&buf);
-    cmd = read1(&buf);
+    cmdSet = Read1(&buf);
+    cmd = Read1(&buf);
   }
 
   dataLen = length - (buf - packetBuf);
@@ -570,16 +570,16 @@ static bool handlePacket(JdwpState* state) {
 
   /*dumpPacket(netState->inputBuffer);*/
 
-  length = read4BE(&buf);
-  id = read4BE(&buf);
-  flags = read1(&buf);
+  length = Read4BE(&buf);
+  id = Read4BE(&buf);
+  flags = Read1(&buf);
   if ((flags & kJDWPFlagReply) != 0) {
     reply = true;
-    error = read2BE(&buf);
+    error = Read2BE(&buf);
   } else {
     reply = false;
-    cmdSet = read1(&buf);
-    cmd = read1(&buf);
+    cmdSet = Read1(&buf);
+    cmd = Read1(&buf);
   }
 
   CHECK_LE((int) length, netState->inputCount);

@@ -131,7 +131,7 @@ void expandBufAdd1(ExpandBuf* pBuf, uint8_t val) {
  */
 void expandBufAdd2BE(ExpandBuf* pBuf, uint16_t val) {
   ensureSpace(pBuf, sizeof(val));
-  set2BE(pBuf->storage + pBuf->curLen, val);
+  Set2BE(pBuf->storage + pBuf->curLen, val);
   pBuf->curLen += sizeof(val);
 }
 
@@ -140,7 +140,7 @@ void expandBufAdd2BE(ExpandBuf* pBuf, uint16_t val) {
  */
 void expandBufAdd4BE(ExpandBuf* pBuf, uint32_t val) {
   ensureSpace(pBuf, sizeof(val));
-  set4BE(pBuf->storage + pBuf->curLen, val);
+  Set4BE(pBuf->storage + pBuf->curLen, val);
   pBuf->curLen += sizeof(val);
 }
 
@@ -149,7 +149,7 @@ void expandBufAdd4BE(ExpandBuf* pBuf, uint32_t val) {
  */
 void expandBufAdd8BE(ExpandBuf* pBuf, uint64_t val) {
   ensureSpace(pBuf, sizeof(val));
-  set8BE(pBuf->storage + pBuf->curLen, val);
+  Set8BE(pBuf->storage + pBuf->curLen, val);
   pBuf->curLen += sizeof(val);
 }
 
@@ -165,7 +165,7 @@ void expandBufAddUtf8String(ExpandBuf* pBuf, const uint8_t* str) {
   int strLen = strlen((const char*)str);
 
   ensureSpace(pBuf, sizeof(uint32_t) + strLen);
-  setUtf8String(pBuf->storage + pBuf->curLen, str);
+  SetUtf8String(pBuf->storage + pBuf->curLen, str);
   pBuf->curLen += sizeof(uint32_t) + strLen;
 }
 

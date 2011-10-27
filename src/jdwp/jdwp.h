@@ -50,16 +50,16 @@ typedef uint64_t FrameId;     /* short-lived stack frame ID */
  * Match these with the type sizes.  This way we don't have to pass
  * a value and a length.
  */
-static inline FieldId ReadFieldId(const uint8_t** pBuf) { return read4BE(pBuf); }
-static inline MethodId ReadMethodId(const uint8_t** pBuf) { return read4BE(pBuf); }
-static inline ObjectId ReadObjectId(const uint8_t** pBuf) { return read8BE(pBuf); }
-static inline RefTypeId ReadRefTypeId(const uint8_t** pBuf) { return read8BE(pBuf); }
-static inline FrameId ReadFrameId(const uint8_t** pBuf) { return read8BE(pBuf); }
-static inline void SetFieldId(uint8_t* buf, FieldId val) { return set4BE(buf, val); }
-static inline void SetMethodId(uint8_t* buf, MethodId val) { return set4BE(buf, val); }
-static inline void SetObjectId(uint8_t* buf, ObjectId val) { return set8BE(buf, val); }
-static inline void SetRefTypeId(uint8_t* buf, RefTypeId val) { return set8BE(buf, val); }
-static inline void SetFrameId(uint8_t* buf, FrameId val) { return set8BE(buf, val); }
+static inline FieldId ReadFieldId(const uint8_t** pBuf) { return Read4BE(pBuf); }
+static inline MethodId ReadMethodId(const uint8_t** pBuf) { return Read4BE(pBuf); }
+static inline ObjectId ReadObjectId(const uint8_t** pBuf) { return Read8BE(pBuf); }
+static inline RefTypeId ReadRefTypeId(const uint8_t** pBuf) { return Read8BE(pBuf); }
+static inline FrameId ReadFrameId(const uint8_t** pBuf) { return Read8BE(pBuf); }
+static inline void SetFieldId(uint8_t* buf, FieldId val) { return Set4BE(buf, val); }
+static inline void SetMethodId(uint8_t* buf, MethodId val) { return Set4BE(buf, val); }
+static inline void SetObjectId(uint8_t* buf, ObjectId val) { return Set8BE(buf, val); }
+static inline void SetRefTypeId(uint8_t* buf, RefTypeId val) { return Set8BE(buf, val); }
+static inline void SetFrameId(uint8_t* buf, FrameId val) { return Set8BE(buf, val); }
 static inline void expandBufAddFieldId(ExpandBuf* pReply, FieldId id) { expandBufAdd4BE(pReply, id); }
 static inline void expandBufAddMethodId(ExpandBuf* pReply, MethodId id) { expandBufAdd4BE(pReply, id); }
 static inline void expandBufAddObjectId(ExpandBuf* pReply, ObjectId id) { expandBufAdd8BE(pReply, id); }
