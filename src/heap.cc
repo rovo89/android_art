@@ -405,18 +405,15 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
 }
 
 int64_t Heap::GetMaxMemory() {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+  return maximum_size_;
 }
 
 int64_t Heap::GetTotalMemory() {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+  return alloc_space_->Size();
 }
 
 int64_t Heap::GetFreeMemory() {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+  return alloc_space_->Size() - num_bytes_allocated_;
 }
 
 class InstanceCounter {
@@ -523,14 +520,14 @@ void Heap::CollectGarbageInternal() {
   bool is_small = (bytes_freed > 0 && bytes_freed < 1024);
   size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/1024, 1U) : 0);
 
-  size_t footprint = alloc_space_->Size();
-  size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / footprint);
+  size_t total = GetTotalMemory();
+  size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / total);
 
   uint32_t duration = (t1 - t0)/1000/1000;
   if (is_verbose_gc_) {
     LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
               << percentFree << "% free "
-              << (num_bytes_allocated_/1024) << "KiB/" << (footprint/1024) << "KiB, "
+              << (num_bytes_allocated_/1024) << "KiB/" << (total/1024) << "KiB, "
               << "paused " << duration << "ms";
   }
   Dbg::GcDidFinish();

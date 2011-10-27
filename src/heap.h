@@ -175,6 +175,9 @@ class Heap {
 
   static void AddFinalizerReference(Object* object);
 
+  static size_t GetBytesAllocated() { return num_bytes_allocated_; }
+  static size_t GetObjectsAllocated() { return num_objects_allocated_; }
+
  private:
   // Allocates uninitialized storage.
   static Object* AllocateLocked(size_t num_bytes);

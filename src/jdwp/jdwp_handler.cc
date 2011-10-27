@@ -1806,7 +1806,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
    * the initial setup.  Only update if this is a non-DDMS packet.
    */
   if (pHeader->cmdSet != kJDWPDdmCmdSet) {
-    QuasiAtomicSwap64(GetNowMsec(), &lastActivityWhen);
+    QuasiAtomicSwap64(MilliTime(), &lastActivityWhen);
   }
 
   /* tell the VM that GC is okay again */

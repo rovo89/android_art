@@ -412,21 +412,6 @@ Thread* JdwpState::GetDebugThread() {
  */
 
 /*
- * Get a notion of the current time, in milliseconds.
- */
-int64_t GetNowMsec() {
-#ifdef HAVE_POSIX_CLOCKS
-  struct timespec now;
-  clock_gettime(CLOCK_MONOTONIC, &now);
-  return now.tv_sec * 1000LL + now.tv_nsec / 1000000LL;
-#else
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  return now.tv_sec * 1000LL + now.tv_usec / 1000LL;
-#endif
-}
-
-/*
  * Return the time, in milliseconds, since the last debugger activity.
  *
  * Returns -1 if no debugger is attached, or 0 if we're in the middle of
@@ -447,7 +432,7 @@ int64_t JdwpState::LastDebuggerActivity() {
   }
 
   /* now get the current time */
-  int64_t now = GetNowMsec();
+  int64_t now = MilliTime();
   CHECK_GT(now, last);
 
   LOG(VERBOSE) << "+++ debugger interval=" << (now - last);

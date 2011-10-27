@@ -257,7 +257,7 @@ public:
   };
   static bool DdmHandleHpsgNhsgChunk(HpsgWhen when, HpsgWhat what, bool native);
 
-  static void DdmSendHeapInfo(HpifWhen reason, bool shouldLock);
+  static void DdmSendHeapInfo(HpifWhen reason);
   static void DdmSendHeapSegments(bool shouldLock, bool native);
 };
 
