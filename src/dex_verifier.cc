@@ -886,6 +886,18 @@ bool DexVerifier::VerifyMethod(Method* method) {
   return success;
 }
 
+void DexVerifier::VerifyMethodAndDump(Method* method) {
+  DexVerifier verifier(method);
+  verifier.Verify();
+
+  LogMessage log(__FILE__, __LINE__, INFO, -1);
+  log.stream() << "Dump of method " << PrettyMethod(method) << " "
+               << verifier.fail_messages_.str();
+  log.stream() << std::endl << verifier.info_messages_.str();
+
+  verifier.Dump(log.stream());
+}
+
 DexVerifier::DexVerifier(Method* method) : java_lang_throwable_(NULL), work_insn_idx_(-1),
                                            method_(method), failure_(VERIFY_ERROR_NONE),
                                            new_instance_count_(0), monitor_enter_count_(0) {

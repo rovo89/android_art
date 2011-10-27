@@ -814,6 +814,7 @@ class DexVerifier {
    * - last byte of last instruction is at (code_length-1)
    */
   static bool VerifyMethod(Method* method);
+  static void VerifyMethodAndDump(Method* method);
 
   uint8_t EncodePcToReferenceMapData() const;
 
