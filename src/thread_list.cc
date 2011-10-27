@@ -88,19 +88,15 @@ void ThreadList::Dump(std::ostream& os) {
 
 void ThreadList::ModifySuspendCount(Thread* thread, int delta, bool for_debugger) {
 #ifndef NDEBUG
-  DCHECK(delta == -1 || delta == +1 || delta == thread->debug_suspend_count_) << delta;
-  DCHECK_GE(thread->suspend_count_, thread->debug_suspend_count_);
-  if (delta == -1) {
-    DCHECK_GT(thread->suspend_count_, 0);
-    if (for_debugger) {
-      DCHECK_GT(thread->debug_suspend_count_, 0);
-    }
-  }
-#else
-  if (delta == -1 && thread->suspend_count_ <= 0) {
-    LOG(FATAL) << *thread << " suspend count already zero";
-  }
+  DCHECK(delta == -1 || delta == +1 || delta == thread->debug_suspend_count_) << delta << " "
+                                                                              << *thread;
+  DCHECK_GE(thread->suspend_count_, thread->debug_suspend_count_) << *thread;
 #endif
+  if (delta == -1 && thread->suspend_count_ <= 0) {
+    // This can happen if you attach a thread during a GC.
+    LOG(WARNING) << *thread << " suspend count already zero";
+    return;
+  }
   thread->suspend_count_ += delta;
   if (for_debugger) {
     thread->debug_suspend_count_ += delta;
@@ -375,8 +371,9 @@ void ThreadList::Register() {
   Thread* self = Thread::Current();
 
   if (verbose_) {
-    LOG(INFO) << "ThreadList::Register() " << *self;
-    self->Dump(std::cerr);
+    LogMessage log(__FILE__, __LINE__, INFO, -1);
+    log.stream() << "ThreadList::Register() " << *self << "\n";
+    self->Dump(log.stream());
   }
 
   ThreadListLocker locker(this);
@@ -454,6 +451,9 @@ void ThreadList::SignalGo(Thread* child) {
 
   {
     ThreadListLocker locker(this);
+    if (verbose_) {
+      LOG(INFO) << *self << " waiting for child " << *child << " to be in thread list...";
+    }
 
     // We wait for the child to tell us that it's in the thread list.
     while (child->GetState() != Thread::kStarting) {
@@ -466,6 +466,10 @@ void ThreadList::SignalGo(Thread* child) {
   self->SetState(Thread::kRunnable);
 
   // Tell the child that it's safe: it will see any future suspend request.
+  ThreadListLocker locker(this);
+  if (verbose_) {
+    LOG(INFO) << *self << " telling child " << *child << " it's safe to proceed...";
+  }
   child->SetState(Thread::kVmWait);
   thread_start_cond_.Broadcast();
 }
@@ -478,17 +482,32 @@ void ThreadList::WaitForGo() {
     ThreadListLocker locker(this);
 
     // Tell our parent that we're in the thread list.
+    if (verbose_) {
+      LOG(INFO) << *self << " telling parent that we're now in thread list...";
+    }
     self->SetState(Thread::kStarting);
     thread_start_cond_.Broadcast();
 
     // Wait until our parent tells us there's no suspend still pending
     // from before we were on the thread list.
+    if (verbose_) {
+      LOG(INFO) << *self << " waiting for parent's go-ahead...";
+    }
     while (self->GetState() != Thread::kVmWait) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
   }
 
   // Enter the runnable state. We know that any pending suspend will affect us now.
+  if (verbose_) {
+    LOG(INFO) << *self << " entering runnable state...";
+  }
+  // Lock and unlock the heap lock. This ensures that if there was a GC in progress when we
+  // started, we wait until it's over. Which means that if there's now another GC pending, our
+  // suspend count is non-zero, so switching to the runnable state will suspend us.
+  // TODO: find a better solution!
+  Heap::Lock();
+  Heap::Unlock();
   self->SetState(Thread::kRunnable);
 }
 

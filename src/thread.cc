@@ -158,14 +158,17 @@ void* Thread::CreateCallback(void* arg) {
 
   self->Attach(runtime);
 
-  String* thread_name = reinterpret_cast<String*>(gThread_name->GetObject(self->peer_));
-  if (thread_name != NULL) {
-    SetThreadName(thread_name->ToModifiedUtf8().c_str());
-  }
-
   // Wait until it's safe to start running code. (There may have been a suspend-all
   // in progress while we were starting up.)
   runtime->GetThreadList()->WaitForGo();
+
+  {
+    CHECK_EQ(self->GetState(), Thread::kRunnable);
+    String* thread_name = reinterpret_cast<String*>(gThread_name->GetObject(self->peer_));
+    if (thread_name != NULL) {
+      SetThreadName(thread_name->ToModifiedUtf8().c_str());
+    }
+  }
 
   Dbg::PostThreadStart(self);
 
@@ -224,13 +227,16 @@ void Thread::Create(Object* peer, size_t stack_size) {
   // and know that we're not racing to assign it.
   SetVmData(peer, native_thread);
 
-  pthread_t new_pthread;
-  pthread_attr_t attr;
-  CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
-  CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
-  CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
-  CHECK_PTHREAD_CALL(pthread_create, (&new_pthread, &attr, Thread::CreateCallback, native_thread), "new thread");
-  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+  {
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+    pthread_t new_pthread;
+    pthread_attr_t attr;
+    CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
+    CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
+    CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
+    CHECK_PTHREAD_CALL(pthread_create, (&new_pthread, &attr, Thread::CreateCallback, native_thread), "new thread");
+    CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+  }
 
   // Let the child know when it's safe to start running.
   Runtime::Current()->GetThreadList()->SignalGo(native_thread);
@@ -705,7 +711,9 @@ uint32_t Thread::LockOwnerFromThreadLock(Object* thread_lock) {
 }
 
 Thread::Thread()
-    : peer_(NULL),
+    : thin_lock_id_(0),
+      tid_(0),
+      peer_(NULL),
       top_of_managed_stack_(),
       top_of_managed_stack_pc_(0),
       wait_mutex_(new Mutex("Thread wait mutex")),
@@ -1473,11 +1481,15 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
-  os << "Thread[" << &thread
-     << ",tid=" << thread.GetTid()
-     << ",id=" << thread.GetThinLockId()
-     << ",state=" << thread.GetState()
-     << ",peer=" << thread.GetPeer()
+  os << "Thread[";
+  if (thread.GetThinLockId() != 0) {
+    // If we're in kStarting, we won't have a thin lock id or tid yet.
+    os << thread.GetThinLockId()
+       << ",tid=" << thread.GetTid() << ',';
+  }
+  os << thread.GetState()
+     << ",Thread*=" << &thread
+     << ",Object*=" << thread.GetPeer()
      << "]";
   return os;
 }
