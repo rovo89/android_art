@@ -120,6 +120,7 @@ class PACKED Thread {
   void (*pCheckSuspendFromCode)(Thread*);  // Stub that is called when the suspend count is non-zero
   void (*pTestSuspendFromCode)();  // Stub that is periodically called to test the suspend count
   void* (*pAllocObjectFromCode)(uint32_t, void*);
+  void* (*pAllocObjectFromCodeSlowPath)(uint32_t, void*);
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
   void (*pCanPutArrayElementFromCode)(void*, void*);
   void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);

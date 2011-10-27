@@ -91,6 +91,7 @@ void Thread::InitFunctionPointers() {
   pLmul = __aeabi_lmul;
   pAllocArrayFromCode = art_alloc_array_from_code;
   pAllocObjectFromCode = art_alloc_object_from_code;
+  pAllocObjectFromCodeSlowPath = art_alloc_object_from_code_slow_path;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
   pCheckCastFromCode = art_check_cast_from_code;

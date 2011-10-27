@@ -693,8 +693,11 @@ STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest)
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pAllocObjectFromCode), rLR);
+    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
+        Get(mir->dalvikInsn.vB);
+    loadWordDisp(cUnit, rSELF, (classPtr != NULL)
+                 ? OFFSETOF_MEMBER(Thread, pAllocObjectFromCode)
+                 : OFFSETOF_MEMBER(Thread, pAllocObjectFromCodeSlowPath), rLR);
     loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
     loadConstant(cUnit, r0, mir->dalvikInsn.vB);  // arg0 <- type_id
     callRuntimeHelper(cUnit, rLR);
