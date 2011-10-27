@@ -46,10 +46,19 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
+    uint32_t type_idx = mir->dalvikInsn.vC;
+    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
+    } else {
+        UNIMPLEMENTED(WARNING) << "Need to check access of '"
+                               << PrettyMethod(cUnit->method)
+                               << "' to unresolved type " << type_idx;
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
+    }
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
-    loadConstant(cUnit, r0, mir->dalvikInsn.vC);  // arg0 <- type_id
+    loadConstant(cUnit, r0, type_idx);            // arg0 <- type_id
     loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
     callRuntimeHelper(cUnit, rLR);
     RegLocation rlResult = oatGetReturn(cUnit);
@@ -70,6 +79,10 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCode), rLR);
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, typeId)) {
+        UNIMPLEMENTED(WARNING) << "Need to check access of '" << PrettyMethod(cUnit->method)
+                               << "' to unresolved type " << typeId;
+    }
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
     loadConstant(cUnit, r2, elems);               // arg2 <- count

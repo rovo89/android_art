@@ -425,30 +425,6 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
   return code;
 }
 
-// TODO: placeholder.  Helper function to type
-Class* InitializeTypeFromCode(uint32_t type_idx, Method* method) {
-  /*
-   * Should initialize & fix up method->dex_cache_resolved_types_[].
-   * Returns initialized type.  Does not return normally if an exception
-   * is thrown, but instead initiates the catch.  Should be similar to
-   * ClassLinker::InitializeStaticStorageFromCode.
-   */
-  UNIMPLEMENTED(FATAL);
-  return NULL;
-}
-
-// TODO: placeholder.  Helper function to resolve virtual method
-void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
-    /*
-     * Slow-path handler on invoke virtual method path in which
-     * base method is unresolved at compile-time.  Doesn't need to
-     * return anything - just either ensure that
-     * method->dex_cache_resolved_methods_(method_idx) != NULL or
-     * throw and unwind.  The caller will restart call sequence
-     * from the beginning.
-     */
-}
-
 // Fast path field resolution that can't throw exceptions
 static Field* FindFieldFast(uint32_t field_idx, const Method* referrer) {
   Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
@@ -651,11 +627,30 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
   return klass->AllocObject();
 }
 
-extern "C" Object* artAllocObjectFromCodeSlowPath(uint32_t type_idx,
-                                                  Method* method,
-                                                  Thread* self, Method** sp) {
-  //TODO: Add delayed verification checks here
-  return artAllocObjectFromCode(type_idx, method, self, sp);
+extern "C" Object* artAllocObjectFromCodeWithAccessCheck(uint32_t type_idx, Method* method,
+                                                         Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(klass == NULL)) {
+    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {
+      DCHECK(self->IsExceptionPending());
+      return NULL;  // Failure
+    }
+  }
+  Class* referrer = method->GetDeclaringClass();
+  if (UNLIKELY(!referrer->CanAccess(klass))) {
+    self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;", "illegal class access: '%s' -> '%s'",
+                             PrettyDescriptor(referrer->GetDescriptor()).c_str(),
+                             PrettyDescriptor(klass->GetDescriptor()).c_str());
+    return NULL;  // Failure
+  }
+  if (!runtime->GetClassLinker()->EnsureInitialized(klass, true)) {
+    DCHECK(self->IsExceptionPending());
+    return NULL;  // Failure
+  }
+  return klass->AllocObject();
 }
 
 Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
@@ -787,6 +782,25 @@ extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Me
                                                      Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return InitializeStaticStorage(type_idx, referrer, self);
+}
+
+extern "C" Class* artInitializeTypeFromCode(uint32_t type_idx, const Method* referrer, Thread* self,
+                                            Method** sp) {
+  // Called when method->dex_cache_resolved_types_[] misses
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return InitializeStaticStorage(type_idx, referrer, self);
+}
+
+// TODO: placeholder.  Helper function to resolve virtual method
+void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
+    /*
+     * Slow-path handler on invoke virtual method path in which
+     * base method is unresolved at compile-time.  Doesn't need to
+     * return anything - just either ensure that
+     * method->dex_cache_resolved_methods_(method_idx) != NULL or
+     * throw and unwind.  The caller will restart call sequence
+     * from the beginning.
+     */
 }
 
 String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {

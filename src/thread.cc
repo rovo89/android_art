@@ -91,7 +91,7 @@ void Thread::InitFunctionPointers() {
   pLmul = __aeabi_lmul;
   pAllocArrayFromCode = art_alloc_array_from_code;
   pAllocObjectFromCode = art_alloc_object_from_code;
-  pAllocObjectFromCodeSlowPath = art_alloc_object_from_code_slow_path;
+  pAllocObjectFromCodeWithAccessCheck = art_alloc_object_from_code_with_access_check;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
   pCheckCastFromCode = art_check_cast_from_code;
@@ -101,6 +101,7 @@ void Thread::InitFunctionPointers() {
   pGetObjStatic = art_get_obj_static_from_code;
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
+  pInitializeTypeFromCode = art_initialize_type_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
   pLockObjectFromCode = art_lock_object_from_code;
   pObjectInit = art_object_init_from_code;
@@ -126,7 +127,6 @@ void Thread::InitFunctionPointers() {
   pDecodeJObjectInThread = DecodeJObjectInThread;
   pDeliverException = art_deliver_exception_from_code;
   pFindNativeMethod = FindNativeMethod;
-  pInitializeTypeFromCode = InitializeTypeFromCode;
   pInstanceofNonTrivialFromCode = IsAssignableFromCode;
   pResolveMethodFromCode = ResolveMethodFromCode;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
@@ -482,7 +482,8 @@ void Thread::PopNativeToManagedRecord(const NativeToManagedRecord& record) {
 
 struct StackDumpVisitor : public Thread::StackVisitor {
   StackDumpVisitor(std::ostream& os, const Thread* thread)
-      : os(os), thread(thread), frame_count(0) {
+      : last_method(NULL), last_line_number(0), repetition_count(0), os(os), thread(thread),
+        frame_count(0) {
   }
 
   virtual ~StackDumpVisitor() {
@@ -492,28 +493,41 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     if (!frame.HasMethod()) {
       return;
     }
-
+    const int kMaxRepetition = 3;
     Method* m = frame.GetMethod();
     Class* c = m->GetDeclaringClass();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexFile& dex_file = class_linker->FindDexFile(c->GetDexCache());
-
-    os << "  at " << PrettyMethod(m, false);
-    if (m->IsNative()) {
-      os << "(Native method)";
+    int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
+    if (line_number == last_line_number && last_method == m) {
+      repetition_count++;
     } else {
-      int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
-      SirtRef<String> source_file(c->GetSourceFile());
-      os << "(" << (source_file.get() != NULL ? source_file->ToModifiedUtf8() : "unavailable")
-         << ":" << line_number << ")";
+      if (repetition_count >= kMaxRepetition) {
+        os << "  ... repeated " << (repetition_count - kMaxRepetition) << " times\n";
+      }
+      repetition_count = 0;
+      last_line_number = line_number;
+      last_method = m;
     }
-    os << "\n";
+    if (repetition_count < kMaxRepetition) {
+      os << "  at " << PrettyMethod(m, false);
+      if (m->IsNative()) {
+        os << "(Native method)";
+      } else {
+        SirtRef<String> source_file(c->GetSourceFile());
+        os << "(" << (source_file.get() != NULL ? source_file->ToModifiedUtf8() : "unavailable")
+           << ":" << line_number << ")";
+      }
+      os << "\n";
+    }
 
     if (frame_count++ == 0) {
       Monitor::DescribeWait(os, thread);
     }
   }
-
+  Method* last_method;
+  int last_line_number;
+  int repetition_count;
   std::ostream& os;
   const Thread* thread;
   int frame_count;
@@ -1316,13 +1330,35 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
 };
 
 void Thread::DeliverException() {
-  Throwable *exception = GetException();  // Set exception on thread
+  const bool kDebugExceptionDelivery = false;
+  Throwable *exception = GetException();  // Get exception from thread
   CHECK(exception != NULL);
+  // Don't leave exception visible while we try to find the handler, which may cause class
+  // resolution
+  ClearException();
+  if (kDebugExceptionDelivery) {
+    DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception) << std::endl);
+  }
 
   Context* long_jump_context = GetLongJumpContext();
   CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);
   WalkStackUntilUpCall(&catch_finder, true);
 
+  if (kDebugExceptionDelivery) {
+    Method* handler_method = catch_finder.handler_frame_.GetMethod();
+    if (handler_method == NULL) {
+      LOG(INFO) << "Handler is upcall";
+    } else {
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      const DexFile& dex_file =
+          class_linker->FindDexFile(handler_method->GetDeclaringClass()->GetDexCache());
+      int line_number = dex_file.GetLineNumFromPC(handler_method,
+                                                handler_method->ToDexPC(catch_finder.handler_pc_));
+      LOG(INFO) << "Handler: " << PrettyMethod(handler_method)
+          << " (line: " << line_number << ")";
+    }
+  }
+  SetException(exception);
   long_jump_context->SetSP(reinterpret_cast<intptr_t>(catch_finder.handler_frame_.GetSP()));
   long_jump_context->SetPC(catch_finder.handler_pc_);
   long_jump_context->DoLongJump();

@@ -280,6 +280,22 @@ art_initialize_static_storage_from_code:
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
+    .global art_initialize_type_from_code
+    .extern artInitializeTypeFromCode
+    /*
+     * Entry from managed code when dex cache misses for a type_idx
+     */
+art_initialize_type_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
+    mov    r2, r9                              @ pass Thread::Current
+    mov    r3, sp                              @ pass SP
+    @ artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    bl     artInitializeTypeFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                              @ success if result is non-null
+    bxne   lr                                  @ return on success
+    DELIVER_PENDING_EXCEPTION
+
     .global art_find_instance_field_from_code
     .extern artFindInstanceFieldFromCode
     /*
@@ -441,16 +457,17 @@ art_alloc_object_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_alloc_object_from_code_slow_path
-    .extern artAllocObjectFromCodeSlowPath
+    .global art_alloc_object_from_code_with_access_check
+    .extern artAllocObjectFromCodeWithAccessCheck
     /*
-     * Called by managed code to allocate an object
+     * Called by managed code to allocate an object when the caller doesn't know whether it has
+     * access to the created type
      */
-art_alloc_object_from_code_slow_path:
+art_alloc_object_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
-    bl     artAllocObjectFromCodeSlowPath     @ (uint32_t type_idx, Method* method, Thread*, SP)
+    bl     artAllocObjectFromCodeWithAccessCheck  @ (uint32_t type_idx, Method* method, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success

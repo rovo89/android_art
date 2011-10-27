@@ -143,7 +143,7 @@ class RegType {
 
   bool IsReferenceTypes() const {
     return IsReference() || IsUnresolvedReference() || IsUninitializedReference() ||
-        IsUninitializedThisReference() || IsZero();
+        IsUninitializedThisReference() || IsUnresolvedAndUninitializedReference() || IsZero();
   }
   bool IsNonZeroReferenceTypes() const {
     return IsReference() || IsUnresolvedReference() || IsUninitializedReference() ||
@@ -182,7 +182,7 @@ class RegType {
   }
 
   uint32_t GetAllocationPc() const {
-    DCHECK(IsUninitializedReference());
+    DCHECK(IsUninitializedTypes());
     return allocation_pc_or_constant_;
   }
 
@@ -196,11 +196,23 @@ class RegType {
   bool IsJavaLangObject() const {
     return IsReference() && GetClass()->IsObjectClass();
   }
+  bool IsInstantiableTypes() const {
+    return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
+  }
   String* GetDescriptor() const {
-    DCHECK(IsUnresolvedReference());
+    DCHECK(IsUnresolvedTypes());
     DCHECK(klass_or_descriptor_ != NULL);
     DCHECK(klass_or_descriptor_->IsString());
     return down_cast<String*>(klass_or_descriptor_);
+  }
+  bool IsArrayClass() const {
+    if (IsUnresolvedTypes()) {
+      return GetDescriptor()->CharAt(0) == '[';
+    } else if (!IsConstant()) {
+      return GetClass()->IsArrayClass();
+    } else {
+      return false;
+    }
   }
 
   uint16_t GetId() const {
@@ -239,12 +251,12 @@ class RegType {
   RegType(Type type, Object* klass_or_descriptor, uint32_t allocation_pc_or_constant, uint16_t cache_id) :
     type_(type), klass_or_descriptor_(klass_or_descriptor), allocation_pc_or_constant_(allocation_pc_or_constant),
     cache_id_(cache_id) {
-    DCHECK(IsConstant() || IsUninitializedReference() || allocation_pc_or_constant == 0);
+    DCHECK(IsConstant() || IsUninitializedTypes() || allocation_pc_or_constant == 0);
     if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUnknown() &&
         !IsConflict()) {
       DCHECK(klass_or_descriptor != NULL);
-      DCHECK(IsUnresolvedReference() || klass_or_descriptor_->IsClass());
-      DCHECK(!IsUnresolvedReference() || klass_or_descriptor_->IsString());
+      DCHECK(IsUnresolvedTypes() || klass_or_descriptor_->IsClass());
+      DCHECK(!IsUnresolvedTypes() || klass_or_descriptor_->IsString());
     }
   }
 
@@ -300,14 +312,16 @@ class RegTypeCache {
   const RegType& JavaLangClass()  { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Class;"); }
   const RegType& JavaLangObject() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Object;"); }
   const RegType& JavaLangString() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/String;"); }
+  const RegType& JavaLangThrowable() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Throwable;"); }
 
   const RegType& Unknown()  { return FromType(RegType::kRegTypeUnknown); }
   const RegType& Conflict() { return FromType(RegType::kRegTypeConflict); }
   const RegType& ConstLo()  { return FromType(RegType::kRegTypeConstLo); }
   const RegType& Zero()     { return FromCat1Const(0); }
 
-  const RegType& Uninitialized(Class* klass, uint32_t allocation_pc);
+  const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc);
   const RegType& UninitializedThisArgument(Class* klass);
+  const RegType& FromUninitialized(const RegType& uninit_type);
 
   // Representatives of various constant types. When merging constants we can't infer a type,
   // (an int may later be used as a float) so we select these representative values meaning future
@@ -315,6 +329,8 @@ class RegTypeCache {
   const RegType& ByteConstant() { return FromCat1Const(std::numeric_limits<jbyte>::min()); }
   const RegType& ShortConstant() { return FromCat1Const(std::numeric_limits<jshort>::min()); }
   const RegType& IntConstant() { return FromCat1Const(std::numeric_limits<jint>::max()); }
+
+  const RegType& GetComponentType(const RegType& array, const ClassLoader* loader);
  private:
   // The allocated entries
   std::vector<RegType*> entries_;
@@ -1073,17 +1089,12 @@ class DexVerifier {
                    bool is_primitive, bool is_static);
 
   // Verify that the arguments in a filled-new-array instruction are valid.
-  // "res_class" is the class refered to by dec_insn->vB_.
-  void VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn, Class* res_class,
-                                bool is_range);
+  void VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn,
+                                const RegType& res_type, bool is_range);
 
-  /*
-   * Resolves a class based on an index and performs access checks to ensure the referrer can
-   * access the resolved class.
-   * Exceptions caused by failures are cleared before returning.
-   * Sets "*failure" on failure.
-   */
-  Class* ResolveClassAndCheckAccess(uint32_t class_idx);
+  // Resolves a class based on an index and performs access checks to ensure the referrer can
+  // access the resolved class.
+  const RegType& ResolveClassAndCheckAccess(uint32_t class_idx);
 
   /*
    * For the "move-exception" instruction at "work_insn_idx_", which must be at an exception handler
@@ -1091,7 +1102,7 @@ class DexVerifier {
    * Returns NULL if no matching exception handler can be found, or if the exception is not a
    * subclass of Throwable.
    */
-  Class* GetCaughtExceptionType();
+  const RegType& GetCaughtExceptionType();
 
   /*
    * Resolves a method based on an index and performs access checks to ensure
@@ -1169,8 +1180,6 @@ class DexVerifier {
   // Compute sizes for GC map data
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
 
-  Class* JavaLangThrowable();
-
   InsnFlags CurrentInsnFlags() {
     return insn_flags_[work_insn_idx_];
   }
@@ -1181,9 +1190,6 @@ class DexVerifier {
 
   // Storage for the register status we're currently working on.
   UniquePtr<RegisterLine> work_line_;
-
-  // Lazily initialized reference to java.lang.Class<java.lang.Throwable>
-  Class* java_lang_throwable_;
 
   // The address of the instruction we're currently working on, note that this is in 2 byte
   // quantities

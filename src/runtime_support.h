@@ -59,12 +59,13 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_unlock_object_from_code(void*);
   extern "C" void* art_alloc_array_from_code(uint32_t, void*, int32_t);
   extern "C" void* art_alloc_object_from_code(uint32_t type_idx, void* method);
-  extern "C" void* art_alloc_object_from_code_slow_path(uint32_t type_idx, void* method);
+  extern "C" void* art_alloc_object_from_code_with_access_check(uint32_t type_idx, void* method);
   extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
   extern "C" void* art_find_instance_field_from_code(uint32_t, void*);
   extern "C" void* art_find_static_field_from_code(uint32_t, void*);
   extern "C" void* art_get_obj_static_from_code(uint32_t, void*);
   extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
+  extern "C" void* art_initialize_type_from_code(uint32_t, void*);
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
 
   /* Conversions */

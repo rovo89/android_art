@@ -333,6 +333,9 @@ void Compiler::CompileMethod(const Method* method) {
   // TODO: this fails if we have an abstract method defined in more than one input dex file.
   CHECK(compiled_invoke_stubs_.find(method) == compiled_invoke_stubs_.end()) << PrettyMethod(method);
   compiled_invoke_stubs_[method] = compiled_invoke_stub;
+
+  Thread* self = Thread::Current();
+  CHECK(!self->IsExceptionPending()) << PrettyMethod(method);
 }
 
 const CompiledMethod* Compiler::GetCompiledMethod(const Method* method) const {

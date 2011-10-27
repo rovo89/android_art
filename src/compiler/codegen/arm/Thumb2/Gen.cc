@@ -442,7 +442,7 @@ STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pFindInstanceFieldFromCode), rLR);
     loadConstant(cUnit, r0, fieldIdx);
-    callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
+    callRuntimeHelper(cUnit, rLR);  // FindInstanceFieldFromCoderesolveTypeFromCode(idx, method)
     ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     if (!EXERCISE_SLOWEST_FIELD_PATH) {
@@ -606,42 +606,46 @@ STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
                           RegLocation rlDest, RegLocation rlSrc)
 {
-    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
-        Get(mir->dalvikInsn.vB);
+    uint32_t type_idx = mir->dalvikInsn.vB;
     int mReg = loadCurrMethod(cUnit);
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadWordDisp(cUnit, mReg, Method::DexCacheResolvedTypesOffset().Int32Value(),
-                 resReg);
-    loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
-                 (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
-    if (SLOW_TYPE_PATH || (classPtr == NULL)) {
-        // Fast path, we're done - just store result
-        storeValue(cUnit, rlDest, rlResult);
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+        // Check we have access to type_idx and if not throw IllegalAccessError
+        UNIMPLEMENTED(FATAL);
     } else {
-        // Slow path.  Must test at runtime
-        oatFlushAllRegs(cUnit);
-        ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, rlResult.lowReg,
-                                          0);
-        // Resolved, store and hop over following code
-        storeValue(cUnit, rlDest, rlResult);
-        ArmLIR* branch2 = genUnconditionalBranch(cUnit,0);
-        // TUNING: move slow path to end & remove unconditional branch
-        ArmLIR* target1 = newLIR0(cUnit, kArmPseudoTargetLabel);
-        target1->defMask = ENCODE_ALL;
-        // Call out to helper, which will return resolved type in r0
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
-        genRegCopy(cUnit, r1, mReg);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
-        callRuntimeHelper(cUnit, rLR);
-        RegLocation rlResult = oatGetReturn(cUnit);
-        storeValue(cUnit, rlDest, rlResult);
-        // Rejoin code paths
-        ArmLIR* target2 = newLIR0(cUnit, kArmPseudoTargetLabel);
-        target2->defMask = ENCODE_ALL;
-        branch1->generic.target = (LIR*)target1;
-        branch2->generic.target = (LIR*)target2;
+        // We're don't need access checks, load type from dex cache
+        int32_t dex_cache_offset = Method::DexCacheResolvedTypesOffset().Int32Value();
+        loadWordDisp(cUnit, mReg, dex_cache_offset, resReg);
+        int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
+        loadWordDisp(cUnit, resReg, offset_of_type, rlResult.lowReg);
+        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->method, type_idx) ||
+            SLOW_TYPE_PATH) {
+            // Slow path, at runtime test if the type is null and if so initialize
+            oatFlushAllRegs(cUnit);
+            ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, rlResult.lowReg, 0);
+            // Resolved, store and hop over following code
+            storeValue(cUnit, rlDest, rlResult);
+            ArmLIR* branch2 = genUnconditionalBranch(cUnit,0);
+            // TUNING: move slow path to end & remove unconditional branch
+            ArmLIR* target1 = newLIR0(cUnit, kArmPseudoTargetLabel);
+            target1->defMask = ENCODE_ALL;
+            // Call out to helper, which will return resolved type in r0
+            loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
+            genRegCopy(cUnit, r1, mReg);
+            loadConstant(cUnit, r0, type_idx);
+            callRuntimeHelper(cUnit, rLR);
+            RegLocation rlResult = oatGetReturn(cUnit);
+            storeValue(cUnit, rlDest, rlResult);
+            // Rejoin code paths
+            ArmLIR* target2 = newLIR0(cUnit, kArmPseudoTargetLabel);
+            target2->defMask = ENCODE_ALL;
+            branch1->generic.target = (LIR*)target1;
+            branch2->generic.target = (LIR*)target2;
+        } else {
+            // Fast path, we're done - just store result
+            storeValue(cUnit, rlDest, rlResult);
+        }
     }
 }
 
@@ -649,20 +653,19 @@ STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
     /* NOTE: Most strings should be available at compile time */
-    const art::String* str = cUnit->method->GetDexCacheStrings()->
-        Get(mir->dalvikInsn.vB);
-    if (SLOW_STRING_PATH || (str == NULL) || !cUnit->compiler->IsImage()) {
+    uint32_t string_idx = mir->dalvikInsn.vB;
+    int32_t offset_of_string = Array::DataOffset().Int32Value() + (sizeof(String*) * string_idx);
+    if (!cUnit->compiler->CanAssumeStringIsPresentInDexCache(cUnit->method, string_idx) ||
+        SLOW_STRING_PATH) {
+        // slow path, resolve string if not in dex cache
         oatFlushAllRegs(cUnit);
         oatLockCallTemps(cUnit); // Using explicit registers
         loadCurrMethodDirect(cUnit, r2);
-        loadWordDisp(cUnit, r2, Method::DexCacheStringsOffset().Int32Value(),
-                     r0);
+        loadWordDisp(cUnit, r2, Method::DexCacheStringsOffset().Int32Value(), r0);
         // Might call out to helper, which will return resolved string in r0
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pResolveStringFromCode), rLR);
-        loadWordDisp(cUnit, r0, Array::DataOffset().Int32Value() +
-                 (sizeof(String*) * mir->dalvikInsn.vB), r0);
-        loadConstant(cUnit, r1, mir->dalvikInsn.vB);
+        loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pResolveStringFromCode), rLR);
+        loadWordDisp(cUnit, r0, offset_of_string, r0);
+        loadConstant(cUnit, r1, string_idx);
         opRegImm(cUnit, kOpCmp, r0, 0);  // Is resolved?
         genBarrier(cUnit);
         // For testing, always force through helper
@@ -677,10 +680,8 @@ STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
         int mReg = loadCurrMethod(cUnit);
         int resReg = oatAllocTemp(cUnit);
         RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-        loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(),
-                     resReg);
-        loadWordDisp(cUnit, resReg, Array::DataOffset().Int32Value() +
-                    (sizeof(String*) * mir->dalvikInsn.vB), rlResult.lowReg);
+        loadWordDisp(cUnit, mReg, Method::DexCacheStringsOffset().Int32Value(), resReg);
+        loadWordDisp(cUnit, resReg, offset_of_string, rlResult.lowReg);
         storeValue(cUnit, rlDest, rlResult);
     }
 }
@@ -693,13 +694,17 @@ STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest)
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
-    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
-        Get(mir->dalvikInsn.vB);
-    loadWordDisp(cUnit, rSELF, (classPtr != NULL)
-                 ? OFFSETOF_MEMBER(Thread, pAllocObjectFromCode)
-                 : OFFSETOF_MEMBER(Thread, pAllocObjectFromCodeSlowPath), rLR);
-    loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
-    loadConstant(cUnit, r0, mir->dalvikInsn.vB);  // arg0 <- type_id
+    uint32_t type_idx = mir->dalvikInsn.vB;
+    // alloc will always check for resolution, do we also need to verify access because the
+    // verifier was unable to?
+    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+        loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pAllocObjectFromCode), rLR);
+    } else {
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pAllocObjectFromCodeWithAccessCheck), rLR);
+    }
+    loadCurrMethodDirect(cUnit, r1);    // arg1 <= Method*
+    loadConstant(cUnit, r0, type_idx);  // arg0 <- type_idx
     callRuntimeHelper(cUnit, rLR);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
@@ -708,8 +713,7 @@ STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
 void genThrow(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     oatFlushAllRegs(cUnit);
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pDeliverException), rLR);
+    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pDeliverException), rLR);
     loadValueDirectFixed(cUnit, rlSrc, r0);  // Get exception object
     callRuntimeHelper(cUnit, rLR);  // art_deliver_exception(exception);
 }
@@ -720,30 +724,33 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     oatFlushAllRegs(cUnit);
     // May generate a call - use explicit registers
     oatLockCallTemps(cUnit);
-    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
-        Get(mir->dalvikInsn.vC);
-    int classReg = r2;   // Fixed usage
+    uint32_t type_idx = mir->dalvikInsn.vC;
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
-    loadValueDirectFixed(cUnit, rlSrc, r0);  /* Ref */
-    loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(),
-                 classReg);
-    loadWordDisp(cUnit, classReg, Array::DataOffset().Int32Value() +
-                 (sizeof(String*) * mir->dalvikInsn.vC), classReg);
-    if (classPtr == NULL) {
-        // Generate a runtime test
-        ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
-        // Not resolved
-        // Call out to helper, which will return resolved type in r0
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vC);
-        callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
-        genRegCopy(cUnit, r2, r0); // Align usage with fast path
-        loadValueDirectFixed(cUnit, rlSrc, r0);  /* reload Ref */
-        // Rejoin code paths
-        ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-        hopTarget->defMask = ENCODE_ALL;
-        hopBranch->generic.target = (LIR*)hopTarget;
+    loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
+    int classReg = r2;  // r2 will hold the Class*
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+        // Check we have access to type_idx and if not throw IllegalAccessError
+        UNIMPLEMENTED(FATAL);
+    } else {
+        // Load dex cache entry into classReg (r2)
+        loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
+        int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
+        loadWordDisp(cUnit, classReg, offset_of_type, classReg);
+        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->method, type_idx)) {
+            // Need to test presence of type in dex cache at runtime
+            ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
+            // Not resolved
+            // Call out to helper, which will return resolved type in r0
+            loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
+            loadConstant(cUnit, r0, type_idx);
+            callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
+            genRegCopy(cUnit, r2, r0); // Align usage with fast path
+            loadValueDirectFixed(cUnit, rlSrc, r0);  /* reload Ref */
+            // Rejoin code paths
+            ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+            hopTarget->defMask = ENCODE_ALL;
+            hopBranch->generic.target = (LIR*)hopTarget;
+        }
     }
     /* r0 is ref, r2 is class.  If ref==null, use directly as bool result */
     ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
@@ -751,8 +758,7 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
     /* r0 is ref, r1 is ref->clazz, r2 is class */
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
+    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pInstanceofNonTrivialFromCode), rLR);
     opRegReg(cUnit, kOpCmp, r1, r2);  // Same?
     genBarrier(cUnit);
     genIT(cUnit, kArmCondEq, "EE");   // if-convert the test
@@ -774,39 +780,41 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     oatFlushAllRegs(cUnit);
     // May generate a call - use explicit registers
     oatLockCallTemps(cUnit);
-    art::Class* classPtr = cUnit->method->GetDexCacheResolvedTypes()->
-        Get(mir->dalvikInsn.vB);
-    int classReg = r2;   // Fixed usage
+    uint32_t type_idx = mir->dalvikInsn.vB;
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
-    loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(),
-                 classReg);
-    loadWordDisp(cUnit, classReg, Array::DataOffset().Int32Value() +
-                 (sizeof(String*) * mir->dalvikInsn.vB), classReg);
-    if (classPtr == NULL) {
-        // Generate a runtime test
-        ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
-        // Not resolved
-        // Call out to helper, which will return resolved type in r0
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
-        callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
-        genRegCopy(cUnit, r2, r0); // Align usage with fast path
-        // Rejoin code paths
-        ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-        hopTarget->defMask = ENCODE_ALL;
-        hopBranch->generic.target = (LIR*)hopTarget;
+    int classReg = r2;  // r2 will hold the Class*
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+        // Check we have access to type_idx and if not throw IllegalAccessError
+        UNIMPLEMENTED(FATAL);
+    } else {
+        // Load dex cache entry into classReg (r2)
+        loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
+        int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
+        loadWordDisp(cUnit, classReg, offset_of_type, classReg);
+        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->method, type_idx)) {
+            // Need to test presence of type in dex cache at runtime
+            ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
+            // Not resolved
+            // Call out to helper, which will return resolved type in r0
+            loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
+            loadConstant(cUnit, r0, type_idx);
+            callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
+            genRegCopy(cUnit, r2, r0); // Align usage with fast path
+            // Rejoin code paths
+            ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+            hopTarget->defMask = ENCODE_ALL;
+            hopBranch->generic.target = (LIR*)hopTarget;
+        }
     }
-    // At this point, r2 has class
-    loadValueDirectFixed(cUnit, rlSrc, r0);  /* Ref */
+    // At this point, classReg (r2) has class
+    loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
     /* Null is OK - continue */
     ArmLIR* branch1 = genCmpImmBranch(cUnit, kArmCondEq, r0, 0);
     /* load object->clazz */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
     /* r1 now contains object->clazz */
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pCheckCastFromCode), rLR);
+    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pCheckCastFromCode), rLR);
     opRegReg(cUnit, kOpCmp, r1, r2);
     ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq); /* If equal, trivial yes */
     genRegCopy(cUnit, r0, r1);

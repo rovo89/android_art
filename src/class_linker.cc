@@ -1039,6 +1039,7 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
   if (!LoadSuperAndInterfaces(klass, dex_file)) {
     // Loading failed.
     CHECK(self->IsExceptionPending());
+    klass->SetStatus(Class::kStatusError);
     lock.NotifyAll();
     return NULL;
   }
@@ -1048,6 +1049,7 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
   if (!LinkClass(klass)) {
     // Linking failed.
     CHECK(self->IsExceptionPending());
+    klass->SetStatus(Class::kStatusError);
     lock.NotifyAll();
     return NULL;
   }

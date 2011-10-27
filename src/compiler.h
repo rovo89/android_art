@@ -55,6 +55,21 @@ class Compiler {
   const CompiledMethod* GetCompiledMethod(const Method* method) const;
   const CompiledInvokeStub* GetCompiledInvokeStub(const Method* method) const;
 
+  // Callbacks from OAT/ART compiler to see what runtime checks must be generated
+  bool CanAssumeTypeIsPresentInDexCache(const Method* referrer, uint32_t type_idx) const {
+    return IsImage() && referrer->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
+  }
+  bool CanAssumeStringIsPresentInDexCache(const Method* referrer, uint32_t string_idx) const {
+    return IsImage() && referrer->GetDexCacheStrings()->Get(string_idx) != NULL;
+  }
+  bool CanAccessTypeWithoutChecks(const Method* referrer, uint32_t type_idx) const {
+    Class* resolved_class = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
+    // We should never ask whether a type needs access checks to raise a verification error,
+    // all other cases where this following test could fail should have been rewritten by the
+    // verifier to verification errors.
+    DCHECK(resolved_class == NULL || referrer->GetDeclaringClass()->CanAccess(resolved_class));
+    return resolved_class != NULL;
+  }
  private:
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader

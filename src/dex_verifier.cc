@@ -43,7 +43,7 @@ static const char* type_strings[] = {
     "Unresolved Reference",
     "Uninitialized Reference",
     "Uninitialized This Reference",
-    "Unresolved And Uninitialized This Reference",
+    "Unresolved And Uninitialized Reference",
     "Reference",
 };
 
@@ -65,7 +65,7 @@ std::string RegType::Dump() const {
     result = type_strings[type_];
     if (IsReferenceTypes()) {
       result += ": ";
-      if (IsUnresolvedReference()) {
+      if (IsUnresolvedTypes()) {
         result += PrettyDescriptor(GetDescriptor());
       } else {
         result += PrettyDescriptor(GetClass()->GetDescriptor());
@@ -370,15 +370,23 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
       entries_.push_back(entry);
       return *entry;
     } else {
+      // TODO: we assume unresolved, but we may be able to do better by validating whether the
+      // descriptor string is valid
       // Unable to resolve so create unresolved register type
       DCHECK(Thread::Current()->IsExceptionPending());
       Thread::Current()->ClearException();
-      String* string_descriptor =
-          Runtime::Current()->GetInternTable()->InternStrong(descriptor.c_str());
-      RegType* entry = new RegType(RegType::kRegTypeUnresolvedReference, string_descriptor, 0,
-                                   entries_.size());
-      entries_.push_back(entry);
-      return *entry;
+      if (IsValidDescriptor(descriptor.c_str())) {
+        String* string_descriptor =
+            Runtime::Current()->GetInternTable()->InternStrong(descriptor.c_str());
+        RegType* entry = new RegType(RegType::kRegTypeUnresolvedReference, string_descriptor, 0,
+                                     entries_.size());
+        entries_.push_back(entry);
+        return *entry;
+      } else {
+        // The descriptor is broken return the unknown type as there's nothing sensible that
+        // could be done at runtime
+        return Unknown();
+      }
     }
   }
 }
@@ -407,15 +415,58 @@ const RegType& RegTypeCache::FromClass(Class* klass) {
   }
 }
 
-const RegType& RegTypeCache::Uninitialized(Class* klass, uint32_t allocation_pc) {
-  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-    RegType* cur_entry = entries_[i];
-    if (cur_entry->IsUninitializedReference() && cur_entry->GetAllocationPc() == allocation_pc &&
-        cur_entry->GetClass() == klass) {
-      return *cur_entry;
+const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocation_pc) {
+  RegType* entry;
+  if (type.IsUnresolvedTypes()) {
+    String* descriptor = type.GetDescriptor();
+    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+      RegType* cur_entry = entries_[i];
+      if (cur_entry->IsUnresolvedAndUninitializedReference() &&
+          cur_entry->GetAllocationPc() == allocation_pc &&
+          cur_entry->GetDescriptor() == descriptor) {
+        return *cur_entry;
+      }
     }
+    entry = new RegType(RegType::kRegTypeUnresolvedAndUninitializedReference,
+                        descriptor, allocation_pc, entries_.size());
+  } else {
+    Class* klass = type.GetClass();
+    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+      RegType* cur_entry = entries_[i];
+      if (cur_entry->IsUninitializedReference() &&
+          cur_entry->GetAllocationPc() == allocation_pc &&
+          cur_entry->GetClass() == klass) {
+        return *cur_entry;
+      }
+    }
+    entry = new RegType(RegType::kRegTypeUninitializedReference,
+                        klass, allocation_pc, entries_.size());
   }
-  RegType* entry = new RegType(RegType::kRegTypeUninitializedReference, klass, allocation_pc, entries_.size());
+  entries_.push_back(entry);
+  return *entry;
+}
+
+const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
+  RegType* entry;
+  if (uninit_type.IsUnresolvedTypes()) {
+    String* descriptor = uninit_type.GetDescriptor();
+    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+      RegType* cur_entry = entries_[i];
+      if (cur_entry->IsUnresolvedReference() && cur_entry->GetDescriptor() == descriptor) {
+        return *cur_entry;
+      }
+    }
+    entry = new RegType(RegType::kRegTypeUnresolvedReference, descriptor, 0, entries_.size());
+  } else {
+    Class* klass = uninit_type.GetClass();
+    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+      RegType* cur_entry = entries_[i];
+      if (cur_entry->IsReference() && cur_entry->GetClass() == klass) {
+        return *cur_entry;
+      }
+    }
+    entry = new RegType(RegType::kRegTypeReference, klass, 0, entries_.size());
+  }
   entries_.push_back(entry);
   return *entry;
 }
@@ -461,6 +512,18 @@ const RegType& RegTypeCache::FromCat1Const(int32_t value) {
   entries_.push_back(entry);
   return *entry;
 }
+
+const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassLoader* loader) {
+  CHECK(array.IsArrayClass());
+  if (array.IsUnresolvedTypes()) {
+    std::string descriptor = array.GetDescriptor()->ToModifiedUtf8();
+    std::string component = descriptor.substr(1, descriptor.size() - 1);
+    return FromDescriptor(loader, component);
+  } else {
+    return FromClass(array.GetClass()->GetComponentType());
+  }
+}
+
 
 bool RegisterLine::CheckConstructorReturn() const {
   for (size_t i = 0; i < num_regs_; i++) {
@@ -561,20 +624,16 @@ bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) 
 }
 
 void RegisterLine::MarkRefsAsInitialized(const RegType& uninit_type) {
-  Class* klass = uninit_type.GetClass();
-  if (klass == NULL) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "Unable to find type=" << uninit_type;
-  } else {
-    const RegType& init_type = verifier_->GetRegTypeCache()->FromClass(klass);
-    size_t changed = 0;
-    for (size_t i = 0; i < num_regs_; i++) {
-      if (GetRegisterType(i).Equals(uninit_type)) {
-        line_[i] = init_type.GetId();
-        changed++;
-      }
+  DCHECK(uninit_type.IsUninitializedTypes());
+  const RegType& init_type = verifier_->GetRegTypeCache()->FromUninitialized(uninit_type);
+  size_t changed = 0;
+  for (size_t i = 0; i < num_regs_; i++) {
+    if (GetRegisterType(i).Equals(uninit_type)) {
+      line_[i] = init_type.GetId();
+      changed++;
     }
-    DCHECK_GT(changed, 0u);
   }
+  DCHECK_GT(changed, 0u);
 }
 
 void RegisterLine::MarkUninitRefsAsInvalid(const RegType& uninit_type) {
@@ -895,8 +954,9 @@ void DexVerifier::VerifyMethodAndDump(Method* method) {
             << verifier.info_messages_.str() << Dumpable<DexVerifier>(verifier);
 }
 
-DexVerifier::DexVerifier(Method* method) : java_lang_throwable_(NULL), work_insn_idx_(-1),
-                                           method_(method), failure_(VERIFY_ERROR_NONE),
+DexVerifier::DexVerifier(Method* method) : work_insn_idx_(-1), method_(method),
+                                           failure_(VERIFY_ERROR_NONE),
+
                                            new_instance_count_(0), monitor_enter_count_(0) {
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -994,15 +1054,26 @@ bool DexVerifier::ScanTryCatchBlocks() {
   /* Iterate over each of the handlers to verify target addresses. */
   const byte* handlers_ptr = DexFile::dexGetCatchHandlerData(*code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
     DexFile::CatchHandlerIterator iterator(handlers_ptr);
     for (; !iterator.HasNext(); iterator.Next()) {
-      uint32_t dex_pc= iterator.Get().address_;
+      const DexFile::CatchHandlerItem& handler = iterator.Get();
+      uint32_t dex_pc= handler.address_;
       if (!insn_flags_[dex_pc].IsOpcode()) {
         Fail(VERIFY_ERROR_GENERIC) << "exception handler starts at bad address (" << dex_pc << ")";
         return false;
       }
       insn_flags_[dex_pc].SetBranchTarget();
+      // Ensure exception types are resolved so that they don't need resolution to be delivered,
+      // unresolved exception types will be ignored by exception delivery
+      if (handler.type_idx_ != DexFile::kDexNoIndex) {
+        Class* exception_type = linker->ResolveType(handler.type_idx_, method_);
+        if (exception_type == NULL) {
+          DCHECK(Thread::Current()->IsExceptionPending());
+          Thread::Current()->ClearException();
+        }
+      }
     }
     handlers_ptr = iterator.GetData();
   }
@@ -1814,12 +1885,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * all exception handlers need to have one of these). We verify that as part of extracting the
        * exception type from the catch block list.
        */
-      Class* res_class = GetCaughtExceptionType();
-      if (res_class == NULL) {
-        DCHECK(failure_ != VERIFY_ERROR_NONE);
-      } else {
-        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.FromClass(res_class));
-      }
+      const RegType& res_type = GetCaughtExceptionType();
+      work_line_->SetRegisterType(dec_insn.vA_, res_type);
       break;
     }
     case Instruction::RETURN_VOID:
@@ -1911,17 +1978,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       work_line_->SetRegisterType(dec_insn.vA_, reg_types_.JavaLangString());
       break;
     case Instruction::CONST_CLASS: {
-      /* make sure we can resolve the class; access check is important */
-      Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
-      if (res_class == NULL) {
-        const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        fail_messages_ << "unable to resolve const-class " << dec_insn.vB_
-                       << " (" << bad_class_desc << ") in "
-                       << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
-        DCHECK(failure_ != VERIFY_ERROR_GENERIC);
-      } else {
-        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.JavaLangClass());
-      }
+      // Get type from instruction if unresolved then we need an access check
+      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
+      // Register holds class, ie its type is class, but on error we keep it Unknown
+      work_line_->SetRegisterType(dec_insn.vA_,
+                                  res_type.IsUnknown() ? res_type : reg_types_.JavaLangClass());
       break;
     }
     case Instruction::MONITOR_ENTER:
@@ -1952,58 +2014,39 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       work_line_->PopMonitor(dec_insn.vA_);
       break;
 
-    case Instruction::CHECK_CAST: {
-      /*
-       * If this instruction succeeds, we will promote register vA to
-       * the type in vB. (This could be a demotion -- not expected, so
-       * we don't try to address it.)
-       *
-       * If it fails, an exception is thrown, which we deal with later
-       * by ignoring the update to dec_insn.vA_ when branching to a handler.
-       */
-      Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
-      if (res_class == NULL) {
-        const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        fail_messages_ << "unable to resolve check-cast " << dec_insn.vB_
-                       << " (" << bad_class_desc << ") in "
-                       << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
-        DCHECK(failure_ != VERIFY_ERROR_GENERIC);
-      } else {
-        const RegType& orig_type = work_line_->GetRegisterType(dec_insn.vA_);
-        if (!orig_type.IsReferenceTypes()) {
-          Fail(VERIFY_ERROR_GENERIC) << "check-cast on non-reference in v" << dec_insn.vA_;
-        } else {
-          work_line_->SetRegisterType(dec_insn.vA_, reg_types_.FromClass(res_class));
-        }
-      }
-      break;
-    }
+    case Instruction::CHECK_CAST:
     case Instruction::INSTANCE_OF: {
-      /* make sure we're checking a reference type */
-      const RegType& tmp_type = work_line_->GetRegisterType(dec_insn.vB_);
-      if (!tmp_type.IsReferenceTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "vB not a reference (" << tmp_type << ")";
+      /*
+       * If this instruction succeeds, we will "downcast" register vA to the type in vB. (This
+       * could be a "upcast" -- not expected, so we don't try to address it.)
+       *
+       * If it fails, an exception is thrown, which we deal with later by ignoring the update to
+       * dec_insn.vA_ when branching to a handler.
+       */
+      bool is_checkcast = dec_insn.opcode_ == Instruction::CHECK_CAST;
+      const RegType& res_type =
+          ResolveClassAndCheckAccess(is_checkcast ? dec_insn.vB_ : dec_insn.vC_);
+      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+      const RegType& orig_type =
+          work_line_->GetRegisterType(is_checkcast ? dec_insn.vA_ : dec_insn.vB_);
+      if (!res_type.IsNonZeroReferenceTypes()) {
+        Fail(VERIFY_ERROR_GENERIC) << "check-cast on unexpected class " << res_type;
+      } else if (!orig_type.IsReferenceTypes()) {
+        Fail(VERIFY_ERROR_GENERIC) << "check-cast on non-reference in v" << dec_insn.vA_;
       } else {
-        /* make sure we can resolve the class; access check is important */
-        Class* res_class = ResolveClassAndCheckAccess(dec_insn.vC_);
-        if (res_class == NULL) {
-          const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vC_);
-          fail_messages_ << "unable to resolve instance of " << dec_insn.vC_
-                         << " (" << bad_class_desc << ") in "
-                         << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
-          DCHECK(failure_ != VERIFY_ERROR_GENERIC);
+        if (is_checkcast) {
+          work_line_->SetRegisterType(dec_insn.vA_, res_type);
         } else {
-          /* result is boolean */
           work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Boolean());
         }
       }
       break;
     }
     case Instruction::ARRAY_LENGTH: {
-      Class* res_class = work_line_->GetClassFromRegister(dec_insn.vB_);
-      if (failure_ == VERIFY_ERROR_NONE) {
-        if (res_class != NULL && !res_class->IsArrayClass()) {
-          Fail(VERIFY_ERROR_GENERIC) << "array-length on non-array";
+      const RegType& res_type = work_line_->GetRegisterType(dec_insn.vB_);
+      if (res_type.IsReferenceTypes()) {
+        if (!res_type.IsArrayClass()) {
+          Fail(VERIFY_ERROR_GENERIC) << "array-length on non-array " << res_type;
         } else {
           work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
         }
@@ -2011,66 +2054,47 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     }
     case Instruction::NEW_INSTANCE: {
-      Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
-      if (res_class == NULL) {
-        const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        fail_messages_ << "unable to resolve new-instance " << dec_insn.vB_
-                       << " (" << bad_class_desc << ") in "
-                       << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
-        DCHECK(failure_ != VERIFY_ERROR_GENERIC);
+      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
+      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+      // can't create an instance of an interface or abstract class */
+      if (!res_type.IsInstantiableTypes()) {
+        Fail(VERIFY_ERROR_INSTANTIATION)
+            << "new-instance on primitive, interface or abstract class" << res_type;
       } else {
-        /* can't create an instance of an interface or abstract class */
-        if (res_class->IsPrimitive() || res_class->IsAbstract() || res_class->IsInterface()) {
-          Fail(VERIFY_ERROR_INSTANTIATION)
-              << "new-instance on primitive, interface or abstract class"
-              << PrettyDescriptor(res_class->GetDescriptor());
-        } else {
-          const RegType& uninit_type = reg_types_.Uninitialized(res_class, work_insn_idx_);
-          // Any registers holding previous allocations from this address that have not yet been
-          // initialized must be marked invalid.
-          work_line_->MarkUninitRefsAsInvalid(uninit_type);
-
-          /* add the new uninitialized reference to the register state */
-          work_line_->SetRegisterType(dec_insn.vA_, uninit_type);
-        }
+        const RegType& uninit_type = reg_types_.Uninitialized(res_type, work_insn_idx_);
+        // Any registers holding previous allocations from this address that have not yet been
+        // initialized must be marked invalid.
+        work_line_->MarkUninitRefsAsInvalid(uninit_type);
+        // add the new uninitialized reference to the register state
+        work_line_->SetRegisterType(dec_insn.vA_, uninit_type);
       }
       break;
     }
     case Instruction::NEW_ARRAY: {
-      Class* res_class = ResolveClassAndCheckAccess(dec_insn.vC_);
-      if (res_class == NULL) {
-        const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vC_);
-        fail_messages_ << "unable to resolve new-array " << dec_insn.vC_
-                       << " (" << bad_class_desc << ") in "
-                       << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
-        DCHECK(failure_ != VERIFY_ERROR_GENERIC);
-      } else if (!res_class->IsArrayClass()) {
-        Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class";
+      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vC_);
+      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+      if (!res_type.IsArrayClass()) {
+        Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
       } else {
         /* make sure "size" register is valid type */
         work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Integer());
         /* set register type to array class */
-        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.FromClass(res_class));
+        work_line_->SetRegisterType(dec_insn.vA_, res_type);
       }
       break;
     }
     case Instruction::FILLED_NEW_ARRAY:
     case Instruction::FILLED_NEW_ARRAY_RANGE: {
-      Class* res_class = ResolveClassAndCheckAccess(dec_insn.vB_);
-      if (res_class == NULL) {
-        const char* bad_class_desc = dex_file_->dexStringByTypeIdx(dec_insn.vB_);
-        fail_messages_ << "unable to resolve filled-array " << dec_insn.vB_
-                       << " (" << bad_class_desc << ") in "
-                       << PrettyDescriptor(method_->GetDeclaringClass()->GetDescriptor());
-        DCHECK(failure_ != VERIFY_ERROR_GENERIC);
-      } else if (!res_class->IsArrayClass()) {
+      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
+      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+      if (!res_type.IsArrayClass()) {
         Fail(VERIFY_ERROR_GENERIC) << "filled-new-array on non-array class";
       } else {
         bool is_range = (dec_insn.opcode_ == Instruction::FILLED_NEW_ARRAY_RANGE);
         /* check the arguments to the instruction */
-        VerifyFilledNewArrayRegs(dec_insn, res_class, is_range);
+        VerifyFilledNewArrayRegs(dec_insn, res_type, is_range);
         /* filled-array result goes into "result" register */
-        work_line_->SetResultRegisterType(reg_types_.FromClass(res_class));
+        work_line_->SetResultRegisterType(res_type);
         just_set_result = true;
       }
       break;
@@ -2093,12 +2117,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
       break;
     case Instruction::THROW: {
-      Class* res_class = work_line_->GetClassFromRegister(dec_insn.vA_);
-      if (failure_ == VERIFY_ERROR_NONE && res_class != NULL) {
-        if (!JavaLangThrowable()->IsAssignableFrom(res_class)) {
-          Fail(VERIFY_ERROR_GENERIC) << "thrown class "
-              << PrettyDescriptor(res_class->GetDescriptor()) << " not instanceof Throwable";
-        }
+      const RegType& res_type = work_line_->GetRegisterType(dec_insn.vA_);
+      if (!reg_types_.JavaLangThrowable().IsAssignableFrom(res_type)) {
+        Fail(VERIFY_ERROR_GENERIC) << "thrown class " << res_type << " not instanceof Throwable";
       }
       break;
     }
@@ -2338,9 +2359,17 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                         dec_insn.opcode_ == Instruction::INVOKE_SUPER_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_VIRTUAL, is_range, is_super);
       if (failure_ == VERIFY_ERROR_NONE) {
+        const char* descriptor;
+        if (called_method == NULL) {
+          uint32_t method_idx = dec_insn.vB_;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+          descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+        } else {
+          descriptor = called_method->GetReturnTypeDescriptor();
+        }
         const RegType& return_type =
-            reg_types_.FromDescriptor(called_method->GetDeclaringClass()->GetClassLoader(),
-                                      called_method->GetReturnTypeDescriptor());
+            reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -2358,7 +2387,16 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          * allowing the latter only if the "this" argument is the same as the "this" argument to
          * this method (which implies that we're in a constructor ourselves).
          */
-        if (called_method->IsConstructor()) {
+        bool is_constructor;
+        if (called_method != NULL) {
+          is_constructor = called_method->IsConstructor();
+        } else {
+          uint32_t method_idx = dec_insn.vB_;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          const char* name = dex_file_->GetMethodName(method_id);
+          is_constructor = strcmp(name, "<init>") == 0;
+        }
+        if (is_constructor) {
           const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
           if (failure_ != VERIFY_ERROR_NONE)
             break;
@@ -2368,19 +2406,20 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             Fail(VERIFY_ERROR_GENERIC) << "unable to initialize null ref";
             break;
           }
-          Class* this_class = this_type.GetClass();
-          DCHECK(this_class != NULL);
-
-          /* must be in same class or in superclass */
-          if (called_method->GetDeclaringClass() == this_class->GetSuperClass()) {
-            if (this_class != method_->GetDeclaringClass()) {
-              Fail(VERIFY_ERROR_GENERIC)
-                  << "invoke-direct <init> on super only allowed for 'this' in <init>";
+          if (called_method != NULL) {
+            Class* this_class = this_type.GetClass();
+            DCHECK(this_class != NULL);
+            /* must be in same class or in superclass */
+            if (called_method->GetDeclaringClass() == this_class->GetSuperClass()) {
+              if (this_class != method_->GetDeclaringClass()) {
+                Fail(VERIFY_ERROR_GENERIC)
+                    << "invoke-direct <init> on super only allowed for 'this' in <init>";
+                break;
+              }
+            }  else if (called_method->GetDeclaringClass() != this_class) {
+              Fail(VERIFY_ERROR_GENERIC) << "invoke-direct <init> must be on current class or super";
               break;
             }
-          }  else if (called_method->GetDeclaringClass() != this_class) {
-            Fail(VERIFY_ERROR_GENERIC) << "invoke-direct <init> must be on current class or super";
-            break;
           }
 
           /* arg must be an uninitialized reference */
@@ -2398,9 +2437,17 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           if (failure_ != VERIFY_ERROR_NONE)
             break;
         }
+        const char* descriptor;
+        if (called_method == NULL) {
+          uint32_t method_idx = dec_insn.vB_;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+          descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+        } else {
+          descriptor = called_method->GetReturnTypeDescriptor();
+        }
         const RegType& return_type =
-            reg_types_.FromDescriptor(called_method->GetDeclaringClass()->GetClassLoader(),
-                                      called_method->GetReturnTypeDescriptor());
+            reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -2411,9 +2458,17 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         bool is_range = (dec_insn.opcode_ == Instruction::INVOKE_STATIC_RANGE);
         Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_STATIC, is_range, false);
         if (failure_ == VERIFY_ERROR_NONE) {
+          const char* descriptor;
+          if (called_method == NULL) {
+            uint32_t method_idx = dec_insn.vB_;
+            const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+            uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+            descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+          } else {
+            descriptor = called_method->GetReturnTypeDescriptor();
+          }
           const RegType& return_type =
-              reg_types_.FromDescriptor(called_method->GetDeclaringClass()->GetClassLoader(),
-                                        called_method->GetReturnTypeDescriptor());
+              reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
           work_line_->SetResultRegisterType(return_type);
           just_set_result = true;
         }
@@ -2424,42 +2479,52 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       bool is_range =  (dec_insn.opcode_ == Instruction::INVOKE_INTERFACE_RANGE);
       Method* abs_method = VerifyInvocationArgs(dec_insn, METHOD_INTERFACE, is_range, false);
       if (failure_ == VERIFY_ERROR_NONE) {
-        Class* called_interface = abs_method->GetDeclaringClass();
-        if (!called_interface->IsInterface()) {
-          Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
-                                          << PrettyMethod(abs_method) << "'";
-          break;
-        } else {
-          /* Get the type of the "this" arg, which should either be a sub-interface of called
-           * interface or Object (see comments in RegType::JoinClass).
-           */
-          const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
-          if (failure_ == VERIFY_ERROR_NONE) {
-            if (this_type.IsZero()) {
-              /* null pointer always passes (and always fails at runtime) */
-            } else {
-              if (this_type.IsUninitializedTypes()) {
-                Fail(VERIFY_ERROR_GENERIC) << "interface call on uninitialized object "
-                    << this_type;
-                break;
-              }
-              // In the past we have tried to assert that "called_interface" is assignable
-              // from "this_type.GetClass()", however, as we do an imprecise Join
-              // (RegType::JoinClass) we don't have full information on what interfaces are
-              // implemented by "this_type". For example, two classes may implement the same
-              // interfaces and have a common parent that doesn't implement the interface. The
-              // join will set "this_type" to the parent class and a test that this implements
-              // the interface will incorrectly fail.
+        if (abs_method != NULL) {
+          Class* called_interface = abs_method->GetDeclaringClass();
+          if (!called_interface->IsInterface()) {
+            Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
+                                            << PrettyMethod(abs_method) << "'";
+            break;
+          }
+        }
+        /* Get the type of the "this" arg, which should either be a sub-interface of called
+         * interface or Object (see comments in RegType::JoinClass).
+         */
+        const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
+        if (failure_ == VERIFY_ERROR_NONE) {
+          if (this_type.IsZero()) {
+            /* null pointer always passes (and always fails at runtime) */
+          } else {
+            if (this_type.IsUninitializedTypes()) {
+              Fail(VERIFY_ERROR_GENERIC) << "interface call on uninitialized object "
+                  << this_type;
+              break;
             }
+            // In the past we have tried to assert that "called_interface" is assignable
+            // from "this_type.GetClass()", however, as we do an imprecise Join
+            // (RegType::JoinClass) we don't have full information on what interfaces are
+            // implemented by "this_type". For example, two classes may implement the same
+            // interfaces and have a common parent that doesn't implement the interface. The
+            // join will set "this_type" to the parent class and a test that this implements
+            // the interface will incorrectly fail.
           }
         }
         /*
          * We don't have an object instance, so we can't find the concrete method. However, all of
          * the type information is in the abstract method, so we're good.
          */
+        const char* descriptor;
+        if (abs_method == NULL) {
+          uint32_t method_idx = dec_insn.vB_;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+          descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+        } else {
+          descriptor = abs_method->GetReturnTypeDescriptor();
+        }
         const RegType& return_type =
-            reg_types_.FromDescriptor(abs_method->GetDeclaringClass()->GetClassLoader(),
-                                      abs_method->GetReturnTypeDescriptor());
+            reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
+        work_line_->SetResultRegisterType(return_type);
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -2887,24 +2952,30 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   return true;
 }
 
-Class* DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
-  const Class* referrer = method_->GetDeclaringClass();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* res_class = class_linker->ResolveType(*dex_file_, class_idx, referrer);
-
-  if (res_class == NULL) {
-    Thread::Current()->ClearException();
-    Fail(VERIFY_ERROR_NO_CLASS) << "can't find class with index " << (void*) class_idx;
-  } else if (!referrer->CanAccess(res_class)) {   /* Check if access is allowed. */
-    Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: "
-                                    << referrer->GetDescriptor()->ToModifiedUtf8() << " -> "
-                                    << res_class->GetDescriptor()->ToModifiedUtf8();
+const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
+  const char* descriptor = dex_file_->dexStringByTypeIdx(class_idx);
+  Class* referrer = method_->GetDeclaringClass();
+  Class* klass = method_->GetDexCacheResolvedTypes()->Get(class_idx);
+  const RegType& result =
+      klass != NULL ? reg_types_.FromClass(klass)
+                    : reg_types_.FromDescriptor(referrer->GetClassLoader(), descriptor);
+  if (klass == NULL && !result.IsUnresolvedTypes()) {
+    method_->GetDexCacheResolvedTypes()->Set(class_idx, result.GetClass());
   }
-  return res_class;
+  // Check if access is allowed. Unresolved types use AllocObjectFromCodeWithAccessCheck to
+  // check at runtime if access is allowed and so pass here.
+  if (!result.IsUnresolvedTypes() && !referrer->CanAccess(result.GetClass())) {
+    Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
+                                    << PrettyDescriptor(referrer->GetDescriptor()) << "' -> '"
+                                    << result << "'";
+    return reg_types_.Unknown();
+  } else {
+    return result;
+  }
 }
 
-Class* DexVerifier::GetCaughtExceptionType() {
-  Class* common_super = NULL;
+const RegType& DexVerifier::GetCaughtExceptionType() {
+  const RegType* common_super = NULL;
   if (code_item_->tries_size_ != 0) {
     const byte* handlers_ptr = DexFile::dexGetCatchHandlerData(*code_item_, 0);
     uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
@@ -2914,25 +2985,23 @@ Class* DexVerifier::GetCaughtExceptionType() {
         DexFile::CatchHandlerItem handler = iterator.Get();
         if (handler.address_ == (uint32_t) work_insn_idx_) {
           if (handler.type_idx_ == DexFile::kDexNoIndex) {
-            common_super = JavaLangThrowable();
+            common_super = &reg_types_.JavaLangThrowable();
           } else {
-            Class* klass = ResolveClassAndCheckAccess(handler.type_idx_);
+            const RegType& exception = ResolveClassAndCheckAccess(handler.type_idx_);
             /* TODO: on error do we want to keep going?  If we don't fail this we run the risk of
              * having a non-Throwable introduced at runtime. However, that won't pass an instanceof
              * test, so is essentially harmless.
              */
-            if (klass == NULL) {
-              Fail(VERIFY_ERROR_GENERIC) << "unable to resolve exception class "
-                                         << handler.type_idx_ << " ("
-                                         << dex_file_->dexStringByTypeIdx(handler.type_idx_) << ")";
-              return NULL;
-            } else if(!JavaLangThrowable()->IsAssignableFrom(klass)) {
-              Fail(VERIFY_ERROR_GENERIC) << "unexpected non-exception class " << PrettyClass(klass);
-              return NULL;
+            if(!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
+              Fail(VERIFY_ERROR_GENERIC) << "unexpected non-exception class " << exception;
+              return reg_types_.Unknown();
             } else if (common_super == NULL) {
-              common_super = klass;
+              common_super = &exception;
+            } else if (common_super->Equals(exception)) {
+              // nothing to do
             } else {
-              common_super = RegType::ClassJoin(common_super, klass);
+              common_super = &common_super->Merge(exception, &reg_types_);
+              CHECK(reg_types_.JavaLangThrowable().IsAssignableFrom(*common_super));
             }
           }
         }
@@ -2944,7 +3013,7 @@ Class* DexVerifier::GetCaughtExceptionType() {
     /* no catch blocks, or no catches with classes we can find */
     Fail(VERIFY_ERROR_GENERIC) << "unable to find exception handler";
   }
-  return common_super;
+  return *common_super;
 }
 
 Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_direct) {
@@ -2953,11 +3022,11 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
   Method* res_method = dex_cache->GetResolvedMethod(method_idx);
   if (res_method == NULL) {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-    Class* klass = ResolveClassAndCheckAccess(method_id.class_idx_);
-    if (klass == NULL) {
-      DCHECK(failure_ != VERIFY_ERROR_NONE);
-      return NULL;
+    const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
+    if(klass_type.IsUnresolvedTypes()) {
+      return NULL;  // Can't resolve Class so no more to do here
     }
+    Class* klass = klass_type.GetClass();
     const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodDescriptor(method_id.proto_idx_, NULL));
     if (is_direct) {
@@ -2991,14 +3060,7 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
   // we're making.
   Method* res_method = ResolveMethodAndCheckAccess(dec_insn.vB_,
                            (method_type == METHOD_DIRECT || method_type == METHOD_STATIC));
-  if (res_method == NULL) {
-    const DexFile::MethodId& method_id = dex_file_->GetMethodId(dec_insn.vB_);
-    const char* method_name = dex_file_->GetMethodName(method_id);
-    std::string method_signature = dex_file_->GetMethodSignature(method_id);
-    const char* class_descriptor = dex_file_->GetMethodDeclaringClassDescriptor(method_id);
-    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
-    fail_messages_ << "unable to resolve method " << dec_insn.vB_ << ": "
-                   << class_descriptor << "." << method_name << " " << method_signature;
+  if (res_method == NULL) {  // error or class is unresolved
     return NULL;
   }
   // Make sure calls to constructors are "direct". There are additional restrictions but we don't
@@ -3410,13 +3472,14 @@ bool DexVerifier::CheckMoveException(const uint16_t* insns, int insn_idx) {
 }
 
 void DexVerifier::VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn,
-                                           Class* res_class, bool is_range) {
-  DCHECK(res_class->IsArrayClass()) << PrettyClass(res_class);  // Checked before calling.
+                                           const RegType& res_type, bool is_range) {
+  DCHECK(res_type.IsArrayClass()) << res_type;  // Checked before calling.
   /*
    * Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of the
    * list and fail. It's legal, if silly, for arg_count to be zero.
    */
-  const RegType& expected_type = reg_types_.FromClass(res_class->GetComponentType());
+  const RegType& expected_type = reg_types_.GetComponentType(res_type,
+                                                   method_->GetDeclaringClass()->GetClassLoader());
   uint32_t arg_count = dec_insn.vA_;
   for (size_t ui = 0; ui < arg_count; ui++) {
     uint32_t get_reg;
@@ -3661,15 +3724,6 @@ void DexVerifier::VerifyGcMap() {
       CHECK(reg_bitmap == NULL);
     }
   }
-}
-
-Class* DexVerifier::JavaLangThrowable() {
-  if (java_lang_throwable_ == NULL) {
-    java_lang_throwable_ =
-        Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Throwable;");
-   DCHECK(java_lang_throwable_ != NULL);
-  }
-  return java_lang_throwable_;
 }
 
 const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_present) const {

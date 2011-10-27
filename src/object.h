@@ -1463,6 +1463,9 @@ class MANAGED Class : public StaticStorageBase {
   bool IsObjectClass() const {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
+  bool IsInstantiable() const {
+    return !IsPrimitive() && !IsInterface() && !IsAbstract();
+  }
 
   // Creates a raw object instance but does not invoke the default constructor.
   Object* AllocObject();
@@ -2022,8 +2025,7 @@ class MANAGED Class : public StaticStorageBase {
   Class* super_class_;
 
   // If class verify fails, we must return same error on subsequent tries.
-  // Update with SetVerifyErrorClass to ensure a write barrier is used.
-  const Class* verify_error_class_;
+  Class* verify_error_class_;
 
   // virtual methods defined in this class; invoked through vtable
   ObjectArray<Method>* virtual_methods_;

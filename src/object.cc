@@ -668,7 +668,6 @@ uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
 
 uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
   DexCache* dex_cache = GetDeclaringClass()->GetDexCache();
-  const ClassLoader* class_loader = GetDeclaringClass()->GetClassLoader();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(GetCodeItemOffset());
@@ -681,9 +680,12 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
       return iter.Get().address_;
     }
     // Does this catch exception type apply?
-    Class* iter_exception_type =
-        class_linker->ResolveType(dex_file, iter_type_idx, dex_cache, class_loader);
-    if (iter_exception_type->IsAssignableFrom(exception_type)) {
+    Class* iter_exception_type = dex_cache->GetResolvedType(iter_type_idx);
+    if (iter_exception_type == NULL) {
+      // The verifier should take care of resolving all exception classes early
+      LOG(WARNING) << "Unresolved exception class when finding catch block: "
+          << dex_file.GetTypeDescriptor(dex_file.GetTypeId(iter_type_idx));
+    } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
       return iter.Get().address_;
     }
   }
@@ -764,10 +766,8 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
 }
 
 Object* Class::AllocObject() {
-  DCHECK(!IsAbstract()) << PrettyClass(this);
-  DCHECK(!IsInterface()) << PrettyClass(this);
-  DCHECK(!IsPrimitive()) << PrettyClass(this);
   DCHECK(!IsArrayClass()) << PrettyClass(this);
+  DCHECK(IsInstantiable()) << PrettyClass(this);
   DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
   DCHECK_GE(this->object_size_, sizeof(Object));
   return Heap::AllocObject(this, this->object_size_);
