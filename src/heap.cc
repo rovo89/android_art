@@ -27,6 +27,8 @@ Space* Heap::alloc_space_ = NULL;
 
 size_t Heap::maximum_size_ = 0;
 
+size_t Heap::growth_size_ = 0;
+
 size_t Heap::num_bytes_allocated_ = 0;
 
 size_t Heap::num_objects_allocated_ = 0;
@@ -64,7 +66,7 @@ class ScopedHeapLock {
 };
 
 void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
-                size_t initial_size, size_t maximum_size,
+                size_t initial_size, size_t maximum_size, size_t growth_size,
                 const std::vector<std::string>& image_file_names) {
   is_verbose_heap_ = is_verbose_heap;
   is_verbose_gc_ = is_verbose_gc;
@@ -98,7 +100,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
     limit = std::max(limit, space->GetLimit());
   }
 
-  alloc_space_ = Space::Create("alloc space", initial_size, maximum_size, requested_base);
+  alloc_space_ = Space::Create("alloc space", initial_size, maximum_size, growth_size, requested_base);
   if (alloc_space_ == NULL) {
     LOG(FATAL) << "Failed to create alloc space";
   }
@@ -121,6 +123,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
 
   spaces_.push_back(alloc_space_);
   maximum_size_ = maximum_size;
+  growth_size_ = growth_size;
   live_bitmap_ = live_bitmap.release();
   mark_bitmap_ = mark_bitmap.release();
 
@@ -329,7 +332,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
   DCHECK_EQ(Thread::Current()->GetState(), Thread::kRunnable);
 
   // Fail impossible allocations.  TODO: collect soft references.
-  if (size > maximum_size_) {
+  if (size > growth_size_) {
     return NULL;
   }
 
@@ -405,7 +408,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
 }
 
 int64_t Heap::GetMaxMemory() {
-  return maximum_size_;
+  return growth_size_;
 }
 
 int64_t Heap::GetTotalMemory() {
@@ -563,12 +566,12 @@ void Heap::WaitForConcurrentGcToComplete() {
 //
 void Heap::SetIdealFootprint(size_t max_allowed_footprint)
 {
-  if (max_allowed_footprint > Heap::maximum_size_) {
+  if (max_allowed_footprint > Heap::growth_size_) {
     if (is_verbose_gc_) {
       LOG(INFO) << "Clamp target GC heap from " << max_allowed_footprint
-                << " to " << Heap::maximum_size_;
+                << " to " << Heap::growth_size_;
     }
-    max_allowed_footprint = Heap::maximum_size_;
+    max_allowed_footprint = Heap::growth_size_;
   }
 
   alloc_space_->SetMaxAllowedFootprint(max_allowed_footprint);
@@ -600,6 +603,14 @@ void Heap::GrowForUtilization() {
   }
 
   SetIdealFootprint(target_size);
+}
+
+void Heap::ClearGrowthLimit() {
+  ScopedHeapLock lock;
+  WaitForConcurrentGcToComplete();
+  CHECK_GE(maximum_size_, growth_size_);
+  growth_size_ = maximum_size_;
+  alloc_space_->ClearGrowthLimit();
 }
 
 pid_t Heap::GetLockOwner() {

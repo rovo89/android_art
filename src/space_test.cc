@@ -12,24 +12,44 @@ class SpaceTest : public CommonTest {};
 
 TEST_F(SpaceTest, Init) {
   {
-    // Less than
-    UniquePtr<Space> space(Space::Create("test", 16 * MB, 32 * MB, NULL));
+    // Init < max == growth
+    UniquePtr<Space> space(Space::Create("test", 16 * MB, 32 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
-    // Equal to
-    UniquePtr<Space> space(Space::Create("test", 16 * MB, 16 * MB, NULL));
+    // Init == max == growth
+    UniquePtr<Space> space(Space::Create("test", 16 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
-    // Greater than
-    UniquePtr<Space> space(Space::Create("test", 32 * MB, 16 * MB, NULL));
+    // Init > max == growth
+    UniquePtr<Space> space(Space::Create("test", 32 * MB, 16 * MB, 16 * MB, NULL));
+    EXPECT_TRUE(space.get() == NULL);
+  }
+  {
+    // Growth == init < max
+    UniquePtr<Space> space(Space::Create("test", 16 * MB, 32 * MB, 16 * MB, NULL));
+    EXPECT_TRUE(space.get() != NULL);
+  }
+  {
+    // Growth < init < max
+    UniquePtr<Space> space(Space::Create("test", 16 * MB, 32 * MB, 8 * MB, NULL));
+    EXPECT_TRUE(space.get() == NULL);
+  }
+  {
+    // Init < growth < max
+    UniquePtr<Space> space(Space::Create("test", 8 * MB, 32 * MB, 16 * MB, NULL));
+    EXPECT_TRUE(space.get() != NULL);
+  }
+  {
+    // Init < max < growth
+    UniquePtr<Space> space(Space::Create("test", 8 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
 }
 
 TEST_F(SpaceTest, AllocAndFree) {
-  UniquePtr<Space> space(Space::Create("test", 4 * MB, 16 * MB, NULL));
+  UniquePtr<Space> space(Space::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space.get() != NULL);
 
   // Succeeds, fits without adjusting the max allowed footprint.

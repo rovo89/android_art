@@ -238,6 +238,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
+  parsed->heap_growth_limit_ = 0;  // 0 means no growth limit
   parsed->stack_size_ = Thread::kDefaultStackSize;
 
   parsed->is_zygote_ = false;
@@ -300,6 +301,17 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_maximum_size_ = size;
+    } else if (option.starts_with("-XX:HeapGrowthLimit=")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapGrowthLimit=")).data(), 1024);
+      if (size == 0) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO: usage
+        LOG(FATAL) << "Failed to parse " << option;
+        return NULL;
+      }
+      parsed->heap_growth_limit_ = size;
     } else if (option.starts_with("-Xss")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).data(), 1);
       if (size == 0) {
@@ -356,6 +368,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   if (!compiler && parsed->images_.empty()) {
     parsed->images_.push_back("/data/art-cache/boot.art");
+  }
+  if (parsed->heap_growth_limit_ == 0) {
+    parsed->heap_growth_limit_ = parsed->heap_maximum_size_;
   }
 
   LOG(INFO) << "CheckJNI is " << (parsed->check_jni_ ? "on" : "off");
@@ -516,6 +531,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
              options->IsVerbose("gc"),
              options->heap_initial_size_,
              options->heap_maximum_size_,
+             options->heap_growth_limit_,
              options->images_);
 
   BlockSignals();
