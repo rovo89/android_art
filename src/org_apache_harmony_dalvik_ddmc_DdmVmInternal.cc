@@ -154,21 +154,11 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
 }
 
 static jint DdmVmInternal_heapInfoNotify(JNIEnv* env, jclass, jint when) {
-  UNIMPLEMENTED(WARNING);
-  return 0;
-  //return dvmDdmHandleHpifChunk(when);
+  return Dbg::DdmHandleHpifChunk(static_cast<Dbg::HpifWhen>(when));
 }
 
-/*
- * Enable DDM heap notifications.
- * @param when: 0=never (off), 1=during GC
- * @param what: 0=merged objects, 1=distinct objects
- * @param native: false=virtual heap, true=native heap
- */
 static jboolean DdmVmInternal_heapSegmentNotify(JNIEnv* env, jclass, jint when, jint what, jboolean native) {
-  UNIMPLEMENTED(WARNING);
-  return JNI_FALSE;
-  //return dvmDdmHandleHpsgNhsgChunk(when, what, native);
+  return Dbg::DdmHandleHpsgNhsgChunk(static_cast<Dbg::HpsgWhen>(when), static_cast<Dbg::HpsgWhat>(what), native);
 }
 
 static void DdmVmInternal_threadNotify(JNIEnv* env, jclass, jboolean enable) {

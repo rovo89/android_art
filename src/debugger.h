@@ -73,6 +73,9 @@ public:
   static void StartJdwp();
   static void StopJdwp();
 
+  // Invoked by the GC in case we need to keep DDMS informed.
+  static void GcDidFinish();
+
   // Return the DebugInvokeReq for the current thread.
   static DebugInvokeReq* GetInvokeReq();
 
@@ -235,6 +238,27 @@ public:
   static void DdmDisconnected();
   static void DdmSendChunk(int type, size_t len, const uint8_t* buf);
   static void DdmSendChunkV(int type, const struct iovec* iov, int iovcnt);
+
+  enum HpifWhen {
+    HPIF_WHEN_NEVER = 0,
+    HPIF_WHEN_NOW = 1,
+    HPIF_WHEN_NEXT_GC = 2,
+    HPIF_WHEN_EVERY_GC = 3
+  };
+  static int DdmHandleHpifChunk(HpifWhen when);
+
+  enum HpsgWhen {
+    HPSG_WHEN_NEVER = 0,
+    HPSG_WHEN_EVERY_GC = 1,
+  };
+  enum HpsgWhat {
+    HPSG_WHAT_MERGED_OBJECTS = 0,
+    HPSG_WHAT_DISTINCT_OBJECTS = 1,
+  };
+  static bool DdmHandleHpsgNhsgChunk(HpsgWhen when, HpsgWhat what, bool native);
+
+  static void DdmSendHeapInfo(HpifWhen reason, bool shouldLock);
+  static void DdmSendHeapSegments(bool shouldLock, bool native);
 };
 
 #define CHUNK_TYPE(_name) \

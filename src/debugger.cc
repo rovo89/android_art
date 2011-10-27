@@ -79,6 +79,13 @@ static bool gDebuggerActive;     // debugger is making requests.
 
 static bool gDdmThreadNotification = false;
 
+// DDMS GC-related settings.
+static Dbg::HpifWhen gDdmHpifWhen = Dbg::HPIF_WHEN_NEVER;
+static Dbg::HpsgWhen gDdmHpsgWhen = Dbg::HPSG_WHEN_NEVER;
+static Dbg::HpsgWhat gDdmHpsgWhat;
+static Dbg::HpsgWhen gDdmNhsgWhen = Dbg::HPSG_WHEN_NEVER;
+static Dbg::HpsgWhat gDdmNhsgWhat;
+
 static ObjectRegistry* gRegistry = NULL;
 
 /*
@@ -221,6 +228,21 @@ void Dbg::StopJdwp() {
   delete gJdwpState;
   delete gRegistry;
   gRegistry = NULL;
+}
+
+void Dbg::GcDidFinish() {
+  if (gDdmHpifWhen != HPIF_WHEN_NEVER) {
+    LOG(DEBUG) << "Sending VM heap info to DDM";
+    DdmSendHeapInfo(gDdmHpifWhen, false);
+  }
+  if (gDdmHpsgWhen != HPSG_WHEN_NEVER) {
+    LOG(DEBUG) << "Dumping VM heap to DDM";
+    DdmSendHeapSegments(false, false);
+  }
+  if (gDdmNhsgWhen != HPSG_WHEN_NEVER) {
+    LOG(DEBUG) << "Dumping native heap to DDM";
+    DdmSendHeapSegments(false, true);
+  }
 }
 
 void Dbg::SetJdwpAllowed(bool allowed) {
@@ -841,6 +863,50 @@ void Dbg::DdmSendChunkV(int type, const struct iovec* iov, int iovcnt) {
   } else {
     gJdwpState->DdmSendChunkV(type, iov, iovcnt);
   }
+}
+
+int Dbg::DdmHandleHpifChunk(HpifWhen when) {
+  if (when == HPIF_WHEN_NOW) {
+    DdmSendHeapInfo(when, true);
+    return true;
+  }
+
+  if (when != HPIF_WHEN_NEVER && when != HPIF_WHEN_NEXT_GC && when != HPIF_WHEN_EVERY_GC) {
+    LOG(ERROR) << "invalid HpifWhen value: " << static_cast<int>(when);
+    return false;
+  }
+
+  gDdmHpifWhen = when;
+  return true;
+}
+
+bool Dbg::DdmHandleHpsgNhsgChunk(Dbg::HpsgWhen when, Dbg::HpsgWhat what, bool native) {
+  if (when != HPSG_WHEN_NEVER && when != HPSG_WHEN_EVERY_GC) {
+    LOG(ERROR) << "invalid HpsgWhen value: " << static_cast<int>(when);
+    return false;
+  }
+
+  if (what != HPSG_WHAT_MERGED_OBJECTS && what != HPSG_WHAT_DISTINCT_OBJECTS) {
+    LOG(ERROR) << "invalid HpsgWhat value: " << static_cast<int>(what);
+    return false;
+  }
+
+  if (native) {
+    gDdmNhsgWhen = when;
+    gDdmNhsgWhat = what;
+  } else {
+    gDdmHpsgWhen = when;
+    gDdmHpsgWhat = what;
+  }
+  return true;
+}
+
+void Dbg::DdmSendHeapInfo(HpifWhen reason, bool shouldLock) {
+  UNIMPLEMENTED(WARNING) << "reason=" << static_cast<int>(reason) << " shouldLock=" << shouldLock;
+}
+
+void Dbg::DdmSendHeapSegments(bool shouldLock, bool native) {
+  UNIMPLEMENTED(WARNING) << "shouldLock=" << shouldLock << " native=" << native;
 }
 
 }  // namespace art

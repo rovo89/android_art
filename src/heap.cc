@@ -5,14 +5,15 @@
 #include <limits>
 #include <vector>
 
-#include "UniquePtr.h"
+#include "debugger.h"
 #include "image.h"
 #include "mark_sweep.h"
 #include "object.h"
 #include "space.h"
 #include "stl_util.h"
-#include "timing_logger.h"
 #include "thread_list.h"
+#include "timing_logger.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -532,6 +533,7 @@ void Heap::CollectGarbageInternal() {
               << (num_bytes_allocated_/1024) << "KiB/" << (footprint/1024) << "KiB, "
               << "paused " << duration << "ms";
   }
+  Dbg::GcDidFinish();
   if (is_verbose_heap_) {
     timings.Dump();
   }
