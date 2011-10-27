@@ -55,12 +55,13 @@ jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
 }
 
 jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
-  ThreadListLock lock;
   Object* object = Decode<Object*>(env, javaObject);
   if (object == NULL) {
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }
+  ThreadListLock lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   return thread->HoldsLock(object);
 }

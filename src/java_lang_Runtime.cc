@@ -30,6 +30,7 @@ namespace art {
 namespace {
 
 void Runtime_gc(JNIEnv*, jclass) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Heap::CollectGarbage();
 }
 

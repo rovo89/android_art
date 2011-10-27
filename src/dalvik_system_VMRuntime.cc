@@ -44,6 +44,7 @@ void VMRuntime_disableJitCompilation(JNIEnv*, jobject) {
 }
 
 jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementClass, jint length) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: right now, we don't have a copying collector, so there's no need
   // to do anything special here, but we ought to pass the non-movability
@@ -74,6 +75,7 @@ jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementCla
 }
 
 jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Array* array = Decode<Array*>(env, javaArray);
   if (!array->IsArrayInstance()) {
     Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");

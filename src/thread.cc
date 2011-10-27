@@ -647,6 +647,11 @@ Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
 }
 
 void Thread::FinishStartup() {
+  Thread* self = Thread::Current();
+
+  // Need to be kRunnable for FindClass
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+
   // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
@@ -672,7 +677,6 @@ void Thread::FinishStartup() {
       "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
 
   // Finish attaching the main thread.
-  Thread* self = Thread::Current();
   self->CreatePeer("main", false);
 
   const Field* Thread_contextClassLoader = FindFieldOrDie(Thread_class , "contextClassLoader", "Ljava/lang/ClassLoader;");

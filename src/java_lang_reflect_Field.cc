@@ -30,6 +30,7 @@ jint Field_getFieldModifiers(JNIEnv* env, jobject jfield, jclass javaDeclaringCl
 }
 
 bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   switch (f->GetPrimitiveType()) {
   case Primitive::kPrimBoolean:
     value.z = f->GetBoolean(o);
@@ -187,6 +188,7 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
 }
 
 void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar src_descriptor, const JValue& new_value) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
   if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
@@ -254,6 +256,7 @@ void Field_setZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass jav
 }
 
 void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jobject javaValue) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
 
   // Unbox the value, if necessary.

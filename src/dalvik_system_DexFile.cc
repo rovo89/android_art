@@ -154,6 +154,7 @@ void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
 }
 
 jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLoader, jint cookie) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   const DexFile* dex_file = toDexFile(env, cookie);
   if (dex_file == NULL) {
     return NULL;

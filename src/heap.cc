@@ -323,6 +323,10 @@ Object* Heap::AllocateLocked(size_t size) {
 Object* Heap::AllocateLocked(Space* space, size_t size) {
   lock_->AssertHeld();
 
+  // Since allocation can cause a GC which will need to SuspendAll,
+  // make sure all allocators are in the kRunnable state.
+  DCHECK_EQ(Thread::Current()->GetState(), Thread::kRunnable);
+
   // Fail impossible allocations.  TODO: collect soft references.
   if (size > maximum_size_) {
     return NULL;

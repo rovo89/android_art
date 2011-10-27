@@ -29,6 +29,7 @@ namespace {
 
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
 jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
     return NULL;
@@ -307,6 +308,7 @@ jclass Class_getSuperclass(JNIEnv* env, jobject javaThis) {
 }
 
 jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* lhs = Decode<Class*>(env, javaLhs);
   Class* rhs = Decode<Class*>(env, javaRhs);
   if (rhs == NULL) {
@@ -365,6 +367,7 @@ bool CheckMemberAccess(const Class* access_from, const Class* access_to, uint32_
 }
 
 jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = Decode<Class*>(env, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",

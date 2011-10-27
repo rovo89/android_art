@@ -30,6 +30,7 @@ jclass Object_getClass(JNIEnv* env, jobject javaThis) {
 }
 
 jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Object* o = Decode<Object*>(env, javaThis);
   return AddLocalReference<jobject>(env, o->Clone());
 }

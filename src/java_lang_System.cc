@@ -111,6 +111,7 @@ void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) 
 }
 
 void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Thread* self = Thread::Current();
 
   // Null pointer checks.

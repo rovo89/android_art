@@ -39,6 +39,7 @@ namespace art {
 namespace {
 
 jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   String* lhs = Decode<String*>(env, javaThis);
   String* rhs = Decode<String*>(env, javaRhs);
 

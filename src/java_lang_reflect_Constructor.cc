@@ -33,6 +33,7 @@ namespace {
  * with an interface, array, or primitive class.
  */
 jobject Constructor_constructNative(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs, jclass javaDeclaringClass, jobjectArray javaParams, jint, jboolean) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = Decode<Class*>(env, javaDeclaringClass);
   if (c->IsAbstract()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
