@@ -83,9 +83,6 @@ private:
   Mutex socket_lock_;
 };
 
-/* get current time, in msec */
-int64_t GetNowMsec();
-
 }  // namespace JDWP
 
 }  // namespace art

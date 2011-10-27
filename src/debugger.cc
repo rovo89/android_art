@@ -233,7 +233,7 @@ void Dbg::StopJdwp() {
 void Dbg::GcDidFinish() {
   if (gDdmHpifWhen != HPIF_WHEN_NEVER) {
     LOG(DEBUG) << "Sending VM heap info to DDM";
-    DdmSendHeapInfo(gDdmHpifWhen, false);
+    DdmSendHeapInfo(gDdmHpifWhen);
   }
   if (gDdmHpsgWhen != HPSG_WHEN_NEVER) {
     LOG(DEBUG) << "Dumping VM heap to DDM";
@@ -867,7 +867,7 @@ void Dbg::DdmSendChunkV(int type, const struct iovec* iov, int iovcnt) {
 
 int Dbg::DdmHandleHpifChunk(HpifWhen when) {
   if (when == HPIF_WHEN_NOW) {
-    DdmSendHeapInfo(when, true);
+    DdmSendHeapInfo(when);
     return true;
   }
 
@@ -901,8 +901,43 @@ bool Dbg::DdmHandleHpsgNhsgChunk(Dbg::HpsgWhen when, Dbg::HpsgWhat what, bool na
   return true;
 }
 
-void Dbg::DdmSendHeapInfo(HpifWhen reason, bool shouldLock) {
-  UNIMPLEMENTED(WARNING) << "reason=" << static_cast<int>(reason) << " shouldLock=" << shouldLock;
+void Dbg::DdmSendHeapInfo(HpifWhen reason) {
+  // If there's a one-shot 'when', reset it.
+  if (reason == gDdmHpifWhen) {
+    if (gDdmHpifWhen == HPIF_WHEN_NEXT_GC) {
+      gDdmHpifWhen = HPIF_WHEN_NEVER;
+    }
+  }
+
+  /*
+   * Chunk HPIF (client --> server)
+   *
+   * Heap Info. General information about the heap,
+   * suitable for a summary display.
+   *
+   *   [u4]: number of heaps
+   *
+   *   For each heap:
+   *     [u4]: heap ID
+   *     [u8]: timestamp in ms since Unix epoch
+   *     [u1]: capture reason (same as 'when' value from server)
+   *     [u4]: max heap size in bytes (-Xmx)
+   *     [u4]: current heap size in bytes
+   *     [u4]: current number of bytes allocated
+   *     [u4]: current number of objects allocated
+   */
+  uint8_t heap_count = 1;
+  std::vector<uint8_t> bytes(4 + (heap_count * (4 + 8 + 1 + 4 + 4 + 4 + 4)));
+  uint8_t* dst = &bytes[0];
+  JDWP::Write4BE(&dst, heap_count);
+  JDWP::Write4BE(&dst, 1); // Heap id (bogus; we only have one heap).
+  JDWP::Write8BE(&dst, MilliTime());
+  JDWP::Write1BE(&dst, reason);
+  JDWP::Write4BE(&dst, Heap::GetMaxMemory()); // Max allowed heap size in bytes.
+  JDWP::Write4BE(&dst, Heap::GetTotalMemory()); // Current heap size in bytes.
+  JDWP::Write4BE(&dst, Heap::GetBytesAllocated());
+  JDWP::Write4BE(&dst, Heap::GetObjectsAllocated());
+  Dbg::DdmSendChunk(CHUNK_TYPE("HPIF"), bytes.size(), &bytes[0]);
 }
 
 void Dbg::DdmSendHeapSegments(bool shouldLock, bool native) {

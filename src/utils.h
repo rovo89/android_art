@@ -209,6 +209,9 @@ bool ReadFileToString(const std::string& file_name, std::string* result);
 // Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
 std::string GetIsoDate();
 
+// Returns the current time in milliseconds (using the POSIX CLOCK_MONOTONIC).
+uint64_t MilliTime();
+
 // Returns the current time in nanoseconds (using the POSIX CLOCK_MONOTONIC).
 uint64_t NanoTime();
 
