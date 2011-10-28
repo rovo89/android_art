@@ -181,19 +181,21 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 # zygote-artd-target-sync will just push a new artd in place of dvm
 # zygote-art-target-sync will just push a new art in place of dvm
 
-.PHONY: zygote-artd-target-sync
-zygote-artd-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
-	cp $(TARGET_OUT_SHARED_LIBRARIES)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
-	cp $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libartd.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
-	cp $(TARGET_OUT_EXECUTABLES)/oatoptd $(TARGET_OUT_EXECUTABLES)/dexopt
-	cp $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/oatoptd $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
+# $(1): "d" for debug build, "" for ndebug build
+define define-zygote-art-targets
+.PHONY: zygote-art$(1)-target-sync
+zygote-art$(1)-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
+	cp $(TARGET_OUT_SHARED_LIBRARIES)/libart$(1).so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
+	cp $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libart$(1).so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
+	cp $(TARGET_OUT_EXECUTABLES)/oatopt$(1) $(TARGET_OUT_EXECUTABLES)/dexopt
+	cp $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/oatopt$(1) $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
 	mkdir -p $(TARGET_OUT_DATA)/property
 	echo -n 1 > $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disabled
 	adb remount
 	adb sync
 
-.PHONY: zygote-artd
-zygote-artd: zygote-artd-target-sync
+.PHONY: zygote-art$(1)
+zygote-art$(1): zygote-art$(1)-target-sync
 	sed -e 's/--start-system-server/--start-system-server --no-preload/' -e 's/art-cache 0771/art-cache 0777/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
 	adb shell rm -f $(ART_CACHE_DIR)
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
@@ -201,6 +203,10 @@ zygote-artd: zygote-artd-target-sync
 	adb reboot bootloader
 	fastboot flash boot $(ANDROID_PRODUCT_OUT)/boot.img
 	fastboot reboot
+endef
+
+$(eval $(call define-zygote-art-targets,d))
+$(eval $(call define-zygote-art-targets,))
 
 .PHONY: zygote-dalvik
 zygote-dalvik:
@@ -240,6 +246,17 @@ dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(TARGET_BO
 	$(OATDUMP) --oat=$< --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 
+
+########################################################################
+# clean-oat target
+#
+
+.PHONY: clean-oat
+clean-oat:
+	rm -f $(ART_TEST_OUT)/*.oat
+	rm -f $(ART_CACHE_OUT)/*.oat
+	adb shell rm $(ART_TEST_DIR)/*.oat
+	adb shell rm $(ART_CACHE_DIR)/*.oat
 
 ########################################################################
 # cpplint target
