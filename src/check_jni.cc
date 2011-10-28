@@ -161,7 +161,7 @@ public:
    * "[Ljava/lang/Object;".
    */
   void CheckClassName(const char* className) {
-    if (!IsValidClassName(className, true, false)) {
+    if (!IsValidJniClassName(className)) {
       LOG(ERROR) << "JNI ERROR: illegal class name '" << className << "' (" << function_name_ << ")\n"
                  << "           (should be of the form 'java/lang/String', [Ljava/lang/String;' or '[[B')\n";
       JniAbort();
@@ -241,7 +241,7 @@ public:
     DCHECK(f->GetType() != NULL);
     Class* c = o->GetClass();
     if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f->GetTypeDescriptor()) == NULL) {
-      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f) 
+      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f)
                  << " not valid for an object of class " << PrettyTypeOf(o);
       JniAbort();
     }

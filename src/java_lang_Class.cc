@@ -38,7 +38,7 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   // We need to validate and convert the name (from x.y.z to x/y/z).  This
   // is especially handy for array types, since we want to avoid
   // auto-generating bogus array classes.
-  if (!IsValidClassName(name.c_str(), true, true)) {
+  if (!IsValidBinaryClassName(name.c_str())) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassNotFoundException;",
         "Invalid name: %s", name.c_str());
     return NULL;

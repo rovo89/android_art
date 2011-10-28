@@ -274,8 +274,6 @@ std::string JniLongName(const Method* m) {
   return long_name;
 }
 
-namespace {
-
 // Helper for IsValidMemberNameUtf8(), a bit vector indicating valid low ascii.
 uint32_t DEX_MEMBER_VALID_LOW_ASCII[4] = {
   0x00000000, // 00..1f low control characters; nothing valid
@@ -355,11 +353,8 @@ bool IsValidMemberNameUtf8(const char** pUtf8Ptr) {
   return IsValidMemberNameUtf8Slow(pUtf8Ptr);
 }
 
-}  // namespace
-
-bool IsValidClassName(const char* s, bool isClassName, bool dot_or_slash) {
-  char separator = (dot_or_slash ? '.' : '/');
-
+enum ClassNameType { kName, kDescriptor };
+bool IsValidClassName(const char* s, ClassNameType type, char separator) {
   int arrayCount = 0;
   while (*s == '[') {
     arrayCount++;
@@ -378,10 +373,10 @@ bool IsValidClassName(const char* s, bool isClassName, bool dot_or_slash) {
      * format looks the same as a type descriptor in that case, so
      * treat it as such.
      */
-    isClassName = false;
+    type = kDescriptor;
   }
 
-  if (!isClassName) {
+  if (type == kDescriptor) {
     /*
      * We are looking for a descriptor. Either validate it as a
      * single-character primitive type, or continue on to check the
@@ -427,7 +422,7 @@ bool IsValidClassName(const char* s, bool isClassName, bool dot_or_slash) {
        * empty component (including the degenerate case of
        * the empty string "").
        */
-      return isClassName && !sepOrFirst;
+      return (type == kName) && !sepOrFirst;
     case ';':
       /*
        * Invalid character for a class name, but the
@@ -436,7 +431,7 @@ bool IsValidClassName(const char* s, bool isClassName, bool dot_or_slash) {
        * and that it doesn't end with an empty component
        * (including the degenerate case of "L;").
        */
-      return !isClassName && !sepOrFirst && (s[1] == '\0');
+      return (type == kDescriptor) && !sepOrFirst && (s[1] == '\0');
     case '/':
     case '.':
       if (c != separator) {
@@ -458,6 +453,18 @@ bool IsValidClassName(const char* s, bool isClassName, bool dot_or_slash) {
       break;
     }
   }
+}
+
+bool IsValidBinaryClassName(const char* s) {
+  return IsValidClassName(s, kName, '.');
+}
+
+bool IsValidJniClassName(const char* s) {
+  return IsValidClassName(s, kName, '/');
+}
+
+bool IsValidDescriptor(const char* s) {
+  return IsValidClassName(s, kDescriptor, '/');
 }
 
 void Split(const std::string& s, char delim, std::vector<std::string>& result) {

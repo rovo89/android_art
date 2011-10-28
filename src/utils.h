@@ -190,14 +190,10 @@ std::string DotToDescriptor(const char* class_name);
 // Turn "Ljava/lang/String;" into "java.lang.String".
 std::string DescriptorToDot(const std::string& descriptor);
 
-// Tests whether 's' is a valid class name.
-// name_or_descriptor
-//     true  => "java/lang/String"
-//     false => "Ljava/lang/String;" (i.e. "descriptor")
-// dot_or_slash
-//     true  => "java.lang.String"
-//     false => "java/lang/String" (i.e. "dot or slash")
-bool IsValidClassName(const char* s, bool name_or_descriptor, bool dot_or_slash);
+// Tests for whether 's' is a valid class name in the three common forms:
+bool IsValidBinaryClassName(const char* s);  // "java.lang.String"
+bool IsValidJniClassName(const char* s);     // "java/lang/String"
+bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 
 // Returns the JNI native function name for the non-overloaded method 'm'.
 std::string JniShortName(const Method* m);
