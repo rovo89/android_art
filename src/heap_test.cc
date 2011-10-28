@@ -6,6 +6,16 @@ namespace art {
 
 class HeapTest : public CommonTest {};
 
+TEST_F(HeapTest, ClearGrowthLimit) {
+  int64_t max_memory_before = Heap::GetMaxMemory();
+  int64_t total_memory_before = Heap::GetTotalMemory();
+  Heap::ClearGrowthLimit();
+  int64_t max_memory_after = Heap::GetMaxMemory();
+  int64_t total_memory_after = Heap::GetTotalMemory();
+  EXPECT_GE(max_memory_after, max_memory_before);
+  EXPECT_GE(total_memory_after, total_memory_before);
+}
+
 TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
   // garbage is created during ClassLinker::Init
 

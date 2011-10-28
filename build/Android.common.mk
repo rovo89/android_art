@@ -248,6 +248,7 @@ TEST_DEX_DIRECTORIES := \
 	ExceptionHandle \
 	ExceptionTest \
 	Fibonacci \
+	GrowthLimit \
 	HelloWorld \
 	IntMath \
 	Interfaces \

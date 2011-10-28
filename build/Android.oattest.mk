@@ -77,6 +77,7 @@ $(eval $(call declare-test-test-target,Fibonacci,10))
 
 # The rest are alphabetical
 $(eval $(call declare-test-test-target,ExceptionTest,))
+$(eval $(call declare-test-test-target,GrowthLimit,))
 $(eval $(call declare-test-test-target,IntMath,))
 $(eval $(call declare-test-test-target,Invoke,))
 $(eval $(call declare-test-test-target,MemUsage,))

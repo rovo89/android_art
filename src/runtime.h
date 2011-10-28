@@ -55,6 +55,7 @@ class Runtime {
     bool is_zygote_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
+    size_t heap_growth_limit_;
     size_t stack_size_;
     size_t jni_globals_max_;
     size_t lock_profiling_threshold_;

@@ -37,8 +37,8 @@ class Space {
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call GetBase on the returned space to confirm
   // the request was granted.
-  static Space* Create(const std::string& name,
-      size_t initial_size, size_t maximum_size, byte* requested_base);
+  static Space* Create(const std::string& name, size_t initial_size,
+      size_t maximum_size, size_t growth_size, byte* requested_base);
 
   // create a Space from an image file. cannot be used for future allocation or collected.
   static Space* CreateFromImage(const std::string& image);
@@ -63,7 +63,7 @@ class Space {
   }
 
   byte* GetLimit() const {
-    return limit_;
+    return growth_limit_;
   }
 
   const std::string& GetName() const {
@@ -71,7 +71,7 @@ class Space {
   }
 
   size_t Size() const {
-    return limit_ - base_;
+    return growth_limit_ - base_;
   }
 
   bool IsImageSpace() const {
@@ -90,6 +90,13 @@ class Space {
 
   size_t AllocationSize(const Object* obj);
 
+  void ClearGrowthLimit() {
+    CHECK_GE(maximum_size_, growth_size_);
+    CHECK_GE(limit_, growth_limit_);
+    growth_size_ = maximum_size_;
+    growth_limit_ = limit_;
+  }
+
  private:
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
@@ -98,11 +105,12 @@ class Space {
   static Space* Create(MemMap* mem_map);
 
   explicit Space(const std::string& name)
-      : name_(name), mspace_(NULL), maximum_size_(0), image_header_(NULL), base_(0), limit_(0) {
+      : name_(name), mspace_(NULL), maximum_size_(0), growth_size_(0),
+        image_header_(NULL), base_(0), limit_(0), growth_limit_(0) {
   }
 
   // Initializes the space and underlying storage.
-  bool Init(size_t initial_size, size_t maximum_size, byte* requested_base);
+  bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
 
   // Initializes the space from existing storage, taking ownership of the storage.
   void Init(MemMap* map);
@@ -119,6 +127,7 @@ class Space {
   // TODO: have a Space subclass for non-image Spaces with mspace_ and maximum_size_
   void* mspace_;
   size_t maximum_size_;
+  size_t growth_size_;
 
   // TODO: have a Space subclass for image Spaces with image_header_
   ImageHeader* image_header_;
@@ -126,8 +135,8 @@ class Space {
   UniquePtr<MemMap> mem_map_;
 
   byte* base_;
-
   byte* limit_;
+  byte* growth_limit_;
 
   DISALLOW_COPY_AND_ASSIGN(Space);
 };

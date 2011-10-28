@@ -13,9 +13,9 @@
 
 namespace art {
 
-Space* Space::Create(const std::string& name, size_t initial_size, size_t maximum_size, byte* requested_base) {
+Space* Space::Create(const std::string& name, size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base) {
   UniquePtr<Space> space(new Space(name));
-  bool success = space->Init(initial_size, maximum_size, requested_base);
+  bool success = space->Init(initial_size, maximum_size, growth_size, requested_base);
   if (!success) {
     return NULL;
   } else {
@@ -56,17 +56,23 @@ void* Space::CreateMallocSpace(void* base,
   return msp;
 }
 
-bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base) {
+bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base) {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "Space::Init entering"
               << " initial_size=" << initial_size
               << " maximum_size=" << maximum_size
+              << " growth_size=" << growth_size
               << " requested_base=" << reinterpret_cast<void*>(requested_base);
   }
-  if (!(initial_size <= maximum_size)) {
-    LOG(WARNING) << "Failed to create space with initial size > maximum size ("
-                 << initial_size << ">" << maximum_size << ")";
+  if (initial_size > growth_size) {
+    LOG(ERROR) << "Failed to create space with initial size > growth size ("
+               << initial_size << ">" << growth_size << ")";
+    return false;
+  }
+  if (growth_size > maximum_size) {
+    LOG(ERROR) << "Failed to create space with growth size > maximum size ("
+               << growth_size << ">" << maximum_size << ")";
     return false;
   }
   size_t length = RoundUp(maximum_size, kPageSize);
@@ -78,6 +84,9 @@ bool Space::Init(size_t initial_size, size_t maximum_size, byte* requested_base)
   }
   Init(mem_map.release());
   maximum_size_ = maximum_size;
+  size_t growth_length = RoundUp(growth_size, kPageSize);
+  growth_size_ = growth_size;
+  growth_limit_ = base_ + growth_length;
   mspace_ = CreateMallocSpace(base_, initial_size, maximum_size);
   if (mspace_ == NULL) {
     LOG(WARNING) << "Failed to create mspace for space";
@@ -152,6 +161,7 @@ bool Space::InitFromImage(const std::string& image_file_name) {
   runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kRefsAndArgs);
 
   Init(map.release());
+  growth_limit_ = limit_;
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "Space::InitFromImage exiting";
   }
@@ -166,7 +176,7 @@ Object* Space::AllocWithoutGrowth(size_t num_bytes) {
 Object* Space::AllocWithGrowth(size_t num_bytes) {
   DCHECK(mspace_ != NULL);
   // Grow as much as possible within the mspace.
-  size_t max_allowed = maximum_size_;
+  size_t max_allowed = growth_size_;
   mspace_set_max_allowed_footprint(mspace_, max_allowed);
   // Try the allocation.
   void* ptr = AllocWithoutGrowth(num_bytes);

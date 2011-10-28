@@ -46,7 +46,7 @@ class Heap {
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
   static void Init(bool is_verbose_heap, bool is_verbose_gc,
-                   size_t starting_size, size_t maximum_size,
+                   size_t starting_size, size_t maximum_size, size_t growth_size,
                    const std::vector<std::string>& image_file_names);
 
   static void Destroy();
@@ -91,9 +91,8 @@ class Heap {
   static int64_t CountInstances(Class* c, bool count_assignable);
 
   // Implements dalvik.system.VMRuntime.clearGrowthLimit.
-  static void ClearGrowthLimit() {
-    UNIMPLEMENTED(WARNING);
-  }
+  static void ClearGrowthLimit();
+
   // Implements dalvik.system.VMRuntime.getTargetHeapUtilization.
   static float GetTargetHeapUtilization() {
     return target_utilization_;
@@ -214,6 +213,13 @@ class Heap {
 
   // The maximum size of the heap in bytes.
   static size_t maximum_size_;
+
+  // The largest size the heap may grow. This value allows the app to limit the
+  // growth below the maximum size. This is a work around until we can
+  // dynamically set the maximum size. This value can range between the starting
+  // size and the maximum size but should never be set below the current
+  // footprint of the heap.
+  static size_t growth_size_;
 
   // True while the garbage collector is running.
   static bool is_gc_running_;
