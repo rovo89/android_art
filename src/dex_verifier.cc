@@ -229,7 +229,7 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
           return reg_types->IntConstant();
         }
       } else if (IsConstantShort()) {
-        if (incoming_type.IsShort()) {
+        if (incoming_type.IsConstantShort()) {
           return reg_types->ShortConstant();
         } else {
           return reg_types->IntConstant();
