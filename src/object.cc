@@ -767,7 +767,9 @@ Object* Class::AllocObject() {
   DCHECK(!IsAbstract()) << PrettyClass(this);
   DCHECK(!IsInterface()) << PrettyClass(this);
   DCHECK(!IsPrimitive()) << PrettyClass(this);
+  DCHECK(!IsArrayClass()) << PrettyClass(this);
   DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
+  DCHECK_GE(this->object_size_, sizeof(Object));
   return Heap::AllocObject(this, this->object_size_);
 }
 
