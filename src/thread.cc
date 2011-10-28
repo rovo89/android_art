@@ -164,10 +164,8 @@ void* Thread::CreateCallback(void* arg) {
 
   {
     CHECK_EQ(self->GetState(), Thread::kRunnable);
-    String* thread_name = reinterpret_cast<String*>(gThread_name->GetObject(self->peer_));
-    if (thread_name != NULL) {
-      SetThreadName(thread_name->ToModifiedUtf8().c_str());
-    }
+    SirtRef<String> thread_name(self->GetName());
+    SetThreadName(thread_name->ToModifiedUtf8().c_str());
   }
 
   Dbg::PostThreadStart(self);
@@ -264,8 +262,6 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
 
   self->SetState(Thread::kNative);
 
-  SetThreadName(name);
-
   // If we're the main thread, ClassLinker won't be created until after we're attached,
   // so that thread needs a two-stage attach. Regular threads don't need this hack.
   if (self->thin_lock_id_ != ThreadList::kMainId) {
@@ -300,13 +296,22 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   peer_ = DecodeJObject(peer.get());
   SetVmData(peer_, Thread::Current());
 
-  // Because we mostly run without code available (in the compiler, in tests), we
-  // manually assign the fields the constructor should have set.
-  // TODO: lose this.
-  gThread_daemon->SetBoolean(peer_, thread_is_daemon);
-  gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group.get()));
-  gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
-  gThread_priority->SetInt(peer_, thread_priority);
+  SirtRef<String> peer_thread_name(GetName());
+  if (peer_thread_name.get() == NULL) {
+    // The Thread constructor should have set the Thread.name to a
+    // non-null value. However, because we can run without code
+    // available (in the compiler, in tests), we manually assign the
+    // fields the constructor should have set.
+    gThread_daemon->SetBoolean(peer_, thread_is_daemon);
+    gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group.get()));
+    gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
+    gThread_priority->SetInt(peer_, thread_priority);
+    peer_thread_name.reset(GetName());
+  }
+  // thread_name may have been null, so don't trust this to be non-null
+  if (peer_thread_name.get() != NULL) {
+    SetThreadName(GetName()->ToModifiedUtf8().c_str());
+  }
 
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
   ThrowNewException("Ljava/lang/OutOfMemoryError;",

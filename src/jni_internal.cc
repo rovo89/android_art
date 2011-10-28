@@ -310,6 +310,15 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
   return EncodeMethod(method);
 }
 
+const ClassLoader* GetClassLoader(Thread* self) {
+  Frame frame = self->GetTopOfStack();
+  Method* method = frame.GetMethod();
+  if (method == NULL || PrettyMethod(method, false) == "java.lang.Runtime.nativeLoad") {
+    return self->GetClassLoaderOverride();
+  }
+  return method->GetDeclaringClass()->GetClassLoader();
+}
+
 jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
@@ -320,8 +329,7 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   Class* field_type;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (sig[1] != '\0') {
-    // TODO: need to get the appropriate ClassLoader.
-    const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
+    const ClassLoader* cl = GetClassLoader(ts.Self());
     field_type = class_linker->FindClass(sig, cl);
   } else {
     field_type = class_linker->FindPrimitiveClass(*sig);
@@ -641,8 +649,7 @@ class JNI {
     std::string descriptor(NormalizeJniClassDescriptor(name));
     Class* c = NULL;
     if (runtime->IsStarted()) {
-      // TODO: need to get the appropriate ClassLoader.
-      const ClassLoader* cl = ts.Self()->GetClassLoaderOverride();
+      const ClassLoader* cl = GetClassLoader(ts.Self());
       c = class_linker->FindClass(descriptor, cl);
     } else {
       c = class_linker->FindSystemClass(descriptor);
