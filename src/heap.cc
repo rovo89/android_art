@@ -54,17 +54,6 @@ Mutex* Heap::lock_ = NULL;
 
 bool Heap::verify_objects_ = false;
 
-class ScopedHeapLock {
- public:
-  ScopedHeapLock() {
-    Heap::Lock();
-  }
-
-  ~ScopedHeapLock() {
-    Heap::Unlock();
-  }
-};
-
 void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
                 size_t initial_size, size_t maximum_size, size_t growth_size,
                 const std::vector<std::string>& image_file_names) {
@@ -183,11 +172,16 @@ Object* Heap::AllocObject(Class* klass, size_t byte_count) {
 bool Heap::IsHeapAddress(const Object* obj) {
   // Note: we deliberately don't take the lock here, and mustn't test anything that would
   // require taking the lock.
-  if (!IsAligned<kObjectAlignment>(obj)) {
+  if (obj == NULL || !IsAligned<kObjectAlignment>(obj)) {
     return false;
   }
   // TODO
   return true;
+}
+
+bool Heap::IsLiveObjectLocked(const Object* obj) {
+  lock_->AssertHeld();
+  return IsHeapAddress(obj) && live_bitmap_->Test(obj);
 }
 
 #if VERIFY_OBJECT_ENABLED
@@ -541,6 +535,13 @@ void Heap::CollectGarbageInternal() {
 
 void Heap::WaitForConcurrentGcToComplete() {
   lock_->AssertHeld();
+}
+
+void Heap::WalkHeap(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg) {
+  typedef std::vector<Space*>::iterator It; // C++0x auto.
+  for (It it = spaces_.begin(); it != spaces_.end(); ++it) {
+    (*it)->Walk(callback, arg);
+  }
 }
 
 /* Terminology:

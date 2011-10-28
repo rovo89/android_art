@@ -18,9 +18,17 @@
 
 #include <sys/uio.h>
 
+#include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
+
+extern "C" void dlmalloc_walk_heap(void(*)(const void*, size_t, const void*, size_t, void*), void*);
+#ifndef HAVE_ANDROID_OS
+void dlmalloc_walk_heap(void(*)(const void*, size_t, const void*, size_t, void*), void*) {
+  // No-op for glibc.
+}
+#endif
 
 namespace art {
 
@@ -237,11 +245,11 @@ void Dbg::GcDidFinish() {
   }
   if (gDdmHpsgWhen != HPSG_WHEN_NEVER) {
     LOG(DEBUG) << "Dumping VM heap to DDM";
-    DdmSendHeapSegments(false, false);
+    DdmSendHeapSegments(false);
   }
   if (gDdmNhsgWhen != HPSG_WHEN_NEVER) {
     LOG(DEBUG) << "Dumping native heap to DDM";
-    DdmSendHeapSegments(false, true);
+    DdmSendHeapSegments(true);
   }
 }
 
@@ -675,18 +683,18 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   static jfieldID type_fid = env->GetFieldID(Chunk_class, "type", "I");
 
   // Create a byte[] corresponding to 'buf'.
-  jbyteArray dataArray = env->NewByteArray(dataLen);
-  if (dataArray == NULL) {
+  ScopedLocalRef<jbyteArray> dataArray(env, env->NewByteArray(dataLen));
+  if (dataArray.get() == NULL) {
     LOG(WARNING) << "byte[] allocation failed: " << dataLen;
     env->ExceptionClear();
     return false;
   }
-  env->SetByteArrayRegion(dataArray, 0, dataLen, reinterpret_cast<const jbyte*>(buf));
+  env->SetByteArrayRegion(dataArray.get(), 0, dataLen, reinterpret_cast<const jbyte*>(buf));
 
   const int kChunkHdrLen = 8;
 
   // Run through and find all chunks.  [Currently just find the first.]
-  ScopedByteArrayRO contents(env, dataArray);
+  ScopedByteArrayRO contents(env, dataArray.get());
   jint type = JDWP::Get4BE(reinterpret_cast<const uint8_t*>(&contents[0]));
   jint length = JDWP::Get4BE(reinterpret_cast<const uint8_t*>(&contents[4]));
   jint offset = kChunkHdrLen;
@@ -696,7 +704,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   }
 
   // Call "private static Chunk dispatch(int type, byte[] data, int offset, int length)".
-  jobject chunk = env->CallStaticObjectMethod(DdmServer_class, dispatch_mid, type, dataArray, offset, length);
+  ScopedLocalRef<jobject> chunk(env, env->CallStaticObjectMethod(DdmServer_class, dispatch_mid, type, dataArray.get(), offset, length));
   if (env->ExceptionCheck()) {
     LOG(INFO) << StringPrintf("Exception thrown by dispatcher for 0x%08x", type);
     env->ExceptionDescribe();
@@ -704,7 +712,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
     return false;
   }
 
-  if (chunk == NULL) {
+  if (chunk.get() == NULL) {
     return false;
   }
 
@@ -720,17 +728,17 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
    *
    * So we're pretty much stuck with copying data around multiple times.
    */
-  jbyteArray replyData = reinterpret_cast<jbyteArray>(env->GetObjectField(chunk, data_fid));
-  length = env->GetIntField(chunk, length_fid);
-  offset = env->GetIntField(chunk, offset_fid);
-  type = env->GetIntField(chunk, type_fid);
+  ScopedLocalRef<jbyteArray> replyData(env, reinterpret_cast<jbyteArray>(env->GetObjectField(chunk.get(), data_fid)));
+  length = env->GetIntField(chunk.get(), length_fid);
+  offset = env->GetIntField(chunk.get(), offset_fid);
+  type = env->GetIntField(chunk.get(), type_fid);
 
-  LOG(VERBOSE) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData, offset, length);
-  if (length == 0 || replyData == NULL) {
+  LOG(VERBOSE) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData.get(), offset, length);
+  if (length == 0 || replyData.get() == NULL) {
     return false;
   }
 
-  jsize replyLength = env->GetArrayLength(replyData);
+  jsize replyLength = env->GetArrayLength(replyData.get());
   if (offset + length > replyLength) {
     LOG(WARNING) << StringPrintf("chunk off=%d len=%d exceeds reply array len %d", offset, length, replyLength);
     return false;
@@ -743,7 +751,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   }
   JDWP::Set4BE(reply + 0, type);
   JDWP::Set4BE(reply + 4, length);
-  env->GetByteArrayRegion(replyData, offset, length, reinterpret_cast<jbyte*>(reply + kChunkHdrLen));
+  env->GetByteArrayRegion(replyData.get(), offset, length, reinterpret_cast<jbyte*>(reply + kChunkHdrLen));
 
   *pReplyBuf = reply;
   *pReplyLen = length + kChunkHdrLen;
@@ -940,8 +948,222 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
   Dbg::DdmSendChunk(CHUNK_TYPE("HPIF"), bytes.size(), &bytes[0]);
 }
 
-void Dbg::DdmSendHeapSegments(bool shouldLock, bool native) {
-  UNIMPLEMENTED(WARNING) << "shouldLock=" << shouldLock << " native=" << native;
+enum HpsgSolidity {
+  SOLIDITY_FREE = 0,
+  SOLIDITY_HARD = 1,
+  SOLIDITY_SOFT = 2,
+  SOLIDITY_WEAK = 3,
+  SOLIDITY_PHANTOM = 4,
+  SOLIDITY_FINALIZABLE = 5,
+  SOLIDITY_SWEEP = 6,
+};
+
+enum HpsgKind {
+  KIND_OBJECT = 0,
+  KIND_CLASS_OBJECT = 1,
+  KIND_ARRAY_1 = 2,
+  KIND_ARRAY_2 = 3,
+  KIND_ARRAY_4 = 4,
+  KIND_ARRAY_8 = 5,
+  KIND_UNKNOWN = 6,
+  KIND_NATIVE = 7,
+};
+
+#define HPSG_PARTIAL (1<<7)
+#define HPSG_STATE(solidity, kind) ((uint8_t)((((kind) & 0x7) << 3) | ((solidity) & 0x7)))
+
+struct HeapChunkContext {
+  std::vector<uint8_t> buf;
+  uint8_t* p;
+  uint8_t* pieceLenField;
+  size_t totalAllocationUnits;
+  int type;
+  bool merge;
+  bool needHeader;
+
+  // Maximum chunk size.  Obtain this from the formula:
+  // (((maximum_heap_size / ALLOCATION_UNIT_SIZE) + 255) / 256) * 2
+  HeapChunkContext(bool merge, bool native)
+      : buf(16384 - 16),
+        type(0),
+        merge(merge) {
+    Reset();
+    if (native) {
+      type = CHUNK_TYPE("NHSG");
+    } else {
+      type = merge ? CHUNK_TYPE("HPSG") : CHUNK_TYPE("HPSO");
+    }
+  }
+
+  ~HeapChunkContext() {
+    if (p > &buf[0]) {
+      Flush();
+    }
+  }
+
+  void EnsureHeader(const void* chunk_ptr) {
+    if (!needHeader) {
+      return;
+    }
+
+    // Start a new HPSx chunk.
+    JDWP::Write4BE(&p, 1); // Heap id (bogus; we only have one heap).
+    JDWP::Write1BE(&p, 8); // Size of allocation unit, in bytes.
+
+    JDWP::Write4BE(&p, reinterpret_cast<uintptr_t>(chunk_ptr)); // virtual address of segment start.
+    JDWP::Write4BE(&p, 0); // offset of this piece (relative to the virtual address).
+    // [u4]: length of piece, in allocation units
+    // We won't know this until we're done, so save the offset and stuff in a dummy value.
+    pieceLenField = p;
+    JDWP::Write4BE(&p, 0x55555555);
+    needHeader = false;
+  }
+
+  void Flush() {
+    // Patch the "length of piece" field.
+    CHECK_LE(&buf[0], pieceLenField);
+    CHECK_LE(pieceLenField, p);
+    JDWP::Set4BE(pieceLenField, totalAllocationUnits);
+
+    Dbg::DdmSendChunk(type, p - &buf[0], &buf[0]);
+    Reset();
+  }
+
+ private:
+  void Reset() {
+    p = &buf[0];
+    totalAllocationUnits = 0;
+    needHeader = true;
+    pieceLenField = NULL;
+  }
+
+  DISALLOW_COPY_AND_ASSIGN(HeapChunkContext);
+};
+
+#define ALLOCATION_UNIT_SIZE 8
+
+uint8_t ExamineObject(const Object* o, bool is_native_heap) {
+  if (o == NULL) {
+    return HPSG_STATE(SOLIDITY_FREE, 0);
+  }
+
+  // It's an allocated chunk. Figure out what it is.
+
+  // If we're looking at the native heap, we'll just return
+  // (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks.
+  if (is_native_heap || !Heap::IsLiveObjectLocked(o)) {
+    return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
+  }
+
+  Class* c = o->GetClass();
+  if (c == NULL) {
+    // The object was probably just created but hasn't been initialized yet.
+    return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
+  }
+
+  if (!Heap::IsHeapAddress(c)) {
+    LOG(WARNING) << "invalid class for managed heap object: " << o << " " << c;
+    return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
+  }
+
+  if (c->IsClassClass()) {
+    return HPSG_STATE(SOLIDITY_HARD, KIND_CLASS_OBJECT);
+  }
+
+  if (c->IsArrayClass()) {
+    if (o->IsObjectArray()) {
+      return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
+    }
+    switch (c->GetComponentSize()) {
+    case 1: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_1);
+    case 2: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_2);
+    case 4: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
+    case 8: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_8);
+    }
+  }
+
+  return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
+}
+
+static void HeapChunkCallback(const void* chunk_ptr, size_t chunk_len, const void* user_ptr, size_t user_len, void* arg) {
+  HeapChunkContext* context = reinterpret_cast<HeapChunkContext*>(arg);
+
+  CHECK_EQ((chunk_len & (ALLOCATION_UNIT_SIZE-1)), 0U);
+
+  /* Make sure there's enough room left in the buffer.
+   * We need to use two bytes for every fractional 256
+   * allocation units used by the chunk.
+   */
+  {
+    size_t needed = (((chunk_len/ALLOCATION_UNIT_SIZE + 255) / 256) * 2);
+    size_t bytesLeft = context->buf.size() - (size_t)(context->p - &context->buf[0]);
+    if (bytesLeft < needed) {
+      context->Flush();
+    }
+
+    bytesLeft = context->buf.size() - (size_t)(context->p - &context->buf[0]);
+    if (bytesLeft < needed) {
+      LOG(WARNING) << "chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
+      return;
+    }
+  }
+
+  // OLD-TODO: notice when there's a gap and start a new heap, or at least a new range.
+  context->EnsureHeader(chunk_ptr);
+
+  // Determine the type of this chunk.
+  // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
+  // If it's the same, we should combine them.
+  uint8_t state = ExamineObject(reinterpret_cast<const Object*>(user_ptr), (context->type == CHUNK_TYPE("NHSG")));
+
+  // Write out the chunk description.
+  chunk_len /= ALLOCATION_UNIT_SIZE;   // convert to allocation units
+  context->totalAllocationUnits += chunk_len;
+  while (chunk_len > 256) {
+    *context->p++ = state | HPSG_PARTIAL;
+    *context->p++ = 255;     // length - 1
+    chunk_len -= 256;
+  }
+  *context->p++ = state;
+  *context->p++ = chunk_len - 1;
+}
+
+static void WalkHeap(bool merge, bool native) {
+  HeapChunkContext context(merge, native);
+  if (native) {
+    dlmalloc_walk_heap(HeapChunkCallback, &context);
+  } else {
+    Heap::WalkHeap(HeapChunkCallback, &context);
+  }
+}
+
+void Dbg::DdmSendHeapSegments(bool native) {
+  Dbg::HpsgWhen when;
+  Dbg::HpsgWhat what;
+  if (!native) {
+    when = gDdmHpsgWhen;
+    what = gDdmHpsgWhat;
+  } else {
+    when = gDdmNhsgWhen;
+    what = gDdmNhsgWhat;
+  }
+  if (when == HPSG_WHEN_NEVER) {
+    return;
+  }
+
+  // Figure out what kind of chunks we'll be sending.
+  CHECK(what == HPSG_WHAT_MERGED_OBJECTS || what == HPSG_WHAT_DISTINCT_OBJECTS) << static_cast<int>(what);
+
+  // First, send a heap start chunk.
+  uint8_t heap_id[4];
+  JDWP::Set4BE(&heap_id[0], 1); // Heap id (bogus; we only have one heap).
+  Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHST") : CHUNK_TYPE("HPST"), sizeof(heap_id), heap_id);
+
+  // Send a series of heap segment chunks.
+  WalkHeap((what == HPSG_WHAT_MERGED_OBJECTS), native);
+
+  // Finally, send a heap end chunk.
+  Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);
 }
 
 }  // namespace art

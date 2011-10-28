@@ -97,6 +97,8 @@ class Space {
     growth_limit_ = limit_;
   }
 
+  void Walk(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg);
+
  private:
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;

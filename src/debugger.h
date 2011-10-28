@@ -258,7 +258,7 @@ public:
   static bool DdmHandleHpsgNhsgChunk(HpsgWhen when, HpsgWhat what, bool native);
 
   static void DdmSendHeapInfo(HpifWhen reason);
-  static void DdmSendHeapSegments(bool shouldLock, bool native);
+  static void DdmSendHeapSegments(bool native);
 };
 
 #define CHUNK_TYPE(_name) \

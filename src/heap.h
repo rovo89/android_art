@@ -72,10 +72,13 @@ class Heap {
   // Check sanity of all live references. Requires the heap lock.
   static void VerifyHeap();
 
-  // A weaker test than VerifyObject that doesn't require the heap lock,
+  // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
   static bool IsHeapAddress(const Object* obj);
+  // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
+  // Requires the heap lock to be held.
+  static bool IsLiveObjectLocked(const Object* obj);
 
   // Initiates an explicit garbage collection.
   static void CollectGarbage();
@@ -172,6 +175,9 @@ class Heap {
 #endif
   }
 
+  // dlmalloc_walk_heap-compatible heap walker.
+  static void WalkHeap(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg);
+
   static void AddFinalizerReference(Object* object);
 
   static size_t GetBytesAllocated() { return num_bytes_allocated_; }
@@ -256,6 +262,20 @@ class Heap {
   static bool verify_objects_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
+};
+
+class ScopedHeapLock {
+ public:
+  ScopedHeapLock() {
+    Heap::Lock();
+  }
+
+  ~ScopedHeapLock() {
+    Heap::Unlock();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScopedHeapLock);
 };
 
 }  // namespace art

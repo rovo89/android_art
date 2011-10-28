@@ -222,13 +222,18 @@ void Space::Trim() {
   mspace_walk_free_pages(mspace_, DontNeed, &num_bytes_released);
 }
 
+void Space::Walk(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg) {
+  if (mspace_ != NULL) {
+    mspace_walk_heap(mspace_, callback, arg);
+  }
+}
+
 size_t Space::GetMaxAllowedFootprint() {
   DCHECK(mspace_ != NULL);
   return mspace_max_allowed_footprint(mspace_);
 }
 
-void Space::SetMaxAllowedFootprint(size_t limit)
-{
+void Space::SetMaxAllowedFootprint(size_t limit) {
   DCHECK(mspace_ != NULL);
 
   // Compare against the actual footprint, rather than the
