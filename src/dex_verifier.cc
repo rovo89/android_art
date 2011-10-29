@@ -2045,7 +2045,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::ARRAY_LENGTH: {
       const RegType& res_type = work_line_->GetRegisterType(dec_insn.vB_);
       if (res_type.IsReferenceTypes()) {
-        if (!res_type.IsArrayClass()) {
+        if (!res_type.IsArrayClass() && !res_type.IsZero()) {  // ie not an array or null
           Fail(VERIFY_ERROR_GENERIC) << "array-length on non-array " << res_type;
         } else {
           work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
