@@ -76,27 +76,26 @@ Runtime::~Runtime() {
   instance_ = NULL;
 }
 
+struct AbortState {
+  void Dump(std::ostream& os) {
+    os << "Runtime aborting...\n";
+    Thread* self = Thread::Current();
+    if (self == NULL) {
+      os << "(Aborting thread was not attached to runtime!)\n";
+    } else {
+      self->Dump(os, true);
+    }
+  }
+};
+
 void Runtime::Abort(const char* file, int line) {
   // Get any pending output out of the way.
   fflush(NULL);
 
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
-  {
-    LogMessage log(file, line, ERROR, -1);
-    log.stream() << "Runtime aborting..." << std::endl;
-    // Add Java stack trace if possible
-    Thread* thread = Thread::Current();
-    if (thread != NULL) {
-      log.stream() << "Java stack trace of aborting thread:" << std::endl;
-      thread->DumpStack(log.stream());
-      if (thread->IsExceptionPending()) {
-        Throwable* e = thread->GetException();
-        log.stream() << "Pending exception on thread: " << PrettyTypeOf(e) << std::endl;
-        log.stream() << e->Dump();
-      }
-    }
-  }
+  AbortState state;
+  LOG(ERROR) << Dumpable<AbortState>(state);
 
   // Perform any platform-specific pre-abort actions.
   PlatformAbort(file, line);

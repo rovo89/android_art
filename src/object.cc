@@ -782,7 +782,7 @@ void Class::DumpClass(std::ostream& os, int flags) const {
     if ((flags & kDumpClassInitialized) != 0) {
       os << ' ' << GetStatus();
     }
-    os << std::endl;
+    os << "\n";
     return;
   }
 

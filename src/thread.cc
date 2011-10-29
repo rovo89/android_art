@@ -344,9 +344,13 @@ void Thread::InitStackHwm() {
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 }
 
-void Thread::Dump(std::ostream& os) const {
+void Thread::Dump(std::ostream& os, bool dump_pending_exception) const {
   DumpState(os);
   DumpStack(os);
+  if (dump_pending_exception && IsExceptionPending()) {
+    os << "Pending " << PrettyTypeOf(GetException()) << " on thread:\n";
+    os << GetException()->Dump();
+  }
 }
 
 std::string GetSchedulerGroup(pid_t tid) {

@@ -890,12 +890,9 @@ void DexVerifier::VerifyMethodAndDump(Method* method) {
   DexVerifier verifier(method);
   verifier.Verify();
 
-  LogMessage log(__FILE__, __LINE__, INFO, -1);
-  log.stream() << "Dump of method " << PrettyMethod(method) << " "
-               << verifier.fail_messages_.str();
-  log.stream() << std::endl << verifier.info_messages_.str();
-
-  verifier.Dump(log.stream());
+  LOG(INFO) << "Dump of method " << PrettyMethod(method) << " "
+            << verifier.fail_messages_.str() << std::endl
+            << verifier.info_messages_.str() << Dumpable<DexVerifier>(verifier);
 }
 
 DexVerifier::DexVerifier(Method* method) : java_lang_throwable_(NULL), work_insn_idx_(-1),

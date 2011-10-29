@@ -371,9 +371,7 @@ void ThreadList::Register() {
   Thread* self = Thread::Current();
 
   if (verbose_) {
-    LogMessage log(__FILE__, __LINE__, INFO, -1);
-    log.stream() << "ThreadList::Register() " << *self << "\n";
-    self->Dump(log.stream());
+    LOG(INFO) << "ThreadList::Register() " << *self << "\n" << Dumpable<Thread>(*self);
   }
 
   ThreadListLocker locker(this);

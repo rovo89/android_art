@@ -171,6 +171,32 @@ class LogMessage {
 
 void HexDump(const void* address, size_t byte_count, bool show_actual_address = false);
 
+// A convenience to allow any class with a "Dump(std::ostream& os)" member function
+// but without an operator<< to be used as if it had an operator<<. Use like this:
+//
+//   os << Dumpable<MyType>(my_type_instance);
+//
+template<typename T>
+class Dumpable {
+ public:
+  explicit Dumpable(T& value) : value_(value) {
+  }
+
+  void Dump(std::ostream& os) const {
+    value_.Dump(os);
+  }
+
+ private:
+  T& value_;
+  DISALLOW_COPY_AND_ASSIGN(Dumpable);
+};
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
+  rhs.Dump(os);
+  return os;
+}
+
 }  // namespace art
 
 #endif  // ART_SRC_LOGGING_H_

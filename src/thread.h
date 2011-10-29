@@ -180,7 +180,7 @@ class PACKED Thread {
   static Thread* FromManagedThread(JNIEnv* env, jobject thread);
   static uint32_t LockOwnerFromThreadLock(Object* thread_lock);
 
-  void Dump(std::ostream& os) const;
+  void Dump(std::ostream& os, bool dump_pending_exception = false) const;
 
   State GetState() const {
     return state_;
