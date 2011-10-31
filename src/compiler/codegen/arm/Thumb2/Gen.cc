@@ -729,8 +729,14 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
     int classReg = r2;  // r2 will hold the Class*
     if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
-        // Check we have access to type_idx and if not throw IllegalAccessError
-        UNIMPLEMENTED(FATAL);
+        // Check we have access to type_idx and if not throw IllegalAccessError,
+        // returns Class* in r0
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeTypeAndVerifyAccessFromCode),
+                     rLR);
+        loadConstant(cUnit, r0, type_idx);
+        callRuntimeHelper(cUnit, rLR);  // InitializeTypeAndVerifyAccess(idx, method)
+        genRegCopy(cUnit, classReg, r0);  // Align usage with fast path
     } else {
         // Load dex cache entry into classReg (r2)
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
@@ -743,7 +749,7 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             // Call out to helper, which will return resolved type in r0
             loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
             loadConstant(cUnit, r0, type_idx);
-            callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
+            callRuntimeHelper(cUnit, rLR);  // InitializeTypeFromCode(idx, method)
             genRegCopy(cUnit, r2, r0); // Align usage with fast path
             loadValueDirectFixed(cUnit, rlSrc, r0);  /* reload Ref */
             // Rejoin code paths
@@ -784,8 +790,14 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
     int classReg = r2;  // r2 will hold the Class*
     if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
-        // Check we have access to type_idx and if not throw IllegalAccessError
-        UNIMPLEMENTED(FATAL);
+        // Check we have access to type_idx and if not throw IllegalAccessError,
+        // returns Class* in r0
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeTypeAndVerifyAccessFromCode),
+                     rLR);
+        loadConstant(cUnit, r0, type_idx);
+        callRuntimeHelper(cUnit, rLR);  // InitializeTypeAndVerifyAccess(idx, method)
+        genRegCopy(cUnit, classReg, r0);  // Align usage with fast path
     } else {
         // Load dex cache entry into classReg (r2)
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
@@ -798,8 +810,8 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
             // Call out to helper, which will return resolved type in r0
             loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode), rLR);
             loadConstant(cUnit, r0, type_idx);
-            callRuntimeHelper(cUnit, rLR);  // resolveTypeFromCode(idx, method)
-            genRegCopy(cUnit, r2, r0); // Align usage with fast path
+            callRuntimeHelper(cUnit, rLR);  // InitializeTypeFromCode(idx, method)
+            genRegCopy(cUnit, classReg, r0); // Align usage with fast path
             // Rejoin code paths
             ArmLIR* hopTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
             hopTarget->defMask = ENCODE_ALL;
@@ -815,7 +827,7 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     loadWordDisp(cUnit, r0,  Object::ClassOffset().Int32Value(), r1);
     /* r1 now contains object->clazz */
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pCheckCastFromCode), rLR);
-    opRegReg(cUnit, kOpCmp, r1, r2);
+    opRegReg(cUnit, kOpCmp, r1, classReg);
     ArmLIR* branch2 = opCondBranch(cUnit, kArmCondEq); /* If equal, trivial yes */
     genRegCopy(cUnit, r0, r1);
     genRegCopy(cUnit, r1, r2);

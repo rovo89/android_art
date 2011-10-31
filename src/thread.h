@@ -138,6 +138,7 @@ class PACKED Thread {
   uint32_t (*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void* (*pInitializeTypeFromCode)(uint32_t, void*);
+  void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);
   void (*pLockObjectFromCode)(void*);
   void (*pObjectInit)(void*);
   void (*pResolveMethodFromCode)(Method*, uint32_t);

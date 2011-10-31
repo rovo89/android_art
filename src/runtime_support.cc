@@ -763,6 +763,37 @@ Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread
     CHECK(self->IsExceptionPending());
     return NULL;  // Failure - Indicate to caller to deliver exception
   }
+  DCHECK(referrer->GetDeclaringClass()->CanAccess(klass));
+  // If we are the <clinit> of this class, just return our storage.
+  //
+  // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
+  // running.
+  if (klass == referrer->GetDeclaringClass() && referrer->IsClassInitializer()) {
+    return klass;
+  }
+  if (!class_linker->EnsureInitialized(klass, true)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
+  return klass;
+}
+
+Class* InitializeStaticStorageAndVerifyAccess(uint32_t type_idx, const Method* referrer,
+                                              Thread* self) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* klass = class_linker->ResolveType(type_idx, referrer);
+  if (UNLIKELY(klass == NULL)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  // Perform access check
+  if (UNLIKELY(!referrer->GetDeclaringClass()->CanAccess(klass))) {
+    self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+        "Class %s is inaccessible to method %s",
+        PrettyDescriptor(klass->GetDescriptor()).c_str(),
+        PrettyMethod(referrer, true).c_str());
+  }
   // If we are the <clinit> of this class, just return our storage.
   //
   // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
@@ -789,6 +820,15 @@ extern "C" Class* artInitializeTypeFromCode(uint32_t type_idx, const Method* ref
   // Called when method->dex_cache_resolved_types_[] misses
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return InitializeStaticStorage(type_idx, referrer, self);
+}
+
+extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
+                                                           const Method* referrer, Thread* self,
+                                                           Method** sp) {
+  // Called when caller isn't guaranteed to have access to a type and the dex cache may be
+  // unpopulated
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return InitializeStaticStorageAndVerifyAccess(type_idx, referrer, self);
 }
 
 // TODO: placeholder.  Helper function to resolve virtual method

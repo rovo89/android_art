@@ -102,6 +102,7 @@ void Thread::InitFunctionPointers() {
   pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
   pInitializeTypeFromCode = art_initialize_type_from_code;
+  pInitializeTypeAndVerifyAccessFromCode = art_initialize_type_and_verify_access_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
   pLockObjectFromCode = art_lock_object_from_code;
   pObjectInit = art_object_init_from_code;
