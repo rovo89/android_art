@@ -22,7 +22,8 @@ class MarkSweep {
       weak_reference_list_(NULL),
       finalizer_reference_list_(NULL),
       phantom_reference_list_(NULL),
-      cleared_reference_list_(NULL) {
+      cleared_reference_list_(NULL),
+      class_count_(0), array_count_(0), other_count_(0) {
   }
 
   ~MarkSweep();
@@ -137,6 +138,10 @@ class MarkSweep {
   Object* phantom_reference_list_;
 
   Object* cleared_reference_list_;
+
+  size_t class_count_;
+  size_t array_count_;
+  size_t other_count_;
 
   friend class InternTableEntryIsUnmarked;
 

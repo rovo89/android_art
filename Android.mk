@@ -69,6 +69,9 @@ ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TEST_OAT_FILES)
 
 ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_OUT_EXECUTABLES)/oat_processd
 
+# Switch this to "oat_process" to run an optimized build.
+OAT_PROCESS=oat_processd
+
 ########################################################################
 # host test targets
 
@@ -144,7 +147,7 @@ $(eval $(call build-art-cache-oat,system/app/Calculator.apk))
 test-art-target-oat-process-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
 	adb remount
 	adb sync
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && $(OAT_PROCESS) /system/bin/app_process /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
 	$(hide) rm /tmp/test-art-target-process-am
 
@@ -156,18 +159,18 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(ART_CACHE_OUT)/system@app@Calculator.apk@classes.dex.`unzip -lv $(TARGET_OUT_APPS)/Calculator.apk classes.dex | grep classes.dex | sed -E 's/.* ([0-9a-f]+)  classes.dex/\1/'` # note this is extracting the crc32 that is needed as the file extension
 	adb remount
 	adb sync
-	if [ "`adb shell getprop wrap.com.android.calculator2 | tr -d '\r'`" = "oat_processd" ]; then \
+	if [ "`adb shell getprop wrap.com.android.calculator2 | tr -d '\r'`" = "$(OAT_PROCESS)" ]; then \
 	  echo wrap.com.android.calculator2 already set; \
 	  adb shell start; \
 	else \
 	  echo Setting wrap.com.android.calculator2 and restarting runtime; \
-	  adb shell setprop wrap.com.android.calculator2 "oat_processd"; \
+	  adb shell setprop wrap.com.android.calculator2 "$(OAT_PROCESS)"; \
 	  adb shell stop; \
 	  adb shell start; \
 	  sleep 30; \
 	fi
 	adb shell kill `adb shell ps | fgrep com.android.calculator2 | sed -e 's/[^ ]* *\([0-9]*\).*/\1/'`
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && oat_processd /system/bin/app_process /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
+	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && $(OAT_PROCESS) /system/bin/app_process /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
 	$(hide) rm /tmp/test-art-target-process-Calculator
 
