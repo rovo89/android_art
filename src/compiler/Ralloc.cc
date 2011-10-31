@@ -216,7 +216,27 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                     definedCore |= (cUnit->regLocation[ssaRep->uses[i]].defined
                                   && cUnit->regLocation[ssaRep->uses[i]].core);
                 }
-                DCHECK(!(definedFP && definedCore));
+                /*
+                 * TODO: cleaner fix
+                 * We don't normally expect to see a Dalvik register
+                 * definition used both as a floating point and core
+                 * value.  However, the instruction rewriting that occurs
+                 * during verification can eliminate some type information,
+                 * leaving us confused.  The real fix here is either to
+                 * add explicit type information to Dalvik byte codes,
+                 * or to recognize OP_THROW_VERIFICATION_ERROR as
+                 * an unconditional branch and support dead code elimination.
+                 * As a workaround we can detect this situation and
+                 * disable register promotion (which is the only thing that
+                 * relies on distinctions between core and fp usages.
+                 */
+                if ((definedFP && definedCore) &&
+                    ((cUnit->disableOpt & (1 << kPromoteRegs)) == 0)) {
+                    LOG(WARNING) << art::PrettyMethod(cUnit->method)
+                        << " op at block " << bb->id
+                        << " has both fp and core uses for same def.";
+                    cUnit->disableOpt |= (1 << kPromoteRegs);
+                }
                 changed |= setFp(cUnit, ssaRep->defs[0], definedFP);
                 changed |= setCore(cUnit, ssaRep->defs[0], definedCore);
                 for (int i = 0; i < ssaRep->numUses; i++) {
