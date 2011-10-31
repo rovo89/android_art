@@ -1047,6 +1047,10 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     // Explicit register usage
     oatLockCallTemps(cUnit);
     if (SLOW_INVOKE_PATH || baseMethod == NULL) {
+        Thread* thread = Thread::Current();
+        if (thread->IsExceptionPending()) {  // clear any exception left by resolve method
+            thread->ClearException();
+        }
         fastPath = false;
     } else {
         Class* superClass = cUnit->method->GetDeclaringClass()->GetSuperClass();
@@ -1099,6 +1103,10 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     // Explicit register usage
     oatLockCallTemps(cUnit);
     if (SLOW_INVOKE_PATH || method == NULL) {
+        Thread* thread = Thread::Current();
+        if (thread->IsExceptionPending()) {  // clear any exception left by resolve method
+            thread->ClearException();
+        }
         // Slow path
         nextCallInsn = nextVCallInsnSP;
         // If we need a slow-path callout, we'll restart here
