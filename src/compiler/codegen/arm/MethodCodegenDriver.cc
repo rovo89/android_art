@@ -164,6 +164,10 @@ Field* FindFieldWithResolvedStaticStorage(const Method* method,
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
     Field* field = class_linker->ResolveField(fieldIdx, method, true);
     if (field == NULL) {
+        Thread* thread = Thread::Current();
+        if (thread->IsExceptionPending()) {  // clear any exception left by resolve field
+            thread->ClearException();
+        }
         return NULL;
     }
     const art::DexFile& dex_file = class_linker->

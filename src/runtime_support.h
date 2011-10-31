@@ -20,6 +20,8 @@ extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
 void* UnresolvedDirectMethodTrampolineFromCode(int32_t, Method**, Thread*, Runtime::TrampolineType);
 extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
+extern Class* InitializeStaticStorageAndVerifyAccess(uint32_t type_idx, const Method* referrer,
+                                                     Thread* self);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
@@ -66,6 +68,7 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void* art_get_obj_static_from_code(uint32_t, void*);
   extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
   extern "C" void* art_initialize_type_from_code(uint32_t, void*);
+  extern "C" void* art_initialize_type_and_verify_access_from_code(uint32_t, void*);
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
 
   /* Conversions */
