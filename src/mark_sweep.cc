@@ -218,6 +218,9 @@ inline void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool 
 // Scans the header, static field references, and interface pointers
 // of a class object.
 inline void MarkSweep::ScanClass(const Object* obj) {
+#ifndef NDEBUG
+  ++class_count_;
+#endif
   ScanInstanceFields(obj);
   ScanStaticFields(obj->AsClass());
 }
@@ -225,8 +228,9 @@ inline void MarkSweep::ScanClass(const Object* obj) {
 // Scans the header of all array objects.  If the array object is
 // specialized to a reference type, scans the array data as well.
 inline void MarkSweep::ScanArray(const Object* obj) {
-  DCHECK(obj != NULL);
-  DCHECK(obj->GetClass() != NULL);
+#ifndef NDEBUG
+  ++array_count_;
+#endif
   MarkObject(obj->GetClass());
   if (obj->IsObjectArray()) {
     const ObjectArray<Object>* array = obj->AsObjectArray<Object>();
@@ -267,12 +271,11 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
 // scanned object is a reference subclass, it is scheduled for later
 // processing.
 inline void MarkSweep::ScanOther(const Object* obj) {
-  DCHECK(obj != NULL);
-  Class* klass = obj->GetClass();
-  DCHECK(klass != NULL);
-  MarkObject(klass);
+#ifndef NDEBUG
+  ++other_count_;
+#endif
   ScanInstanceFields(obj);
-  if (klass->IsReferenceClass()) {
+  if (obj->GetClass()->IsReferenceClass()) {
     DelayReferenceReferent(const_cast<Object*>(obj));
   }
 }
@@ -423,6 +426,11 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
 }
 
 MarkSweep::~MarkSweep() {
+#ifndef NDEBUG
+  if (Heap::IsVerboseHeap()) {
+    LOG(INFO) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_ << " other=" << other_count_;
+  }
+#endif
   delete mark_stack_;
   mark_bitmap_->Clear();
 }

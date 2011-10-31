@@ -52,7 +52,7 @@ class Heap {
   static void Destroy();
 
   static bool IsVerboseHeap() {
-    return is_verbose_heap_;
+    return is_verbose_heap_ || is_verbose_gc_ /* TODO: remove when pause times are down */;
   }
 
   static bool IsVerboseGc() {
