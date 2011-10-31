@@ -642,7 +642,8 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
   ParameterIterator* it = GetParameterIterator(GetProtoId(method->GetProtoIdx()));
   for (uint32_t i = 0; i < parameters_size && it->HasNext(); ++i, it->Next()) {
     if (arg_reg >= code_item->registers_size_) {
-      LOG(ERROR) << "invalid stream";
+      LOG(ERROR) << "invalid stream - arg reg >= reg size (" << arg_reg
+                 << " >= " << code_item->registers_size_ << ")";
       return;
     }
     int32_t id = DecodeUnsignedLeb128P1(&stream);
@@ -666,13 +667,16 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
   }
 
   if (it->HasNext()) {
-    LOG(ERROR) << "invalid stream";
+    LOG(ERROR) << "invalid stream - problem with parameter iterator";
     return;
   }
 
   for (;;)  {
     uint8_t opcode = *stream++;
     uint16_t reg;
+    uint16_t name_idx;
+    uint16_t descriptor_idx;
+    uint16_t signature_idx = 0;
 
     switch (opcode) {
       case DBG_END_SEQUENCE:
@@ -690,18 +694,25 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_START_LOCAL_EXTENDED:
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
-          LOG(ERROR) << "invalid stream";
+          LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
+                     << code_item->registers_size_ << ")";
           return;
+        }
+
+        name_idx = DecodeUnsignedLeb128P1(&stream);
+        descriptor_idx = DecodeUnsignedLeb128P1(&stream);
+        if (opcode == DBG_START_LOCAL_EXTENDED) {
+          signature_idx = DecodeUnsignedLeb128P1(&stream);
         }
 
         // Emit what was previously there, if anything
         if (need_locals) {
           InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
 
-          local_in_reg[reg].name_ = dexStringById(DecodeUnsignedLeb128P1(&stream));
-          local_in_reg[reg].descriptor_ = dexStringByTypeIdx(DecodeUnsignedLeb128P1(&stream));
+          local_in_reg[reg].name_ = dexStringById(name_idx);
+          local_in_reg[reg].descriptor_ = dexStringByTypeIdx(descriptor_idx);
           if (opcode == DBG_START_LOCAL_EXTENDED) {
-            local_in_reg[reg].signature_ = dexStringById(DecodeUnsignedLeb128P1(&stream));
+            local_in_reg[reg].signature_ = dexStringById(signature_idx);
           }
           local_in_reg[reg].start_address_ = address;
           local_in_reg[reg].is_live_ = true;
@@ -711,7 +722,8 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_END_LOCAL:
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
-          LOG(ERROR) << "invalid stream";
+          LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
+                     << code_item->registers_size_ << ")";
           return;
         }
 
@@ -724,13 +736,14 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       case DBG_RESTART_LOCAL:
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
-          LOG(ERROR) << "invalid stream";
+          LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
+                     << code_item->registers_size_ << ")";
           return;
         }
 
         if (need_locals) {
           if (local_in_reg[reg].name_ == NULL || local_in_reg[reg].descriptor_ == NULL) {
-            LOG(ERROR) << "invalid stream";
+            LOG(ERROR) << "invalid stream - no name or descriptor";
             return;
           }
 
