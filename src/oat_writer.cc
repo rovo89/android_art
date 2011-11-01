@@ -142,7 +142,13 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
   // TODO: remove code ByteArrays from Class/Method (and therefore ClassLoader)
   // TODO: don't write code for shared stubs
   Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor, class_loader_);
-  CHECK(klass != NULL) << descriptor;
+  if (klass == NULL) {
+    LOG(WARNING) << "Didn't find class '" << descriptor << "' in dex file " << dex_file.GetLocation();
+    Thread* thread = Thread::Current();
+    DCHECK(thread->IsExceptionPending());
+    thread->ClearException();
+    return offset;
+  }
   CHECK_EQ(klass->GetClassLoader(), class_loader_);
   CHECK_EQ(oat_methods_[oat_class_index]->method_offsets_.size(),
            klass->NumDirectMethods() + num_virtual_methods);
@@ -357,6 +363,13 @@ size_t OatWriter::WriteCodeClassDef(File* file,
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* klass = class_linker->FindClass(descriptor, class_loader_);
+  if (klass == NULL) {
+    LOG(WARNING) << "Didn't find class '" << descriptor << "' in dex file " << dex_file.GetLocation();
+    Thread* thread = Thread::Current();
+    DCHECK(thread->IsExceptionPending());
+    thread->ClearException();
+    return code_offset;
+  }
 
   // TODO: deduplicate code arrays
   // Note that we clear the code array here, image_writer will use GetCodeOffset to find it
