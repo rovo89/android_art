@@ -189,7 +189,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
     // Yes. Bulk copy.
     COMPILE_ASSERT(sizeof(width) == sizeof(uint32_t), move32_assumes_Object_references_are_32_bit);
     move32(dstBytes + dstPos * width, srcBytes + srcPos * width, length * width);
-    Heap::WriteBarrier(dstArray);
+    Heap::WriteBarrierArray(dstArray, dstPos, length);
     return;
   }
 
@@ -229,7 +229,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   }
 
   move32(dstBytes + dstPos * width, srcBytes + srcPos * width, copyCount * width);
-  Heap::WriteBarrier(dstArray);
+  Heap::WriteBarrierArray(dstArray, dstPos, length);
   if (copyCount != length) {
     std::string actualSrcType(PrettyTypeOf(srcObj[copyCount]));
     std::string dstType(PrettyTypeOf(dstArray));

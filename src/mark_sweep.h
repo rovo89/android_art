@@ -34,6 +34,13 @@ class MarkSweep {
   // Marks the root set at the start of a garbage collection.
   void MarkRoots();
 
+  // Marks the roots in the image space on dirty cards
+  void ScanDirtyImageRoots();
+
+  bool IsMarkStackEmpty() const {
+    return mark_stack_->IsEmpty();
+  }
+
   // Builds a mark stack and recursively mark until it empties.
   void RecursiveMark();
 
@@ -66,6 +73,8 @@ class MarkSweep {
 
   static void MarkObjectVisitor(const Object* root, void* arg);
 
+  static void ScanImageRootVisitor(Object* root, void* arg);
+
   // Marks an object.
   void MarkObject(const Object* obj);
 
@@ -74,27 +83,45 @@ class MarkSweep {
 
   static void ScanBitmapCallback(Object* obj, void* finger, void* arg);
 
+  static void CheckBitmapCallback(Object* obj, void* finger, void* arg);
+
   static void SweepCallback(size_t num_ptrs, void** ptrs, void* arg);
+
+  void CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static);
 
   // Blackens an object.
   void ScanObject(const Object* obj);
 
+  void CheckObject(const Object* obj);
+
   // Grays references in instance fields.
   void ScanInstanceFields(const Object* obj);
+
+  void CheckInstanceFields(const Object* obj);
 
   // Blackens a class object.
   void ScanClass(const Object* obj);
 
+  void CheckClass(const Object* obj);
+
   // Grays references in static fields.
   void ScanStaticFields(const Class* klass);
+
+  void CheckStaticFields(const Class* klass);
 
   // Used by ScanInstanceFields and ScanStaticFields
   void ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static);
 
+  void CheckFields(const Object* obj, uint32_t ref_offsets, bool is_static);
+
   // Grays references in an array.
   void ScanArray(const Object* obj);
 
+  void CheckArray(const Object* obj);
+
   void ScanOther(const Object* obj);
+
+  void CheckOther(const Object* obj);
 
   // Blackens objects grayed during a garbage collection.
   void ScanDirtyObjects();

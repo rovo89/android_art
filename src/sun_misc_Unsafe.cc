@@ -65,8 +65,15 @@ jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlon
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
   int result = android_atomic_release_cas(reinterpret_cast<int32_t>(expectedValue),
       reinterpret_cast<int32_t>(newValue), address);
-  Heap::WriteBarrier(obj);
+  if (result == 0) {
+    Heap::WriteBarrierField(obj, MemberOffset(offset), newValue);
+  }
   return (result == 0);
+}
+
+jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  Object* obj = Decode<Object*>(env, javaObj);
+  return obj->GetField32(MemberOffset(offset), false);
 }
 
 jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
@@ -76,6 +83,11 @@ jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) 
   return android_atomic_acquire_load(address);
 }
 
+void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
+  Object* obj = Decode<Object*>(env, javaObj);
+  obj->SetField32(MemberOffset(offset), newValue, false);
+}
+
 void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
@@ -83,59 +95,10 @@ void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, 
   android_atomic_release_store(newValue, address);
 }
 
-jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
-  DCHECK_EQ(offset & 7, 0);
-  return QuasiAtomicRead64(address);
-}
-
-void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
-  DCHECK_EQ(offset & 7, 0);
-  QuasiAtomicSwap64(newValue, address);
-}
-
-jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
-  Object* value = reinterpret_cast<Object*>(android_atomic_acquire_load(address));
-  return AddLocalReference<jobject>(env, value);
-}
-
-void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  Object* newValue = Decode<Object*>(env, javaNewValue);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
-  android_atomic_release_store(reinterpret_cast<int32_t>(newValue), address);
-  Heap::WriteBarrier(obj);
-}
-
-jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int32_t* address = reinterpret_cast<int32_t*>(raw_addr);
-  return *address;
-}
-
-void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int32_t* address = reinterpret_cast<int32_t*>(raw_addr);
-  *address = newValue;
-}
-
 void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int32_t* address = reinterpret_cast<int32_t*>(raw_addr);
   ANDROID_MEMBAR_STORE();
-  *address = newValue;
+  obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
 jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
@@ -145,45 +108,57 @@ jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   return *address;
 }
 
+jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  Object* obj = Decode<Object*>(env, javaObj);
+  return obj->GetField64(MemberOffset(offset), true);
+}
+
 void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int64_t* address = reinterpret_cast<int64_t*>(raw_addr);
-  *address = newValue;
+  obj->SetField64(MemberOffset(offset), newValue, false);
+}
+
+void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
+  Object* obj = Decode<Object*>(env, javaObj);
+  obj->SetField64(MemberOffset(offset), newValue, true);
 }
 
 void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int64_t* address = reinterpret_cast<int64_t*>(raw_addr);
   ANDROID_MEMBAR_STORE();
-  *address = newValue;
+  obj->SetField64(MemberOffset(offset), newValue, false);
+}
+
+jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  Object* obj = Decode<Object*>(env, javaObj);
+  Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), true);
+  return AddLocalReference<jobject>(env, value);
 }
 
 jobject Unsafe_getObject(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  Object** address = reinterpret_cast<Object**>(raw_addr);
-  return AddLocalReference<jobject>(env, *address);
+  Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), false);
+  return AddLocalReference<jobject>(env, value);
 }
 
 void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* newValue = Decode<Object*>(env, javaNewValue);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  Object** address = reinterpret_cast<Object**>(raw_addr);
-  *address = newValue;
-  Heap::WriteBarrier(obj);
+  obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
+
+void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+  Object* obj = Decode<Object*>(env, javaObj);
+  Object* newValue = Decode<Object*>(env, javaNewValue);
+  obj->SetFieldObject(MemberOffset(offset), newValue, true);
+}
+
 
 void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* newValue = Decode<Object*>(env, javaNewValue);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  Object** address = reinterpret_cast<Object**>(raw_addr);
   ANDROID_MEMBAR_STORE();
-  *address = newValue;
-  Heap::WriteBarrier(obj);
+  obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
 JNINativeMethod gMethods[] = {

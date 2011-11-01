@@ -779,7 +779,8 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
     // restore class to ClassLinker::classes_ table
     Class* klass = obj->AsClass();
     std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
-    class_linker->InsertClass(descriptor, klass);
+    bool success = class_linker->InsertClass(descriptor, klass, true);
+    DCHECK(success);
     return;
   }
 }
@@ -800,6 +801,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
     }
+    // Note. we deliberately ignore the class roots in the image (held in image_classes_)
   }
 
   visitor(array_interfaces_, arg);
@@ -1026,7 +1028,7 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
   ObjectLock lock(klass.get());
   klass->SetClinitThreadId(self->GetTid());
   // Add the newly loaded class to the loaded classes table.
-  bool success = InsertClass(descriptor, klass.get());  // TODO: just return collision
+  bool success = InsertClass(descriptor, klass.get(), false);  // TODO: just return collision
   if (!success) {
     // We may fail to insert if we raced with another thread.
     klass->SetClinitThreadId(0);
@@ -1450,7 +1452,7 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
   CHECK(primitive_class->GetDescriptor() != NULL);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(Class::kStatusInitialized);
-  bool success = InsertClass(descriptor, primitive_class);
+  bool success = InsertClass(descriptor, primitive_class, false);
   CHECK(success) << "InitPrimitiveClass(" << descriptor << ") failed";
   return primitive_class;
 }
@@ -1578,7 +1580,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
   new_class->SetAccessFlags(((new_class->GetComponentType()->GetAccessFlags() &
                              ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask);
 
-  if (InsertClass(descriptor, new_class.get())) {
+  if (InsertClass(descriptor, new_class.get(), false)) {
     return new_class.get();
   }
   // Another thread must have loaded the class after we
@@ -1621,10 +1623,17 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
   return NULL;
 }
 
-bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass) {
+bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass, bool image_class) {
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
-  Table::iterator it = classes_.insert(std::make_pair(hash, klass));
+  Table::iterator it;
+  if (image_class) {
+    // TODO: sanity check there's no match in classes_
+    it = image_classes_.insert(std::make_pair(hash, klass));
+  } else {
+    // TODO: sanity check there's no match in image_classes_
+    it = classes_.insert(std::make_pair(hash, klass));
+  }
   return ((*it).second == klass);
 }
 
@@ -1632,7 +1641,14 @@ Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
+  // TODO: determine if its better to search classes_ or image_classes_ first
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
+    Class* klass = it->second;
+    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+      return klass;
+    }
+  }
+  for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
       return klass;
@@ -2772,6 +2788,9 @@ void ClassLinker::DumpAllClasses(int flags) const {
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       all_classes.push_back(it->second);
     }
+    for (It it = image_classes_.begin(), end = image_classes_.end(); it != end; ++it) {
+      all_classes.push_back(it->second);
+    }
   }
 
   for (size_t i = 0; i < all_classes.size(); ++i) {
@@ -2781,7 +2800,7 @@ void ClassLinker::DumpAllClasses(int flags) const {
 
 size_t ClassLinker::NumLoadedClasses() const {
   MutexLock mu(classes_lock_);
-  return classes_.size();
+  return classes_.size() + image_classes_.size();
 }
 
 pid_t ClassLinker::GetClassesLockOwner() {

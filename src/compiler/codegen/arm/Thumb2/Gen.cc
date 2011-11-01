@@ -397,8 +397,6 @@ STATIC void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
  */
 STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-#ifdef CONCURRENT_GARBAGE_COLLECTOR
-    // TODO: re-enable when concurrent collector is active
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
     ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondEq, valReg, 0);
@@ -412,7 +410,6 @@ STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
     branchOver->generic.target = (LIR*)target;
     oatFreeTemp(cUnit, regCardBase);
     oatFreeTemp(cUnit, regCardNo);
-#endif
 }
 
 /*

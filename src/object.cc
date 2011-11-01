@@ -127,11 +127,13 @@ const char* Field::GetTypeDescriptor() const {
   return descriptor;
 }
 
-Class* Field::GetType() const {
-  if (type_ == NULL) {
-    type_ = Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
+Class* Field::GetType() {
+  Class* type = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Field, type_), false);
+  if (type == NULL) {
+    type = Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, type_), type, false);
   }
-  return type_;
+  return type;
 }
 
 void Field::InitJavaFields() {
@@ -376,8 +378,11 @@ void Method::InitJavaFieldsLocked() {
   DCHECK_EQ(*p, ')');
   ++p;
 
-  java_parameter_types_ = parameters;
-  java_return_type_ = ExtractNextClassFromSignature(class_linker, cl, p);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_parameter_types_),
+                 parameters, false);
+  Class* java_return_type = ExtractNextClassFromSignature(class_linker, cl, p);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_),
+                 java_return_type, false);
 }
 
 void Method::InitJavaFields() {

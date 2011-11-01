@@ -82,9 +82,11 @@ class HeapBitmap {
 
   bool HasAddress(const void* addr) const;
 
+  void VisitRange(uintptr_t base, uintptr_t max, Callback* visitor, void* arg) const;
+
   void Walk(Callback* callback, void* arg);
 
-  void ScanWalk(uintptr_t base, ScanCallback* thunk, void* arg);
+  void ScanWalk(uintptr_t base, uintptr_t max, ScanCallback* thunk, void* arg);
 
   static void SweepWalk(const HeapBitmap& live,
                         const HeapBitmap& mark,

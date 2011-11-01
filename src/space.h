@@ -51,6 +51,8 @@ class Space {
 
   size_t Free(void* ptr);
 
+  size_t FreeList(size_t num_ptrs, void** ptrs);
+
   void Trim();
 
   size_t GetMaxAllowedFootprint();
@@ -64,6 +66,10 @@ class Space {
 
   byte* GetLimit() const {
     return growth_limit_;
+  }
+
+  byte* GetMax() const {
+    return base_ + maximum_size_;
   }
 
   const std::string& GetName() const {
@@ -98,6 +104,11 @@ class Space {
   }
 
   void Walk(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg);
+
+  bool Contains(const Object* obj) const {
+    const byte* byte_ptr = reinterpret_cast<const byte*>(obj);
+    return GetBase() <= byte_ptr && byte_ptr < GetLimit();
+  }
 
  private:
   // The boundary tag overhead.

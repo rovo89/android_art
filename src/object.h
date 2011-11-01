@@ -287,7 +287,7 @@ class MANAGED Object {
     Heap::VerifyObject(new_value);
     SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
     if (new_value != NULL) {
-      Heap::WriteBarrier(this);
+      Heap::WriteBarrierField(this, field_offset, new_value);
     }
   }
 
@@ -436,7 +436,7 @@ class MANAGED Field : public AccessibleObject {
 
   // Performs full resolution, may return null and set exceptions if type cannot
   // be resolved
-  Class* GetType() const;
+  Class* GetType();
 
   // Offset to field within an Object
   MemberOffset GetOffset() const;
@@ -504,7 +504,7 @@ class MANAGED Field : public AccessibleObject {
   String* name_;
 
   // The possibly null type of the field
-  mutable Class* type_;
+  Class* type_;
 
   uint32_t generic_types_are_initialized_;
 
@@ -1195,6 +1195,8 @@ class MANAGED ObjectArray : public Array {
   // Set element without bound and element type checks, to be used in limited
   // circumstances, such as during boot image writing
   void SetWithoutChecks(int32_t i, T* object);
+
+  T* GetWithoutChecks(int32_t i) const;
 
   static void Copy(const ObjectArray<T>* src, int src_pos,
                    ObjectArray<T>* dst, int dst_pos,
@@ -2260,6 +2262,13 @@ void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
 }
 
 template<class T>
+T* ObjectArray<T>::GetWithoutChecks(int32_t i) const {
+  DCHECK(IsValidIndex(i));
+  MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+  return GetFieldObject<T*>(data_offset, false);
+}
+
+template<class T>
 void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
                           ObjectArray<T>* dst, int dst_pos,
                           size_t length) {
@@ -2267,16 +2276,16 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
       src->IsValidIndex(src_pos+length-1) &&
       dst->IsValidIndex(dst_pos) &&
       dst->IsValidIndex(dst_pos+length-1)) {
-    MemberOffset src_offset(DataOffset().Int32Value() +
-                            src_pos * sizeof(Object*));
-    MemberOffset dst_offset(DataOffset().Int32Value() +
-                            dst_pos * sizeof(Object*));
+    MemberOffset src_offset(DataOffset().Int32Value() + src_pos * sizeof(Object*));
+    MemberOffset dst_offset(DataOffset().Int32Value() + dst_pos * sizeof(Object*));
     Class* array_class = dst->GetClass();
     if (array_class == src->GetClass()) {
       // No need for array store checks if arrays are of the same type
       for (size_t i = 0; i < length; i++) {
         Object* object = src->GetFieldObject<Object*>(src_offset, false);
-        dst->SetFieldObject(dst_offset, object, false);
+        Heap::VerifyObject(object);
+        // directly set field, we do a bulk write barrier at the end
+        dst->SetField32(dst_offset, reinterpret_cast<uint32_t>(object), false, true);
         src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
         dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
       }
@@ -2289,12 +2298,14 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
           dst->ThrowArrayStoreException(object);
           return;
         }
-        dst->SetFieldObject(dst_offset, object, false);
+        Heap::VerifyObject(object);
+        // directly set field, we do a bulk write barrier at the end
+        dst->SetField32(dst_offset, reinterpret_cast<uint32_t>(object), false, true);
         src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
         dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
       }
     }
-    Heap::WriteBarrier(dst);
+    Heap::WriteBarrierArray(dst, dst_pos, length);
   }
 }
 

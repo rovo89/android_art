@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "card_table.h"
 #include "class_linker.h"
 #include "compiler.h"
 #include "dex_cache.h"
@@ -64,9 +65,6 @@ typedef art::CompiledMethod CompiledMethod;
 typedef art::Object Object;
 typedef art::String String;
 typedef art::Thread Thread;
-
-// From alloc/CardTable.h
-#define GC_CARD_SHIFT 7
 
 // use to switch visibility on DCHECK tracebacks
 #if 1

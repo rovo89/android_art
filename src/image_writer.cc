@@ -46,6 +46,7 @@ bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
     return false;
   }
   Heap::CollectGarbage();
+  Heap::DisableCardMarking();
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 

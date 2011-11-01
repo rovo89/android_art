@@ -306,7 +306,7 @@ class ClassLinker {
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
-  bool InsertClass(const std::string& descriptor, Class* klass);
+  bool InsertClass(const std::string& descriptor, Class* klass, bool image_class);
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
@@ -371,6 +371,7 @@ class ClassLinker {
   // Class::descriptor_ and Class::class_loader_.
   // Protected by classes_lock_
   typedef std::tr1::unordered_multimap<size_t, Class*> Table;
+  Table image_classes_;
   Table classes_;
   mutable Mutex classes_lock_;
 

@@ -63,6 +63,10 @@ static Method* gThread_run = NULL;
 static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
+void Thread::InitCardTable() {
+  card_table_ = Heap::GetCardTable()->GetBiasedBase();
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -244,6 +248,7 @@ void Thread::Create(Object* peer, size_t stack_size) {
 void Thread::Attach(const Runtime* runtime) {
   InitCpu();
   InitFunctionPointers();
+  InitCardTable();
 
   thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
 

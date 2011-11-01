@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "card_table.h"
 #include "globals.h"
 #include "heap_bitmap.h"
 #include "offsets.h"
@@ -168,11 +169,26 @@ class Heap {
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
-  static void WriteBarrier(const Object* object) {
-#ifdef CONCURRENT_GARBAGE_COLLECTOR
-    // TODO: we need card marking for a concurrent collector.
-    UNIMPLEMENTED(FATAL);
-#endif
+  static void WriteBarrierField(const Object* dest, MemberOffset offset, const Object* new_val) {
+    if (!card_marking_disabled_) {
+      card_table_->MarkCard(dest);
+    }
+  }
+
+  // Write barrier for array operations that update many field positions
+  static void WriteBarrierArray(const Object* dest, int pos, size_t len) {
+    if (UNLIKELY(!card_marking_disabled_)) {
+      card_table_->MarkCard(dest);
+    }
+  }
+
+  static CardTable* GetCardTable() {
+    return card_table_;
+  }
+
+  static void DisableCardMarking() {
+    // TODO: we shouldn't need to disable card marking, this is here to help the image_writer
+    card_marking_disabled_ = true;
   }
 
   // dlmalloc_walk_heap-compatible heap walker.
@@ -182,6 +198,10 @@ class Heap {
 
   static size_t GetBytesAllocated() { return num_bytes_allocated_; }
   static size_t GetObjectsAllocated() { return num_objects_allocated_; }
+
+  static Space* GetAllocSpace() {
+    return alloc_space_;
+  }
 
  private:
   // Allocates uninitialized storage.
@@ -216,6 +236,12 @@ class Heap {
   static HeapBitmap* mark_bitmap_;
 
   static HeapBitmap* live_bitmap_;
+
+  static CardTable* card_table_;
+
+  // Used by the image writer to disable card marking on copied objects
+  // TODO: remove
+  static bool card_marking_disabled_;
 
   // The maximum size of the heap in bytes.
   static size_t maximum_size_;

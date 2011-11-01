@@ -86,6 +86,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/calling_convention.cc \
 	src/calling_convention_arm.cc \
 	src/calling_convention_x86.cc \
+	src/card_table.cc \
 	src/context.cc \
 	src/context_arm.cc.arm \
 	src/context_x86.cc \

@@ -5,6 +5,7 @@
 #include <limits>
 #include <vector>
 
+#include "card_table.h"
 #include "debugger.h"
 #include "image.h"
 #include "mark_sweep.h"
@@ -39,6 +40,10 @@ HeapBitmap* Heap::mark_bitmap_ = NULL;
 
 HeapBitmap* Heap::live_bitmap_ = NULL;
 
+CardTable* Heap::card_table_ = NULL;
+
+bool Heap::card_marking_disabled_ = false;
+
 Class* Heap::java_lang_ref_FinalizerReference_ = NULL;
 Class* Heap::java_lang_ref_ReferenceQueue_ = NULL;
 
@@ -69,7 +74,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
   // there will be at least one space (the alloc space),
   // so set to base to max and limit to min to start
   byte* base = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::max());
-  byte* limit = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::min());
+  byte* max = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::min());
 
   byte* requested_base = NULL;
   std::vector<Space*> image_spaces;
@@ -86,7 +91,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
                                                        kPageSize));
     }
     base = std::min(base, space->GetBase());
-    limit = std::max(limit, space->GetLimit());
+    max = std::max(max, space->GetMax());
   }
 
   alloc_space_ = Space::Create("alloc space", initial_size, maximum_size, growth_size, requested_base);
@@ -94,9 +99,9 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
     LOG(FATAL) << "Failed to create alloc space";
   }
   base = std::min(base, alloc_space_->GetBase());
-  limit = std::max(limit, alloc_space_->GetLimit());
-  DCHECK_LT(base, limit);
-  size_t num_bytes = limit - base;
+  max = std::max(max, alloc_space_->GetMax());
+  DCHECK_LT(base, max);
+  size_t num_bytes = max - base;
 
   // Allocate the initial live bitmap.
   UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
@@ -110,11 +115,18 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
     LOG(FATAL) << "Failed to create mark bitmap";
   }
 
+  // Allocate the card table
+  UniquePtr<CardTable> card_table(CardTable::Create(base, num_bytes));
+  if (card_table.get() == NULL) {
+    LOG(FATAL) << "Failed to create card table";
+  }
+
   spaces_.push_back(alloc_space_);
   maximum_size_ = maximum_size;
   growth_size_ = growth_size;
   live_bitmap_ = live_bitmap.release();
   mark_bitmap_ = mark_bitmap.release();
+  card_table_ = card_table.release();
 
   num_bytes_allocated_ = 0;
   num_objects_allocated_ = 0;
@@ -478,12 +490,17 @@ void Heap::CollectGarbageInternal() {
     mark_sweep.MarkRoots();
     timings.AddSplit("MarkRoots");
 
-    // Push marked roots onto the mark stack
+    mark_sweep.ScanDirtyImageRoots();
+    timings.AddSplit("DirtyImageRoots");
+
+    // Roots are marked on the bitmap and the mark_stack is empty
+    DCHECK(mark_sweep.IsMarkStackEmpty());
 
     // TODO: if concurrent
     //   unlock heap
     //   thread_list->ResumeAll();
 
+    // Recursively mark all bits set in the non-image mark bitmap
     mark_sweep.RecursiveMark();
     timings.AddSplit("RecursiveMark");
 

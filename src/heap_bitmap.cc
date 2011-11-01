@@ -77,6 +77,24 @@ bool HeapBitmap::HasAddress(const void* obj) const {
   return false;
 }
 
+void HeapBitmap::VisitRange(uintptr_t base, uintptr_t max, Callback* visitor, void* arg) const {
+  size_t start = HB_OFFSET_TO_INDEX(base - base_);
+  size_t end = HB_OFFSET_TO_INDEX(max - base_ - 1);
+  for (size_t i = start; i <= end; i++) {
+    word w = words_[i];
+    if (w != 0) {
+      word high_bit = 1 << (kBitsPerWord - 1);
+      uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + base_;
+      while (w != 0) {
+        const int shift = CLZ(w);
+        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+        (*visitor)(obj, arg);
+        w &= ~(high_bit >> shift);
+      }
+    }
+  }
+}
+
 // Visits set bits in address order.  The callback is not permitted to
 // change the bitmap bits or max during the traversal.
 void HeapBitmap::Walk(HeapBitmap::Callback* callback, void* arg) {
@@ -108,22 +126,44 @@ void HeapBitmap::Walk(HeapBitmap::Callback* callback, void* arg) {
 // address will be visited by the traversal.  If the callback sets a
 // bit for an address below the finger, this address will not be
 // visited.
-void HeapBitmap::ScanWalk(uintptr_t base, ScanCallback* callback, void* arg) {
-  DCHECK(words_ != NULL);
-  DCHECK(callback != NULL);
-  DCHECK_GE(base, base_);
-  uintptr_t end = HB_OFFSET_TO_INDEX(max_ - base);
-  for (uintptr_t i = 0; i <= end; ++i) {
-    word w = words_[i];
-    if (UNLIKELY(w != 0)) {
-      word high_bit = 1 << (kBitsPerWord - 1);
-      uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + base_;
-      void* finger = reinterpret_cast<void*>(HB_INDEX_TO_OFFSET(i + 1) + base_);
-      while (w != 0) {
-        const int shift = CLZ(w);
-        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-        (*callback)(obj, finger, arg);
-        w &= ~(high_bit >> shift);
+void HeapBitmap::ScanWalk(uintptr_t base, uintptr_t max, ScanCallback* callback, void* arg) {
+  CHECK(words_ != NULL);
+  CHECK(callback != NULL);
+  CHECK_LE(base, max);
+  CHECK_GE(base, base_);
+  size_t start = HB_OFFSET_TO_INDEX(base - base_);
+  if (max < max_) {
+    // The end of the space we're looking at is before the current maximum bitmap PC, scan to that
+    // and don't recompute end on each iteration
+    size_t end = HB_OFFSET_TO_INDEX(max - base_ - 1);
+    for (size_t i = start; i <= end; i++) {
+      word w = words_[i];
+      if (UNLIKELY(w != 0)) {
+        word high_bit = 1 << (kBitsPerWord - 1);
+        uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + base_;
+        void* finger = reinterpret_cast<void*>(HB_INDEX_TO_OFFSET(i + 1) + base_);
+        while (w != 0) {
+          const int shift = CLZ(w);
+          Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+          (*callback)(obj, finger, arg);
+          w &= ~(high_bit >> shift);
+        }
+      }
+    }
+  } else {
+    size_t end = HB_OFFSET_TO_INDEX(max_ - base_);
+    for (size_t i = start; i <= end; i++) {
+      word w = words_[i];
+      if (UNLIKELY(w != 0)) {
+        word high_bit = 1 << (kBitsPerWord - 1);
+        uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + base_;
+        void* finger = reinterpret_cast<void*>(HB_INDEX_TO_OFFSET(i + 1) + base_);
+        while (w != 0) {
+          const int shift = CLZ(w);
+          Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+          (*callback)(obj, finger, arg);
+          w &= ~(high_bit >> shift);
+        }
       }
       end = HB_OFFSET_TO_INDEX(max_ - base_);
     }
@@ -146,7 +186,7 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
   CHECK(callback != NULL);
   CHECK_LE(base, max);
   CHECK_GE(base, live_bitmap.base_);
-  max = std::min(max-1, live_bitmap.max_);
+  max = std::min(max - 1, live_bitmap.max_);
   if (live_bitmap.max_ < live_bitmap.base_) {
     // Easy case; both are obviously empty.
     // TODO: this should never happen

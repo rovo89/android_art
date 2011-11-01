@@ -195,6 +195,23 @@ size_t Space::Free(void* ptr) {
   return num_bytes;
 }
 
+size_t Space::FreeList(size_t num_ptrs, void** ptrs) {
+  DCHECK(mspace_ != NULL);
+  DCHECK(ptrs != NULL);
+  void* merged = ptrs[0];
+  size_t num_bytes = 0;
+  for (size_t i = 1; i < num_ptrs; i++) {
+    num_bytes += mspace_usable_size(mspace_, ptrs[i]);
+    if (mspace_merge_objects(mspace_, merged, ptrs[i]) == NULL) {
+      mspace_free(mspace_, merged);
+      merged = ptrs[i];
+    }
+  }
+  CHECK(merged != NULL);
+  mspace_free(mspace_, merged);
+  return num_bytes;
+}
+
 size_t Space::AllocationSize(const Object* obj) {
   DCHECK(mspace_ != NULL);
   return mspace_usable_size(mspace_, obj) + kChunkOverhead;

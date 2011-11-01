@@ -483,6 +483,7 @@ class PACKED Thread {
   void HandleUncaughtExceptions();
   void RemoveFromThreadGroup();
 
+  void InitCardTable();
   void InitCpu();
   void InitFunctionPointers();
   void InitTid();
@@ -539,8 +540,8 @@ class PACKED Thread {
 
   RuntimeStats stats_;
 
-  // FIXME: placeholder for the gc cardTable
-  uint32_t card_table_;
+  // The biased card table, see CardTable for details
+  byte* card_table_;
 
   // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
   // We leave extra space so there's room for the code that throws StackOverflowError.

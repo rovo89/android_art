@@ -59,6 +59,7 @@ class InternTable {
   void Remove(Table& table, const String* s, uint32_t hash_code);
 
   mutable Mutex intern_table_lock_;
+  Table image_strong_interns_;
   Table strong_interns_;
   Table weak_interns_;
 };

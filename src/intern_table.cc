@@ -21,7 +21,7 @@ void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   for (It it = strong_interns_.begin(), end = strong_interns_.end(); it != end; ++it) {
     visitor(it->second, arg);
   }
-  // Note: we deliberately don't visit the weak_interns_ table.
+  // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
 String* InternTable::Lookup(Table& table, String* s, uint32_t hash_code) {
@@ -44,7 +44,7 @@ String* InternTable::Insert(Table& table, String* s, uint32_t hash_code) {
 
 void InternTable::RegisterStrong(String* s) {
   MutexLock mu(intern_table_lock_);
-  Insert(strong_interns_, s, s->GetHashCode());
+  Insert(image_strong_interns_, s, s->GetHashCode());
 }
 
 void InternTable::Remove(Table& table, const String* s, uint32_t hash_code) {
@@ -65,8 +65,12 @@ String* InternTable::Insert(String* s, bool is_strong) {
   uint32_t hash_code = s->GetHashCode();
 
   if (is_strong) {
-    // Check the strong table for a match.
+    // Check the strong tables for a match.
     String* strong = Lookup(strong_interns_, s, hash_code);
+    if (strong != NULL) {
+      return strong;
+    }
+    strong = Lookup(image_strong_interns_, s, hash_code);
     if (strong != NULL) {
       return strong;
     }
