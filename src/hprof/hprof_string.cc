@@ -18,17 +18,18 @@
  */
 #include "hprof.h"
 #include "object.h"
-#include "unordered_set.h"
+#include "unordered_map.h"
 #include "logging.h"
 
 namespace art {
 
 namespace hprof {
 
-typedef std::tr1::unordered_set<String*, StringHashCode> StringSet;
-typedef std::tr1::unordered_set<String*, StringHashCode>::iterator StringSetIterator; // TODO: equals by VALUE not REFERENCE
+size_t next_string_id_ = 200001;
+typedef std::tr1::unordered_map<std::string, size_t> StringMap;
+typedef std::tr1::unordered_map<std::string, size_t>::iterator StringMapIterator;
 static Mutex strings_lock_("hprof strings");
-static StringSet strings_;
+static StringMap strings_;
 
 int hprofStartup_String() {
     return 0;
@@ -39,18 +40,19 @@ int hprofShutdown_String() {
 }
 
 hprof_string_id hprofLookupStringId(String* string) {
-    MutexLock mu(strings_lock_);
-    std::pair<StringSetIterator, bool> result = strings_.insert(string);
-    String* present = *result.first;
-    return (hprof_string_id) present;
+    return hprofLookupStringId(string->ToModifiedUtf8());
 }
 
 hprof_string_id hprofLookupStringId(const char* string) {
-    return hprofLookupStringId(String::AllocFromModifiedUtf8(string)); // TODO: leaks? causes GC?
+    return hprofLookupStringId(std::string(string));
 }
 
 hprof_string_id hprofLookupStringId(std::string string) {
-    return hprofLookupStringId(string.c_str()); // TODO: leaks? causes GC?
+    MutexLock mu(strings_lock_);
+    if (strings_.find(string) == strings_.end()) {
+        strings_[string] = next_string_id_++;
+    }
+    return strings_[string];
 }
 
 int hprofDumpStrings(hprof_context_t *ctx) {
@@ -58,9 +60,9 @@ int hprofDumpStrings(hprof_context_t *ctx) {
 
     hprof_record_t *rec = &ctx->curRec;
 
-    for (StringSetIterator it = strings_.begin(); it != strings_.end(); ++it) {
-        String* string = *it;
-        CHECK(string != NULL);
+    for (StringMapIterator   it = strings_.begin(); it != strings_.end(); ++it) {
+        std::string string = (*it).first;
+        size_t id = (*it).second;
 
         int err = hprofStartNewRecord(ctx, HPROF_TAG_STRING, HPROF_TIME);
         if (err != 0) {
@@ -75,11 +77,11 @@ int hprofDumpStrings(hprof_context_t *ctx) {
          *
          * We use the address of the string data as its ID.
          */
-        err = hprofAddU4ToRecord(rec, (uint32_t) string);
+        err = hprofAddU4ToRecord(rec, id);
         if (err != 0) {
             return err;
         }
-        err = hprofAddUtf8StringToRecord(rec, string->ToModifiedUtf8().c_str()); // TODO: leak?
+        err = hprofAddUtf8StringToRecord(rec, string.c_str());
         if (err != 0) {
             return err;
         }

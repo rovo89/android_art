@@ -40,8 +40,7 @@ int hprofShutdown_Class() {
 }
 
 static int getPrettyClassNameId(Class* clazz) {
-    std::string name(PrettyClass(clazz));
-    return hprofLookupStringId(name); // TODO: leaks
+    return hprofLookupStringId(PrettyClass(clazz));
 }
 
 hprof_class_object_id hprofLookupClassId(Class* clazz) {

@@ -149,11 +149,6 @@ struct hprof_context_t {
     int fd;
 };
 
-
-/*
- * hprof_string.cc functions
- */
-
 hprof_string_id hprofLookupStringId(String* string);
 hprof_string_id hprofLookupStringId(const char* string);
 hprof_string_id hprofLookupStringId(std::string string);
@@ -163,22 +158,12 @@ int hprofDumpStrings(hprof_context_t *ctx);
 int hprofStartup_String(void);
 int hprofShutdown_String(void);
 
-
-/*
- * hprof_class.cc functions
- */
-
 hprof_class_object_id hprofLookupClassId(Class* clazz);
 
 int hprofDumpClasses(hprof_context_t *ctx);
 
 int hprofStartup_Class(void);
 int hprofShutdown_Class(void);
-
-
-/*
- * hprof_heap.cc functions
- */
 
 int hprofStartHeapDump(hprof_context_t *ctx);
 int hprofFinishHeapDump(hprof_context_t *ctx);
@@ -189,10 +174,6 @@ int hprofMarkRootObject(hprof_context_t *ctx,
                         const Object *obj, jobject jniObj);
 
 int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj);
-
-/*
- * hprof_output.cc functions
- */
 
 void hprofContextInit(hprof_context_t *ctx, char *fileName, int fd,
                       bool writeHeader, bool directToDdms);
@@ -222,10 +203,6 @@ int hprofAddU8ListToRecord(hprof_record_t *rec,
 #define hprofAddIdToRecord(rec, id) hprofAddU4ToRecord((rec), (uint32_t)(id))
 #define hprofAddIdListToRecord(rec, values, numValues) \
             hprofAddU4ListToRecord((rec), (const uint32_t *)(values), (numValues))
-
-/*
- * hprof.cc functions
- */
 
 hprof_context_t* hprofStartup(const char *outputFileName, int fd,
     bool directToDdms);
