@@ -120,6 +120,11 @@ LIBART_COMMON_SRC_FILES := \
 	src/file_linux.cc \
 	src/heap.cc \
 	src/heap_bitmap.cc \
+	src/hprof/hprof.cc \
+	src/hprof/hprof_class.cc \
+	src/hprof/hprof_heap.cc \
+	src/hprof/hprof_output.cc \
+	src/hprof/hprof_string.cc \
 	src/image.cc \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \

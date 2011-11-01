@@ -396,7 +396,7 @@ class MANAGED Field : public AccessibleObject {
 
   void SetDeclaringClass(Class *new_declaring_class);
 
-  const String* GetName() const;
+  String* GetName() const;
 
   void SetName(String* new_name);
 
@@ -2501,7 +2501,13 @@ class MANAGED String : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
-inline const String* Field::GetName() const {
+struct StringHashCode {
+  int32_t operator()(art::String* string) const {
+    return string->GetHashCode();
+  }
+};
+
+inline String* Field::GetName() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   String* result = GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Field, name_), false);
   DCHECK(result != NULL);
