@@ -726,7 +726,6 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     oatLockCallTemps(cUnit);
     uint32_t type_idx = mir->dalvikInsn.vC;
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
-    loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
     int classReg = r2;  // r2 will hold the Class*
     if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
         // Check we have access to type_idx and if not throw IllegalAccessError,
@@ -737,8 +736,10 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         loadConstant(cUnit, r0, type_idx);
         callRuntimeHelper(cUnit, rLR);  // InitializeTypeAndVerifyAccess(idx, method)
         genRegCopy(cUnit, classReg, r0);  // Align usage with fast path
+        loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
     } else {
         // Load dex cache entry into classReg (r2)
+        loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
         int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, classReg, offset_of_type, classReg);
