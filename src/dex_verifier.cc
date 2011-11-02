@@ -2481,7 +2481,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (failure_ == VERIFY_ERROR_NONE) {
         if (abs_method != NULL) {
           Class* called_interface = abs_method->GetDeclaringClass();
-          if (!called_interface->IsInterface()) {
+          if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
             Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
                                             << PrettyMethod(abs_method) << "'";
             break;
