@@ -367,13 +367,11 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
 {
     RegisterInfo* p = cUnit->regPool->FPRegs;
     int numRegs = cUnit->regPool->numFPRegs;
-    int next = cUnit->regPool->nextFPReg;
-    int i;
+    /* Start looking at an even reg */
+    int next = cUnit->regPool->nextFPReg & ~0x1;
 
-    for (i=0; i < numRegs; i+=2) {
-        /* Cleanup - not all targets need aligned regs */
-        if (next & 1)
-            next++;
+    // First try to avoid allocating live registers
+    for (int i=0; i < numRegs; i+=2) {
         if (next >= numRegs)
             next = 0;
         if ((p[next].isTemp && !p[next].inUse && !p[next].live) &&
@@ -384,13 +382,18 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
             p[next+1].inUse = true;
             DCHECK_EQ((p[next].reg+1), p[next+1].reg);
             DCHECK_EQ((p[next].reg & 0x1), 0);
-            cUnit->regPool->nextFPReg += 2;
+            cUnit->regPool->nextFPReg = next + 2;
+            if (cUnit->regPool->nextFPReg >= numRegs) {
+                cUnit->regPool->nextFPReg = 0;
+            }
             return p[next].reg;
         }
         next += 2;
     }
-    next = cUnit->regPool->nextFPReg;
-    for (i=0; i < numRegs; i+=2) {
+    next = cUnit->regPool->nextFPReg & ~0x1;
+
+    // No choice - find a pair and kill it.
+    for (int i=0; i < numRegs; i+=2) {
         if (next >= numRegs)
             next = 0;
         if (p[next].isTemp && !p[next].inUse && p[next+1].isTemp &&
@@ -401,7 +404,10 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
             p[next+1].inUse = true;
             DCHECK_EQ((p[next].reg+1), p[next+1].reg);
             DCHECK_EQ((p[next].reg & 0x1), 0);
-            cUnit->regPool->nextFPReg += 2;
+            cUnit->regPool->nextFPReg = next + 2;
+            if (cUnit->regPool->nextFPReg >= numRegs) {
+                cUnit->regPool->nextFPReg = 0;
+            }
             return p[next].reg;
         }
         next += 2;
