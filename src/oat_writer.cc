@@ -192,11 +192,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
     code_offset = (code_size == 0) ? 0 : offset + thumb_offset;
 
     // Deduplicate code arrays
-    std::map<std::vector<uint8_t>, uint32_t>::iterator code_iter = code_offsets_.find(code);
+    std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
     if (code_iter != code_offsets_.end()) {
       code_offset = code_iter->second;
     } else {
-      code_offsets_.insert(std::pair<std::vector<uint8_t>, uint32_t>(code, code_offset));
+      code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&code, code_offset));
       offset += code_size;
       oat_header_->UpdateChecksum(&code[0], code_size);
     }
@@ -225,11 +225,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
     mapping_table_offset = (mapping_table_size == 0) ? 0 : offset;
 
     // Deduplicate mapping tables
-    std::map<std::vector<uint32_t>, uint32_t>::iterator mapping_iter = mapping_table_offsets_.find(mapping_table);
+    std::map<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter = mapping_table_offsets_.find(&mapping_table);
     if (mapping_iter != mapping_table_offsets_.end()) {
       mapping_table_offset = mapping_iter->second;
     } else {
-      mapping_table_offsets_.insert(std::pair<std::vector<uint32_t>, uint32_t>(mapping_table, mapping_table_offset));
+      mapping_table_offsets_.insert(std::pair<const std::vector<uint32_t>*, uint32_t>(&mapping_table, mapping_table_offset));
       offset += mapping_table_size;
       oat_header_->UpdateChecksum(&mapping_table[0], mapping_table_size);
     }
@@ -239,11 +239,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
     vmap_table_offset = (vmap_table_size == 0) ? 0 : offset;
 
     // Deduplicate vmap tables
-    std::map<std::vector<uint16_t>, uint32_t>::iterator vmap_iter = vmap_table_offsets_.find(vmap_table);
+    std::map<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter = vmap_table_offsets_.find(&vmap_table);
     if (vmap_iter != vmap_table_offsets_.end()) {
       vmap_table_offset = vmap_iter->second;
     } else {
-      vmap_table_offsets_.insert(std::pair<std::vector<uint16_t>, uint32_t>(vmap_table, vmap_table_offset));
+      vmap_table_offsets_.insert(std::pair<const std::vector<uint16_t>*, uint32_t>(&vmap_table, vmap_table_offset));
       offset += vmap_table_size;
       oat_header_->UpdateChecksum(&vmap_table[0], vmap_table_size);
     }
@@ -258,11 +258,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
     invoke_stub_offset = (invoke_stub_size == 0) ? 0 : offset;
 
     // Deduplicate invoke stubs
-    std::map<std::vector<uint8_t>, uint32_t>::iterator stub_iter = code_offsets_.find(invoke_stub);
+    std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&invoke_stub);
     if (stub_iter != code_offsets_.end()) {
       invoke_stub_offset = stub_iter->second;
     } else {
-      code_offsets_.insert(std::pair<std::vector<uint8_t>, uint32_t>(invoke_stub, invoke_stub_offset));
+      code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&invoke_stub, invoke_stub_offset));
       offset += invoke_stub_size;
       oat_header_->UpdateChecksum(&invoke_stub[0], invoke_stub_size);
     }
@@ -447,7 +447,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, Method* method
 
     // Deduplicate code arrays
     size_t offset = code_offset + compiled_method->CodeDelta();
-    std::map<std::vector<uint8_t>, uint32_t>::iterator code_iter = code_offsets_.find(code);
+    std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
     if (code_iter != code_offsets_.end() && offset != method->GetOatCodeOffset()) {
       DCHECK((code_size == 0 && method->GetOatCodeOffset() == 0)
              || code_iter->second == method->GetOatCodeOffset()) << PrettyMethod(method);
@@ -493,7 +493,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, Method* method
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
 
     // Deduplicate mapping tables
-    std::map<std::vector<uint32_t>, uint32_t>::iterator mapping_iter = mapping_table_offsets_.find(mapping_table);
+    std::map<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter = mapping_table_offsets_.find(&mapping_table);
     if (mapping_iter != mapping_table_offsets_.end() && code_offset != method->GetOatMappingTableOffset()) {
       DCHECK((mapping_table_size == 0 && method->GetOatMappingTableOffset() == 0)
           || mapping_iter->second == method->GetOatMappingTableOffset()) << PrettyMethod(method);
@@ -512,7 +512,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, Method* method
     size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
 
     // Deduplicate vmap tables
-    std::map<std::vector<uint16_t>, uint32_t>::iterator vmap_iter = vmap_table_offsets_.find(vmap_table);
+    std::map<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter = vmap_table_offsets_.find(&vmap_table);
     if (vmap_iter != vmap_table_offsets_.end() && code_offset != method->GetOatVmapTableOffset()) {
       DCHECK((vmap_table_size == 0 && method->GetOatVmapTableOffset() == 0)
           || vmap_iter->second == method->GetOatVmapTableOffset()) << PrettyMethod(method);
@@ -548,7 +548,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, Method* method
     size_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
 
     // Deduplicate invoke stubs
-    std::map<std::vector<uint8_t>, uint32_t>::iterator stub_iter = code_offsets_.find(invoke_stub);
+    std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&invoke_stub);
     if (stub_iter != code_offsets_.end() && code_offset != method->GetOatInvokeStubOffset()) {
       DCHECK((invoke_stub_size == 0 && method->GetOatInvokeStubOffset() == 0)
           || stub_iter->second == method->GetOatInvokeStubOffset()) << PrettyMethod(method);
