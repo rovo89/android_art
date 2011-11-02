@@ -3291,9 +3291,9 @@ Field* DexVerifier::GetStaticField(int field_idx) {
   Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, method_, true);
   if (field == NULL) {
     const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    Fail(VERIFY_ERROR_NO_FIELD) << "unable to resolve static field " << field_idx << " ("
-                                << dex_file_->GetFieldName(field_id) << ") in "
-                                << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
+    LOG(INFO) << "unable to resolve static field " << field_idx << " ("
+              << dex_file_->GetFieldName(field_id) << ") in "
+              << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     return NULL;
@@ -3314,9 +3314,9 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, method_, false);
   if (field == NULL) {
     const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    Fail(VERIFY_ERROR_NO_FIELD) << "unable to resolve instance field " << field_idx << " ("
-                                << dex_file_->GetFieldName(field_id) << ") in "
-                                << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
+    LOG(INFO) << "unable to resolve instance field " << field_idx << " ("
+              << dex_file_->GetFieldName(field_id) << ") in "
+              << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     return NULL;
@@ -3355,17 +3355,28 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
 
 void DexVerifier::VerifyISGet(const Instruction::DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
+  uint32_t field_idx = is_static ? dec_insn.vB_ : dec_insn.vC_;
   Field* field;
   if (is_static) {
-    field = GetStaticField(dec_insn.vB_);
+    field = GetStaticField(field_idx);
   } else {
     const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
-    field = GetInstanceField(object_type, dec_insn.vC_);
+    field = GetInstanceField(object_type, field_idx);
   }
-  if (field != NULL) {
-    const RegType& field_type =
-        reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
-                                  field->GetTypeDescriptor());
+  if (failure_ != VERIFY_ERROR_NONE) {
+    work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Unknown());
+  } else {
+    const char* descriptor;
+    const ClassLoader* loader;
+    if (field != NULL) {
+      descriptor = field->GetTypeDescriptor();
+      loader = field->GetDeclaringClass()->GetClassLoader();
+    } else {
+      const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+      descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+      loader = method_->GetDeclaringClass()->GetClassLoader();
+    }
+    const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
     if (is_primitive) {
       if (field_type.Equals(insn_type) ||
           (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
