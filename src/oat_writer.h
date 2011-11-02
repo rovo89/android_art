@@ -154,10 +154,17 @@ class OatWriter {
   std::vector<OatMethods*> oat_methods_;
   uint32_t executable_offset_padding_length_;
 
+  template <class T> struct MapCompare {
+   public:
+    bool operator() (const T* const &a, const T* const &b) const {
+      return *a < *b;
+    }
+  };
+
   // code mappings for deduplication
-  std::map<std::vector<uint8_t>, uint32_t> code_offsets_;
-  std::map<std::vector<uint16_t>, uint32_t> vmap_table_offsets_;
-  std::map<std::vector<uint32_t>, uint32_t> mapping_table_offsets_;
+  std::map<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > code_offsets_;
+  std::map<const std::vector<uint16_t>*, uint32_t, MapCompare<std::vector<uint16_t> > > vmap_table_offsets_;
+  std::map<const std::vector<uint32_t>*, uint32_t, MapCompare<std::vector<uint32_t> > > mapping_table_offsets_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };
