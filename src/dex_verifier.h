@@ -11,9 +11,9 @@
 #include "stl_util.h"
 #include "UniquePtr.h"
 
+#include <deque>
 #include <limits>
 #include <map>
-#include <stack>
 #include <vector>
 
 namespace art {
@@ -572,13 +572,17 @@ class RegisterLine {
       result += GetRegisterType(i).Dump();
       result += "],";
     }
+    typedef std::deque<uint32_t>::const_iterator It; // TODO: C++0x auto
+    for (It it = monitors_.begin(), end = monitors_.end(); it != end ; ++it) {
+      result += StringPrintf("{%d},", *it);
+    }
     return result;
   }
 
   void FillWithGarbage() {
     memset(line_.get(), 0xf1, num_regs_ * sizeof(uint16_t));
     while (!monitors_.empty()) {
-      monitors_.pop();
+      monitors_.pop_back();
     }
     reg_to_lock_depths_.clear();
   }
@@ -758,7 +762,7 @@ class RegisterLine {
   // Length of reg_types_
   const size_t num_regs_;
   // A stack of monitor enter locations
-  std::stack<uint32_t> monitors_;
+  std::deque<uint32_t> monitors_;
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5

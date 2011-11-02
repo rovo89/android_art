@@ -766,7 +766,7 @@ void RegisterLine::PushMonitor(uint32_t reg_idx, int32_t insn_idx) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-enter on non-object (" << reg_type << ")";
   } else {
     SetRegToLockDepth(reg_idx, monitors_.size());
-    monitors_.push(insn_idx);
+    monitors_.push_back(insn_idx);
   }
 }
 
@@ -777,7 +777,7 @@ void RegisterLine::PopMonitor(uint32_t reg_idx) {
   } else if (monitors_.empty()) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-exit stack underflow";
   } else {
-    monitors_.pop();
+    monitors_.pop_back();
     if(!IsSetLockDepth(reg_idx, monitors_.size())) {
       // Bug 3215458: Locks and unlocks are on objects, if that object is a literal then before
       // format "036" the constant collector may create unlocks on the same object but referenced
@@ -812,7 +812,7 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
       line_[idx] = new_type.GetId();
     }
   }
-  if(monitors_ != incoming_line->monitors_) {
+  if(monitors_.size() != incoming_line->monitors_.size()) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "mismatched stack depths (depth="
         << MonitorStackDepth() << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
   } else if (reg_to_lock_depths_ != incoming_line->reg_to_lock_depths_) {
@@ -3407,22 +3407,35 @@ void DexVerifier::VerifyISGet(const Instruction::DecodedInstruction& dec_insn,
 
 void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
+  uint32_t field_idx = is_static ? dec_insn.vB_ : dec_insn.vC_;
   Field* field;
   if (is_static) {
-    field = GetStaticField(dec_insn.vB_);
+    field = GetStaticField(field_idx);
   } else {
     const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
-    field = GetInstanceField(object_type, dec_insn.vC_);
+    field = GetInstanceField(object_type, field_idx);
   }
-  if (field != NULL) {
-    if (field->IsFinal() && field->GetDeclaringClass() != method_->GetDeclaringClass()) {
-      Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
-                               << " from other class " << PrettyClass(method_->GetDeclaringClass());
-      return;
+  if (failure_ != VERIFY_ERROR_NONE) {
+    work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Unknown());
+  } else {
+    const char* descriptor;
+    const ClassLoader* loader;
+    if (field != NULL) {
+      descriptor = field->GetTypeDescriptor();
+      loader = field->GetDeclaringClass()->GetClassLoader();
+    } else {
+      const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+      descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+      loader = method_->GetDeclaringClass()->GetClassLoader();
     }
-    const RegType& field_type =
-        reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
-                                  field->GetTypeDescriptor());
+    const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
+    if (field != NULL) {
+      if (field->IsFinal() && field->GetDeclaringClass() != method_->GetDeclaringClass()) {
+        Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
+                               << " from other class " << PrettyClass(method_->GetDeclaringClass());
+        return;
+      }
+    }
     if (is_primitive) {
       // Primitive field assignability rules are weaker than regular assignability rules
       bool instruction_compatible;
