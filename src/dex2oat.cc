@@ -9,8 +9,10 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
+#include "file.h"
 #include "image_writer.h"
 #include "oat_writer.h"
+#include "os.h"
 #include "runtime.h"
 #include "stringpiece.h"
 
@@ -140,6 +142,17 @@ int dex2oat(int argc, char** argv) {
       return EXIT_FAILURE;
     }
   }
+
+  // Check early that the result of compilation can be written
+  if (OS::FileExists(oat_filename.c_str())) {
+    // File exists, check we can write to it
+    UniquePtr<File> file(OS::OpenFile(oat_filename.c_str(), true));
+    if (file.get() == NULL) {
+      PLOG(ERROR) << "Unable to create oat file " << oat_filename;
+      return EXIT_FAILURE;
+    }
+  }
+  LOG(INFO) << "dex2oat: " << oat_filename;
 
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
