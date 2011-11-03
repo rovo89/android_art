@@ -144,6 +144,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   // Check early that the result of compilation can be written
+  // TODO: implement a proper locking scheme here, probably hold onto the open file..
   if (OS::FileExists(oat_filename.c_str())) {
     // File exists, check we can write to it
     UniquePtr<File> file(OS::OpenFile(oat_filename.c_str(), true));

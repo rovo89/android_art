@@ -43,7 +43,7 @@ Object* Object::Clone() {
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
 
   if (c->IsFinalizable()) {
-    Heap::AddFinalizerReference(copy.get());
+    Heap::AddFinalizerReference(Thread::Current(), copy.get());
   }
 
   return copy.get();

@@ -734,12 +734,13 @@ Object* Heap::DequeuePendingReference(Object** list) {
   return ref;
 }
 
-void Heap::AddFinalizerReference(Object* object) {
+void Heap::AddFinalizerReference(Thread* self, Object* object) {
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
   static Method* FinalizerReference_add =
       java_lang_ref_FinalizerReference_->FindDirectMethod("add", "(Ljava/lang/Object;)V");
   DCHECK(FinalizerReference_add != NULL);
   Object* args[] = { object };
-  FinalizerReference_add->Invoke(Thread::Current(), NULL, reinterpret_cast<byte*>(&args), NULL);
+  FinalizerReference_add->Invoke(self, NULL, reinterpret_cast<byte*>(&args), NULL);
 }
 
 void Heap::EnqueueClearedReferences(Object** cleared) {

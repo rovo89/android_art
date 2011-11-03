@@ -295,11 +295,16 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   jboolean thread_is_daemon = as_daemon;
 
   ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Thread"));
-  jmethodID mid = env->GetMethodID(c.get(), "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
-
-  ScopedLocalRef<jobject> peer(env,
-      env->NewObject(c.get(), mid, thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon));
+  ScopedLocalRef<jobject> peer(env, env->AllocObject(c.get()));
   peer_ = DecodeJObject(peer.get());
+  if (peer_ == NULL) {
+    CHECK(IsExceptionPending());
+    // TODO: signal failure to caller
+    return;
+  }
+  jmethodID mid = env->GetMethodID(c.get(), "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
+  env->CallNonvirtualVoidMethod(peer.get(), c.get(), mid, thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
+  CHECK(!IsExceptionPending());
   SetVmData(peer_, Thread::Current());
 
   SirtRef<String> peer_thread_name(GetName());

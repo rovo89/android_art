@@ -32,6 +32,7 @@ class Class;
 class Mutex;
 class Object;
 class Space;
+class Thread;
 class HeapBitmap;
 
 class Heap {
@@ -194,7 +195,7 @@ class Heap {
   // dlmalloc_walk_heap-compatible heap walker.
   static void WalkHeap(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg);
 
-  static void AddFinalizerReference(Object* object);
+  static void AddFinalizerReference(Thread* self, Object* object);
 
   static size_t GetBytesAllocated() { return num_bytes_allocated_; }
   static size_t GetObjectsAllocated() { return num_objects_allocated_; }

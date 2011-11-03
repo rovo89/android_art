@@ -44,7 +44,7 @@ extern "C" uint32_t artObjectInitFromCode(Object* o, Thread* self, Method** sp) 
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   Class* c = o->GetClass();
   if (UNLIKELY(c->IsFinalizable())) {
-    Heap::AddFinalizerReference(o);
+    Heap::AddFinalizerReference(self, o);
   }
   /*
    * NOTE: once debugger/profiler support is added, we'll need to check

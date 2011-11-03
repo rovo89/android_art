@@ -965,7 +965,11 @@ class JNI {
     }
     jobject local_result = AddLocalReference<jobject>(env, result);
     CallNonvirtualVoidMethodV(env, local_result, java_class, mid, args);
-    return local_result;
+    if (!ts.Self()->IsExceptionPending()) {
+      return local_result;
+    } else {
+      return NULL;
+    }
   }
 
   static jobject NewObjectA(JNIEnv* env, jclass java_class, jmethodID mid, jvalue* args) {
@@ -980,7 +984,11 @@ class JNI {
     }
     jobject local_result = AddLocalReference<jobjectArray>(env, result);
     CallNonvirtualVoidMethodA(env, local_result, java_class, mid, args);
-    return local_result;
+    if (!ts.Self()->IsExceptionPending()) {
+      return local_result;
+    } else {
+      return NULL;
+    }
   }
 
   static jmethodID GetMethodID(JNIEnv* env, jclass c, const char* name, const char* sig) {
