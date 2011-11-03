@@ -263,19 +263,21 @@ void Thread::Attach(const Runtime* runtime) {
 }
 
 Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
-  Thread* self = new Thread;
-  self->Attach(runtime);
+  Thread* self = Thread::Current();
+  if (self == NULL) {
+    self = new Thread;
+    self->Attach(runtime);
 
-  self->SetState(Thread::kNative);
+    self->SetState(Thread::kNative);
 
-  // If we're the main thread, ClassLinker won't be created until after we're attached,
-  // so that thread needs a two-stage attach. Regular threads don't need this hack.
-  if (self->thin_lock_id_ != ThreadList::kMainId) {
-    self->CreatePeer(name, as_daemon);
+    // If we're the main thread, ClassLinker won't be created until after we're attached,
+    // so that thread needs a two-stage attach. Regular threads don't need this hack.
+    if (self->thin_lock_id_ != ThreadList::kMainId) {
+      self->CreatePeer(name, as_daemon);
+    }
+
+    self->GetJniEnv()->locals.AssertEmpty();
   }
-
-  self->GetJniEnv()->locals.AssertEmpty();
-
   return self;
 }
 
