@@ -163,7 +163,7 @@ int dex2oat(int argc, char** argv) {
   }
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
   if (runtime.get() == NULL) {
-    fprintf(stderr, "could not create runtime\n");
+    LOG(ERROR) << "Could not create runtime";
     return EXIT_FAILURE;
   }
   ClassLinker* class_linker = runtime->GetClassLinker();
@@ -218,14 +218,14 @@ int dex2oat(int argc, char** argv) {
       StringPiece method_name = method_names[i];
       size_t end_of_class_descriptor = method_name.find(';');
       if (end_of_class_descriptor == method_name.npos) {
-        fprintf(stderr, "could not find class descriptor in method %s\n", method_name.data());
+        LOG(ERROR) << "Could not find class descriptor in method " << method_name << "'";
         return EXIT_FAILURE;
       }
       end_of_class_descriptor++;  // want to include ;
       std::string class_descriptor = method_name.substr(0, end_of_class_descriptor).ToString();
       size_t end_of_name = method_name.find('(', end_of_class_descriptor);
       if (end_of_name == method_name.npos) {
-        fprintf(stderr, "could not find start of method signature in method %s\n", method_name.data());
+        LOG(ERROR) << "Could not find start of method signature in method '" << method_name << "'";
         return EXIT_FAILURE;
       }
       std::string name = method_name.substr(end_of_class_descriptor,
@@ -234,8 +234,8 @@ int dex2oat(int argc, char** argv) {
 
       Class* klass = class_linker->FindClass(class_descriptor, class_loader.get());
       if (klass == NULL) {
-        fprintf(stderr, "could not find class for descriptor %s in method %s\n",
-                class_descriptor.c_str(), method_name.data());
+        LOG(ERROR) << "Could not find class for descriptor '" << class_descriptor
+            << "' in method '" << method_name << "'";
         return EXIT_FAILURE;
       }
       Method* method = klass->FindDirectMethod(name, signature);
@@ -243,11 +243,9 @@ int dex2oat(int argc, char** argv) {
           method = klass->FindVirtualMethod(name, signature);
       }
       if (method == NULL) {
-        fprintf(stderr, "could not find method %s with signature %s in class %s for method argument %s\n",
-                name.c_str(),
-                signature.c_str(),
-                class_descriptor.c_str(),
-                method_name.data());
+        LOG(ERROR) << "Could not find method '" << method_name << "' with signature '"
+            << signature << "' in class '" << class_descriptor << "' for method argument '"
+            << method_name << "'";
         return EXIT_FAILURE;
       }
       compiler.CompileOne(method);
@@ -255,7 +253,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   if (!OatWriter::Create(oat_filename, class_loader.get(), compiler)) {
-    fprintf(stderr, "Failed to create oat file %s\n", oat_filename.c_str());
+    LOG(ERROR) << "Failed to create oat file " << oat_filename;
     return EXIT_FAILURE;
   }
 
@@ -266,7 +264,7 @@ int dex2oat(int argc, char** argv) {
 
   ImageWriter image_writer;
   if (!image_writer.Write(image_filename, image_base, oat_filename, host_prefix)) {
-    fprintf(stderr, "Failed to create image file %s\n", image_filename);
+    LOG(ERROR) << "Failed to create image file " << image_filename;
     return EXIT_FAILURE;
   }
 

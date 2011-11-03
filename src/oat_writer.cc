@@ -296,6 +296,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset,
 bool OatWriter::Write(const std::string& filename) {
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), true));
   if (file.get() == NULL) {
+    PLOG(ERROR) << "Failed to open file " << filename << " for writing";
     return false;
   }
 
