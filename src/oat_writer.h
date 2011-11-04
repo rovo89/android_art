@@ -71,28 +71,23 @@ class OatWriter {
                              size_t oat_class_index,
                              const DexFile& dex_file,
                              const DexFile::ClassDef& class_def);
-  size_t InitOatCodeMethod(size_t offset,
-                           size_t oat_class_index,
-                           size_t class_def_method_index,
-                           Method* method);
+  size_t InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_method_index,
+                           bool is_static, bool is_direct, uint32_t method_idx, const DexFile*);
 
   bool Write(File* file);
   bool WriteTables(File* file);
   size_t WriteCode(File* file);
-  size_t WriteCodeDexFiles(File* file,
-                           size_t offset);
-  size_t WriteCodeDexFile(File* file,
-                          size_t offset,
+  size_t WriteCodeDexFiles(File* file, size_t offset);
+  size_t WriteCodeDexFile(File* file, size_t offset, size_t& oat_class_index,
                           const DexFile& dex_file);
-  size_t WriteCodeClassDef(File* file,
-                           size_t offset,
-                           const DexFile& dex_file,
-                           const DexFile::ClassDef& class_def);
-  size_t WriteCodeMethod(File* file,
-                         size_t offset,
-                         Method* method);
+  size_t WriteCodeClassDef(File* file, size_t offset, size_t oat_class_index,
+                           const DexFile& dex_file, const DexFile::ClassDef& class_def);
+  size_t WriteCodeMethod(File* file, size_t offset, size_t oat_class_index,
+                         size_t class_def_method_index, bool is_static, uint32_t method_idx,
+                         const DexFile& dex_file);
 
-  void ReportWriteFailure(const char* what, Method* m, File* f);
+  void ReportWriteFailure(const char* what, uint32_t method_idx, const DexFile& dex_file,
+                          File* f) const;
 
   class OatDexFile {
    public:

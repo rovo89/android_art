@@ -17,6 +17,8 @@
 #ifndef ART_SRC_COMPILER_COMPILER_H_
 #define ART_SRC_COMPILER_COMPILER_H_
 
+#include "dex_file.h"
+
 #define COMPILER_TRACED(X)
 #define COMPILER_TRACEE(X)
 
@@ -99,9 +101,9 @@ bool oatArchInit(void);
 void oatArchDump(void);
 bool oatStartup(void);
 void oatShutdown(void);
-CompiledMethod* oatCompileMethod(const Compiler& compiler,
-                                 const Method* method,
-                                 OatInstructionSetType);
+CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
+                                 uint32_t method_idx, const art::ClassLoader* class_loader,
+                                 const art::DexFile& dex_file, OatInstructionSetType);
 void oatDumpStats(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);

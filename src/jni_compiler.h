@@ -25,7 +25,8 @@ class JniCompiler {
   explicit JniCompiler(InstructionSet instruction_set);
   ~JniCompiler();
 
-  CompiledMethod* Compile(const Method* method);
+  CompiledMethod* Compile(bool is_direct, uint32_t method_idx, const ClassLoader* class_loader,
+                          const DexFile& dex_file);
 
   // Stub to perform native method symbol lookup via dlsym
   // TODO: remove from JniCompiler

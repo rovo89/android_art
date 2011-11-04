@@ -37,8 +37,11 @@ TEST_F(OatTest, WriteRead) {
   for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
     const byte* class_data = dex_file.GetClassData(class_def);
-    DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
-    size_t num_virtual_methods = header.virtual_methods_size_;
+    size_t num_virtual_methods =0;
+    if (class_data != NULL) {
+      ClassDataItemIterator it(dex_file, class_data);
+      num_virtual_methods = it.NumVirtualMethods();
+    }
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
@@ -49,12 +52,13 @@ TEST_F(OatTest, WriteRead) {
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {
       Method* method = klass->GetDirectMethod(i);
       const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
-      const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
+      const CompiledMethod* compiled_method =
+          compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
+                                                                 method->GetDexMethodIndex()));
 
       if (compiled_method == NULL) {
         EXPECT_TRUE(oat_method.code_ == NULL) << PrettyMethod(method) << " " << oat_method.code_;
         EXPECT_EQ(oat_method.frame_size_in_bytes_, static_cast<uint32_t>(kStackAlignment));
-        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, 0U);
         EXPECT_EQ(oat_method.core_spill_mask_, 0U);
         EXPECT_EQ(oat_method.fp_spill_mask_, 0U);
       } else {
@@ -68,7 +72,6 @@ TEST_F(OatTest, WriteRead) {
             << PrettyMethod(method) << " " << code_size;
         CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
         EXPECT_EQ(oat_method.frame_size_in_bytes_, compiled_method->GetFrameSizeInBytes());
-        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, compiled_method->GetReturnPcOffsetInBytes());
         EXPECT_EQ(oat_method.core_spill_mask_, compiled_method->GetCoreSpillMask());
         EXPECT_EQ(oat_method.fp_spill_mask_, compiled_method->GetFpSpillMask());
       }
@@ -76,12 +79,13 @@ TEST_F(OatTest, WriteRead) {
     for (size_t i = 0; i < num_virtual_methods; i++, method_index++) {
       Method* method = klass->GetVirtualMethod(i);
       const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
-      const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
+      const CompiledMethod* compiled_method =
+          compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
+                                                                 method->GetDexMethodIndex()));
 
       if (compiled_method == NULL) {
         EXPECT_TRUE(oat_method.code_ == NULL) << PrettyMethod(method) << " " << oat_method.code_;
         EXPECT_EQ(oat_method.frame_size_in_bytes_, static_cast<uint32_t>(kStackAlignment));
-        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, 0U);
         EXPECT_EQ(oat_method.core_spill_mask_, 0U);
         EXPECT_EQ(oat_method.fp_spill_mask_, 0U);
       } else {
@@ -96,7 +100,6 @@ TEST_F(OatTest, WriteRead) {
             << PrettyMethod(method) << " " << code_size;
         CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
         EXPECT_EQ(oat_method.frame_size_in_bytes_, compiled_method->GetFrameSizeInBytes());
-        EXPECT_EQ(oat_method.return_pc_offset_in_bytes_, compiled_method->GetReturnPcOffsetInBytes());
         EXPECT_EQ(oat_method.core_spill_mask_, compiled_method->GetCoreSpillMask());
         EXPECT_EQ(oat_method.fp_spill_mask_, compiled_method->GetFpSpillMask());
       }

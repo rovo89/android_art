@@ -101,6 +101,42 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
   return reinterpret_cast<T>(ref);
 }
 
+size_t NumArgArrayBytes(const char* shorty) {
+  size_t num_bytes = 0;
+  size_t end = strlen(shorty);
+  for (size_t i = 1; i < end; ++i) {
+    char ch = shorty[i];
+    if (ch == 'D' || ch == 'J') {
+      num_bytes += 8;
+    } else if (ch == 'L') {
+      // Argument is a reference or an array.  The shorty descriptor
+      // does not distinguish between these types.
+      num_bytes += sizeof(Object*);
+    } else {
+      num_bytes += 4;
+    }
+  }
+  return num_bytes;
+}
+
+static size_t NumArgArrayBytes(const String* shorty) {
+  size_t num_bytes = 0;
+  size_t end = shorty->GetLength();
+  for (size_t i = 1; i < end; ++i) {
+    char ch = shorty->CharAt(i);
+    if (ch == 'D' || ch == 'J') {
+      num_bytes += 8;
+    } else if (ch == 'L') {
+      // Argument is a reference or an array.  The shorty descriptor
+      // does not distinguish between these types.
+      num_bytes += sizeof(Object*);
+    } else {
+      num_bytes += 4;
+    }
+  }
+  return num_bytes;
+}
+
 // For external use.
 template<typename T>
 T Decode(JNIEnv* public_env, jobject obj) {
@@ -139,11 +175,11 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
 }
 
-byte* CreateArgArray(JNIEnv* public_env, Method* method, va_list ap) {
+static byte* CreateArgArray(JNIEnv* public_env, Method* method, va_list ap) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  size_t num_bytes = method->NumArgArrayBytes();
-  UniquePtr<byte[]> arg_array(new byte[num_bytes]);
   const String* shorty = method->GetShorty();
+  size_t num_bytes = NumArgArrayBytes(shorty);
+  UniquePtr<byte[]> arg_array(new byte[num_bytes]);
   for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
     switch (shorty->CharAt(i)) {
       case 'Z':
@@ -177,9 +213,9 @@ byte* CreateArgArray(JNIEnv* public_env, Method* method, va_list ap) {
   return arg_array.release();
 }
 
-byte* CreateArgArray(JNIEnv* public_env, Method* method, jvalue* args) {
+static byte* CreateArgArray(JNIEnv* public_env, Method* method, jvalue* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  size_t num_bytes = method->NumArgArrayBytes();
+  size_t num_bytes = NumArgArrayBytes(method->GetShorty());
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
   const String* shorty = method->GetShorty();
   for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
@@ -215,14 +251,14 @@ byte* CreateArgArray(JNIEnv* public_env, Method* method, jvalue* args) {
   return arg_array.release();
 }
 
-JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, byte* args) {
+static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, byte* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   JValue result;
   method->Invoke(env->self, receiver, args, &result);
   return result;
 }
 
-JValue InvokeWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid, va_list args) {
+static JValue InvokeWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid, va_list args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   Object* receiver = Decode<Object*>(env, obj);
   Method* method = DecodeMethod(mid);
@@ -230,11 +266,12 @@ JValue InvokeWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid, va_list
   return InvokeWithArgArray(env, receiver, method, arg_array.get());
 }
 
-Method* FindVirtualMethod(Object* receiver, Method* method) {
+static Method* FindVirtualMethod(Object* receiver, Method* method) {
   return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method);
 }
 
-JValue InvokeVirtualOrInterfaceWithJValues(JNIEnv* public_env, jobject obj, jmethodID mid, jvalue* args) {
+static JValue InvokeVirtualOrInterfaceWithJValues(JNIEnv* public_env, jobject obj, jmethodID mid,
+                                                  jvalue* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   Object* receiver = Decode<Object*>(env, obj);
   Method* method = FindVirtualMethod(receiver, DecodeMethod(mid));
@@ -242,7 +279,8 @@ JValue InvokeVirtualOrInterfaceWithJValues(JNIEnv* public_env, jobject obj, jmet
   return InvokeWithArgArray(env, receiver, method, arg_array.get());
 }
 
-JValue InvokeVirtualOrInterfaceWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid, va_list args) {
+static JValue InvokeVirtualOrInterfaceWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid,
+                                                  va_list args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   Object* receiver = Decode<Object*>(env, obj);
   Method* method = FindVirtualMethod(receiver, DecodeMethod(mid));
@@ -255,7 +293,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(JNIEnv* public_env, jobject obj, jmet
 // (i.e. "a/b/C" rather than "La/b/C;"). Arrays of reference types are an
 // exception; there the "L;" must be present ("[La/b/C;"). Historically we've
 // supported names with dots too (such as "a.b.C").
-std::string NormalizeJniClassDescriptor(const char* name) {
+static std::string NormalizeJniClassDescriptor(const char* name) {
   std::string result;
   // Add the missing "L;" if necessary.
   if (name[0] == '[') {
@@ -274,13 +312,13 @@ std::string NormalizeJniClassDescriptor(const char* name) {
   return result;
 }
 
-void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const char* name, const char* sig, const char* kind) {
+static void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const char* name, const char* sig, const char* kind) {
   std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
   ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
       "no %s method \"%s.%s%s\"", kind, class_descriptor.c_str(), name, sig);
 }
 
-jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
+static jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
     return NULL;
@@ -308,7 +346,7 @@ jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* n
   return EncodeMethod(method);
 }
 
-const ClassLoader* GetClassLoader(Thread* self) {
+static const ClassLoader* GetClassLoader(Thread* self) {
   Frame frame = self->GetTopOfStack();
   Method* method = frame.GetMethod();
   if (method == NULL || PrettyMethod(method, false) == "java.lang.Runtime.nativeLoad") {
@@ -317,7 +355,7 @@ const ClassLoader* GetClassLoader(Thread* self) {
   return method->GetDeclaringClass()->GetClassLoader();
 }
 
-jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
+static jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
     return NULL;
@@ -359,13 +397,13 @@ jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* nam
   return EncodeField(field);
 }
 
-void PinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
+static void PinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
   JavaVMExt* vm = ts.Vm();
   MutexLock mu(vm->pins_lock);
   vm->pin_table.Add(array);
 }
 
-void UnpinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
+static void UnpinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
   JavaVMExt* vm = ts.Vm();
   MutexLock mu(vm->pins_lock);
   vm->pin_table.Remove(array);
@@ -396,13 +434,14 @@ void ReleasePrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jint mod
   }
 }
 
-void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize length, const char* identifier) {
+static void ThrowAIOOBE(ScopedJniThreadState& ts, Array* array, jsize start, jsize length, const char* identifier) {
   std::string type(PrettyTypeOf(array));
   ts.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
       "%s offset=%d length=%d %s.length=%d",
       type.c_str(), start, length, identifier, array->GetLength());
 }
-void ThrowSIOOBE(ScopedJniThreadState& ts, jsize start, jsize length, jsize array_length) {
+
+static void ThrowSIOOBE(ScopedJniThreadState& ts, jsize start, jsize length, jsize array_length) {
   ts.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
       "offset=%d length=%d string.length()=%d", start, length, array_length);
 }
@@ -429,18 +468,18 @@ void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, js
   }
 }
 
-jclass InitDirectByteBufferClass(JNIEnv* env) {
+static jclass InitDirectByteBufferClass(JNIEnv* env) {
   ScopedLocalRef<jclass> buffer_class(env, env->FindClass("java/nio/ReadWriteDirectByteBuffer"));
   CHECK(buffer_class.get() != NULL);
   return reinterpret_cast<jclass>(env->NewGlobalRef(buffer_class.get()));
 }
 
-jclass GetDirectByteBufferClass(JNIEnv* env) {
+static jclass GetDirectByteBufferClass(JNIEnv* env) {
   static jclass buffer_class = InitDirectByteBufferClass(env);
   return buffer_class;
 }
 
-jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as_daemon) {
+static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as_daemon) {
   if (vm == NULL || p_env == NULL) {
     return JNI_ERR;
   }

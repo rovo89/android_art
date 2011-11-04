@@ -49,7 +49,7 @@ extern "C" uint32_t artObjectInitFromCode(Object* o, Thread* self, Method** sp) 
   /*
    * NOTE: once debugger/profiler support is added, we'll need to check
    * here and branch to actual compiled object.<init> to handle any
-   * breakpoint/logging activites if either is active.
+   * breakpoint/logging activities if either is active.
    */
   return self->IsExceptionPending() ? -1 : 0;
 }
@@ -163,7 +163,7 @@ static std::string ClassNameFromIndex(Method* method, uint32_t ref,
     CHECK(false) << static_cast<int>(ref_type);
   }
 
-  std::string class_name(PrettyDescriptor(dex_file.dexStringByTypeIdx(type_idx)));
+  std::string class_name(PrettyDescriptor(dex_file.StringByTypeIdx(type_idx)));
   if (!access) {
     return class_name;
   }
@@ -185,7 +185,7 @@ static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
 
   const DexFile::FieldId& id = dex_file.GetFieldId(ref);
   std::string class_name(PrettyDescriptor(dex_file.GetFieldDeclaringClassDescriptor(id)));
-  const char* field_name = dex_file.dexStringById(id.name_idx_);
+  const char* field_name = dex_file.StringDataByIdx(id.name_idx_);
   if (!access) {
     return class_name + "." + field_name;
   }
@@ -207,7 +207,7 @@ static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
 
   const DexFile::MethodId& id = dex_file.GetMethodId(ref);
   std::string class_name(PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(id)));
-  const char* method_name = dex_file.dexStringById(id.name_idx_);
+  const char* method_name = dex_file.StringDataByIdx(id.name_idx_);
   if (!access) {
     return class_name + "." + method_name;
   }
@@ -215,7 +215,7 @@ static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
   std::string result;
   result += "tried to access method ";
   result += class_name + "." + method_name + ":" +
-            dex_file.CreateMethodDescriptor(id.proto_idx_, NULL);
+      dex_file.CreateMethodSignature(id.proto_idx_, NULL);
   result += " from class ";
   result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
   return result;

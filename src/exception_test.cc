@@ -67,28 +67,30 @@ TEST_F(ExceptionTest, FindCatchHandler) {
   ASSERT_NE(0u, code_item->insns_size_in_code_units_);
 
   const struct DexFile::TryItem *t0, *t1;
-  t0 = dex_->dexGetTryItems(*code_item, 0);
-  t1 = dex_->dexGetTryItems(*code_item, 1);
+  t0 = dex_->GetTryItems(*code_item, 0);
+  t1 = dex_->GetTryItems(*code_item, 1);
   EXPECT_LE(t0->start_addr_, t1->start_addr_);
-
-  DexFile::CatchHandlerIterator iter =
-    dex_->dexFindCatchHandler(*code_item, 4 /* Dex PC in the first try block */);
-  ASSERT_EQ(false, iter.HasNext());
-  EXPECT_STREQ("Ljava/io/IOException;", dex_->dexStringByTypeIdx(iter.Get().type_idx_));
-  iter.Next();
-  ASSERT_EQ(false, iter.HasNext());
-  EXPECT_STREQ("Ljava/lang/Exception;", dex_->dexStringByTypeIdx(iter.Get().type_idx_));
-  iter.Next();
-  ASSERT_EQ(true, iter.HasNext());
-
-  iter = dex_->dexFindCatchHandler(*code_item, 8 /* Dex PC in the second try block */);
-  ASSERT_EQ(false, iter.HasNext());
-  EXPECT_STREQ("Ljava/io/IOException;", dex_->dexStringByTypeIdx(iter.Get().type_idx_));
-  iter.Next();
-  ASSERT_EQ(true, iter.HasNext());
-
-  iter = dex_->dexFindCatchHandler(*code_item, 11 /* Dex PC not in any try block */);
-  ASSERT_EQ(true, iter.HasNext());
+  {
+    CatchHandlerIterator iter(*code_item, 4 /* Dex PC in the first try block */);
+    EXPECT_STREQ("Ljava/io/IOException;", dex_->StringByTypeIdx(iter.GetHandlerTypeIndex()));
+    ASSERT_TRUE(iter.HasNext());
+    iter.Next();
+    EXPECT_STREQ("Ljava/lang/Exception;", dex_->StringByTypeIdx(iter.GetHandlerTypeIndex()));
+    ASSERT_TRUE(iter.HasNext());
+    iter.Next();
+    EXPECT_FALSE(iter.HasNext());
+  }
+  {
+    CatchHandlerIterator iter(*code_item, 8 /* Dex PC in the second try block */);
+    EXPECT_STREQ("Ljava/io/IOException;", dex_->StringByTypeIdx(iter.GetHandlerTypeIndex()));
+    ASSERT_TRUE(iter.HasNext());
+    iter.Next();
+    EXPECT_FALSE(iter.HasNext());
+  }
+  {
+    CatchHandlerIterator iter(*code_item, 11 /* Dex PC not in any try block */);
+    EXPECT_FALSE(iter.HasNext());
+  }
 }
 
 TEST_F(ExceptionTest, StackTraceElement) {

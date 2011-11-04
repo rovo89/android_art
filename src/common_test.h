@@ -100,7 +100,9 @@ class CommonTest : public testing::Test {
   void MakeExecutable(Method* method) {
     CHECK(method != NULL);
 
-    const CompiledInvokeStub* compiled_invoke_stub = compiler_->GetCompiledInvokeStub(method);
+    const CompiledInvokeStub* compiled_invoke_stub =
+        compiler_->FindInvokeStub(method->IsStatic(),
+                                  method->GetShorty()->ToModifiedUtf8().c_str());
     CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     MakeExecutable(invoke_stub);
@@ -110,7 +112,11 @@ class CommonTest : public testing::Test {
               << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
 
     if (!method->IsAbstract()) {
-      const CompiledMethod* compiled_method = compiler_->GetCompiledMethod(method);
+      const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+      const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+      const CompiledMethod* compiled_method =
+          compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
+                                                                 method->GetDexMethodIndex()));
       CHECK(compiled_method != NULL) << PrettyMethod(method);
       const std::vector<uint8_t>& code = compiled_method->GetCode();
       MakeExecutable(code);
@@ -119,7 +125,6 @@ class CommonTest : public testing::Test {
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method(method_code,
                                     compiled_method->GetFrameSizeInBytes(),
-                                    compiled_method->GetReturnPcOffsetInBytes(),
                                     compiled_method->GetCoreSpillMask(),
                                     compiled_method->GetFpSpillMask(),
                                     &compiled_method->GetMappingTable()[0],
@@ -132,7 +137,6 @@ class CommonTest : public testing::Test {
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method(method_code,
                                     kStackAlignment,
-                                    0,
                                     0,
                                     0,
                                     NULL,

@@ -247,7 +247,7 @@ TEST_HOST_SRC_FILES := \
 TEST_DEX_DIRECTORIES := \
 	AbstractMethod \
 	AllFields \
-	CreateMethodDescriptor \
+	CreateMethodSignature \
 	ExceptionHandle \
 	ExceptionTest \
 	Fibonacci \

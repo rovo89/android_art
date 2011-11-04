@@ -175,7 +175,6 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
   return OatMethod(
       GetOatPointer<const void*>(oat_method_offsets.code_offset_),
       oat_method_offsets.frame_size_in_bytes_,
-      oat_method_offsets.return_pc_offset_in_bytes_,
       oat_method_offsets.core_spill_mask_,
       oat_method_offsets.fp_spill_mask_,
       GetOatPointer<const uint32_t*>(oat_method_offsets.mapping_table_offset_),
@@ -185,7 +184,6 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
 
 OatFile::OatMethod::OatMethod(const void* code,
                               const size_t frame_size_in_bytes,
-                              const size_t return_pc_offset_in_bytes,
                               const uint32_t core_spill_mask,
                               const uint32_t fp_spill_mask,
                               const uint32_t* mapping_table,
@@ -193,7 +191,6 @@ OatFile::OatMethod::OatMethod(const void* code,
                               const Method::InvokeStub* invoke_stub)
   : code_(code),
     frame_size_in_bytes_(frame_size_in_bytes),
-    return_pc_offset_in_bytes_(return_pc_offset_in_bytes),
     core_spill_mask_(core_spill_mask),
     fp_spill_mask_(fp_spill_mask),
     mapping_table_(mapping_table),

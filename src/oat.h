@@ -41,7 +41,6 @@ class PACKED OatMethodOffsets {
   OatMethodOffsets();
   OatMethodOffsets(uint32_t code_offset,
                    uint32_t frame_size_in_bytes,
-                   uint32_t return_pc_offset_in_bytes,
                    uint32_t core_spill_mask,
                    uint32_t fp_spill_mask,
                    uint32_t mapping_table_offset,
@@ -51,7 +50,6 @@ class PACKED OatMethodOffsets {
 
   uint32_t code_offset_;
   uint32_t frame_size_in_bytes_;
-  uint32_t return_pc_offset_in_bytes_;
   uint32_t core_spill_mask_;
   uint32_t fp_spill_mask_;
   uint32_t mapping_table_offset_;

@@ -20,6 +20,7 @@
 #include "monitor.h"
 #include "runtime.h"
 #include "stack.h"
+#include "utils.h"
 
 namespace art {
 
@@ -122,7 +123,7 @@ size_t Field::PrimitiveSize() const {
 const char* Field::GetTypeDescriptor() const {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(GetDeclaringClass()->GetDexCache());
-  const char* descriptor = dex_file.dexStringByTypeIdx(GetTypeIdx());
+  const char* descriptor = dex_file.StringByTypeIdx(GetTypeIdx());
   DCHECK(descriptor != NULL);
   return descriptor;
 }
@@ -134,6 +135,15 @@ Class* Field::GetType() {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, type_), type, false);
   }
   return type;
+}
+
+void Field::SetOffset(MemberOffset num_bytes) {
+  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
+  Primitive::Type type = GetPrimitiveType();
+  if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {
+    DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
+  }
+  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), num_bytes.Uint32Value(), false);
 }
 
 void Field::InitJavaFields() {
@@ -405,12 +415,43 @@ void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
              new_return_type_idx, false);
 }
 
+uint32_t Method::GetDexMethodIndex() const {
+  // TODO: add the method index to Method - which will also mean a number of Method fields can
+  // become dex file lookups (which will then mean we may want faster access to the dex file)
+  // Find the dex file
+  const DexCache* dex_cache = GetDeclaringClass()->GetDexCache();
+  const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+  // Find the class_def in the dex file
+  uint32_t class_def_idx;
+  bool found_class_def =
+      dex_file.FindClassDefIndex(GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8(),
+                                 class_def_idx);
+  CHECK(found_class_def);
+  const DexFile::TypeId& type_id =
+      dex_file.GetTypeId(dex_file.GetClassDef(class_def_idx).class_idx_);
+  const DexFile::StringId* name_str_id = dex_file.FindStringId(GetName()->ToModifiedUtf8());
+  CHECK(name_str_id != NULL);  // Failed to find method's name?
+  uint16_t return_type_idx;
+  std::vector<uint16_t> param_type_idxs;
+  std::string signature = GetSignature()->ToModifiedUtf8();
+  bool found_type_list = dex_file.CreateTypeList(&return_type_idx, &param_type_idxs, signature);
+  CHECK(found_type_list);   // Failed to parse signature
+  const DexFile::ProtoId* sig_proto_id = dex_file.FindProtoId(return_type_idx, param_type_idxs);
+  CHECK(sig_proto_id != NULL);  // Failed to find method's prototype
+  const DexFile::MethodId* method_id =
+      dex_file.FindMethodId(type_id, *name_str_id, *sig_proto_id);
+  CHECK(method_id != NULL);  // Failed to find method?
+  uint32_t method_idx = dex_file.GetIndexForMethodId(*method_id);
+  DCHECK_EQ(PrettyMethod(method_idx, dex_file), PrettyMethod(this));
+  return method_idx;
+}
+
 const char* Method::GetReturnTypeDescriptor() const {
   Class* declaring_class = GetDeclaringClass();
   DexCache* dex_cache = declaring_class->GetDexCache();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const char* descriptor = dex_file.dexStringByTypeIdx(GetReturnTypeIdx());
+  const char* descriptor = dex_file.StringByTypeIdx(GetReturnTypeIdx());
   DCHECK(descriptor != NULL);
   return descriptor;
 }
@@ -502,24 +543,6 @@ size_t Method::NumArgRegisters(const StringPiece& shorty) {
     }
   }
   return num_registers;
-}
-
-size_t Method::NumArgArrayBytes() const {
-  const String* shorty = GetShorty();
-  size_t num_bytes = 0;
-  for (int i = 1; i < shorty->GetLength(); ++i) {
-    char ch = shorty->CharAt(i);
-    if (ch == 'D' || ch == 'J') {
-      num_bytes += 8;
-    } else if (ch == 'L') {
-      // Argument is a reference or an array.  The shorty descriptor
-      // does not distinguish between these types.
-      num_bytes += sizeof(Object*);
-    } else {
-      num_bytes += 4;
-    }
-  }
-  return num_bytes;
 }
 
 size_t Method::NumArgs() const {
@@ -677,12 +700,11 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
   const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(GetCodeItemOffset());
   // Iterate over the catch handlers associated with dex_pc
-  for (DexFile::CatchHandlerIterator iter = dex_file.dexFindCatchHandler(*code_item, dex_pc);
-       !iter.HasNext(); iter.Next()) {
-    uint32_t iter_type_idx = iter.Get().type_idx_;
+  for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
+    uint16_t iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
-    if (iter_type_idx == DexFile::kDexNoIndex) {
-      return iter.Get().address_;
+    if (iter_type_idx == DexFile::kDexNoIndex16) {
+      return it.GetHandlerAddress();
     }
     // Does this catch exception type apply?
     Class* iter_exception_type = dex_cache->GetResolvedType(iter_type_idx);
@@ -691,7 +713,7 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
           << dex_file.GetTypeDescriptor(dex_file.GetTypeId(iter_type_idx));
     } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
-      return iter.Get().address_;
+      return it.GetHandlerAddress();
     }
   }
   // Handler not found
@@ -776,6 +798,11 @@ Object* Class::AllocObject() {
   DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
   DCHECK_GE(this->object_size_, sizeof(Object));
   return Heap::AllocObject(this, this->object_size_);
+}
+
+void Class::SetClassSize(size_t new_class_size) {
+  DCHECK_GE(new_class_size, GetClassSize()) << " class=" << PrettyTypeOf(this);
+  SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size, false);
 }
 
 void Class::DumpClass(std::ostream& os, int flags) const {

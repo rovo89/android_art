@@ -12,6 +12,8 @@
 #include "runtime.h"
 #include "unordered_map.h"
 
+#include <string>
+
 namespace art {
 
 class Compiler {
@@ -52,8 +54,11 @@ class Compiler {
   static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
                                          Runtime::TrampolineType type);
 
-  const CompiledMethod* GetCompiledMethod(const Method* method) const;
-  const CompiledInvokeStub* GetCompiledInvokeStub(const Method* method) const;
+  // A method is uniquely located by its DexFile and index into the method_id table of that dex file
+  typedef std::pair<const DexFile*, uint32_t> MethodReference;
+
+  CompiledMethod* GetCompiledMethod(MethodReference ref) const;
+  const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
   bool CanAssumeTypeIsPresentInDexCache(const Method* referrer, uint32_t type_idx) const {
@@ -70,6 +75,7 @@ class Compiler {
     DCHECK(resolved_class == NULL || referrer->GetDeclaringClass()->CanAccess(resolved_class));
     return resolved_class != NULL;
   }
+
  private:
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
@@ -85,21 +91,41 @@ class Compiler {
 
   void Compile(const ClassLoader* class_loader);
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
-  void CompileClass(const Class* klass);
-  void CompileMethod(const Method* method);
+  void CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
+                    const DexFile& dex_file);
+  void CompileMethod(bool is_direct, bool is_native, bool is_static, bool is_abstract,
+                     uint32_t method_idx, const ClassLoader* class_loader, const DexFile& dex_file);
 
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.
   void SetCodeAndDirectMethods(const ClassLoader* class_loader);
   void SetCodeAndDirectMethodsDexFile(const DexFile& dex_file);
 
+  void InsertInvokeStub(bool is_static, const char* shorty,
+                        const CompiledInvokeStub* compiled_invoke_stub);
+
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
 
-  typedef std::tr1::unordered_map<const Method*, CompiledMethod*, ObjectIdentityHash> MethodTable;
+  struct MethodReferenceHash {
+    size_t operator()(const MethodReference id) const {
+      size_t dex = reinterpret_cast<size_t>(id.first);
+      DCHECK_NE(dex, static_cast<size_t>(0));
+      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
+      size_t idx = id.second;
+      if (idx == 0) {  // special case of a method index of 0
+        return dex * 5381;
+      } else {
+        return dex * idx;
+      }
+    }
+  };
+  typedef std::tr1::unordered_map<const MethodReference, CompiledMethod*, MethodReferenceHash> MethodTable;
+  // All method references that this compiler has compiled
   MethodTable compiled_methods_;
 
-  typedef std::tr1::unordered_map<const Method*, CompiledInvokeStub*, ObjectIdentityHash> InvokeStubTable;
+  typedef std::tr1::unordered_map<std::string, const CompiledInvokeStub*> InvokeStubTable;
+  // Invocation stubs created to allow invocation of the compiled methods
   InvokeStubTable compiled_invoke_stubs_;
 
   bool image_;

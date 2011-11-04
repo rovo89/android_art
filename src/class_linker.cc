@@ -14,6 +14,7 @@
 #include "dex_verifier.h"
 #include "heap.h"
 #include "intern_table.h"
+#include "leb128.h"
 #include "logging.h"
 #include "monitor.h"
 #include "oat_file.h"
@@ -1070,17 +1071,12 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
 size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
                                 const DexFile::ClassDef& dex_class_def) {
   const byte* class_data = dex_file.GetClassData(dex_class_def);
-  DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
-  size_t num_static_fields = header.static_fields_size_;
   size_t num_ref = 0;
   size_t num_32 = 0;
   size_t num_64 = 0;
-  if (num_static_fields != 0) {
-    uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_static_fields; ++i) {
-      DexFile::Field dex_field;
-      dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(dex_field.field_idx_);
+  if (class_data != NULL) {
+    for (ClassDataItemIterator it(dex_file, class_data); it.HasNextStaticField(); it.Next()) {
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(it.GetMemberIndex());
       const char* descriptor = dex_file.GetFieldTypeDescriptor(field_id);
       char c = descriptor[0];
       if (c == 'L' || c == '[') {
@@ -1092,7 +1088,6 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
       }
     }
   }
-
   // start with generic class data
   size_t size = sizeof(Class);
   // follow with reference fields which must be contiguous at start
@@ -1137,9 +1132,6 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   CHECK(klass.get() != NULL);
   CHECK(klass->GetDexCache() != NULL);
   CHECK_EQ(Class::kStatusNotReady, klass->GetStatus());
-  const byte* class_data = dex_file.GetClassData(dex_class_def);
-  DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
-
   const char* descriptor = dex_file.GetClassDescriptor(dex_class_def);
   CHECK(descriptor != NULL);
 
@@ -1164,12 +1156,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   klass->SetSuperClassTypeIdx(dex_class_def.superclass_idx_);
   klass->SetAnnotationsOffset(dex_class_def.annotations_off_);
 
-  size_t num_static_fields = header.static_fields_size_;
-  size_t num_instance_fields = header.instance_fields_size_;
-  size_t num_direct_methods = header.direct_methods_size_;
-  size_t num_virtual_methods = header.virtual_methods_size_;
-
-  const char* source_file = dex_file.dexGetSourceFile(dex_class_def);
+  const char* source_file = dex_file.GetSourceFile(dex_class_def);
   if (source_file != NULL) {
     String* source_file_string = intern_table_->InternStrong(source_file);
     if (source_file_string == NULL) {
@@ -1181,30 +1168,27 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   // Load class interfaces.
   LoadInterfaces(dex_file, dex_class_def, klass);
 
-  // Load static fields.
-  if (num_static_fields != 0) {
-    klass->SetSFields(AllocObjectArray<Field>(num_static_fields));
-    uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_static_fields; ++i) {
-      DexFile::Field dex_field;
-      dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-      SirtRef<Field> sfield(AllocField());
-      klass->SetStaticField(i, sfield.get());
-      LoadField(dex_file, dex_field, klass, sfield);
-    }
+  // Load fields fields.
+  const byte* class_data = dex_file.GetClassData(dex_class_def);
+  if (class_data == NULL) {
+    return;  // no fields or methods - for example a marker interface
   }
-
-  // Load instance fields.
-  if (num_instance_fields != 0) {
-    klass->SetIFields(AllocObjectArray<Field>(num_instance_fields));
-    uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_instance_fields; ++i) {
-      DexFile::Field dex_field;
-      dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-      SirtRef<Field> ifield(AllocField());
-      klass->SetInstanceField(i, ifield.get());
-      LoadField(dex_file, dex_field, klass, ifield);
-    }
+  ClassDataItemIterator it(dex_file, class_data);
+  if (it.NumStaticFields() != 0) {
+    klass->SetSFields(AllocObjectArray<Field>(it.NumStaticFields()));
+  }
+  if (it.NumInstanceFields() != 0) {
+    klass->SetIFields(AllocObjectArray<Field>(it.NumInstanceFields()));
+  }
+  for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
+    SirtRef<Field> sfield(AllocField());
+    klass->SetStaticField(i, sfield.get());
+    LoadField(dex_file, it, klass, sfield);
+  }
+  for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
+    SirtRef<Field> ifield(AllocField());
+    klass->SetInstanceField(i, ifield.get());
+    LoadField(dex_file, it, klass, ifield);
   }
 
   UniquePtr<const OatFile::OatClass> oat_class;
@@ -1221,41 +1205,35 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
       }
     }
   }
-  size_t method_index = 0;
-
-  // Load direct methods.
-  if (num_direct_methods != 0) {
+  // Load methods.
+  if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetDirectMethods(AllocObjectArray<Method>(num_direct_methods));
-    uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_direct_methods; ++i, ++method_index) {
-      DexFile::Method dex_method;
-      dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-      SirtRef<Method> method(AllocMethod());
-      klass->SetDirectMethod(i, method.get());
-      LoadMethod(dex_file, dex_method, klass, method);
-      if (oat_class.get() != NULL) {
-        LinkCode(method, oat_class.get(), method_index);
-      }
-    }
+    klass->SetDirectMethods(AllocObjectArray<Method>(it.NumDirectMethods()));
   }
-
-  // Load virtual methods.
-  if (num_virtual_methods != 0) {
-    // TODO: append virtual methods to class object
-    klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
-    uint32_t last_idx = 0;
-    for (size_t i = 0; i < num_virtual_methods; ++i, ++method_index) {
-      DexFile::Method dex_method;
-      dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-      SirtRef<Method> method(AllocMethod());
-      klass->SetVirtualMethod(i, method.get());
-      LoadMethod(dex_file, dex_method, klass, method);
-      if (oat_class.get() != NULL) {
-        LinkCode(method, oat_class.get(), method_index);
-      }
-    }
+  if (it.NumVirtualMethods() != 0) {
+    // TODO: append direct methods to class object
+    klass->SetVirtualMethods(AllocObjectArray<Method>(it.NumVirtualMethods()));
   }
+  size_t method_index = 0;
+  for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
+    SirtRef<Method> method(AllocMethod());
+    klass->SetDirectMethod(i, method.get());
+    LoadMethod(dex_file, it, klass, method);
+    if (oat_class.get() != NULL) {
+      LinkCode(method, oat_class.get(), method_index);
+    }
+    method_index++;
+  }
+  for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
+    SirtRef<Method> method(AllocMethod());
+    klass->SetVirtualMethod(i, method.get());
+    LoadMethod(dex_file, it, klass, method);
+    if (oat_class.get() != NULL) {
+      LinkCode(method, oat_class.get(), method_index);
+    }
+    method_index++;
+  }
+  DCHECK(!it.HasNext());
 }
 
 void ClassLinker::LoadInterfaces(const DexFile& dex_file,
@@ -1273,15 +1251,13 @@ void ClassLinker::LoadInterfaces(const DexFile& dex_file,
   }
 }
 
-void ClassLinker::LoadField(const DexFile& dex_file,
-                            const DexFile::Field& src,
-                            SirtRef<Class>& klass,
-                            SirtRef<Field>& dst) {
-  const DexFile::FieldId& field_id = dex_file.GetFieldId(src.field_idx_);
+void ClassLinker::LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
+                            SirtRef<Class>& klass, SirtRef<Field>& dst) {
+  const DexFile::FieldId& field_id = dex_file.GetFieldId(it.GetMemberIndex());
   dst->SetDeclaringClass(klass.get());
   dst->SetName(ResolveString(dex_file, field_id.name_idx_, klass->GetDexCache()));
   dst->SetTypeIdx(field_id.type_idx_);
-  dst->SetAccessFlags(src.access_flags_);
+  dst->SetAccessFlags(it.GetMemberAccessFlags());
 
   // In order to access primitive types using GetTypeDuringLinking we need to
   // ensure they are resolved into the dex cache
@@ -1293,11 +1269,9 @@ void ClassLinker::LoadField(const DexFile& dex_file,
   }
 }
 
-void ClassLinker::LoadMethod(const DexFile& dex_file,
-                             const DexFile::Method& src,
-                             SirtRef<Class>& klass,
-                             SirtRef<Method>& dst) {
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(src.method_idx_);
+void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& it,
+                             SirtRef<Class>& klass, SirtRef<Method>& dst) {
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(it.GetMemberIndex());
   dst->SetDeclaringClass(klass.get());
 
   String* method_name = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
@@ -1310,7 +1284,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   }
 
   int32_t utf16_length;
-  std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, &utf16_length));
+  std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, &utf16_length));
   String* signature_string = intern_table_->InternStrong(utf16_length, signature.c_str());
   if (signature_string == NULL) {
     return;
@@ -1333,14 +1307,14 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
   }
 
   dst->SetProtoIdx(method_id.proto_idx_);
-  dst->SetCodeItemOffset(src.code_off_);
+  dst->SetCodeItemOffset(it.GetMethodCodeItemOffset());
   const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
   String* shorty_string = intern_table_->InternStrong(shorty);
   dst->SetShorty(shorty_string);
   if (shorty_string == NULL) {
     return;
   }
-  dst->SetAccessFlags(src.access_flags_);
+  dst->SetAccessFlags(it.GetMemberAccessFlags());
   uint32_t return_type_idx = dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_;
   DCHECK_LT(return_type_idx, dex_file.NumTypeIds());
   dst->SetReturnTypeIdx(return_type_idx);
@@ -1354,14 +1328,14 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
 
   // TODO: check for finalize method
 
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(src);
+  const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
   if (code_item != NULL) {
     dst->SetNumRegisters(code_item->registers_size_);
     dst->SetNumIns(code_item->ins_size_);
     dst->SetNumOuts(code_item->outs_size_);
   } else {
     uint16_t num_args = Method::NumArgRegisters(shorty);
-    if ((src.access_flags_ & kAccStatic) != 0) {
+    if ((it.GetMemberAccessFlags() & kAccStatic) != 0) {
       ++num_args;
     }
     dst->SetNumRegisters(num_args);
@@ -1944,9 +1918,8 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
   }
   const DexFile& dex_file = FindDexFile(method->GetDeclaringClass()->GetDexCache());
   const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
-  DexFile::ParameterIterator *it;
-  for (it = dex_file.GetParameterIterator(proto_id); it->HasNext(); it->Next()) {
-    const char* descriptor = it->GetDescriptor();
+  for (DexFileParameterIterator it(dex_file, proto_id); it.HasNext(); it.Next()) {
+    const char* descriptor = it.GetDescriptor();
     if (descriptor == NULL) {
       break;
     }
@@ -2031,15 +2004,12 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
 }
 
 void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-    Class* c, std::map<int, Field*>& field_map) {
+                                    Class* c, std::map<uint32_t, Field*>& field_map) {
   const ClassLoader* cl = c->GetClassLoader();
   const byte* class_data = dex_file.GetClassData(dex_class_def);
-  DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
-  uint32_t last_idx = 0;
-  for (size_t i = 0; i < header.static_fields_size_; ++i) {
-    DexFile::Field dex_field;
-    dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-    field_map[i] = ResolveField(dex_file, dex_field.field_idx_, c->GetDexCache(), cl, true);
+  ClassDataItemIterator it(dex_file, class_data);
+  for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
+    field_map[i] = ResolveField(dex_file, it.GetMemberIndex(), c->GetDexCache(), cl, true);
   }
 }
 
@@ -2053,61 +2023,18 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   if (dex_cache == NULL) {
     return;
   }
-  const std::string descriptor(klass->GetDescriptor()->ToModifiedUtf8());
   const DexFile& dex_file = FindDexFile(dex_cache);
+  const std::string descriptor(klass->GetDescriptor()->ToModifiedUtf8());
   const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
   CHECK(dex_class_def != NULL);
+  EncodedStaticFieldValueIterator it(dex_file, dex_cache, this, *dex_class_def);
 
-  // We reordered the fields, so we need to be able to map the field indexes to the right fields.
-  std::map<int, Field*> field_map;
-  ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
-
-  const byte* addr = dex_file.GetEncodedArray(*dex_class_def);
-  if (addr == NULL) {
-    // All this class' static fields have default values.
-    return;
-  }
-  size_t array_size = DecodeUnsignedLeb128(&addr);
-  for (size_t i = 0; i < array_size; ++i) {
-    Field* field = field_map[i];
-    JValue value;
-    DexFile::ValueType type = dex_file.ReadEncodedValue(&addr, &value);
-    switch (type) {
-      case DexFile::kByte:
-        field->SetByte(NULL, value.b);
-        break;
-      case DexFile::kShort:
-        field->SetShort(NULL, value.s);
-        break;
-      case DexFile::kChar:
-        field->SetChar(NULL, value.c);
-        break;
-      case DexFile::kInt:
-        field->SetInt(NULL, value.i);
-        break;
-      case DexFile::kLong:
-        field->SetLong(NULL, value.j);
-        break;
-      case DexFile::kFloat:
-        field->SetFloat(NULL, value.f);
-        break;
-      case DexFile::kDouble:
-        field->SetDouble(NULL, value.d);
-        break;
-      case DexFile::kString: {
-        uint32_t string_idx = value.i;
-        const String* resolved = ResolveString(dex_file, string_idx, klass->GetDexCache());
-        field->SetObject(NULL, resolved);
-        break;
-      }
-      case DexFile::kBoolean:
-        field->SetBoolean(NULL, value.z);
-        break;
-      case DexFile::kNull:
-        field->SetObject(NULL, value.l);
-        break;
-      default:
-        LOG(FATAL) << "Unknown type " << static_cast<int>(type);
+  if (it.HasNext()) {
+    // We reordered the fields, so we need to be able to map the field indexes to the right fields.
+    std::map<uint32_t, Field*> field_map;
+    ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
+    for (size_t i = 0; it.HasNext(); i++, it.Next()) {
+      it.ReadValueToField(field_map[i]);
     }
   }
 }
@@ -2135,7 +2062,7 @@ bool ClassLinker::LinkClass(SirtRef<Class>& klass) {
 
 bool ClassLinker::LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& dex_file) {
   CHECK_EQ(Class::kStatusIdx, klass->GetStatus());
-  if (klass->GetSuperClassTypeIdx() != DexFile::kDexNoIndex) {
+  if (klass->GetSuperClassTypeIdx() != DexFile::kDexNoIndex16) {
     Class* super_class = ResolveType(dex_file, klass->GetSuperClassTypeIdx(), klass.get());
     if (super_class == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
@@ -2691,7 +2618,7 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
                                 const ClassLoader* class_loader) {
   Class* resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == NULL) {
-    const char* descriptor = dex_file.dexStringByTypeIdx(type_idx);
+    const char* descriptor = dex_file.StringByTypeIdx(type_idx);
     resolved = FindClass(descriptor, class_loader);
     if (resolved != NULL) {
       Class* check = resolved;
@@ -2731,8 +2658,8 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
     return NULL;
   }
 
-  const char* name = dex_file.dexStringById(method_id.name_idx_);
-  std::string signature(dex_file.CreateMethodDescriptor(method_id.proto_idx_, NULL));
+  const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
+  std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
   if (is_direct) {
     resolved = klass->FindDirectMethod(name, signature);
   } else if (klass->IsInterface()) {

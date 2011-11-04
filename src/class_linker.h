@@ -282,7 +282,7 @@ class ClassLinker {
   void AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
 
   void ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-      Class* c, std::map<int, Field*>& field_map);
+                         Class* c, std::map<uint32_t, Field*>& field_map);
 
   size_t SizeOfClass(const DexFile& dex_file,
                      const DexFile::ClassDef& dex_class_def);
@@ -296,15 +296,11 @@ class ClassLinker {
                       const DexFile::ClassDef& dex_class_def,
                       SirtRef<Class>& klass);
 
-  void LoadField(const DexFile& dex_file,
-                 const DexFile::Field& dex_field,
-                 SirtRef<Class>& klass,
+  void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
                  SirtRef<Field>& dst);
 
-  void LoadMethod(const DexFile& dex_file,
-                  const DexFile::Method& dex_method,
-                  SirtRef<Class>& klass,
-                  SirtRef<Method>& dst);
+  void LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
+                  SirtRef<Class>& klass, SirtRef<Method>& dst);
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.

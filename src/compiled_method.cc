@@ -7,7 +7,6 @@ namespace art {
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                std::vector<short>& short_code,
                                const size_t frame_size_in_bytes,
-                               const size_t return_pc_offset_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
                                std::vector<uint32_t>& mapping_table,
@@ -37,7 +36,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   instruction_set_ = instruction_set;
   code_ = byte_code;
   frame_size_in_bytes_ = frame_size_in_bytes;
-  return_pc_offset_in_bytes_ = return_pc_offset_in_bytes;
   core_spill_mask_ = core_spill_mask;
   fp_spill_mask_ = fp_spill_mask;
   mapping_table_ = length_prefixed_mapping_table;
@@ -49,7 +47,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
-                               const size_t return_pc_offset_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask) {
   CHECK_NE(code.size(), 0U);
@@ -57,7 +54,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   instruction_set_ = instruction_set;
   code_ = code;
   frame_size_in_bytes_ = frame_size_in_bytes;
-  return_pc_offset_in_bytes_ = return_pc_offset_in_bytes;
   core_spill_mask_ = core_spill_mask;
   fp_spill_mask_ = fp_spill_mask;
 }
@@ -74,10 +70,6 @@ const std::vector<uint8_t>& CompiledMethod::GetCode() const {
 
 size_t CompiledMethod::GetFrameSizeInBytes() const {
   return frame_size_in_bytes_;
-}
-
-size_t CompiledMethod::GetReturnPcOffsetInBytes() const {
-  return return_pc_offset_in_bytes_;
 }
 
 uint32_t CompiledMethod::GetCoreSpillMask() const {
@@ -145,7 +137,6 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
       return NULL;
   }
 }
-
 
 CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code) {
   CHECK_NE(code.size(), 0U);

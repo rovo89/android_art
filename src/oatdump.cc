@@ -136,47 +136,33 @@ class OatDump {
                            const DexFile& dex_file,
                            const DexFile::ClassDef& class_def) {
     const byte* class_data = dex_file.GetClassData(class_def);
-    DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
-    size_t num_static_fields = header.static_fields_size_;
-    size_t num_instance_fields = header.instance_fields_size_;
-    size_t num_direct_methods = header.direct_methods_size_;
-    size_t num_virtual_methods = header.virtual_methods_size_;
-    uint32_t method_index = 0;
+    if (class_data == NULL) {  // empty class such as a marker interface?
+      return;
+    }
+    ClassDataItemIterator it(dex_file, class_data);
 
     // just skipping through the fields to advance class_data
-    if (num_static_fields != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_static_fields; ++i) {
-        DexFile::Field dex_field;
-        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-      }
+    while (it.HasNextStaticField()) {
+      it.Next();
     }
-    if (num_instance_fields != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_instance_fields; ++i) {
-        DexFile::Field dex_field;
-        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-      }
+    while (it.HasNextInstanceField()) {
+      it.Next();
     }
 
-    if (num_direct_methods != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_direct_methods; ++i, method_index++) {
-        DexFile::Method dex_method;
-        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-        const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
-        DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, dex_method);
-      }
+    uint32_t method_index = 0;
+    while (it.HasNextDirectMethod()) {
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, it.GetMemberIndex());
+      method_index++;
+      it.Next();
     }
-    if (num_virtual_methods != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_virtual_methods; ++i, method_index++) {
-        DexFile::Method dex_method;
-        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-        const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
-        DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, dex_method);
-      }
+    while (it.HasNextVirtualMethod()) {
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, it.GetMemberIndex());
+      method_index++;
+      it.Next();
     }
+    DCHECK(!it.HasNext());
     os << std::flush;
   }
   static void DumpOatMethod(std::ostream& os,
@@ -184,19 +170,17 @@ class OatDump {
                             const OatFile& oat_file,
                             const OatFile::OatMethod& oat_method,
                             const DexFile& dex_file,
-                            const DexFile::Method& dex_method) {
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method.method_idx_);
+                            uint32_t method_idx) {
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
     const char* name = dex_file.GetMethodName(method_id);
     std::string signature = dex_file.GetMethodSignature(method_id);
     os << StringPrintf("\t%d: %s %s (method_idx=%d)\n",
-                       method_index, name, signature.c_str(), dex_method.method_idx_);
+                       method_index, name, signature.c_str(), method_idx);
     os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
                        oat_method.code_,
                        reinterpret_cast<const byte*>(oat_method.code_) - oat_file.GetBase());
     os << StringPrintf("\t\tframe_size_in_bytes: %d\n",
                        oat_method.frame_size_in_bytes_);
-    os << StringPrintf("\t\treturn_pc_offset_in_bytes: %d\n",
-                       oat_method.return_pc_offset_in_bytes_);
     os << StringPrintf("\t\tcore_spill_mask: %08x\n",
                        oat_method.core_spill_mask_);
     os << StringPrintf("\t\tfp_spill_mask: %08x\n",

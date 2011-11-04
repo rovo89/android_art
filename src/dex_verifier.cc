@@ -11,6 +11,7 @@
 #include "dex_instruction_visitor.h"
 #include "dex_verifier.h"
 #include "intern_table.h"
+#include "leb128.h"
 #include "logging.h"
 #include "runtime.h"
 #include "stringpiece.h"
@@ -1031,7 +1032,7 @@ bool DexVerifier::ScanTryCatchBlocks() {
     return true;
   }
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
-  const DexFile::TryItem* tries = DexFile::dexGetTryItems(*code_item_, 0);
+  const DexFile::TryItem* tries = DexFile::GetTryItems(*code_item_, 0);
 
   for (uint32_t idx = 0; idx < tries_size; idx++) {
     const DexFile::TryItem* try_item = &tries[idx];
@@ -1052,14 +1053,13 @@ bool DexVerifier::ScanTryCatchBlocks() {
     }
   }
   /* Iterate over each of the handlers to verify target addresses. */
-  const byte* handlers_ptr = DexFile::dexGetCatchHandlerData(*code_item_, 0);
+  const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
-    DexFile::CatchHandlerIterator iterator(handlers_ptr);
-    for (; !iterator.HasNext(); iterator.Next()) {
-      const DexFile::CatchHandlerItem& handler = iterator.Get();
-      uint32_t dex_pc= handler.address_;
+    CatchHandlerIterator iterator(handlers_ptr);
+    for (; iterator.HasNext(); iterator.Next()) {
+      uint32_t dex_pc= iterator.GetHandlerAddress();
       if (!insn_flags_[dex_pc].IsOpcode()) {
         Fail(VERIFY_ERROR_GENERIC) << "exception handler starts at bad address (" << dex_pc << ")";
         return false;
@@ -1067,15 +1067,15 @@ bool DexVerifier::ScanTryCatchBlocks() {
       insn_flags_[dex_pc].SetBranchTarget();
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
-      if (handler.type_idx_ != DexFile::kDexNoIndex) {
-        Class* exception_type = linker->ResolveType(handler.type_idx_, method_);
+      if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
+        Class* exception_type = linker->ResolveType(iterator.GetHandlerTypeIndex(), method_);
         if (exception_type == NULL) {
           DCHECK(Thread::Current()->IsExceptionPending());
           Thread::Current()->ClearException();
         }
       }
     }
-    handlers_ptr = iterator.GetData();
+    handlers_ptr = iterator.EndDataPointer();
   }
   return true;
 }
@@ -1221,7 +1221,7 @@ bool DexVerifier::CheckNewInstance(uint32_t idx) {
     return false;
   }
   // We don't need the actual class, just a pointer to the class name.
-  const char* descriptor = dex_file_->dexStringByTypeIdx(idx);
+  const char* descriptor = dex_file_->StringByTypeIdx(idx);
   if (descriptor[0] != 'L') {
     Fail(VERIFY_ERROR_GENERIC) << "can't call new-instance on type '" << descriptor << "'";
     return false;
@@ -1254,7 +1254,7 @@ bool DexVerifier::CheckNewArray(uint32_t idx) {
     return false;
   }
   int bracket_count = 0;
-  const char* descriptor = dex_file_->dexStringByTypeIdx(idx);
+  const char* descriptor = dex_file_->StringByTypeIdx(idx);
   const char* cp = descriptor;
   while (*cp++ == '[') {
     bracket_count++;
@@ -1575,7 +1575,7 @@ bool DexVerifier::SetTypesFromSignature() {
   }
 
   const DexFile::ProtoId& proto_id = dex_file_->GetProtoId(method_->GetProtoIdx());
-  DexFile::ParameterIterator iterator(*dex_file_, proto_id);
+  DexFileParameterIterator iterator(*dex_file_, proto_id);
 
   for (; iterator.HasNext(); iterator.Next()) {
     const char* descriptor = iterator.GetDescriptor();
@@ -2364,7 +2364,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t method_idx = dec_insn.vB_;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-          descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+          descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
         } else {
           descriptor = called_method->GetReturnTypeDescriptor();
         }
@@ -2442,7 +2442,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t method_idx = dec_insn.vB_;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-          descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+          descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
         } else {
           descriptor = called_method->GetReturnTypeDescriptor();
         }
@@ -2463,7 +2463,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             uint32_t method_idx = dec_insn.vB_;
             const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
             uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-            descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+            descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
           } else {
             descriptor = called_method->GetReturnTypeDescriptor();
           }
@@ -2518,7 +2518,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t method_idx = dec_insn.vB_;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-          descriptor =  dex_file_->dexStringByTypeIdx(return_type_idx);
+          descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
         } else {
           descriptor = abs_method->GetReturnTypeDescriptor();
         }
@@ -2891,11 +2891,10 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    */
   if ((opcode_flag & Instruction::kThrow) != 0 && insn_flags_[work_insn_idx_].IsInTry()) {
     bool within_catch_all = false;
-    DexFile::CatchHandlerIterator iterator =
-        DexFile::dexFindCatchHandler(*code_item_, work_insn_idx_);
+    CatchHandlerIterator iterator(*code_item_, work_insn_idx_);
 
-    for (; !iterator.HasNext(); iterator.Next()) {
-      if (iterator.Get().type_idx_ == DexFile::kDexNoIndex) {
+    for (; iterator.HasNext(); iterator.Next()) {
+      if (iterator.GetHandlerTypeIndex() == DexFile::kDexNoIndex16) {
         within_catch_all = true;
       }
       /*
@@ -2903,7 +2902,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * "work_regs", because at runtime the exception will be thrown before the instruction
        * modifies any registers.
        */
-      if (!UpdateRegisters(iterator.Get().address_, saved_line_.get())) {
+      if (!UpdateRegisters(iterator.GetHandlerAddress(), saved_line_.get())) {
         return false;
       }
     }
@@ -2953,7 +2952,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 }
 
 const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
-  const char* descriptor = dex_file_->dexStringByTypeIdx(class_idx);
+  const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
   Class* referrer = method_->GetDeclaringClass();
   Class* klass = method_->GetDexCacheResolvedTypes()->Get(class_idx);
   const RegType& result =
@@ -2977,17 +2976,16 @@ const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
 const RegType& DexVerifier::GetCaughtExceptionType() {
   const RegType* common_super = NULL;
   if (code_item_->tries_size_ != 0) {
-    const byte* handlers_ptr = DexFile::dexGetCatchHandlerData(*code_item_, 0);
+    const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
     uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
     for (uint32_t i = 0; i < handlers_size; i++) {
-      DexFile::CatchHandlerIterator iterator(handlers_ptr);
-      for (; !iterator.HasNext(); iterator.Next()) {
-        DexFile::CatchHandlerItem handler = iterator.Get();
-        if (handler.address_ == (uint32_t) work_insn_idx_) {
-          if (handler.type_idx_ == DexFile::kDexNoIndex) {
+      CatchHandlerIterator iterator(handlers_ptr);
+      for (; iterator.HasNext(); iterator.Next()) {
+        if (iterator.GetHandlerAddress() == (uint32_t) work_insn_idx_) {
+          if (iterator.GetHandlerTypeIndex() == DexFile::kDexNoIndex16) {
             common_super = &reg_types_.JavaLangThrowable();
           } else {
-            const RegType& exception = ResolveClassAndCheckAccess(handler.type_idx_);
+            const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
             /* TODO: on error do we want to keep going?  If we don't fail this we run the risk of
              * having a non-Throwable introduced at runtime. However, that won't pass an instanceof
              * test, so is essentially harmless.
@@ -3006,7 +3004,7 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
           }
         }
       }
-      handlers_ptr = iterator.GetData();
+      handlers_ptr = iterator.EndDataPointer();
     }
   }
   if (common_super == NULL) {
@@ -3028,7 +3026,7 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
     }
     Class* klass = klass_type.GetClass();
     const char* name = dex_file_->GetMethodName(method_id);
-    std::string signature(dex_file_->CreateMethodDescriptor(method_id.proto_idx_, NULL));
+    std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
     if (is_direct) {
       res_method = klass->FindDirectMethod(name, signature);
     } else if (klass->IsInterface()) {

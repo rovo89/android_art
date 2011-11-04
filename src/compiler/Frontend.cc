@@ -18,6 +18,7 @@
 #include "CompilerInternals.h"
 #include "Dataflow.h"
 #include "constants.h"
+#include "leb128.h"
 #include "object.h"
 #include "runtime.h"
 
@@ -432,7 +433,7 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 
     for (int i = 0; i < triesSize; i++) {
         const art::DexFile::TryItem* pTry =
-            art::DexFile::dexGetTryItems(*code_item, i);
+            art::DexFile::GetTryItems(*code_item, i);
         int startOffset = pTry->start_addr_;
         int endOffset = startOffset + pTry->insn_count_;
         for (offset = startOffset; offset < endOffset; offset++) {
@@ -442,16 +443,15 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 
     // Iterate over each of the handlers to enqueue the empty Catch blocks
     const art::byte* handlers_ptr =
-        art::DexFile::dexGetCatchHandlerData(*code_item, 0);
+        art::DexFile::GetCatchHandlerData(*code_item, 0);
     uint32_t handlers_size = art::DecodeUnsignedLeb128(&handlers_ptr);
     for (uint32_t idx = 0; idx < handlers_size; idx++) {
-        art::DexFile::CatchHandlerIterator iterator(handlers_ptr);
-
-        for (; !iterator.HasNext(); iterator.Next()) {
-            uint32_t address = iterator.Get().address_;
+        art::CatchHandlerIterator iterator(handlers_ptr);
+        for (; iterator.HasNext(); iterator.Next()) {
+            uint32_t address = iterator.GetHandlerAddress();
             findBlock(cUnit, address, false /* split */, true /*create*/);
         }
-        handlers_ptr = iterator.GetData();
+        handlers_ptr = iterator.EndDataPointer();
     }
 }
 
@@ -625,8 +625,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 
     /* In try block */
     if (oatIsBitSet(tryBlockAddr, curOffset)) {
-        art::DexFile::CatchHandlerIterator iterator =
-            art::DexFile::dexFindCatchHandler(*code_item, curOffset);
+        art::CatchHandlerIterator iterator(*code_item, curOffset);
 
         if (curBlock->successorBlockList.blockListType != kNotUsed) {
             LOG(FATAL) << "Successor block list already in use: " <<
@@ -636,8 +635,8 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
         curBlock->successorBlockList.blockListType = kCatch;
         oatInitGrowableList(&curBlock->successorBlockList.blocks, 2);
 
-        for (;!iterator.HasNext(); iterator.Next()) {
-            BasicBlock *catchBlock = findBlock(cUnit, iterator.Get().address_,
+        for (;iterator.HasNext(); iterator.Next()) {
+            BasicBlock *catchBlock = findBlock(cUnit, iterator.GetHandlerAddress(),
                                                false /* split*/,
                                                false /* creat */);
             catchBlock->catchEntry = true;
@@ -645,7 +644,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                   (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
                   false);
             successorBlockInfo->block = catchBlock;
-            successorBlockInfo->key = iterator.Get().type_idx_;
+            successorBlockInfo->key = iterator.GetHandlerTypeIndex();
             oatInsertGrowableList(&curBlock->successorBlockList.blocks,
                                   (intptr_t) successorBlockInfo);
             oatSetBit(catchBlock->predecessors, curBlock->id);
@@ -692,16 +691,26 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method, art::InstructionSet insnSet)
+CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
+                                      uint32_t method_idx, const art::ClassLoader* class_loader,
+                                      const art::DexFile& dex_file, art::InstructionSet insnSet)
 {
+    art::ClassLinker* linker = art::Runtime::Current()->GetClassLinker();
+    art::DexCache* dex_cache = linker->FindDexCache(dex_file);
+    art::Method* method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
+                                                class_loader, is_direct);
+    if (method == NULL) {
+      CHECK(Thread::Current()->IsExceptionPending());
+      Thread::Current()->ClearException();
+      LOG(INFO) << "Couldn't resolve " << PrettyMethod(method_idx, dex_file, true)
+          << " for compilation";
+      return NULL;
+    }
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
     }
     oatArenaReset();
 
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    const art::DexFile& dex_file = class_linker->FindDexFile(
-         method->GetDeclaringClass()->GetDexCache());
     const art::DexFile::CodeItem* code_item =
          dex_file.GetCodeItem(method->GetCodeItemOffset());
     const u2* codePtr = code_item->insns_;
@@ -907,9 +916,10 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const Method* method,
                                     + __builtin_popcount(cUnit->fpSpillMask)));
     DCHECK_GE(vmapTable.size(), 1U);  // should always at least one INVALID_VREG for lr
 
-    CompiledMethod* result = new CompiledMethod(art::kThumb2,
-        cUnit->codeBuffer, cUnit->frameSize, cUnit->frameSize - sizeof(intptr_t),
-        cUnit->coreSpillMask, cUnit->fpSpillMask, cUnit->mappingTable, vmapTable);
+    CompiledMethod* result = new CompiledMethod(art::kThumb2, cUnit->codeBuffer,
+                                                cUnit->frameSize, cUnit->coreSpillMask,
+                                                cUnit->fpSpillMask, cUnit->mappingTable,
+                                                vmapTable);
 
     if (compiler.IsVerbose()) {
         LOG(INFO) << "Compiled " << PrettyMethod(method)

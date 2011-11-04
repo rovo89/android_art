@@ -81,65 +81,118 @@ TEST_F(DexFileTest, ClassDefs) {
   EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
 }
 
-TEST_F(DexFileTest, CreateMethodDescriptor) {
-  UniquePtr<const DexFile> raw(OpenTestDexFile("CreateMethodDescriptor"));
+TEST_F(DexFileTest, CreateMethodSignature) {
+  UniquePtr<const DexFile> raw(OpenTestDexFile("CreateMethodSignature"));
   ASSERT_TRUE(raw.get() != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const DexFile::ClassDef& class_def = raw->GetClassDef(0);
-  ASSERT_STREQ("LCreateMethodDescriptor;", raw->GetClassDescriptor(class_def));
+  ASSERT_STREQ("LCreateMethodSignature;", raw->GetClassDescriptor(class_def));
 
   const byte* class_data = raw->GetClassData(class_def);
   ASSERT_TRUE(class_data != NULL);
-  DexFile::ClassDataHeader header = raw->ReadClassDataHeader(&class_data);
+  ClassDataItemIterator it(*raw.get(), class_data);
 
-  EXPECT_EQ(1u, header.direct_methods_size_);
+  EXPECT_EQ(1u, it.NumDirectMethods());
 
-  // Check the descriptor for the static initializer.
+  // Check the signature for the static initializer.
   {
-    uint32_t last_idx = 0;
-    ASSERT_EQ(1U, header.direct_methods_size_);
-    DexFile::Method method;
-    raw->dexReadClassDataMethod(&class_data, &method, &last_idx);
-    const DexFile::MethodId& method_id = raw->GetMethodId(method.method_idx_);
+    ASSERT_EQ(1U, it.NumDirectMethods());
+    const DexFile::MethodId& method_id = raw->GetMethodId(it.GetMemberIndex());
     uint32_t proto_idx = method_id.proto_idx_;
-    const char* name = raw->dexStringById(method_id.name_idx_);
+    const char* name = raw->StringDataByIdx(method_id.name_idx_);
     ASSERT_STREQ("<init>", name);
     int32_t length;
-    std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
-    ASSERT_EQ("()V", descriptor);
+    std::string signature(raw->CreateMethodSignature(proto_idx, &length));
+    ASSERT_EQ("()V", signature);
   }
 
   // Check both virtual methods.
-  ASSERT_EQ(2U, header.virtual_methods_size_);
-  uint32_t last_idx = 0;
-
+  ASSERT_EQ(2U, it.NumVirtualMethods());
   {
-    DexFile::Method method;
-    raw->dexReadClassDataMethod(&class_data, &method, &last_idx);
-    const DexFile::MethodId& method_id = raw->GetMethodId(method.method_idx_);
+    it.Next();
+    const DexFile::MethodId& method_id = raw->GetMethodId(it.GetMemberIndex());
 
-    const char* name = raw->dexStringById(method_id.name_idx_);
+    const char* name = raw->StringDataByIdx(method_id.name_idx_);
     ASSERT_STREQ("m1", name);
 
     uint32_t proto_idx = method_id.proto_idx_;
     int32_t length;
-    std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
-    ASSERT_EQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", descriptor);
+    std::string signature(raw->CreateMethodSignature(proto_idx, &length));
+    ASSERT_EQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", signature);
   }
 
   {
-    DexFile::Method method;
-    raw->dexReadClassDataMethod(&class_data, &method, &last_idx);
-    const DexFile::MethodId& method_id = raw->GetMethodId(method.method_idx_);
+    it.Next();
+    const DexFile::MethodId& method_id = raw->GetMethodId(it.GetMemberIndex());
 
-    const char* name = raw->dexStringById(method_id.name_idx_);
+    const char* name = raw->StringDataByIdx(method_id.name_idx_);
     ASSERT_STREQ("m2", name);
 
     uint32_t proto_idx = method_id.proto_idx_;
     int32_t length;
-    std::string descriptor(raw->CreateMethodDescriptor(proto_idx, &length));
-    ASSERT_EQ("(ZSC)LCreateMethodDescriptor;", descriptor);
+    std::string signature(raw->CreateMethodSignature(proto_idx, &length));
+    ASSERT_EQ("(ZSC)LCreateMethodSignature;", signature);
+  }
+}
+
+TEST_F(DexFileTest, FindStringId) {
+  UniquePtr<const DexFile> raw(OpenTestDexFile("CreateMethodSignature"));
+  ASSERT_TRUE(raw.get() != NULL);
+  EXPECT_EQ(1U, raw->NumClassDefs());
+
+  const char* strings[] = { "LCreateMethodSignature;", "Ljava/lang/Float;", "Ljava/lang/Object;",
+      "D", "I", "J", NULL };
+  for (size_t i = 0; strings[i] != NULL; i++) {
+    const char* str = strings[i];
+    const DexFile::StringId* str_id = raw->FindStringId(str);
+    const char* dex_str = raw->GetStringData(*str_id);
+    EXPECT_STREQ(dex_str, str);
+  }
+}
+
+TEST_F(DexFileTest, FindTypeId) {
+  for (size_t i = 0; i < java_lang_dex_file_->NumTypeIds(); i++) {
+    const char* type_str = java_lang_dex_file_->StringByTypeIdx(i);
+    const DexFile::StringId* type_str_id = java_lang_dex_file_->FindStringId(type_str);
+    ASSERT_TRUE(type_str_id != NULL);
+    uint32_t type_str_idx = java_lang_dex_file_->GetIndexForStringId(*type_str_id);
+    const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(type_str_idx);
+    ASSERT_TRUE(type_id != NULL);
+    EXPECT_EQ(java_lang_dex_file_->GetIndexForTypeId(*type_id), i);
+  }
+}
+
+TEST_F(DexFileTest, FindProtoId) {
+  for (size_t i = 0; i < java_lang_dex_file_->NumProtoIds(); i++) {
+    const DexFile::ProtoId& to_find = java_lang_dex_file_->GetProtoId(i);
+    const DexFile::TypeList* to_find_tl = java_lang_dex_file_->GetProtoParameters(to_find);
+    std::vector<uint16_t> to_find_types;
+    if (to_find_tl != NULL) {
+      for (size_t j = 0; j < to_find_tl->Size(); j++) {
+        to_find_types.push_back(to_find_tl->GetTypeItem(j).type_idx_);
+      }
+    }
+    const DexFile::ProtoId* found =
+        java_lang_dex_file_->FindProtoId(to_find.return_type_idx_, to_find_types);
+    ASSERT_TRUE(found != NULL);
+    EXPECT_EQ(java_lang_dex_file_->GetIndexForProtoId(*found), i);
+  }
+}
+
+TEST_F(DexFileTest, FindMethodId) {
+  for (size_t i = 0; i < java_lang_dex_file_->NumMethodIds(); i++) {
+    const DexFile::MethodId& to_find = java_lang_dex_file_->GetMethodId(i);
+    const DexFile::TypeId& klass = java_lang_dex_file_->GetTypeId(to_find.class_idx_);
+    const DexFile::StringId& name = java_lang_dex_file_->GetStringId(to_find.name_idx_);
+    const DexFile::ProtoId& signature = java_lang_dex_file_->GetProtoId(to_find.proto_idx_);
+    const DexFile::MethodId* found = java_lang_dex_file_->FindMethodId(klass, name, signature);
+    int32_t length;
+    ASSERT_TRUE(found != NULL) << "Didn't find method " << i << ": "
+        << java_lang_dex_file_->StringByTypeIdx(to_find.class_idx_) << "."
+        << java_lang_dex_file_->GetStringData(name)
+        << java_lang_dex_file_->CreateMethodSignature(to_find.proto_idx_, &length);
+    EXPECT_EQ(java_lang_dex_file_->GetIndexForMethodId(*found), i);
   }
 }
 

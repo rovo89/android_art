@@ -21,6 +21,14 @@ TEST_F(ImageTest, WriteRead) {
   bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, *compiler_.get());
   ASSERT_TRUE(success_oat);
 
+  // Force all system classes into memory
+  for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); i++) {
+    const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
+    const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
+    Class* klass = class_linker_->FindSystemClass(descriptor);
+    EXPECT_TRUE(klass != NULL) << descriptor;
+  }
+
   ImageWriter writer;
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = 0x60000000;

@@ -14,20 +14,20 @@
 #include "runtime.h"
 #include "stl_util.h"
 
-extern art::CompiledMethod* oatCompileMethod(const art::Compiler& compiler,
-                                             const art::Method*,
-                                             art::InstructionSet);
+art::CompiledMethod* oatCompileMethod(const art::Compiler& compiler, bool is_direct,
+                                      uint32_t method_idx, const art::ClassLoader* class_loader,
+                                      const art::DexFile& dex_file, art::InstructionSet);
 
 namespace art {
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
-  CompiledInvokeStub* ArmCreateInvokeStub(const Method* method);
+  CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
-  CompiledInvokeStub* X86CreateInvokeStub(const Method* method);
+  CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
 }
 
@@ -80,7 +80,12 @@ void Compiler::CompileOne(const Method* method) {
   Resolve(class_loader);
   Verify(class_loader);
   InitializeClassesWithoutClinit(class_loader);
-  CompileMethod(method);
+  // Find the dex_file
+  const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+  const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+  uint32_t method_idx = method->GetDexMethodIndex();
+  CompileMethod(method->IsDirect(), method->IsNative(), method->IsStatic(), method->IsAbstract(),
+                method_idx, class_loader, dex_file);
   SetCodeAndDirectMethods(class_loader);
 }
 
@@ -127,69 +132,52 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     // static fields, instance fields, direct methods, and virtual
     // methods.
     const byte* class_data = dex_file.GetClassData(class_def);
-
-    DexFile::ClassDataHeader header = dex_file.ReadClassDataHeader(&class_data);
-    size_t num_static_fields = header.static_fields_size_;
-    size_t num_instance_fields = header.instance_fields_size_;
-    size_t num_direct_methods = header.direct_methods_size_;
-    size_t num_virtual_methods = header.virtual_methods_size_;
-
-    if (num_static_fields != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_static_fields; ++i) {
-        DexFile::Field dex_field;
-        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-        Field* field = class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache,
-                                                  class_loader, true);
-        if (field == NULL) {
-          Thread* self = Thread::Current();
-          CHECK(self->IsExceptionPending());
-          self->ClearException();
-        }
-      }
+    if (class_data == NULL) {
+      // empty class such as a marker interface
+      continue;
     }
-    if (num_instance_fields != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_instance_fields; ++i) {
-        DexFile::Field dex_field;
-        dex_file.dexReadClassDataField(&class_data, &dex_field, &last_idx);
-        Field* field = class_linker->ResolveField(dex_file, dex_field.field_idx_, dex_cache,
-                                                  class_loader, false);
-        if (field == NULL) {
-          Thread* self = Thread::Current();
-          CHECK(self->IsExceptionPending());
-          self->ClearException();
-        }
+    ClassDataItemIterator it(dex_file, class_data);
+    while (it.HasNextStaticField()) {
+      Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
+                                                class_loader, true);
+      if (field == NULL) {
+        Thread* self = Thread::Current();
+        CHECK(self->IsExceptionPending());
+        self->ClearException();
       }
+      it.Next();
     }
-    if (num_direct_methods != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_direct_methods; ++i) {
-        DexFile::Method dex_method;
-        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-        Method* method = class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache,
-                                                     class_loader, true);
-        if (method == NULL) {
-          Thread* self = Thread::Current();
-          CHECK(self->IsExceptionPending());
-          self->ClearException();
-        }
+    while (it.HasNextInstanceField()) {
+      Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
+                                                class_loader, false);
+      if (field == NULL) {
+        Thread* self = Thread::Current();
+        CHECK(self->IsExceptionPending());
+        self->ClearException();
       }
+      it.Next();
     }
-    if (num_virtual_methods != 0) {
-      uint32_t last_idx = 0;
-      for (size_t i = 0; i < num_virtual_methods; ++i) {
-        DexFile::Method dex_method;
-        dex_file.dexReadClassDataMethod(&class_data, &dex_method, &last_idx);
-        Method* method = class_linker->ResolveMethod(dex_file, dex_method.method_idx_, dex_cache,
-                                                     class_loader, false);
-        if (method == NULL) {
-          Thread* self = Thread::Current();
-          CHECK(self->IsExceptionPending());
-          self->ClearException();
-        }
+    while (it.HasNextDirectMethod()) {
+      Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
+                                                   class_loader, true);
+      if (method == NULL) {
+        Thread* self = Thread::Current();
+        CHECK(self->IsExceptionPending());
+        self->ClearException();
       }
+      it.Next();
     }
+    while (it.HasNextVirtualMethod()) {
+      Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
+                                                   class_loader, false);
+      if (method == NULL) {
+        Thread* self = Thread::Current();
+        CHECK(self->IsExceptionPending());
+        self->ClearException();
+      }
+      it.Next();
+    }
+    DCHECK(!it.HasNext());
   }
 }
 
@@ -278,78 +266,118 @@ void Compiler::Compile(const ClassLoader* class_loader) {
 }
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-    const char* descriptor = dex_file.GetClassDescriptor(class_def);
-    Class* klass = class_linker->FindClass(descriptor, class_loader);
-    if (klass == NULL) {
-      // previous verification error will cause FindClass to throw
-      Thread* self = Thread::Current();
-      CHECK(self->IsExceptionPending());
-      self->ClearException();
-    } else {
-      CompileClass(klass);
-    }
+    CompileClass(class_def, class_loader, dex_file);
   }
 }
 
-void Compiler::CompileClass(const Class* klass) {
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    CompileMethod(klass->GetDirectMethod(i));
+void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
+                            const DexFile& dex_file) {
+  const byte* class_data = dex_file.GetClassData(class_def);
+  if (class_data == NULL) {
+    // empty class, probably a marker interface
+    return;
   }
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    CompileMethod(klass->GetVirtualMethod(i));
+  ClassDataItemIterator it(dex_file, class_data);
+  // Skip fields
+  while (it.HasNextStaticField()) {
+    it.Next();
   }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+  // Compile direct methods
+  while (it.HasNextDirectMethod()) {
+    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
+    bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
+    bool is_abstract = (it.GetMemberAccessFlags() & kAccAbstract) != 0;
+    CompileMethod(true, is_native, is_static, is_abstract, it.GetMemberIndex(), class_loader,
+                  dex_file);
+    it.Next();
+  }
+  // Compile virtual methods
+  while (it.HasNextVirtualMethod()) {
+    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
+    bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
+    bool is_abstract = (it.GetMemberAccessFlags() & kAccAbstract) != 0;
+    CompileMethod(false, is_native, is_static, is_abstract, it.GetMemberIndex(), class_loader,
+                  dex_file);
+    it.Next();
+  }
+  DCHECK(!it.HasNext());
 }
 
-void Compiler::CompileMethod(const Method* method) {
+void Compiler::CompileMethod(bool is_direct, bool is_native, bool is_static, bool is_abstract,
+                             uint32_t method_idx, const ClassLoader* class_loader,
+                             const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
-  if (method->IsNative()) {
-    compiled_method = jni_compiler_.Compile(method);
+  if (is_native) {
+    compiled_method = jni_compiler_.Compile(is_direct, method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL);
-  } else if (method->IsAbstract()) {
+  } else if (is_abstract) {
   } else {
-    compiled_method = oatCompileMethod(*this, method, kThumb2);
-    CHECK(compiled_method != NULL);
+    compiled_method = oatCompileMethod(*this, is_direct, method_idx, class_loader, dex_file,
+                                       kThumb2);
+    // TODO: assert compiled_method is not NULL, currently NULL may be returned if the method
+    // wasn't resolved
   }
 
   if (compiled_method != NULL) {
-    CHECK(compiled_methods_.find(method) == compiled_methods_.end()) << PrettyMethod(method);
-    compiled_methods_[method] = compiled_method;
-    DCHECK(compiled_methods_.find(method) != compiled_methods_.end()) << PrettyMethod(method);
-    DCHECK(GetCompiledMethod(method) != NULL) << PrettyMethod(method);
+    MethodReference ref(&dex_file, method_idx);
+    CHECK(compiled_methods_.find(ref) == compiled_methods_.end())
+        << PrettyMethod(method_idx, dex_file);
+    compiled_methods_[ref] = compiled_method;
+    DCHECK(compiled_methods_.find(ref) != compiled_methods_.end())
+        << PrettyMethod(method_idx, dex_file);
+    DCHECK(GetCompiledMethod(ref) != NULL)
+        << PrettyMethod(method_idx, dex_file);
   }
 
-  CompiledInvokeStub* compiled_invoke_stub = NULL;
-  if (instruction_set_ == kX86) {
-    compiled_invoke_stub = art::x86::X86CreateInvokeStub(method);
-  } else {
-    CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
-    // Generates invocation stub using ARM instruction set
-    compiled_invoke_stub = art::arm::ArmCreateInvokeStub(method);
+  const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
+  const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
+  if (compiled_invoke_stub == NULL) {
+    if (instruction_set_ == kX86) {
+      compiled_invoke_stub = art::x86::X86CreateInvokeStub(is_static, shorty);
+    } else {
+      CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
+      // Generates invocation stub using ARM instruction set
+      compiled_invoke_stub = art::arm::ArmCreateInvokeStub(is_static, shorty);
+    }
+    CHECK(compiled_invoke_stub != NULL);
+    InsertInvokeStub(is_static, shorty, compiled_invoke_stub);
   }
-  CHECK(compiled_invoke_stub != NULL);
-  // TODO: this fails if we have an abstract method defined in more than one input dex file.
-  CHECK(compiled_invoke_stubs_.find(method) == compiled_invoke_stubs_.end()) << PrettyMethod(method);
-  compiled_invoke_stubs_[method] = compiled_invoke_stub;
-
-  Thread* self = Thread::Current();
-  CHECK(!self->IsExceptionPending()) << PrettyMethod(method);
+  CHECK(!Thread::Current()->IsExceptionPending()) << PrettyMethod(method_idx, dex_file);
 }
 
-const CompiledMethod* Compiler::GetCompiledMethod(const Method* method) const {
-  MethodTable::const_iterator it = compiled_methods_.find(method);
-  if (it == compiled_methods_.end()) {
-    return NULL;
+static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
+  std::string key(shorty);
+  if (is_static) {
+    key += "$";  // musn't be a shorty type character
   }
-  CHECK(it->second != NULL);
-  return it->second;
+  return key;
 }
 
-const CompiledInvokeStub* Compiler::GetCompiledInvokeStub(const Method* method) const {
-  InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(method);
+const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
+  std::string key = MakeInvokeStubKey(is_static, shorty);
+  InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
+    return NULL;
+  } else {
+    DCHECK(it->second != NULL);
+    return it->second;
+  }
+}
+
+void Compiler::InsertInvokeStub(bool is_static, const char* shorty,
+                                const CompiledInvokeStub* compiled_invoke_stub) {
+  std::string key = MakeInvokeStubKey(is_static, shorty);
+  compiled_invoke_stubs_[key] = compiled_invoke_stub;
+}
+
+CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
+  MethodTable::const_iterator it = compiled_methods_.find(ref);
+  if (it == compiled_methods_.end()) {
     return NULL;
   }
   CHECK(it->second != NULL);

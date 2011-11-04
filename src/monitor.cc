@@ -831,7 +831,7 @@ void Monitor::TranslateLocation(const Method* method, uint32_t pc,
   const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
   const DexFile::ClassDef* class_def = dex_file.FindClassDef(c->GetDescriptor()->ToModifiedUtf8());
 
-  source_file = dex_file.dexGetSourceFile(*class_def);
+  source_file = dex_file.GetSourceFile(*class_def);
   line_number = dex_file.GetLineNumFromPC(method, method->ToDexPC(pc));
 }
 

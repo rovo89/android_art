@@ -39,8 +39,8 @@ std::string fieldNameFromIndex(const Method* method, uint32_t fieldIdx)
     const art::DexFile& dex_file = class_linker->FindDexFile(
          method->GetDeclaringClass()->GetDexCache());
     const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
-    std::string class_name = dex_file.dexStringByTypeIdx(field_id.class_idx_);
-    std::string field_name = dex_file.dexStringById(field_id.name_idx_);
+    std::string class_name = dex_file.StringByTypeIdx(field_id.class_idx_);
+    std::string field_name = dex_file.StringDataByIdx(field_id.name_idx_);
     return class_name + "." + field_name;
 }
 

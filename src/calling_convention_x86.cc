@@ -84,11 +84,6 @@ size_t X86JniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, kStackAlignment);
 }
 
-size_t X86JniCallingConvention::ReturnPcOffset() {
-  // Return PC is pushed at the top of the frame by the call into the method
-  return FrameSize() - kPointerSize;
-}
-
 bool X86JniCallingConvention::IsMethodRegisterClobberedPreCall() {
   return GetMethod()->IsSynchronized();  // Monitor enter crushes the method register
 }

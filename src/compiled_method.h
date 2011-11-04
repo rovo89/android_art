@@ -16,7 +16,6 @@ class CompiledMethod {
   CompiledMethod(InstructionSet instruction_set,
                  std::vector<short>& code,
                  const size_t frame_size_in_bytes,
-                 const size_t return_pc_offset_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
                  std::vector<uint32_t>& mapping_table,
@@ -26,7 +25,6 @@ class CompiledMethod {
   CompiledMethod(InstructionSet instruction_set,
                  std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,
-                 const size_t return_pc_offset_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);
 
@@ -35,12 +33,10 @@ class CompiledMethod {
   InstructionSet GetInstructionSet() const;
   const std::vector<uint8_t>& GetCode() const;
   size_t GetFrameSizeInBytes() const;
-  size_t GetReturnPcOffsetInBytes() const;
   uint32_t GetCoreSpillMask() const;
   uint32_t GetFpSpillMask() const;
   const std::vector<uint32_t>& GetMappingTable() const;
   const std::vector<uint16_t>& GetVmapTable() const;
-
   // Aligns an offset from a page aligned value to make it suitable
   // for code storage. important to ensure that PC relative value
   // computations work out as expected on ARM.
@@ -61,7 +57,6 @@ class CompiledMethod {
   InstructionSet instruction_set_;
   std::vector<uint8_t> code_;
   size_t frame_size_in_bytes_;
-  size_t return_pc_offset_in_bytes_;
   uint32_t core_spill_mask_;
   uint32_t fp_spill_mask_;
   std::vector<uint32_t> mapping_table_;

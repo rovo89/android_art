@@ -9,6 +9,14 @@
 
 namespace art {
 
+void CodeAndDirectMethods::SetResolvedDirectMethod(uint32_t method_idx, Method* method) {
+  CHECK(method != NULL);
+  CHECK(method->IsDirect()) << PrettyMethod(method);
+  CHECK(method->GetCode() != NULL) << PrettyMethod(method);
+  Set(CodeIndex(method_idx),   reinterpret_cast<int32_t>(method->GetCode()));
+  Set(MethodIndex(method_idx), reinterpret_cast<int32_t>(method));
+}
+
 void DexCache::Init(String* location,
                     ObjectArray<String>* strings,
                     ObjectArray<Class>* resolved_types,

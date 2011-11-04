@@ -16,6 +16,7 @@
 namespace art {
 
 class Class;
+class DexFile;
 class Field;
 class Method;
 class Object;
@@ -166,6 +167,7 @@ std::string PrettyField(const Field* f, bool with_type = true);
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
 std::string PrettyMethod(const Method* m, bool with_signature = true);
+std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
 
 // Returns a human-readable form of the name of the *class* of the given object.
 // So given an instance of java.lang.String, the output would

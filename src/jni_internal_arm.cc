@@ -29,14 +29,15 @@ namespace arm {
 // register and transfer arguments from the array into register and on
 // the stack, if needed.  On return, the thread register must be
 // shuffled and the return value must be store into the result JValue.
-CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
+CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty) {
   UniquePtr<ArmAssembler> assembler(
       down_cast<ArmAssembler*>(Assembler::Create(kArm)));
 #define __ assembler->
+  size_t num_arg_array_bytes = NumArgArrayBytes(shorty);
   // Size of frame - spill of R4,R9/LR + Method* + possible receiver + arg array
   size_t unpadded_frame_size = (4 * kPointerSize) +
-                               (method->IsStatic() ? 0 : kPointerSize) +
-                               method->NumArgArrayBytes();
+                               (is_static ? 0 : kPointerSize) +
+                               num_arg_array_bytes;
   size_t frame_size = RoundUp(unpadded_frame_size, kStackAlignment);
 
   // Spill R4,R9 and LR
@@ -53,14 +54,14 @@ CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
   __ AddConstant(SP, -frame_size + (3 * kPointerSize));
 
   // Can either get 3 or 2 arguments into registers
-  size_t reg_bytes = (method->IsStatic() ? 3 : 2) * kPointerSize;
+  size_t reg_bytes = (is_static ? 3 : 2) * kPointerSize;
   // Bytes passed by stack
   size_t stack_bytes;
-  if (method->NumArgArrayBytes() > reg_bytes) {
-    stack_bytes = method->NumArgArrayBytes() - reg_bytes;
+  if (num_arg_array_bytes > reg_bytes) {
+    stack_bytes = num_arg_array_bytes - reg_bytes;
   } else {
     stack_bytes = 0;
-    reg_bytes = method->NumArgArrayBytes();
+    reg_bytes = num_arg_array_bytes;
   }
 
   // Method* at bottom of frame is null thereby terminating managed stack crawls
@@ -75,12 +76,12 @@ CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
 
     // we're displaced off of the arguments by the spill space for the incoming
     // arguments, the Method* and possibly the receiver
-    int sp_offset = reg_bytes + (method->IsStatic() ? 1 : 2) * kPointerSize + off;
+    int sp_offset = reg_bytes + (is_static ? 1 : 2) * kPointerSize + off;
     __ StoreToOffset(kStoreWord, IP, SP, sp_offset);
   }
 
   // Move all the register arguments into place.
-  if (method->IsStatic()) {
+  if (is_static) {
     if (reg_bytes > 0) {
       __ LoadFromOffset(kLoadWord, R1, R3, 0);
       if (reg_bytes > 4) {
@@ -100,16 +101,17 @@ CompiledInvokeStub* ArmCreateInvokeStub(const Method* method) {
   }
 
   // Load the code pointer we are about to call.
-  __ LoadFromOffset(kLoadWord, IP, R0, method->GetCodeOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, IP, R0, Method::GetCodeOffset().Int32Value());
 
   // Do the call.
   __ blx(IP);
 
   // If the method returns a value, store it to the result pointer.
-  if (!method->IsReturnVoid()) {
+  if (shorty[0] != 'V') {
     // Load the result JValue pointer of the stub caller's out args.
     __ LoadFromOffset(kLoadWord, IP, SP, frame_size);
-    __ StoreToOffset(method->IsReturnALongOrDouble() ? kStoreWordPair : kStoreWord, R0, IP, 0);
+    StoreOperandType type = (shorty[0] == 'J' || shorty[0] == 'D') ? kStoreWordPair : kStoreWord;
+    __ StoreToOffset(type, R0, IP, 0);
   }
 
   // Remove the frame less the spilled R4, R9 and LR

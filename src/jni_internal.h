@@ -60,6 +60,7 @@ inline jmethodID EncodeMethod(Method* method) {
   return reinterpret_cast<jmethodID>(method);
 }
 
+size_t NumArgArrayBytes(const char* shorty);
 JValue InvokeWithJValues(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args);
 
 struct JavaVMExt : public JavaVM {

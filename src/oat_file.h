@@ -40,7 +40,6 @@ class OatFile {
     // Create an OatMethod backed by an OatFile
     OatMethod(const void* code,
               const size_t frame_size_in_bytes,
-              const size_t return_pc_offset_in_bytes,
               const uint32_t core_spill_mask,
               const uint32_t fp_spill_mask,
               const uint32_t* mapping_table,
@@ -54,7 +53,6 @@ class OatFile {
 
     const void* code_;
     size_t frame_size_in_bytes_;
-    size_t return_pc_offset_in_bytes_;
     uint32_t core_spill_mask_;
     uint32_t fp_spill_mask_;
     const uint32_t* mapping_table_;

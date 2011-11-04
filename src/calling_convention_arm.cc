@@ -146,11 +146,6 @@ size_t ArmJniCallingConvention::OutArgSize() {
                  kStackAlignment);
 }
 
-size_t ArmJniCallingConvention::ReturnPcOffset() {
-  // Link register is always the first value pushed when the frame is constructed
-  return FrameSize() - kPointerSize;
-}
-
 // Will reg be crushed by an outgoing argument?
 bool ArmJniCallingConvention::IsMethodRegisterClobberedPreCall() {
   return true;  // The method register R0 is always clobbered by the JNIEnv

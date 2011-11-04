@@ -14,12 +14,15 @@
 #include <map>
 
 #include "UniquePtr.h"
+#include "class_linker.h"
 #include "globals.h"
+#include "leb128.h"
 #include "logging.h"
 #include "object.h"
 #include "os.h"
 #include "stringprintf.h"
 #include "thread.h"
+#include "utf.h"
 #include "utils.h"
 #include "zip_archive.h"
 
@@ -421,6 +424,19 @@ uint32_t DexFile::GetVersion() const {
   return atoi(version);
 }
 
+int32_t DexFile::GetStringLength(const StringId& string_id) const {
+  const byte* ptr = base_ + string_id.string_data_off_;
+  return DecodeUnsignedLeb128(&ptr);
+}
+
+// Returns a pointer to the UTF-8 string data referred to by the given string_id.
+const char* DexFile::GetStringDataAndLength(const StringId& string_id, int32_t* length) const {
+  CHECK(length != NULL);
+  const byte* ptr = base_ + string_id.string_data_off_;
+  *length = DecodeUnsignedLeb128(&ptr);
+  return reinterpret_cast<const char*>(ptr);
+}
+
 void DexFile::InitIndex() {
   CHECK_EQ(index_.size(), 0U);
   for (size_t i = 0; i < NumClassDefs(); ++i) {
@@ -447,11 +463,172 @@ const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) co
   return NULL;
 }
 
+const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& klass,
+                                               const DexFile::StringId& name,
+                                               const DexFile::ProtoId& signature) const {
+  // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
+  const uint16_t class_idx = GetIndexForTypeId(klass);
+  const uint32_t name_idx = GetIndexForStringId(name);
+  const uint16_t proto_idx = GetIndexForProtoId(signature);
+  uint32_t lo = 0;
+  uint32_t hi = NumMethodIds() - 1;
+  while (hi >= lo) {
+    uint32_t mid = (hi + lo) / 2;
+    const DexFile::MethodId& method = GetMethodId(mid);
+    if (class_idx > method.class_idx_) {
+      lo = mid + 1;
+    } else if (class_idx < method.class_idx_) {
+      hi = mid - 1;
+    } else {
+      if (name_idx > method.name_idx_) {
+        lo = mid + 1;
+      } else if (name_idx < method.name_idx_) {
+        hi = mid - 1;
+      } else {
+        if (proto_idx > method.proto_idx_) {
+          lo = mid + 1;
+        } else if (proto_idx < method.proto_idx_) {
+          hi = mid - 1;
+        } else {
+          return &method;
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+const DexFile::StringId* DexFile::FindStringId(const std::string& string) const {
+  uint32_t lo = 0;
+  uint32_t hi = NumStringIds() - 1;
+  while (hi >= lo) {
+    uint32_t mid = (hi + lo) / 2;
+    int32_t length;
+    const DexFile::StringId& str_id = GetStringId(mid);
+    const char* str = GetStringDataAndLength(str_id, &length);
+    int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string.c_str(), str);
+    if (compare > 0) {
+      lo = mid + 1;
+    } else if (compare < 0) {
+      hi = mid - 1;
+    } else {
+      return &str_id;
+    }
+  }
+  return NULL;
+}
+
+const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
+  uint32_t lo = 0;
+  uint32_t hi = NumTypeIds() - 1;
+  while (hi >= lo) {
+    uint32_t mid = (hi + lo) / 2;
+    const TypeId& type_id = GetTypeId(mid);
+    if (string_idx > type_id.descriptor_idx_) {
+      lo = mid + 1;
+    } else if (string_idx < type_id.descriptor_idx_) {
+      hi = mid - 1;
+    } else {
+      return &type_id;
+    }
+  }
+  return NULL;
+}
+
+const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
+                                             const std::vector<uint16_t>& signature_type_ids) const {
+  uint32_t lo = 0;
+  uint32_t hi = NumProtoIds() - 1;
+  while (hi >= lo) {
+    uint32_t mid = (hi + lo) / 2;
+    const DexFile::ProtoId& proto = GetProtoId(mid);
+    int compare = return_type_idx - proto.return_type_idx_;
+    if (compare == 0) {
+      DexFileParameterIterator it(*this, proto);
+      size_t i = 0;
+      while (it.HasNext() && i < signature_type_ids.size() && compare == 0) {
+        compare = signature_type_ids[i] - it.GetTypeId();
+        it.Next();
+        i++;
+      }
+      if (compare == 0) {
+        if (it.HasNext()) {
+          compare = -1;
+        } else if (i < signature_type_ids.size()) {
+          compare = 1;
+        }
+      }
+    }
+    if (compare > 0) {
+      lo = mid + 1;
+    } else if (compare < 0) {
+      hi = mid - 1;
+    } else {
+      return &proto;
+    }
+  }
+  return NULL;
+}
+
+// Given a signature place the type ids into the given vector
+bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* param_type_idxs,
+                             const std::string& signature) const {
+  if (signature[0] != '(') {
+    return false;
+  }
+  size_t offset = 1;
+  size_t end = signature.size();
+  bool process_return = false;
+  while (offset < end) {
+    char c = signature[offset];
+    offset++;
+    if (c == ')') {
+      process_return = true;
+      continue;
+    }
+    std::string descriptor;
+    descriptor += c;
+    while (c == '[') {  // process array prefix
+      if (offset >= end) {  // expect some descriptor following [
+        return false;
+      }
+      c = signature[offset];
+      offset++;
+      descriptor += c;
+    }
+    if (c == 'L') {  // process type descriptors
+      do {
+        if (offset >= end) {  // unexpected early termination of descriptor
+          return false;
+        }
+        c = signature[offset];
+        offset++;
+        descriptor += c;
+      } while (c != ';');
+    }
+    const DexFile::StringId* string_id = FindStringId(descriptor);
+    if (string_id == NULL) {
+      return false;
+    }
+    const DexFile::TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
+    if (type_id == NULL) {
+      return false;
+    }
+    uint16_t type_idx = GetIndexForTypeId(*type_id);
+    if (!process_return) {
+      param_type_idxs->push_back(type_idx);
+    } else {
+      *return_type_idx = type_idx;
+      return offset == end;  // return true if the signature had reached a sensible end
+    }
+  }
+  return false;  // failed to correctly parse return type
+}
+
 // Materializes the method descriptor for a method prototype.  Method
 // descriptors are not stored directly in the dex file.  Instead, one
 // must assemble the descriptor from references in the prototype.
-std::string DexFile::CreateMethodDescriptor(uint32_t proto_idx,
-    int32_t* unicode_length) const {
+std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_length) const {
   const ProtoId& proto_id = GetProtoId(proto_idx);
   std::string descriptor;
   descriptor.push_back('(');
@@ -463,7 +640,7 @@ std::string DexFile::CreateMethodDescriptor(uint32_t proto_idx,
       const TypeItem& type_item = type_list->GetTypeItem(i);
       uint32_t type_idx = type_item.type_idx_;
       int32_t type_length;
-      const char* name = dexStringByTypeIdx(type_idx, &type_length);
+      const char* name = StringByTypeIdx(type_idx, &type_length);
       parameter_length += type_length;
       descriptor.append(name);
     }
@@ -471,7 +648,7 @@ std::string DexFile::CreateMethodDescriptor(uint32_t proto_idx,
   descriptor.push_back(')');
   uint32_t return_type_idx = proto_id.return_type_idx_;
   int32_t return_type_length;
-  const char* name = dexStringByTypeIdx(return_type_idx, &return_type_length);
+  const char* name = StringByTypeIdx(return_type_idx, &return_type_length);
   descriptor.append(name);
   if (unicode_length != NULL) {
     *unicode_length = parameter_length + return_type_length + 2;  // 2 for ( and )
@@ -479,127 +656,6 @@ std::string DexFile::CreateMethodDescriptor(uint32_t proto_idx,
   return descriptor;
 }
 
-// Read a signed integer.  "zwidth" is the zero-based byte count.
-static int32_t ReadSignedInt(const byte* ptr, int zwidth)
-{
-  int32_t val = 0;
-  for (int i = zwidth; i >= 0; --i) {
-    val = ((uint32_t)val >> 8) | (((int32_t)*ptr++) << 24);
-  }
-  val >>= (3 - zwidth) * 8;
-  return val;
-}
-
-// Read an unsigned integer.  "zwidth" is the zero-based byte count,
-// "fill_on_right" indicates which side we want to zero-fill from.
-static uint32_t ReadUnsignedInt(const byte* ptr, int zwidth,
-                                bool fill_on_right) {
-  uint32_t val = 0;
-  if (!fill_on_right) {
-    for (int i = zwidth; i >= 0; --i) {
-      val = (val >> 8) | (((uint32_t)*ptr++) << 24);
-    }
-    val >>= (3 - zwidth) * 8;
-  } else {
-    for (int i = zwidth; i >= 0; --i) {
-      val = (val >> 8) | (((uint32_t)*ptr++) << 24);
-    }
-  }
-  return val;
-}
-
-// Read a signed long.  "zwidth" is the zero-based byte count.
-static int64_t ReadSignedLong(const byte* ptr, int zwidth) {
-  int64_t val = 0;
-  for (int i = zwidth; i >= 0; --i) {
-    val = ((uint64_t)val >> 8) | (((int64_t)*ptr++) << 56);
-  }
-  val >>= (7 - zwidth) * 8;
-  return val;
-}
-
-// Read an unsigned long.  "zwidth" is the zero-based byte count,
-// "fill_on_right" indicates which side we want to zero-fill from.
-static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth,
-                                 bool fill_on_right) {
-  uint64_t val = 0;
-  if (!fill_on_right) {
-    for (int i = zwidth; i >= 0; --i) {
-      val = (val >> 8) | (((uint64_t)*ptr++) << 56);
-    }
-    val >>= (7 - zwidth) * 8;
-  } else {
-    for (int i = zwidth; i >= 0; --i) {
-      val = (val >> 8) | (((uint64_t)*ptr++) << 56);
-    }
-  }
-  return val;
-}
-
-DexFile::ValueType DexFile::ReadEncodedValue(const byte** stream,
-                                             JValue* value) const {
-  const byte* ptr = *stream;
-  byte value_type = *ptr++;
-  byte value_arg = value_type >> kEncodedValueArgShift;
-  size_t width = value_arg + 1;  // assume and correct later
-  int type = value_type & kEncodedValueTypeMask;
-  switch (type) {
-    case DexFile::kByte: {
-      int32_t b = ReadSignedInt(ptr, value_arg);
-      CHECK(IsInt(8, b));
-      value->i = b;
-      break;
-    }
-    case DexFile::kShort: {
-      int32_t s = ReadSignedInt(ptr, value_arg);
-      CHECK(IsInt(16, s));
-      value->i = s;
-      break;
-    }
-    case DexFile::kChar: {
-      uint32_t c = ReadUnsignedInt(ptr, value_arg, false);
-      CHECK(IsUint(16, c));
-      value->i = c;
-      break;
-    }
-    case DexFile::kInt:
-      value->i = ReadSignedInt(ptr, value_arg);
-      break;
-    case DexFile::kLong:
-      value->j = ReadSignedLong(ptr, value_arg);
-      break;
-    case DexFile::kFloat:
-      value->i = ReadUnsignedInt(ptr, value_arg, true);
-      break;
-    case DexFile::kDouble:
-      value->j = ReadUnsignedLong(ptr, value_arg, true);
-      break;
-    case DexFile::kBoolean:
-      value->i = (value_arg != 0);
-      width = 0;
-      break;
-    case DexFile::kString:
-    case DexFile::kType:
-    case DexFile::kMethod:
-    case DexFile::kEnum:
-      value->i = ReadUnsignedInt(ptr, value_arg, false);
-      break;
-    case DexFile::kField:
-    case DexFile::kArray:
-    case DexFile::kAnnotation:
-      UNIMPLEMENTED(FATAL) << ": type " << type;
-      break;
-    case DexFile::kNull:
-      value->i = 0;
-      width = 0;
-      break;
-    default:
-      LOG(FATAL) << "Unreached";
-  }
-  ptr += width;
-  *stream = ptr;
-  return static_cast<ValueType>(type);
-}
 
 int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
@@ -613,13 +669,38 @@ int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) co
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);
-  dexDecodeDebugInfo(code_item, method, LineNumForPcCb, NULL, &context);
+  DecodeDebugInfo(code_item, method, LineNumForPcCb, NULL, &context);
   return context.line_num_;
 }
 
-void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* method,
-                         DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
-                         void* cnxt, const byte* stream, LocalInfo* local_in_reg) const {
+int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries_size,
+                                        uint32_t address){
+  // Note: Signed type is important for max and min.
+  int32_t min = 0;
+  int32_t max = tries_size - 1;
+
+  while (max >= min) {
+    int32_t mid = (min + max) / 2;
+    const TryItem* pTry = DexFile::GetTryItems(code_item, mid);
+    uint32_t start = pTry->start_addr_;
+    if (address < start) {
+      max = mid - 1;
+    } else {
+      uint32_t end = start + pTry->insn_count_;
+      if (address >= end) {
+        min = mid + 1;
+      } else {  // We have a winner!
+        return (int32_t) pTry->handler_off_;
+      }
+    }
+  }
+  // No match.
+  return -1;
+}
+
+void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
+                               DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
+                               void* cnxt, const byte* stream, LocalInfo* local_in_reg) const {
   uint32_t line = DecodeUnsignedLeb128(&stream);
   uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
   uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
@@ -639,17 +720,17 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
     arg_reg++;
   }
 
-  ParameterIterator* it = GetParameterIterator(GetProtoId(method->GetProtoIdx()));
-  for (uint32_t i = 0; i < parameters_size && it->HasNext(); ++i, it->Next()) {
+  DexFileParameterIterator it(*this, GetProtoId(method->GetProtoIdx()));
+  for (uint32_t i = 0; i < parameters_size && it.HasNext(); ++i, it.Next()) {
     if (arg_reg >= code_item->registers_size_) {
       LOG(ERROR) << "invalid stream - arg reg >= reg size (" << arg_reg
                  << " >= " << code_item->registers_size_ << ")";
       return;
     }
     int32_t id = DecodeUnsignedLeb128P1(&stream);
-    const char* descriptor = it->GetDescriptor();
+    const char* descriptor = it.GetDescriptor();
     if (need_locals) {
-      const char* name = dexStringById(id);
+      const char* name = StringDataByIdx(id);
       local_in_reg[arg_reg].name_ = name;
       local_in_reg[arg_reg].descriptor_ = descriptor;
       local_in_reg[arg_reg].start_address_ = address;
@@ -666,7 +747,7 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
     }
   }
 
-  if (it->HasNext()) {
+  if (it.HasNext()) {
     LOG(ERROR) << "invalid stream - problem with parameter iterator";
     return;
   }
@@ -709,10 +790,10 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
         if (need_locals) {
           InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
 
-          local_in_reg[reg].name_ = dexStringById(name_idx);
-          local_in_reg[reg].descriptor_ = dexStringByTypeIdx(descriptor_idx);
+          local_in_reg[reg].name_ = StringDataByIdx(name_idx);
+          local_in_reg[reg].descriptor_ = StringByTypeIdx(descriptor_idx);
           if (opcode == DBG_START_LOCAL_EXTENDED) {
-            local_in_reg[reg].signature_ = dexStringById(signature_idx);
+            local_in_reg[reg].signature_ = StringDataByIdx(signature_idx);
           }
           local_in_reg[reg].start_address_ = address;
           local_in_reg[reg].is_live_ = true;
@@ -777,6 +858,272 @@ void DexFile::dexDecodeDebugInfo0(const CodeItem* code_item, const art::Method* 
       }
     }
   }
+}
+
+void DexFile::DecodeDebugInfo(const CodeItem* code_item, const art::Method* method,
+                                 DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
+                                 void* cnxt) const {
+  const byte* stream = GetDebugInfoStream(code_item);
+  LocalInfo local_in_reg[code_item->registers_size_];
+
+  if (stream != NULL) {
+    DecodeDebugInfo0(code_item, method, posCb, local_cb, cnxt, stream, local_in_reg);
+  }
+  for (int reg = 0; reg < code_item->registers_size_; reg++) {
+    InvokeLocalCbIfLive(cnxt, reg, code_item->insns_size_in_code_units_, local_in_reg, local_cb);
+  }
+}
+
+bool DexFile::LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num) {
+  LineNumFromPcContext* context = (LineNumFromPcContext*) cnxt;
+
+  // We know that this callback will be called in
+  // ascending address order, so keep going until we find
+  // a match or we've just gone past it.
+  if (address > context->address_) {
+    // The line number from the previous positions callback
+    // wil be the final result.
+    return true;
+  } else {
+    context->line_num_ = line_num;
+    return address == context->address_;
+  }
+}
+
+// Decodes the header section from the class data bytes.
+void ClassDataItemIterator::ReadClassDataHeader() {
+  CHECK(ptr_pos_ != NULL);
+  header_.static_fields_size_ = DecodeUnsignedLeb128(&ptr_pos_);
+  header_.instance_fields_size_ = DecodeUnsignedLeb128(&ptr_pos_);
+  header_.direct_methods_size_ = DecodeUnsignedLeb128(&ptr_pos_);
+  header_.virtual_methods_size_ = DecodeUnsignedLeb128(&ptr_pos_);
+}
+
+void ClassDataItemIterator::ReadClassDataField() {
+  field_.field_idx_delta_ = DecodeUnsignedLeb128(&ptr_pos_);
+  field_.access_flags_ = DecodeUnsignedLeb128(&ptr_pos_);
+}
+
+void ClassDataItemIterator::ReadClassDataMethod() {
+  method_.method_idx_delta_ = DecodeUnsignedLeb128(&ptr_pos_);
+  method_.access_flags_ = DecodeUnsignedLeb128(&ptr_pos_);
+  method_.code_off_ = DecodeUnsignedLeb128(&ptr_pos_);
+}
+
+// Read a signed integer.  "zwidth" is the zero-based byte count.
+static int32_t ReadSignedInt(const byte* ptr, int zwidth) {
+  int32_t val = 0;
+  for (int i = zwidth; i >= 0; --i) {
+    val = ((uint32_t)val >> 8) | (((int32_t)*ptr++) << 24);
+  }
+  val >>= (3 - zwidth) * 8;
+  return val;
+}
+
+// Read an unsigned integer.  "zwidth" is the zero-based byte count,
+// "fill_on_right" indicates which side we want to zero-fill from.
+static uint32_t ReadUnsignedInt(const byte* ptr, int zwidth, bool fill_on_right) {
+  uint32_t val = 0;
+  if (!fill_on_right) {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint32_t)*ptr++) << 24);
+    }
+    val >>= (3 - zwidth) * 8;
+  } else {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint32_t)*ptr++) << 24);
+    }
+  }
+  return val;
+}
+
+// Read a signed long.  "zwidth" is the zero-based byte count.
+static int64_t ReadSignedLong(const byte* ptr, int zwidth) {
+  int64_t val = 0;
+  for (int i = zwidth; i >= 0; --i) {
+    val = ((uint64_t)val >> 8) | (((int64_t)*ptr++) << 56);
+  }
+  val >>= (7 - zwidth) * 8;
+  return val;
+}
+
+// Read an unsigned long.  "zwidth" is the zero-based byte count,
+// "fill_on_right" indicates which side we want to zero-fill from.
+static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth, bool fill_on_right) {
+  uint64_t val = 0;
+  if (!fill_on_right) {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint64_t)*ptr++) << 56);
+    }
+    val >>= (7 - zwidth) * 8;
+  } else {
+    for (int i = zwidth; i >= 0; --i) {
+      val = (val >> 8) | (((uint64_t)*ptr++) << 56);
+    }
+  }
+  return val;
+}
+
+EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(const DexFile& dex_file,
+    DexCache* dex_cache, ClassLinker* linker, const DexFile::ClassDef& class_def) :
+    dex_file_(dex_file), dex_cache_(dex_cache), linker_(linker), array_size_(), pos_(-1), type_(0) {
+  ptr_ = dex_file.GetEncodedStaticFieldValuesArray(class_def);
+  if (ptr_ == NULL) {
+    array_size_ = 0;
+  } else {
+    array_size_ = DecodeUnsignedLeb128(&ptr_);
+  }
+  if (array_size_ > 0) {
+    Next();
+  }
+}
+
+void EncodedStaticFieldValueIterator::Next() {
+  pos_++;
+  if (pos_ >= array_size_) {
+    return;
+  }
+  byte value_type = *ptr_++;
+  byte value_arg = value_type >> kEncodedValueArgShift;
+  size_t width = value_arg + 1;  // assume and correct later
+  type_ = value_type & kEncodedValueTypeMask;
+  switch (type_) {
+  case kBoolean:
+    jval_.i = (value_arg != 0) ? 1 : 0;
+    width = 0;
+    break;
+  case kByte:
+    jval_.i = ReadSignedInt(ptr_, value_arg);
+    CHECK(IsInt(8, jval_.i));
+    break;
+  case kShort:
+    jval_.i = ReadSignedInt(ptr_, value_arg);
+    CHECK(IsInt(16, jval_.i));
+    break;
+  case kChar:
+    jval_.i = ReadUnsignedInt(ptr_, value_arg, false);
+    CHECK(IsUint(16, jval_.i));
+    break;
+  case kInt:
+    jval_.i = ReadSignedInt(ptr_, value_arg);
+    break;
+  case kLong:
+    jval_.j = ReadSignedLong(ptr_, value_arg);
+    break;
+  case kFloat:
+    jval_.i = ReadUnsignedInt(ptr_, value_arg, true);
+    break;
+  case kDouble:
+    jval_.j = ReadUnsignedLong(ptr_, value_arg, true);
+    break;
+  case kString:
+  case kType:
+  case kMethod:
+  case kEnum:
+    jval_.i = ReadUnsignedInt(ptr_, value_arg, false);
+    break;
+  case kField:
+  case kArray:
+  case kAnnotation:
+    UNIMPLEMENTED(FATAL) << ": type " << type_;
+    break;
+  case kNull:
+    jval_.l = NULL;
+    width = 0;
+    break;
+  default:
+    LOG(FATAL) << "Unreached";
+  }
+  ptr_ += width;
+}
+
+void EncodedStaticFieldValueIterator::ReadValueToField(Field* field) const {
+  switch (type_) {
+    case kBoolean: field->SetBoolean(NULL, jval_.z); break;
+    case kByte:    field->SetByte(NULL, jval_.b); break;
+    case kShort:   field->SetShort(NULL, jval_.s); break;
+    case kChar:    field->SetChar(NULL, jval_.c); break;
+    case kInt:     field->SetInt(NULL, jval_.i); break;
+    case kLong:    field->SetLong(NULL, jval_.j); break;
+    case kFloat:   field->SetFloat(NULL, jval_.f); break;
+    case kDouble:  field->SetDouble(NULL, jval_.d); break;
+    case kNull:    field->SetObject(NULL, NULL); break;
+    case kString: {
+      String* resolved = linker_->ResolveString(dex_file_, jval_.i, dex_cache_);
+      field->SetObject(NULL, resolved);
+      break;
+    }
+    default: UNIMPLEMENTED(FATAL) << ": type " << type_;
+  }
+}
+
+CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, uint32_t address) {
+  handler_.address_ = -1;
+  int32_t offset = -1;
+
+  // Short-circuit the overwhelmingly common cases.
+  switch (code_item.tries_size_) {
+    case 0:
+      break;
+    case 1: {
+      const DexFile::TryItem* tries = DexFile::GetTryItems(code_item, 0);
+      uint32_t start = tries->start_addr_;
+      if (address >= start) {
+        uint32_t end = start + tries->insn_count_;
+        if (address < end) {
+          offset = tries->handler_off_;
+        }
+      }
+      break;
+    }
+    default:
+      offset = DexFile::FindCatchHandlerOffset(code_item, code_item.tries_size_, address);
+  }
+  if (offset >= 0) {
+    const byte* handler_data = DexFile::GetCatchHandlerData(code_item, offset);
+    Init(handler_data);
+  } else {
+    // Not found, initialize as empty
+    current_data_ = NULL;
+    remaining_count_ = -1;
+    catch_all_ = false;
+    DCHECK(!HasNext());
+  }
+}
+
+void CatchHandlerIterator::Init(const byte* handler_data) {
+  current_data_ = handler_data;
+  remaining_count_ = DecodeSignedLeb128(&current_data_);
+
+  // If remaining_count_ is non-positive, then it is the negative of
+  // the number of catch types, and the catches are followed by a
+  // catch-all handler.
+  if (remaining_count_ <= 0) {
+    catch_all_ = true;
+    remaining_count_ = -remaining_count_;
+  } else {
+    catch_all_ = false;
+  }
+  Next();
+}
+
+void CatchHandlerIterator::Next() {
+  if (remaining_count_ > 0) {
+    handler_.type_idx_ = DecodeUnsignedLeb128(&current_data_);
+    handler_.address_  = DecodeUnsignedLeb128(&current_data_);
+    remaining_count_--;
+    return;
+  }
+
+  if (catch_all_) {
+    handler_.type_idx_ = DexFile::kDexNoIndex16;
+    handler_.address_  = DecodeUnsignedLeb128(&current_data_);
+    catch_all_ = false;
+    return;
+  }
+
+  // no more handler
+  remaining_count_ = -1;
 }
 
 }  // namespace art

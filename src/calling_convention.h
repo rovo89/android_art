@@ -124,8 +124,6 @@ class JniCallingConvention : public CallingConvention {
   // always at the bottom of a frame, but this doesn't work for outgoing
   // native args). Includes alignment.
   virtual size_t FrameSize() = 0;
-  // Offset within the frame of the return pc
-  virtual size_t ReturnPcOffset() = 0;
   // Size of outgoing arguments, including alignment
   virtual size_t OutArgSize() = 0;
   // Number of references in stack indirect reference table

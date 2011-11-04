@@ -37,7 +37,6 @@ class X86JniCallingConvention : public JniCallingConvention {
   virtual ManagedRegister InterproceduralScratchRegister();
   // JNI calling convention
   virtual size_t FrameSize();
-  virtual size_t ReturnPcOffset();
   virtual size_t OutArgSize();
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
     DCHECK(callee_save_regs_.empty());

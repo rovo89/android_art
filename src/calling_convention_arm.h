@@ -37,7 +37,6 @@ class ArmJniCallingConvention : public JniCallingConvention {
   // JNI calling convention
   virtual void Next();  // Override default behavior for AAPCS
   virtual size_t FrameSize();
-  virtual size_t ReturnPcOffset();
   virtual size_t OutArgSize();
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
     return callee_save_regs_;

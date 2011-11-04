@@ -153,6 +153,19 @@ std::string PrettyMethod(const Method* m, bool with_signature) {
   return result;
 }
 
+std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature) {
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+  std::string result(PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(method_id)));
+  result += '.';
+  result += dex_file.GetMethodName(method_id);
+  if (with_signature) {
+    // TODO: iterate over the signature's elements and pass them all to
+    // PrettyDescriptor? We'd need to pull out the return type specially, too.
+    result += dex_file.GetMethodSignature(method_id);
+  }
+  return result;
+}
+
 std::string PrettyTypeOf(const Object* obj) {
   if (obj == NULL) {
     return "null";

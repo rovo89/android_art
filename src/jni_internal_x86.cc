@@ -25,14 +25,15 @@ namespace x86 {
 // "running" state the remaining responsibilities of this routine are
 // to save the native registers and set up the managed registers. On
 // return, the return value must be store into the result JValue.
-CompiledInvokeStub* X86CreateInvokeStub(const Method* method) {
+CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty) {
   UniquePtr<X86Assembler> assembler(
       down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
+  size_t num_arg_array_bytes = NumArgArrayBytes(shorty);
   // Size of frame - return address + Method* + possible receiver + arg array
   size_t frame_size = (2 * kPointerSize) +
-                      (method->IsStatic() ? 0 : kPointerSize) +
-                      method->NumArgArrayBytes();
+                      (is_static ? 0 : kPointerSize) +
+                      num_arg_array_bytes;
   size_t pad_size = RoundUp(frame_size, kStackAlignment) - frame_size;
 
   __ movl(EAX, Address(ESP, 4));   // EAX = method
@@ -45,20 +46,20 @@ CompiledInvokeStub* X86CreateInvokeStub(const Method* method) {
   }
 
   // Push/copy arguments
-  for (size_t off = method->NumArgArrayBytes(); off > 0; off -= kPointerSize) {
+  for (size_t off = num_arg_array_bytes; off > 0; off -= kPointerSize) {
     __ pushl(Address(EDX, off - kPointerSize));
   }
-  if (!method->IsStatic()) {
+  if (!is_static) {
     __ pushl(ECX);
   }
   // Push 0 as NULL Method* thereby terminating managed stack crawls
   __ pushl(Immediate(0));
 
-  __ call(Address(EAX, method->GetCodeOffset()));  // Call code off of method
+  __ call(Address(EAX, Method::GetCodeOffset()));  // Call code off of method
 
   // pop arguments up to the return address
   __ addl(ESP, Immediate(frame_size + pad_size - kPointerSize));
-  char ch = method->GetShorty()->CharAt(0);
+  char ch = shorty[0];
   if (ch != 'V') {
     // Load the result JValue pointer.
     __ movl(ECX, Address(ESP, 20));

@@ -7,6 +7,7 @@
 
 #include "assembler.h"
 #include "calling_convention.h"
+#include "class_linker.h"
 #include "compiled_method.h"
 #include "constants.h"
 #include "jni_internal.h"
@@ -55,7 +56,12 @@ JniCompiler::~JniCompiler() {}
 //   registers, a reference to the method object is supplied as part of this
 //   convention.
 //
-CompiledMethod* JniCompiler::Compile(const Method* native_method) {
+CompiledMethod* JniCompiler::Compile(bool is_direct, uint32_t method_idx,
+                                     const ClassLoader* class_loader, const DexFile& dex_file) {
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  DexCache* dex_cache = linker->FindDexCache(dex_file);
+  Method* native_method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
+                                                class_loader, is_direct);
   CHECK(native_method->IsNative());
 
   // Calling conventions used to iterate over parameters to method
@@ -435,7 +441,6 @@ CompiledMethod* JniCompiler::Compile(const Method* native_method) {
   return new CompiledMethod(instruction_set_,
                             managed_code,
                             frame_size,
-                            jni_conv->ReturnPcOffset(),
                             jni_conv->CoreSpillMask(),
                             jni_conv->FpSpillMask());
 #undef __

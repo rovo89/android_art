@@ -619,6 +619,8 @@ class MANAGED Method : public AccessibleObject {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
+  uint32_t GetDexMethodIndex() const;
+
   uint16_t GetMethodIndex() const;
 
   size_t GetVtableIndex() const {
@@ -643,10 +645,6 @@ class MANAGED Method : public AccessibleObject {
 
   // Number of 32bit registers that would be required to hold all the arguments
   static size_t NumArgRegisters(const StringPiece& shorty);
-
-  // Number of argument bytes required for densely packing the
-  // arguments into an array of arguments.
-  size_t NumArgArrayBytes() const;
 
   uint16_t NumRegisters() const;
 
@@ -1088,7 +1086,8 @@ class MANAGED Method : public AccessibleObject {
   // Native invocation stub entry point for calling from native to managed code.
   const InvokeStub* invoke_stub_;
 
-  // Index of the return type
+  // Index of the return type in the declaring classes dex cache or dex file's type ids
+  // TODO: value is really just 16bit
   uint32_t java_return_type_idx_;
 
   // Mapping from native pc to dex pc
@@ -1498,10 +1497,7 @@ class MANAGED Class : public StaticStorageBase {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), false);
   }
 
-  void SetClassSize(size_t new_class_size) {
-    DCHECK_GE(new_class_size, GetClassSize()) << " class=" << PrettyTypeOf(this);
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size, false);
-  }
+  void SetClassSize(size_t new_class_size);
 
   size_t GetObjectSize() const {
     CHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
@@ -2092,9 +2088,11 @@ class MANAGED Class : public StaticStorageBase {
 
   // Set in LoadClass, used to LinkClass
   // see also super_class_
+  // TODO: really 16bits
   uint32_t super_class_type_idx_;
 
   // type index from dex file
+  // TODO: really 16bits
   uint32_t type_idx_;
 
   // TODO: ?
@@ -2197,15 +2195,6 @@ inline size_t Object::SizeOf() const {
   DCHECK(!IsField()  || result == sizeof(Field));
   DCHECK(!IsMethod() || result == sizeof(Method));
   return result;
-}
-
-inline void Field::SetOffset(MemberOffset num_bytes) {
-  DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  Primitive::Type type = GetPrimitiveType();
-  if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {
-    DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
-  }
-  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), num_bytes.Uint32Value(), false);
 }
 
 inline Class* Field::GetDeclaringClass() const {
@@ -2480,6 +2469,9 @@ class MANAGED String : public Object {
 
   bool Equals(const String* that) const;
 
+  // Compare UTF-16 code point values not in a locale-sensitive manner
+  int Compare(int32_t utf16_length, const char* utf8_data_in);
+
   // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const uint16_t* that_chars, int32_t that_offset,
               int32_t that_length) const;
@@ -2615,7 +2607,7 @@ inline uint32_t Class::GetAccessFlags() const {
       this == String::GetJavaLangString() ||
       this == Field::GetJavaLangReflectField() ||
       this == Method::GetConstructorClass() ||
-      this == Method::GetMethodClass()) << PrettyClass(this);
+      this == Method::GetMethodClass());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
 }
 
