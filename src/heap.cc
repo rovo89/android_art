@@ -72,9 +72,10 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
 
   // bounds of all spaces for allocating live and mark bitmaps
   // there will be at least one space (the alloc space),
-  // so set to base to max and limit to min to start
+  // so set base to max, and limit and min to start
   byte* base = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::max());
   byte* max = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::min());
+  byte* limit = reinterpret_cast<byte*>(std::numeric_limits<uintptr_t>::min());
 
   byte* requested_base = NULL;
   std::vector<Space*> image_spaces;
@@ -92,6 +93,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
     }
     base = std::min(base, space->GetBase());
     max = std::max(max, space->GetMax());
+    limit = std::max(limit, space->GetLimit());
   }
 
   alloc_space_ = Space::Create("alloc space", initial_size, maximum_size, growth_size, requested_base);
@@ -100,8 +102,11 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
   }
   base = std::min(base, alloc_space_->GetBase());
   max = std::max(max, alloc_space_->GetMax());
+  limit = std::max(limit, alloc_space_->GetLimit());
   DCHECK_LT(base, max);
+  DCHECK_LT(base, limit);
   size_t num_bytes = max - base;
+  size_t limit_bytes = limit - base;
 
   // Allocate the initial live bitmap.
   UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
@@ -116,7 +121,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
   }
 
   // Allocate the card table
-  UniquePtr<CardTable> card_table(CardTable::Create(base, num_bytes));
+  UniquePtr<CardTable> card_table(CardTable::Create(base, num_bytes, limit_bytes));
   if (card_table.get() == NULL) {
     LOG(FATAL) << "Failed to create card table";
   }
@@ -629,6 +634,7 @@ void Heap::ClearGrowthLimit() {
   CHECK_GE(maximum_size_, growth_size_);
   growth_size_ = maximum_size_;
   alloc_space_->ClearGrowthLimit();
+  card_table_->ClearGrowthLimit();
 }
 
 pid_t Heap::GetLockOwner() {

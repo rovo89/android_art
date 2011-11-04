@@ -45,9 +45,9 @@ namespace art {
  * byte is equal to GC_DIRTY_CARD. See CardTable::Init for details.
  */
 
-CardTable* CardTable::Create(const byte* heap_base, size_t heap_max_size) {
+CardTable* CardTable::Create(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
   UniquePtr<CardTable> bitmap(new CardTable);
-  if (!bitmap->Init(heap_base, heap_max_size)) {
+  if (!bitmap->Init(heap_base, heap_max_size, growth_size)) {
     return NULL;
   } else {
     return bitmap.release();
@@ -58,7 +58,7 @@ CardTable* CardTable::Create(const byte* heap_base, size_t heap_max_size) {
  * Initializes the card table; must be called before any other
  * CardTable functions.
  */
-bool CardTable::Init(const byte* heap_base, size_t heap_max_size) {
+bool CardTable::Init(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
   /* Set up the card table */
   size_t length = heap_max_size / GC_CARD_SIZE;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
@@ -68,7 +68,8 @@ bool CardTable::Init(const byte* heap_base, size_t heap_max_size) {
     return false;
   }
   base_ = alloc_base;
-  length_ = length;
+  length_ = growth_size / GC_CARD_SIZE;
+  max_length_ = length;
   offset_ = 0;
   /* All zeros is the correct initial value; all clean. */
   CHECK_EQ(GC_CARD_CLEAN, 0);

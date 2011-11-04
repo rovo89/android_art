@@ -27,7 +27,7 @@ class CardTable {
  public:
   typedef void Callback(Object* obj, void* arg);
 
-  static CardTable* Create(const byte* heap_base, size_t heap_max_size);
+  static CardTable* Create(const byte* heap_base, size_t heap_max_size, size_t growth_size);
 
   /*
    * Set the card associated with the given address to GC_CARD_DIRTY.
@@ -47,6 +47,11 @@ class CardTable {
     return *CardFromAddr(obj) == GC_CARD_DIRTY;
   }
 
+  void ClearGrowthLimit() {
+    CHECK_GE(max_length_, length_);
+    length_ = max_length_;
+  }
+
  private:
 
   CardTable() {}
@@ -55,7 +60,7 @@ class CardTable {
    * Initializes the card table; must be called before any other
    * CardTable functions.
    */
-  bool Init(const byte* heap_base, size_t heap_max_size);
+  bool Init(const byte* heap_base, size_t heap_max_size, size_t growth_size);
 
   /*
    * Resets all of the bytes in the card table to clean.
@@ -96,6 +101,7 @@ class CardTable {
   byte* base_;
   byte* biased_base_;
   size_t length_;
+  size_t max_length_;
   size_t offset_;
 };
 
