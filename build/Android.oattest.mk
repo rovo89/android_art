@@ -40,7 +40,7 @@ $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,$(dir)))
 define build-art-oat
 $(2): $(1) $(3) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(3) $(addprefix --dex-file=,$$<) --oat=$$@ --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(3) $(addprefix --dex-file=,$$<) --oat=$$@ --host-prefix=$(PRODUCT_OUT)
 endef
 
 ########################################################################
