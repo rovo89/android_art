@@ -447,6 +447,21 @@ jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as
     return JNI_ERR;
   }
 
+  // Return immediately if we're already one with the VM.
+  Thread* self = Thread::Current();
+  if (self != NULL) {
+    *p_env = self->GetJniEnv();
+    return JNI_OK;
+  }
+
+  Runtime* runtime = reinterpret_cast<JavaVMExt*>(vm)->runtime;
+
+  // No threads allowed in zygote mode.
+  if (runtime->IsZygote()) {
+    LOG(ERROR) << "Attempt to attach a thread in the zygote";
+    return JNI_ERR;
+  }
+
   JavaVMAttachArgs* in_args = static_cast<JavaVMAttachArgs*>(thr_args);
   JavaVMAttachArgs args;
   if (thr_args == NULL) {
@@ -466,7 +481,6 @@ jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as
   }
   CHECK_GE(args.version, JNI_VERSION_1_2);
 
-  Runtime* runtime = reinterpret_cast<JavaVMExt*>(vm)->runtime;
   runtime->AttachCurrentThread(args.name, as_daemon);
   *p_env = Thread::Current()->GetJniEnv();
   return JNI_OK;

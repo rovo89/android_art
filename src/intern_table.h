@@ -3,11 +3,12 @@
 #ifndef ART_SRC_INTERN_TABLE_H_
 #define ART_SRC_INTERN_TABLE_H_
 
-#include "unordered_map.h"
+#include <iosfwd>
 
 #include "heap.h"
 #include "mutex.h"
 #include "object.h"
+#include "unordered_map.h"
 
 namespace art {
 
@@ -48,6 +49,8 @@ class InternTable {
   size_t Size() const;
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
+
+  void DumpForSigQuit(std::ostream& os) const;
 
  private:
   typedef std::tr1::unordered_multimap<int32_t, String*> Table;

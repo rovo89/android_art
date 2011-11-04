@@ -2800,6 +2800,12 @@ void ClassLinker::DumpAllClasses(int flags) const {
   }
 }
 
+void ClassLinker::DumpForSigQuit(std::ostream& os) const {
+  MutexLock mu(classes_lock_);
+  os << "Loaded classes: " << image_classes_.size() << " image classes; "
+     << classes_.size() << " allocated classes\n";
+}
+
 size_t ClassLinker::NumLoadedClasses() const {
   MutexLock mu(classes_lock_);
   return classes_.size() + image_classes_.size();

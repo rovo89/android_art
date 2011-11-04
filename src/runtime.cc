@@ -76,8 +76,15 @@ Runtime::~Runtime() {
   instance_ = NULL;
 }
 
+static bool gAborting = false;
+
 struct AbortState {
   void Dump(std::ostream& os) {
+    if (gAborting) {
+      os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
+      return;
+    }
+    gAborting = true;
     os << "Runtime aborting...\n";
     Thread* self = Thread::Current();
     if (self == NULL) {
@@ -372,7 +379,13 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     parsed->heap_growth_limit_ = parsed->heap_maximum_size_;
   }
 
-  LOG(INFO) << "CheckJNI is " << (parsed->check_jni_ ? "on" : "off");
+  LOG(INFO) << "Build type: "
+#ifndef NDEBUG
+            << "debug"
+#else
+            << "optimized"
+#endif
+            << "; CheckJNI: " << (parsed->check_jni_ ? "on" : "off");
 
   return parsed.release();
 }
@@ -612,14 +625,8 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 
 void Runtime::Dump(std::ostream& os) {
   // TODO: dump other runtime statistics?
-  os << "Loaded classes: " << class_linker_->NumLoadedClasses() << "\n";
-  os << "Intern table size: " << GetInternTable()->Size() << "\n";
-  // LOGV("VM stats: meth=%d ifld=%d sfld=%d linear=%d",
-  //    gDvm.numDeclaredMethods,
-  //    gDvm.numDeclaredInstFields,
-  //    gDvm.numDeclaredStaticFields,
-  //    gDvm.pBootLoaderAlloc->curOffset);
-  // LOGI("GC precise methods: %d", dvmPointerSetGetCount(gDvm.preciseMethods));
+  GetClassLinker()->DumpForSigQuit(os);
+  GetInternTable()->DumpForSigQuit(os);
   os << "\n";
 
   thread_list_->Dump(os);

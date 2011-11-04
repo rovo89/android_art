@@ -15,6 +15,13 @@ size_t InternTable::Size() const {
   return strong_interns_.size() + weak_interns_.size();
 }
 
+void InternTable::DumpForSigQuit(std::ostream& os) const {
+  MutexLock mu(intern_table_lock_);
+  os << "Intern table: " << strong_interns_.size() << " strong; "
+     << weak_interns_.size() << " weak; "
+     << image_strong_interns_.size() << " image strong\n";
+}
+
 void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   MutexLock mu(intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto

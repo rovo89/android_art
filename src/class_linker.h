@@ -70,6 +70,8 @@ class ClassLinker {
 
   void DumpAllClasses(int flags) const;
 
+  void DumpForSigQuit(std::ostream& os) const;
+
   size_t NumLoadedClasses() const;
 
   // Resolve a String with the given index from the DexFile, storing the

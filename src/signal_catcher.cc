@@ -105,7 +105,6 @@ void SignalCatcher::HandleSigQuit() {
 
   std::ostringstream os;
   os << "\n"
-     << "\n"
      << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
   std::string cmdline;
