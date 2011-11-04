@@ -56,6 +56,7 @@ class ScratchFile {
     filename_ += "/TmpFile-XXXXXX";
     fd_ = mkstemp(&filename_[0]);
     CHECK_NE(-1, fd_);
+    file_.reset(OS::FileFromFd(GetFilename(), fd_));
   }
 
   ~ScratchFile() {
@@ -69,6 +70,10 @@ class ScratchFile {
     return filename_.c_str();
   }
 
+  File* GetFile() const {
+    return file_.get();
+  }
+
   int GetFd() const {
     return fd_;
   }
@@ -76,6 +81,7 @@ class ScratchFile {
  private:
   std::string filename_;
   int fd_;
+  UniquePtr<File> file_;
 };
 
 class CommonTest : public testing::Test {

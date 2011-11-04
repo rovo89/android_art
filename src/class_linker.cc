@@ -568,8 +568,12 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
     std::string oat_file_option("--oat=");
     oat_file_option += oat_filename;
 
-    execl("/system/bin/dex2oatd",
-          "/system/bin/dex2oatd",
+    std::string dex2oat("/system/bin/dex2oat");
+#ifndef NDEBUG
+    dex2oat += 'd';
+#endif
+
+    execl(dex2oat.c_str(), dex2oat.c_str(),
           "--runtime-arg", "-Xms64m",
           "--runtime-arg", "-Xmx64m",
           boot_image_option.c_str(),
@@ -636,6 +640,9 @@ const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
     }
     LOG(WARNING) << ".oat file " << oat_file->GetLocation()
                  << " is older than " << dex_file.GetLocation() << " --- regenerating";
+    if (TEMP_FAILURE_RETRY(unlink(oat_file->GetLocation().c_str())) != 0) {
+      PLOG(FATAL) << "Couldn't remove obsolete .oat file " << oat_file->GetLocation();
+    }
     // Fall through...
   }
   // Generate oat file if it wasn't found or was obsolete.

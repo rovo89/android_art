@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/file.h>
 
 #include <string>
 #include <vector>
@@ -61,6 +62,31 @@ static void usage() {
           "\n");
   exit(EXIT_FAILURE);
 }
+
+class FileJanitor {
+public:
+  FileJanitor(const std::string& filename, int fd)
+      : filename_(filename), fd_(fd), do_unlink_(true) {
+  }
+
+  void KeepFile() {
+    do_unlink_ = false;
+  }
+
+  ~FileJanitor() {
+    if (fd_ != -1) {
+      flock(fd_, LOCK_UN);
+    }
+    if (do_unlink_) {
+      unlink(filename_.c_str());
+    }
+  }
+
+private:
+  std::string filename_;
+  int fd_;
+  bool do_unlink_;
+};
 
 int dex2oat(int argc, char** argv) {
   // Skip over argv[0].
@@ -143,17 +169,62 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  // Check early that the result of compilation can be written
-  // TODO: implement a proper locking scheme here, probably hold onto the open file..
-  if (OS::FileExists(oat_filename.c_str())) {
-    // File exists, check we can write to it
-    UniquePtr<File> file(OS::OpenFile(oat_filename.c_str(), true));
-    if (file.get() == NULL) {
+  // Create the output file if we can, or open it read-only if we weren't first.
+  bool did_create = true;
+  int fd = open(oat_filename.c_str(), O_EXCL | O_CREAT | O_TRUNC | O_RDWR, 0666);
+  if (fd == -1) {
+    if (errno != EEXIST) {
       PLOG(ERROR) << "Unable to create oat file " << oat_filename;
       return EXIT_FAILURE;
     }
+    did_create = false;
+    fd = open(oat_filename.c_str(), O_RDONLY);
+    if (fd == -1) {
+      PLOG(ERROR) << "Unable to open oat file for reading " << oat_filename;
+      return EXIT_FAILURE;
+    }
   }
-  LOG(INFO) << "dex2oat: " << oat_filename;
+
+  // Handles removing the file on failure and unlocking on both failure and success.
+  FileJanitor file_janitor(oat_filename, fd);
+
+  // TODO: TEMP_FAILURE_RETRY on flock calls
+
+  // If we won the creation race, block trying to take the lock (since we're going to be doing
+  // the work, we need the lock). If we lost the creation race, spin trying to take the lock
+  // non-blocking until we fail -- at which point we know the other guy has the lock -- and then
+  // block trying to take the now-taken lock.
+  if (did_create) {
+    LOG(INFO) << "This process created " << oat_filename;
+    while (flock(fd, LOCK_EX) != 0) {
+      // Try again.
+    }
+    LOG(INFO) << "This process created and locked " << oat_filename;
+  } else {
+    LOG(INFO) << "Another process has already created " << oat_filename;
+    while (flock(fd, LOCK_EX | LOCK_NB) == 0) {
+      // Give up the lock and hope the creator has taken the lock next time round.
+      flock(fd, LOCK_UN);
+    }
+    // Now a non-blocking attempt to take the lock has failed, we know the other guy has the
+    // lock, so block waiting to take it.
+    LOG(INFO) << "Another process is already working on " << oat_filename;
+    if (flock(fd, LOCK_EX) != 0) {
+      PLOG(ERROR) << "Waiter unable to wait for creator to finish " << oat_filename;
+      return EXIT_FAILURE;
+    }
+    // We have the lock and the creator has finished.
+    // TODO: check the creator did a good job by checking the header.
+    LOG(INFO) << "Another process finished working on " << oat_filename;
+    // Job done.
+    file_janitor.KeepFile();
+    return EXIT_SUCCESS;
+  }
+
+  // If we get this far, we won the creation race and have locked the file.
+  UniquePtr<File> oat_file(OS::FileFromFd(oat_filename.c_str(), fd));
+
+  LOG(INFO) << "dex2oat: " << oat_file->name();
 
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
@@ -266,22 +337,26 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  if (!OatWriter::Create(oat_filename, class_loader.get(), compiler)) {
-    LOG(ERROR) << "Failed to create oat file " << oat_filename;
+  if (!OatWriter::Create(oat_file.get(), class_loader.get(), compiler)) {
+    LOG(ERROR) << "Failed to create oat file " << oat_file->name();
     return EXIT_FAILURE;
   }
 
   if (image_filename == NULL) {
+    LOG(INFO) << "No image filename supplied; exiting";
     return EXIT_SUCCESS;
   }
   CHECK(compiler.IsImage());
 
   ImageWriter image_writer;
-  if (!image_writer.Write(image_filename, image_base, oat_filename, host_prefix)) {
+  if (!image_writer.Write(image_filename, image_base, oat_file->name(), host_prefix)) {
     LOG(ERROR) << "Failed to create image file " << image_filename;
     return EXIT_FAILURE;
   }
 
+  // We wrote the file successfully, and want to keep it.
+  LOG(INFO) << "Image written successfully " << image_filename;
+  file_janitor.KeepFile();
   return EXIT_SUCCESS;
 }
 

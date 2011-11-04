@@ -49,8 +49,12 @@ int ProcessZipFile(int zip_fd, int cache_fd, const char* zip_name, const char *f
   std::string oat_file_option("--oat=");
   oat_file_option += GetArtCacheFilenameOrDie(OatFile::DexFilenameToOatFilename(dex_file.get()->GetLocation()));
 
-  execl("/system/bin/dex2oatd",
-        "/system/bin/dex2oatd",
+  std::string dex2oat("/system/bin/dex2oat");
+#ifndef NDEBUG
+  dex2oat += 'd';
+#endif
+
+  execl(dex2oat.c_str(), dex2oat.c_str(),
         "--runtime-arg", "-Xms64m",
         "--runtime-arg", "-Xmx64m",
         "--boot-image=/data/art-cache/boot.art",
