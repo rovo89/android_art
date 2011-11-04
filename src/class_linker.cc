@@ -1153,7 +1153,9 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(klass->GetPrimitiveType() == Primitive::kPrimNot);
   klass->SetStatus(Class::kStatusIdx);
 
+  klass->SetTypeIdx(dex_class_def.class_idx_);
   klass->SetSuperClassTypeIdx(dex_class_def.superclass_idx_);
+  klass->SetAnnotationsOffset(dex_class_def.annotations_off_);
 
   size_t num_static_fields = header.static_fields_size_;
   size_t num_instance_fields = header.instance_fields_size_;

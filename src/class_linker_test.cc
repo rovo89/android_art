@@ -495,6 +495,7 @@ struct ClassOffsets : public CheckOffsets<Class> {
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "shadow$_access_flags_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, annotations_offset_),            "shadow$_annotations_offset_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
@@ -505,6 +506,7 @@ struct ClassOffsets : public CheckOffsets<Class> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "shadow$_reference_static_offsets_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "shadow$_status_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_type_idx_),          "shadow$_super_class_type_idx_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, type_idx_),                      "shadow$_type_idx_"));
   };
 };
 

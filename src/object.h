@@ -1951,6 +1951,22 @@ class MANAGED Class : public StaticStorageBase {
     klass->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
   }
 
+  uint32_t GetAnnotationsOffset() {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, annotations_offset_), false);
+  }
+
+  void SetAnnotationsOffset(uint32_t annotations_offset) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, annotations_offset_), annotations_offset, false);
+  }
+
+  uint32_t GetTypeIdx() {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, type_idx_), false);
+  }
+
+  void SetTypeIdx(uint32_t type_idx) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, type_idx_), type_idx, false);
+  }
+
   String* GetSourceFile() const;
 
   void SetSourceFile(String* new_source_file);
@@ -2041,6 +2057,9 @@ class MANAGED Class : public StaticStorageBase {
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;
 
+  // annotation directory offset from dex file
+  uint32_t annotations_offset_;
+
   // Total size of the Class instance; used when allocating storage on gc heap.
   // See also object_size_.
   size_t class_size_;
@@ -2074,6 +2093,9 @@ class MANAGED Class : public StaticStorageBase {
   // Set in LoadClass, used to LinkClass
   // see also super_class_
   uint32_t super_class_type_idx_;
+
+  // type index from dex file
+  uint32_t type_idx_;
 
   // TODO: ?
   // initiating class loader list
