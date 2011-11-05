@@ -18,7 +18,7 @@ class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
-  bool success_oat = OatWriter::Create(tmp_oat.GetFilename(), NULL, *compiler_.get());
+  bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, *compiler_.get());
   ASSERT_TRUE(success_oat);
 
   ImageWriter writer;

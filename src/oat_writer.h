@@ -49,9 +49,7 @@ namespace art {
 class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
-  static bool Create(const std::string& filename,
-                     const ClassLoader* class_loader,
-                     const Compiler& compiler);
+  static bool Create(File* file, const ClassLoader* class_loader, const Compiler& compiler);
 
  private:
 
@@ -78,7 +76,7 @@ class OatWriter {
                            size_t class_def_method_index,
                            Method* method);
 
-  bool Write(const std::string& filename);
+  bool Write(File* file);
   bool WriteTables(File* file);
   size_t WriteCode(File* file);
   size_t WriteCodeDexFiles(File* file,
@@ -93,6 +91,8 @@ class OatWriter {
   size_t WriteCodeMethod(File* file,
                          size_t offset,
                          Method* method);
+
+  void ReportWriteFailure(const char* what, Method* m, File* f);
 
   class OatDexFile {
    public:

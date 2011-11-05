@@ -19,7 +19,7 @@ TEST_F(OatTest, WriteRead) {
   }
 
   ScratchFile tmp;
-  bool success = OatWriter::Create(tmp.GetFilename(), class_loader.get(), *compiler_.get());
+  bool success = OatWriter::Create(tmp.GetFile(), class_loader.get(), *compiler_.get());
   ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare

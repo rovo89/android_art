@@ -49,11 +49,13 @@ TARGET_CORE_IMG := $(ART_TEST_OUT)/core.art
 $(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(HOST_CORE_IMG) --base=$(IMG_HOST_BASE_ADDRESS)
 
 $(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(hide) $(DEX2OAT) --runtime-arg -Xms32m --runtime-arg -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 $(HOST_CORE_IMG): $(HOST_CORE_OAT)
@@ -70,6 +72,7 @@ TARGET_BOOT_IMG := $(ART_CACHE_OUT)/boot.art
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
+	@rm -f $@
 	$(hide) $(DEX2OAT) --runtime-arg -Xms256m --runtime-arg -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 $(TARGET_BOOT_IMG): $(TARGET_BOOT_OAT)
