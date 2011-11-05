@@ -75,10 +75,16 @@ public:
 
   ~FileJanitor() {
     if (fd_ != -1) {
-      flock(fd_, LOCK_UN);
+      int rc = TEMP_FAILURE_RETRY(flock(fd_, LOCK_UN));
+      if (rc == -1) {
+        PLOG(ERROR) << "Failed to unlock " << filename_;
+      }
     }
     if (do_unlink_) {
-      unlink(filename_.c_str());
+      int rc = TEMP_FAILURE_RETRY(unlink(filename_.c_str()));
+      if (rc == -1) {
+        PLOG(ERROR) << "Failed to unlink " << filename_;
+      }
     }
   }
 
@@ -188,28 +194,29 @@ int dex2oat(int argc, char** argv) {
   // Handles removing the file on failure and unlocking on both failure and success.
   FileJanitor file_janitor(oat_filename, fd);
 
-  // TODO: TEMP_FAILURE_RETRY on flock calls
-
   // If we won the creation race, block trying to take the lock (since we're going to be doing
   // the work, we need the lock). If we lost the creation race, spin trying to take the lock
   // non-blocking until we fail -- at which point we know the other guy has the lock -- and then
   // block trying to take the now-taken lock.
   if (did_create) {
     LOG(INFO) << "This process created " << oat_filename;
-    while (flock(fd, LOCK_EX) != 0) {
+    while (TEMP_FAILURE_RETRY(flock(fd, LOCK_EX)) != 0) {
       // Try again.
     }
     LOG(INFO) << "This process created and locked " << oat_filename;
   } else {
     LOG(INFO) << "Another process has already created " << oat_filename;
-    while (flock(fd, LOCK_EX | LOCK_NB) == 0) {
+    while (TEMP_FAILURE_RETRY(flock(fd, LOCK_EX | LOCK_NB)) == 0) {
       // Give up the lock and hope the creator has taken the lock next time round.
-      flock(fd, LOCK_UN);
+      int rc = TEMP_FAILURE_RETRY(flock(fd, LOCK_UN));
+      if (rc == -1) {
+        PLOG(FATAL) << "Failed to unlock " << oat_filename;
+      }
     }
     // Now a non-blocking attempt to take the lock has failed, we know the other guy has the
     // lock, so block waiting to take it.
     LOG(INFO) << "Another process is already working on " << oat_filename;
-    if (flock(fd, LOCK_EX) != 0) {
+    if (TEMP_FAILURE_RETRY(flock(fd, LOCK_EX)) != 0) {
       PLOG(ERROR) << "Waiter unable to wait for creator to finish " << oat_filename;
       return EXIT_FAILURE;
     }
