@@ -543,7 +543,8 @@ void Heap::CollectGarbageInternal() {
   size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / total);
 
   uint32_t duration = (t1 - t0)/1000/1000;
-  if (Heap::IsVerboseGc()) {
+  bool gc_was_particularly_slow = (duration > 100); // TODO: crank this down for concurrent.
+  if (Heap::IsVerboseGc() || gc_was_particularly_slow) {
     LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
               << percentFree << "% free "
               << (num_bytes_allocated_/1024) << "KiB/" << (total/1024) << "KiB, "
