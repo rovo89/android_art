@@ -343,7 +343,8 @@ int dex2oat(int argc, char** argv) {
   }
 
   if (image_filename == NULL) {
-    LOG(INFO) << "No image filename supplied; exiting";
+    file_janitor.KeepFile();
+    LOG(INFO) << "Oat file written successfully " << oat_file->name();
     return EXIT_SUCCESS;
   }
   CHECK(compiler.IsImage());
