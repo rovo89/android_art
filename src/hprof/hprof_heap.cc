@@ -305,6 +305,8 @@ int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj)
                 // aren't all the same size. But they're at least this
                 // size.
                 hprofAddU4ToRecord(rec, sizeof(Class)); // instance size
+            } else if (thisClass->IsArrayClass() || thisClass->IsPrimitive()) {
+                hprofAddU4ToRecord(rec, 0);
             } else {
                 hprofAddU4ToRecord(rec, thisClass->GetObjectSize()); // instance size
             }
@@ -346,7 +348,7 @@ int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj)
 
             /* Instance fields for this class (no superclass fields)
              */
-            int iFieldCount = thisClass->NumInstanceFields();
+            int iFieldCount = thisClass->IsObjectClass() ? 0 : thisClass->NumInstanceFields();
             hprofAddU2ToRecord(rec, (uint16_t)iFieldCount);
             for (int i = 0; i < iFieldCount; ++i) {
                 Field* f = thisClass->GetInstanceField(i);
@@ -413,8 +415,6 @@ int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj)
 #endif
             }
         } else {
-            const Class* sclass;
-            size_t sizePatchOffset, savedLen;
 
             /* obj is an instance object.
              */
@@ -427,14 +427,15 @@ int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj)
              * data, which we won't know until we're done writing
              * it.
              */
-            sizePatchOffset = rec->length;
+            size_t sizePatchOffset = rec->length;
             hprofAddU4ToRecord(rec, 0x77777777);
 
             /* Write the instance data;  fields for this
              * class, followed by super class fields, and so on.
+             * Don't write the klass or monitor fields of Object.class.
              */
-            sclass = clazz;
-            while (sclass != NULL) {
+            const Class* sclass = clazz;
+            while (!sclass->IsObjectClass()) {
                 int ifieldCount = sclass->NumInstanceFields();
                 for (int i = 0; i < ifieldCount; i++) {
                     Field* f = sclass->GetInstanceField(i);
@@ -459,7 +460,7 @@ int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj)
 
             /* Patch the instance field length.
              */
-            savedLen = rec->length;
+            size_t savedLen = rec->length;
             rec->length = sizePatchOffset;
             hprofAddU4ToRecord(rec, savedLen - (sizePatchOffset + 4));
             rec->length = savedLen;
