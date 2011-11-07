@@ -83,36 +83,18 @@ class ThreadList {
   ConditionVariable thread_suspend_count_cond_;
 
   friend class Thread;
-  friend class ThreadListLock;
-  friend class ThreadListLocker;
+  friend class ScopedThreadListLock;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };
 
-class ThreadListLock {
+class ScopedThreadListLock {
  public:
-  explicit ThreadListLock(Thread* self = NULL) {
-    if (self == NULL) {
-      // Try to get it from TLS.
-      self = Thread::Current();
-    }
-    // self may still be NULL during VM shutdown.
-    Thread::State old_state;
-    if (self != NULL) {
-      old_state = self->SetState(Thread::kVmWait);
-    }
-    Runtime::Current()->GetThreadList()->thread_list_lock_.Lock();
-    if (self != NULL) {
-      self->SetState(old_state);
-    }
-  }
-
-  ~ThreadListLock() {
-    Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
-  }
+  ScopedThreadListLock();
+  ~ScopedThreadListLock();
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ThreadListLock);
+  DISALLOW_COPY_AND_ASSIGN(ScopedThreadListLock);
 };
 
 }  // namespace art

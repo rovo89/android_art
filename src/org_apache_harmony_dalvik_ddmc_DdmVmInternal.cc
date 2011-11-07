@@ -74,7 +74,7 @@ static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
-  ThreadListLock thread_list_lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = FindThreadByThinLockId(static_cast<uint32_t>(thin_lock_id));
   if (thread == NULL) {
     return NULL;
@@ -132,7 +132,7 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
 static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   std::vector<uint8_t> bytes;
   {
-    ThreadListLock thread_list_lock;
+    ScopedThreadListLock thread_list_lock;
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
     uint16_t thread_count;

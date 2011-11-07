@@ -833,7 +833,7 @@ void Dbg::DdmSetThreadNotification(bool enable) {
   // We lock the thread list to avoid sending duplicate events or missing
   // a thread change. We should be okay holding this lock while sending
   // the messages out. (We have to hold it while accessing a live thread.)
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
 
   gDdmThreadNotification = enable;
   if (enable) {

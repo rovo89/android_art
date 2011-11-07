@@ -35,7 +35,7 @@ jboolean Thread_interrupted(JNIEnv* env, jclass) {
 }
 
 jboolean Thread_isInterrupted(JNIEnv* env, jobject javaThread) {
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
@@ -46,7 +46,7 @@ void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong stackSiz
 }
 
 jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread == NULL) {
     return -1;
@@ -61,13 +61,13 @@ jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObj
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   return thread->HoldsLock(object);
 }
 
 void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread != NULL) {
     thread->Interrupt();
@@ -75,7 +75,7 @@ void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
 }
 
 void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread != NULL) {
     ScopedUtfChars name(env, javaName);
@@ -96,7 +96,7 @@ void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
  * threads at Thread.NORM_PRIORITY (5).
  */
 void Thread_nativeSetPriority(JNIEnv* env, jobject javaThread, jint newPriority) {
-  ThreadListLock lock;
+  ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread != NULL) {
     thread->SetNativePriority(newPriority);

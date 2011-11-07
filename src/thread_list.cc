@@ -22,33 +22,43 @@
 
 namespace art {
 
-// TODO: merge with ThreadListLock?
-class ThreadListLocker {
- public:
+ScopedThreadListLock::ScopedThreadListLock() {
+  // Self may be null during shutdown.
+  Thread* self = Thread::Current();
 
-  explicit ThreadListLocker(const ThreadList* thread_list) : thread_list_(thread_list) {
-    // Avoid deadlock between two threads trying to SuspendAll
-    // simultaneously by going to kVmWait if the lock cannot be
-    // immediately acquired.
-    if (!thread_list_->thread_list_lock_.TryLock()) {
-      Thread* self = Thread::Current();
-      if (self == NULL) {
-          thread_list_->thread_list_lock_.Lock();
-      } else {
-          ScopedThreadStateChange tsc(self, Thread::kVmWait);
-          thread_list_->thread_list_lock_.Lock();
-      }
+  // We insist that anyone taking the thread list lock already has the heap lock,
+  // because pretty much any time someone takes the thread list lock, they may
+  // end up needing the heap lock (even removing a thread from the thread list calls
+  // back into managed code to remove the thread from its ThreadGroup, and that allocates
+  // an iterator).
+  // TODO: this makes the distinction between the two locks pretty pointless.
+  if (self != NULL) {
+    Heap::Lock();
+  }
+
+  // Avoid deadlock between two threads trying to SuspendAll
+  // simultaneously by going to kVmWait if the lock cannot be
+  // immediately acquired.
+  // TODO: is this needed if we took the heap lock? taking the heap lock will have done this,
+  // and the other thread will now be in kVmWait waiting for the heap lock.
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  if (!thread_list->thread_list_lock_.TryLock()) {
+    if (self == NULL) {
+      thread_list->thread_list_lock_.Lock();
+    } else {
+      ScopedThreadStateChange tsc(self, Thread::kVmWait);
+      thread_list->thread_list_lock_.Lock();
     }
   }
 
-  ~ThreadListLocker() {
-    thread_list_->thread_list_lock_.Unlock();
+  if (self != NULL) {
+    Heap::Unlock();
   }
+}
 
- private:
-  const ThreadList* thread_list_;
-  DISALLOW_COPY_AND_ASSIGN(ThreadListLocker);
-};
+ScopedThreadListLock::~ScopedThreadListLock() {
+  Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
+}
 
 ThreadList::ThreadList(bool verbose)
     : verbose_(verbose),
@@ -78,7 +88,7 @@ pid_t ThreadList::GetLockOwner() {
 }
 
 void ThreadList::Dump(std::ostream& os) {
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   os << "DALVIK THREADS (" << list_.size() << "):\n";
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
@@ -140,7 +150,7 @@ void ThreadList::SuspendAll(bool for_debugger) {
   }
 
   CHECK_EQ(self->GetState(), Thread::kRunnable);
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   Thread* debug_thread = Dbg::GetDebugThread();
 
   {
@@ -225,7 +235,7 @@ void ThreadList::SuspendSelfForDebugger() {
   // Collisions with other suspends aren't really interesting. We want
   // to ensure that we're the only one fiddling with the suspend count
   // though.
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   MutexLock mu(thread_suspend_count_lock_);
   ModifySuspendCount(self, +1, true);
 
@@ -270,7 +280,7 @@ void ThreadList::ResumeAll(bool for_debugger) {
   // writes, since nobody should be moving until we decrement the count.
   // We do need to hold the thread list because of JNI attaches.
   {
-    ThreadListLocker locker(this);
+    ScopedThreadListLock thread_list_lock;
     Thread* debug_thread = Dbg::GetDebugThread();
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
@@ -346,7 +356,7 @@ void ThreadList::UndoDebuggerSuspensions() {
   }
 
   {
-    ThreadListLocker locker(this);
+    ScopedThreadListLock thread_list_lock;
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
@@ -374,7 +384,7 @@ void ThreadList::Register() {
     LOG(INFO) << "ThreadList::Register() " << *self << "\n" << Dumpable<Thread>(*self);
   }
 
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   CHECK(!Contains(self));
   list_.push_back(self);
 }
@@ -399,7 +409,7 @@ void ThreadList::Unregister() {
       self->RemoveFromThreadGroup();
   }
 
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
 
   // Remove this thread from the list.
   CHECK(Contains(self));
@@ -426,7 +436,7 @@ void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
 }
 
 void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->VisitRoots(visitor, arg);
   }
@@ -448,7 +458,7 @@ void ThreadList::SignalGo(Thread* child) {
   CHECK(child != self);
 
   {
-    ThreadListLocker locker(this);
+    ScopedThreadListLock thread_list_lock;
     if (verbose_) {
       LOG(INFO) << *self << " waiting for child " << *child << " to be in thread list...";
     }
@@ -464,7 +474,7 @@ void ThreadList::SignalGo(Thread* child) {
   self->SetState(Thread::kRunnable);
 
   // Tell the child that it's safe: it will see any future suspend request.
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   if (verbose_) {
     LOG(INFO) << *self << " telling child " << *child << " it's safe to proceed...";
   }
@@ -477,7 +487,7 @@ void ThreadList::WaitForGo() {
   DCHECK(Contains(self));
 
   {
-    ThreadListLocker locker(this);
+    ScopedThreadListLock thread_list_lock;
 
     // Tell our parent that we're in the thread list.
     if (verbose_) {
@@ -521,14 +531,14 @@ bool ThreadList::AllThreadsAreDaemons() {
 }
 
 void ThreadList::WaitForNonDaemonThreadsToExit() {
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   while (!AllThreadsAreDaemons()) {
     thread_exit_cond_.Wait(thread_list_lock_);
   }
 }
 
 void ThreadList::SuspendAllDaemonThreads() {
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
 
   // Tell all the daemons it's time to suspend. (At this point, we know
   // all threads are daemons.)
@@ -562,7 +572,7 @@ void ThreadList::SuspendAllDaemonThreads() {
 }
 
 uint32_t ThreadList::AllocThreadId() {
-  ThreadListLocker locker(this);
+  ScopedThreadListLock thread_list_lock;
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);

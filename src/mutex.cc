@@ -27,19 +27,12 @@
 namespace art {
 
 Mutex::Mutex(const char* name) : name_(name) {
-#ifndef NDEBUG
-  pthread_mutexattr_t debug_attributes;
-  CHECK_MUTEX_CALL(pthread_mutexattr_init, (&debug_attributes));
-#if VERIFY_OBJECT_ENABLED
-  CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&debug_attributes, PTHREAD_MUTEX_RECURSIVE));
-#else
-  CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&debug_attributes, PTHREAD_MUTEX_ERRORCHECK));
-#endif
-  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, &debug_attributes));
-  CHECK_MUTEX_CALL(pthread_mutexattr_destroy, (&debug_attributes));
-#else
-  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, NULL));
-#endif
+  // Like Java, we use recursive mutexes.
+  pthread_mutexattr_t attributes;
+  CHECK_MUTEX_CALL(pthread_mutexattr_init, (&attributes));
+  CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&attributes, PTHREAD_MUTEX_RECURSIVE));
+  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, &attributes));
+  CHECK_MUTEX_CALL(pthread_mutexattr_destroy, (&attributes));
 }
 
 Mutex::~Mutex() {
