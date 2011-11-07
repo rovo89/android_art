@@ -40,7 +40,7 @@ int hprofShutdown_Class() {
 }
 
 static int getPrettyClassNameId(Class* clazz) {
-    return hprofLookupStringId(PrettyClass(clazz));
+    return hprofLookupStringId(PrettyDescriptor(clazz->GetDescriptor()));
 }
 
 hprof_class_object_id hprofLookupClassId(Class* clazz) {
@@ -63,6 +63,7 @@ hprof_class_object_id hprofLookupClassId(Class* clazz) {
      */
     getPrettyClassNameId(clazz);
 
+    CHECK(present == clazz);
     return (hprof_string_id) present;
 }
 

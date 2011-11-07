@@ -25,7 +25,7 @@ namespace art {
 
 namespace hprof {
 
-size_t next_string_id_ = 200001;
+size_t next_string_id_ = 0x400000;
 typedef std::tr1::unordered_map<std::string, size_t> StringMap;
 typedef std::tr1::unordered_map<std::string, size_t>::iterator StringMapIterator;
 static Mutex strings_lock_("hprof strings");
@@ -60,7 +60,7 @@ int hprofDumpStrings(hprof_context_t *ctx) {
 
     hprof_record_t *rec = &ctx->curRec;
 
-    for (StringMapIterator   it = strings_.begin(); it != strings_.end(); ++it) {
+    for (StringMapIterator it = strings_.begin(); it != strings_.end(); ++it) {
         std::string string = (*it).first;
         size_t id = (*it).second;
 

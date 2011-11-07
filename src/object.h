@@ -1504,10 +1504,10 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   size_t GetObjectSize() const {
-    CHECK(!IsVariableSize());
+    CHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
     DCHECK_EQ(sizeof(size_t), sizeof(int32_t));
     size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), false);
-    CHECK_GE(result, sizeof(Object));
+    CHECK_GE(result, sizeof(Object)) << " class=" << PrettyTypeOf(this);
     return result;
   }
 
