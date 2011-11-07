@@ -94,12 +94,6 @@ void SignalCatcher::Output(const std::string& s) {
 void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
   ThreadList* thread_list = runtime->GetThreadList();
-  ClassLinker* class_linker = runtime->GetClassLinker();
-
-  LOG(INFO) << "Heap lock owner tid: " << Heap::GetLockOwner() << "\n"
-            << "ThreadList lock owner tid: " << thread_list->GetLockOwner() << "\n"
-            << "ClassLinker classes lock owner tid: " << class_linker->GetClassesLockOwner() << "\n"
-            << "ClassLinker dex lock owner tid: " << class_linker->GetDexLockOwner() << "\n";
 
   thread_list->SuspendAll();
 
@@ -134,8 +128,8 @@ void SignalCatcher::HandleSigUsr1() {
   Heap::CollectGarbage();
 }
 
-int WaitForSignal(Thread* thread, sigset_t& mask) {
-  ScopedThreadStateChange tsc(thread, Thread::kVmWait);
+int SignalCatcher::WaitForSignal(sigset_t& mask) {
+  ScopedThreadStateChange tsc(thread_, Thread::kVmWait);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
@@ -147,6 +141,25 @@ int WaitForSignal(Thread* thread, sigset_t& mask) {
   int rc = TEMP_FAILURE_RETRY(sigwait(&mask, &signal_number));
   if (rc != 0) {
     PLOG(FATAL) << "sigwait failed";
+  }
+
+  if (!ShouldHalt()) {
+    // Let the user know we got the signal, just in case the system's too screwed for us to
+    // actually do what they want us to do...
+    LOG(INFO) << *thread_ << ": reacting to signal " << signal_number;
+
+    // If anyone's holding locks (and so we might fail to get back into state Runnable), say so...
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    pid_t heap_lock_owner = Heap::GetLockOwner();
+    pid_t thread_list_lock_owner = Runtime::Current()->GetThreadList()->GetLockOwner();
+    pid_t classes_lock_owner = class_linker->GetClassesLockOwner();
+    pid_t dex_lock_owner = class_linker->GetDexLockOwner();
+    if ((heap_lock_owner | thread_list_lock_owner | classes_lock_owner | dex_lock_owner) != 0) {
+      LOG(INFO) << "Heap lock owner tid: " << heap_lock_owner << "\n"
+                << "ThreadList lock owner tid: " << thread_list_lock_owner << "\n"
+                << "ClassLinker classes lock owner tid: " << classes_lock_owner << "\n"
+                << "ClassLinker dex lock owner tid: " << dex_lock_owner << "\n";
+    }
   }
 
   return signal_number;
@@ -173,13 +186,12 @@ void* SignalCatcher::Run(void* arg) {
   sigaddset(&mask, SIGUSR1);
 
   while (true) {
-    int signal_number = WaitForSignal(signal_catcher->thread_, mask);
+    int signal_number = signal_catcher->WaitForSignal(mask);
     if (signal_catcher->ShouldHalt()) {
       runtime->DetachCurrentThread();
       return NULL;
     }
 
-    LOG(INFO) << *signal_catcher->thread_ << ": reacting to signal " << signal_number;
     switch (signal_number) {
     case SIGQUIT:
       signal_catcher->HandleSigQuit();

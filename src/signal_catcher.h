@@ -43,6 +43,7 @@ class SignalCatcher {
   void Output(const std::string& s);
   void SetHaltFlag(bool new_value);
   bool ShouldHalt();
+  int WaitForSignal(sigset_t& mask);
 
   std::string stack_trace_file_;
   mutable Mutex lock_;
