@@ -1146,7 +1146,7 @@ bool PostClassPrepare(JdwpState* state, int tag, RefTypeId refTypeId, const char
  * other debugger traffic, and can't suspend the VM, so we skip all of
  * the fun event token gymnastics.
  */
-void JdwpState::DdmSendChunkV(int type, const iovec* iov, int iovcnt) {
+void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iovcnt) {
   uint8_t header[kJDWPHeaderLen + 8];
   size_t dataLen = 0;
 

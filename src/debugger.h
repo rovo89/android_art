@@ -232,12 +232,13 @@ public:
   /*
    * DDM support.
    */
+  static void DdmSendThreadNotification(Thread* t, uint32_t type);
   static void DdmSetThreadNotification(bool enable);
   static bool DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen);
   static void DdmConnected();
   static void DdmDisconnected();
-  static void DdmSendChunk(int type, size_t len, const uint8_t* buf);
-  static void DdmSendChunkV(int type, const struct iovec* iov, int iovcnt);
+  static void DdmSendChunk(uint32_t type, size_t len, const uint8_t* buf);
+  static void DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt);
 
   enum HpifWhen {
     HPIF_WHEN_NEVER = 0,
@@ -262,7 +263,7 @@ public:
 };
 
 #define CHUNK_TYPE(_name) \
-    ((_name)[0] << 24 | (_name)[1] << 16 | (_name)[2] << 8 | (_name)[3])
+    static_cast<uint32_t>((_name)[0] << 24 | (_name)[1] << 16 | (_name)[2] << 8 | (_name)[3])
 
 }  // namespace art
 

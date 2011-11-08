@@ -791,42 +791,43 @@ void Dbg::DdmDisconnected() {
 }
 
 /*
- * Send a notification when a thread starts or stops.
+ * Send a notification when a thread starts, stops, or changes its name.
  *
  * Because we broadcast the full set of threads when the notifications are
  * first enabled, it's possible for "thread" to be actively executing.
  */
-void DdmSendThreadNotification(Thread* t, bool started) {
+void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
   if (!gDdmThreadNotification) {
     return;
   }
 
-  if (started) {
-    SirtRef<String> name(t->GetName());
-    size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
-
-    size_t byte_count = char_count*2 + sizeof(uint32_t)*2;
-    std::vector<uint8_t> buf(byte_count);
-    JDWP::Set4BE(&buf[0], t->GetThinLockId());
-    JDWP::Set4BE(&buf[4], char_count);
-    if (char_count > 0) {
-      // Copy the UTF-16 string, transforming to big-endian.
-      const jchar* src = name->GetCharArray()->GetData();
-      jchar* dst = reinterpret_cast<jchar*>(&buf[8]);
-      while (char_count--) {
-        JDWP::Set2BE(reinterpret_cast<uint8_t*>(dst++), *src++);
-      }
-    }
-    Dbg::DdmSendChunk(CHUNK_TYPE("THCR"), buf.size(), &buf[0]);
-  } else {
+  if (type == CHUNK_TYPE("THDE")) {
     uint8_t buf[4];
     JDWP::Set4BE(&buf[0], t->GetThinLockId());
     Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
+  } else {
+    CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
+    SirtRef<String> name(t->GetName());
+    size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
+    const jchar* chars = name->GetCharArray()->GetData();
+
+    size_t byte_count = char_count*2 + sizeof(uint32_t)*2;
+    std::vector<uint8_t> bytes(byte_count);
+    uint8_t* dst = &bytes[0];
+    JDWP::Write4BE(&dst, t->GetThinLockId());
+    JDWP::Write4BE(&dst, char_count);
+    if (char_count > 0) {
+      // Copy the UTF-16 string, transforming to big-endian.
+      while (char_count--) {
+        JDWP::Write2BE(&dst, *chars++);
+      }
+    }
+    Dbg::DdmSendChunk(type, bytes.size(), &bytes[0]);
   }
 }
 
 void DdmSendThreadStartCallback(Thread* t, void*) {
-  DdmSendThreadNotification(t, true);
+  Dbg::DdmSendThreadNotification(t, CHUNK_TYPE("THCR"));
 }
 
 void Dbg::DdmSetThreadNotification(bool enable) {
@@ -841,23 +842,23 @@ void Dbg::DdmSetThreadNotification(bool enable) {
   }
 }
 
-void PostThreadStartOrStop(Thread* t, bool is_start) {
+void PostThreadStartOrStop(Thread* t, uint32_t type) {
   if (gDebuggerActive) {
     JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
-    gJdwpState->PostThreadChange(id, is_start);
+    gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
   }
-  DdmSendThreadNotification(t, is_start);
+  Dbg::DdmSendThreadNotification(t, type);
 }
 
 void Dbg::PostThreadStart(Thread* t) {
-  PostThreadStartOrStop(t, true);
+  PostThreadStartOrStop(t, CHUNK_TYPE("THCR"));
 }
 
 void Dbg::PostThreadDeath(Thread* t) {
-  PostThreadStartOrStop(t, false);
+  PostThreadStartOrStop(t, CHUNK_TYPE("THDE"));
 }
 
-void Dbg::DdmSendChunk(int type, size_t byte_count, const uint8_t* buf) {
+void Dbg::DdmSendChunk(uint32_t type, size_t byte_count, const uint8_t* buf) {
   CHECK(buf != NULL);
   iovec vec[1];
   vec[0].iov_base = reinterpret_cast<void*>(const_cast<uint8_t*>(buf));
@@ -865,7 +866,7 @@ void Dbg::DdmSendChunk(int type, size_t byte_count, const uint8_t* buf) {
   Dbg::DdmSendChunkV(type, vec, 1);
 }
 
-void Dbg::DdmSendChunkV(int type, const struct iovec* iov, int iovcnt) {
+void Dbg::DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt) {
   if (gJdwpState == NULL) {
     LOG(VERBOSE) << "Debugger thread not active, ignoring DDM send: " << type;
   } else {
@@ -977,7 +978,7 @@ struct HeapChunkContext {
   uint8_t* p;
   uint8_t* pieceLenField;
   size_t totalAllocationUnits;
-  int type;
+  uint32_t type;
   bool merge;
   bool needHeader;
 

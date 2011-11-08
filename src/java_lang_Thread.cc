@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "debugger.h"
 #include "jni_internal.h"
 #include "object.h"
 #include "ScopedUtfChars.h"
@@ -74,20 +75,13 @@ void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
   }
 }
 
-void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
+void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  if (thread != NULL) {
-    ScopedUtfChars name(env, javaName);
-    if (name.c_str() == NULL) {
-      return;
-    }
-    LOG(INFO) << "Thread " << *thread << " changing name to '" << name.c_str() << "'";
-    // TODO: needed for debugging (DDMS) support.
-    //StringObject* nameStr = (StringObject*) dvmDecodeIndirectRef(env, javaName);
-    //int threadId = (thread != NULL) ? thread->threadId : -1;
-    //dvmDdmSendThreadNameChange(threadId, nameStr);
+  if (thread == NULL) {
+    return;
   }
+  Dbg::DdmSendThreadNotification(thread, CHUNK_TYPE("THNM"));
 }
 
 /*

@@ -79,7 +79,6 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
     locals.Dump();
     LOG(FATAL) << "Failed adding to JNI local reference table "
                << "(has " << locals.Capacity() << " entries)";
-    // TODO: dvmDumpThread(dvmThreadSelf(), false);
   }
 
 #if 0 // TODO: fix this to understand PushLocalFrame, so we can turn it on.
@@ -89,8 +88,7 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
       LOG(WARNING) << "Warning: more than 16 JNI local references: "
                    << entry_count << " (most recent was a " << PrettyTypeOf(obj) << ")";
       locals.Dump();
-      // TODO: dvmDumpThread(dvmThreadSelf(), false);
-      // dvmAbort();
+      // TODO: LOG(FATAL) instead.
     }
   }
 #endif
