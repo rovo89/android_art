@@ -197,7 +197,7 @@ void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject ja
     }
   }
 
-  int result = hprof::hprofDumpHeap(filename.c_str(), fd, false);
+  int result = hprof::DumpHeap(filename.c_str(), fd, false);
   if (result != 0) {
     // TODO: ideally we'd throw something more specific based on actual failure
     jniThrowException(env, "Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details");
@@ -206,8 +206,7 @@ void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject ja
 }
 
 void VMDebug_dumpHprofDataDdms(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(WARNING);
-  int result = hprof::hprofDumpHeap("[DDMS]", -1, true);
+  int result = hprof::DumpHeap("[DDMS]", -1, true);
   if (result != 0) {
     // TODO: ideally we'd throw something more specific based on actual failure
     jniThrowException(env, "Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details");

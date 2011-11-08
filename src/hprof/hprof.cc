@@ -247,7 +247,7 @@ static void HprofBitmapCallback(Object *obj, void *arg)
     CHECK(obj != NULL);
     CHECK(arg != NULL);
     hprof_context_t *ctx = (hprof_context_t *)arg;
-    hprofDumpHeapObject(ctx, obj);
+    DumpHeapObject(ctx, obj);
 }
 
 /*
@@ -262,7 +262,7 @@ static void HprofBitmapCallback(Object *obj, void *arg)
  *
  * Returns 0 on success, or an error code on failure.
  */
-int hprofDumpHeap(const char* fileName, int fd, bool directToDdms)
+int DumpHeap(const char* fileName, int fd, bool directToDdms)
 {
     hprof_context_t *ctx;
     int success;

@@ -173,7 +173,7 @@ int hprofSetGcScanState(hprof_context_t *ctx,
 int hprofMarkRootObject(hprof_context_t *ctx,
                         const Object *obj, jobject jniObj);
 
-int hprofDumpHeapObject(hprof_context_t *ctx, const Object *obj);
+int DumpHeapObject(hprof_context_t *ctx, const Object *obj);
 
 void hprofContextInit(hprof_context_t *ctx, char *fileName, int fd,
                       bool writeHeader, bool directToDdms);
@@ -208,7 +208,7 @@ hprof_context_t* hprofStartup(const char *outputFileName, int fd,
     bool directToDdms);
 bool hprofShutdown(hprof_context_t *ctx);
 void hprofFreeContext(hprof_context_t *ctx);
-int hprofDumpHeap(const char* fileName, int fd, bool directToDdms);
+int DumpHeap(const char* fileName, int fd, bool directToDdms);
 
 }  // namespace hprof
 
