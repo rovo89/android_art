@@ -53,7 +53,7 @@ class HeapBitmap {
 
   typedef void SweepCallback(size_t numPtrs, void** ptrs, void* arg);
 
-  static HeapBitmap* Create(byte* base, size_t length);
+  static HeapBitmap* Create(const char* name, byte* base, size_t length);
 
   ~HeapBitmap();
 
@@ -117,7 +117,7 @@ class HeapBitmap {
     }
   }
 
-  bool Init(const byte* base, size_t length);
+  bool Init(const char* name, const byte* base, size_t length);
 
   UniquePtr<MemMap> mem_map_;
 

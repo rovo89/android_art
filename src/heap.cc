@@ -109,18 +109,18 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
   size_t limit_bytes = limit - base;
 
   // Allocate the initial live bitmap.
-  UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create(base, num_bytes));
+  UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create("dalvik-bitmap-1", base, num_bytes));
   if (live_bitmap.get() == NULL) {
     LOG(FATAL) << "Failed to create live bitmap";
   }
 
   // Allocate the initial mark bitmap.
-  UniquePtr<HeapBitmap> mark_bitmap(HeapBitmap::Create(base, num_bytes));
+  UniquePtr<HeapBitmap> mark_bitmap(HeapBitmap::Create("dalvik-bitmap-2", base, num_bytes));
   if (mark_bitmap.get() == NULL) {
     LOG(FATAL) << "Failed to create mark bitmap";
   }
 
-  // Allocate the card table
+  // Allocate the card table.
   UniquePtr<CardTable> card_table(CardTable::Create(base, num_bytes, limit_bytes));
   if (card_table.get() == NULL) {
     LOG(FATAL) << "Failed to create card table";
@@ -135,8 +135,6 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
 
   num_bytes_allocated_ = 0;
   num_objects_allocated_ = 0;
-
-  // TODO: allocate the card table
 
   // Make image objects live (after live_bitmap_ is set)
   for (size_t i = 0; i < image_spaces.size(); i++) {

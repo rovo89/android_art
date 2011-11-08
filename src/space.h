@@ -126,7 +126,7 @@ class Space {
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
 
   // Initializes the space from existing storage, taking ownership of the storage.
-  void Init(MemMap* map);
+  void InitFromMemMap(MemMap* map);
 
   // Initializes the space from an image file
   bool InitFromImage(const std::string& image_file_name);

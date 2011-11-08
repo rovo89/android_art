@@ -59,7 +59,7 @@ void* Space::CreateMallocSpace(void* base,
 bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base) {
   const Runtime* runtime = Runtime::Current();
   if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "Space::Init entering"
+    LOG(INFO) << "Space::Init entering " << name_
               << " initial_size=" << initial_size
               << " maximum_size=" << maximum_size
               << " growth_size=" << growth_size
@@ -67,29 +67,29 @@ bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, b
   }
   if (initial_size > growth_size) {
     LOG(ERROR) << "Failed to create space with initial size > growth size ("
-               << initial_size << ">" << growth_size << ")";
+               << initial_size << ">" << growth_size << "): " << name_;
     return false;
   }
   if (growth_size > maximum_size) {
     LOG(ERROR) << "Failed to create space with growth size > maximum size ("
-               << growth_size << ">" << maximum_size << ")";
+               << growth_size << ">" << maximum_size << "): " << name_;
     return false;
   }
   size_t length = RoundUp(maximum_size, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
-  UniquePtr<MemMap> mem_map(MemMap::Map(requested_base, length, prot));
+  UniquePtr<MemMap> mem_map(MemMap::Map(name_.c_str(), requested_base, length, prot));
   if (mem_map.get() == NULL) {
-    LOG(WARNING) << "Failed to allocate " << length << " bytes for space";
+    LOG(WARNING) << "Failed to allocate " << length << " bytes for space: " << name_;
     return false;
   }
-  Init(mem_map.release());
+  InitFromMemMap(mem_map.release());
   maximum_size_ = maximum_size;
   size_t growth_length = RoundUp(growth_size, kPageSize);
   growth_size_ = growth_size;
   growth_limit_ = base_ + growth_length;
   mspace_ = CreateMallocSpace(base_, initial_size, maximum_size);
   if (mspace_ == NULL) {
-    LOG(WARNING) << "Failed to create mspace for space";
+    LOG(WARNING) << "Failed to create mspace for space: " << name_;
     return false;
   }
   if (runtime->IsVerboseStartup()) {
@@ -98,12 +98,11 @@ bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, b
   return true;
 }
 
-void Space::Init(MemMap* mem_map) {
+void Space::InitFromMemMap(MemMap* mem_map) {
   mem_map_.reset(mem_map);
   base_ = mem_map_->GetAddress();
   limit_ = base_ + mem_map->GetLength();
 }
-
 
 bool Space::InitFromImage(const std::string& image_file_name) {
   Runtime* runtime = Runtime::Current();
@@ -160,7 +159,7 @@ bool Space::InitFromImage(const std::string& image_file_name) {
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
   runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kRefsAndArgs);
 
-  Init(map.release());
+  InitFromMemMap(map.release());
   growth_limit_ = limit_;
   if (runtime->IsVerboseStartup()) {
     LOG(INFO) << "Space::InitFromImage exiting";

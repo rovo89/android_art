@@ -1,9 +1,3 @@
-#include "mem_map.h"
-
-#include <sys/mman.h>
-
-#include "utils.h"
-
 /*
  * Copyright (C) 2008 The Android Open Source Project
  *
@@ -23,6 +17,15 @@
 #include "mem_map.h"
 
 #include <sys/mman.h>
+
+#include "ScopedFd.h"
+#include "utils.h"
+
+#define USE_ASHMEM 1
+
+#ifdef USE_ASHMEM
+#include <cutils/ashmem.h>
+#endif
 
 namespace art {
 
@@ -100,19 +103,27 @@ void CheckMapRequest(byte* addr, size_t length) {
 #endif
 }
 
-MemMap* MemMap::Map(byte* addr, size_t length, int prot) {
+MemMap* MemMap::Map(const char* name, byte* addr, size_t length, int prot) {
   CHECK_NE(0U, length);
   CHECK_NE(0, prot);
   size_t page_aligned_size = RoundUp(length, kPageSize);
   CheckMapRequest(addr, page_aligned_size);
-  byte* actual = reinterpret_cast<byte*>(mmap(addr,
-                                              page_aligned_size,
-                                              prot,
-                                              MAP_PRIVATE | MAP_ANONYMOUS,
-                                              -1,
-                                              0));
+
+#ifdef USE_ASHMEM
+  ScopedFd fd(ashmem_create_region(name, page_aligned_size));
+  int flags = MAP_PRIVATE;
+  if (fd.get() == -1) {
+    PLOG(ERROR) << "ashmem_create_region failed (" << name << ")";
+    return NULL;
+  }
+#else
+  ScopedFd fd(-1);
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+#endif
+
+  byte* actual = reinterpret_cast<byte*>(mmap(addr, page_aligned_size, prot, flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
-    PLOG(ERROR) << "mmap failed";
+    PLOG(ERROR) << "mmap failed (" << name << ")";
     return NULL;
   }
   return new MemMap(actual, length, actual, page_aligned_size);

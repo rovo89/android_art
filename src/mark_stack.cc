@@ -22,7 +22,7 @@ MarkStack* MarkStack::Create() {
 
 bool MarkStack::Init() {
   size_t length = 64 * MB;
-  mem_map_.reset(MemMap::Map(length, PROT_READ | PROT_WRITE));
+  mem_map_.reset(MemMap::Map("dalvik-mark-stack", NULL, length, PROT_READ | PROT_WRITE));
   if (mem_map_.get() == NULL) {
     return false;
   }

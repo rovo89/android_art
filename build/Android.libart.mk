@@ -72,6 +72,7 @@ define build-libart
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
   else # host
+    LOCAL_STATIC_LIBRARIES += libcutils
     LOCAL_SHARED_LIBRARIES += libz-host
     LOCAL_LDLIBS := -ldl -lpthread -lrt
   endif

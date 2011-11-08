@@ -62,7 +62,7 @@ bool CardTable::Init(const byte* heap_base, size_t heap_max_size, size_t growth_
   /* Set up the card table */
   size_t length = heap_max_size / GC_CARD_SIZE;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
-  mem_map_.reset(MemMap::Map(length + 256, PROT_READ | PROT_WRITE));
+  mem_map_.reset(MemMap::Map("dalvik-card-table", NULL, length + 256, PROT_READ | PROT_WRITE));
   byte* alloc_base = mem_map_->GetAddress();
   if (alloc_base == NULL) {
     return false;

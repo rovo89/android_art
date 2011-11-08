@@ -28,17 +28,15 @@ namespace art {
 class MemMap {
  public:
 
-  // Request an anonymous region of a specified length.
-  //
-  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(size_t length, int prot) {
-    return Map(NULL, length, prot);
-  }
-
   // Request an anonymous region of a specified length and a requested base address.
+  // Use NULL as the requested base address if you don't care.
+  //
+  // The word "anonymous" in this context means "not backed by a file". The supplied
+  // 'ashmem_name' will be used -- on systems that support it -- to give the mapping
+  // a name.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(byte* addr, size_t length, int prot);
+  static MemMap* Map(const char* ashmem_name, byte* addr, size_t length, int prot);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
