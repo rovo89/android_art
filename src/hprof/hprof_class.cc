@@ -27,61 +27,53 @@ namespace art {
 namespace hprof {
 
 HprofStringId Hprof::LookupClassNameId(Class* clazz) {
-    return LookupStringId(PrettyDescriptor(clazz->GetDescriptor()));
+  return LookupStringId(PrettyDescriptor(clazz->GetDescriptor()));
 }
 
 HprofClassObjectId Hprof::LookupClassId(Class* clazz) {
-    if (clazz == NULL) {
-        /* Someone's probably looking up the superclass
-         * of java.lang.Object or of a primitive class.
-         */
-        return (HprofClassObjectId)0;
-    }
+  if (clazz == NULL) {
+    // clazz is the superclass of java.lang.Object or a primitive
+    return (HprofClassObjectId)0;
+  }
 
-    MutexLock mu(classes_lock_);
+  MutexLock mu(classes_lock_);
 
-    std::pair<ClassSetIterator, bool> result = classes_.insert(clazz);
-    Class* present = *result.first;
+  std::pair<ClassSetIterator, bool> result = classes_.insert(clazz);
+  Class* present = *result.first;
 
-    // Make sure that we've assigned a string ID for this class' name
-    LookupClassNameId(clazz);
+  // Make sure that we've assigned a string ID for this class' name
+  LookupClassNameId(clazz);
 
-    CHECK_EQ(present, clazz);
-    return (HprofStringId) present;
+  CHECK_EQ(present, clazz);
+  return (HprofStringId) present;
 }
 
 int Hprof::DumpClasses() {
-    MutexLock mu(classes_lock_);
+  MutexLock mu(classes_lock_);
+  HprofRecord *rec = &current_record_;
+  uint32_t nextSerialNumber = 1;
 
-    HprofRecord *rec = &current_record_;
+  for (ClassSetIterator it = classes_.begin(); it != classes_.end(); ++it) {
+    Class* clazz = *it;
+    CHECK(clazz != NULL);
 
-    uint32_t nextSerialNumber = 1;
-
-    for (ClassSetIterator it = classes_.begin(); it != classes_.end(); ++it) {
-        Class* clazz = *it;
-        CHECK(clazz != NULL);
-
-        int err = StartNewRecord(HPROF_TAG_LOAD_CLASS, HPROF_TIME);
-        if (err != 0) {
-            return err;
-        }
-
-        /* LOAD CLASS format:
-         *
-         * uint32_t:     class serial number (always > 0)
-         * ID:     class object ID
-         * uint32_t:     stack trace serial number
-         * ID:     class name string ID
-         *
-         * We use the address of the class object structure as its ID.
-         */
-        rec->AddU4(nextSerialNumber++);
-        rec->AddId((HprofClassObjectId) clazz);
-        rec->AddU4(HPROF_NULL_STACK_TRACE);
-        rec->AddId(LookupClassNameId(clazz));
+    int err = StartNewRecord(HPROF_TAG_LOAD_CLASS, HPROF_TIME);
+    if (err != 0) {
+      return err;
     }
 
-    return 0;
+    // LOAD CLASS format:
+    // U4: class serial number (always > 0)
+    // ID: class object ID. We use the address of the class object structure as its ID.
+    // U4: stack trace serial number
+    // ID: class name string ID
+    rec->AddU4(nextSerialNumber++);
+    rec->AddId((HprofClassObjectId) clazz);
+    rec->AddU4(HPROF_NULL_STACK_TRACE);
+    rec->AddId(LookupClassNameId(clazz));
+  }
+
+  return 0;
 }
 
 }  // namespace hprof

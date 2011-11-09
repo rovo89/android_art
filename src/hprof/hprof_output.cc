@@ -81,255 +81,211 @@ Hprof::Hprof(const char *outputFileName, int fd, bool writeHeader, bool directTo
       classes_lock_("hprof classes"),
       next_string_id_(0x400000),
       strings_lock_("hprof strings") {
-    /*
-     * Have to do this here, because it must happen after we
-     * memset the struct (want to treat file_data_ptr_/file_data_size_
-     * as read-only while the file is open).
-     */
-    FILE *fp = open_memstream(&file_data_ptr_, &file_data_size_);
-    if (fp == NULL) {
-        /* not expected */
-        LOG(ERROR) << StringPrintf("hprof: open_memstream failed: %s", strerror(errno));
-        CHECK(false);
+  // Have to do this here, because it must happen after we
+  // memset the struct (want to treat file_data_ptr_/file_data_size_
+  // as read-only while the file is open).
+  FILE *fp = open_memstream(&file_data_ptr_, &file_data_size_);
+  if (fp == NULL) {
+    // not expected
+    LOG(ERROR) << StringPrintf("hprof: open_memstream failed: %s", strerror(errno));
+    CHECK(false);
+  }
+
+  direct_to_ddms_ = directToDdms;
+  file_name_ = strdup(outputFileName);
+  mem_fp_ = fp;
+  fd_ = fd;
+
+  current_record_.alloc_length_ = 128;
+  current_record_.body_ = (unsigned char *)malloc(current_record_.alloc_length_);
+  // TODO check for/return an error
+
+  if (writeHeader) {
+    char magic[] = HPROF_MAGIC_STRING;
+    unsigned char buf[4];
+
+    // Write the file header.
+    // U1: NUL-terminated magic string.
+    fwrite(magic, 1, sizeof(magic), fp);
+
+    // U4: size of identifiers.  We're using addresses as IDs, so make sure a pointer fits.
+    U4_TO_BUF_BE(buf, 0, sizeof(void *));
+    fwrite(buf, 1, sizeof(uint32_t), fp);
+
+    // The current time, in milliseconds since 0:00 GMT, 1/1/70.
+    struct timeval now;
+    uint64_t nowMs;
+    if (gettimeofday(&now, NULL) < 0) {
+      nowMs = 0;
+    } else {
+      nowMs = (uint64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
     }
 
-    direct_to_ddms_ = directToDdms;
-    file_name_ = strdup(outputFileName);
-    mem_fp_ = fp;
-    fd_ = fd;
+    // U4: high word of the 64-bit time.
+    U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs >> 32));
+    fwrite(buf, 1, sizeof(uint32_t), fp);
 
-    current_record_.alloc_length_ = 128;
-    current_record_.body_ = (unsigned char *)malloc(current_record_.alloc_length_);
-//xxx check for/return an error
+    // U4: low word of the 64-bit time.
+    U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs & 0xffffffffULL));
+    fwrite(buf, 1, sizeof(uint32_t), fp); //xxx fix the time
+  }
+}
 
-    if (writeHeader) {
-        char magic[] = HPROF_MAGIC_STRING;
-        unsigned char buf[4];
-        struct timeval now;
-        uint64_t nowMs;
+int HprofRecord::Flush(FILE *fp) {
+  if (dirty_) {
+    unsigned char headBuf[sizeof (uint8_t) + 2 * sizeof (uint32_t)];
 
-        /* Write the file header.
-         *
-         * [uint8_t]*: NUL-terminated magic string.
-         */
-        fwrite(magic, 1, sizeof(magic), fp);
+    headBuf[0] = tag_;
+    U4_TO_BUF_BE(headBuf, 1, time_);
+    U4_TO_BUF_BE(headBuf, 5, length_);
 
-        /* uint32_t: size of identifiers.  We're using addresses
-         *     as IDs, so make sure a pointer fits.
-         */
-        U4_TO_BUF_BE(buf, 0, sizeof(void *));
-        fwrite(buf, 1, sizeof(uint32_t), fp);
-
-        /* The current time, in milliseconds since 0:00 GMT, 1/1/70.
-         */
-        if (gettimeofday(&now, NULL) < 0) {
-            nowMs = 0;
-        } else {
-            nowMs = (uint64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
-        }
-
-        /* uint32_t: high word of the 64-bit time.
-         */
-        U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs >> 32));
-        fwrite(buf, 1, sizeof(uint32_t), fp);
-
-        /* uint32_t: low word of the 64-bit time.
-         */
-        U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs & 0xffffffffULL));
-        fwrite(buf, 1, sizeof(uint32_t), fp); //xxx fix the time
+    int nb = fwrite(headBuf, 1, sizeof(headBuf), fp);
+    if (nb != sizeof(headBuf)) {
+      return UNIQUE_ERROR();
     }
-}
-
-int HprofRecord::Flush(FILE *fp)
-{
-    if (dirty_) {
-        unsigned char headBuf[sizeof (uint8_t) + 2 * sizeof (uint32_t)];
-        int nb;
-
-        headBuf[0] = tag_;
-        U4_TO_BUF_BE(headBuf, 1, time_);
-        U4_TO_BUF_BE(headBuf, 5, length_);
-
-        nb = fwrite(headBuf, 1, sizeof(headBuf), fp);
-        if (nb != sizeof(headBuf)) {
-            return UNIQUE_ERROR();
-        }
-        nb = fwrite(body_, 1, length_, fp);
-        if (nb != (int)length_) {
-            return UNIQUE_ERROR();
-        }
-
-        dirty_ = false;
-    }
-//xxx if we used less than half (or whatever) of allocLen, shrink the buffer.
-
-    return 0;
-}
-
-int Hprof::FlushCurrentRecord()
-{
-    return current_record_.Flush(mem_fp_);
-}
-
-int Hprof::StartNewRecord(uint8_t tag, uint32_t time)
-{
-    HprofRecord *rec = &current_record_;
-
-    int err = rec->Flush(mem_fp_);
-    if (err != 0) {
-        return err;
-    } else if (rec->dirty_) {
-        return UNIQUE_ERROR();
+    nb = fwrite(body_, 1, length_, fp);
+    if (nb != (int)length_) {
+      return UNIQUE_ERROR();
     }
 
-    rec->dirty_ = true;
-    rec->tag_ = tag;
-    rec->time_ = time;
-    rec->length_ = 0;
-
-    return 0;
+    dirty_ = false;
+  }
+  // TODO if we used less than half (or whatever) of allocLen, shrink the buffer.
+  return 0;
 }
 
-static inline int guaranteeRecordAppend(HprofRecord *rec, size_t nmore)
-{
-    size_t minSize;
+int Hprof::FlushCurrentRecord() {
+  return current_record_.Flush(mem_fp_);
+}
 
-    minSize = rec->length_ + nmore;
-    if (minSize > rec->alloc_length_) {
-        unsigned char *newBody;
-        size_t newAllocLen;
+int Hprof::StartNewRecord(uint8_t tag, uint32_t time) {
+  HprofRecord *rec = &current_record_;
 
-        newAllocLen = rec->alloc_length_ * 2;
-        if (newAllocLen < minSize) {
-            newAllocLen = rec->alloc_length_ + nmore + nmore/2;
-        }
-        newBody = (unsigned char *)realloc(rec->body_, newAllocLen);
-        if (newBody != NULL) {
-            rec->body_ = newBody;
-            rec->alloc_length_ = newAllocLen;
-        } else {
-//TODO: set an error flag so future ops will fail
-            return UNIQUE_ERROR();
-        }
+  int err = rec->Flush(mem_fp_);
+  if (err != 0) {
+    return err;
+  } else if (rec->dirty_) {
+    return UNIQUE_ERROR();
+  }
+
+  rec->dirty_ = true;
+  rec->tag_ = tag;
+  rec->time_ = time;
+  rec->length_ = 0;
+  return 0;
+}
+
+static inline int guaranteeRecordAppend(HprofRecord *rec, size_t nmore) {
+  size_t minSize = rec->length_ + nmore;
+  if (minSize > rec->alloc_length_) {
+    size_t newAllocLen = rec->alloc_length_ * 2;
+    if (newAllocLen < minSize) {
+      newAllocLen = rec->alloc_length_ + nmore + nmore/2;
     }
-
-    CHECK_LE(rec->length_ + nmore, rec->alloc_length_);
-    return 0;
-}
-
-int HprofRecord::AddU1List(const uint8_t *values, size_t numValues)
-{
-    int err = guaranteeRecordAppend(this, numValues);
-    if (err != 0) {
-        return err;
+    unsigned char *newBody = (unsigned char *)realloc(rec->body_, newAllocLen);
+    if (newBody != NULL) {
+      rec->body_ = newBody;
+      rec->alloc_length_ = newAllocLen;
+    } else {
+      // TODO: set an error flag so future ops will fail
+      return UNIQUE_ERROR();
     }
+  }
 
-    memcpy(body_ + length_, values, numValues);
-    length_ += numValues;
-
-    return 0;
+  CHECK_LE(rec->length_ + nmore, rec->alloc_length_);
+  return 0;
 }
 
-int HprofRecord::AddU1(uint8_t value)
-{
-    int err = guaranteeRecordAppend(this, 1);
-    if (err != 0) {
-        return err;
-    }
+int HprofRecord::AddU1List(const uint8_t *values, size_t numValues) {
+  int err = guaranteeRecordAppend(this, numValues);
+  if (err != 0) {
+    return err;
+  }
 
-    body_[length_++] = value;
+  memcpy(body_ + length_, values, numValues);
+  length_ += numValues;
 
-    return 0;
+  return 0;
 }
 
-int HprofRecord::AddUtf8String(const char *str)
-{
-    /* The terminating NUL character is NOT written.
-     */
-//xxx don't do a strlen;  add and grow as necessary, until NUL
-    return AddU1List((const uint8_t *)str, strlen(str));
+int HprofRecord::AddU1(uint8_t value) {
+  int err = guaranteeRecordAppend(this, 1);
+  if (err != 0) {
+    return err;
+  }
+
+  body_[length_++] = value;
+  return 0;
 }
 
-int HprofRecord::AddU2List(const uint16_t *values, size_t numValues)
-{
-    int err = guaranteeRecordAppend(this, numValues * 2);
-    if (err != 0) {
-        return err;
-    }
-
-//xxx this can be way smarter
-//xxx also, don't do this bytewise if aligned and on a matching-endian arch
-    unsigned char *insert = body_ + length_;
-    for (size_t i = 0; i < numValues; i++) {
-        U2_TO_BUF_BE(insert, 0, *values++);
-        insert += sizeof(*values);
-    }
-    length_ += numValues * 2;
-
-    return 0;
+int HprofRecord::AddUtf8String(const char *str) {
+  // The terminating NUL character is NOT written.
+  return AddU1List((const uint8_t *)str, strlen(str));
 }
 
-int HprofRecord::AddU2(uint16_t value)
-{
-    return AddU2List(&value, 1);
+int HprofRecord::AddU2List(const uint16_t *values, size_t numValues) {
+  int err = guaranteeRecordAppend(this, numValues * 2);
+  if (err != 0) {
+    return err;
+  }
+
+  unsigned char *insert = body_ + length_;
+  for (size_t i = 0; i < numValues; i++) {
+    U2_TO_BUF_BE(insert, 0, *values++);
+    insert += sizeof(*values);
+  }
+  length_ += numValues * 2;
+  return 0;
 }
 
-int HprofRecord::AddIdList(const HprofObjectId *values, size_t numValues)
-{
-    return AddU4List((const uint32_t*) values, numValues);
+int HprofRecord::AddU2(uint16_t value) {
+  return AddU2List(&value, 1);
 }
 
-int HprofRecord::AddU4List(const uint32_t *values, size_t numValues)
-{
-    int err = guaranteeRecordAppend(this, numValues * 4);
-    if (err != 0) {
-        return err;
-    }
-
-//xxx this can be way smarter
-//xxx also, don't do this bytewise if aligned and on a matching-endian arch
-    unsigned char *insert = body_ + length_;
-    for (size_t i = 0; i < numValues; i++) {
-        U4_TO_BUF_BE(insert, 0, *values++);
-        insert += sizeof(*values);
-    }
-    length_ += numValues * 4;
-
-    return 0;
+int HprofRecord::AddIdList(const HprofObjectId *values, size_t numValues) {
+  return AddU4List((const uint32_t*) values, numValues);
 }
 
-int HprofRecord::AddU4(uint32_t value)
-{
-    return AddU4List(&value, 1);
+int HprofRecord::AddU4List(const uint32_t *values, size_t numValues) {
+  int err = guaranteeRecordAppend(this, numValues * 4);
+  if (err != 0) {
+    return err;
+  }
+
+  unsigned char *insert = body_ + length_;
+  for (size_t i = 0; i < numValues; i++) {
+    U4_TO_BUF_BE(insert, 0, *values++);
+    insert += sizeof(*values);
+  }
+  length_ += numValues * 4;
+  return 0;
 }
 
-int HprofRecord::AddId(HprofObjectId value)
-{
-    return AddU4((uint32_t) value);
+int HprofRecord::AddU4(uint32_t value) {
+  return AddU4List(&value, 1);
 }
 
-int HprofRecord::AddU8List(const uint64_t *values, size_t numValues)
-{
-    int err = guaranteeRecordAppend(this, numValues * 8);
-    if (err != 0) {
-        return err;
-    }
-
-//xxx this can be way smarter
-//xxx also, don't do this bytewise if aligned and on a matching-endian arch
-    unsigned char *insert = body_ + length_;
-    for (size_t i = 0; i < numValues; i++) {
-        U8_TO_BUF_BE(insert, 0, *values++);
-        insert += sizeof(*values);
-    }
-    length_ += numValues * 8;
-
-    return 0;
+int HprofRecord::AddId(HprofObjectId value) {
+  return AddU4((uint32_t) value);
 }
 
-int HprofRecord::AddU8(uint64_t value)
-{
-    return AddU8List(&value, 1);
+int HprofRecord::AddU8List(const uint64_t *values, size_t numValues) {
+  int err = guaranteeRecordAppend(this, numValues * 8);
+  if (err != 0) {
+    return err;
+  }
+
+  unsigned char *insert = body_ + length_;
+  for (size_t i = 0; i < numValues; i++) {
+    U8_TO_BUF_BE(insert, 0, *values++);
+    insert += sizeof(*values);
+  }
+  length_ += numValues * 8;
+  return 0;
+}
+
+int HprofRecord::AddU8(uint64_t value) {
+  return AddU8List(&value, 1);
 }
 
 }  // namespace hprof
