@@ -22,6 +22,7 @@
 #include "object.h"
 #include "unordered_map.h"
 #include "unordered_set.h"
+#include "thread_list.h"
 
 namespace art {
 
@@ -35,6 +36,41 @@ namespace hprof {
 #define HPROF_TIME 0
 #define HPROF_NULL_STACK_TRACE   0
 #define HPROF_NULL_THREAD        0
+
+#define U2_TO_BUF_BE(buf, offset, value) \
+    do { \
+        unsigned char *buf_ = (unsigned char *)(buf); \
+        int offset_ = (int)(offset); \
+        uint16_t value_ = (uint16_t)(value); \
+        buf_[offset_ + 0] = (unsigned char)(value_ >>  8); \
+        buf_[offset_ + 1] = (unsigned char)(value_      ); \
+    } while (0)
+
+#define U4_TO_BUF_BE(buf, offset, value) \
+    do { \
+        unsigned char *buf_ = (unsigned char *)(buf); \
+        int offset_ = (int)(offset); \
+        uint32_t value_ = (uint32_t)(value); \
+        buf_[offset_ + 0] = (unsigned char)(value_ >> 24); \
+        buf_[offset_ + 1] = (unsigned char)(value_ >> 16); \
+        buf_[offset_ + 2] = (unsigned char)(value_ >>  8); \
+        buf_[offset_ + 3] = (unsigned char)(value_      ); \
+    } while (0)
+
+#define U8_TO_BUF_BE(buf, offset, value) \
+    do { \
+        unsigned char *buf_ = (unsigned char *)(buf); \
+        int offset_ = (int)(offset); \
+        uint64_t value_ = (uint64_t)(value); \
+        buf_[offset_ + 0] = (unsigned char)(value_ >> 56); \
+        buf_[offset_ + 1] = (unsigned char)(value_ >> 48); \
+        buf_[offset_ + 2] = (unsigned char)(value_ >> 40); \
+        buf_[offset_ + 3] = (unsigned char)(value_ >> 32); \
+        buf_[offset_ + 4] = (unsigned char)(value_ >> 24); \
+        buf_[offset_ + 5] = (unsigned char)(value_ >> 16); \
+        buf_[offset_ + 6] = (unsigned char)(value_ >>  8); \
+        buf_[offset_ + 7] = (unsigned char)(value_      ); \
+    } while (0)
 
 typedef uint32_t HprofId;
 typedef HprofId HprofStringId;
@@ -129,6 +165,9 @@ class HprofRecord {
   size_t alloc_length_;
   uint8_t tag_;
   bool dirty_;
+
+ private:
+  int GuaranteeRecordAppend(size_t nmore);
 };
 
 enum HprofHeapId {
@@ -157,6 +196,9 @@ class Hprof {
   HprofStringId LookupStringId(const char* string);
   HprofStringId LookupStringId(std::string string);
   HprofStringId LookupClassNameId(Class* clazz);
+  static HprofBasicType SignatureToBasicTypeAndSize(const char *sig, size_t *sizeOut);
+  static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t *sizeOut);
+  static int StackTraceSerialNumber(const void *obj);
 
   // current_record_ *must* be first so that we can cast from a context to a record.
   HprofRecord current_record_;
@@ -176,11 +218,8 @@ class Hprof {
   FILE *mem_fp_;
   int fd_;
 
-  mutable Mutex classes_lock_;
   ClassSet classes_;
-
   size_t next_string_id_;
-  mutable Mutex strings_lock_;
   StringMap strings_;
 };
 
