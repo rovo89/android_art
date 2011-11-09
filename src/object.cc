@@ -209,100 +209,100 @@ void Field::SetObj(Object* object, const Object* new_value) const {
 }
 
 bool Field::GetBoolean(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimBoolean) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimBoolean) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetBoolean(Object* object, bool z) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimBoolean) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimBoolean) << PrettyField(this);
   Set32(object, z);
 }
 
 int8_t Field::GetByte(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimByte) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimByte) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetByte(Object* object, int8_t b) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimByte) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimByte) << PrettyField(this);
   Set32(object, b);
 }
 
 uint16_t Field::GetChar(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimChar) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimChar) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetChar(Object* object, uint16_t c) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimChar) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimChar) << PrettyField(this);
   Set32(object, c);
 }
 
 int16_t Field::GetShort(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimShort) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimShort) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetShort(Object* object, int16_t s) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimShort) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimShort) << PrettyField(this);
   Set32(object, s);
 }
 
 int32_t Field::GetInt(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimInt) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimInt) << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetInt(Object* object, int32_t i) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimInt) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimInt) << PrettyField(this);
   Set32(object, i);
 }
 
 int64_t Field::GetLong(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimLong) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimLong) << PrettyField(this);
   return Get64(object);
 }
 
 void Field::SetLong(Object* object, int64_t j) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimLong) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimLong) << PrettyField(this);
   Set64(object, j);
 }
 
 float Field::GetFloat(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimFloat) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimFloat) << PrettyField(this);
   JValue float_bits;
   float_bits.i = Get32(object);
   return float_bits.f;
 }
 
 void Field::SetFloat(Object* object, float f) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimFloat) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimFloat) << PrettyField(this);
   JValue float_bits;
   float_bits.f = f;
   Set32(object, float_bits.i);
 }
 
 double Field::GetDouble(const Object* object) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimDouble) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimDouble) << PrettyField(this);
   JValue double_bits;
   double_bits.j = Get64(object);
   return double_bits.d;
 }
 
 void Field::SetDouble(Object* object, double d) const {
-  DCHECK(GetPrimitiveType() == Primitive::kPrimDouble) << PrettyField(this);
+  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimDouble) << PrettyField(this);
   JValue double_bits;
   double_bits.d = d;
   Set64(object, double_bits.j);
 }
 
 Object* Field::GetObject(const Object* object) const {
-  CHECK(GetPrimitiveType() == Primitive::kPrimNot) << PrettyField(this);
+  CHECK_EQ(GetPrimitiveType(), Primitive::kPrimNot) << PrettyField(this);
   return GetObj(object);
 }
 
 void Field::SetObject(Object* object, const Object* l) const {
-  CHECK(GetPrimitiveType() == Primitive::kPrimNot) << PrettyField(this);
+  CHECK_EQ(GetPrimitiveType(), Primitive::kPrimNot) << PrettyField(this);
   SetObj(object, l);
 }
 

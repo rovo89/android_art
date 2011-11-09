@@ -6,6 +6,8 @@
 #include <stdint.h>
 
 #include <cstddef>
+#include <set>
+#include <string>
 
 #include "UniquePtr.h"
 #include "dex_cache.h"
@@ -20,14 +22,18 @@ namespace art {
 // Write a Space built during compilation for use during execution.
 class ImageWriter {
  public:
-  ImageWriter() : source_space_(NULL), image_top_(0), image_base_(NULL) {}
-  bool Write(const char* image_filename, uintptr_t image_base,
-             const std::string& oat_filename, const std::string& strip_location_prefix);
+  ImageWriter(const std::set<std::string>* image_classes)
+      : source_space_(NULL), image_top_(0), image_base_(NULL), image_classes_(image_classes) {}
+
   ~ImageWriter() {}
 
+  bool Write(const char* image_filename,
+             uintptr_t image_base,
+             const std::string& oat_filename,
+             const std::string& strip_location_prefix);
  private:
 
-  bool Init();
+  bool AllocMemory();
 
   // we use the lock word to store the offset of the object in the image
   void AssignImageOffset(Object* object) {
@@ -82,6 +88,22 @@ class ImageWriter {
     return reinterpret_cast<Object*>(dst);
   }
 
+  const byte* GetOatAddress(uint32_t offset) const {
+    DCHECK_LT(offset, oat_file_->GetSize());
+    if (offset == 0) {
+      return NULL;
+    }
+    return oat_base_ + offset;
+  }
+
+  bool IsImageClass(const Class* klass);
+
+  void PruneNonImageClasses();
+  static bool NonImageClassesVisitor(Class* c, void* arg);
+
+  void CheckNonImageClassesRemoved();
+  static void CheckNonImageClassesRemovedCallback(Object* obj, void* arg);
+
   void CalculateNewObjectOffsets();
   ObjectArray<Object>* CreateImageRoots() const;
   static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg);
@@ -113,6 +135,9 @@ class ImageWriter {
 
   // Target image base address for the output image
   byte* image_base_;
+
+  // Set of classes to be include in the image, or NULL for all.
+  const std::set<std::string>* image_classes_;
 
   // Target oat base address for the pointers from the output image to its oat file
   const byte* oat_base_;

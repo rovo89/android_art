@@ -29,7 +29,7 @@ TEST_F(ImageTest, WriteRead) {
     EXPECT_TRUE(klass != NULL) << descriptor;
   }
 
-  ImageWriter writer;
+  ImageWriter writer(NULL);
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = 0x60000000;
   bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,

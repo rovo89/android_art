@@ -222,7 +222,7 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
     return JNI_TRUE;
   }
 
-  const OatFile* oat_file = class_linker->FindOatFile(*dex_file.get());
+  const OatFile* oat_file = class_linker->FindOatFileForDexFile(*dex_file.get());
   if (oat_file == NULL) {
     return JNI_TRUE;
   }

@@ -184,22 +184,24 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
-ClassLinker* ClassLinker::Create(const std::string& boot_class_path,
+ClassLinker* ClassLinker::Create(bool verbose,
+                                 const std::string& boot_class_path,
                                  InternTable* intern_table) {
   CHECK_NE(boot_class_path.size(), 0U);
-  UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
+  UniquePtr<ClassLinker> class_linker(new ClassLinker(verbose, intern_table));
   class_linker->Init(boot_class_path);
   return class_linker.release();
 }
 
-ClassLinker* ClassLinker::Create(InternTable* intern_table) {
-  UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
+ClassLinker* ClassLinker::Create(bool verbose, InternTable* intern_table) {
+  UniquePtr<ClassLinker> class_linker(new ClassLinker(verbose, intern_table));
   class_linker->InitFromImage();
   return class_linker.release();
 }
 
-ClassLinker::ClassLinker(InternTable* intern_table)
-    : dex_lock_("ClassLinker dex lock"),
+ClassLinker::ClassLinker(bool verbose, InternTable* intern_table)
+    : verbose_(verbose),
+      dex_lock_("ClassLinker dex lock"),
       classes_lock_("ClassLinker classes lock"),
       class_roots_(NULL),
       array_interfaces_(NULL),
@@ -633,9 +635,25 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
   return oat_file;
 }
 
-const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
+const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file) {
+  for (size_t i = 0; i < oat_files_.size(); i++) {
+    const OatFile* oat_file = oat_files_[i];
+    DCHECK(oat_file != NULL);
+    if (oat_file->GetOatDexFile(dex_file.GetLocation())) {
+      return oat_file;
+    }
+  }
+  return NULL;
+}
+
+const OatFile* ClassLinker::FindOatFileForDexFile(const DexFile& dex_file) {
   MutexLock mu(dex_lock_);
-  const OatFile* oat_file = FindOatFile(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
+  const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
+  if (oat_file != NULL) {
+    return oat_file;
+  }
+
+  oat_file = FindOatFileFromOatLocation(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
   if (oat_file != NULL) {
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
     if (dex_file.GetHeader().checksum_ == oat_dex_file->GetDexFileChecksum()) {
@@ -658,44 +676,44 @@ const OatFile* ClassLinker::FindOatFile(const DexFile& dex_file) {
   return oat_file;
 }
 
-const OatFile* ClassLinker::FindOpenedOatFile(const std::string& location) {
+const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& oat_location) {
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
-    if (oat_file->GetLocation() == location) {
+    if (oat_file->GetLocation() == oat_location) {
       return oat_file;
     }
   }
   return NULL;
 }
 
-const OatFile* ClassLinker::FindOatFile(const std::string& location) {
-  const OatFile* oat_file = FindOpenedOatFile(location);
+const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location) {
+  const OatFile* oat_file = FindOpenedOatFileFromOatLocation(oat_location);
   if (oat_file != NULL) {
     return oat_file;
   }
 
-  oat_file = OatFile::Open(location, "", NULL);
+  oat_file = OatFile::Open(oat_location, "", NULL);
   if (oat_file == NULL) {
-    if (location.empty() || location[0] != '/') {
-      LOG(ERROR) << "Failed to open oat file from " << location;
+    if (oat_location.empty() || oat_location[0] != '/') {
+      LOG(ERROR) << "Failed to open oat file from " << oat_location;
       return NULL;
     }
 
     // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
-    std::string cache_location = GetArtCacheFilenameOrDie(location);
-    oat_file = FindOpenedOatFile(cache_location);
+    std::string cache_location = GetArtCacheFilenameOrDie(oat_location);
+    oat_file = FindOpenedOatFileFromOatLocation(cache_location);
     if (oat_file != NULL) {
       return oat_file;
     }
     oat_file = OatFile::Open(cache_location, "", NULL);
     if (oat_file  == NULL) {
-      LOG(INFO) << "Failed to open oat file from " << location << " or " << cache_location << ".";
+      LOG(INFO) << "Failed to open oat file from " << oat_location << " or " << cache_location << ".";
       return NULL;
     }
   }
 
-  CHECK(oat_file != NULL) << location;
+  CHECK(oat_file != NULL) << oat_location;
   oat_files_.push_back(oat_file);
   return oat_file;
 }
@@ -1137,7 +1155,7 @@ void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint3
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
-  oat_method.LinkMethod(method.get());
+  oat_method.LinkMethodPointers(method.get());
 
   if (method->IsAbstract()) {
     method->SetCode(Runtime::Current()->GetAbstractMethodErrorStubArray()->GetData());
@@ -1218,7 +1236,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
 
   UniquePtr<const OatFile::OatClass> oat_class;
   if (Runtime::Current()->IsStarted() && !ClassLoader::UseCompileTimeClassPath()) {
-    const OatFile* oat_file = FindOatFile(dex_file);
+    const OatFile* oat_file = FindOatFileForDexFile(dex_file);
     if (oat_file != NULL) {
       const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
       if (oat_dex_file != NULL) {
@@ -1632,6 +1650,15 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
 }
 
 bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass, bool image_class) {
+  if (verbose_) {
+    DexCache* dex_cache = klass->GetDexCache();
+    std::string source;
+    if (dex_cache != NULL) {
+      source += " from ";
+      source += dex_cache->GetLocation()->ToModifiedUtf8();
+    }
+    LOG(INFO) << "Loaded class " << descriptor << source;
+  }
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
   Table::iterator it;
@@ -1643,6 +1670,28 @@ bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass, bool 
     it = classes_.insert(std::make_pair(hash, klass));
   }
   return ((*it).second == klass);
+}
+
+bool ClassLinker::RemoveClass(const std::string& descriptor, const ClassLoader* class_loader) {
+  size_t hash = StringPieceHash()(descriptor);
+  MutexLock mu(classes_lock_);
+  typedef Table::const_iterator It;  // TODO: C++0x auto
+  // TODO: determine if its better to search classes_ or image_classes_ first
+  for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
+    Class* klass = it->second;
+    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+      classes_.erase(it);
+      return true;
+    }
+  }
+  for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
+    Class* klass = it->second;
+    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+      image_classes_.erase(it);
+      return true;
+    }
+  }
+  return false;
 }
 
 Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader* class_loader) {
@@ -1858,6 +1907,10 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       global_stats->class_init_time_ns += (t1 - t0);
       thread_stats->class_init_time_ns += (t1 - t0);
       klass->SetStatus(Class::kStatusInitialized);
+      if (verbose_) {
+        LOG(INFO) << "Initialized class " << klass->GetDescriptor()->ToModifiedUtf8()
+                  << " from " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+      }
     }
     lock.NotifyAll();
   }

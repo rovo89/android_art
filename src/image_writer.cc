@@ -9,6 +9,7 @@
 #include "UniquePtr.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "compiled_method.h"
 #include "dex_cache.h"
 #include "file.h"
 #include "globals.h"
@@ -23,8 +24,10 @@
 
 namespace art {
 
-bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
-                        const std::string& oat_filename, const std::string& strip_location_prefix) {
+bool ImageWriter::Write(const char* image_filename,
+                        uintptr_t image_base,
+                        const std::string& oat_filename,
+                        const std::string& strip_location_prefix) {
   CHECK(image_filename != NULL);
 
   CHECK_NE(image_base, 0U);
@@ -36,16 +39,29 @@ bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
   source_space_ = spaces[spaces.size()-1];
   CHECK(!source_space_->IsImageSpace());
 
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
+  for (size_t i = 0; i < all_dex_caches.size(); i++) {
+    DexCache* dex_cache = all_dex_caches[i];
+    if (InSourceSpace(dex_cache)) {
+      dex_caches_.insert(dex_cache);
+    }
+  }
+
   oat_file_.reset(OatFile::Open(oat_filename, strip_location_prefix, NULL));
   if (oat_file_.get() == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename;
     return false;
   }
 
-  if (!Init()) {
+  if (!AllocMemory()) {
     return false;
   }
+  PruneNonImageClasses();
   Heap::CollectGarbage();
+#ifndef NDEBUG
+  CheckNonImageClassesRemoved();
+#endif
   Heap::DisableCardMarking();
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
@@ -63,7 +79,7 @@ bool ImageWriter::Write(const char* image_filename, uintptr_t image_base,
   return true;
 }
 
-bool ImageWriter::Init() {
+bool ImageWriter::AllocMemory() {
   size_t size = source_space_->Size();
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
@@ -73,6 +89,96 @@ bool ImageWriter::Init() {
     return false;
   }
   return true;
+}
+
+bool ImageWriter::IsImageClass(const Class* klass) {
+  if (image_classes_ == NULL) {
+    return true;
+  }
+  while (klass->IsArrayClass()) {
+    klass = klass->GetComponentType();
+  }
+  if (klass->IsPrimitive()) { 
+    return true;
+  }
+  const std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
+  return image_classes_->find(descriptor) != image_classes_->end();
+}
+
+
+struct NonImageClasses {
+  ImageWriter* image_writer;
+  std::set<std::string>* non_image_classes;
+};
+
+void ImageWriter::PruneNonImageClasses() {
+  if (image_classes_ == NULL) {
+    return;
+  }
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+
+  std::set<std::string> non_image_classes;
+  NonImageClasses context;
+  context.image_writer = this;
+  context.non_image_classes = &non_image_classes;
+  class_linker->VisitClasses(NonImageClassesVisitor, &context);
+
+  typedef std::set<std::string>::const_iterator ClassIt;  // TODO: C++0x auto
+  for (ClassIt it = non_image_classes.begin(), end = non_image_classes.end(); it != end; ++it) {
+    class_linker->RemoveClass(*it, NULL);
+  }
+
+  typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
+  for (CacheIt it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
+    DexCache* dex_cache = *it;
+    for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
+      Class* klass = dex_cache->GetResolvedType(i);
+      if (klass != NULL && !IsImageClass(klass)) {
+        dex_cache->SetResolvedType(i, NULL);
+        dex_cache->GetInitializedStaticStorage()->Set(i, NULL);
+      }
+    }
+    for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
+      Method* method = dex_cache->GetResolvedMethod(i);
+      if (method != NULL && !IsImageClass(method->GetDeclaringClass())) {
+        dex_cache->SetResolvedMethod(i, NULL);
+        Runtime::TrampolineType type = Runtime::GetTrampolineType(method);
+        ByteArray* res_trampoline = runtime->GetResolutionStubArray(type);
+        dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethodTrampoline(i, res_trampoline);
+      }
+    }
+    for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
+      Field* field = dex_cache->GetResolvedField(i);
+      if (field != NULL && !IsImageClass(field->GetDeclaringClass())) {
+        dex_cache->SetResolvedField(i, NULL);
+      }
+    }
+  }
+}
+
+bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
+  NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
+  if (!context->image_writer->IsImageClass(klass)) {
+    context->non_image_classes->insert(klass->GetDescriptor()->ToModifiedUtf8());
+  }
+  return true;
+}
+
+void ImageWriter::CheckNonImageClassesRemoved() {
+  if (image_classes_ == NULL) {
+    return;
+  }
+  Heap::GetLiveBits()->Walk(CheckNonImageClassesRemovedCallback, this);
+}
+
+void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
+  ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
+  if (!obj->IsClass()) {
+    return;
+  }
+  Class* klass = obj->AsClass();
+  CHECK(image_writer->IsImageClass(klass)) << klass->GetDescriptor()->ToModifiedUtf8();
 }
 
 void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
@@ -104,17 +210,6 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
   }
 
   image_writer->AssignImageOffset(obj);
-
-  // sniff out the DexCaches on this pass for use on the next pass
-  if (obj->IsClass()) {
-    Class* klass = obj->AsClass();
-    DexCache* dex_cache = klass->GetDexCache();
-    if (dex_cache != NULL) {
-      image_writer->dex_caches_.insert(dex_cache);
-    } else {
-      DCHECK(klass->IsArrayClass() || klass->IsPrimitive()) << PrettyClass(klass);
-    }
-  }
 }
 
 ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
@@ -123,18 +218,12 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
 
   // build an Object[] of all the DexCaches used in the source_space_
-  const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
-  std::vector<DexCache*> source_space_dex_caches;
-  for (size_t i = 0; i < all_dex_caches.size(); i++) {
-    DexCache* dex_cache = all_dex_caches[i];
-    if (InSourceSpace(dex_cache)) {
-      source_space_dex_caches.push_back(dex_cache);
-    }
-  }
   ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(object_array_class,
-                                                               source_space_dex_caches.size());
-  for (size_t i = 0; i < source_space_dex_caches.size(); i++) {
-      dex_caches->Set(i, source_space_dex_caches[i]);
+                                                               dex_caches_.size());
+  int i = 0;
+  typedef Set::const_iterator It;  // TODO: C++0x auto
+  for (It it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it, ++i) {
+    dex_caches->Set(i, *it);
   }
 
   // build an Object[] of the roots needed to restore the runtime
@@ -245,15 +334,15 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupStaticFields(orig, copy);
 }
 
-const void* FixupCode(const ByteArray* copy_code_array, const void* orig_code) {
+static uint32_t FixupCode(const ByteArray* copy_code_array, uint32_t orig_code) {
   // TODO: change to DCHECK when all code compiling
   if (copy_code_array == NULL) {
-    return NULL;
+    return 0;
   }
-  const void* copy_code = copy_code_array->GetData();
+  uint32_t copy_code = reinterpret_cast<uint32_t>(copy_code_array->GetData());
   // TODO: remember InstructionSet with each code array so we know if we need to do thumb fixup?
-  if ((reinterpret_cast<uintptr_t>(orig_code) % 2) == 1) {
-    return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(copy_code) + 1);
+  if ((orig_code % 2) == 1) {
+    return copy_code + 1;
   }
   return copy_code;
 }
@@ -266,7 +355,7 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
 
   // Every type of method can have an invoke stub
   uint32_t invoke_stub_offset = orig->GetOatInvokeStubOffset();
-  const byte* invoke_stub = (invoke_stub_offset != 0) ? (oat_base_ + invoke_stub_offset) : 0;
+  const byte* invoke_stub = GetOatAddress(invoke_stub_offset);
   copy->invoke_stub_ = reinterpret_cast<const Method::InvokeStub*>(invoke_stub);
 
   if (orig->IsAbstract()) {
@@ -279,7 +368,7 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
 
   // Non-abstract methods typically have code
   uint32_t code_offset = orig->GetOatCodeOffset();
-  const byte* code = (code_offset != 0) ? (oat_base_ + code_offset) : 0;
+  const byte* code = GetOatAddress(code_offset);
   copy->code_ = code;
 
   if (orig->IsNative()) {
@@ -291,11 +380,11 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   } else {
     // normal (non-abstract non-native) methods have mapping tables to relocate
     uint32_t mapping_table_off = orig->GetOatMappingTableOffset();
-    const byte* mapping_table = (mapping_table_off != 0) ? (oat_base_ + mapping_table_off) : 0;
+    const byte* mapping_table = GetOatAddress(mapping_table_off);
     copy->mapping_table_ = reinterpret_cast<const uint32_t*>(mapping_table);
 
     uint32_t vmap_table_offset = orig->GetOatVmapTableOffset();
-    const byte* vmap_table = (vmap_table_offset != 0) ? (oat_base_ + vmap_table_offset) : 0;
+    const byte* vmap_table = GetOatAddress(vmap_table_offset);
     copy->vmap_table_ = reinterpret_cast<const uint16_t*>(vmap_table);
   }
 }
@@ -387,9 +476,10 @@ void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
     if (orig_method != NULL && !InSourceSpace(orig_method)) {
       continue;
     }
-    // if it was resolved in the original, resolve it in the copy
-    if (orig_method == NULL || (orig_method->IsStatic() &&
-                                !orig_method->GetDeclaringClass()->IsInitialized())) {
+    // if it was unresolved or a resolved static method in an uninit class, use a resolution stub
+    // we need to use the stub in the static method case to ensure <clinit> is run.
+    if (orig_method == NULL 
+        || (orig_method->IsStatic() && !orig_method->GetDeclaringClass()->IsInitialized())) {
       uint32_t orig_res_stub_code = orig_cadms->Get(CodeAndDirectMethods::CodeIndex(i));
       if (orig_res_stub_code == 0) {
         continue;  // NULL maps the same in the image and the original
@@ -400,22 +490,13 @@ void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
       if (!InSourceSpace(orig_res_stub_array)) {
         continue;
       }
-      // Compute the delta from the start of the resolution stub to its starting code.
-      // For ARM and X86 this is 0, for Thumb2 it is 1.
-      static size_t res_stub_delta = 0xFFFF;
-      if (res_stub_delta == 0xFFFF) {
-        uint32_t orig_res_stub_array_data =
-            reinterpret_cast<uint32_t>(orig_res_stub_array->GetData());
-        res_stub_delta = orig_res_stub_code - orig_res_stub_array_data;
-        DCHECK(res_stub_delta == 0 || res_stub_delta == 1);
-      }
       // Compute address in image of resolution stub and the code address
       ByteArray* image_res_stub_array = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array));
-      int32_t image_res_stub_code =
-          reinterpret_cast<int32_t>(image_res_stub_array->GetData()) + res_stub_delta;
+      uint32_t image_res_stub_code = FixupCode(image_res_stub_array, orig_res_stub_code);
       // Put the image code address in the array
       copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i), image_res_stub_code);
     } else if (orig_method->IsDirect()) {
+      // if it was resolved in the original, resolve it in the copy
       Method* copy_method = down_cast<Method*>(GetLocalAddress(orig_method));
       copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i),
                       reinterpret_cast<int32_t>(copy_method->code_));

@@ -176,7 +176,7 @@ class DexFile {
                                         const ClassPath& class_path);
 
   // Opens a collection of .dex files
-  static void OpenDexFiles(std::vector<const char*>& dex_filenames,
+  static void OpenDexFiles(const std::vector<const char*>& dex_filenames,
                            std::vector<const DexFile*>& dex_files,
                            const std::string& strip_location_prefix);
 

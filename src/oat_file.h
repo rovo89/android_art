@@ -37,27 +37,79 @@ class OatFile {
 
   class OatMethod {
    public:
-    // Create an OatMethod backed by an OatFile
-    OatMethod(const void* code,
-              const size_t frame_size_in_bytes,
-              const uint32_t core_spill_mask,
-              const uint32_t fp_spill_mask,
-              const uint32_t* mapping_table,
-              const uint16_t* vmap_table,
-              const Method::InvokeStub* invoke_stub);
+    // Link Method for execution using the contents of this OatMethod
+    void LinkMethodPointers(Method* method) const;
+
+    // Link Method for image writing using the contents of this OatMethod
+    void LinkMethodOffsets(Method* method) const;
+
+    uint32_t GetCodeOffset() const {
+      return code_offset_;
+    }
+    size_t GetFrameSizeInBytes() const {
+      return frame_size_in_bytes_;
+    }
+    uint32_t GetCoreSpillMask() const {
+      return core_spill_mask_;
+    }
+    uint32_t GetFpSpillMask() const {
+      return fp_spill_mask_;
+    }
+    uint32_t GetMappingTableOffset() const {
+      return mapping_table_offset_;
+    }
+    uint32_t GetVmapTableOffset() const {
+      return vmap_table_offset_;
+    }
+    uint32_t GetInvokeStubOffset() const {
+      return invoke_stub_offset_;
+    }
+
+    const void* GetCode() const {
+      return GetOatPointer<const void*>(code_offset_);
+    }
+    const uint32_t* GetMappingTable() const {
+      return GetOatPointer<const uint32_t*>(mapping_table_offset_);
+    }
+    const uint16_t* GetVmapTable() const {
+      return GetOatPointer<const uint16_t*>(vmap_table_offset_);
+    }
+    const Method::InvokeStub* GetInvokeStub() const {
+      return GetOatPointer<const Method::InvokeStub*>(invoke_stub_offset_);
+    }
 
     ~OatMethod();
 
-    // Link Method using the contents of this OatMethod
-    void LinkMethod(Method* method) const;
+    // Create an OatMethod with offsets relative to the given base address
+    OatMethod(const byte* base,
+              const uint32_t code_offset,
+              const size_t frame_size_in_bytes,
+              const uint32_t core_spill_mask,
+              const uint32_t fp_spill_mask,
+              const uint32_t mapping_table_offset,
+              const uint32_t vmap_table_offset,
+              const uint32_t invoke_stub_offset);
 
-    const void* code_;
+   private:
+    template<class T>
+    T GetOatPointer(uint32_t offset) const {
+      if (offset == 0) {
+        return NULL;
+      }
+      return reinterpret_cast<T>(base_ + offset);
+    }
+
+    const byte* base_;
+
+    uint32_t code_offset_;
     size_t frame_size_in_bytes_;
     uint32_t core_spill_mask_;
     uint32_t fp_spill_mask_;
-    const uint32_t* mapping_table_;
-    const uint16_t* vmap_table_;
-    const Method::InvokeStub* invoke_stub_;
+    uint32_t mapping_table_offset_;
+    uint32_t vmap_table_offset_;
+    uint32_t invoke_stub_offset_;
+
+    friend class OatClass;
   };
 
   class OatClass {
@@ -71,16 +123,6 @@ class OatFile {
 
    private:
     OatClass(const OatFile* oat_file, const OatMethodOffsets* methods_pointer);
-
-    template<class T>
-    T GetOatPointer(uint32_t offset) const {
-      if (offset == 0) {
-        return NULL;
-      }
-      T pointer = reinterpret_cast<T>(oat_file_->GetBase() + offset);
-      CHECK_LT(pointer, reinterpret_cast<T>(oat_file_->GetLimit()));
-      return pointer;
-    }
 
     const OatFile* oat_file_;
     const OatMethodOffsets* methods_pointer_;

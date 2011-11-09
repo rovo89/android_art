@@ -116,6 +116,8 @@ class Primitive {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Primitive);
 };
 
+std::ostream& operator<<(std::ostream& os, const Primitive::Type& state);
+
 }  // namespace art
 
 #endif  // ART_SRC_PRIMITIVE_H_

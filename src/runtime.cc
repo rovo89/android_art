@@ -446,9 +446,11 @@ void Runtime::Start() {
   // Restore main thread state to kNative as expected by native code
   Thread::Current()->SetState(Thread::kNative);
 
-  InitNativeMethods();
-
   started_ = true;
+
+  // InitNativeMethods needs to be after started_ so that the classes
+  // it touches will have methods linked to the oat file if necessary.
+  InitNativeMethods();
 
   Thread::FinishStartup();
 
@@ -564,9 +566,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread::Current()->SetState(Thread::kRunnable);
 
   CHECK_GE(Heap::GetSpaces().size(), 1U);
+  bool verbose_class = options->IsVerbose("class");
   class_linker_ = ((Heap::GetSpaces()[0]->IsImageSpace())
-                   ? ClassLinker::Create(intern_table_)
-                   : ClassLinker::Create(options->boot_class_path_, intern_table_));
+                   ? ClassLinker::Create(verbose_class, intern_table_)
+                   : ClassLinker::Create(verbose_class, options->boot_class_path_, intern_table_));
 
   if (IsVerboseStartup()) {
     LOG(INFO) << "Runtime::Init exiting";
@@ -793,7 +796,7 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
   resolution_stub_array_[type] = resolution_stub_array;
 }
 
-Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType type) {
+Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type) {
   Class* method_class = Method::GetMethodClass();
   SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
@@ -811,7 +814,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType typ
   method->SetSignature(intern_table_->InternStrong("()V"));
   CHECK(method->GetSignature() != NULL);
   method->SetCode(NULL);
-  if ((insns == kThumb2) || (insns == kArm)) {
+  if ((instruction_set == kThumb2) || (instruction_set == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |
                           (1 << art::arm::R8) | (1 << art::arm::R10) | (1 << art::arm::R11);
     uint32_t arg_spills = (1 << art::arm::R1) | (1 << art::arm::R2) | (1 << art::arm::R3);
@@ -836,7 +839,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType typ
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(fp_spills);
-  } else if (insns == kX86) {
+  } else if (instruction_set == kX86) {
     method->SetFrameSizeInBytes(32);
     method->SetCoreSpillMask((1 << art::x86::EBX) | (1 << art::x86::EBP) | (1 << art::x86::ESI) |
                              (1 << art::x86::EDI));

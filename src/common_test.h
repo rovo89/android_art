@@ -97,6 +97,24 @@ class CommonTest : public testing::Test {
     MakeExecutable(&code[0], code.size());
   }
 
+  // Create an OatMethod based on pointers (for unit tests)
+  OatFile::OatMethod CreateOatMethod(const void* code,
+                                     const size_t frame_size_in_bytes,
+                                     const uint32_t core_spill_mask,
+                                     const uint32_t fp_spill_mask,
+                                     const uint32_t* mapping_table,
+                                     const uint16_t* vmap_table,
+                                     const Method::InvokeStub* invoke_stub) {
+      return OatFile::OatMethod(NULL,
+                                reinterpret_cast<uint32_t>(code),
+                                frame_size_in_bytes,
+                                core_spill_mask,
+                                fp_spill_mask,
+                                reinterpret_cast<uint32_t>(mapping_table),
+                                reinterpret_cast<uint32_t>(vmap_table),
+                                reinterpret_cast<uint32_t>(invoke_stub));
+  }
+
   void MakeExecutable(Method* method) {
     CHECK(method != NULL);
 
@@ -123,26 +141,26 @@ class CommonTest : public testing::Test {
       const void* method_code
           = CompiledMethod::CodePointer(&code[0], compiled_method->GetInstructionSet());
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
-      OatFile::OatMethod oat_method(method_code,
-                                    compiled_method->GetFrameSizeInBytes(),
-                                    compiled_method->GetCoreSpillMask(),
-                                    compiled_method->GetFpSpillMask(),
-                                    &compiled_method->GetMappingTable()[0],
-                                    &compiled_method->GetVmapTable()[0],
-                                    method_invoke_stub);
-      oat_method.LinkMethod(method);
+      OatFile::OatMethod oat_method = CreateOatMethod(method_code,
+                                                      compiled_method->GetFrameSizeInBytes(),
+                                                      compiled_method->GetCoreSpillMask(),
+                                                      compiled_method->GetFpSpillMask(),
+                                                      &compiled_method->GetMappingTable()[0],
+                                                      &compiled_method->GetVmapTable()[0],
+                                                      method_invoke_stub);
+      oat_method.LinkMethodPointers(method);
     } else {
       MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
       const void* method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
-      OatFile::OatMethod oat_method(method_code,
-                                    kStackAlignment,
-                                    0,
-                                    0,
-                                    NULL,
-                                    NULL,
-                                    method_invoke_stub);
-      oat_method.LinkMethod(method);
+      OatFile::OatMethod oat_method = CreateOatMethod(method_code,
+                                                      kStackAlignment,
+                                                      0,
+                                                      0,
+                                                      NULL,
+                                                      NULL,
+                                                      method_invoke_stub);
+      oat_method.LinkMethodPointers(method);
     }
   }
 
@@ -221,7 +239,7 @@ class CommonTest : public testing::Test {
             runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
       }
     }
-    compiler_.reset(new Compiler(instruction_set, false));
+    compiler_.reset(new Compiler(instruction_set, false, NULL));
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }

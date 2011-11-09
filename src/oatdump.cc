@@ -177,23 +177,19 @@ class OatDump {
     os << StringPrintf("\t%d: %s %s (method_idx=%d)\n",
                        method_index, name, signature.c_str(), method_idx);
     os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
-                       oat_method.code_,
-                       reinterpret_cast<const byte*>(oat_method.code_) - oat_file.GetBase());
+                       oat_method.GetCode(), oat_method.GetCodeOffset());
     os << StringPrintf("\t\tframe_size_in_bytes: %d\n",
-                       oat_method.frame_size_in_bytes_);
+                       oat_method.GetFrameSizeInBytes());
     os << StringPrintf("\t\tcore_spill_mask: %08x\n",
-                       oat_method.core_spill_mask_);
+                       oat_method.GetCoreSpillMask());
     os << StringPrintf("\t\tfp_spill_mask: %08x\n",
-                       oat_method.fp_spill_mask_);
+                       oat_method.GetFpSpillMask());
     os << StringPrintf("\t\tmapping_table: %p (offset=%08x)\n",
-                       oat_method.mapping_table_,
-                       reinterpret_cast<const byte*>(oat_method.mapping_table_) - oat_file.GetBase());
+                       oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
     os << StringPrintf("\t\tvmap_table: %p (offset=%08x)\n",
-                       oat_method.vmap_table_,
-                       reinterpret_cast<const byte*>(oat_method.vmap_table_) - oat_file.GetBase());
+                       oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
     os << StringPrintf("\t\tinvoke_stub: %p (offset=%08x)\n",
-                       oat_method.invoke_stub_,
-                       reinterpret_cast<const byte*>(oat_method.invoke_stub_) - oat_file.GetBase());
+                       oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
   }
 };
 
@@ -268,7 +264,7 @@ class ImageDump {
       os << " (" << oat_location << ")";
     }
     os << "\n";
-    const OatFile* oat_file = class_linker->FindOatFile(oat_location);
+    const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location);
     if (oat_file == NULL) {
       os << "NOT FOUND\n";
       os << std::flush;
@@ -353,8 +349,10 @@ class ImageDump {
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        size_t register_map_bytes = method->GetGcMap()->SizeOf();
-        state->stats_.register_map_bytes += register_map_bytes;
+        if (method->GetGcMap() != NULL) {
+          size_t register_map_bytes = method->GetGcMap()->SizeOf();
+          state->stats_.register_map_bytes += register_map_bytes;
+        }
 
         if (method->GetMappingTable() != NULL) {
           size_t pc_mapping_table_bytes = method->GetMappingTableLength();

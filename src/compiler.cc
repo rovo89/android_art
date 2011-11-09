@@ -35,12 +35,18 @@ namespace x86 {
   ByteArray* CreateJniDlysmLookupStub();
 }
 
-Compiler::Compiler(InstructionSet instruction_set, bool image)
+Compiler::Compiler(InstructionSet instruction_set,
+                   bool image,
+                   const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
       jni_compiler_(instruction_set),
       image_(image),
+      image_classes_(image_classes),
       verbose_(false) {
   CHECK(!Runtime::Current()->IsStarted());
+  if (!image_) {
+    CHECK(image_classes_ == NULL);
+  }
 }
 
 Compiler::~Compiler() {
@@ -83,48 +89,60 @@ ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_se
 }
 
 void Compiler::CompileAll(const ClassLoader* class_loader,
-    const std::vector<const DexFile*>& dex_files) {
+                          const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
-  for (size_t i = 0; i != dex_files.size(); ++i) {
-    ResolveDexFile(class_loader, *dex_files[i]);
-  }
-  for (size_t i = 0; i != dex_files.size(); ++i) {
-    VerifyDexFile(class_loader, *dex_files[i]);
-  }
-  for (size_t i = 0; i != dex_files.size(); ++i) {
-    InitializeClassesWithoutClinit(class_loader, *dex_files[i]);
-  }
-  for (size_t i = 0; i != dex_files.size(); ++i) {
-    CompileDexFile(class_loader, *dex_files[i]);
-  }
-  for (size_t i = 0; i != dex_files.size(); ++i) {
-    SetCodeAndDirectMethodsDexFile(*dex_files[i]);
-  }
+
+  PreCompile(class_loader, dex_files);
+  Compile(class_loader, dex_files);
+  PostCompile(class_loader, dex_files);
 }
 
 void Compiler::CompileOne(const Method* method) {
   DCHECK(!Runtime::Current()->IsStarted());
+
   const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
-  Resolve(class_loader);
-  Verify(class_loader);
-  InitializeClassesWithoutClinit(class_loader);
+
   // Find the dex_file
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+  std::vector<const DexFile*> dex_files;
+  dex_files.push_back(&dex_file);
+
+  PreCompile(class_loader, dex_files);
+
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
   CompileMethod(code_item, method->GetAccessFlags(), method_idx, class_loader, dex_file);
-  SetCodeAndDirectMethods(class_loader);
+
+  PostCompile(class_loader, dex_files);
 }
 
-void Compiler::Resolve(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path
-      = ClassLoader::GetCompileTimeClassPath(class_loader);
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
+void Compiler::Resolve(const ClassLoader* class_loader,
+                       const std::vector<const DexFile*>& dex_files) {
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     ResolveDexFile(class_loader, *dex_file);
   }
+}
+
+void Compiler::PreCompile(const ClassLoader* class_loader,
+                          const std::vector<const DexFile*>& dex_files) {
+  Resolve(class_loader, dex_files);
+  Verify(class_loader, dex_files);
+  InitializeClassesWithoutClinit(class_loader, dex_files);
+}
+
+void Compiler::PostCompile(const ClassLoader* class_loader,
+                           const std::vector<const DexFile*>& dex_files) {
+  SetCodeAndDirectMethods(dex_files);
+}
+
+bool Compiler::IsImageClass(const std::string& descriptor) const {
+  if (image_classes_ == NULL) {
+    return true;
+  }
+  return image_classes_->find(descriptor) != image_classes_->end();
 }
 
 // Return true if the class should be skipped during compilation. We
@@ -157,8 +175,10 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
 
-  // Strings are easy, they always are simply resolved to literals in the same file
-  if (IsImage()) {  // Only resolve when we'll have an image, so compiler won't choose fast path
+  // Strings are easy in that they always are simply resolved to literals in the same file
+  if (image_ && image_classes_ == NULL) {
+    // TODO: Add support for loading strings referenced by image_classes_
+    // See also Compiler::CanAssumeTypeIsPresentInDexCache.
     for (size_t string_idx = 0; string_idx < dex_cache->NumStrings(); string_idx++) {
       class_linker->ResolveString(dex_file, string_idx, dex_cache);
     }
@@ -235,11 +255,10 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   }
 }
 
-void Compiler::Verify(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path
-      = ClassLoader::GetCompileTimeClassPath(class_loader);
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
+void Compiler::Verify(const ClassLoader* class_loader,
+                      const std::vector<const DexFile*>& dex_files) {
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     VerifyDexFile(class_loader, *dex_file);
   }
@@ -275,11 +294,10 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   dex_file.ChangePermissions(PROT_READ);
 }
 
-void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path
-      = ClassLoader::GetCompileTimeClassPath(class_loader);
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
+void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader,
+                                              const std::vector<const DexFile*>& dex_files) {
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     InitializeClassesWithoutClinit(class_loader, *dex_file);
   }
@@ -309,11 +327,10 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
   }
 }
 
-void Compiler::Compile(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path
-      = ClassLoader::GetCompileTimeClassPath(class_loader);
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
+void Compiler::Compile(const ClassLoader* class_loader,
+                       const std::vector<const DexFile*>& dex_files) {
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     CompileDexFile(class_loader, *dex_file);
   }
@@ -410,7 +427,7 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
 }
 
 const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
-  std::string key = MakeInvokeStubKey(is_static, shorty);
+  const std::string key = MakeInvokeStubKey(is_static, shorty);
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
     return NULL;
@@ -435,11 +452,9 @@ CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
   return it->second;
 }
 
-void Compiler::SetCodeAndDirectMethods(const ClassLoader* class_loader) {
-  const std::vector<const DexFile*>& class_path
-      = ClassLoader::GetCompileTimeClassPath(class_loader);
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
+void Compiler::SetCodeAndDirectMethods(const std::vector<const DexFile*>& dex_files) {
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     SetCodeAndDirectMethodsDexFile(*dex_file);
   }

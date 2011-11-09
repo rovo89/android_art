@@ -15,7 +15,7 @@ TEST_F(OatTest, WriteRead) {
 
   SirtRef<ClassLoader> class_loader(NULL);
   if (compile) {
-    compiler_.reset(new Compiler(kThumb2, false));
+    compiler_.reset(new Compiler(kThumb2, false, NULL));
     compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
   }
 
@@ -56,12 +56,12 @@ TEST_F(OatTest, WriteRead) {
                                                                  method->GetDexMethodIndex()));
 
       if (compiled_method == NULL) {
-        EXPECT_TRUE(oat_method.code_ == NULL) << PrettyMethod(method) << " " << oat_method.code_;
-        EXPECT_EQ(oat_method.frame_size_in_bytes_, static_cast<uint32_t>(kStackAlignment));
-        EXPECT_EQ(oat_method.core_spill_mask_, 0U);
-        EXPECT_EQ(oat_method.fp_spill_mask_, 0U);
+        EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " " << oat_method.GetCode();
+        EXPECT_EQ(oat_method.GetFrameSizeInBytes(), static_cast<uint32_t>(kStackAlignment));
+        EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
+        EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
       } else {
-        const void* oat_code = oat_method.code_;
+        const void* oat_code = oat_method.GetCode();
         uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
         oat_code = reinterpret_cast<const void*>(oat_code_aligned);
 
@@ -70,9 +70,9 @@ TEST_F(OatTest, WriteRead) {
         EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
             << PrettyMethod(method) << " " << code_size;
         CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
-        EXPECT_EQ(oat_method.frame_size_in_bytes_, compiled_method->GetFrameSizeInBytes());
-        EXPECT_EQ(oat_method.core_spill_mask_, compiled_method->GetCoreSpillMask());
-        EXPECT_EQ(oat_method.fp_spill_mask_, compiled_method->GetFpSpillMask());
+        EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
+        EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
+        EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
       }
     }
     for (size_t i = 0; i < num_virtual_methods; i++, method_index++) {
@@ -83,12 +83,12 @@ TEST_F(OatTest, WriteRead) {
                                                                  method->GetDexMethodIndex()));
 
       if (compiled_method == NULL) {
-        EXPECT_TRUE(oat_method.code_ == NULL) << PrettyMethod(method) << " " << oat_method.code_;
-        EXPECT_EQ(oat_method.frame_size_in_bytes_, static_cast<uint32_t>(kStackAlignment));
-        EXPECT_EQ(oat_method.core_spill_mask_, 0U);
-        EXPECT_EQ(oat_method.fp_spill_mask_, 0U);
+        EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " " << oat_method.GetCode();
+        EXPECT_EQ(oat_method.GetFrameSizeInBytes(), static_cast<uint32_t>(kStackAlignment));
+        EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
+        EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
       } else {
-        const void* oat_code = oat_method.code_;
+        const void* oat_code = oat_method.GetCode();
         EXPECT_TRUE(oat_code != NULL) << PrettyMethod(method);
         uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
         oat_code = reinterpret_cast<const void*>(oat_code_aligned);
@@ -98,9 +98,9 @@ TEST_F(OatTest, WriteRead) {
         EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
             << PrettyMethod(method) << " " << code_size;
         CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
-        EXPECT_EQ(oat_method.frame_size_in_bytes_, compiled_method->GetFrameSizeInBytes());
-        EXPECT_EQ(oat_method.core_spill_mask_, compiled_method->GetCoreSpillMask());
-        EXPECT_EQ(oat_method.fp_spill_mask_, compiled_method->GetFpSpillMask());
+        EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
+        EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
+        EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
       }
     }
   }

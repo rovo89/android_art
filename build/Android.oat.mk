@@ -32,6 +32,8 @@ OATDUMP := $(OATDUMPD)
 IMG_HOST_BASE_ADDRESS   := 0x60000000
 IMG_TARGET_BASE_ADDRESS := 0x60000000
 
+PRELOADED_CLASSES := frameworks/base/preloaded-classes
+
 ########################################################################
 # A smaller libcore only oat file
 HOST_CORE_JARS := core-hostdex
@@ -50,13 +52,13 @@ $(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(HOST_CORE_IMG) --base=$(IMG_HOST_BASE_ADDRESS)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(HOST_CORE_IMG) --base=$(IMG_HOST_BASE_ADDRESS)
 
 $(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	$(hide) $(DEX2OAT) --runtime-arg -Xms32m --runtime-arg -Xmx32m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 $(HOST_CORE_IMG): $(HOST_CORE_OAT)
 
@@ -73,6 +75,6 @@ $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	$(hide) $(DEX2OAT) --runtime-arg -Xms256m --runtime-arg -Xmx256m $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 $(TARGET_BOOT_IMG): $(TARGET_BOOT_OAT)

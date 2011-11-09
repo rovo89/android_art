@@ -190,13 +190,13 @@ class Runtime {
     kRefsAndArgs,
     kLastCalleeSaveType  // Value used for iteration
   };
-  Method* CreateCalleeSaveMethod(InstructionSet insns, CalleeSaveType type);
+  Method* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type);
   bool HasCalleeSaveMethod(CalleeSaveType type) const;
   Method* GetCalleeSaveMethod(CalleeSaveType type) const;
   void SetCalleeSaveMethod(Method* method, CalleeSaveType type);
 
-  Method* CreateRefOnlyCalleeSaveMethod(InstructionSet insns);
-  Method* CreateRefAndArgsCalleeSaveMethod(InstructionSet insns);
+  Method* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set);
+  Method* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set);
 
   int32_t GetStat(int kind);
 

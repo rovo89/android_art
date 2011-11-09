@@ -13,6 +13,7 @@
 #include "runtime.h"
 #include "unordered_map.h"
 
+#include <set>
 #include <string>
 
 namespace art {
@@ -20,13 +21,18 @@ namespace art {
 class Compiler {
  public:
   // Create a compiler targeting the requested "instruction_set".
-  // "image" should be true if image specific optimizations should be enabled.
-  explicit Compiler(InstructionSet instruction_set, bool image);
+  // "image" should be true if image specific optimizations should be
+  // enabled.  "image_classes" lets the compiler know what classes it
+  // can assume will be in the image, with NULL implying all available
+  // classes.
+  explicit Compiler(InstructionSet instruction_set,
+                    bool image,
+                    const std::set<std::string>* image_classes);
 
   ~Compiler();
 
   void CompileAll(const ClassLoader* class_loader,
-                  const std::vector<const DexFile*>& class_path);
+                  const std::vector<const DexFile*>& dex_files);
 
   // Compile a single Method
   void CompileOne(const Method* method);
@@ -65,20 +71,29 @@ class Compiler {
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
   bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const {
-    return IsImage() && dex_cache->GetResolvedTypes()->Get(type_idx) != NULL;
+    if (!IsImage()) {
+      return false;
+    }
+    Class* resolved_class = dex_cache->GetResolvedTypes()->Get(type_idx);
+    if (resolved_class == NULL) {
+      return false;
+    }
+    return IsImageClass(resolved_class->GetDescriptor()->ToModifiedUtf8());
   }
   bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx) const {
-    return IsImage() && dex_cache->GetStrings()->Get(string_idx) != NULL;
+    // TODO: Add support for loading strings referenced by image_classes_
+    // See also Compiler::ResolveDexFile
+    return IsImage() && image_classes_ == NULL && dex_cache->GetResolvedString(string_idx) != NULL;
   }
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
                                   const DexFile& dex_file, uint32_t type_idx) const {
-    Class* resolved_class = dex_cache->GetResolvedTypes()->Get(type_idx);
+    Class* resolved_class = dex_cache->GetResolvedType(type_idx);
     // We should never ask whether a type needs access checks to raise a verification error,
     // all other cases where this following test could fail should have been rewritten by the
     // verifier to verification errors. Also need to handle a lack of knowledge at compile time.
 #ifndef NDEBUG
-    Class* referrer_class = dex_cache->GetResolvedTypes()
-        ->Get(dex_file.GetMethodId(referrer_idx).class_idx_);
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+    Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
     DCHECK(resolved_class == NULL || referrer_class == NULL ||
            referrer_class->CanAccess(resolved_class));
 #endif
@@ -86,19 +101,27 @@ class Compiler {
   }
 
  private:
+
+  // Checks if class specified by type_idx is one of the image_classes_
+  bool IsImageClass(const std::string& descriptor) const;
+
+  void PreCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void PostCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
-  void Resolve(const ClassLoader* class_loader);
+  void Resolve(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
   void ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 
-  void Verify(const ClassLoader* class_loader);
+  void Verify(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
   void VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
 
-  void InitializeClassesWithoutClinit(const ClassLoader* class_loader);
+  void InitializeClassesWithoutClinit(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
   void InitializeClassesWithoutClinit(const ClassLoader* class_loader, const DexFile& dex_file);
 
-  void Compile(const ClassLoader* class_loader);
+  void Compile(const ClassLoader* class_loader,
+               const std::vector<const DexFile*>& dex_files);
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
                     const DexFile& dex_file);
@@ -107,7 +130,7 @@ class Compiler {
 
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.
-  void SetCodeAndDirectMethods(const ClassLoader* class_loader);
+  void SetCodeAndDirectMethods(const std::vector<const DexFile*>& dex_files);
   void SetCodeAndDirectMethodsDexFile(const DexFile& dex_file);
 
   void InsertInvokeStub(bool is_static, const char* shorty,
@@ -138,6 +161,8 @@ class Compiler {
   InvokeStubTable compiled_invoke_stubs_;
 
   bool image_;
+
+  const std::set<std::string>* image_classes_;
 
   bool verbose_;
 

@@ -45,10 +45,10 @@ typedef bool (ClassVisitor)(Class* c, void* arg);
 class ClassLinker {
  public:
   // Creates the class linker by boot strapping from dex files.
-  static ClassLinker* Create(const std::string& boot_class_path, InternTable* intern_table);
+  static ClassLinker* Create(bool verbose, const std::string& boot_class_path, InternTable* intern_table);
 
   // Creates the class linker from one or more images.
-  static ClassLinker* Create(InternTable* intern_table);
+  static ClassLinker* Create(bool verbose, InternTable* intern_table);
 
   ~ClassLinker();
 
@@ -69,6 +69,10 @@ class ClassLinker {
   Class* LookupClass(const std::string& descriptor, const ClassLoader* class_loader);
 
   Class* FindPrimitiveClass(char type);
+
+  // General class unloading is not supported, this is used to prune
+  // unwanted classes during image writing.
+  bool RemoveClass(const std::string& descriptor, const ClassLoader* class_loader);
 
   void DumpAllClasses(int flags) const;
 
@@ -219,8 +223,8 @@ class ClassLinker {
   const OatFile* GenerateOatFile(const std::string& filename);
 
   // Find, possibily opening, an OatFile corresponding to a DexFile
-  const OatFile* FindOatFile(const DexFile& dex_file);
-  const OatFile* FindOatFile(const std::string& location);
+  const OatFile* FindOatFileForDexFile(const DexFile& dex_file);
+  const OatFile* FindOatFileFromOatLocation(const std::string& location);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
@@ -243,7 +247,7 @@ class ClassLinker {
   pid_t GetDexLockOwner(); // For SignalCatcher.
 
  private:
-  explicit ClassLinker(InternTable*);
+  explicit ClassLinker(bool verbose, InternTable*);
 
   // Initialize class linker by bootstraping from dex files
   void Init(const std::string& boot_class_path);
@@ -354,10 +358,13 @@ class ClassLinker {
     return dex_caches_;
   }
 
-  const OatFile* FindOpenedOatFile(const std::string& location);
+  const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file);
+  const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location);
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass);
   Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype, ObjectArray<Class>* throws);
+
+  const bool verbose_;
 
   std::vector<const DexFile*> boot_class_path_;
 
@@ -457,11 +464,11 @@ class ClassLinker {
   InternTable* intern_table_;
 
   friend class CommonTest;
-  FRIEND_TEST(DexCacheTest, Open);
-  friend class ObjectTest;
-  FRIEND_TEST(ObjectTest, AllocObjectArray);
-  FRIEND_TEST(ExceptionTest, FindExceptionHandler);
   friend class ImageWriter;  // for GetClassRoots
+  friend class ObjectTest;
+  FRIEND_TEST(DexCacheTest, Open);
+  FRIEND_TEST(ExceptionTest, FindExceptionHandler);
+  FRIEND_TEST(ObjectTest, AllocObjectArray);
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };
 
