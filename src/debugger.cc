@@ -18,6 +18,9 @@
 
 #include <sys/uio.h>
 
+#include <set>
+
+#include "class_linker.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack_indirect_reference_table.h"
@@ -31,6 +34,9 @@ void dlmalloc_walk_heap(void(*)(const void*, size_t, const void*, size_t, void*)
 #endif
 
 namespace art {
+
+static const size_t kMaxAllocRecordStackDepth = 16; // Max 255.
+static const size_t kNumAllocRecords = 512; // Must be power of 2.
 
 class ObjectRegistry {
  public:
@@ -71,6 +77,34 @@ class ObjectRegistry {
   std::map<JDWP::ObjectId, Object*> map_;
 };
 
+struct AllocRecordStackTraceElement {
+  const Method* method;
+  uintptr_t raw_pc;
+
+  int32_t LineNumber() const {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Class* c = method->GetDeclaringClass();
+    DexCache* dex_cache = c->GetDexCache();
+    const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+    return dex_file.GetLineNumFromPC(method, method->ToDexPC(raw_pc));
+  }
+};
+
+struct AllocRecord {
+  Class* type;
+  size_t byte_count;
+  uint16_t thin_lock_id;
+  AllocRecordStackTraceElement stack[kMaxAllocRecordStackDepth]; // Unused entries have NULL method.
+
+  size_t GetDepth() {
+    size_t depth = 0;
+    while (depth < kMaxAllocRecordStackDepth && stack[depth].method != NULL) {
+      ++depth;
+    }
+    return depth;
+  }
+};
+
 // JDWP is allowed unless the Zygote forbids it.
 static bool gJdwpAllowed = true;
 
@@ -95,6 +129,12 @@ static Dbg::HpsgWhen gDdmNhsgWhen = Dbg::HPSG_WHEN_NEVER;
 static Dbg::HpsgWhat gDdmNhsgWhat;
 
 static ObjectRegistry* gRegistry = NULL;
+
+// Recent allocation tracking.
+static Mutex gAllocTrackerLock("AllocTracker lock");
+AllocRecord* Dbg::recent_allocation_records_ = NULL; // TODO: CircularBuffer<AllocRecord>
+static size_t gAllocRecordHead = 0;
+static size_t gAllocRecordCount = 0;
 
 /*
  * Handle one of the JDWP name/value pairs.
@@ -813,15 +853,8 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
 
     size_t byte_count = char_count*2 + sizeof(uint32_t)*2;
     std::vector<uint8_t> bytes(byte_count);
-    uint8_t* dst = &bytes[0];
-    JDWP::Write4BE(&dst, t->GetThinLockId());
-    JDWP::Write4BE(&dst, char_count);
-    if (char_count > 0) {
-      // Copy the UTF-16 string, transforming to big-endian.
-      while (char_count--) {
-        JDWP::Write2BE(&dst, *chars++);
-      }
-    }
+    JDWP::Append4BE(bytes, t->GetThinLockId());
+    JDWP::AppendUtf16BE(bytes, chars, char_count);
     Dbg::DdmSendChunk(type, bytes.size(), &bytes[0]);
   }
 }
@@ -937,15 +970,14 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
    */
   uint8_t heap_count = 1;
   std::vector<uint8_t> bytes(4 + (heap_count * (4 + 8 + 1 + 4 + 4 + 4 + 4)));
-  uint8_t* dst = &bytes[0];
-  JDWP::Write4BE(&dst, heap_count);
-  JDWP::Write4BE(&dst, 1); // Heap id (bogus; we only have one heap).
-  JDWP::Write8BE(&dst, MilliTime());
-  JDWP::Write1BE(&dst, reason);
-  JDWP::Write4BE(&dst, Heap::GetMaxMemory()); // Max allowed heap size in bytes.
-  JDWP::Write4BE(&dst, Heap::GetTotalMemory()); // Current heap size in bytes.
-  JDWP::Write4BE(&dst, Heap::GetBytesAllocated());
-  JDWP::Write4BE(&dst, Heap::GetObjectsAllocated());
+  JDWP::Append4BE(bytes, heap_count);
+  JDWP::Append4BE(bytes, 1); // Heap id (bogus; we only have one heap).
+  JDWP::Append8BE(bytes, MilliTime());
+  JDWP::Append1BE(bytes, reason);
+  JDWP::Append4BE(bytes, Heap::GetMaxMemory()); // Max allowed heap size in bytes.
+  JDWP::Append4BE(bytes, Heap::GetTotalMemory()); // Current heap size in bytes.
+  JDWP::Append4BE(bytes, Heap::GetBytesAllocated());
+  JDWP::Append4BE(bytes, Heap::GetObjectsAllocated());
   Dbg::DdmSendChunk(CHUNK_TYPE("HPIF"), bytes.size(), &bytes[0]);
 }
 
@@ -1165,6 +1197,312 @@ void Dbg::DdmSendHeapSegments(bool native) {
 
   // Finally, send a heap end chunk.
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);
+}
+
+void Dbg::SetAllocTrackingEnabled(bool enabled) {
+  MutexLock mu(gAllocTrackerLock);
+  if (enabled) {
+    if (recent_allocation_records_ == NULL) {
+      LOG(INFO) << "Enabling alloc tracker (" << kNumAllocRecords << " entries, "
+                << kMaxAllocRecordStackDepth << " frames --> "
+                << (sizeof(AllocRecord) * kNumAllocRecords) << " bytes)";
+      gAllocRecordHead = gAllocRecordCount = 0;
+      recent_allocation_records_ = new AllocRecord[kNumAllocRecords];
+      CHECK(recent_allocation_records_ != NULL);
+    }
+  } else {
+    delete[] recent_allocation_records_;
+    recent_allocation_records_ = NULL;
+  }
+}
+
+struct AllocRecordStackVisitor : public Thread::StackVisitor {
+  AllocRecordStackVisitor(AllocRecord* record) : record(record), depth(0) {
+  }
+
+  virtual void VisitFrame(const Frame& f, uintptr_t pc) {
+    if (depth >= kMaxAllocRecordStackDepth) {
+      return;
+    }
+    Method* m = f.GetMethod();
+    if (m == NULL || m->IsCalleeSaveMethod()) {
+      return;
+    }
+    record->stack[depth].method = m;
+    record->stack[depth].raw_pc = pc;
+    ++depth;
+  }
+
+  ~AllocRecordStackVisitor() {
+    // Clear out any unused stack trace elements.
+    for (; depth < kMaxAllocRecordStackDepth; ++depth) {
+      record->stack[depth].method = NULL;
+      record->stack[depth].raw_pc = 0;
+    }
+  }
+
+  AllocRecord* record;
+  size_t depth;
+};
+
+void Dbg::RecordAllocation(Class* type, size_t byte_count) {
+  Thread* self = Thread::Current();
+  CHECK(self != NULL);
+
+  MutexLock mu(gAllocTrackerLock);
+  if (recent_allocation_records_ == NULL) {
+    return;
+  }
+
+  // Advance and clip.
+  if (++gAllocRecordHead == kNumAllocRecords) {
+    gAllocRecordHead = 0;
+  }
+
+  // Fill in the basics.
+  AllocRecord* record = &recent_allocation_records_[gAllocRecordHead];
+  record->type = type;
+  record->byte_count = byte_count;
+  record->thin_lock_id = self->GetThinLockId();
+
+  // Fill in the stack trace.
+  AllocRecordStackVisitor visitor(record);
+  self->WalkStack(&visitor);
+
+  if (gAllocRecordCount < kNumAllocRecords) {
+    ++gAllocRecordCount;
+  }
+}
+
+/*
+ * Return the index of the head element.
+ *
+ * We point at the most-recently-written record, so if allocRecordCount is 1
+ * we want to use the current element.  Take "head+1" and subtract count
+ * from it.
+ *
+ * We need to handle underflow in our circular buffer, so we add
+ * kNumAllocRecords and then mask it back down.
+ */
+inline static int headIndex() {
+  return (gAllocRecordHead+1 + kNumAllocRecords - gAllocRecordCount) & (kNumAllocRecords-1);
+}
+
+void Dbg::DumpRecentAllocations() {
+  MutexLock mu(gAllocTrackerLock);
+  if (recent_allocation_records_ == NULL) {
+    LOG(INFO) << "Not recording tracked allocations";
+    return;
+  }
+
+  // "i" is the head of the list.  We want to start at the end of the
+  // list and move forward to the tail.
+  size_t i = headIndex();
+  size_t count = gAllocRecordCount;
+
+  LOG(INFO) << "Tracked allocations, (head=" << gAllocRecordHead << " count=" << count << ")";
+  while (count--) {
+    AllocRecord* record = &recent_allocation_records_[i];
+
+    LOG(INFO) << StringPrintf(" T=%-2d %6d ", record->thin_lock_id, record->byte_count)
+              << PrettyClass(record->type);
+
+    for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
+      const Method* m = record->stack[stack_frame].method;
+      if (m == NULL) {
+        break;
+      }
+      LOG(INFO) << "    " << PrettyMethod(m) << " line " << record->stack[stack_frame].LineNumber();
+    }
+
+    // pause periodically to help logcat catch up
+    if ((count % 5) == 0) {
+      usleep(40000);
+    }
+
+    i = (i + 1) & (kNumAllocRecords-1);
+  }
+}
+
+class StringTable {
+ public:
+  StringTable() {
+  }
+
+  void Add(const String* s) {
+    table_.insert(s);
+  }
+
+  size_t IndexOf(const String* s) {
+    return std::distance(table_.begin(), table_.find(s));
+  }
+
+  size_t Size() {
+    return table_.size();
+  }
+
+  void WriteTo(std::vector<uint8_t>& bytes) {
+    typedef std::set<const String*>::const_iterator It; // TODO: C++0x auto
+    for (It it = table_.begin(); it != table_.end(); ++it) {
+      const String* s = *it;
+      JDWP::AppendUtf16BE(bytes, s->GetCharArray()->GetData(), s->GetLength());
+    }
+  }
+
+ private:
+  std::set<const String*> table_;
+  DISALLOW_COPY_AND_ASSIGN(StringTable);
+};
+
+/*
+ * The data we send to DDMS contains everything we have recorded.
+ *
+ * Message header (all values big-endian):
+ * (1b) message header len (to allow future expansion); includes itself
+ * (1b) entry header len
+ * (1b) stack frame len
+ * (2b) number of entries
+ * (4b) offset to string table from start of message
+ * (2b) number of class name strings
+ * (2b) number of method name strings
+ * (2b) number of source file name strings
+ * For each entry:
+ *   (4b) total allocation size
+ *   (2b) threadId
+ *   (2b) allocated object's class name index
+ *   (1b) stack depth
+ *   For each stack frame:
+ *     (2b) method's class name
+ *     (2b) method name
+ *     (2b) method source file
+ *     (2b) line number, clipped to 32767; -2 if native; -1 if no source
+ * (xb) class name strings
+ * (xb) method name strings
+ * (xb) source file strings
+ *
+ * As with other DDM traffic, strings are sent as a 4-byte length
+ * followed by UTF-16 data.
+ *
+ * We send up 16-bit unsigned indexes into string tables.  In theory there
+ * can be (kMaxAllocRecordStackDepth * kNumAllocRecords) unique strings in
+ * each table, but in practice there should be far fewer.
+ *
+ * The chief reason for using a string table here is to keep the size of
+ * the DDMS message to a minimum.  This is partly to make the protocol
+ * efficient, but also because we have to form the whole thing up all at
+ * once in a memory buffer.
+ *
+ * We use separate string tables for class names, method names, and source
+ * files to keep the indexes small.  There will generally be no overlap
+ * between the contents of these tables.
+ */
+jbyteArray Dbg::GetRecentAllocations() {
+  if (false) {
+    DumpRecentAllocations();
+  }
+
+  MutexLock mu(gAllocTrackerLock);
+
+  /*
+   * Part 1: generate string tables.
+   */
+  StringTable class_names;
+  StringTable method_names;
+  StringTable filenames;
+
+  int count = gAllocRecordCount;
+  int idx = headIndex();
+  while (count--) {
+    AllocRecord* record = &recent_allocation_records_[idx];
+
+    class_names.Add(record->type->GetDescriptor());
+
+    for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
+      const Method* m = record->stack[i].method;
+      if (m != NULL) {
+        class_names.Add(m->GetDeclaringClass()->GetDescriptor());
+        method_names.Add(m->GetName());
+        filenames.Add(m->GetDeclaringClass()->GetSourceFile());
+      }
+    }
+
+    idx = (idx + 1) & (kNumAllocRecords-1);
+  }
+
+  LOG(INFO) << "allocation records: " << gAllocRecordCount;
+
+  /*
+   * Part 2: allocate a buffer and generate the output.
+   */
+  std::vector<uint8_t> bytes;
+
+  // (1b) message header len (to allow future expansion); includes itself
+  // (1b) entry header len
+  // (1b) stack frame len
+  const int kMessageHeaderLen = 15;
+  const int kEntryHeaderLen = 9;
+  const int kStackFrameLen = 8;
+  JDWP::Append1BE(bytes, kMessageHeaderLen);
+  JDWP::Append1BE(bytes, kEntryHeaderLen);
+  JDWP::Append1BE(bytes, kStackFrameLen);
+
+  // (2b) number of entries
+  // (4b) offset to string table from start of message
+  // (2b) number of class name strings
+  // (2b) number of method name strings
+  // (2b) number of source file name strings
+  JDWP::Append2BE(bytes, gAllocRecordCount);
+  size_t string_table_offset = bytes.size();
+  JDWP::Append4BE(bytes, 0); // We'll patch this later...
+  JDWP::Append2BE(bytes, class_names.Size());
+  JDWP::Append2BE(bytes, method_names.Size());
+  JDWP::Append2BE(bytes, filenames.Size());
+
+  count = gAllocRecordCount;
+  idx = headIndex();
+  while (count--) {
+    // For each entry:
+    // (4b) total allocation size
+    // (2b) thread id
+    // (2b) allocated object's class name index
+    // (1b) stack depth
+    AllocRecord* record = &recent_allocation_records_[idx];
+    size_t stack_depth = record->GetDepth();
+    JDWP::Append4BE(bytes, record->byte_count);
+    JDWP::Append2BE(bytes, record->thin_lock_id);
+    JDWP::Append2BE(bytes, class_names.IndexOf(record->type->GetDescriptor()));
+    JDWP::Append1BE(bytes, stack_depth);
+
+    for (size_t stack_frame = 0; stack_frame < stack_depth; ++stack_frame) {
+      // For each stack frame:
+      // (2b) method's class name
+      // (2b) method name
+      // (2b) method source file
+      // (2b) line number, clipped to 32767; -2 if native; -1 if no source
+      const Method* m = record->stack[stack_frame].method;
+      JDWP::Append2BE(bytes, class_names.IndexOf(m->GetDeclaringClass()->GetDescriptor()));
+      JDWP::Append2BE(bytes, method_names.IndexOf(m->GetName()));
+      JDWP::Append2BE(bytes, filenames.IndexOf(m->GetDeclaringClass()->GetSourceFile()));
+      JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
+    }
+
+    idx = (idx + 1) & (kNumAllocRecords-1);
+  }
+
+  // (xb) class name strings
+  // (xb) method name strings
+  // (xb) source file strings
+  JDWP::Set4BE(&bytes[string_table_offset], bytes.size());
+  class_names.WriteTo(bytes);
+  method_names.WriteTo(bytes);
+  filenames.WriteTo(bytes);
+
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+  jbyteArray result = env->NewByteArray(bytes.size());
+  if (result != NULL) {
+    env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte*>(&bytes[0]));
+  }
+  return result;
 }
 
 }  // namespace art

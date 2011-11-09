@@ -176,6 +176,9 @@ Object* Heap::AllocObject(Class* klass, size_t byte_count) {
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {
       obj->SetClass(klass);
+      if (Dbg::IsAllocTrackingEnabled()) {
+        Dbg::RecordAllocation(klass, byte_count);
+      }
       return obj;
     }
   }

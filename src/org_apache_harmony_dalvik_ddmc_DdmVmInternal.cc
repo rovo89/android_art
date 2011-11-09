@@ -27,26 +27,15 @@ namespace art {
 namespace {
 
 static void DdmVmInternal_enableRecentAllocations(JNIEnv* env, jclass, jboolean enable) {
-  UNIMPLEMENTED(WARNING);
-  if (enable) {
-    //dvmEnableAllocTracker();
-  } else {
-    //dvmDisableAllocTracker();
-  }
+  Dbg::SetAllocTrackingEnabled(enable);
 }
 
 static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
-  //ArrayObject* data = dvmDdmGetRecentAllocations();
-  //dvmReleaseTrackedAlloc(data, NULL);
-  //return reinterpret_cast<jbyteArray>(addLocalReference(env, data));
+  return Dbg::GetRecentAllocations();
 }
 
 static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv* env, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return JNI_FALSE;
-  //return (gDvm.allocRecords != NULL);
+  return Dbg::IsAllocTrackingEnabled();
 }
 
 static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
@@ -149,7 +138,9 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   }
 
   jbyteArray result = env->NewByteArray(bytes.size());
-  env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte*>(&bytes[0]));
+  if (result != NULL) {
+    env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte*>(&bytes[0]));
+  }
   return result;
 }
 

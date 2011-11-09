@@ -30,6 +30,7 @@
 
 namespace art {
 
+struct AllocRecord;
 struct Thread;
 
 /*
@@ -240,6 +241,15 @@ public:
   static void DdmSendChunk(uint32_t type, size_t len, const uint8_t* buf);
   static void DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt);
 
+  /*
+   * Recent allocation tracking support.
+   */
+  static void RecordAllocation(Class* type, size_t byte_count);
+  static void SetAllocTrackingEnabled(bool enabled);
+  static inline bool IsAllocTrackingEnabled() { return recent_allocation_records_ != NULL; }
+  static jbyteArray GetRecentAllocations();
+  static void DumpRecentAllocations();
+
   enum HpifWhen {
     HPIF_WHEN_NEVER = 0,
     HPIF_WHEN_NOW = 1,
@@ -260,6 +270,9 @@ public:
 
   static void DdmSendHeapInfo(HpifWhen reason);
   static void DdmSendHeapSegments(bool native);
+
+ private:
+  static AllocRecord* recent_allocation_records_;
 };
 
 #define CHUNK_TYPE(_name) \
