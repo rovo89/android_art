@@ -293,7 +293,7 @@ zygote-art$(1)-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_
 	cp $(TARGET_OUT_EXECUTABLES)/oatopt$(1) $(TARGET_OUT_EXECUTABLES)/dexopt
 	cp $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/oatopt$(1) $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
 	mkdir -p $(TARGET_OUT_DATA)/property
-	echo -n 1 > $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disabled
+	echo -n 1 > $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disable
 	adb remount
 	adb sync
 
@@ -317,8 +317,8 @@ zygote-dalvik:
 	cp $(call intermediates-dir-for,SHARED_LIBRARIES,libdvm)/LINKED/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
 	cp $(call intermediates-dir-for,EXECUTABLES,dexopt)/dexopt $(TARGET_OUT_EXECUTABLES)/dexopt
 	cp $(call intermediates-dir-for,EXECUTABLES,dexopt)/LINKED/dexopt $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
-	rm -f $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disabled
-	adb shell rm /data/property/persist.sys.strictmode.disabled
+	rm -f $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disable
+	adb shell rm /data/property/persist.sys.strictmode.disable
 	adb remount
 	adb sync
 	cp system/core/rootdir/init.rc $(ANDROID_PRODUCT_OUT)/root/init.rc

@@ -85,7 +85,7 @@ public:
     virtual void onStarted()
     {
         sp<ProcessState> proc = ProcessState::self();
-        LOGV("App process: starting thread pool.\n");
+        ALOGV("App process: starting thread pool.\n");
         proc->startThreadPool();
 
         AndroidRuntime* ar = AndroidRuntime::getRuntime();
@@ -97,7 +97,7 @@ public:
     virtual void onZygoteInit()
     {
         sp<ProcessState> proc = ProcessState::self();
-        LOGV("App process: starting thread pool.\n");
+        ALOGV("App process: starting thread pool.\n");
         proc->startThreadPool();
     }
 
