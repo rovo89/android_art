@@ -25,29 +25,15 @@ namespace art {
 
 namespace hprof {
 
-size_t next_string_id_ = 0x400000;
-typedef std::tr1::unordered_map<std::string, size_t> StringMap;
-typedef std::tr1::unordered_map<std::string, size_t>::iterator StringMapIterator;
-static Mutex strings_lock_("hprof strings");
-static StringMap strings_;
-
-int hprofStartup_String() {
-    return 0;
+HprofStringId Hprof::LookupStringId(String* string) {
+    return LookupStringId(string->ToModifiedUtf8());
 }
 
-int hprofShutdown_String() {
-    return 0;
+HprofStringId Hprof::LookupStringId(const char* string) {
+    return LookupStringId(std::string(string));
 }
 
-hprof_string_id hprofLookupStringId(String* string) {
-    return hprofLookupStringId(string->ToModifiedUtf8());
-}
-
-hprof_string_id hprofLookupStringId(const char* string) {
-    return hprofLookupStringId(std::string(string));
-}
-
-hprof_string_id hprofLookupStringId(std::string string) {
+HprofStringId Hprof::LookupStringId(std::string string) {
     MutexLock mu(strings_lock_);
     if (strings_.find(string) == strings_.end()) {
         strings_[string] = next_string_id_++;
@@ -55,16 +41,16 @@ hprof_string_id hprofLookupStringId(std::string string) {
     return strings_[string];
 }
 
-int hprofDumpStrings(hprof_context_t *ctx) {
+int Hprof::DumpStrings() {
     MutexLock mu(strings_lock_);
 
-    hprof_record_t *rec = &ctx->curRec;
+    HprofRecord *rec = &current_record_;
 
     for (StringMapIterator it = strings_.begin(); it != strings_.end(); ++it) {
         std::string string = (*it).first;
         size_t id = (*it).second;
 
-        int err = hprofStartNewRecord(ctx, HPROF_TAG_STRING, HPROF_TIME);
+        int err = StartNewRecord(HPROF_TAG_STRING, HPROF_TIME);
         if (err != 0) {
             return err;
         }
@@ -77,11 +63,11 @@ int hprofDumpStrings(hprof_context_t *ctx) {
          *
          * We use the address of the string data as its ID.
          */
-        err = hprofAddU4ToRecord(rec, id);
+        err = rec->AddU4(id);
         if (err != 0) {
             return err;
         }
-        err = hprofAddUtf8StringToRecord(rec, string.c_str());
+        err = rec->AddUtf8String(string.c_str());
         if (err != 0) {
             return err;
         }

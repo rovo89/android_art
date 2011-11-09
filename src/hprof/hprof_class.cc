@@ -26,29 +26,16 @@ namespace art {
 
 namespace hprof {
 
-typedef std::tr1::unordered_set<Class*, ObjectIdentityHash> ClassSet;
-typedef std::tr1::unordered_set<Class*, ObjectIdentityHash>::iterator ClassSetIterator;
-static Mutex classes_lock_("hprof classes");
-static ClassSet classes_;
-
-int hprofStartup_Class() {
-    return 0;
+HprofStringId Hprof::LookupClassNameId(Class* clazz) {
+    return LookupStringId(PrettyDescriptor(clazz->GetDescriptor()));
 }
 
-int hprofShutdown_Class() {
-    return 0;
-}
-
-static int getPrettyClassNameId(Class* clazz) {
-    return hprofLookupStringId(PrettyDescriptor(clazz->GetDescriptor()));
-}
-
-hprof_class_object_id hprofLookupClassId(Class* clazz) {
+HprofClassObjectId Hprof::LookupClassId(Class* clazz) {
     if (clazz == NULL) {
         /* Someone's probably looking up the superclass
          * of java.lang.Object or of a primitive class.
          */
-        return (hprof_class_object_id)0;
+        return (HprofClassObjectId)0;
     }
 
     MutexLock mu(classes_lock_);
@@ -56,21 +43,17 @@ hprof_class_object_id hprofLookupClassId(Class* clazz) {
     std::pair<ClassSetIterator, bool> result = classes_.insert(clazz);
     Class* present = *result.first;
 
-    /* Make sure that the class's name is in the string table.
-     * This is a bunch of extra work that we only have to do
-     * because of the order of tables in the output file
-     * (strings need to be dumped before classes).
-     */
-    getPrettyClassNameId(clazz);
+    // Make sure that we've assigned a string ID for this class' name
+    LookupClassNameId(clazz);
 
-    CHECK(present == clazz);
-    return (hprof_string_id) present;
+    CHECK_EQ(present, clazz);
+    return (HprofStringId) present;
 }
 
-int hprofDumpClasses(hprof_context_t *ctx) {
+int Hprof::DumpClasses() {
     MutexLock mu(classes_lock_);
 
-    hprof_record_t *rec = &ctx->curRec;
+    HprofRecord *rec = &current_record_;
 
     uint32_t nextSerialNumber = 1;
 
@@ -78,7 +61,7 @@ int hprofDumpClasses(hprof_context_t *ctx) {
         Class* clazz = *it;
         CHECK(clazz != NULL);
 
-        int err = hprofStartNewRecord(ctx, HPROF_TAG_LOAD_CLASS, HPROF_TIME);
+        int err = StartNewRecord(HPROF_TAG_LOAD_CLASS, HPROF_TIME);
         if (err != 0) {
             return err;
         }
@@ -92,10 +75,10 @@ int hprofDumpClasses(hprof_context_t *ctx) {
          *
          * We use the address of the class object structure as its ID.
          */
-        hprofAddU4ToRecord(rec, nextSerialNumber++);
-        hprofAddIdToRecord(rec, (hprof_class_object_id) clazz);
-        hprofAddU4ToRecord(rec, HPROF_NULL_STACK_TRACE);
-        hprofAddIdToRecord(rec, getPrettyClassNameId(clazz));
+        rec->AddU4(nextSerialNumber++);
+        rec->AddId((HprofClassObjectId) clazz);
+        rec->AddU4(HPROF_NULL_STACK_TRACE);
+        rec->AddId(LookupClassNameId(clazz));
     }
 
     return 0;

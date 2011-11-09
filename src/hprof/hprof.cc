@@ -43,26 +43,6 @@ namespace hprof {
 
 #define kHeadSuffix "-hptemp"
 
-hprof_context_t* hprofStartup(const char *outputFileName, int fd,
-                              bool directToDdms)
-{
-    hprofStartup_String();
-    hprofStartup_Class();
-
-    hprof_context_t *ctx = (hprof_context_t *)malloc(sizeof(*ctx));
-    if (ctx == NULL) {
-        LOG(ERROR) << "hprof: can't allocate context.";
-        return NULL;
-    }
-
-    /* pass in name or descriptor of the output file */
-    hprofContextInit(ctx, strdup(outputFileName), fd, false, directToDdms);
-
-    CHECK(ctx->memFp != NULL);
-
-    return ctx;
-}
-
 // TODO: use File::WriteFully
 int sysWriteFully(int fd, const void* buf, size_t count, const char* logMsg)
 {
@@ -86,127 +66,108 @@ int sysWriteFully(int fd, const void* buf, size_t count, const char* logMsg)
 /*
  * Finish up the hprof dump.  Returns true on success.
  */
-bool hprofShutdown(hprof_context_t *tailCtx)
+bool Hprof::Finish()
 {
     /* flush the "tail" portion of the output */
-    hprofFlushCurrentRecord(tailCtx);
+    StartNewRecord(HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
+    FlushCurrentRecord();
 
-    /*
-     * Create a new context struct for the start of the file.  We
-     * heap-allocate it so we can share the "free" function.
-     */
-    hprof_context_t *headCtx = (hprof_context_t *)malloc(sizeof(*headCtx));
-    if (headCtx == NULL) {
-        LOG(ERROR) << "hprof: can't allocate context.";
-        hprofFreeContext(tailCtx);
-        return false;
-    }
-    hprofContextInit(headCtx, strdup(tailCtx->fileName), tailCtx->fd, true,
-        tailCtx->directToDdms);
+    // Create a new Hprof for the start of the file (as opposed to this, which is the tail).
+    Hprof headCtx(file_name_, fd_, true, direct_to_ddms_);
+    headCtx.classes_ = classes_;
+    headCtx.strings_ = strings_;
 
-    LOG(INFO) << StringPrintf("hprof: dumping heap strings to \"%s\".", tailCtx->fileName);
-    hprofDumpStrings(headCtx);
-    hprofDumpClasses(headCtx);
+    LOG(INFO) << StringPrintf("hprof: dumping heap strings to \"%s\".", file_name_);
+    headCtx.DumpStrings();
+    headCtx.DumpClasses();
 
     /* Write a dummy stack trace record so the analysis
      * tools don't freak out.
      */
-    hprofStartNewRecord(headCtx, HPROF_TAG_STACK_TRACE, HPROF_TIME);
-    hprofAddU4ToRecord(&headCtx->curRec, HPROF_NULL_STACK_TRACE);
-    hprofAddU4ToRecord(&headCtx->curRec, HPROF_NULL_THREAD);
-    hprofAddU4ToRecord(&headCtx->curRec, 0);    // no frames
+    headCtx.StartNewRecord(HPROF_TAG_STACK_TRACE, HPROF_TIME);
+    headCtx.current_record_.AddU4(HPROF_NULL_STACK_TRACE);
+    headCtx.current_record_.AddU4(HPROF_NULL_THREAD);
+    headCtx.current_record_.AddU4(0);    // no frames
 
-    hprofFlushCurrentRecord(headCtx);
-
-    hprofShutdown_Class();
-    hprofShutdown_String();
+    headCtx.FlushCurrentRecord();
 
     /* flush to ensure memstream pointer and size are updated */
-    fflush(headCtx->memFp);
-    fflush(tailCtx->memFp);
+    fflush(headCtx.mem_fp_);
+    fflush(mem_fp_);
 
-    if (tailCtx->directToDdms) {
+    if (direct_to_ddms_) {
         /* send the data off to DDMS */
         struct iovec iov[2];
-        iov[0].iov_base = headCtx->fileDataPtr;
-        iov[0].iov_len = headCtx->fileDataSize;
-        iov[1].iov_base = tailCtx->fileDataPtr;
-        iov[1].iov_len = tailCtx->fileDataSize;
+        iov[0].iov_base = headCtx.file_data_ptr_;
+        iov[0].iov_len = headCtx.file_data_size_;
+        iov[1].iov_base = file_data_ptr_;
+        iov[1].iov_len = file_data_size_;
         Dbg::DdmSendChunkV(CHUNK_TYPE("HPDS"), iov, 2);
     } else {
         /*
          * Open the output file, and copy the head and tail to it.
          */
-        CHECK(headCtx->fd == tailCtx->fd);
+        CHECK_EQ(headCtx.fd_, fd_);
 
         int outFd;
-        if (headCtx->fd >= 0) {
-            outFd = dup(headCtx->fd);
+        if (headCtx.fd_ >= 0) {
+            outFd = dup(headCtx.fd_);
             if (outFd < 0) {
-                LOG(ERROR) << StringPrintf("dup(%d) failed: %s", headCtx->fd, strerror(errno));
+                LOG(ERROR) << StringPrintf("dup(%d) failed: %s", headCtx.fd_, strerror(errno));
                 /* continue to fail-handler below */
             }
         } else {
-            outFd = open(tailCtx->fileName, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            outFd = open(file_name_, O_WRONLY|O_CREAT|O_TRUNC, 0644);
             if (outFd < 0) {
-                LOG(ERROR) << StringPrintf("can't open %s: %s", headCtx->fileName, strerror(errno));
+                LOG(ERROR) << StringPrintf("can't open %s: %s", headCtx.file_name_, strerror(errno));
                 /* continue to fail-handler below */
             }
         }
         if (outFd < 0) {
-            hprofFreeContext(headCtx);
-            hprofFreeContext(tailCtx);
             return false;
         }
 
-        int result;
-        result = sysWriteFully(outFd, headCtx->fileDataPtr,
-            headCtx->fileDataSize, "hprof-head");
-        result |= sysWriteFully(outFd, tailCtx->fileDataPtr,
-            tailCtx->fileDataSize, "hprof-tail");
+        int result = sysWriteFully(outFd, headCtx.file_data_ptr_,
+            headCtx.file_data_size_, "hprof-head");
+        result |= sysWriteFully(outFd, file_data_ptr_, file_data_size_, "hprof-tail");
         close(outFd);
         if (result != 0) {
-            hprofFreeContext(headCtx);
-            hprofFreeContext(tailCtx);
             return false;
         }
     }
 
     /* throw out a log message for the benefit of "runhat" */
     LOG(INFO) << StringPrintf("hprof: heap dump completed (%dKB)",
-        (headCtx->fileDataSize + tailCtx->fileDataSize + 1023) / 1024);
-
-    hprofFreeContext(headCtx);
-    hprofFreeContext(tailCtx);
+        (headCtx.file_data_size_ + file_data_size_ + 1023) / 1024);
 
     return true;
 }
 
-/*
- * Free any heap-allocated items in "ctx", and then free "ctx" itself.
- */
-void hprofFreeContext(hprof_context_t *ctx)
-{
-    CHECK(ctx != NULL);
+Hprof::~Hprof() {
+    /* we don't own ctx->fd_, do not close */
 
-    /* we don't own ctx->fd, do not close */
-
-    if (ctx->memFp != NULL)
-        fclose(ctx->memFp);
-    free(ctx->curRec.body);
-    free(ctx->fileName);
-    free(ctx->fileDataPtr);
-    free(ctx);
+    if (mem_fp_ != NULL) {
+        fclose(mem_fp_);
+    }
+    free(current_record_.body_);
+    free(file_name_);
+    free(file_data_ptr_);
 }
 
 /*
  * Visitor invoked on every root reference.
  */
 void HprofRootVisitor(const Object* obj, void* arg) {
+    CHECK(arg != NULL);
+    Hprof* hprof = (Hprof*)arg;
+    hprof->VisitRoot(obj);
+}
+
+void Hprof::VisitRoot(const Object* obj) {
     uint32_t threadId = 0;  // TODO
     /*RootType */ size_t type = 0; // TODO
 
-    static const hprof_heap_tag_t xlate[] = {
+    static const HprofHeapTag xlate[] = {
         HPROF_ROOT_UNKNOWN,
         HPROF_ROOT_JNI_GLOBAL,
         HPROF_ROOT_JNI_LOCAL,
@@ -223,19 +184,16 @@ void HprofRootVisitor(const Object* obj, void* arg) {
         HPROF_ROOT_VM_INTERNAL,
         HPROF_ROOT_JNI_MONITOR,
     };
-    hprof_context_t *ctx;
 
-    CHECK(arg != NULL);
-    CHECK(type < (sizeof(xlate) / sizeof(hprof_heap_tag_t)));
+    CHECK_LT(type, sizeof(xlate) / sizeof(HprofHeapTag));
     if (obj == NULL) {
         return;
     }
-    ctx = (hprof_context_t *)arg;
-    ctx->gcScanState = xlate[type];
-    ctx->gcThreadSerialNumber = threadId;
-    hprofMarkRootObject(ctx, obj, 0);
-    ctx->gcScanState = 0;
-    ctx->gcThreadSerialNumber = 0;
+    gc_scan_state_ = xlate[type];
+    gc_thread_serial_number_ = threadId;
+    MarkRootObject(obj, 0);
+    gc_scan_state_ = 0;
+    gc_thread_serial_number_ = 0;
 }
 
 /*
@@ -246,8 +204,8 @@ static void HprofBitmapCallback(Object *obj, void *arg)
 {
     CHECK(obj != NULL);
     CHECK(arg != NULL);
-    hprof_context_t *ctx = (hprof_context_t *)arg;
-    DumpHeapObject(ctx, obj);
+    Hprof *hprof = (Hprof*)arg;
+    hprof->DumpHeapObject(obj);
 }
 
 /*
@@ -255,18 +213,15 @@ static void HprofBitmapCallback(Object *obj, void *arg)
  * file.
  *
  * If "fd" is >= 0, the output will be written to that file descriptor.
- * Otherwise, "fileName" is used to create an output file.
+ * Otherwise, "file_name_" is used to create an output file.
  *
- * If "directToDdms" is set, the other arguments are ignored, and data is
+ * If "direct_to_ddms_" is set, the other arguments are ignored, and data is
  * sent directly to DDMS.
  *
  * Returns 0 on success, or an error code on failure.
  */
 int DumpHeap(const char* fileName, int fd, bool directToDdms)
 {
-    hprof_context_t *ctx;
-    int success;
-
     CHECK(fileName != NULL);
     ScopedHeapLock lock;
     ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
@@ -274,15 +229,11 @@ int DumpHeap(const char* fileName, int fd, bool directToDdms)
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     thread_list->SuspendAll();
 
-    ctx = hprofStartup(fileName, fd, directToDdms);
-    if (ctx == NULL) {
-        return -1;
-    }
-    Runtime::Current()->VisitRoots(HprofRootVisitor, ctx);
-    Heap::GetLiveBits()->Walk(HprofBitmapCallback, ctx);
-    hprofFinishHeapDump(ctx);
+    Hprof hprof(fileName, fd, false, directToDdms);
+    Runtime::Current()->VisitRoots(HprofRootVisitor, &hprof);
+    Heap::GetLiveBits()->Walk(HprofBitmapCallback, &hprof);
 //TODO: write a HEAP_SUMMARY record
-    success = hprofShutdown(ctx) ? 0 : -1;
+    int success = hprof.Finish() ? 0 : -1;
     thread_list->ResumeAll();
     return success;
 }

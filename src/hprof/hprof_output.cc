@@ -64,34 +64,42 @@ namespace hprof {
     } while (0)
 
 /*
- * Initialize an hprof context struct.
- *
- * This will take ownership of "fileName".
+ * Initialize an Hprof.
  */
-void hprofContextInit(hprof_context_t *ctx, char *fileName, int fd,
-                      bool writeHeader, bool directToDdms)
-{
-    memset(ctx, 0, sizeof (*ctx));
-
+Hprof::Hprof(const char *outputFileName, int fd, bool writeHeader, bool directToDdms)
+    : current_record_(),
+      gc_thread_serial_number_(0),
+      gc_scan_state_(0),
+      current_heap_(HPROF_HEAP_DEFAULT),
+      objects_in_segment_(0),
+      direct_to_ddms_(0),
+      file_name_(NULL),
+      file_data_ptr_(NULL),
+      file_data_size_(0),
+      mem_fp_(NULL),
+      fd_(0),
+      classes_lock_("hprof classes"),
+      next_string_id_(0x400000),
+      strings_lock_("hprof strings") {
     /*
      * Have to do this here, because it must happen after we
-     * memset the struct (want to treat fileDataPtr/fileDataSize
+     * memset the struct (want to treat file_data_ptr_/file_data_size_
      * as read-only while the file is open).
      */
-    FILE *fp = open_memstream(&ctx->fileDataPtr, &ctx->fileDataSize);
+    FILE *fp = open_memstream(&file_data_ptr_, &file_data_size_);
     if (fp == NULL) {
         /* not expected */
         LOG(ERROR) << StringPrintf("hprof: open_memstream failed: %s", strerror(errno));
         CHECK(false);
     }
 
-    ctx->directToDdms = directToDdms;
-    ctx->fileName = fileName;
-    ctx->memFp = fp;
-    ctx->fd = fd;
+    direct_to_ddms_ = directToDdms;
+    file_name_ = strdup(outputFileName);
+    mem_fp_ = fp;
+    fd_ = fd;
 
-    ctx->curRec.allocLen = 128;
-    ctx->curRec.body = (unsigned char *)malloc(ctx->curRec.allocLen);
+    current_record_.alloc_length_ = 128;
+    current_record_.body_ = (unsigned char *)malloc(current_record_.alloc_length_);
 //xxx check for/return an error
 
     if (writeHeader) {
@@ -132,195 +140,196 @@ void hprofContextInit(hprof_context_t *ctx, char *fileName, int fd,
     }
 }
 
-int hprofFlushRecord(hprof_record_t *rec, FILE *fp)
+int HprofRecord::Flush(FILE *fp)
 {
-    if (rec->dirty) {
+    if (dirty_) {
         unsigned char headBuf[sizeof (uint8_t) + 2 * sizeof (uint32_t)];
         int nb;
 
-        headBuf[0] = rec->tag;
-        U4_TO_BUF_BE(headBuf, 1, rec->time);
-        U4_TO_BUF_BE(headBuf, 5, rec->length);
+        headBuf[0] = tag_;
+        U4_TO_BUF_BE(headBuf, 1, time_);
+        U4_TO_BUF_BE(headBuf, 5, length_);
 
         nb = fwrite(headBuf, 1, sizeof(headBuf), fp);
         if (nb != sizeof(headBuf)) {
             return UNIQUE_ERROR();
         }
-        nb = fwrite(rec->body, 1, rec->length, fp);
-        if (nb != (int)rec->length) {
+        nb = fwrite(body_, 1, length_, fp);
+        if (nb != (int)length_) {
             return UNIQUE_ERROR();
         }
 
-        rec->dirty = false;
+        dirty_ = false;
     }
 //xxx if we used less than half (or whatever) of allocLen, shrink the buffer.
 
     return 0;
 }
 
-int hprofFlushCurrentRecord(hprof_context_t *ctx)
+int Hprof::FlushCurrentRecord()
 {
-    return hprofFlushRecord(&ctx->curRec, ctx->memFp);
+    return current_record_.Flush(mem_fp_);
 }
 
-int hprofStartNewRecord(hprof_context_t *ctx, uint8_t tag, uint32_t time)
+int Hprof::StartNewRecord(uint8_t tag, uint32_t time)
 {
-    hprof_record_t *rec = &ctx->curRec;
-    int err;
+    HprofRecord *rec = &current_record_;
 
-    err = hprofFlushRecord(rec, ctx->memFp);
+    int err = rec->Flush(mem_fp_);
     if (err != 0) {
         return err;
-    } else if (rec->dirty) {
+    } else if (rec->dirty_) {
         return UNIQUE_ERROR();
     }
 
-    rec->dirty = true;
-    rec->tag = tag;
-    rec->time = time;
-    rec->length = 0;
+    rec->dirty_ = true;
+    rec->tag_ = tag;
+    rec->time_ = time;
+    rec->length_ = 0;
 
     return 0;
 }
 
-static inline int guaranteeRecordAppend(hprof_record_t *rec, size_t nmore)
+static inline int guaranteeRecordAppend(HprofRecord *rec, size_t nmore)
 {
     size_t minSize;
 
-    minSize = rec->length + nmore;
-    if (minSize > rec->allocLen) {
+    minSize = rec->length_ + nmore;
+    if (minSize > rec->alloc_length_) {
         unsigned char *newBody;
         size_t newAllocLen;
 
-        newAllocLen = rec->allocLen * 2;
+        newAllocLen = rec->alloc_length_ * 2;
         if (newAllocLen < minSize) {
-            newAllocLen = rec->allocLen + nmore + nmore/2;
+            newAllocLen = rec->alloc_length_ + nmore + nmore/2;
         }
-        newBody = (unsigned char *)realloc(rec->body, newAllocLen);
+        newBody = (unsigned char *)realloc(rec->body_, newAllocLen);
         if (newBody != NULL) {
-            rec->body = newBody;
-            rec->allocLen = newAllocLen;
+            rec->body_ = newBody;
+            rec->alloc_length_ = newAllocLen;
         } else {
 //TODO: set an error flag so future ops will fail
             return UNIQUE_ERROR();
         }
     }
 
-    CHECK(rec->length + nmore <= rec->allocLen);
+    CHECK_LE(rec->length_ + nmore, rec->alloc_length_);
     return 0;
 }
 
-int hprofAddU1ListToRecord(hprof_record_t *rec, const uint8_t *values,
-                           size_t numValues)
+int HprofRecord::AddU1List(const uint8_t *values, size_t numValues)
 {
-    int err;
-
-    err = guaranteeRecordAppend(rec, numValues);
+    int err = guaranteeRecordAppend(this, numValues);
     if (err != 0) {
         return err;
     }
 
-    memcpy(rec->body + rec->length, values, numValues);
-    rec->length += numValues;
+    memcpy(body_ + length_, values, numValues);
+    length_ += numValues;
 
     return 0;
 }
 
-int hprofAddU1ToRecord(hprof_record_t *rec, uint8_t value)
+int HprofRecord::AddU1(uint8_t value)
 {
-    int err;
-
-    err = guaranteeRecordAppend(rec, 1);
+    int err = guaranteeRecordAppend(this, 1);
     if (err != 0) {
         return err;
     }
 
-    rec->body[rec->length++] = value;
+    body_[length_++] = value;
 
     return 0;
 }
 
-int hprofAddUtf8StringToRecord(hprof_record_t *rec, const char *str)
+int HprofRecord::AddUtf8String(const char *str)
 {
     /* The terminating NUL character is NOT written.
      */
 //xxx don't do a strlen;  add and grow as necessary, until NUL
-    return hprofAddU1ListToRecord(rec, (const uint8_t *)str, strlen(str));
+    return AddU1List((const uint8_t *)str, strlen(str));
 }
 
-int hprofAddU2ListToRecord(hprof_record_t *rec, const uint16_t *values,
-                           size_t numValues)
+int HprofRecord::AddU2List(const uint16_t *values, size_t numValues)
 {
-    int err = guaranteeRecordAppend(rec, numValues * 2);
+    int err = guaranteeRecordAppend(this, numValues * 2);
     if (err != 0) {
         return err;
     }
 
 //xxx this can be way smarter
 //xxx also, don't do this bytewise if aligned and on a matching-endian arch
-    unsigned char *insert = rec->body + rec->length;
+    unsigned char *insert = body_ + length_;
     for (size_t i = 0; i < numValues; i++) {
         U2_TO_BUF_BE(insert, 0, *values++);
         insert += sizeof(*values);
     }
-    rec->length += numValues * 2;
+    length_ += numValues * 2;
 
     return 0;
 }
 
-int hprofAddU2ToRecord(hprof_record_t *rec, uint16_t value)
+int HprofRecord::AddU2(uint16_t value)
 {
-    return hprofAddU2ListToRecord(rec, &value, 1);
+    return AddU2List(&value, 1);
 }
 
-int hprofAddU4ListToRecord(hprof_record_t *rec, const uint32_t *values,
-                           size_t numValues)
+int HprofRecord::AddIdList(const HprofObjectId *values, size_t numValues)
 {
-    int err = guaranteeRecordAppend(rec, numValues * 4);
+    return AddU4List((const uint32_t*) values, numValues);
+}
+
+int HprofRecord::AddU4List(const uint32_t *values, size_t numValues)
+{
+    int err = guaranteeRecordAppend(this, numValues * 4);
     if (err != 0) {
         return err;
     }
 
 //xxx this can be way smarter
 //xxx also, don't do this bytewise if aligned and on a matching-endian arch
-    unsigned char *insert = rec->body + rec->length;
+    unsigned char *insert = body_ + length_;
     for (size_t i = 0; i < numValues; i++) {
         U4_TO_BUF_BE(insert, 0, *values++);
         insert += sizeof(*values);
     }
-    rec->length += numValues * 4;
+    length_ += numValues * 4;
 
     return 0;
 }
 
-int hprofAddU4ToRecord(hprof_record_t *rec, uint32_t value)
+int HprofRecord::AddU4(uint32_t value)
 {
-    return hprofAddU4ListToRecord(rec, &value, 1);
+    return AddU4List(&value, 1);
 }
 
-int hprofAddU8ListToRecord(hprof_record_t *rec, const uint64_t *values,
-                           size_t numValues)
+int HprofRecord::AddId(HprofObjectId value)
 {
-    int err = guaranteeRecordAppend(rec, numValues * 8);
+    return AddU4((uint32_t) value);
+}
+
+int HprofRecord::AddU8List(const uint64_t *values, size_t numValues)
+{
+    int err = guaranteeRecordAppend(this, numValues * 8);
     if (err != 0) {
         return err;
     }
 
 //xxx this can be way smarter
 //xxx also, don't do this bytewise if aligned and on a matching-endian arch
-    unsigned char *insert = rec->body + rec->length;
+    unsigned char *insert = body_ + length_;
     for (size_t i = 0; i < numValues; i++) {
         U8_TO_BUF_BE(insert, 0, *values++);
         insert += sizeof(*values);
     }
-    rec->length += numValues * 8;
+    length_ += numValues * 8;
 
     return 0;
 }
 
-int hprofAddU8ToRecord(hprof_record_t *rec, uint64_t value)
+int HprofRecord::AddU8(uint64_t value)
 {
-    return hprofAddU8ListToRecord(rec, &value, 1);
+    return AddU8List(&value, 1);
 }
 
 }  // namespace hprof

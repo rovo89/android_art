@@ -20,6 +20,8 @@
 #include "globals.h"
 #include "file.h"
 #include "object.h"
+#include "unordered_map.h"
+#include "unordered_set.h"
 
 namespace art {
 
@@ -34,12 +36,16 @@ namespace hprof {
 #define HPROF_NULL_STACK_TRACE   0
 #define HPROF_NULL_THREAD        0
 
-typedef uint32_t hprof_id;
-typedef hprof_id hprof_string_id;
-typedef hprof_id hprof_object_id;
-typedef hprof_id hprof_class_object_id;
+typedef uint32_t HprofId;
+typedef HprofId HprofStringId;
+typedef HprofId HprofObjectId;
+typedef HprofId HprofClassObjectId;
+typedef std::tr1::unordered_set<Class*, ObjectIdentityHash> ClassSet;
+typedef std::tr1::unordered_set<Class*, ObjectIdentityHash>::iterator ClassSetIterator;
+typedef std::tr1::unordered_map<std::string, size_t> StringMap;
+typedef std::tr1::unordered_map<std::string, size_t>::iterator StringMapIterator;
 
-enum hprof_basic_type {
+enum HprofBasicType {
     hprof_basic_object = 2,
     hprof_basic_boolean = 4,
     hprof_basic_char = 5,
@@ -51,7 +57,7 @@ enum hprof_basic_type {
     hprof_basic_long = 11,
 };
 
-enum hprof_tag_t {
+enum HprofTag {
     HPROF_TAG_STRING = 0x01,
     HPROF_TAG_LOAD_CLASS = 0x02,
     HPROF_TAG_UNLOAD_CLASS = 0x03,
@@ -72,7 +78,7 @@ enum hprof_tag_t {
  * HEAP_DUMP and HEAP_DUMP_SEGMENT
  * records:
  */
-enum hprof_heap_tag_t {
+enum HprofHeapTag {
     /* standard */
     HPROF_ROOT_UNKNOWN = 0xFF,
     HPROF_ROOT_JNI_GLOBAL = 0x01,
@@ -104,18 +110,32 @@ enum hprof_heap_tag_t {
  * format is:
  *
  *     uint8_t     TAG: denoting the type of the record
- *     uint32_t     TIME: number of microseconds since the time stamp in the header
- *     uint32_t     LENGTH: number of bytes that follow this uint32_t field
+ *     uint32_t    TIME: number of microseconds since the time stamp in the header
+ *     uint32_t    LENGTH: number of bytes that follow this uint32_t field
  *                    and belong to this record
  *     [uint8_t]*  BODY: as many bytes as specified in the above uint32_t field
  */
-struct hprof_record_t {
-    unsigned char *body;
-    uint32_t time;
-    uint32_t length;
-    size_t allocLen;
-    uint8_t tag;
-    bool dirty;
+class HprofRecord {
+  public:
+    int Flush(FILE *fp);
+    int AddU1(uint8_t value);
+    int AddU2(uint16_t value);
+    int AddU4(uint32_t value);
+    int AddU8(uint64_t value);
+    int AddId(HprofObjectId value);
+    int AddU1List(const uint8_t *values, size_t numValues);
+    int AddU2List(const uint16_t *values, size_t numValues);
+    int AddU4List(const uint32_t *values, size_t numValues);
+    int AddU8List(const uint64_t *values, size_t numValues);
+    int AddIdList(const HprofObjectId *values, size_t numValues);
+    int AddUtf8String(const char *str);
+
+    unsigned char *body_;
+    uint32_t time_;
+    uint32_t length_;
+    size_t alloc_length_;
+    uint8_t tag_;
+    bool dirty_;
 };
 
 enum HprofHeapId {
@@ -124,90 +144,57 @@ enum HprofHeapId {
     HPROF_HEAP_APP = 'A'
 };
 
-struct hprof_context_t {
-    /* curRec *must* be first so that we
+class Hprof {
+  public:
+    Hprof(const char *outputFileName, int fd, bool writeHeader, bool directToDdms);
+    ~Hprof();
+
+    void VisitRoot(const Object* obj);
+    int DumpHeapObject(const Object *obj);
+    bool Finish();
+
+  private:
+    int DumpClasses();
+    int DumpStrings();
+    int StartNewRecord(uint8_t tag, uint32_t time);
+    int FlushCurrentRecord();
+    int MarkRootObject(const Object *obj, jobject jniObj);
+    HprofClassObjectId LookupClassId(Class* clazz);
+    HprofStringId LookupStringId(String* string);
+    HprofStringId LookupStringId(const char* string);
+    HprofStringId LookupStringId(std::string string);
+    HprofStringId LookupClassNameId(Class* clazz);
+
+    /* current_record_ *must* be first so that we
      * can cast from a context to a record.
      */
-    hprof_record_t curRec;
+    HprofRecord current_record_;
 
-    uint32_t gcThreadSerialNumber;
-    uint8_t gcScanState;
-    HprofHeapId currentHeap;    // which heap we're currently emitting
-    uint32_t stackTraceSerialNumber;
-    size_t objectsInSegment;
+    uint32_t gc_thread_serial_number_;
+    uint8_t gc_scan_state_;
+    HprofHeapId current_heap_;    // which heap we're currently emitting
+    size_t objects_in_segment_;
 
     /*
-     * If directToDdms is set, "fileName" and "fd" will be ignored.
-     * Otherwise, "fileName" must be valid, though if "fd" >= 0 it will
+     * If direct_to_ddms_ is set, "file_name_" and "fd" will be ignored.
+     * Otherwise, "file_name_" must be valid, though if "fd" >= 0 it will
      * only be used for debug messages.
      */
-    bool directToDdms;
-    char *fileName;
-    char *fileDataPtr;          // for open_memstream
-    size_t fileDataSize;        // for open_memstream
-    FILE *memFp;
-    int fd;
+    bool direct_to_ddms_;
+    char *file_name_;
+    char *file_data_ptr_;          // for open_memstream
+    size_t file_data_size_;        // for open_memstream
+    FILE *mem_fp_;
+    int fd_;
+
+    mutable Mutex classes_lock_;
+    ClassSet classes_;
+
+    size_t next_string_id_;
+    mutable Mutex strings_lock_;
+    StringMap strings_;
 };
 
-hprof_string_id hprofLookupStringId(String* string);
-hprof_string_id hprofLookupStringId(const char* string);
-hprof_string_id hprofLookupStringId(std::string string);
-
-int hprofDumpStrings(hprof_context_t *ctx);
-
-int hprofStartup_String(void);
-int hprofShutdown_String(void);
-
-hprof_class_object_id hprofLookupClassId(Class* clazz);
-
-int hprofDumpClasses(hprof_context_t *ctx);
-
-int hprofStartup_Class(void);
-int hprofShutdown_Class(void);
-
-int hprofStartHeapDump(hprof_context_t *ctx);
-int hprofFinishHeapDump(hprof_context_t *ctx);
-
-int hprofSetGcScanState(hprof_context_t *ctx,
-                        hprof_heap_tag_t state, uint32_t threadSerialNumber);
-int hprofMarkRootObject(hprof_context_t *ctx,
-                        const Object *obj, jobject jniObj);
-
-int DumpHeapObject(hprof_context_t *ctx, const Object *obj);
-
-void hprofContextInit(hprof_context_t *ctx, char *fileName, int fd,
-                      bool writeHeader, bool directToDdms);
-
-int hprofFlushRecord(hprof_record_t *rec, FILE *fp);
-int hprofFlushCurrentRecord(hprof_context_t *ctx);
-int hprofStartNewRecord(hprof_context_t *ctx, uint8_t tag, uint32_t time);
-
-int hprofAddU1ToRecord(hprof_record_t *rec, uint8_t value);
-int hprofAddU1ListToRecord(hprof_record_t *rec,
-                           const uint8_t *values, size_t numValues);
-
-int hprofAddUtf8StringToRecord(hprof_record_t *rec, const char *str);
-
-int hprofAddU2ToRecord(hprof_record_t *rec, uint16_t value);
-int hprofAddU2ListToRecord(hprof_record_t *rec,
-                           const uint16_t *values, size_t numValues);
-
-int hprofAddU4ToRecord(hprof_record_t *rec, uint32_t value);
-int hprofAddU4ListToRecord(hprof_record_t *rec,
-                           const uint32_t *values, size_t numValues);
-
-int hprofAddU8ToRecord(hprof_record_t *rec, uint64_t value);
-int hprofAddU8ListToRecord(hprof_record_t *rec,
-                           const uint64_t *values, size_t numValues);
-
-#define hprofAddIdToRecord(rec, id) hprofAddU4ToRecord((rec), (uint32_t)(id))
-#define hprofAddIdListToRecord(rec, values, numValues) \
-            hprofAddU4ListToRecord((rec), (const uint32_t *)(values), (numValues))
-
-hprof_context_t* hprofStartup(const char *outputFileName, int fd,
-    bool directToDdms);
-bool hprofShutdown(hprof_context_t *ctx);
-void hprofFreeContext(hprof_context_t *ctx);
 int DumpHeap(const char* fileName, int fd, bool directToDdms);
 
 }  // namespace hprof
