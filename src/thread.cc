@@ -1194,6 +1194,14 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
 void Thread::GetCurrentLocation(const char*& source_file, uint32_t& line_number) const {
   Frame f = top_of_managed_stack_;
   Method* m = f.GetMethod();
+
+  // Check if the stack is empty
+  if (m == NULL) {
+    source_file = "UNKNOWN";
+    line_number = 0;
+    return;
+  }
+
   // TODO: can this ever happen?
   if (m->IsCalleeSaveMethod()) {
     f.Next();
