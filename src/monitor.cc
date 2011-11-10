@@ -24,6 +24,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "class_linker.h"
 #include "mutex.h"
 #include "object.h"
 #include "stl_util.h"
@@ -120,8 +121,8 @@ Monitor::Monitor(Object* obj)
       obj_(obj),
       wait_set_(NULL),
       lock_("a monitor lock"),
-      owner_filename_(NULL),
-      owner_line_number_(0) {
+      locking_method_(NULL),
+      locking_pc_(0) {
 }
 
 Monitor::~Monitor() {
@@ -197,15 +198,15 @@ void Monitor::Lock(Thread* self) {
   uint64_t waitStart, waitEnd;
   if (!lock_.TryLock()) {
     uint32_t wait_threshold = lock_profiling_threshold_;
-    const char* current_owner_filename = NULL;
-    uint32_t current_owner_line_number = -1;
+    const Method* current_locking_method = NULL;
+    uint32_t current_locking_pc = 0;
     {
       ScopedThreadStateChange tsc(self, Thread::kBlocked);
       if (wait_threshold != 0) {
         waitStart = NanoTime() / 1000;
       }
-      current_owner_filename = owner_filename_;
-      current_owner_line_number = owner_line_number_;
+      current_locking_method = locking_method_;
+      current_locking_pc = locking_pc_;
 
       lock_.Lock();
       if (wait_threshold != 0) {
@@ -222,7 +223,11 @@ void Monitor::Lock(Thread* self) {
         sample_percent = 100 * wait_ms / wait_threshold;
       }
       if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
-        LogContentionEvent(self, wait_ms, sample_percent, current_owner_filename, current_owner_line_number);
+        const char* current_locking_filename;
+        uint32_t current_locking_line_number;
+        TranslateLocation(current_locking_method, current_locking_pc,
+                          current_locking_filename, current_locking_line_number);
+        LogContentionEvent(self, wait_ms, sample_percent, current_locking_filename, current_locking_line_number);
       }
     }
   }
@@ -232,7 +237,8 @@ void Monitor::Lock(Thread* self) {
   // When debugging, save the current monitor holder for future
   // acquisition failures to use in sampled logging.
   if (lock_profiling_threshold_ != 0) {
-    self->GetCurrentLocation(owner_filename_, owner_line_number_);
+    locking_method_ = self->GetCurrentMethod();
+    locking_pc_ = self->GetCurrentReturnPc();
   }
 }
 
@@ -246,8 +252,8 @@ bool Monitor::Unlock(Thread* self) {
     // We own the monitor, so nobody else can be in here.
     if (lock_count_ == 0) {
       owner_ = NULL;
-      owner_filename_ = "unlocked";
-      owner_line_number_ = 0;
+      locking_method_ = NULL;
+      locking_pc_ = 0;
       lock_.Unlock();
     } else {
       --lock_count_;
@@ -366,10 +372,10 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   int prevLockCount = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
-  const char* savedFileName = owner_filename_;
-  owner_filename_ = NULL;
-  uint32_t savedLineNumber = owner_line_number_;
-  owner_line_number_ = 0;
+  const Method* savedMethod = locking_method_;
+  locking_method_ = NULL;
+  uint32_t savedPc = locking_pc_;
+  locking_pc_ = 0;
 
   /*
    * Update thread status.  If the GC wakes up, it'll ignore us, knowing
@@ -435,8 +441,8 @@ done:
    */
   owner_ = self;
   lock_count_ = prevLockCount;
-  owner_filename_ = savedFileName;
-  owner_line_number_ = savedLineNumber;
+  locking_method_ = savedMethod;
+  locking_pc_ = savedPc;
   RemoveFromWaitSet(self);
 
   /* set self->status back to Thread::kRunnable, and self-suspend if needed */
@@ -808,6 +814,25 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   }
 
   os << "\n";
+}
+
+void Monitor::TranslateLocation(const Method* method, uint32_t pc,
+                                const char*& source_file, uint32_t& line_number) const {
+  // If method is null, location is unknown
+  if (method == NULL) {
+    source_file = "unknown";
+    line_number = 0;
+    return;
+  }
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* c = method->GetDeclaringClass();
+  DexCache* dex_cache = c->GetDexCache();
+  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+  const DexFile::ClassDef* class_def = dex_file.FindClassDef(c->GetDescriptor()->ToModifiedUtf8());
+
+  source_file = dex_file.dexGetSourceFile(*class_def);
+  line_number = dex_file.GetLineNumFromPC(method, method->ToDexPC(pc));
 }
 
 MonitorList::MonitorList() : lock_("MonitorList lock") {

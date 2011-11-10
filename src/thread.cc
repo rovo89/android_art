@@ -1191,35 +1191,6 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   return result;
 }
 
-void Thread::GetCurrentLocation(const char*& source_file, uint32_t& line_number) const {
-  Frame f = top_of_managed_stack_;
-  Method* m = f.GetMethod();
-
-  // Check if the stack is empty
-  if (m == NULL) {
-    source_file = "UNKNOWN";
-    line_number = 0;
-    return;
-  }
-
-  // TODO: can this ever happen?
-  if (m->IsCalleeSaveMethod()) {
-    f.Next();
-    m = f.GetMethod();
-  }
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* c = m->GetDeclaringClass();
-  DexCache* dex_cache = c->GetDexCache();
-  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const DexFile::ClassDef* class_def = dex_file.FindClassDef(c->GetDescriptor()->ToModifiedUtf8());
-
-  source_file = dex_file.dexGetSourceFile(*class_def);
-
-  uint32_t pc = ManglePc(f.GetReturnPC());
-  line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
-}
-
 void Thread::ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -1399,12 +1370,19 @@ const Method* Thread::GetCurrentMethod() const {
   // here via a "FromCode" function, in which case there's a synthetic
   // callee-save method at the top of the stack. These shouldn't be user-visible,
   // so if we find one, skip it and return the compiled method underneath.
-  if (m->IsCalleeSaveMethod()) {
+  if (m != NULL && m->IsCalleeSaveMethod()) {
     Frame f = top_of_managed_stack_;
     f.Next();
     m = f.GetMethod();
   }
   return m;
+}
+
+uint32_t Thread::GetCurrentReturnPc() const {
+  if (top_of_managed_stack_.GetMethod() == NULL) {
+    return 0;
+  }
+  return ManglePc(top_of_managed_stack_.GetReturnPC());
 }
 
 bool Thread::HoldsLock(Object* object) {

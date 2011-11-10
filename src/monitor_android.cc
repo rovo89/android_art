@@ -78,7 +78,7 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   // Emit the source code file name, <= 37 bytes.
   const char* filename;
   uint32_t line_number;
-  self->GetCurrentLocation(filename, line_number);
+  TranslateLocation(self->GetCurrentMethod(), self->GetCurrentReturnPc(), filename, line_number);
   cp = EventLogWriteString(cp, filename, strlen(filename));
 
   // Emit the source code line number, 5 bytes.

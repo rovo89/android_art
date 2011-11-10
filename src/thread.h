@@ -229,9 +229,6 @@ class PACKED Thread {
   // Returns the java.lang.Thread's name, or NULL.
   String* GetName() const;
 
-  // Returns the current method's declaring class' source file and the current line number.
-  void GetCurrentLocation(const char*& source_file, uint32_t& line_number) const;
-
   Object* GetPeer() const {
     return peer_;
   }
@@ -243,6 +240,8 @@ class PACKED Thread {
   // Returns the Method* for the current method.
   // This is used by the JNI implementation for logging and diagnostic purposes.
   const Method* GetCurrentMethod() const;
+
+  uint32_t GetCurrentReturnPc() const;
 
   bool IsExceptionPending() const {
     return exception_ != NULL;

@@ -55,6 +55,7 @@ namespace art {
 #define LW_LOCK_OWNER_SHIFT 3
 #define LW_LOCK_OWNER(x) (((x) >> LW_LOCK_OWNER_SHIFT) & LW_LOCK_OWNER_MASK)
 
+class Method;
 class Object;
 class Thread;
 
@@ -97,6 +98,10 @@ class Monitor {
 
   void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow);
 
+  // Translates the provided method and pc into its declaring class' source file and line number.
+  void TranslateLocation(const Method* method, uint32_t pc,
+                         const char*& source_file, uint32_t& line_number) const;
+
   static bool (*is_sensitive_thread_hook_)();
   static bool is_verbose_;
   static uint32_t lock_profiling_threshold_;
@@ -115,10 +120,11 @@ class Monitor {
 
   Mutex lock_;
 
-  // Who last acquired this monitor, when lock sampling is enabled.
-  // Even when enabled, owner_filename_ may be NULL.
-  const char* owner_filename_;
-  uint32_t owner_line_number_;
+  // Method and pc where the lock owner acquired the lock, used when lock
+  // sampling is enabled. locking_method_ may be null if the lock is currently
+  // unlocked, or if the lock is acquired by the system when the stack is empty.
+  const Method* locking_method_;
+  uint32_t locking_pc_;
 
   friend class MonitorList;
   friend class Object;
