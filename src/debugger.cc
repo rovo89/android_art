@@ -851,11 +851,11 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
     const jchar* chars = name->GetCharArray()->GetData();
 
-    size_t byte_count = char_count*2 + sizeof(uint32_t)*2;
-    std::vector<uint8_t> bytes(byte_count);
+    std::vector<uint8_t> bytes;
     JDWP::Append4BE(bytes, t->GetThinLockId());
     JDWP::AppendUtf16BE(bytes, chars, char_count);
-    Dbg::DdmSendChunk(type, bytes.size(), &bytes[0]);
+    CHECK_EQ(bytes.size(), char_count*2 + sizeof(uint32_t)*2);
+    Dbg::DdmSendChunk(type, bytes);
   }
 }
 
@@ -897,6 +897,10 @@ void Dbg::DdmSendChunk(uint32_t type, size_t byte_count, const uint8_t* buf) {
   vec[0].iov_base = reinterpret_cast<void*>(const_cast<uint8_t*>(buf));
   vec[0].iov_len = byte_count;
   Dbg::DdmSendChunkV(type, vec, 1);
+}
+
+void Dbg::DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes) {
+  DdmSendChunk(type, bytes.size(), &bytes[0]);
 }
 
 void Dbg::DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt) {
@@ -969,7 +973,7 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
    *     [u4]: current number of objects allocated
    */
   uint8_t heap_count = 1;
-  std::vector<uint8_t> bytes(4 + (heap_count * (4 + 8 + 1 + 4 + 4 + 4 + 4)));
+  std::vector<uint8_t> bytes;
   JDWP::Append4BE(bytes, heap_count);
   JDWP::Append4BE(bytes, 1); // Heap id (bogus; we only have one heap).
   JDWP::Append8BE(bytes, MilliTime());
@@ -978,7 +982,8 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
   JDWP::Append4BE(bytes, Heap::GetTotalMemory()); // Current heap size in bytes.
   JDWP::Append4BE(bytes, Heap::GetBytesAllocated());
   JDWP::Append4BE(bytes, Heap::GetObjectsAllocated());
-  Dbg::DdmSendChunk(CHUNK_TYPE("HPIF"), bytes.size(), &bytes[0]);
+  CHECK_EQ(bytes.size(), 4U + (heap_count * (4 + 8 + 1 + 4 + 4 + 4 + 4)));
+  Dbg::DdmSendChunk(CHUNK_TYPE("HPIF"), bytes);
 }
 
 enum HpsgSolidity {

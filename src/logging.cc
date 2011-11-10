@@ -66,14 +66,14 @@ std::ostream& LogMessage::stream() {
 /*
  * Print a hex dump in this format:
  *
- * 01234567: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef\n
+ * 01234567: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef
  *
  * Does not use printf() or other string-formatting calls.
  */
 void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
   static const char gHexDigit[] = "0123456789abcdef";
   const unsigned char* addr = reinterpret_cast<const unsigned char*>(address);
-  char out[77];           /* exact fit */
+  char out[76];           /* exact fit */
   unsigned int offset;    /* offset to show while printing */
 
   if (show_actual_address) {
@@ -83,7 +83,6 @@ void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
   }
   memset(out, ' ', sizeof(out)-1);
   out[8] = ':';
-  out[sizeof(out)-2] = '\n';
   out[sizeof(out)-1] = '\0';
 
   int gap = (int) offset & 0x0f;

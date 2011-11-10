@@ -238,6 +238,7 @@ public:
   static bool DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen);
   static void DdmConnected();
   static void DdmDisconnected();
+  static void DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes);
   static void DdmSendChunk(uint32_t type, size_t len, const uint8_t* buf);
   static void DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt);
 

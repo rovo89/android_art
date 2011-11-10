@@ -153,6 +153,12 @@ void expandBufAdd8BE(ExpandBuf* pBuf, uint64_t val) {
   pBuf->curLen += sizeof(val);
 }
 
+static void SetUtf8String(uint8_t* buf, const uint8_t* str) {
+  uint32_t strLen = strlen((const char*)str);
+  Set4BE(buf, strLen);
+  memcpy(buf + sizeof(uint32_t), str, strLen);
+}
+
 /*
  * Add a UTF8 string as a 4-byte length followed by a non-NULL-terminated
  * string.

@@ -81,9 +81,6 @@ static const int kThstBytesPerEntry = 18;
 static const int kThstHeaderLen = 4;
 
 static void ThreadStatsGetterCallback(Thread* t, void* context) {
-  uint8_t** ptr = reinterpret_cast<uint8_t**>(context);
-  uint8_t* buf = *ptr;
-
   /*
    * Generate the contents of a THST chunk.  The data encompasses all known
    * threads.
@@ -93,7 +90,7 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
    *  (1b) bytes per entry
    *  (2b) thread count
    * Then, for each thread:
-   *  (4b) threadId
+   *  (4b) thread id
    *  (1b) thread status
    *  (4b) tid
    *  (4b) utime
@@ -108,14 +105,13 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
   int utime, stime, task_cpu;
   GetTaskStats(t->GetTid(), utime, stime, task_cpu);
 
-  JDWP::Set4BE(buf+0, t->GetThinLockId());
-  JDWP::Set1(buf+4, t->GetState());
-  JDWP::Set4BE(buf+5, t->GetTid());
-  JDWP::Set4BE(buf+9, utime);
-  JDWP::Set4BE(buf+13, stime);
-  JDWP::Set1(buf+17, t->IsDaemon());
-
-  *ptr += kThstBytesPerEntry;
+  std::vector<uint8_t>& bytes = *reinterpret_cast<std::vector<uint8_t>*>(context);
+  JDWP::Append4BE(bytes, t->GetThinLockId());
+  JDWP::Append1BE(bytes, t->GetState());
+  JDWP::Append4BE(bytes, t->GetTid());
+  JDWP::Append4BE(bytes, utime);
+  JDWP::Append4BE(bytes, stime);
+  JDWP::Append1BE(bytes, t->IsDaemon());
 }
 
 static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
@@ -124,17 +120,14 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
     ScopedThreadListLock thread_list_lock;
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
-    uint16_t thread_count;
+    uint16_t thread_count = 0;
     thread_list->ForEach(ThreadCountCallback, &thread_count);
 
-    bytes.resize(kThstHeaderLen + thread_count * kThstBytesPerEntry);
+    JDWP::Append1BE(bytes, kThstHeaderLen);
+    JDWP::Append1BE(bytes, kThstBytesPerEntry);
+    JDWP::Append2BE(bytes, thread_count);
 
-    JDWP::Set1(&bytes[0], kThstHeaderLen);
-    JDWP::Set1(&bytes[1], kThstBytesPerEntry);
-    JDWP::Set2BE(&bytes[2], thread_count);
-
-    uint8_t* ptr = &bytes[kThstHeaderLen];
-    thread_list->ForEach(ThreadStatsGetterCallback, &ptr);
+    thread_list->ForEach(ThreadStatsGetterCallback, &bytes);
   }
 
   jbyteArray result = env->NewByteArray(bytes.size());

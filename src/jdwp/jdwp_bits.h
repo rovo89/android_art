@@ -159,13 +159,6 @@ static inline void Write4BE(uint8_t** dst, uint32_t value) {
   *dst += sizeof(value);
 }
 
-// @deprecated
-static inline void SetUtf8String(uint8_t* buf, const uint8_t* str) {
-  uint32_t strLen = strlen((const char*)str);
-  Set4BE(buf, strLen);
-  memcpy(buf + sizeof(uint32_t), str, strLen);
-}
-
 }  // namespace JDWP
 
 }  // namespace art
