@@ -67,6 +67,9 @@ ThreadList::ThreadList(bool verbose)
       thread_exit_cond_("thread_exit_cond_"),
       thread_suspend_count_lock_("thread suspend count lock"),
       thread_suspend_count_cond_("thread_suspend_count_cond_") {
+  if (verbose_) {
+    LOG(INFO) << "default stack size " << Runtime::Current()->GetDefaultStackSize() / KB << "kb";
+  }
 }
 
 ThreadList::~ThreadList() {

@@ -85,7 +85,7 @@ class PACKED Thread {
   // Space to throw a StackOverflowError in.
   static const size_t kStackOverflowReservedBytes = 4 * KB;
 
-  static const size_t kDefaultStackSize = 64 * KB;
+  static const size_t kDefaultStackSize = 96 * KB;
 
   // Runtime support function pointers
   void (*pDebugMe)(Method*, uint32_t);
