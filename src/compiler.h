@@ -5,6 +5,7 @@
 
 #include "compiled_method.h"
 #include "constants.h"
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "jni_compiler.h"
 #include "oat_file.h"
@@ -63,18 +64,24 @@ class Compiler {
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
-  bool CanAssumeTypeIsPresentInDexCache(const Method* referrer, uint32_t type_idx) const {
-    return IsImage() && referrer->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
+  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const {
+    return IsImage() && dex_cache->GetResolvedTypes()->Get(type_idx) != NULL;
   }
-  bool CanAssumeStringIsPresentInDexCache(const Method* referrer, uint32_t string_idx) const {
-    return IsImage() && referrer->GetDexCacheStrings()->Get(string_idx) != NULL;
+  bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx) const {
+    return IsImage() && dex_cache->GetStrings()->Get(string_idx) != NULL;
   }
-  bool CanAccessTypeWithoutChecks(const Method* referrer, uint32_t type_idx) const {
-    Class* resolved_class = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
+  bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
+                                  const DexFile& dex_file, uint32_t type_idx) const {
+    Class* resolved_class = dex_cache->GetResolvedTypes()->Get(type_idx);
     // We should never ask whether a type needs access checks to raise a verification error,
     // all other cases where this following test could fail should have been rewritten by the
-    // verifier to verification errors.
-    DCHECK(resolved_class == NULL || referrer->GetDeclaringClass()->CanAccess(resolved_class));
+    // verifier to verification errors. Also need to handle a lack of knowledge at compile time.
+#ifndef NDEBUG
+    Class* referrer_class = dex_cache->GetResolvedTypes()
+        ->Get(dex_file.GetMethodId(referrer_idx).class_idx_);
+    DCHECK(resolved_class == NULL || referrer_class == NULL ||
+           referrer_class->CanAccess(resolved_class));
+#endif
     return resolved_class != NULL;
   }
 
@@ -95,8 +102,8 @@ class Compiler {
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
                     const DexFile& dex_file);
-  void CompileMethod(uint32_t access_flags, uint32_t method_idx, const ClassLoader* class_loader,
-                     const DexFile& dex_file);
+  void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
+                     const ClassLoader* class_loader, const DexFile& dex_file);
 
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.

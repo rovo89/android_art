@@ -14,8 +14,10 @@
 #include "runtime.h"
 #include "stl_util.h"
 
-art::CompiledMethod* oatCompileMethod(const art::Compiler& compiler, bool is_direct,
-                                      uint32_t method_idx, const art::ClassLoader* class_loader,
+art::CompiledMethod* oatCompileMethod(const art::Compiler& compiler,
+                                      const art::DexFile::CodeItem* code_item,
+                                      uint32_t access_flags, uint32_t method_idx,
+                                      const art::ClassLoader* class_loader,
                                       const art::DexFile& dex_file, art::InstructionSet);
 
 namespace art {
@@ -99,7 +101,8 @@ void Compiler::CompileOne(const Method* method) {
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
   uint32_t method_idx = method->GetDexMethodIndex();
-  CompileMethod(method->GetAccessFlags(), method_idx, class_loader, dex_file);
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
+  CompileMethod(code_item, method->GetAccessFlags(), method_idx, class_loader, dex_file);
   SetCodeAndDirectMethods(class_loader);
 }
 
@@ -303,30 +306,31 @@ void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoade
   }
   // Compile direct methods
   while (it.HasNextDirectMethod()) {
-    CompileMethod(it.GetMemberAccessFlags(), it.GetMemberIndex(), class_loader, dex_file);
+    CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(), it.GetMemberIndex(),
+                  class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
   while (it.HasNextVirtualMethod()) {
-    CompileMethod(it.GetMemberAccessFlags(), it.GetMemberIndex(), class_loader, dex_file);
+    CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(), it.GetMemberIndex(),
+                  class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());
 }
 
-void Compiler::CompileMethod(uint32_t access_flags, uint32_t method_idx,
-                             const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
+                             uint32_t method_idx, const ClassLoader* class_loader,
+                             const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
   if ((access_flags & kAccNative) != 0) {
     compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    bool is_direct = (access_flags & (kAccStatic | kAccPrivate | kAccConstructor)) != 0;
-    compiled_method = oatCompileMethod(*this, is_direct, method_idx, class_loader, dex_file,
-                                       kThumb2);
-    // TODO: assert compiled_method is not NULL, currently NULL may be returned if the method
-    // wasn't resolved
+    compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
+                                       dex_file, kThumb2);
+    CHECK(compiled_method != NULL);
   }
 
   if (compiled_method != NULL) {

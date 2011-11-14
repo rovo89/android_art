@@ -232,7 +232,7 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                  */
                 if ((definedFP && definedCore) &&
                     ((cUnit->disableOpt & (1 << kPromoteRegs)) == 0)) {
-                    LOG(WARNING) << art::PrettyMethod(cUnit->method)
+                    LOG(WARNING) << art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
                         << " op at block " << bb->id
                         << " has both fp and core uses for same def.";
                     cUnit->disableOpt |= (1 << kPromoteRegs);
@@ -289,23 +289,24 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     cUnit->regLocation = loc;
 
     /* Allocation the promotion map */
-    cUnit->promotionMap = (PromotionMap*)oatNew( cUnit->method->NumRegisters()
-                           * sizeof(cUnit->promotionMap[0]), true);
+    int numRegs = cUnit->numDalvikRegisters;
+    cUnit->promotionMap =
+        (PromotionMap*)oatNew(numRegs * sizeof(cUnit->promotionMap[0]), true);
 
     /* Add types of incoming arguments based on signature */
-    int numRegs = cUnit->method->NumRegisters();
-    int numIns = cUnit->method->NumIns();
+    int numIns = cUnit->numIns;
     if (numIns > 0) {
         int sReg = numRegs - numIns;
-        if (!cUnit->method->IsStatic()) {
-            // Skip past "this"
+        if ((cUnit->access_flags & art::kAccStatic) == 0) {
+            // For non-static, skip past "this"
             cUnit->regLocation[sReg].defined = true;
             cUnit->regLocation[sReg].core = true;
             sReg++;
         }
-        const String* shorty = cUnit->method->GetShorty();
-        for (int i = 1; i < shorty->GetLength(); i++) {
-            switch(shorty->CharAt(i)) {
+        const char* shorty = cUnit->shorty;
+        int shorty_len = strlen(shorty);
+        for (int i = 1; i < shorty_len; i++) {
+            switch(shorty[i]) {
                 case 'D':
                     cUnit->regLocation[sReg].wide = true;
                     cUnit->regLocation[sReg+1].highWord = true;
@@ -369,9 +370,6 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     }
 
     /* Figure out the frame size */
-    cUnit->numIns = cUnit->method->NumIns();
-    cUnit->numRegs = cUnit->method->NumRegisters() - cUnit->numIns;
-    cUnit->numOuts = cUnit->method->NumOuts();
     cUnit->numPadding = (STACK_ALIGN_WORDS -
         (cUnit->numCoreSpills + cUnit->numFPSpills + cUnit->numRegs +
          cUnit->numOuts + 2)) & (STACK_ALIGN_WORDS-1);

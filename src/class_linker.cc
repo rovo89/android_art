@@ -1335,7 +1335,7 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
     dst->SetNumOuts(code_item->outs_size_);
   } else {
     uint16_t num_args = Method::NumArgRegisters(shorty);
-    if ((it.GetMemberAccessFlags() & kAccStatic) != 0) {
+    if ((it.GetMemberAccessFlags() & kAccStatic) == 0) {
       ++num_args;
     }
     dst->SetNumRegisters(num_args);

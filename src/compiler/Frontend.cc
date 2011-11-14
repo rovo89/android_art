@@ -215,7 +215,7 @@ STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 {
     FILE* file;
-    std::string name = art::PrettyMethod(cUnit->method);
+    std::string name = art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
     char* fileName = (char *) oatNew(
@@ -416,12 +416,7 @@ STATIC bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 /* Identify code range in try blocks and set up the empty catch blocks */
 STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 {
-    const Method* method = cUnit->method;
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    const art::DexFile& dex_file = class_linker->FindDexFile(
-         method->GetDeclaringClass()->GetDexCache());
-    const art::DexFile::CodeItem* code_item =
-         dex_file.GetCodeItem(method->GetCodeItemOffset());
+    const art::DexFile::CodeItem* code_item = cUnit->code_item;
     int triesSize = code_item->tries_size_;
     int offset;
 
@@ -615,13 +610,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                             ArenaBitVector* tryBlockAddr, const u2* codePtr,
                             const u2* codeEnd)
 {
-
-    const Method* method = cUnit->method;
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    const art::DexFile& dex_file = class_linker->FindDexFile(
-         method->GetDeclaringClass()->GetDexCache());
-    const art::DexFile::CodeItem* code_item =
-         dex_file.GetCodeItem(method->GetCodeItemOffset());
+    const art::DexFile::CodeItem* code_item = cUnit->code_item;
 
     /* In try block */
     if (oatIsBitSet(tryBlockAddr, curOffset)) {
@@ -691,28 +680,16 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
-                                      uint32_t method_idx, const art::ClassLoader* class_loader,
-                                      const art::DexFile& dex_file, art::InstructionSet insnSet)
+CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, uint32_t method_idx,
+                                 const art::ClassLoader* class_loader,
+                                 const art::DexFile& dex_file, art::InstructionSet insnSet)
 {
-    art::ClassLinker* linker = art::Runtime::Current()->GetClassLinker();
-    art::DexCache* dex_cache = linker->FindDexCache(dex_file);
-    art::Method* method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
-                                                class_loader, is_direct);
-    if (method == NULL) {
-      CHECK(Thread::Current()->IsExceptionPending());
-      Thread::Current()->ClearException();
-      LOG(INFO) << "Couldn't resolve " << PrettyMethod(method_idx, dex_file, true)
-          << " for compilation";
-      return NULL;
-    }
     if (compiler.IsVerbose()) {
-        LOG(INFO) << "Compiling " << PrettyMethod(method) << "...";
+        LOG(INFO) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
     }
     oatArenaReset();
 
-    const art::DexFile::CodeItem* code_item =
-         dex_file.GetCodeItem(method->GetCodeItemOffset());
     const u2* codePtr = code_item->insns_;
     const u2* codeEnd = code_item->insns_ + code_item->insns_size_in_code_units_;
     int numBlocks = 0;
@@ -720,16 +697,28 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
 
     oatInit(compiler);
 
+    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
     UniquePtr<CompilationUnit> cUnit(new CompilationUnit);
     memset(cUnit.get(), 0, sizeof(*cUnit));
     cUnit->compiler = &compiler;
-    cUnit->method = method;
+    cUnit->class_linker = class_linker;
+    cUnit->dex_file = &dex_file;
+    cUnit->dex_cache = class_linker->FindDexCache(dex_file);
+    cUnit->method_idx = method_idx;
+    cUnit->code_item = code_item;
+    cUnit->access_flags = access_flags;
+    cUnit->shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
     cUnit->instructionSet = (OatInstructionSetType)insnSet;
     cUnit->insns = code_item->insns_;
     cUnit->insnsSize = code_item->insns_size_in_code_units_;
+    cUnit->numIns = code_item->ins_size_;
+    cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
+    cUnit->numOuts = code_item->outs_size_;
+    /* Adjust this value accordingly once inlining is performed */
+    cUnit->numDalvikRegisters = code_item->registers_size_;
     bool useMatch = compilerMethodMatch.length() != 0;
     bool match = useMatch && (compilerFlipMatch ^
-        (PrettyMethod(method).find(compilerMethodMatch) != std::string::npos));
+        (PrettyMethod(method_idx, dex_file).find(compilerMethodMatch) != std::string::npos));
     if (!useMatch || match) {
         cUnit->disableOpt = compilerOptimizerDisableFlags;
         cUnit->enableDebug = compilerDebugFlags;
@@ -860,10 +849,6 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
         oatDumpCompilationUnit(cUnit.get());
     }
 
-    /* Adjust this value accordingly once inlining is performed */
-    cUnit->numDalvikRegisters = cUnit->method->NumRegisters();
-
-
     /* Verify if all blocks are connected as claimed */
     oatDataFlowAnalysisDispatcher(cUnit.get(), verifyPredInfo, kAllNodes, false /* isIterative */);
 
@@ -922,7 +907,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
                                                 vmapTable);
 
     if (compiler.IsVerbose()) {
-        LOG(INFO) << "Compiled " << PrettyMethod(method)
+        LOG(INFO) << "Compiled " << PrettyMethod(method_idx, dex_file)
                   << " (" << (cUnit->codeBuffer.size() * sizeof(cUnit->codeBuffer[0])) << " bytes)";
     }
 

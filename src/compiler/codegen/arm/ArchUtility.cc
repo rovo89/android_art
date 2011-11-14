@@ -309,7 +309,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     switch(lir->opcode) {
         case kArmPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
-                art::PrettyMethod(cUnit->method);
+                art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
             break;
         case kArmPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
@@ -380,8 +380,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
 
 void oatDumpPromotionMap(CompilationUnit *cUnit)
 {
-    const Method *method = cUnit->method;
-    for (int i = 0; i < method->NumRegisters(); i++) {
+    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
         PromotionMap vRegMap = cUnit->promotionMap[i];
         char buf[100];
         if (vRegMap.fpLocation == kLocPhysReg) {
@@ -400,8 +399,7 @@ void oatDumpPromotionMap(CompilationUnit *cUnit)
 
 void oatDumpFullPromotionMap(CompilationUnit *cUnit)
 {
-    const Method *method = cUnit->method;
-    for (int i = 0; i < method->NumRegisters(); i++) {
+    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
         PromotionMap vRegMap = cUnit->promotionMap[i];
         LOG(INFO) << i << " -> " << "CL:" << (int)vRegMap.coreLocation <<
             ", CR:" << (int)vRegMap.coreReg << ", FL:" <<
@@ -413,9 +411,9 @@ void oatDumpFullPromotionMap(CompilationUnit *cUnit)
 /* Dump instructions and constant pool contents */
 void oatCodegenDump(CompilationUnit* cUnit)
 {
-    const Method *method = cUnit->method;
     LOG(INFO) << "/*";
-    LOG(INFO) << "Dumping LIR insns for " << art::PrettyMethod(cUnit->method);
+    LOG(INFO) << "Dumping LIR insns for "
+        << art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     LIR* lirInsn;
     ArmLIR* armLIR;
     int insnsSize = cUnit->insnsSize;
@@ -449,10 +447,12 @@ void oatCodegenDump(CompilationUnit* cUnit)
             armLIR->generic.offset, armLIR->generic.offset, armLIR->operands[0]);
     }
 
-    std::string signature = method->GetSignature()->ToModifiedUtf8();
-    std::string name = method->GetName()->ToModifiedUtf8();
-    std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->
-        ToModifiedUtf8();
+    const art::DexFile::MethodId& method_id =
+        cUnit->dex_file->GetMethodId(cUnit->method_idx);
+    std::string signature = cUnit->dex_file->GetMethodSignature(method_id);
+    std::string name = cUnit->dex_file->GetMethodName(method_id);
+    std::string descriptor =
+        cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id);
 
     // Dump mapping table
     if (cUnit->mappingTable.size() > 0) {

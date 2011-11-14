@@ -193,8 +193,15 @@ typedef struct CompilationUnit {
     int numInsts;
     int numBlocks;
     GrowableList blockList;
-    const Compiler* compiler;
-    const Method* method;
+    const Compiler* compiler;           // Compiler driving this compiler
+    art::ClassLinker* class_linker;     // Linker to resolve fields and methods
+    const art::DexFile* dex_file;       // DexFile containing the method being compiled
+    art::DexCache* dex_cache;           // DexFile's corresponding cache
+    const art::ClassLoader* class_loader;  // compiling method's class loader
+    uint32_t method_idx;                // compiling method's index into method_ids of DexFile
+    const art::DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
+    uint32_t access_flags;              // compiling method's access flags
+    const char* shorty;                 // compiling method's shorty
     LIR* firstLIRInsn;
     LIR* lastLIRInsn;
     LIR* literalList;                   // Constants
@@ -276,7 +283,7 @@ typedef struct CompilationUnit {
      */
     int numIns;
     int numOuts;
-    int numRegs;            // Unlike struct Method, does not include ins
+    int numRegs;            // Unlike numDalvikRegisters, does not include ins
     int numCoreSpills;
     int numFPSpills;
     int numPadding;         // # of 4-byte padding cells
