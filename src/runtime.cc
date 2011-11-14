@@ -731,16 +731,16 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 }
 
-bool Runtime::HasJniStubArray() const {
+bool Runtime::HasJniDlsymLookupStub() const {
   return jni_stub_array_ != NULL;
 }
 
-ByteArray* Runtime::GetJniStubArray() const {
+ByteArray* Runtime::GetJniDlsymLookupStub() const {
   CHECK(jni_stub_array_ != NULL);
   return jni_stub_array_;
 }
 
-void Runtime::SetJniStubArray(ByteArray* jni_stub_array) {
+void Runtime::SetJniDlsymLookupStub(ByteArray* jni_stub_array) {
   CHECK(jni_stub_array != NULL)  << " jni_stub_array=" << jni_stub_array;
   CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array)
       << "jni_stub_array_=" << jni_stub_array_ << " jni_stub_array=" << jni_stub_array;

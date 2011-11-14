@@ -205,7 +205,7 @@ class CommonTest : public testing::Test {
 #elif defined(__arm__)
     instruction_set = kThumb2;
 #endif
-    runtime_->SetJniStubArray(JniCompiler::CreateJniStub(instruction_set));
+    runtime_->SetJniDlsymLookupStub(Compiler::CreateJniDlysmLookupStub(instruction_set));
     runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
     for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);
@@ -352,7 +352,7 @@ class CommonTest : public testing::Test {
     compiler_->CompileOne(method);
     MakeExecutable(method);
 
-    MakeExecutable(runtime_->GetJniStubArray());
+    MakeExecutable(runtime_->GetJniDlsymLookupStub());
   }
 
   void CompileDirectMethod(ClassLoader* class_loader,

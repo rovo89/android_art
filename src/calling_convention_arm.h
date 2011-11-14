@@ -10,8 +10,8 @@ namespace arm {
 
 class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  explicit ArmManagedRuntimeCallingConvention(const Method* method) :
-                                     ManagedRuntimeCallingConvention(method) {}
+  ArmManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
+      ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
   virtual ~ArmManagedRuntimeCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
@@ -29,7 +29,7 @@ class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
 
 class ArmJniCallingConvention : public JniCallingConvention {
  public:
-  explicit ArmJniCallingConvention(const Method* method);
+  explicit ArmJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
   virtual ~ArmJniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();

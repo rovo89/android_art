@@ -17,27 +17,23 @@ FrameOffset CallingConvention::MethodStackOffset() {
 // Managed runtime calling convention
 
 ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
-    const Method* native_method, InstructionSet instruction_set) {
+    bool is_static, bool is_synchronized, const char* shorty, InstructionSet instruction_set) {
   if (instruction_set == kX86) {
-    return new x86::X86ManagedRuntimeCallingConvention(native_method);
+    return new x86::X86ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
   } else {
     CHECK(instruction_set == kArm || instruction_set == kThumb2);
-    return new arm::ArmManagedRuntimeCallingConvention(native_method);
+    return new arm::ArmManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
   }
 }
 
-size_t ManagedRuntimeCallingConvention::FrameSize() {
-  return GetMethod()->GetFrameSizeInBytes();
-}
-
 bool ManagedRuntimeCallingConvention::HasNext() {
-  return itr_args_ < GetMethod()->NumArgs();
+  return itr_args_ < NumArgs();
 }
 
 void ManagedRuntimeCallingConvention::Next() {
   CHECK(HasNext());
   if (IsCurrentArgExplicit() &&  // don't query parameter type of implicit args
-      GetMethod()->IsParamALongOrDouble(itr_args_)) {
+      IsParamALongOrDouble(itr_args_)) {
     itr_longs_and_doubles_++;
     itr_slots_++;
   }
@@ -50,7 +46,7 @@ void ManagedRuntimeCallingConvention::Next() {
 
 bool ManagedRuntimeCallingConvention::IsCurrentArgExplicit() {
   // Static methods have no implicit arguments, others implicitly pass this
-  return GetMethod()->IsStatic() || (itr_args_ != 0);
+  return IsStatic() || (itr_args_ != 0);
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentArgPossiblyNull() {
@@ -58,28 +54,28 @@ bool ManagedRuntimeCallingConvention::IsCurrentArgPossiblyNull() {
 }
 
 size_t ManagedRuntimeCallingConvention::CurrentParamSize() {
-  return GetMethod()->ParamSize(itr_args_);
+  return ParamSize(itr_args_);
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
-  return GetMethod()->IsParamAReference(itr_args_);
+  return IsParamAReference(itr_args_);
 }
 
 // JNI calling convention
 
-JniCallingConvention* JniCallingConvention::Create(const Method* native_method,
-                                               InstructionSet instruction_set) {
+JniCallingConvention* JniCallingConvention::Create(bool is_static, bool is_synchronized,
+                                                   const char* shorty,
+                                                   InstructionSet instruction_set) {
   if (instruction_set == kX86) {
-    return new x86::X86JniCallingConvention(native_method);
+    return new x86::X86JniCallingConvention(is_static, is_synchronized, shorty);
   } else {
     CHECK(instruction_set == kArm || instruction_set == kThumb2);
-    return new arm::ArmJniCallingConvention(native_method);
+    return new arm::ArmJniCallingConvention(is_static, is_synchronized, shorty);
   }
 }
 
 size_t JniCallingConvention::ReferenceCount() const {
-  const Method* method = GetMethod();
-  return method->NumReferenceArgs() + (method->IsStatic() ? 1 : 0);
+  return NumReferenceArgs() + (IsStatic() ? 1 : 0);
 }
 
 FrameOffset JniCallingConvention::SavedLocalReferenceCookieOffset() const {
@@ -97,16 +93,16 @@ bool JniCallingConvention::HasNext() {
   if (itr_args_ <= kObjectOrClass) {
     return true;
   } else {
-    unsigned int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
-    return arg_pos < GetMethod()->NumArgs();
+    unsigned int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+    return arg_pos < NumArgs();
   }
 }
 
 void JniCallingConvention::Next() {
   CHECK(HasNext());
   if (itr_args_ > kObjectOrClass) {
-    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
-    if (GetMethod()->IsParamALongOrDouble(arg_pos)) {
+    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+    if (IsParamALongOrDouble(arg_pos)) {
       itr_longs_and_doubles_++;
       itr_slots_++;
     }
@@ -125,8 +121,8 @@ bool JniCallingConvention::IsCurrentParamAReference() {
     case kObjectOrClass:
       return true;   // jobject or jclass
     default: {
-      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
-      return GetMethod()->IsParamAReference(arg_pos);
+      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+      return IsParamAReference(arg_pos);
     }
   }
 }
@@ -147,15 +143,15 @@ size_t JniCallingConvention::CurrentParamSize() {
   if (itr_args_ <= kObjectOrClass) {
     return kPointerSize;  // JNIEnv or jobject/jclass
   } else {
-    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(GetMethod());
-    return GetMethod()->ParamSize(arg_pos);
+    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+    return ParamSize(arg_pos);
   }
 }
 
-size_t JniCallingConvention::NumberOfExtraArgumentsForJni(const Method* method) {
+size_t JniCallingConvention::NumberOfExtraArgumentsForJni() {
   // The first argument is the JNIEnv*.
   // Static methods have an extra argument which is the jclass.
-  return method->IsStatic() ? 2 : 1;
+  return IsStatic() ? 2 : 1;
 }
 
 }  // namespace art

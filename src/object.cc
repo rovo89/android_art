@@ -760,7 +760,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
 
 bool Method::IsRegistered() const {
   void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_), false);
-  void* jni_stub = Runtime::Current()->GetJniStubArray()->GetData();
+  void* jni_stub = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
   return native_method != jni_stub;
 }
 
@@ -774,7 +774,7 @@ void Method::RegisterNative(const void* native_method) {
 void Method::UnregisterNative() {
   CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
-  RegisterNative(Runtime::Current()->GetJniStubArray()->GetData());
+  RegisterNative(Runtime::Current()->GetJniDlsymLookupStub()->GetData());
 }
 
 void Class::SetStatus(Status new_status) {

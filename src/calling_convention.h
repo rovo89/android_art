@@ -5,7 +5,6 @@
 
 #include <vector>
 #include "managed_register.h"
-#include "object.h"
 #include "stack_indirect_reference_table.h"
 #include "thread.h"
 
@@ -14,9 +13,15 @@ namespace art {
 // Top-level abstraction for different calling conventions
 class CallingConvention {
  public:
-  bool IsReturnAReference() const { return method_->IsReturnAReference(); }
+  bool IsReturnAReference() const { return shorty_[0] == 'L'; }
 
-  size_t SizeOfReturnValue() const { return method_->ReturnSize(); }
+  size_t SizeOfReturnValue() const {
+    size_t result = Primitive::ComponentSize(Primitive::GetType(shorty_[0]));
+    if (result >= 1 && result < 4) {
+      result = 4;
+    }
+    return result;
+  }
 
   // Register that holds result of this method
   virtual ManagedRegister ReturnRegister() = 0;
@@ -42,11 +47,73 @@ class CallingConvention {
   virtual ~CallingConvention() {}
 
  protected:
-  explicit CallingConvention(const Method* method)
-      : displacement_(0), method_(const_cast<Method*>(method)) {}
+  CallingConvention(bool is_static, bool is_synchronized, const char* shorty)
+      : displacement_(0), is_static_(is_static), is_synchronized_(is_synchronized),
+        shorty_(shorty) {
+    num_args_ = (is_static ? 0 : 1) + strlen(shorty) - 1;
+    num_ref_args_ = is_static ? 0 : 1;  // The implicit this pointer.
+    num_long_or_double_args_ = 0;
+    for (size_t i = 1; i < strlen(shorty); i++) {
+      char ch = shorty_[i];
+      if (ch == 'L') {
+        num_ref_args_++;
+      } else if ((ch == 'D') || (ch == 'J')) {
+        num_long_or_double_args_++;
+      }
+    }
+  }
 
-  const Method* GetMethod() const { return method_; }
+  bool IsStatic() const {
+    return is_static_;
+  }
+  bool IsSynchronized() const {
+    return is_synchronized_;
+  }
+  bool IsParamALongOrDouble(unsigned int param) const {
+    DCHECK_LT(param, NumArgs());
+    if (IsStatic()) {
+      param++;  // 0th argument must skip return value at start of the shorty
+    } else if (param == 0) {
+      return false;  // this argument
+    }
+    char ch = shorty_[param];
+    return (ch == 'J' || ch == 'D');
+  }
+  bool IsParamAReference(unsigned int param) const {
+    DCHECK_LT(param, NumArgs());
+    if (IsStatic()) {
+      param++;  // 0th argument must skip return value at start of the shorty
+    } else if (param == 0) {
+      return true;  // this argument
+    }
+    return shorty_[param] == 'L';
 
+  }
+  size_t NumArgs() const {
+    return num_args_;
+  }
+  size_t NumLongOrDoubleArgs() const {
+    return num_long_or_double_args_;
+  }
+  size_t NumReferenceArgs() const {
+    return num_ref_args_;
+  }
+  size_t ParamSize(unsigned int param) const {
+    DCHECK_LT(param, NumArgs());
+    if (IsStatic()) {
+      param++;  // 0th argument must skip return value at start of the shorty
+    } else if (param == 0) {
+      return kPointerSize;  // this argument
+    }
+    size_t result = Primitive::ComponentSize(Primitive::GetType(shorty_[param]));
+    if (result >= 1 && result < 4) {
+      result = 4;
+    }
+    return result;
+  }
+  const char* GetShorty() const {
+    return shorty_.c_str();
+  }
   // The slot number for current calling_convention argument.
   // Note that each slot is 32-bit. When the current argument is bigger
   // than 32 bits, return the first slot number for this argument.
@@ -61,7 +128,12 @@ class CallingConvention {
   FrameOffset displacement_;
 
  private:
-  Method* method_;
+  const bool is_static_;
+  const bool is_synchronized_;
+  std::string shorty_;
+  size_t num_args_;
+  size_t num_ref_args_;
+  size_t num_long_or_double_args_;
 };
 
 // Abstraction for managed code's calling conventions
@@ -74,10 +146,9 @@ class CallingConvention {
 // | { Method* }             | <-- SP
 class ManagedRuntimeCallingConvention : public CallingConvention {
  public:
-  static ManagedRuntimeCallingConvention* Create(const Method* native_method,
+  static ManagedRuntimeCallingConvention* Create(bool is_static, bool is_synchronized,
+                                                 const char* shorty,
                                                  InstructionSet instruction_set);
-
-  size_t FrameSize();
 
   // Register that holds the incoming method argument
   virtual ManagedRegister MethodRegister() = 0;
@@ -97,8 +168,8 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   virtual ~ManagedRuntimeCallingConvention() {}
 
  protected:
-  explicit ManagedRuntimeCallingConvention(const Method* method) :
-                                           CallingConvention(method) {}
+  ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
+      CallingConvention(is_static, is_synchronized, shorty) {}
 };
 
 // Abstraction for JNI calling conventions
@@ -117,7 +188,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 // callee saves for frames above this one.
 class JniCallingConvention : public CallingConvention {
  public:
-  static JniCallingConvention* Create(const Method* native_method,
+  static JniCallingConvention* Create(bool is_static, bool is_synchronized, const char* shorty,
                                       InstructionSet instruction_set);
 
   // Size of frame excluding space for outgoing args (its assumed Method* is
@@ -184,15 +255,15 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  explicit JniCallingConvention(const Method* native_method) :
-      CallingConvention(native_method) {}
+  explicit JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
+      CallingConvention(is_static, is_synchronized, shorty) {}
 
   // Number of stack slots for outgoing arguments, above which the SIRT is
   // located
   virtual size_t NumberOfOutgoingStackArgs() = 0;
 
  protected:
-  static size_t NumberOfExtraArgumentsForJni(const Method* method);
+  size_t NumberOfExtraArgumentsForJni();
 };
 
 }  // namespace art

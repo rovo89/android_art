@@ -17,14 +17,14 @@ ManagedRegister ArmJniCallingConvention::InterproceduralScratchRegister() {
   return ArmManagedRegister::FromCoreRegister(IP);  // R12
 }
 
-static ManagedRegister ReturnRegisterForMethod(const Method* method) {
-  if (method->IsReturnAFloat()) {
+static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
+  if (shorty[0] == 'F') {
     return ArmManagedRegister::FromCoreRegister(R0);
-  } else if (method->IsReturnADouble()) {
+  } else if (shorty[0] == 'D') {
     return ArmManagedRegister::FromRegisterPair(R0_R1);
-  } else if (method->IsReturnALong()) {
+  } else if (shorty[0] == 'J') {
     return ArmManagedRegister::FromRegisterPair(R0_R1);
-  } else if (method->IsReturnVoid()) {
+  } else if (shorty[0] == 'V') {
     return ArmManagedRegister::NoRegister();
   } else {
     return ArmManagedRegister::FromCoreRegister(R0);
@@ -32,11 +32,11 @@ static ManagedRegister ReturnRegisterForMethod(const Method* method) {
 }
 
 ManagedRegister ArmManagedRuntimeCallingConvention::ReturnRegister() {
-  return ReturnRegisterForMethod(GetMethod());
+  return ReturnRegisterForShorty(GetShorty());
 }
 
 ManagedRegister ArmJniCallingConvention::ReturnRegister() {
-  return ReturnRegisterForMethod(GetMethod());
+  return ReturnRegisterForShorty(GetShorty());
 }
 
 // Managed runtime calling convention
@@ -56,7 +56,7 @@ bool ArmManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
     return true;
   } else {
     // handle funny case of a long/double straddling registers and the stack
-    return GetMethod()->IsParamALongOrDouble(itr_args_);
+    return IsParamALongOrDouble(itr_args_);
   }
 }
 
@@ -65,8 +65,7 @@ static const Register kManagedArgumentRegisters[] = {
 };
 ManagedRegister ArmManagedRuntimeCallingConvention::CurrentParamRegister() {
   CHECK(IsCurrentParamInRegister());
-  const Method* method = GetMethod();
-  if (method->IsParamALongOrDouble(itr_args_)) {
+  if (IsParamALongOrDouble(itr_args_)) {
     if (itr_slots_ == 0) {
       return ArmManagedRegister::FromRegisterPair(R1_R2);
     } else if (itr_slots_ == 1) {
@@ -99,15 +98,16 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 // JNI calling convention
 
-ArmJniCallingConvention::ArmJniCallingConvention(const Method* method)
-    : JniCallingConvention(method) {
+ArmJniCallingConvention::ArmJniCallingConvention(bool is_static, bool is_synchronized,
+                                                 const char* shorty)
+    : JniCallingConvention(is_static, is_synchronized, shorty) {
   // Compute padding to ensure longs and doubles are not split in AAPCS
   // TODO: in terms of outgoing argument size this may be overly generous
   // due to padding appearing in the registers
   size_t padding = 0;
-  size_t check = method->IsStatic() ? 1 : 0;
-  for (size_t i = 0; i < method->NumArgs(); i++) {
-    if (((i & 1) == check) && method->IsParamALongOrDouble(i)) {
+  size_t check = IsStatic() ? 1 : 0;
+  for (size_t i = 0; i < NumArgs(); i++) {
+    if (((i & 1) == check) && IsParamALongOrDouble(i)) {
       padding += 4;
     }
   }
@@ -155,11 +155,10 @@ bool ArmJniCallingConvention::IsMethodRegisterClobberedPreCall() {
 // in even register numbers and stack slots
 void ArmJniCallingConvention::Next() {
   JniCallingConvention::Next();
-  const Method* method = GetMethod();
-  size_t arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
+  size_t arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
   if ((itr_args_ >= 2) &&
-      (arg_pos < GetMethod()->NumArgs()) &&
-      method->IsParamALongOrDouble(arg_pos)) {
+      (arg_pos < NumArgs()) &&
+      IsParamALongOrDouble(arg_pos)) {
     // itr_slots_ needs to be an even number, according to AAPCS.
     if ((itr_slots_ & 0x1u) != 0) {
       itr_slots_++;
@@ -180,9 +179,8 @@ static const Register kJniArgumentRegisters[] = {
 };
 ManagedRegister ArmJniCallingConvention::CurrentParamRegister() {
   CHECK_LT(itr_slots_, 4u);
-  const Method* method = GetMethod();
-  int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni(method);
-  if ((itr_args_ >= 2) && method->IsParamALongOrDouble(arg_pos)) {
+  int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+  if ((itr_args_ >= 2) && IsParamALongOrDouble(arg_pos)) {
     CHECK_EQ(itr_slots_, 2u);
     return ArmManagedRegister::FromRegisterPair(R2_R3);
   } else {
@@ -198,11 +196,9 @@ FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
 }
 
 size_t ArmJniCallingConvention::NumberOfOutgoingStackArgs() {
-  const Method* method = GetMethod();
-  size_t static_args = method->IsStatic() ? 1 : 0;  // count jclass
+  size_t static_args = IsStatic() ? 1 : 0;  // count jclass
   // regular argument parameters and this
-  size_t param_args = method->NumArgs() +
-                      method->NumLongOrDoubleArgs();
+  size_t param_args = NumArgs() + NumLongOrDoubleArgs();
   // count JNIEnv* less arguments in registers
   return static_args + param_args + 1 - 4;
 }

@@ -54,6 +54,8 @@ class Compiler {
   static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
                                          Runtime::TrampolineType type);
 
+  static ByteArray* CreateJniDlysmLookupStub(InstructionSet instruction_set);
+
   // A method is uniquely located by its DexFile and index into the method_id table of that dex file
   typedef std::pair<const DexFile*, uint32_t> MethodReference;
 
@@ -93,8 +95,8 @@ class Compiler {
   void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
                     const DexFile& dex_file);
-  void CompileMethod(bool is_direct, bool is_native, bool is_static, bool is_abstract,
-                     uint32_t method_idx, const ClassLoader* class_loader, const DexFile& dex_file);
+  void CompileMethod(uint32_t access_flags, uint32_t method_idx, const ClassLoader* class_loader,
+                     const DexFile& dex_file);
 
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.

@@ -6,12 +6,14 @@
 #include "compiled_method.h"
 #include "constants.h"
 #include "macros.h"
-#include "object.h"
+#include "thread.h"
 
 namespace art {
 
 class Assembler;
+class ClassLoader;
 class Compiler;
+class DexFile;
 class JniCallingConvention;
 class ManagedRegister;
 class ManagedRuntimeCallingConvention;
@@ -25,12 +27,8 @@ class JniCompiler {
   explicit JniCompiler(InstructionSet instruction_set);
   ~JniCompiler();
 
-  CompiledMethod* Compile(bool is_direct, uint32_t method_idx, const ClassLoader* class_loader,
-                          const DexFile& dex_file);
-
-  // Stub to perform native method symbol lookup via dlsym
-  // TODO: remove from JniCompiler
-  static ByteArray* CreateJniStub(InstructionSet instruction_set);
+  CompiledMethod* Compile(uint32_t access_flags, uint32_t method_idx,
+                          const ClassLoader* class_loader, const DexFile& dex_file);
 
  private:
   // Copy a single parameter from the managed to the JNI calling convention

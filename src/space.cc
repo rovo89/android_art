@@ -137,7 +137,7 @@ bool Space::InitFromImage(const std::string& image_file_name) {
   DCHECK_EQ(0, memcmp(&image_header, image_header_, sizeof(ImageHeader)));
 
   Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
-  runtime->SetJniStubArray(down_cast<ByteArray*>(jni_stub_array));
+  runtime->SetJniDlsymLookupStub(down_cast<ByteArray*>(jni_stub_array));
 
   Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
   runtime->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));

@@ -22,12 +22,12 @@ ManagedRegister X86JniCallingConvention::ReturnScratchRegister() const {
   return ManagedRegister::NoRegister();  // No free regs, so assembler uses push/pop
 }
 
-static ManagedRegister ReturnRegisterForMethod(const Method* method) {
-  if (method->IsReturnAFloatOrDouble()) {
+static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
+  if (shorty[0] == 'F' || shorty[0] == 'D') {
     return X86ManagedRegister::FromX87Register(ST0);
-  } else if (method->IsReturnALong()) {
+  } else if (shorty[0] == 'J') {
     return X86ManagedRegister::FromRegisterPair(EAX_EDX);
-  } else if (method->IsReturnVoid()) {
+  } else if (shorty[0] == 'V') {
     return ManagedRegister::NoRegister();
   } else {
     return X86ManagedRegister::FromCpuRegister(EAX);
@@ -35,11 +35,11 @@ static ManagedRegister ReturnRegisterForMethod(const Method* method) {
 }
 
 ManagedRegister X86ManagedRuntimeCallingConvention::ReturnRegister() {
-  return ReturnRegisterForMethod(GetMethod());
+  return ReturnRegisterForShorty(GetShorty());
 }
 
 ManagedRegister X86JniCallingConvention::ReturnRegister() {
-  return ReturnRegisterForMethod(GetMethod());
+  return ReturnRegisterForShorty(GetShorty());
 }
 
 // Managed runtime calling convention
@@ -85,7 +85,7 @@ size_t X86JniCallingConvention::OutArgSize() {
 }
 
 bool X86JniCallingConvention::IsMethodRegisterClobberedPreCall() {
-  return GetMethod()->IsSynchronized();  // Monitor enter crushes the method register
+  return IsSynchronized();  // Monitor enter crushes the method register
 }
 
 bool X86JniCallingConvention::IsCurrentParamInRegister() {
@@ -107,10 +107,9 @@ FrameOffset X86JniCallingConvention::CurrentParamStackOffset() {
 }
 
 size_t X86JniCallingConvention::NumberOfOutgoingStackArgs() {
-  size_t static_args = GetMethod()->IsStatic() ? 1 : 0;  // count jclass
+  size_t static_args = IsStatic() ? 1 : 0;  // count jclass
   // regular argument parameters and this
-  size_t param_args = GetMethod()->NumArgs() +
-                      GetMethod()->NumLongOrDoubleArgs();
+  size_t param_args = NumArgs() + NumLongOrDoubleArgs();
   return static_args + param_args + 2;  // count JNIEnv* and return pc (pushed after Method*)
 }
 

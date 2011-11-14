@@ -164,9 +164,9 @@ class Runtime {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
-  bool HasJniStubArray() const;
-  ByteArray* GetJniStubArray() const;
-  void SetJniStubArray(ByteArray* jni_stub_array);
+  bool HasJniDlsymLookupStub() const;
+  ByteArray* GetJniDlsymLookupStub() const;
+  void SetJniDlsymLookupStub(ByteArray* jni_stub_array);
 
   bool HasAbstractMethodErrorStubArray() const;
   ByteArray* GetAbstractMethodErrorStubArray() const;

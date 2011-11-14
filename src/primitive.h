@@ -68,6 +68,7 @@ class Primitive {
 
   static size_t ComponentSize(Type type) {
     switch (type) {
+      case kPrimVoid:    return 0;
       case kPrimBoolean:
       case kPrimByte:    return 1;
       case kPrimChar:

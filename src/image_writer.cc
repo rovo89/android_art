@@ -140,7 +140,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   // build an Object[] of the roots needed to restore the runtime
   SirtRef<ObjectArray<Object> > image_roots(
       ObjectArray<Object>::Alloc(object_array_class, ImageHeader::kImageRootsMax));
-  image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniStubArray());
+  image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniDlsymLookupStub());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
   image_roots->Set(ImageHeader::kInstanceResolutionStubArray,
@@ -285,7 +285,7 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   if (orig->IsNative()) {
     // The native method's pointer is directed to a stub to lookup via dlsym.
     // Note this is not the code_ pointer, that is handled above.
-    ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniStubArray();
+    ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniDlsymLookupStub();
     ByteArray* copy_jni_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_jni_stub_array_));
     copy->native_method_ = copy_jni_stub_array_->GetData();
   } else {

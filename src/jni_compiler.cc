@@ -19,27 +19,6 @@
 
 namespace art {
 
-namespace arm {
-ByteArray* CreateJniStub();
-}
-
-namespace x86 {
-ByteArray* CreateJniStub();
-}
-
-ByteArray* JniCompiler::CreateJniStub(InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateJniStub();
-    case kX86:
-      return x86::CreateJniStub();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
-      return NULL;
-  }
-}
-
 JniCompiler::JniCompiler(InstructionSet instruction_set) {
   if (instruction_set == kThumb2) {
     // currently only ARM code generation is supported
@@ -56,19 +35,17 @@ JniCompiler::~JniCompiler() {}
 //   registers, a reference to the method object is supplied as part of this
 //   convention.
 //
-CompiledMethod* JniCompiler::Compile(bool is_direct, uint32_t method_idx,
+CompiledMethod* JniCompiler::Compile(uint32_t access_flags, uint32_t method_idx,
                                      const ClassLoader* class_loader, const DexFile& dex_file) {
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  DexCache* dex_cache = linker->FindDexCache(dex_file);
-  Method* native_method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
-                                                class_loader, is_direct);
-  CHECK(native_method->IsNative());
-
+  CHECK((access_flags & kAccNative) != 0);
+  const bool is_static = (access_flags & kAccStatic) != 0;
+  const bool is_synchronized = (access_flags & kAccSynchronized) != 0;
+  const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   // Calling conventions used to iterate over parameters to method
   UniquePtr<JniCallingConvention> jni_conv(
-      JniCallingConvention::Create(native_method, instruction_set_));
+      JniCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set_));
   UniquePtr<ManagedRuntimeCallingConvention> mr_conv(
-      ManagedRuntimeCallingConvention::Create(native_method, instruction_set_));
+      ManagedRuntimeCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set_));
 
   // Assembler that holds generated instructions
   UniquePtr<Assembler> jni_asm(Assembler::Create(instruction_set_));
@@ -79,9 +56,6 @@ CompiledMethod* JniCompiler::Compile(bool is_direct, uint32_t method_idx,
   const Offset functions(OFFSETOF_MEMBER(JNIEnvExt, functions));
   const Offset monitor_enter(OFFSETOF_MEMBER(JNINativeInterface, MonitorEnter));
   const Offset monitor_exit(OFFSETOF_MEMBER(JNINativeInterface, MonitorExit));
-
-  // Cache of IsStatic as we call it often enough
-  const bool is_static = native_method->IsStatic();
 
   // 1. Build the frame saving all callee saves
   const size_t frame_size(jni_conv->FrameSize());
@@ -162,7 +136,7 @@ CompiledMethod* JniCompiler::Compile(bool is_direct, uint32_t method_idx,
   __ IncreaseFrameSize(out_arg_size);
 
   // 6. Acquire lock for synchronized methods.
-  if (native_method->IsSynchronized()) {
+  if (is_synchronized) {
     // Compute arguments in registers to preserve
     mr_conv->ResetIterator(FrameOffset(frame_size + out_arg_size));
     std::vector<ManagedRegister> live_argument_regs;
@@ -310,7 +284,7 @@ CompiledMethod* JniCompiler::Compile(bool is_direct, uint32_t method_idx,
   }
 
   // 10. Release lock for synchronized methods.
-  if (native_method->IsSynchronized()) {
+  if (is_synchronized) {
     mr_conv->ResetIterator(FrameOffset(frame_size+out_arg_size));
     jni_conv->ResetIterator(FrameOffset(out_arg_size));
     jni_conv->Next();  // Skip JNIEnv*
@@ -424,7 +398,7 @@ CompiledMethod* JniCompiler::Compile(bool is_direct, uint32_t method_idx,
   __ ExceptionPoll(jni_conv->InterproceduralScratchRegister());
 
   // 16. Remove activation
-  if (native_method->IsSynchronized()) {
+  if (is_synchronized) {
     __ RemoveFrame(frame_size, callee_save_regs);
   } else {
     // no need to restore callee save registers because we didn't

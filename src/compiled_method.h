@@ -54,11 +54,11 @@ class CompiledMethod {
                                  InstructionSet instruction_set);
 
  private:
-  InstructionSet instruction_set_;
+  const InstructionSet instruction_set_;
   std::vector<uint8_t> code_;
-  size_t frame_size_in_bytes_;
-  uint32_t core_spill_mask_;
-  uint32_t fp_spill_mask_;
+  const size_t frame_size_in_bytes_;
+  const uint32_t core_spill_mask_;
+  const uint32_t fp_spill_mask_;
   std::vector<uint32_t> mapping_table_;
   std::vector<uint16_t> vmap_table_;
 };

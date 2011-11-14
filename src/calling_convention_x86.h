@@ -10,8 +10,9 @@ namespace x86 {
 
 class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  explicit X86ManagedRuntimeCallingConvention(const Method* method) :
-                                     ManagedRuntimeCallingConvention(method) {}
+  explicit X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
+                                              const char* shorty) :
+      ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
   virtual ~X86ManagedRuntimeCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
@@ -29,8 +30,8 @@ class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
 
 class X86JniCallingConvention : public JniCallingConvention {
  public:
-  explicit X86JniCallingConvention(const Method* method) :
-                                   JniCallingConvention(method) {}
+  X86JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
+      JniCallingConvention(is_static, is_synchronized, shorty) {}
   virtual ~X86JniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();

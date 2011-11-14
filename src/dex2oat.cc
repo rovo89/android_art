@@ -282,8 +282,8 @@ int dex2oat(int argc, char** argv) {
   }
 
   // if we loaded an existing image, we will reuse values from the image roots.
-  if (!runtime->HasJniStubArray()) {
-    runtime->SetJniStubArray(JniCompiler::CreateJniStub(kThumb2));
+  if (!runtime->HasJniDlsymLookupStub()) {
+    runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlysmLookupStub(kThumb2));
   }
   if (!runtime->HasAbstractMethodErrorStubArray()) {
     runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(kThumb2));

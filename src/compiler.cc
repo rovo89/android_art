@@ -24,11 +24,13 @@ namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
   CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
+  ByteArray* CreateJniDlysmLookupStub();
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
   CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
+  ByteArray* CreateJniDlysmLookupStub();
 }
 
 Compiler::Compiler(InstructionSet instruction_set, bool image)
@@ -52,6 +54,19 @@ ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
     CHECK(instruction_set == kArm || instruction_set == kThumb2);
     // Generates resolution stub using ARM instruction set
     return arm::ArmCreateResolutionTrampoline(type);
+  }
+}
+
+ByteArray* Compiler::CreateJniDlysmLookupStub(InstructionSet instruction_set) {
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateJniDlysmLookupStub();
+    case kX86:
+      return x86::CreateJniDlysmLookupStub();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      return NULL;
   }
 }
 
@@ -84,8 +99,7 @@ void Compiler::CompileOne(const Method* method) {
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
   uint32_t method_idx = method->GetDexMethodIndex();
-  CompileMethod(method->IsDirect(), method->IsNative(), method->IsStatic(), method->IsAbstract(),
-                method_idx, class_loader, dex_file);
+  CompileMethod(method->GetAccessFlags(), method_idx, class_loader, dex_file);
   SetCodeAndDirectMethods(class_loader);
 }
 
@@ -289,34 +303,26 @@ void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoade
   }
   // Compile direct methods
   while (it.HasNextDirectMethod()) {
-    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
-    bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
-    bool is_abstract = (it.GetMemberAccessFlags() & kAccAbstract) != 0;
-    CompileMethod(true, is_native, is_static, is_abstract, it.GetMemberIndex(), class_loader,
-                  dex_file);
+    CompileMethod(it.GetMemberAccessFlags(), it.GetMemberIndex(), class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
   while (it.HasNextVirtualMethod()) {
-    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
-    bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
-    bool is_abstract = (it.GetMemberAccessFlags() & kAccAbstract) != 0;
-    CompileMethod(false, is_native, is_static, is_abstract, it.GetMemberIndex(), class_loader,
-                  dex_file);
+    CompileMethod(it.GetMemberAccessFlags(), it.GetMemberIndex(), class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());
 }
 
-void Compiler::CompileMethod(bool is_direct, bool is_native, bool is_static, bool is_abstract,
-                             uint32_t method_idx, const ClassLoader* class_loader,
-                             const DexFile& dex_file) {
+void Compiler::CompileMethod(uint32_t access_flags, uint32_t method_idx,
+                             const ClassLoader* class_loader, const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
-  if (is_native) {
-    compiled_method = jni_compiler_.Compile(is_direct, method_idx, class_loader, dex_file);
+  if ((access_flags & kAccNative) != 0) {
+    compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL);
-  } else if (is_abstract) {
+  } else if ((access_flags & kAccAbstract) != 0) {
   } else {
+    bool is_direct = (access_flags & (kAccStatic | kAccPrivate | kAccConstructor)) != 0;
     compiled_method = oatCompileMethod(*this, is_direct, method_idx, class_loader, dex_file,
                                        kThumb2);
     // TODO: assert compiled_method is not NULL, currently NULL may be returned if the method
@@ -335,6 +341,7 @@ void Compiler::CompileMethod(bool is_direct, bool is_native, bool is_static, boo
   }
 
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
+  bool is_static = (access_flags & kAccStatic) != 0;
   const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub == NULL) {
     if (instruction_set_ == kX86) {

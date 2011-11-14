@@ -10,7 +10,9 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
                                std::vector<uint32_t>& mapping_table,
-                               std::vector<uint16_t>& vmap_table) {
+                               std::vector<uint16_t>& vmap_table)
+    : instruction_set_(instruction_set), frame_size_in_bytes_(frame_size_in_bytes),
+      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
   CHECK_NE(short_code.size(), 0U);
   CHECK_GE(vmap_table.size(), 1U);  // should always contain an entry for LR
 
@@ -33,11 +35,7 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   DCHECK_EQ(vmap_table.size() + 1, length_prefixed_vmap_table.size());
   DCHECK_EQ(vmap_table.size(), length_prefixed_vmap_table[0]);
 
-  instruction_set_ = instruction_set;
   code_ = byte_code;
-  frame_size_in_bytes_ = frame_size_in_bytes;
-  core_spill_mask_ = core_spill_mask;
-  fp_spill_mask_ = fp_spill_mask;
   mapping_table_ = length_prefixed_mapping_table;
   vmap_table_ = length_prefixed_vmap_table;
 
@@ -48,14 +46,10 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
-                               const uint32_t fp_spill_mask) {
+                               const uint32_t fp_spill_mask)
+    : instruction_set_(instruction_set), code_(code), frame_size_in_bytes_(frame_size_in_bytes),
+      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
   CHECK_NE(code.size(), 0U);
-
-  instruction_set_ = instruction_set;
-  code_ = code;
-  frame_size_in_bytes_ = frame_size_in_bytes;
-  core_spill_mask_ = core_spill_mask;
-  fp_spill_mask_ = fp_spill_mask;
 }
 
 CompiledMethod::~CompiledMethod() {}

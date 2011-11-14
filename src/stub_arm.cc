@@ -83,14 +83,13 @@ ByteArray* CreateAbstractMethodErrorStub() {
   size_t cs = assembler->CodeSize();
   SirtRef<ByteArray> abstract_stub(ByteArray::Alloc(cs));
   CHECK(abstract_stub.get() != NULL);
-  CHECK(abstract_stub->GetClass()->GetDescriptor());
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
 
   return abstract_stub.get();
 }
 
-ByteArray* CreateJniStub() {
+ByteArray* CreateJniDlysmLookupStub() {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
   // Build frame and save argument registers and LR.
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);

@@ -17,9 +17,11 @@
 #ifndef ART_SRC_STACK_INDIRECT_REFERENCE_TABLE_H_
 #define ART_SRC_STACK_INDIRECT_REFERENCE_TABLE_H_
 
-namespace art {
-
+#include "logging.h"
 #include "macros.h"
+#include "thread.h"
+
+namespace art {
 
 class Object;
 
