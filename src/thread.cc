@@ -35,6 +35,7 @@
 #include "jni_internal.h"
 #include "monitor.h"
 #include "object.h"
+#include "reflection.h"
 #include "runtime.h"
 #include "runtime_support.h"
 #include "ScopedLocalRef.h"
@@ -287,6 +288,7 @@ jobject GetWellKnownThreadGroup(JNIEnv* env, const char* field_name) {
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon) {
+  CHECK(Runtime::Current()->IsStarted());
   JNIEnv* env = jni_env_;
 
   const char* field_name = (GetThinLockId() == ThreadList::kMainId) ? "mMain" : "mSystem";
@@ -300,12 +302,11 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   peer_ = DecodeJObject(peer.get());
   if (peer_ == NULL) {
     CHECK(IsExceptionPending());
-    // TODO: signal failure to caller
     return;
   }
   jmethodID mid = env->GetMethodID(c.get(), "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
   env->CallNonvirtualVoidMethod(peer.get(), c.get(), mid, thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
-  CHECK(!IsExceptionPending());
+  CHECK(!IsExceptionPending()) << " " << PrettyTypeOf(GetException());
   SetVmData(peer_, Thread::Current());
 
   SirtRef<String> peer_thread_name(GetName());
@@ -689,6 +690,7 @@ Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
 }
 
 void Thread::FinishStartup() {
+  CHECK(Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
 
   // Need to be kRunnable for FindClass
@@ -719,10 +721,12 @@ void Thread::FinishStartup() {
       "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
 
   // Finish attaching the main thread.
-  self->CreatePeer("main", false);
-
+  Thread::Current()->CreatePeer("main", false);
   const Field* Thread_contextClassLoader = FindFieldOrDie(Thread_class , "contextClassLoader", "Ljava/lang/ClassLoader;");
   Thread_contextClassLoader->SetObject(self->GetPeer(), self->GetClassLoaderOverride());
+
+  InitBoxingMethods();
+  class_linker->RunRootClinits();
 }
 
 void Thread::Shutdown() {

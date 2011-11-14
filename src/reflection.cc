@@ -33,19 +33,16 @@ Method* gInteger_valueOf;
 Method* gLong_valueOf;
 Method* gShort_valueOf;
 
-void InitBoxingMethod(JNIEnv* env, Method*& m, jclass c, const char* method_signature) {
-  m = DecodeMethod(env->GetStaticMethodID(c, "valueOf", method_signature));
-}
-
-void InitBoxingMethods(JNIEnv* env) {
-  InitBoxingMethod(env, gBoolean_valueOf, JniConstants::booleanClass, "(Z)Ljava/lang/Boolean;");
-  InitBoxingMethod(env, gByte_valueOf, JniConstants::byteClass, "(B)Ljava/lang/Byte;");
-  InitBoxingMethod(env, gCharacter_valueOf, JniConstants::characterClass, "(C)Ljava/lang/Character;");
-  InitBoxingMethod(env, gDouble_valueOf, JniConstants::doubleClass, "(D)Ljava/lang/Double;");
-  InitBoxingMethod(env, gFloat_valueOf, JniConstants::floatClass, "(F)Ljava/lang/Float;");
-  InitBoxingMethod(env, gInteger_valueOf, JniConstants::integerClass, "(I)Ljava/lang/Integer;");
-  InitBoxingMethod(env, gLong_valueOf, JniConstants::longClass, "(J)Ljava/lang/Long;");
-  InitBoxingMethod(env, gShort_valueOf, JniConstants::shortClass, "(S)Ljava/lang/Short;");
+void InitBoxingMethods() {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  gBoolean_valueOf = class_linker->FindSystemClass("Ljava/lang/Boolean;")->FindDeclaredDirectMethod("valueOf", "(Z)Ljava/lang/Boolean;");
+  gByte_valueOf = class_linker->FindSystemClass("Ljava/lang/Byte;")->FindDeclaredDirectMethod("valueOf", "(B)Ljava/lang/Byte;");
+  gCharacter_valueOf = class_linker->FindSystemClass("Ljava/lang/Character;")->FindDeclaredDirectMethod("valueOf", "(C)Ljava/lang/Character;");
+  gDouble_valueOf = class_linker->FindSystemClass("Ljava/lang/Double;")->FindDeclaredDirectMethod("valueOf", "(D)Ljava/lang/Double;");
+  gFloat_valueOf = class_linker->FindSystemClass("Ljava/lang/Float;")->FindDeclaredDirectMethod("valueOf", "(F)Ljava/lang/Float;");
+  gInteger_valueOf = class_linker->FindSystemClass("Ljava/lang/Integer;")->FindDeclaredDirectMethod("valueOf", "(I)Ljava/lang/Integer;");
+  gLong_valueOf = class_linker->FindSystemClass("Ljava/lang/Long;")->FindDeclaredDirectMethod("valueOf", "(J)Ljava/lang/Long;");
+  gShort_valueOf = class_linker->FindSystemClass("Ljava/lang/Short;")->FindDeclaredDirectMethod("valueOf", "(S)Ljava/lang/Short;");
 }
 
 jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs, jobject javaParams) {

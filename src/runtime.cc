@@ -439,14 +439,9 @@ void Runtime::Start() {
 
   InitNativeMethods();
 
-  Thread::FinishStartup();
-
-  class_linker_->RunRootClinits();
-
-  // Class::AllocObject asserts that all objects allocated better be
-  // initialized after Runtime::IsStarted is true, so this needs to
-  // come after ClassLinker::RunRootClinits.
   started_ = true;
+
+  Thread::FinishStartup();
 
   if (!is_zygote_) {
     DidForkFromZygote();

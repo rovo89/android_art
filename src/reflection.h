@@ -26,7 +26,7 @@ class Class;
 union JValue;
 class Object;
 
-void InitBoxingMethods(JNIEnv* env);
+void InitBoxingMethods();
 void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value);
 bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value);
 

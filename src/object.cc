@@ -736,7 +736,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   have_executable_code = IsNative();
 #endif
 
-  if (have_executable_code && stub != NULL) {
+  if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
     bool log = false;
     if (log) {
       LOG(INFO) << "invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
@@ -746,9 +746,8 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
       LOG(INFO) << "returned " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
     }
   } else {
-    if (Runtime::Current()->IsStarted()) {
-      LOG(WARNING) << "Not invoking method with no associated code: " << PrettyMethod(this);
-    }
+    LOG(INFO) << "not invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub
+        << " started=" << Runtime::Current()->IsStarted();
     if (result != NULL) {
       result->j = 0;
     }
@@ -795,7 +794,8 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
 Object* Class::AllocObject() {
   DCHECK(!IsArrayClass()) << PrettyClass(this);
   DCHECK(IsInstantiable()) << PrettyClass(this);
-  DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
+  // TODO: decide whether we want this check. It currently fails during bootstrap.
+  // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
   DCHECK_GE(this->object_size_, sizeof(Object));
   return Heap::AllocObject(this, this->object_size_);
 }

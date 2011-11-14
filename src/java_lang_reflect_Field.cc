@@ -318,7 +318,6 @@ static JNINativeMethod gMethods[] = {
 }  // namespace
 
 void register_java_lang_reflect_Field(JNIEnv* env) {
-  InitBoxingMethods(env); // TODO: move to Runtime?
   jniRegisterNativeMethods(env, "java/lang/reflect/Field", gMethods, NELEM(gMethods));
 }
 
