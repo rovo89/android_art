@@ -463,11 +463,46 @@ const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) co
   return NULL;
 }
 
-const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& klass,
+const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_klass,
+                                              const DexFile::StringId& name,
+                                              const DexFile::TypeId& type) const {
+  // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
+  const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
+  const uint32_t name_idx = GetIndexForStringId(name);
+  const uint16_t type_idx = GetIndexForTypeId(type);
+  uint32_t lo = 0;
+  uint32_t hi = NumFieldIds() - 1;
+  while (hi >= lo) {
+    uint32_t mid = (hi + lo) / 2;
+    const DexFile::FieldId& field = GetFieldId(mid);
+    if (class_idx > field.class_idx_) {
+      lo = mid + 1;
+    } else if (class_idx < field.class_idx_) {
+      hi = mid - 1;
+    } else {
+      if (name_idx > field.name_idx_) {
+        lo = mid + 1;
+      } else if (name_idx < field.name_idx_) {
+        hi = mid - 1;
+      } else {
+        if (type_idx > field.type_idx_) {
+          lo = mid + 1;
+        } else if (type_idx < field.type_idx_) {
+          hi = mid - 1;
+        } else {
+          return &field;
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_klass,
                                                const DexFile::StringId& name,
                                                const DexFile::ProtoId& signature) const {
   // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
-  const uint16_t class_idx = GetIndexForTypeId(klass);
+  const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
   const uint16_t proto_idx = GetIndexForProtoId(signature);
   uint32_t lo = 0;

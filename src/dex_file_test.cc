@@ -196,4 +196,19 @@ TEST_F(DexFileTest, FindMethodId) {
   }
 }
 
+TEST_F(DexFileTest, FindFieldId) {
+  for (size_t i = 0; i < java_lang_dex_file_->NumFieldIds(); i++) {
+    const DexFile::FieldId& to_find = java_lang_dex_file_->GetFieldId(i);
+    const DexFile::TypeId& klass = java_lang_dex_file_->GetTypeId(to_find.class_idx_);
+    const DexFile::StringId& name = java_lang_dex_file_->GetStringId(to_find.name_idx_);
+    const DexFile::TypeId& type = java_lang_dex_file_->GetTypeId(to_find.type_idx_);
+    const DexFile::FieldId* found = java_lang_dex_file_->FindFieldId(klass, name, type);
+    ASSERT_TRUE(found != NULL) << "Didn't find field " << i << ": "
+        << java_lang_dex_file_->StringByTypeIdx(to_find.type_idx_) << " "
+        << java_lang_dex_file_->StringByTypeIdx(to_find.class_idx_) << "."
+        << java_lang_dex_file_->GetStringData(name);
+    EXPECT_EQ(java_lang_dex_file_->GetIndexForFieldId(*found), i);
+  }
+}
+
 }  // namespace art

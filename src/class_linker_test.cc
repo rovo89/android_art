@@ -947,8 +947,11 @@ TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
   Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
   Method* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
-  uint32_t type_idx = FindTypeIdxByDescriptor(*dex_file, "LStaticsFromCode;");
-
+  const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
+  ASSERT_TRUE(string_id != NULL);
+  const DexFile::TypeId* type_id = dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
+  ASSERT_TRUE(type_id != NULL);
+  uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
   StaticStorageBase* uninit = InitializeStaticStorage(type_idx, clinit, Thread::Current());
   EXPECT_TRUE(uninit != NULL);

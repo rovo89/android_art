@@ -169,7 +169,12 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
   Method* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
-  uint32_t type_idx = FindTypeIdxByDescriptor(*java_lang_dex_file_.get(), "[I");
+  const DexFile::StringId* string_id = java_lang_dex_file_->FindStringId("[I");
+  ASSERT_TRUE(string_id != NULL);
+  const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(
+      java_lang_dex_file_->GetIndexForStringId(*string_id));
+  ASSERT_TRUE(type_id != NULL);
+  uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
   Object* array = CheckAndAllocArrayFromCode(type_idx, sort, 3, Thread::Current());
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
@@ -185,7 +190,26 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
   Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
-  uint32_t field_idx = FindFieldIdxByDescriptorAndName(*dex_file, "LStaticsFromCode;", "s0");
+  const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
+  ASSERT_TRUE(klass_string_id != NULL);
+  const DexFile::TypeId* klass_type_id = dex_file->FindTypeId(
+      dex_file->GetIndexForStringId(*klass_string_id));
+  ASSERT_TRUE(klass_type_id != NULL);
+
+  const DexFile::StringId* type_string_id = dex_file->FindStringId("Ljava/lang/Object;");
+  ASSERT_TRUE(type_string_id != NULL);
+  const DexFile::TypeId* type_type_id = dex_file->FindTypeId(
+      dex_file->GetIndexForStringId(*type_string_id));
+  ASSERT_TRUE(type_type_id != NULL);
+
+  const DexFile::StringId* name_str_id = dex_file->FindStringId("s0");
+  ASSERT_TRUE(name_str_id != NULL);
+
+  const DexFile::FieldId* field_id = dex_file->FindFieldId(
+      *klass_type_id, *name_str_id, *type_type_id);
+  ASSERT_TRUE(field_id != NULL);
+  uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
+
   Field* field = FindFieldFromCode(field_idx, clinit, true);
   Object* s0 = field->GetObj(NULL);
   EXPECT_EQ(NULL, s0);

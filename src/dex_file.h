@@ -300,6 +300,17 @@ class DexFile {
     return field_ids_[idx];
   }
 
+  uint32_t GetIndexForFieldId(const FieldId& field_id) const {
+    CHECK_GE(&field_id, field_ids_);
+    CHECK_LT(&field_id, field_ids_ + header_->field_ids_size_);
+    return &field_id - field_ids_;
+  }
+
+  // Looks up a field by its declaring class, name and type
+  const FieldId* FindFieldId(const DexFile::TypeId& declaring_klass,
+                             const DexFile::StringId& name,
+                             const DexFile::TypeId& type) const;
+
   // Returns the declaring class descriptor string of a field id.
   const char* GetFieldDeclaringClassDescriptor(const FieldId& field_id) const {
     const DexFile::TypeId& type_id = GetTypeId(field_id.class_idx_);
@@ -335,8 +346,9 @@ class DexFile {
     return &method_id - method_ids_;
   }
 
-  // Looks up a method by its class_dex, name and proto_id
-  const MethodId* FindMethodId(const DexFile::TypeId& klass, const DexFile::StringId& name,
+  // Looks up a method by its declaring class, name and proto_id
+  const MethodId* FindMethodId(const DexFile::TypeId& declaring_klass,
+                               const DexFile::StringId& name,
                                const DexFile::ProtoId& signature) const;
 
   // Returns the declaring class descriptor string of a method id.
