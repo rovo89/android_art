@@ -510,8 +510,12 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     Method* m = frame.GetMethod();
     Class* c = m->GetDeclaringClass();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    const DexFile& dex_file = class_linker->FindDexFile(c->GetDexCache());
-    int line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
+    const DexCache* dex_cache = c->GetDexCache();
+    int line_number = -1;
+    if (dex_cache != NULL) {  // be tolerant of bad input
+      const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+      line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
+    }
     if (line_number == last_line_number && last_method == m) {
       repetition_count++;
     } else {

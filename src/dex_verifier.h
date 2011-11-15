@@ -1225,7 +1225,7 @@ class PcToReferenceMap {
  public:
   PcToReferenceMap(Method* m) {
     data_ = down_cast<ByteArray*>(m->GetGcMap());
-    CHECK(data_ != NULL);
+    CHECK(data_ != NULL) << PrettyMethod(m);
     // Check the size of the table agrees with the number of entries
     size_t data_size = data_->GetLength() - 4;
     DCHECK_EQ(EntryWidth() * NumEntries(), data_size);
