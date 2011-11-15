@@ -283,7 +283,7 @@ STATIC ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_TERTIARY_OP))
             << (int)opcode << " "
-            << PrettyMethod(cUnit->method) << " "
+            << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
             << cUnit->currentDalvikOffset;
     insn->opcode = opcode;
     insn->operands[0] = dest;

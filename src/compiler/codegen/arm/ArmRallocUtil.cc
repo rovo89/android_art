@@ -111,7 +111,7 @@ STATIC void dumpCounts(const RefCounts* arr, int size, const char* msg)
  */
 extern void oatDoPromotion(CompilationUnit* cUnit)
 {
-    int numRegs = cUnit->method->NumRegisters();
+    int numRegs = cUnit->numDalvikRegisters;
 
     /*
      * TUNING: is leaf?  Can't just use "hasInvoke" to determine as some

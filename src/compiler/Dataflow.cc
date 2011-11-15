@@ -2110,11 +2110,10 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
      * blocks.
      */
     bb->dataFlowInfo->dalvikToSSAMap =
-        (int *)oatNew(sizeof(int) * cUnit->method->NumRegisters(),
-                              false);
+        (int *)oatNew(sizeof(int) * cUnit->numDalvikRegisters, false);
 
     memcpy(bb->dataFlowInfo->dalvikToSSAMap, cUnit->dalvikToSSAMap,
-           sizeof(int) * cUnit->method->NumRegisters());
+           sizeof(int) * cUnit->numDalvikRegisters);
     return true;
 }
 
@@ -2202,7 +2201,7 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
 void oatInitializeSSAConversion(CompilationUnit* cUnit)
 {
     int i;
-    int numDalvikReg = cUnit->method->NumRegisters();
+    int numDalvikReg = cUnit->numDalvikRegisters;
 
     cUnit->ssaToDalvikMap = (GrowableList *)oatNew(sizeof(GrowableList),
                                                            false);
@@ -2383,10 +2382,9 @@ STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
 
     if ((bb->blockType == kEntryBlock) | bb->catchEntry) {
         oatClearAllBits(cUnit->tempSSARegisterV);
-        if (!cUnit->method->IsStatic()) {
+        if ((cUnit->access_flags & art::kAccStatic) == 0) {
             // If non-static method, mark "this" as non-null
-            int thisReg = cUnit->method->NumRegisters() -
-                          cUnit->method->NumIns();
+            int thisReg = cUnit->numDalvikRegisters - cUnit->numIns;
             oatSetBit(cUnit->tempSSARegisterV, thisReg);
         }
     } else {

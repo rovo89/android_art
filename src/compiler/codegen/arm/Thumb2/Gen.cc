@@ -33,21 +33,13 @@
 
 STATIC RegLocation getRetLoc(CompilationUnit* cUnit);
 
-std::string fieldNameFromIndex(const Method* method, uint32_t fieldIdx)
-{
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    const art::DexFile& dex_file = class_linker->FindDexFile(
-         method->GetDeclaringClass()->GetDexCache());
-    const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
-    std::string class_name = dex_file.StringByTypeIdx(field_id.class_idx_);
-    std::string field_name = dex_file.StringDataByIdx(field_id.name_idx_);
-    return class_name + "." + field_name;
-}
-
 void warnIfUnresolved(CompilationUnit* cUnit, int fieldIdx, Field* field) {
   if (field == NULL) {
-    LOG(INFO) << "Field " << fieldNameFromIndex(cUnit->method, fieldIdx)
-              << " unresolved at compile time";
+    const art::DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
+    std::string class_name = cUnit->dex_file->GetFieldDeclaringClassDescriptor(field_id);
+    std::string field_name = cUnit->dex_file->GetFieldName(field_id);
+    LOG(INFO) << "Field " << art::PrettyDescriptor(class_name) << "."
+        << field_name << " unresolved at compile time";
   } else {
     // We also use the slow path for wide volatile fields.
   }
@@ -455,8 +447,7 @@ STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
 STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
                      RegLocation rlDest, RegLocation rlObj)
 {
-    Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedField(mir->dalvikInsn.vC);
+    Field* fieldPtr = cUnit->dex_cache->GetResolvedField(mir->dalvikInsn.vC);
     RegLocation rlResult;
     RegisterClass regClass = oatRegClassBySize(size);
     if (SLOW_FIELD_PATH || fieldPtr == NULL) {
@@ -490,8 +481,7 @@ STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
 STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
                     RegLocation rlSrc, RegLocation rlObj, bool isObject)
 {
-    Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedField(mir->dalvikInsn.vC);
+    Field* fieldPtr = cUnit->dex_cache->GetResolvedField(mir->dalvikInsn.vC);
     RegisterClass regClass = oatRegClassBySize(size);
     if (SLOW_FIELD_PATH || fieldPtr == NULL) {
         getFieldOffset(cUnit, mir, fieldPtr);
@@ -530,8 +520,7 @@ STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlObj)
 {
     RegLocation rlResult;
-    Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedField(mir->dalvikInsn.vC);
+    Field* fieldPtr = cUnit->dex_cache->GetResolvedField(mir->dalvikInsn.vC);
 #if ANDROID_SMP != 0
     bool isVolatile = (fieldPtr == NULL) || fieldPtr->IsVolatile();
 #else
@@ -568,8 +557,7 @@ STATIC void genIGetWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 STATIC void genIPutWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                         RegLocation rlObj)
 {
-    Field* fieldPtr = cUnit->method->GetDeclaringClass()->GetDexCache()->
-        GetResolvedField(mir->dalvikInsn.vC);
+    Field* fieldPtr = cUnit->dex_cache->GetResolvedField(mir->dalvikInsn.vC);
 #if ANDROID_SMP != 0
     bool isVolatile = (fieldPtr == NULL) || fieldPtr->IsVolatile();
 #else
@@ -607,16 +595,28 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
     int mReg = loadCurrMethod(cUnit);
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
-        // Check we have access to type_idx and if not throw IllegalAccessError
-        UNIMPLEMENTED(FATAL);
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                     cUnit->dex_cache,
+                                                     *cUnit->dex_file,
+                                                     type_idx)) {
+        // Call out to helper which resolves type and verifies access.
+        // Resolved type returned in r0.
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pInitializeTypeAndVerifyAccessFromCode),
+                     rLR);
+        genRegCopy(cUnit, r1, mReg);
+        loadConstant(cUnit, r0, type_idx);
+        callRuntimeHelper(cUnit, rLR);
+        RegLocation rlResult = oatGetReturn(cUnit);
+        storeValue(cUnit, rlDest, rlResult);
     } else {
         // We're don't need access checks, load type from dex cache
         int32_t dex_cache_offset = Method::DexCacheResolvedTypesOffset().Int32Value();
         loadWordDisp(cUnit, mReg, dex_cache_offset, resReg);
         int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, resReg, offset_of_type, rlResult.lowReg);
-        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->method, type_idx) ||
+        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache,
+                                                               type_idx) ||
             SLOW_TYPE_PATH) {
             // Slow path, at runtime test if the type is null and if so initialize
             oatFlushAllRegs(cUnit);
@@ -652,7 +652,7 @@ STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
     /* NOTE: Most strings should be available at compile time */
     uint32_t string_idx = mir->dalvikInsn.vB;
     int32_t offset_of_string = Array::DataOffset().Int32Value() + (sizeof(String*) * string_idx);
-    if (!cUnit->compiler->CanAssumeStringIsPresentInDexCache(cUnit->method, string_idx) ||
+    if (!cUnit->compiler->CanAssumeStringIsPresentInDexCache(cUnit->dex_cache, string_idx) ||
         SLOW_STRING_PATH) {
         // slow path, resolve string if not in dex cache
         oatFlushAllRegs(cUnit);
@@ -694,7 +694,10 @@ STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
     uint32_t type_idx = mir->dalvikInsn.vB;
     // alloc will always check for resolution, do we also need to verify access because the
     // verifier was unable to?
-    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                    cUnit->dex_cache,
+                                                    *cUnit->dex_file,
+                                                    type_idx)) {
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pAllocObjectFromCode), rLR);
     } else {
         loadWordDisp(cUnit, rSELF,
@@ -724,7 +727,10 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     uint32_t type_idx = mir->dalvikInsn.vC;
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
     int classReg = r2;  // r2 will hold the Class*
-    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                     cUnit->dex_cache,
+                                                     *cUnit->dex_file,
+                                                     type_idx)) {
         // Check we have access to type_idx and if not throw IllegalAccessError,
         // returns Class* in r0
         loadWordDisp(cUnit, rSELF,
@@ -740,7 +746,7 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
         int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, classReg, offset_of_type, classReg);
-        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->method, type_idx)) {
+        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache, type_idx)) {
             // Need to test presence of type in dex cache at runtime
             ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
             // Not resolved
@@ -787,7 +793,10 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     uint32_t type_idx = mir->dalvikInsn.vB;
     loadCurrMethodDirect(cUnit, r1);  // r1 <= current Method*
     int classReg = r2;  // r2 will hold the Class*
-    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                     cUnit->dex_cache,
+                                                     *cUnit->dex_file,
+                                                     type_idx)) {
         // Check we have access to type_idx and if not throw IllegalAccessError,
         // returns Class* in r0
         loadWordDisp(cUnit, rSELF,
@@ -801,7 +810,7 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
         int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, classReg, offset_of_type, classReg);
-        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->method, type_idx)) {
+        if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache, type_idx)) {
             // Need to test presence of type in dex cache at runtime
             ArmLIR* hopBranch = genCmpImmBranch(cUnit, kArmCondNe, classReg, 0);
             // Not resolved
@@ -1793,7 +1802,7 @@ STATIC bool genArithOpInt(CompilationUnit* cUnit, MIR* mir,
 /* Check if we need to check for pending suspend request */
 STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 {
-    if (NO_SUSPEND || mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK) {
+    if (NO_SUSPEND || (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK)) {
         return;
     }
     oatFlushAllRegs(cUnit);

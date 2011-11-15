@@ -107,10 +107,10 @@ STATIC void computeDefBlockMatrix(CompilationUnit* cUnit)
      * Also set the incoming parameters as defs in the entry block.
      * Only need to handle the parameters for the outer method.
      */
-    int inReg = cUnit->method->NumRegisters() - cUnit->method->NumIns();
-    for (; inReg < cUnit->method->NumRegisters(); inReg++) {
-        oatSetBit(cUnit->defBlockMatrix[inReg],
-                          cUnit->entryBlock->id);
+    int numRegs = cUnit->numDalvikRegisters;
+    int inReg = numRegs - cUnit->numIns;
+    for (; inReg < numRegs; inReg++) {
+        oatSetBit(cUnit->defBlockMatrix[inReg], cUnit->entryBlock->id);
     }
 }
 
@@ -562,7 +562,7 @@ STATIC void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
 
     /* Process this block */
     oatDoSSAConversion(cUnit, block);
-    int mapSize = sizeof(int) * cUnit->method->NumRegisters();
+    int mapSize = sizeof(int) * cUnit->numDalvikRegisters;
 
     /* Save SSA map snapshot */
     int* savedSSAMap = (int*)oatNew(mapSize, false);

@@ -163,7 +163,7 @@ void oatDumpCompilationUnit(CompilationUnit* cUnit)
         "Catch Block"
     };
 
-    LOG(INFO) << "Compiling " << art::PrettyMethod(cUnit->method);
+    LOG(INFO) << "Compiling " << art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     LOG(INFO) << cUnit->insns << " insns";
     LOG(INFO) << cUnit->numBlocks << " blocks in total";
     GrowableListIterator iterator;
@@ -530,10 +530,6 @@ void oatGetBlockName(BasicBlock* bb, char* name)
 
 const char* oatGetShortyFromTargetIdx(CompilationUnit *cUnit, int targetIdx)
 {
-    art::DexCache* dex_cache =
-        cUnit->method->GetDeclaringClass()->GetDexCache();
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    const art::DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-    const art::DexFile::MethodId& methodId = dex_file.GetMethodId(targetIdx);
-    return dex_file.GetShorty(methodId.proto_idx_);
+    const art::DexFile::MethodId& methodId = cUnit->dex_file->GetMethodId(targetIdx);
+    return cUnit->dex_file->GetShorty(methodId.proto_idx_);
 }

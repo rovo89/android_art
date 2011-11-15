@@ -47,12 +47,15 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 {
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     uint32_t type_idx = mir->dalvikInsn.vC;
-    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, type_idx)) {
+    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                    cUnit->dex_cache,
+                                                    *cUnit->dex_file,
+                                                    type_idx)) {
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
     } else {
         UNIMPLEMENTED(WARNING) << "Need to check access of '"
-                               << PrettyMethod(cUnit->method)
+                               << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
                                << "' to unresolved type " << type_idx;
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
@@ -79,9 +82,13 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCode), rLR);
-    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method, typeId)) {
-        UNIMPLEMENTED(WARNING) << "Need to check access of '" << PrettyMethod(cUnit->method)
-                               << "' to unresolved type " << typeId;
+    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                     cUnit->dex_cache,
+                                                     *cUnit->dex_file,
+                                                     typeId)) {
+        UNIMPLEMENTED(WARNING) << "Need to check access of '"
+            << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
+            << "' to unresolved type " << typeId;
     }
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
@@ -158,11 +165,14 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     }
 }
 
-Field* FindFieldWithResolvedStaticStorage(const Method* method,
+Field* FindFieldWithResolvedStaticStorage(CompilationUnit* cUnit,
                                           const uint32_t fieldIdx,
                                           uint32_t& resolvedTypeIdx) {
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    Field* field = class_linker->ResolveField(fieldIdx, method, true);
+    Field* field = cUnit->class_linker->ResolveField(*cUnit->dex_file,
+                                                     fieldIdx,
+                                                     cUnit->dex_cache,
+                                                     cUnit->class_loader,
+                                                     true);
     if (field == NULL) {
         Thread* thread = Thread::Current();
         if (thread->IsExceptionPending()) {  // clear any exception left by resolve field
@@ -170,11 +180,9 @@ Field* FindFieldWithResolvedStaticStorage(const Method* method,
         }
         return NULL;
     }
-    const art::DexFile& dex_file = class_linker->
-            FindDexFile(method->GetDeclaringClass()->GetDexCache());
-    const art::DexFile::FieldId& field_id = dex_file.GetFieldId(fieldIdx);
+    const art::DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
     int type_idx = field_id.class_idx_;
-    Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+    Class* klass = cUnit->dex_cache->GetResolvedTypes()->Get(type_idx);
     // Check if storage class is the same as class referred to by type idx.
     // They may not be if the FieldId refers a subclass, but storage is in super
     if (field->GetDeclaringClass() == klass) {
@@ -185,14 +193,18 @@ Field* FindFieldWithResolvedStaticStorage(const Method* method,
     // we may not if the dex file never references the super class,
     // but usually it will.
     std::string descriptor = field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8();
-    for (size_t type_idx = 0; type_idx < dex_file.NumTypeIds(); type_idx++) {
-        const art::DexFile::TypeId& type_id = dex_file.GetTypeId(type_idx);
-        if (descriptor == dex_file.GetTypeDescriptor(type_id)) {
-            resolvedTypeIdx = type_idx;
-            return field;
-        }
+    const art::DexFile::StringId* string_id =
+        cUnit->dex_file->FindStringId(descriptor);
+    if (string_id == NULL) {
+        return NULL;  // descriptor not found, resort to slow path
     }
-    return NULL;  // resort to slow path
+    const art::DexFile::TypeId* type_id =
+        cUnit->dex_file->FindTypeId(cUnit->dex_file->GetIndexForStringId(*string_id));
+    if (type_id == NULL) {
+        return NULL;  // type id not found, resort to slow path
+    }
+    resolvedTypeIdx = cUnit->dex_file->GetIndexForTypeId(*type_id);
+    return field;
 }
 
 STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
@@ -201,7 +213,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
                      (mir->dalvikInsn.opcode == OP_SPUT_OBJECT_VOLATILE));
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
     oatFlushAllRegs(cUnit);
     if (SLOW_FIELD_PATH || field == NULL) {
         // Slow path
@@ -261,7 +273,7 @@ STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
     oatFlushAllRegs(cUnit);
 #if ANDROID_SMP != 0
     bool isVolatile = (field == NULL) || field->IsVolatile();
@@ -312,7 +324,7 @@ STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
 {
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
 #if ANDROID_SMP != 0
     bool isVolatile = (field == NULL) || field->IsVolatile();
 #else
@@ -364,7 +376,7 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir,
 {
     int fieldIdx = mir->dalvikInsn.vB;
     uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit->method, fieldIdx, typeIdx);
+    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
     bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
                      (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
     oatFlushAllRegs(cUnit);
@@ -466,8 +478,11 @@ STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
      * This is the fast path in which the target virtual method is
      * fully resolved at compile time.
      */
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
+    Method* baseMethod = cUnit->class_linker->ResolveMethod(*cUnit->dex_file,
+                                                            dInsn->vB,
+                                                            cUnit->dex_cache,
+                                                            cUnit->class_loader,
+                                                            false);
     CHECK(baseMethod != NULL);
     uint32_t target_idx = baseMethod->GetMethodIndex();
     switch(state) {
@@ -631,9 +646,16 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
      * within the size of the super's vtable has been done at compile-time.
      */
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
+    Method* baseMethod = class_linker->ResolveMethod(*cUnit->dex_file,
+                                                     dInsn->vB,
+                                                     cUnit->dex_cache,
+                                                     cUnit->class_loader,
+                                                     false);
     CHECK(baseMethod != NULL);
-    Class* superClass = cUnit->method->GetDeclaringClass()->GetSuperClass();
+    Class* declaring_class = cUnit->dex_cache->GetResolvedTypes()
+        ->Get(cUnit->dex_file->GetMethodId(cUnit->method_idx).class_idx_);
+    Class* superClass = (declaring_class != NULL)
+        ? declaring_class->GetSuperClass() : NULL;
     CHECK(superClass != NULL);
     int32_t target_idx = baseMethod->GetMethodIndex();
     CHECK(superClass->GetVTable()->GetLength() > target_idx);
@@ -872,7 +894,7 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
      * Dalvik vRegs and the ins.
      */
     int highestArg = oatGetSrc(cUnit, mir, numArgs-1).sRegLow;
-    int boundaryReg = cUnit->method->NumRegisters() - cUnit->method->NumIns();
+    int boundaryReg = cUnit->numDalvikRegisters - cUnit->numIns;
     if ((firstArg < boundaryReg) && (highestArg >= boundaryReg)) {
         LOG(FATAL) << "Argument list spanned locals & args";
     }
@@ -971,7 +993,7 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     // Is this the special "Ljava/lang/Object;.<init>:()V" case?
     if (mir->dalvikInsn.opcode == OP_INVOKE_DIRECT) {
         int idx = mir->dalvikInsn.vB;
-        Method* target = cUnit->method->GetDexCacheResolvedMethods()->Get(idx);
+        Method* target = cUnit->dex_cache->GetResolvedMethods()->Get(idx);
         if (target) {
             if (PrettyMethod(target) == "java.lang.Object.<init>()V") {
                 RegLocation rlArg = oatGetSrc(cUnit, mir, 0);
@@ -1043,7 +1065,11 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     int callState = 0;
     ArmLIR* rollback;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    Method* baseMethod = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
+    Method* baseMethod = class_linker->ResolveMethod(*cUnit->dex_file,
+                                                     dInsn->vB,
+                                                     cUnit->dex_cache,
+                                                     cUnit->class_loader,
+                                                     false);
     NextCallInsn nextCallInsn;
     bool fastPath = true;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
@@ -1057,7 +1083,10 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
         }
         fastPath = false;
     } else {
-        Class* superClass = cUnit->method->GetDeclaringClass()->GetSuperClass();
+        Class* declaring_class = cUnit->dex_cache->GetResolvedTypes()
+            ->Get(cUnit->dex_file->GetMethodId(cUnit->method_idx).class_idx_);
+        Class* superClass = (declaring_class != NULL)
+            ? declaring_class->GetSuperClass() : NULL;
         if (superClass == NULL) {
             fastPath = false;
         } else {
@@ -1100,7 +1129,11 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     int callState = 0;
     ArmLIR* rollback;
     art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
-    Method* method = class_linker->ResolveMethod(dInsn->vB, cUnit->method, false);
+    Method* method = class_linker->ResolveMethod(*cUnit->dex_file,
+                                                 dInsn->vB,
+                                                 cUnit->dex_cache,
+                                                 cUnit->class_loader,
+                                                 false);
     NextCallInsn nextCallInsn;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
 
@@ -1825,12 +1858,11 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
  */
 STATIC void flushIns(CompilationUnit* cUnit)
 {
-    if (cUnit->method->NumIns() == 0)
+    if (cUnit->numIns == 0)
         return;
     int firstArgReg = r1;
     int lastArgReg = r3;
-    int startVReg = cUnit->method->NumRegisters() -
-        cUnit->method->NumIns();
+    int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
     /*
      * Arguments passed in registers should be flushed
      * to their backing locations in the frame for now.
@@ -1842,7 +1874,7 @@ STATIC void flushIns(CompilationUnit* cUnit)
      * cases, copy argument to both.  This will be uncommon
      * enough that it isn't worth attempting to optimize.
      */
-    for (int i = 0; i < cUnit->method->NumIns(); i++) {
+    for (int i = 0; i < cUnit->numIns; i++) {
         PromotionMap vMap = cUnit->promotionMap[startVReg + i];
         if (i <= (lastArgReg - firstArgReg)) {
             // If arriving in register
