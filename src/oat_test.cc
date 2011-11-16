@@ -11,11 +11,12 @@ class OatTest : public CommonTest {};
 
 TEST_F(OatTest, WriteRead) {
   const bool compile = false;  // DISABLED_ due to the time to compile libcore
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   SirtRef<ClassLoader> class_loader(NULL);
   if (compile) {
     compiler_.reset(new Compiler(kThumb2, false));
-    compiler_->CompileAll(class_loader.get());
+    compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
   }
 
   ScratchFile tmp;
@@ -23,14 +24,12 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
-    compiler_->CompileAll(class_loader.get());
+    compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
   }
   UniquePtr<OatFile> oat_file(OatFile::Open(std::string(tmp.GetFilename()), "", NULL));
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   const DexFile& dex_file = *java_lang_dex_file_.get();
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());

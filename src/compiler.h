@@ -25,8 +25,8 @@ class Compiler {
 
   ~Compiler();
 
-  // Compile all Methods of all the Classes of all the DexFiles that are part of a ClassLoader.
-  void CompileAll(const ClassLoader* class_loader);
+  void CompileAll(const ClassLoader* class_loader,
+                  const std::vector<const DexFile*>& class_path);
 
   // Compile a single Method
   void CompileOne(const Method* method);

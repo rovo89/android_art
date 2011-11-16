@@ -19,7 +19,7 @@ class CompilerTest : public CommonTest {
  protected:
 
   void CompileAll(const ClassLoader* class_loader) {
-    compiler_->CompileAll(class_loader);
+    compiler_->CompileAll(class_loader, ClassLoader::GetCompileTimeClassPath(class_loader));
     MakeAllExecutable(class_loader);
   }
 

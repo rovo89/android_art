@@ -94,6 +94,34 @@ private:
   bool do_unlink_;
 };
 
+// Returns true if dex_files has a dex with the named location.
+bool DexFilesContains(const std::vector<const DexFile*>& dex_files, const std::string& location) {
+  for (size_t i = 0; i < dex_files.size(); ++i) {
+    if (dex_files[i]->GetLocation() == location) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Appends to dex_files any elements of class_path that it doesn't already
+// contain. This will open those dex files as necessary.
+void OpenClassPathFiles(const std::string& class_path, std::vector<const DexFile*>& dex_files) {
+  std::vector<std::string> parsed;
+  Split(class_path, ':', parsed);
+  for (size_t i = 0; i < parsed.size(); ++i) {
+    if (DexFilesContains(dex_files, parsed[i])) {
+      continue;
+    }
+    const DexFile* dex_file = DexFile::Open(parsed[i], Runtime::Current()->GetHostPrefix());
+    if (dex_file == NULL) {
+      LOG(WARNING) << "Failed to open dex file " << parsed[i];
+    } else {
+      dex_files.push_back(dex_file);
+    }
+  }
+}
+
 int dex2oat(int argc, char** argv) {
   // Skip over argv[0].
   argv++;
@@ -272,13 +300,17 @@ int dex2oat(int argc, char** argv) {
 
   // ClassLoader creation needs to come after Runtime::Create
   SirtRef<ClassLoader> class_loader(NULL);
+  std::vector<const DexFile*> dex_files;
   if (!boot_image_option.empty()) {
-    std::vector<const DexFile*> dex_files;
     DexFile::OpenDexFiles(dex_filenames, dex_files, host_prefix);
-    for (size_t i = 0; i < dex_files.size(); i++) {
-      class_linker->RegisterDexFile(*dex_files[i]);
+    std::vector<const DexFile*> class_path_files(dex_files);
+    OpenClassPathFiles(runtime->GetClassPath(), class_path_files);
+    for (size_t i = 0; i < class_path_files.size(); i++) {
+      class_linker->RegisterDexFile(*class_path_files[i]);
     }
-    class_loader.reset(PathClassLoader::AllocCompileTime(dex_files));
+    class_loader.reset(PathClassLoader::AllocCompileTime(class_path_files));
+  } else {
+    dex_files = runtime->GetClassLinker()->GetBootClassPath();
   }
 
   // if we loaded an existing image, we will reuse values from the image roots.
@@ -302,7 +334,7 @@ int dex2oat(int argc, char** argv) {
   }
   Compiler compiler(kThumb2, image_filename != NULL);
   if (method_names.empty()) {
-    compiler.CompileAll(class_loader.get());
+    compiler.CompileAll(class_loader.get(), dex_files);
   } else {
     for (size_t i = 0; i < method_names.size(); i++) {
       // names are actually class_descriptor + name + signature.

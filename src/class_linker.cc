@@ -577,6 +577,8 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
     execl(dex2oat.c_str(), dex2oat.c_str(),
           "--runtime-arg", "-Xms64m",
           "--runtime-arg", "-Xmx64m",
+          "--runtime-arg", "-classpath",
+          "--runtime-arg", Runtime::Current()->GetClassPath().c_str(),
           boot_image_option.c_str(),
           dex_file_option.c_str(),
           oat_file_option.c_str(),
@@ -2621,19 +2623,9 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
     const char* descriptor = dex_file.StringByTypeIdx(type_idx);
     resolved = FindClass(descriptor, class_loader);
     if (resolved != NULL) {
-      Class* check = resolved;
-      while (check->IsArrayClass()) {
-        check = check->GetComponentType();
-      }
-      if (dex_cache != check->GetDexCache()) {
-        if (check->GetClassLoader() != NULL) {
-          Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-              "Class with type index %d resolved by unexpected .dex", type_idx);
-          resolved = NULL;
-        }
-      }
-    }
-    if (resolved != NULL) {
+      // TODO: we used to throw here if resolved's class loader was not the
+      //       boot class loader. This was to permit different classes with the
+      //       same name to be loaded simultaneously by different loaders
       dex_cache->SetResolvedType(type_idx, resolved);
     } else {
       DCHECK(Thread::Current()->IsExceptionPending());

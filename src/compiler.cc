@@ -82,13 +82,24 @@ ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_se
   }
 }
 
-void Compiler::CompileAll(const ClassLoader* class_loader) {
+void Compiler::CompileAll(const ClassLoader* class_loader,
+    const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
-  Resolve(class_loader);
-  Verify(class_loader);
-  InitializeClassesWithoutClinit(class_loader);
-  Compile(class_loader);
-  SetCodeAndDirectMethods(class_loader);
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    ResolveDexFile(class_loader, *dex_files[i]);
+  }
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    VerifyDexFile(class_loader, *dex_files[i]);
+  }
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    InitializeClassesWithoutClinit(class_loader, *dex_files[i]);
+  }
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    CompileDexFile(class_loader, *dex_files[i]);
+  }
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    SetCodeAndDirectMethodsDexFile(*dex_files[i]);
+  }
 }
 
 void Compiler::CompileOne(const Method* method) {
