@@ -1082,15 +1082,7 @@ static JdwpError handleTGR_Name(JdwpState* state, const uint8_t* buf, int dataLe
   ObjectId threadGroupId = ReadObjectId(&buf);
   LOG(VERBOSE) << StringPrintf("  Req for name of threadGroupId=0x%llx", threadGroupId);
 
-  char* name = Dbg::GetThreadGroupName(threadGroupId);
-  if (name != NULL) {
-    expandBufAddUtf8String(pReply, name);
-  } else {
-    expandBufAddUtf8String(pReply, "BAD-GROUP-ID");
-    LOG(VERBOSE) << StringPrintf("bad thread group ID");
-  }
-
-  free(name);
+  expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(threadGroupId).c_str());
 
   return ERR_NONE;
 }

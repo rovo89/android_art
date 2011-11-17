@@ -178,7 +178,7 @@ public:
    */
   static bool GetThreadName(JDWP::ObjectId threadId, std::string& name);
   static JDWP::ObjectId GetThreadGroup(JDWP::ObjectId threadId);
-  static char* GetThreadGroupName(JDWP::ObjectId threadGroupId);
+  static std::string GetThreadGroupName(JDWP::ObjectId threadGroupId);
   static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId threadGroupId);
   static JDWP::ObjectId GetSystemThreadGroupId();
   static JDWP::ObjectId GetMainThreadGroupId();

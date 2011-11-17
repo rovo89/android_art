@@ -476,7 +476,15 @@ bool Dbg::FindLoadedClassBySignature(const char* classDescriptor, JDWP::RefTypeI
 }
 
 void Dbg::GetObjectType(JDWP::ObjectId objectId, uint8_t* pRefTypeTag, JDWP::RefTypeId* pRefTypeId) {
-  UNIMPLEMENTED(FATAL);
+  Object* o = gRegistry->Get<Object*>(objectId);
+  if (o->GetClass()->IsArrayClass()) {
+    *pRefTypeTag = JDWP::TT_ARRAY;
+  } else if (o->GetClass()->IsInterface()) {
+    *pRefTypeTag = JDWP::TT_INTERFACE;
+  } else {
+    *pRefTypeTag = JDWP::TT_CLASS;
+  }
+  *pRefTypeId = gRegistry->Add(o->GetClass());
 }
 
 uint8_t Dbg::GetClassObjectType(JDWP::RefTypeId refTypeId) {
@@ -688,13 +696,28 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
 }
 
 JDWP::ObjectId Dbg::GetThreadGroup(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Object* thread = gRegistry->Get<Object*>(threadId);
+  CHECK(thread != NULL);
+
+  Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Thread;");
+  CHECK(c != NULL);
+  Field* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
+  CHECK(f != NULL);
+  Object* group = f->GetObject(thread);
+  CHECK(group != NULL);
+  return gRegistry->Add(group);
 }
 
-char* Dbg::GetThreadGroupName(JDWP::ObjectId threadGroupId) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+std::string Dbg::GetThreadGroupName(JDWP::ObjectId threadGroupId) {
+  Object* thread_group = gRegistry->Get<Object*>(threadGroupId);
+  CHECK(thread_group != NULL);
+
+  Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
+  CHECK(c != NULL);
+  Field* f = c->FindInstanceField("name", "Ljava/lang/String;");
+  CHECK(f != NULL);
+  String* s = reinterpret_cast<String*>(f->GetObject(thread_group));
+  return s->ToModifiedUtf8();
 }
 
 JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
@@ -702,19 +725,50 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
   return 0;
 }
 
+static Object* GetStaticThreadGroup(const char* field_name) {
+  Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
+  CHECK(c != NULL);
+  Field* f = c->FindStaticField(field_name, "Ljava/lang/ThreadGroup;");
+  CHECK(f != NULL);
+  Object* group = f->GetObject(NULL);
+  CHECK(group != NULL);
+  return group;
+}
+
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return gRegistry->Add(GetStaticThreadGroup("mSystem"));
 }
 
 JDWP::ObjectId Dbg::GetMainThreadGroupId() {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return gRegistry->Add(GetStaticThreadGroup("mMain"));
 }
 
-bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, uint32_t* threadStatus, uint32_t* suspendStatus) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, uint32_t* pThreadStatus, uint32_t* pSuspendStatus) {
+  ScopedThreadListLock thread_list_lock;
+
+  Thread* thread = DecodeThread(threadId);
+  if (thread == NULL) {
+    return false;
+  }
+
+  switch (thread->GetState()) {
+  case Thread::kTerminated:   *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+  case Thread::kRunnable:     *pThreadStatus = JDWP::TS_RUNNING;  break;
+  case Thread::kTimedWaiting: *pThreadStatus = JDWP::TS_SLEEPING; break;
+  case Thread::kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
+  case Thread::kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
+  case Thread::kInitializing: *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+  case Thread::kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+  case Thread::kNative:       *pThreadStatus = JDWP::TS_RUNNING;  break;
+  case Thread::kVmWait:       *pThreadStatus = JDWP::TS_WAIT;     break;
+  case Thread::kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
+  default:
+    LOG(FATAL) << "unknown thread state " << thread->GetState();
+  }
+
+  *pSuspendStatus = (thread->IsSuspended() ? JDWP::SUSPEND_STATUS_SUSPENDED : 0);
+
+  return true;
 }
 
 uint32_t Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId) {

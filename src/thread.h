@@ -68,12 +68,12 @@ class PACKED Thread {
     kMaxPriority = 10,
   };
   enum State {
-    // These match up with JDWP values.
-    kTerminated   = 0,        // TERMINATED
-    kRunnable     = 1,        // RUNNABLE or running now
-    kTimedWaiting = 2,        // TIMED_WAITING in Object.wait()
-    kBlocked      = 3,        // BLOCKED on a monitor
-    kWaiting      = 4,        // WAITING in Object.wait()
+    // These correspond to JDWP states (but needn't share the same values).
+    kTerminated   = 0,        // TS_ZOMBIE
+    kRunnable     = 1,        // TS_RUNNING
+    kTimedWaiting = 2,        // TS_SLEEPING in Object.wait()
+    kBlocked      = 3,        // TS_MONITOR on a monitor
+    kWaiting      = 4,        // TS_WAIT in Object.wait()
     // Non-JDWP states.
     kInitializing = 5,        // allocated, not yet running --- TODO: unnecessary?
     kStarting     = 6,        // native thread started, not yet ready to run managed code
