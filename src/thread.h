@@ -178,6 +178,7 @@ class PACKED Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
+  static Thread* FromManagedThread(Object* thread_peer);
   static Thread* FromManagedThread(JNIEnv* env, jobject thread);
   static uint32_t LockOwnerFromThreadLock(Object* thread_lock);
 
@@ -190,6 +191,7 @@ class PACKED Thread {
   State SetState(State new_state);
 
   bool IsDaemon();
+  bool IsSuspended();
 
   void WaitUntilSuspended();
 

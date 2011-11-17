@@ -105,24 +105,6 @@ struct JdwpEvent {
 JdwpEvent* EventAlloc(int numMods);
 void EventFree(JdwpEvent* pEvent);
 
-/*
- * Register an event by adding it to the event list.
- *
- * "*pEvent" must be storage allocated with jdwpEventAlloc().  The caller
- * may discard its pointer after calling this.
- */
-JdwpError RegisterEvent(JdwpState* state, JdwpEvent* pEvent);
-
-/*
- * Unregister an event, given the requestId.
- */
-void UnregisterEventById(JdwpState* state, uint32_t requestId);
-
-/*
- * Unregister all events.
- */
-void UnregisterAll(JdwpState* state);
-
 }  // namespace JDWP
 
 }  // namespace art

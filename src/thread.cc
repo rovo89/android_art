@@ -192,9 +192,12 @@ void SetVmData(Object* managed_thread, Thread* native_thread) {
   gThread_vmData->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
+Thread* Thread::FromManagedThread(Object* thread_peer) {
+  return reinterpret_cast<Thread*>(static_cast<uintptr_t>(gThread_vmData->GetInt(thread_peer)));
+}
+
 Thread* Thread::FromManagedThread(JNIEnv* env, jobject java_thread) {
-  Object* thread = Decode<Object*>(env, java_thread);
-  return reinterpret_cast<Thread*>(static_cast<uintptr_t>(gThread_vmData->GetInt(thread)));
+  return FromManagedThread(Decode<Object*>(env, java_thread));
 }
 
 size_t FixStackSize(size_t stack_size) {
@@ -631,6 +634,10 @@ Thread::State Thread::SetState(Thread::State new_state) {
   }
 
   return old_state;
+}
+
+bool Thread::IsSuspended() {
+  return ANNOTATE_UNPROTECTED_READ(suspend_count_) != 0 && GetState() != Thread::kRunnable;
 }
 
 void Thread::WaitUntilSuspended() {

@@ -118,7 +118,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
   /* comment this out when debugging JDWP itself */
   //android_setMinPriority(LOG_TAG, ANDROID_LOG_DEBUG);
 
-  JdwpState* state = new JdwpState(options);
+  UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
   case kJdwpTransportSocket:
     // LOGD("prepping for JDWP over TCP");
@@ -134,8 +134,8 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
     LOG(FATAL) << "Unknown transport: " << options->transport;
   }
 
-  if (!(*state->transport->startup)(state, options)) {
-    goto fail;
+  if (!(*state->transport->startup)(state.get(), options)) {
+    return NULL;
   }
 
   /*
@@ -151,7 +151,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    * We have bound to a port, or are trying to connect outbound to a
    * debugger.  Create the JDWP thread and let it continue the mission.
    */
-  CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state), "JDWP thread");
+  CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
 
   /*
    * Wait until the thread finishes basic initialization.
@@ -178,7 +178,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
 
     if (!state->IsActive()) {
       LOG(ERROR) << "JDWP connection failed";
-      goto fail;
+      return NULL;
     }
 
     LOG(INFO) << "JDWP connected";
@@ -190,11 +190,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
      */
   }
 
-  return state;
-
-fail:
-  delete state;     // frees state
-  return NULL;
+  return state.release();
 }
 
 /*
@@ -207,7 +203,7 @@ fail:
 void JdwpState::ResetState() {
   /* could reset the serial numbers, but no need to */
 
-  UnregisterAll(this);
+  UnregisterAll();
   CHECK(eventList == NULL);
 
   /*

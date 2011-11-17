@@ -991,7 +991,7 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
     return ERR_THREAD_NOT_SUSPENDED;
   }
 
-  int frameCount = Dbg::GetThreadFrameCount(threadId);
+  size_t frameCount = Dbg::GetThreadFrameCount(threadId);
 
   LOG(VERBOSE) << StringPrintf("  Request for frames: threadId=%llx start=%d length=%d [count=%d]", threadId, startFrame, length, frameCount);
   if (frameCount <= 0) {
@@ -1000,8 +1000,9 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
   if (length == (uint32_t) -1) {
     length = frameCount;
   }
-  CHECK((int) startFrame >= 0 && (int) startFrame < frameCount);
-  CHECK_LE((int) (startFrame + length), frameCount);
+  CHECK_GE(startFrame, 0U);
+  CHECK_LT(startFrame, frameCount);
+  CHECK_LE(startFrame + length, frameCount);
 
   uint32_t frames = length;
   expandBufAdd4BE(pReply, frames);
@@ -1417,7 +1418,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
   LOG(VERBOSE) << StringPrintf("    --> event requestId=%#x", requestId);
 
   /* add it to the list */
-  JdwpError err = RegisterEvent(state, pEvent);
+  JdwpError err = state->RegisterEvent(pEvent);
   if (err != ERR_NONE) {
     /* registration failed, probably because event is bogus */
     EventFree(pEvent);
@@ -1437,7 +1438,7 @@ static JdwpError handleER_Clear(JdwpState* state, const uint8_t* buf, int dataLe
 
   LOG(VERBOSE) << StringPrintf("  Req to clear eventKind=%d requestId=%#x", eventKind, requestId);
 
-  UnregisterEventById(state, requestId);
+  state->UnregisterEventById(requestId);
 
   return ERR_NONE;
 }

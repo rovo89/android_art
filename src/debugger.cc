@@ -645,14 +645,18 @@ uint32_t Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId) {
   return 0;
 }
 
+Thread* DecodeThread(JDWP::ObjectId threadId) {
+  Object* thread_peer = gRegistry->Get<Object*>(threadId);
+  CHECK(thread_peer != NULL);
+  return Thread::FromManagedThread(thread_peer);
+}
+
 bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+  return DecodeThread(threadId) != NULL;
 }
 
 bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+  return DecodeThread(threadId)->IsSuspended();
 }
 
 //void Dbg::WaitForSuspend(JDWP::ObjectId threadId);

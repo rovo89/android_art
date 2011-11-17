@@ -238,7 +238,6 @@ void ThreadList::SuspendSelfForDebugger() {
   // Collisions with other suspends aren't really interesting. We want
   // to ensure that we're the only one fiddling with the suspend count
   // though.
-  ScopedThreadListLock thread_list_lock;
   MutexLock mu(thread_suspend_count_lock_);
   ModifySuspendCount(self, +1, true);
 

@@ -98,6 +98,7 @@ struct JdwpEvent;
 struct JdwpNetState;
 struct JdwpReqHeader;
 struct JdwpTransport;
+struct ModBasket;
 
 /*
  * State for JDWP functions.
@@ -235,9 +236,33 @@ struct JdwpState {
 
   void Run();
 
+  /*
+   * Register an event by adding it to the event list.
+   *
+   * "*pEvent" must be storage allocated with jdwpEventAlloc().  The caller
+   * may discard its pointer after calling this.
+   */
+  JdwpError RegisterEvent(JdwpEvent* pEvent);
+
+  /*
+   * Unregister an event, given the requestId.
+   */
+  void UnregisterEventById(uint32_t requestId);
+
+  /*
+   * Unregister all events.
+   */
+  void UnregisterAll();
+
  private:
   JdwpState(const JdwpOptions* options);
+  bool InvokeInProgress();
   bool IsConnected();
+  void SuspendByPolicy(JdwpSuspendPolicy suspendPolicy);
+  void CleanupMatchList(JdwpEvent** matchList, int matchCount);
+  void EventFinish(ExpandBuf* pReq);
+  void FindMatchingEvents(JdwpEventKind eventKind, ModBasket* basket, JdwpEvent** matchList, int* pMatchCount);
+  void UnregisterEvent(JdwpEvent* pEvent);
 
 public: // TODO: fix privacy
   const JdwpOptions* options_;
