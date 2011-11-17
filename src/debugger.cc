@@ -64,6 +64,13 @@ class ObjectRegistry {
     return map_.find(id) != map_.end();
   }
 
+  template<typename T> T Get(JDWP::ObjectId id) {
+    MutexLock mu(lock_);
+    typedef std::map<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
+    It it = map_.find(id);
+    return (it != map_.end()) ? reinterpret_cast<T>(it->second) : NULL;
+  }
+
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) {
     MutexLock mu(lock_);
     typedef std::map<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
@@ -265,7 +272,7 @@ void Dbg::StartJdwp() {
   // If a debugger has already attached, send the "welcome" message.
   // This may cause us to suspend all threads.
   if (gJdwpState->IsActive()) {
-    //ScopedThreadStateChange(Thread::Current(), Thread::kRunnable);
+    //ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
     if (!gJdwpState->PostVMStart()) {
       LOG(WARNING) << "failed to post 'start' message to debugger";
     }
@@ -315,8 +322,21 @@ void Dbg::Connected() {
   gDebuggerConnected = true;
 }
 
-void Dbg::Active() {
-  UNIMPLEMENTED(FATAL);
+void Dbg::GoActive() {
+  // Enable all debugging features, including scans for breakpoints.
+  // This is a no-op if we're already active.
+  // Only called from the JDWP handler thread.
+  if (gDebuggerActive) {
+    return;
+  }
+
+  LOG(INFO) << "Debugger is active";
+
+  // TODO: CHECK we don't have any outstanding breakpoints.
+
+  gDebuggerActive = true;
+
+  //dvmEnableAllSubMode(kSubModeDebuggerActive);
 }
 
 void Dbg::Disconnected() {
@@ -369,9 +389,9 @@ void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-const char* Dbg::GetClassDescriptor(JDWP::RefTypeId id) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+std::string Dbg::GetClassDescriptor(JDWP::RefTypeId classId) {
+  Class* c = gRegistry->Get<Class*>(classId);
+  return c->GetDescriptor()->ToModifiedUtf8();
 }
 
 JDWP::ObjectId Dbg::GetClassObject(JDWP::RefTypeId id) {
@@ -399,16 +419,55 @@ bool Dbg::IsInterface(JDWP::RefTypeId id) {
   return false;
 }
 
-void Dbg::GetClassList(uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::GetClassList(uint32_t* pClassCount, JDWP::RefTypeId** pClasses) {
+  // Get the complete list of reference classes (i.e. all classes except
+  // the primitive types).
+  // Returns a newly-allocated buffer full of RefTypeId values.
+  struct ClassListCreator {
+    static bool Visit(Class* c, void* arg) {
+      return reinterpret_cast<ClassListCreator*>(arg)->Visit(c);
+    }
+
+    bool Visit(Class* c) {
+      if (!c->IsPrimitive()) {
+        classes.push_back(static_cast<JDWP::RefTypeId>(gRegistry->Add(c)));
+      }
+      return true;
+    }
+
+    std::vector<JDWP::RefTypeId> classes;
+  };
+
+  ClassListCreator clc;
+  Runtime::Current()->GetClassLinker()->VisitClasses(ClassListCreator::Visit, &clc);
+  *pClassCount = clc.classes.size();
+  *pClasses = new JDWP::RefTypeId[clc.classes.size()];
+  for (size_t i = 0; i < clc.classes.size(); ++i) {
+    (*pClasses)[i] = clc.classes[i];
+  }
 }
 
 void Dbg::GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Dbg::GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pStatus, const char** pSignature) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
+  Class* c = gRegistry->Get<Class*>(classId);
+  if (c->IsArrayClass()) {
+    *pStatus = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
+    *pTypeTag = JDWP::TT_ARRAY;
+  } else {
+    if (c->IsErroneous()) {
+      *pStatus = JDWP::CS_ERROR;
+    } else {
+      *pStatus = JDWP::CS_VERIFIED | JDWP::CS_PREPARED | JDWP::CS_INITIALIZED;
+    }
+    *pTypeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+  }
+
+  if (pDescriptor != NULL) {
+    *pDescriptor = c->GetDescriptor()->ToModifiedUtf8();
+  }
 }
 
 bool Dbg::FindLoadedClassBySignature(const char* classDescriptor, JDWP::RefTypeId* pRefTypeId) {
@@ -598,12 +657,52 @@ bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
 
 //void Dbg::WaitForSuspend(JDWP::ObjectId threadId);
 
+void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
+  struct ThreadListVisitor {
+    static void Visit(Thread* t, void* arg) {
+      reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
+    }
+
+    void Visit(Thread* t) {
+      if (t == Dbg::GetDebugThread()) {
+        // Skip the JDWP thread. Some debuggers get bent out of shape when they can't suspend and
+        // query all threads, so it's easier if we just don't tell them about this thread.
+        return;
+      }
+      if (thread_group == NULL || t->GetThreadGroup() == thread_group) {
+        threads.push_back(gRegistry->Add(t->GetPeer()));
+      }
+    }
+
+    Object* thread_group;
+    std::vector<JDWP::ObjectId> threads;
+  };
+
+  ThreadListVisitor tlv;
+  tlv.thread_group = thread_group;
+
+  {
+    ScopedThreadListLock thread_list_lock;
+    Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
+  }
+
+  *pThreadCount = tlv.threads.size();
+  if (*pThreadCount == 0) {
+    *ppThreadIds = NULL;
+  } else {
+    *ppThreadIds = new JDWP::ObjectId[*pThreadCount];
+    for (size_t i = 0; i < *pThreadCount; ++i) {
+      (*ppThreadIds)[i] = tlv.threads[i];
+    }
+  }
+}
+
 void Dbg::GetThreadGroupThreads(JDWP::ObjectId threadGroupId, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
-  UNIMPLEMENTED(FATAL);
+  GetThreadGroupThreadsImpl(gRegistry->Get<Object*>(threadGroupId), ppThreadIds, pThreadCount);
 }
 
 void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
-  UNIMPLEMENTED(FATAL);
+  GetThreadGroupThreadsImpl(NULL, ppThreadIds, pThreadCount);
 }
 
 int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
@@ -621,6 +720,7 @@ JDWP::ObjectId Dbg::GetThreadSelfId() {
 }
 
 void Dbg::SuspendVM() {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable); // TODO: do we really want to change back? should the JDWP thread be Runnable usually?
   Runtime::Current()->GetThreadList()->SuspendAll(true);
 }
 
@@ -800,7 +900,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   return true;
 }
 
-void DdmBroadcast(bool connect) {
+void Dbg::DdmBroadcast(bool connect) {
   LOG(VERBOSE) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
 
   Thread* self = Thread::Current();
@@ -822,11 +922,11 @@ void DdmBroadcast(bool connect) {
 }
 
 void Dbg::DdmConnected() {
-  DdmBroadcast(true);
+  Dbg::DdmBroadcast(true);
 }
 
 void Dbg::DdmDisconnected() {
-  DdmBroadcast(false);
+  Dbg::DdmBroadcast(false);
   gDdmThreadNotification = false;
 }
 
@@ -859,7 +959,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
   }
 }
 
-void DdmSendThreadStartCallback(Thread* t, void*) {
+static void DdmSendThreadStartCallback(Thread* t, void*) {
   Dbg::DdmSendThreadNotification(t, CHUNK_TYPE("THCR"));
 }
 
@@ -875,7 +975,7 @@ void Dbg::DdmSetThreadNotification(bool enable) {
   }
 }
 
-void PostThreadStartOrStop(Thread* t, uint32_t type) {
+void Dbg::PostThreadStartOrStop(Thread* t, uint32_t type) {
   if (gDebuggerActive) {
     JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
     gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
@@ -884,11 +984,11 @@ void PostThreadStartOrStop(Thread* t, uint32_t type) {
 }
 
 void Dbg::PostThreadStart(Thread* t) {
-  PostThreadStartOrStop(t, CHUNK_TYPE("THCR"));
+  Dbg::PostThreadStartOrStop(t, CHUNK_TYPE("THCR"));
 }
 
 void Dbg::PostThreadDeath(Thread* t) {
-  PostThreadStartOrStop(t, CHUNK_TYPE("THDE"));
+  Dbg::PostThreadStartOrStop(t, CHUNK_TYPE("THDE"));
 }
 
 void Dbg::DdmSendChunk(uint32_t type, size_t byte_count, const uint8_t* buf) {
@@ -1067,7 +1167,13 @@ struct HeapChunkContext {
     Reset();
   }
 
+  static void HeapChunkCallback(const void* chunk_ptr, size_t chunk_len, const void* user_ptr, size_t user_len, void* arg) {
+    reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkCallback(chunk_ptr, chunk_len, user_ptr, user_len);
+  }
+
  private:
+  enum { ALLOCATION_UNIT_SIZE = 8 };
+
   void Reset() {
     p = &buf[0];
     totalAllocationUnits = 0;
@@ -1075,105 +1181,92 @@ struct HeapChunkContext {
     pieceLenField = NULL;
   }
 
-  DISALLOW_COPY_AND_ASSIGN(HeapChunkContext);
-};
+  void HeapChunkCallback(const void* chunk_ptr, size_t chunk_len, const void* user_ptr, size_t user_len) {
+    CHECK_EQ((chunk_len & (ALLOCATION_UNIT_SIZE-1)), 0U);
 
-#define ALLOCATION_UNIT_SIZE 8
+    /* Make sure there's enough room left in the buffer.
+     * We need to use two bytes for every fractional 256
+     * allocation units used by the chunk.
+     */
+    {
+      size_t needed = (((chunk_len/ALLOCATION_UNIT_SIZE + 255) / 256) * 2);
+      size_t bytesLeft = buf.size() - (size_t)(p - &buf[0]);
+      if (bytesLeft < needed) {
+        Flush();
+      }
 
-uint8_t ExamineObject(const Object* o, bool is_native_heap) {
-  if (o == NULL) {
-    return HPSG_STATE(SOLIDITY_FREE, 0);
+      bytesLeft = buf.size() - (size_t)(p - &buf[0]);
+      if (bytesLeft < needed) {
+        LOG(WARNING) << "chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
+        return;
+      }
+    }
+
+    // OLD-TODO: notice when there's a gap and start a new heap, or at least a new range.
+    EnsureHeader(chunk_ptr);
+
+    // Determine the type of this chunk.
+    // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
+    // If it's the same, we should combine them.
+    uint8_t state = ExamineObject(reinterpret_cast<const Object*>(user_ptr), (type == CHUNK_TYPE("NHSG")));
+
+    // Write out the chunk description.
+    chunk_len /= ALLOCATION_UNIT_SIZE;   // convert to allocation units
+    totalAllocationUnits += chunk_len;
+    while (chunk_len > 256) {
+      *p++ = state | HPSG_PARTIAL;
+      *p++ = 255;     // length - 1
+      chunk_len -= 256;
+    }
+    *p++ = state;
+    *p++ = chunk_len - 1;
   }
 
-  // It's an allocated chunk. Figure out what it is.
+  uint8_t ExamineObject(const Object* o, bool is_native_heap) {
+    if (o == NULL) {
+      return HPSG_STATE(SOLIDITY_FREE, 0);
+    }
 
-  // If we're looking at the native heap, we'll just return
-  // (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks.
-  if (is_native_heap || !Heap::IsLiveObjectLocked(o)) {
-    return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
-  }
+    // It's an allocated chunk. Figure out what it is.
 
-  Class* c = o->GetClass();
-  if (c == NULL) {
-    // The object was probably just created but hasn't been initialized yet.
+    // If we're looking at the native heap, we'll just return
+    // (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks.
+    if (is_native_heap || !Heap::IsLiveObjectLocked(o)) {
+      return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
+    }
+
+    Class* c = o->GetClass();
+    if (c == NULL) {
+      // The object was probably just created but hasn't been initialized yet.
+      return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
+    }
+
+    if (!Heap::IsHeapAddress(c)) {
+      LOG(WARNING) << "invalid class for managed heap object: " << o << " " << c;
+      return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
+    }
+
+    if (c->IsClassClass()) {
+      return HPSG_STATE(SOLIDITY_HARD, KIND_CLASS_OBJECT);
+    }
+
+    if (c->IsArrayClass()) {
+      if (o->IsObjectArray()) {
+        return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
+      }
+      switch (c->GetComponentSize()) {
+      case 1: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_1);
+      case 2: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_2);
+      case 4: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
+      case 8: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_8);
+      }
+    }
+
     return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
   }
 
-  if (!Heap::IsHeapAddress(c)) {
-    LOG(WARNING) << "invalid class for managed heap object: " << o << " " << c;
-    return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
-  }
-
-  if (c->IsClassClass()) {
-    return HPSG_STATE(SOLIDITY_HARD, KIND_CLASS_OBJECT);
-  }
-
-  if (c->IsArrayClass()) {
-    if (o->IsObjectArray()) {
-      return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
-    }
-    switch (c->GetComponentSize()) {
-    case 1: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_1);
-    case 2: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_2);
-    case 4: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
-    case 8: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_8);
-    }
-  }
-
-  return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
-}
-
-static void HeapChunkCallback(const void* chunk_ptr, size_t chunk_len, const void* user_ptr, size_t user_len, void* arg) {
-  HeapChunkContext* context = reinterpret_cast<HeapChunkContext*>(arg);
-
-  CHECK_EQ((chunk_len & (ALLOCATION_UNIT_SIZE-1)), 0U);
-
-  /* Make sure there's enough room left in the buffer.
-   * We need to use two bytes for every fractional 256
-   * allocation units used by the chunk.
-   */
-  {
-    size_t needed = (((chunk_len/ALLOCATION_UNIT_SIZE + 255) / 256) * 2);
-    size_t bytesLeft = context->buf.size() - (size_t)(context->p - &context->buf[0]);
-    if (bytesLeft < needed) {
-      context->Flush();
-    }
-
-    bytesLeft = context->buf.size() - (size_t)(context->p - &context->buf[0]);
-    if (bytesLeft < needed) {
-      LOG(WARNING) << "chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
-      return;
-    }
-  }
-
-  // OLD-TODO: notice when there's a gap and start a new heap, or at least a new range.
-  context->EnsureHeader(chunk_ptr);
-
-  // Determine the type of this chunk.
-  // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
-  // If it's the same, we should combine them.
-  uint8_t state = ExamineObject(reinterpret_cast<const Object*>(user_ptr), (context->type == CHUNK_TYPE("NHSG")));
-
-  // Write out the chunk description.
-  chunk_len /= ALLOCATION_UNIT_SIZE;   // convert to allocation units
-  context->totalAllocationUnits += chunk_len;
-  while (chunk_len > 256) {
-    *context->p++ = state | HPSG_PARTIAL;
-    *context->p++ = 255;     // length - 1
-    chunk_len -= 256;
-  }
-  *context->p++ = state;
-  *context->p++ = chunk_len - 1;
-}
-
-static void WalkHeap(bool merge, bool native) {
-  HeapChunkContext context(merge, native);
-  if (native) {
-    dlmalloc_walk_heap(HeapChunkCallback, &context);
-  } else {
-    Heap::WalkHeap(HeapChunkCallback, &context);
-  }
-}
+  DISALLOW_COPY_AND_ASSIGN(HeapChunkContext);
+};
 
 void Dbg::DdmSendHeapSegments(bool native) {
   Dbg::HpsgWhen when;
@@ -1198,7 +1291,12 @@ void Dbg::DdmSendHeapSegments(bool native) {
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHST") : CHUNK_TYPE("HPST"), sizeof(heap_id), heap_id);
 
   // Send a series of heap segment chunks.
-  WalkHeap((what == HPSG_WHAT_MERGED_OBJECTS), native);
+  HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
+  if (native) {
+    dlmalloc_walk_heap(HeapChunkContext::HeapChunkCallback, &context);
+  } else {
+    Heap::WalkHeap(HeapChunkContext::HeapChunkCallback, &context);
+  }
 
   // Finally, send a heap end chunk.
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);

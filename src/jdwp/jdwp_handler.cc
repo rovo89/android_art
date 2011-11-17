@@ -109,7 +109,7 @@ static JdwpError finishInvoke(JdwpState* state,
   uint32_t numArgs = Read4BE(&buf);
 
   LOG(VERBOSE) << StringPrintf("    --> threadId=%llx objectId=%llx", threadId, objectId);
-  LOG(VERBOSE) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassDescriptor(classId), Dbg::GetMethodName(classId, methodId));
+  LOG(VERBOSE) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId));
   LOG(VERBOSE) << StringPrintf("        %d args:", numArgs);
 
   uint64_t* argArray = NULL;
@@ -178,14 +178,14 @@ bail:
 static JdwpError handleVM_Version(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   /* text information on runtime version */
   std::string version(StringPrintf("Android Runtime %s", Runtime::Current()->GetVersion()));
-  expandBufAddUtf8String(pReply, (const uint8_t*) version.c_str());
+  expandBufAddUtf8String(pReply, version.c_str());
   /* JDWP version numbers */
   expandBufAdd4BE(pReply, 1);        // major
   expandBufAdd4BE(pReply, 5);        // minor
   /* VM JRE version */
-  expandBufAddUtf8String(pReply, (const uint8_t*) "1.6.0");  /* e.g. 1.6.0_22 */
+  expandBufAddUtf8String(pReply, "1.6.0");  /* e.g. 1.6.0_22 */
   /* target VM name */
-  expandBufAddUtf8String(pReply, (const uint8_t*) "DalvikVM");
+  expandBufAddUtf8String(pReply, "DalvikVM");
 
   return ERR_NONE;
 }
@@ -382,10 +382,10 @@ static JdwpError handleVM_ClassPaths(JdwpState* state, const uint8_t* buf, int d
   uint32_t classPaths = 1;
   uint32_t bootClassPaths = 0;
 
-  expandBufAddUtf8String(pReply, (const uint8_t*) baseDir);
+  expandBufAddUtf8String(pReply, baseDir);
   expandBufAdd4BE(pReply, classPaths);
   for (uint32_t i = 0; i < classPaths; i++) {
-    expandBufAddUtf8String(pReply, (const uint8_t*) ".");
+    expandBufAddUtf8String(pReply, ".");
   }
 
   expandBufAdd4BE(pReply, bootClassPaths);
@@ -450,16 +450,16 @@ static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t*
   expandBufAdd4BE(pReply, numClasses);
 
   for (uint32_t i = 0; i < numClasses; i++) {
-    static const uint8_t genericSignature[1] = "";
+    static const char genericSignature[1] = "";
     uint8_t refTypeTag;
-    const char* signature;
+    std::string descriptor;
     uint32_t status;
 
-    Dbg::GetClassInfo(classRefBuf[i], &refTypeTag, &status, &signature);
+    Dbg::GetClassInfo(classRefBuf[i], &refTypeTag, &status, &descriptor);
 
     expandBufAdd1(pReply, refTypeTag);
     expandBufAddRefTypeId(pReply, classRefBuf[i]);
-    expandBufAddUtf8String(pReply, (const uint8_t*) signature);
+    expandBufAddUtf8String(pReply, descriptor.c_str());
     expandBufAddUtf8String(pReply, genericSignature);
     expandBufAdd4BE(pReply, status);
   }
@@ -478,7 +478,7 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
   const char* signature = Dbg::GetSignature(refTypeId);
-  expandBufAddUtf8String(pReply, (const uint8_t*) signature);
+  expandBufAddUtf8String(pReply, signature);
 
   return ERR_NONE;
 }
@@ -519,7 +519,7 @@ static JdwpError handleRT_SourceFile(JdwpState* state, const uint8_t* buf, int d
 
   const char* fileName = Dbg::GetSourceFile(refTypeId);
   if (fileName != NULL) {
-    expandBufAddUtf8String(pReply, (const uint8_t*) fileName);
+    expandBufAddUtf8String(pReply, fileName);
     return ERR_NONE;
   } else {
     return ERR_ABSENT_INFORMATION;
@@ -546,8 +546,7 @@ static JdwpError handleRT_Status(JdwpState* state, const uint8_t* buf, int dataL
 static JdwpError handleRT_Interfaces(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
-  LOG(VERBOSE) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId,
-  Dbg::GetClassDescriptor(refTypeId));
+  LOG(VERBOSE) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId, Dbg::GetClassDescriptor(refTypeId).c_str());
 
   Dbg::OutputAllInterfaces(refTypeId, pReply);
 
@@ -582,17 +581,17 @@ static JdwpError handleRT_SourceDebugExtension(JdwpState* state, const uint8_t* 
  * Like RT_Signature but with the possibility of a "generic signature".
  */
 static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  static const uint8_t genericSignature[1] = "";
+  static const char genericSignature[1] = "";
 
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
   const char* signature = Dbg::GetSignature(refTypeId);
   if (signature != NULL) {
-    expandBufAddUtf8String(pReply, (const uint8_t*) signature);
+    expandBufAddUtf8String(pReply, signature);
   } else {
     LOG(WARNING) << StringPrintf("No signature for refTypeId=0x%llx", refTypeId);
-    expandBufAddUtf8String(pReply, (const uint8_t*) "Lunknown;");
+    expandBufAddUtf8String(pReply, "Lunknown;");
   }
   expandBufAddUtf8String(pReply, genericSignature);
 
@@ -714,7 +713,7 @@ static JdwpError handleAT_newInstance(JdwpState* state, const uint8_t* buf, int 
   RefTypeId arrayTypeId = ReadRefTypeId(&buf);
   uint32_t length = Read4BE(&buf);
 
-  LOG(VERBOSE) << StringPrintf("Creating array %s[%u]", Dbg::GetClassDescriptor(arrayTypeId), length);
+  LOG(VERBOSE) << StringPrintf("Creating array %s[%u]", Dbg::GetClassDescriptor(arrayTypeId).c_str(), length);
   ObjectId objectId = Dbg::CreateArrayObject(arrayTypeId, length);
   if (objectId == 0) {
     return ERR_OUT_OF_MEMORY;
@@ -731,7 +730,7 @@ static JdwpError handleM_LineTable(JdwpState* state, const uint8_t* buf, int dat
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  LOG(VERBOSE) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassDescriptor(refTypeId), Dbg::GetMethodName(refTypeId,methodId));
+  LOG(VERBOSE) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassDescriptor(refTypeId).c_str(), Dbg::GetMethodName(refTypeId,methodId));
 
   Dbg::OutputLineTable(refTypeId, methodId, pReply);
 
@@ -745,9 +744,7 @@ static JdwpError handleM_VariableTableWithGeneric(JdwpState* state, const uint8_
   RefTypeId classId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  LOG(VERBOSE) << StringPrintf("  Req for LocalVarTab in class=%s method=%s",
-  Dbg::GetClassDescriptor(classId),
-  Dbg::GetMethodName(classId, methodId));
+  LOG(VERBOSE) << StringPrintf("  Req for LocalVarTab in class=%s method=%s", Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId));
 
   /*
    * We could return ERR_ABSENT_INFORMATION here if the DEX file was
@@ -884,7 +881,7 @@ static JdwpError handleSR_Value(JdwpState* state, const uint8_t* buf, int dataLe
 
   LOG(VERBOSE) << StringPrintf("  Req for str %llx --> '%s'", stringObject, str);
 
-  expandBufAddUtf8String(pReply, (uint8_t*) str);
+  expandBufAddUtf8String(pReply, str);
   free(str);
 
   return ERR_NONE;
@@ -901,7 +898,7 @@ static JdwpError handleTR_Name(JdwpState* state, const uint8_t* buf, int dataLen
   if (name == NULL) {
     return ERR_INVALID_THREAD;
   }
-  expandBufAddUtf8String(pReply, (uint8_t*) name);
+  expandBufAddUtf8String(pReply, name);
   free(name);
 
   return ERR_NONE;
@@ -1086,9 +1083,9 @@ static JdwpError handleTGR_Name(JdwpState* state, const uint8_t* buf, int dataLe
 
   char* name = Dbg::GetThreadGroupName(threadGroupId);
   if (name != NULL) {
-    expandBufAddUtf8String(pReply, (uint8_t*) name);
+    expandBufAddUtf8String(pReply, name);
   } else {
-    expandBufAddUtf8String(pReply, (uint8_t*) "BAD-GROUP-ID");
+    expandBufAddUtf8String(pReply, "BAD-GROUP-ID");
     LOG(VERBOSE) << StringPrintf("bad thread group ID");
   }
 
@@ -1310,7 +1307,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
     case MK_CLASS_ONLY:     /* for ClassPrepare, MethodEntry */
       {
         RefTypeId clazzId = ReadRefTypeId(&buf);
-        LOG(VERBOSE) << StringPrintf("    ClassOnly: %llx (%s)", clazzId, Dbg::GetClassDescriptor(clazzId));
+        LOG(VERBOSE) << StringPrintf("    ClassOnly: %llx (%s)", clazzId, Dbg::GetClassDescriptor(clazzId).c_str());
         pEvent->mods[idx].classOnly.refTypeId = clazzId;
       }
       break;
@@ -1356,7 +1353,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         caught = Read1(&buf);
         uncaught = Read1(&buf);
         LOG(VERBOSE) << StringPrintf("    ExceptionOnly: type=%llx(%s) caught=%d uncaught=%d",
-            exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassDescriptor(exceptionOrNull), caught, uncaught);
+            exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassDescriptor(exceptionOrNull).c_str(), caught, uncaught);
 
         pEvent->mods[idx].exceptionOnly.refTypeId = exceptionOrNull;
         pEvent->mods[idx].exceptionOnly.caught = caught;
@@ -1524,7 +1521,7 @@ static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int d
 static JdwpError handleCOR_ReflectedType(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId classObjectId = ReadRefTypeId(&buf);
 
-  LOG(VERBOSE) << StringPrintf("  Req for refTypeId for class=%llx (%s)", classObjectId, Dbg::GetClassDescriptor(classObjectId));
+  LOG(VERBOSE) << StringPrintf("  Req for refTypeId for class=%llx (%s)", classObjectId, Dbg::GetClassDescriptor(classObjectId).c_str());
 
   /* just hand the type back to them */
   if (Dbg::IsInterface(classObjectId)) {
@@ -1732,7 +1729,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
      * active debugger session, and zero out the last-activity timestamp
      * so waitForDebugger() doesn't return if we stall for a bit here.
      */
-    Dbg::Active();
+    Dbg::GoActive();
     QuasiAtomicSwap64(0, &lastActivityWhen);
   }
 

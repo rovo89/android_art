@@ -407,7 +407,7 @@ void Thread::DumpState(std::ostream& os) const {
     priority = gThread_priority->GetInt(peer_);
     is_daemon = gThread_daemon->GetBoolean(peer_);
 
-    Object* thread_group = gThread_group->GetObject(peer_);
+    Object* thread_group = GetThreadGroup();
     if (thread_group != NULL) {
       String* group_name_string = reinterpret_cast<String*>(gThreadGroup_name->GetObject(thread_group));
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
@@ -840,7 +840,7 @@ void Thread::HandleUncaughtExceptions() {
   Object* handler = gThread_uncaughtHandler->GetObject(peer_);
   if (handler == NULL) {
     // Otherwise use the thread group's default handler.
-    handler = gThread_group->GetObject(peer_);
+    handler = GetThreadGroup();
   }
 
   // Call the handler.
@@ -854,10 +854,14 @@ void Thread::HandleUncaughtExceptions() {
   ClearException();
 }
 
+Object* Thread::GetThreadGroup() const {
+  return gThread_group->GetObject(peer_);
+}
+
 void Thread::RemoveFromThreadGroup() {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  Object* group = gThread_group->GetObject(peer_);
+  Object* group = GetThreadGroup();
   if (group != NULL) {
     Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
     Object* args = peer_;

@@ -99,11 +99,11 @@ fi
 
 if [ "$DEBUG" = "y" ]; then
   # This is for ddms:
-  DEX_DEBUG="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
+  #DEX_DEBUG="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
   # Connect by running 'ddms'.
 
   # This is for jdb:
-  #DEX_DEBUG="-agentlib:jdwp=transport=dt_socket,address=12345,server=y,suspend=y"
+  DEX_DEBUG="-agentlib:jdwp=transport=dt_socket,address=12345,server=y,suspend=y"
   # Connect thus:
   #   adb forward tcp:12345 tcp:12345
   #   jdb -attach localhost:12345

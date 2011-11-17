@@ -88,7 +88,7 @@ public:
    * when the debugger attaches.
    */
   static void Connected();
-  static void Active();
+  static void GoActive();
   static void Disconnected();
 
   /*
@@ -125,7 +125,7 @@ public:
   /*
    * Class, Object, Array
    */
-  static const char* GetClassDescriptor(JDWP::RefTypeId id);
+  static std::string GetClassDescriptor(JDWP::RefTypeId id);
   static JDWP::ObjectId GetClassObject(JDWP::RefTypeId id);
   static JDWP::RefTypeId GetSuperclass(JDWP::RefTypeId id);
   static JDWP::ObjectId GetClassLoader(JDWP::RefTypeId id);
@@ -133,7 +133,7 @@ public:
   static bool IsInterface(JDWP::RefTypeId id);
   static void GetClassList(uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
   static void GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
-  static void GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pStatus, const char** pSignature);
+  static void GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
   static bool FindLoadedClassBySignature(const char* classDescriptor, JDWP::RefTypeId* pRefTypeId);
   static void GetObjectType(JDWP::ObjectId objectId, uint8_t* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
@@ -273,6 +273,10 @@ public:
   static void DdmSendHeapSegments(bool native);
 
  private:
+  static void DdmBroadcast(bool);
+  static void GetThreadGroupThreadsImpl(Object*, JDWP::ObjectId**, uint32_t*);
+  static void PostThreadStartOrStop(Thread*, uint32_t);
+
   static AllocRecord* recent_allocation_records_;
 };
 

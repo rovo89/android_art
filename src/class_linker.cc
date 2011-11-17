@@ -818,6 +818,21 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   visitor(array_iftable_, arg);
 }
 
+void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
+  MutexLock mu(classes_lock_);
+  typedef Table::const_iterator It;  // TODO: C++0x auto
+  for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
+    if (!visitor(it->second, arg)) {
+      return;
+    }
+  }
+  for (It it = image_classes_.begin(), end = image_classes_.end(); it != end; ++it) {
+    if (!visitor(it->second, arg)) {
+      return;
+    }
+  }
+}
+
 ClassLinker::~ClassLinker() {
   String::ResetClass();
   Field::ResetClass();

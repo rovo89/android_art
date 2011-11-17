@@ -40,6 +40,8 @@ class ClassLoader;
 class InternTable;
 class ObjectLock;
 
+typedef bool (ClassVisitor)(Class* c, void* arg);
+
 class ClassLinker {
  public:
   // Creates the class linker by boot strapping from dex files.
@@ -204,6 +206,8 @@ class ClassLinker {
   const std::vector<const DexFile*>& GetBootClassPath() {
     return boot_class_path_;
   }
+
+  void VisitClasses(ClassVisitor* visitor, void* arg) const;
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 

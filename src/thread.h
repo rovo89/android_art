@@ -233,6 +233,8 @@ class PACKED Thread {
     return peer_;
   }
 
+  Object* GetThreadGroup() const;
+
   RuntimeStats* GetStats() {
     return &stats_;
   }

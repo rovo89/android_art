@@ -153,8 +153,7 @@ void expandBufAdd8BE(ExpandBuf* pBuf, uint64_t val) {
   pBuf->curLen += sizeof(val);
 }
 
-static void SetUtf8String(uint8_t* buf, const uint8_t* str) {
-  uint32_t strLen = strlen((const char*)str);
+static void SetUtf8String(uint8_t* buf, const char* str, size_t strLen) {
   Set4BE(buf, strLen);
   memcpy(buf + sizeof(uint32_t), str, strLen);
 }
@@ -167,11 +166,11 @@ static void SetUtf8String(uint8_t* buf, const uint8_t* str) {
  * they can be null-terminated (either they don't have null bytes or they
  * have stored null bytes in a multi-byte encoding).
  */
-void expandBufAddUtf8String(ExpandBuf* pBuf, const uint8_t* str) {
-  int strLen = strlen((const char*)str);
+void expandBufAddUtf8String(ExpandBuf* pBuf, const char* str) {
+  int strLen = strlen(str);
 
   ensureSpace(pBuf, sizeof(uint32_t) + strLen);
-  SetUtf8String(pBuf->storage + pBuf->curLen, str);
+  SetUtf8String(pBuf->storage + pBuf->curLen, str, strLen);
   pBuf->curLen += sizeof(uint32_t) + strLen;
 }
 

@@ -109,7 +109,7 @@ namespace JDWP {
  */
 struct ModBasket {
   const JdwpLocation* pLoc;           /* LocationOnly */
-  const char*         className;      /* ClassMatch/ClassExclude */
+  std::string         className;      /* ClassMatch/ClassExclude */
   ObjectId            threadId;       /* ThreadOnly */
   RefTypeId           classId;        /* ClassOnly */
   RefTypeId           excepClassId;   /* ExceptionOnly */
@@ -374,23 +374,22 @@ static void cleanupMatchList(JdwpState* state, JdwpEvent** matchList, int matchC
  *
  * ("Restricted name globbing" might have been a better term.)
  */
-static bool patternMatch(const char* pattern, const char* target) {
-  int patLen = strlen(pattern);
+static bool patternMatch(const char* pattern, const std::string& target) {
+  size_t patLen = strlen(pattern);
 
   if (pattern[0] == '*') {
-    int targetLen = strlen(target);
     patLen--;
     // TODO: remove printf when we find a test case to verify this
-    LOG(ERROR) << ">>> comparing '" << (pattern + 1) << "' to '" << (target + (targetLen-patLen)) << "'";
+    LOG(ERROR) << ">>> comparing '" << (pattern + 1) << "' to '" << (target.c_str() + (target.size()-patLen)) << "'";
 
-    if (targetLen < patLen) {
+    if (target.size() < patLen) {
       return false;
     }
-    return strcmp(pattern+1, target + (targetLen-patLen)) == 0;
+    return strcmp(pattern+1, target.c_str() + (target.size()-patLen)) == 0;
   } else if (pattern[patLen-1] == '*') {
-    return strncmp(pattern, target, patLen-1) == 0;
+    return strncmp(pattern, target.c_str(), patLen-1) == 0;
   } else {
-    return strcmp(pattern, target) == 0;
+    return strcmp(pattern, target.c_str()) == 0;
   }
 }
 
@@ -734,8 +733,8 @@ bool JdwpState::PostVMStart() {
 
 // TODO: This doesn't behave like the real dvmDescriptorToName.
 // I'm hoping this isn't used to communicate with the debugger, and we can just use descriptors.
-char* dvmDescriptorToName(const char* descriptor) {
-  return strdup(descriptor);
+std::string dvmDescriptorToName(const std::string& descriptor) {
+  return descriptor;
 }
 
 /*
@@ -761,14 +760,13 @@ char* dvmDescriptorToName(const char* descriptor) {
  */
 bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags) {
   ModBasket basket;
-  char* nameAlloc = NULL;
 
   memset(&basket, 0, sizeof(basket));
   basket.pLoc = pLoc;
   basket.classId = pLoc->classId;
   basket.thisPtr = thisPtr;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = nameAlloc = dvmDescriptorToName(Dbg::GetClassDescriptor(pLoc->classId));
+  basket.className = dvmDescriptorToName(Dbg::GetClassDescriptor(pLoc->classId));
 
   /*
    * On rare occasions we may need to execute interpreted code in the VM
@@ -778,7 +776,6 @@ bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId this
    */
   if (basket.threadId == state->debugThreadId) {
     LOG(VERBOSE) << "Ignoring location event in JDWP thread";
-    free(nameAlloc);
     return false;
   }
 
@@ -793,7 +790,6 @@ bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId this
    */
   if (invokeInProgress(state)) {
     LOG(VERBOSE) << "Not checking breakpoints during invoke (" << basket.className << ")";
-    free(nameAlloc);
     return false;
   }
 
@@ -854,7 +850,6 @@ bool PostLocationEvent(JdwpState* state, const JdwpLocation* pLoc, ObjectId this
     Dbg::ThreadContinuing(old_state);
   }
 
-  free(nameAlloc);
   return matchCount != 0;
 }
 
@@ -963,13 +958,12 @@ bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
     const JdwpLocation* pCatchLoc, ObjectId thisPtr)
 {
   ModBasket basket;
-  char* nameAlloc = NULL;
 
   memset(&basket, 0, sizeof(basket));
   basket.pLoc = pThrowLoc;
   basket.classId = pThrowLoc->classId;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = nameAlloc = dvmDescriptorToName(Dbg::GetClassDescriptor(basket.classId));
+  basket.className = dvmDescriptorToName(Dbg::GetClassDescriptor(basket.classId));
   basket.excepClassId = exceptionClassId;
   basket.caught = (pCatchLoc->classId != 0);
   basket.thisPtr = thisPtr;
@@ -977,7 +971,6 @@ bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
   /* don't try to post an exception caused by the debugger */
   if (invokeInProgress(state)) {
     LOG(VERBOSE) << "Not posting exception hit during invoke (" << basket.className << ")";
-    free(nameAlloc);
     return false;
   }
 
@@ -998,14 +991,14 @@ bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
                  << " caught=" << basket.caught << ")";
     LOG(VERBOSE) << StringPrintf("  throw: %d %llx %x %lld (%s.%s)", pThrowLoc->typeTag,
         pThrowLoc->classId, pThrowLoc->methodId, pThrowLoc->idx,
-        Dbg::GetClassDescriptor(pThrowLoc->classId),
+        Dbg::GetClassDescriptor(pThrowLoc->classId).c_str(),
         Dbg::GetMethodName(pThrowLoc->classId, pThrowLoc->methodId));
     if (pCatchLoc->classId == 0) {
       LOG(VERBOSE) << "  catch: (not caught)";
     } else {
       LOG(VERBOSE) << StringPrintf("  catch: %d %llx %x %lld (%s.%s)", pCatchLoc->typeTag,
           pCatchLoc->classId, pCatchLoc->methodId, pCatchLoc->idx,
-          Dbg::GetClassDescriptor(pCatchLoc->classId),
+          Dbg::GetClassDescriptor(pCatchLoc->classId).c_str(),
           Dbg::GetMethodName(pCatchLoc->classId, pCatchLoc->methodId));
     }
 
@@ -1047,7 +1040,6 @@ bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
     Dbg::ThreadContinuing(old_state);
   }
 
-  free(nameAlloc);
   return matchCount != 0;
 }
 
@@ -1059,17 +1051,15 @@ bool PostException(JdwpState* state, const JdwpLocation* pThrowLoc,
  */
 bool PostClassPrepare(JdwpState* state, int tag, RefTypeId refTypeId, const char* signature, int status) {
   ModBasket basket;
-  char* nameAlloc = NULL;
 
   memset(&basket, 0, sizeof(basket));
   basket.classId = refTypeId;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = nameAlloc = dvmDescriptorToName(Dbg::GetClassDescriptor(basket.classId));
+  basket.className = dvmDescriptorToName(Dbg::GetClassDescriptor(basket.classId));
 
   /* suppress class prep caused by debugger */
   if (invokeInProgress(state)) {
     LOG(VERBOSE) << "Not posting class prep caused by invoke (" << basket.className << ")";
-    free(nameAlloc);
     return false;
   }
 
@@ -1114,7 +1104,7 @@ bool PostClassPrepare(JdwpState* state, int tag, RefTypeId refTypeId, const char
 
       expandBufAdd1(pReq, tag);
       expandBufAdd8BE(pReq, refTypeId);
-      expandBufAddUtf8String(pReq, (const uint8_t*) signature);
+      expandBufAddUtf8String(pReq, signature);
       expandBufAdd4BE(pReq, status);
     }
   }
@@ -1135,7 +1125,6 @@ bool PostClassPrepare(JdwpState* state, int tag, RefTypeId refTypeId, const char
     Dbg::ThreadContinuing(old_state);
   }
 
-  free(nameAlloc);
   return matchCount != 0;
 }
 
