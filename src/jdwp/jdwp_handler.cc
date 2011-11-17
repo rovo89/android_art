@@ -477,8 +477,8 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
-  const char* signature = Dbg::GetSignature(refTypeId);
-  expandBufAddUtf8String(pReply, signature);
+  std::string signature(Dbg::GetSignature(refTypeId));
+  expandBufAddUtf8String(pReply, signature.c_str());
 
   return ERR_NONE;
 }
@@ -548,7 +548,7 @@ static JdwpError handleRT_Interfaces(JdwpState* state, const uint8_t* buf, int d
 
   LOG(VERBOSE) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId, Dbg::GetClassDescriptor(refTypeId).c_str());
 
-  Dbg::OutputAllInterfaces(refTypeId, pReply);
+  Dbg::OutputDeclaredInterfaces(refTypeId, pReply);
 
   return ERR_NONE;
 }
@@ -586,9 +586,9 @@ static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* 
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
-  const char* signature = Dbg::GetSignature(refTypeId);
+  std::string signature(Dbg::GetSignature(refTypeId));
   if (signature != NULL) {
-    expandBufAddUtf8String(pReply, signature);
+    expandBufAddUtf8String(pReply, signature.c_str());
   } else {
     LOG(WARNING) << StringPrintf("No signature for refTypeId=0x%llx", refTypeId);
     expandBufAddUtf8String(pReply, "Lunknown;");
@@ -617,8 +617,8 @@ static JdwpError handleRT_ClassLoader(JdwpState* state, const uint8_t* buf, int 
 static JdwpError handleRT_FieldsWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   LOG(VERBOSE) << StringPrintf("  Req for fields in refTypeId=0x%llx", refTypeId);
-  LOG(VERBOSE) << StringPrintf("  --> '%s'", Dbg::GetSignature(refTypeId));
-  Dbg::OutputAllFields(refTypeId, true, pReply);
+  LOG(VERBOSE) << StringPrintf("  --> '%s'", Dbg::GetSignature(refTypeId).c_str());
+  Dbg::OutputDeclaredFields(refTypeId, true, pReply);
   return ERR_NONE;
 }
 
@@ -630,9 +630,9 @@ static JdwpError handleRT_MethodsWithGeneric(JdwpState* state, const uint8_t* bu
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for methods in refTypeId=0x%llx", refTypeId);
-  LOG(VERBOSE) << StringPrintf("  --> '%s'", Dbg::GetSignature(refTypeId));
+  LOG(VERBOSE) << StringPrintf("  --> '%s'", Dbg::GetSignature(refTypeId).c_str());
 
-  Dbg::OutputAllMethods(refTypeId, true, pReply);
+  Dbg::OutputDeclaredMethods(refTypeId, true, pReply);
 
   return ERR_NONE;
 }
@@ -894,12 +894,12 @@ static JdwpError handleTR_Name(JdwpState* state, const uint8_t* buf, int dataLen
   ObjectId threadId = ReadObjectId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for name of thread 0x%llx", threadId);
-  char* name = Dbg::GetThreadName(threadId);
-  if (name == NULL) {
+  std::string name;
+  if (!Dbg::GetThreadName(threadId, name)) {
     return ERR_INVALID_THREAD;
   }
-  expandBufAddUtf8String(pReply, name);
-  free(name);
+  LOG(VERBOSE) << StringPrintf("  Name of thread 0x%llx is \"%s\"", threadId, name.c_str());
+  expandBufAddUtf8String(pReply, name.c_str());
 
   return ERR_NONE;
 }
@@ -987,7 +987,7 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
     return ERR_INVALID_THREAD;
   }
   if (!Dbg::IsSuspended(threadId)) {
-    LOG(VERBOSE) << StringPrintf("  Rejecting req for frames in running thread '%s' (%llx)", Dbg::GetThreadName(threadId), threadId);
+    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %llx", threadId);
     return ERR_THREAD_NOT_SUSPENDED;
   }
 
@@ -1031,7 +1031,7 @@ static JdwpError handleTR_FrameCount(JdwpState* state, const uint8_t* buf, int d
     return ERR_INVALID_THREAD;
   }
   if (!Dbg::IsSuspended(threadId)) {
-    LOG(VERBOSE) << StringPrintf("  Rejecting req for frames in running thread '%s' (%llx)", Dbg::GetThreadName(threadId), threadId);
+    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %llx", threadId);
     return ERR_THREAD_NOT_SUSPENDED;
   }
 

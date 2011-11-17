@@ -400,8 +400,8 @@ JDWP::ObjectId Dbg::GetClassObject(JDWP::RefTypeId id) {
 }
 
 JDWP::RefTypeId Dbg::GetSuperclass(JDWP::RefTypeId id) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Class* c = gRegistry->Get<Class*>(id);
+  return gRegistry->Add(c->GetSuperClass());
 }
 
 JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
@@ -484,9 +484,10 @@ uint8_t Dbg::GetClassObjectType(JDWP::RefTypeId refTypeId) {
   return 0;
 }
 
-const char* Dbg::GetSignature(JDWP::RefTypeId refTypeId) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+std::string Dbg::GetSignature(JDWP::RefTypeId refTypeId) {
+  Class* c = gRegistry->Get<Class*>(refTypeId);
+  CHECK(c != NULL);
+  return c->GetDescriptor()->ToModifiedUtf8();
 }
 
 const char* Dbg::GetSourceFile(JDWP::RefTypeId refTypeId) {
@@ -554,16 +555,81 @@ const char* Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id) {
   return NULL;
 }
 
-void Dbg::OutputAllFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+/*
+ * Augment the access flags for synthetic methods and fields by setting
+ * the (as described by the spec) "0xf0000000 bit".  Also, strip out any
+ * flags not specified by the Java programming language.
+ */
+static uint32_t MangleAccessFlags(uint32_t accessFlags) {
+  accessFlags &= kAccJavaFlagsMask;
+  if ((accessFlags & kAccSynthetic) != 0) {
+    accessFlags |= 0xf0000000;
+  }
+  return accessFlags;
 }
 
-void Dbg::OutputAllMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+JDWP::FieldId ToFieldId(Field* f) {
+  return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
 }
 
-void Dbg::OutputAllInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+JDWP::MethodId ToMethodId(Method* m) {
+  return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
+}
+
+void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
+  Class* c = gRegistry->Get<Class*>(refTypeId);
+  CHECK(c != NULL);
+
+  size_t instance_field_count = c->NumInstanceFields();
+  size_t static_field_count = c->NumStaticFields();
+
+  expandBufAdd4BE(pReply, instance_field_count + static_field_count);
+
+  for (size_t i = 0; i < instance_field_count + static_field_count; ++i) {
+    Field* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
+
+    expandBufAddFieldId(pReply, ToFieldId(f));
+    expandBufAddUtf8String(pReply, f->GetName()->ToModifiedUtf8().c_str());
+    expandBufAddUtf8String(pReply, f->GetTypeDescriptor());
+    if (withGeneric) {
+      static const char genericSignature[1] = "";
+      expandBufAddUtf8String(pReply, genericSignature);
+    }
+    expandBufAdd4BE(pReply, MangleAccessFlags(f->GetAccessFlags()));
+  }
+}
+
+void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
+  Class* c = gRegistry->Get<Class*>(refTypeId);
+  CHECK(c != NULL);
+
+  size_t direct_method_count = c->NumDirectMethods();
+  size_t virtual_method_count = c->NumVirtualMethods();
+
+  expandBufAdd4BE(pReply, direct_method_count + virtual_method_count);
+
+  for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
+    Method* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
+
+    expandBufAddMethodId(pReply, ToMethodId(m));
+    expandBufAddUtf8String(pReply, m->GetName()->ToModifiedUtf8().c_str());
+    expandBufAddUtf8String(pReply, m->GetSignature()->ToModifiedUtf8().c_str());
+    if (withGeneric) {
+      static const char genericSignature[1] = "";
+      expandBufAddUtf8String(pReply, genericSignature);
+    }
+    expandBufAdd4BE(pReply, MangleAccessFlags(m->GetAccessFlags()));
+  }
+}
+
+void Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply) {
+  Class* c = gRegistry->Get<Class*>(refTypeId);
+  CHECK(c != NULL);
+  size_t interface_count = c->NumInterfaces();
+  expandBufAdd4BE(pReply, interface_count);
+  for (size_t i = 0; i < interface_count; ++i) {
+    expandBufAddRefTypeId(pReply, gRegistry->Add(c->GetInterface(i)));
+  }
 }
 
 void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply) {
@@ -605,9 +671,20 @@ char* Dbg::StringToUtf8(JDWP::ObjectId strId) {
   return NULL;
 }
 
-char* Dbg::GetThreadName(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+Thread* DecodeThread(JDWP::ObjectId threadId) {
+  Object* thread_peer = gRegistry->Get<Object*>(threadId);
+  CHECK(thread_peer != NULL);
+  return Thread::FromManagedThread(thread_peer);
+}
+
+bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
+  ScopedThreadListLock thread_list_lock;
+  Thread* thread = DecodeThread(threadId);
+  if (thread == NULL) {
+    return false;
+  }
+  StringAppendF(&name, "<%d> %s", thread->GetThinLockId(), thread->GetName()->ToModifiedUtf8().c_str());
+  return true;
 }
 
 JDWP::ObjectId Dbg::GetThreadGroup(JDWP::ObjectId threadId) {
@@ -643,12 +720,6 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, uint32_t* threadStatus, uint3
 uint32_t Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId) {
   UNIMPLEMENTED(FATAL);
   return 0;
-}
-
-Thread* DecodeThread(JDWP::ObjectId threadId) {
-  Object* thread_peer = gRegistry->Get<Object*>(threadId);
-  CHECK(thread_peer != NULL);
-  return Thread::FromManagedThread(thread_peer);
 }
 
 bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
@@ -710,8 +781,16 @@ void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
 }
 
 int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  struct CountStackDepthVisitor : public Thread::StackVisitor {
+    CountStackDepthVisitor() : depth(0) {}
+    virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+      ++depth;
+    }
+    size_t depth;
+  };
+  CountStackDepthVisitor visitor;
+  DecodeThread(threadId)->WalkStack(&visitor);
+  return visitor.depth;
 }
 
 bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {

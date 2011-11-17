@@ -137,7 +137,7 @@ public:
   static bool FindLoadedClassBySignature(const char* classDescriptor, JDWP::RefTypeId* pRefTypeId);
   static void GetObjectType(JDWP::ObjectId objectId, uint8_t* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
-  static const char* GetSignature(JDWP::RefTypeId refTypeId);
+  static std::string GetSignature(JDWP::RefTypeId refTypeId);
   static const char* GetSourceFile(JDWP::RefTypeId refTypeId);
   static const char* GetObjectTypeName(JDWP::ObjectId objectId);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
@@ -158,9 +158,9 @@ public:
    * Method and Field
    */
   static const char* GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id);
-  static void OutputAllFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
-  static void OutputAllMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
-  static void OutputAllInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);
+  static void OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
+  static void OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
+  static void OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);
   static void OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply);
   static void OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric, JDWP::ExpandBuf* pReply);
 
@@ -176,7 +176,7 @@ public:
   /*
    * Thread, ThreadGroup, Frame
    */
-  static char* GetThreadName(JDWP::ObjectId threadId);
+  static bool GetThreadName(JDWP::ObjectId threadId, std::string& name);
   static JDWP::ObjectId GetThreadGroup(JDWP::ObjectId threadId);
   static char* GetThreadGroupName(JDWP::ObjectId threadGroupId);
   static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId threadGroupId);
