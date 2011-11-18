@@ -29,7 +29,7 @@ class MarkSweep {
   ~MarkSweep();
 
   // Initializes internal structures.
-  bool Init();
+  void Init();
 
   // Marks the root set at the start of a garbage collection.
   void MarkRoots();

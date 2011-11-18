@@ -41,7 +41,7 @@ class MarkStack {
       base_(NULL), limit_(NULL), ptr_(NULL) {
   }
 
-  bool Init();
+  void Init();
 
   // Memory mapping of the mark stack.
   UniquePtr<MemMap> mem_map_;

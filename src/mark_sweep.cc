@@ -22,12 +22,8 @@
 
 namespace art {
 
-bool MarkSweep::Init() {
+void MarkSweep::Init() {
   mark_stack_ = MarkStack::Create();
-  if (mark_stack_ == NULL) {
-    return false;
-  }
-
   mark_bitmap_ = Heap::GetMarkBits();
   live_bitmap_ = Heap::GetLiveBits();
 
@@ -36,8 +32,6 @@ bool MarkSweep::Init() {
   // TODO: if concurrent, enable card marking in compiler
 
   // TODO: check that the mark bitmap is entirely clear.
-
-  return true;
 }
 
 inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
