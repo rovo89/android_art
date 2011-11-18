@@ -498,9 +498,16 @@ std::string Dbg::GetSignature(JDWP::RefTypeId refTypeId) {
   return c->GetDescriptor()->ToModifiedUtf8();
 }
 
-const char* Dbg::GetSourceFile(JDWP::RefTypeId refTypeId) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+bool Dbg::GetSourceFile(JDWP::RefTypeId refTypeId, std::string& result) {
+  Class* c = gRegistry->Get<Class*>(refTypeId);
+  CHECK(c != NULL);
+
+  String* source_file = c->GetSourceFile();
+  if (source_file == NULL) {
+    return false;
+  }
+  result = source_file->ToModifiedUtf8();
+  return true;
 }
 
 const char* Dbg::GetObjectTypeName(JDWP::ObjectId objectId) {
@@ -558,9 +565,32 @@ bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
   return false;
 }
 
-const char* Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id) {
+JDWP::FieldId ToFieldId(Field* f) {
+#ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
-  return NULL;
+#else
+  return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
+#endif
+}
+
+JDWP::MethodId ToMethodId(Method* m) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  UNIMPLEMENTED(FATAL);
+#else
+  return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
+#endif
+}
+
+Method* FromMethodId(JDWP::MethodId mid) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  UNIMPLEMENTED(FATAL);
+#else
+  return reinterpret_cast<Method*>(static_cast<uintptr_t>(mid));
+#endif
+}
+
+std::string Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId) {
+  return FromMethodId(methodId)->GetName()->ToModifiedUtf8();
 }
 
 /*
@@ -574,14 +604,6 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
     accessFlags |= 0xf0000000;
   }
   return accessFlags;
-}
-
-JDWP::FieldId ToFieldId(Field* f) {
-  return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
-}
-
-JDWP::MethodId ToMethodId(Method* m) {
-  return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
 }
 
 void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
@@ -641,7 +663,47 @@ void Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* p
 }
 
 void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+  struct DebugCallbackContext {
+    int numItems;
+    JDWP::ExpandBuf* pReply;
+
+    static bool Callback(void* context, uint32_t address, uint32_t lineNum) {
+      DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
+      expandBufAdd8BE(pContext->pReply, address);
+      expandBufAdd4BE(pContext->pReply, lineNum);
+      pContext->numItems++;
+      return true;
+    }
+  };
+
+  Method* m = FromMethodId(methodId);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(m->GetDeclaringClass()->GetDexCache());
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(m->GetCodeItemOffset());
+
+  uint64_t start, end;
+  if (m->IsNative()) {
+    start = -1;
+    end = -1;
+  } else {
+    start = 0;
+    end = code_item->insns_size_in_code_units_; // TODO: what are the units supposed to be? *2?
+  }
+
+  expandBufAdd8BE(pReply, start);
+  expandBufAdd8BE(pReply, end);
+
+  // Add numLines later
+  size_t numLinesOffset = expandBufGetLength(pReply);
+  expandBufAdd4BE(pReply, 0);
+
+  DebugCallbackContext context;
+  context.numItems = 0;
+  context.pReply = pReply;
+
+  dex_file.DecodeDebugInfo(code_item, m, DebugCallbackContext::Callback, NULL, &context);
+
+  JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
 
 void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric, JDWP::ExpandBuf* pReply) {
@@ -835,9 +897,10 @@ void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
 }
 
 int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
+  ScopedThreadListLock thread_list_lock;
   struct CountStackDepthVisitor : public Thread::StackVisitor {
     CountStackDepthVisitor() : depth(0) {}
-    virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+    virtual void VisitFrame(const Frame&, uintptr_t) {
       ++depth;
     }
     size_t depth;
@@ -847,9 +910,42 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
   return visitor.depth;
 }
 
-bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {
+  ScopedThreadListLock thread_list_lock;
+  struct GetFrameVisitor : public Thread::StackVisitor {
+    GetFrameVisitor(int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc)
+        : found(false) ,depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
+    }
+    virtual void VisitFrame(const Frame& f, uintptr_t pc) {
+      if (!f.HasMethod()) {
+        return; // These don't count?
+      }
+
+      if (depth == desired_frame_number) {
+        *pFrameId = reinterpret_cast<JDWP::FrameId>(f.GetSP());
+
+        Method* m = f.GetMethod();
+        Class* c = m->GetDeclaringClass();
+
+        pLoc->typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+        pLoc->classId = gRegistry->Add(c);
+        pLoc->methodId = ToMethodId(m);
+        pLoc->idx = m->IsNative() ? -1 : m->ToDexPC(pc);
+
+        found = true;
+      }
+      ++depth;
+    }
+    bool found;
+    int depth;
+    int desired_frame_number;
+    JDWP::FrameId* pFrameId;
+    JDWP::JdwpLocation* pLoc;
+  };
+  GetFrameVisitor visitor(desired_frame_number, pFrameId, pLoc);
+  visitor.desired_frame_number = desired_frame_number;
+  DecodeThread(threadId)->WalkStack(&visitor);
+  return visitor.found;
 }
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {

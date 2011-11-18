@@ -109,7 +109,7 @@ static JdwpError finishInvoke(JdwpState* state,
   uint32_t numArgs = Read4BE(&buf);
 
   LOG(VERBOSE) << StringPrintf("    --> threadId=%llx objectId=%llx", threadId, objectId);
-  LOG(VERBOSE) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId));
+  LOG(VERBOSE) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
   LOG(VERBOSE) << StringPrintf("        %d args:", numArgs);
 
   uint64_t* argArray = NULL;
@@ -516,14 +516,12 @@ static JdwpError handleRT_GetValues(JdwpState* state, const uint8_t* buf, int da
  */
 static JdwpError handleRT_SourceFile(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-
-  const char* fileName = Dbg::GetSourceFile(refTypeId);
-  if (fileName != NULL) {
-    expandBufAddUtf8String(pReply, fileName);
-    return ERR_NONE;
-  } else {
+  std::string source_file;
+  if (!Dbg::GetSourceFile(refTypeId, source_file)) {
     return ERR_ABSENT_INFORMATION;
   }
+  expandBufAddUtf8String(pReply, source_file.c_str());
+  return ERR_NONE;
 }
 
 /*
@@ -730,7 +728,7 @@ static JdwpError handleM_LineTable(JdwpState* state, const uint8_t* buf, int dat
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  LOG(VERBOSE) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassDescriptor(refTypeId).c_str(), Dbg::GetMethodName(refTypeId,methodId));
+  LOG(VERBOSE) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassDescriptor(refTypeId).c_str(), Dbg::GetMethodName(refTypeId,methodId).c_str());
 
   Dbg::OutputLineTable(refTypeId, methodId, pReply);
 
@@ -744,7 +742,7 @@ static JdwpError handleM_VariableTableWithGeneric(JdwpState* state, const uint8_
   RefTypeId classId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  LOG(VERBOSE) << StringPrintf("  Req for LocalVarTab in class=%s method=%s", Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId));
+  LOG(VERBOSE) << StringPrintf("  Req for LocalVarTab in class=%s method=%s", Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
 
   /*
    * We could return ERR_ABSENT_INFORMATION here if the DEX file was

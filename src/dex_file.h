@@ -592,10 +592,6 @@ class DexFile {
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
   int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const;
 
-  void DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
-                        DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
-                        void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
-
   void DecodeDebugInfo(const CodeItem* code_item, const Method* method,
                        DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
                        void* cnxt) const;
@@ -660,6 +656,11 @@ class DexFile {
 
   // Returns true if the header magic is of the expected value.
   bool IsMagicValid();
+
+  void DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
+      DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
+      void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
+
 
   // The index of descriptors to class definition indexes.
   // TODO: given type_ids are sorted by string_id index, and string_ids are alphabetically, class

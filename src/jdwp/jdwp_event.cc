@@ -956,17 +956,11 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
                    << " thread=" << (void*) basket.threadId
                    << " exceptId=" << (void*) exceptionId
                    << " caught=" << basket.caught << ")";
-      LOG(VERBOSE) << StringPrintf("  throw: %d %llx %x %lld (%s.%s)", pThrowLoc->typeTag,
-      pThrowLoc->classId, pThrowLoc->methodId, pThrowLoc->idx,
-      Dbg::GetClassDescriptor(pThrowLoc->classId).c_str(),
-      Dbg::GetMethodName(pThrowLoc->classId, pThrowLoc->methodId));
+      LOG(VERBOSE) << "  throw: " << *pThrowLoc;
       if (pCatchLoc->classId == 0) {
         LOG(VERBOSE) << "  catch: (not caught)";
       } else {
-        LOG(VERBOSE) << StringPrintf("  catch: %d %llx %x %lld (%s.%s)", pCatchLoc->typeTag,
-        pCatchLoc->classId, pCatchLoc->methodId, pCatchLoc->idx,
-        Dbg::GetClassDescriptor(pCatchLoc->classId).c_str(),
-        Dbg::GetMethodName(pCatchLoc->classId, pCatchLoc->methodId));
+        LOG(VERBOSE) << "  catch: " << *pCatchLoc;
       }
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);

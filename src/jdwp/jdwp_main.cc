@@ -450,6 +450,13 @@ std::ostream& operator<<(std::ostream& os, const JdwpTransportType& value) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
+  // TODO: do we really want the Class* and Method* as pointers?
+  os << rhs.typeTag << " " << (void*) rhs.classId << " " << (void*) rhs.methodId << " " << rhs.idx
+     << " (" << Dbg::GetClassDescriptor(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId) << ")";
+  return os;
+}
+
 }  // namespace JDWP
 
 }  // namespace art

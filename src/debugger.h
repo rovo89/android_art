@@ -138,7 +138,7 @@ public:
   static void GetObjectType(JDWP::ObjectId objectId, uint8_t* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
   static std::string GetSignature(JDWP::RefTypeId refTypeId);
-  static const char* GetSourceFile(JDWP::RefTypeId refTypeId);
+  static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static const char* GetObjectTypeName(JDWP::ObjectId objectId);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
   static int GetTagWidth(int tag);
@@ -157,7 +157,7 @@ public:
   /*
    * Method and Field
    */
-  static const char* GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id);
+  static std::string GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id);
   static void OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
   static void OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
   static void OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);

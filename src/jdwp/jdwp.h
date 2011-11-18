@@ -75,6 +75,7 @@ struct JdwpLocation {
   MethodId methodId;       /* method in which "idx" resides */
   uint64_t idx;            /* relative index into code block */
 };
+std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs);
 
 /*
  * How we talk to the debugger.
