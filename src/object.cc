@@ -1377,6 +1377,7 @@ uint16_t String::CharAt(int32_t index) const {
 String* String::AllocFromUtf16(int32_t utf16_length,
                                const uint16_t* utf16_data_in,
                                int32_t hash_code) {
+  CHECK(utf16_data_in != NULL || utf16_length == 0);
   String* string = Alloc(GetJavaLangString(), utf16_length);
   if (string == NULL) {
     return NULL;

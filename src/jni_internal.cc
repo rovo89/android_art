@@ -1837,9 +1837,6 @@ class JNI {
 
   static jstring NewString(JNIEnv* env, const jchar* chars, jsize char_count) {
     ScopedJniThreadState ts(env);
-    if (chars == NULL && char_count == 0) {
-      return NULL;
-    }
     String* result = String::AllocFromUtf16(char_count, chars);
     return AddLocalReference<jstring>(env, result);
   }

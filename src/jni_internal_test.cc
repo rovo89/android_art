@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "common_test.h"
+#include "gtest/gtest-death-test.h"
 #include "ScopedLocalRef.h"
 
 namespace art {
@@ -484,8 +485,6 @@ TEST_F(JniInternalTest, NewStringUTF) {
 }
 
 TEST_F(JniInternalTest, NewString) {
-  EXPECT_TRUE(env_->NewString(NULL, 0) == NULL);
-
   jchar chars[] = { 'h', 'i' };
   jstring s;
   s = env_->NewString(chars, 0);
@@ -498,6 +497,16 @@ TEST_F(JniInternalTest, NewString) {
   EXPECT_EQ(2, env_->GetStringUTFLength(s));
 
   // TODO: check some non-ASCII strings.
+}
+
+TEST_F(JniInternalTest, NewStringNullCharsZeroLength) {
+  jstring s = env_->NewString(NULL, 0);
+  EXPECT_TRUE(s != NULL);
+  EXPECT_EQ(0, env_->GetStringLength(s));
+}
+
+TEST_F(JniInternalTest, NewStringNullCharsNonzeroLength) {
+  ASSERT_DEATH(env_->NewString(NULL, 1), "");
 }
 
 TEST_F(JniInternalTest, GetStringLength_GetStringUTFLength) {
