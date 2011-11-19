@@ -68,7 +68,7 @@ void AddLocation(ExpandBuf* pReply, const JdwpLocation* pLoc) {
 /*
  * Helper function: read a variable-width value from the input buffer.
  */
-static uint64_t jdwpReadValue(const uint8_t** pBuf, int width) {
+static uint64_t jdwpReadValue(const uint8_t** pBuf, size_t width) {
   uint64_t value = -1;
   switch (width) {
   case 1:     value = Read1(pBuf); break;
@@ -119,7 +119,7 @@ static JdwpError finishInvoke(JdwpState* state,
 
   for (uint32_t i = 0; i < numArgs; i++) {
     uint8_t typeTag = Read1(&buf);
-    int width = Dbg::GetTagWidth(typeTag);
+    size_t width = Dbg::GetTagWidth(typeTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
     LOG(VERBOSE) << StringPrintf("          '%c'(%d): 0x%llx", typeTag, width, value);
@@ -142,7 +142,7 @@ static JdwpError finishInvoke(JdwpState* state,
       expandBufAdd1(pReply, JT_OBJECT);
       expandBufAddObjectId(pReply, objectId);
     } else {
-      int width = Dbg::GetTagWidth(resultTag);
+      size_t width = Dbg::GetTagWidth(resultTag);
 
       expandBufAdd1(pReply, resultTag);
       if (width != 0) {
@@ -660,7 +660,7 @@ static JdwpError handleCT_SetValues(JdwpState* state, const uint8_t* buf, int da
   for (uint32_t i = 0; i < values; i++) {
     FieldId fieldId = ReadFieldId(&buf);
     uint8_t fieldTag = Dbg::GetStaticFieldBasicTag(classId, fieldId);
-    int width = Dbg::GetTagWidth(fieldTag);
+    size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
     LOG(VERBOSE) << StringPrintf("    --> field=%x tag=%c -> %lld", fieldId, fieldTag, value);
@@ -808,7 +808,7 @@ static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int da
     FieldId fieldId = ReadFieldId(&buf);
 
     uint8_t fieldTag = Dbg::GetFieldBasicTag(objectId, fieldId);
-    int width = Dbg::GetTagWidth(fieldTag);
+    size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
     LOG(VERBOSE) << StringPrintf("    --> fieldId=%x tag='%c'(%d) value=%lld", fieldId, fieldTag, width, value);
@@ -1446,11 +1446,11 @@ static JdwpError handleSF_GetValues(JdwpState* state, const uint8_t* buf, int da
   expandBufAdd4BE(pReply, slots);     /* "int values" */
   for (uint32_t i = 0; i < slots; i++) {
     uint32_t slot = Read4BE(&buf);
-    uint8_t reqSigByte = Read1(&buf);
+    JDWP::JdwpTag reqSigByte = static_cast<JDWP::JdwpTag>(Read1(&buf));
 
     LOG(VERBOSE) << StringPrintf("    --> slot %d '%c'", slot, reqSigByte);
 
-    int width = Dbg::GetTagWidth(reqSigByte);
+    size_t width = Dbg::GetTagWidth(reqSigByte);
     uint8_t* ptr = expandBufAddSpace(pReply, width+1);
     Dbg::GetLocalValue(threadId, frameId, slot, reqSigByte, ptr, width);
   }
@@ -1470,8 +1470,8 @@ static JdwpError handleSF_SetValues(JdwpState* state, const uint8_t* buf, int da
 
   for (uint32_t i = 0; i < slots; i++) {
     uint32_t slot = Read4BE(&buf);
-    uint8_t sigByte = Read1(&buf);
-    int width = Dbg::GetTagWidth(sigByte);
+    JDWP::JdwpTag sigByte = static_cast<JDWP::JdwpTag>(Read1(&buf));
+    size_t width = Dbg::GetTagWidth(sigByte);
     uint64_t value = jdwpReadValue(&buf, width);
 
     LOG(VERBOSE) << StringPrintf("    --> slot %d '%c' %llx", slot, sigByte, value);

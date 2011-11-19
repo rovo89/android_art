@@ -577,8 +577,8 @@ class DexFile {
                            LocalInfo* local_in_reg, DexDebugNewLocalCb local_cb) const {
     if (local_cb != NULL && local_in_reg[reg].is_live_) {
       local_cb(cnxt, reg, local_in_reg[reg].start_address_, end_address,
-               local_in_reg[reg].name_, local_in_reg[reg].descriptor_,
-               local_in_reg[reg].signature_);
+          local_in_reg[reg].name_, local_in_reg[reg].descriptor_,
+          local_in_reg[reg].signature_ != NULL ? local_in_reg[reg].signature_ : "");
     }
   }
 

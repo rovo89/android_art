@@ -141,7 +141,7 @@ public:
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static const char* GetObjectTypeName(JDWP::ObjectId objectId);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
-  static int GetTagWidth(int tag);
+  static size_t GetTagWidth(int tag);
 
   static int GetArrayLength(JDWP::ObjectId arrayId);
   static uint8_t GetArrayElementTag(JDWP::ObjectId arrayId);
@@ -201,8 +201,8 @@ public:
   static void SuspendSelf();
 
   static bool GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::ObjectId* pThisId);
-  static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, uint8_t tag, uint8_t* buf, int expectedLen);
-  static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, uint8_t tag, uint64_t value, int width);
+  static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen);
+  static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width);
 
   /*
    * Debugger notification

@@ -24,6 +24,11 @@
 
 namespace art {
 
+String* Object::AsString() {
+  DCHECK(GetClass()->IsStringClass());
+  return down_cast<String*>(this);
+}
+
 Object* Object::Clone() {
   Class* c = GetClass();
   DCHECK(!c->IsClassClass());
@@ -52,11 +57,6 @@ Object* Object::Clone() {
 
 uint32_t Object::GetThinLockId() {
   return Monitor::GetThinLockId(monitor_);
-}
-
-bool Object::IsString() const {
-  // TODO use "klass_ == String::GetJavaLangString()" instead?
-  return GetClass() == GetClass()->GetDescriptor()->GetClass();
 }
 
 void Object::MonitorEnter(Thread* thread) {
@@ -1012,6 +1012,16 @@ bool Class::IsInSamePackage(const Class* that) const {
   }
   // Compare the package part of the descriptor string.
   return IsInSamePackage(klass1->descriptor_, klass2->descriptor_);
+}
+
+bool Class::IsClassClass() const {
+  Class* java_lang_Class = GetClass()->GetClass();
+  return this == java_lang_Class;
+}
+
+bool Class::IsStringClass() const {
+  // TODO use "this == String::GetJavaLangString()" instead? or do we need this too early?
+  return this == GetDescriptor()->GetClass();
 }
 
 const ClassLoader* Class::GetClassLoader() const {

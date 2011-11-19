@@ -520,9 +520,34 @@ uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
   return 0;
 }
 
-int Dbg::GetTagWidth(int tag) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+size_t Dbg::GetTagWidth(int tag) {
+  switch (tag) {
+  case JDWP::JT_VOID:
+    return 0;
+  case JDWP::JT_BYTE:
+  case JDWP::JT_BOOLEAN:
+    return 1;
+  case JDWP::JT_CHAR:
+  case JDWP::JT_SHORT:
+    return 2;
+  case JDWP::JT_FLOAT:
+  case JDWP::JT_INT:
+    return 4;
+  case JDWP::JT_ARRAY:
+  case JDWP::JT_OBJECT:
+  case JDWP::JT_STRING:
+  case JDWP::JT_THREAD:
+  case JDWP::JT_THREAD_GROUP:
+  case JDWP::JT_CLASS_LOADER:
+  case JDWP::JT_CLASS_OBJECT:
+    return sizeof(JDWP::ObjectId);
+  case JDWP::JT_DOUBLE:
+  case JDWP::JT_LONG:
+    return 8;
+  default:
+    LOG(FATAL) << "unknown tag " << tag;
+    return -1;
+  }
 }
 
 int Dbg::GetArrayLength(JDWP::ObjectId arrayId) {
@@ -604,6 +629,77 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
     accessFlags |= 0xf0000000;
   }
   return accessFlags;
+}
+
+static JDWP::JdwpTag TagFromClass(Class* c) {
+  if (c->IsArrayClass()) {
+    return JDWP::JT_ARRAY;
+  }
+
+  if (c->IsStringClass()) {
+    return JDWP::JT_STRING;
+  } else if (c->IsClassClass()) {
+    return JDWP::JT_CLASS_OBJECT;
+#if 0 // TODO
+  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThread)) {
+    return JDWP::JT_THREAD;
+  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThreadGroup)) {
+    return JDWP::JT_THREAD_GROUP;
+  } else if (dvmInstanceof(clazz, gDvm.classJavaLangClassLoader)) {
+    return JDWP::JT_CLASS_LOADER;
+#endif
+  } else {
+    return JDWP::JT_OBJECT;
+  }
+}
+
+/*
+ * Objects declared to hold Object might actually hold a more specific
+ * type.  The debugger may take a special interest in these (e.g. it
+ * wants to display the contents of Strings), so we want to return an
+ * appropriate tag.
+ *
+ * Null objects are tagged JT_OBJECT.
+ */
+static JDWP::JdwpTag TagFromObject(const Object* o) {
+  return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(o->GetClass());
+}
+
+static const uint16_t kEclipseWorkaroundSlot = 1000;
+
+/*
+ * Eclipse appears to expect that the "this" reference is in slot zero.
+ * If it's not, the "variables" display will show two copies of "this",
+ * possibly because it gets "this" from SF.ThisObject and then displays
+ * all locals with nonzero slot numbers.
+ *
+ * So, we remap the item in slot 0 to 1000, and remap "this" to zero.  On
+ * SF.GetValues / SF.SetValues we map them back.
+ */
+static uint16_t MangleSlot(uint16_t slot, const char* name) {
+  uint16_t newSlot = slot;
+  if (strcmp(name, "this") == 0) {
+    newSlot = 0;
+  } else if (slot == 0) {
+    newSlot = kEclipseWorkaroundSlot;
+  }
+  return newSlot;
+}
+
+/*
+ * Reverse Eclipse hack.
+ */
+static uint16_t DemangleSlot(uint16_t slot, Method** sp) {
+  int newSlot = slot;
+  if (slot == kEclipseWorkaroundSlot) {
+    newSlot = 0;
+  } else if (slot == 0) {
+    Frame f;
+    f.SetSP(sp);
+    Method* m = f.GetMethod();
+    newSlot = m->NumRegisters() - m->NumIns();
+  }
+  return newSlot;
 }
 
 void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
@@ -706,8 +802,51 @@ void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JD
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
 
-void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, bool withGeneric, JDWP::ExpandBuf* pReply) {
+  struct DebugCallbackContext {
+    int numItems;
+    JDWP::ExpandBuf* pReply;
+    bool withGeneric;
+
+    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char *name, const char *descriptor, const char *signature) {
+      DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
+
+      slot = MangleSlot(slot, name);
+
+      LOG(VERBOSE) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->numItems, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
+
+      expandBufAdd8BE(pContext->pReply, startAddress);
+      expandBufAddUtf8String(pContext->pReply, name);
+      expandBufAddUtf8String(pContext->pReply, descriptor);
+      if (pContext->withGeneric) {
+        expandBufAddUtf8String(pContext->pReply, signature);
+      }
+      expandBufAdd4BE(pContext->pReply, endAddress - startAddress);
+      expandBufAdd4BE(pContext->pReply, slot);
+
+      pContext->numItems++;
+    }
+  };
+
+  Method* m = FromMethodId(methodId);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const DexFile& dex_file = class_linker->FindDexFile(m->GetDeclaringClass()->GetDexCache());
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(m->GetCodeItemOffset());
+
+  expandBufAdd4BE(pReply, m->NumIns());
+
+  // Add numLocals later
+  size_t numLocalsOffset = expandBufGetLength(pReply);
+  expandBufAdd4BE(pReply, 0);
+
+  DebugCallbackContext context;
+  context.numItems = 0;
+  context.pReply = pReply;
+  context.withGeneric = withGeneric;
+
+  dex_file.DecodeDebugInfo(code_item, m, NULL, DebugCallbackContext::Callback, &context);
+
+  JDWP::Set4BE(expandBufGetBuffer(pReply) + numLocalsOffset, context.numItems);
 }
 
 uint8_t Dbg::GetFieldBasicTag(JDWP::ObjectId objId, JDWP::FieldId fieldId) {
@@ -978,11 +1117,87 @@ bool Dbg::GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::Ob
   return false;
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, uint8_t tag, uint8_t* buf, int expectedLen) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen) {
+  Method** sp = reinterpret_cast<Method**>(frameId);
+  slot = DemangleSlot(slot, sp);
+
+  switch (tag) {
+  case JDWP::JT_BOOLEAN:
+    {
+      UNIMPLEMENTED(WARNING) << "get boolean local " << slot;
+      CHECK_EQ(expectedLen, 1U);
+      uint32_t intVal = 0; // framePtr[slot];
+      JDWP::Set1(buf+1, intVal != 0);
+    }
+    break;
+  case JDWP::JT_BYTE:
+    {
+      UNIMPLEMENTED(WARNING) << "get byte local " << slot;
+      CHECK_EQ(expectedLen, 1U);
+      uint32_t intVal = 0; // framePtr[slot];
+      JDWP::Set1(buf+1, intVal);
+    }
+    break;
+  case JDWP::JT_SHORT:
+  case JDWP::JT_CHAR:
+    {
+      UNIMPLEMENTED(WARNING) << "get 16-bit local " << slot;
+      CHECK_EQ(expectedLen, 2U);
+      uint32_t intVal = 0; // framePtr[slot];
+      JDWP::Set2BE(buf+1, intVal);
+    }
+    break;
+  case JDWP::JT_INT:
+  case JDWP::JT_FLOAT:
+    {
+      UNIMPLEMENTED(WARNING) << "get 32-bit local " << slot;
+      CHECK_EQ(expectedLen, 4U);
+      uint32_t intVal = 0; // framePtr[slot];
+      JDWP::Set4BE(buf+1, intVal);
+    }
+    break;
+  case JDWP::JT_ARRAY:
+    {
+      UNIMPLEMENTED(WARNING) << "get array local " << slot;
+      CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
+      Object* o = NULL; // (Object*)framePtr[slot];
+      if (o != NULL && !Heap::IsHeapAddress(o)) {
+        LOG(FATAL) << "slot " << slot << " expected to hold array: " << o;
+      }
+      JDWP::SetObjectId(buf+1, gRegistry->Add(o));
+    }
+    break;
+  case JDWP::JT_OBJECT:
+    {
+      UNIMPLEMENTED(WARNING) << "get object local " << slot;
+      CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
+      Object* o = NULL; // (Object*)framePtr[slot];
+      if (o != NULL && !Heap::IsHeapAddress(o)) {
+        LOG(FATAL) << "slot " << slot << " expected to hold object: " << o;
+      }
+      tag = TagFromObject(o);
+      JDWP::SetObjectId(buf+1, gRegistry->Add(o));
+    }
+    break;
+  case JDWP::JT_DOUBLE:
+  case JDWP::JT_LONG:
+    {
+      UNIMPLEMENTED(WARNING) << "get 64-bit local " << slot;
+      CHECK_EQ(expectedLen, 8U);
+      uint64_t longVal = 0; // memcpy(&longVal, &framePtr[slot], 8);
+      JDWP::Set8BE(buf+1, longVal);
+    }
+    break;
+  default:
+    LOG(FATAL) << "unknown tag " << tag;
+    break;
+  }
+
+  // Prepend tag, which may have been updated.
+  JDWP::Set1(buf, tag);
 }
 
-void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, uint8_t tag, uint64_t value, int width) {
+void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width) {
   UNIMPLEMENTED(FATAL);
 }
 

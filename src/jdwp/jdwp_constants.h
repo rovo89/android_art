@@ -217,7 +217,7 @@ std::ostream& operator<<(std::ostream& os, const JdwpTypeTag& value);
 /*
  * Tag constants.
  */
-enum JdwpType {
+enum JdwpTag {
   JT_ARRAY                 = '[',
   JT_BYTE                  = 'B',
   JT_CHAR                  = 'C',
@@ -235,7 +235,7 @@ enum JdwpType {
   JT_CLASS_LOADER          = 'l',
   JT_CLASS_OBJECT          = 'c',
 };
-std::ostream& operator<<(std::ostream& os, const JdwpType& value);
+std::ostream& operator<<(std::ostream& os, const JdwpTag& value);
 
 }  // namespace JDWP
 

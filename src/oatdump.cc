@@ -315,7 +315,7 @@ class ImageDump {
       StringAppendF(&summary, "FIELD %s", PrettyField(field).c_str());
     } else if (obj->IsArrayInstance()) {
       StringAppendF(&summary, "ARRAY %d", obj->AsArray()->GetLength());
-    } else if (obj->IsString()) {
+    } else if (obj->GetClass()->IsStringClass()) {
       StringAppendF(&summary, "STRING %s", obj->AsString()->ToModifiedUtf8().c_str());
     } else {
       StringAppendF(&summary, "OBJECT");

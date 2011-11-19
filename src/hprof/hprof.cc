@@ -352,7 +352,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
       rec->AddId((HprofObjectId)0);    // no prot domain
       rec->AddId((HprofId)0);           // reserved
       rec->AddId((HprofId)0);           // reserved
-      if (obj->IsClassClass()) {
+      if (thisClass->IsClassClass()) {
         // ClassObjects have their static fields appended, so aren't all the same size.
         // But they're at least this size.
         rec->AddU4(sizeof(Class)); // instance size

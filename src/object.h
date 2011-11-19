@@ -211,8 +211,6 @@ class MANAGED Object {
     return down_cast<const Class*>(this);
   }
 
-  bool IsClassClass() const;
-
   bool IsObjectArray() const;
 
   template<class T>
@@ -233,12 +231,7 @@ class MANAGED Object {
     return down_cast<const Array*>(this);
   }
 
-  bool IsString() const;
-
-  String* AsString() {
-    DCHECK(IsString());
-    return down_cast<String*>(this);
-  }
+  String* AsString();
 
   bool IsMethod() const;
 
@@ -1447,6 +1440,10 @@ class MANAGED Class : public StaticStorageBase {
     return GetComponentType() != NULL;
   }
 
+  bool IsClassClass() const;
+
+  bool IsStringClass() const;
+
   Class* GetComponentType() const {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
   }
@@ -2124,11 +2121,6 @@ inline bool Object::InstanceOf(const Class* klass) const {
 inline bool Object::IsClass() const {
   Class* java_lang_Class = GetClass()->GetClass();
   return GetClass() == java_lang_Class;
-}
-
-inline bool Object::IsClassClass() const {
-  Class* java_lang_Class = GetClass()->GetClass();
-  return this == java_lang_Class;
 }
 
 inline bool Object::IsObjectArray() const {

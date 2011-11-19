@@ -202,7 +202,7 @@ class RegType {
   String* GetDescriptor() const {
     DCHECK(IsUnresolvedTypes());
     DCHECK(klass_or_descriptor_ != NULL);
-    DCHECK(klass_or_descriptor_->IsString());
+    DCHECK(klass_or_descriptor_->GetClass()->IsStringClass());
     return down_cast<String*>(klass_or_descriptor_);
   }
   bool IsArrayClass() const {
@@ -256,7 +256,7 @@ class RegType {
         !IsConflict()) {
       DCHECK(klass_or_descriptor != NULL);
       DCHECK(IsUnresolvedTypes() || klass_or_descriptor_->IsClass());
-      DCHECK(!IsUnresolvedTypes() || klass_or_descriptor_->IsString());
+      DCHECK(!IsUnresolvedTypes() || klass_or_descriptor_->GetClass()->IsStringClass());
     }
   }
 

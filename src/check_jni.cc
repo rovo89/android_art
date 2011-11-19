@@ -818,7 +818,7 @@ private:
       // TODO
       break;
     case kString:
-      okay = obj->IsString();
+      okay = obj->GetClass()->IsStringClass();
       break;
     case kThrowable:
       // TODO

@@ -84,7 +84,7 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
   }
 
   // if it is a string, we want to intern it if its not interned.
-  if (obj->IsString()) {
+  if (obj->GetClass()->IsStringClass()) {
     // we must be an interned string that was forward referenced and already assigned
     if (IsImageOffsetAssigned(obj)) {
       DCHECK_EQ(obj, obj->AsString()->Intern());

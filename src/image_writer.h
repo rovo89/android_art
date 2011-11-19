@@ -40,7 +40,7 @@ class ImageWriter {
   static void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
     // should be no lock (but it might be forward referenced interned string)
-    DCHECK(object->monitor_ == 0 || object->IsString());
+    DCHECK(object->monitor_ == 0 || object->GetClass()->IsStringClass());
     DCHECK_NE(0U, offset);
     object->monitor_ = offset;
   }

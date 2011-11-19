@@ -237,7 +237,7 @@ jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname
   Class* klass = Decode<Class*>(env, jklass);
   DCHECK(klass->IsClass());
   String* name = Decode<String*>(env, jname);
-  DCHECK(name->IsString());
+  DCHECK(name->GetClass()->IsStringClass());
 
   for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
     Field* f = klass->GetInstanceField(i);

@@ -781,7 +781,7 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
   DCHECK(arg != NULL);
   ClassLinker* class_linker = reinterpret_cast<ClassLinker*>(arg);
 
-  if (obj->IsString()) {
+  if (obj->GetClass()->IsStringClass()) {
     class_linker->intern_table_->RegisterStrong(obj->AsString());
     return;
   }
