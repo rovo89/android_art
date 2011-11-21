@@ -199,8 +199,35 @@ bool MethodMatches(Method* m, String* name, const std::string& signature) {
   if (!StringPiece(method_signature).starts_with(signature)) {
     return false;
   }
-  m->InitJavaFields();
+  if (m->IsMiranda()) {
+    return false;
+  }
   return true;
+}
+
+Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, String* name,
+    std::string& signature) {
+  if (methods == NULL) {
+    return NULL;
+  }
+  Method* result = NULL;
+  for (int32_t i = 0; i < methods->GetLength(); ++i) {
+    Method* method = methods->Get(i);
+    if (!MethodMatches(method, name, signature)) {
+      continue;
+    }
+
+    result = method;
+
+    // Covariant return types permit the class to define multiple
+    // methods with the same name and parameter types. Prefer to return
+    // a non-synthetic method in such situations. We may still return
+    // a synthetic method to handle situations like escalated visibility.
+    if (!method->IsSynthetic()) {
+        break;
+    }
+  }
+  return result;
 }
 
 jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
@@ -216,21 +243,17 @@ jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
   }
   signature += ")";
 
-  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    Method* m = c->GetVirtualMethod(i);
-    if (MethodMatches(m, name, signature)) {
-      return AddLocalReference<jobject>(env, m);
-    }
+  Method* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, signature);
+  if (m == NULL) {
+    m = FindConstructorOrMethodInArray(c->GetVirtualMethods(), name, signature);
   }
 
-  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    Method* m = c->GetDirectMethod(i);
-    if (MethodMatches(m, name, signature)) {
-      return AddLocalReference<jobject>(env, m);
-    }
+  if (m != NULL) {
+    m->InitJavaFields();
+    return AddLocalReference<jobject>(env, m);
+  } else {
+    return NULL;
   }
-
-  return NULL;
 }
 
 jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname) {
