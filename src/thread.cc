@@ -733,8 +733,6 @@ void Thread::FinishStartup() {
 
   // Finish attaching the main thread.
   Thread::Current()->CreatePeer("main", false);
-  const Field* Thread_contextClassLoader = FindFieldOrDie(Thread_class , "contextClassLoader", "Ljava/lang/ClassLoader;");
-  Thread_contextClassLoader->SetObject(self->GetPeer(), self->GetClassLoaderOverride());
 
   InitBoxingMethods();
   class_linker->RunRootClinits();

@@ -425,6 +425,15 @@ void CreateSystemClassLoader() {
   CHECK(class_loader.get() != NULL);
 
   Thread::Current()->SetClassLoaderOverride(Decode<ClassLoader*>(env, class_loader.get()));
+
+  ScopedLocalRef<jclass> Thread_class(env, env->FindClass("java/lang/Thread"));
+  CHECK(Thread_class.get() != NULL);
+  jfieldID contextClassLoader = env->GetFieldID(Thread_class.get(),
+                                                "contextClassLoader",
+                                                "Ljava/lang/ClassLoader;");
+  CHECK(contextClassLoader != NULL);
+  ScopedLocalRef<jobject> self_jobject(env, AddLocalReference<jobject>(env, self->GetPeer()));
+  env->SetObjectField(self_jobject.get(), contextClassLoader, class_loader.get());
 }
 
 void Runtime::Start() {
