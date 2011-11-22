@@ -29,6 +29,9 @@ jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
 }
 
 jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {
+  if (javaStackState == NULL) {
+      return NULL;
+  }
   return Thread::InternalStackTraceToStackTraceElementArray(env, javaStackState);
 }
 
