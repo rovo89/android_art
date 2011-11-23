@@ -979,42 +979,50 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
   // Class is not yet loaded.
   if (descriptor[0] == '[') {
     return CreateArrayClass(descriptor, class_loader);
-  }
-  if (class_loader == NULL) {
-    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
-    if (pair.second == NULL) {
-      std::string name(PrintableString(descriptor));
-      ThrowNoClassDefFoundError("Class %s not found in boot class loader", name.c_str());
-      return NULL;
-    }
-    return DefineClass(descriptor, NULL, *pair.first, *pair.second);
-  }
 
-  if (ClassLoader::UseCompileTimeClassPath()) {
+  } else if (class_loader == NULL) {
+    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
+    if (pair.second != NULL) {
+      return DefineClass(descriptor, NULL, *pair.first, *pair.second);
+    }
+
+  } else if (ClassLoader::UseCompileTimeClassPath()) {
+    // first try the boot class path
+    Class* system_class = FindSystemClass(descriptor);
+    if (system_class != NULL) {
+      return system_class;
+    }
+    CHECK(self->IsExceptionPending());
+    self->ClearException();
+
+    // next try the compile time class path
     const std::vector<const DexFile*>& class_path
         = ClassLoader::GetCompileTimeClassPath(class_loader);
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
-    if (pair.second == NULL) {
-      return FindSystemClass(descriptor);
+    if (pair.second != NULL) {
+      return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
     }
-    return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
+
+  } else {
+    std::string class_name_string = DescriptorToDot(descriptor);
+    ScopedThreadStateChange(self, Thread::kNative);
+    JNIEnv* env = self->GetJniEnv();
+    ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
+    CHECK(c.get() != NULL);
+    // TODO: cache method?
+    jmethodID mid = env->GetMethodID(c.get(), "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+    CHECK(mid != NULL);
+    ScopedLocalRef<jobject> class_name_object(env, env->NewStringUTF(class_name_string.c_str()));
+    if (class_name_object.get() == NULL) {
+      return NULL;
+    }
+    ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
+    ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid, class_name_object.get()));
+    return Decode<Class*>(env, result.get());
   }
 
-  std::string class_name_string = DescriptorToDot(descriptor);
-  ScopedThreadStateChange(self, Thread::kNative);
-  JNIEnv* env = self->GetJniEnv();
-  ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
-  CHECK(c.get() != NULL);
-  // TODO: cache method?
-  jmethodID mid = env->GetMethodID(c.get(), "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-  CHECK(mid != NULL);
-  ScopedLocalRef<jobject> class_name_object(env, env->NewStringUTF(class_name_string.c_str()));
-  if (class_name_object.get() == NULL) {
-    return NULL;
-  }
-  ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
-  ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid, class_name_object.get()));
-  return Decode<Class*>(env, result.get());
+  ThrowNoClassDefFoundError("Class %s not found", PrintableString(descriptor).c_str());
+  return NULL;
 }
 
 Class* ClassLinker::DefineClass(const std::string& descriptor,
@@ -2707,7 +2715,8 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   if (resolved != NULL) {
     dex_cache->SetResolvedField(field_idx, resolved);
   } else {
-    DCHECK(Thread::Current()->IsExceptionPending())
+    // TODO: this check fails when the app class path contains a class from the boot class path
+    CHECK(Thread::Current()->IsExceptionPending())
         << PrettyClass(klass) << " " << name << " " << type << " " << is_static;
   }
   return resolved;
