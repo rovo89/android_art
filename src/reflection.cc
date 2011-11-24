@@ -152,6 +152,7 @@ bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
  */
 bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
                            const JValue& src, JValue& dst) {
+  CHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
   switch (dstType) {
   case Primitive::kPrimBoolean:
   case Primitive::kPrimChar:

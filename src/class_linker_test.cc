@@ -398,13 +398,6 @@ struct ObjectOffsets : public CheckOffsets<Object> {
   };
 };
 
-struct AccessibleObjectOffsets : public CheckOffsets<AccessibleObject> {
-  AccessibleObjectOffsets()
-      : CheckOffsets<AccessibleObject>(false, "Ljava/lang/reflect/AccessibleObject;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AccessibleObject, java_flag_), "flag"));
-  };
-};
-
 struct FieldOffsets : public CheckOffsets<Field> {
   FieldOffsets() : CheckOffsets<Field>(false, "Ljava/lang/reflect/Field;") {
     // alphabetical references
@@ -637,7 +630,6 @@ struct ProxyClassOffsets : public CheckOffsets<ProxyClass> {
 // ClassLinker::LinkFields.
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ObjectOffsets().Check());
-  EXPECT_TRUE(AccessibleObjectOffsets().Check());
   EXPECT_TRUE(ConstructorOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
   EXPECT_TRUE(MethodOffsets().Check());
