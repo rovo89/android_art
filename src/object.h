@@ -373,17 +373,8 @@ struct ObjectIdentityHash {
   }
 };
 
-// C++ mirror of java.lang.reflect.AccessibleObject
-class MANAGED AccessibleObject : public Object {
- private:
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  uint32_t java_flag_;  // can accessibility checks be bypassed
-  friend struct AccessibleObjectOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(AccessibleObject);
-};
-
 // C++ mirror of java.lang.reflect.Field
-class MANAGED Field : public AccessibleObject {
+class MANAGED Field : public Object {
  public:
   Class* GetDeclaringClass() const;
 
@@ -518,7 +509,7 @@ class MANAGED Field : public AccessibleObject {
 };
 
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
-class MANAGED Method : public AccessibleObject {
+class MANAGED Method : public Object {
  public:
   // An function that invokes a method with an array of its arguments.
   typedef void InvokeStub(const Method* method,

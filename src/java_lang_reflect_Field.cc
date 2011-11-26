@@ -194,6 +194,11 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
   if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
     return;
   }
+  if (f->GetPrimitiveType() == Primitive::kPrimNot) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+        "Not a primitive field: %s", PrettyField(f).c_str());
+    return;
+  }
 
   // Widen the value if necessary (and possible).
   JValue wide_value;
