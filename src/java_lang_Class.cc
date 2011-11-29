@@ -218,7 +218,7 @@ bool MethodMatches(Method* m, String* name, const std::string& signature) {
 }
 
 Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, String* name,
-    std::string& signature) {
+    const std::string& signature) {
   if (methods == NULL) {
     return NULL;
   }
