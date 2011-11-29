@@ -402,12 +402,12 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  "tst", "!0C, !1C", 1),
     ENCODING_MAP(kThumb2Vldrs,       0xed900a00,
                  kFmtSfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD,
-                 "vldr", "!0s, [!1C, #!2E]", 2),
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD |
+                 REG_DEF_LR, "vldr", "!0s, [!1C, #!2E]", 2),
     ENCODING_MAP(kThumb2Vldrd,       0xed900b00,
                  kFmtDfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD,
-                 "vldr", "!0S, [!1C, #!2E]", 2),
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD |
+                 REG_DEF_LR, "vldr", "!0S, [!1C, #!2E]", 2),
     ENCODING_MAP(kThumb2Vmuls,        0xee200a00,
                  kFmtSfp, 22, 12, kFmtSfp, 7, 16, kFmtSfp, 5, 0,
                  kFmtUnused, -1, -1,
@@ -1118,6 +1118,11 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
             if (((lir->opcode == kThumb2LdrPcRel12) && (delta > 4091)) ||
                 ((lir->opcode == kThumb2Vldrs) && (delta > 1020)) ||
                 ((lir->opcode == kThumb2Vldrd) && (delta > 1020))) {
+                /*
+                 * Note: because rLR may be used to fix up out-of-range
+                 * vldrs/vldrd we include REG_DEF_LR in the resource
+                 * masks for these instructions.
+                 */
                 int baseReg = (lir->opcode == kThumb2LdrPcRel12) ?
                     lir->operands[0] : rLR;
 
