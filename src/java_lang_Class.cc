@@ -116,20 +116,20 @@ jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass, jclass javaClass, jboo
   std::vector<Field*> fields;
   for (size_t i = 0; i < c->NumInstanceFields(); ++i) {
     Field* f = c->GetInstanceField(i);
-    if (env->ExceptionOccurred()) {
-      return NULL;
-    }
     if (IsVisibleField(f, publicOnly)) {
       fields.push_back(f);
+    }
+    if (env->ExceptionOccurred()) {
+      return NULL;
     }
   }
   for (size_t i = 0; i < c->NumStaticFields(); ++i) {
     Field* f = c->GetStaticField(i);
-    if (env->ExceptionOccurred()) {
-      return NULL;
-    }
     if (IsVisibleField(f, publicOnly)) {
       fields.push_back(f);
+    }
+    if (env->ExceptionOccurred()) {
+      return NULL;
     }
   }
 
@@ -153,20 +153,20 @@ jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass, jclass javaClass, jbo
   std::vector<Method*> methods;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
     Method* m = c->GetVirtualMethod(i);
-    if (env->ExceptionOccurred()) {
-      return NULL;
-    }
     if (IsVisibleMethod(m, publicOnly)) {
       methods.push_back(m);
+    }
+    if (env->ExceptionOccurred()) {
+      return NULL;
     }
   }
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
     Method* m = c->GetDirectMethod(i);
-    if (env->ExceptionOccurred()) {
-      return NULL;
-    }
     if (IsVisibleMethod(m, publicOnly)) {
       methods.push_back(m);
+    }
+    if (env->ExceptionOccurred()) {
+      return NULL;
     }
   }
 
