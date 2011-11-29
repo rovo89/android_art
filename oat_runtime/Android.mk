@@ -52,6 +52,7 @@ local_src_files:= \
 	android_view_InputQueue.cpp \
 	android_view_KeyEvent.cpp \
 	android_view_KeyCharacterMap.cpp \
+	android_view_HardwareRenderer.cpp \
 	android_view_GLES20Canvas.cpp \
 	android_view_MotionEvent.cpp \
 	android_view_PointerIcon.cpp \
@@ -158,6 +159,7 @@ local_src_files:= \
 local_c_includes += \
 	$(LOCAL_PATH)/android/graphics \
 	$(LOCAL_PATH)/../../libs/hwui \
+	$(LOCAL_PATH)/../../opengl/libs \
 	$(call include-path-for, bluedroid) \
 	$(call include-path-for, libhardware)/hardware \
 	$(call include-path-for, libhardware_legacy)/hardware_legacy \
@@ -179,7 +181,8 @@ local_c_includes += \
 	external/harfbuzz/contrib \
 	external/harfbuzz/src \
 	external/zlib \
-	frameworks/opt/emoji
+	frameworks/opt/emoji \
+	libcore/libnativehelper/include
 
 local_shared_libraries := \
 	libexpat \
