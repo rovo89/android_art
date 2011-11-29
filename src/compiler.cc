@@ -127,7 +127,33 @@ void Compiler::Resolve(const ClassLoader* class_loader) {
   }
 }
 
+// Return true if the class should be skipped during compilation. We
+// never skip classes in the boot class loader. However, if we have a
+// non-boot class loader and we can resolve the class in the boot
+// class loader, we do skip the class. This happens if an app bundles
+// classes found in the boot classpath. Since at runtime we will
+// select the class from the boot classpath, do not attempt to resolve
+// or compile it now.
+static bool SkipClass(const ClassLoader* class_loader,
+                      const DexFile& dex_file,
+                      const DexFile::ClassDef& class_def) {
+  if (class_loader == NULL) {
+    return false;
+  }
+  const char* descriptor = dex_file.GetClassDescriptor(class_def);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* klass = class_linker->FindClass(descriptor, NULL);
+  if (klass == NULL) {
+    Thread* self = Thread::Current();
+    CHECK(self->IsExceptionPending());
+    self->ClearException();
+    return false;
+  }
+  return true;
+}
+
 void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
 
@@ -142,6 +168,7 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   for (size_t type_idx = 0; type_idx < dex_cache->NumResolvedTypes(); type_idx++) {
     Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
     if (klass == NULL) {
+      CHECK(self->IsExceptionPending());
       Thread::Current()->ClearException();
     }
   }
@@ -155,6 +182,9 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   // generated code.
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+    if (SkipClass(class_loader, dex_file, class_def)) {
+      continue;
+    }
 
     // Note the class_data pointer advances through the headers,
     // static fields, instance fields, direct methods, and virtual
@@ -169,7 +199,6 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
                                                 class_loader, true);
       if (field == NULL) {
-        Thread* self = Thread::Current();
         CHECK(self->IsExceptionPending());
         self->ClearException();
       }
@@ -179,7 +208,6 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
                                                 class_loader, false);
       if (field == NULL) {
-        Thread* self = Thread::Current();
         CHECK(self->IsExceptionPending());
         self->ClearException();
       }
@@ -189,7 +217,6 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
                                                    class_loader, true);
       if (method == NULL) {
-        Thread* self = Thread::Current();
         CHECK(self->IsExceptionPending());
         self->ClearException();
       }
@@ -199,7 +226,6 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
       Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
                                                    class_loader, false);
       if (method == NULL) {
-        Thread* self = Thread::Current();
         CHECK(self->IsExceptionPending());
         self->ClearException();
       }
@@ -302,6 +328,9 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
 
 void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
                             const DexFile& dex_file) {
+  if (SkipClass(class_loader, dex_file, class_def)) {
+    return;
+  }
   const byte* class_data = dex_file.GetClassData(class_def);
   if (class_data == NULL) {
     // empty class, probably a marker interface
