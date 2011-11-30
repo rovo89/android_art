@@ -144,6 +144,63 @@ AllocRecord* Dbg::recent_allocation_records_ = NULL; // TODO: CircularBuffer<All
 static size_t gAllocRecordHead = 0;
 static size_t gAllocRecordCount = 0;
 
+static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
+  // JDWP deliberately uses the descriptor characters' ASCII values for its enum.
+  // Note that by "basic" we mean that we don't get more specific than JT_OBJECT.
+  return static_cast<JDWP::JdwpTag>(descriptor[0]);
+}
+
+static JDWP::JdwpTag TagFromClass(Class* c) {
+  if (c->IsArrayClass()) {
+    return JDWP::JT_ARRAY;
+  }
+
+  if (c->IsStringClass()) {
+    return JDWP::JT_STRING;
+  } else if (c->IsClassClass()) {
+    return JDWP::JT_CLASS_OBJECT;
+#if 0 // TODO
+  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThread)) {
+    return JDWP::JT_THREAD;
+  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThreadGroup)) {
+    return JDWP::JT_THREAD_GROUP;
+  } else if (dvmInstanceof(clazz, gDvm.classJavaLangClassLoader)) {
+    return JDWP::JT_CLASS_LOADER;
+#endif
+  } else {
+    return JDWP::JT_OBJECT;
+  }
+}
+
+/*
+ * Objects declared to hold Object might actually hold a more specific
+ * type.  The debugger may take a special interest in these (e.g. it
+ * wants to display the contents of Strings), so we want to return an
+ * appropriate tag.
+ *
+ * Null objects are tagged JT_OBJECT.
+ */
+static JDWP::JdwpTag TagFromObject(const Object* o) {
+  return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(o->GetClass());
+}
+
+static bool IsPrimitiveTag(JDWP::JdwpTag tag) {
+  switch (tag) {
+  case JDWP::JT_BOOLEAN:
+  case JDWP::JT_BYTE:
+  case JDWP::JT_CHAR:
+  case JDWP::JT_FLOAT:
+  case JDWP::JT_DOUBLE:
+  case JDWP::JT_INT:
+  case JDWP::JT_LONG:
+  case JDWP::JT_SHORT:
+  case JDWP::JT_VOID:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /*
  * Handle one of the JDWP name/value pairs.
  *
@@ -517,8 +574,8 @@ const char* Dbg::GetObjectTypeName(JDWP::ObjectId objectId) {
 }
 
 uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Object* o = gRegistry->Get<Object*>(objectId);
+  return TagFromObject(o);
 }
 
 size_t Dbg::GetTagWidth(int tag) {
@@ -558,13 +615,55 @@ int Dbg::GetArrayLength(JDWP::ObjectId arrayId) {
 }
 
 uint8_t Dbg::GetArrayElementTag(JDWP::ObjectId arrayId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Object* o = gRegistry->Get<Object*>(arrayId);
+  Array* a = o->AsArray();
+  std::string descriptor(a->GetClass()->GetDescriptor()->ToModifiedUtf8());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+  if (!IsPrimitiveTag(tag)) {
+    tag = TagFromClass(a->GetClass()->GetComponentType());
+  }
+  return tag;
 }
 
-bool Dbg::OutputArray(JDWP::ObjectId arrayId, int firstIndex, int count, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::ExpandBuf* pReply) {
+  Object* o = gRegistry->Get<Object*>(arrayId);
+  Array* a = o->AsArray();
+
+  if (offset < 0 || count < 0 || offset > a->GetLength() || a->GetLength() - offset < count) {
+    LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
+    return false;
+  }
+
+  std::string descriptor(a->GetClass()->GetDescriptor()->ToModifiedUtf8());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+
+  if (IsPrimitiveTag(tag)) {
+    size_t width = GetTagWidth(tag);
+    const uint8_t* src = reinterpret_cast<uint8_t*>(a->GetRawData());
+    uint8_t* dst = expandBufAddSpace(pReply, count * width);
+    if (width == 8) {
+      const uint64_t* src8 = reinterpret_cast<const uint64_t*>(src);
+      for (int i = 0; i < count; ++i) JDWP::Write8BE(&dst, src8[offset + i]);
+    } else if (width == 4) {
+      const uint32_t* src4 = reinterpret_cast<const uint32_t*>(src);
+      for (int i = 0; i < count; ++i) JDWP::Write4BE(&dst, src4[offset + i]);
+    } else if (width == 2) {
+      const uint16_t* src2 = reinterpret_cast<const uint16_t*>(src);
+      for (int i = 0; i < count; ++i) JDWP::Write2BE(&dst, src2[offset + i]);
+    } else {
+      memcpy(dst, &src[offset * width], count * width);
+    }
+  } else {
+    ObjectArray<Object>* oa = a->AsObjectArray<Object>();
+    for (int i = 0; i < count; ++i) {
+      Object* element = oa->Get(i);
+      JDWP::JdwpTag specific_tag = (element != NULL) ? TagFromObject(element) : tag;
+      expandBufAdd1(pReply, specific_tag);
+      expandBufAddObjectId(pReply, gRegistry->Add(element));
+    }
+  }
+
+  return true;
 }
 
 bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count, const uint8_t* buf) {
@@ -631,40 +730,6 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
     accessFlags |= 0xf0000000;
   }
   return accessFlags;
-}
-
-static JDWP::JdwpTag TagFromClass(Class* c) {
-  if (c->IsArrayClass()) {
-    return JDWP::JT_ARRAY;
-  }
-
-  if (c->IsStringClass()) {
-    return JDWP::JT_STRING;
-  } else if (c->IsClassClass()) {
-    return JDWP::JT_CLASS_OBJECT;
-#if 0 // TODO
-  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThread)) {
-    return JDWP::JT_THREAD;
-  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThreadGroup)) {
-    return JDWP::JT_THREAD_GROUP;
-  } else if (dvmInstanceof(clazz, gDvm.classJavaLangClassLoader)) {
-    return JDWP::JT_CLASS_LOADER;
-#endif
-  } else {
-    return JDWP::JT_OBJECT;
-  }
-}
-
-/*
- * Objects declared to hold Object might actually hold a more specific
- * type.  The debugger may take a special interest in these (e.g. it
- * wants to display the contents of Strings), so we want to return an
- * appropriate tag.
- *
- * Null objects are tagged JT_OBJECT.
- */
-static JDWP::JdwpTag TagFromObject(const Object* o) {
-  return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(o->GetClass());
 }
 
 static const uint16_t kEclipseWorkaroundSlot = 1000;

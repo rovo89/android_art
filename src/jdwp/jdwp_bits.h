@@ -147,15 +147,23 @@ static inline void Set8BE(uint8_t* buf, uint64_t val) {
   *buf = (uint8_t)(val);
 }
 
-// @deprecated
 static inline void Write1BE(uint8_t** dst, uint8_t value) {
   Set1(*dst, value);
   *dst += sizeof(value);
 }
 
-// @deprecated
+static inline void Write2BE(uint8_t** dst, uint16_t value) {
+  Set2BE(*dst, value);
+  *dst += sizeof(value);
+}
+
 static inline void Write4BE(uint8_t** dst, uint32_t value) {
   Set4BE(*dst, value);
+  *dst += sizeof(value);
+}
+
+static inline void Write8BE(uint8_t** dst, uint64_t value) {
+  Set8BE(*dst, value);
   *dst += sizeof(value);
 }
 
