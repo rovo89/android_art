@@ -808,22 +808,7 @@ class MANAGED Method : public Object {
     SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table_offset));
   }
 
-  const uint16_t* GetVmapTable() const {
-    const uint16_t* vmap = GetVmapTableRaw();
-    if (vmap == NULL) {
-      return vmap;
-    }
-    return vmap + 1;
-  }
-
-  uint16_t GetVmapTableLength() const {
-    const uint16_t* vmap = GetVmapTableRaw();
-    if (vmap == NULL) {
-      return 0;
-    }
-    return *vmap;
-  }
-
+  // Callers should wrap the uint16_t* in a VmapTable instance for convenient access.
   const uint16_t* GetVmapTableRaw() const {
     return GetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
   }

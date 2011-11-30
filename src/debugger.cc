@@ -21,6 +21,7 @@
 #include <set>
 
 #include "class_linker.h"
+#include "context.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack_indirect_reference_table.h"
@@ -551,8 +552,9 @@ size_t Dbg::GetTagWidth(int tag) {
 }
 
 int Dbg::GetArrayLength(JDWP::ObjectId arrayId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Object* o = gRegistry->Get<Object*>(arrayId);
+  Array* a = o->AsArray();
+  return a->GetLength();
 }
 
 uint8_t Dbg::GetArrayElementTag(JDWP::ObjectId arrayId) {
@@ -689,17 +691,14 @@ static uint16_t MangleSlot(uint16_t slot, const char* name) {
 /*
  * Reverse Eclipse hack.
  */
-static uint16_t DemangleSlot(uint16_t slot, Method** sp) {
-  int newSlot = slot;
+static uint16_t DemangleSlot(uint16_t slot, Frame& f) {
   if (slot == kEclipseWorkaroundSlot) {
-    newSlot = 0;
+    return 0;
   } else if (slot == 0) {
-    Frame f;
-    f.SetSP(sp);
     Method* m = f.GetMethod();
-    newSlot = m->NumRegisters() - m->NumIns();
+    return m->NumRegisters() - m->NumIns();
   }
-  return newSlot;
+  return slot;
 }
 
 void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
@@ -811,9 +810,9 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
     static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char *name, const char *descriptor, const char *signature) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      slot = MangleSlot(slot, name);
-
       LOG(VERBOSE) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->numItems, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
+
+      slot = MangleSlot(slot, name);
 
       expandBufAdd8BE(pContext->pReply, startAddress);
       expandBufAddUtf8String(pContext->pReply, name);
@@ -875,9 +874,9 @@ void Dbg::SetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, 
   UNIMPLEMENTED(FATAL);
 }
 
-char* Dbg::StringToUtf8(JDWP::ObjectId strId) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
+std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
+  String* s = gRegistry->Get<String*>(strId);
+  return s->ToModifiedUtf8();
 }
 
 Thread* DecodeThread(JDWP::ObjectId threadId) {
@@ -1119,61 +1118,70 @@ bool Dbg::GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::Ob
 
 void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen) {
   Method** sp = reinterpret_cast<Method**>(frameId);
-  slot = DemangleSlot(slot, sp);
+  Frame f;
+  f.SetSP(sp);
+  uint16_t reg = DemangleSlot(slot, f);
+  Method* m = f.GetMethod();
+
+  const VmapTable vmap_table(m->GetVmapTableRaw());
+  uint32_t vmap_offset;
+  if (vmap_table.IsInContext(reg, vmap_offset)) {
+    UNIMPLEMENTED(FATAL) << "don't know how to pull locals from callee save frames: " << vmap_offset;
+  }
 
   switch (tag) {
   case JDWP::JT_BOOLEAN:
     {
-      UNIMPLEMENTED(WARNING) << "get boolean local " << slot;
       CHECK_EQ(expectedLen, 1U);
-      uint32_t intVal = 0; // framePtr[slot];
+      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
+      LOG(WARNING) << "get boolean local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal != 0);
     }
     break;
   case JDWP::JT_BYTE:
     {
-      UNIMPLEMENTED(WARNING) << "get byte local " << slot;
       CHECK_EQ(expectedLen, 1U);
-      uint32_t intVal = 0; // framePtr[slot];
+      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
+      LOG(WARNING) << "get byte local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal);
     }
     break;
   case JDWP::JT_SHORT:
   case JDWP::JT_CHAR:
     {
-      UNIMPLEMENTED(WARNING) << "get 16-bit local " << slot;
       CHECK_EQ(expectedLen, 2U);
-      uint32_t intVal = 0; // framePtr[slot];
+      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
+      LOG(WARNING) << "get short/char local " << reg << " = " << intVal;
       JDWP::Set2BE(buf+1, intVal);
     }
     break;
   case JDWP::JT_INT:
   case JDWP::JT_FLOAT:
     {
-      UNIMPLEMENTED(WARNING) << "get 32-bit local " << slot;
       CHECK_EQ(expectedLen, 4U);
-      uint32_t intVal = 0; // framePtr[slot];
+      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
+      LOG(WARNING) << "get int/float local " << reg << " = " << intVal;
       JDWP::Set4BE(buf+1, intVal);
     }
     break;
   case JDWP::JT_ARRAY:
     {
-      UNIMPLEMENTED(WARNING) << "get array local " << slot;
       CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
-      Object* o = NULL; // (Object*)framePtr[slot];
+      Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
+      LOG(WARNING) << "get array local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
-        LOG(FATAL) << "slot " << slot << " expected to hold array: " << o;
+        LOG(FATAL) << "reg " << reg << " expected to hold array: " << o;
       }
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
     }
     break;
   case JDWP::JT_OBJECT:
     {
-      UNIMPLEMENTED(WARNING) << "get object local " << slot;
       CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
-      Object* o = NULL; // (Object*)framePtr[slot];
+      Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
+      LOG(WARNING) << "get object local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
-        LOG(FATAL) << "slot " << slot << " expected to hold object: " << o;
+        LOG(FATAL) << "reg " << reg << " expected to hold object: " << o;
       }
       tag = TagFromObject(o);
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
@@ -1182,9 +1190,9 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_DOUBLE:
   case JDWP::JT_LONG:
     {
-      UNIMPLEMENTED(WARNING) << "get 64-bit local " << slot;
+      UNIMPLEMENTED(WARNING) << "get 64-bit local " << reg;
       CHECK_EQ(expectedLen, 8U);
-      uint64_t longVal = 0; // memcpy(&longVal, &framePtr[slot], 8);
+      uint64_t longVal = 0; // memcpy(&longVal, &framePtr[reg], 8);
       JDWP::Set8BE(buf+1, longVal);
     }
     break;

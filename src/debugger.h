@@ -171,7 +171,7 @@ public:
   static void GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
   static void SetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, uint64_t rawValue, int width);
 
-  static char* StringToUtf8(JDWP::ObjectId strId);
+  static std::string StringToUtf8(JDWP::ObjectId strId);
 
   /*
    * Thread, ThreadGroup, Frame

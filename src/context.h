@@ -3,6 +3,7 @@
 #ifndef ART_SRC_CONTEXT_H_
 #define ART_SRC_CONTEXT_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace art {
@@ -32,6 +33,42 @@ class Context {
 
   // Switch execution of the executing context to this context
   virtual void DoLongJump() = 0;
+};
+
+class VmapTable {
+ public:
+  VmapTable(const uint16_t* table) : table_(table) {
+  }
+
+  uint16_t operator[](size_t i) const {
+    return table_[i + 1];
+  }
+
+  size_t size() const {
+    return table_[0];
+  }
+
+  // Is register 'reg' in the context or on the stack?
+  bool IsInContext(size_t reg, uint32_t& vmap_offset) const {
+    vmap_offset = 0xEBAD0FF5;
+    // TODO: take advantage of the registers being ordered
+    for (size_t i = 0; i < size(); ++i) {
+      // Stop if we find what we are are looking for...
+      if (table_[i + 1] == reg) {
+        vmap_offset = i;
+        return true;
+      }
+      // ...or the INVALID_VREG that marks lr.
+      // TODO: x86?
+      if (table_[i + 1] == 0xffff) {
+        break;
+      }
+    }
+    return false;
+  }
+
+ private:
+  const uint16_t* table_;
 };
 
 }  // namespace art

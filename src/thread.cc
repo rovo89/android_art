@@ -1431,29 +1431,15 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
       verifier::PcToReferenceMap map(m);
       const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
       CHECK(reg_bitmap != NULL);
-      const uint16_t* vmap = m->GetVmapTable();
+      const VmapTable vmap_table(m->GetVmapTableRaw());
       // For all dex registers in the bitmap
       size_t num_regs = std::min(map.RegWidth() * 8, static_cast<size_t>(m->NumRegisters()));
       for (size_t reg = 0; reg < num_regs; ++reg) {
         // Does this register hold a reference?
         if (TestBitmap(reg, reg_bitmap)) {
-          // Is the reference in the context or on the stack?
-          bool in_context = false;
-          uint32_t vmap_offset = 0xEBAD0FF5;
-          // TODO: take advantage of the registers being ordered
-          for (int i = 0; i < m->GetVmapTableLength(); i++) {
-            // stop if we find what we are are looking for or the INVALID_VREG that marks lr
-            if (vmap[i] == 0xffff) {
-              break;
-            }
-            if (vmap[i] == reg) {
-              in_context = true;
-              vmap_offset = i;
-              break;
-            }
-          }
+          uint32_t vmap_offset;
           Object* ref;
-          if (in_context) {
+          if (vmap_table.IsInContext(reg, vmap_offset)) {
             // Compute the register we need to load from the context
             uint32_t spill_mask = m->GetCoreSpillMask();
             CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
