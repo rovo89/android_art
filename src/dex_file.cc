@@ -749,6 +749,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
       CHECK(class_def != NULL) << descriptor;
       local_in_reg[arg_reg].name_ = "this";
       local_in_reg[arg_reg].descriptor_ = GetClassDescriptor(*class_def);
+      local_in_reg[arg_reg].signature_ = NULL;
       local_in_reg[arg_reg].start_address_ = 0;
       local_in_reg[arg_reg].is_live_ = true;
     }
@@ -762,12 +763,13 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
                  << " >= " << code_item->registers_size_ << ")";
       return;
     }
-    int32_t id = DecodeUnsignedLeb128P1(&stream);
+    uint32_t id = DecodeUnsignedLeb128P1(&stream);
     const char* descriptor = it.GetDescriptor();
-    if (need_locals) {
+    if (need_locals && id != kDexNoIndex) {
       const char* name = StringDataByIdx(id);
       local_in_reg[arg_reg].name_ = name;
       local_in_reg[arg_reg].descriptor_ = descriptor;
+      local_in_reg[arg_reg].signature_ = NULL;
       local_in_reg[arg_reg].start_address_ = address;
       local_in_reg[arg_reg].is_live_ = true;
     }
