@@ -157,9 +157,7 @@ static JdwpError finishInvoke(JdwpState* state,
     /* show detailed debug output */
     if (resultTag == JT_STRING && exceptObjId == 0) {
       if (resultValue != 0) {
-        char* str = Dbg::StringToUtf8(resultValue);
-        LOG(VERBOSE) << StringPrintf("      string '%s'", str);
-        free(str);
+        LOG(VERBOSE) << "      string '" << Dbg::StringToUtf8(resultValue) << "'";
       } else {
         LOG(VERBOSE) << "      string (null)";
       }
@@ -875,12 +873,11 @@ static JdwpError handleOR_IsCollected(JdwpState* state, const uint8_t* buf, int 
  */
 static JdwpError handleSR_Value(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId stringObject = ReadObjectId(&buf);
-  char* str = Dbg::StringToUtf8(stringObject);
+  std::string str(Dbg::StringToUtf8(stringObject));
 
-  LOG(VERBOSE) << StringPrintf("  Req for str %llx --> '%s'", stringObject, str);
+  LOG(VERBOSE) << StringPrintf("  Req for str %llx --> '%s'", stringObject, str.c_str());
 
-  expandBufAddUtf8String(pReply, str);
-  free(str);
+  expandBufAddUtf8String(pReply, str.c_str());
 
   return ERR_NONE;
 }
