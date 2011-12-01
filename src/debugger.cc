@@ -323,8 +323,10 @@ void Dbg::StartJdwp() {
   // debugger.
   gJdwpState = JDWP::JdwpState::Create(&gJdwpOptions);
   if (gJdwpState == NULL) {
-    LOG(WARNING) << "debugger thread failed to initialize";
-    return;
+    // We probably failed because some other process has the port already, which means that
+    // if we don't abort the user is likely to think they're talking to us when they're actually
+    // talking to that other process.
+    LOG(FATAL) << "debugger thread failed to initialize";
   }
 
   // If a debugger has already attached, send the "welcome" message.
@@ -1103,8 +1105,11 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
   ScopedThreadListLock thread_list_lock;
   struct CountStackDepthVisitor : public Thread::StackVisitor {
     CountStackDepthVisitor() : depth(0) {}
-    virtual void VisitFrame(const Frame&, uintptr_t) {
-      ++depth;
+    virtual void VisitFrame(const Frame& f, uintptr_t) {
+      // TODO: we'll need to skip callee-save frames too.
+      if (f.HasMethod()) {
+        ++depth;
+      }
     }
     size_t depth;
   };
@@ -1120,8 +1125,9 @@ bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP
         : found(false) ,depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
     }
     virtual void VisitFrame(const Frame& f, uintptr_t pc) {
+      // TODO: we'll need to skip callee-save frames too.
       if (!f.HasMethod()) {
-        return; // These don't count?
+        return; // The debugger can't do anything useful with a frame that has no Method*.
       }
 
       if (depth == desired_frame_number) {
