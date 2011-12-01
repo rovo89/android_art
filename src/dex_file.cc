@@ -571,7 +571,7 @@ const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
 }
 
 const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
-                                             const std::vector<uint16_t>& signature_type_ids) const {
+                                         const std::vector<uint16_t>& signature_type_idxs) const {
   uint32_t lo = 0;
   uint32_t hi = NumProtoIds() - 1;
   while (hi >= lo) {
@@ -581,15 +581,15 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
     if (compare == 0) {
       DexFileParameterIterator it(*this, proto);
       size_t i = 0;
-      while (it.HasNext() && i < signature_type_ids.size() && compare == 0) {
-        compare = signature_type_ids[i] - it.GetTypeId();
+      while (it.HasNext() && i < signature_type_idxs.size() && compare == 0) {
+        compare = signature_type_idxs[i] - it.GetTypeIdx();
         it.Next();
         i++;
       }
       if (compare == 0) {
         if (it.HasNext()) {
           compare = -1;
-        } else if (i < signature_type_ids.size()) {
+        } else if (i < signature_type_idxs.size()) {
           compare = 1;
         }
       }
@@ -704,7 +704,8 @@ int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) co
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);
-  DecodeDebugInfo(code_item, method, LineNumForPcCb, NULL, &context);
+  DecodeDebugInfo(code_item, method->IsStatic(), method->GetDexMethodIndex(), LineNumForPcCb,
+                  NULL, &context);
   return context.line_num_;
 }
 
@@ -733,7 +734,7 @@ int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries
   return -1;
 }
 
-void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
+void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                                DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
                                void* cnxt, const byte* stream, LocalInfo* local_in_reg) const {
   uint32_t line = DecodeUnsignedLeb128(&stream);
@@ -742,13 +743,11 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
   uint32_t address = 0;
   bool need_locals = (local_cb != NULL);
 
-  if (!method->IsStatic()) {
+  if (!is_static) {
     if (need_locals) {
-      std::string descriptor = method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8();
-      const ClassDef* class_def = FindClassDef(descriptor);
-      CHECK(class_def != NULL) << descriptor;
+      const char* descriptor = GetMethodDeclaringClassDescriptor(GetMethodId(method_idx));
       local_in_reg[arg_reg].name_ = "this";
-      local_in_reg[arg_reg].descriptor_ = GetClassDescriptor(*class_def);
+      local_in_reg[arg_reg].descriptor_ = descriptor;
       local_in_reg[arg_reg].signature_ = NULL;
       local_in_reg[arg_reg].start_address_ = 0;
       local_in_reg[arg_reg].is_live_ = true;
@@ -756,7 +755,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
     arg_reg++;
   }
 
-  DexFileParameterIterator it(*this, GetProtoId(method->GetProtoIdx()));
+  DexFileParameterIterator it(*this, GetMethodPrototype(GetMethodId(method_idx)));
   for (uint32_t i = 0; i < parameters_size && it.HasNext(); ++i, it.Next()) {
     if (arg_reg >= code_item->registers_size_) {
       LOG(ERROR) << "invalid stream - arg reg >= reg size (" << arg_reg
@@ -897,14 +896,14 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
   }
 }
 
-void DexFile::DecodeDebugInfo(const CodeItem* code_item, const art::Method* method,
+void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                                  DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
                                  void* cnxt) const {
   const byte* stream = GetDebugInfoStream(code_item);
   LocalInfo local_in_reg[code_item->registers_size_];
 
   if (stream != NULL) {
-    DecodeDebugInfo0(code_item, method, posCb, local_cb, cnxt, stream, local_in_reg);
+    DecodeDebugInfo0(code_item, is_static, method_idx, posCb, local_cb, cnxt, stream, local_in_reg);
   }
   for (int reg = 0; reg < code_item->registers_size_; reg++) {
     InvokeLocalCbIfLive(cnxt, reg, code_item->insns_size_in_code_units_, local_in_reg, local_cb);

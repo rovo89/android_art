@@ -21,6 +21,7 @@
 
 #include "class_linker.h"
 #include "logging.h"
+#include "object_utils.h"
 #include "scoped_jni_thread_state.h"
 #include "thread.h"
 #include "runtime.h"
@@ -112,7 +113,7 @@ bool ShouldTrace(JavaVMExt* vm, const Method* method) {
   // such as NewByteArray.
   // If -verbose:third-party-jni is on, we want to log any JNI function calls
   // made by a third-party native method.
-  std::string classNameStr(method->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8());
+  std::string classNameStr(MethodHelper(method).GetDeclaringClassDescriptor());
   if (!vm->trace.empty() && classNameStr.find(vm->trace) != std::string::npos) {
     return true;
   }
@@ -180,7 +181,7 @@ public:
     if (f == NULL) {
       return;
     }
-    Class* field_type = f->GetType();
+    Class* field_type = FieldHelper(f).GetType();
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
         Object* obj = Decode<Object*>(ts, java_object);
@@ -237,10 +238,9 @@ public:
     if (f == NULL) {
       return;
     }
-    // check invariant that all jfieldIDs have resolved types
-    DCHECK(f->GetType() != NULL);
     Class* c = o->GetClass();
-    if (c->FindInstanceField(f->GetName()->ToModifiedUtf8(), f->GetTypeDescriptor()) == NULL) {
+    FieldHelper fh(f);
+    if (c->FindInstanceField(fh.GetName(), fh.GetTypeDescriptor()) == NULL) {
       LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f)
                  << " not valid for an object of class " << PrettyTypeOf(o);
       JniAbort();
@@ -263,11 +263,11 @@ public:
    */
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic) {
     ScopedJniThreadState ts(env_);
-    const Method* m = CheckMethodID(mid);
+    Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    if (*expectedType != m->GetShorty()->CharAt(0)) {
+    if (*expectedType != MethodHelper(m).GetShorty()[0]) {
       LOG(ERROR) << "JNI ERROR: the return type of " << function_name_ << " does not match "
                  << PrettyMethod(m);
       JniAbort();

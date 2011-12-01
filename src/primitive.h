@@ -101,11 +101,13 @@ class Primitive {
       case kPrimInt:
         return 'I';
       case kPrimFloat:
-        return 'J';
+        return 'F';
       case kPrimLong:
         return 'J';
       case kPrimDouble:
         return 'D';
+      case kPrimVoid:
+        return 'V';
       default:
         LOG(FATAL) << "Primitive char conversion on invalid type " << static_cast<int>(type);
         return 0;

@@ -18,6 +18,7 @@
 #include "intern_table.h"
 #include "logging.h"
 #include "monitor.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "stack.h"
 #include "utils.h"
@@ -93,71 +94,16 @@ void Field::ResetClass() {
   java_lang_reflect_Field_ = NULL;
 }
 
-void Field::SetTypeIdx(uint32_t type_idx) {
-  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, type_idx_), type_idx, false);
-}
-
-Class* Field::GetTypeDuringLinking() const {
-  // We are assured that the necessary primitive types are in the dex cache
-  // early during class linking
-  return GetDeclaringClass()->GetDexCache()->GetResolvedType(GetTypeIdx());
-}
-
-bool Field::IsPrimitiveType() const {
-  Class* type = GetTypeDuringLinking();
-  return (type == NULL || type->IsPrimitive());
-}
-
-Primitive::Type Field::GetPrimitiveType() const {
-  Class* type = GetTypeDuringLinking();
-  if (type == NULL) {
-    return Primitive::kPrimNot;
-  }
-  return type->GetPrimitiveType();
-}
-
-size_t Field::PrimitiveSize() const {
-  return Primitive::FieldSize(GetPrimitiveType());
-}
-
-const char* Field::GetTypeDescriptor() const {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(GetDeclaringClass()->GetDexCache());
-  const char* descriptor = dex_file.StringByTypeIdx(GetTypeIdx());
-  DCHECK(descriptor != NULL);
-  return descriptor;
-}
-
-Class* Field::GetType() {
-  Class* type = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Field, type_), false);
-  if (type == NULL) {
-    type = Runtime::Current()->GetClassLinker()->ResolveType(GetTypeIdx(), this);
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, type_), type, false);
-  }
-  return type;
-}
-
 void Field::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  Primitive::Type type = GetPrimitiveType();
+#if 0 // TODO enable later in boot and under !NDEBUG
+  FieldHelper fh(this);
+  Primitive::Type type = fh.GetTypeAsPrimitiveType();
   if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {
     DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
   }
+#endif
   SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), num_bytes.Uint32Value(), false);
-}
-
-void Field::InitJavaFields() {
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  MonitorEnter(self);
-  if (type_ == NULL) {
-    InitJavaFieldsLocked();
-  }
-  MonitorExit(self);
-}
-
-void Field::InitJavaFieldsLocked() {
-  GetType(); // Resolves type as a side-effect. May throw.
 }
 
 uint32_t Field::Get32(const Object* object) const {
@@ -209,105 +155,119 @@ void Field::SetObj(Object* object, const Object* new_value) const {
 }
 
 bool Field::GetBoolean(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimBoolean) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimBoolean, FieldHelper(this).GetTypeAsPrimitiveType())
+      << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetBoolean(Object* object, bool z) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimBoolean) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimBoolean, FieldHelper(this).GetTypeAsPrimitiveType())
+      << PrettyField(this);
   Set32(object, z);
 }
 
 int8_t Field::GetByte(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimByte) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimByte, FieldHelper(this).GetTypeAsPrimitiveType())
+      << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetByte(Object* object, int8_t b) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimByte) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimByte, FieldHelper(this).GetTypeAsPrimitiveType())
+      << PrettyField(this);
   Set32(object, b);
 }
 
 uint16_t Field::GetChar(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimChar) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimChar, FieldHelper(this).GetTypeAsPrimitiveType())
+      << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetChar(Object* object, uint16_t c) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimChar) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimChar, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   Set32(object, c);
 }
 
 int16_t Field::GetShort(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimShort) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimShort, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetShort(Object* object, int16_t s) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimShort) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimShort, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   Set32(object, s);
 }
 
 int32_t Field::GetInt(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimInt) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimInt, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   return Get32(object);
 }
 
 void Field::SetInt(Object* object, int32_t i) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimInt) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimInt, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   Set32(object, i);
 }
 
 int64_t Field::GetLong(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimLong) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimLong, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   return Get64(object);
 }
 
 void Field::SetLong(Object* object, int64_t j) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimLong) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimLong, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   Set64(object, j);
 }
 
 float Field::GetFloat(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimFloat) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   JValue float_bits;
   float_bits.i = Get32(object);
   return float_bits.f;
 }
 
 void Field::SetFloat(Object* object, float f) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimFloat) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   JValue float_bits;
   float_bits.f = f;
   Set32(object, float_bits.i);
 }
 
 double Field::GetDouble(const Object* object) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimDouble) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   JValue double_bits;
   double_bits.j = Get64(object);
   return double_bits.d;
 }
 
 void Field::SetDouble(Object* object, double d) const {
-  DCHECK_EQ(GetPrimitiveType(), Primitive::kPrimDouble) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   JValue double_bits;
   double_bits.d = d;
   Set64(object, double_bits.j);
 }
 
 Object* Field::GetObject(const Object* object) const {
-  CHECK_EQ(GetPrimitiveType(), Primitive::kPrimNot) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimNot, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   return GetObj(object);
 }
 
 void Field::SetObject(Object* object, const Object* l) const {
-  CHECK_EQ(GetPrimitiveType(), Primitive::kPrimNot) << PrettyField(this);
+  DCHECK_EQ(Primitive::kPrimNot, FieldHelper(this).GetTypeAsPrimitiveType())
+       << PrettyField(this);
   SetObj(object, l);
-}
-
-bool Method::IsClassInitializer() const {
-  return IsStatic() && GetName()->Equals("<clinit>");
 }
 
 // TODO: get global references for these
@@ -361,116 +321,9 @@ Class* ExtractNextClassFromSignature(ClassLinker* class_linker, const ClassLoade
   }
 }
 
-void Method::InitJavaFieldsLocked() {
-  // Create the array.
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  size_t arg_count = GetShorty()->GetLength() - 1;
-  Class* array_class = class_linker->FindSystemClass("[Ljava/lang/Class;");
-  ObjectArray<Class>* parameters = ObjectArray<Class>::Alloc(array_class, arg_count);
-  if (parameters == NULL) {
-    return;
-  }
-
-  // Parse the signature, filling the array.
-  const ClassLoader* cl = GetDeclaringClass()->GetClassLoader();
-  std::string signature(GetSignature()->ToModifiedUtf8());
-  const char* p = signature.c_str();
-  DCHECK_EQ(*p, '(');
-  ++p;
-  for (size_t i = 0; i < arg_count; ++i) {
-    Class* c = ExtractNextClassFromSignature(class_linker, cl, p);
-    if (c == NULL) {
-      return;
-    }
-    parameters->Set(i, c);
-  }
-
-  DCHECK_EQ(*p, ')');
-  ++p;
-
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_parameter_types_),
-                 parameters, false);
-  Class* java_return_type = ExtractNextClassFromSignature(class_linker, cl, p);
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_),
-                 java_return_type, false);
-}
-
-void Method::InitJavaFields() {
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  MonitorEnter(self);
-  if (java_parameter_types_ == NULL || java_return_type_ == NULL) {
-    InitJavaFieldsLocked();
-  }
-  MonitorExit(self);
-}
-
 ObjectArray<String>* Method::GetDexCacheStrings() const {
   return GetFieldObject<ObjectArray<String>*>(
       OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_), false);
-}
-
-void Method::SetReturnTypeIdx(uint32_t new_return_type_idx) {
-  SetField32(OFFSET_OF_OBJECT_MEMBER(Method, java_return_type_idx_),
-             new_return_type_idx, false);
-}
-
-uint32_t Method::GetDexMethodIndex() const {
-  // TODO: add the method index to Method - which will also mean a number of Method fields can
-  // become dex file lookups (which will then mean we may want faster access to the dex file)
-  // Find the dex file
-  const DexCache* dex_cache = GetDeclaringClass()->GetDexCache();
-  const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
-  // Find the class_def in the dex file
-  uint32_t class_def_idx;
-  bool found_class_def =
-      dex_file.FindClassDefIndex(GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8(),
-                                 class_def_idx);
-  CHECK(found_class_def);
-  const DexFile::TypeId& type_id =
-      dex_file.GetTypeId(dex_file.GetClassDef(class_def_idx).class_idx_);
-  const DexFile::StringId* name_str_id = dex_file.FindStringId(GetName()->ToModifiedUtf8());
-  CHECK(name_str_id != NULL);  // Failed to find method's name?
-  uint16_t return_type_idx;
-  std::vector<uint16_t> param_type_idxs;
-  std::string signature = GetSignature()->ToModifiedUtf8();
-  bool found_type_list = dex_file.CreateTypeList(&return_type_idx, &param_type_idxs, signature);
-  CHECK(found_type_list);   // Failed to parse signature
-  const DexFile::ProtoId* sig_proto_id = dex_file.FindProtoId(return_type_idx, param_type_idxs);
-  CHECK(sig_proto_id != NULL);  // Failed to find method's prototype
-  const DexFile::MethodId* method_id =
-      dex_file.FindMethodId(type_id, *name_str_id, *sig_proto_id);
-  CHECK(method_id != NULL);  // Failed to find method?
-  uint32_t method_idx = dex_file.GetIndexForMethodId(*method_id);
-  DCHECK_EQ(PrettyMethod(method_idx, dex_file), PrettyMethod(this));
-  return method_idx;
-}
-
-const char* Method::GetReturnTypeDescriptor() const {
-  Class* declaring_class = GetDeclaringClass();
-  DexCache* dex_cache = declaring_class->GetDexCache();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const char* descriptor = dex_file.StringByTypeIdx(GetReturnTypeIdx());
-  DCHECK(descriptor != NULL);
-  return descriptor;
-}
-
-Class* Method::GetReturnType() const {
-  DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous())
-      << PrettyMethod(this);
-  Class* java_return_type = java_return_type_;
-  if (java_return_type != NULL) {
-      return java_return_type;
-  }
-  // Short-cut
-  Class* result = GetDexCacheResolvedTypes()->Get(GetReturnTypeIdx());
-  if (result == NULL) {
-    // Do full linkage and set cache value for next call
-    result = Runtime::Current()->GetClassLinker()->ResolveType(GetReturnTypeIdx(), this);
-  }
-  CHECK(result != NULL) << PrettyMethod(this);
-  return result;
 }
 
 void Method::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
@@ -545,85 +398,8 @@ size_t Method::NumArgRegisters(const StringPiece& shorty) {
   return num_registers;
 }
 
-size_t Method::NumArgs() const {
-  // "1 +" because the first in Args is the receiver.
-  // "- 1" because we don't count the return type.
-  return (IsStatic() ? 0 : 1) + GetShorty()->GetLength() - 1;
-}
-
-// The number of reference arguments to this method including implicit this
-// pointer
-size_t Method::NumReferenceArgs() const {
-  const String* shorty = GetShorty();
-  size_t result = IsStatic() ? 0 : 1;  // The implicit this pointer.
-  for (int i = 1; i < shorty->GetLength(); i++) {
-    char ch = shorty->CharAt(i);
-    if ((ch == 'L') || (ch == '[')) {
-      result++;
-    }
-  }
-  return result;
-}
-
-// The number of long or double arguments
-size_t Method::NumLongOrDoubleArgs() const {
-  const String* shorty = GetShorty();
-  size_t result = 0;
-  for (int i = 1; i < shorty->GetLength(); i++) {
-    char ch = shorty->CharAt(i);
-    if ((ch == 'D') || (ch == 'J')) {
-      result++;
-    }
-  }
-  return result;
-}
-
-// Is the given method parameter a reference?
-bool Method::IsParamAReference(unsigned int param) const {
-  CHECK_LT(param, NumArgs());
-  if (IsStatic()) {
-    param++;  // 0th argument must skip return value at start of the shorty
-  } else if (param == 0) {
-    return true;  // this argument
-  }
-  return GetShorty()->CharAt(param) == 'L';
-}
-
-// Is the given method parameter a long or double?
-bool Method::IsParamALongOrDouble(unsigned int param) const {
-  CHECK_LT(param, NumArgs());
-  if (IsStatic()) {
-    param++;  // 0th argument must skip return value at start of the shorty
-  } else if (param == 0) {
-    return false;  // this argument
-  }
-  char ch = GetShorty()->CharAt(param);
-  return (ch == 'J' || ch == 'D');
-}
-
-static size_t ShortyCharToSize(char x) {
-  switch (x) {
-    case 'V': return 0;
-    case '[': return kPointerSize;
-    case 'L': return kPointerSize;
-    case 'D': return 8;
-    case 'J': return 8;
-    default:  return 4;
-  }
-}
-
-size_t Method::ParamSize(unsigned int param) const {
-  CHECK_LT(param, NumArgs());
-  if (IsStatic()) {
-    param++;  // 0th argument must skip return value at start of the shorty
-  } else if (param == 0) {
-    return kPointerSize;  // this argument
-  }
-  return ShortyCharToSize(GetShorty()->CharAt(param));
-}
-
-size_t Method::ReturnSize() const {
-  return ShortyCharToSize(GetShorty()->CharAt(0));
+bool Method::IsProxyMethod() const {
+  return GetDeclaringClass()->IsProxyClass();
 }
 
 Method* Method::FindOverriddenMethod() const {
@@ -635,25 +411,39 @@ Method* Method::FindOverriddenMethod() const {
   uint16_t method_index = GetMethodIndex();
   ObjectArray<Method>* super_class_vtable = super_class->GetVTable();
   Method* result = NULL;
+  // Did this method override a super class method? If so load the result from the super class'
+  // vtable
   if (super_class_vtable != NULL && method_index < super_class_vtable->GetLength()) {
     result = super_class_vtable->Get(method_index);
   } else {
-    ObjectArray<Class>* interfaces = declaring_class->GetInterfaces();
-    String* name = GetName();
-    String* signature = GetSignature();
-    for (int32_t i = 0; i < interfaces->GetLength() && result == NULL; i++) {
-      Class* interface = interfaces->Get(i);
-      result = interface->FindInterfaceMethod(name, signature);
+    // Method didn't override superclass method so search interfaces
+    MethodHelper mh(this);
+    MethodHelper interface_mh;
+    ObjectArray<InterfaceEntry>* iftable = GetDeclaringClass()->GetIfTable();
+    for (int32_t i = 0; i < iftable->GetLength() && result == NULL; i++) {
+      InterfaceEntry* entry = iftable->Get(i);
+      Class* interface = entry->GetInterface();
+      for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
+        Method* interface_method = interface->GetVirtualMethod(j);
+        interface_mh.ChangeMethod(interface_method);
+        if (mh.HasSameNameAndSignature(&interface_mh)) {
+          result = interface_method;
+          break;
+        }
+      }
     }
   }
-  DCHECK(result == NULL || HasSameNameAndSignature(result));
+#ifndef NDEBUG
+  MethodHelper result_mh(result);
+  DCHECK(result == NULL || MethodHelper(this).HasSameNameAndSignature(&result_mh));
+#endif
   return result;
 }
 
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
-    DCHECK(IsNative() || IsCalleeSaveMethod()) << PrettyMethod(this);
+    DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = GetMappingTableLength();
@@ -695,10 +485,8 @@ uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
 }
 
 uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
-  DexCache* dex_cache = GetDeclaringClass()->GetDexCache();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(GetCodeItemOffset());
+  MethodHelper mh(this);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
   // Iterate over the catch handlers associated with dex_pc
   for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
     uint16_t iter_type_idx = it.GetHandlerTypeIndex();
@@ -707,11 +495,11 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
       return it.GetHandlerAddress();
     }
     // Does this catch exception type apply?
-    Class* iter_exception_type = dex_cache->GetResolvedType(iter_type_idx);
+    Class* iter_exception_type = mh.GetDexCacheResolvedType(iter_type_idx);
     if (iter_exception_type == NULL) {
       // The verifier should take care of resolving all exception classes early
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
-          << dex_file.GetTypeDescriptor(dex_file.GetTypeId(iter_type_idx));
+          << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
     } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
       return it.GetHandlerAddress();
     }
@@ -819,8 +607,9 @@ void Class::DumpClass(std::ostream& os, int flags) const {
   }
 
   Class* super = GetSuperClass();
+  ClassHelper kh(this);
   os << "----- " << (IsInterface() ? "interface" : "class") << " "
-     << "'" << GetDescriptor()->ToModifiedUtf8() << "' cl=" << GetClassLoader() << " -----\n",
+     << "'" << kh.GetDescriptor() << "' cl=" << GetClassLoader() << " -----\n",
   os << "  objectSize=" << SizeOf() << " "
      << "(" << (super != NULL ? super->SizeOf() : -1) << " from super)\n",
   os << StringPrintf("  access=0x%04x.%04x\n",
@@ -831,10 +620,10 @@ void Class::DumpClass(std::ostream& os, int flags) const {
   if (IsArrayClass()) {
     os << "  componentType=" << PrettyClass(GetComponentType()) << "\n";
   }
-  if (NumInterfaces() > 0) {
-    os << "  interfaces (" << NumInterfaces() << "):\n";
-    for (size_t i = 0; i < NumInterfaces(); ++i) {
-      Class* interface = GetInterface(i);
+  if (kh.NumInterfaces() > 0) {
+    os << "  interfaces (" << kh.NumInterfaces() << "):\n";
+    for (size_t i = 0; i < kh.NumInterfaces(); ++i) {
+      Class* interface = kh.GetInterface(i);
       const ClassLoader* cl = interface->GetClassLoader();
       os << StringPrintf("    %2d: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
     }
@@ -963,11 +752,7 @@ bool Class::IsSubClass(const Class* klass) const {
   return false;
 }
 
-bool Class::IsInSamePackage(const String* descriptor_string_1,
-                            const String* descriptor_string_2) {
-  const std::string descriptor1(descriptor_string_1->ToModifiedUtf8());
-  const std::string descriptor2(descriptor_string_2->ToModifiedUtf8());
-
+bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
   size_t i = 0;
   while (descriptor1[i] != '\0' && descriptor1[i] == descriptor2[i]) {
     ++i;
@@ -1009,7 +794,11 @@ bool Class::IsInSamePackage(const Class* that) const {
     klass2 = klass2->GetComponentType();
   }
   // Compare the package part of the descriptor string.
-  return IsInSamePackage(klass1->descriptor_, klass2->descriptor_);
+  ClassHelper kh(klass1);
+  std::string descriptor1 = kh.GetDescriptor();
+  kh.ChangeClass(klass2);
+  std::string descriptor2 = kh.GetDescriptor();
+  return IsInSamePackage(descriptor1, descriptor2);
 }
 
 bool Class::IsClassClass() const {
@@ -1018,8 +807,7 @@ bool Class::IsClassClass() const {
 }
 
 bool Class::IsStringClass() const {
-  // TODO use "this == String::GetJavaLangString()" instead? or do we need this too early?
-  return this == GetDescriptor()->GetClass();
+  return this == String::GetJavaLangString();
 }
 
 ClassLoader* Class::GetClassLoader() const {
@@ -1047,8 +835,7 @@ Method* Class::FindVirtualMethodForInterface(Method* method, bool can_throw) {
   if (can_throw) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
         "Class %s does not implement interface %s",
-        PrettyDescriptor(GetDescriptor()).c_str(),
-        PrettyDescriptor(declaring_class->GetDescriptor()).c_str());
+        PrettyDescriptor(this).c_str(), PrettyDescriptor(declaring_class).c_str());
   }
   return NULL;
 }
@@ -1071,30 +858,13 @@ Method* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& 
   return NULL;
 }
 
-Method* Class::FindInterfaceMethod(String* name,  String* signature) const {
-  // Check the current class before checking the interfaces.
-  Method* method = FindVirtualMethod(name, signature);
-  if (method != NULL) {
-    return method;
-  }
-  int32_t iftable_count = GetIfTableCount();
-  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
-  for (int32_t i = 0; i < iftable_count; i++) {
-    Class* interface = iftable->Get(i)->GetInterface();
-    method = interface->FindVirtualMethod(name, signature);
-    if (method != NULL) {
-      return method;
-    }
-  }
-  return NULL;
-}
-
 Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
                                         const StringPiece& signature) {
+  MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     Method* method = GetDirectMethod(i);
-    if (method->GetName()->Equals(name) &&
-        method->GetSignature()->Equals(signature)) {
+    mh.ChangeMethod(method);
+    if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
     }
   }
@@ -1114,19 +884,11 @@ Method* Class::FindDirectMethod(const StringPiece& name,
 
 Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
                                          const StringPiece& signature) const {
+  MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     Method* method = GetVirtualMethod(i);
-    if (method->GetName()->Equals(name) && method->GetSignature()->Equals(signature)) {
-      return method;
-    }
-  }
-  return NULL;
-}
-
-Method* Class::FindDeclaredVirtualMethod(String* name, String* signature) const {
-  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    Method* method = GetVirtualMethod(i);
-    if (method->GetName() == name && method->GetSignature() == signature) {
+    mh.ChangeMethod(method);
+    if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
     }
   }
@@ -1143,35 +905,14 @@ Method* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& sig
   return NULL;
 }
 
-Method* Class::FindVirtualMethod(String* name, String* signature) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredVirtualMethod(name, signature);
-    if (method != NULL) {
-      return method;
-    }
-  }
-  return NULL;
-}
-
 Field* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class?
   // Interfaces are not relevant because they can't contain instance fields.
+  FieldHelper fh;
   for (size_t i = 0; i < NumInstanceFields(); ++i) {
     Field* f = GetInstanceField(i);
-    if (f->GetName()->Equals(name) &&
-        StringPiece(f->GetTypeDescriptor()) == type) {
-      return f;
-    }
-  }
-  return NULL;
-}
-
-Field* Class::FindDeclaredInstanceField(String* name, String* type) {
-  // Is the field in this class?
-  // Interfaces are not relevant because they can't contain instance fields.
-  for (size_t i = 0; i < NumInstanceFields(); ++i) {
-    Field* f = GetInstanceField(i);
-    if (f->GetName() == name && type->Equals(f->GetTypeDescriptor())) {
+    fh.ChangeField(f);
+    if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
       return f;
     }
   }
@@ -1190,34 +931,13 @@ Field* Class::FindInstanceField(const StringPiece& name, const StringPiece& type
   return NULL;
 }
 
-Field* Class::FindInstanceField(String* name, String* type) {
-  // Is the field in this class, or any of its superclasses?
-  // Interfaces are not relevant because they can't contain instance fields.
-  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
-    Field* f = c->FindDeclaredInstanceField(name, type);
-    if (f != NULL) {
-      return f;
-    }
-  }
-  return NULL;
-}
-
 Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& type) {
   DCHECK(type != NULL);
+  FieldHelper fh;
   for (size_t i = 0; i < NumStaticFields(); ++i) {
     Field* f = GetStaticField(i);
-    if (f->GetName()->Equals(name) && StringPiece(f->GetTypeDescriptor()) == type) {
-      return f;
-    }
-  }
-  return NULL;
-}
-
-Field* Class::FindDeclaredStaticField(String* name, String* type) {
-  DCHECK(type != NULL);
-  for (size_t i = 0; i < NumStaticFields(); ++i) {
-    Field* f = GetStaticField(i);
-    if (f->GetName() == name && type->Equals(f->GetTypeDescriptor())) {
+    fh.ChangeField(f);
+    if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
       return f;
     }
   }
@@ -1225,29 +945,6 @@ Field* Class::FindDeclaredStaticField(String* name, String* type) {
 }
 
 Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
-  // Is the field in this class (or its interfaces), or any of its
-  // superclasses (or their interfaces)?
-  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
-    // Is the field in this class?
-    Field* f = c->FindDeclaredStaticField(name, type);
-    if (f != NULL) {
-      return f;
-    }
-
-    // Is this field in any of this class' interfaces?
-    for (int32_t i = 0; i < c->GetIfTableCount(); ++i) {
-      InterfaceEntry* interface_entry = c->GetIfTable()->Get(i);
-      Class* interface = interface_entry->GetInterface();
-      f = interface->FindDeclaredStaticField(name, type);
-      if (f != NULL) {
-        return f;
-      }
-    }
-  }
-  return NULL;
-}
-
-Field* Class::FindStaticField(String* name, String* type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
   for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
@@ -1284,7 +981,7 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   if (data_size >> component_shift != size_t(component_count) || size < data_size) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
         "%s of length %zd exceeds the VM limit",
-        PrettyDescriptor(array_class->GetDescriptor()).c_str(), component_count);
+        PrettyDescriptor(array_class).c_str(), component_count);
     return NULL;
   }
 
@@ -1553,9 +1250,9 @@ void StackTraceElement::ResetClass() {
   java_lang_StackTraceElement_ = NULL;
 }
 
-StackTraceElement* StackTraceElement::Alloc(const String* declaring_class,
-                                            const String* method_name,
-                                            const String* file_name,
+StackTraceElement* StackTraceElement::Alloc(String* declaring_class,
+                                            String* method_name,
+                                            String* file_name,
                                             int32_t line_number) {
   StackTraceElement* trace =
       down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject());

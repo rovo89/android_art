@@ -18,6 +18,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "object.h"
+#include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 
@@ -63,6 +64,19 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   return AddLocalReference<jclass>(env, c);
 }
 
+jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
+  Class* c = Decode<Class*>(env, javaClass);
+  if (c->IsPrimitive() || c->IsArrayClass() || c->IsProxyClass()) {
+    return 0;  // primitive, array and proxy classes don't have class definitions
+  }
+  const DexFile::ClassDef* class_def = ClassHelper(c).GetClassDef();
+  if (class_def == NULL) {
+    return 0;  // not found
+  } else {
+    return class_def->annotations_off_;
+  }
+}
+
 template<typename T>
 jobjectArray ToArray(JNIEnv* env, const char* array_class_name, const std::vector<T*>& objects) {
   jclass array_class = env->FindClass(array_class_name);
@@ -81,14 +95,10 @@ bool IsVisibleConstructor(Method* m, bool public_only) {
   if (m->IsStatic()) {
     return false;
   }
-  if (m->GetName()->CharAt(0) != '<') {
-    return false;
-  }
-  m->InitJavaFields();
-  return true;
+  return m->IsConstructor();
 }
 
-jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass, jclass javaClass, jboolean publicOnly) {
+jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
 
   std::vector<Method*> constructors;
@@ -106,11 +116,10 @@ bool IsVisibleField(Field* f, bool public_only) {
   if (public_only && !f->IsPublic()) {
     return false;
   }
-  f->InitJavaFields();
   return true;
 }
 
-jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass, jclass javaClass, jboolean publicOnly) {
+jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
 
   std::vector<Field*> fields;
@@ -140,14 +149,13 @@ bool IsVisibleMethod(Method* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
     return false;
   }
-  if (m->GetName()->CharAt(0) == '<') {
+  if (m->IsConstructor()) {
     return false;
   }
-  m->InitJavaFields();
   return true;
 }
 
-jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass, jclass javaClass, jboolean publicOnly) {
+jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
 
   std::vector<Method*> methods;
@@ -188,44 +196,52 @@ jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   return Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache).GetDexObject(env);
 }
 
-jint Class_getNonInnerClassModifiers(JNIEnv* env, jclass, jclass javaClass) {
+jint Class_getNonInnerClassModifiers(JNIEnv* env, jclass javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
   return c->GetAccessFlags() & kAccJavaFlagsMask;
 }
 
-jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
+jobject Class_getClassLoaderNative(JNIEnv* env, jclass javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
   Object* result = c->GetClassLoader();
   return AddLocalReference<jobject>(env, result);
 }
 
-jclass Class_getComponentType(JNIEnv* env, jobject javaThis) {
-  return AddLocalReference<jclass>(env, Decode<Class*>(env, javaThis)->GetComponentType());
+jclass Class_getComponentType(JNIEnv* env, jclass javaClass) {
+  return AddLocalReference<jclass>(env, Decode<Class*>(env, javaClass)->GetComponentType());
 }
 
-bool MethodMatches(Method* m, String* name, const std::string& signature) {
-  if (!m->GetName()->Equals(name)) {
+bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>* arg_array) {
+  if (name != mh->GetName()) {
     return false;
   }
-  std::string method_signature = m->GetSignature()->ToModifiedUtf8();
-  if (!StringPiece(method_signature).starts_with(signature)) {
+  const DexFile::TypeList* m_type_list = mh->GetParameterTypeList();
+  uint32_t m_type_list_size = m_type_list == NULL ? 0 : m_type_list->Size();
+  uint32_t sig_length = arg_array->GetLength();
+
+  if (m_type_list_size != sig_length) {
     return false;
   }
-  if (m->IsMiranda()) {
-    return false;
+
+  for (uint32_t i = 0; i < sig_length; i++) {
+    if (mh->GetClassFromTypeIdx(m_type_list->GetTypeItem(i).type_idx_) != arg_array->Get(i)) {
+      return false;
+    }
   }
   return true;
 }
 
-Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, String* name,
-    const std::string& signature) {
+Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
+                                       ObjectArray<Class>* arg_array) {
   if (methods == NULL) {
     return NULL;
   }
   Method* result = NULL;
+  MethodHelper mh;
   for (int32_t i = 0; i < methods->GetLength(); ++i) {
     Method* method = methods->Get(i);
-    if (!MethodMatches(method, name, signature)) {
+    mh.ChangeMethod(method);
+    if (method->IsMiranda() || !MethodMatches(&mh, name, arg_array)) {
       continue;
     }
 
@@ -242,49 +258,42 @@ Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, String* nam
   return result;
 }
 
-jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass,
-    jclass javaClass, jstring javaName, jobjectArray javaSignature) {
+jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstring javaName,
+                                             jobjectArray javaArgs) {
   Class* c = Decode<Class*>(env, javaClass);
-  String* name = Decode<String*>(env, javaName);
-  ObjectArray<Class>* signature_array = Decode<ObjectArray<Class>*>(env, javaSignature);
+  std::string name = Decode<String*>(env, javaName)->ToModifiedUtf8();
+  ObjectArray<Class>* arg_array = Decode<ObjectArray<Class>*>(env, javaArgs);
 
-  std::string signature;
-  signature += "(";
-  for (int i = 0; i < signature_array->GetLength(); i++) {
-    signature += signature_array->Get(i)->GetDescriptor()->ToModifiedUtf8();
-  }
-  signature += ")";
-
-  Method* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, signature);
+  Method* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, arg_array);
   if (m == NULL) {
-    m = FindConstructorOrMethodInArray(c->GetVirtualMethods(), name, signature);
+    m = FindConstructorOrMethodInArray(c->GetVirtualMethods(), name, arg_array);
   }
 
   if (m != NULL) {
-    m->InitJavaFields();
     return AddLocalReference<jobject>(env, m);
   } else {
     return NULL;
   }
 }
 
-jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname) {
+jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) {
   Class* klass = Decode<Class*>(env, jklass);
   DCHECK(klass->IsClass());
   String* name = Decode<String*>(env, jname);
   DCHECK(name->GetClass()->IsStringClass());
 
+  FieldHelper fh;
   for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
     Field* f = klass->GetInstanceField(i);
-    if (f->GetName()->Equals(name)) {
-      f->InitJavaFields();
+    fh.ChangeField(f);
+    if (name->Equals(fh.GetName())) {
       return AddLocalReference<jclass>(env, f);
     }
   }
   for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
     Field* f = klass->GetStaticField(i);
-    if (f->GetName()->Equals(name)) {
-      f->InitJavaFields();
+    fh.ChangeField(f);
+    if (name->Equals(fh.GetName())) {
       return AddLocalReference<jclass>(env, f);
     }
   }
@@ -302,7 +311,7 @@ jobject Class_getDeclaredField(JNIEnv* env, jclass, jclass jklass, jobject jname
  */
 jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
-  std::string descriptor(c->GetDescriptor()->ToModifiedUtf8());
+  std::string descriptor(ClassHelper(c).GetDescriptor());
   if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
     // The descriptor indicates that this is the class for
     // a primitive type; special-case the return value.
@@ -370,7 +379,7 @@ jboolean Class_isPrimitive(JNIEnv* env, jobject javaThis) {
 }
 
 // Validate method/field access.
-bool CheckMemberAccess(const Class* access_from, const Class* access_to, uint32_t member_flags) {
+bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32_t member_flags) {
   // quick accept for public access */
   if (member_flags & kAccPublic) {
     return true;
@@ -403,7 +412,7 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
-        "Class %s can not be instantiated", PrettyDescriptor(c->GetDescriptor()).c_str());
+        "Class %s can not be instantiated", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
     return NULL;
   }
 
@@ -414,7 +423,7 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   Method* init = c->FindDirectMethod("<init>", "()V");
   if (init == NULL) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
-        "Class %s has no default <init>()V constructor", PrettyDescriptor(c->GetDescriptor()).c_str());
+        "Class %s has no default <init>()V constructor", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
     return NULL;
   }
 
@@ -433,18 +442,19 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   Method* caller_caller = frame.GetMethod();
   Class* caller_class = caller_caller->GetDeclaringClass();
 
+  ClassHelper caller_ch(caller_class);
   if (!caller_class->CanAccess(c)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "Class %s is not accessible from class %s",
-        PrettyDescriptor(c->GetDescriptor()).c_str(),
-        PrettyDescriptor(caller_class->GetDescriptor()).c_str());
+        PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str(),
+        PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
     return NULL;
   }
   if (!CheckMemberAccess(caller_class, init->GetDeclaringClass(), init->GetAccessFlags())) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "%s is not accessible from class %s",
         PrettyMethod(init).c_str(),
-        PrettyDescriptor(caller_class->GetDescriptor()).c_str());
+        PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
     return NULL;
   }
 
@@ -463,15 +473,16 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
   NATIVE_METHOD(Class, desiredAssertionStatus, "()Z"),
-  NATIVE_METHOD(Class, getClassLoader, "(Ljava/lang/Class;)Ljava/lang/ClassLoader;"),
+  NATIVE_METHOD(Class, getAnnotationDirectoryOffset, "()I"),
+  NATIVE_METHOD(Class, getClassLoaderNative, "()Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(Class, getComponentType, "()Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/Class;Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
-  NATIVE_METHOD(Class, getDeclaredConstructors, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Constructor;"),
-  NATIVE_METHOD(Class, getDeclaredField, "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;"),
-  NATIVE_METHOD(Class, getDeclaredFields, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Field;"),
-  NATIVE_METHOD(Class, getDeclaredMethods, "(Ljava/lang/Class;Z)[Ljava/lang/reflect/Method;"),
+  NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
+  NATIVE_METHOD(Class, getDeclaredConstructors, "(Z)[Ljava/lang/reflect/Constructor;"),
+  NATIVE_METHOD(Class, getDeclaredFieldNative, "(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, getDeclaredFields, "(Z)[Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, getDeclaredMethods, "(Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
-  NATIVE_METHOD(Class, getNonInnerClassModifiers, "(Ljava/lang/Class;)I"),
+  NATIVE_METHOD(Class, getNonInnerClassModifiers, "()I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),

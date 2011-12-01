@@ -10,6 +10,7 @@
 #include "image.h"
 #include "mark_sweep.h"
 #include "object.h"
+#include "object_utils.h"
 #include "space.h"
 #include "stl_util.h"
 #include "thread_list.h"
@@ -169,9 +170,9 @@ void Heap::Destroy() {
 Object* Heap::AllocObject(Class* klass, size_t byte_count) {
   {
     ScopedHeapLock lock;
-    DCHECK(klass == NULL || klass->GetDescriptor() == NULL ||
-        (klass->IsClassClass() && byte_count >= sizeof(Class)) ||
-        (klass->IsVariableSize() || klass->GetObjectSize() == byte_count));
+    DCHECK(klass == NULL || (klass->IsClassClass() && byte_count >= sizeof(Class)) ||
+           (klass->IsVariableSize() || klass->GetObjectSize() == byte_count) ||
+           ClassHelper(klass).GetDescriptor().empty());
     DCHECK_GE(byte_count, sizeof(Object));
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {

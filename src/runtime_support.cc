@@ -19,6 +19,8 @@
 #include "dex_cache.h"
 #include "dex_verifier.h"
 #include "macros.h"
+#include "object.h"
+#include "object_utils.h"
 #include "reflection.h"
 #include "ScopedLocalRef.h"
 
@@ -172,7 +174,7 @@ static std::string ClassNameFromIndex(Method* method, uint32_t ref,
   result += "tried to access class ";
   result += class_name;
   result += " from class ";
-  result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
+  result += PrettyDescriptor(method->GetDeclaringClass());
   return result;
 }
 
@@ -194,7 +196,7 @@ static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
   result += "tried to access field ";
   result += class_name + "." + field_name;
   result += " from class ";
-  result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
+  result += PrettyDescriptor(method->GetDeclaringClass());
   return result;
 }
 
@@ -217,7 +219,7 @@ static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
   result += class_name + "." + method_name + ":" +
       dex_file.CreateMethodSignature(id.proto_idx_, NULL);
   result += " from class ";
-  result += PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor());
+  result += PrettyDescriptor(method->GetDeclaringClass());
   return result;
 }
 
@@ -352,9 +354,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
     Method* caller = *caller_sp;
     // less two as return address may span into next dex instruction
     uint32_t dex_pc = caller->ToDexPC(caller_pc - 2);
-    const DexFile& dex_file = Runtime::Current()->GetClassLinker()
-                                  ->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
-    const DexFile::CodeItem* code = dex_file.GetCodeItem(caller->GetCodeItemOffset());
+    const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
@@ -473,14 +473,16 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* ref
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int32_t))) {
+    FieldHelper fh(field);
+    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int32_t))) {
       return field->Get32(NULL);
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    if (!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int32_t)) {
+    FieldHelper fh(field);
+    if (!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int32_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of 32-bit primitive on field '%s'",
                                PrettyField(field, true).c_str());
@@ -495,14 +497,16 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* ref
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int64_t))) {
+    FieldHelper fh(field);
+    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int64_t))) {
       return field->Get64(NULL);
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    if (!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int64_t)) {
+    FieldHelper fh(field);
+    if (!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int64_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of 64-bit primitive on field '%s'",
                                PrettyField(field, true).c_str());
@@ -517,14 +521,16 @@ extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* ref
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    if (LIKELY(!field->IsPrimitiveType())) {
+    FieldHelper fh(field);
+    if (LIKELY(!fh.IsPrimitiveType())) {
       return field->GetObj(NULL);
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    if (field->IsPrimitiveType()) {
+    FieldHelper fh(field);
+    if (fh.IsPrimitiveType()) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted read of reference on primitive field '%s'",
                                PrettyField(field, true).c_str());
@@ -539,7 +545,8 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer
                                        uint32_t new_value, Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int32_t))) {
+    FieldHelper fh(field);
+    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int32_t))) {
       field->Set32(NULL, new_value);
       return 0;  // success
     }
@@ -547,7 +554,8 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    if (!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int32_t)) {
+    FieldHelper fh(field);
+    if (!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int32_t)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of 32-bit primitive to field '%s'",
                                PrettyField(field, true).c_str());
@@ -563,7 +571,8 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
                                       uint64_t new_value, Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    if (LIKELY(field->IsPrimitiveType() && field->PrimitiveSize() == sizeof(int64_t))) {
+    FieldHelper fh(field);
+    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int64_t))) {
       field->Set64(NULL, new_value);
       return 0;  // success
     }
@@ -571,7 +580,8 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (LIKELY(field != NULL)) {
-    if (UNLIKELY(!field->IsPrimitiveType() || field->PrimitiveSize() != sizeof(int64_t))) {
+    FieldHelper fh(field);
+    if (UNLIKELY(!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int64_t))) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of 64-bit primitive to field '%s'",
                                PrettyField(field, true).c_str());
@@ -587,7 +597,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
                                        Object* new_value, Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer);
   if (LIKELY(field != NULL)) {
-    if (LIKELY(!field->IsPrimitiveType())) {
+    if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
       field->SetObj(NULL, new_value);
       return 0;  // success
     }
@@ -595,7 +605,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, true);
   if (field != NULL) {
-    if (field->IsPrimitiveType()) {
+    if (FieldHelper(field).IsPrimitiveType()) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                "Attempted write of reference to primitive field '%s'",
                                PrettyField(field, true).c_str());
@@ -643,8 +653,8 @@ extern "C" Object* artAllocObjectFromCodeWithAccessCheck(uint32_t type_idx, Meth
   Class* referrer = method->GetDeclaringClass();
   if (UNLIKELY(!referrer->CanAccess(klass))) {
     self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;", "illegal class access: '%s' -> '%s'",
-                             PrettyDescriptor(referrer->GetDescriptor()).c_str(),
-                             PrettyDescriptor(klass->GetDescriptor()).c_str());
+                             PrettyDescriptor(referrer).c_str(),
+                             PrettyDescriptor(klass).c_str());
     return NULL;  // Failure
   }
   if (!runtime->GetClassLinker()->EnsureInitialized(klass, true)) {
@@ -672,11 +682,11 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t com
     if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
           "Bad filled array request for type %s",
-          PrettyDescriptor(klass->GetDescriptor()).c_str());
+          PrettyDescriptor(klass).c_str());
     } else {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/InternalError;",
           "Found type %s; filled-new-array not implemented for anything but \'int\'",
-          PrettyDescriptor(klass->GetDescriptor()).c_str());
+          PrettyDescriptor(klass).c_str());
     }
     return NULL;  // Failure
   } else {
@@ -731,8 +741,8 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
         "%s cannot be cast to %s",
-        PrettyDescriptor(a->GetDescriptor()).c_str(),
-        PrettyDescriptor(b->GetDescriptor()).c_str());
+        PrettyDescriptor(a).c_str(),
+        PrettyDescriptor(b).c_str());
     return -1;  // Failure
   }
 }
@@ -751,8 +761,8 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "Cannot store an object of type %s in to an array of type %s",
-        PrettyDescriptor(element_class->GetDescriptor()).c_str(),
-        PrettyDescriptor(array_class->GetDescriptor()).c_str());
+        PrettyDescriptor(element_class).c_str(),
+        PrettyDescriptor(array_class).c_str());
     return -1;  // Failure
   }
 }
@@ -769,7 +779,7 @@ Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread
   //
   // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
   // running.
-  if (klass == referrer->GetDeclaringClass() && referrer->IsClassInitializer()) {
+  if (klass == referrer->GetDeclaringClass() && MethodHelper(referrer).IsClassInitializer()) {
     return klass;
   }
   if (!class_linker->EnsureInitialized(klass, true)) {
@@ -792,14 +802,14 @@ Class* InitializeStaticStorageAndVerifyAccess(uint32_t type_idx, const Method* r
   if (UNLIKELY(!referrer->GetDeclaringClass()->CanAccess(klass))) {
     self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
         "Class %s is inaccessible to method %s",
-        PrettyDescriptor(klass->GetDescriptor()).c_str(),
+        PrettyDescriptor(klass).c_str(),
         PrettyMethod(referrer, true).c_str());
   }
   // If we are the <clinit> of this class, just return our storage.
   //
   // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
   // running.
-  if (klass == referrer->GetDeclaringClass() && referrer->IsClassInitializer()) {
+  if (klass == referrer->GetDeclaringClass() && MethodHelper(referrer).IsClassInitializer()) {
     return klass;
   }
   if (!class_linker->EnsureInitialized(klass, true)) {
@@ -1000,10 +1010,11 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
 
   // Placing into local references incoming arguments from the caller's register arguments,
   // replacing original Object* with jobject
-  const size_t num_params = proxy_method->NumArgs();
+  MethodHelper proxy_mh(proxy_method);
+  const size_t num_params = proxy_mh.NumArgs();
   size_t args_in_regs = 0;
   for (size_t i = 1; i < num_params; i++) {  // skip receiver
-    args_in_regs = args_in_regs + (proxy_method->IsParamALongOrDouble(i) ? 2 : 1);
+    args_in_regs = args_in_regs + (proxy_mh.IsParamALongOrDouble(i) ? 2 : 1);
     if (args_in_regs > 2) {
       args_in_regs = 2;
       break;
@@ -1012,23 +1023,23 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   size_t cur_arg = 0;  // current stack location to read
   size_t param_index = 1;  // skip receiver
   while (cur_arg < args_in_regs && param_index < num_params) {
-    if (proxy_method->IsParamAReference(param_index)) {
+    if (proxy_mh.IsParamAReference(param_index)) {
       Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
       jobject jobj = AddLocalReference<jobject>(env, obj);
       *reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)) = jobj;
     }
-    cur_arg = cur_arg + (proxy_method->IsParamALongOrDouble(param_index) ? 2 : 1);
+    cur_arg = cur_arg + (proxy_mh.IsParamALongOrDouble(param_index) ? 2 : 1);
     param_index++;
   }
   // Placing into local references incoming arguments from the caller's stack arguments
   cur_arg += 11;  // skip callee saves, LR, Method* and out arg spills for R1 to R3
   while (param_index < num_params) {
-    if (proxy_method->IsParamAReference(param_index)) {
+    if (proxy_mh.IsParamAReference(param_index)) {
       Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
       jobject jobj = AddLocalReference<jobject>(env, obj);
       *reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)) = jobj;
     }
-    cur_arg = cur_arg + (proxy_method->IsParamALongOrDouble(param_index) ? 2 : 1);
+    cur_arg = cur_arg + (proxy_mh.IsParamALongOrDouble(param_index) ? 2 : 1);
     param_index++;
   }
   // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
@@ -1049,13 +1060,14 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   // Convert proxy method into expected interface method
   Method* interface_method = proxy_method->FindOverriddenMethod();
   CHECK(interface_method != NULL);
+  CHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
   LOG(INFO) << "Interface method is " << PrettyMethod(interface_method, true);
   // Box arguments
   cur_arg = 0;  // reset stack location to read to start
   // reset index, will index into param type array which doesn't include the receiver
   param_index = 0;
-  ObjectArray<Class>* param_types = interface_method->GetJavaParameterTypes();
+  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes();
   CHECK(param_types != NULL);
   // Check number of parameter types agrees with number from the Method - less 1 for the receiver.
   CHECK_EQ(static_cast<size_t>(param_types->GetLength()), num_params - 1);
@@ -1119,7 +1131,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     Object* result_ref = self->DecodeJObject(result);
     if (result_ref != NULL) {
       JValue result_unboxed;
-      UnboxPrimitive(env, result_ref, interface_method->GetReturnType(), result_unboxed);
+      UnboxPrimitive(env, result_ref, proxy_mh.GetReturnType(), result_unboxed);
       *reinterpret_cast<JValue*>(stack_args) = result_unboxed;
     } else {
       *reinterpret_cast<jobject*>(stack_args) = NULL;
@@ -1132,7 +1144,10 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     if (!exception->IsCheckedException()) {
       self->SetException(exception);
     } else {
-      ObjectArray<Class>* declared_exceptions = proxy_method->GetExceptionTypes();
+      // TODO: get the correct intersection of exceptions as passed to the class linker's create
+      // proxy code.
+      UNIMPLEMENTED(FATAL);
+      ObjectArray<Class>* declared_exceptions = NULL; // proxy_mh.GetExceptionTypes();
       Class* exception_class = exception->GetClass();
       bool declares_exception = false;
       for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {

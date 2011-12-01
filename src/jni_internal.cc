@@ -18,6 +18,7 @@
 #include "jni.h"
 #include "logging.h"
 #include "object.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "scoped_jni_thread_state.h"
 #include "stl_util.h"
@@ -119,24 +120,6 @@ size_t NumArgArrayBytes(const char* shorty) {
   return num_bytes;
 }
 
-static size_t NumArgArrayBytes(const String* shorty) {
-  size_t num_bytes = 0;
-  size_t end = shorty->GetLength();
-  for (size_t i = 1; i < end; ++i) {
-    char ch = shorty->CharAt(i);
-    if (ch == 'D' || ch == 'J') {
-      num_bytes += 8;
-    } else if (ch == 'L') {
-      // Argument is a reference or an array.  The shorty descriptor
-      // does not distinguish between these types.
-      num_bytes += sizeof(Object*);
-    } else {
-      num_bytes += 4;
-    }
-  }
-  return num_bytes;
-}
-
 // For external use.
 template<typename T>
 T Decode(JNIEnv* public_env, jobject obj) {
@@ -177,11 +160,12 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
 
 static byte* CreateArgArray(JNIEnv* public_env, Method* method, va_list ap) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  const String* shorty = method->GetShorty();
+  const char* shorty = MethodHelper(method).GetShorty();
+  size_t shorty_len = strlen(shorty);
   size_t num_bytes = NumArgArrayBytes(shorty);
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
-  for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
-    switch (shorty->CharAt(i)) {
+  for (size_t i = 1, offset = 0; i < shorty_len; ++i) {
+    switch (shorty[i]) {
       case 'Z':
       case 'B':
       case 'C':
@@ -215,11 +199,12 @@ static byte* CreateArgArray(JNIEnv* public_env, Method* method, va_list ap) {
 
 static byte* CreateArgArray(JNIEnv* public_env, Method* method, jvalue* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  size_t num_bytes = NumArgArrayBytes(method->GetShorty());
+  const char* shorty = MethodHelper(method).GetShorty();
+  size_t shorty_len = strlen(shorty);
+  size_t num_bytes = NumArgArrayBytes(shorty);
   UniquePtr<byte[]> arg_array(new byte[num_bytes]);
-  const String* shorty = method->GetShorty();
-  for (int i = 1, offset = 0; i < shorty->GetLength(); ++i) {
-    switch (shorty->CharAt(i)) {
+  for (size_t i = 1, offset = 0; i < shorty_len; ++i) {
+    switch (shorty[i]) {
       case 'Z':
       case 'B':
       case 'C':
@@ -313,9 +298,8 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
 }
 
 static void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const char* name, const char* sig, const char* kind) {
-  std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
   ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
-      "no %s method \"%s.%s%s\"", kind, class_descriptor.c_str(), name, sig);
+      "no %s method \"%s.%s%s\"", kind, ClassHelper(c).GetDescriptor().c_str(), name, sig);
 }
 
 static jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
@@ -340,8 +324,6 @@ static jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const 
     ThrowNoSuchMethodError(ts, c, name, sig, is_static ? "static" : "non-static");
     return NULL;
   }
-
-  method->InitJavaFields();
 
   return EncodeMethod(method);
 }
@@ -374,26 +356,22 @@ static jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const ch
     // Failed to find type from the signature of the field.
     DCHECK(ts.Self()->IsExceptionPending());
     ts.Self()->ClearException();
-    std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
     ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
         "no type \"%s\" found and so no field \"%s\" could be found in class "
-        "\"%s\" or its superclasses", sig, name, class_descriptor.c_str());
+        "\"%s\" or its superclasses", sig, name, ClassHelper(c).GetDescriptor().c_str());
     return NULL;
   }
-  std::string field_type_descriptor = field_type->GetDescriptor()->ToModifiedUtf8();
   if (is_static) {
-    field = c->FindStaticField(name, field_type_descriptor);
+    field = c->FindStaticField(name, ClassHelper(field_type).GetDescriptor());
   } else {
-    field = c->FindInstanceField(name, field_type_descriptor);
+    field = c->FindInstanceField(name, ClassHelper(field_type).GetDescriptor());
   }
   if (field == NULL) {
-    std::string class_descriptor(c->GetDescriptor()->ToModifiedUtf8());
     ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
         "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
-        name, class_descriptor.c_str());
+        name, ClassHelper(c).GetDescriptor().c_str());
     return NULL;
   }
-  field->InitJavaFields();
   return EncodeField(field);
 }
 
@@ -1996,7 +1974,7 @@ class JNI {
     Class* element_class = Decode<Class*>(ts, element_jclass);
     std::string descriptor;
     descriptor += "[";
-    descriptor += element_class->GetDescriptor()->ToModifiedUtf8();
+    descriptor += ClassHelper(element_class).GetDescriptor();
 
     // Find the class.
     ScopedLocalRef<jclass> java_array_class(env, FindClass(env, descriptor.c_str()));
@@ -2209,9 +2187,11 @@ class JNI {
         m = c->FindVirtualMethod(name, sig);
       }
       if (m == NULL) {
+        LOG(INFO) << "Failed to register native method " << name << sig;
         ThrowNoSuchMethodError(ts, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
+        LOG(INFO) << "Failed to register non-native method " << name << sig << " as native";
         ThrowNoSuchMethodError(ts, c, name, sig, "native");
         return JNI_ERR;
       }

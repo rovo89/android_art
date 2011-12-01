@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "object_utils.h"
+
 #define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
     (1 << kDebugDisplayMissingTargets))
 
@@ -192,7 +194,7 @@ Field* FindFieldWithResolvedStaticStorage(CompilationUnit* cUnit,
     // See if we can find a dex reference for the storage class.
     // we may not if the dex file never references the super class,
     // but usually it will.
-    std::string descriptor = field->GetDeclaringClass()->GetDescriptor()->ToModifiedUtf8();
+    std::string descriptor(art::FieldHelper(field).GetDeclaringClassDescriptor());
     const art::DexFile::StringId* string_id =
         cUnit->dex_file->FindStringId(descriptor);
     if (string_id == NULL) {

@@ -18,9 +18,12 @@
 
 #include "compiler.h"
 #include "object.h"
+#include "object_utils.h"
 #include "thread_list.h"
 
-int oatVRegOffsetFromMethod(art::Method* method, int reg);
+int oatVRegOffset(const art::DexFile::CodeItem* code_item,
+                  uint32_t core_spills, uint32_t fp_spills,
+                  size_t frame_size, int reg);
 
 namespace art {
 
@@ -45,16 +48,31 @@ uintptr_t Frame::GetReturnPC() const {
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
-uint32_t Frame::GetVReg(Method* method, int vreg) const {
-  DCHECK(method == GetMethod());
-  int offset = oatVRegOffsetFromMethod(method, vreg);
+uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,
+                        uint32_t fp_spills, size_t frame_size, int vreg) const {
+  int offset = oatVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
   return *reinterpret_cast<uint32_t*>(vreg_addr);
 }
 
-void Frame::SetVReg(Method* method, int vreg, uint32_t new_value) {
-  DCHECK(method == GetMethod());
-  int offset = oatVRegOffsetFromMethod(method, vreg);
+uint32_t Frame::GetVReg(Method* m, int vreg) const {
+  DCHECK(m == GetMethod());
+  const art::DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+  uint32_t core_spills = m->GetCoreSpillMask();
+  uint32_t fp_spills = m->GetFpSpillMask();
+  size_t frame_size = m->GetFrameSizeInBytes();
+  return GetVReg(code_item, core_spills, fp_spills, frame_size, vreg);
+}
+
+void Frame::SetVReg(Method* m, int vreg, uint32_t new_value) {
+  DCHECK(m == GetMethod());
+  const art::DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+  uint32_t core_spills = m->GetCoreSpillMask();
+  uint32_t fp_spills = m->GetFpSpillMask();
+  size_t frame_size = m->GetFrameSizeInBytes();
+  int offset = oatVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
   *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
 }

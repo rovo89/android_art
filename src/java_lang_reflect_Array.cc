@@ -17,6 +17,7 @@
 #include "jni_internal.h"
 #include "class_linker.h"
 #include "object.h"
+#include "object_utils.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
@@ -43,7 +44,7 @@ Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dim
     // old code assumed this but if you recurse from "[Foo" to "Foo" to "oo",
     // you shouldn't assume there isn't a class "oo".
   }
-  std::string sub_array_descriptor(array_class->GetDescriptor()->ToModifiedUtf8(), 1);
+  std::string sub_array_descriptor(ClassHelper(array_class).GetDescriptor(), 1);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* sub_array_class = class_linker->FindClass(sub_array_descriptor,
                                                    array_class->GetClassLoader());
@@ -77,9 +78,9 @@ jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, job
   Class* element_class = Decode<Class*>(env, javaElementClass);
   DCHECK(element_class->IsClass());
   DCHECK(javaDimArray != NULL);
-  Object* dimensions_obj = Decode<Class*>(env, javaDimArray);
+  Object* dimensions_obj = Decode<Object*>(env, javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
-  DCHECK(dimensions_obj->GetClass()->GetDescriptor()->Equals("[I"));
+  DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor().c_str(), "[I");
   IntArray* dimensions_array = down_cast<IntArray*>(dimensions_obj);
 
   // Verify dimensions.
@@ -101,7 +102,7 @@ jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, job
 
   // Generate the full name of the array class.
   std::string descriptor(num_dimensions, '[');
-  descriptor += element_class->GetDescriptor()->ToModifiedUtf8();
+  descriptor += ClassHelper(element_class).GetDescriptor();
 
   // Find/generate the array class.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -130,7 +131,7 @@ jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, ji
   }
   std::string descriptor;
   descriptor += '[';
-  descriptor += element_class->GetDescriptor()->ToModifiedUtf8();
+  descriptor += ClassHelper(element_class).GetDescriptor();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* array_class = class_linker->FindClass(descriptor, element_class->GetClassLoader());

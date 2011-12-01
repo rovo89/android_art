@@ -159,6 +159,7 @@ static inline std::string PrintableString(const StringT& s) {
 std::string PrettyDescriptor(const String* descriptor);
 std::string PrettyDescriptor(const std::string& descriptor);
 std::string PrettyDescriptor(Primitive::Type type);
+std::string PrettyDescriptor(const Class* klass);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').

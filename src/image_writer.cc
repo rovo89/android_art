@@ -18,6 +18,7 @@
 #include "intern_table.h"
 #include "logging.h"
 #include "object.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "space.h"
 #include "utils.h"
@@ -101,7 +102,7 @@ bool ImageWriter::IsImageClass(const Class* klass) {
   if (klass->IsPrimitive()) { 
     return true;
   }
-  const std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
+  const std::string descriptor(ClassHelper(klass).GetDescriptor());
   return image_classes_->find(descriptor) != image_classes_->end();
 }
 
@@ -160,7 +161,7 @@ void ImageWriter::PruneNonImageClasses() {
 bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
   if (!context->image_writer->IsImageClass(klass)) {
-    context->non_image_classes->insert(klass->GetDescriptor()->ToModifiedUtf8());
+    context->non_image_classes->insert(ClassHelper(klass).GetDescriptor());
   }
   return true;
 }
@@ -178,7 +179,7 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
     return;
   }
   Class* klass = obj->AsClass();
-  CHECK(image_writer->IsImageClass(klass)) << klass->GetDescriptor()->ToModifiedUtf8();
+  CHECK(image_writer->IsImageClass(klass)) << PrettyDescriptor(klass);
 }
 
 void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {

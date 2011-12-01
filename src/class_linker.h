@@ -18,6 +18,7 @@
 #define ART_SRC_CLASS_LINKER_H_
 
 #include <map>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -105,7 +106,7 @@ class ClassLinker {
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
   Class* ResolveType(const DexFile& dex_file,
-                     uint32_t type_idx,
+                     uint16_t type_idx,
                      const Class* referrer) {
     return ResolveType(dex_file,
                        type_idx,
@@ -116,7 +117,7 @@ class ClassLinker {
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  Class* ResolveType(uint32_t type_idx, const Method* referrer) {
+  Class* ResolveType(uint16_t type_idx, const Method* referrer) {
     Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
     if (UNLIKELY(resolved_type == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
@@ -128,7 +129,7 @@ class ClassLinker {
     return resolved_type;
   }
 
-  Class* ResolveType(uint32_t type_idx, const Field* referrer) {
+  Class* ResolveType(uint16_t type_idx, const Field* referrer) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
     Class* resolved_type = dex_cache->GetResolvedType(type_idx);
@@ -145,7 +146,7 @@ class ClassLinker {
   // type, since it may be referenced from but not contained within
   // the given DexFile.
   Class* ResolveType(const DexFile& dex_file,
-                     uint32_t type_idx,
+                     uint16_t type_idx,
                      DexCache* dex_cache,
                      const ClassLoader* class_loader);
 
@@ -244,7 +245,8 @@ class ClassLinker {
   void VerifyClass(Class* klass);
 
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
-      ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
+                          ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
+  std::string GetDescriptorForProxy(const Class* proxy_class);
 
   pid_t GetClassesLockOwner(); // For SignalCatcher.
   pid_t GetDexLockOwner(); // For SignalCatcher.
@@ -303,10 +305,6 @@ class ClassLinker {
                  SirtRef<Class>& klass,
                  const ClassLoader* class_loader);
 
-  void LoadInterfaces(const DexFile& dex_file,
-                      const DexFile::ClassDef& dex_class_def,
-                      SirtRef<Class>& klass);
-
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
                  SirtRef<Field>& dst);
 
@@ -340,11 +338,11 @@ class ClassLinker {
 
   bool LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& dex_file);
 
-  bool LinkMethods(SirtRef<Class>& klass);
+  bool LinkMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfaces);
 
   bool LinkVirtualMethods(SirtRef<Class>& klass);
 
-  bool LinkInterfaceMethods(SirtRef<Class>& klass);
+  bool LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfaces);
 
   bool LinkStaticFields(SirtRef<Class>& klass);
   bool LinkInstanceFields(SirtRef<Class>& klass);
@@ -364,8 +362,8 @@ class ClassLinker {
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location);
 
-  Method* CreateProxyConstructor(SirtRef<Class>& klass);
-  Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype, ObjectArray<Class>* throws);
+  Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class);
+  Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype);
 
   const bool verbose_;
 
@@ -433,18 +431,7 @@ class ClassLinker {
     return klass;
   }
 
-  void SetClassRoot(ClassRoot class_root, Class* klass) {
-    DCHECK(!init_done_);
-
-    DCHECK(klass != NULL);
-    DCHECK(klass->GetClassLoader() == NULL);
-    DCHECK(klass->GetDescriptor() != NULL);
-    DCHECK(klass->GetDescriptor()->Equals(GetClassRootDescriptor(class_root)));
-
-    DCHECK(class_roots_ != NULL);
-    DCHECK(class_roots_->Get(class_root) == NULL);
-    class_roots_->Set(class_root, klass);
-  }
+  void SetClassRoot(ClassRoot class_root, Class* klass);
 
   ObjectArray<Class>* GetClassRoots() {
     DCHECK(class_roots_ != NULL);
@@ -459,7 +446,6 @@ class ClassLinker {
     return descriptor;
   }
 
-  ObjectArray<Class>* array_interfaces_;
   ObjectArray<InterfaceEntry>* array_iftable_;
 
   bool init_done_;
@@ -469,6 +455,7 @@ class ClassLinker {
   friend class CommonTest;
   friend class ImageWriter;  // for GetClassRoots
   friend class ObjectTest;
+  FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);
   FRIEND_TEST(DexCacheTest, Open);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);
   FRIEND_TEST(ObjectTest, AllocObjectArray);

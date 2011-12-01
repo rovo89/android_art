@@ -32,7 +32,7 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
 
 bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src, JValue& dst);
 
-jobject InvokeMethod(JNIEnv* env, jobject method, jobject receiver, jobject args, jobject params);
+jobject InvokeMethod(JNIEnv* env, jobject method, jobject receiver, jobject args);
 
 bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c);
 

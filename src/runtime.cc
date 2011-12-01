@@ -800,19 +800,8 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
   Class* method_class = Method::GetMethodClass();
   SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
-  const char* name;
-  if (type == kSaveAll) {
-    name = "$$$callee_save_method$$$";
-  } else if (type == kRefsOnly) {
-    name = "$$$refs_only_callee_save_method$$$";
-  } else {
-    DCHECK(type == kRefsAndArgs);
-    name = "$$$refs_and_args_callee_save_method$$$";
-  }
-  method->SetName(intern_table_->InternStrong(name));
-  CHECK(method->GetName() != NULL);
-  method->SetSignature(intern_table_->InternStrong("()V"));
-  CHECK(method->GetSignature() != NULL);
+  // TODO: use a special method for callee saves
+  method->SetMethodIndex(DexFile::kDexNoIndex16);
   method->SetCode(NULL);
   if ((instruction_set == kThumb2) || (instruction_set == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |

@@ -42,18 +42,12 @@ class ObjectTest : public CommonTest {
 
 TEST_F(ObjectTest, IsInSamePackage) {
   // Matches
-  SirtRef<String> Object_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/Object;"));
-  SirtRef<String> Class_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/Class;"));
-  EXPECT_TRUE(Class::IsInSamePackage(Object_descriptor.get(), Class_descriptor.get()));
-  SirtRef<String> Foo_descriptor(String::AllocFromModifiedUtf8("LFoo;"));
-  SirtRef<String> Bar_descriptor(String::AllocFromModifiedUtf8("LBar;"));
-  EXPECT_TRUE(Class::IsInSamePackage(Foo_descriptor.get(), Bar_descriptor.get()));
+  EXPECT_TRUE(Class::IsInSamePackage("Ljava/lang/Object;", "Ljava/lang/Class;"));
+  EXPECT_TRUE(Class::IsInSamePackage("LFoo;", "LBar;"));
 
   // Mismatches
-  SirtRef<String> File_descriptor(String::AllocFromModifiedUtf8("Ljava/io/File;"));
-  EXPECT_FALSE(Class::IsInSamePackage(Object_descriptor.get(), File_descriptor.get()));
-  SirtRef<String> Method_descriptor(String::AllocFromModifiedUtf8("Ljava/lang/reflect/Method;"));
-  EXPECT_FALSE(Class::IsInSamePackage(Object_descriptor.get(), Method_descriptor.get()));
+  EXPECT_FALSE(Class::IsInSamePackage("Ljava/lang/Object;", "Ljava/io/File;"));
+  EXPECT_FALSE(Class::IsInSamePackage("Ljava/lang/Object;", "Ljava/lang/reflect/Method;"));
 }
 
 TEST_F(ObjectTest, Clone) {
@@ -90,11 +84,10 @@ TEST_F(ObjectTest, AllocObjectArray) {
   self->ClearException();
 
   ASSERT_TRUE(oa->GetClass() != NULL);
-  ASSERT_EQ(2U, oa->GetClass()->NumInterfaces());
-  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"),
-            oa->GetClass()->GetInterface(0));
-  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"),
-            oa->GetClass()->GetInterface(1));
+  ClassHelper oa_ch(oa->GetClass());
+  ASSERT_EQ(2U, oa_ch.NumInterfaces());
+  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"), oa_ch.GetInterface(0));
+  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"), oa_ch.GetInterface(1));
 }
 
 TEST_F(ObjectTest, AllocArray) {
@@ -288,34 +281,50 @@ TEST_F(ObjectTest, DescriptorCompare) {
   ASSERT_TRUE(klass2 != NULL);
 
   Method* m1_1 = klass1->GetVirtualMethod(0);
-  EXPECT_TRUE(m1_1->GetName()->Equals("m1"));
+  MethodHelper mh(m1_1);
+  EXPECT_STREQ(mh.GetName(), "m1");
   Method* m2_1 = klass1->GetVirtualMethod(1);
-  EXPECT_TRUE(m2_1->GetName()->Equals("m2"));
+  mh.ChangeMethod(m2_1);
+  EXPECT_STREQ(mh.GetName(), "m2");
   Method* m3_1 = klass1->GetVirtualMethod(2);
-  EXPECT_TRUE(m3_1->GetName()->Equals("m3"));
+  mh.ChangeMethod(m3_1);
+  EXPECT_STREQ(mh.GetName(), "m3");
   Method* m4_1 = klass1->GetVirtualMethod(3);
-  EXPECT_TRUE(m4_1->GetName()->Equals("m4"));
+  mh.ChangeMethod(m4_1);
+  EXPECT_STREQ(mh.GetName(), "m4");
 
   Method* m1_2 = klass2->GetVirtualMethod(0);
-  EXPECT_TRUE(m1_2->GetName()->Equals("m1"));
+  mh.ChangeMethod(m1_2);
+  EXPECT_STREQ(mh.GetName(), "m1");
   Method* m2_2 = klass2->GetVirtualMethod(1);
-  EXPECT_TRUE(m2_2->GetName()->Equals("m2"));
+  mh.ChangeMethod(m2_2);
+  EXPECT_STREQ(mh.GetName(), "m2");
   Method* m3_2 = klass2->GetVirtualMethod(2);
-  EXPECT_TRUE(m3_2->GetName()->Equals("m3"));
+  mh.ChangeMethod(m3_2);
+  EXPECT_STREQ(mh.GetName(), "m3");
   Method* m4_2 = klass2->GetVirtualMethod(3);
-  EXPECT_TRUE(m4_2->GetName()->Equals("m4"));
+  mh.ChangeMethod(m4_2);
+  EXPECT_STREQ(mh.GetName(), "m4");
 
-  EXPECT_TRUE(m1_1->HasSameNameAndSignature(m1_2));
-  EXPECT_TRUE(m1_2->HasSameNameAndSignature(m1_1));
+  mh.ChangeMethod(m1_1);
+  MethodHelper mh2(m1_2);
+  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
+  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 
-  EXPECT_TRUE(m2_1->HasSameNameAndSignature(m2_2));
-  EXPECT_TRUE(m2_2->HasSameNameAndSignature(m2_1));
+  mh.ChangeMethod(m2_1);
+  mh2.ChangeMethod(m2_2);
+  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
+  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 
-  EXPECT_TRUE(m3_1->HasSameNameAndSignature(m3_2));
-  EXPECT_TRUE(m3_2->HasSameNameAndSignature(m3_1));
+  mh.ChangeMethod(m3_1);
+  mh2.ChangeMethod(m3_2);
+  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
+  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 
-  EXPECT_TRUE(m4_1->HasSameNameAndSignature(m4_2));
-  EXPECT_TRUE(m4_2->HasSameNameAndSignature(m4_1));
+  mh.ChangeMethod(m4_1);
+  mh2.ChangeMethod(m4_2);
+  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
+  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 }
 
 

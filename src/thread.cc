@@ -35,6 +35,7 @@
 #include "jni_internal.h"
 #include "monitor.h"
 #include "object.h"
+#include "object_utils.h"
 #include "reflection.h"
 #include "runtime.h"
 #include "runtime_support.h"
@@ -534,8 +535,9 @@ struct StackDumpVisitor : public Thread::StackVisitor {
       if (m->IsNative()) {
         os << "(Native method)";
       } else {
-        SirtRef<String> source_file(c->GetSourceFile());
-        os << "(" << (source_file.get() != NULL ? source_file->ToModifiedUtf8() : "unavailable")
+        mh.ChangeMethod(m);
+        const char* source_file(mh.GetDeclaringClassSourceFile());
+        os << "(" << (source_file != NULL ? source_file : "unavailable")
            << ":" << line_number << ")";
       }
       os << "\n";
@@ -545,6 +547,7 @@ struct StackDumpVisitor : public Thread::StackVisitor {
       Monitor::DescribeWait(os, thread);
     }
   }
+  MethodHelper mh;
   Method* last_method;
   int last_line_number;
   int repetition_count;
@@ -1172,27 +1175,32 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     *stack_depth = depth;
   }
 
+  MethodHelper mh;
   for (int32_t i = 0; i < depth; ++i) {
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     Method* method = down_cast<Method*>(method_trace->Get(i));
+    mh.ChangeMethod(method);
     uint32_t native_pc = pc_trace->Get(i);
-    Class* klass = method->GetDeclaringClass();
-    std::string class_name(PrettyDescriptor(klass->GetDescriptor()));
-    int32_t line_number = -1;
-    DexCache* dex_cache = klass->GetDexCache();
-    if (dex_cache != NULL) {
-      const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-      line_number = dex_file.GetLineNumFromPC(method, method->ToDexPC(native_pc));
-    }
+    int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
     // Allocate element, potentially triggering GC
     // TODO: reuse class_name_object via Class::name_?
+    std::string class_name(PrettyDescriptor(mh.GetDeclaringClassDescriptor()));
     SirtRef<String> class_name_object(String::AllocFromModifiedUtf8(class_name.c_str()));
     if (class_name_object.get() == NULL) {
       return NULL;
     }
+    SirtRef<String> method_name_object(String::AllocFromModifiedUtf8(mh.GetName()));
+    if (method_name_object.get() == NULL) {
+      return NULL;
+    }
+    SirtRef<String>
+        source_name_object(String::AllocFromModifiedUtf8(mh.GetDeclaringClassSourceFile()));
+    if (source_name_object.get() == NULL) {
+      return NULL;
+    }
     StackTraceElement* obj = StackTraceElement::Alloc(class_name_object.get(),
-                                                      method->GetName(),
-                                                      klass->GetSourceFile(),
+                                                      method_name_object.get(),
+                                                      source_name_object.get(),
                                                       line_number);
     if (obj == NULL) {
       return NULL;
@@ -1247,7 +1255,7 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
 
 void Thread::ThrowOutOfMemoryError(Class* c, size_t byte_count) {
   std::string msg(StringPrintf("Failed to allocate a %zd-byte %s", byte_count,
-      PrettyDescriptor(c->GetDescriptor()).c_str()));
+      PrettyDescriptor(c).c_str()));
   ThrowOutOfMemoryError(msg.c_str());
 }
 
@@ -1432,8 +1440,14 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
       const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
       CHECK(reg_bitmap != NULL);
       const VmapTable vmap_table(m->GetVmapTableRaw());
+      const art::DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+      DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+      uint32_t core_spills = m->GetCoreSpillMask();
+      uint32_t fp_spills = m->GetFpSpillMask();
+      size_t frame_size = m->GetFrameSizeInBytes();
       // For all dex registers in the bitmap
-      size_t num_regs = std::min(map.RegWidth() * 8, static_cast<size_t>(m->NumRegisters()));
+      size_t num_regs = std::min(map.RegWidth() * 8,
+                                 static_cast<size_t>(code_item->registers_size_));
       for (size_t reg = 0; reg < num_regs; ++reg) {
         // Does this register hold a reference?
         if (TestBitmap(reg, reg_bitmap)) {
@@ -1454,7 +1468,8 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
             spill_shifts--;  // wind back one as we want the last match
             ref = reinterpret_cast<Object*>(context_->GetGPR(spill_shifts));
           } else {
-            ref = reinterpret_cast<Object*>(frame.GetVReg(m, reg));
+            ref = reinterpret_cast<Object*>(frame.GetVReg(code_item, core_spills, fp_spills,
+                                                          frame_size, reg));
           }
           if (ref != NULL) {
             root_visitor_(ref, arg_);

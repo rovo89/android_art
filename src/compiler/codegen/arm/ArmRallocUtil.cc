@@ -263,17 +263,19 @@ extern int oatSRegOffset(CompilationUnit* cUnit, int sReg)
 
 
 /* Return sp-relative offset in bytes using Method* */
-extern int oatVRegOffsetFromMethod(Method* method, int reg)
+extern int oatVRegOffset(const art::DexFile::CodeItem* code_item,
+                         uint32_t core_spills, uint32_t fp_spills,
+                         size_t frame_size, int reg)
 {
-    int numIns = method->NumIns();
-    int numRegs = method->NumRegisters() - numIns;
-    int numOuts = method->NumOuts();
-    int numSpills = __builtin_popcount(method->GetCoreSpillMask()) +
-                    __builtin_popcount(method->GetFpSpillMask());
+    int numIns = code_item->ins_size_;
+    int numRegs = code_item->registers_size_ - numIns;
+    int numOuts = code_item->outs_size_;
+    int numSpills = __builtin_popcount(core_spills) +
+                    __builtin_popcount(fp_spills);
     int numPadding = (STACK_ALIGN_WORDS -
         (numSpills + numRegs + numOuts + 2)) & (STACK_ALIGN_WORDS-1);
     int regsOffset = (numOuts + numPadding + 1) * 4;
-    int insOffset = method->GetFrameSizeInBytes() + 4;
+    int insOffset = frame_size + 4;
     return (reg < numRegs) ? regsOffset + (reg << 2) :
            insOffset + ((reg - numRegs) << 2);
 }

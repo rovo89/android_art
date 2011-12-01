@@ -19,6 +19,7 @@
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "object.h"
+#include "object_utils.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
@@ -45,7 +46,7 @@ void InitBoxingMethods() {
   gShort_valueOf = class_linker->FindSystemClass("Ljava/lang/Short;")->FindDeclaredDirectMethod("valueOf", "(S)Ljava/lang/Short;");
 }
 
-jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs, jobject javaParams) {
+jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs) {
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
 
@@ -72,21 +73,23 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
 
   // Get our arrays of arguments and their types, and check they're the same size.
   ObjectArray<Object>* objects = Decode<ObjectArray<Object>*>(env, javaArgs);
-  ObjectArray<Class>* classes = Decode<ObjectArray<Class>*>(env, javaParams);
-  int32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
-  if (arg_count != classes->GetLength()) {
+  MethodHelper mh(m);
+  const DexFile::TypeList* classes = mh.GetParameterTypeList();
+  uint32_t classes_size = classes == NULL ? 0 : classes->Size();
+  uint32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
+  if (arg_count != classes_size) {
     self->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "wrong number of arguments; expected %d, got %d",
-        classes->GetLength(), arg_count);
+        classes_size, arg_count);
     return NULL;
   }
 
   // Translate javaArgs to a jvalue[].
   UniquePtr<jvalue[]> args(new jvalue[arg_count]);
   JValue* decoded_args = reinterpret_cast<JValue*>(args.get());
-  for (int32_t i = 0; i < arg_count; ++i) {
+  for (uint32_t i = 0; i < arg_count; ++i) {
     Object* arg = objects->Get(i);
-    Class* dst_class = classes->Get(i);
+    Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
     if (dst_class->IsPrimitive()) {
       if (!UnboxPrimitive(env, arg, dst_class, decoded_args[i])) {
         return NULL;
@@ -111,7 +114,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   }
 
   // Box if necessary and return.
-  BoxPrimitive(env, m->GetReturnType()->GetPrimitiveType(), value);
+  BoxPrimitive(env, mh.GetReturnType()->GetPrimitiveType(), value);
   return AddLocalReference<jobject>(env, value.l);
 }
 
@@ -121,7 +124,7 @@ bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
     return false;
   }
   if (!o->InstanceOf(c)) {
-    std::string expectedClassName(PrettyDescriptor(c->GetDescriptor()));
+    std::string expectedClassName(PrettyDescriptor(c));
     std::string actualClassName(PrettyTypeOf(o));
     jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
         "expected receiver of type %s, but got %s",
@@ -283,7 +286,7 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
     if (o != NULL && !o->InstanceOf(dst_class)) {
       jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
           "expected object of type %s, but got %s",
-          PrettyDescriptor(dst_class->GetDescriptor()).c_str(),
+          PrettyDescriptor(dst_class).c_str(),
           PrettyTypeOf(o).c_str());
       return false;
     }
@@ -302,37 +305,37 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
   }
 
   JValue boxed_value = { 0 };
-  const String* src_descriptor = o->GetClass()->GetDescriptor();
+  std::string src_descriptor = ClassHelper(o->GetClass()).GetDescriptor();
   Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
-  if (src_descriptor->Equals("Ljava/lang/Boolean;")) {
+  if (src_descriptor == "Ljava/lang/Boolean;") {
     src_class = class_linker->FindPrimitiveClass('Z');
     boxed_value.i = primitive_field->GetBoolean(o);  // and extend read value to 32bits
-  } else if (src_descriptor->Equals("Ljava/lang/Byte;")) {
+  } else if (src_descriptor == "Ljava/lang/Byte;") {
     src_class = class_linker->FindPrimitiveClass('B');
     boxed_value.i = primitive_field->GetByte(o);  // and extend read value to 32bits
-  } else if (src_descriptor->Equals("Ljava/lang/Character;")) {
+  } else if (src_descriptor == "Ljava/lang/Character;") {
     src_class = class_linker->FindPrimitiveClass('C');
     boxed_value.i = primitive_field->GetChar(o);  // and extend read value to 32bits
-  } else if (src_descriptor->Equals("Ljava/lang/Float;")) {
+  } else if (src_descriptor == "Ljava/lang/Float;") {
     src_class = class_linker->FindPrimitiveClass('F');
     boxed_value.f = primitive_field->GetFloat(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Double;")) {
+  } else if (src_descriptor == "Ljava/lang/Double;") {
     src_class = class_linker->FindPrimitiveClass('D');
     boxed_value.d = primitive_field->GetDouble(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Integer;")) {
+  } else if (src_descriptor == "Ljava/lang/Integer;") {
     src_class = class_linker->FindPrimitiveClass('I');
     boxed_value.i = primitive_field->GetInt(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Long;")) {
+  } else if (src_descriptor == "Ljava/lang/Long;") {
     src_class = class_linker->FindPrimitiveClass('J');
     boxed_value.j = primitive_field->GetLong(o);
-  } else if (src_descriptor->Equals("Ljava/lang/Short;")) {
+  } else if (src_descriptor == "Ljava/lang/Short;") {
     src_class = class_linker->FindPrimitiveClass('S');
     boxed_value.i = primitive_field->GetShort(o);  // and extend read value to 32bits
   } else {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-        "%s is not a boxed primitive type", PrettyDescriptor(src_descriptor).c_str());
+        "%s is not a boxed primitive type", PrettyDescriptor(src_descriptor.c_str()).c_str());
     return false;
   }
 

@@ -23,6 +23,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "context.h"
+#include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack_indirect_reference_table.h"
@@ -87,15 +88,11 @@ class ObjectRegistry {
 };
 
 struct AllocRecordStackTraceElement {
-  const Method* method;
+  Method* method;
   uintptr_t raw_pc;
 
   int32_t LineNumber() const {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Class* c = method->GetDeclaringClass();
-    DexCache* dex_cache = c->GetDexCache();
-    const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-    return dex_file.GetLineNumFromPC(method, method->ToDexPC(raw_pc));
+    return MethodHelper(method).GetLineNumFromNativePC(raw_pc);
   }
 };
 
@@ -452,7 +449,7 @@ void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 
 std::string Dbg::GetClassDescriptor(JDWP::RefTypeId classId) {
   Class* c = gRegistry->Get<Class*>(classId);
-  return c->GetDescriptor()->ToModifiedUtf8();
+  return ClassHelper(c).GetDescriptor();
 }
 
 JDWP::ObjectId Dbg::GetClassObject(JDWP::RefTypeId id) {
@@ -527,7 +524,7 @@ void Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uin
   }
 
   if (pDescriptor != NULL) {
-    *pDescriptor = c->GetDescriptor()->ToModifiedUtf8();
+    *pDescriptor = ClassHelper(c).GetDescriptor();
   }
 }
 
@@ -560,19 +557,14 @@ uint8_t Dbg::GetClassObjectType(JDWP::RefTypeId refTypeId) {
 std::string Dbg::GetSignature(JDWP::RefTypeId refTypeId) {
   Class* c = gRegistry->Get<Class*>(refTypeId);
   CHECK(c != NULL);
-  return c->GetDescriptor()->ToModifiedUtf8();
+  return ClassHelper(c).GetDescriptor();
 }
 
 bool Dbg::GetSourceFile(JDWP::RefTypeId refTypeId, std::string& result) {
   Class* c = gRegistry->Get<Class*>(refTypeId);
   CHECK(c != NULL);
-
-  String* source_file = c->GetSourceFile();
-  if (source_file == NULL) {
-    return false;
-  }
-  result = source_file->ToModifiedUtf8();
-  return true;
+  result = ClassHelper(c).GetSourceFile();
+  return result == NULL;
 }
 
 uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
@@ -619,7 +611,7 @@ int Dbg::GetArrayLength(JDWP::ObjectId arrayId) {
 uint8_t Dbg::GetArrayElementTag(JDWP::ObjectId arrayId) {
   Object* o = gRegistry->Get<Object*>(arrayId);
   Array* a = o->AsArray();
-  std::string descriptor(a->GetClass()->GetDescriptor()->ToModifiedUtf8());
+  std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
   JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
   if (!IsPrimitiveTag(tag)) {
     tag = TagFromClass(a->GetClass()->GetComponentType());
@@ -635,8 +627,7 @@ bool Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::Expan
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return false;
   }
-
-  std::string descriptor(a->GetClass()->GetDescriptor()->ToModifiedUtf8());
+  std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
   JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
 
   if (IsPrimitiveTag(tag)) {
@@ -676,8 +667,7 @@ bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const 
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return false;
   }
-
-  std::string descriptor(a->GetClass()->GetDescriptor()->ToModifiedUtf8());
+  std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
   JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
 
   if (IsPrimitiveTag(tag)) {
@@ -763,7 +753,8 @@ Method* FromMethodId(JDWP::MethodId mid) {
 }
 
 std::string Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId) {
-  return FromMethodId(methodId)->GetName()->ToModifiedUtf8();
+  Method* m = FromMethodId(methodId);
+  return MethodHelper(m).GetName();
 }
 
 /*
@@ -808,8 +799,8 @@ static uint16_t DemangleSlot(uint16_t slot, Frame& f) {
   if (slot == kEclipseWorkaroundSlot) {
     return 0;
   } else if (slot == 0) {
-    Method* m = f.GetMethod();
-    return m->NumRegisters() - m->NumIns();
+    const DexFile::CodeItem* code_item = MethodHelper(f.GetMethod()).GetCodeItem();
+    return code_item->registers_size_ - code_item->ins_size_;
   }
   return slot;
 }
@@ -825,10 +816,10 @@ void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDW
 
   for (size_t i = 0; i < instance_field_count + static_field_count; ++i) {
     Field* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
-
+    FieldHelper fh(f);
     expandBufAddFieldId(pReply, ToFieldId(f));
-    expandBufAddUtf8String(pReply, f->GetName()->ToModifiedUtf8().c_str());
-    expandBufAddUtf8String(pReply, f->GetTypeDescriptor());
+    expandBufAddUtf8String(pReply, fh.GetName());
+    expandBufAddUtf8String(pReply, fh.GetTypeDescriptor());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
@@ -848,10 +839,10 @@ void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JD
 
   for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
     Method* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
-
+    MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
-    expandBufAddUtf8String(pReply, m->GetName()->ToModifiedUtf8().c_str());
-    expandBufAddUtf8String(pReply, m->GetSignature()->ToModifiedUtf8().c_str());
+    expandBufAddUtf8String(pReply, mh.GetName());
+    expandBufAddUtf8String(pReply, mh.GetSignature().c_str());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
@@ -863,10 +854,11 @@ void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JD
 void Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply) {
   Class* c = gRegistry->Get<Class*>(refTypeId);
   CHECK(c != NULL);
-  size_t interface_count = c->NumInterfaces();
+  ClassHelper kh(c);
+  size_t interface_count = kh.NumInterfaces();
   expandBufAdd4BE(pReply, interface_count);
   for (size_t i = 0; i < interface_count; ++i) {
-    expandBufAddRefTypeId(pReply, gRegistry->Add(c->GetInterface(i)));
+    expandBufAddRefTypeId(pReply, gRegistry->Add(kh.GetInterface(i)));
   }
 }
 
@@ -885,17 +877,15 @@ void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JD
   };
 
   Method* m = FromMethodId(methodId);
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(m->GetDeclaringClass()->GetDexCache());
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(m->GetCodeItemOffset());
-
+  MethodHelper mh(m);
   uint64_t start, end;
   if (m->IsNative()) {
     start = -1;
     end = -1;
   } else {
     start = 0;
-    end = code_item->insns_size_in_code_units_; // TODO: what are the units supposed to be? *2?
+    // TODO: what are the units supposed to be? *2?
+    end = mh.GetCodeItem()->insns_size_in_code_units_;
   }
 
   expandBufAdd8BE(pReply, start);
@@ -909,7 +899,8 @@ void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JD
   context.numItems = 0;
   context.pReply = pReply;
 
-  dex_file.DecodeDebugInfo(code_item, m, DebugCallbackContext::Callback, NULL, &context);
+  mh.GetDexFile().DecodeDebugInfo(mh.GetCodeItem(), m->IsStatic(), m->GetDexMethodIndex(),
+                                  DebugCallbackContext::Callback, NULL, &context);
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
@@ -941,13 +932,12 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
   };
 
   Method* m = FromMethodId(methodId);
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(m->GetDeclaringClass()->GetDexCache());
-  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(m->GetCodeItemOffset());
+  MethodHelper mh(m);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
 
   // arg_count considers doubles and longs to take 2 units.
   // variable_count considers everything to take 1 unit.
-  std::string shorty(m->GetShorty()->ToModifiedUtf8());
+  std::string shorty(mh.GetShorty());
   expandBufAdd4BE(pReply, m->NumArgRegisters(shorty));
 
   // We don't know the total number of variables yet, so leave a blank and update it later.
@@ -959,24 +949,25 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
   context.variable_count = 0;
   context.with_generic = with_generic;
 
-  dex_file.DecodeDebugInfo(code_item, m, NULL, DebugCallbackContext::Callback, &context);
+  mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(), NULL,
+                                  DebugCallbackContext::Callback, &context);
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
 }
 
 JDWP::JdwpTag Dbg::GetFieldBasicTag(JDWP::FieldId fieldId) {
-  return BasicTagFromDescriptor(FromFieldId(fieldId)->GetTypeDescriptor());
+  return BasicTagFromDescriptor(FieldHelper(FromFieldId(fieldId)).GetTypeDescriptor());
 }
 
 JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId fieldId) {
-  return BasicTagFromDescriptor(FromFieldId(fieldId)->GetTypeDescriptor());
+  return BasicTagFromDescriptor(FieldHelper(FromFieldId(fieldId)).GetTypeDescriptor());
 }
 
 void Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
   Object* o = gRegistry->Get<Object*>(objectId);
   Field* f = FromFieldId(fieldId);
 
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
 
   if (IsPrimitiveTag(tag)) {
     expandBufAdd1(pReply, tag);
@@ -1002,7 +993,7 @@ void Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t
   Object* o = gRegistry->Get<Object*>(objectId);
   Field* f = FromFieldId(fieldId);
 
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
 
   if (IsPrimitiveTag(tag)) {
     if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
@@ -2120,11 +2111,11 @@ class StringTable {
   StringTable() {
   }
 
-  void Add(const String* s) {
+  void Add(const char* s) {
     table_.insert(s);
   }
 
-  size_t IndexOf(const String* s) {
+  size_t IndexOf(const char* s) {
     return std::distance(table_.begin(), table_.find(s));
   }
 
@@ -2133,15 +2124,18 @@ class StringTable {
   }
 
   void WriteTo(std::vector<uint8_t>& bytes) {
-    typedef std::set<const String*>::const_iterator It; // TODO: C++0x auto
+    typedef std::set<const char*>::const_iterator It; // TODO: C++0x auto
     for (It it = table_.begin(); it != table_.end(); ++it) {
-      const String* s = *it;
-      JDWP::AppendUtf16BE(bytes, s->GetCharArray()->GetData(), s->GetLength());
+      const char* s = *it;
+      size_t s_len = CountModifiedUtf8Chars(s);
+      UniquePtr<uint16_t> s_utf16(new uint16_t[s_len]);
+      ConvertModifiedUtf8ToUtf16(s_utf16.get(), s);
+      JDWP::AppendUtf16BE(bytes, s_utf16.get(), s_len);
     }
   }
 
  private:
-  std::set<const String*> table_;
+  std::set<const char*> table_;
   DISALLOW_COPY_AND_ASSIGN(StringTable);
 };
 
@@ -2206,14 +2200,16 @@ jbyteArray Dbg::GetRecentAllocations() {
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[idx];
 
-    class_names.Add(record->type->GetDescriptor());
+    class_names.Add(ClassHelper(record->type).GetDescriptor().c_str());
 
+    MethodHelper mh;
     for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
-      const Method* m = record->stack[i].method;
+      Method* m = record->stack[i].method;
+      mh.ChangeMethod(m);
       if (m != NULL) {
-        class_names.Add(m->GetDeclaringClass()->GetDescriptor());
-        method_names.Add(m->GetName());
-        filenames.Add(m->GetDeclaringClass()->GetSourceFile());
+        class_names.Add(mh.GetDeclaringClassDescriptor());
+        method_names.Add(mh.GetName());
+        filenames.Add(mh.GetDeclaringClassSourceFile());
       }
     }
 
@@ -2251,6 +2247,7 @@ jbyteArray Dbg::GetRecentAllocations() {
 
   count = gAllocRecordCount;
   idx = headIndex();
+  ClassHelper kh;
   while (count--) {
     // For each entry:
     // (4b) total allocation size
@@ -2261,19 +2258,21 @@ jbyteArray Dbg::GetRecentAllocations() {
     size_t stack_depth = record->GetDepth();
     JDWP::Append4BE(bytes, record->byte_count);
     JDWP::Append2BE(bytes, record->thin_lock_id);
-    JDWP::Append2BE(bytes, class_names.IndexOf(record->type->GetDescriptor()));
+    kh.ChangeClass(record->type);
+    JDWP::Append2BE(bytes, class_names.IndexOf(kh.GetDescriptor().c_str()));
     JDWP::Append1BE(bytes, stack_depth);
 
+    MethodHelper mh;
     for (size_t stack_frame = 0; stack_frame < stack_depth; ++stack_frame) {
       // For each stack frame:
       // (2b) method's class name
       // (2b) method name
       // (2b) method source file
       // (2b) line number, clipped to 32767; -2 if native; -1 if no source
-      const Method* m = record->stack[stack_frame].method;
-      JDWP::Append2BE(bytes, class_names.IndexOf(m->GetDeclaringClass()->GetDescriptor()));
-      JDWP::Append2BE(bytes, method_names.IndexOf(m->GetName()));
-      JDWP::Append2BE(bytes, filenames.IndexOf(m->GetDeclaringClass()->GetSourceFile()));
+      mh.ChangeMethod(record->stack[stack_frame].method);
+      JDWP::Append2BE(bytes, class_names.IndexOf(mh.GetDeclaringClassDescriptor()));
+      JDWP::Append2BE(bytes, method_names.IndexOf(mh.GetName()));
+      JDWP::Append2BE(bytes, filenames.IndexOf(mh.GetDeclaringClassSourceFile()));
       JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
     }
 

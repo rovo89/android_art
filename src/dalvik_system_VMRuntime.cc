@@ -18,6 +18,7 @@
 #include "debugger.h"
 #include "jni_internal.h"
 #include "object.h"
+#include "object_utils.h"
 #include "thread.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -65,7 +66,7 @@ jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementCla
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   std::string descriptor;
   descriptor += "[";
-  descriptor += element_class->GetDescriptor()->ToModifiedUtf8();
+  descriptor += ClassHelper(element_class).GetDescriptor();
   Class* array_class = class_linker->FindClass(descriptor, NULL);
   Array* result = Array::Alloc(array_class, length);
   if (result == NULL) {

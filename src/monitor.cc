@@ -27,6 +27,7 @@
 #include "class_linker.h"
 #include "mutex.h"
 #include "object.h"
+#include "object_utils.h"
 #include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -824,15 +825,9 @@ void Monitor::TranslateLocation(const Method* method, uint32_t pc,
     line_number = 0;
     return;
   }
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* c = method->GetDeclaringClass();
-  DexCache* dex_cache = c->GetDexCache();
-  const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-  const DexFile::ClassDef* class_def = dex_file.FindClassDef(c->GetDescriptor()->ToModifiedUtf8());
-
-  source_file = dex_file.GetSourceFile(*class_def);
-  line_number = dex_file.GetLineNumFromPC(method, method->ToDexPC(pc));
+  MethodHelper mh(method);
+  source_file = mh.GetDeclaringClassSourceFile();
+  line_number = mh.GetLineNumFromNativePC(pc);
 }
 
 MonitorList::MonitorList() : lock_("MonitorList lock") {

@@ -17,6 +17,7 @@
 #include "jni_internal.h"
 #include "class_linker.h"
 #include "object.h"
+#include "object_utils.h"
 #include "reflection.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -32,12 +33,13 @@ namespace {
  * check.  We can also safely assume the constructor isn't associated
  * with an interface, array, or primitive class.
  */
-jobject Constructor_constructNative(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs, jclass javaDeclaringClass, jobjectArray javaParams, jint, jboolean) {
+jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  Class* c = Decode<Class*>(env, javaDeclaringClass);
+  Method* m = Decode<Object*>(env, javaMethod)->AsMethod();
+  Class* c = m->GetDeclaringClass();
   if (c->IsAbstract()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
-        "Can't instantiate abstract class %s", PrettyDescriptor(c->GetDescriptor()).c_str());
+        "Can't instantiate abstract class %s", PrettyDescriptor(c).c_str());
     return NULL;
   }
 
@@ -52,14 +54,14 @@ jobject Constructor_constructNative(JNIEnv* env, jobject javaMethod, jobjectArra
   }
 
   jobject javaReceiver = AddLocalReference<jobject>(env, receiver);
-  InvokeMethod(env, javaMethod, javaReceiver, javaArgs, javaParams);
+  InvokeMethod(env, javaMethod, javaReceiver, javaArgs);
 
   // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
   return javaReceiver;
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Constructor, constructNative, "([Ljava/lang/Object;Ljava/lang/Class;[Ljava/lang/Class;IZ)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstance, "([Ljava/lang/Object;)Ljava/lang/Object;"),
 };
 
 }  // namespace

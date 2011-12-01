@@ -376,7 +376,9 @@ class DexFile {
   const char* GetMethodShorty(const MethodId& method_id) const {
     return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
   }
-
+  const char* GetMethodShorty(const MethodId& method_id, int32_t* length) const {
+    return StringDataAndLengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
+  }
   // Returns the number of class definitions in the .dex file.
   size_t NumClassDefs() const {
     CHECK(header_ != NULL);
@@ -425,11 +427,11 @@ class DexFile {
   }
 
   //
-  const CodeItem* GetCodeItem(const uint32_t code_off_) const {
-    if (code_off_ == 0) {
+  const CodeItem* GetCodeItem(const uint32_t code_off) const {
+    if (code_off == 0) {
       return NULL;  // native or abstract method
     } else {
-      const byte* addr = base_ + code_off_;
+      const byte* addr = base_ + code_off;
       return reinterpret_cast<const CodeItem*>(addr);
     }
   }
@@ -458,7 +460,7 @@ class DexFile {
 
   // Looks up a proto id for a given return type and signature type list
   const ProtoId* FindProtoId(uint16_t return_type_id,
-                             const std::vector<uint16_t>& signature_type_ids_) const;
+                             const std::vector<uint16_t>& signature_type_idxs_) const;
 
   // Given a signature place the type ids into the given vector, returns true on success
   bool CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* param_type_idxs,
@@ -592,7 +594,7 @@ class DexFile {
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
   int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const;
 
-  void DecodeDebugInfo(const CodeItem* code_item, const Method* method,
+  void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                        DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
                        void* cnxt) const;
 
@@ -657,14 +659,12 @@ class DexFile {
   // Returns true if the header magic is of the expected value.
   bool IsMagicValid();
 
-  void DecodeDebugInfo0(const CodeItem* code_item, const Method* method,
+  void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
       void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
 
 
-  // The index of descriptors to class definition indexes.
-  // TODO: given type_ids are sorted by string_id index, and string_ids are alphabetically, class
-  //   lookup can be done with a binary search. Is the index necessary?
+  // The index of descriptors to class definition indexes (as opposed to type id indexes)
   typedef std::map<const StringPiece, uint32_t> Index;
   Index index_;
 
@@ -721,11 +721,11 @@ class DexFileParameterIterator {
   }
   bool HasNext() const { return pos_ < size_; }
   void Next() { ++pos_; }
-  uint16_t GetTypeId() {
+  uint16_t GetTypeIdx() {
     return type_list_->GetTypeItem(pos_).type_idx_;
   }
   const char* GetDescriptor() {
-    return dex_file_.StringByTypeIdx(GetTypeId());
+    return dex_file_.StringByTypeIdx(GetTypeIdx());
   }
  private:
   const DexFile& dex_file_;

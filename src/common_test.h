@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 #include "heap.h"
 #include "oat_file.h"
+#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "stl_util.h"
@@ -118,9 +119,9 @@ class CommonTest : public testing::Test {
   void MakeExecutable(Method* method) {
     CHECK(method != NULL);
 
+    MethodHelper mh(method);
     const CompiledInvokeStub* compiled_invoke_stub =
-        compiler_->FindInvokeStub(method->IsStatic(),
-                                  method->GetShorty()->ToModifiedUtf8().c_str());
+        compiler_->FindInvokeStub(mh.IsStatic(), mh.GetShorty());
     CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     MakeExecutable(invoke_stub);

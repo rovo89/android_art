@@ -6,13 +6,14 @@
 #include "class_linker.h"
 #include "dex_verifier.h"
 #include "object.h"
+#include "object_utils.h"
 #include "thread.h"
 #include "jni.h"
 
 namespace art {
 
-#define IS_IN_REF_BITMAP(method, ref_bitmap, reg) \
-  ( ((reg) < (method)->NumRegisters()) &&                       \
+#define IS_IN_REF_BITMAP(mh, ref_bitmap, reg) \
+  ( ((reg) < mh.GetCodeItem()->registers_size_) &&                       \
     (( *((ref_bitmap) + (reg)/8) >> ((reg) % 8) ) & 0x01) )
 
 #define CHECK_REGS_CONTAIN_REFS(...)     \
@@ -20,7 +21,7 @@ namespace art {
     int t[] = {__VA_ARGS__};             \
     int t_size = sizeof(t) / sizeof(*t);      \
     for (int i = 0; i < t_size; ++i)          \
-      CHECK(IS_IN_REF_BITMAP(m, ref_bitmap, t[i])) \
+      CHECK(IS_IN_REF_BITMAP(mh, ref_bitmap, t[i])) \
           << "Error: Reg @ " << i << "-th argument is not in GC map"; \
   } while(false)
 
@@ -52,7 +53,8 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
       art::verifier::DexVerifier::VerifyMethodAndDump(m);
     }
     const uint8_t* ref_bitmap = NULL;
-    std::string m_name = m->GetName()->ToModifiedUtf8();
+    MethodHelper mh(m);
+    std::string m_name(mh.GetName());
 
     // Given the method name and the number of times the method has been called,
     // we know the Dex registers with live reference values. Assert that what we

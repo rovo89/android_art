@@ -70,16 +70,7 @@ class Compiler {
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
-  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const {
-    if (!IsImage()) {
-      return false;
-    }
-    Class* resolved_class = dex_cache->GetResolvedTypes()->Get(type_idx);
-    if (resolved_class == NULL) {
-      return false;
-    }
-    return IsImageClass(resolved_class->GetDescriptor()->ToModifiedUtf8());
-  }
+  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const;
   bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx) const {
     // TODO: Add support for loading strings referenced by image_classes_
     // See also Compiler::ResolveDexFile

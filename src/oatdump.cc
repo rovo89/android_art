@@ -12,6 +12,7 @@
 #include "file.h"
 #include "image.h"
 #include "os.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "space.h"
 #include "stringpiece.h"
@@ -299,7 +300,8 @@ class ImageDump {
     StringAppendF(&summary, "%p: ", obj);
     if (obj->IsClass()) {
       Class* klass = obj->AsClass();
-      StringAppendF(&summary, "CLASS %s", klass->GetDescriptor()->ToModifiedUtf8().c_str());
+      summary += "CLASS ";
+      summary += ClassHelper(klass).GetDescriptor();
       std::ostringstream ss;
       ss << " (" << klass->GetStatus() << ")";
       summary += ss.str();
@@ -317,7 +319,7 @@ class ImageDump {
       StringAppendF(&summary, "OBJECT");
     }
     StringAppendF(&summary, "\n");
-    std::string descriptor = obj->GetClass()->GetDescriptor()->ToModifiedUtf8();
+    std::string descriptor(ClassHelper(obj->GetClass()).GetDescriptor());
     StringAppendF(&summary, "\tclass %p: %s\n", obj->GetClass(), descriptor.c_str());
     state->stats_.descriptor_to_bytes[descriptor] += object_bytes;
     state->stats_.descriptor_to_count[descriptor] += 1;
@@ -359,10 +361,7 @@ class ImageDump {
           state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
         }
 
-        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-        class DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-        const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-        const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
+        const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
       }

@@ -13,6 +13,7 @@
 #include "class_loader.h"
 #include "file.h"
 #include "object.h"
+#include "object_utils.h"
 #include "os.h"
 
 #if defined(HAVE_PRCTL)
@@ -66,6 +67,14 @@ std::string PrettyDescriptor(const String* java_descriptor) {
     return "null";
   }
   return PrettyDescriptor(java_descriptor->ToModifiedUtf8());
+}
+
+std::string PrettyDescriptor(const Class* klass) {
+  if (klass == NULL) {
+    return "null";
+  }
+  return PrettyDescriptor(ClassHelper(klass).GetDescriptor());
+
 }
 
 std::string PrettyDescriptor(const std::string& descriptor) {
@@ -126,14 +135,15 @@ std::string PrettyField(const Field* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
+  FieldHelper fh(f);
   std::string result;
   if (with_type) {
-    result += PrettyDescriptor(f->GetTypeDescriptor());
+    result += PrettyDescriptor(fh.GetTypeDescriptor());
     result += ' ';
   }
-  result += PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor());
+  result += PrettyDescriptor(fh.GetDeclaringClassDescriptor());
   result += '.';
-  result += f->GetName()->ToModifiedUtf8();
+  result += fh.GetName();
   return result;
 }
 
@@ -141,14 +151,14 @@ std::string PrettyMethod(const Method* m, bool with_signature) {
   if (m == NULL) {
     return "null";
   }
-  Class* c = m->GetDeclaringClass();
-  std::string result(PrettyDescriptor(c->GetDescriptor()));
+  MethodHelper mh(m);
+  std::string result(PrettyDescriptor(mh.GetDeclaringClassDescriptor()));
   result += '.';
-  result += m->GetName()->ToModifiedUtf8();
+  result += mh.GetName();
   if (with_signature) {
     // TODO: iterate over the signature's elements and pass them all to
     // PrettyDescriptor? We'd need to pull out the return type specially, too.
-    result += m->GetSignature()->ToModifiedUtf8();
+    result += mh.GetSignature();
   }
   return result;
 }
@@ -173,9 +183,11 @@ std::string PrettyTypeOf(const Object* obj) {
   if (obj->GetClass() == NULL) {
     return "(raw)";
   }
-  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
+  ClassHelper kh(obj->GetClass());
+  std::string result(PrettyDescriptor(kh.GetDescriptor()));
   if (obj->IsClass()) {
-    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
+    kh.ChangeClass(obj->AsClass());
+    result += "<" + PrettyDescriptor(kh.GetDescriptor()) + ">";
   }
   return result;
 }
@@ -186,7 +198,7 @@ std::string PrettyClass(const Class* c) {
   }
   std::string result;
   result += "java.lang.Class<";
-  result += PrettyDescriptor(c->GetDescriptor());
+  result += PrettyDescriptor(c);
   result += ">";
   return result;
 }
@@ -197,7 +209,7 @@ std::string PrettyClassAndClassLoader(const Class* c) {
   }
   std::string result;
   result += "java.lang.Class<";
-  result += PrettyDescriptor(c->GetDescriptor());
+  result += PrettyDescriptor(c);
   result += ",";
   result += PrettyTypeOf(c->GetClassLoader());
   // TODO: add an identifying hash value for the loader
@@ -254,16 +266,15 @@ std::string DescriptorToDot(const std::string& descriptor) {
 }
 
 std::string JniShortName(const Method* m) {
-  Class* declaring_class = m->GetDeclaringClass();
-
-  std::string class_name(declaring_class->GetDescriptor()->ToModifiedUtf8());
+  MethodHelper mh(m);
+  std::string class_name(mh.GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
   CHECK_EQ(class_name[0], 'L') << class_name;
   CHECK_EQ(class_name[class_name.size() - 1], ';') << class_name;
   class_name.erase(0, 1);
   class_name.erase(class_name.size() - 1, 1);
 
-  std::string method_name(m->GetName()->ToModifiedUtf8());
+  std::string method_name(mh.GetName());
 
   std::string short_name;
   short_name += "Java_";
@@ -278,7 +289,7 @@ std::string JniLongName(const Method* m) {
   long_name += JniShortName(m);
   long_name += "__";
 
-  std::string signature(m->GetSignature()->ToModifiedUtf8());
+  std::string signature(MethodHelper(m).GetSignature());
   signature.erase(0, 1);
   signature.erase(signature.begin() + signature.find(')'), signature.end());
 

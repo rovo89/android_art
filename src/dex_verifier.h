@@ -1145,10 +1145,7 @@ class DexVerifier {
    * DalvikJniReturnType, because if it's a reference type we need to do the class lookup.
    * Returned references are assumed to be initialized. Returns kRegTypeUnknown for "void".
    */
-  const RegType& GetMethodReturnType() {
-    return reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(),
-                                     method_->GetReturnTypeDescriptor());
-  }
+  const RegType& GetMethodReturnType();
 
   /*
    * Verify that the target instruction is not "move-exception". It's important that the only way

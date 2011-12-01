@@ -13,6 +13,7 @@
 #include "intern_table.h"
 #include "leb128.h"
 #include "logging.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "stringpiece.h"
 
@@ -69,7 +70,7 @@ std::string RegType::Dump() const {
       if (IsUnresolvedTypes()) {
         result += PrettyDescriptor(GetDescriptor());
       } else {
-        result += PrettyDescriptor(GetClass()->GetDescriptor());
+        result += PrettyDescriptor(GetClass());
       }
     }
   }
@@ -124,7 +125,8 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
     Class* common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const ClassLoader* class_loader = s->GetClassLoader();
-    std::string descriptor = "[" + common_elem->GetDescriptor()->ToModifiedUtf8();
+    std::string descriptor = "[";
+    descriptor += ClassHelper(common_elem).GetDescriptor();
     Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
     DCHECK(array_class != NULL);
     return array_class;
@@ -354,11 +356,15 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
     return *entry;
   } else {
     DCHECK (type == RegType::kRegTypeReference);
+    ClassHelper kh;
     for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
       // check resolved and unresolved references, ignore uninitialized references
-      if (cur_entry->IsReference() && cur_entry->GetClass()->GetDescriptor()->Equals(descriptor)) {
-        return *cur_entry;
+      if (cur_entry->IsReference()) {
+        kh.ChangeClass(cur_entry->GetClass());
+        if (descriptor == kh.GetDescriptor()) {
+          return *cur_entry;
+        }
       } else if (cur_entry->IsUnresolvedReference() &&
                  cur_entry->GetDescriptor()->Equals(descriptor)) {
         return *cur_entry;
@@ -887,7 +893,7 @@ bool DexVerifier::VerifyClass(const Class* klass) {
     return true;
   }
   Class* super = klass->GetSuperClass();
-  if (super == NULL && !klass->GetDescriptor()->Equals("Ljava/lang/Object;")) {
+  if (super == NULL && ClassHelper(klass).GetDescriptor() != "Ljava/lang/Object;") {
     LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass) << " that has no super class";
     return false;
   }
@@ -1574,7 +1580,8 @@ bool DexVerifier::SetTypesFromSignature() {
     cur_arg++;
   }
 
-  const DexFile::ProtoId& proto_id = dex_file_->GetProtoId(method_->GetProtoIdx());
+  const DexFile::ProtoId& proto_id =
+      dex_file_->GetMethodPrototype(dex_file_->GetMethodId(method_->GetDexMethodIndex()));
   DexFileParameterIterator iterator(*dex_file_, proto_id);
 
   for (; iterator.HasNext(); iterator.Next()) {
@@ -2145,7 +2152,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           if (!res_class->IsArrayClass() || !component_type->IsPrimitive()  ||
               component_type->IsPrimitiveVoid()) {
             Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data on "
-                                       << PrettyDescriptor(res_class->GetDescriptor());
+                                       << PrettyDescriptor(res_class);
           } else {
             const RegType& value_type = reg_types_.FromClass(component_type);
             DCHECK(!value_type.IsUnknown());
@@ -2366,7 +2373,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
         } else {
-          descriptor = called_method->GetReturnTypeDescriptor();
+          descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
         }
         const RegType& return_type =
             reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
@@ -2444,7 +2451,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
         } else {
-          descriptor = called_method->GetReturnTypeDescriptor();
+          descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
         }
         const RegType& return_type =
             reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
@@ -2465,7 +2472,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
             descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
           } else {
-            descriptor = called_method->GetReturnTypeDescriptor();
+            descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
           }
           const RegType& return_type =
               reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
@@ -2520,7 +2527,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
         } else {
-          descriptor = abs_method->GetReturnTypeDescriptor();
+          descriptor = MethodHelper(abs_method).GetReturnTypeDescriptor();
         }
         const RegType& return_type =
             reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
@@ -2965,7 +2972,7 @@ const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   // check at runtime if access is allowed and so pass here.
   if (!result.IsUnresolvedTypes() && !referrer->CanAccess(result.GetClass())) {
     Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
-                                    << PrettyDescriptor(referrer->GetDescriptor()) << "' -> '"
+                                    << PrettyDescriptor(referrer) << "' -> '"
                                     << result << "'";
     return reg_types_.Unknown();
   } else {
@@ -3038,7 +3045,7 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
       dex_cache->SetResolvedMethod(method_idx, res_method);
     } else {
       Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
-                                   << PrettyDescriptor(klass->GetDescriptor()) << "." << name
+                                   << PrettyDescriptor(klass) << "." << name
                                    << " " << signature;
       return NULL;
     }
@@ -3046,7 +3053,7 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
   /* Check if access is allowed. */
   if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
-                                  << " from " << PrettyDescriptor(referrer->GetDescriptor()) << ")";
+                                  << " from " << PrettyDescriptor(referrer) << ")";
     return NULL;
   }
   return res_method;
@@ -3088,11 +3095,11 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
         Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from " << PrettyMethod(method_)
                                      << " to super " << PrettyMethod(res_method);
       } else {
+        MethodHelper mh(res_method);
         Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from " << PrettyMethod(method_)
-                                     << " to super " << PrettyDescriptor(super->GetDescriptor())
-                                     << "." << res_method->GetName()->ToModifiedUtf8()
-                                     << " " << res_method->GetSignature()->ToModifiedUtf8();
-
+                                     << " to super " << PrettyDescriptor(super)
+                                     << "." << mh.GetName()
+                                     << mh.GetSignature();
       }
       return NULL;
     }
@@ -3108,7 +3115,7 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
         << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
     return NULL;
   }
-  std::string sig = res_method->GetSignature()->ToModifiedUtf8();
+  std::string sig(MethodHelper(res_method).GetSignature());
   if (sig[0] != '(') {
     Fail(VERIFY_ERROR_GENERIC) << "rejecting call to " << res_method
         << " as descriptor doesn't start with '(': " << sig;
@@ -3194,6 +3201,11 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
   }
 }
 
+const RegType& DexVerifier::GetMethodReturnType() {
+  return reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(),
+                                   MethodHelper(method_).GetReturnTypeDescriptor());
+}
+
 void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC_);
@@ -3218,20 +3230,20 @@ void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
         const RegType& component_type = reg_types_.FromClass(component_class);
         if (!array_class->IsArrayClass()) {
           Fail(VERIFY_ERROR_GENERIC) << "not array type "
-              << PrettyDescriptor(array_class->GetDescriptor()) << " with aget";
+              << PrettyDescriptor(array_class) << " with aget";
         } else if (component_class->IsPrimitive() && !is_primitive) {
           Fail(VERIFY_ERROR_GENERIC) << "primitive array type "
-                                     << PrettyDescriptor(array_class->GetDescriptor())
+                                     << PrettyDescriptor(array_class)
                                      << " source for aget-object";
         } else if (!component_class->IsPrimitive() && is_primitive) {
           Fail(VERIFY_ERROR_GENERIC) << "reference array type "
-                                     << PrettyDescriptor(array_class->GetDescriptor())
+                                     << PrettyDescriptor(array_class)
                                      << " source for category 1 aget";
         } else if (is_primitive && !insn_type.Equals(component_type) &&
                    !((insn_type.IsInteger() && component_type.IsFloat()) ||
                      (insn_type.IsLong() && component_type.IsDouble()))) {
           Fail(VERIFY_ERROR_GENERIC) << "array type "
-              << PrettyDescriptor(array_class->GetDescriptor())
+              << PrettyDescriptor(array_class)
               << " incompatible with aget of type " << insn_type;
         } else {
           // Use knowledge of the field type which is stronger than the type inferred from the
@@ -3261,20 +3273,20 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
         const RegType& component_type = reg_types_.FromClass(component_class);
         if (!array_class->IsArrayClass()) {
           Fail(VERIFY_ERROR_GENERIC) << "not array type "
-              << PrettyDescriptor(array_class->GetDescriptor()) << " with aput";
+              << PrettyDescriptor(array_class) << " with aput";
         } else if (component_class->IsPrimitive() && !is_primitive) {
           Fail(VERIFY_ERROR_GENERIC) << "primitive array type "
-                                     << PrettyDescriptor(array_class->GetDescriptor())
+                                     << PrettyDescriptor(array_class)
                                      << " source for aput-object";
         } else if (!component_class->IsPrimitive() && is_primitive) {
           Fail(VERIFY_ERROR_GENERIC) << "reference array type "
-                                     << PrettyDescriptor(array_class->GetDescriptor())
+                                     << PrettyDescriptor(array_class)
                                      << " source for category 1 aput";
         } else if (is_primitive && !insn_type.Equals(component_type) &&
                    !((insn_type.IsInteger() && component_type.IsFloat()) ||
                      (insn_type.IsLong() && component_type.IsDouble()))) {
           Fail(VERIFY_ERROR_GENERIC) << "array type "
-              << PrettyDescriptor(array_class->GetDescriptor())
+              << PrettyDescriptor(array_class)
               << " incompatible with aput of type " << insn_type;
         } else {
           // The instruction agrees with the type of array, confirm the value to be stored does too
@@ -3367,7 +3379,7 @@ void DexVerifier::VerifyISGet(const Instruction::DecodedInstruction& dec_insn,
     const char* descriptor;
     const ClassLoader* loader;
     if (field != NULL) {
-      descriptor = field->GetTypeDescriptor();
+      descriptor = FieldHelper(field).GetTypeDescriptor();
       loader = field->GetDeclaringClass()->GetClassLoader();
     } else {
       const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
@@ -3419,7 +3431,7 @@ void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
     const char* descriptor;
     const ClassLoader* loader;
     if (field != NULL) {
-      descriptor = field->GetTypeDescriptor();
+      descriptor = FieldHelper(field).GetTypeDescriptor();
       loader = field->GetDeclaringClass()->GetClassLoader();
     } else {
       const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);

@@ -17,6 +17,7 @@
 #include "jni_internal.h"
 #include "class_linker.h"
 #include "object.h"
+#include "object_utils.h"
 #include "reflection.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -25,13 +26,9 @@ namespace art {
 
 namespace {
 
-jint Field_getFieldModifiers(JNIEnv* env, jobject jfield, jclass javaDeclaringClass, jint slot) {
-  return Decode<Object*>(env, jfield)->AsField()->GetAccessFlags() & kAccJavaFlagsMask;
-}
-
 bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  switch (f->GetPrimitiveType()) {
+  switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
     value.z = f->GetBoolean(o);
     return true;
@@ -72,24 +69,41 @@ bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
   return false;
 }
 
-bool CheckReceiver(JNIEnv* env, jobject javaObj, jclass javaDeclaringClass, Field* f, Object*& o) {
+bool CheckReceiver(JNIEnv* env, jobject javaObj, Field* f, Object*& o) {
   if (f->IsStatic()) {
     o = NULL;
     return true;
   }
 
   o = Decode<Object*>(env, javaObj);
-  Class* declaringClass = Decode<Class*>(env, javaDeclaringClass);
+  Class* declaringClass = f->GetDeclaringClass();
   if (!VerifyObjectInClass(env, o, declaringClass)) {
     return false;
   }
   return true;
 }
 
-JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar dst_descriptor) {
+jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
+  if (!CheckReceiver(env, javaObj, f, o)) {
+    return NULL;
+  }
+
+  // Get the field's value, boxing if necessary.
+  JValue value;
+  if (!GetFieldValue(o, f, value, true)) {
+    return NULL;
+  }
+  BoxPrimitive(env, FieldHelper(f).GetTypeAsPrimitiveType(), value);
+
+  return AddLocalReference<jobject>(env, value.l);
+}
+
+JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {
+  Field* f = DecodeField(env->FromReflectedField(javaField));
+  Object* o = NULL;
+  if (!CheckReceiver(env, javaObj, f, o)) {
     return JValue();
   }
 
@@ -102,47 +116,47 @@ JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass
   // Widen it if necessary (and possible).
   JValue wide_value;
   Class* dst_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(dst_descriptor);
-  if (!ConvertPrimitiveValue(f->GetPrimitiveType(), dst_type->GetPrimitiveType(),
+  if (!ConvertPrimitiveValue(FieldHelper(f).GetTypeAsPrimitiveType(), dst_type->GetPrimitiveType(),
                              field_value, wide_value)) {
     return JValue();
   }
   return wide_value;
 }
 
-jbyte Field_getBField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).b;
+jboolean Field_getBoolean(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'Z').z;
 }
 
-jchar Field_getCField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).c;
+jbyte Field_getByte(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'B').b;
 }
 
-jdouble Field_getDField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).d;
+jchar Field_getChar(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'C').c;
 }
 
-jfloat Field_getFField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).f;
+jdouble Field_getDouble(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'D').d;
 }
 
-jint Field_getIField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).i;
+jfloat Field_getFloat(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'F').f;
 }
 
-jlong Field_getJField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).j;
+jint Field_getInt(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'I').i;
 }
 
-jshort Field_getSField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).s;
+jlong Field_getLong(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'J').j;
 }
 
-jboolean Field_getZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar dst_descriptor) {
-  return GetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, dst_descriptor).z;
+jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
+  return GetPrimitiveField(env, javaField, javaObj, 'S').s;
 }
 
 void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
-  switch (f->GetPrimitiveType()) {
+  switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
     f->SetBoolean(o, new_value.z);
     break;
@@ -187,14 +201,36 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
   }
 }
 
-void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jchar src_descriptor, const JValue& new_value) {
+void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  Field* f = DecodeField(env->FromReflectedField(javaField));
+
+  // Unbox the value, if necessary.
+  Object* boxed_value = Decode<Object*>(env, javaValue);
+  JValue unboxed_value;
+  if (!UnboxPrimitive(env, boxed_value, FieldHelper(f).GetType(), unboxed_value)) {
+    return;
+  }
+
+  // Check that the receiver is non-null and an instance of the field's declaring class.
+  Object* o = NULL;
+  if (!CheckReceiver(env, javaObj, f, o)) {
+    return;
+  }
+
+  SetFieldValue(o, f, unboxed_value, true);
+}
+
+void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
+                       const JValue& new_value) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
+  if (!CheckReceiver(env, javaObj, f, o)) {
     return;
   }
-  if (f->GetPrimitiveType() == Primitive::kPrimNot) {
+  FieldHelper fh(f);
+  if (!fh.IsPrimitiveType()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "Not a primitive field: %s", PrettyField(f).c_str());
     return;
@@ -203,7 +239,7 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
   // Widen the value if necessary (and possible).
   JValue wide_value;
   Class* src_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(src_descriptor);
-  if (!ConvertPrimitiveValue(src_type->GetPrimitiveType(), f->GetPrimitiveType(),
+  if (!ConvertPrimitiveValue(src_type->GetPrimitiveType(), fh.GetTypeAsPrimitiveType(),
                              new_value, wide_value)) {
     return;
   }
@@ -212,112 +248,73 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, jclass j
   SetFieldValue(o, f, wide_value, false);
 }
 
-void Field_setBField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jbyte value) {
-  JValue v = { 0 };
-  v.b = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setCField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jchar value) {
-  JValue v = { 0 };
-  v.c = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setDField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jdouble value) {
-  JValue v = { 0 };
-  v.d = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setFField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jfloat value) {
-  JValue v = { 0 };
-  v.f = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setIField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jint value) {
-  JValue v = { 0 };
-  v.i = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setJField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jlong value) {
-  JValue v = { 0 };
-  v.j = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setSField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jshort value) {
-  JValue v = { 0 };
-  v.s = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
-}
-
-void Field_setZField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jchar src_descriptor, jboolean value) {
+void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean value) {
   JValue v = { 0 };
   v.z = value;
-  SetPrimitiveField(env, javaField, javaObj, javaDeclaringClass, src_descriptor, v);
+  SetPrimitiveField(env, javaField, javaObj, 'Z', v);
 }
 
-void Field_setField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean, jobject javaValue) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  Field* f = DecodeField(env->FromReflectedField(javaField));
-
-  // Unbox the value, if necessary.
-  Object* boxed_value = Decode<Object*>(env, javaValue);
-  JValue unboxed_value;
-  if (!UnboxPrimitive(env, boxed_value, f->GetType(), unboxed_value)) {
-    return;
-  }
-
-  // Check that the receiver is non-null and an instance of the field's declaring class.
-  Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
-    return;
-  }
-
-  SetFieldValue(o, f, unboxed_value, true);
+void Field_setByte(JNIEnv* env, jobject javaField, jobject javaObj, jbyte value) {
+  JValue v = { 0 };
+  v.b = value;
+  SetPrimitiveField(env, javaField, javaObj, 'B', v);
 }
 
-jobject Field_getField(JNIEnv* env, jobject javaField, jobject javaObj, jclass javaDeclaringClass, jclass, jint, jboolean) {
-  Field* f = DecodeField(env->FromReflectedField(javaField));
-  Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, javaDeclaringClass, f, o)) {
-    return NULL;
-  }
+void Field_setChar(JNIEnv* env, jobject javaField, jobject javaObj, jchar value) {
+  JValue v = { 0 };
+  v.c = value;
+  SetPrimitiveField(env, javaField, javaObj, 'C', v);
+}
 
-  // Get the field's value, boxing if necessary.
-  JValue value;
-  if (!GetFieldValue(o, f, value, true)) {
-    return NULL;
-  }
-  BoxPrimitive(env, f->GetPrimitiveType(), value);
+void Field_setDouble(JNIEnv* env, jobject javaField, jobject javaObj, jdouble value) {
+  JValue v = { 0 };
+  v.d = value;
+  SetPrimitiveField(env, javaField, javaObj, 'D', v);
+}
 
-  return AddLocalReference<jobject>(env, value.l);
+void Field_setFloat(JNIEnv* env, jobject javaField, jobject javaObj, jfloat value) {
+  JValue v = { 0 };
+  v.f = value;
+  SetPrimitiveField(env, javaField, javaObj, 'F', v);
+}
+
+void Field_setInt(JNIEnv* env, jobject javaField, jobject javaObj, jint value) {
+  JValue v = { 0 };
+  v.i = value;
+  SetPrimitiveField(env, javaField, javaObj, 'I', v);
+}
+
+void Field_setLong(JNIEnv* env, jobject javaField, jobject javaObj, jlong value) {
+  JValue v = { 0 };
+  v.j = value;
+  SetPrimitiveField(env, javaField, javaObj, 'J', v);
+}
+
+void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jshort value) {
+  JValue v = { 0 };
+  v.s = value;
+  SetPrimitiveField(env, javaField, javaObj, 'S', v);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Field, getFieldModifiers, "(Ljava/lang/Class;I)I"),
-
-  NATIVE_METHOD(Field, getBField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)B"),
-  NATIVE_METHOD(Field, getCField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)C"),
-  NATIVE_METHOD(Field, getDField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)D"),
-  NATIVE_METHOD(Field, getFField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)F"),
-  NATIVE_METHOD(Field, getField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZ)Ljava/lang/Object;"),
-  NATIVE_METHOD(Field, getIField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)I"),
-  NATIVE_METHOD(Field, getJField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)J"),
-  NATIVE_METHOD(Field, getSField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)S"),
-  NATIVE_METHOD(Field, getZField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZC)Z"),
-  NATIVE_METHOD(Field, setBField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCB)V"),
-  NATIVE_METHOD(Field, setCField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCC)V"),
-  NATIVE_METHOD(Field, setDField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCD)V"),
-  NATIVE_METHOD(Field, setFField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCF)V"),
-  NATIVE_METHOD(Field, setField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZLjava/lang/Object;)V"),
-  NATIVE_METHOD(Field, setIField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCI)V"),
-  NATIVE_METHOD(Field, setJField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCJ)V"),
-  NATIVE_METHOD(Field, setSField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCS)V"),
-  NATIVE_METHOD(Field, setZField, "(Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/Class;IZCZ)V"),
+  NATIVE_METHOD(Field, get,        "(Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Field, getBoolean, "(Ljava/lang/Object;)Z"),
+  NATIVE_METHOD(Field, getByte,    "(Ljava/lang/Object;)B"),
+  NATIVE_METHOD(Field, getChar,    "(Ljava/lang/Object;)C"),
+  NATIVE_METHOD(Field, getDouble,  "(Ljava/lang/Object;)D"),
+  NATIVE_METHOD(Field, getFloat,   "(Ljava/lang/Object;)F"),
+  NATIVE_METHOD(Field, getInt,     "(Ljava/lang/Object;)I"),
+  NATIVE_METHOD(Field, getLong,    "(Ljava/lang/Object;)J"),
+  NATIVE_METHOD(Field, getShort,   "(Ljava/lang/Object;)S"),
+  NATIVE_METHOD(Field, set,        "(Ljava/lang/Object;Ljava/lang/Object;)V"),
+  NATIVE_METHOD(Field, setBoolean, "(Ljava/lang/Object;Z)V"),
+  NATIVE_METHOD(Field, setByte,    "(Ljava/lang/Object;B)V"),
+  NATIVE_METHOD(Field, setChar,    "(Ljava/lang/Object;C)V"),
+  NATIVE_METHOD(Field, setDouble,  "(Ljava/lang/Object;D)V"),
+  NATIVE_METHOD(Field, setFloat,   "(Ljava/lang/Object;F)V"),
+  NATIVE_METHOD(Field, setInt,     "(Ljava/lang/Object;I)V"),
+  NATIVE_METHOD(Field, setLong,    "(Ljava/lang/Object;J)V"),
+  NATIVE_METHOD(Field, setShort,   "(Ljava/lang/Object;S)V"),
 };
 
 }  // namespace

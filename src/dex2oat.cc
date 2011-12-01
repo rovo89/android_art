@@ -15,6 +15,7 @@
 #include "file.h"
 #include "image_writer.h"
 #include "oat_writer.h"
+#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "stringpiece.h"
@@ -242,7 +243,7 @@ class Dex2Oat {
     if (klass->IsArrayClass() || klass->IsPrimitive()) {
       return true;
     }
-    image_classes->insert(klass->GetDescriptor()->ToModifiedUtf8());
+    image_classes->insert(ClassHelper(klass).GetDescriptor());
     return true;
   }
 

@@ -11,6 +11,7 @@
 #include "jni_compiler.h"
 #include "jni_internal.h"
 #include "oat_file.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "stl_util.h"
 
@@ -143,6 +144,18 @@ bool Compiler::IsImageClass(const std::string& descriptor) const {
     return true;
   }
   return image_classes_->find(descriptor) != image_classes_->end();
+}
+
+bool Compiler::CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache,
+                                                uint32_t type_idx) const {
+  if (!IsImage()) {
+    return false;
+  }
+  Class* resolved_class = dex_cache->GetResolvedTypes()->Get(type_idx);
+  if (resolved_class == NULL) {
+    return false;
+  }
+  return IsImageClass(ClassHelper(resolved_class).GetDescriptor());
 }
 
 // Return true if the class should be skipped during compilation. We

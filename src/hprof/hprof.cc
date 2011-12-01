@@ -23,13 +23,16 @@
  */
 
 #include "hprof.h"
-#include "heap.h"
+
+#include "class_linker.h"
 #include "debugger.h"
+#include "heap.h"
+#include "logging.h"
 #include "object.h"
+#include "object_utils.h"
 #include "stringprintf.h"
 #include "unordered_map.h"
 #include "unordered_set.h"
-#include "logging.h"
 
 #include <cutils/open_memstream.h>
 #include <sys/uio.h>
@@ -364,6 +367,8 @@ int Hprof::DumpHeapObject(const Object* obj) {
 
       rec->AddU2(0); // empty const pool
 
+      FieldHelper fh;
+
       // Static fields
       if (sFieldCount == 0) {
         rec->AddU2((uint16_t)0);
@@ -375,10 +380,11 @@ int Hprof::DumpHeapObject(const Object* obj) {
 
         for (size_t i = 0; i < sFieldCount; ++i) {
           Field* f = thisClass->GetStaticField(i);
+          fh.ChangeField(f);
 
           size_t size;
-          HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
-          rec->AddId(LookupStringId(f->GetName()));
+          HprofBasicType t = SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), &size);
+          rec->AddId(LookupStringId(fh.GetName()));
           rec->AddU1(t);
           if (size == 1) {
             rec->AddU1(static_cast<uint8_t>(f->Get32(NULL)));
@@ -399,8 +405,9 @@ int Hprof::DumpHeapObject(const Object* obj) {
       rec->AddU2((uint16_t)iFieldCount);
       for (int i = 0; i < iFieldCount; ++i) {
         Field* f = thisClass->GetInstanceField(i);
-        HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), NULL);
-        rec->AddId(LookupStringId(f->GetName()));
+        fh.ChangeField(f);
+        HprofBasicType t = SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), NULL);
+        rec->AddId(LookupStringId(fh.GetName()));
         rec->AddU1(t);
       }
     } else if (clazz->IsArrayClass()) {
@@ -463,12 +470,14 @@ int Hprof::DumpHeapObject(const Object* obj) {
       // Write the instance data;  fields for this class, followed by super class fields,
       // and so on. Don't write the klass or monitor fields of Object.class.
       const Class* sclass = clazz;
+      FieldHelper fh;
       while (!sclass->IsObjectClass()) {
         int ifieldCount = sclass->NumInstanceFields();
         for (int i = 0; i < ifieldCount; i++) {
           Field* f = sclass->GetInstanceField(i);
+          fh.ChangeField(f);
           size_t size;
-          SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
+          SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), &size);
           if (size == 1) {
             rec->AddU1(f->Get32(obj));
           } else if (size == 2) {
@@ -680,7 +689,7 @@ int Hprof::DumpStrings() {
 }
 
 HprofStringId Hprof::LookupClassNameId(Class* clazz) {
-  return LookupStringId(PrettyDescriptor(clazz->GetDescriptor()));
+  return LookupStringId(PrettyDescriptor(clazz));
 }
 
 HprofClassObjectId Hprof::LookupClassId(Class* clazz) {

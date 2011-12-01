@@ -19,6 +19,7 @@
 #include "monitor.h"
 #include "oat_file.h"
 #include "object.h"
+#include "object_utils.h"
 #include "runtime.h"
 #include "runtime_support.h"
 #include "ScopedLocalRef.h"
@@ -59,13 +60,14 @@ void ThrowLinkageError(const char* fmt, ...) {
 
 void ThrowNoSuchMethodError(const char* kind,
     Class* c, const StringPiece& name, const StringPiece& signature) {
-  DexCache* dex_cache = c->GetDexCache();
+  ClassHelper kh(c);
   std::ostringstream msg;
   msg << "no " << kind << " method " << name << "." << signature
-      << " in class " << c->GetDescriptor()->ToModifiedUtf8()
+      << " in class " << kh.GetDescriptor()
       << " or its superclasses";
-  if (dex_cache) {
-    msg << " (defined in " << dex_cache->GetLocation()->ToModifiedUtf8() << ")";
+  std::string location(kh.GetLocation());
+  if (!location.empty()) {
+    msg << " (defined in " << location << ")";
   }
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
@@ -81,11 +83,11 @@ void ThrowEarlierClassFailure(Class* c) {
 
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
-    std::string error_descriptor(c->GetVerifyErrorClass()->GetDescriptor()->ToModifiedUtf8());
-    Thread::Current()->ThrowNewException(error_descriptor.c_str(),
-        PrettyDescriptor(c->GetDescriptor()).c_str());
+    ClassHelper ve_ch(c->GetVerifyErrorClass());
+    std::string error_descriptor(ve_ch.GetDescriptor());
+    Thread::Current()->ThrowNewException(error_descriptor.c_str(), PrettyDescriptor(c).c_str());
   } else {
-    ThrowNoClassDefFoundError("%s", PrettyDescriptor(c->GetDescriptor()).c_str());
+    ThrowNoClassDefFoundError("%s", PrettyDescriptor(c).c_str());
   }
 }
 
@@ -204,7 +206,6 @@ ClassLinker::ClassLinker(bool verbose, InternTable* intern_table)
       dex_lock_("ClassLinker dex lock"),
       classes_lock_("ClassLinker classes lock"),
       class_roots_(NULL),
-      array_interfaces_(NULL),
       array_iftable_(NULL),
       init_done_(false),
       intern_table_(intern_table) {
@@ -269,14 +270,6 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   java_lang_String->SetObjectSize(sizeof(String));
   java_lang_String->SetStatus(Class::kStatusResolved);
 
-  // Backfill Class descriptors missing until this point
-  java_lang_Class->SetDescriptor(intern_table_->InternStrong("Ljava/lang/Class;"));
-  java_lang_Object->SetDescriptor(intern_table_->InternStrong("Ljava/lang/Object;"));
-  class_array_class->SetDescriptor(intern_table_->InternStrong("[Ljava/lang/Class;"));
-  object_array_class->SetDescriptor(intern_table_->InternStrong("[Ljava/lang/Object;"));
-  java_lang_String->SetDescriptor(intern_table_->InternStrong("Ljava/lang/String;"));
-  char_array_class->SetDescriptor(intern_table_->InternStrong("[C"));
-
   // Create storage for root classes, save away our work so far (requires
   // descriptors)
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class.get(), kClassRootsMax);
@@ -299,12 +292,10 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V", Primitive::kPrimVoid));
 
   // Create array interface entries to populate once we can load system classes
-  array_interfaces_ = AllocClassArray(2);
   array_iftable_ = AllocObjectArray<InterfaceEntry>(2);
 
   // Create int array type for AllocDexCache (done in AppendToBootClassPath)
   SirtRef<Class> int_array_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
-  int_array_class->SetDescriptor(intern_table_->InternStrong("[I"));
   int_array_class->SetComponentType(GetClassRoot(kPrimitiveInt));
   IntArray::SetArrayClass(int_array_class.get());
   SetClassRoot(kIntArrayClass, int_array_class.get());
@@ -324,7 +315,6 @@ void ClassLinker::Init(const std::string& boot_class_path) {
 
   // Constructor, Field, and Method are necessary so that FindClass can link members
   SirtRef<Class> java_lang_reflect_Constructor(AllocClass(java_lang_Class.get(), sizeof(MethodClass)));
-  java_lang_reflect_Constructor->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Constructor;"));
   CHECK(java_lang_reflect_Constructor.get() != NULL);
   java_lang_reflect_Constructor->SetObjectSize(sizeof(Method));
   SetClassRoot(kJavaLangReflectConstructor, java_lang_reflect_Constructor.get());
@@ -332,14 +322,12 @@ void ClassLinker::Init(const std::string& boot_class_path) {
 
   SirtRef<Class> java_lang_reflect_Field(AllocClass(java_lang_Class.get(), sizeof(FieldClass)));
   CHECK(java_lang_reflect_Field.get() != NULL);
-  java_lang_reflect_Field->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Field;"));
   java_lang_reflect_Field->SetObjectSize(sizeof(Field));
   SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field.get());
   java_lang_reflect_Field->SetStatus(Class::kStatusResolved);
   Field::SetClass(java_lang_reflect_Field.get());
 
   SirtRef<Class> java_lang_reflect_Method(AllocClass(java_lang_Class.get(), sizeof(MethodClass)));
-  java_lang_reflect_Method->SetDescriptor(intern_table_->InternStrong("Ljava/lang/reflect/Method;"));
   CHECK(java_lang_reflect_Method.get() != NULL);
   java_lang_reflect_Method->SetObjectSize(sizeof(Method));
   SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method.get());
@@ -398,21 +386,19 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   CHECK(java_lang_Cloneable != NULL);
   Class* java_io_Serializable = FindSystemClass("Ljava/io/Serializable;");
   CHECK(java_io_Serializable != NULL);
-  CHECK(array_interfaces_ != NULL);
-  array_interfaces_->Set(0, java_lang_Cloneable);
-  array_interfaces_->Set(1, java_io_Serializable);
   // We assume that Cloneable/Serializable don't have superinterfaces --
   // normally we'd have to crawl up and explicitly list all of the
   // supers as well.
-  array_iftable_->Set(0, AllocInterfaceEntry(array_interfaces_->Get(0)));
-  array_iftable_->Set(1, AllocInterfaceEntry(array_interfaces_->Get(1)));
+  array_iftable_->Set(0, AllocInterfaceEntry(java_lang_Cloneable));
+  array_iftable_->Set(1, AllocInterfaceEntry(java_io_Serializable));
 
   // Sanity check Class[] and Object[]'s interfaces
-  CHECK_EQ(java_lang_Cloneable, class_array_class->GetInterface(0));
-  CHECK_EQ(java_io_Serializable, class_array_class->GetInterface(1));
-  CHECK_EQ(java_lang_Cloneable, object_array_class->GetInterface(0));
-  CHECK_EQ(java_io_Serializable, object_array_class->GetInterface(1));
-
+  ClassHelper kh(class_array_class.get(), this);
+  CHECK_EQ(java_lang_Cloneable, kh.GetInterface(0));
+  CHECK_EQ(java_io_Serializable, kh.GetInterface(1));
+  kh.ChangeClass(object_array_class.get());
+  CHECK_EQ(java_lang_Cloneable, kh.GetInterface(0));
+  CHECK_EQ(java_io_Serializable, kh.GetInterface(1));
   // run Class, Constructor, Field, and Method through FindSystemClass.
   // this initializes their dex_cache_ fields and register them in classes_.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
@@ -497,25 +483,37 @@ void ClassLinker::FinishInit() {
 
   Heap::SetWellKnownClasses(java_lang_ref_FinalizerReference, java_lang_ref_ReferenceQueue);
 
+  const DexFile& java_lang_dex = FindDexFile(java_lang_ref_Reference->GetDexCache());
+
   Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
-  CHECK(pendingNext->GetName()->Equals("pendingNext"));
-  CHECK_EQ(ResolveType(pendingNext->GetTypeIdx(), pendingNext), java_lang_ref_Reference);
+  FieldHelper fh(pendingNext, this);
+  CHECK_STREQ(fh.GetName(), "pendingNext");
+  CHECK_EQ(java_lang_dex.GetFieldId(pendingNext->GetDexFieldIndex()).type_idx_,
+           java_lang_ref_Reference->GetDexTypeIndex());
 
   Field* queue = java_lang_ref_Reference->GetInstanceField(1);
-  CHECK(queue->GetName()->Equals("queue"));
-  CHECK_EQ(ResolveType(queue->GetTypeIdx(), queue), java_lang_ref_ReferenceQueue);
+  fh.ChangeField(queue);
+  CHECK_STREQ(fh.GetName(), "queue");
+  CHECK_EQ(java_lang_dex.GetFieldId(queue->GetDexFieldIndex()).type_idx_,
+           java_lang_ref_ReferenceQueue->GetDexTypeIndex());
 
   Field* queueNext = java_lang_ref_Reference->GetInstanceField(2);
-  CHECK(queueNext->GetName()->Equals("queueNext"));
-  CHECK_EQ(ResolveType(queueNext->GetTypeIdx(), queueNext), java_lang_ref_Reference);
+  fh.ChangeField(queueNext);
+  CHECK_STREQ(fh.GetName(), "queueNext");
+  CHECK_EQ(java_lang_dex.GetFieldId(queueNext->GetDexFieldIndex()).type_idx_,
+           java_lang_ref_Reference->GetDexTypeIndex());
 
   Field* referent = java_lang_ref_Reference->GetInstanceField(3);
-  CHECK(referent->GetName()->Equals("referent"));
-  CHECK_EQ(ResolveType(referent->GetTypeIdx(), referent), GetClassRoot(kJavaLangObject));
+  fh.ChangeField(referent);
+  CHECK_STREQ(fh.GetName(), "referent");
+  CHECK_EQ(java_lang_dex.GetFieldId(referent->GetDexFieldIndex()).type_idx_,
+           GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
 
   Field* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
-  CHECK(zombie->GetName()->Equals("zombie"));
-  CHECK_EQ(ResolveType(zombie->GetTypeIdx(), zombie), GetClassRoot(kJavaLangObject));
+  fh.ChangeField(zombie);
+  CHECK_STREQ(fh.GetName(), "zombie");
+  CHECK_EQ(java_lang_dex.GetFieldId(zombie->GetDexFieldIndex()).type_idx_,
+           GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
 
   Heap::SetReferenceOffsets(referent->GetOffset(),
                             queue->GetOffset(),
@@ -534,7 +532,6 @@ void ClassLinker::FinishInit() {
   }
 
   CHECK(array_iftable_ != NULL);
-  CHECK(array_interfaces_ != NULL);
 
   // disable the slow paths in FindClass and CreatePrimitiveClass now
   // that Object, Class, and Object[] are setup
@@ -611,7 +608,9 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
     LOG(INFO) << "ClassLinker::OpenOat entering";
   }
   const ImageHeader& image_header = space->GetImageHeader();
-  String* oat_location = image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString();
+  // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
+  // check the down cast
+  String* oat_location = down_cast<String*>(image_header.GetImageRoot(ImageHeader::kOatLocation));
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
@@ -734,6 +733,14 @@ void ClassLinker::InitFromImage() {
       Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
       ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
 
+      if (i == 0) {
+        // Special case of setting up the String class early so that we can test arbitrary objects
+        // as being Strings or not
+        Class* java_lang_String = spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)
+            ->AsObjectArray<Class>()->Get(kJavaLangString);
+        String::SetClass(java_lang_String);
+      }
+
       CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
                static_cast<uint32_t>(dex_caches->GetLength()));
       for (int i = 0; i < dex_caches->GetLength(); i++) {
@@ -767,13 +774,10 @@ void ClassLinker::InitFromImage() {
   Object* class_roots_object = spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
   class_roots_ = class_roots_object->AsObjectArray<Class>();
 
-  // reinit array_interfaces_ and array_iftable_ from any array class instance, they should all be ==
-  array_interfaces_ = GetClassRoot(kObjectArrayClass)->GetInterfaces();
-  DCHECK(array_interfaces_ == GetClassRoot(kBooleanArrayClass)->GetInterfaces());
+  // reinit array_iftable_ from any array class instance, they should be ==
   array_iftable_ = GetClassRoot(kObjectArrayClass)->GetIfTable();
   DCHECK(array_iftable_ == GetClassRoot(kBooleanArrayClass)->GetIfTable());
-
-  String::SetClass(GetClassRoot(kJavaLangString));
+  // String class root was set above
   Field::SetClass(GetClassRoot(kJavaLangReflectField));
   Method::SetClasses(GetClassRoot(kJavaLangReflectConstructor), GetClassRoot(kJavaLangReflectMethod));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
@@ -806,7 +810,7 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
   if (obj->IsClass()) {
     // restore class to ClassLinker::classes_ table
     Class* klass = obj->AsClass();
-    std::string descriptor = klass->GetDescriptor()->ToModifiedUtf8();
+    std::string descriptor(ClassHelper(klass, class_linker).GetDescriptor());
     bool success = class_linker->InsertClass(descriptor, klass, true);
     DCHECK(success);
     return;
@@ -832,7 +836,6 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
     // Note. we deliberately ignore the class roots in the image (held in image_classes_)
   }
 
-  visitor(array_interfaces_, arg);
   visitor(array_iftable_, arg);
 }
 
@@ -960,7 +963,7 @@ Class* EnsureResolved(Class* klass) {
     // Check for circular dependencies between classes.
     if (!klass->IsResolved() && klass->GetClinitThreadId() == self->GetTid()) {
       self->ThrowNewException("Ljava/lang/ClassCircularityError;",
-          PrettyDescriptor(klass->GetDescriptor()).c_str());
+          PrettyDescriptor(klass).c_str());
       return NULL;
     }
     // Wait for the pending initialization to complete.
@@ -985,14 +988,15 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
   CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+  if (descriptor.size() == 1) {
+    // only the descriptors of primitive types should be 1 character long, also avoid class lookup
+    // for primitive classes that aren't backed by dex files.
+    return FindPrimitiveClass(descriptor[0]);
+  }
   // Find the class in the loaded classes table.
   Class* klass = LookupClass(descriptor, class_loader);
   if (klass != NULL) {
     return EnsureResolved(klass);
-  }
-  if (descriptor.size() == 1) {
-    // only the descriptors of primitive types should be 1 character long
-    return FindPrimitiveClass(descriptor[0]);
   }
   // Class is not yet loaded.
   if (descriptor[0] == '[') {
@@ -1179,14 +1183,6 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   CHECK(descriptor != NULL);
 
   klass->SetClass(GetClassRoot(kJavaLangClass));
-  if (klass->GetDescriptor() != NULL) {
-    DCHECK(klass->GetDescriptor()->Equals(descriptor));
-  } else {
-    klass->SetDescriptor(intern_table_->InternStrong(descriptor));
-    if (klass->GetDescriptor() == NULL) {
-      return;
-    }
-  }
   uint32_t access_flags = dex_class_def.access_flags_;
   // Make sure that none of our runtime-only flags are set.
   CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
@@ -1195,21 +1191,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(klass->GetPrimitiveType() == Primitive::kPrimNot);
   klass->SetStatus(Class::kStatusIdx);
 
-  klass->SetTypeIdx(dex_class_def.class_idx_);
-  klass->SetSuperClassTypeIdx(dex_class_def.superclass_idx_);
-  klass->SetAnnotationsOffset(dex_class_def.annotations_off_);
-
-  const char* source_file = dex_file.GetSourceFile(dex_class_def);
-  if (source_file != NULL) {
-    String* source_file_string = intern_table_->InternStrong(source_file);
-    if (source_file_string == NULL) {
-      return;
-    }
-    klass->SetSourceFile(source_file_string);
-  }
-
-  // Load class interfaces.
-  LoadInterfaces(dex_file, dex_class_def, klass);
+  klass->SetDexTypeIndex(dex_class_def.class_idx_);
 
   // Load fields fields.
   const byte* class_data = dex_file.GetClassData(dex_class_def);
@@ -1279,88 +1261,59 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(!it.HasNext());
 }
 
-void ClassLinker::LoadInterfaces(const DexFile& dex_file,
-                                 const DexFile::ClassDef& dex_class_def,
-                                 SirtRef<Class>& klass) {
-  const DexFile::TypeList* list = dex_file.GetInterfacesList(dex_class_def);
-  if (list != NULL) {
-    klass->SetInterfaces(AllocClassArray(list->Size()));
-    IntArray* interfaces_idx = IntArray::Alloc(list->Size());
-    klass->SetInterfacesTypeIdx(interfaces_idx);
-    for (size_t i = 0; i < list->Size(); ++i) {
-      const DexFile::TypeItem& type_item = list->GetTypeItem(i);
-      interfaces_idx->Set(i, type_item.type_idx_);
-    }
-  }
-}
-
 void ClassLinker::LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
                             SirtRef<Class>& klass, SirtRef<Field>& dst) {
-  const DexFile::FieldId& field_id = dex_file.GetFieldId(it.GetMemberIndex());
+  uint32_t field_idx = it.GetMemberIndex();
+  dst->SetDexFieldIndex(field_idx);
   dst->SetDeclaringClass(klass.get());
-  dst->SetName(ResolveString(dex_file, field_id.name_idx_, klass->GetDexCache()));
-  dst->SetTypeIdx(field_id.type_idx_);
   dst->SetAccessFlags(it.GetMemberAccessFlags());
-
-  // In order to access primitive types using GetTypeDuringLinking we need to
-  // ensure they are resolved into the dex cache
-  const char* descriptor = dex_file.GetFieldTypeDescriptor(field_id);
-  if (descriptor[1] == '\0') {
-    // only the descriptors of primitive types should be 1 character long
-    Class* resolved = ResolveType(dex_file, field_id.type_idx_, klass.get());
-    DCHECK(resolved->IsPrimitive());
-  }
 }
 
 void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& it,
                              SirtRef<Class>& klass, SirtRef<Method>& dst) {
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(it.GetMemberIndex());
+  uint32_t method_idx = it.GetMemberIndex();
+  dst->SetDexMethodIndex(method_idx);
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
   dst->SetDeclaringClass(klass.get());
 
-  String* method_name = ResolveString(dex_file, method_id.name_idx_, klass->GetDexCache());
-  if (method_name == NULL) {
-    return;
-  }
-  dst->SetName(method_name);
-  if (method_name->Equals("<init>")) {
+
+  StringPiece method_name(dex_file.GetMethodName(method_id));
+  if (method_name == "<init>") {
     dst->SetClass(GetClassRoot(kJavaLangReflectConstructor));
   }
 
-  int32_t utf16_length;
-  std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, &utf16_length));
-  String* signature_string = intern_table_->InternStrong(utf16_length, signature.c_str());
-  if (signature_string == NULL) {
-    return;
-  }
-  dst->SetSignature(signature_string);
-
-  if (method_name->Equals("finalize") && signature == "()V") {
-    /*
-     * The Enum class declares a "final" finalize() method to prevent subclasses from introducing
-     * a finalizer. We don't want to set the finalizable flag for Enum or its subclasses, so we
-     * exclude it here.
-     *
-     * We also want to avoid setting the flag on Object, where we know that finalize() is empty.
-     */
-    if (klass->GetClassLoader() != NULL ||
-        (!klass->GetDescriptor()->Equals("Ljava/lang/Object;") &&
-            !klass->GetDescriptor()->Equals("Ljava/lang/Enum;"))) {
-      klass->SetFinalizable();
+  if (method_name == "finalize") {
+    // Create the prototype for a signature of "()V"
+    const DexFile::StringId* void_string_id = dex_file.FindStringId("V");
+    if (void_string_id != NULL) {
+      const DexFile::TypeId* void_type_id =
+          dex_file.FindTypeId(dex_file.GetIndexForStringId(*void_string_id));
+      if (void_type_id != NULL) {
+        std::vector<uint16_t> no_args;
+        const DexFile::ProtoId* finalizer_proto =
+            dex_file.FindProtoId(dex_file.GetIndexForTypeId(*void_type_id), no_args);
+        if (finalizer_proto != NULL) {
+          // We have the prototype in the dex file
+          if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
+            klass->SetFinalizable();
+          } else {
+            StringPiece klass_descriptor(dex_file.StringByTypeIdx(klass->GetDexTypeIndex()));
+            // The Enum class declares a "final" finalize() method to prevent subclasses from
+            // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
+            // subclasses, so we exclude it here.
+            // We also want to avoid setting the flag on Object, where we know that finalize() is
+            // empty.
+            if (klass_descriptor != "Ljava/lang/Object;" &&
+                klass_descriptor != "Ljava/lang/Enum;") {
+              klass->SetFinalizable();
+            }
+          }
+        }
+      }
     }
   }
-
-  dst->SetProtoIdx(method_id.proto_idx_);
   dst->SetCodeItemOffset(it.GetMethodCodeItemOffset());
-  const char* shorty = dex_file.GetShorty(method_id.proto_idx_);
-  String* shorty_string = intern_table_->InternStrong(shorty);
-  dst->SetShorty(shorty_string);
-  if (shorty_string == NULL) {
-    return;
-  }
   dst->SetAccessFlags(it.GetMemberAccessFlags());
-  uint32_t return_type_idx = dex_file.GetProtoId(method_id.proto_idx_).return_type_idx_;
-  DCHECK_LT(return_type_idx, dex_file.NumTypeIds());
-  dst->SetReturnTypeIdx(return_type_idx);
 
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
@@ -1370,20 +1323,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 
   // TODO: check for finalize method
-
-  const DexFile::CodeItem* code_item = it.GetMethodCodeItem();
-  if (code_item != NULL) {
-    dst->SetNumRegisters(code_item->registers_size_);
-    dst->SetNumIns(code_item->ins_size_);
-    dst->SetNumOuts(code_item->outs_size_);
-  } else {
-    uint16_t num_args = Method::NumArgRegisters(shorty);
-    if ((it.GetMemberAccessFlags() & kAccStatic) == 0) {
-      ++num_args;
-    }
-    dst->SetNumRegisters(num_args);
-    // TODO: native methods
-  }
 }
 
 void ClassLinker::AppendToBootClassPath(const DexFile& dex_file) {
@@ -1474,8 +1413,6 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
   // TODO: deduce one argument from the other
   CHECK(primitive_class != NULL);
   primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
-  primitive_class->SetDescriptor(intern_table_->InternStrong(descriptor));
-  CHECK(primitive_class->GetDescriptor() != NULL);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(Class::kStatusInitialized);
   bool success = InsertClass(descriptor, primitive_class, false);
@@ -1561,14 +1498,6 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
     new_class->SetComponentType(component_type);
   }
   DCHECK(new_class->GetComponentType() != NULL);
-  if (new_class->GetDescriptor() != NULL) {
-    DCHECK(new_class->GetDescriptor()->Equals(descriptor));
-  } else {
-    new_class->SetDescriptor(intern_table_->InternStrong(descriptor.c_str()));
-    if (new_class->GetDescriptor() == NULL) {
-      return NULL;
-    }
-  }
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);
   new_class->SetVTable(java_lang_Object->GetVTable());
@@ -1591,9 +1520,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
 
   // Use the single, global copies of "interfaces" and "iftable"
   // (remember not to free them for arrays).
-  CHECK(array_interfaces_ != NULL);
   CHECK(array_iftable_ != NULL);
-  new_class->SetInterfaces(array_interfaces_);
   new_class->SetIfTable(array_iftable_);
 
   // Inherit access flags from the component type.  Arrays can't be
@@ -1677,16 +1604,19 @@ bool ClassLinker::RemoveClass(const std::string& descriptor, const ClassLoader* 
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
+  ClassHelper kh;
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
-    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+    kh.ChangeClass(klass);
+    if (kh.GetDescriptor() == descriptor && klass->GetClassLoader() == class_loader) {
       classes_.erase(it);
       return true;
     }
   }
   for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
     Class* klass = it->second;
-    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+    kh.ChangeClass(klass);
+    if (kh.GetDescriptor() == descriptor && klass->GetClassLoader() == class_loader) {
       image_classes_.erase(it);
       return true;
     }
@@ -1699,15 +1629,18 @@ Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
+  ClassHelper kh(NULL, this);
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
-    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+    kh.ChangeClass(klass);
+    if (descriptor == kh.GetDescriptor() && klass->GetClassLoader() == class_loader) {
       return klass;
     }
   }
   for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
     Class* klass = it->second;
-    if (klass->GetDescriptor()->Equals(descriptor) && klass->GetClassLoader() == class_loader) {
+    kh.ChangeClass(klass);
+    if (descriptor == kh.GetDescriptor() && klass->GetClassLoader() == class_loader) {
       return klass;
     }
   }
@@ -1720,16 +1653,19 @@ void ClassLinker::LookupClasses(const std::string& descriptor, std::vector<Class
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
+  ClassHelper kh(NULL, this);
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
-    Class* c = it->second;
-    if (c->GetDescriptor()->Equals(descriptor)) {
-      classes.push_back(c);
+    Class* klass = it->second;
+    kh.ChangeClass(klass);
+    if (descriptor == kh.GetDescriptor()) {
+      classes.push_back(klass);
     }
   }
   for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
-    Class* c = it->second;
-    if (c->GetDescriptor()->Equals(descriptor)) {
-      classes.push_back(c);
+    Class* klass = it->second;
+    kh.ChangeClass(klass);
+    if (descriptor == kh.GetDescriptor()) {
+      classes.push_back(klass);
     }
   }
 }
@@ -1749,48 +1685,56 @@ void ClassLinker::VerifyClass(Class* klass) {
     Thread* self = Thread::Current();
     CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
     self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Verification of %s failed",
-        PrettyDescriptor(klass->GetDescriptor()).c_str());
+        PrettyDescriptor(klass).c_str());
     CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying);
     klass->SetStatus(Class::kStatusError);
   }
 }
 
 Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interfaces,
-    ClassLoader* loader, ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws) {
+                                     ClassLoader* loader, ObjectArray<Method>* methods,
+                                     ObjectArray<ObjectArray<Class> >* throws) {
   SirtRef<Class> klass(AllocClass(GetClassRoot(kJavaLangClass), sizeof(ProxyClass)));
   CHECK(klass.get() != NULL);
   klass->SetObjectSize(sizeof(Proxy));
-  const char* descriptor = DotToDescriptor(name->ToModifiedUtf8().c_str()).c_str();;
-  klass->SetDescriptor(intern_table_->InternStrong(descriptor));
-  klass->SetAccessFlags(kAccPublic | kAccFinal);
+  klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal);
   klass->SetClassLoader(loader);
-  klass->SetStatus(Class::kStatusInitialized);  // no loading or initializing necessary
+  klass->SetName(name);
   Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
+  klass->SetDexCache(proxy_class->GetDexCache());
+  klass->SetDexTypeIndex(-1);
   klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
-  klass->SetInterfaces(interfaces);  // The interfaces are the array of interfaces specified
+  klass->SetStatus(Class::kStatusInitialized);  // no loading or initializing necessary
 
   // Proxies have 1 direct method, the constructor
   klass->SetDirectMethods(AllocObjectArray<Method>(1));
-  klass->SetDirectMethod(0, CreateProxyConstructor(klass));
+  klass->SetDirectMethod(0, CreateProxyConstructor(klass, proxy_class));
 
   // Create virtual method using specified prototypes
   size_t num_virtual_methods = methods->GetLength();
   klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     SirtRef<Method> prototype(methods->Get(i));
-    klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype, throws->Get(i)));
+    klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype));
   }
   // Link the virtual methods, creating vtable and iftables
-  if (!LinkMethods(klass)) {
+  if (!LinkMethods(klass, interfaces)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
   return klass.get();
 }
 
-Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass) {
+std::string ClassLinker::GetDescriptorForProxy(const Class* proxy_class) {
+  DCHECK(proxy_class->IsProxyClass());
+  String* name = proxy_class->GetName();
+  DCHECK(name != NULL);
+  return DotToDescriptor(name->ToModifiedUtf8().c_str());
+}
+
+
+Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class) {
   // Create constructor for Proxy that must initialize h
-  Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
   ObjectArray<Method>* proxy_direct_methods = proxy_class->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 15);
   Method* proxy_constructor = proxy_direct_methods->Get(2);
@@ -1802,15 +1746,18 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass) {
   constructor->SetDeclaringClass(klass.get());
   // Sanity checks
   CHECK(constructor->IsConstructor());
-  CHECK(constructor->GetName()->Equals("<init>"));
-  CHECK(constructor->GetSignature()->Equals("(Ljava/lang/reflect/InvocationHandler;)V"));
+  MethodHelper mh(constructor);
+  CHECK_STREQ(mh.GetName(), "<init>");
+  CHECK(mh.GetSignature() == "(Ljava/lang/reflect/InvocationHandler;)V");
   DCHECK(constructor->IsPublic());
   return constructor;
 }
 
-Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype,
-                                       ObjectArray<Class>* throws) {
-  // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialise
+Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype) {
+  // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
+  // prototype method
+  prototype->GetDexCacheResolvedMethods()->Set(prototype->GetDexMethodIndex(), prototype.get());
+  // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
   Method* method = down_cast<Method*>(prototype->Clone());
 
@@ -1818,7 +1765,6 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
   // the intersection of throw exceptions as defined in Proxy
   method->SetDeclaringClass(klass.get());
   method->SetAccessFlags((method->GetAccessFlags() & ~kAccAbstract) | kAccFinal);
-  method->SetExceptionTypes(throws);
 
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
@@ -1829,12 +1775,21 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
   method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
 
   // Basic sanity
-  DCHECK(method->GetName()->Equals(prototype->GetName()));
-  DCHECK(method->GetSignature()->Equals(prototype->GetSignature()));
-  DCHECK(method->GetShorty()->Equals(prototype->GetShorty()));
+  CHECK(!prototype->IsFinal());
+  CHECK(method->IsFinal());
+  CHECK(!method->IsAbstract());
+  MethodHelper mh(method);
+  const char* method_name = mh.GetName();
+  const char* method_shorty = mh.GetShorty();
+  Class* method_return = mh.GetReturnType();
+
+  mh.ChangeMethod(prototype.get());
+
+  CHECK_STREQ(mh.GetName(), method_name);
+  CHECK_STREQ(mh.GetShorty(), method_shorty);
 
   // More complex sanity - via dex cache
-  CHECK_EQ(method->GetReturnType(), prototype->GetReturnType());
+  CHECK_EQ(mh.GetReturnType(), method_return);
 
   return method;
 }
@@ -1928,8 +1883,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       thread_stats->class_init_time_ns += (t1 - t0);
       klass->SetStatus(Class::kStatusInitialized);
       if (verbose_) {
-        LOG(INFO) << "Initialized class " << klass->GetDescriptor()->ToModifiedUtf8()
-                  << " from " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+        ClassHelper kh(klass);
+        LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
       }
     }
     lock.NotifyAll();
@@ -1959,7 +1914,7 @@ bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock&
       // The caller wants an exception, but it was thrown in a
       // different thread.  Synthesize one here.
       ThrowNoClassDefFoundError("<clinit> failed for class %s; see exception in other thread",
-                                PrettyDescriptor(klass->GetDescriptor()).c_str());
+                                PrettyDescriptor(klass).c_str());
       return false;
     }
     if (klass->IsInitialized()) {
@@ -1984,7 +1939,9 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
           !HasSameMethodDescriptorClasses(method, super, klass)) {
         klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
 
-        ThrowLinkageError("Class %s method %s resolves differently in superclass %s", PrettyDescriptor(klass->GetDescriptor()).c_str(), PrettyMethod(method).c_str(), PrettyDescriptor(super->GetDescriptor()).c_str());
+        ThrowLinkageError("Class %s method %s resolves differently in superclass %s",
+                          PrettyDescriptor(klass).c_str(), PrettyMethod(method).c_str(),
+                          PrettyDescriptor(super).c_str());
         return false;
       }
     }
@@ -1999,7 +1956,10 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
                                             method->GetDeclaringClass())) {
           klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
 
-          ThrowLinkageError("Class %s method %s resolves differently in interface %s", PrettyDescriptor(method->GetDeclaringClass()->GetDescriptor()).c_str(), PrettyMethod(method).c_str(), PrettyDescriptor(interface->GetDescriptor()).c_str());
+          ThrowLinkageError("Class %s method %s resolves differently in interface %s",
+                            PrettyDescriptor(method->GetDeclaringClass()).c_str(),
+                            PrettyMethod(method).c_str(),
+                            PrettyDescriptor(interface).c_str());
           return false;
         }
       }
@@ -2015,7 +1975,8 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
     return true;
   }
   const DexFile& dex_file = FindDexFile(method->GetDeclaringClass()->GetDexCache());
-  const DexFile::ProtoId& proto_id = dex_file.GetProtoId(method->GetProtoIdx());
+  const DexFile::ProtoId& proto_id =
+      dex_file.GetMethodPrototype(dex_file.GetMethodId(method->GetDexMethodIndex()));
   for (DexFileParameterIterator it(dex_file, proto_id); it.HasNext(); it.Next()) {
     const char* descriptor = it.GetDescriptor();
     if (descriptor == NULL) {
@@ -2121,10 +2082,10 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   if (dex_cache == NULL) {
     return;
   }
-  const DexFile& dex_file = FindDexFile(dex_cache);
-  const std::string descriptor(klass->GetDescriptor()->ToModifiedUtf8());
-  const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
+  ClassHelper kh(klass);
+  const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
   CHECK(dex_class_def != NULL);
+  const DexFile& dex_file = kh.GetDexFile();
   EncodedStaticFieldValueIterator it(dex_file, dex_cache, this, *dex_class_def);
 
   if (it.HasNext()) {
@@ -2142,7 +2103,7 @@ bool ClassLinker::LinkClass(SirtRef<Class>& klass) {
   if (!LinkSuperClass(klass)) {
     return false;
   }
-  if (!LinkMethods(klass)) {
+  if (!LinkMethods(klass, NULL)) {
     return false;
   }
   if (!LinkInstanceFields(klass)) {
@@ -2160,30 +2121,38 @@ bool ClassLinker::LinkClass(SirtRef<Class>& klass) {
 
 bool ClassLinker::LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& dex_file) {
   CHECK_EQ(Class::kStatusIdx, klass->GetStatus());
-  if (klass->GetSuperClassTypeIdx() != DexFile::kDexNoIndex16) {
-    Class* super_class = ResolveType(dex_file, klass->GetSuperClassTypeIdx(), klass.get());
+  StringPiece descriptor(dex_file.StringByTypeIdx(klass->GetDexTypeIndex()));
+  const DexFile::ClassDef* class_def = dex_file.FindClassDef(descriptor);
+  if (class_def == NULL) {
+    return false;
+  }
+  uint16_t super_class_idx = class_def->superclass_idx_;
+  if (super_class_idx != DexFile::kDexNoIndex16) {
+    Class* super_class = ResolveType(dex_file, super_class_idx, klass.get());
     if (super_class == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       return false;
     }
     klass->SetSuperClass(super_class);
   }
-  for (size_t i = 0; i < klass->NumInterfaces(); ++i) {
-    uint32_t idx = klass->GetInterfacesTypeIdx()->Get(i);
-    Class* interface = ResolveType(dex_file, idx, klass.get());
-    klass->SetInterface(i, interface);
-    if (interface == NULL) {
-      DCHECK(Thread::Current()->IsExceptionPending());
-      return false;
-    }
-    // Verify
-    if (!klass->CanAccess(interface)) {
-      // TODO: the RI seemed to ignore this in my testing.
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-          "Interface %s implemented by class %s is inaccessible",
-          PrettyDescriptor(interface->GetDescriptor()).c_str(),
-          PrettyDescriptor(klass->GetDescriptor()).c_str());
-      return false;
+  const DexFile::TypeList* interfaces = dex_file.GetInterfacesList(*class_def);
+  if (interfaces != NULL) {
+    for (size_t i = 0; i < interfaces->Size(); i++) {
+      uint16_t idx = interfaces->GetTypeItem(i).type_idx_;
+      Class* interface = ResolveType(dex_file, idx, klass.get());
+      if (interface == NULL) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        return false;
+      }
+      // Verify
+      if (!klass->CanAccess(interface)) {
+        // TODO: the RI seemed to ignore this in my testing.
+        Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+            "Interface %s implemented by class %s is inaccessible",
+            PrettyDescriptor(interface).c_str(),
+            PrettyDescriptor(klass.get()).c_str());
+        return false;
+      }
     }
   }
   // Mark the class as loaded.
@@ -2194,7 +2163,7 @@ bool ClassLinker::LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& d
 bool ClassLinker::LinkSuperClass(SirtRef<Class>& klass) {
   CHECK(!klass->IsPrimitive());
   Class* super = klass->GetSuperClass();
-  if (klass->GetDescriptor()->Equals("Ljava/lang/Object;")) {
+  if (klass.get() == GetClassRoot(kJavaLangObject)) {
     if (super != NULL) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassFormatError;",
           "java.lang.Object must not have a superclass");
@@ -2203,24 +2172,23 @@ bool ClassLinker::LinkSuperClass(SirtRef<Class>& klass) {
     return true;
   }
   if (super == NULL) {
-    ThrowLinkageError("No superclass defined for class %s",
-        PrettyDescriptor(klass->GetDescriptor()).c_str());
+    ThrowLinkageError("No superclass defined for class %s", PrettyDescriptor(klass.get()).c_str());
     return false;
   }
   // Verify
   if (super->IsFinal() || super->IsInterface()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
         "Superclass %s of %s is %s",
-        PrettyDescriptor(super->GetDescriptor()).c_str(),
-        PrettyDescriptor(klass->GetDescriptor()).c_str(),
+        PrettyDescriptor(super).c_str(),
+        PrettyDescriptor(klass.get()).c_str(),
         super->IsFinal() ? "declared final" : "an interface");
     return false;
   }
   if (!klass->CanAccess(super)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
         "Superclass %s is inaccessible by %s",
-        PrettyDescriptor(super->GetDescriptor()).c_str(),
-        PrettyDescriptor(klass->GetDescriptor()).c_str());
+        PrettyDescriptor(super).c_str(),
+        PrettyDescriptor(klass.get()).c_str());
     return false;
   }
 
@@ -2237,7 +2205,7 @@ bool ClassLinker::LinkSuperClass(SirtRef<Class>& klass) {
   // Disallow custom direct subclasses of java.lang.ref.Reference.
   if (init_done_ && super == GetClassRoot(kJavaLangRefReference)) {
     ThrowLinkageError("Class %s attempts to subclass java.lang.ref.Reference, which is not allowed",
-        PrettyDescriptor(klass->GetDescriptor()).c_str());
+        PrettyDescriptor(klass.get()).c_str());
     return false;
   }
 
@@ -2252,7 +2220,7 @@ bool ClassLinker::LinkSuperClass(SirtRef<Class>& klass) {
 }
 
 // Populate the class vtable and itable. Compute return type indices.
-bool ClassLinker::LinkMethods(SirtRef<Class>& klass) {
+bool ClassLinker::LinkMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfaces) {
   if (klass->IsInterface()) {
     // No vtable.
     size_t count = klass->NumVirtualMethods();
@@ -2264,10 +2232,10 @@ bool ClassLinker::LinkMethods(SirtRef<Class>& klass) {
       klass->GetVirtualMethodDuringLinking(i)->SetMethodIndex(i);
     }
     // Link interface method tables
-    return LinkInterfaceMethods(klass);
+    return LinkInterfaceMethods(klass, interfaces);
   } else {
     // Link virtual and interface method tables
-    return LinkVirtualMethods(klass) && LinkInterfaceMethods(klass);
+    return LinkVirtualMethods(klass) && LinkInterfaceMethods(klass, interfaces);
   }
   return true;
 }
@@ -2280,18 +2248,22 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
     // TODO: do not assign to the vtable field until it is fully constructed.
     ObjectArray<Method>* vtable = klass->GetSuperClass()->GetVTable()->CopyOf(max_count);
     // See if any of our virtual methods override the superclass.
+    MethodHelper local_mh(NULL, this);
+    MethodHelper super_mh(NULL, this);
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
       Method* local_method = klass->GetVirtualMethodDuringLinking(i);
+      local_mh.ChangeMethod(local_method);
       size_t j = 0;
       for (; j < actual_count; ++j) {
         Method* super_method = vtable->Get(j);
-        if (local_method->HasSameNameAndSignature(super_method)) {
+        super_mh.ChangeMethod(super_method);
+        if (local_mh.HasSameNameAndSignature(&super_mh)) {
           // Verify
           if (super_method->IsFinal()) {
+            MethodHelper mh(local_method);
             ThrowLinkageError("Method %s.%s overrides final method in class %s",
-                PrettyDescriptor(klass->GetDescriptor()).c_str(),
-                local_method->GetName()->ToModifiedUtf8().c_str(),
-                PrettyDescriptor(super_method->GetDeclaringClass()->GetDescriptor()).c_str());
+                PrettyDescriptor(klass.get()).c_str(),
+                mh.GetName(), mh.GetDeclaringClassDescriptor());
             return false;
           }
           vtable->Set(j, local_method);
@@ -2317,7 +2289,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
     }
     klass->SetVTable(vtable);
   } else {
-    CHECK(klass->GetDescriptor()->Equals("Ljava/lang/Object;"));
+    CHECK(klass.get() == GetClassRoot(kJavaLangObject));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
     if (!IsUint(16, num_virtual_methods)) {
       ThrowClassFormatError("Too many methods: %d", num_virtual_methods);
@@ -2334,7 +2306,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
   return true;
 }
 
-bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
+bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfaces) {
   size_t super_ifcount;
   if (klass->HasSuperClass()) {
     super_ifcount = klass->GetSuperClass()->GetIfTableCount();
@@ -2342,9 +2314,12 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
     super_ifcount = 0;
   }
   size_t ifcount = super_ifcount;
-  ifcount += klass->NumInterfaces();
-  for (size_t i = 0; i < klass->NumInterfaces(); i++) {
-    ifcount += klass->GetInterface(i)->GetIfTableCount();
+  ClassHelper kh(klass.get(), this);
+  uint32_t num_interfaces = interfaces == NULL ? kh.NumInterfaces() : interfaces->GetLength();
+  ifcount += num_interfaces;
+  for (size_t i = 0; i < num_interfaces; i++) {
+    Class* interface = interfaces == NULL ? kh.GetInterface(i) : interfaces->Get(i);
+    ifcount += interface->GetIfTableCount();
   }
   if (ifcount == 0) {
     // TODO: enable these asserts with klass status validation
@@ -2361,14 +2336,15 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
   }
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
-  for (size_t i = 0; i < klass->NumInterfaces(); i++) {
-    Class* interface = klass->GetInterface(i);
+  for (size_t i = 0; i < num_interfaces; i++) {
+    Class* interface = interfaces == NULL ? kh.GetInterface(i) : interfaces->Get(i);
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
+      ClassHelper ih(interface);
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
           "Class %s implements non-interface class %s",
-          PrettyDescriptor(klass->GetDescriptor()).c_str(),
-          PrettyDescriptor(interface->GetDescriptor()).c_str());
+          PrettyDescriptor(klass.get()).c_str(),
+          PrettyDescriptor(ih.GetDescriptor()).c_str());
       return false;
     }
     // Add this interface.
@@ -2386,6 +2362,8 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
     return true;
   }
   std::vector<Method*> miranda_list;
+  MethodHelper vtable_mh(NULL, this);
+  MethodHelper interface_mh(NULL, this);
   for (size_t i = 0; i < ifcount; ++i) {
     InterfaceEntry* interface_entry = iftable->Get(i);
     Class* interface = interface_entry->GetInterface();
@@ -2394,6 +2372,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
     ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
       Method* interface_method = interface->GetVirtualMethod(j);
+      interface_mh.ChangeMethod(interface_method);
       int32_t k;
       // For each method listed in the interface's method list, find the
       // matching method in our class's method list.  We want to favor the
@@ -2405,7 +2384,8 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
       // matter which direction we go.  We walk it backward anyway.)
       for (k = vtable->GetLength() - 1; k >= 0; --k) {
         Method* vtable_method = vtable->Get(k);
-        if (interface_method->HasSameNameAndSignature(vtable_method)) {
+        vtable_mh.ChangeMethod(vtable_method);
+        if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
           if (!vtable_method->IsPublic()) {
             Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                 "Implementation not public: %s", PrettyMethod(vtable_method).c_str());
@@ -2418,7 +2398,9 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass) {
       if (k < 0) {
         SirtRef<Method> miranda_method(NULL);
         for (size_t mir = 0; mir < miranda_list.size(); mir++) {
-          if (miranda_list[mir]->HasSameNameAndSignature(interface_method)) {
+          Method* mir_method = miranda_list[mir];
+          vtable_mh.ChangeMethod(mir_method);
+          if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
             miranda_method.reset(miranda_list[mir]);
             break;
           }
@@ -2481,10 +2463,13 @@ bool ClassLinker::LinkStaticFields(SirtRef<Class>& klass) {
 }
 
 struct LinkFieldsComparator {
+  LinkFieldsComparator(FieldHelper* fh) : fh_(fh) {}
   bool operator()(const Field* field1, const Field* field2) {
     // First come reference fields, then 64-bit, and finally 32-bit
-    Primitive::Type type1 = field1->GetPrimitiveType();
-    Primitive::Type type2 = field2->GetPrimitiveType();
+    fh_->ChangeField(field1);
+    Primitive::Type type1 = fh_->GetTypeAsPrimitiveType();
+    fh_->ChangeField(field2);
+    Primitive::Type type2 = fh_->GetTypeAsPrimitiveType();
     bool isPrimitive1 = type1 != Primitive::kPrimNot;
     bool isPrimitive2 = type2 != Primitive::kPrimNot;
     bool is64bit1 = isPrimitive1 && (type1 == Primitive::kPrimLong || type1 == Primitive::kPrimDouble);
@@ -2496,10 +2481,14 @@ struct LinkFieldsComparator {
     }
 
     // same basic group? then sort by string.
-    std::string name1 = field1->GetName()->ToModifiedUtf8();
-    std::string name2 = field2->GetName()->ToModifiedUtf8();
+    fh_->ChangeField(field1);
+    StringPiece name1(fh_->GetName());
+    fh_->ChangeField(field2);
+    StringPiece name2(fh_->GetName());
     return name1 < name2;
   }
+
+  FieldHelper* fh_;
 };
 
 bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
@@ -2532,16 +2521,18 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   for (size_t i = 0; i < num_fields; i++) {
     grouped_and_sorted_fields.push_back(fields->Get(i));
   }
+  FieldHelper fh(NULL, this);
   std::sort(grouped_and_sorted_fields.begin(),
             grouped_and_sorted_fields.end(),
-            LinkFieldsComparator());
+            LinkFieldsComparator(&fh));
 
   // References should be at the front.
   size_t current_field = 0;
   size_t num_reference_fields = 0;
   for (; current_field < num_fields; current_field++) {
     Field* field = grouped_and_sorted_fields.front();
-    Primitive::Type type = field->GetPrimitiveType();
+    fh.ChangeField(field);
+    Primitive::Type type = fh.GetTypeAsPrimitiveType();
     bool isPrimitive = type != Primitive::kPrimNot;
     if (isPrimitive) {
       break; // past last reference, move on to the next phase
@@ -2559,7 +2550,8 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   if (current_field != num_fields && !IsAligned<8>(field_offset.Uint32Value())) {
     for (size_t i = 0; i < grouped_and_sorted_fields.size(); i++) {
       Field* field = grouped_and_sorted_fields[i];
-      Primitive::Type type = field->GetPrimitiveType();
+      fh.ChangeField(field);
+      Primitive::Type type = fh.GetTypeAsPrimitiveType();
       CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
       if (type == Primitive::kPrimLong || type == Primitive::kPrimDouble) {
         continue;
@@ -2580,7 +2572,8 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   while (!grouped_and_sorted_fields.empty()) {
     Field* field = grouped_and_sorted_fields.front();
     grouped_and_sorted_fields.pop_front();
-    Primitive::Type type = field->GetPrimitiveType();
+    fh.ChangeField(field);
+    Primitive::Type type = fh.GetTypeAsPrimitiveType();
     CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
     fields->Set(current_field, field);
     field->SetOffset(field_offset);
@@ -2592,11 +2585,14 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   }
 
   // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
-  if (!is_static && klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;")) {
+  std::string descriptor(ClassHelper(klass.get(), this).GetDescriptor());
+  if (!is_static &&  descriptor == "Ljava/lang/ref/Reference;") {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
-    CHECK(fields->Get(num_fields - 1)->GetName()->Equals("referent"));
+    fh.ChangeField(fields->Get(num_fields - 1));
+    StringPiece name(fh.GetName());
+    CHECK(name == "referent");
     --num_reference_fields;
   }
 
@@ -2612,9 +2608,10 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
                 << " field=" << PrettyField(field)
                 << " offset=" << field->GetField32(MemberOffset(Field::OffsetOffset()), false);
     }
-    Primitive::Type type = field->GetPrimitiveType();
+    fh.ChangeField(field);
+    Primitive::Type type = fh.GetTypeAsPrimitiveType();
     bool is_primitive = type != Primitive::kPrimNot;
-    if (klass->GetDescriptor()->Equals("Ljava/lang/ref/Reference;") && field->GetName()->Equals("referent")) {
+    if (descriptor == "Ljava/lang/ref/Reference;" && StringPiece(fh.GetName()) == "referent") {
       is_primitive = true; // We lied above, so we have to expect a lie here.
     }
     if (is_primitive) {
@@ -2711,7 +2708,7 @@ String* ClassLinker::ResolveString(const DexFile& dex_file,
 }
 
 Class* ClassLinker::ResolveType(const DexFile& dex_file,
-                                uint32_t type_idx,
+                                uint16_t type_idx,
                                 DexCache* dex_cache,
                                 const ClassLoader* class_loader) {
   Class* resolved = dex_cache->GetResolvedType(type_idx);
@@ -2840,6 +2837,17 @@ pid_t ClassLinker::GetClassesLockOwner() {
 
 pid_t ClassLinker::GetDexLockOwner() {
   return dex_lock_.GetOwner();
+}
+
+void ClassLinker::SetClassRoot(ClassRoot class_root, Class* klass) {
+  DCHECK(!init_done_);
+
+  DCHECK(klass != NULL);
+  DCHECK(klass->GetClassLoader() == NULL);
+
+  DCHECK(class_roots_ != NULL);
+  DCHECK(class_roots_->Get(class_root) == NULL);
+  class_roots_->Set(class_root, klass);
 }
 
 }  // namespace art
