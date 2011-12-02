@@ -744,6 +744,10 @@ static const uint16_t kEclipseWorkaroundSlot = 1000;
  *
  * So, we remap the item in slot 0 to 1000, and remap "this" to zero.  On
  * SF.GetValues / SF.SetValues we map them back.
+ *
+ * TODO: jdb uses the value to determine whether a variable is a local or an argument,
+ * by checking whether it's less than the number of arguments. To make that work, we'd
+ * have to "mangle" all the arguments to come first, not just the implicit argument 'this'.
  */
 static uint16_t MangleSlot(uint16_t slot, const char* name) {
   uint16_t newSlot = slot;
@@ -755,9 +759,6 @@ static uint16_t MangleSlot(uint16_t slot, const char* name) {
   return newSlot;
 }
 
-/*
- * Reverse Eclipse hack.
- */
 static uint16_t DemangleSlot(uint16_t slot, Frame& f) {
   if (slot == kEclipseWorkaroundSlot) {
     return 0;
@@ -768,7 +769,7 @@ static uint16_t DemangleSlot(uint16_t slot, Frame& f) {
   return slot;
 }
 
-void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
   Class* c = gRegistry->Get<Class*>(refTypeId);
   CHECK(c != NULL);
 
@@ -783,7 +784,7 @@ void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP
     expandBufAddFieldId(pReply, ToFieldId(f));
     expandBufAddUtf8String(pReply, f->GetName()->ToModifiedUtf8().c_str());
     expandBufAddUtf8String(pReply, f->GetTypeDescriptor());
-    if (withGeneric) {
+    if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
     }
@@ -791,7 +792,7 @@ void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP
   }
 }
 
-void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
   Class* c = gRegistry->Get<Class*>(refTypeId);
   CHECK(c != NULL);
 
@@ -806,7 +807,7 @@ void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDW
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, m->GetName()->ToModifiedUtf8().c_str());
     expandBufAddUtf8String(pReply, m->GetSignature()->ToModifiedUtf8().c_str());
-    if (withGeneric) {
+    if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
     }
@@ -868,29 +869,29 @@ void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JD
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
 
-void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, bool withGeneric, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, bool with_generic, JDWP::ExpandBuf* pReply) {
   struct DebugCallbackContext {
-    int numItems;
     JDWP::ExpandBuf* pReply;
-    bool withGeneric;
+    size_t variable_count;
+    bool with_generic;
 
-    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char *name, const char *descriptor, const char *signature) {
+    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      LOG(VERBOSE) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->numItems, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
+      LOG(VERBOSE) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
 
       slot = MangleSlot(slot, name);
 
       expandBufAdd8BE(pContext->pReply, startAddress);
       expandBufAddUtf8String(pContext->pReply, name);
       expandBufAddUtf8String(pContext->pReply, descriptor);
-      if (pContext->withGeneric) {
+      if (pContext->with_generic) {
         expandBufAddUtf8String(pContext->pReply, signature);
       }
       expandBufAdd4BE(pContext->pReply, endAddress - startAddress);
       expandBufAdd4BE(pContext->pReply, slot);
 
-      pContext->numItems++;
+      ++pContext->variable_count;
     }
   };
 
@@ -899,20 +900,23 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
   const DexFile& dex_file = class_linker->FindDexFile(m->GetDeclaringClass()->GetDexCache());
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(m->GetCodeItemOffset());
 
-  expandBufAdd4BE(pReply, m->NumIns());
+  // arg_count considers doubles and longs to take 2 units.
+  // variable_count considers everything to take 1 unit.
+  std::string shorty(m->GetShorty()->ToModifiedUtf8());
+  expandBufAdd4BE(pReply, m->NumArgRegisters(shorty));
 
-  // Add numLocals later
-  size_t numLocalsOffset = expandBufGetLength(pReply);
+  // We don't know the total number of variables yet, so leave a blank and update it later.
+  size_t variable_count_offset = expandBufGetLength(pReply);
   expandBufAdd4BE(pReply, 0);
 
   DebugCallbackContext context;
-  context.numItems = 0;
   context.pReply = pReply;
-  context.withGeneric = withGeneric;
+  context.variable_count = 0;
+  context.with_generic = with_generic;
 
   dex_file.DecodeDebugInfo(code_item, m, NULL, DebugCallbackContext::Callback, &context);
 
-  JDWP::Set4BE(expandBufGetBuffer(pReply) + numLocalsOffset, context.numItems);
+  JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
 }
 
 uint8_t Dbg::GetFieldBasicTag(JDWP::ObjectId objId, JDWP::FieldId fieldId) {
