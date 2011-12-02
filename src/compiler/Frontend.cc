@@ -74,7 +74,7 @@ STATIC inline int parseInsn(const u2* codePtr, DecodedInstruction* decInsn,
 
     dexDecodeInstruction(codePtr, decInsn);
     if (printMe) {
-        char *decodedString = oatGetDalvikDisassembly(decInsn, NULL);
+        char* decodedString = oatGetDalvikDisassembly(decInsn, NULL);
         LOG(INFO) << codePtr << ": 0x" << std::hex << (int)opcode <<
         " " << decodedString;
     }
@@ -218,7 +218,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
     std::string name = art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
-    char* fileName = (char *) oatNew(
+    char* fileName = (char*) oatNew(
                         strlen(dirPrefix) +
                         name.length() +
                         strlen(".dot") + 1, true);

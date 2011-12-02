@@ -119,11 +119,11 @@ bool oatFindInductionVariables(struct CompilationUnit* cUnit,
 /* Clear the visited flag for each BB */
 bool oatClearVisitedFlag(struct CompilationUnit* cUnit,
                                  struct BasicBlock* bb);
-char *oatGetDalvikDisassembly(const DecodedInstruction* insn,
+char* oatGetDalvikDisassembly(const DecodedInstruction* insn,
                                       const char* note);
-char *oatFullDisassembler(const struct CompilationUnit* cUnit,
+char* oatFullDisassembler(const struct CompilationUnit* cUnit,
                                   const struct MIR* mir);
-char *oatGetSSAString(struct CompilationUnit* cUnit,
+char* oatGetSSAString(struct CompilationUnit* cUnit,
                               struct SSARepresentation* ssaRep);
 void oatDataFlowAnalysisDispatcher(struct CompilationUnit* cUnit,
                 bool (*func)(struct CompilationUnit* , struct BasicBlock*),

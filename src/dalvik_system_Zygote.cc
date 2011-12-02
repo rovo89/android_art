@@ -42,7 +42,7 @@ void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
   if (command.c_str() == NULL) {
     return;
   }
-  const char *argp[] = {_PATH_BSHELL, "-c", command.c_str(), NULL};
+  const char* argp[] = {_PATH_BSHELL, "-c", command.c_str(), NULL};
   LOG(INFO) << "Exec: " << argp[0] << ' ' << argp[1] << ' ' << argp[2];
 
   execv(_PATH_BSHELL, (char**)argp);

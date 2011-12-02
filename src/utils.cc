@@ -496,10 +496,10 @@ void Split(const std::string& s, char delim, std::vector<std::string>& result) {
   }
 }
 
-void SetThreadName(const char *threadName) {
+void SetThreadName(const char* threadName) {
   int hasAt = 0;
   int hasDot = 0;
-  const char *s = threadName;
+  const char* s = threadName;
   while (*s) {
     if (*s == '.') {
       hasDot = 1;

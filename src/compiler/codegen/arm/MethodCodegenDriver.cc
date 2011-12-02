@@ -1822,7 +1822,7 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     return res;
 }
 
-STATIC const char *extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
+STATIC const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirOpPhi",
     "kMirOpNullNRangeUpCheck",
     "kMirOpNullNRangeDownCheck",
@@ -2031,7 +2031,7 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 
         /* Don't generate the SSA annotation unless verbose mode is on */
         if (cUnit->printMe && mir->ssaRep) {
-            char *ssaString = oatGetSSAString(cUnit, mir->ssaRep);
+            char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
             newLIR1(cUnit, kArmPseudoSSARep, (int) ssaString);
         }
 

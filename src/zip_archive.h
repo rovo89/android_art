@@ -105,7 +105,7 @@ class ZipArchive {
   static ZipArchive* Open(const std::string& filename);
   static ZipArchive* Open(int fd);
 
-  ZipEntry* Find(const char * name);
+  ZipEntry* Find(const char* name);
 
   ~ZipArchive() {
     Close();

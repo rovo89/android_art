@@ -13,7 +13,7 @@
 
 namespace art {
 
-int ProcessZipFile(int zip_fd, int cache_fd, const char* zip_name, const char *flags) {
+int ProcessZipFile(int zip_fd, int cache_fd, const char* zip_name, const char* flags) {
   // TODO: need to read/write to installd opened file descriptors
   if (false) {
     UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_fd));

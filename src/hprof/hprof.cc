@@ -49,7 +49,7 @@ namespace hprof {
 /*
  * Initialize an Hprof.
  */
-Hprof::Hprof(const char *outputFileName, int fd, bool writeHeader, bool directToDdms)
+Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directToDdms)
     : current_record_(),
       gc_thread_serial_number_(0),
       gc_scan_state_(0),
@@ -78,7 +78,7 @@ Hprof::Hprof(const char *outputFileName, int fd, bool writeHeader, bool directTo
   fd_ = fd;
 
   current_record_.alloc_length_ = 128;
-  current_record_.body_ = (unsigned char *)malloc(current_record_.alloc_length_);
+  current_record_.body_ = (unsigned char*)malloc(current_record_.alloc_length_);
   // TODO check for/return an error
 
   if (writeHeader) {
@@ -147,7 +147,7 @@ int Hprof::FlushCurrentRecord() {
 // The ID for the synthetic object generated to account for class static overhead.
 #define CLASS_STATICS_ID(clazz) ((HprofObjectId)(((uint32_t)(clazz)) | 1))
 
-HprofBasicType Hprof::SignatureToBasicTypeAndSize(const char *sig, size_t *sizeOut) {
+HprofBasicType Hprof::SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut) {
   char c = sig[0];
   HprofBasicType ret;
   size_t size;

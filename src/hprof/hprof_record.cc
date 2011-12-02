@@ -55,7 +55,7 @@ int HprofRecord::GuaranteeRecordAppend(size_t nmore) {
     if (newAllocLen < minSize) {
       newAllocLen = alloc_length_ + nmore + nmore/2;
     }
-    unsigned char *newBody = (unsigned char *)realloc(body_, newAllocLen);
+    unsigned char* newBody = (unsigned char*)realloc(body_, newAllocLen);
     if (newBody != NULL) {
       body_ = newBody;
       alloc_length_ = newAllocLen;
@@ -90,7 +90,7 @@ int HprofRecord::AddU1(uint8_t value) {
   return 0;
 }
 
-int HprofRecord::AddUtf8String(const char *str) {
+int HprofRecord::AddUtf8String(const char* str) {
   // The terminating NUL character is NOT written.
   return AddU1List((const uint8_t *)str, strlen(str));
 }
@@ -101,7 +101,7 @@ int HprofRecord::AddU2List(const uint16_t *values, size_t numValues) {
     return err;
   }
 
-  unsigned char *insert = body_ + length_;
+  unsigned char* insert = body_ + length_;
   for (size_t i = 0; i < numValues; i++) {
     U2_TO_BUF_BE(insert, 0, *values++);
     insert += sizeof(*values);
@@ -124,7 +124,7 @@ int HprofRecord::AddU4List(const uint32_t *values, size_t numValues) {
     return err;
   }
 
-  unsigned char *insert = body_ + length_;
+  unsigned char* insert = body_ + length_;
   for (size_t i = 0; i < numValues; i++) {
     U4_TO_BUF_BE(insert, 0, *values++);
     insert += sizeof(*values);
@@ -147,7 +147,7 @@ int HprofRecord::AddU8List(const uint64_t *values, size_t numValues) {
     return err;
   }
 
-  unsigned char *insert = body_ + length_;
+  unsigned char* insert = body_ + length_;
   for (size_t i = 0; i < numValues; i++) {
     U8_TO_BUF_BE(insert, 0, *values++);
     insert += sizeof(*values);

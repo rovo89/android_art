@@ -147,12 +147,12 @@ void Runtime::CallExitHook(jint status) {
 // Returns 0 (a useless size) if "s" is malformed or specifies a low or
 // non-evenly-divisible value.
 //
-size_t ParseMemoryOption(const char *s, size_t div) {
+size_t ParseMemoryOption(const char* s, size_t div) {
   // strtoul accepts a leading [+-], which we don't want,
   // so make sure our string starts with a decimal digit.
   if (isdigit(*s)) {
-    const char *s2;
-    size_t val = strtoul(s, (char **)&s2, 10);
+    const char* s2;
+    size_t val = strtoul(s, (char**)&s2, 10);
     if (s2 != s) {
       // s2 should be pointing just after the number.
       // If this is the end of the string, the user

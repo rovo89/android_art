@@ -39,7 +39,7 @@ namespace hprof {
 
 #define U2_TO_BUF_BE(buf, offset, value) \
     do { \
-        unsigned char *buf_ = (unsigned char *)(buf); \
+        unsigned char* buf_ = (unsigned char*)(buf); \
         int offset_ = (int)(offset); \
         uint16_t value_ = (uint16_t)(value); \
         buf_[offset_ + 0] = (unsigned char)(value_ >>  8); \
@@ -48,7 +48,7 @@ namespace hprof {
 
 #define U4_TO_BUF_BE(buf, offset, value) \
     do { \
-        unsigned char *buf_ = (unsigned char *)(buf); \
+        unsigned char* buf_ = (unsigned char*)(buf); \
         int offset_ = (int)(offset); \
         uint32_t value_ = (uint32_t)(value); \
         buf_[offset_ + 0] = (unsigned char)(value_ >> 24); \
@@ -59,7 +59,7 @@ namespace hprof {
 
 #define U8_TO_BUF_BE(buf, offset, value) \
     do { \
-        unsigned char *buf_ = (unsigned char *)(buf); \
+        unsigned char* buf_ = (unsigned char*)(buf); \
         int offset_ = (int)(offset); \
         uint64_t value_ = (uint64_t)(value); \
         buf_[offset_ + 0] = (unsigned char)(value_ >> 56); \
@@ -157,9 +157,9 @@ class HprofRecord {
   int AddU4List(const uint32_t *values, size_t numValues);
   int AddU8List(const uint64_t *values, size_t numValues);
   int AddIdList(const HprofObjectId *values, size_t numValues);
-  int AddUtf8String(const char *str);
+  int AddUtf8String(const char* str);
 
-  unsigned char *body_;
+  unsigned char* body_;
   uint32_t time_;
   uint32_t length_;
   size_t alloc_length_;
@@ -178,7 +178,7 @@ enum HprofHeapId {
 
 class Hprof {
  public:
-  Hprof(const char *outputFileName, int fd, bool writeHeader, bool directToDdms);
+  Hprof(const char* outputFileName, int fd, bool writeHeader, bool directToDdms);
   ~Hprof();
 
   void VisitRoot(const Object* obj);
@@ -196,8 +196,8 @@ class Hprof {
   HprofStringId LookupStringId(const char* string);
   HprofStringId LookupStringId(std::string string);
   HprofStringId LookupClassNameId(Class* clazz);
-  static HprofBasicType SignatureToBasicTypeAndSize(const char *sig, size_t *sizeOut);
-  static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t *sizeOut);
+  static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut);
+  static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t* sizeOut);
   static int StackTraceSerialNumber(const void *obj);
 
   // current_record_ *must* be first so that we can cast from a context to a record.
@@ -212,8 +212,8 @@ class Hprof {
   // Otherwise, "file_name_" must be valid, though if "fd" >= 0 it will
   // only be used for debug messages.
   bool direct_to_ddms_;
-  char *file_name_;
-  char *file_data_ptr_;   // for open_memstream
+  char* file_name_;
+  char* file_data_ptr_;   // for open_memstream
   size_t file_data_size_; // for open_memstream
   FILE *mem_fp_;
   int fd_;

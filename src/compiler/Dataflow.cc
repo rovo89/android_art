@@ -1587,7 +1587,7 @@ int oatConvertSSARegToDalvik(const CompilationUnit* cUnit, int ssaReg)
  * and subscript pair. Each SSA register can be used to index the
  * ssaToDalvikMap list to get the subscript[31..16]/dalvik_reg[15..0] mapping.
  */
-char *oatGetDalvikDisassembly(const DecodedInstruction* insn,
+char* oatGetDalvikDisassembly(const DecodedInstruction* insn,
                                       const char* note)
 {
     char buffer[256];
@@ -1668,12 +1668,12 @@ char *oatGetDalvikDisassembly(const DecodedInstruction* insn,
         }
     }
     int length = strlen(buffer) + 1;
-    ret = (char *)oatNew(length, false);
+    ret = (char*)oatNew(length, false);
     memcpy(ret, buffer, length);
     return ret;
 }
 
-char *getSSAName(const CompilationUnit* cUnit, int ssaReg, char* name)
+char* getSSAName(const CompilationUnit* cUnit, int ssaReg, char* name)
 {
     int ssa2DalvikValue = oatConvertSSARegToDalvik(cUnit, ssaReg);
 
@@ -1685,7 +1685,7 @@ char *getSSAName(const CompilationUnit* cUnit, int ssaReg, char* name)
 /*
  * Dalvik instruction disassembler with optional SSA printing.
  */
-char *oatFullDisassembler(const CompilationUnit* cUnit,
+char* oatFullDisassembler(const CompilationUnit* cUnit,
                                   const MIR* mir)
 {
     char buffer[256];
@@ -1693,7 +1693,7 @@ char *oatFullDisassembler(const CompilationUnit* cUnit,
     const DecodedInstruction *insn = &mir->dalvikInsn;
     int opcode = insn->opcode;
     int dfAttributes = oatDataFlowAttributes[opcode];
-    char *ret;
+    char* ret;
     int length;
     OpcodeFlags flags;
 
@@ -1804,7 +1804,7 @@ char *oatFullDisassembler(const CompilationUnit* cUnit,
 
 done:
     length = strlen(buffer) + 1;
-    ret = (char *) oatNew(length, false);
+    ret = (char*) oatNew(length, false);
     memcpy(ret, buffer, length);
     return ret;
 }
@@ -1814,7 +1814,7 @@ done:
  * and subscript pair. Each SSA register can be used to index the
  * ssaToDalvikMap list to get the subscript[31..16]/dalvik_reg[15..0] mapping.
  */
-char *oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
+char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 {
     char buffer[256];
     char* ret;
@@ -1846,7 +1846,7 @@ char *oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
     }
 
     int length = strlen(buffer) + 1;
-    ret = (char *)oatNew(length, false);
+    ret = (char*)oatNew(length, false);
     memcpy(ret, buffer, length);
     return ret;
 }
