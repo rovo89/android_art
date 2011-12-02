@@ -993,8 +993,15 @@ std::string Dbg::GetThreadGroupName(JDWP::ObjectId threadGroupId) {
 }
 
 JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Object* thread_group = gRegistry->Get<Object*>(threadGroupId);
+  CHECK(thread_group != NULL);
+
+  Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
+  CHECK(c != NULL);
+  Field* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
+  CHECK(f != NULL);
+  Object* parent = f->GetObject(thread_group);
+  return gRegistry->Add(parent);
 }
 
 static Object* GetStaticThreadGroup(const char* field_name) {
@@ -1176,11 +1183,25 @@ void Dbg::ResumeVM() {
 }
 
 void Dbg::SuspendThread(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
+  Object* peer = gRegistry->Get<Object*>(threadId);
+  ScopedThreadListLock thread_list_lock;
+  Thread* thread = Thread::FromManagedThread(peer);
+  if (thread == NULL) {
+    LOG(WARNING) << "No such thread for suspend: " << peer;
+    return;
+  }
+  Runtime::Current()->GetThreadList()->Suspend(thread, true);
 }
 
 void Dbg::ResumeThread(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
+  Object* peer = gRegistry->Get<Object*>(threadId);
+  ScopedThreadListLock thread_list_lock;
+  Thread* thread = Thread::FromManagedThread(peer);
+  if (thread == NULL) {
+    LOG(WARNING) << "No such thread for resume: " << peer;
+    return;
+  }
+  Runtime::Current()->GetThreadList()->Resume(thread, true);
 }
 
 void Dbg::SuspendSelf() {

@@ -201,14 +201,14 @@ void ThreadList::SuspendAll(bool for_debugger) {
   }
 }
 
-void ThreadList::Suspend(Thread* thread) {
+void ThreadList::Suspend(Thread* thread, bool for_debugger) {
   DCHECK(thread != Thread::Current());
   thread_list_lock_.AssertHeld();
 
   // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
 
   if (verbose_) {
-    LOG(INFO) << "Suspend(" << *thread << ") starting...";
+    LOG(INFO) << "Suspend(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
   }
 
   if (!Contains(thread)) {
@@ -217,7 +217,7 @@ void ThreadList::Suspend(Thread* thread) {
 
   {
     MutexLock mu(thread_suspend_count_lock_);
-    ModifySuspendCount(thread, +1, false);
+    ModifySuspendCount(thread, +1, for_debugger);
   }
 
   thread->WaitUntilSuspended();
@@ -309,12 +309,12 @@ void ThreadList::ResumeAll(bool for_debugger) {
   }
 }
 
-void ThreadList::Resume(Thread* thread) {
+void ThreadList::Resume(Thread* thread, bool for_debugger) {
   DCHECK(thread != Thread::Current());
   thread_list_lock_.AssertHeld();
 
   if (verbose_) {
-    LOG(INFO) << "Resume(" << *thread << ") starting...";
+    LOG(INFO) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
   }
 
   {
@@ -322,7 +322,7 @@ void ThreadList::Resume(Thread* thread) {
     if (!Contains(thread)) {
       return;
     }
-    ModifySuspendCount(thread, -1, false);
+    ModifySuspendCount(thread, -1, for_debugger);
   }
 
   {
