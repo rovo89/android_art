@@ -54,7 +54,7 @@ class PACKED Frame {
 
   uintptr_t LoadCalleeSave(int num) const;
 
-  uintptr_t GetVReg(Method* method, int vreg) const;
+  uint32_t GetVReg(Method* method, int vreg) const;
 
   Method** GetSP() const {
     return sp_;

@@ -1583,7 +1583,7 @@ class MANAGED Class : public StaticStorageBase {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Class, super_class_type_idx_), new_super_class_idx, false);
   }
 
-  const ClassLoader* GetClassLoader() const;
+  ClassLoader* GetClassLoader() const;
 
   void SetClassLoader(const ClassLoader* new_cl);
 
@@ -1949,7 +1949,7 @@ class MANAGED Class : public StaticStorageBase {
   String* name_;  // TODO initialize
 
   // defining class loader, or NULL for the "bootstrap" system loader
-  const ClassLoader* class_loader_;
+  ClassLoader* class_loader_;
 
   // For array classes, the component class object for instanceof/checkcast
   // (for String[][][], this will be String[][]). NULL for non-array classes.

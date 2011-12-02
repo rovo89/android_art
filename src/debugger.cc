@@ -21,6 +21,7 @@
 #include <set>
 
 #include "class_linker.h"
+#include "class_loader.h"
 #include "context.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
@@ -440,7 +441,7 @@ void Dbg::UndoDebuggerSuspensions() {
 }
 
 void Dbg::Exit(int status) {
-  UNIMPLEMENTED(FATAL);
+  exit(status); // This is all dalvik did.
 }
 
 void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
@@ -465,8 +466,8 @@ JDWP::RefTypeId Dbg::GetSuperclass(JDWP::RefTypeId id) {
 }
 
 JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Object* o = gRegistry->Get<Object*>(id);
+  return gRegistry->Add(o->GetClass()->GetClassLoader());
 }
 
 uint32_t Dbg::GetAccessFlags(JDWP::RefTypeId id) {
@@ -1208,16 +1209,16 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_BOOLEAN:
     {
       CHECK_EQ(expectedLen, 1U);
-      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
-      LOG(WARNING) << "get boolean local " << reg << " = " << intVal;
+      uint32_t intVal = f.GetVReg(m, reg);
+      LOG(VERBOSE) << "get boolean local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal != 0);
     }
     break;
   case JDWP::JT_BYTE:
     {
       CHECK_EQ(expectedLen, 1U);
-      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
-      LOG(WARNING) << "get byte local " << reg << " = " << intVal;
+      uint32_t intVal = f.GetVReg(m, reg);
+      LOG(VERBOSE) << "get byte local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal);
     }
     break;
@@ -1225,8 +1226,8 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_CHAR:
     {
       CHECK_EQ(expectedLen, 2U);
-      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
-      LOG(WARNING) << "get short/char local " << reg << " = " << intVal;
+      uint32_t intVal = f.GetVReg(m, reg);
+      LOG(VERBOSE) << "get short/char local " << reg << " = " << intVal;
       JDWP::Set2BE(buf+1, intVal);
     }
     break;
@@ -1234,8 +1235,8 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_FLOAT:
     {
       CHECK_EQ(expectedLen, 4U);
-      uint32_t intVal = static_cast<uint32_t>(f.GetVReg(m, reg));
-      LOG(WARNING) << "get int/float local " << reg << " = " << intVal;
+      uint32_t intVal = f.GetVReg(m, reg);
+      LOG(VERBOSE) << "get int/float local " << reg << " = " << intVal;
       JDWP::Set4BE(buf+1, intVal);
     }
     break;
@@ -1243,7 +1244,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
-      LOG(WARNING) << "get array local " << reg << " = " << o;
+      LOG(VERBOSE) << "get array local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
         LOG(FATAL) << "reg " << reg << " expected to hold array: " << o;
       }
@@ -1254,7 +1255,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
-      LOG(WARNING) << "get object local " << reg << " = " << o;
+      LOG(VERBOSE) << "get object local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
         LOG(FATAL) << "reg " << reg << " expected to hold object: " << o;
       }
@@ -1265,9 +1266,11 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_DOUBLE:
   case JDWP::JT_LONG:
     {
-      UNIMPLEMENTED(WARNING) << "get 64-bit local " << reg;
       CHECK_EQ(expectedLen, 8U);
-      uint64_t longVal = 0; // memcpy(&longVal, &framePtr[reg], 8);
+      uint32_t lo = f.GetVReg(m, reg);
+      uint64_t hi = f.GetVReg(m, reg + 1);
+      uint64_t longVal = (hi << 32) | lo;
+      LOG(VERBOSE) << "get double/long local " << hi << ":" << lo << " = " << longVal;
       JDWP::Set8BE(buf+1, longVal);
     }
     break;

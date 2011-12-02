@@ -45,11 +45,11 @@ uintptr_t Frame::GetReturnPC() const {
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
-uintptr_t Frame::GetVReg(Method* method, int vreg) const {
+uint32_t Frame::GetVReg(Method* method, int vreg) const {
   DCHECK(method == GetMethod());
   int offset = oatVRegOffsetFromMethod(method, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
-  return *reinterpret_cast<uintptr_t*>(vreg_addr);
+  return *reinterpret_cast<uint32_t*>(vreg_addr);
 }
 
 uintptr_t Frame::LoadCalleeSave(int num) const {

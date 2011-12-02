@@ -1024,8 +1024,8 @@ bool Class::IsStringClass() const {
   return this == GetDescriptor()->GetClass();
 }
 
-const ClassLoader* Class::GetClassLoader() const {
-  return GetFieldObject<const ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
+ClassLoader* Class::GetClassLoader() const {
+  return GetFieldObject<ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
 
 void Class::SetClassLoader(const ClassLoader* new_cl) {

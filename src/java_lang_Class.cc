@@ -195,7 +195,7 @@ jint Class_getNonInnerClassModifiers(JNIEnv* env, jclass, jclass javaClass) {
 
 jobject Class_getClassLoader(JNIEnv* env, jclass, jobject javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
-  Object* result = reinterpret_cast<Object*>(const_cast<ClassLoader*>(c->GetClassLoader()));
+  Object* result = c->GetClassLoader();
   return AddLocalReference<jobject>(env, result);
 }
 

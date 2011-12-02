@@ -59,7 +59,7 @@ jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBoots
   // TODO: need SmartFrame (Thread::WalkStack-like iterator).
   for (Frame frame = self->GetTopOfStack(); frame.HasNext(); frame.Next()) {
     Class* c = frame.GetMethod()->GetDeclaringClass();
-    Object* cl = const_cast<ClassLoader*>(c->GetClassLoader());
+    Object* cl = c->GetClassLoader();
     if (cl != bootstrap && cl != system) {
       return AddLocalReference<jobject>(env, cl);
     }
