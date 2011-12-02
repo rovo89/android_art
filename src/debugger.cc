@@ -659,7 +659,7 @@ bool Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::Expan
   } else {
     ObjectArray<Object>* oa = a->AsObjectArray<Object>();
     for (int i = 0; i < count; ++i) {
-      Object* element = oa->Get(i);
+      Object* element = oa->Get(offset + i);
       JDWP::JdwpTag specific_tag = (element != NULL) ? TagFromObject(element) : tag;
       expandBufAdd1(pReply, specific_tag);
       expandBufAddObjectId(pReply, gRegistry->Add(element));
@@ -669,9 +669,47 @@ bool Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::Expan
   return true;
 }
 
-bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count, const uint8_t* buf) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const uint8_t* src) {
+  Object* o = gRegistry->Get<Object*>(arrayId);
+  Array* a = o->AsArray();
+
+  if (offset < 0 || count < 0 || offset > a->GetLength() || a->GetLength() - offset < count) {
+    LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
+    return false;
+  }
+
+  std::string descriptor(a->GetClass()->GetDescriptor()->ToModifiedUtf8());
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+
+  if (IsPrimitiveTag(tag)) {
+    size_t width = GetTagWidth(tag);
+    uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData())[offset * width]);
+    if (width == 8) {
+      for (int i = 0; i < count; ++i) {
+        // Handle potentially non-aligned memory access one byte at a time for ARM's benefit.
+        uint64_t value;
+        for (size_t j = 0; j < sizeof(uint64_t); ++j) reinterpret_cast<uint8_t*>(&value)[j] = src[j];
+        src += sizeof(uint64_t);
+        JDWP::Write8BE(&dst, value);
+      }
+    } else if (width == 4) {
+      const uint32_t* src4 = reinterpret_cast<const uint32_t*>(src);
+      for (int i = 0; i < count; ++i) JDWP::Write4BE(&dst, src4[i]);
+    } else if (width == 2) {
+      const uint16_t* src2 = reinterpret_cast<const uint16_t*>(src);
+      for (int i = 0; i < count; ++i) JDWP::Write2BE(&dst, src2[i]);
+    } else {
+      memcpy(&dst[offset * width], src, count * width);
+    }
+  } else {
+    ObjectArray<Object>* oa = a->AsObjectArray<Object>();
+    for (int i = 0; i < count; ++i) {
+      JDWP::ObjectId id = JDWP::ReadObjectId(&src);
+      oa->Set(offset + i, gRegistry->Get<Object*>(id));
+    }
+  }
+
+  return true;
 }
 
 JDWP::ObjectId Dbg::CreateString(const char* str) {
