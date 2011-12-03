@@ -1714,6 +1714,26 @@ Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader
   return NULL;
 }
 
+void ClassLinker::LookupClasses(const std::string& descriptor, std::vector<Class*>& classes) {
+  classes.clear();
+  size_t hash = StringPieceHash()(descriptor);
+  MutexLock mu(classes_lock_);
+  typedef Table::const_iterator It;  // TODO: C++0x auto
+  // TODO: determine if its better to search classes_ or image_classes_ first
+  for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
+    Class* c = it->second;
+    if (c->GetDescriptor()->Equals(descriptor)) {
+      classes.push_back(c);
+    }
+  }
+  for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
+    Class* c = it->second;
+    if (c->GetDescriptor()->Equals(descriptor)) {
+      classes.push_back(c);
+    }
+  }
+}
+
 void ClassLinker::VerifyClass(Class* klass) {
   if (klass->IsVerified()) {
     return;

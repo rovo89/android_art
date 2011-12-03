@@ -471,8 +471,8 @@ JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
 }
 
 uint32_t Dbg::GetAccessFlags(JDWP::RefTypeId id) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Class* c = gRegistry->Get<Class*>(id);
+  return c->GetAccessFlags() & kAccJavaFlagsMask;
 }
 
 bool Dbg::IsInterface(JDWP::RefTypeId classId) {
@@ -512,7 +512,7 @@ void Dbg::GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasse
   UNIMPLEMENTED(FATAL);
 }
 
-void Dbg::GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
+void Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
   Class* c = gRegistry->Get<Class*>(classId);
   if (c->IsArrayClass()) {
     *pStatus = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
@@ -531,12 +531,16 @@ void Dbg::GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pSt
   }
 }
 
-bool Dbg::FindLoadedClassBySignature(const char* classDescriptor, JDWP::RefTypeId* pRefTypeId) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids) {
+  std::vector<Class*> classes;
+  Runtime::Current()->GetClassLinker()->LookupClasses(descriptor, classes);
+  ids.clear();
+  for (size_t i = 0; i < classes.size(); ++i) {
+    ids.push_back(gRegistry->Add(classes[i]));
+  }
 }
 
-void Dbg::GetObjectType(JDWP::ObjectId objectId, uint8_t* pRefTypeTag, JDWP::RefTypeId* pRefTypeId) {
+void Dbg::GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId) {
   Object* o = gRegistry->Get<Object*>(objectId);
   if (o->GetClass()->IsArrayClass()) {
     *pRefTypeTag = JDWP::TT_ARRAY;
@@ -1017,12 +1021,12 @@ void Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t
   }
 }
 
-void Dbg::GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
+  GetFieldValue(0, fieldId, pReply);
 }
 
-void Dbg::SetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, uint64_t rawValue, int width) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width) {
+  SetFieldValue(0, fieldId, value, width);
 }
 
 std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {

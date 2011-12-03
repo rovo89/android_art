@@ -198,34 +198,19 @@ static JdwpError handleVM_ClassesBySignature(JdwpState* state, const uint8_t* bu
   char* classDescriptor = ReadNewUtf8String(&buf, &strLen);
   LOG(VERBOSE) << "  Req for class by signature '" << classDescriptor << "'";
 
-  /*
-   * TODO: if a class with the same name has been loaded multiple times
-   * (by different class loaders), we're supposed to return each of them.
-   *
-   * NOTE: this may mangle "className".
-   */
-  uint32_t numClasses;
-  RefTypeId refTypeId;
-  if (!Dbg::FindLoadedClassBySignature(classDescriptor, &refTypeId)) {
-    /* not currently loaded */
-    LOG(VERBOSE) << "    --> no match!";
-    numClasses = 0;
-  } else {
-    /* just the one */
-    numClasses = 1;
-  }
+  std::vector<RefTypeId> ids;
+  Dbg::FindLoadedClassBySignature(classDescriptor, ids);
 
-  expandBufAdd4BE(pReply, numClasses);
+  expandBufAdd4BE(pReply, ids.size());
 
-  if (numClasses > 0) {
-    uint8_t typeTag;
+  for (size_t i = 0; i < ids.size(); ++i) {
+    // Get class vs. interface and status flags.
+    JDWP::JdwpTypeTag typeTag;
     uint32_t status;
-
-    /* get class vs. interface and status flags */
-    Dbg::GetClassInfo(refTypeId, &typeTag, &status, NULL);
+    Dbg::GetClassInfo(ids[i], &typeTag, &status, NULL);
 
     expandBufAdd1(pReply, typeTag);
-    expandBufAddRefTypeId(pReply, refTypeId);
+    expandBufAddRefTypeId(pReply, ids[i]);
     expandBufAdd4BE(pReply, status);
   }
 
@@ -449,7 +434,7 @@ static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t*
 
   for (uint32_t i = 0; i < numClasses; i++) {
     static const char genericSignature[1] = "";
-    uint8_t refTypeTag;
+    JDWP::JdwpTypeTag refTypeTag;
     std::string descriptor;
     uint32_t status;
 
@@ -495,7 +480,7 @@ static JdwpError handleRT_Modifiers(JdwpState* state, const uint8_t* buf, int da
  * Get values from static fields in a reference type.
  */
 static JdwpError handleRT_GetValues(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  ReadRefTypeId(&buf); // We don't need this, but we need to skip over it in the request.
   uint32_t numFields = Read4BE(&buf);
 
   LOG(VERBOSE) << "  RT_GetValues " << numFields << ":";
@@ -503,7 +488,7 @@ static JdwpError handleRT_GetValues(JdwpState* state, const uint8_t* buf, int da
   expandBufAdd4BE(pReply, numFields);
   for (uint32_t i = 0; i < numFields; i++) {
     FieldId fieldId = ReadFieldId(&buf);
-    Dbg::GetStaticFieldValue(refTypeId, fieldId, pReply);
+    Dbg::GetStaticFieldValue(fieldId, pReply);
   }
 
   return ERR_NONE;
@@ -529,7 +514,7 @@ static JdwpError handleRT_Status(JdwpState* state, const uint8_t* buf, int dataL
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   /* get status flags */
-  uint8_t typeTag;
+  JDWP::JdwpTypeTag typeTag;
   uint32_t status;
   Dbg::GetClassInfo(refTypeId, &typeTag, &status, NULL);
   expandBufAdd4BE(pReply, status);
@@ -662,7 +647,7 @@ static JdwpError handleCT_SetValues(JdwpState* state, const uint8_t* buf, int da
     uint64_t value = jdwpReadValue(&buf, width);
 
     LOG(VERBOSE) << StringPrintf("    --> field=%x tag=%c -> %lld", fieldId, fieldTag, value);
-    Dbg::SetStaticFieldValue(classId, fieldId, value, width);
+    Dbg::SetStaticFieldValue(fieldId, value, width);
   }
 
   return ERR_NONE;
@@ -764,7 +749,7 @@ static JdwpError handleOR_ReferenceType(JdwpState* state, const uint8_t* buf, in
   ObjectId objectId = ReadObjectId(&buf);
   LOG(VERBOSE) << StringPrintf("  Req for type of objectId=0x%llx", objectId);
 
-  uint8_t refTypeTag;
+  JDWP::JdwpTypeTag refTypeTag;
   RefTypeId typeId;
   Dbg::GetObjectType(objectId, &refTypeTag, &typeId);
 

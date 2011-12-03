@@ -68,6 +68,9 @@ class ClassLinker {
   // by the given 'class_loader'.
   Class* LookupClass(const std::string& descriptor, const ClassLoader* class_loader);
 
+  // Finds all the classes with the given descriptor, regardless of ClassLoader.
+  void LookupClasses(const std::string& descriptor, std::vector<Class*>& classes);
+
   Class* FindPrimitiveClass(char type);
 
   // General class unloading is not supported, this is used to prune

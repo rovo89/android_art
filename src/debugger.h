@@ -133,9 +133,9 @@ public:
   static bool IsInterface(JDWP::RefTypeId id);
   static void GetClassList(uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
   static void GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
-  static void GetClassInfo(JDWP::RefTypeId classId, uint8_t* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
-  static bool FindLoadedClassBySignature(const char* classDescriptor, JDWP::RefTypeId* pRefTypeId);
-  static void GetObjectType(JDWP::ObjectId objectId, uint8_t* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
+  static void GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
+  static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
+  static void GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
   static std::string GetSignature(JDWP::RefTypeId refTypeId);
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
@@ -168,8 +168,8 @@ public:
   static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId fieldId);
   static void GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
   static void SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width);
-  static void GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
-  static void SetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, uint64_t rawValue, int width);
+  static void GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
+  static void SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width);
 
   static std::string StringToUtf8(JDWP::ObjectId strId);
 
