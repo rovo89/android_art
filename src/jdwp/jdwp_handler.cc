@@ -118,7 +118,7 @@ static JdwpError finishInvoke(JdwpState* state,
   }
 
   for (uint32_t i = 0; i < numArgs; i++) {
-    uint8_t typeTag = Read1(&buf);
+    JDWP::JdwpTag typeTag = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(typeTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
@@ -129,7 +129,7 @@ static JdwpError finishInvoke(JdwpState* state,
   uint32_t options = Read4BE(&buf);  /* enum InvokeOptions bit flags */
   LOG(VERBOSE) << StringPrintf("        options=0x%04x%s%s", options, (options & INVOKE_SINGLE_THREADED) ? " (SINGLE_THREADED)" : "", (options & INVOKE_NONVIRTUAL) ? " (NONVIRTUAL)" : "");
 
-  uint8_t resultTag;
+  JDWP::JdwpTag resultTag;
   uint64_t resultValue;
   ObjectId exceptObjId;
   JdwpError err = Dbg::InvokeMethod(threadId, objectId, classId, methodId, numArgs, argArray, options, &resultTag, &resultValue, &exceptObjId);
@@ -657,7 +657,7 @@ static JdwpError handleCT_SetValues(JdwpState* state, const uint8_t* buf, int da
 
   for (uint32_t i = 0; i < values; i++) {
     FieldId fieldId = ReadFieldId(&buf);
-    uint8_t fieldTag = Dbg::GetStaticFieldBasicTag(classId, fieldId);
+    JDWP::JdwpTag fieldTag = Dbg::GetStaticFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
@@ -805,7 +805,7 @@ static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int da
   for (uint32_t i = 0; i < numFields; i++) {
     FieldId fieldId = ReadFieldId(&buf);
 
-    uint8_t fieldTag = Dbg::GetFieldBasicTag(objectId, fieldId);
+    JDWP::JdwpTag fieldTag = Dbg::GetFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
@@ -1443,7 +1443,7 @@ static JdwpError handleSF_GetValues(JdwpState* state, const uint8_t* buf, int da
   expandBufAdd4BE(pReply, slots);     /* "int values" */
   for (uint32_t i = 0; i < slots; i++) {
     uint32_t slot = Read4BE(&buf);
-    JDWP::JdwpTag reqSigByte = static_cast<JDWP::JdwpTag>(Read1(&buf));
+    JDWP::JdwpTag reqSigByte = ReadTag(&buf);
 
     LOG(VERBOSE) << StringPrintf("    --> slot %d '%c'", slot, reqSigByte);
 
@@ -1467,7 +1467,7 @@ static JdwpError handleSF_SetValues(JdwpState* state, const uint8_t* buf, int da
 
   for (uint32_t i = 0; i < slots; i++) {
     uint32_t slot = Read4BE(&buf);
-    JDWP::JdwpTag sigByte = static_cast<JDWP::JdwpTag>(Read1(&buf));
+    JDWP::JdwpTag sigByte = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(sigByte);
     uint64_t value = jdwpReadValue(&buf, width);
 

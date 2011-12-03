@@ -55,6 +55,7 @@ static inline MethodId ReadMethodId(const uint8_t** pBuf) { return Read4BE(pBuf)
 static inline ObjectId ReadObjectId(const uint8_t** pBuf) { return Read8BE(pBuf); }
 static inline RefTypeId ReadRefTypeId(const uint8_t** pBuf) { return Read8BE(pBuf); }
 static inline FrameId ReadFrameId(const uint8_t** pBuf) { return Read8BE(pBuf); }
+static inline JdwpTag ReadTag(const uint8_t** pBuf) { return static_cast<JdwpTag>(Read1(pBuf)); }
 static inline void SetFieldId(uint8_t* buf, FieldId val) { return Set4BE(buf, val); }
 static inline void SetMethodId(uint8_t* buf, MethodId val) { return Set4BE(buf, val); }
 static inline void SetObjectId(uint8_t* buf, ObjectId val) { return Set8BE(buf, val); }

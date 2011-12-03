@@ -141,7 +141,7 @@ public:
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static const char* GetObjectTypeName(JDWP::ObjectId objectId);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
-  static size_t GetTagWidth(int tag);
+  static size_t GetTagWidth(JDWP::JdwpTag tag);
 
   static int GetArrayLength(JDWP::ObjectId arrayId);
   static uint8_t GetArrayElementTag(JDWP::ObjectId arrayId);
@@ -164,8 +164,8 @@ public:
   static void OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply);
   static void OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric, JDWP::ExpandBuf* pReply);
 
-  static uint8_t GetFieldBasicTag(JDWP::ObjectId objId, JDWP::FieldId fieldId);
-  static uint8_t GetStaticFieldBasicTag(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId);
+  static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId fieldId);
+  static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId fieldId);
   static void GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
   static void SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width);
   static void GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
@@ -224,7 +224,7 @@ public:
   static bool ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size, JDWP::JdwpStepDepth depth);
   static void UnconfigureStep(JDWP::ObjectId threadId);
 
-  static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, uint8_t* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj);
+  static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj);
   static void ExecuteMethod(DebugInvokeReq* pReq);
 
   /* perform "late registration" of an object ID */

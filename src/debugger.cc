@@ -475,9 +475,9 @@ uint32_t Dbg::GetAccessFlags(JDWP::RefTypeId id) {
   return 0;
 }
 
-bool Dbg::IsInterface(JDWP::RefTypeId id) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Dbg::IsInterface(JDWP::RefTypeId classId) {
+  Class* c = gRegistry->Get<Class*>(classId);
+  return c->IsInterface();
 }
 
 void Dbg::GetClassList(uint32_t* pClassCount, JDWP::RefTypeId** pClasses) {
@@ -581,7 +581,7 @@ uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
   return TagFromObject(o);
 }
 
-size_t Dbg::GetTagWidth(int tag) {
+size_t Dbg::GetTagWidth(JDWP::JdwpTag tag) {
   switch (tag) {
   case JDWP::JT_VOID:
     return 0;
@@ -745,6 +745,14 @@ JDWP::MethodId ToMethodId(Method* m) {
   UNIMPLEMENTED(FATAL);
 #else
   return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
+#endif
+}
+
+Field* FromFieldId(JDWP::FieldId fid) {
+#ifdef MOVING_GARBAGE_COLLECTOR
+  UNIMPLEMENTED(FATAL);
+#else
+  return reinterpret_cast<Field*>(static_cast<uintptr_t>(fid));
 #endif
 }
 
@@ -958,22 +966,55 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
 }
 
-uint8_t Dbg::GetFieldBasicTag(JDWP::ObjectId objId, JDWP::FieldId fieldId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+JDWP::JdwpTag Dbg::GetFieldBasicTag(JDWP::FieldId fieldId) {
+  return BasicTagFromDescriptor(FromFieldId(fieldId)->GetTypeDescriptor());
 }
 
-uint8_t Dbg::GetStaticFieldBasicTag(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId fieldId) {
+  return BasicTagFromDescriptor(FromFieldId(fieldId)->GetTypeDescriptor());
 }
 
 void Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
-  UNIMPLEMENTED(FATAL);
+  Object* o = gRegistry->Get<Object*>(objectId);
+  Field* f = FromFieldId(fieldId);
+
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
+
+  if (IsPrimitiveTag(tag)) {
+    expandBufAdd1(pReply, tag);
+    if (tag == JDWP::JT_BOOLEAN || tag == JDWP::JT_BYTE) {
+      expandBufAdd1(pReply, f->Get32(o));
+    } else if (tag == JDWP::JT_CHAR || tag == JDWP::JT_SHORT) {
+      expandBufAdd2BE(pReply, f->Get32(o));
+    } else if (tag == JDWP::JT_FLOAT || tag == JDWP::JT_INT) {
+      expandBufAdd4BE(pReply, f->Get32(o));
+    } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+      expandBufAdd8BE(pReply, f->Get64(o));
+    } else {
+      LOG(FATAL) << "unknown tag: " << tag;
+    }
+  } else {
+    Object* value = f->GetObject(o);
+    expandBufAdd1(pReply, TagFromObject(value));
+    expandBufAddObjectId(pReply, gRegistry->Add(value));
+  }
 }
 
 void Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width) {
-  UNIMPLEMENTED(FATAL);
+  Object* o = gRegistry->Get<Object*>(objectId);
+  Field* f = FromFieldId(fieldId);
+
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
+
+  if (IsPrimitiveTag(tag)) {
+    if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+      f->Set64(o, value);
+    } else {
+      f->Set32(o, value);
+    }
+  } else {
+    f->SetObject(o, gRegistry->Get<Object*>(value));
+  }
 }
 
 void Dbg::GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
@@ -1376,7 +1417,7 @@ void Dbg::UnconfigureStep(JDWP::ObjectId threadId) {
   UNIMPLEMENTED(FATAL);
 }
 
-JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, uint8_t* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj) {
+JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj) {
   UNIMPLEMENTED(FATAL);
   return JDWP::ERR_NONE;
 }
