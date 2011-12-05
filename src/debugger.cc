@@ -420,8 +420,7 @@ bool Dbg::IsDebuggingEnabled() {
 }
 
 int64_t Dbg::LastDebuggerActivity() {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+  return gJdwpState->LastDebuggerActivity();
 }
 
 int Dbg::ThreadRunning() {
