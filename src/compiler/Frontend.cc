@@ -451,9 +451,10 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 }
 
 /* Process instructions with the kInstrCanBranch flag */
-STATIC void processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
-                             MIR* insn, int curOffset, int width, int flags,
-                             const u2* codePtr, const u2* codeEnd)
+STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
+                                    BasicBlock* curBlock, MIR* insn,
+                                    int curOffset, int width, int flags,
+                                    const u2* codePtr, const u2* codeEnd)
 {
     int target = curOffset;
     switch (insn->dalvikInsn.opcode) {
@@ -482,11 +483,22 @@ STATIC void processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
             LOG(FATAL) << "Unexpected opcode(" << (int)insn->dalvikInsn.opcode
                 << ") with kInstrCanBranch set";
     }
+    /*
+     * Some ugliness here.  It is possible that findBlock will
+     * split the current block.  In that case, we need to operate
+     * on the 2nd half on the split pair.  It isn't directly obvious
+     * when this happens, so we infer.
+     */
+    DCHECK(curBlock->lastMIRInsn == insn);
     BasicBlock *takenBlock = findBlock(cUnit, target,
                                        /* split */
                                        true,
                                        /* create */
                                        true);
+     if (curBlock->lastMIRInsn != insn) {
+         DCHECK(takenBlock->lastMIRInsn == insn);
+         curBlock = curBlock->fallThrough;
+    }
     curBlock->taken = takenBlock;
     oatSetBit(takenBlock->predecessors, curBlock->id);
 
@@ -521,6 +533,7 @@ STATIC void processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
                       true);
         }
     }
+    return curBlock;
 }
 
 /* Process instructions with the kInstrCanSwitch flag */
@@ -791,8 +804,8 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
         int flags = dexGetFlagsFromOpcode(insn->dalvikInsn.opcode);
 
         if (flags & kInstrCanBranch) {
-            processCanBranch(cUnit.get(), curBlock, insn, curOffset, width, flags,
-                             codePtr, codeEnd);
+            curBlock = processCanBranch(cUnit.get(), curBlock, insn, curOffset,
+                                        width, flags, codePtr, codeEnd);
         } else if (flags & kInstrCanReturn) {
             curBlock->fallThrough = exitBlock;
             oatSetBit(exitBlock->predecessors, curBlock->id);
