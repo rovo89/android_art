@@ -1476,7 +1476,7 @@ static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int d
   }
 
   uint8_t objectTag = Dbg::GetObjectTag(objectId);
-  LOG(VERBOSE) << StringPrintf("  Req for 'this' in thread=%llx frame=%llx --> %llx %s '%c'", threadId, frameId, objectId, Dbg::GetObjectTypeName(objectId), (char)objectTag);
+  LOG(VERBOSE) << StringPrintf("  Req for 'this' in thread=%llx frame=%llx --> %llx '%c'", threadId, frameId, objectId, (char)objectTag);
 
   expandBufAdd1(pReply, objectTag);
   expandBufAddObjectId(pReply, objectId);

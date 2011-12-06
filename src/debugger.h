@@ -139,7 +139,6 @@ public:
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
   static std::string GetSignature(JDWP::RefTypeId refTypeId);
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
-  static const char* GetObjectTypeName(JDWP::ObjectId objectId);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 

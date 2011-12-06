@@ -152,6 +152,7 @@ static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
 }
 
 static JDWP::JdwpTag TagFromClass(Class* c) {
+  CHECK(c != NULL);
   if (c->IsArrayClass()) {
     return JDWP::JT_ARRAY;
   }
@@ -572,11 +573,6 @@ bool Dbg::GetSourceFile(JDWP::RefTypeId refTypeId, std::string& result) {
   }
   result = source_file->ToModifiedUtf8();
   return true;
-}
-
-const char* Dbg::GetObjectTypeName(JDWP::ObjectId objectId) {
-  UNIMPLEMENTED(FATAL);
-  return NULL;
 }
 
 uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
@@ -1290,8 +1286,18 @@ void Dbg::SuspendSelf() {
 }
 
 bool Dbg::GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+  Method** sp = reinterpret_cast<Method**>(frameId);
+  Frame f;
+  f.SetSP(sp);
+  uint16_t reg = DemangleSlot(0, f);
+  Method* m = f.GetMethod();
+
+  Object* o = NULL;
+  if (!m->IsNative() && !m->IsStatic()) {
+    o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
+  }
+  *pThisId = gRegistry->Add(o);
+  return true;
 }
 
 void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
