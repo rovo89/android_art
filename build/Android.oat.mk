@@ -66,8 +66,8 @@ $(TARGET_CORE_IMG): $(TARGET_CORE_OAT)
 # The full system boot classpath
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
 TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
-TARGET_BOOT_OAT := $(ART_CACHE_OUT)/boot.oat
-TARGET_BOOT_IMG := $(ART_CACHE_OUT)/boot.art
+TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
+TARGET_BOOT_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
 
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
@@ -75,3 +75,9 @@ $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	$(hide) $(DEX2OAT) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
 $(TARGET_BOOT_IMG): $(TARGET_BOOT_OAT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := boot.art
+LOCAL_MODULE_TAGS := optional
+LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_BOOT_IMG)
+include $(BUILD_PHONY_PACKAGE)

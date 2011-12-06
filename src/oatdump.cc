@@ -23,20 +23,20 @@ namespace art {
 static void usage() {
   fprintf(stderr,
           "Usage: oatdump [options] ...\n"
-          "    Example: oatdump --image=$ANDROID_PRODUCT_OUT/data/art-cache/boot.art --host-prefix=$ANDROID_PRODUCT_OUT\n"
-          "    Example: adb shell oatdump --image=/data/art-cache/boot.art\n"
+          "    Example: oatdump --image=$ANDROID_PRODUCT_OUT/system/framework/boot.art --host-prefix=$ANDROID_PRODUCT_OUT\n"
+          "    Example: adb shell oatdump --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --oat=<file.oat>: specifies an input oat filename.\n"
-          "      Example: --image=/data/art-cache/boot.oat\n"
+          "      Example: --image=/system/framework/boot.oat\n"
           "\n");
   fprintf(stderr,
           "  --image=<file.art>: specifies an input image filename.\n"
-          "      Example: --image=/data/art-cache/boot.art\n"
+          "      Example: --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
-          "      Example: --boot-image=/data/art-cache/boot.art\n"
+          "      Example: --boot-image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --host-prefix may be used to translate host paths to target paths during\n"

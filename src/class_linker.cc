@@ -556,34 +556,41 @@ void ClassLinker::RunRootClinits() {
 const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
   std::string oat_filename(GetArtCacheFilenameOrDie(OatFile::DexFilenameToOatFilename(filename)));
 
+  std::string dex2oat_string("/system/bin/dex2oat");
+#ifndef NDEBUG
+  dex2oat_string += 'd';
+#endif
+  const char* dex2oat = dex2oat_string.c_str();
+
+  const char* class_path = Runtime::Current()->GetClassPath().c_str();
+
+  std::string boot_image_option_string("--boot-image=");
+  boot_image_option_string += Heap::GetSpaces()[0]->GetImageFilename();
+  const char* boot_image_option = boot_image_option_string.c_str();
+
+  std::string dex_file_option_string("--dex-file=");
+  dex_file_option_string += filename;
+  const char* dex_file_option = dex_file_option_string.c_str();
+
+  std::string oat_file_option_string("--oat=");
+  oat_file_option_string += oat_filename;
+  const char* oat_file_option = oat_file_option_string.c_str();
+
   // fork and exec dex2oat
   pid_t pid = fork();
   if (pid == 0) {
-    std::string boot_image_option("--boot-image=");
-    boot_image_option += Heap::GetSpaces()[0]->GetImageFilename();
-
-    std::string dex_file_option("--dex-file=");
-    dex_file_option += filename;
-
-    std::string oat_file_option("--oat=");
-    oat_file_option += oat_filename;
-
-    std::string dex2oat("/system/bin/dex2oat");
-#ifndef NDEBUG
-    dex2oat += 'd';
-#endif
-
-    execl(dex2oat.c_str(), dex2oat.c_str(),
+    // no allocation allowed between fork and exec
+    execl(dex2oat, dex2oat,
           "--runtime-arg", "-Xms64m",
           "--runtime-arg", "-Xmx64m",
           "--runtime-arg", "-classpath",
-          "--runtime-arg", Runtime::Current()->GetClassPath().c_str(),
-          boot_image_option.c_str(),
-          dex_file_option.c_str(),
-          oat_file_option.c_str(),
+          "--runtime-arg", class_path,
+          boot_image_option,
+          dex_file_option,
+          oat_file_option,
           NULL);
 
-    PLOG(FATAL) << "execl(dex2oatd) failed";
+    PLOG(FATAL) << "execl(" << dex2oat << ") failed";
     return NULL;
   } else {
     // wait for dex2oat to finish
@@ -594,7 +601,7 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
       return NULL;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      LOG(ERROR) << "dex2oatd failed with dex-file=" << filename;
+      LOG(ERROR) << dex2oat << " failed with dex-file=" << filename;
       return NULL;
     }
   }

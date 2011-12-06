@@ -33,11 +33,11 @@ static void usage() {
           "\n");
   fprintf(stderr,
           "  --oat=<file.oat>: specifies the required oat filename.\n"
-          "      Example: --oat=/data/art-cache/boot.oat\n"
+          "      Example: --oat=/system/framework/boot.oat\n"
           "\n");
   fprintf(stderr,
           "  --image=<file.art>: specifies the output image filename.\n"
-          "      Example: --image=/data/art-cache/boot.art\n"
+          "      Example: --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --image-classes=<classname-file>: specifies classes to include in an image.\n"
@@ -49,8 +49,8 @@ static void usage() {
           "\n");
   fprintf(stderr,
           "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
-          "      Example: --boot-image=/data/art-cache/boot.art\n"
-          "      Default: <host-prefix>/data/art-cache/boot.art\n"
+          "      Example: --boot-image=/system/framework/boot.art\n"
+          "      Default: <host-prefix>/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --host-prefix may be used to translate host paths to target paths during\n"

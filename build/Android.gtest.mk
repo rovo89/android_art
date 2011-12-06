@@ -75,7 +75,7 @@ $$(art_gtest_target): $$(art_gtest_exe) test-art-target-sync
 ART_TARGET_TEST_TARGETS += $$(art_gtest_target)
 else
 .PHONY: $$(art_gtest_target)
-$$(art_gtest_target): $$(art_gtest_exe)
+$$(art_gtest_target): $$(art_gtest_exe) $(ART_HOST_TEST_DEPENDENCIES)
 	$$<
 	@echo $$@ PASSED
 

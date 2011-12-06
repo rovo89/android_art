@@ -394,7 +394,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   }
 
   if (!compiler && parsed->images_.empty()) {
-    parsed->images_.push_back("/data/art-cache/boot.art");
+    parsed->images_.push_back("/system/framework/boot.art");
   }
   if (parsed->heap_growth_limit_ == 0) {
     parsed->heap_growth_limit_ = parsed->heap_maximum_size_;

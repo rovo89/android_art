@@ -67,11 +67,6 @@ ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES
 ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_TEST_OAT_FILES)
 ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TEST_OAT_FILES)
 
-ART_TARGET_TEST_DEPENDENCIES += $(TARGET_OUT_EXECUTABLES)/oat_process $(TARGET_OUT_EXECUTABLES)/oat_processd
-
-# Switch this to "oat_process" to run an optimized build.
-OAT_PROCESS=oat_processd
-
 ########################################################################
 # host test targets
 
@@ -123,7 +118,7 @@ test-art-target-run-test-002: test-art-target-sync
 	@echo test-art-target-run-test-002 PASSED
 
 ########################################################################
-# oat_process test targets
+# oat test targets
 
 # $(1): jar or apk name
 define art-cache-oat
@@ -137,14 +132,13 @@ define build-art-cache-oat
   ART_CACHE_OATS += $(call art-cache-oat,$(1))
 endef
 
-.PHONY: test-art-target-oat-process
-test-art-target-oat-process: test-art-target-oat-process-am # test-art-target-oat-process-Calculator
-
+# for test-art-target-am
 $(eval $(call build-art-cache-oat,system/framework/am.jar))
+
+# for test-art-target-Calculator
 $(eval $(call build-art-cache-oat,system/app/Calculator.apk))
 
-
-# WORKING for zygote-art
+# for zygote-art
 ifeq ($(TARGET_PRODUCT),mysid)
 
 $(eval $(call build-art-cache-oat,system/app/ApplicationsProvider.apk))
@@ -369,34 +363,16 @@ endif
 
 endif
 
-.PHONY: test-art-target-oat-process-am
-test-art-target-oat-process-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
-	adb remount
-	adb sync
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && $(OAT_PROCESS) /system/bin/app_process /system/bin com.android.commands.am.Am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
+.PHONY: test-art-target-am
+test-art-target-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
+	adb shell sh -c "am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
 	$(hide) rm /tmp/test-art-target-process-am
 
-.PHONY: test-art-target-oat-process-Calculator
-# Note that using this instead of "adb shell am start" make sure that the /data/art-cache is up-to-date
-test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
-	mkdir -p $(ART_CACHE_OUT)
-	unzip $(TARGET_OUT_APPS)/Calculator.apk classes.dex -d $(TARGET_OUT_DATA)/art-cache
-	mv $(TARGET_OUT_DATA)/art-cache/classes.dex $(ART_CACHE_OUT)/system@app@Calculator.apk@classes.dex.`unzip -lv $(TARGET_OUT_APPS)/Calculator.apk classes.dex | grep classes.dex | sed -E 's/.* ([0-9a-f]+)  classes.dex/\1/'` # note this is extracting the crc32 that is needed as the file extension
-	adb remount
-	adb sync
-	if [ "`adb shell getprop wrap.com.android.calculator2 | tr -d '\r'`" = "$(OAT_PROCESS)" ]; then \
-	  echo wrap.com.android.calculator2 already set; \
-	  adb shell start; \
-	else \
-	  echo Setting wrap.com.android.calculator2 and restarting runtime; \
-	  adb shell setprop wrap.com.android.calculator2 "$(OAT_PROCESS)"; \
-	  adb shell stop; \
-	  adb shell start; \
-	  sleep 30; \
-	fi
+.PHONY: test-art-target-Calculator
+test-art-target-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
 	adb shell kill `adb shell ps | fgrep com.android.calculator2 | sed -e 's/[^ ]* *\([0-9]*\).*/\1/'`
-	adb shell sh -c "export CLASSPATH=/system/framework/am.jar && $(OAT_PROCESS) /system/bin/app_process /system/bin com.android.commands.am.Am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
+	adb shell sh -c "am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
 	$(hide) rm /tmp/test-art-target-process-Calculator
 
@@ -405,7 +381,6 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 #
 # zygote-artd will change to use art to boot the device with a debug build
 # zygote-art will change to use art to boot the device with a production build
-# zygote-dalvik will restore to booting with dalvik
 #
 # zygote-artd-target-sync will just push a new artd in place of dvm
 # zygote-art-target-sync will just push a new art in place of dvm
@@ -414,8 +389,6 @@ test-art-target-oat-process-Calculator: $(call art-cache-oat,system/app/Calculat
 define define-zygote-art-targets
 .PHONY: zygote-art$(1)-target-sync
 zygote-art$(1)-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
-	cp $(TARGET_OUT_SHARED_LIBRARIES)/libart$(1).so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
-	cp $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libart$(1).so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
 	cp $(TARGET_OUT_EXECUTABLES)/oatopt$(1) $(TARGET_OUT_EXECUTABLES)/dexopt
 	cp $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/oatopt$(1) $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
 	mkdir -p $(TARGET_OUT_DATA)/property
@@ -426,7 +399,6 @@ zygote-art$(1)-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_
 .PHONY: zygote-art$(1)
 zygote-art$(1): zygote-art$(1)-target-sync
 	sed -e 's/--start-system-server/--start-system-server --no-preload/' -e 's/art-cache 0771/art-cache 0777/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
-	adb shell rm -f $(ART_CACHE_DIR)
 	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
 	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
 	adb reboot bootloader
@@ -436,23 +408,6 @@ endef
 
 $(eval $(call define-zygote-art-targets,d))
 $(eval $(call define-zygote-art-targets,))
-
-.PHONY: zygote-dalvik
-zygote-dalvik:
-	cp $(TARGET_OUT_INTERMEDIATE_LIBRARIES)/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES)/libdvm.so
-	cp $(call intermediates-dir-for,SHARED_LIBRARIES,libdvm)/LINKED/libdvm.so $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/libdvm.so
-	cp $(call intermediates-dir-for,EXECUTABLES,dexopt)/dexopt $(TARGET_OUT_EXECUTABLES)/dexopt
-	cp $(call intermediates-dir-for,EXECUTABLES,dexopt)/LINKED/dexopt $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
-	rm -f $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disable
-	adb shell rm /data/property/persist.sys.strictmode.disable
-	adb remount
-	adb sync
-	cp system/core/rootdir/init.rc $(ANDROID_PRODUCT_OUT)/root/init.rc
-	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
-	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
-	adb reboot bootloader
-	fastboot flash boot $(ANDROID_PRODUCT_OUT)/boot.img
-	fastboot reboot
 
 ########################################################################
 # oatdump targets
