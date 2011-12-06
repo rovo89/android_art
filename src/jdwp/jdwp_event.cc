@@ -1091,19 +1091,20 @@ bool JdwpState::PostClassPrepare(int tag, RefTypeId refTypeId, const char* signa
  * other debugger traffic, and can't suspend the VM, so we skip all of
  * the fun event token gymnastics.
  */
-void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iovcnt) {
+void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   uint8_t header[kJDWPHeaderLen + 8];
   size_t dataLen = 0;
 
   CHECK(iov != NULL);
-  CHECK(iovcnt > 0 && iovcnt < 10);
+  CHECK_GT(iov_count, 0);
+  CHECK_LT(iov_count, 10);
 
   /*
    * "Wrap" the contents of the iovec with a JDWP/DDMS header.  We do
    * this by creating a new copy of the vector with space for the header.
    */
-  iovec wrapiov[iovcnt+1];
-  for (int i = 0; i < iovcnt; i++) {
+  iovec wrapiov[iov_count+1];
+  for (int i = 0; i < iov_count; i++) {
     wrapiov[i+1].iov_base = iov[i].iov_base;
     wrapiov[i+1].iov_len = iov[i].iov_len;
     dataLen += iov[i].iov_len;
@@ -1125,7 +1126,7 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iovcnt) {
    * Make sure we're in VMWAIT in case the write blocks.
    */
   int old_state = Dbg::ThreadWaiting();
-  (*transport->sendBufferedRequest)(this, wrapiov, iovcnt + 1);
+  (*transport->sendBufferedRequest)(this, wrapiov, iov_count + 1);
   Dbg::ThreadContinuing(old_state);
 }
 

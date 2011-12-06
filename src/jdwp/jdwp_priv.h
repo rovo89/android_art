@@ -62,7 +62,7 @@ struct JdwpTransport {
   bool (*awaitingHandshake)(JdwpState* state);
   bool (*processIncoming)(JdwpState* state);
   bool (*sendRequest)(JdwpState* state, ExpandBuf* pReq);
-  bool (*sendBufferedRequest)(JdwpState* state, const iovec* iov, int iovcnt);
+  bool (*sendBufferedRequest)(JdwpState* state, const iovec* iov, int iov_count);
 };
 
 const JdwpTransport* SocketTransport();
@@ -77,7 +77,7 @@ public:
 
   JdwpNetStateBase();
   ssize_t writePacket(ExpandBuf* pReply);
-  ssize_t writeBufferedPacket(const iovec* iov, int iovcnt);
+  ssize_t writeBufferedPacket(const iovec* iov, int iov_count);
 
 private:
   Mutex socket_lock_;

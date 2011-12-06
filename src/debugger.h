@@ -240,7 +240,7 @@ public:
   static void DdmDisconnected();
   static void DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes);
   static void DdmSendChunk(uint32_t type, size_t len, const uint8_t* buf);
-  static void DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt);
+  static void DdmSendChunkV(uint32_t type, const struct iovec* iov, int iov_count);
 
   /*
    * Recent allocation tracking support.

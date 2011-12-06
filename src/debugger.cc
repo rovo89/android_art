@@ -716,13 +716,12 @@ bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const 
 }
 
 JDWP::ObjectId Dbg::CreateString(const char* str) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return gRegistry->Add(String::AllocFromModifiedUtf8(str));
 }
 
 JDWP::ObjectId Dbg::CreateObject(JDWP::RefTypeId classId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Class* c = gRegistry->Get<Class*>(classId);
+  return gRegistry->Add(c->AllocObject());
 }
 
 JDWP::ObjectId Dbg::CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length) {
@@ -1295,7 +1294,7 @@ bool Dbg::GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::Ob
   return false;
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen) {
+void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
   Method** sp = reinterpret_cast<Method**>(frameId);
   Frame f;
   f.SetSP(sp);
@@ -1311,7 +1310,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   switch (tag) {
   case JDWP::JT_BOOLEAN:
     {
-      CHECK_EQ(expectedLen, 1U);
+      CHECK_EQ(width, 1U);
       uint32_t intVal = f.GetVReg(m, reg);
       LOG(VERBOSE) << "get boolean local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal != 0);
@@ -1319,7 +1318,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     break;
   case JDWP::JT_BYTE:
     {
-      CHECK_EQ(expectedLen, 1U);
+      CHECK_EQ(width, 1U);
       uint32_t intVal = f.GetVReg(m, reg);
       LOG(VERBOSE) << "get byte local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal);
@@ -1328,7 +1327,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_SHORT:
   case JDWP::JT_CHAR:
     {
-      CHECK_EQ(expectedLen, 2U);
+      CHECK_EQ(width, 2U);
       uint32_t intVal = f.GetVReg(m, reg);
       LOG(VERBOSE) << "get short/char local " << reg << " = " << intVal;
       JDWP::Set2BE(buf+1, intVal);
@@ -1337,7 +1336,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_INT:
   case JDWP::JT_FLOAT:
     {
-      CHECK_EQ(expectedLen, 4U);
+      CHECK_EQ(width, 4U);
       uint32_t intVal = f.GetVReg(m, reg);
       LOG(VERBOSE) << "get int/float local " << reg << " = " << intVal;
       JDWP::Set4BE(buf+1, intVal);
@@ -1345,7 +1344,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     break;
   case JDWP::JT_ARRAY:
     {
-      CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
+      CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       LOG(VERBOSE) << "get array local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
@@ -1356,7 +1355,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     break;
   case JDWP::JT_OBJECT:
     {
-      CHECK_EQ(expectedLen, sizeof(JDWP::ObjectId));
+      CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       LOG(VERBOSE) << "get object local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
@@ -1369,7 +1368,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   case JDWP::JT_DOUBLE:
   case JDWP::JT_LONG:
     {
-      CHECK_EQ(expectedLen, 8U);
+      CHECK_EQ(width, 8U);
       uint32_t lo = f.GetVReg(m, reg);
       uint64_t hi = f.GetVReg(m, reg + 1);
       uint64_t longVal = (hi << 32) | lo;
@@ -1387,7 +1386,53 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
 }
 
 void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width) {
-  UNIMPLEMENTED(FATAL);
+  Method** sp = reinterpret_cast<Method**>(frameId);
+  Frame f;
+  f.SetSP(sp);
+  uint16_t reg = DemangleSlot(slot, f);
+  Method* m = f.GetMethod();
+
+  const VmapTable vmap_table(m->GetVmapTableRaw());
+  uint32_t vmap_offset;
+  if (vmap_table.IsInContext(reg, vmap_offset)) {
+    UNIMPLEMENTED(FATAL) << "don't know how to pull locals from callee save frames: " << vmap_offset;
+  }
+
+  switch (tag) {
+  case JDWP::JT_BOOLEAN:
+  case JDWP::JT_BYTE:
+    CHECK_EQ(width, 1U);
+    f.SetVReg(m, reg, static_cast<uint32_t>(value));
+    break;
+  case JDWP::JT_SHORT:
+  case JDWP::JT_CHAR:
+    CHECK_EQ(width, 2U);
+    f.SetVReg(m, reg, static_cast<uint32_t>(value));
+    break;
+  case JDWP::JT_INT:
+  case JDWP::JT_FLOAT:
+    CHECK_EQ(width, 4U);
+    f.SetVReg(m, reg, static_cast<uint32_t>(value));
+    break;
+  case JDWP::JT_ARRAY:
+  case JDWP::JT_OBJECT:
+  case JDWP::JT_STRING:
+    {
+      CHECK_EQ(width, sizeof(JDWP::ObjectId));
+      Object* o = gRegistry->Get<Object*>(static_cast<JDWP::ObjectId>(value));
+      f.SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)));
+    }
+    break;
+  case JDWP::JT_DOUBLE:
+  case JDWP::JT_LONG:
+    CHECK_EQ(width, 8U);
+    f.SetVReg(m, reg, static_cast<uint32_t>(value));
+    f.SetVReg(m, reg + 1, static_cast<uint32_t>(value >> 32));
+    break;
+  default:
+    LOG(FATAL) << "unknown tag " << tag;
+    break;
+  }
 }
 
 void Dbg::PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags) {
@@ -1640,11 +1685,11 @@ void Dbg::DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes) {
   DdmSendChunk(type, bytes.size(), &bytes[0]);
 }
 
-void Dbg::DdmSendChunkV(uint32_t type, const struct iovec* iov, int iovcnt) {
+void Dbg::DdmSendChunkV(uint32_t type, const struct iovec* iov, int iov_count) {
   if (gJdwpState == NULL) {
     LOG(VERBOSE) << "Debugger thread not active, ignoring DDM send: " << type;
   } else {
-    gJdwpState->DdmSendChunkV(type, iov, iovcnt);
+    gJdwpState->DdmSendChunkV(type, iov, iov_count);
   }
 }
 

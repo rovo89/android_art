@@ -213,7 +213,7 @@ struct JdwpState {
   /*
    * Send up a chunk of DDM data.
    */
-  void DdmSendChunkV(uint32_t type, const iovec* iov, int iovcnt);
+  void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count);
 
   /*
    * Process a request from the debugger.

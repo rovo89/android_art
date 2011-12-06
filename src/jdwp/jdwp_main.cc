@@ -53,9 +53,9 @@ ssize_t JdwpNetStateBase::writePacket(ExpandBuf* pReply) {
 /*
  * Write a buffered packet. Grabs a mutex to assure atomicity.
  */
-ssize_t JdwpNetStateBase::writeBufferedPacket(const iovec* iov, int iovcnt) {
+ssize_t JdwpNetStateBase::writeBufferedPacket(const iovec* iov, int iov_count) {
   MutexLock mu(socket_lock_);
-  return writev(clientSock, iov, iovcnt);
+  return writev(clientSock, iov, iov_count);
 }
 
 bool JdwpState::IsConnected() {

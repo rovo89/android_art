@@ -52,6 +52,13 @@ uint32_t Frame::GetVReg(Method* method, int vreg) const {
   return *reinterpret_cast<uint32_t*>(vreg_addr);
 }
 
+void Frame::SetVReg(Method* method, int vreg, uint32_t new_value) {
+  DCHECK(method == GetMethod());
+  int offset = oatVRegOffsetFromMethod(method, vreg);
+  byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
+  *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
+}
+
 uintptr_t Frame::LoadCalleeSave(int num) const {
   // Callee saves are held at the top of the frame
   Method* method = GetMethod();

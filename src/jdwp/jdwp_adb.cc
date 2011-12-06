@@ -670,7 +670,7 @@ static bool sendRequest(JdwpState* state, ExpandBuf* pReq) {
  *
  * Returns "true" if it was sent successfully.
  */
-static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iovcnt) {
+static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iov_count) {
   JdwpNetState* netState = state->netState;
 
   if (netState->clientSock < 0) {
@@ -680,12 +680,11 @@ static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iovcnt) 
   }
 
   size_t expected = 0;
-  int i;
-  for (i = 0; i < iovcnt; i++) {
+  for (int i = 0; i < iov_count; i++) {
     expected += iov[i].iov_len;
   }
 
-  ssize_t actual = netState->writeBufferedPacket(iov, iovcnt);
+  ssize_t actual = netState->writeBufferedPacket(iov, iov_count);
   if ((size_t)actual != expected) {
     PLOG(ERROR) << "Failed sending b-req to debugger (" << actual << " of " << expected << ")";
     return false;
