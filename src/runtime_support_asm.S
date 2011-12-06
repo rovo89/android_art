@@ -558,6 +558,33 @@ art_proxy_invoke_handler:
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
 
+    .global art_trace_entry_from_code
+    .extern artTraceMethodEntryFromCode
+    /*
+     * Routine that intercepts method calls
+     */
+art_trace_entry_from_code:
+    push  {r0-r3}        @ save arguments (4 words)
+    mov   r1, r9         @ pass Thread::Current
+    mov   r2, lr         @ pass LR
+    blx   artTraceMethodEntryFromCode  @ (Method*, Thread*, LR)
+    mov   r12, r0        @ r12 holds reference to code
+    pop   {r0-r3}        @ restore arguments
+    blx   r12            @ call method
+    /* intentional fallthrough */
+
+    .global art_trace_exit_from_code
+    .extern artTraceMethodExitFromCode
+    /*
+     * Routine that intercepts method returns
+     */
+art_trace_exit_from_code:
+    push  {r0-r1}        @ save return value
+    blx   artTraceMethodExitFromCode  @ ()
+    mov   lr, r0         @ restore link register
+    pop   {r0, r1}       @ restore return value
+    bx    lr             @ return
+
     .global art_shl_long
 art_shl_long:
     /*

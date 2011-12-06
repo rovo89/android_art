@@ -793,7 +793,8 @@ Thread::Thread()
       long_jump_context_(NULL),
       throwing_OutOfMemoryError_(false),
       pre_allocated_OutOfMemoryError_(NULL),
-      debug_invoke_req_(new DebugInvokeReq) {
+      debug_invoke_req_(new DebugInvokeReq),
+      trace_stack_(new std::vector<TraceStackFrame>) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
 }
 
@@ -838,6 +839,7 @@ Thread::~Thread() {
   delete long_jump_context_;
 
   delete debug_invoke_req_;
+  delete trace_stack_;
 }
 
 void Thread::HandleUncaughtExceptions() {
@@ -1319,6 +1321,17 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
       } else if (method->IsNative()) {
         native_method_count_++;
       } else {
+        // Unwind stack during method tracing
+        if (Trace::IsMethodTracingActive()) {
+#if defined(__arm__)
+          uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
+          if (ManglePc(trace_exit) == pc) {
+            pc = ManglePc(artTraceMethodUnwindFromCode(Thread::Current()));
+          }
+#else
+          UNIMPLEMENTED(WARNING);
+#endif
+        }
         dex_pc = method->ToDexPC(pc);
       }
       if (dex_pc != DexFile::kDexNoIndex) {

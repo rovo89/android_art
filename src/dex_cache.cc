@@ -9,6 +9,12 @@
 
 namespace art {
 
+void CodeAndDirectMethods::SetResolvedDirectMethodTraceEntry(uint32_t method_idx, const void* pcode) {
+  CHECK(pcode != NULL);
+  int32_t code = reinterpret_cast<int32_t>(pcode);
+  Set(CodeIndex(method_idx), code);
+}
+
 void CodeAndDirectMethods::SetResolvedDirectMethod(uint32_t method_idx, Method* method) {
   CHECK(method != NULL);
   CHECK(method->IsDirect()) << PrettyMethod(method);

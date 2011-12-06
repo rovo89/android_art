@@ -33,6 +33,8 @@ class MANAGED CodeAndDirectMethods : public IntArray {
     Set(MethodIndex(method_idx), method_idx);
   }
 
+  void SetResolvedDirectMethodTraceEntry(uint32_t method_idx, const void* pcode);
+
   void SetResolvedDirectMethod(uint32_t method_idx, Method* method);
 
   static size_t LengthAsArray(size_t elements) {

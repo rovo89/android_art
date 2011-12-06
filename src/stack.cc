@@ -48,6 +48,11 @@ uintptr_t Frame::GetReturnPC() const {
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
+void Frame::SetReturnPC(uintptr_t pc) {
+  byte* pc_addr = reinterpret_cast<byte*>(sp_) + GetMethod()->GetReturnPcOffsetInBytes();
+  *reinterpret_cast<uintptr_t*>(pc_addr) = pc;
+}
+
 uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,
                         uint32_t fp_spills, size_t frame_size, int vreg) const {
   int offset = oatVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);

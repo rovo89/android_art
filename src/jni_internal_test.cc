@@ -7,7 +7,6 @@
 #include <cmath>
 
 #include "common_test.h"
-#include "gtest/gtest-death-test.h"
 #include "ScopedLocalRef.h"
 
 namespace art {

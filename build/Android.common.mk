@@ -183,6 +183,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/sun_misc_Unsafe.cc \
 	src/thread.cc \
 	src/thread_list.cc \
+	src/trace.cc \
 	src/runtime_support.cc \
 	src/utf.cc \
 	src/utils.cc \

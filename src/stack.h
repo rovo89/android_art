@@ -53,6 +53,8 @@ class PACKED Frame {
 
   uintptr_t GetReturnPC() const;
 
+  void SetReturnPC(uintptr_t pc);
+
   uintptr_t LoadCalleeSave(int num) const;
 
 

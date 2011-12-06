@@ -27,6 +27,7 @@ uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
 extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
+uint32_t artTraceMethodUnwindFromCode(Thread* self);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
@@ -69,6 +70,8 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
   extern "C" void* art_initialize_type_from_code(uint32_t, void*);
   extern "C" void* art_initialize_type_and_verify_access_from_code(uint32_t, void*);
+  extern "C" void art_trace_entry_from_code(void*);
+  extern "C" void art_trace_exit_from_code();
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
 
   /* Conversions */

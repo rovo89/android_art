@@ -17,6 +17,7 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "jni_internal.h"
+#include "trace.h"
 #include "hprof/hprof.h"
 #include "ScopedUtfChars.h"
 #include "toStringArray.h"
@@ -36,9 +37,8 @@ namespace {
  */
 jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
   std::vector<std::string> features;
-  // TODO: we might need to uncomment these to make them work.
-  //features.push_back("method-trace-profiling");
-  //features.push_back("method-trace-profiling-streaming");
+  features.push_back("method-trace-profiling");
+  features.push_back("method-trace-profiling-streaming");
   features.push_back("hprof-heap-dump");
   features.push_back("hprof-heap-dump-streaming");
   return toStringArray(env, features);
@@ -61,8 +61,7 @@ void VMDebug_resetAllocCount(JNIEnv*, jclass, jint kinds) {
 }
 
 void VMDebug_startMethodTracingDdmsImpl(JNIEnv* env, jclass, jint bufferSize, jint flags) {
-  UNIMPLEMENTED(WARNING);
-  //dvmMethodTraceStart("[DDMS]", -1, bufferSize, flags, true);
+  Trace::Start("[DDMS]", -1, bufferSize, flags, true);
 }
 
 void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename, jobject javaFd, jint bufferSize, jint flags) {
@@ -81,8 +80,7 @@ void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename
   if (traceFilename.c_str() == NULL) {
     return;
   }
-  UNIMPLEMENTED(WARNING);
-  //dvmMethodTraceStart(traceFilename.c_str(), fd, bufferSize, flags, false);
+  Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, false);
 }
 
 void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFilename, jint bufferSize, jint flags) {
@@ -90,18 +88,15 @@ void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFi
   if (traceFilename.c_str() == NULL) {
     return;
   }
-  UNIMPLEMENTED(WARNING);
-  //dvmMethodTraceStart(traceFilename.c_str(), -1, bufferSize, flags, false);
+  Trace::Start(traceFilename.c_str(), -1, bufferSize, flags, false);
 }
 
 jboolean VMDebug_isMethodTracingActive(JNIEnv*, jclass) {
-  UNIMPLEMENTED(WARNING);
-  return JNI_FALSE; //dvmIsMethodTraceActive();
+  return Trace::IsMethodTracingActive();
 }
 
 void VMDebug_stopMethodTracing(JNIEnv*, jclass) {
-  UNIMPLEMENTED(WARNING);
-  //dvmMethodTraceStop();
+  Trace::Stop();
 }
 
 void VMDebug_startEmulatorTracing(JNIEnv*, jclass) {

@@ -22,6 +22,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
+#include "trace.h"
 #include "ScopedLocalRef.h"
 
 namespace art {
@@ -139,6 +140,10 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
 
 extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Method** sp) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
+  // Remove extra entry pushed onto second stack during method tracing
+  if (Trace::IsMethodTracingActive()) {
+    artTraceMethodUnwindFromCode(thread);
+  }
   thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
   thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;",
       "stack size %zdkb; default stack size: %zdkb",
@@ -1161,6 +1166,32 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       }
     }
   }
+}
+
+extern "C" const void* artTraceMethodEntryFromCode(Method* method, Thread* self, uintptr_t lr) {
+  LOG(INFO) << "Tracer - entering: " << PrettyMethod(method);
+  TraceStackFrame trace_frame = TraceStackFrame(method, lr);
+  self->PushTraceStackFrame(trace_frame);
+
+  return Trace::GetSavedCodeFromMap(method);
+}
+
+extern "C" uintptr_t artTraceMethodExitFromCode() {
+  TraceStackFrame trace_frame = Thread::Current()->PopTraceStackFrame();
+  Method* method = trace_frame.method_;
+  uintptr_t lr = trace_frame.return_pc_;
+  LOG(INFO) << "Tracer - exiting: " << PrettyMethod(method);
+
+  return lr;
+}
+
+uintptr_t artTraceMethodUnwindFromCode(Thread* self) {
+  TraceStackFrame trace_frame = self->PopTraceStackFrame();
+  Method* method = trace_frame.method_;
+  uintptr_t lr = trace_frame.return_pc_;
+  LOG(INFO) << "Tracer - unwinding: " << PrettyMethod(method);
+
+  return lr;
 }
 
 /*

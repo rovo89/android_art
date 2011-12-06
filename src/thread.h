@@ -23,6 +23,7 @@
 #include <iosfwd>
 #include <list>
 #include <string>
+#include <vector>
 
 #include "dex_file.h"
 #include "globals.h"
@@ -34,6 +35,7 @@
 #include "offsets.h"
 #include "runtime_stats.h"
 #include "stack.h"
+#include "trace.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -466,6 +468,20 @@ class PACKED Thread {
     return debug_invoke_req_;
   }
 
+  bool IsTraceStackEmpty() const {
+    return trace_stack_->empty();
+  }
+
+  void PushTraceStackFrame(const TraceStackFrame& frame) {
+    trace_stack_->push_back(frame);
+  }
+
+  TraceStackFrame PopTraceStackFrame() {
+    TraceStackFrame frame = trace_stack_->back();
+    trace_stack_->pop_back();
+    return frame;
+  }
+
  private:
   Thread();
   ~Thread();
@@ -603,6 +619,10 @@ class PACKED Thread {
 
   // TLS key used to retrieve the VM thread object.
   static pthread_key_t pthread_key_self_;
+
+  // Additional stack used by method tracer to store method and return pc values.
+  // Stored as a pointer since std::vector is not PACKED.
+  std::vector<TraceStackFrame>* trace_stack_;
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
