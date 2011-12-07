@@ -540,7 +540,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
     }
   } else {
     LOG(INFO) << "not invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub
-        << " started=" << Runtime::Current()->IsStarted();
+              << " started=" << Runtime::Current()->IsStarted();
     if (result != NULL) {
       result->j = 0;
     }

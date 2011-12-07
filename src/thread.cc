@@ -1252,12 +1252,29 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
     CHECK(IsExceptionPending());
     return;
   }
+  if (!Runtime::Current()->IsStarted()) {
+    // Something is trying to throw an exception without a started
+    // runtime, which is the common case in the compiler. We won't be
+    // able to invoke the constructor of the exception, so use
+    // AllocObject which will not invoke a constructor.
+    ScopedLocalRef<jthrowable> exception(
+        env, reinterpret_cast<jthrowable>(env->AllocObject(exception_class.get())));
+    if (exception.get() != NULL) {
+      ScopedJniThreadState ts(env);
+      Throwable* t = reinterpret_cast<Throwable*>(ts.Self()->DecodeJObject(exception.get()));
+      ts.Self()->SetException(t);
+    } else {
+      LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI AllocObject failed: "
+                 << PrettyTypeOf(GetException());
+      CHECK(IsExceptionPending());
+    }
+    return;
+  }
   int rc = env->ThrowNew(exception_class.get(), msg);
   if (rc != JNI_OK) {
     LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI ThrowNew failed: "
                << PrettyTypeOf(GetException());
     CHECK(IsExceptionPending());
-    return;
   }
 }
 
