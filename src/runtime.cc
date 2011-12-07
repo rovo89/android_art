@@ -639,6 +639,19 @@ void Runtime::Dump(std::ostream& os) {
   thread_list_->Dump(os);
 }
 
+void Runtime::DumpLockHolders(std::ostream& os) {
+  pid_t heap_lock_owner = Heap::GetLockOwner();
+  pid_t thread_list_lock_owner = GetThreadList()->GetLockOwner();
+  pid_t classes_lock_owner = GetClassLinker()->GetClassesLockOwner();
+  pid_t dex_lock_owner = GetClassLinker()->GetDexLockOwner();
+  if ((heap_lock_owner | thread_list_lock_owner | classes_lock_owner | dex_lock_owner) != 0) {
+    os << "Heap lock owner tid: " << heap_lock_owner << "\n"
+       << "ThreadList lock owner tid: " << thread_list_lock_owner << "\n"
+       << "ClassLinker classes lock owner tid: " << classes_lock_owner << "\n"
+       << "ClassLinker dex lock owner tid: " << dex_lock_owner << "\n";
+  }
+}
+
 void Runtime::SetStatsEnabled(bool new_state) {
   if (new_state == true) {
     GetStats()->Clear(~0);

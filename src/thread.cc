@@ -644,10 +644,14 @@ bool Thread::IsSuspended() {
 }
 
 void Thread::WaitUntilSuspended() {
-  // TODO: dalvik dropped the waiting thread's priority after a while.
-  // TODO: dalvik timed out and aborted.
+  static const useconds_t kTimeoutUs = 30 * 1000000; // 30s.
+
+  useconds_t total_delay = 0;
   useconds_t delay = 0;
   while (GetState() == Thread::kRunnable) {
+    if (total_delay >= kTimeoutUs) {
+      Runtime::Current()->DumpLockHolders(LOG(FATAL) << "Thread suspend timeout: " << *this << "\n");
+    }
     useconds_t new_delay = delay * 2;
     CHECK_GE(new_delay, delay);
     delay = new_delay;
@@ -656,6 +660,7 @@ void Thread::WaitUntilSuspended() {
       delay = 10000;
     } else {
       usleep(delay);
+      total_delay += delay;
     }
   }
 }

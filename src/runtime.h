@@ -119,6 +119,7 @@ class Runtime {
   void DetachCurrentThread();
 
   void Dump(std::ostream& os);
+  void DumpLockHolders(std::ostream& os);
 
   ~Runtime();
 
