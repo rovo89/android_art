@@ -1010,7 +1010,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
  * Valid mods:
  *  Count, ThreadOnly, ClassOnly, ClassMatch, ClassExclude
  */
-bool JdwpState::PostClassPrepare(int tag, RefTypeId refTypeId, const char* signature, int status) {
+bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature, int status) {
   ModBasket basket;
 
   memset(&basket, 0, sizeof(basket));
@@ -1033,7 +1033,7 @@ bool JdwpState::PostClassPrepare(int tag, RefTypeId refTypeId, const char* signa
     FindMatchingEvents(EK_CLASS_PREPARE, &basket, matchList, &matchCount);
     if (matchCount != 0) {
       LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
-                   << "thread=" << (void*) basket.threadId << ")";
+                   << "thread=" << (void*) basket.threadId << ") " << signature;
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);
       LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;

@@ -166,12 +166,17 @@ static void SetUtf8String(uint8_t* buf, const char* str, size_t strLen) {
  * they can be null-terminated (either they don't have null bytes or they
  * have stored null bytes in a multi-byte encoding).
  */
-void expandBufAddUtf8String(ExpandBuf* pBuf, const char* str) {
-  int strLen = strlen(str);
-
+void expandBufAddUtf8String(ExpandBuf* pBuf, const char* s) {
+  int strLen = strlen(s);
   ensureSpace(pBuf, sizeof(uint32_t) + strLen);
-  SetUtf8String(pBuf->storage + pBuf->curLen, str, strLen);
+  SetUtf8String(pBuf->storage + pBuf->curLen, s, strLen);
   pBuf->curLen += sizeof(uint32_t) + strLen;
+}
+
+void expandBufAddUtf8String(ExpandBuf* pBuf, const std::string& s) {
+  ensureSpace(pBuf, sizeof(uint32_t) + s.size());
+  SetUtf8String(pBuf->storage + pBuf->curLen, s.data(), s.size());
+  pBuf->curLen += sizeof(uint32_t) + s.size();
 }
 
 }  // namespace JDWP

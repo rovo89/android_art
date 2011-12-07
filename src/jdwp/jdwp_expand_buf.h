@@ -56,7 +56,8 @@ void expandBufAdd1(ExpandBuf* pBuf, uint8_t val);
 void expandBufAdd2BE(ExpandBuf* pBuf, uint16_t val);
 void expandBufAdd4BE(ExpandBuf* pBuf, uint32_t val);
 void expandBufAdd8BE(ExpandBuf* pBuf, uint64_t val);
-void expandBufAddUtf8String(ExpandBuf* pBuf, const char* str);
+void expandBufAddUtf8String(ExpandBuf* pBuf, const char* s);
+void expandBufAddUtf8String(ExpandBuf* pBuf, const std::string& s);
 
 }  // namespace JDWP
 

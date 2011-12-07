@@ -849,7 +849,7 @@ void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JD
     MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, mh.GetName());
-    expandBufAddUtf8String(pReply, mh.GetSignature().c_str());
+    expandBufAddUtf8String(pReply, mh.GetSignature());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
@@ -1436,6 +1436,7 @@ void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativeP
   if (!gDebuggerActive) {
     return;
   }
+
   JDWP::JdwpLocation throw_location;
   SetLocation(throw_location, throwMethod, throwNativePc);
   JDWP::JdwpLocation catch_location;
@@ -1461,7 +1462,16 @@ void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativeP
 }
 
 void Dbg::PostClassPrepare(Class* c) {
-  UNIMPLEMENTED(FATAL);
+  if (!gDebuggerActive) {
+    return;
+  }
+
+  // TODO - we currently always send both "verified" and "prepared" since
+  // debuggers seem to like that.  There might be some advantage to honesty,
+  // since the class may not yet be verified.
+  int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
+  JDWP::JdwpTypeTag tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), ClassHelper(c).GetDescriptor(), state);
 }
 
 bool Dbg::WatchLocation(const JDWP::JdwpLocation* pLoc) {
@@ -1612,6 +1622,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
     m = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
   }
   CHECK(m != NULL);
+  LOG(VERBOSE) << "ExecuteMethod " << PrettyMethod(m);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 

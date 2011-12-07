@@ -9,6 +9,7 @@
 
 #include "casts.h"
 #include "class_loader.h"
+#include "debugger.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_verifier.h"
@@ -1111,6 +1112,20 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
     return NULL;
   }
   CHECK(klass->IsResolved());
+
+  /*
+   * We send CLASS_PREPARE events to the debugger from here.  The
+   * definition of "preparation" is creating the static fields for a
+   * class and initializing them to the standard default values, but not
+   * executing any code (that comes later, during "initialization").
+   *
+   * We did the static preparation in LinkClass.
+   *
+   * The class has been prepared and resolved but possibly not yet verified
+   * at this point.
+   */
+  Dbg::PostClassPrepare(klass.get());
+
   return klass.get();
 }
 

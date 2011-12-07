@@ -205,7 +205,7 @@ struct JdwpState {
   /*
    * Class has been prepared.
    */
-  bool PostClassPrepare(int tag, RefTypeId refTypeId, const char* signature, int status);
+  bool PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature, int status);
 
   /*
    * The VM is about to stop.

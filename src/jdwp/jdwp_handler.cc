@@ -176,7 +176,7 @@ bail:
 static JdwpError handleVM_Version(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   /* text information on runtime version */
   std::string version(StringPrintf("Android Runtime %s", Runtime::Current()->GetVersion()));
-  expandBufAddUtf8String(pReply, version.c_str());
+  expandBufAddUtf8String(pReply, version);
   /* JDWP version numbers */
   expandBufAdd4BE(pReply, 1);        // major
   expandBufAdd4BE(pReply, 5);        // minor
@@ -442,7 +442,7 @@ static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t*
 
     expandBufAdd1(pReply, refTypeTag);
     expandBufAddRefTypeId(pReply, classRefBuf[i]);
-    expandBufAddUtf8String(pReply, descriptor.c_str());
+    expandBufAddUtf8String(pReply, descriptor);
     expandBufAddUtf8String(pReply, genericSignature);
     expandBufAdd4BE(pReply, status);
   }
@@ -461,7 +461,7 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
   std::string signature(Dbg::GetSignature(refTypeId));
-  expandBufAddUtf8String(pReply, signature.c_str());
+  expandBufAddUtf8String(pReply, signature);
 
   return ERR_NONE;
 }
@@ -503,7 +503,7 @@ static JdwpError handleRT_SourceFile(JdwpState* state, const uint8_t* buf, int d
   if (!Dbg::GetSourceFile(refTypeId, source_file)) {
     return ERR_ABSENT_INFORMATION;
   }
-  expandBufAddUtf8String(pReply, source_file.c_str());
+  expandBufAddUtf8String(pReply, source_file);
   return ERR_NONE;
 }
 
@@ -569,7 +569,7 @@ static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
   std::string signature(Dbg::GetSignature(refTypeId));
   if (signature != NULL) {
-    expandBufAddUtf8String(pReply, signature.c_str());
+    expandBufAddUtf8String(pReply, signature);
   } else {
     LOG(WARNING) << StringPrintf("No signature for refTypeId=0x%llx", refTypeId);
     expandBufAddUtf8String(pReply, "Lunknown;");
@@ -862,7 +862,7 @@ static JdwpError handleSR_Value(JdwpState* state, const uint8_t* buf, int dataLe
 
   LOG(VERBOSE) << StringPrintf("  Req for str %llx --> '%s'", stringObject, str.c_str());
 
-  expandBufAddUtf8String(pReply, str.c_str());
+  expandBufAddUtf8String(pReply, str);
 
   return ERR_NONE;
 }
@@ -879,7 +879,7 @@ static JdwpError handleTR_Name(JdwpState* state, const uint8_t* buf, int dataLen
     return ERR_INVALID_THREAD;
   }
   LOG(VERBOSE) << StringPrintf("  Name of thread 0x%llx is \"%s\"", threadId, name.c_str());
-  expandBufAddUtf8String(pReply, name.c_str());
+  expandBufAddUtf8String(pReply, name);
 
   return ERR_NONE;
 }
@@ -1062,7 +1062,7 @@ static JdwpError handleTGR_Name(JdwpState* state, const uint8_t* buf, int dataLe
   ObjectId threadGroupId = ReadObjectId(&buf);
   LOG(VERBOSE) << StringPrintf("  Req for name of threadGroupId=0x%llx", threadGroupId);
 
-  expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(threadGroupId).c_str());
+  expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(threadGroupId));
 
   return ERR_NONE;
 }
