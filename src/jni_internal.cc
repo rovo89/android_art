@@ -236,6 +236,42 @@ static byte* CreateArgArray(JNIEnv* public_env, Method* method, jvalue* args) {
   return arg_array.release();
 }
 
+static byte* CreateArgArray(Method* method, JValue* args) {
+  const char* shorty = MethodHelper(method).GetShorty();
+  size_t shorty_len = strlen(shorty);
+  size_t num_bytes = NumArgArrayBytes(shorty);
+  UniquePtr<byte[]> arg_array(new byte[num_bytes]);
+  for (size_t i = 1, offset = 0; i < shorty_len; ++i) {
+    switch (shorty[i]) {
+    case 'Z':
+    case 'B':
+    case 'C':
+    case 'S':
+    case 'I':
+      *reinterpret_cast<uint32_t*>(&arg_array[offset]) = args[i - 1].i;
+      offset += 4;
+      break;
+    case 'F':
+      *reinterpret_cast<float*>(&arg_array[offset]) = args[i - 1].f;
+      offset += 4;
+      break;
+    case 'L':
+      *reinterpret_cast<Object**>(&arg_array[offset]) = args[i - 1].l;
+      offset += sizeof(Object*);
+      break;
+    case 'D':
+      *reinterpret_cast<double*>(&arg_array[offset]) = args[i - 1].d;
+      offset += 8;
+      break;
+    case 'J':
+      *reinterpret_cast<uint64_t*>(&arg_array[offset]) = args[i - 1].j;
+      offset += 8;
+      break;
+    }
+  }
+  return arg_array.release();
+}
+
 static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, byte* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   JValue result;
@@ -655,6 +691,11 @@ JValue InvokeWithJValues(JNIEnv* public_env, jobject obj, jmethodID mid, jvalue*
   Method* method = DecodeMethod(mid);
   UniquePtr<byte[]> arg_array(CreateArgArray(env, method, args));
   return InvokeWithArgArray(env, receiver, method, arg_array.get());
+}
+
+JValue InvokeWithJValues(Thread* self, Object* receiver, Method* m, JValue* args) {
+  UniquePtr<byte[]> arg_array(CreateArgArray(m, args));
+  return InvokeWithArgArray(self->GetJniEnv(), receiver, m, arg_array.get());
 }
 
 class JNI {

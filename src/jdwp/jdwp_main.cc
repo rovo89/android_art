@@ -451,9 +451,9 @@ std::ostream& operator<<(std::ostream& os, const JdwpTransportType& value) {
 }
 
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
-  // TODO: do we really want the Class* and Method* as pointers?
-  os << rhs.typeTag << " " << (void*) rhs.classId << " " << (void*) rhs.methodId << " " << rhs.idx
-     << " (" << Dbg::GetClassDescriptor(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId) << ")";
+  os << "JdwpLocation["
+     << Dbg::GetClassDescriptor(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId)
+     << "@" << rhs.idx << " " << rhs.typeTag << "]";
   return os;
 }
 
@@ -477,6 +477,17 @@ std::ostream& operator<<(std::ostream& os, const JdwpTag& value) {
   case JT_CLASS_OBJECT: os << "JT_CLASS_OBJECT"; break;
   default:
     os << "JdwpTag[" << static_cast<int32_t>(value) << "]";
+  }
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const JdwpTypeTag& value) {
+  switch (value) {
+  case TT_CLASS: os << "TT_CLASS"; break;
+  case TT_INTERFACE: os << "TT_INTERFACE"; break;
+  case TT_ARRAY: os << "TT_ARRAY"; break;
+  default:
+    os << "JdwpTypeTag[" << static_cast<int32_t>(value) << "]";
   }
   return os;
 }

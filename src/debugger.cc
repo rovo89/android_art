@@ -716,8 +716,7 @@ JDWP::ObjectId Dbg::CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t leng
 }
 
 bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+  return gRegistry->Get<Class*>(instClassId)->InstanceOf(gRegistry->Get<Class*>(classId));
 }
 
 JDWP::FieldId ToFieldId(Field* f) {
@@ -750,6 +749,14 @@ Method* FromMethodId(JDWP::MethodId mid) {
 #else
   return reinterpret_cast<Method*>(static_cast<uintptr_t>(mid));
 #endif
+}
+
+void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t native_pc) {
+  Class* c = m->GetDeclaringClass();
+  location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+  location.classId = gRegistry->Add(c);
+  location.methodId = ToMethodId(m);
+  location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc);
 }
 
 std::string Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId) {
@@ -1119,8 +1126,7 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, uint32_t* pThreadStatus, uint
 }
 
 uint32_t Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  return DecodeThread(threadId)->GetSuspendCount();
 }
 
 bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
@@ -1130,8 +1136,6 @@ bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
 bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
   return DecodeThread(threadId)->IsSuspended();
 }
-
-//void Dbg::WaitForSuspend(JDWP::ObjectId threadId);
 
 void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
   struct ThreadListVisitor {
@@ -1212,15 +1216,7 @@ bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP
 
       if (depth == desired_frame_number) {
         *pFrameId = reinterpret_cast<JDWP::FrameId>(f.GetSP());
-
-        Method* m = f.GetMethod();
-        Class* c = m->GetDeclaringClass();
-
-        pLoc->typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-        pLoc->classId = gRegistry->Add(c);
-        pLoc->methodId = ToMethodId(m);
-        pLoc->idx = m->IsNative() ? -1 : m->ToDexPC(pc);
-
+        SetLocation(*pLoc, f.GetMethod(), pc);
         found = true;
       }
       ++depth;
@@ -1276,15 +1272,15 @@ void Dbg::SuspendSelf() {
   Runtime::Current()->GetThreadList()->SuspendSelfForDebugger();
 }
 
-bool Dbg::GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
+bool Dbg::GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
   Method** sp = reinterpret_cast<Method**>(frameId);
   Frame f;
   f.SetSP(sp);
-  uint16_t reg = DemangleSlot(0, f);
   Method* m = f.GetMethod();
 
   Object* o = NULL;
   if (!m->IsNative() && !m->IsStatic()) {
+    uint16_t reg = DemangleSlot(0, f);
     o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
   }
   *pThisId = gRegistry->Add(o);
@@ -1436,8 +1432,29 @@ void Dbg::PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr,
   UNIMPLEMENTED(FATAL);
 }
 
-void Dbg::PostException(void* throwFp, int throwRelPc, void* catchFp, int catchRelPc, Object* exception) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception) {
+  JDWP::JdwpLocation throw_location;
+  SetLocation(throw_location, throwMethod, throwNativePc);
+  JDWP::JdwpLocation catch_location;
+  SetLocation(catch_location, catchMethod, catchNativePc);
+
+  // We need 'this' for InstanceOnly filters.
+  JDWP::ObjectId this_id;
+  GetThisObject(reinterpret_cast<JDWP::FrameId>(sp), &this_id);
+
+  /*
+   * Hand the event to the JDWP exception handler.  Note we're using the
+   * "NoReg" objectID on the exception, which is not strictly correct --
+   * the exception object WILL be passed up to the debugger if the
+   * debugger is interested in the event.  We do this because the current
+   * implementation of the debugger object registry never throws anything
+   * away, and some people were experiencing a fatal build up of exception
+   * objects when dealing with certain libraries.
+   */
+  JDWP::ObjectId exception_id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(exception));
+  JDWP::RefTypeId exception_class_id = gRegistry->Add(exception->GetClass());
+
+  gJdwpState->PostException(&throw_location, exception_id, exception_class_id, &catch_location, this_id);
 }
 
 void Dbg::PostClassPrepare(Class* c) {
@@ -1462,17 +1479,182 @@ void Dbg::UnconfigureStep(JDWP::ObjectId threadId) {
   UNIMPLEMENTED(FATAL);
 }
 
-JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj) {
-  UNIMPLEMENTED(FATAL);
-  return JDWP::ERR_NONE;
+JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptionId) {
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+
+  Thread* targetThread = NULL;
+  DebugInvokeReq* req = NULL;
+  {
+    ScopedThreadListLock thread_list_lock;
+    targetThread = DecodeThread(threadId);
+    if (targetThread == NULL) {
+      LOG(ERROR) << "InvokeMethod request for non-existent thread " << threadId;
+      return JDWP::ERR_INVALID_THREAD;
+    }
+    req = targetThread->GetInvokeReq();
+    if (!req->ready) {
+      LOG(ERROR) << "InvokeMethod request for thread not stopped by event: " << *targetThread;
+      return JDWP::ERR_INVALID_THREAD;
+    }
+
+    /*
+     * We currently have a bug where we don't successfully resume the
+     * target thread if the suspend count is too deep.  We're expected to
+     * require one "resume" for each "suspend", but when asked to execute
+     * a method we have to resume fully and then re-suspend it back to the
+     * same level.  (The easiest way to cause this is to type "suspend"
+     * multiple times in jdb.)
+     *
+     * It's unclear what this means when the event specifies "resume all"
+     * and some threads are suspended more deeply than others.  This is
+     * a rare problem, so for now we just prevent it from hanging forever
+     * by rejecting the method invocation request.  Without this, we will
+     * be stuck waiting on a suspended thread.
+     */
+    int suspend_count = targetThread->GetSuspendCount();
+    if (suspend_count > 1) {
+      LOG(ERROR) << *targetThread << " suspend count too deep for method invocation: " << suspend_count;
+      return JDWP::ERR_THREAD_SUSPENDED; // Probably not expected here.
+    }
+
+    /*
+     * TODO: ought to screen the various IDs, and verify that the argument
+     * list is valid.
+     */
+    req->receiver_ = gRegistry->Get<Object*>(objectId);
+    req->thread_ = gRegistry->Get<Object*>(threadId);
+    req->class_ = gRegistry->Get<Class*>(classId);
+    req->method_ = FromMethodId(methodId);
+    req->num_args_ = numArgs;
+    req->arg_array_ = argArray;
+    req->options_ = options;
+    req->invoke_needed_ = true;
+  }
+
+  // The fact that we've released the thread list lock is a bit risky --- if the thread goes
+  // away we're sitting high and dry -- but we must release this before the ResumeAllThreads
+  // call, and it's unwise to hold it during WaitForSuspend.
+
+  {
+    /*
+     * We change our (JDWP thread) status, which should be THREAD_RUNNING,
+     * so the VM can suspend for a GC if the invoke request causes us to
+     * run out of memory.  It's also a good idea to change it before locking
+     * the invokeReq mutex, although that should never be held for long.
+     */
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+
+    LOG(VERBOSE) << "    Transferring control to event thread";
+    {
+      MutexLock mu(req->lock_);
+
+      if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
+        LOG(VERBOSE) << "      Resuming all threads";
+        thread_list->ResumeAll(true);
+      } else {
+        LOG(VERBOSE) << "      Resuming event thread only";
+        thread_list->Resume(targetThread, true);
+      }
+
+      // Wait for the request to finish executing.
+      while (req->invoke_needed_) {
+        req->cond_.Wait(req->lock_);
+      }
+    }
+    LOG(VERBOSE) << "    Control has returned from event thread";
+
+    /* wait for thread to re-suspend itself */
+    targetThread->WaitUntilSuspended();
+    //dvmWaitForSuspend(targetThread);
+  }
+
+  /*
+   * Suspend the threads.  We waited for the target thread to suspend
+   * itself, so all we need to do is suspend the others.
+   *
+   * The suspendAllThreads() call will double-suspend the event thread,
+   * so we want to resume the target thread once to keep the books straight.
+   */
+  if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
+    LOG(VERBOSE) << "      Suspending all threads";
+    thread_list->SuspendAll(true);
+    LOG(VERBOSE) << "      Resuming event thread to balance the count";
+    thread_list->Resume(targetThread, true);
+  }
+
+  // Copy the result.
+  *pResultTag = req->result_tag;
+  if (IsPrimitiveTag(req->result_tag)) {
+    *pResultValue = req->result_value.j;
+  } else {
+    *pResultValue = gRegistry->Add(req->result_value.l);
+  }
+  *pExceptionId = req->exception;
+  return req->error;
 }
 
 void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
-  UNIMPLEMENTED(FATAL);
+  Thread* self = Thread::Current();
+
+  // We can be called while an exception is pending in the VM.  We need
+  // to preserve that across the method invocation.
+  SirtRef<Throwable> old_exception(self->GetException());
+  self->ClearException();
+
+  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+
+  // Translate the method through the vtable, unless the debugger wants to suppress it.
+  Method* m = pReq->method_;
+  if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
+    m = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+  }
+  CHECK(m != NULL);
+
+  CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
+
+  pReq->result_value = InvokeWithJValues(self, pReq->receiver_, m, reinterpret_cast<JValue*>(pReq->arg_array_));
+
+  pReq->exception = gRegistry->Add(self->GetException());
+  pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
+  if (pReq->exception != 0) {
+    Object* exc = self->GetException();
+    LOG(VERBOSE) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
+    self->ClearException();
+    pReq->result_value.j = 0;
+  } else if (pReq->result_tag == JDWP::JT_OBJECT) {
+    /* if no exception thrown, examine object result more closely */
+    JDWP::JdwpTag new_tag = TagFromObject(pReq->result_value.l);
+    if (new_tag != pReq->result_tag) {
+      LOG(VERBOSE) << "  JDWP promoted result from " << pReq->result_tag << " to " << new_tag;
+      pReq->result_tag = new_tag;
+    }
+
+    /*
+     * Register the object.  We don't actually need an ObjectId yet,
+     * but we do need to be sure that the GC won't move or discard the
+     * object when we switch out of RUNNING.  The ObjectId conversion
+     * will add the object to the "do not touch" list.
+     *
+     * We can't use the "tracked allocation" mechanism here because
+     * the object is going to be handed off to a different thread.
+     */
+    gRegistry->Add(pReq->result_value.l);
+  }
+
+  if (old_exception.get() != NULL) {
+    self->SetException(old_exception.get());
+  }
 }
 
+/*
+ * Register an object ID that might not have been registered previously.
+ *
+ * Normally this wouldn't happen -- the conversion to an ObjectId would
+ * have added the object to the registry -- but in some cases (e.g.
+ * throwing exceptions) we really want to do the registration late.
+ */
 void Dbg::RegisterObjectId(JDWP::ObjectId id) {
-  UNIMPLEMENTED(FATAL);
+  gRegistry->Add(reinterpret_cast<Object*>(id));
 }
 
 /*

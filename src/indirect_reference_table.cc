@@ -86,7 +86,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
 
   DCHECK(obj != NULL);
   // TODO: stronger sanity check on the object (such as in heap)
-  DCHECK_ALIGNED(reinterpret_cast<intptr_t>(obj), 8);
+  DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(obj), 8);
   DCHECK(table_ != NULL);
   DCHECK_LE(alloc_entries_, max_entries_);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);

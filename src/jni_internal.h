@@ -62,6 +62,7 @@ inline jmethodID EncodeMethod(Method* method) {
 
 size_t NumArgArrayBytes(const char* shorty);
 JValue InvokeWithJValues(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args);
+JValue InvokeWithJValues(Thread* self, Object* receiver, Method* m, JValue* args);
 
 struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);

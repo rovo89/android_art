@@ -311,7 +311,10 @@ void ThreadList::ResumeAll(bool for_debugger) {
 
 void ThreadList::Resume(Thread* thread, bool for_debugger) {
   DCHECK(thread != Thread::Current());
-  thread_list_lock_.AssertHeld();
+
+  if (!for_debugger) { // The debugger is very naughty. See Dbg::InvokeMethod.
+    thread_list_lock_.AssertHeld();
+  }
 
   if (verbose_) {
     LOG(INFO) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");

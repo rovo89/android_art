@@ -241,11 +241,12 @@ class PACKED Thread {
     return &stats_;
   }
 
-  // Returns the Method* for the current method.
-  // This is used by the JNI implementation for logging and diagnostic purposes.
-  const Method* GetCurrentMethod() const;
+  int GetSuspendCount() const {
+    return suspend_count_;
+  }
 
-  uint32_t GetCurrentReturnPc() const;
+  // Returns the current Method* and native PC (not dex PC) for this thread.
+  Method* GetCurrentMethod(uintptr_t* pc = NULL, Method*** sp = NULL) const;
 
   bool IsExceptionPending() const {
     return exception_ != NULL;

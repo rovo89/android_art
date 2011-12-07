@@ -49,7 +49,7 @@ namespace JDWP {
  */
 static void jdwpReadLocation(const uint8_t** pBuf, JdwpLocation* pLoc) {
   memset(pLoc, 0, sizeof(*pLoc));     /* allows memcmp() later */
-  pLoc->typeTag = Read1(pBuf);
+  pLoc->typeTag = ReadTypeTag(pBuf);
   pLoc->classId = ReadObjectId(pBuf);
   pLoc->methodId = ReadMethodId(pBuf);
   pLoc->idx = Read8BE(pBuf);
@@ -1467,16 +1467,16 @@ static JdwpError handleSF_SetValues(JdwpState* state, const uint8_t* buf, int da
  * Returns the value of "this" for the specified frame.
  */
 static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  ObjectId threadId = ReadObjectId(&buf);
+  ReadObjectId(&buf); // Skip thread id.
   FrameId frameId = ReadFrameId(&buf);
 
   ObjectId objectId;
-  if (!Dbg::GetThisObject(threadId, frameId, &objectId)) {
+  if (!Dbg::GetThisObject(frameId, &objectId)) {
     return ERR_INVALID_FRAMEID;
   }
 
   uint8_t objectTag = Dbg::GetObjectTag(objectId);
-  LOG(VERBOSE) << StringPrintf("  Req for 'this' in thread=%llx frame=%llx --> %llx '%c'", threadId, frameId, objectId, (char)objectTag);
+  LOG(VERBOSE) << StringPrintf("  Req for 'this' in frame=%llx --> %llx '%c'", frameId, objectId, (char)objectTag);
 
   expandBufAdd1(pReply, objectTag);
   expandBufAddObjectId(pReply, objectId);

@@ -31,6 +31,7 @@ struct iovec;
 
 namespace art {
 
+struct Method;
 struct Thread;
 
 namespace JDWP {
@@ -56,6 +57,7 @@ static inline ObjectId ReadObjectId(const uint8_t** pBuf) { return Read8BE(pBuf)
 static inline RefTypeId ReadRefTypeId(const uint8_t** pBuf) { return Read8BE(pBuf); }
 static inline FrameId ReadFrameId(const uint8_t** pBuf) { return Read8BE(pBuf); }
 static inline JdwpTag ReadTag(const uint8_t** pBuf) { return static_cast<JdwpTag>(Read1(pBuf)); }
+static inline JdwpTypeTag ReadTypeTag(const uint8_t** pBuf) { return static_cast<JdwpTypeTag>(Read1(pBuf)); }
 static inline void SetFieldId(uint8_t* buf, FieldId val) { return Set4BE(buf, val); }
 static inline void SetMethodId(uint8_t* buf, MethodId val) { return Set4BE(buf, val); }
 static inline void SetObjectId(uint8_t* buf, ObjectId val) { return Set8BE(buf, val); }
@@ -71,10 +73,10 @@ static inline void expandBufAddFrameId(ExpandBuf* pReply, FrameId id) { expandBu
  * Holds a JDWP "location".
  */
 struct JdwpLocation {
-  uint8_t typeTag;        /* class or interface? */
-  RefTypeId classId;        /* method->clazz */
-  MethodId methodId;       /* method in which "idx" resides */
-  uint64_t idx;            /* relative index into code block */
+  JdwpTypeTag typeTag;
+  RefTypeId classId;
+  MethodId methodId;
+  uint64_t idx; // A Dex PC.
 };
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs);
 

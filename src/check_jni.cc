@@ -34,7 +34,7 @@ namespace art {
 
 void JniAbort(const char* jni_function_name) {
   Thread* self = Thread::Current();
-  const Method* current_method = self->GetCurrentMethod();
+  Method* current_method = self->GetCurrentMethod();
 
   std::ostringstream os;
   os << "Aborting because JNI app bug detected (see above for details)";

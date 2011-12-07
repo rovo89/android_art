@@ -238,8 +238,7 @@ void Monitor::Lock(Thread* self) {
   // When debugging, save the current monitor holder for future
   // acquisition failures to use in sampled logging.
   if (lock_profiling_threshold_ != 0) {
-    locking_method_ = self->GetCurrentMethod();
-    locking_pc_ = self->GetCurrentReturnPc();
+    locking_method_ = self->GetCurrentMethod(&locking_pc_);
   }
 }
 

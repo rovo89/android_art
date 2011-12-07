@@ -1347,10 +1347,10 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
 
 void Thread::DeliverException() {
   const bool kDebugExceptionDelivery = false;
-  Throwable *exception = GetException();  // Get exception from thread
+  Throwable* exception = GetException();  // Get exception from thread
   CHECK(exception != NULL);
   // Don't leave exception visible while we try to find the handler, which may cause class
-  // resolution
+  // resolution.
   ClearException();
   if (kDebugExceptionDelivery) {
     DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception) << std::endl);
@@ -1360,22 +1360,27 @@ void Thread::DeliverException() {
   CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);
   WalkStackUntilUpCall(&catch_finder, true);
 
+  Method** sp;
+  uintptr_t throw_native_pc;
+  Method* throw_method = GetCurrentMethod(&throw_native_pc, &sp);
+  uintptr_t catch_native_pc = catch_finder.handler_pc_;
+  Method* catch_method = catch_finder.handler_frame_.GetMethod();
+  Dbg::PostException(sp, throw_method, throw_native_pc, catch_method, catch_native_pc, exception);
+
   if (kDebugExceptionDelivery) {
-    Method* handler_method = catch_finder.handler_frame_.GetMethod();
-    if (handler_method == NULL) {
+    if (catch_method == NULL) {
       LOG(INFO) << "Handler is upcall";
     } else {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       const DexFile& dex_file =
-          class_linker->FindDexFile(handler_method->GetDeclaringClass()->GetDexCache());
-      int line_number = dex_file.GetLineNumFromPC(handler_method,
-                                                handler_method->ToDexPC(catch_finder.handler_pc_));
-      LOG(INFO) << "Handler: " << PrettyMethod(handler_method)
-          << " (line: " << line_number << ")";
+          class_linker->FindDexFile(catch_method->GetDeclaringClass()->GetDexCache());
+      int line_number = dex_file.GetLineNumFromPC(catch_method,
+          catch_method->ToDexPC(catch_finder.handler_pc_));
+      LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
     }
   }
   SetException(exception);
-  long_jump_context->SetSP(reinterpret_cast<intptr_t>(catch_finder.handler_frame_.GetSP()));
+  long_jump_context->SetSP(reinterpret_cast<uintptr_t>(catch_finder.handler_frame_.GetSP()));
   long_jump_context->SetPC(catch_finder.handler_pc_);
   long_jump_context->DoLongJump();
 }
@@ -1389,25 +1394,24 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
-const Method* Thread::GetCurrentMethod() const {
-  Method* m = top_of_managed_stack_.GetMethod();
+Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
+  Frame f = top_of_managed_stack_;
+  Method* m = f.GetMethod();
   // We use JNI internally for exception throwing, so it's possible to arrive
   // here via a "FromCode" function, in which case there's a synthetic
   // callee-save method at the top of the stack. These shouldn't be user-visible,
   // so if we find one, skip it and return the compiled method underneath.
   if (m != NULL && m->IsCalleeSaveMethod()) {
-    Frame f = top_of_managed_stack_;
     f.Next();
     m = f.GetMethod();
   }
-  return m;
-}
-
-uint32_t Thread::GetCurrentReturnPc() const {
-  if (top_of_managed_stack_.GetMethod() == NULL) {
-    return 0;
+  if (pc != NULL) {
+    *pc = ManglePc(f.GetReturnPC());
   }
-  return ManglePc(top_of_managed_stack_.GetReturnPC());
+  if (sp != NULL) {
+    *sp = f.GetSP();
+  }
+  return m;
 }
 
 bool Thread::HoldsLock(Object* object) {

@@ -44,20 +44,20 @@ struct DebugInvokeReq {
   bool ready;
 
   /* boolean; set if the JDWP thread wants this thread to do work */
-  bool invoke_needed;
+  bool invoke_needed_;
 
   /* request */
-  Object* obj;        /* not used for ClassType.InvokeMethod */
-  Object* thread;
+  Object* receiver_;      /* not used for ClassType.InvokeMethod */
+  Object* thread_;
   Class* class_;
-  Method* method;
-  uint32_t num_args;
-  uint64_t* arg_array;   /* will be NULL if numArgs==0 */
-  uint32_t options;
+  Method* method_;
+  uint32_t num_args_;
+  uint64_t* arg_array_;   /* will be NULL if numArgs==0 */
+  uint32_t options_;
 
   /* result */
   JDWP::JdwpError error;
-  uint8_t result_tag;
+  JDWP::JdwpTag result_tag;
   JValue result_value;
   JDWP::ObjectId exception;
 
@@ -199,7 +199,7 @@ public:
   static void ResumeThread(JDWP::ObjectId threadId);
   static void SuspendSelf();
 
-  static bool GetThisObject(JDWP::ObjectId threadId, JDWP::FrameId frameId, JDWP::ObjectId* pThisId);
+  static bool GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId);
   static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen);
   static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width);
 
@@ -213,7 +213,7 @@ public:
     kMethodExit     = 0x08,
   };
   static void PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags);
-  static void PostException(void* throwFp, int throwRelPc, void* catchFp, int catchRelPc, Object* exception);
+  static void PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception);
   static void PostThreadStart(Thread* t);
   static void PostThreadDeath(Thread* t);
   static void PostClassPrepare(Class* c);
