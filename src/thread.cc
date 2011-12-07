@@ -1411,7 +1411,7 @@ Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
     m = f.GetMethod();
   }
   if (pc != NULL) {
-    *pc = ManglePc(f.GetReturnPC());
+    *pc = (m != NULL) ? ManglePc(f.GetReturnPC()) : 0;
   }
   if (sp != NULL) {
     *sp = f.GetSP();
