@@ -158,7 +158,8 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  const OatDexFile* GetOatDexFile(const std::string& dex_file_location) const;
+  const OatDexFile* GetOatDexFile(const std::string& dex_file_location,
+                                  bool warn_if_not_found = true) const;
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
   size_t GetSize() const {

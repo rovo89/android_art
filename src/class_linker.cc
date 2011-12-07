@@ -638,7 +638,7 @@ const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file)
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
-    if (oat_file->GetOatDexFile(dex_file.GetLocation())) {
+    if (oat_file->GetOatDexFile(dex_file.GetLocation(), false)) {
       return oat_file;
     }
   }
