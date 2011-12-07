@@ -1433,6 +1433,9 @@ void Dbg::PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr,
 }
 
 void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception) {
+  if (!gDebuggerActive) {
+    return;
+  }
   JDWP::JdwpLocation throw_location;
   SetLocation(throw_location, throwMethod, throwNativePc);
   JDWP::JdwpLocation catch_location;
