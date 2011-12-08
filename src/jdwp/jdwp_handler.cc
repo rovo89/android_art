@@ -925,13 +925,13 @@ static JdwpError handleTR_Status(JdwpState* state, const uint8_t* buf, int dataL
 
   LOG(VERBOSE) << StringPrintf("  Req for status of thread 0x%llx", threadId);
 
-  uint32_t threadStatus;
-  uint32_t suspendStatus;
+  JDWP::JdwpThreadStatus threadStatus;
+  JDWP::JdwpSuspendStatus suspendStatus;
   if (!Dbg::GetThreadStatus(threadId, &threadStatus, &suspendStatus)) {
     return ERR_INVALID_THREAD;
   }
 
-  LOG(VERBOSE) << "    --> " << JdwpThreadStatus(threadStatus) << ", " << JdwpSuspendStatus(suspendStatus);
+  LOG(VERBOSE) << "    --> " << threadStatus << ", " << suspendStatus;
 
   expandBufAdd4BE(pReply, threadStatus);
   expandBufAdd4BE(pReply, suspendStatus);

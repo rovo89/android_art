@@ -348,7 +348,7 @@ void Thread::InitStackHwm() {
   stack_base_ = reinterpret_cast<byte*>(temp_stack_base);
 
   if (stack_size_ <= kStackOverflowReservedBytes) {
-    LOG(FATAL) << "attempt to attach a thread with a too-small stack (" << stack_size_ << " bytes)";
+    LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << stack_size_ << " bytes)";
   }
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
@@ -676,7 +676,7 @@ void Thread::Startup() {
 
   // Double-check the TLS slot allocation.
   if (pthread_getspecific(pthread_key_self_) != NULL) {
-    LOG(FATAL) << "newly-created pthread TLS slot is not NULL";
+    LOG(FATAL) << "Newly-created pthread TLS slot is not NULL";
   }
 }
 

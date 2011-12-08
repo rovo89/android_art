@@ -174,10 +174,7 @@ int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   return 0;
 }
 
-// Set Linux capability flags.
-//
-// Returns 0 on success, errno on failure.
-int SetCapabilities(int64_t permitted, int64_t effective) {
+void SetCapabilities(int64_t permitted, int64_t effective) {
 #ifdef HAVE_ANDROID_OS
   struct __user_cap_header_struct capheader;
   struct __user_cap_data_struct capdata;
@@ -192,11 +189,9 @@ int SetCapabilities(int64_t permitted, int64_t effective) {
   capdata.permitted = permitted;
 
   if (capset(&capheader, &capdata) != 0) {
-    return errno;
+    PLOG(FATAL) << "capset(" << permitted << ", " << effective << ") failed";
   }
 #endif /*HAVE_ANDROID_OS*/
-
-  return 0;
 }
 
 void EnableDebugFeatures(uint32_t debug_flags) {
@@ -300,29 +295,25 @@ pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
 
     int err = SetGids(env, javaGids);
     if (err < 0) {
-        PLOG(FATAL) << "cannot setgroups()";
+        PLOG(FATAL) << "setgroups failed";
     }
 
     err = SetRLimits(env, javaRlimits);
     if (err < 0) {
-      PLOG(FATAL) << "cannot setrlimit()";
+      PLOG(FATAL) << "setrlimit failed";
     }
 
     err = setgid(gid);
     if (err < 0) {
-      PLOG(FATAL) << "cannot setgid(" << gid << ")";
+      PLOG(FATAL) << "setgid(" << gid << ") failed";
     }
 
     err = setuid(uid);
     if (err < 0) {
-      PLOG(FATAL) << "cannot setuid(" << uid << ")";
+      PLOG(FATAL) << "setuid(" << uid << ") failed";
     }
 
-    err = SetCapabilities(permittedCapabilities, effectiveCapabilities);
-    if (err != 0) {
-      PLOG(FATAL) << "cannot set capabilities ("
-                  << permittedCapabilities << "," << effectiveCapabilities << ")";
-    }
+    SetCapabilities(permittedCapabilities, effectiveCapabilities);
 
     // Our system thread ID, etc, has changed so reset Thread state.
     self->InitAfterFork();

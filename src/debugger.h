@@ -182,7 +182,7 @@ public:
   static JDWP::ObjectId GetSystemThreadGroupId();
   static JDWP::ObjectId GetMainThreadGroupId();
 
-  static bool GetThreadStatus(JDWP::ObjectId threadId, uint32_t* threadStatus, uint32_t* suspendStatus);
+  static bool GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
   static uint32_t GetThreadSuspendCount(JDWP::ObjectId threadId);
   static bool ThreadExists(JDWP::ObjectId threadId);
   static bool IsSuspended(JDWP::ObjectId threadId);

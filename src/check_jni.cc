@@ -555,7 +555,7 @@ public:
           va_arg(ap, long); // Skip this argument.
         } else if (ch == '.') {
         } else {
-          LOG(FATAL) << "unknown check format specifier: " << ch;
+          LOG(FATAL) << "Unknown check format specifier: " << ch;
         }
       }
       va_end(ap);
@@ -718,7 +718,7 @@ private:
       }
       break;
     default:
-      LOG(FATAL) << "bad flags (internal error): " << flags;
+      LOG(FATAL) << "Bad flags (internal error): " << flags;
     }
 
     /*

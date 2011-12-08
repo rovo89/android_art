@@ -170,7 +170,7 @@ static int  receiveClientFd(JdwpNetState*  netState) {
 
   if (ret <= 0) {
     if (ret < 0) {
-      PLOG(WARNING) << "receiving file descriptor from ADB failed (socket " << netState->controlSock << ")";
+      PLOG(WARNING) << "Receiving file descriptor from ADB failed (socket " << netState->controlSock << ")";
     }
     close(netState->controlSock);
     netState->controlSock = -1;

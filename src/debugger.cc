@@ -154,18 +154,17 @@ static JDWP::JdwpTag TagFromClass(Class* c) {
     return JDWP::JT_ARRAY;
   }
 
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (c->IsStringClass()) {
     return JDWP::JT_STRING;
   } else if (c->IsClassClass()) {
     return JDWP::JT_CLASS_OBJECT;
-#if 0 // TODO
-  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThread)) {
+  } else if (c->InstanceOf(class_linker->FindSystemClass("Ljava/lang/Thread;"))) {
     return JDWP::JT_THREAD;
-  } else if (dvmInstanceof(clazz, gDvm.classJavaLangThreadGroup)) {
+  } else if (c->InstanceOf(class_linker->FindSystemClass("Ljava/lang/ThreadGroup;"))) {
     return JDWP::JT_THREAD_GROUP;
-  } else if (dvmInstanceof(clazz, gDvm.classJavaLangClassLoader)) {
+  } else if (c->InstanceOf(class_linker->FindSystemClass("Ljava/lang/ClassLoader;"))) {
     return JDWP::JT_CLASS_LOADER;
-#endif
   } else {
     return JDWP::JT_OBJECT;
   }
@@ -325,7 +324,7 @@ void Dbg::StartJdwp() {
     // We probably failed because some other process has the port already, which means that
     // if we don't abort the user is likely to think they're talking to us when they're actually
     // talking to that other process.
-    LOG(FATAL) << "debugger thread failed to initialize";
+    LOG(FATAL) << "Debugger thread failed to initialize";
   }
 
   // If a debugger has already attached, send the "welcome" message.
@@ -333,7 +332,7 @@ void Dbg::StartJdwp() {
   if (gJdwpState->IsActive()) {
     //ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
     if (!gJdwpState->PostVMStart()) {
-      LOG(WARNING) << "failed to post 'start' message to debugger";
+      LOG(WARNING) << "Failed to post 'start' message to debugger";
     }
   }
 }
@@ -597,7 +596,7 @@ size_t Dbg::GetTagWidth(JDWP::JdwpTag tag) {
   case JDWP::JT_LONG:
     return 8;
   default:
-    LOG(FATAL) << "unknown tag " << tag;
+    LOG(FATAL) << "Unknown tag " << tag;
     return -1;
   }
 }
@@ -987,7 +986,7 @@ void Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::Ex
     } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
       expandBufAdd8BE(pReply, f->Get64(o));
     } else {
-      LOG(FATAL) << "unknown tag: " << tag;
+      LOG(FATAL) << "Unknown tag: " << tag;
     }
   } else {
     Object* value = f->GetObject(o);
@@ -1097,7 +1096,7 @@ JDWP::ObjectId Dbg::GetMainThreadGroupId() {
   return gRegistry->Add(GetStaticThreadGroup("mMain"));
 }
 
-bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, uint32_t* pThreadStatus, uint32_t* pSuspendStatus) {
+bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
   ScopedThreadListLock thread_list_lock;
 
   Thread* thread = DecodeThread(threadId);
@@ -1117,10 +1116,10 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, uint32_t* pThreadStatus, uint
   case Thread::kVmWait:       *pThreadStatus = JDWP::TS_WAIT;     break;
   case Thread::kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
   default:
-    LOG(FATAL) << "unknown thread state " << thread->GetState();
+    LOG(FATAL) << "Unknown thread state " << thread->GetState();
   }
 
-  *pSuspendStatus = (thread->IsSuspended() ? JDWP::SUSPEND_STATUS_SUSPENDED : 0);
+  *pSuspendStatus = (thread->IsSuspended() ? JDWP::SUSPEND_STATUS_SUSPENDED : JDWP::SUSPEND_STATUS_NOT_SUSPENDED);
 
   return true;
 }
@@ -1297,7 +1296,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
   if (vmap_table.IsInContext(reg, vmap_offset)) {
-    UNIMPLEMENTED(FATAL) << "don't know how to pull locals from callee save frames: " << vmap_offset;
+    UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
   }
 
   switch (tag) {
@@ -1341,7 +1340,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       LOG(VERBOSE) << "get array local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
-        LOG(FATAL) << "reg " << reg << " expected to hold array: " << o;
+        LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
       }
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
     }
@@ -1352,7 +1351,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       LOG(VERBOSE) << "get object local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
-        LOG(FATAL) << "reg " << reg << " expected to hold object: " << o;
+        LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
       }
       tag = TagFromObject(o);
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
@@ -1370,7 +1369,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     }
     break;
   default:
-    LOG(FATAL) << "unknown tag " << tag;
+    LOG(FATAL) << "Unknown tag " << tag;
     break;
   }
 
@@ -1388,7 +1387,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
   if (vmap_table.IsInContext(reg, vmap_offset)) {
-    UNIMPLEMENTED(FATAL) << "don't know how to pull locals from callee save frames: " << vmap_offset;
+    UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
   }
 
   switch (tag) {
@@ -1423,7 +1422,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     f.SetVReg(m, reg + 1, static_cast<uint32_t>(value >> 32));
     break;
   default:
-    LOG(FATAL) << "unknown tag " << tag;
+    LOG(FATAL) << "Unknown tag " << tag;
     break;
   }
 }
@@ -1466,7 +1465,7 @@ void Dbg::PostClassPrepare(Class* c) {
     return;
   }
 
-  // TODO - we currently always send both "verified" and "prepared" since
+  // OLD-TODO - we currently always send both "verified" and "prepared" since
   // debuggers seem to like that.  There might be some advantage to honesty,
   // since the class may not yet be verified.
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
@@ -1531,7 +1530,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
     }
 
     /*
-     * TODO: ought to screen the various IDs, and verify that the argument
+     * OLD-TODO: ought to screen the various IDs, and verify that the argument
      * list is valid.
      */
     req->receiver_ = gRegistry->Get<Object*>(objectId);
@@ -1679,7 +1678,7 @@ void Dbg::RegisterObjectId(JDWP::ObjectId id) {
  * Returns "true" if we have a reply.  The reply buffer is newly allocated,
  * and includes the chunk type/length, followed by the data.
  *
- * TODO: we currently assume that the request and reply include a single
+ * OLD-TODO: we currently assume that the request and reply include a single
  * chunk.  If this becomes inconvenient we will need to adapt.
  */
 bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen) {
@@ -2072,7 +2071,7 @@ struct HeapChunkContext {
 
       bytesLeft = buf.size() - (size_t)(p - &buf[0]);
       if (bytesLeft < needed) {
-        LOG(WARNING) << "chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
+        LOG(WARNING) << "Chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
         return;
       }
     }
@@ -2117,7 +2116,7 @@ struct HeapChunkContext {
     }
 
     if (!Heap::IsHeapAddress(c)) {
-      LOG(WARNING) << "invalid class for managed heap object: " << o << " " << c;
+      LOG(WARNING) << "Invalid class for managed heap object: " << o << " " << c;
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
 

@@ -211,7 +211,7 @@ void JdwpState::ResetState() {
    * mid-request, though, we could see this.
    */
   if (eventThreadId != 0) {
-    LOG(WARNING) << "resetting state while event in progress";
+    LOG(WARNING) << "Resetting state while event in progress";
     DCHECK(false);
   }
 }

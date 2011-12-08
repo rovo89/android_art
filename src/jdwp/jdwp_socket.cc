@@ -80,7 +80,7 @@ struct JdwpNetState : public JdwpNetStateBase {
     }
 };
 
-static JdwpNetState* netStartup(short port);
+static JdwpNetState* netStartup(short port, bool probe);
 
 /*
  * Set up some stuff for transport=dt_socket.
@@ -92,11 +92,11 @@ static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
     if (options->port != 0) {
       /* try only the specified port */
       port = options->port;
-      state->netState = netStartup(port);
+      state->netState = netStartup(port, false);
     } else {
       /* scan through a range of ports, binding to the first available */
       for (port = kBasePort; port <= kMaxPort; port++) {
-        state->netState = netStartup(port);
+        state->netState = netStartup(port, true);
         if (state->netState != NULL) {
           break;
         }
@@ -108,7 +108,7 @@ static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
     }
   } else {
     port = options->port;   // used in a debug msg later
-    state->netState = netStartup(-1);
+    state->netState = netStartup(-1, false);
   }
 
   if (options->suspend) {
@@ -139,10 +139,9 @@ static bool awaitingHandshake(JdwpState* state) {
  *
  * Returns 0 on success.
  */
-static JdwpNetState* netStartup(short port) {
+static JdwpNetState* netStartup(short port, bool probe) {
   int one = 1;
   JdwpNetState* netState = new JdwpNetState;
-
   if (port < 0) {
     return netState;
   }
@@ -151,13 +150,13 @@ static JdwpNetState* netStartup(short port) {
 
   netState->listenSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (netState->listenSock < 0) {
-    PLOG(ERROR) << "Socket create failed";
+    PLOG(probe ? ERROR : FATAL) << "Socket create failed";
     goto fail;
   }
 
   /* allow immediate re-use */
   if (setsockopt(netState->listenSock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
-    PLOG(ERROR) << "setsockopt(SO_REUSEADDR) failed";
+    PLOG(probe ? ERROR : FATAL) << "setsockopt(SO_REUSEADDR) failed";
     goto fail;
   }
 
@@ -170,15 +169,14 @@ static JdwpNetState* netStartup(short port) {
   inet_aton("127.0.0.1", &addr.addrInet.sin_addr);
 
   if (bind(netState->listenSock, &addr.addrPlain, sizeof(addr)) != 0) {
-    PLOG(VERBOSE) << "attempt to bind to port " << port << " failed";
+    PLOG(probe ? ERROR : FATAL) << "Attempt to bind to port " << port << " failed";
     goto fail;
   }
 
   netState->listenPort = port;
-  LOG(VERBOSE) << "+++ bound to port " << netState->listenPort;
 
   if (listen(netState->listenSock, 5) != 0) {
-    PLOG(ERROR) << "Listen failed";
+    PLOG(probe ? ERROR : FATAL) << "Listen failed";
     goto fail;
   }
 

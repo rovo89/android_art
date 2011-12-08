@@ -101,8 +101,8 @@ void ThreadList::Dump(std::ostream& os) {
 
 void ThreadList::ModifySuspendCount(Thread* thread, int delta, bool for_debugger) {
 #ifndef NDEBUG
-  DCHECK(delta == -1 || delta == +1 || delta == thread->debug_suspend_count_) << delta << " "
-                                                                              << *thread;
+  DCHECK(delta == -1 || delta == +1 || delta == -thread->debug_suspend_count_)
+      << delta << " " << thread->debug_suspend_count_ << " " << *thread;
   DCHECK_GE(thread->suspend_count_, thread->debug_suspend_count_) << *thread;
 #endif
   if (delta == -1 && thread->suspend_count_ <= 0) {
