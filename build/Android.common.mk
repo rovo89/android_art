@@ -61,6 +61,9 @@ else
   ART_TARGET_CFLAGS += -DANDROID_SMP=0
 endif
 
+# To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
+# ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
+
 ART_HOST_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
 ART_TARGET_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
 

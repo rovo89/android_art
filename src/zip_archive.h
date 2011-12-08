@@ -38,9 +38,10 @@ class MemMap;
 
 class ZipEntry {
  public:
-  // Uncompress an entry, in its entirety, to an open file descriptor.
-  bool Extract(File& file);
+  bool ExtractToFile(File& file);
+  bool ExtractToMemory(MemMap& mem_map);
 
+  uint32_t GetUncompressedLength();
   uint32_t GetCrc32();
 
  private:
@@ -57,8 +58,6 @@ class ZipEntry {
   uint16_t GetCompressionMethod();
 
   uint32_t GetCompressedLength();
-
-  uint32_t GetUncompressedLength();
 
   // returns -1 on error
   off_t GetDataOffset();

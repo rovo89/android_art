@@ -76,15 +76,25 @@ void DexFile::ChangePermissions(int prot) const {
   }
 }
 
+const std::string StripLocationPrefix(const std::string& original_location,
+                                      const std::string& strip_location_prefix) {
+  StringPiece location = original_location;
+  if (!location.starts_with(strip_location_prefix)) {
+    LOG(ERROR) << location << " does not start with " << strip_location_prefix;
+    return "";
+  }
+  location.remove_prefix(strip_location_prefix.size());
+  return location.ToString();
+}
+
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& original_location,
                                  const std::string& strip_location_prefix) {
-  StringPiece location = original_location;
-  if (!location.starts_with(strip_location_prefix)) {
-    LOG(ERROR) << filename << " does not start with " << strip_location_prefix;
+  std::string location(StripLocationPrefix(original_location, strip_location_prefix));
+  if (location.empty()) {
     return NULL;
   }
-  location.remove_prefix(strip_location_prefix.size());
+
   int fd = open(filename.c_str(), O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
     PLOG(ERROR) << "open(\"" << filename << "\", O_RDONLY) failed";
@@ -98,15 +108,14 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     return NULL;
   }
   size_t length = sbuf.st_size;
-  UniquePtr<MemMap> map(MemMap::Map(length, PROT_READ, MAP_PRIVATE, fd, 0));
+  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0));
   if (map.get() == NULL) {
     LOG(ERROR) << "mmap \"" << filename << "\" failed";
     close(fd);
     return NULL;
   }
   close(fd);
-  byte* dex_file = map->GetAddress();
-  return OpenMemory(dex_file, length, location.ToString(), map.release());
+  return OpenMemory(location, map.release());
 }
 
 const char* DexFile::kClassesDex = "classes.dex";
@@ -168,44 +177,10 @@ class TmpFile {
 // Open classes.dex from within a .zip, .jar, .apk, ...
 const DexFile* DexFile::OpenZip(const std::string& filename,
                                 const std::string& strip_location_prefix) {
-  // First, look for a ".dex" alongside the jar file.  It will have
-  // the same name/path except for the extension.
-
-  // Example filename = dir/foo.jar
-  std::string adjacent_dex_filename(filename);
-  size_t found = adjacent_dex_filename.find_last_of(".");
-  if (found == std::string::npos) {
-    LOG(ERROR) << "No . in filename" << filename;
+  std::string location(StripLocationPrefix(filename, strip_location_prefix));
+  if (location.empty()) {
     return NULL;
   }
-  adjacent_dex_filename.replace(adjacent_dex_filename.begin() + found,
-                                adjacent_dex_filename.end(),
-                                ".dex");
-  // Example adjacent_dex_filename = dir/foo.dex
-  if (OS::FileExists(adjacent_dex_filename.c_str())) {
-    const DexFile* adjacent_dex_file = DexFile::OpenFile(adjacent_dex_filename,
-                                                         filename,
-                                                         strip_location_prefix);
-    if (adjacent_dex_file != NULL) {
-      // We don't verify anything in this case, because we aren't in
-      // the cache and typically the file is in the readonly /system
-      // area, so if something is wrong, there is nothing we can do.
-      return adjacent_dex_file;
-    }
-    return NULL;
-  }
-
-  UniquePtr<char[]> resolved(new char[PATH_MAX]);
-  char* absolute_path = realpath(filename.c_str(), resolved.get());
-  if (absolute_path == NULL) {
-      LOG(ERROR) << "Failed to create absolute path for " << filename
-                 << " when looking for classes.dex";
-      return NULL;
-  }
-  std::string cache_path_tmp(GetArtCacheFilenameOrDie(absolute_path));
-  cache_path_tmp.push_back('@');
-  cache_path_tmp.append(kClassesDex);
-  // Example cache_path_tmp = /data/art-cache/parent@dir@foo.jar@classes.dex
 
   UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
   if (zip_archive.get() == NULL) {
@@ -218,121 +193,32 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     return NULL;
   }
 
-  std::string cache_path(StringPrintf("%s.%08x", cache_path_tmp.c_str(), zip_entry->GetCrc32()));
-  // Example cache_path = /data/art-cache/parent@dir@foo.jar@classes.dex.1a2b3c4d
-
-  bool created = false;
-  while (true) {
-    if (OS::FileExists(cache_path.c_str())) {
-      const DexFile* cached_dex_file = DexFile::OpenFile(cache_path,
-                                                         filename,
-                                                         strip_location_prefix);
-      if (cached_dex_file != NULL) {
-        return cached_dex_file;
-      }
-      if (created) {
-        // We created the dex file with the correct checksum,
-        // there must be something wrong with the file itself.
-        return NULL;
-      }
-    }
-
-    // Try to open the temporary cache file, grabbing an exclusive
-    // lock. If somebody else is working on it, we'll block here until
-    // they complete.  Because we're waiting on an external resource,
-    // we go into native mode.
-    // Note that self can be NULL if we're parsing the bootclasspath
-    // during JNI_CreateJavaVM.
-    Thread* self = Thread::Current();
-    UniquePtr<ScopedThreadStateChange> state_changer;
-    if (self != NULL) {
-      state_changer.reset(new ScopedThreadStateChange(self, Thread::kNative));
-    }
-    UniquePtr<LockedFd> fd(LockedFd::CreateAndLock(cache_path_tmp, 0644));
-    state_changer.reset(NULL);
-    if (fd.get() == NULL) {
-      PLOG(ERROR) << "Failed to lock file '" << cache_path_tmp << "'";
-      return NULL;
-    }
-
-    // Check to see if the fd we opened and locked matches the file in
-    // the filesystem.  If they don't, then somebody else unlinked
-    // ours and created a new file, and we need to use that one
-    // instead.  (If we caught them between the unlink and the create,
-    // we'll get an ENOENT from the file stat.)
-    struct stat fd_stat;
-    int fd_stat_result = fstat(fd->GetFd(), &fd_stat);
-    if (fd_stat_result == -1) {
-      PLOG(ERROR) << "Failed to stat open file '" << cache_path_tmp << "'";
-      return NULL;
-    }
-    struct stat file_stat;
-    int file_stat_result = stat(cache_path_tmp.c_str(), &file_stat);
-    if (file_stat_result == -1 ||
-        fd_stat.st_dev != file_stat.st_dev || fd_stat.st_ino != file_stat.st_ino) {
-      LOG(WARNING) << "our open cache file is stale; sleeping and retrying";
-      usleep(250 * 1000);  // if something is hosed, don't peg machine
-      continue;
-    }
-
-    // We have the correct file open and locked. Extract classes.dex
-    TmpFile tmp_file(cache_path_tmp);
-    UniquePtr<File> file(OS::FileFromFd(cache_path_tmp.c_str(), fd->GetFd()));
-    if (file.get() == NULL) {
-      LOG(ERROR) << "Failed to create file for '" << cache_path_tmp << "'";
-      return NULL;
-    }
-    bool success = zip_entry->Extract(*file);
-    if (!success) {
-      LOG(ERROR) << "Failed to extract classes.dex to '" << cache_path_tmp << "'";
-      return NULL;
-    }
-
-    // TODO: restat and check length against zip_entry->GetUncompressedLength()?
-
-    // Compute checksum and compare to zip. If things look okay, rename from tmp.
-    off_t lseek_result = lseek(fd->GetFd(), 0, SEEK_SET);
-    if (lseek_result == -1) {
-      PLOG(ERROR) << "Failed to seek to start of '" << cache_path_tmp << "'";
-      return NULL;
-    }
-    const size_t kBufSize = 32768;
-    UniquePtr<uint8_t[]> buf(new uint8_t[kBufSize]);
-    if (buf.get() == NULL) {
-      LOG(ERROR) << "Failed to allocate buffer to checksum '" << cache_path_tmp << "'";
-      return NULL;
-    }
-    uint32_t computed_crc = crc32(0L, Z_NULL, 0);
-    while (true) {
-      ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd->GetFd(), buf.get(), kBufSize));
-      if (bytes_read == -1) {
-        PLOG(ERROR) << "Problem computing CRC of '" << cache_path_tmp << "'";
-        return NULL;
-      }
-      if (bytes_read == 0) {
-        break;
-      }
-      computed_crc = crc32(computed_crc, buf.get(), bytes_read);
-    }
-    if (computed_crc != zip_entry->GetCrc32()) {
-      LOG(ERROR) << "Failed to validate checksum for '" << cache_path_tmp << "'";
-      return NULL;
-    }
-    int rename_result = rename(cache_path_tmp.c_str(), cache_path.c_str());
-    if (rename_result == -1) {
-      PLOG(ERROR) << "Failed to install dex cache file '" << cache_path << "'"
-                  << " from '" << cache_path_tmp << "'";
-      unlink(cache_path.c_str());
-    } else {
-      created = true;
-    }
+  uint32_t length = zip_entry->GetUncompressedLength();
+  UniquePtr<MemMap> map(MemMap::MapAnonymous("classes.dex extracted in memory",
+                                             NULL,
+                                             length,
+                                             PROT_READ | PROT_WRITE));
+  if (map.get() == NULL) {
+    LOG(ERROR) << "mmap classes.dex for \"" << filename << "\" failed";
+    return NULL;
   }
-  // NOTREACHED
+
+  // Extract classes.dex
+  bool success = zip_entry->ExtractToMemory(*map.get());
+  if (!success) {
+    LOG(ERROR) << "Failed to extract classes.dex from '" << filename << "' to memory";
+    return NULL;
+  }
+
+  return OpenMemory(location, map.release());
 }
 
-const DexFile* DexFile::OpenMemory(const byte* dex_bytes, size_t length,
-                                   const std::string& location, MemMap* mem_map) {
-  UniquePtr<DexFile> dex_file(new DexFile(dex_bytes, length, location, mem_map));
+const DexFile* DexFile::OpenMemory(const byte* base,
+                                   size_t length,
+                                   const std::string& location,
+                                   MemMap* mem_map) {
+  CHECK_ALIGNED(base, 4); // various dex file structures must be word aligned
+  UniquePtr<DexFile> dex_file(new DexFile(base, length, location, mem_map));
   if (!dex_file->Init()) {
     return NULL;
   } else {
@@ -399,6 +285,7 @@ void DexFile::InitMembers() {
   method_ids_ = reinterpret_cast<const MethodId*>(b + h->method_ids_off_);
   proto_ids_ = reinterpret_cast<const ProtoId*>(b + h->proto_ids_off_);
   class_defs_ = reinterpret_cast<const ClassDef*>(b + h->class_defs_off_);
+  DCHECK_EQ(length_, header_->file_size_);
 }
 
 bool DexFile::IsMagicValid() {

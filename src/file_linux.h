@@ -19,8 +19,8 @@ class LinuxFile : public File {
   virtual int64_t Read(void* buffer, int64_t num_bytes);
   virtual int64_t Write(const void* buffer, int64_t num_bytes);
 
-  virtual off_t Length();
-  virtual off_t Position();
+  virtual off64_t Length();
+  virtual off64_t Position();
 
   virtual int Fd() {
     return fd_;

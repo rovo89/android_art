@@ -37,7 +37,7 @@ HeapBitmap* HeapBitmap::Create(const char* name, byte* base, size_t length) {
 bool HeapBitmap::Init(const char* name, const byte* base, size_t max_size) {
   CHECK(base != NULL);
   size_t length = HB_OFFSET_TO_INDEX(max_size) * kWordSize;
-  mem_map_.reset(MemMap::Map(name, NULL, length, PROT_READ | PROT_WRITE));
+  mem_map_.reset(MemMap::MapAnonymous(name, NULL, length, PROT_READ | PROT_WRITE));
   if (mem_map_.get() == NULL) {
     return false;
   }

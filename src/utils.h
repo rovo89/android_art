@@ -35,14 +35,14 @@ static inline bool IsAligned(T x) {
 
 template<int n, typename T>
 static inline bool IsAligned(T* x) {
-  return IsAligned<n>(reinterpret_cast<uintptr_t>(x));
+  return IsAligned<n>(reinterpret_cast<const uintptr_t>(x));
 }
 
 #define CHECK_ALIGNED(value, alignment) \
-  CHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<void*>(value)
+  CHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<const void*>(value)
 
 #define DCHECK_ALIGNED(value, alignment) \
-  DCHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<void*>(value)
+  DCHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<const void*>(value)
 
 // Check whether an N-bit two's-complement representation can hold value.
 static inline bool IsInt(int N, word value) {

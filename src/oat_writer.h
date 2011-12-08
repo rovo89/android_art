@@ -20,10 +20,15 @@ namespace art {
 
 // OatHeader         fixed length with count of D OatDexFiles
 //
-// OatDexFile[0]     each fixed length with offset to variable sized OatClasses
+// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
 // OatDexFile[1]
 // ...
 // OatDexFile[D]
+//
+// Dex[0]            one variable sized DexFile for each OatDexFile.
+// Dex[1]            these are literal copies of the input .dex files.
+// ...
+// Dex[D]
 //
 // OatClasses[0]     one variable sized OatClasses for each OatDexFile
 // OatClasses[1]     contains DexFile::NumClassDefs offsets to OatMethods for each ClassDef
@@ -60,6 +65,7 @@ class OatWriter {
 
   size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
+  size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
   size_t InitOatMethods(size_t offset);
   size_t InitOatCode(size_t offset);
@@ -100,6 +106,7 @@ class OatWriter {
     uint32_t dex_file_location_size_;
     const uint8_t* dex_file_location_data_;
     uint32_t dex_file_checksum_;
+    uint32_t dex_file_offset_;
     uint32_t classes_offset_;
 
    private:

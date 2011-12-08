@@ -120,21 +120,21 @@ off_t ZipEntry::GetDataOffset() {
   return data_offset;
 }
 
-static bool CopyFdToFile(File& file, int in, size_t count) {
+static bool CopyFdToMemory(MemMap& mem_map, int in, size_t count) {
+  uint8_t* dst = mem_map.GetAddress();
   std::vector<uint8_t> buf(kBufSize);
   while (count != 0) {
     size_t bytes_to_read = (count > kBufSize) ? kBufSize : count;
     ssize_t actual = TEMP_FAILURE_RETRY(read(in, &buf[0], bytes_to_read));
     if (actual != static_cast<ssize_t>(bytes_to_read)) {
-      PLOG(WARNING) << "Zip: short read writing to file " << file.name();
+      PLOG(WARNING) << "Zip: short read";
       return false;
     }
-    if (!file.WriteFully(&buf[0], bytes_to_read)) {
-      PLOG(WARNING) << "Zip: failed to write to file " << file.name();
-      return false;
-    }
+    memcpy(dst, &buf[0], bytes_to_read);
+    dst += bytes_to_read;
     count -= bytes_to_read;
   }
+  DCHECK_EQ(dst, mem_map.GetLimit());
   return true;
 }
 
@@ -164,11 +164,12 @@ class ZStream {
   z_stream zstream_;
 };
 
-static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t compressed_length) {
+static bool InflateToMemory(MemMap& mem_map, int in, size_t uncompressed_length, size_t compressed_length) {
+  uint8_t* dst = mem_map.GetAddress();
   UniquePtr<uint8_t[]> read_buf(new uint8_t[kBufSize]);
   UniquePtr<uint8_t[]> write_buf(new uint8_t[kBufSize]);
   if (read_buf.get() == NULL || write_buf.get() == NULL) {
-    LOG(WARNING) << "Zip: failed to alloctate buffer to inflate to file " << out.name();
+    LOG(WARNING) << "Zip: failed to allocate buffer to inflate";
     return false;
   }
 
@@ -218,10 +219,8 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
     if (zstream->Get().avail_out == 0 ||
         (zerr == Z_STREAM_END && zstream->Get().avail_out != kBufSize)) {
       size_t bytes_to_write = zstream->Get().next_out - write_buf.get();
-      if (!out.WriteFully(write_buf.get(), bytes_to_write)) {
-        PLOG(WARNING) << "Zip: failed to write to file " << out.name();
-        return false;
-      }
+      memcpy(dst, write_buf.get(), bytes_to_write);
+      dst += bytes_to_write;
       zstream->Get().next_out = write_buf.get();
       zstream->Get().avail_out = kBufSize;
     }
@@ -236,10 +235,28 @@ static bool InflateToFile(File& out, int in, size_t uncompressed_length, size_t 
     return false;
   }
 
+  DCHECK_EQ(dst, mem_map.GetLimit());
   return true;
 }
 
-bool ZipEntry::Extract(File& file) {
+bool ZipEntry::ExtractToFile(File& file) {
+  uint32_t length = GetUncompressedLength();
+  int result = TEMP_FAILURE_RETRY(ftruncate(file.Fd(), length));
+  if (result == -1) {
+    PLOG(WARNING) << "Zip: failed to ftruncate " << file.name() << " to length " << length;
+    return false;
+  }
+
+  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ | PROT_WRITE, MAP_SHARED, file.Fd(), 0));
+  if (map.get() == NULL) {
+    LOG(WARNING) << "Zip: failed to mmap space for " << file.name();
+    return false;
+  }
+
+  return ExtractToMemory(*map.get());
+}
+
+bool ZipEntry::ExtractToMemory(MemMap& mem_map) {
   off_t data_offset = GetDataOffset();
   if (data_offset == -1) {
     LOG(WARNING) << "Zip: data_offset=" << data_offset;
@@ -254,9 +271,9 @@ bool ZipEntry::Extract(File& file) {
   // for uncompressed data).
   switch (GetCompressionMethod()) {
     case kCompressStored:
-      return CopyFdToFile(file, zip_archive_->fd_, GetUncompressedLength());
+      return CopyFdToMemory(mem_map, zip_archive_->fd_, GetUncompressedLength());
     case kCompressDeflated:
-      return InflateToFile(file, zip_archive_->fd_, GetUncompressedLength(), GetCompressedLength());
+      return InflateToMemory(mem_map, zip_archive_->fd_, GetUncompressedLength(), GetCompressedLength());
     default:
       LOG(WARNING) << "Zip: unknown compression method " << std::hex << GetCompressionMethod();
       return false;
@@ -395,7 +412,7 @@ bool ZipArchive::MapCentralDirectory() {
   }
 
   // It all looks good.  Create a mapping for the CD.
-  dir_map_.reset(MemMap::Map(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset));
+  dir_map_.reset(MemMap::MapFile(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset));
   if (dir_map_.get() == NULL) {
     return false;
   }

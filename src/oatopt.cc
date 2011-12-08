@@ -29,7 +29,7 @@ int ProcessZipFile(int zip_fd, int cache_fd, const char* zip_name, const char* f
     }
 
     UniquePtr<File> file(OS::FileFromFd("oatopt cache file descriptor", cache_fd));
-    bool success = zip_entry->Extract(*file);
+    bool success = zip_entry->ExtractToFile(*file);
     if (!success) {
       LOG(ERROR) << "Failed to extract classes.dex from " << zip_name;
       return -1;

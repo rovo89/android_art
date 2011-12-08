@@ -112,7 +112,7 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
       return NULL;
     }
     UniquePtr<File> file(OS::OpenFile(outputName.c_str(), true));
-    bool success = zip_entry->Extract(*file);
+    bool success = zip_entry->ExtractToFile(*file);
     if (!success) {
       LOG(ERROR) << "Failed to extract classes.dex from " << sourceName.c_str();
       return NULL;

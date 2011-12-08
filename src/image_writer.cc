@@ -84,7 +84,7 @@ bool ImageWriter::AllocMemory() {
   size_t size = source_space_->Size();
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
-  image_.reset(MemMap::Map("image-writer-image", NULL, length, prot));
+  image_.reset(MemMap::MapAnonymous("image-writer-image", NULL, length, prot));
   if (image_.get() == NULL) {
     LOG(ERROR) << "Failed to allocate memory for image file generation";
     return false;

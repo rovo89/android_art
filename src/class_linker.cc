@@ -733,7 +733,6 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
 }
 
 void ClassLinker::InitFromImage() {
-  const Runtime* runtime = Runtime::Current();
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
 
@@ -759,17 +758,13 @@ void ClassLinker::InitFromImage() {
       for (int i = 0; i < dex_caches->GetLength(); i++) {
         SirtRef<DexCache> dex_cache(dex_caches->Get(i));
         const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
-
-        std::string dex_filename;
-        dex_filename += runtime->GetHostPrefix();
-        dex_filename += dex_file_location;
-        const DexFile* dex_file = DexFile::Open(dex_filename, runtime->GetHostPrefix());
+        const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
+        const DexFile* dex_file = oat_dex_file->OpenDexFile();
         if (dex_file == NULL) {
-          LOG(FATAL) << "Failed to open dex file " << dex_filename
-                     << " referenced from oat file as " << dex_file_location;
+          LOG(FATAL) << "Failed to open dex file " << dex_file_location
+                     << " from within oat file " << oat_file->GetLocation();
         }
 
-        const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
         CHECK_EQ(dex_file->GetHeader().checksum_, oat_dex_file->GetDexFileChecksum());
 
         AppendToBootClassPath(*dex_file, dex_cache);
@@ -1789,7 +1784,7 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
       SirtRef<Method> prototype(methods->Get(i));
       CheckProxyMethod(klass->GetVirtualMethod(i), prototype);
     }
-    std::string throws_field_name = "java.lang.Class[][] ";
+    std::string throws_field_name("java.lang.Class[][] ");
     throws_field_name += name->ToModifiedUtf8();
     throws_field_name += ".throws";
     CHECK(PrettyField(klass->GetStaticField(0)) == throws_field_name);

@@ -24,7 +24,7 @@ TEST_F(ZipArchiveTest, FindAndExtract) {
   ASSERT_NE(-1, tmp.GetFd());
   UniquePtr<File> file(OS::FileFromFd(tmp.GetFilename(), tmp.GetFd()));
   ASSERT_TRUE(file.get() != NULL);
-  bool success = zip_entry->Extract(*file);
+  bool success = zip_entry->ExtractToFile(*file);
   ASSERT_TRUE(success);
   close(tmp.GetFd());
 

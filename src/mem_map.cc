@@ -103,7 +103,7 @@ void CheckMapRequest(byte* addr, size_t length) {
 #endif
 }
 
-MemMap* MemMap::Map(const char* name, byte* addr, size_t length, int prot) {
+MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t length, int prot) {
   CHECK_NE(0U, length);
   CHECK_NE(0, prot);
   size_t page_aligned_size = RoundUp(length, kPageSize);
@@ -129,7 +129,7 @@ MemMap* MemMap::Map(const char* name, byte* addr, size_t length, int prot) {
   return new MemMap(actual, length, actual, page_aligned_size);
 }
 
-MemMap* MemMap::Map(byte* addr, size_t length, int prot, int flags, int fd, off_t start) {
+MemMap* MemMap::MapFileAtAddress(byte* addr, size_t length, int prot, int flags, int fd, off_t start) {
   CHECK_NE(0U, length);
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));

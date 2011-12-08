@@ -29,6 +29,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
 
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
+  offset = InitDexFiles(offset);
   offset = InitOatClasses(offset);
   offset = InitOatMethods(offset);
   offset = InitOatCode(offset);
@@ -60,6 +61,21 @@ size_t OatWriter::InitOatDexFiles(size_t offset) {
     OatDexFile* oat_dex_file = new OatDexFile(*dex_file);
     oat_dex_files_.push_back(oat_dex_file);
     offset += oat_dex_file->SizeOf();
+  }
+  return offset;
+}
+
+size_t OatWriter::InitDexFiles(size_t offset) {
+  // calculate the offsets within OatDexFiles to the DexFiles
+  for (size_t i = 0; i != dex_files_->size(); ++i) {
+    // dex files are required to be 4 byte aligned
+    offset = RoundUp(offset, 4);
+
+    // set offset in OatDexFile to DexFile
+    oat_dex_files_[i]->dex_file_offset_ = offset;
+
+    const DexFile* dex_file = (*dex_files_)[i];
+    offset += dex_file->GetHeader().file_size_;
   }
   return offset;
 }
@@ -305,7 +321,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 }
 
 #define DCHECK_CODE_OFFSET() \
-  DCHECK_EQ(static_cast<off_t>(code_offset), lseek(file->Fd(), 0, SEEK_CUR))
+  DCHECK_EQ(static_cast<off64_t>(code_offset), lseek64(file->Fd(), 0, SEEK_CUR))
 
 bool OatWriter::Write(File* file) {
   if (!file->WriteFully(oat_header_, sizeof(*oat_header_))) {
@@ -340,6 +356,21 @@ bool OatWriter::WriteTables(File* file) {
       return false;
     }
   }
+  for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
+    uint32_t expected_offset = oat_dex_files_[i]->dex_file_offset_;
+    off64_t actual_offset = lseek64(file->Fd(), expected_offset, SEEK_SET);
+    if (static_cast<uint32_t>(actual_offset) != expected_offset) {
+      const DexFile* dex_file = (*dex_files_)[i];
+      PLOG(ERROR) << "Failed to seek to dex file section. Actual: " << actual_offset
+                  << " Expected: " << expected_offset << " File: " << dex_file->GetLocation();
+      return false;
+    }
+    const DexFile* dex_file = (*dex_files_)[i];
+    if (!file->WriteFully(&dex_file->GetHeader(), dex_file->GetHeader().file_size_)) {
+      PLOG(ERROR) << "Failed to write dex file " << dex_file->GetLocation() << " to " << file->name();
+      return false;
+    }
+  }
   for (size_t i = 0; i != oat_classes_.size(); ++i) {
     if (!oat_classes_[i]->Write(file)) {
       PLOG(ERROR) << "Failed to write oat classes information to " << file->name();
@@ -357,7 +388,7 @@ bool OatWriter::WriteTables(File* file) {
 
 size_t OatWriter::WriteCode(File* file) {
   uint32_t code_offset = oat_header_->GetExecutableOffset();
-  off_t new_offset = lseek(file->Fd(), executable_offset_padding_length_, SEEK_CUR);
+  off64_t new_offset = lseek64(file->Fd(), executable_offset_padding_length_, SEEK_CUR);
   if (static_cast<uint32_t>(new_offset) != code_offset) {
     PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
                 << " Expected: " << code_offset << " File: " << file->name();
@@ -458,7 +489,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
     uint32_t aligned_code_offset = compiled_method->AlignCode(code_offset);
     uint32_t aligned_code_delta = aligned_code_offset - code_offset;
     if (aligned_code_delta != 0) {
-      off_t new_offset = lseek(file->Fd(), aligned_code_delta, SEEK_CUR);
+      off64_t new_offset = lseek64(file->Fd(), aligned_code_delta, SEEK_CUR);
       if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
         PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
                     << " Expected: " << aligned_code_offset << " File: " << file->name();
@@ -564,7 +595,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
                                                              compiler_->GetInstructionSet());
     uint32_t aligned_code_delta = aligned_code_offset - code_offset;
     if (aligned_code_delta != 0) {
-      off_t new_offset = lseek(file->Fd(), aligned_code_delta, SEEK_CUR);
+      off64_t new_offset = lseek64(file->Fd(), aligned_code_delta, SEEK_CUR);
       if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
         PLOG(ERROR) << "Failed to seek to align invoke stub code. Actual: " << new_offset
                     << " Expected: " << aligned_code_offset;
@@ -605,6 +636,7 @@ OatWriter::OatDexFile::OatDexFile(const DexFile& dex_file) {
   dex_file_location_size_ = location.size();
   dex_file_location_data_ = reinterpret_cast<const uint8_t*>(location.data());
   dex_file_checksum_ = dex_file.GetHeader().checksum_;
+  dex_file_offset_ = 0;
   classes_offset_ = 0;
 }
 
@@ -612,6 +644,7 @@ size_t OatWriter::OatDexFile::SizeOf() const {
   return sizeof(dex_file_location_size_)
           + dex_file_location_size_
           + sizeof(dex_file_checksum_)
+          + sizeof(dex_file_offset_)
           + sizeof(classes_offset_);
 }
 
@@ -619,6 +652,7 @@ void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
   oat_header.UpdateChecksum(&dex_file_location_size_, sizeof(dex_file_location_size_));
   oat_header.UpdateChecksum(dex_file_location_data_, dex_file_location_size_);
   oat_header.UpdateChecksum(&dex_file_checksum_, sizeof(dex_file_checksum_));
+  oat_header.UpdateChecksum(&dex_file_offset_, sizeof(dex_file_offset_));
   oat_header.UpdateChecksum(&classes_offset_, sizeof(classes_offset_));
 }
 
@@ -633,6 +667,10 @@ bool OatWriter::OatDexFile::Write(File* file) const {
   }
   if (!file->WriteFully(&dex_file_checksum_, sizeof(dex_file_checksum_))) {
     PLOG(ERROR) << "Failed to write dex file checksum to " << file->name();
+    return false;
+  }
+  if (!file->WriteFully(&dex_file_offset_, sizeof(dex_file_offset_))) {
+    PLOG(ERROR) << "Failed to write dex file offset to " << file->name();
     return false;
   }
   if (!file->WriteFully(&classes_offset_, sizeof(classes_offset_))) {

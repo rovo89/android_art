@@ -18,7 +18,7 @@ MarkStack* MarkStack::Create() {
 
 void MarkStack::Init() {
   size_t length = 64 * MB;
-  mem_map_.reset(MemMap::Map("dalvik-mark-stack", NULL, length, PROT_READ | PROT_WRITE));
+  mem_map_.reset(MemMap::MapAnonymous("dalvik-mark-stack", NULL, length, PROT_READ | PROT_WRITE));
   CHECK(mem_map_.get() != NULL) << "MemMap::Map() failed; aborting";
   byte* addr = mem_map_->GetAddress();
   base_ = reinterpret_cast<const Object**>(addr);

@@ -184,6 +184,11 @@ class DexFile {
   static const DexFile* Open(const std::string& filename,
                              const std::string& strip_location_prefix);
 
+  // Opens .dex file, backed by existing memory
+  static const DexFile* Open(const uint8_t* base, size_t length, const std::string& location) {
+    return OpenMemory(base, length, location, NULL);
+  }
+
   // Closes a .dex file.
   virtual ~DexFile();
 
@@ -619,14 +624,23 @@ class DexFile {
   static const DexFile* OpenZip(const std::string& filename,
                                 const std::string& strip_location_prefix);
 
-  // Opens a .dex file at the given address.
+  // Opens a .dex file at the given address backed by a MemMap
+  static const DexFile* OpenMemory(const std::string& location,
+                                   MemMap* mem_map) {
+    return OpenMemory(mem_map->GetAddress(),
+                      mem_map->GetLength(),
+                      location,
+                      mem_map);
+  }
+
+  // Opens a .dex file at the given address, optionally backed by a MemMap
   static const DexFile* OpenMemory(const byte* dex_file,
                                    size_t length,
                                    const std::string& location,
                                    MemMap* mem_map);
 
-  DexFile(const byte* addr, size_t length, const std::string& location, MemMap* mem_map)
-      : base_(addr),
+  DexFile(const byte* base, size_t length, const std::string& location, MemMap* mem_map)
+      : base_(base),
         length_(length),
         location_(location),
         mem_map_(mem_map),
@@ -639,9 +653,8 @@ class DexFile {
         method_ids_(0),
         proto_ids_(0),
         class_defs_(0) {
-    CHECK(addr != NULL) << GetLocation();
-    CHECK_GT(length, 0U) << GetLocation();
-    CHECK(mem_map != NULL) << GetLocation();
+    CHECK(base_ != NULL) << GetLocation();
+    CHECK_GT(length_, 0U) << GetLocation();
   }
 
   // Top-level initializer that calls other Init methods.

@@ -132,6 +132,7 @@ class OatFile {
 
   class OatDexFile {
    public:
+    const DexFile* OpenDexFile() const;
     const OatClass* GetOatClass(uint32_t class_def_index) const;
 
     const std::string& GetDexFileLocation() const {
@@ -147,11 +148,13 @@ class OatFile {
     OatDexFile(const OatFile* oat_file,
                std::string dex_file_location,
                uint32_t dex_file_checksum,
+               byte* dex_file_pointer,
                uint32_t* classes_pointer);
 
     const OatFile* oat_file_;
     std::string dex_file_location_;
     uint32_t dex_file_checksum_;
+    const byte* dex_file_pointer_;
     const uint32_t* classes_pointer_;
 
     friend class OatFile;

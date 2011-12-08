@@ -74,7 +74,7 @@ bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, b
   }
   size_t length = RoundUp(maximum_size, kPageSize);
   int prot = PROT_READ | PROT_WRITE;
-  UniquePtr<MemMap> mem_map(MemMap::Map(name_.c_str(), requested_base, length, prot));
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name_.c_str(), requested_base, length, prot));
   if (mem_map.get() == NULL) {
     LOG(WARNING) << "Failed to allocate " << length << " bytes for space: " << name_;
     return false;
@@ -114,13 +114,13 @@ bool Space::InitFromImage(const std::string& image_file_name) {
     LOG(WARNING) << "Invalid image header " << image_file_name;
     return false;
   }
-  UniquePtr<MemMap> map(MemMap::Map(image_header.GetImageBaseAddr(),
-                                    file->Length(),
-                                    // TODO: selectively PROT_EXEC an image subset containing stubs
-                                    PROT_READ | PROT_WRITE | PROT_EXEC,
-                                    MAP_PRIVATE | MAP_FIXED,
-                                    file->Fd(),
-                                    0));
+  UniquePtr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBaseAddr(),
+                                                 file->Length(),
+                                                 // TODO: selectively PROT_EXEC stubs
+                                                 PROT_READ | PROT_WRITE | PROT_EXEC,
+                                                 MAP_PRIVATE | MAP_FIXED,
+                                                 file->Fd(),
+                                                 0));
   if (map.get() == NULL) {
     LOG(WARNING) << "Failed to map " << image_file_name;
     return false;

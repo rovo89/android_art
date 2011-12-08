@@ -55,7 +55,7 @@ define build-art-executable
     LOCAL_MODULE := $$(art_executable)d
   endif
 
-  ifeq ($(art_target_or_host),target)
+  ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)

@@ -36,14 +36,14 @@ class MemMap {
   // a name.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(const char* ashmem_name, byte* addr, size_t length, int prot);
+  static MemMap* MapAnonymous(const char* ashmem_name, byte* addr, size_t length, int prot);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(size_t length, int prot, int flags, int fd, off_t start) {
-    return Map(NULL, length, prot, flags, fd, start);
+  static MemMap* MapFile(size_t length, int prot, int flags, int fd, off_t start) {
+    return MapFileAtAddress(NULL, length, prot, flags, fd, start);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -51,7 +51,8 @@ class MemMap {
   // requesting a specific address for the base of the mapping.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* Map(byte* addr, size_t length, int prot, int flags, int fd, off_t start);
+  static MemMap* MapFileAtAddress(
+      byte* addr, size_t length, int prot, int flags, int fd, off_t start);
 
   // Releases the memory mapping
   ~MemMap();

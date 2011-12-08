@@ -43,21 +43,21 @@ int64_t LinuxFile::Write(const void* buffer, int64_t num_bytes) {
 }
 
 
-off_t LinuxFile::Position() {
+off64_t LinuxFile::Position() {
   DCHECK_GE(fd_, 0);
-  return lseek(fd_, 0, SEEK_CUR);
+  return lseek64(fd_, 0, SEEK_CUR);
 }
 
 
-off_t LinuxFile::Length() {
+off64_t LinuxFile::Length() {
   DCHECK_GE(fd_, 0);
-  off_t position = lseek(fd_, 0, SEEK_CUR);
+  off64_t position = lseek64(fd_, 0, SEEK_CUR);
   if (position < 0) {
     // The file is not capable of seeking. Return an error.
     return -1;
   }
-  off_t result = lseek(fd_, 0, SEEK_END);
-  lseek(fd_, position, SEEK_SET);
+  off64_t result = lseek64(fd_, 0, SEEK_END);
+  lseek64(fd_, position, SEEK_SET);
   return result;
 }
 
