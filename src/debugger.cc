@@ -709,9 +709,13 @@ JDWP::ObjectId Dbg::CreateObject(JDWP::RefTypeId classId) {
   return gRegistry->Add(c->AllocObject());
 }
 
+/*
+ * Used by Eclipse's "Display" view to evaluate "new byte[5]" to get "(byte[]) [0, 0, 0, 0, 0]".
+ */
 JDWP::ObjectId Dbg::CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+  Class* array_class = gRegistry->Get<Class*>(arrayTypeId);
+  CHECK(array_class->IsArrayClass()) << PrettyClass(array_class);
+  return gRegistry->Add(Array::Alloc(array_class, length));
 }
 
 bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
