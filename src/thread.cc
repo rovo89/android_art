@@ -1191,20 +1191,21 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
     // Allocate element, potentially triggering GC
     // TODO: reuse class_name_object via Class::name_?
-    std::string class_name(PrettyDescriptor(mh.GetDeclaringClassDescriptor()));
+    const char* descriptor = mh.GetDeclaringClassDescriptor();
+    CHECK(descriptor != NULL);
+    std::string class_name(PrettyDescriptor(descriptor));
     SirtRef<String> class_name_object(String::AllocFromModifiedUtf8(class_name.c_str()));
     if (class_name_object.get() == NULL) {
       return NULL;
     }
-    SirtRef<String> method_name_object(String::AllocFromModifiedUtf8(mh.GetName()));
+    const char* method_name = mh.GetName();
+    CHECK(method_name != NULL);
+    SirtRef<String> method_name_object(String::AllocFromModifiedUtf8(method_name));
     if (method_name_object.get() == NULL) {
       return NULL;
     }
-    SirtRef<String>
-        source_name_object(String::AllocFromModifiedUtf8(mh.GetDeclaringClassSourceFile()));
-    if (source_name_object.get() == NULL) {
-      return NULL;
-    }
+    const char* source_file = mh.GetDeclaringClassSourceFile();
+    SirtRef<String> source_name_object(String::AllocFromModifiedUtf8(source_file));
     StackTraceElement* obj = StackTraceElement::Alloc(class_name_object.get(),
                                                       method_name_object.get(),
                                                       source_name_object.get(),

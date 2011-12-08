@@ -1109,6 +1109,9 @@ String* String::AllocFromUtf16(int32_t utf16_length,
 }
 
 String* String::AllocFromModifiedUtf8(const char* utf) {
+  if (utf == NULL) {
+    return NULL;
+  }
   size_t char_count = CountModifiedUtf8Chars(utf);
   return AllocFromModifiedUtf8(char_count, utf);
 }
