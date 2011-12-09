@@ -361,9 +361,13 @@ dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(TARGET_BO
 .PHONY: clean-oat
 clean-oat:
 	rm -f $(ART_TEST_OUT)/*.oat
+	rm -f $(ART_TEST_OUT)/*.art
 	rm -f $(ART_CACHE_OUT)/*.oat
+	rm -f $(ART_CACHE_OUT)/*.art
 	adb shell rm $(ART_TEST_DIR)/*.oat
+	adb shell rm $(ART_TEST_DIR)/*.art
 	adb shell rm $(ART_CACHE_DIR)/*.oat
+	adb shell rm $(ART_CACHE_DIR)/*.art
 
 ########################################################################
 # cpplint target
