@@ -196,7 +196,7 @@ class DexFile {
   jobject GetDexObject(JNIEnv* env) const;
 
   const Header& GetHeader() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return *header_;
   }
 
@@ -205,19 +205,19 @@ class DexFile {
 
   // Returns the number of string identifiers in the .dex file.
   size_t NumStringIds() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return header_->string_ids_size_;
   }
 
   // Returns the StringId at the specified index.
   const StringId& GetStringId(uint32_t idx) const {
-    CHECK_LT(idx, NumStringIds());
+    CHECK_LT(idx, NumStringIds()) << GetLocation();
     return string_ids_[idx];
   }
 
   uint32_t GetIndexForStringId(const StringId& string_id) const {
-    CHECK_GE(&string_id, string_ids_);
-    CHECK_LT(&string_id, string_ids_ + header_->string_ids_size_);
+    CHECK_GE(&string_id, string_ids_) << GetLocation();
+    CHECK_LT(&string_id, string_ids_ + header_->string_ids_size_) << GetLocation();
     return &string_id - string_ids_;
   }
 
@@ -251,21 +251,21 @@ class DexFile {
 
   // Returns the number of type identifiers in the .dex file.
   size_t NumTypeIds() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return header_->type_ids_size_;
   }
 
   // Returns the TypeId at the specified index.
   const TypeId& GetTypeId(uint32_t idx) const {
-    CHECK_LT(idx, NumTypeIds());
+    CHECK_LT(idx, NumTypeIds()) << GetLocation();
     return type_ids_[idx];
   }
 
   uint16_t GetIndexForTypeId(const TypeId& type_id) const {
-    CHECK_GE(&type_id, type_ids_);
-    CHECK_LT(&type_id, type_ids_ + header_->type_ids_size_);
+    CHECK_GE(&type_id, type_ids_) << GetLocation();
+    CHECK_LT(&type_id, type_ids_ + header_->type_ids_size_) << GetLocation();
     size_t result = &type_id - type_ids_;
-    DCHECK(result < 65536);
+    DCHECK_LT(result, 65536U) << GetLocation();
     return static_cast<uint16_t>(result);
   }
 
@@ -290,19 +290,19 @@ class DexFile {
 
   // Returns the number of field identifiers in the .dex file.
   size_t NumFieldIds() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return header_->field_ids_size_;
   }
 
   // Returns the FieldId at the specified index.
   const FieldId& GetFieldId(uint32_t idx) const {
-    CHECK_LT(idx, NumFieldIds());
+    CHECK_LT(idx, NumFieldIds()) << GetLocation();
     return field_ids_[idx];
   }
 
   uint32_t GetIndexForFieldId(const FieldId& field_id) const {
-    CHECK_GE(&field_id, field_ids_);
-    CHECK_LT(&field_id, field_ids_ + header_->field_ids_size_);
+    CHECK_GE(&field_id, field_ids_) << GetLocation();
+    CHECK_LT(&field_id, field_ids_ + header_->field_ids_size_) << GetLocation();
     return &field_id - field_ids_;
   }
 
@@ -330,19 +330,19 @@ class DexFile {
 
   // Returns the number of method identifiers in the .dex file.
   size_t NumMethodIds() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return header_->method_ids_size_;
   }
 
   // Returns the MethodId at the specified index.
   const MethodId& GetMethodId(uint32_t idx) const {
-    CHECK_LT(idx, NumMethodIds());
+    CHECK_LT(idx, NumMethodIds()) << GetLocation();
     return method_ids_[idx];
   }
 
   uint32_t GetIndexForMethodId(const MethodId& method_id) const {
-    CHECK_GE(&method_id, method_ids_);
-    CHECK_LT(&method_id, method_ids_ + header_->method_ids_size_);
+    CHECK_GE(&method_id, method_ids_) << GetLocation();
+    CHECK_LT(&method_id, method_ids_ + header_->method_ids_size_) << GetLocation();
     return &method_id - method_ids_;
   }
 
@@ -381,19 +381,19 @@ class DexFile {
   }
   // Returns the number of class definitions in the .dex file.
   size_t NumClassDefs() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return header_->class_defs_size_;
   }
 
   // Returns the ClassDef at the specified index.
   const ClassDef& GetClassDef(uint32_t idx) const {
-    CHECK_LT(idx, NumClassDefs());
+    CHECK_LT(idx, NumClassDefs()) << GetLocation();
     return class_defs_[idx];
   }
 
   uint32_t GetIndexForClassDef(const ClassDef& class_def) const {
-    CHECK_GE(&class_def, class_defs_);
-    CHECK_LT(&class_def, class_defs_ + header_->class_defs_size_);
+    CHECK_GE(&class_def, class_defs_) << GetLocation();
+    CHECK_LT(&class_def, class_defs_ + header_->class_defs_size_) << GetLocation();
     return &class_def - class_defs_;
   }
 
@@ -442,19 +442,19 @@ class DexFile {
 
   // Returns the number of prototype identifiers in the .dex file.
   size_t NumProtoIds() const {
-    CHECK(header_ != NULL);
+    CHECK(header_ != NULL) << GetLocation();
     return header_->proto_ids_size_;
   }
 
   // Returns the ProtoId at the specified index.
   const ProtoId& GetProtoId(uint32_t idx) const {
-    CHECK_LT(idx, NumProtoIds());
+    CHECK_LT(idx, NumProtoIds()) << GetLocation();
     return proto_ids_[idx];
   }
 
   uint16_t GetIndexForProtoId(const ProtoId& proto_id) const {
-    CHECK_GE(&proto_id, proto_ids_);
-    CHECK_LT(&proto_id, proto_ids_ + header_->proto_ids_size_);
+    CHECK_GE(&proto_id, proto_ids_) << GetLocation();
+    CHECK_LT(&proto_id, proto_ids_ + header_->proto_ids_size_) << GetLocation();
     return &proto_id - proto_ids_;
   }
 
@@ -639,9 +639,9 @@ class DexFile {
         method_ids_(0),
         proto_ids_(0),
         class_defs_(0) {
-    CHECK(addr != NULL);
-    CHECK_GT(length, 0U);
-    CHECK(mem_map != NULL);
+    CHECK(addr != NULL) << GetLocation();
+    CHECK_GT(length, 0U) << GetLocation();
+    CHECK(mem_map != NULL) << GetLocation();
   }
 
   // Top-level initializer that calls other Init methods.

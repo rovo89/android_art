@@ -398,7 +398,7 @@ bool DexFile::IsMagicValid() {
 }
 
 bool DexFile::CheckMagic(const byte* magic) {
-  CHECK(magic != NULL);
+  CHECK(magic != NULL) << GetLocation();
   if (memcmp(magic, kDexMagic, sizeof(kDexMagic)) != 0) {
     LOG(ERROR) << "Unrecognized magic number:"
             << " " << magic[0]
@@ -431,14 +431,14 @@ int32_t DexFile::GetStringLength(const StringId& string_id) const {
 
 // Returns a pointer to the UTF-8 string data referred to by the given string_id.
 const char* DexFile::GetStringDataAndLength(const StringId& string_id, int32_t* length) const {
-  CHECK(length != NULL);
+  CHECK(length != NULL) << GetLocation();
   const byte* ptr = base_ + string_id.string_data_off_;
   *length = DecodeUnsignedLeb128(&ptr);
   return reinterpret_cast<const char*>(ptr);
 }
 
 void DexFile::InitIndex() {
-  CHECK_EQ(index_.size(), 0U);
+  CHECK_EQ(index_.size(), 0U) << GetLocation();
   for (size_t i = 0; i < NumClassDefs(); ++i) {
     const ClassDef& class_def = GetClassDef(i);
     const char* descriptor = GetClassDescriptor(class_def);
@@ -700,7 +700,7 @@ int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) co
   }
 
   const CodeItem* code_item = GetCodeItem(method->GetCodeItemOffset());
-  DCHECK(code_item != NULL);
+  DCHECK(code_item != NULL) << GetLocation();
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);
