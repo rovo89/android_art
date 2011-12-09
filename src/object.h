@@ -1246,6 +1246,8 @@ class MANAGED Class : public StaticStorageBase {
 
   bool IsStringClass() const;
 
+  bool IsThrowableClass() const;
+
   Class* GetComponentType() const {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
   }

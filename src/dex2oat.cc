@@ -14,6 +14,7 @@
 #include "compiler.h"
 #include "file.h"
 #include "image_writer.h"
+#include "leb128.h"
 #include "oat_writer.h"
 #include "object_utils.h"
 #include "os.h"
@@ -119,7 +120,7 @@ class Dex2Oat {
       return NULL;
     }
 
-    // Load all the classes specifed in the file
+    // Load all the classes specified in the file
     ClassLinker* class_linker = runtime_->GetClassLinker();
     while (image_classes_file->good()) {
       std::string dot;
@@ -136,11 +137,40 @@ class Dex2Oat {
     }
     image_classes_file->close();
 
+    // Resolve exception classes referenced by the loaded classes. The catch logic assumes
+    // exceptions are resolved by the verifier when there is a catch block in an interested method.
+    // Do this here so that exception classes appear to have been specified image classes.
+    std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
+    do {
+      unresolved_exception_types.clear();
+      class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
+                                 &unresolved_exception_types);
+      typedef std::set<std::pair<uint16_t, const DexFile*> >::const_iterator It;  // TODO: C++0x auto
+      for (It it = unresolved_exception_types.begin(),
+           end = unresolved_exception_types.end();
+           it != end; ++it) {
+        uint16_t exception_type_idx = it->first;
+        const DexFile* dex_file = it->second;
+        DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
+        ClassLoader* class_loader = NULL;
+        SirtRef<Class> klass(class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache,
+                                                       class_loader));
+        if (klass.get() == NULL) {
+          const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
+          const char* descriptor = dex_file->GetTypeDescriptor(type_id);
+          LOG(FATAL) << "Failed to resolve class " << descriptor;
+        }
+        DCHECK(klass->IsThrowableClass());
+      }
+      // Resolving exceptions may load classes that reference more exceptions, iterate until no
+      // more are found
+    } while (!unresolved_exception_types.empty());
+
     // We walk the roots looking for classes so that we'll pick up the
     // above classes plus any classes them depend on such super
     // classes, interfaces, and the required ClassLinker roots.
     UniquePtr<std::set<std::string> > image_classes(new std::set<std::string>());
-    class_linker->VisitClasses(ClassVisitor, image_classes.get());
+    class_linker->VisitClasses(RecordImageClassesVisitor, image_classes.get());
     CHECK_NE(image_classes->size(), 0U);
     return image_classes.release();
   }
@@ -238,7 +268,59 @@ class Dex2Oat {
     return runtime;
   }
 
-  static bool ClassVisitor(Class* klass, void* arg) {
+  static void ResolveExceptionsForMethod(MethodHelper* mh,
+                           std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve) {
+    const DexFile::CodeItem* code_item = mh->GetCodeItem();
+    if (code_item == NULL) {
+      return;  // native or abstract method
+    }
+    if (code_item->tries_size_ == 0) {
+      return;  // nothing to process
+    }
+    const byte* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
+    size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
+    for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
+      int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
+      bool has_catch_all = false;
+      if (encoded_catch_handler_size <= 0) {
+        encoded_catch_handler_size = -encoded_catch_handler_size;
+        has_catch_all = true;
+      }
+      for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
+        uint16_t encoded_catch_handler_handlers_type_idx =
+            DecodeUnsignedLeb128(&encoded_catch_handler_list);
+        // Add to set of types to resolve if not already in the dex cache resolved types
+        if (!mh->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
+          exceptions_to_resolve.insert(
+              std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
+                                                  &mh->GetDexFile()));
+        }
+        // ignore address associated with catch handler
+        DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      }
+      if (has_catch_all) {
+        // ignore catch all address
+        DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      }
+    }
+  }
+  static bool ResolveCatchBlockExceptionsClassVisitor(Class* c, void* arg) {
+    std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
+        reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
+    MethodHelper mh;
+    for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+      Method* m = c->GetVirtualMethod(i);
+      mh.ChangeMethod(m);
+      ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+    }
+    for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+      Method* m = c->GetDirectMethod(i);
+      mh.ChangeMethod(m);
+      ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+    }
+    return true;
+  }
+  static bool RecordImageClassesVisitor(Class* klass, void* arg) {
     std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
     if (klass->IsArrayClass() || klass->IsPrimitive()) {
       return true;

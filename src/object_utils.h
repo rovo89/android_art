@@ -438,6 +438,9 @@ class MethodHelper {
   const DexFile::CodeItem* GetCodeItem() {
     return GetDexFile().GetCodeItem(method_->GetCodeItemOffset());
   }
+  bool IsResolvedTypeIdx(uint16_t type_idx) const {
+    return method_->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
+  }
   Class* GetClassFromTypeIdx(uint16_t type_idx) {
     Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
     if (type == NULL) {

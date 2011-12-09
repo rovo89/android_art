@@ -815,6 +815,11 @@ bool Class::IsStringClass() const {
   return this == String::GetJavaLangString();
 }
 
+bool Class::IsThrowableClass() const {
+  Class* throwable = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Throwable;");
+  return throwable->IsAssignableFrom(this);
+}
+
 ClassLoader* Class::GetClassLoader() const {
   return GetFieldObject<ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
