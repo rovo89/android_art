@@ -3532,6 +3532,11 @@ void DexVerifier::VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction
 }
 
 void DexVerifier::ReplaceFailingInstruction() {
+  if (Runtime::Current()->IsStarted()) {
+    LOG(ERROR) << "Verification attempting to replacing instructions in " << PrettyMethod(method_)
+               << " " << fail_messages_.str();
+    return;
+  }
   const Instruction* inst = Instruction::At(code_item_->insns_ + work_insn_idx_);
   DCHECK(inst->IsThrow()) << "Expected instruction that will throw " << inst->Name();
   VerifyErrorRefType ref_type;
@@ -3596,7 +3601,7 @@ void DexVerifier::ReplaceFailingInstruction() {
   // instruction, so assert it.
   size_t width = inst->SizeInCodeUnits();
   CHECK_GT(width, 1u);
-  // If the instruction is larger than 2 code units, rewrite subqeuent code unit sized chunks with
+  // If the instruction is larger than 2 code units, rewrite subsequent code unit sized chunks with
   // NOPs
   for (size_t i = 2; i < width; i++) {
     insns[work_insn_idx_ + i] = Instruction::NOP;
