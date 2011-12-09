@@ -51,11 +51,13 @@ static void usage() {
   fprintf(stderr,
           "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
           "      Example: --boot-image=/data/art-cache/boot.art\n"
+          "      Default: <host-prefix>/data/art-cache/boot.art\n"
           "\n");
   fprintf(stderr,
           "  --host-prefix may be used to translate host paths to target paths during\n"
           "      cross compilation.\n"
           "      Example: --host-prefix=out/target/product/crespo\n"
+          "      Default: $ANDROID_PRODUCT_OUT\n"
           "\n");
   fprintf(stderr,
           "  --runtime-arg <argument>: used to specify various arguments for the runtime,\n"
@@ -377,7 +379,7 @@ int dex2oat(int argc, char** argv) {
   std::string oat_filename;
   const char* image_filename = NULL;
   const char* image_classes_filename = NULL;
-  std::string boot_image_option;
+  std::string boot_image_filename;
   uintptr_t image_base = 0;
   std::string host_prefix;
   std::vector<const char*> runtime_args;
@@ -404,10 +406,7 @@ int dex2oat(int argc, char** argv) {
         usage();
       }
     } else if (option.starts_with("--boot-image=")) {
-      const char* boot_image_filename = option.substr(strlen("--boot-image=")).data();
-      boot_image_option.clear();
-      boot_image_option += "-Ximage:";
-      boot_image_option += boot_image_filename;
+      boot_image_filename = option.substr(strlen("--boot-image=")).data();
     } else if (option.starts_with("--host-prefix=")) {
       host_prefix = option.substr(strlen("--host-prefix=")).data();
     } else if (option == "--runtime-arg") {
@@ -427,10 +426,22 @@ int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (host_prefix.empty()) {
+    const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
+    if (android_product_out != NULL) {
+        host_prefix = android_product_out;
+    }
+  }
+
   bool image = (image_filename != NULL);
-  if (!image && boot_image_option.empty()) {
-    fprintf(stderr, "Either --image or --boot-image must be specified\n");
-    return EXIT_FAILURE;
+  if (!image && boot_image_filename.empty()) {
+    boot_image_filename += host_prefix;
+    boot_image_filename += "/data/art-cache/boot.art";
+  }
+  std::string boot_image_option;
+  if (boot_image_filename != NULL) {
+    boot_image_option += "-Ximage:";
+    boot_image_option += boot_image_filename;
   }
 
   if (image_classes_filename != NULL && !image) {
