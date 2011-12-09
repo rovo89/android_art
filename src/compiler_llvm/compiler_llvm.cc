@@ -27,8 +27,8 @@
 #include <llvm/Module.h>
 #include <llvm/Support/ToolOutputFile.h>
 
-using namespace art;
-using namespace art::compiler_llvm;
+namespace art {
+namespace compiler_llvm {
 
 
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
@@ -49,7 +49,8 @@ CompilerLLVM::~CompilerLLVM() {
 
 void CompilerLLVM::MaterializeLLVMModule() {
 #if !defined(NDEBUG)
-  // TODO: For device, need to use another temporary path.
+  // TODO: Add options to JNI_CreateJavaVM() and dex2oat, so that we don't
+  // have to hard-code the path.
   WriteBitcodeToFile("/tmp/art_llvm_module.bc");
 #endif
 }
@@ -94,3 +95,7 @@ CompilerLLVM::CompileDexMethod(DexFile::CodeItem const* code_item,
 
   return method_compiler->Compile();
 }
+
+
+} // namespace compiler_llvm
+} // namespace art

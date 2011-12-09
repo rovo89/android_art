@@ -115,7 +115,7 @@ inline RegCategory GetRegCategoryFromJType(JType jty) {
     return kRegObject;
   }
 
-  LOG(FATAL) << "Uknown java type: " << jty;
+  LOG(FATAL) << "Unknown java type: " << jty;
   return kRegUnknown;
 }
 

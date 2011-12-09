@@ -18,7 +18,8 @@
 
 #include <llvm/Module.h>
 
-using namespace art::compiler_llvm;
+namespace art {
+namespace compiler_llvm {
 
 
 //----------------------------------------------------------------------------
@@ -78,9 +79,13 @@ llvm::Type* IRBuilder::getJTypeInAccurateSpace(JType jty) {
 
 
 llvm::Type* IRBuilder::getJTypeInRegSpace(JType jty) {
-  switch (GetRegCategoryFromJType(jty)) {
+  RegCategory regcat = GetRegCategoryFromJType(jty);
+
+  switch (regcat) {
   case kRegUnknown:
   case kRegZero:
+    LOG(FATAL) << "Register category \"Unknown\" or \"Zero\" does not have "
+               << "the LLVM type";
     return NULL;
 
   case kRegCat1nr:
@@ -93,6 +98,7 @@ llvm::Type* IRBuilder::getJTypeInRegSpace(JType jty) {
     return getJObjectTy();
   }
 
+  LOG(FATAL) << "Unknown register category: " << regcat;
   return NULL;
 }
 
@@ -100,6 +106,7 @@ llvm::Type* IRBuilder::getJTypeInRegSpace(JType jty) {
 llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
   switch (jty) {
   case kVoid:
+    LOG(FATAL) << "void type should not be used in array type space";
     return NULL;
 
   case kBoolean:
@@ -126,5 +133,10 @@ llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
     return getJObjectTy();
   }
 
+  LOG(FATAL) << "Unknown java type: " << jty;
   return NULL;
 }
+
+
+} // namespace compiler_llvm
+} // namespace art

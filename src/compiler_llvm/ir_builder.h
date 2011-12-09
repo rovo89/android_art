@@ -110,6 +110,7 @@ class IRBuilder : public LLVMIRBuilder {
       return getJTypeInArraySpace(jty);
     }
 
+    LOG(FATAL) << "Unknown type space: " << space;
     return NULL;
   }
 
@@ -201,6 +202,7 @@ class IRBuilder : public LLVMIRBuilder {
   llvm::Constant* getJZero(JType jty) {
     switch (jty) {
     case kVoid:
+      LOG(FATAL) << "Zero is not a value of void type";
       return NULL;
 
     case kBoolean:

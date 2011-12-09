@@ -57,19 +57,19 @@ class IRBuilder;
 
 class MethodCompiler {
  private:
-  art::InstructionSet insn_set_;
-  art::Compiler const* compiler_;
-  art::compiler_llvm::CompilerLLVM* compiler_llvm_;
+  InstructionSet insn_set_;
+  Compiler* compiler_;
+  compiler_llvm::CompilerLLVM* compiler_llvm_;
 
-  art::ClassLinker* class_linker_;
-  art::ClassLoader const* class_loader_;
+  ClassLinker* class_linker_;
+  ClassLoader const* class_loader_;
 
-  art::DexFile const* dex_file_;
-  art::DexCache* dex_cache_;
-  art::DexFile::CodeItem const* code_item_;
+  DexFile const* dex_file_;
+  DexCache* dex_cache_;
+  DexFile::CodeItem const* code_item_;
 
-  art::Method* method_;
-  art::MethodHelper method_helper_;
+  Method* method_;
+  MethodHelper method_helper_;
 
   uint32_t method_idx_;
   uint32_t access_flags_;
@@ -80,27 +80,26 @@ class MethodCompiler {
   llvm::Function* func_;
 
  public:
-  MethodCompiler(art::InstructionSet insn_set,
-                 art::Compiler const* compiler,
-                 art::ClassLinker* class_linker,
-                 art::ClassLoader const* class_loader,
-                 art::DexFile const* dex_file,
-                 art::DexCache* dex_cache,
-                 art::DexFile::CodeItem const* code_item,
+  MethodCompiler(InstructionSet insn_set,
+                 Compiler* compiler,
+                 ClassLinker* class_linker,
+                 ClassLoader const* class_loader,
+                 DexFile const* dex_file,
+                 DexCache* dex_cache,
+                 DexFile::CodeItem const* code_item,
                  uint32_t method_idx,
                  uint32_t access_flags);
 
   ~MethodCompiler();
 
-  art::CompiledMethod* Compile();
+  CompiledMethod* Compile();
 
  private:
   void CreateFunction();
 
   void EmitPrologue();
   void EmitInstructions();
-  void EmitInstruction(uint32_t addr, art::Instruction const* insn);
-  void EmitEpilogue();
+  void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
 
 };
 

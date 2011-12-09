@@ -28,16 +28,17 @@
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Function.h>
 
-using namespace art::compiler_llvm;
+namespace art {
+namespace compiler_llvm {
 
 
-MethodCompiler::MethodCompiler(art::InstructionSet insn_set,
-                               art::Compiler const* compiler,
-                               art::ClassLinker* class_linker,
-                               art::ClassLoader const* class_loader,
-                               art::DexFile const* dex_file,
-                               art::DexCache* dex_cache,
-                               art::DexFile::CodeItem const* code_item,
+MethodCompiler::MethodCompiler(InstructionSet insn_set,
+                               Compiler* compiler,
+                               ClassLinker* class_linker,
+                               ClassLoader const* class_loader,
+                               DexFile const* dex_file,
+                               DexCache* dex_cache,
+                               DexFile::CodeItem const* code_item,
                                uint32_t method_idx,
                                uint32_t access_flags)
 : insn_set_(insn_set),
@@ -57,21 +58,26 @@ MethodCompiler::~MethodCompiler() {
 
 
 void MethodCompiler::EmitPrologue() {
-  // TODO: Not implemented!
+  // UNIMPLEMENTED(WARNING);
 }
 
 
-void MethodCompiler::EmitEpilogue() {
+void MethodCompiler::EmitInstructions() {
+  // UNIMPLEMENTED(WARNING);
 }
 
 
-void MethodCompiler::EmitInstruction(uint32_t addr,
-                                     art::Instruction const* insn) {
-  // TODO: Not implemented!
+void MethodCompiler::EmitInstruction(uint32_t dex_pc,
+                                     Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
 }
 
 
-art::CompiledMethod *MethodCompiler::Compile() {
-  // TODO: Not implemented!
-  return new art::CompiledMethod(insn_set_, NULL);
+CompiledMethod *MethodCompiler::Compile() {
+  // UNIMPLEMENTED(WARNING);
+  return new CompiledMethod(insn_set_, NULL);
 }
+
+
+} // namespace compiler_llvm
+} // namespace art

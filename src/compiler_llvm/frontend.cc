@@ -14,26 +14,22 @@
  * limitations under the License.
  */
 
-#include "method_compiler.h"
-
-#include "class_linker.h"
-#include "class_loader.h"
-#include "compiler.h"
-#include "constants.h"
 #include "dex_file.h"
-#include "runtime.h"
+#include "logging.h"
 
-#include <UniquePtr.h>
 #include <stdint.h>
-
-using namespace art::compiler_llvm;
 
 namespace art {
 
-int oatVRegOffset(const art::DexFile::CodeItem* code_item,
+int oatVRegOffset(const DexFile::CodeItem* code_item,
                   uint32_t core_spills, uint32_t fp_spills,
                   size_t frame_size, int reg) {
-  UNIMPLEMENTED(FATAL);
+
+  // TODO: Remove oatVRegOffset() after we have adapted the OatWriter
+  // and OatFile.
+
+  UNIMPLEMENTED(WARNING) << "oatVRegOffset() is not and won't be "
+                         << "implemented in LLVM backend";
   return 0;
 }
 

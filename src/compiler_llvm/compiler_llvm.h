@@ -29,7 +29,6 @@ namespace art {
   class ClassLoader;
   class CompiledMethod;
   class Compiler;
-  class Mutex;
 }
 
 
