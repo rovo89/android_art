@@ -67,19 +67,15 @@ static inline uint64_t Read8BE(unsigned char const** ppSrc) {
 }
 
 /*
- * Read a UTF-8 string into newly-allocated storage, and null-terminate it.
- *
- * Returns the string and its length.  (The latter is probably unnecessary
- * for the way we're using UTF8.)
+ * Reads a UTF-8 string into a std::string.
  */
-static inline char* ReadNewUtf8String(unsigned char const** ppSrc, size_t* pLength) {
+static inline std::string ReadNewUtf8String(unsigned char const** ppSrc) {
   uint32_t length = Read4BE(ppSrc);
-  char* buf = (char*) malloc(length+1);
-  memcpy(buf, *ppSrc, length);
-  buf[length] = '\0';
+  std::string s;
+  s.resize(length);
+  memcpy(&s[0], *ppSrc, length);
   (*ppSrc) += length;
-  *pLength = length;
-  return buf;
+  return s;
 }
 
 static inline void Append1BE(std::vector<uint8_t>& bytes, uint8_t value) {

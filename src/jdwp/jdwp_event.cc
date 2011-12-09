@@ -128,7 +128,7 @@ static void dumpEvent(const JdwpEvent* pEvent) {
 
   for (int i = 0; i < pEvent->modCount; i++) {
     const JdwpEventMod* pMod = &pEvent->mods[i];
-    LOG(INFO) << "  " << static_cast<JdwpModKind>(pMod->modKind);
+    LOG(INFO) << "  " << pMod->modKind;
     /* TODO - show details */
   }
 }
@@ -451,8 +451,7 @@ static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket) {
       }
       break;
     default:
-      LOG(ERROR) << "unhandled mod kind " << pMod->modKind;
-      CHECK(false);
+      LOG(FATAL) << "unknown mod kind " << pMod->modKind;
       break;
     }
   }
@@ -544,7 +543,6 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspendPolicy) {
     SetWaitForEventThread(Dbg::GetThreadSelfId());
 
     /* leave pReq->invoke_needed_ raised so we can check reentrancy */
-    LOG(VERBOSE) << "invoking method...";
     Dbg::ExecuteMethod(pReq);
 
     pReq->error = ERR_NONE;

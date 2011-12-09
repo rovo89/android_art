@@ -59,7 +59,7 @@ Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directTo
       current_heap_(HPROF_HEAP_DEFAULT),
       objects_in_segment_(0),
       direct_to_ddms_(0),
-      file_name_(NULL),
+      file_name_(outputFileName),
       file_data_ptr_(NULL),
       file_data_size_(0),
       mem_fp_(NULL),
@@ -76,7 +76,6 @@ Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directTo
   }
 
   direct_to_ddms_ = directToDdms;
-  file_name_ = strdup(outputFileName);
   mem_fp_ = fp;
   fd_ = fd;
 
@@ -535,11 +534,11 @@ bool Hprof::Finish() {
   FlushCurrentRecord();
 
   // create a new Hprof for the start of the file (as opposed to this, which is the tail)
-  Hprof headCtx(file_name_, fd_, true, direct_to_ddms_);
+  Hprof headCtx(file_name_.c_str(), fd_, true, direct_to_ddms_);
   headCtx.classes_ = classes_;
   headCtx.strings_ = strings_;
 
-  LOG(INFO) << StringPrintf("hprof: dumping heap strings to \"%s\".", file_name_);
+  LOG(INFO) << StringPrintf("hprof: dumping heap strings to \"%s\".", file_name_.c_str());
   headCtx.DumpStrings();
   headCtx.DumpClasses();
 
@@ -575,9 +574,9 @@ bool Hprof::Finish() {
         // continue to fail-handler below
       }
     } else {
-      outFd = open(file_name_, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+      outFd = open(file_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
       if (outFd < 0) {
-        LOG(ERROR) << StringPrintf("can't open %s: %s", headCtx.file_name_, strerror(errno));
+        LOG(ERROR) << StringPrintf("can't open %s: %s", headCtx.file_name_.c_str(), strerror(errno));
         // continue to fail-handler below
       }
     }
@@ -607,7 +606,6 @@ Hprof::~Hprof() {
     fclose(mem_fp_);
   }
   free(current_record_.body_);
-  free(file_name_);
   free(file_data_ptr_);
 }
 

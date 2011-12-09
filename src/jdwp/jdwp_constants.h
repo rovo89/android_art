@@ -35,6 +35,7 @@ enum JdwpError {
   ERR_INVALID_PRIORITY                            = 12,
   ERR_THREAD_NOT_SUSPENDED                        = 13,
   ERR_THREAD_SUSPENDED                            = 14,
+  ERR_THREAD_NOT_ALIVE                            = 15,
   ERR_INVALID_OBJECT                              = 20,
   ERR_INVALID_CLASS                               = 21,
   ERR_CLASS_NOT_PREPARED                          = 22,
@@ -110,7 +111,7 @@ enum JdwpEventKind {
   EK_EXCEPTION            = 4,
   EK_USER_DEFINED         = 5,
   EK_THREAD_START         = 6,
-  EK_THREAD_END           = 7,
+  EK_THREAD_DEATH         = 7, // Formerly known as THREAD_END.
   EK_CLASS_PREPARE        = 8,
   EK_CLASS_UNLOAD         = 9,
   EK_CLASS_LOAD           = 10,
@@ -119,11 +120,14 @@ enum JdwpEventKind {
   EK_EXCEPTION_CATCH      = 30,
   EK_METHOD_ENTRY         = 40,
   EK_METHOD_EXIT          = 41,
-  EK_VM_INIT              = 90,
+  EK_METHOD_EXIT_WITH_RETURN_VALUE = 42,
+  EK_MONITOR_CONTENDED_ENTER       = 43,
+  EK_MONITOR_CONTENDED_ENTERED     = 44,
+  EK_MONITOR_WAIT         = 45,
+  EK_MONITOR_WAITED       = 46,
+  EK_VM_START             = 90, // Formerly known as VM_INIT.
   EK_VM_DEATH             = 99,
-  EK_VM_DISCONNECTED      = 100,  /* "Never sent across JDWP */
-  EK_VM_START             = EK_VM_INIT,
-  EK_THREAD_DEATH         = EK_THREAD_END,
+  EK_VM_DISCONNECTED      = 100, // "Never sent across JDWP".
 };
 std::ostream& operator<<(std::ostream& os, const JdwpEventKind& value);
 
@@ -142,6 +146,7 @@ enum JdwpModKind {
   MK_FIELD_ONLY           = 9,
   MK_STEP                 = 10,
   MK_INSTANCE_ONLY        = 11,
+  MK_SOURCE_NAME_MATCH    = 12, // Since Java 6.
 };
 std::ostream& operator<<(std::ostream& os, const JdwpModKind& value);
 

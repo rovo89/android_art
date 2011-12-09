@@ -230,7 +230,7 @@ void jdwpNetFree(NetState* netState);       /* fwd */
 NetState* jdwpNetStartup(unsigned short listenPort, const char* connectHost,
     unsigned short connectPort)
 {
-    NetState* netState = (NetState*) malloc(sizeof(*netState));
+    NetState* netState = new NetState;
     memset(netState, 0, sizeof(*netState));
     netState->listenSock = -1;
     netState->dbg.sock = netState->vm.sock = -1;
@@ -342,7 +342,7 @@ void jdwpNetFree(NetState* netState)
         return;
 
     jdwpNetShutdown(netState);
-    free(netState);
+    delete netState;
 }
 
 /*

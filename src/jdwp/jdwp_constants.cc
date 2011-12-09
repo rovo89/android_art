@@ -40,6 +40,8 @@ const char* ErrorStr(JdwpError error) {
     return "THREAD_NOT_SUSPENDED";
   case ERR_THREAD_SUSPENDED:
     return "THREAD_SUSPENDED";
+  case ERR_THREAD_NOT_ALIVE:
+    return "THREAD_NOT_ALIVE";
   case ERR_INVALID_OBJECT:
     return "INVALID_OBJEC";
   case ERR_INVALID_CLASS:
@@ -157,7 +159,7 @@ const char* EventKindStr(JdwpEventKind kind) {
   case EK_EXCEPTION:          return "EXCEPTION";
   case EK_USER_DEFINED:       return "USER_DEFINED";
   case EK_THREAD_START:       return "THREAD_START";
-  /*case EK_THREAD_END:         return "THREAD_END";*/
+  case EK_THREAD_DEATH:       return "THREAD_DEATH";
   case EK_CLASS_PREPARE:      return "CLASS_PREPARE";
   case EK_CLASS_UNLOAD:       return "CLASS_UNLOAD";
   case EK_CLASS_LOAD:         return "CLASS_LOAD";
@@ -166,11 +168,14 @@ const char* EventKindStr(JdwpEventKind kind) {
   case EK_EXCEPTION_CATCH:    return "EXCEPTION_CATCH";
   case EK_METHOD_ENTRY:       return "METHOD_ENTRY";
   case EK_METHOD_EXIT:        return "METHOD_EXIT";
-  case EK_VM_INIT:            return "VM_INIT";
+  case EK_METHOD_EXIT_WITH_RETURN_VALUE: return "METHOD_EXIT_WITH_RETURN_VALUE";
+  case EK_MONITOR_CONTENDED_ENTER:       return "MONITOR_CONTENDED_ENTER";
+  case EK_MONITOR_CONTENDED_ENTERED:     return "MONITOR_CONTENDED_ENTERED";
+  case EK_MONITOR_WAIT:       return "MONITOR_WAIT";
+  case EK_MONITOR_WAITED:     return "MONITOR_WAITED";
+  case EK_VM_START:           return "VM_START";
   case EK_VM_DEATH:           return "VM_DEATH";
   case EK_VM_DISCONNECTED:    return "VM_DISCONNECTED";
-  /*case EK_VM_START:           return "VM_START";*/
-  case EK_THREAD_DEATH:       return "THREAD_DEATH";
   default:                    return "?UNKNOWN?";
   }
 }
@@ -179,24 +184,24 @@ std::ostream& operator<<(std::ostream& os, const JdwpEventKind& value) {
   return os;
 }
 
-const char* ModKindStr(JdwpModKind kind) {
-  switch (kind) {
-  case MK_COUNT:              return "COUNT";
-  case MK_CONDITIONAL:        return "CONDITIONAL";
-  case MK_THREAD_ONLY:        return "THREAD_ONLY";
-  case MK_CLASS_ONLY:         return "CLASS_ONLY";
-  case MK_CLASS_MATCH:        return "CLASS_MATCH";
-  case MK_CLASS_EXCLUDE:      return "CLASS_EXCLUDE";
-  case MK_LOCATION_ONLY:      return "LOCATION_ONLY";
-  case MK_EXCEPTION_ONLY:     return "EXCEPTION_ONLY";
-  case MK_FIELD_ONLY:         return "FIELD_ONLY";
-  case MK_STEP:               return "STEP";
-  case MK_INSTANCE_ONLY:      return "INSTANCE_ONLY";
-  default:                    return "?UNKNOWN?";
-  }
-}
 std::ostream& operator<<(std::ostream& os, const JdwpModKind& value) {
-  os << ModKindStr(value);
+  switch (value) {
+  case MK_COUNT:             os << "COUNT"; break;
+  case MK_CONDITIONAL:       os << "CONDITIONAL"; break;
+  case MK_THREAD_ONLY:       os << "THREAD_ONLY"; break;
+  case MK_CLASS_ONLY:        os << "CLASS_ONLY"; break;
+  case MK_CLASS_MATCH:       os << "CLASS_MATCH"; break;
+  case MK_CLASS_EXCLUDE:     os << "CLASS_EXCLUDE"; break;
+  case MK_LOCATION_ONLY:     os << "LOCATION_ONLY"; break;
+  case MK_EXCEPTION_ONLY:    os << "EXCEPTION_ONLY"; break;
+  case MK_FIELD_ONLY:        os << "FIELD_ONLY"; break;
+  case MK_STEP:              os << "STEP"; break;
+  case MK_INSTANCE_ONLY:     os << "INSTANCE_ONLY"; break;
+  case MK_SOURCE_NAME_MATCH: os << "SOURCE_NAME_MATCH"; break;
+  default:
+    os << "JdwpModKind[" << static_cast<int>(value) << "]";
+    break;
+  }
   return os;
 }
 

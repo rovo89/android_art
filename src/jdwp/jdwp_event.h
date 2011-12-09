@@ -30,54 +30,54 @@ namespace JDWP {
  * Event modifiers.  A JdwpEvent may have zero or more of these.
  */
 union JdwpEventMod {
-  uint8_t      modKind;                /* JdwpModKind */
+  JdwpModKind modKind;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     int         count;
   } count;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     uint32_t          exprId;
   } conditional;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     ObjectId    threadId;
   } threadOnly;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     RefTypeId   refTypeId;
   } classOnly;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     char*       classPattern;
   } classMatch;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     char*       classPattern;
   } classExclude;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     JdwpLocation loc;
   } locationOnly;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     uint8_t          caught;
     uint8_t          uncaught;
     RefTypeId   refTypeId;
   } exceptionOnly;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     RefTypeId   refTypeId;
     FieldId     fieldId;
   } fieldOnly;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     ObjectId    threadId;
     int         size;           /* JdwpStepSize */
     int         depth;          /* JdwpStepDepth */
   } step;
   struct {
-    uint8_t          modKind;
+    JdwpModKind modKind;
     ObjectId    objectId;
   } instanceOnly;
 };

@@ -37,7 +37,10 @@ struct Thread;
  * Invoke-during-breakpoint support.
  */
 struct DebugInvokeReq {
-  DebugInvokeReq() : lock_("a DebugInvokeReq lock"), cond_("a DebugInvokeReq condition variable") {
+  DebugInvokeReq()
+      : invoke_needed_(false),
+        lock_("a DebugInvokeReq lock"),
+        cond_("a DebugInvokeReq condition variable") {
   }
 
   /* boolean; only set when we're in the tail end of an event handler */
@@ -126,18 +129,18 @@ public:
    * Class, Object, Array
    */
   static std::string GetClassDescriptor(JDWP::RefTypeId id);
-  static JDWP::ObjectId GetClassObject(JDWP::RefTypeId id);
-  static JDWP::RefTypeId GetSuperclass(JDWP::RefTypeId id);
+  static bool GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId);
+  static bool GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId);
   static JDWP::ObjectId GetClassLoader(JDWP::RefTypeId id);
-  static uint32_t GetAccessFlags(JDWP::RefTypeId id);
-  static bool IsInterface(JDWP::RefTypeId id);
-  static void GetClassList(uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
+  static bool GetAccessFlags(JDWP::RefTypeId id, uint32_t& access_flags);
+  static bool IsInterface(JDWP::RefTypeId classId, bool& is_interface);
+  static void GetClassList(std::vector<JDWP::RefTypeId>& classes);
   static void GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
-  static void GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
-  static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
+  static bool GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
+  static void FindLoadedClassBySignature(const std::string& descriptor, std::vector<JDWP::RefTypeId>& ids);
   static void GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
-  static std::string GetSignature(JDWP::RefTypeId refTypeId);
+  static bool GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
@@ -147,9 +150,9 @@ public:
   static bool OutputArray(JDWP::ObjectId arrayId, int firstIndex, int count, JDWP::ExpandBuf* pReply);
   static bool SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count, const uint8_t* buf);
 
-  static JDWP::ObjectId CreateString(const char* str);
-  static JDWP::ObjectId CreateObject(JDWP::RefTypeId classId);
-  static JDWP::ObjectId CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length);
+  static JDWP::ObjectId CreateString(const std::string& str);
+  static bool CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object);
+  static bool CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length, JDWP::ObjectId& new_array);
 
   static bool MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId);
 
@@ -157,9 +160,9 @@ public:
    * Method and Field
    */
   static std::string GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id);
-  static void OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
-  static void OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
-  static void OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);
+  static bool OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
+  static bool OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
+  static bool OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);
   static void OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply);
   static void OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric, JDWP::ExpandBuf* pReply);
 

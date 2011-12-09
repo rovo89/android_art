@@ -447,18 +447,29 @@ void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 }
 
 std::string Dbg::GetClassDescriptor(JDWP::RefTypeId classId) {
-  Class* c = gRegistry->Get<Class*>(classId);
-  return ClassHelper(c).GetDescriptor();
+  Object* o = gRegistry->Get<Object*>(classId);
+  if (o == NULL || !o->IsClass()) {
+    return StringPrintf("non-class %p", o); // This is only used for debugging output anyway.
+  }
+  return ClassHelper(o->AsClass()).GetDescriptor();
 }
 
-JDWP::ObjectId Dbg::GetClassObject(JDWP::RefTypeId id) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
+bool Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId) {
+  Object* o = gRegistry->Get<Object*>(id);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  classObjectId = gRegistry->Add(o);
+  return true;
 }
 
-JDWP::RefTypeId Dbg::GetSuperclass(JDWP::RefTypeId id) {
-  Class* c = gRegistry->Get<Class*>(id);
-  return gRegistry->Add(c->GetSuperClass());
+bool Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId) {
+  Object* o = gRegistry->Get<Object*>(id);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  superclassId = gRegistry->Add(o->AsClass()->GetSuperClass());
+  return true;
 }
 
 JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
@@ -466,21 +477,32 @@ JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
   return gRegistry->Add(o->GetClass()->GetClassLoader());
 }
 
-uint32_t Dbg::GetAccessFlags(JDWP::RefTypeId id) {
-  Class* c = gRegistry->Get<Class*>(id);
-  return c->GetAccessFlags() & kAccJavaFlagsMask;
+bool Dbg::GetAccessFlags(JDWP::RefTypeId id, uint32_t& access_flags) {
+  Object* o = gRegistry->Get<Object*>(id);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  access_flags = o->AsClass()->GetAccessFlags() & kAccJavaFlagsMask;
+  return true;
 }
 
-bool Dbg::IsInterface(JDWP::RefTypeId classId) {
-  Class* c = gRegistry->Get<Class*>(classId);
-  return c->IsInterface();
+bool Dbg::IsInterface(JDWP::RefTypeId classId, bool& is_interface) {
+  Object* o = gRegistry->Get<Object*>(classId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  is_interface = o->AsClass()->IsInterface();
+  return true;
 }
 
-void Dbg::GetClassList(uint32_t* pClassCount, JDWP::RefTypeId** pClasses) {
+void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
   // Get the complete list of reference classes (i.e. all classes except
   // the primitive types).
   // Returns a newly-allocated buffer full of RefTypeId values.
   struct ClassListCreator {
+    ClassListCreator(std::vector<JDWP::RefTypeId>& classes) : classes(classes) {
+    }
+
     static bool Visit(Class* c, void* arg) {
       return reinterpret_cast<ClassListCreator*>(arg)->Visit(c);
     }
@@ -492,24 +514,24 @@ void Dbg::GetClassList(uint32_t* pClassCount, JDWP::RefTypeId** pClasses) {
       return true;
     }
 
-    std::vector<JDWP::RefTypeId> classes;
+    std::vector<JDWP::RefTypeId>& classes;
   };
 
-  ClassListCreator clc;
+  ClassListCreator clc(classes);
   Runtime::Current()->GetClassLinker()->VisitClasses(ClassListCreator::Visit, &clc);
-  *pClassCount = clc.classes.size();
-  *pClasses = new JDWP::RefTypeId[clc.classes.size()];
-  for (size_t i = 0; i < clc.classes.size(); ++i) {
-    (*pClasses)[i] = clc.classes[i];
-  }
 }
 
 void Dbg::GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
-  Class* c = gRegistry->Get<Class*>(classId);
+bool Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
+  Object* o = gRegistry->Get<Object*>(classId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+
+  Class* c = o->AsClass();
   if (c->IsArrayClass()) {
     *pStatus = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
     *pTypeTag = JDWP::TT_ARRAY;
@@ -525,9 +547,10 @@ void Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uin
   if (pDescriptor != NULL) {
     *pDescriptor = ClassHelper(c).GetDescriptor();
   }
+  return true;
 }
 
-void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids) {
+void Dbg::FindLoadedClassBySignature(const std::string& descriptor, std::vector<JDWP::RefTypeId>& ids) {
   std::vector<Class*> classes;
   Runtime::Current()->GetClassLinker()->LookupClasses(descriptor, classes);
   ids.clear();
@@ -553,17 +576,22 @@ uint8_t Dbg::GetClassObjectType(JDWP::RefTypeId refTypeId) {
   return 0;
 }
 
-std::string Dbg::GetSignature(JDWP::RefTypeId refTypeId) {
-  Class* c = gRegistry->Get<Class*>(refTypeId);
-  CHECK(c != NULL);
-  return ClassHelper(c).GetDescriptor();
+bool Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signature) {
+  Object* o = gRegistry->Get<Object*>(refTypeId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  signature = ClassHelper(o->AsClass()).GetDescriptor();
+  return true;
 }
 
 bool Dbg::GetSourceFile(JDWP::RefTypeId refTypeId, std::string& result) {
-  Class* c = gRegistry->Get<Class*>(refTypeId);
-  CHECK(c != NULL);
-  result = ClassHelper(c).GetSourceFile();
-  return result == NULL;
+  Object* o = gRegistry->Get<Object*>(refTypeId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  result = ClassHelper(o->AsClass()).GetSourceFile();
+  return result != NULL;
 }
 
 uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
@@ -700,25 +728,33 @@ bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const 
   return true;
 }
 
-JDWP::ObjectId Dbg::CreateString(const char* str) {
-  return gRegistry->Add(String::AllocFromModifiedUtf8(str));
+JDWP::ObjectId Dbg::CreateString(const std::string& str) {
+  return gRegistry->Add(String::AllocFromModifiedUtf8(str.c_str()));
 }
 
-JDWP::ObjectId Dbg::CreateObject(JDWP::RefTypeId classId) {
-  Class* c = gRegistry->Get<Class*>(classId);
-  return gRegistry->Add(c->AllocObject());
+bool Dbg::CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object) {
+  Object* o = gRegistry->Get<Object*>(classId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  new_object = gRegistry->Add(o->AsClass()->AllocObject());
+  return true;
 }
 
 /*
  * Used by Eclipse's "Display" view to evaluate "new byte[5]" to get "(byte[]) [0, 0, 0, 0, 0]".
  */
-JDWP::ObjectId Dbg::CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length) {
-  Class* array_class = gRegistry->Get<Class*>(arrayTypeId);
-  CHECK(array_class->IsArrayClass()) << PrettyClass(array_class);
-  return gRegistry->Add(Array::Alloc(array_class, length));
+bool Dbg::CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length, JDWP::ObjectId& new_array) {
+  Object* o = gRegistry->Get<Object*>(arrayTypeId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  new_array = gRegistry->Add(Array::Alloc(o->AsClass(), length));
+  return true;
 }
 
 bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
+  // TODO: error handling if the RefTypeIds aren't actually Class*s.
   return gRegistry->Get<Class*>(instClassId)->InstanceOf(gRegistry->Get<Class*>(classId));
 }
 
@@ -815,10 +851,13 @@ static uint16_t DemangleSlot(uint16_t slot, Frame& f) {
   return slot;
 }
 
-void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
-  Class* c = gRegistry->Get<Class*>(refTypeId);
-  CHECK(c != NULL);
+bool Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
+  Object* o = gRegistry->Get<Object*>(refTypeId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
 
+  Class* c = o->AsClass();
   size_t instance_field_count = c->NumInstanceFields();
   size_t static_field_count = c->NumStaticFields();
 
@@ -836,12 +875,16 @@ void Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDW
     }
     expandBufAdd4BE(pReply, MangleAccessFlags(f->GetAccessFlags()));
   }
+  return true;
 }
 
-void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
-  Class* c = gRegistry->Get<Class*>(refTypeId);
-  CHECK(c != NULL);
+bool Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
+  Object* o = gRegistry->Get<Object*>(refTypeId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
 
+  Class* c = o->AsClass();
   size_t direct_method_count = c->NumDirectMethods();
   size_t virtual_method_count = c->NumVirtualMethods();
 
@@ -859,17 +902,21 @@ void Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JD
     }
     expandBufAdd4BE(pReply, MangleAccessFlags(m->GetAccessFlags()));
   }
+  return true;
 }
 
-void Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply) {
-  Class* c = gRegistry->Get<Class*>(refTypeId);
-  CHECK(c != NULL);
-  ClassHelper kh(c);
+bool Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply) {
+  Object* o = gRegistry->Get<Object*>(refTypeId);
+  if (o == NULL || !o->IsClass()) {
+    return false;
+  }
+  ClassHelper kh(o->AsClass());
   size_t interface_count = kh.NumInterfaces();
   expandBufAdd4BE(pReply, interface_count);
   for (size_t i = 0; i < interface_count; ++i) {
     expandBufAddRefTypeId(pReply, gRegistry->Add(kh.GetInterface(i)));
   }
+  return true;
 }
 
 void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply) {
@@ -1621,11 +1668,12 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   Method* m = pReq->method_;
+  LOG(VERBOSE) << "ExecuteMethod " << PrettyMethod(m);
   if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
     m = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+    LOG(VERBOSE) << "ExecuteMethod " << PrettyMethod(m);
   }
   CHECK(m != NULL);
-  LOG(VERBOSE) << "ExecuteMethod " << PrettyMethod(m);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 

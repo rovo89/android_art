@@ -212,7 +212,7 @@ class Hprof {
   // Otherwise, "file_name_" must be valid, though if "fd" >= 0 it will
   // only be used for debug messages.
   bool direct_to_ddms_;
-  char* file_name_;
+  std::string file_name_;
   char* file_data_ptr_;   // for open_memstream
   size_t file_data_size_; // for open_memstream
   FILE *mem_fp_;

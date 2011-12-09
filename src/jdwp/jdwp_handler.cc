@@ -194,8 +194,7 @@ static JdwpError handleVM_Version(JdwpState* state, const uint8_t* buf, int data
  * been loaded by multiple class loaders.
  */
 static JdwpError handleVM_ClassesBySignature(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  size_t strLen;
-  char* classDescriptor = ReadNewUtf8String(&buf, &strLen);
+  std::string classDescriptor(ReadNewUtf8String(&buf));
   LOG(VERBOSE) << "  Req for class by signature '" << classDescriptor << "'";
 
   std::vector<RefTypeId> ids;
@@ -207,14 +206,14 @@ static JdwpError handleVM_ClassesBySignature(JdwpState* state, const uint8_t* bu
     // Get class vs. interface and status flags.
     JDWP::JdwpTypeTag typeTag;
     uint32_t status;
-    Dbg::GetClassInfo(ids[i], &typeTag, &status, NULL);
+    if (!Dbg::GetClassInfo(ids[i], &typeTag, &status, NULL)) {
+      return ERR_INVALID_CLASS;
+    }
 
     expandBufAdd1(pReply, typeTag);
     expandBufAddRefTypeId(pReply, ids[i]);
     expandBufAdd4BE(pReply, status);
   }
-
-  free(classDescriptor);
 
   return ERR_NONE;
 }
@@ -324,16 +323,12 @@ static JdwpError handleVM_Exit(JdwpState* state, const uint8_t* buf, int dataLen
  * string "java.util.Arrays".)
  */
 static JdwpError handleVM_CreateString(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  size_t strLen;
-  char* str = ReadNewUtf8String(&buf, &strLen);
-
+  std::string str(ReadNewUtf8String(&buf));
   LOG(VERBOSE) << "  Req to create string '" << str << "'";
-
   ObjectId stringId = Dbg::CreateString(str);
   if (stringId == 0) {
     return ERR_OUT_OF_MEMORY;
   }
-
   expandBufAddObjectId(pReply, stringId);
   return ERR_NONE;
 }
@@ -425,29 +420,26 @@ static JdwpError handleVM_CapabilitiesNew(JdwpState* state, const uint8_t* buf, 
  * Cough up the complete list of classes.
  */
 static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  uint32_t numClasses = 0;
-  RefTypeId* classRefBuf = NULL;
+  std::vector<JDWP::RefTypeId> classes;
+  Dbg::GetClassList(classes);
 
-  Dbg::GetClassList(&numClasses, &classRefBuf);
+  expandBufAdd4BE(pReply, classes.size());
 
-  expandBufAdd4BE(pReply, numClasses);
-
-  for (uint32_t i = 0; i < numClasses; i++) {
+  for (size_t i = 0; i < classes.size(); ++i) {
     static const char genericSignature[1] = "";
     JDWP::JdwpTypeTag refTypeTag;
     std::string descriptor;
     uint32_t status;
-
-    Dbg::GetClassInfo(classRefBuf[i], &refTypeTag, &status, &descriptor);
+    if (!Dbg::GetClassInfo(classes[i], &refTypeTag, &status, &descriptor)) {
+      return ERR_INVALID_CLASS;
+    }
 
     expandBufAdd1(pReply, refTypeTag);
-    expandBufAddRefTypeId(pReply, classRefBuf[i]);
+    expandBufAddRefTypeId(pReply, classes[i]);
     expandBufAddUtf8String(pReply, descriptor);
     expandBufAddUtf8String(pReply, genericSignature);
     expandBufAdd4BE(pReply, status);
   }
-
-  free(classRefBuf);
 
   return ERR_NONE;
 }
@@ -460,9 +452,11 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
-  std::string signature(Dbg::GetSignature(refTypeId));
+  std::string signature;
+  if (!Dbg::GetSignature(refTypeId, signature)) {
+    return ERR_INVALID_CLASS;
+  }
   expandBufAddUtf8String(pReply, signature);
-
   return ERR_NONE;
 }
 
@@ -471,8 +465,11 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
  */
 static JdwpError handleRT_Modifiers(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  uint32_t modBits = Dbg::GetAccessFlags(refTypeId);
-  expandBufAdd4BE(pReply, modBits);
+  uint32_t access_flags;
+  if (!Dbg::GetAccessFlags(refTypeId, access_flags)) {
+    return ERR_INVALID_CLASS;
+  }
+  expandBufAdd4BE(pReply, access_flags);
   return ERR_NONE;
 }
 
@@ -512,11 +509,11 @@ static JdwpError handleRT_SourceFile(JdwpState* state, const uint8_t* buf, int d
  */
 static JdwpError handleRT_Status(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-
-  /* get status flags */
   JDWP::JdwpTypeTag typeTag;
   uint32_t status;
-  Dbg::GetClassInfo(refTypeId, &typeTag, &status, NULL);
+  if (!Dbg::GetClassInfo(refTypeId, &typeTag, &status, NULL)) {
+    return ERR_INVALID_CLASS;
+  }
   expandBufAdd4BE(pReply, status);
   return ERR_NONE;
 }
@@ -526,12 +523,8 @@ static JdwpError handleRT_Status(JdwpState* state, const uint8_t* buf, int dataL
  */
 static JdwpError handleRT_Interfaces(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-
   LOG(VERBOSE) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId, Dbg::GetClassDescriptor(refTypeId).c_str());
-
-  Dbg::OutputDeclaredInterfaces(refTypeId, pReply);
-
-  return ERR_NONE;
+  return Dbg::OutputDeclaredInterfaces(refTypeId, pReply) ? ERR_NONE : ERR_INVALID_CLASS;
 }
 
 /*
@@ -539,12 +532,12 @@ static JdwpError handleRT_Interfaces(JdwpState* state, const uint8_t* buf, int d
  */
 static JdwpError handleRT_ClassObject(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  ObjectId classObjId = Dbg::GetClassObject(refTypeId);
-
-  LOG(VERBOSE) << StringPrintf("  RefTypeId %llx -> ObjectId %llx", refTypeId, classObjId);
-
-  expandBufAddObjectId(pReply, classObjId);
-
+  ObjectId classObjectId;
+  if (!Dbg::GetClassObject(refTypeId, classObjectId)) {
+    return ERR_INVALID_CLASS;
+  }
+  LOG(VERBOSE) << StringPrintf("  RefTypeId %llx -> ObjectId %llx", refTypeId, classObjectId);
+  expandBufAddObjectId(pReply, classObjectId);
   return ERR_NONE;
 }
 
@@ -567,8 +560,8 @@ static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* 
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   LOG(VERBOSE) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
-  std::string signature(Dbg::GetSignature(refTypeId));
-  if (signature != NULL) {
+  std::string signature;
+  if (Dbg::GetSignature(refTypeId, signature)) {
     expandBufAddUtf8String(pReply, signature);
   } else {
     LOG(WARNING) << StringPrintf("No signature for refTypeId=0x%llx", refTypeId);
@@ -591,16 +584,27 @@ static JdwpError handleRT_ClassLoader(JdwpState* state, const uint8_t* buf, int 
   return ERR_NONE;
 }
 
+static std::string Describe(const RefTypeId& refTypeId) {
+  std::string signature("unknown");
+  Dbg::GetSignature(refTypeId, signature);
+  return StringPrintf("refTypeId=0x%llx (%s)", refTypeId, signature.c_str());
+}
+
 /*
  * Given a referenceTypeId, return a block of stuff that describes the
  * fields declared by a class.
  */
 static JdwpError handleRT_FieldsWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  LOG(VERBOSE) << StringPrintf("  Req for fields in refTypeId=0x%llx", refTypeId);
-  LOG(VERBOSE) << StringPrintf("  --> '%s'", Dbg::GetSignature(refTypeId).c_str());
-  Dbg::OutputDeclaredFields(refTypeId, true, pReply);
-  return ERR_NONE;
+  LOG(VERBOSE) << "  Req for fields in " << Describe(refTypeId);
+  return Dbg::OutputDeclaredFields(refTypeId, true, pReply) ? ERR_NONE : ERR_INVALID_CLASS;
+}
+
+// Obsolete equivalent of FieldsWithGeneric, without the generic type information.
+static JdwpError handleRT_Fields(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  LOG(VERBOSE) << "  Req for fields in " << Describe(refTypeId);
+  return Dbg::OutputDeclaredFields(refTypeId, false, pReply) ? ERR_NONE : ERR_INVALID_CLASS;
 }
 
 /*
@@ -609,13 +613,15 @@ static JdwpError handleRT_FieldsWithGeneric(JdwpState* state, const uint8_t* buf
  */
 static JdwpError handleRT_MethodsWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
+  LOG(VERBOSE) << "  Req for methods in " << Describe(refTypeId);
+  return Dbg::OutputDeclaredMethods(refTypeId, true, pReply) ? ERR_NONE : ERR_INVALID_CLASS;
+}
 
-  LOG(VERBOSE) << StringPrintf("  Req for methods in refTypeId=0x%llx", refTypeId);
-  LOG(VERBOSE) << StringPrintf("  --> '%s'", Dbg::GetSignature(refTypeId).c_str());
-
-  Dbg::OutputDeclaredMethods(refTypeId, true, pReply);
-
-  return ERR_NONE;
+// Obsolete equivalent of MethodsWithGeneric, without the generic type information.
+static JdwpError handleRT_Methods(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  LOG(VERBOSE) << "  Req for methods in " << Describe(refTypeId);
+  return Dbg::OutputDeclaredMethods(refTypeId, false, pReply) ? ERR_NONE : ERR_INVALID_CLASS;
 }
 
 /*
@@ -623,11 +629,11 @@ static JdwpError handleRT_MethodsWithGeneric(JdwpState* state, const uint8_t* bu
  */
 static JdwpError handleCT_Superclass(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId classId = ReadRefTypeId(&buf);
-
-  RefTypeId superClassId = Dbg::GetSuperclass(classId);
-
+  RefTypeId superClassId;
+  if (!Dbg::GetSuperclass(classId, superClassId)) {
+    return ERR_INVALID_CLASS;
+  }
   expandBufAddRefTypeId(pReply, superClassId);
-
   return ERR_NONE;
 }
 
@@ -680,7 +686,10 @@ static JdwpError handleCT_NewInstance(JdwpState* state, const uint8_t* buf, int 
   MethodId methodId = ReadMethodId(&buf);
 
   LOG(VERBOSE) << "Creating instance of " << Dbg::GetClassDescriptor(classId);
-  ObjectId objectId = Dbg::CreateObject(classId);
+  ObjectId objectId;
+  if (!Dbg::CreateObject(classId, objectId)) {
+    return ERR_INVALID_CLASS;
+  }
   if (objectId == 0) {
     return ERR_OUT_OF_MEMORY;
   }
@@ -695,7 +704,10 @@ static JdwpError handleAT_newInstance(JdwpState* state, const uint8_t* buf, int 
   uint32_t length = Read4BE(&buf);
 
   LOG(VERBOSE) << StringPrintf("Creating array %s[%u]", Dbg::GetClassDescriptor(arrayTypeId).c_str(), length);
-  ObjectId objectId = Dbg::CreateArrayObject(arrayTypeId, length);
+  ObjectId objectId;
+  if (!Dbg::CreateArrayObject(arrayTypeId, length, objectId)) {
+    return ERR_INVALID_CLASS;
+  }
   if (objectId == 0) {
     return ERR_OUT_OF_MEMORY;
   }
@@ -860,7 +872,7 @@ static JdwpError handleSR_Value(JdwpState* state, const uint8_t* buf, int dataLe
   ObjectId stringObject = ReadObjectId(&buf);
   std::string str(Dbg::StringToUtf8(stringObject));
 
-  LOG(VERBOSE) << StringPrintf("  Req for str %llx --> '%s'", stringObject, str.c_str());
+  LOG(VERBOSE) << StringPrintf("  Req for str %llx --> '%s'", stringObject, PrintableString(str).c_str());
 
   expandBufAddUtf8String(pReply, str);
 
@@ -1248,7 +1260,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
    * mods in JDWP doc).
    */
   for (uint32_t idx = 0; idx < modifierCount; idx++) {
-    uint8_t modKind = Read1(&buf);
+    JdwpModKind modKind = static_cast<JdwpModKind>(Read1(&buf));
 
     pEvent->mods[idx].modKind = modKind;
 
@@ -1286,25 +1298,17 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
       break;
     case MK_CLASS_MATCH:    /* restrict events to matching classes */
       {
-        char* pattern;
-        size_t strLen;
-
-        pattern = ReadNewUtf8String(&buf, &strLen);
-        LOG(VERBOSE) << StringPrintf("    ClassMatch: '%s'", pattern);
+        std::string pattern(ReadNewUtf8String(&buf));
+        LOG(VERBOSE) << StringPrintf("    ClassMatch: '%s'", pattern.c_str());
         /* pattern is "java.foo.*", we want "java/foo/ *" */
-        pEvent->mods[idx].classMatch.classPattern = dvmDotToSlash(pattern);
-        free(pattern);
+        pEvent->mods[idx].classMatch.classPattern = dvmDotToSlash(pattern.c_str());
       }
       break;
     case MK_CLASS_EXCLUDE:  /* restrict events to non-matching classes */
       {
-        char* pattern;
-        size_t strLen;
-
-        pattern = ReadNewUtf8String(&buf, &strLen);
-        LOG(VERBOSE) << StringPrintf("    ClassExclude: '%s'", pattern);
-        pEvent->mods[idx].classExclude.classPattern = dvmDotToSlash(pattern);
-        free(pattern);
+        std::string pattern(ReadNewUtf8String(&buf));
+        LOG(VERBOSE) << StringPrintf("    ClassExclude: '%s'", pattern.c_str());
+        pEvent->mods[idx].classExclude.classPattern = dvmDotToSlash(pattern.c_str());
       }
       break;
     case MK_LOCATION_ONLY:  /* restrict certain events based on loc */
@@ -1496,12 +1500,12 @@ static JdwpError handleCOR_ReflectedType(JdwpState* state, const uint8_t* buf, i
 
   LOG(VERBOSE) << StringPrintf("  Req for refTypeId for class=%llx (%s)", classObjectId, Dbg::GetClassDescriptor(classObjectId).c_str());
 
-  /* just hand the type back to them */
-  if (Dbg::IsInterface(classObjectId)) {
-    expandBufAdd1(pReply, TT_INTERFACE);
-  } else {
-    expandBufAdd1(pReply, TT_CLASS);
+  bool is_interface;
+  if (!Dbg::IsInterface(classObjectId, is_interface)) {
+    return ERR_INVALID_CLASS;
   }
+
+  expandBufAdd1(pReply, is_interface ? TT_INTERFACE : TT_CLASS);
   expandBufAddRefTypeId(pReply, classObjectId);
 
   return ERR_NONE;
@@ -1587,8 +1591,8 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 2,    1,  handleRT_Signature,     "ReferenceType.Signature" },
   { 2,    2,  handleRT_ClassLoader,   "ReferenceType.ClassLoader" },
   { 2,    3,  handleRT_Modifiers,     "ReferenceType.Modifiers" },
-  { 2,    4,  NULL, "ReferenceType.Fields" },
-  { 2,    5,  NULL, "ReferenceType.Methods" },
+  { 2,    4,  handleRT_Fields,        "ReferenceType.Fields" },
+  { 2,    5,  handleRT_Methods,       "ReferenceType.Methods" },
   { 2,    6,  handleRT_GetValues,     "ReferenceType.GetValues" },
   { 2,    7,  handleRT_SourceFile,    "ReferenceType.SourceFile" },
   { 2,    8,  NULL, "ReferenceType.NestedTypes" },
