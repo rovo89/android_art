@@ -504,12 +504,10 @@ TEST_F(JniInternalTest, NewStringNullCharsZeroLength) {
   EXPECT_EQ(0, env_->GetStringLength(s));
 }
 
-// TODO: fix gtest death tests on host http://b/5690440
-#if __arm__
-TEST_F(JniInternalTest, NewStringNullCharsNonzeroLength) {
+// TODO: fix gtest death tests on host http://b/5690440 (and target)
+TEST_F(JniInternalTest, DISABLED_NewStringNullCharsNonzeroLength) {
   ASSERT_DEATH(env_->NewString(NULL, 1), "");
 }
-#endif
 
 TEST_F(JniInternalTest, GetStringLength_GetStringUTFLength) {
   // Already tested in the NewString/NewStringUTF tests.
