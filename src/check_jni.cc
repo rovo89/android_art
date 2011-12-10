@@ -95,6 +95,8 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
 
 #define kFlag_Invocation    0x8000      /* Part of the invocation interface (JavaVM*) */
 
+#define kFlag_ForceTrace    0x80000000  // Add this to a JNI function's flags if you want to trace every call.
+
 static const char* gBuiltInPrefixes[] = {
   "Landroid/",
   "Lcom/android/",
@@ -392,7 +394,7 @@ public:
       }
     }
 
-    if (traceMethod != NULL && ShouldTrace(vm_, traceMethod)) {
+    if (((flags_ & kFlag_ForceTrace) != 0) || (traceMethod != NULL && ShouldTrace(vm_, traceMethod))) {
       va_start(ap, fmt0);
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
@@ -444,7 +446,9 @@ public:
           if (c == NULL) {
             msg += "NULL";
           } else if (c == kInvalidIndirectRefObject || !Heap::IsHeapAddress(c)) {
-            StringAppendF(&msg, "%p(INVALID)", jc);
+            StringAppendF(&msg, "INVALID POINTER:%p", jc);
+          } else if (!c->IsClass()) {
+            msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
           } else {
             msg += PrettyClass(c);
             if (!entry) {
@@ -509,7 +513,9 @@ public:
       }
       va_end(ap);
 
-      if (entry) {
+      if ((flags_ & kFlag_ForceTrace) != 0) {
+        LOG(INFO) << "JNI: call to " << function_name_ << "(" << msg << ")";
+      } else if (entry) {
         if (has_method_) {
           std::string methodName(PrettyMethod(traceMethod, false));
           LOG(INFO) << "JNI: " << methodName << " -> " << function_name_ << "(" << msg << ")";
@@ -821,7 +827,7 @@ private:
       okay = obj->GetClass()->IsStringClass();
       break;
     case kThrowable:
-      // TODO
+      okay = obj->GetClass()->IsThrowableClass();
       break;
     }
     if (!okay) {
