@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/file.h>
 
 #include <iostream>
 #include <fstream>
@@ -67,37 +66,6 @@ static void usage() {
           "\n");
   exit(EXIT_FAILURE);
 }
-
-class FileJanitor {
-public:
-  FileJanitor(const std::string& filename, int fd)
-      : filename_(filename), fd_(fd), do_unlink_(true) {
-  }
-
-  void KeepFile() {
-    do_unlink_ = false;
-  }
-
-  ~FileJanitor() {
-    if (fd_ != -1) {
-      int rc = TEMP_FAILURE_RETRY(flock(fd_, LOCK_UN));
-      if (rc == -1) {
-        PLOG(ERROR) << "Failed to unlock " << filename_;
-      }
-    }
-    if (do_unlink_) {
-      int rc = TEMP_FAILURE_RETRY(unlink(filename_.c_str()));
-      if (rc == -1) {
-        PLOG(ERROR) << "Failed to unlink " << filename_;
-      }
-    }
-  }
-
-private:
-  std::string filename_;
-  int fd_;
-  bool do_unlink_;
-};
 
 class Dex2Oat {
  public:
@@ -461,63 +429,13 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  // Create the output file if we can, or open it read-only if we weren't first.
-  bool did_create = true;
-  int fd = open(oat_filename.c_str(), O_EXCL | O_CREAT | O_TRUNC | O_RDWR, 0666);
-  if (fd == -1) {
-    if (errno != EEXIST) {
-      PLOG(ERROR) << "Unable to create oat file " << oat_filename;
-      return EXIT_FAILURE;
-    }
-    did_create = false;
-    fd = open(oat_filename.c_str(), O_RDONLY);
-    if (fd == -1) {
-      PLOG(ERROR) << "Unable to open oat file for reading " << oat_filename;
-      return EXIT_FAILURE;
-    }
+  // Check early that the result of compilation can be written
+  UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true));
+  if (oat_file.get() == NULL) {
+    PLOG(ERROR) << "Unable to create oat file " << oat_filename;
+    return EXIT_FAILURE;
   }
-
-  // Handles removing the file on failure and unlocking on both failure and success.
-  FileJanitor oat_file_janitor(oat_filename, fd);
-
-  // If we won the creation race, block trying to take the lock (since we're going to be doing
-  // the work, we need the lock). If we lost the creation race, spin trying to take the lock
-  // non-blocking until we fail -- at which point we know the other guy has the lock -- and then
-  // block trying to take the now-taken lock.
-  if (did_create) {
-    LOG(INFO) << "This process created " << oat_filename;
-    while (TEMP_FAILURE_RETRY(flock(fd, LOCK_EX)) != 0) {
-      // Try again.
-    }
-    LOG(INFO) << "This process created and locked " << oat_filename;
-  } else {
-    LOG(INFO) << "Another process has already created " << oat_filename;
-    while (TEMP_FAILURE_RETRY(flock(fd, LOCK_EX | LOCK_NB)) == 0) {
-      // Give up the lock and hope the creator has taken the lock next time round.
-      int rc = TEMP_FAILURE_RETRY(flock(fd, LOCK_UN));
-      if (rc == -1) {
-        PLOG(FATAL) << "Failed to unlock " << oat_filename;
-      }
-    }
-    // Now a non-blocking attempt to take the lock has failed, we know the other guy has the
-    // lock, so block waiting to take it.
-    LOG(INFO) << "Another process is already working on " << oat_filename;
-    if (TEMP_FAILURE_RETRY(flock(fd, LOCK_EX)) != 0) {
-      PLOG(ERROR) << "Waiter unable to wait for creator to finish " << oat_filename;
-      return EXIT_FAILURE;
-    }
-    // We have the lock and the creator has finished.
-    // TODO: check the creator did a good job by checking the header.
-    LOG(INFO) << "Another process finished working on " << oat_filename;
-    // Job done.
-    oat_file_janitor.KeepFile();
-    return EXIT_SUCCESS;
-  }
-
-  // If we get this far, we won the creation race and have locked the file.
-  UniquePtr<File> oat_file(OS::FileFromFd(oat_filename.c_str(), fd));
-
-  LOG(INFO) << "dex2oat: " << oat_file->name();
+  LOG(INFO) << "dex2oat: " << oat_filename;
 
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
@@ -563,7 +481,6 @@ int dex2oat(int argc, char** argv) {
   }
 
   if (!image) {
-    oat_file_janitor.KeepFile();
     LOG(INFO) << "Oat file written successfully " << oat_filename;
     return EXIT_SUCCESS;
   }
@@ -577,7 +494,6 @@ int dex2oat(int argc, char** argv) {
   }
 
   // We wrote the oat file successfully, and want to keep it.
-  oat_file_janitor.KeepFile();
   LOG(INFO) << "Oat file written successfully " << oat_filename;
   LOG(INFO) << "Image written successfully " << image_filename;
   return EXIT_SUCCESS;

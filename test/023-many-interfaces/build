@@ -26,3 +26,4 @@ ${JAVAC} -d classes src/*.java
 
 dx --debug --dex --dump-to=classes.lst --output=classes.dex classes
 zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
+dex2oat --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat

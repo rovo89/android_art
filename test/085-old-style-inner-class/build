@@ -23,7 +23,7 @@ mkdir classes
 ${JAVAC} -source 1.4 -target 1.4 -d classes `find src -name '*.java'`
 
 # Suppress stderr to keep the inner class warnings out of the expected output.
-dx --debug --dex --dump-to=classes.lst --output=classes.dex \
-    --dump-width=1000 classes 2>/dev/null
+dx --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes 2>/dev/null
 
 zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
+dex2oat --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat 2>/dev/null

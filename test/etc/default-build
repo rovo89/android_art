@@ -24,20 +24,20 @@ if [ -r src2 ]; then
     ${JAVAC} -d classes `find src2 -name '*.java'`
 fi
 
-dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
-    --dump-width=1000 classes
+dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
 zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
+dex2oat --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat
 
 if [ -r src-ex ]; then
     mkdir classes-ex
     ${JAVAC} -d classes-ex -cp classes `find src-ex -name '*.java'`
-    dx -JXmx256m --debug --dex --dump-to=classes-ex.lst \
-        --output=classes-ex.dex --dump-width=1000 classes-ex
+    dx -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex --dump-width=1000 classes-ex
 
     # quick shuffle so that the stored name is "classes.dex"
     mv classes.dex classes-1.dex
     mv classes-ex.dex classes.dex
     zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar classes.dex
+    dex2oat --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar --oat=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.oat
     mv classes.dex classes-ex.dex
     mv classes-1.dex classes.dex
 fi
