@@ -2033,6 +2033,10 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       bool is_checkcast = dec_insn.opcode_ == Instruction::CHECK_CAST;
       const RegType& res_type =
           ResolveClassAndCheckAccess(is_checkcast ? dec_insn.vB_ : dec_insn.vC_);
+      if (res_type.IsUnknown()) {
+        CHECK_NE(failure_, VERIFY_ERROR_NONE);
+        break;  // couldn't resolve class
+      }
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
       const RegType& orig_type =
           work_line_->GetRegisterType(is_checkcast ? dec_insn.vA_ : dec_insn.vB_);
@@ -3028,7 +3032,7 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
   if (res_method == NULL) {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
     const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
-    if(klass_type.IsUnresolvedTypes()) {
+    if(klass_type.IsUnresolvedTypes() || klass_type.IsUnknown()) {
       return NULL;  // Can't resolve Class so no more to do here
     }
     Class* klass = klass_type.GetClass();

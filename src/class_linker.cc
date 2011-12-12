@@ -59,18 +59,30 @@ void ThrowLinkageError(const char* fmt, ...) {
   va_end(args);
 }
 
-void ThrowNoSuchMethodError(const char* kind,
-    Class* c, const StringPiece& name, const StringPiece& signature) {
+void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
+                            const StringPiece& signature) {
   ClassHelper kh(c);
   std::ostringstream msg;
-  msg << "no " << kind << " method " << name << "." << signature
-      << " in class " << kh.GetDescriptor()
-      << " or its superclasses";
+  msg << "no " << (is_direct ? "direct" : "virtual") << " method " << name << "." << signature
+      << " in class " << kh.GetDescriptor() << " or its superclasses";
   std::string location(kh.GetLocation());
   if (!location.empty()) {
     msg << " (defined in " << location << ")";
   }
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
+}
+
+void ThrowNoSuchFieldError(bool is_static, Class* c, const StringPiece& type,
+                           const StringPiece& name) {
+  ClassHelper kh(c);
+  std::ostringstream msg;
+  msg << "no " << (is_static ? "static": "instance") << " field " << name << " of type " << type
+      << " in class " << kh.GetDescriptor() << " or its superclasses";
+  std::string location(kh.GetLocation());
+  if (!location.empty()) {
+    msg << " (defined in " << location << ")";
+  }
+  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchFieldError;", msg.str().c_str());
 }
 
 void ThrowEarlierClassFailure(Class* c) {
@@ -2770,7 +2782,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   if (resolved != NULL) {
     dex_cache->SetResolvedMethod(method_idx, resolved);
   } else {
-    ThrowNoSuchMethodError(is_direct ? "direct" : "virtual", klass, name, signature);
+    ThrowNoSuchMethodError(is_direct, klass, name, signature);
   }
   return resolved;
 }
@@ -2787,6 +2799,7 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
   Class* klass = ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader);
   if (klass == NULL) {
+    DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
 
@@ -2800,9 +2813,7 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   if (resolved != NULL) {
     dex_cache->SetResolvedField(field_idx, resolved);
   } else {
-    // TODO: this check fails when the app class path contains a class from the boot class path
-    CHECK(Thread::Current()->IsExceptionPending())
-        << PrettyClass(klass) << " " << name << " " << type << " " << is_static;
+    ThrowNoSuchFieldError(is_static, klass, type, name);
   }
   return resolved;
 }

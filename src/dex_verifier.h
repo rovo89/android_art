@@ -707,14 +707,14 @@ class RegisterLine {
 
   void CopyRegToLockDepth(size_t dst, size_t src) {
     if (reg_to_lock_depths_.count(src) > 0) {
-      uint32_t depths = reg_to_lock_depths_[src];
+      uint64_t depths = reg_to_lock_depths_[src];
       reg_to_lock_depths_[dst] = depths;
     }
   }
 
   bool IsSetLockDepth(size_t reg, size_t depth) {
     if (reg_to_lock_depths_.count(reg) > 0) {
-      uint32_t depths = reg_to_lock_depths_[reg];
+      uint64_t depths = reg_to_lock_depths_[reg];
       return (depths & (1 << depth)) != 0;
     } else {
       return false;
@@ -722,9 +722,9 @@ class RegisterLine {
   }
 
   void SetRegToLockDepth(size_t reg, size_t depth) {
-    CHECK_LT(depth, 32u);
+    CHECK_LT(depth, 64u);
     DCHECK(!IsSetLockDepth(reg, depth));
-    uint32_t depths;
+    uint64_t depths;
     if (reg_to_lock_depths_.count(reg) > 0) {
       depths = reg_to_lock_depths_[reg];
       depths = depths | (1 << depth);
@@ -735,9 +735,9 @@ class RegisterLine {
   }
 
   void ClearRegToLockDepth(size_t reg, size_t depth) {
-    CHECK_LT(depth, 32u);
+    CHECK_LT(depth, 64u);
     DCHECK(IsSetLockDepth(reg, depth));
-    uint32_t depths = reg_to_lock_depths_[reg];
+    uint64_t depths = reg_to_lock_depths_[reg];
     depths = depths ^ (1 << depth);
     if (depths != 0) {
       reg_to_lock_depths_[reg] = depths;
@@ -766,7 +766,7 @@ class RegisterLine {
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5
-  std::map<uint32_t, uint32_t> reg_to_lock_depths_;
+  std::map<uint32_t, uint64_t> reg_to_lock_depths_;
 };
 std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs);
 
