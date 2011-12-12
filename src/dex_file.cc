@@ -72,7 +72,7 @@ const DexFile* DexFile::Open(const std::string& filename,
 
 void DexFile::ChangePermissions(int prot) const {
   if (mprotect(mem_map_->GetAddress(), mem_map_->GetLength(), prot) != 0) {
-    PLOG(FATAL) << "Failed to change dex file permissions to " << prot;
+    PLOG(FATAL) << "Failed to change dex file permissions to " << prot << " for " << GetLocation();
   }
 }
 
@@ -408,7 +408,7 @@ bool DexFile::IsMagicValid() {
 bool DexFile::CheckMagic(const byte* magic) {
   CHECK(magic != NULL) << GetLocation();
   if (memcmp(magic, kDexMagic, sizeof(kDexMagic)) != 0) {
-    LOG(ERROR) << "Unrecognized magic number:"
+    LOG(ERROR) << "Unrecognized magic number in "  << GetLocation() << ":"
             << " " << magic[0]
             << " " << magic[1]
             << " " << magic[2]
@@ -417,7 +417,7 @@ bool DexFile::CheckMagic(const byte* magic) {
   }
   const byte* version = &magic[sizeof(kDexMagic)];
   if (memcmp(version, kDexMagicVersion, sizeof(kDexMagicVersion)) != 0) {
-    LOG(ERROR) << "Unrecognized version number:"
+    LOG(ERROR) << "Unrecognized version number in "  << GetLocation() << ":"
             << " " << version[0]
             << " " << version[1]
             << " " << version[2]
@@ -767,7 +767,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
   for (uint32_t i = 0; i < parameters_size && it.HasNext(); ++i, it.Next()) {
     if (arg_reg >= code_item->registers_size_) {
       LOG(ERROR) << "invalid stream - arg reg >= reg size (" << arg_reg
-                 << " >= " << code_item->registers_size_ << ")";
+                 << " >= " << code_item->registers_size_ << ") in " << GetLocation();
       return;
     }
     uint32_t id = DecodeUnsignedLeb128P1(&stream);
@@ -792,7 +792,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
   }
 
   if (it.HasNext()) {
-    LOG(ERROR) << "invalid stream - problem with parameter iterator";
+    LOG(ERROR) << "invalid stream - problem with parameter iterator in " << GetLocation();
     return;
   }
 
@@ -820,7 +820,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
           LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
-                     << code_item->registers_size_ << ")";
+                     << code_item->registers_size_ << ") in " << GetLocation();
           return;
         }
 
@@ -848,7 +848,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
           LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
-                     << code_item->registers_size_ << ")";
+                     << code_item->registers_size_ << ") in " << GetLocation();
           return;
         }
 
@@ -862,13 +862,13 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
         reg = DecodeUnsignedLeb128(&stream);
         if (reg > code_item->registers_size_) {
           LOG(ERROR) << "invalid stream - reg > reg size (" << reg << " > "
-                     << code_item->registers_size_ << ")";
+                     << code_item->registers_size_ << ") in " << GetLocation();
           return;
         }
 
         if (need_locals) {
           if (local_in_reg[reg].name_ == NULL || local_in_reg[reg].descriptor_ == NULL) {
-            LOG(ERROR) << "invalid stream - no name or descriptor";
+            LOG(ERROR) << "invalid stream - no name or descriptor in " << GetLocation();
             return;
           }
 
