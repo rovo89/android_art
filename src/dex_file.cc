@@ -221,6 +221,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
   std::string cache_path = StringPrintf("%s.%08x", cache_path_tmp.c_str(), zip_entry->GetCrc32());
   // Example cache_path = /data/art-cache/parent@dir@foo.jar@classes.dex.1a2b3c4d
 
+  bool created = false;
   while (true) {
     if (OS::FileExists(cache_path.c_str())) {
       const DexFile* cached_dex_file = DexFile::OpenFile(cache_path,
@@ -228,6 +229,11 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
                                                          strip_location_prefix);
       if (cached_dex_file != NULL) {
         return cached_dex_file;
+      }
+      if (created) {
+        // We created the dex file with the correct checksum,
+        // there must be something wrong with the file itself.
+        return NULL;
       }
     }
 
@@ -317,6 +323,8 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
       PLOG(ERROR) << "Failed to install dex cache file '" << cache_path << "'"
                   << " from '" << cache_path_tmp << "'";
       unlink(cache_path.c_str());
+    } else {
+      created = true;
     }
   }
   // NOTREACHED
