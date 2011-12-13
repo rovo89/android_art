@@ -42,8 +42,7 @@ Compiler::Compiler(InstructionSet instruction_set,
     : instruction_set_(instruction_set),
       jni_compiler_(instruction_set),
       image_(image),
-      image_classes_(image_classes),
-      verbose_(false) {
+      image_classes_(image_classes) {
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
     CHECK(image_classes_ == NULL);

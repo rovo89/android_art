@@ -119,7 +119,7 @@ bool ShouldTrace(JavaVMExt* vm, const Method* method) {
   if (!vm->trace.empty() && classNameStr.find(vm->trace) != std::string::npos) {
     return true;
   }
-  if (vm->log_third_party_jni) {
+  if (VLOG_IS_ON(third_party_jni)) {
     // Return true if we're trying to log all third-party JNI activity and 'method' doesn't look
     // like part of Android.
     StringPiece className(classNameStr);
@@ -385,7 +385,7 @@ public:
     va_list ap;
 
     const Method* traceMethod = NULL;
-    if ((!vm_->trace.empty() || vm_->log_third_party_jni) && has_method_) {
+    if ((!vm_->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();

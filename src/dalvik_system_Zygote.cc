@@ -219,7 +219,7 @@ void EnableDebugFeatures(uint32_t debug_flags) {
   }
 
   if ((debug_flags & DEBUG_ENABLE_JNI_LOGGING) != 0) {
-    Runtime::Current()->GetJavaVM()->log_third_party_jni = true;
+    gLogVerbosity.third_party_jni = true;
     debug_flags &= ~DEBUG_ENABLE_JNI_LOGGING;
   }
 

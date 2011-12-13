@@ -331,7 +331,7 @@ void JdwpState::CleanupMatchList(JdwpEvent** matchList, int matchCount) {
 
     for (int i = 0; i < pEvent->modCount; i++) {
       if (pEvent->mods[i].modKind == MK_COUNT && pEvent->mods[i].count.count == 0) {
-        LOG(VERBOSE) << "##### Removing expired event";
+        VLOG(jdwp) << "##### Removing expired event";
         UnregisterEvent(pEvent);
         EventFree(pEvent);
         break;
@@ -507,7 +507,7 @@ static JdwpSuspendPolicy scanSuspendPolicy(JdwpEvent** matchList, int matchCount
  *  SP_ALL - suspend everybody except JDWP support thread
  */
 void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspendPolicy) {
-  LOG(INFO) << "SuspendByPolicy(" << suspendPolicy << ")";
+  VLOG(jdwp) << "SuspendByPolicy(" << suspendPolicy << ")";
   if (suspendPolicy == SP_NONE) {
     return;
   }
@@ -550,7 +550,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspendPolicy) {
     /* clear this before signaling */
     pReq->invoke_needed_ = false;
 
-    LOG(VERBOSE) << "invoke complete, signaling and self-suspending";
+    VLOG(jdwp) << "invoke complete, signaling and self-suspending";
     MutexLock mu(pReq->lock_);
     pReq->cond_.Signal();
   }
@@ -589,13 +589,13 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
    * go to sleep indefinitely.
    */
   while (eventThreadId != 0) {
-    LOG(VERBOSE) << StringPrintf("event in progress (0x%llx), 0x%llx sleeping", eventThreadId, threadId);
+    VLOG(jdwp) << StringPrintf("event in progress (0x%llx), 0x%llx sleeping", eventThreadId, threadId);
     waited = true;
     event_thread_cond_.Wait(event_thread_lock_);
   }
 
   if (waited || threadId != 0) {
-    LOG(VERBOSE) << StringPrintf("event token grabbed (0x%llx)", threadId);
+    VLOG(jdwp) << StringPrintf("event token grabbed (0x%llx)", threadId);
   }
   if (threadId != 0) {
     eventThreadId = threadId;
@@ -614,7 +614,7 @@ void JdwpState::ClearWaitForEventThread() {
   MutexLock mu(event_thread_lock_);
 
   CHECK_NE(eventThreadId, 0U);
-  LOG(VERBOSE) << StringPrintf("cleared event token (0x%llx)", eventThreadId);
+  VLOG(jdwp) << StringPrintf("cleared event token (0x%llx)", eventThreadId);
 
   eventThreadId = 0;
 
@@ -674,8 +674,8 @@ bool JdwpState::PostVMStart() {
   {
     MutexLock mu(event_lock_); // probably don't need this here
 
-    LOG(VERBOSE) << "EVENT: " << EK_VM_START;
-    LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
+    VLOG(jdwp) << "EVENT: " << EK_VM_START;
+    VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
     expandBufAdd1(pReq, suspendPolicy);
     expandBufAdd4BE(pReq, 1);
@@ -745,7 +745,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
    * this is mostly paranoia.)
    */
   if (basket.threadId == debugThreadId) {
-    LOG(VERBOSE) << "Ignoring location event in JDWP thread";
+    VLOG(jdwp) << "Ignoring location event in JDWP thread";
     return false;
   }
 
@@ -759,7 +759,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
    * method invocation to complete.
    */
   if (InvokeInProgress()) {
-    LOG(VERBOSE) << "Not checking breakpoints during invoke (" << basket.className << ")";
+    VLOG(jdwp) << "Not checking breakpoints during invoke (" << basket.className << ")";
     return false;
   }
 
@@ -783,12 +783,12 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
       FindMatchingEvents(EK_METHOD_EXIT, &basket, matchList, &matchCount);
     }
     if (matchCount != 0) {
-      LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
                    << basket.className << "." << Dbg::GetMethodName(pLoc->classId, pLoc->methodId)
                    << " thread=" << (void*) basket.threadId << " code=" << (void*) pLoc->idx << ")";
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);
-      LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
+      VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
@@ -857,11 +857,11 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
     }
 
     if (matchCount != 0) {
-      LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
                    << "thread=" << (void*) basket.threadId << ")";
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);
-      LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
+      VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
@@ -898,7 +898,7 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
  * Skips the usual "event token" stuff.
  */
 bool JdwpState::PostVMDeath() {
-  LOG(VERBOSE) << "EVENT: " << EK_VM_DEATH;
+  VLOG(jdwp) << "EVENT: " << EK_VM_DEATH;
 
   ExpandBuf* pReq = eventPrep();
   expandBufAdd1(pReq, SP_NONE);
@@ -938,7 +938,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
 
   /* don't try to post an exception caused by the debugger */
   if (InvokeInProgress()) {
-    LOG(VERBOSE) << "Not posting exception hit during invoke (" << basket.className << ")";
+    VLOG(jdwp) << "Not posting exception hit during invoke (" << basket.className << ")";
     return false;
   }
 
@@ -950,19 +950,19 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
     MutexLock mu(event_lock_);
     FindMatchingEvents(EK_EXCEPTION, &basket, matchList, &matchCount);
     if (matchCount != 0) {
-      LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total)"
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total)"
                    << " thread=" << (void*) basket.threadId
                    << " exceptId=" << (void*) exceptionId
                    << " caught=" << basket.caught << ")";
-      LOG(VERBOSE) << "  throw: " << *pThrowLoc;
+      VLOG(jdwp) << "  throw: " << *pThrowLoc;
       if (pCatchLoc->classId == 0) {
-        LOG(VERBOSE) << "  catch: (not caught)";
+        VLOG(jdwp) << "  catch: (not caught)";
       } else {
-        LOG(VERBOSE) << "  catch: " << *pCatchLoc;
+        VLOG(jdwp) << "  catch: " << *pCatchLoc;
       }
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);
-      LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
+      VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
@@ -1018,7 +1018,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
 
   /* suppress class prep caused by debugger */
   if (InvokeInProgress()) {
-    LOG(VERBOSE) << "Not posting class prep caused by invoke (" << basket.className << ")";
+    VLOG(jdwp) << "Not posting class prep caused by invoke (" << basket.className << ")";
     return false;
   }
 
@@ -1030,11 +1030,11 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
     MutexLock mu(event_lock_);
     FindMatchingEvents(EK_CLASS_PREPARE, &basket, matchList, &matchCount);
     if (matchCount != 0) {
-      LOG(VERBOSE) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
                    << "thread=" << (void*) basket.threadId << ") " << signature;
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);
-      LOG(VERBOSE) << "  suspendPolicy=" << suspendPolicy;
+      VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       if (basket.threadId == debugThreadId) {
         /*
@@ -1042,7 +1042,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
          * should set threadId to null and if any threads were supposed
          * to be suspended then we suspend all other threads.
          */
-        LOG(VERBOSE) << "  NOTE: class prepare in debugger thread!";
+        VLOG(jdwp) << "  NOTE: class prepare in debugger thread!";
         basket.threadId = 0;
         if (suspendPolicy == SP_EVENT_THREAD) {
           suspendPolicy = SP_ALL;

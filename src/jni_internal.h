@@ -98,8 +98,6 @@ struct JavaVMExt : public JavaVM {
   bool force_copy;
 
   // Extra diagnostics.
-  bool verbose_jni;
-  bool log_third_party_jni;
   std::string trace;
 
   // Used to provide compatibility for apps that assumed direct references.

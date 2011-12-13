@@ -45,14 +45,6 @@ class Compiler {
     return image_;
   }
 
-  void SetVerbose(bool verbose) {
-    verbose_ = verbose;
-  }
-
-  bool IsVerbose() const {
-    return verbose_;
-  }
-
   // Stub to throw AbstractMethodError
   static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set);
 
@@ -154,8 +146,6 @@ class Compiler {
   bool image_;
 
   const std::set<std::string>* image_classes_;
-
-  bool verbose_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };

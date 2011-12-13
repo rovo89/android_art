@@ -31,8 +31,7 @@ namespace art {
 Runtime* Runtime::instance_ = NULL;
 
 Runtime::Runtime()
-    : verbose_startup_(false),
-      is_zygote_(false),
+    : is_zygote_(false),
       default_stack_size_(Thread::kDefaultStackSize),
       monitor_list_(NULL),
       thread_list_(NULL),
@@ -341,7 +340,29 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);
       for (size_t i = 0; i < verbose_options.size(); ++i) {
-        parsed->verbose_.insert(verbose_options[i]);
+        if (verbose_options[i] == "class") {
+          gLogVerbosity.class_linker = true;
+        } else if (verbose_options[i] == "compiler") {
+          gLogVerbosity.compiler = true;
+        } else if (verbose_options[i] == "heap") {
+          gLogVerbosity.heap = true;
+        } else if (verbose_options[i] == "gc") {
+          gLogVerbosity.gc = true;
+        } else if (verbose_options[i] == "jdwp") {
+          gLogVerbosity.jdwp = true;
+        } else if (verbose_options[i] == "jni") {
+          gLogVerbosity.jni = true;
+        } else if (verbose_options[i] == "monitor") {
+          gLogVerbosity.monitor = true;
+        } else if (verbose_options[i] == "startup") {
+          gLogVerbosity.startup = true;
+        } else if (verbose_options[i] == "third-party-jni") {
+          gLogVerbosity.third_party_jni = true;
+        } else if (verbose_options[i] == "threads") {
+          gLogVerbosity.threads = true;
+        } else {
+          LOG(WARNING) << "Ignoring unknown -verbose option: " << verbose_options[i];
+        }
       }
     } else if (option.starts_with("-Xjnigreflimit:")) {
       parsed->jni_globals_max_ = ParseIntegerOrDie(option);
@@ -437,9 +458,7 @@ void CreateSystemClassLoader() {
 }
 
 void Runtime::Start() {
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::Start entering";
-  }
+  VLOG(startup) << "Runtime::Start entering";
 
   CHECK(host_prefix_.empty()) << host_prefix_;
 
@@ -464,9 +483,7 @@ void Runtime::Start() {
 
   Thread::Current()->GetJniEnv()->locals.AssertEmpty();
 
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::Start exiting";
-  }
+  VLOG(startup) << "Runtime::Start exiting";
 }
 
 void Runtime::DidForkFromZygote() {
@@ -486,9 +503,7 @@ void Runtime::StartSignalCatcher() {
 }
 
 void Runtime::StartDaemonThreads() {
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::StartDaemonThreads entering";
-  }
+  VLOG(startup) << "Runtime::StartDaemonThreads entering";
 
   Thread* self = Thread::Current();
 
@@ -502,9 +517,7 @@ void Runtime::StartDaemonThreads() {
   CHECK(mid != NULL);
   env->CallStaticVoidMethod(c.get(), mid);
 
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::StartDaemonThreads exiting";
-  }
+  VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
 bool Runtime::IsStarted() const {
@@ -519,13 +532,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     LOG(ERROR) << "Failed to parse options";
     return false;
   }
-  verbose_startup_ = options->IsVerbose("startup");
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::Init -verbose:startup enabled";
-  }
+  VLOG(startup) << "Runtime::Init -verbose:startup enabled";
 
   SetJniGlobalsMax(options->jni_globals_max_);
-  Monitor::Init(options->IsVerbose("monitor"), options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
+  Monitor::Init(options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
 
   host_prefix_ = options->host_prefix_;
   boot_class_path_ = options->boot_class_path_;
@@ -542,12 +552,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   stack_trace_file_ = options->stack_trace_file_;
 
   monitor_list_ = new MonitorList;
-  thread_list_ = new ThreadList(options->IsVerbose("thread"));
+  thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
-  Heap::Init(options->IsVerbose("heap"),
-             options->IsVerbose("gc"),
-             options->heap_initial_size_,
+  Heap::Init(options->heap_initial_size_,
              options->heap_maximum_size_,
              options->heap_growth_limit_,
              options->images_);
@@ -566,21 +574,16 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread::Current()->SetState(Thread::kRunnable);
 
   CHECK_GE(Heap::GetSpaces().size(), 1U);
-  bool verbose_class = options->IsVerbose("class");
   class_linker_ = ((Heap::GetSpaces()[0]->IsImageSpace())
-                   ? ClassLinker::Create(verbose_class, intern_table_)
-                   : ClassLinker::Create(verbose_class, options->boot_class_path_, intern_table_));
+                   ? ClassLinker::Create(intern_table_)
+                   : ClassLinker::Create(options->boot_class_path_, intern_table_));
 
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::Init exiting";
-  }
+  VLOG(startup) << "Runtime::Init exiting";
   return true;
 }
 
 void Runtime::InitNativeMethods() {
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::InitNativeMethods entering";
-  }
+  VLOG(startup) << "Runtime::InitNativeMethods entering";
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -598,9 +601,7 @@ void Runtime::InitNativeMethods() {
   // Most JNI libraries can just use System.loadLibrary, but libcore can't because it's
   // the library that implements System.loadLibrary!
   LoadJniLibrary(instance_->GetJavaVM(), "javacore");
-  if (IsVerboseStartup()) {
-    LOG(INFO) << "Runtime::InitNativeMethods exiting";
-  }
+  VLOG(startup) << "Runtime::InitNativeMethods exiting";
 }
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {

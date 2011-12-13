@@ -573,19 +573,15 @@ class SharedLibrary {
 
     MutexLock mu(jni_on_load_lock_);
     while (jni_on_load_result_ == kPending) {
-      if (vm->verbose_jni) {
-        LOG(INFO) << "[" << *self << " waiting for \"" << path_ << "\" "
-                  << "JNI_OnLoad...]";
-      }
+      VLOG(jni) << "[" << *self << " waiting for \"" << path_ << "\" "
+                << "JNI_OnLoad...]";
       ScopedThreadStateChange tsc(self, Thread::kVmWait);
       jni_on_load_cond_.Wait(jni_on_load_lock_);
     }
 
     bool okay = (jni_on_load_result_ == kOkay);
-    if (vm->verbose_jni) {
-      LOG(INFO) << "[Earlier JNI_OnLoad for \"" << path_ << "\" "
-                << (okay ? "succeeded" : "failed") << "]";
-    }
+    VLOG(jni) << "[Earlier JNI_OnLoad for \"" << path_ << "\" "
+              << (okay ? "succeeded" : "failed") << "]";
     return okay;
   }
 
@@ -665,10 +661,8 @@ class Libraries {
         fn = library->FindSymbol(jni_long_name);
       }
       if (fn != NULL) {
-        if (Runtime::Current()->GetJavaVM()->verbose_jni) {
-          LOG(INFO) << "[Found native code for " << PrettyMethod(m)
-                    << " in \"" << library->GetPath() << "\"]";
-        }
+        VLOG(jni) << "[Found native code for " << PrettyMethod(m)
+                  << " in \"" << library->GetPath() << "\"]";
         return fn;
       }
     }
@@ -2237,9 +2231,7 @@ class JNI {
         return JNI_ERR;
       }
 
-      if (ts.Vm()->verbose_jni) {
-        LOG(INFO) << "[Registering JNI native method " << PrettyMethod(m) << "]";
-      }
+      VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
       m->RegisterNative(methods[i].fnPtr);
     }
@@ -2250,9 +2242,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
 
-    if (ts.Vm()->verbose_jni) {
-      LOG(INFO) << "[Unregistering JNI native methods for " << PrettyClass(c) << "]";
-    }
+    VLOG(jni) << "[Unregistering JNI native methods for " << PrettyClass(c) << "]";
 
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
       Method* m = c->GetDirectMethod(i);
@@ -2752,8 +2742,6 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       check_jni_abort_hook(NULL),
       check_jni(false),
       force_copy(false), // TODO: add a way to enable this
-      verbose_jni(options->IsVerbose("jni")),
-      log_third_party_jni(options->IsVerbose("third-party-jni")),
       trace(options->jni_trace_),
       work_around_app_jni_bugs(false), // TODO: add a way to enable this
       pins_lock("JNI pin table lock"),
@@ -2818,10 +2806,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       LOG(WARNING) << detail;
       return false;
     }
-    if (verbose_jni) {
-      LOG(INFO) << "[Shared library \"" << path << "\" already loaded in "
-                << "ClassLoader " << class_loader << "]";
-    }
+    VLOG(jni) << "[Shared library \"" << path << "\" already loaded in "
+              << "ClassLoader " << class_loader << "]";
     if (!library->CheckOnLoadResult(this)) {
       StringAppendF(&detail, "JNI_OnLoad failed on a previous attempt "
           "to load \"%s\"", path.c_str());
@@ -2864,9 +2850,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     handle = dlopen(path.c_str(), RTLD_LAZY);
   }
 
-  if (verbose_jni) {
-    LOG(INFO) << "[Call to dlopen(\"" << path << "\") returned " << handle << "]";
-  }
+  VLOG(jni) << "[Call to dlopen(\"" << path << "\") returned " << handle << "]";
 
   if (handle == NULL) {
     detail = dlerror();
@@ -2887,16 +2871,12 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     libraries->Put(path, library);
   }
 
-  if (verbose_jni) {
-    LOG(INFO) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
-  }
+  VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
 
   bool result = true;
   void* sym = dlsym(handle, "JNI_OnLoad");
   if (sym == NULL) {
-    if (verbose_jni) {
-      LOG(INFO) << "[No JNI_OnLoad found in \"" << path << "\"]";
-    }
+    VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
   } else {
     // Call JNI_OnLoad.  We have to override the current class
     // loader, which will always be "null" since the stuff at the
@@ -2910,9 +2890,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     int version = 0;
     {
       ScopedThreadStateChange tsc(self, Thread::kNative);
-      if (verbose_jni) {
-        LOG(INFO) << "[Calling JNI_OnLoad in \"" << path << "\"]";
-      }
+      VLOG(jni) << "[Calling JNI_OnLoad in \"" << path << "\"]";
       version = (*jni_on_load)(this, NULL);
     }
 
@@ -2931,10 +2909,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       // unregister them, but that doesn't seem worthwhile.
       result = false;
     } else {
-      if (verbose_jni) {
-        LOG(INFO) << "[Returned " << (result ? "successfully" : "failure")
-                  << " from JNI_OnLoad in \"" << path << "\"]";
-      }
+      VLOG(jni) << "[Returned " << (result ? "successfully" : "failure")
+                << " from JNI_OnLoad in \"" << path << "\"]";
     }
   }
 
