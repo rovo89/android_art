@@ -3294,9 +3294,9 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
               << " incompatible with aput of type " << insn_type;
         } else {
           // The instruction agrees with the type of array, confirm the value to be stored does too
-          // Note: we use the instruction type (rather than the component type) as incompatible
-          // classes will be caught at runtime as an array store exception
-          work_line_->VerifyRegisterType(dec_insn.vA_, insn_type);
+          // Note: we use the instruction type (rather than the component type) for aput-object as
+          // incompatible classes will be caught at runtime as an array store exception
+          work_line_->VerifyRegisterType(dec_insn.vA_, is_primitive ? component_type : insn_type);
         }
       }
     }
