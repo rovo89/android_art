@@ -565,9 +565,7 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
 
 MarkSweep::~MarkSweep() {
 #ifndef NDEBUG
-  if (Heap::IsVerboseHeap()) {
-    LOG(INFO) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_ << " other=" << other_count_;
-  }
+  VLOG(heap) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_ << " other=" << other_count_;
 #endif
   delete mark_stack_;
   mark_bitmap_->Clear();

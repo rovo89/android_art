@@ -16,6 +16,7 @@
 #include "object.h"
 #include "os.h"
 #include "space.h"
+#include "unordered_set.h"
 
 namespace art {
 

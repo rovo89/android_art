@@ -18,7 +18,6 @@
 #include "macros.h"
 #include "runtime_stats.h"
 #include "stringpiece.h"
-#include "unordered_set.h"
 
 namespace art {
 
@@ -64,12 +63,7 @@ class Runtime {
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
-    std::tr1::unordered_set<std::string> verbose_;
     std::vector<std::string> properties_;
-
-    bool IsVerbose(const std::string& key) const {
-      return verbose_.find(key) != verbose_.end();
-    }
 
    private:
     ParsedOptions() {}
@@ -77,10 +71,6 @@ class Runtime {
 
   // Creates and initializes a new runtime.
   static Runtime* Create(const Options& options, bool ignore_unrecognized);
-
-  bool IsVerboseStartup() const {
-    return verbose_startup_;
-  }
 
   bool IsZygote() const {
     return is_zygote_;
@@ -227,7 +217,6 @@ class Runtime {
   void StartDaemonThreads();
   void StartSignalCatcher();
 
-  bool verbose_startup_;
   bool is_zygote_;
 
   // The host prefix is used during cross compilation. It is removed

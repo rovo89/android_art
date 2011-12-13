@@ -57,14 +57,11 @@ void* Space::CreateMallocSpace(void* base,
 }
 
 bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base) {
-  const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "Space::Init entering " << name_
-              << " initial_size=" << initial_size
-              << " maximum_size=" << maximum_size
-              << " growth_size=" << growth_size
-              << " requested_base=" << reinterpret_cast<void*>(requested_base);
-  }
+  VLOG(startup) << "Space::Init entering " << name_
+                << " initial_size=" << initial_size
+                << " maximum_size=" << maximum_size
+                << " growth_size=" << growth_size
+                << " requested_base=" << reinterpret_cast<void*>(requested_base);
   if (initial_size > growth_size) {
     LOG(ERROR) << "Failed to create space with initial size > growth size ("
                << initial_size << ">" << growth_size << "): " << name_;
@@ -92,9 +89,7 @@ bool Space::Init(size_t initial_size, size_t maximum_size, size_t growth_size, b
     LOG(WARNING) << "Failed to create mspace for space: " << name_;
     return false;
   }
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "Space::Init exiting";
-  }
+  VLOG(startup) << "Space::Init exiting";
   return true;
 }
 
@@ -106,10 +101,8 @@ void Space::InitFromMemMap(MemMap* mem_map) {
 
 bool Space::InitFromImage(const std::string& image_file_name) {
   Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "Space::InitFromImage entering"
-              << " image_file_name=" << image_file_name;
-  }
+  VLOG(startup) << "Space::InitFromImage entering"
+                << " image_file_name=" << image_file_name;
   UniquePtr<File> file(OS::OpenFile(image_file_name.c_str(), false));
   if (file.get() == NULL) {
     LOG(WARNING) << "Failed to open " << image_file_name;
@@ -161,9 +154,7 @@ bool Space::InitFromImage(const std::string& image_file_name) {
 
   InitFromMemMap(map.release());
   growth_limit_ = limit_;
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "Space::InitFromImage exiting";
-  }
+  VLOG(startup) << "Space::InitFromImage exiting";
   return true;
 }
 

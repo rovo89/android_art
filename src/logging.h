@@ -121,6 +121,9 @@
 
 #define UNIMPLEMENTED(level) LOG(level) << __PRETTY_FUNCTION__ << " unimplemented "
 
+#define VLOG_IS_ON(module) UNLIKELY(::art::gLogVerbosity.module)
+#define VLOG(module) if (VLOG_IS_ON(module)) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
+
 //
 // Implementation details beyond this point.
 //
@@ -196,6 +199,23 @@ std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
   rhs.Dump(os);
   return os;
 }
+
+// The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
+// and the "-verbose:" command line argument.
+struct LogVerbosity {
+  bool class_linker; // Enabled with "-verbose:class".
+  bool compiler;
+  bool heap;
+  bool gc;
+  bool jdwp;
+  bool jni;
+  bool monitor;
+  bool startup;
+  bool third_party_jni; // Enabled with "-verbose:third-party-jni".
+  bool threads;
+};
+
+extern LogVerbosity gLogVerbosity;
 
 }  // namespace art
 

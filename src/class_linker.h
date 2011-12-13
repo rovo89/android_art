@@ -46,10 +46,10 @@ typedef bool (ClassVisitor)(Class* c, void* arg);
 class ClassLinker {
  public:
   // Creates the class linker by boot strapping from dex files.
-  static ClassLinker* Create(bool verbose, const std::string& boot_class_path, InternTable* intern_table);
+  static ClassLinker* Create(const std::string& boot_class_path, InternTable* intern_table);
 
   // Creates the class linker from one or more images.
-  static ClassLinker* Create(bool verbose, InternTable* intern_table);
+  static ClassLinker* Create(InternTable* intern_table);
 
   ~ClassLinker();
 
@@ -252,7 +252,7 @@ class ClassLinker {
   pid_t GetDexLockOwner(); // For SignalCatcher.
 
  private:
-  explicit ClassLinker(bool verbose, InternTable*);
+  explicit ClassLinker(InternTable*);
 
   // Initialize class linker by bootstraping from dex files
   void Init(const std::string& boot_class_path);
@@ -364,8 +364,6 @@ class ClassLinker {
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class);
   Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype);
-
-  const bool verbose_;
 
   std::vector<const DexFile*> boot_class_path_;
 

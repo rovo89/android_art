@@ -60,16 +60,13 @@ ScopedThreadListLock::~ScopedThreadListLock() {
   Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
 }
 
-ThreadList::ThreadList(bool verbose)
-    : verbose_(verbose),
-      thread_list_lock_("thread list lock"),
+ThreadList::ThreadList()
+    : thread_list_lock_("thread list lock"),
       thread_start_cond_("thread_start_cond_"),
       thread_exit_cond_("thread_exit_cond_"),
       thread_suspend_count_lock_("thread suspend count lock"),
       thread_suspend_count_cond_("thread_suspend_count_cond_") {
-  if (verbose_) {
-    LOG(INFO) << "default stack size " << Runtime::Current()->GetDefaultStackSize() / KB << "kb";
-  }
+  VLOG(threads) << "Default stack size: " << Runtime::Current()->GetDefaultStackSize() / KB << "KiB";
 }
 
 ThreadList::~ThreadList() {
@@ -125,9 +122,7 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
     return;
   }
 
-  if (verbose_) {
-    LOG(INFO) << *thread << " self-suspending";
-  }
+  VLOG(threads) << *thread << " self-suspending";
   {
     ScopedThreadStateChange tsc(thread, Thread::kSuspended);
     while (thread->suspend_count_ != 0) {
@@ -140,17 +135,13 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
     }
     CHECK_EQ(thread->suspend_count_, 0);
   }
-  if (verbose_) {
-    LOG(INFO) << *thread << " self-reviving";
-  }
+  VLOG(threads) << *thread << " self-reviving";
 }
 
 void ThreadList::SuspendAll(bool for_debugger) {
   Thread* self = Thread::Current();
 
-  if (verbose_) {
-    LOG(INFO) << *self << " SuspendAll starting..." << (for_debugger ? " (debugger)" : "");
-  }
+  VLOG(threads) << *self << " SuspendAll starting..." << (for_debugger ? " (debugger)" : "");
 
   CHECK_EQ(self->GetState(), Thread::kRunnable);
   ScopedThreadListLock thread_list_lock;
@@ -164,9 +155,7 @@ void ThreadList::SuspendAll(bool for_debugger) {
       if (thread == self || (for_debugger && thread == debug_thread)) {
         continue;
       }
-      if (verbose_) {
-        LOG(INFO) << "requesting thread suspend: " << *thread;
-      }
+      VLOG(threads) << "requesting thread suspend: " << *thread;
       ModifySuspendCount(thread, +1, for_debugger);
     }
   }
@@ -191,14 +180,10 @@ void ThreadList::SuspendAll(bool for_debugger) {
       continue;
     }
     thread->WaitUntilSuspended();
-    if (verbose_) {
-      LOG(INFO) << "thread suspended: " << *thread;
-    }
+    VLOG(threads) << "thread suspended: " << *thread;
   }
 
-  if (verbose_) {
-    LOG(INFO) << *self << " SuspendAll complete";
-  }
+  VLOG(threads) << *self << " SuspendAll complete";
 }
 
 void ThreadList::Suspend(Thread* thread, bool for_debugger) {
@@ -207,9 +192,7 @@ void ThreadList::Suspend(Thread* thread, bool for_debugger) {
 
   // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
 
-  if (verbose_) {
-    LOG(INFO) << "Suspend(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
-  }
+  VLOG(threads) << "Suspend(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
 
   if (!Contains(thread)) {
     return;
@@ -222,9 +205,7 @@ void ThreadList::Suspend(Thread* thread, bool for_debugger) {
 
   thread->WaitUntilSuspended();
 
-  if (verbose_) {
-    LOG(INFO) << "Suspend(" << *thread << ") complete";
-  }
+  VLOG(threads) << "Suspend(" << *thread << ") complete";
 }
 
 void ThreadList::SuspendSelfForDebugger() {
@@ -244,9 +225,7 @@ void ThreadList::SuspendSelfForDebugger() {
   // Suspend ourselves.
   CHECK_GT(self->suspend_count_, 0);
   self->SetState(Thread::kSuspended);
-  if (verbose_) {
-    LOG(INFO) << *self << " self-suspending (dbg)";
-  }
+  VLOG(threads) << *self << " self-suspending (dbg)";
 
   // Tell JDWP that we've completed suspension. The JDWP thread can't
   // tell us to resume before we're fully asleep because we hold the
@@ -266,17 +245,13 @@ void ThreadList::SuspendSelfForDebugger() {
   }
   CHECK_EQ(self->suspend_count_, 0);
   self->SetState(Thread::kRunnable);
-  if (verbose_) {
-    LOG(INFO) << *self << " self-reviving (dbg)";
-  }
+  VLOG(threads) << *self << " self-reviving (dbg)";
 }
 
 void ThreadList::ResumeAll(bool for_debugger) {
   Thread* self = Thread::Current();
 
-  if (verbose_) {
-    LOG(INFO) << *self << " ResumeAll starting" << (for_debugger ? " (debugger)" : "");
-  }
+  VLOG(threads) << *self << " ResumeAll starting" << (for_debugger ? " (debugger)" : "");
 
   // Decrement the suspend counts for all threads.  No need for atomic
   // writes, since nobody should be moving until we decrement the count.
@@ -297,16 +272,12 @@ void ThreadList::ResumeAll(bool for_debugger) {
   // Broadcast a notification to all suspended threads, some or all of
   // which may choose to wake up.  No need to wait for them.
   {
-    if (verbose_) {
-      LOG(INFO) << *self << " ResumeAll waking others";
-    }
+    VLOG(threads) << *self << " ResumeAll waking others";
     MutexLock mu(thread_suspend_count_lock_);
     thread_suspend_count_cond_.Broadcast();
   }
 
-  if (verbose_) {
-    LOG(INFO) << *self << " ResumeAll complete";
-  }
+  VLOG(threads) << *self << " ResumeAll complete";
 }
 
 void ThreadList::Resume(Thread* thread, bool for_debugger) {
@@ -316,9 +287,7 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
     thread_list_lock_.AssertHeld();
   }
 
-  if (verbose_) {
-    LOG(INFO) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
-  }
+  VLOG(threads) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
 
   {
     MutexLock mu(thread_suspend_count_lock_);
@@ -329,16 +298,12 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
   }
 
   {
-    if (verbose_) {
-      LOG(INFO) << "Resume(" << *thread << ") waking others";
-    }
+    VLOG(threads) << "Resume(" << *thread << ") waking others";
     MutexLock mu(thread_suspend_count_lock_);
     thread_suspend_count_cond_.Broadcast();
   }
 
-  if (verbose_) {
-    LOG(INFO) << "Resume(" << *thread << ") complete";
-  }
+  VLOG(threads) << "Resume(" << *thread << ") complete";
 }
 
 void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg) {
@@ -356,9 +321,7 @@ void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void
 void ThreadList::UndoDebuggerSuspensions() {
   Thread* self = Thread::Current();
 
-  if (verbose_) {
-    LOG(INFO) << *self << " UndoDebuggerSuspensions starting";
-  }
+  VLOG(threads) << *self << " UndoDebuggerSuspensions starting";
 
   {
     ScopedThreadListLock thread_list_lock;
@@ -377,17 +340,13 @@ void ThreadList::UndoDebuggerSuspensions() {
     thread_suspend_count_cond_.Broadcast();
   }
 
-  if (verbose_) {
-    LOG(INFO) << "UndoDebuggerSuspensions(" << *self << ") complete";
-  }
+  VLOG(threads) << "UndoDebuggerSuspensions(" << *self << ") complete";
 }
 
 void ThreadList::Register() {
   Thread* self = Thread::Current();
 
-  if (verbose_) {
-    LOG(INFO) << "ThreadList::Register() " << *self << "\n" << Dumpable<Thread>(*self);
-  }
+  VLOG(threads) << "ThreadList::Register() " << *self << "\n" << Dumpable<Thread>(*self);
 
   ScopedThreadListLock thread_list_lock;
   CHECK(!Contains(self));
@@ -397,9 +356,7 @@ void ThreadList::Register() {
 void ThreadList::Unregister() {
   Thread* self = Thread::Current();
 
-  if (verbose_) {
-    LOG(INFO) << "ThreadList::Unregister() " << *self;
-  }
+  VLOG(threads) << "ThreadList::Unregister() " << *self;
 
   if (self->GetPeer() != NULL) {
       self->SetState(Thread::kRunnable);
@@ -464,9 +421,7 @@ void ThreadList::SignalGo(Thread* child) {
 
   {
     ScopedThreadListLock thread_list_lock;
-    if (verbose_) {
-      LOG(INFO) << *self << " waiting for child " << *child << " to be in thread list...";
-    }
+    VLOG(threads) << *self << " waiting for child " << *child << " to be in thread list...";
 
     // We wait for the child to tell us that it's in the thread list.
     while (child->GetState() != Thread::kStarting) {
@@ -480,9 +435,7 @@ void ThreadList::SignalGo(Thread* child) {
 
   // Tell the child that it's safe: it will see any future suspend request.
   ScopedThreadListLock thread_list_lock;
-  if (verbose_) {
-    LOG(INFO) << *self << " telling child " << *child << " it's safe to proceed...";
-  }
+  VLOG(threads) << *self << " telling child " << *child << " it's safe to proceed...";
   child->SetState(Thread::kVmWait);
   thread_start_cond_.Broadcast();
 }
@@ -495,26 +448,20 @@ void ThreadList::WaitForGo() {
     ScopedThreadListLock thread_list_lock;
 
     // Tell our parent that we're in the thread list.
-    if (verbose_) {
-      LOG(INFO) << *self << " telling parent that we're now in thread list...";
-    }
+    VLOG(threads) << *self << " telling parent that we're now in thread list...";
     self->SetState(Thread::kStarting);
     thread_start_cond_.Broadcast();
 
     // Wait until our parent tells us there's no suspend still pending
     // from before we were on the thread list.
-    if (verbose_) {
-      LOG(INFO) << *self << " waiting for parent's go-ahead...";
-    }
+    VLOG(threads) << *self << " waiting for parent's go-ahead...";
     while (self->GetState() != Thread::kVmWait) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
   }
 
   // Enter the runnable state. We know that any pending suspend will affect us now.
-  if (verbose_) {
-    LOG(INFO) << *self << " entering runnable state...";
-  }
+  VLOG(threads) << *self << " entering runnable state...";
   // Lock and unlock the heap lock. This ensures that if there was a GC in progress when we
   // started, we wait until it's over. Which means that if there's now another GC pending, our
   // suspend count is non-zero, so switching to the runnable state will suspend us.

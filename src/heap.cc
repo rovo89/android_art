@@ -19,10 +19,6 @@
 
 namespace art {
 
-bool Heap::is_verbose_heap_ = false;
-
-bool Heap::is_verbose_gc_ = false;
-
 std::vector<Space*> Heap::spaces_;
 
 Space* Heap::alloc_space_ = NULL;
@@ -60,14 +56,9 @@ Mutex* Heap::lock_ = NULL;
 
 bool Heap::verify_objects_ = false;
 
-void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
-                size_t initial_size, size_t maximum_size, size_t growth_size,
+void Heap::Init(size_t initial_size, size_t maximum_size, size_t growth_size,
                 const std::vector<std::string>& image_file_names) {
-  is_verbose_heap_ = is_verbose_heap;
-  is_verbose_gc_ = is_verbose_gc;
-
-  const Runtime* runtime = Runtime::Current();
-  if (Heap::IsVerboseHeap() || runtime->IsVerboseStartup()) {
+  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap::Init entering";
   }
 
@@ -149,7 +140,7 @@ void Heap::Init(bool is_verbose_heap, bool is_verbose_gc,
   // make it clear that you can't use locks during heap initialization.
   lock_ = new Mutex("Heap lock");
 
-  if (Heap::IsVerboseHeap() || runtime->IsVerboseStartup()) {
+  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap::Init exiting";
   }
 }
@@ -307,8 +298,7 @@ void Heap::RecordFreeLocked(size_t freed_objects, size_t freed_bytes) {
 }
 
 void Heap::RecordImageAllocations(Space* space) {
-  const Runtime* runtime = Runtime::Current();
-  if (Heap::IsVerboseHeap() || runtime->IsVerboseStartup()) {
+  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap::RecordImageAllocations entering";
   }
   DCHECK(!Runtime::Current()->IsStarted());
@@ -321,7 +311,7 @@ void Heap::RecordImageAllocations(Space* space) {
     live_bitmap_->Set(obj);
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
   }
-  if (Heap::IsVerboseHeap() || runtime->IsVerboseStartup()) {
+  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap::RecordImageAllocations exiting";
   }
 }
@@ -388,10 +378,8 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     // OLD-TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
-    if (Heap::IsVerboseGc()) {
-      LOG(INFO) << "Grow heap (frag case) to " << new_footprint / MB
-                << " for " << size << "-byte allocation";
-    }
+    VLOG(gc) << "Grow heap (frag case) to " << new_footprint / MB
+             << " for " << size << "-byte allocation";
     return ptr;
   }
 
@@ -402,10 +390,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
   // cleared before throwing an OOME.
 
   // OLD-TODO: wait for the finalizers from the previous GC to finish
-  if (Heap::IsVerboseGc()) {
-    LOG(INFO) << "Forcing collection of SoftReferences for "
-              << size << "-byte allocation";
-  }
+  VLOG(gc) << "Forcing collection of SoftReferences for " << size << "-byte allocation";
   CollectGarbageInternal();
   ptr = space->AllocWithGrowth(size);
   if (ptr != NULL) {
@@ -546,14 +531,14 @@ void Heap::CollectGarbageInternal() {
 
   uint32_t duration = (t1 - t0)/1000/1000;
   bool gc_was_particularly_slow = (duration > 100); // TODO: crank this down for concurrent.
-  if (Heap::IsVerboseGc() || gc_was_particularly_slow) {
+  if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
     LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
               << percentFree << "% free "
               << (num_bytes_allocated_/1024) << "KiB/" << (total/1024) << "KiB, "
               << "paused " << duration << "ms";
   }
   Dbg::GcDidFinish();
-  if (Heap::IsVerboseHeap()) {
+  if (VLOG_IS_ON(heap)) {
     timings.Dump();
   }
 }
@@ -590,13 +575,10 @@ void Heap::WalkHeap(void(*callback)(const void*, size_t, const void*, size_t, vo
 // value.
 // Old spaces will count against the ideal size.
 //
-void Heap::SetIdealFootprint(size_t max_allowed_footprint)
-{
+void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   if (max_allowed_footprint > Heap::growth_size_) {
-    if (Heap::IsVerboseGc()) {
-      LOG(INFO) << "Clamp target GC heap from " << max_allowed_footprint
-                << " to " << Heap::growth_size_;
-    }
+    VLOG(gc) << "Clamp target GC heap from " << max_allowed_footprint
+             << " to " << Heap::growth_size_;
     max_allowed_footprint = Heap::growth_size_;
   }
 

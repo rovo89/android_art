@@ -281,7 +281,7 @@ static bool ParseJdwpOption(const std::string& name, const std::string& value) {
  * "transport=dt_socket,address=8000,server=y,suspend=n"
  */
 bool Dbg::ParseJdwpOptions(const std::string& options) {
-  LOG(VERBOSE) << "ParseJdwpOptions: " << options;
+  VLOG(jdwp) << "ParseJdwpOptions: " << options;
 
   std::vector<std::string> pairs;
   Split(options, ',', pairs);
@@ -376,7 +376,7 @@ void Dbg::ClearWaitForEventThread() {
 
 void Dbg::Connected() {
   CHECK(!gDebuggerConnected);
-  LOG(VERBOSE) << "JDWP has attached";
+  VLOG(jdwp) << "JDWP has attached";
   gDebuggerConnected = true;
 }
 
@@ -971,7 +971,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
     static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      LOG(VERBOSE) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
+      VLOG(jdwp) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
 
       slot = MangleSlot(slot, name);
 
@@ -1355,7 +1355,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, 1U);
       uint32_t intVal = f.GetVReg(m, reg);
-      LOG(VERBOSE) << "get boolean local " << reg << " = " << intVal;
+      VLOG(jdwp) << "get boolean local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal != 0);
     }
     break;
@@ -1363,7 +1363,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, 1U);
       uint32_t intVal = f.GetVReg(m, reg);
-      LOG(VERBOSE) << "get byte local " << reg << " = " << intVal;
+      VLOG(jdwp) << "get byte local " << reg << " = " << intVal;
       JDWP::Set1(buf+1, intVal);
     }
     break;
@@ -1372,7 +1372,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, 2U);
       uint32_t intVal = f.GetVReg(m, reg);
-      LOG(VERBOSE) << "get short/char local " << reg << " = " << intVal;
+      VLOG(jdwp) << "get short/char local " << reg << " = " << intVal;
       JDWP::Set2BE(buf+1, intVal);
     }
     break;
@@ -1381,7 +1381,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, 4U);
       uint32_t intVal = f.GetVReg(m, reg);
-      LOG(VERBOSE) << "get int/float local " << reg << " = " << intVal;
+      VLOG(jdwp) << "get int/float local " << reg << " = " << intVal;
       JDWP::Set4BE(buf+1, intVal);
     }
     break;
@@ -1389,7 +1389,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
-      LOG(VERBOSE) << "get array local " << reg << " = " << o;
+      VLOG(jdwp) << "get array local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
         LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
       }
@@ -1400,7 +1400,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
-      LOG(VERBOSE) << "get object local " << reg << " = " << o;
+      VLOG(jdwp) << "get object local " << reg << " = " << o;
       if (o != NULL && !Heap::IsHeapAddress(o)) {
         LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
       }
@@ -1415,7 +1415,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       uint32_t lo = f.GetVReg(m, reg);
       uint64_t hi = f.GetVReg(m, reg + 1);
       uint64_t longVal = (hi << 32) | lo;
-      LOG(VERBOSE) << "get double/long local " << hi << ":" << lo << " = " << longVal;
+      VLOG(jdwp) << "get double/long local " << hi << ":" << lo << " = " << longVal;
       JDWP::Set8BE(buf+1, longVal);
     }
     break;
@@ -1607,15 +1607,15 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
      */
     ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
 
-    LOG(VERBOSE) << "    Transferring control to event thread";
+    VLOG(jdwp) << "    Transferring control to event thread";
     {
       MutexLock mu(req->lock_);
 
       if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
-        LOG(VERBOSE) << "      Resuming all threads";
+        VLOG(jdwp) << "      Resuming all threads";
         thread_list->ResumeAll(true);
       } else {
-        LOG(VERBOSE) << "      Resuming event thread only";
+        VLOG(jdwp) << "      Resuming event thread only";
         thread_list->Resume(targetThread, true);
       }
 
@@ -1624,7 +1624,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
         req->cond_.Wait(req->lock_);
       }
     }
-    LOG(VERBOSE) << "    Control has returned from event thread";
+    VLOG(jdwp) << "    Control has returned from event thread";
 
     /* wait for thread to re-suspend itself */
     targetThread->WaitUntilSuspended();
@@ -1639,9 +1639,9 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
    * so we want to resume the target thread once to keep the books straight.
    */
   if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
-    LOG(VERBOSE) << "      Suspending all threads";
+    VLOG(jdwp) << "      Suspending all threads";
     thread_list->SuspendAll(true);
-    LOG(VERBOSE) << "      Resuming event thread to balance the count";
+    VLOG(jdwp) << "      Resuming event thread to balance the count";
     thread_list->Resume(targetThread, true);
   }
 
@@ -1668,10 +1668,10 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   Method* m = pReq->method_;
-  LOG(VERBOSE) << "ExecuteMethod " << PrettyMethod(m);
+  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m);
   if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
     m = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
-    LOG(VERBOSE) << "ExecuteMethod " << PrettyMethod(m);
+    VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m);
   }
   CHECK(m != NULL);
 
@@ -1683,14 +1683,14 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
   if (pReq->exception != 0) {
     Object* exc = self->GetException();
-    LOG(VERBOSE) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
+    VLOG(jdwp) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
     self->ClearException();
     pReq->result_value.j = 0;
   } else if (pReq->result_tag == JDWP::JT_OBJECT) {
     /* if no exception thrown, examine object result more closely */
     JDWP::JdwpTag new_tag = TagFromObject(pReq->result_value.l);
     if (new_tag != pReq->result_tag) {
-      LOG(VERBOSE) << "  JDWP promoted result from " << pReq->result_tag << " to " << new_tag;
+      VLOG(jdwp) << "  JDWP promoted result from " << pReq->result_tag << " to " << new_tag;
       pReq->result_tag = new_tag;
     }
 
@@ -1799,7 +1799,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   offset = env->GetIntField(chunk.get(), offset_fid);
   type = env->GetIntField(chunk.get(), type_fid);
 
-  LOG(VERBOSE) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData.get(), offset, length);
+  VLOG(jdwp) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData.get(), offset, length);
   if (length == 0 || replyData.get() == NULL) {
     return false;
   }
@@ -1822,12 +1822,12 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   *pReplyBuf = reply;
   *pReplyLen = length + kChunkHdrLen;
 
-  LOG(VERBOSE) << StringPrintf("dvmHandleDdm returning type=%.4s buf=%p len=%d", (char*) reply, reply, length);
+  VLOG(jdwp) << StringPrintf("dvmHandleDdm returning type=%.4s buf=%p len=%d", (char*) reply, reply, length);
   return true;
 }
 
 void Dbg::DdmBroadcast(bool connect) {
-  LOG(VERBOSE) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
+  VLOG(jdwp) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
 
   Thread* self = Thread::Current();
   if (self->GetState() != Thread::kRunnable) {
@@ -1931,7 +1931,7 @@ void Dbg::DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes) {
 
 void Dbg::DdmSendChunkV(uint32_t type, const struct iovec* iov, int iov_count) {
   if (gJdwpState == NULL) {
-    LOG(VERBOSE) << "Debugger thread not active, ignoring DDM send: " << type;
+    VLOG(jdwp) << "Debugger thread not active, ignoring DDM send: " << type;
   } else {
     gJdwpState->DdmSendChunkV(type, iov, iov_count);
   }

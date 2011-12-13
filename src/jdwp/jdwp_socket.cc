@@ -222,7 +222,7 @@ static void netShutdown(JdwpNetState* netState) {
 
   /* if we might be sitting in select, kick us loose */
   if (netState->wakePipe[1] >= 0) {
-    LOG(VERBOSE) << "+++ writing to wakePipe";
+    VLOG(jdwp) << "+++ writing to wakePipe";
     (void) write(netState->wakePipe[1], "", 1);
   }
 }
@@ -353,7 +353,9 @@ static bool acceptConnection(JdwpState* state)
       // When we call shutdown() on the socket, accept() returns with
       // EINVAL.  Don't gripe about it.
       if (errno == EINVAL) {
-        PLOG(VERBOSE) << "accept failed";
+        if (VLOG_IS_ON(jdwp)) {
+          PLOG(ERROR) << "accept failed";
+        }
       } else {
         PLOG(ERROR) << "accept failed";
         return false;
@@ -363,13 +365,13 @@ static bool acceptConnection(JdwpState* state)
 
   netState->remoteAddr = addr.addrInet.sin_addr;
   netState->remotePort = ntohs(addr.addrInet.sin_port);
-  LOG(VERBOSE) << "+++ accepted connection from " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
+  VLOG(jdwp) << "+++ accepted connection from " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
 
   netState->clientSock = sock;
   netState->awaitingHandshake = true;
   netState->inputCount = 0;
 
-  LOG(VERBOSE) << "Setting TCP_NODELAY on accepted socket";
+  VLOG(jdwp) << "Setting TCP_NODELAY on accepted socket";
   setNoDelay(netState->clientSock);
 
   if (pipe(netState->wakePipe) < 0) {
@@ -476,7 +478,7 @@ static void closeConnection(JdwpState* state) {
     return;
   }
 
-  LOG(VERBOSE) << "+++ closed connection to " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
+  VLOG(jdwp) << "+++ closed connection to " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
 
   close(netState->clientSock);
   netState->clientSock = -1;
@@ -543,7 +545,7 @@ static void dumpPacket(const unsigned char* packetBuf) {
 
   dataLen = length - (buf - packetBuf);
 
-  LOG(VERBOSE) << StringPrintf("--- %s: dataLen=%u id=0x%08x flags=0x%02x cmd=%d/%d",
+  VLOG(jdwp) << StringPrintf("--- %s: dataLen=%u id=0x%08x flags=0x%02x cmd=%d/%d",
       reply ? "reply" : "req", dataLen, id, flags, cmdSet, cmd);
   if (dataLen > 0) {
     HexDump(buf, dataLen);
@@ -608,7 +610,7 @@ static bool handlePacket(JdwpState* state) {
     DCHECK(false);
   }
 
-  LOG(VERBOSE) << "----------";
+  VLOG(jdwp) << "----------";
 
   consumeBytes(netState, length);
   return true;
@@ -653,7 +655,7 @@ static bool processIncoming(JdwpState* state) {
       }
 
       if (maxfd < 0) {
-        LOG(VERBOSE) << "+++ all fds are closed";
+        VLOG(jdwp) << "+++ all fds are closed";
         return false;
       }
 
@@ -769,7 +771,7 @@ static bool processIncoming(JdwpState* state) {
 
     consumeBytes(netState, kMagicHandshakeLen);
     netState->awaitingHandshake = false;
-    LOG(VERBOSE) << "+++ handshake complete";
+    VLOG(jdwp) << "+++ handshake complete";
     return true;
   }
 
@@ -797,7 +799,7 @@ static bool sendRequest(JdwpState* state, ExpandBuf* pReq) {
   /*dumpPacket(expandBufGetBuffer(pReq));*/
   if (netState->clientSock < 0) {
     /* can happen with some DDMS events */
-    LOG(VERBOSE) << "NOT sending request -- no debugger is attached";
+    VLOG(jdwp) << "NOT sending request -- no debugger is attached";
     return false;
   }
 
@@ -825,7 +827,7 @@ static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iov_coun
 
   if (netState->clientSock < 0) {
     /* can happen with some DDMS events */
-    LOG(VERBOSE) << "NOT sending request -- no debugger is attached";
+    VLOG(jdwp) << "NOT sending request -- no debugger is attached";
     return false;
   }
 

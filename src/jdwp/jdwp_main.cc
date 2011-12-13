@@ -271,7 +271,7 @@ void JdwpState::Run() {
   Runtime* runtime = Runtime::Current();
   runtime->AttachCurrentThread("JDWP", true);
 
-  LOG(VERBOSE) << "JDWP: thread running";
+  VLOG(jdwp) << "JDWP: thread running";
 
   /*
    * Finish initializing, then notify the creating thread that
@@ -379,7 +379,7 @@ void JdwpState::Run() {
   /* back to running, for thread shutdown */
   Dbg::ThreadRunning();
 
-  LOG(VERBOSE) << "JDWP: thread detaching and exiting...";
+  VLOG(jdwp) << "JDWP: thread detaching and exiting...";
   runtime->DetachCurrentThread();
 }
 
@@ -423,7 +423,7 @@ int64_t JdwpState::LastDebuggerActivity() {
 
   /* initializing or in the middle of something? */
   if (last == 0) {
-    LOG(VERBOSE) << "+++ last=busy";
+    VLOG(jdwp) << "+++ last=busy";
     return 0;
   }
 
@@ -431,7 +431,7 @@ int64_t JdwpState::LastDebuggerActivity() {
   int64_t now = MilliTime();
   CHECK_GT(now, last);
 
-  LOG(VERBOSE) << "+++ debugger interval=" << (now - last);
+  VLOG(jdwp) << "+++ debugger interval=" << (now - last);
   return now - last;
 }
 

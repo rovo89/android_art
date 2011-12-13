@@ -698,9 +698,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
                                  const art::ClassLoader* class_loader,
                                  const art::DexFile& dex_file, art::InstructionSet insnSet)
 {
-    if (compiler.IsVerbose()) {
-        LOG(INFO) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-    }
+    VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
     oatArenaReset();
 
     const u2* codePtr = code_item->insns_;
@@ -735,7 +733,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
     if (!useMatch || match) {
         cUnit->disableOpt = compilerOptimizerDisableFlags;
         cUnit->enableDebug = compilerDebugFlags;
-        cUnit->printMe = compiler.IsVerbose() || (cUnit->enableDebug & (1 << kDebugVerbose));
+        cUnit->printMe = VLOG_IS_ON(compiler) || (cUnit->enableDebug & (1 << kDebugVerbose));
     }
 
     /* Assume non-throwing leaf */
@@ -919,10 +917,8 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
                                                 cUnit->fpSpillMask, cUnit->mappingTable,
                                                 vmapTable);
 
-    if (compiler.IsVerbose()) {
-        LOG(INFO) << "Compiled " << PrettyMethod(method_idx, dex_file)
-                  << " (" << (cUnit->codeBuffer.size() * sizeof(cUnit->codeBuffer[0])) << " bytes)";
-    }
+    VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file)
+                   << " (" << (cUnit->codeBuffer.size() * sizeof(cUnit->codeBuffer[0])) << " bytes)";
 
     return result;
 }
@@ -933,9 +929,7 @@ void oatInit(const Compiler& compiler)
     if (initialized)
         return;
     initialized = true;
-    if (compiler.IsVerbose()) {
-        LOG(INFO) << "Initializing compiler";
-    }
+    VLOG(compiler) << "Initializing compiler";
     if (!oatArchInit()) {
         LOG(FATAL) << "Failed to initialize oat";
     }

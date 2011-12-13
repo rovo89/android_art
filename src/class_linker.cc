@@ -199,24 +199,21 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
-ClassLinker* ClassLinker::Create(bool verbose,
-                                 const std::string& boot_class_path,
-                                 InternTable* intern_table) {
+ClassLinker* ClassLinker::Create(const std::string& boot_class_path, InternTable* intern_table) {
   CHECK_NE(boot_class_path.size(), 0U);
-  UniquePtr<ClassLinker> class_linker(new ClassLinker(verbose, intern_table));
+  UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
   class_linker->Init(boot_class_path);
   return class_linker.release();
 }
 
-ClassLinker* ClassLinker::Create(bool verbose, InternTable* intern_table) {
-  UniquePtr<ClassLinker> class_linker(new ClassLinker(verbose, intern_table));
+ClassLinker* ClassLinker::Create(InternTable* intern_table) {
+  UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
   class_linker->InitFromImage();
   return class_linker.release();
 }
 
-ClassLinker::ClassLinker(bool verbose, InternTable* intern_table)
-    : verbose_(verbose),
-      dex_lock_("ClassLinker dex lock"),
+ClassLinker::ClassLinker(InternTable* intern_table)
+    : dex_lock_("ClassLinker dex lock"),
       classes_lock_("ClassLinker classes lock"),
       class_roots_(NULL),
       array_iftable_(NULL),
@@ -240,10 +237,7 @@ void CreateClassPath(const std::string& class_path,
 }
 
 void ClassLinker::Init(const std::string& boot_class_path) {
-  const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::InitFrom entering boot_class_path=" << boot_class_path;
-  }
+  VLOG(startup) << "ClassLinker::InitFrom entering boot_class_path=" << boot_class_path;
 
   CHECK(!init_done_);
 
@@ -475,16 +469,11 @@ void ClassLinker::Init(const std::string& boot_class_path) {
 
   FinishInit();
 
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::InitFrom exiting";
-  }
+  VLOG(startup) << "ClassLinker::InitFrom exiting";
 }
 
 void ClassLinker::FinishInit() {
-  const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::FinishInit entering";
-  }
+  VLOG(startup) << "ClassLinker::FinishInit entering";
 
   // Let the heap know some key offsets into java.lang.ref instances
   // Note: we hard code the field indexes here rather than using FindInstanceField
@@ -550,9 +539,7 @@ void ClassLinker::FinishInit() {
   // that Object, Class, and Object[] are setup
   init_done_ = true;
 
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::FinishInit exiting";
-  }
+  VLOG(startup) << "ClassLinker::FinishInit exiting";
 }
 
 void ClassLinker::RunRootClinits() {
@@ -617,9 +604,7 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
 OatFile* ClassLinker::OpenOat(const Space* space) {
   MutexLock mu(dex_lock_);
   const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::OpenOat entering";
-  }
+  VLOG(startup) << "ClassLinker::OpenOat entering";
   const ImageHeader& image_header = space->GetImageHeader();
   // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
   // check the down cast
@@ -641,9 +626,7 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
     return NULL;
   }
   oat_files_.push_back(oat_file);
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::OpenOat exiting";
-  }
+  VLOG(startup) << "ClassLinker::OpenOat exiting";
   return oat_file;
 }
 
@@ -732,9 +715,7 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
 
 void ClassLinker::InitFromImage() {
   const Runtime* runtime = Runtime::Current();
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::InitFromImage entering";
-  }
+  VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
 
   const std::vector<Space*>& spaces = Heap::GetSpaces();
@@ -806,9 +787,7 @@ void ClassLinker::InitFromImage() {
 
   FinishInit();
 
-  if (runtime->IsVerboseStartup()) {
-    LOG(INFO) << "ClassLinker::InitFromImage exiting";
-  }
+  VLOG(startup) << "ClassLinker::InitFromImage exiting";
 }
 
 void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
@@ -1604,7 +1583,7 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
 }
 
 bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass, bool image_class) {
-  if (verbose_) {
+  if (VLOG_IS_ON(class_linker)) {
     DexCache* dex_cache = klass->GetDexCache();
     std::string source;
     if (dex_cache != NULL) {
@@ -1909,7 +1888,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       global_stats->class_init_time_ns += (t1 - t0);
       thread_stats->class_init_time_ns += (t1 - t0);
       klass->SetStatus(Class::kStatusInitialized);
-      if (verbose_) {
+      if (VLOG_IS_ON(class_linker)) {
         ClassHelper kh(klass);
         LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
       }

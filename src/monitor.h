@@ -63,9 +63,8 @@ class Monitor {
  public:
   ~Monitor();
 
-  static bool IsVerbose();
   static bool IsSensitiveThread();
-  static void Init(bool is_verbose, uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)());
+  static void Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)());
 
   static uint32_t GetThinLockId(uint32_t raw_lock_word);
 
@@ -103,7 +102,6 @@ class Monitor {
                          const char*& source_file, uint32_t& line_number) const;
 
   static bool (*is_sensitive_thread_hook_)();
-  static bool is_verbose_;
   static uint32_t lock_profiling_threshold_;
 
   // Which thread currently owns the lock?

@@ -19,7 +19,7 @@ class JniInternalTest : public CommonTest {
     vm_ = Runtime::Current()->GetJavaVM();
 
     // Turn on -verbose:jni for the JNI tests.
-    vm_->verbose_jni = true;
+    gLogVerbosity.jni = true;
 
     env_ = Thread::Current()->GetJniEnv();
 
