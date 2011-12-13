@@ -407,12 +407,19 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
   // Resolve method filling in dex cache
   Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
   if (LIKELY(!thread->IsExceptionPending())) {
-    // Update CodeAndDirectMethod table
-    Method* caller = *caller_sp;
-    DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
-    dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, called);
-    // We got this far, ensure that the declaring class is initialized
-    linker->EnsureInitialized(called->GetDeclaringClass(), true);
+    if (LIKELY(called->IsDirect())) {
+      // Update CodeAndDirectMethod table
+      Method* caller = *caller_sp;
+      DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
+      dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, called);
+      // We got this far, ensure that the declaring class is initialized
+      linker->EnsureInitialized(called->GetDeclaringClass(), true);
+    } else {
+      // Direct method has been made virtual
+      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                                 "Expected direct method but found virtual: %s",
+                                 PrettyMethod(called, true).c_str());
+    }
   }
   void* code;
   if (UNLIKELY(thread->IsExceptionPending())) {
