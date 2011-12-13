@@ -1681,7 +1681,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetVerifyErrorClass(Class* klass) {
-    klass->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
   }
 
   uint16_t GetDexTypeIndex() const {

@@ -2183,11 +2183,13 @@ bool ClassLinker::LinkSuperClass(SirtRef<Class>& klass) {
   }
   // Verify
   if (super->IsFinal() || super->IsInterface()) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+    Thread* thread = Thread::Current();
+    thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
         "Superclass %s of %s is %s",
         PrettyDescriptor(super).c_str(),
         PrettyDescriptor(klass.get()).c_str(),
         super->IsFinal() ? "declared final" : "an interface");
+    klass->SetVerifyErrorClass(thread->GetException()->GetClass());
     return false;
   }
   if (!klass->CanAccess(super)) {
@@ -2347,10 +2349,12 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
       ClassHelper ih(interface);
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+      Thread* thread = Thread::Current();
+      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
           "Class %s implements non-interface class %s",
           PrettyDescriptor(klass.get()).c_str(),
           PrettyDescriptor(ih.GetDescriptor()).c_str());
+      klass->SetVerifyErrorClass(thread->GetException()->GetClass());
       return false;
     }
     // Add this interface.
