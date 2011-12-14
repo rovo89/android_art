@@ -220,7 +220,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
           Object::ClassOffset().Int32Value();
       const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
       if (c == NULL) {
-        LOG(FATAL) << "Null class" << " in object: " << obj;
+        LOG(FATAL) << "Null class in object: " << obj;
       } else if (!IsAligned<kObjectAlignment>(c)) {
         LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
       } else if (!live_bitmap_->Test(c)) {
@@ -257,7 +257,7 @@ void Heap::RecordAllocationLocked(Space* space, const Object* obj) {
   }
 #endif
   size_t size = space->AllocationSize(obj);
-  DCHECK_NE(size, 0u);
+  DCHECK_GT(size, 0u);
   num_bytes_allocated_ += size;
   num_objects_allocated_ += 1;
 
@@ -378,8 +378,8 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     // OLD-TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
-    VLOG(gc) << "Grow heap (frag case) to " << new_footprint / MB
-             << " for " << size << "-byte allocation";
+    VLOG(gc) << "Grow heap (frag case) to " << (new_footprint/KB) << "KiB "
+             << "for a " << size << "-byte allocation";
     return ptr;
   }
 
@@ -397,7 +397,7 @@ Object* Heap::AllocateLocked(Space* space, size_t size) {
     return ptr;
   }
 
-  LOG(ERROR) << "Out of memory on a " << size << " byte allocation";
+  LOG(ERROR) << "Out of memory on a " << size << "-byte allocation";
 
   // TODO: tell the HeapSource to dump its state
   // TODO: dump stack traces for all threads
@@ -524,7 +524,7 @@ void Heap::CollectGarbageInternal() {
   // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
   size_t bytes_freed = initial_size - num_bytes_allocated_;
   bool is_small = (bytes_freed > 0 && bytes_freed < 1024);
-  size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/1024, 1U) : 0);
+  size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/KB, 1U) : 0);
 
   size_t total = GetTotalMemory();
   size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / total);
@@ -534,7 +534,7 @@ void Heap::CollectGarbageInternal() {
   if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
     LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
               << percentFree << "% free "
-              << (num_bytes_allocated_/1024) << "KiB/" << (total/1024) << "KiB, "
+              << (num_bytes_allocated_/KB) << "KiB/" << (total/KB) << "KiB, "
               << "paused " << duration << "ms";
   }
   Dbg::GcDidFinish();
@@ -577,8 +577,8 @@ void Heap::WalkHeap(void(*callback)(const void*, size_t, const void*, size_t, vo
 //
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   if (max_allowed_footprint > Heap::growth_size_) {
-    VLOG(gc) << "Clamp target GC heap from " << max_allowed_footprint
-             << " to " << Heap::growth_size_;
+    VLOG(gc) << "Clamp target GC heap from " << (max_allowed_footprint/KB) << "KiB"
+             << " to " << (Heap::growth_size_/KB) << "KiB";
     max_allowed_footprint = Heap::growth_size_;
   }
 
@@ -586,7 +586,7 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
 }
 
 // kHeapIdealFree is the ideal maximum free size, when we grow the heap for
-// utlization.
+// utilization.
 static const size_t kHeapIdealFree = 2 * MB;
 // kHeapMinFree guarantees that you always have at least 512 KB free, when
 // you grow for utilization, regardless of target utilization ratio.

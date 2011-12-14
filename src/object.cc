@@ -1175,8 +1175,7 @@ bool String::Equals(const String* that) const {
   }
 }
 
-bool String::Equals(const uint16_t* that_chars, int32_t that_offset,
-                    int32_t that_length) const {
+bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) const {
   if (this->GetLength() != that_length) {
     return false;
   } else {
