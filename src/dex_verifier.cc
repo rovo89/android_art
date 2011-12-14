@@ -771,6 +771,8 @@ void RegisterLine::PushMonitor(uint32_t reg_idx, int32_t insn_idx) {
   const RegType& reg_type = GetRegisterType(reg_idx);
   if (!reg_type.IsReferenceTypes()) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-enter on non-object (" << reg_type << ")";
+  } else if (monitors_.size() >= 32) {
+    verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-enter stack overflow: " << monitors_.size();
   } else {
     SetRegToLockDepth(reg_idx, monitors_.size());
     monitors_.push_back(insn_idx);

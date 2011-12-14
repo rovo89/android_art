@@ -38,12 +38,10 @@ public class Main {
         System.out.println("constantLock ok");
 
         m.notExcessiveNesting();
-        if (false) {    // TODO: remove when verification is turned on
         try {
             TooDeep.excessiveNesting();
             System.err.println("excessiveNesting did not throw");
         } catch (VerifyError ve) {}
-        }
         System.out.println("excessiveNesting ok");
 
         m.notNested();
