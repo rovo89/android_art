@@ -1316,6 +1316,10 @@ class MANAGED Class : public StaticStorageBase {
 
   // Validate method/field access.
   bool CanAccessMember(Class* access_to, uint32_t member_flags) const {
+    // check access to class
+    if (!CanAccess(access_to)) {
+      return false;
+    }
     // quick accept for public access
     if (member_flags & kAccPublic) {
       return true;
