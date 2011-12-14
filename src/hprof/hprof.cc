@@ -594,8 +594,7 @@ bool Hprof::Finish() {
   }
 
   // throw out a log message for the benefit of "runhat"
-  LOG(INFO) << StringPrintf("hprof: heap dump completed (%dKB)",
-      (headCtx.file_data_size_ + file_data_size_ + 1023) / 1024);
+  LOG(INFO) << "hprof: heap dump completed (" << ((headCtx.file_data_size_ + file_data_size_ + 1023) / KB) << "KiB)";
 
   return true;
 }
