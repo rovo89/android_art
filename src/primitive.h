@@ -88,29 +88,29 @@ class Primitive {
     return ComponentSize(type) <= 4 ? 4 : 8;
   }
 
-  static char DescriptorChar(Type type) {
+  static const char* Descriptor(Type type) {
     switch (type) {
       case kPrimBoolean:
-        return 'Z';
+        return "Z";
       case kPrimByte:
-        return 'B';
+        return "B";
       case kPrimChar:
-        return 'C';
+        return "C";
       case kPrimShort:
-        return 'S';
+        return "S";
       case kPrimInt:
-        return 'I';
+        return "I";
       case kPrimFloat:
-        return 'F';
+        return "F";
       case kPrimLong:
-        return 'J';
+        return "J";
       case kPrimDouble:
-        return 'D';
+        return "D";
       case kPrimVoid:
-        return 'V';
+        return "V";
       default:
         LOG(FATAL) << "Primitive char conversion on invalid type " << static_cast<int>(type);
-        return 0;
+        return NULL;
     }
   }
 

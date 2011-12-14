@@ -44,7 +44,7 @@ Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dim
     // old code assumed this but if you recurse from "[Foo" to "Foo" to "oo",
     // you shouldn't assume there isn't a class "oo".
   }
-  std::string sub_array_descriptor(ClassHelper(array_class).GetDescriptor(), 1);
+  std::string sub_array_descriptor(ClassHelper(array_class).GetDescriptor() + 1);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* sub_array_class = class_linker->FindClass(sub_array_descriptor,
                                                    array_class->GetClassLoader());
@@ -80,7 +80,7 @@ jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, job
   DCHECK(javaDimArray != NULL);
   Object* dimensions_obj = Decode<Object*>(env, javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
-  DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor().c_str(), "[I");
+  DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor(), "[I");
   IntArray* dimensions_array = down_cast<IntArray*>(dimensions_obj);
 
   // Verify dimensions.

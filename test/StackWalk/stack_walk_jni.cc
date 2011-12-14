@@ -74,7 +74,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
         CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       }
     }
-    LOG(INFO) << reg_bitmap;
+    LOG(INFO) << reinterpret_cast<const void*>(reg_bitmap);
   }
 };
 

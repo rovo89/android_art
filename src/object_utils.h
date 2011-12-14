@@ -22,6 +22,7 @@
 #include "dex_file.h"
 #include "object.h"
 #include "runtime.h"
+#include "UniquePtr.h"
 
 #include <string>
 
@@ -29,12 +30,14 @@ namespace art {
 
 class ClassHelper {
  public:
-  ClassHelper() : class_def_(NULL), class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL),
-      interface_type_list_(NULL), klass_(NULL) {}
-  ClassHelper(const Class* c) : class_def_(NULL), class_linker_(NULL), dex_cache_(NULL),
-      dex_file_(NULL), interface_type_list_(NULL), klass_(c) {}
-  ClassHelper(const Class* c, ClassLinker* l) : class_def_(NULL), class_linker_(l),
-      dex_cache_(NULL), dex_file_(NULL), interface_type_list_(NULL), klass_(c) {}
+  ClassHelper(const Class* c = NULL, ClassLinker* l = NULL)
+      : class_def_(NULL),
+        class_linker_(l),
+        dex_cache_(NULL),
+        dex_file_(NULL),
+        interface_type_list_(NULL),
+        klass_(c) {
+  }
 
   void ChangeClass(const Class* new_c) {
     DCHECK(new_c != NULL);
@@ -50,26 +53,29 @@ class ClassHelper {
     class_def_ = NULL;
   }
 
-  std::string GetDescriptor() {
+  // The returned const char* is only guaranteed to be valid for the lifetime of the ClassHelper.
+  // If you need it longer, copy it into a std::string.
+  const char* GetDescriptor() {
     if (klass_->IsArrayClass()) {
       std::string result("[");
       const Class* saved_klass = klass_;
       ChangeClass(klass_->GetComponentType());
       result += GetDescriptor();
       ChangeClass(saved_klass);
-      return result;
-    } else if (klass_->IsPrimitive()){
-      std::string result;
-      result += Primitive::DescriptorChar(klass_->GetPrimitiveType());
-      return result;
+      descriptor_ = result;
+      return descriptor_.c_str();
+    } else if (klass_->IsPrimitive()) {
+      return Primitive::Descriptor(klass_->GetPrimitiveType());
     } else if (klass_->IsProxyClass()) {
-      return GetClassLinker()->GetDescriptorForProxy(klass_);
+      descriptor_ = GetClassLinker()->GetDescriptorForProxy(klass_);
+      return descriptor_.c_str();
     } else {
       const DexFile& dex_file = GetDexFile();
       const DexFile::TypeId& type_id = dex_file.GetTypeId(klass_->GetDexTypeIndex());
       return dex_file.GetTypeDescriptor(type_id);
     }
   }
+
   const DexFile::ClassDef* GetClassDef() {
     const DexFile::ClassDef* result = class_def_;
     if (result == NULL) {
@@ -78,6 +84,7 @@ class ClassHelper {
     }
     return result;
   }
+
   uint32_t NumInterfaces() {
     if (klass_->IsPrimitive()) {
       return 0;
@@ -93,11 +100,13 @@ class ClassHelper {
       }
     }
   }
+
   uint16_t GetInterfaceTypeIdx(uint32_t idx) {
     DCHECK(!klass_->IsPrimitive());
     DCHECK(!klass_->IsArrayClass());
     return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
   }
+
   Class* GetInterface(uint32_t idx) {
     DCHECK(!klass_->IsPrimitive());
     if (klass_->IsArrayClass()) {
@@ -117,6 +126,7 @@ class ClassHelper {
       return interface;
     }
   }
+
   const char* GetSourceFile() {
     std::string descriptor(GetDescriptor());
     const DexFile& dex_file = GetDexFile();
@@ -127,6 +137,7 @@ class ClassHelper {
       return dex_file.GetSourceFile(*dex_class_def);
     }
   }
+
   std::string GetLocation() {
     return GetDexCache()->GetLocation()->ToModifiedUtf8();
   }
@@ -153,6 +164,7 @@ class ClassHelper {
     }
     return result;
   }
+
   DexCache* GetDexCache() {
     DexCache* result = dex_cache_;
     if (result == NULL) {
@@ -161,6 +173,7 @@ class ClassHelper {
     }
     return result;
   }
+
   ClassLinker* GetClassLinker() {
     ClassLinker* result = class_linker_;
     if (result == NULL) {
@@ -176,6 +189,7 @@ class ClassHelper {
   const DexFile* dex_file_;
   const DexFile::TypeList* interface_type_list_;
   const Class* klass_;
+  std::string descriptor_;
 
   DISALLOW_COPY_AND_ASSIGN(ClassHelper);
 };

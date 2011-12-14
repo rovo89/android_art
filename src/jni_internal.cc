@@ -335,7 +335,7 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
 
 static void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const char* name, const char* sig, const char* kind) {
   ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
-      "no %s method \"%s.%s%s\"", kind, ClassHelper(c).GetDescriptor().c_str(), name, sig);
+      "no %s method \"%s.%s%s\"", kind, ClassHelper(c).GetDescriptor(), name, sig);
 }
 
 static jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
@@ -394,7 +394,7 @@ static jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const ch
     ts.Self()->ClearException();
     ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
         "no type \"%s\" found and so no field \"%s\" could be found in class "
-        "\"%s\" or its superclasses", sig, name, ClassHelper(c).GetDescriptor().c_str());
+        "\"%s\" or its superclasses", sig, name, ClassHelper(c).GetDescriptor());
     return NULL;
   }
   if (is_static) {
@@ -405,7 +405,7 @@ static jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const ch
   if (field == NULL) {
     ts.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
         "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
-        name, ClassHelper(c).GetDescriptor().c_str());
+        name, ClassHelper(c).GetDescriptor());
     return NULL;
   }
   return EncodeField(field);

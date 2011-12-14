@@ -241,7 +241,7 @@ class RegType {
    * the perversion of Object being assignable to an interface type (note, however, that we don't
    * allow assignment of Object or Interface to any concrete class and are therefore type safe).
    *
-   * [1] Java bytecode verifcation: algorithms and formalizations, Xavier Leroy
+   * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
    */
   static Class* ClassJoin(Class* s, Class* t);
 

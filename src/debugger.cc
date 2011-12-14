@@ -2447,7 +2447,7 @@ jbyteArray Dbg::GetRecentAllocations() {
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[idx];
 
-    class_names.Add(ClassHelper(record->type).GetDescriptor().c_str());
+    class_names.Add(ClassHelper(record->type).GetDescriptor());
 
     MethodHelper mh;
     for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
@@ -2506,7 +2506,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     JDWP::Append4BE(bytes, record->byte_count);
     JDWP::Append2BE(bytes, record->thin_lock_id);
     kh.ChangeClass(record->type);
-    JDWP::Append2BE(bytes, class_names.IndexOf(kh.GetDescriptor().c_str()));
+    JDWP::Append2BE(bytes, class_names.IndexOf(kh.GetDescriptor()));
     JDWP::Append1BE(bytes, stack_depth);
 
     MethodHelper mh;

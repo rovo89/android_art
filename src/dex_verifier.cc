@@ -893,7 +893,7 @@ bool DexVerifier::VerifyClass(const Class* klass) {
     return true;
   }
   Class* super = klass->GetSuperClass();
-  if (super == NULL && ClassHelper(klass).GetDescriptor() != "Ljava/lang/Object;") {
+  if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
     LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass) << " that has no super class";
     return false;
   }

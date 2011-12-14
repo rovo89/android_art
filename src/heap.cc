@@ -163,7 +163,7 @@ Object* Heap::AllocObject(Class* klass, size_t byte_count) {
     ScopedHeapLock lock;
     DCHECK(klass == NULL || (klass->IsClassClass() && byte_count >= sizeof(Class)) ||
            (klass->IsVariableSize() || klass->GetObjectSize() == byte_count) ||
-           ClassHelper(klass).GetDescriptor().empty());
+           strlen(ClassHelper(klass).GetDescriptor()) == 0);
     DCHECK_GE(byte_count, sizeof(Object));
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {

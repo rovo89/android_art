@@ -126,8 +126,7 @@ std::string PrettyDescriptor(const std::string& descriptor) {
 }
 
 std::string PrettyDescriptor(Primitive::Type type) {
-  char descriptor_char = Primitive::DescriptorChar(type);
-  std::string descriptor_string(1, descriptor_char);
+  std::string descriptor_string(Primitive::Descriptor(type));
   return PrettyDescriptor(descriptor_string);
 }
 

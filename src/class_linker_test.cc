@@ -35,7 +35,7 @@ class ClassLinkerTest : public CommonTest {
     ASSERT_TRUE(primitive->GetClass() != NULL);
     ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
     EXPECT_TRUE(primitive->GetClass()->GetSuperClass() != NULL);
-    ASSERT_STREQ(descriptor.c_str(), primitive_ch.GetDescriptor().c_str());
+    ASSERT_STREQ(descriptor.c_str(), primitive_ch.GetDescriptor());
     EXPECT_TRUE(primitive->GetSuperClass() == NULL);
     EXPECT_FALSE(primitive->HasSuperClass());
     EXPECT_TRUE(primitive->GetClassLoader() == NULL);
@@ -68,7 +68,7 @@ class ClassLinkerTest : public CommonTest {
                         const ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor, class_loader);
     ClassHelper array_component_ch(array->GetComponentType());
-    EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor().c_str());
+    EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
     EXPECT_EQ(class_loader, array->GetClassLoader());
     AssertArrayClass(array_descriptor, array);
   }
@@ -79,7 +79,7 @@ class ClassLinkerTest : public CommonTest {
     ASSERT_TRUE(array->GetClass() != NULL);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
     EXPECT_TRUE(array->GetClass()->GetSuperClass() != NULL);
-    ASSERT_STREQ(array_descriptor.c_str(), kh.GetDescriptor().c_str());
+    ASSERT_STREQ(array_descriptor.c_str(), kh.GetDescriptor());
     EXPECT_TRUE(array->GetSuperClass() != NULL);
     EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
     EXPECT_TRUE(array->HasSuperClass());
@@ -110,10 +110,10 @@ class ClassLinkerTest : public CommonTest {
     ObjectArray<InterfaceEntry>* iftable = array->GetIfTable();
     ASSERT_TRUE(iftable != NULL);
     kh.ChangeClass(kh.GetInterface(0));
-    EXPECT_STREQ(kh.GetDescriptor().c_str(), "Ljava/lang/Cloneable;");
+    EXPECT_STREQ(kh.GetDescriptor(), "Ljava/lang/Cloneable;");
     kh.ChangeClass(array);
     kh.ChangeClass(kh.GetInterface(1));
-    EXPECT_STREQ(kh.GetDescriptor().c_str(), "Ljava/io/Serializable;");
+    EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
   void AssertMethod(Class* klass, Method* method) {
@@ -154,7 +154,7 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertClass(const std::string& descriptor, Class* klass) {
     ClassHelper kh(klass);
-    EXPECT_STREQ(descriptor.c_str(), kh.GetDescriptor().c_str());
+    EXPECT_STREQ(descriptor.c_str(), kh.GetDescriptor());
     if (descriptor == "Ljava/lang/Object;") {
       EXPECT_FALSE(klass->HasSuperClass());
     } else {
@@ -279,7 +279,7 @@ class ClassLinkerTest : public CommonTest {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor);
     ASSERT_TRUE(klass != NULL);
-    EXPECT_STREQ(descriptor.c_str(), ClassHelper(klass).GetDescriptor().c_str());
+    EXPECT_STREQ(descriptor.c_str(), ClassHelper(klass).GetDescriptor());
     EXPECT_EQ(class_loader, klass->GetClassLoader());
     if (klass->IsPrimitive()) {
       AssertPrimitiveClass(descriptor, klass);
@@ -670,7 +670,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
   ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
   EXPECT_EQ(JavaLangObject, JavaLangObject->GetClass()->GetSuperClass());
-  ASSERT_STREQ(kh.GetDescriptor().c_str(), "Ljava/lang/Object;");
+  ASSERT_STREQ(kh.GetDescriptor(), "Ljava/lang/Object;");
   EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
   EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
@@ -707,7 +707,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   ASSERT_TRUE(MyClass->GetClass() != NULL);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
   EXPECT_EQ(JavaLangObject, MyClass->GetClass()->GetSuperClass());
-  ASSERT_STREQ(kh.GetDescriptor().c_str(), "LMyClass;");
+  ASSERT_STREQ(kh.GetDescriptor(), "LMyClass;");
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
   EXPECT_EQ(class_loader.get(), MyClass->GetClassLoader());
@@ -821,7 +821,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   Field* s0 = statics->FindStaticField("s0", "Z");
   FieldHelper fh(s0);
-  EXPECT_STREQ(ClassHelper(s0->GetClass()).GetDescriptor().c_str(), "Ljava/lang/reflect/Field;");
+  EXPECT_STREQ(ClassHelper(s0->GetClass()).GetDescriptor(), "Ljava/lang/reflect/Field;");
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimBoolean);
   EXPECT_EQ(true, s0->GetBoolean(NULL));
   s0->SetBoolean(NULL, false);
@@ -995,7 +995,7 @@ TEST_F(ClassLinkerTest, ClassRootDescriptors) {
     Class* klass = class_linker_->GetClassRoot(ClassLinker::ClassRoot(i));
     kh.ChangeClass(klass);
     EXPECT_TRUE(kh.GetDescriptor() != NULL);
-    EXPECT_STREQ(kh.GetDescriptor().c_str(),
+    EXPECT_STREQ(kh.GetDescriptor(),
                  class_linker_->GetClassRootDescriptor(ClassLinker::ClassRoot(i))) << " i = " << i;
   }
 }
