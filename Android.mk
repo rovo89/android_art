@@ -363,7 +363,7 @@ $(eval $(call build-art-cache-oat,system/framework/svc.jar))
 
 else
 
-$(error do not know what jars to compile for $(TARGET_PRODUCT))
+$(warning do not know what jars to compile for $(TARGET_PRODUCT))
 
 endif
 
