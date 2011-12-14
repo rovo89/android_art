@@ -52,7 +52,7 @@ class ClassHelper {
 
   std::string GetDescriptor() {
     if (klass_->IsArrayClass()) {
-      std::string result = "[";
+      std::string result("[");
       const Class* saved_klass = klass_;
       ChangeClass(klass_->GetComponentType());
       result += GetDescriptor();
@@ -118,7 +118,7 @@ class ClassHelper {
     }
   }
   const char* GetSourceFile() {
-    std::string descriptor = GetDescriptor();
+    std::string descriptor(GetDescriptor());
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
     if (dex_class_def == NULL) {

@@ -260,7 +260,7 @@ std::string DotToDescriptor(const char* class_name) {
 std::string DescriptorToDot(const std::string& descriptor) {
   DCHECK_EQ(descriptor[0], 'L');
   DCHECK_EQ(descriptor[descriptor.size()-1], ';');
-  std::string dot = descriptor.substr(1, descriptor.size()-2);
+  std::string dot(descriptor.substr(1, descriptor.size() - 2));
   std::replace(dot.begin(), dot.end(), '/', '.');
   return dot;
 }
@@ -571,7 +571,7 @@ std::string GetArtCacheOrDie() {
     return "";
   }
 
-  std::string art_cache = StringPrintf("%s/art-cache", data_root);
+  std::string art_cache(StringPrintf("%s/art-cache", data_root));
 
   if (!OS::DirectoryExists(art_cache.c_str())) {
     if (StringPiece(art_cache).starts_with("/tmp/")) {
@@ -589,7 +589,7 @@ std::string GetArtCacheOrDie() {
 }
 
 std::string GetArtCacheFilenameOrDie(const std::string& location) {
-  std::string art_cache = GetArtCacheOrDie();
+  std::string art_cache(GetArtCacheOrDie());
   CHECK_EQ(location[0], '/');
   std::string cache_file(location, 1); // skip leading slash
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');

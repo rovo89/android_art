@@ -696,7 +696,7 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
     }
 
     // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
-    std::string cache_location = GetArtCacheFilenameOrDie(oat_location);
+    std::string cache_location(GetArtCacheFilenameOrDie(oat_location));
     oat_file = FindOpenedOatFileFromOatLocation(cache_location);
     if (oat_file != NULL) {
       return oat_file;
@@ -739,7 +739,7 @@ void ClassLinker::InitFromImage() {
                static_cast<uint32_t>(dex_caches->GetLength()));
       for (int i = 0; i < dex_caches->GetLength(); i++) {
         SirtRef<DexCache> dex_cache(dex_caches->Get(i));
-        const std::string& dex_file_location = dex_cache->GetLocation()->ToModifiedUtf8();
+        const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
 
         std::string dex_filename;
         dex_filename += runtime->GetHostPrefix();
@@ -1018,7 +1018,7 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
     }
 
   } else {
-    std::string class_name_string = DescriptorToDot(descriptor);
+    std::string class_name_string(DescriptorToDot(descriptor));
     ScopedThreadStateChange(self, Thread::kNative);
     JNIEnv* env = self->GetJniEnv();
     ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));

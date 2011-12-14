@@ -297,7 +297,7 @@ class CommonTest : public testing::Test {
   }
 
   const DexFile* GetLibCoreDex() {
-    std::string libcore_dex_file_name = GetLibCoreDexFileName();
+    std::string libcore_dex_file_name(GetLibCoreDexFileName());
     return DexFile::Open(libcore_dex_file_name, "");
   }
 
@@ -330,7 +330,7 @@ class CommonTest : public testing::Test {
   }
 
   void CompileClass(const ClassLoader* class_loader, const char* class_name) {
-    std::string class_descriptor = DotToDescriptor(class_name);
+    std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
@@ -353,7 +353,7 @@ class CommonTest : public testing::Test {
                            const char* class_name,
                            const char* method_name,
                            const char* signature) {
-    std::string class_descriptor = DotToDescriptor(class_name);
+    std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     Method* method = klass->FindDirectMethod(method_name, signature);
@@ -366,7 +366,7 @@ class CommonTest : public testing::Test {
                             const char* class_name,
                             const char* method_name,
                             const char* signature) {
-    std::string class_descriptor = DotToDescriptor(class_name);
+    std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor, class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     Method* method = klass->FindVirtualMethod(method_name, signature);

@@ -1304,7 +1304,7 @@ Thread* Thread::CurrentFromGdb() {
 void Thread::DumpFromGdb() const {
   std::ostringstream ss;
   Dump(ss);
-  std::string str = ss.str();
+  std::string str(ss.str());
   // log to stderr for debugging command line processes
   std::cerr << str;
 #ifdef HAVE_ANDROID_OS

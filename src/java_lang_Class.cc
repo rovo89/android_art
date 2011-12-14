@@ -261,7 +261,7 @@ Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::
 jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstring javaName,
                                              jobjectArray javaArgs) {
   Class* c = Decode<Class*>(env, javaClass);
-  std::string name = Decode<String*>(env, javaName)->ToModifiedUtf8();
+  std::string name(Decode<String*>(env, javaName)->ToModifiedUtf8());
   ObjectArray<Class>* arg_array = Decode<ObjectArray<Class>*>(env, javaArgs);
 
   Method* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, arg_array);

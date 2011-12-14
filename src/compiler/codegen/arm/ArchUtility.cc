@@ -449,10 +449,9 @@ void oatCodegenDump(CompilationUnit* cUnit)
 
     const art::DexFile::MethodId& method_id =
         cUnit->dex_file->GetMethodId(cUnit->method_idx);
-    std::string signature = cUnit->dex_file->GetMethodSignature(method_id);
-    std::string name = cUnit->dex_file->GetMethodName(method_id);
-    std::string descriptor =
-        cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id);
+    std::string signature(cUnit->dex_file->GetMethodSignature(method_id));
+    std::string name(cUnit->dex_file->GetMethodName(method_id));
+    std::string descriptor(cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
     // Dump mapping table
     if (cUnit->mappingTable.size() > 0) {

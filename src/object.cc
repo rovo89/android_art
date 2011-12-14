@@ -800,9 +800,9 @@ bool Class::IsInSamePackage(const Class* that) const {
   }
   // Compare the package part of the descriptor string.
   ClassHelper kh(klass1);
-  std::string descriptor1 = kh.GetDescriptor();
+  std::string descriptor1(kh.GetDescriptor());
   kh.ChangeClass(klass2);
-  std::string descriptor2 = kh.GetDescriptor();
+  std::string descriptor2(kh.GetDescriptor());
   return IsInSamePackage(descriptor1, descriptor2);
 }
 

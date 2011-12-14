@@ -305,7 +305,7 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
   }
 
   JValue boxed_value = { 0 };
-  std::string src_descriptor = ClassHelper(o->GetClass()).GetDescriptor();
+  std::string src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
   Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* primitive_field = o->GetClass()->GetIFields()->Get(0);

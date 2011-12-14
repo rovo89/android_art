@@ -106,7 +106,7 @@ class OatDump {
                              const OatFile& oat_file,
                              const OatFile::OatDexFile& oat_dex_file) {
     os << "OAT DEX FILE:\n";
-    std::string dex_file_location = oat_dex_file.GetDexFileLocation();
+    std::string dex_file_location(oat_dex_file.GetDexFileLocation());
     os << "location: " << dex_file_location;
     if (!host_prefix.empty()) {
       dex_file_location = host_prefix + dex_file_location;
@@ -174,7 +174,7 @@ class OatDump {
                             uint32_t method_idx) {
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
     const char* name = dex_file.GetMethodName(method_id);
-    std::string signature = dex_file.GetMethodSignature(method_id);
+    std::string signature(dex_file.GetMethodSignature(method_id));
     os << StringPrintf("\t%d: %s %s (method_idx=%d)\n",
                        method_index, name, signature.c_str(), method_idx);
     os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
@@ -257,7 +257,7 @@ class ImageDump {
 
     os << "OAT LOCATION:\n" << std::flush;
     Object* oat_location_object = image_header.GetImageRoot(ImageHeader::kOatLocation);
-    std::string oat_location = oat_location_object->AsString()->ToModifiedUtf8();
+    std::string oat_location(oat_location_object->AsString()->ToModifiedUtf8());
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     os << oat_location;
     if (!host_prefix.empty()) {
@@ -436,7 +436,7 @@ class ImageDump {
       size_t object_bytes_total = 0;
       typedef TableBytes::const_iterator It;  // TODO: C++0x auto
       for (It it = descriptor_to_bytes.begin(), end = descriptor_to_bytes.end(); it != end; ++it) {
-        const std::string& descriptor = it->first;
+        const std::string& descriptor(it->first);
         size_t bytes = it->second;
         size_t count = descriptor_to_count[descriptor];
         double average = static_cast<double>(bytes) / static_cast<double>(count);

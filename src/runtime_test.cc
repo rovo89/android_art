@@ -15,7 +15,7 @@ TEST_F(RuntimeTest, ParsedOptions) {
   void* test_exit = reinterpret_cast<void*>(0xc);
   void* null = reinterpret_cast<void*>(NULL);
 
-  std::string lib_core = GetLibCoreDexFileName();
+  std::string lib_core(GetLibCoreDexFileName());
 
   std::string boot_class_path;
   boot_class_path += "-Xbootclasspath:";

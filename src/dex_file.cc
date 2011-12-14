@@ -218,7 +218,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     return NULL;
   }
 
-  std::string cache_path = StringPrintf("%s.%08x", cache_path_tmp.c_str(), zip_entry->GetCrc32());
+  std::string cache_path(StringPrintf("%s.%08x", cache_path_tmp.c_str(), zip_entry->GetCrc32()));
   // Example cache_path = /data/art-cache/parent@dir@foo.jar@classes.dex.1a2b3c4d
 
   bool created = false;

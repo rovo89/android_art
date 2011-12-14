@@ -163,7 +163,7 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   if (class_name.c_str() == NULL) {
     return NULL;
   }
-  const std::string descriptor = DotToDescriptor(class_name.c_str());
+  const std::string descriptor(DotToDescriptor(class_name.c_str()));
   const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
   if (dex_class_def == NULL) {
     return NULL;

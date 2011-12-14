@@ -601,7 +601,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
 }
 
 OatWriter::OatDexFile::OatDexFile(const DexFile& dex_file) {
-  const std::string& location = dex_file.GetLocation();
+  const std::string& location(dex_file.GetLocation());
   dex_file_location_size_ = location.size();
   dex_file_location_data_ = reinterpret_cast<const uint8_t*>(location.data());
   dex_file_checksum_ = dex_file.GetHeader().checksum_;

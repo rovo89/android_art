@@ -98,7 +98,7 @@ class Dex2Oat {
       if (StringPiece(dot).starts_with("#") || dot.empty()) {
         continue;
       }
-      std::string descriptor = DotToDescriptor(dot.c_str());
+      std::string descriptor(DotToDescriptor(dot.c_str()));
       SirtRef<Class> klass(class_linker->FindSystemClass(descriptor));
       if (klass.get() == NULL) {
         LOG(WARNING) << "Failed to find class " << descriptor;

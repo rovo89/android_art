@@ -11,7 +11,7 @@ namespace art {
 class FileTest : public CommonTest {};
 
 TEST_F(FileTest, Read) {
-  std::string filename = GetLibCoreDexFileName();
+  std::string filename(GetLibCoreDexFileName());
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file.get() != NULL);
   EXPECT_STREQ(filename.c_str(), file->name());
@@ -25,7 +25,7 @@ TEST_F(FileTest, Read) {
 
 
 TEST_F(FileTest, FileLength) {
-  std::string filename = GetLibCoreDexFileName();
+  std::string filename(GetLibCoreDexFileName());
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file.get() != NULL);
   EXPECT_NE(0, file->Length());
@@ -33,7 +33,7 @@ TEST_F(FileTest, FileLength) {
 
 
 TEST_F(FileTest, FilePosition) {
-  std::string filename = GetLibCoreDexFileName();
+  std::string filename(GetLibCoreDexFileName());
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file.get() != NULL);
   char buf[4];
@@ -45,7 +45,7 @@ TEST_F(FileTest, FilePosition) {
 
 
 TEST_F(FileTest, FileFd) {
-  std::string filename = GetLibCoreDexFileName();
+  std::string filename(GetLibCoreDexFileName());
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false));
   ASSERT_TRUE(file.get() != NULL);
   EXPECT_NE(-1, file->Fd());

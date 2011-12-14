@@ -439,7 +439,7 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
 }
 
 const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
-  const std::string key = MakeInvokeStubKey(is_static, shorty);
+  const std::string key(MakeInvokeStubKey(is_static, shorty));
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
     return NULL;
@@ -451,7 +451,7 @@ const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* s
 
 void Compiler::InsertInvokeStub(bool is_static, const char* shorty,
                                 const CompiledInvokeStub* compiled_invoke_stub) {
-  std::string key = MakeInvokeStubKey(is_static, shorty);
+  std::string key(MakeInvokeStubKey(is_static, shorty));
   compiled_invoke_stubs_[key] = compiled_invoke_stub;
 }
 

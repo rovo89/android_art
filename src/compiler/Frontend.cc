@@ -215,7 +215,7 @@ STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 {
     FILE* file;
-    std::string name = art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+    std::string name(art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
     char* fileName = (char*) oatNew(

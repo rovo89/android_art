@@ -278,7 +278,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (option.starts_with("-Xrunjdwp:") || option.starts_with("-agentlib:jdwp=")) {
-      std::string tail = option.substr(option[1] == 'X' ? 10 : 15).ToString();
+      std::string tail(option.substr(option[1] == 'X' ? 10 : 15).ToString());
       if (tail == "help" || !Dbg::ParseJdwpOptions(tail)) {
         LOG(FATAL) << "Example: -Xrunjdwp:transport=dt_socket,address=8000,server=y\n"
                    << "Example: -Xrunjdwp:transport=dt_socket,address=localhost:6500,server=n";

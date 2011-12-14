@@ -86,8 +86,8 @@ void CheckMapRequest(byte* addr, size_t length) {
     if (remaining < 8+1+8) {  // 00008000-0001f000
       LOG(FATAL) << "Failed to parse at pos " << i << "\n" << maps;
     }
-    std::string start_str = maps.substr(i, 8);
-    std::string end_str = maps.substr(i+1+8, 8);
+    std::string start_str(maps.substr(i, 8));
+    std::string end_str(maps.substr(i+1+8, 8));
     uint32_t start = ParseHex(start_str);
     uint32_t end = ParseHex(end_str);
     CHECK(!(base >= start && base < end)       // start of new within old

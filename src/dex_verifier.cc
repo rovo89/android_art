@@ -125,7 +125,7 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
     Class* common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const ClassLoader* class_loader = s->GetClassLoader();
-    std::string descriptor = "[";
+    std::string descriptor("[");
     descriptor += ClassHelper(common_elem).GetDescriptor();
     Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
     DCHECK(array_class != NULL);
@@ -523,8 +523,8 @@ const RegType& RegTypeCache::FromCat1Const(int32_t value) {
 const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassLoader* loader) {
   CHECK(array.IsArrayClass());
   if (array.IsUnresolvedTypes()) {
-    std::string descriptor = array.GetDescriptor()->ToModifiedUtf8();
-    std::string component = descriptor.substr(1, descriptor.size() - 1);
+    std::string descriptor(array.GetDescriptor()->ToModifiedUtf8());
+    std::string component(descriptor.substr(1, descriptor.size() - 1));
     return FromDescriptor(loader, component);
   } else {
     return FromClass(array.GetClass()->GetComponentType());

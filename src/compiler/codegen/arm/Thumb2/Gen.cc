@@ -36,10 +36,10 @@ STATIC RegLocation getRetLoc(CompilationUnit* cUnit);
 void warnIfUnresolved(CompilationUnit* cUnit, int fieldIdx, Field* field) {
   if (field == NULL) {
     const art::DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
-    std::string class_name = cUnit->dex_file->GetFieldDeclaringClassDescriptor(field_id);
-    std::string field_name = cUnit->dex_file->GetFieldName(field_id);
-    LOG(INFO) << "Field " << art::PrettyDescriptor(class_name) << "."
-        << field_name << " unresolved at compile time";
+    std::string class_name(cUnit->dex_file->GetFieldDeclaringClassDescriptor(field_id));
+    std::string field_name(cUnit->dex_file->GetFieldName(field_id));
+    LOG(INFO) << "Field " << art::PrettyDescriptor(class_name) << "." << field_name
+              << " unresolved at compile time";
   } else {
     // We also use the slow path for wide volatile fields.
   }

@@ -660,7 +660,7 @@ int Hprof::DumpStrings() {
   HprofRecord *rec = &current_record_;
 
   for (StringMapIterator it = strings_.begin(); it != strings_.end(); ++it) {
-    std::string string = (*it).first;
+    std::string string((*it).first);
     size_t id = (*it).second;
 
     int err = StartNewRecord(HPROF_TAG_STRING, HPROF_TIME);
