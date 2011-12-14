@@ -1314,36 +1314,31 @@ class MANAGED Class : public StaticStorageBase {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
 
-  // Validate method/field access.
+  // Can this class access a member in the provided class with the provided member access flags?
   bool CanAccessMember(Class* access_to, uint32_t member_flags) const {
-    // check access to class
-    if (!CanAccess(access_to)) {
-      return false;
-    }
-    // quick accept for public access
-    if (member_flags & kAccPublic) {
-      return true;
-    }
-
-    // quick accept for access from same class
+    // Classes can access all of their own members
     if (this == access_to) {
       return true;
     }
-
-    // quick reject for private access from another class
+    // Check we have access to the class
+    if (!CanAccess(access_to)) {
+      return false;
+    }
+    // Public members are trivially accessible
+    if (member_flags & kAccPublic) {
+      return true;
+    }
+    // Private members are trivially not accessible
     if (member_flags & kAccPrivate) {
       return false;
     }
-
-    // Semi-quick test for protected access from a sub-class, which may or
-    // may not be in the same package.
+    // Check for protected access from a sub-class, which may or may not be in the same package.
     if (member_flags & kAccProtected) {
       if (this->IsSubClass(access_to)) {
         return true;
       }
     }
-
-    // Allow protected and private access from other classes in the same package.
+    // Allow protected access from other classes in the same package.
     return this->IsInSamePackage(access_to);
   }
 
