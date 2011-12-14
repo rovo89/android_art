@@ -1097,6 +1097,9 @@ StackIndirectReferenceTable* Thread::PopSirt() {
 void Thread::WalkStack(StackVisitor* visitor) const {
   Frame frame = GetTopOfStack();
   uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
+#if defined(__arm__)
+  uint32_t trace_stack_depth = 0;
+#endif
   // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
   // CHECK(native_to_managed_record_ != NULL);
   NativeToManagedRecord* record = native_to_managed_record_;
@@ -1106,6 +1109,15 @@ void Thread::WalkStack(StackVisitor* visitor) const {
       // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
       visitor->VisitFrame(frame, pc);
       pc = ManglePc(frame.GetReturnPC());
+      if (Trace::IsMethodTracingActive()) {
+#if defined(__arm__)
+        uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
+        if (ManglePc(trace_exit) == pc) {
+          TraceStackFrame trace_frame = GetTraceStackFrame(trace_stack_depth++);
+          pc = ManglePc(trace_frame.return_pc_);
+        }
+#endif
+      }
     }
     if (record == NULL) {
       break;
@@ -1474,7 +1486,6 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
                 << StringPrintf("@ PC:%04x", m->ToDexPC(pc));
-
     }
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsCalleeSaveMethod() && !m->IsProxyMethod()) {

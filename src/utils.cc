@@ -56,10 +56,22 @@ uint64_t MilliTime() {
   return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
 }
 
+uint64_t MicroTime() {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+}
+
 uint64_t NanoTime() {
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+}
+
+uint64_t ThreadCpuMicroTime() {
+  struct timespec now;
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
 }
 
 std::string PrettyDescriptor(const String* java_descriptor) {

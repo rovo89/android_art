@@ -211,8 +211,14 @@ std::string GetIsoDate();
 // Returns the current time in milliseconds (using the POSIX CLOCK_MONOTONIC).
 uint64_t MilliTime();
 
+// Returns the current time in microseconds (using the POSIX CLOCK_MONOTONIC).
+uint64_t MicroTime();
+
 // Returns the current time in nanoseconds (using the POSIX CLOCK_MONOTONIC).
 uint64_t NanoTime();
+
+// Returns the current time in microseconds (using the POSIX CLOCK_THREAD_CPUTIME_ID).
+uint64_t ThreadCpuMicroTime();
 
 // Splits a string using the given delimiter character into a vector of
 // strings. Empty strings will be omitted.

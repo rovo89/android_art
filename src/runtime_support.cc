@@ -1183,9 +1183,10 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
 }
 
 extern "C" const void* artTraceMethodEntryFromCode(Method* method, Thread* self, uintptr_t lr) {
-  LOG(INFO) << "Tracer - entering: " << PrettyMethod(method);
   TraceStackFrame trace_frame = TraceStackFrame(method, lr);
   self->PushTraceStackFrame(trace_frame);
+
+  Trace::LogMethodTraceEvent(self, method, Trace::kMethodTraceEnter);
 
   return Trace::GetSavedCodeFromMap(method);
 }
@@ -1194,7 +1195,8 @@ extern "C" uintptr_t artTraceMethodExitFromCode() {
   TraceStackFrame trace_frame = Thread::Current()->PopTraceStackFrame();
   Method* method = trace_frame.method_;
   uintptr_t lr = trace_frame.return_pc_;
-  LOG(INFO) << "Tracer - exiting: " << PrettyMethod(method);
+
+  Trace::LogMethodTraceEvent(Thread::Current(), method, Trace::kMethodTraceExit);
 
   return lr;
 }
@@ -1203,7 +1205,8 @@ uintptr_t artTraceMethodUnwindFromCode(Thread* self) {
   TraceStackFrame trace_frame = self->PopTraceStackFrame();
   Method* method = trace_frame.method_;
   uintptr_t lr = trace_frame.return_pc_;
-  LOG(INFO) << "Tracer - unwinding: " << PrettyMethod(method);
+
+  Trace::LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);
 
   return lr;
 }

@@ -472,6 +472,10 @@ class PACKED Thread {
     return trace_stack_->empty();
   }
 
+  TraceStackFrame GetTraceStackFrame(uint32_t depth) const {
+    return trace_stack_->at(trace_stack_->size() - depth - 1);
+  }
+
   void PushTraceStackFrame(const TraceStackFrame& frame) {
     trace_stack_->push_back(frame);
   }
