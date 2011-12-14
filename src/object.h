@@ -1656,6 +1656,9 @@ class MANAGED Class : public StaticStorageBase {
 
   void SetReferenceStaticOffsets(uint32_t new_reference_offsets);
 
+  // Find a static or instance field using the JLS resolution order
+  Field* FindField(const StringPiece& name, const StringPiece& type);
+
   // Finds the given instance field in this class or a superclass.
   Field* FindInstanceField(const StringPiece& name, const StringPiece& type);
 

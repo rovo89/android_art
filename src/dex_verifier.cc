@@ -3304,7 +3304,7 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
 }
 
 Field* DexVerifier::GetStaticField(int field_idx) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, method_, true);
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
   if (field == NULL) {
     const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
     LOG(INFO) << "unable to resolve static field " << field_idx << " ("
@@ -3327,7 +3327,7 @@ Field* DexVerifier::GetStaticField(int field_idx) {
 }
 
 Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveField(field_idx, method_, false);
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
   if (field == NULL) {
     const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
     LOG(INFO) << "unable to resolve instance field " << field_idx << " ("

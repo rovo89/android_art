@@ -957,17 +957,43 @@ Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece
 Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
-  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
+  ClassHelper kh;
+  for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
-    Field* f = c->FindDeclaredStaticField(name, type);
+    Field* f = k->FindDeclaredStaticField(name, type);
     if (f != NULL) {
       return f;
     }
-
     // Is this field in any of this class' interfaces?
-    for (int32_t i = 0; i < c->GetIfTableCount(); ++i) {
-      InterfaceEntry* interface_entry = c->GetIfTable()->Get(i);
-      Class* interface = interface_entry->GetInterface();
+    kh.ChangeClass(k);
+    for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
+      Class* interface = kh.GetInterface(i);
+      f = interface->FindDeclaredStaticField(name, type);
+      if (f != NULL) {
+        return f;
+      }
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindField(const StringPiece& name, const StringPiece& type) {
+  // Find a field using the JLS field resolution order
+  ClassHelper kh;
+  for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
+    // Is the field in this class?
+    Field* f = k->FindDeclaredInstanceField(name, type);
+    if (f != NULL) {
+      return f;
+    }
+    f = k->FindDeclaredStaticField(name, type);
+    if (f != NULL) {
+      return f;
+    }
+    // Is this field in any of this class' interfaces?
+    kh.ChangeClass(k);
+    for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
+      Class* interface = kh.GetInterface(i);
       f = interface->FindDeclaredStaticField(name, type);
       if (f != NULL) {
         return f;

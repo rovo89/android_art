@@ -72,11 +72,11 @@ void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
 
-void ThrowNoSuchFieldError(bool is_static, Class* c, const StringPiece& type,
+void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece& type,
                            const StringPiece& name) {
   ClassHelper kh(c);
   std::ostringstream msg;
-  msg << "no " << (is_static ? "static": "instance") << " field " << name << " of type " << type
+  msg << "no " << scope << "field " << name << " of type " << type
       << " in class " << kh.GetDescriptor() << " or its superclasses";
   std::string location(kh.GetLocation());
   if (!location.empty()) {
@@ -2796,7 +2796,33 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
   if (resolved != NULL) {
     dex_cache->SetResolvedField(field_idx, resolved);
   } else {
-    ThrowNoSuchFieldError(is_static, klass, type, name);
+    ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass, type, name);
+  }
+  return resolved;
+}
+
+Field* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
+                                    uint32_t field_idx,
+                                    DexCache* dex_cache,
+                                    const ClassLoader* class_loader) {
+  Field* resolved = dex_cache->GetResolvedField(field_idx);
+  if (resolved != NULL) {
+    return resolved;
+  }
+  const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
+  Class* klass = ResolveType(dex_file, field_id.class_idx_, dex_cache, class_loader);
+  if (klass == NULL) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return NULL;
+  }
+
+  const char* name = dex_file.GetFieldName(field_id);
+  const char* type = dex_file.GetFieldTypeDescriptor(field_id);
+  resolved = klass->FindField(name, type);
+  if (resolved != NULL) {
+    dex_cache->SetResolvedField(field_idx, resolved);
+  } else {
+    ThrowNoSuchFieldError("", klass, type, name);
   }
   return resolved;
 }
