@@ -2,6 +2,8 @@
 
 #include "runtime.h"
 
+#include <signal.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <limits>

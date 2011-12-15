@@ -2,6 +2,9 @@
 
 #include "class_linker.h"
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include <deque>
 #include <string>
 #include <utility>
