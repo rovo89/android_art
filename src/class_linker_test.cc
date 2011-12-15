@@ -597,16 +597,6 @@ struct MethodClassOffsets : public CheckOffsets<MethodClass> {
   };
 };
 
-struct ProxyClassOffsets : public CheckOffsets<ProxyClass> {
-  ProxyClassOffsets() : CheckOffsets<ProxyClass>(true, "Ljava/lang/reflect/Proxy;") {
-    // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ProxyClass, NextClassNameIndex_), "NextClassNameIndex"));
-
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ProxyClass, serialVersionUID_), "serialVersionUID"));
-  };
-};
-
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -628,7 +618,6 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(StringClassOffsets().Check());
   EXPECT_TRUE(FieldClassOffsets().Check());
   EXPECT_TRUE(MethodClassOffsets().Check());
-  EXPECT_TRUE(ProxyClassOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {

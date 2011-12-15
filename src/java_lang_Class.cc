@@ -157,7 +157,6 @@ bool IsVisibleMethod(Method* m, bool public_only) {
 
 jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
-
   std::vector<Method*> methods;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
     Method* m = c->GetVirtualMethod(i);

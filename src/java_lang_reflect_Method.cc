@@ -30,6 +30,24 @@ jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiver, job
   return InvokeMethod(env, javaMethod, javaReceiver, javaArgs);
 }
 
+jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
+  Method* proxy_method = Decode<Object*>(env, javaMethod)->AsMethod();
+  CHECK(proxy_method->GetDeclaringClass()->IsProxyClass());
+  SynthesizedProxyClass* proxy_class =
+      down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
+  int throws_index = -1;
+  size_t num_virt_methods = proxy_class->NumVirtualMethods();
+  for (size_t i = 0; i < num_virt_methods; i++) {
+    if (proxy_class->GetVirtualMethod(i) == proxy_method) {
+      throws_index = i;
+      break;
+    }
+  }
+  CHECK_NE(throws_index, -1);
+  ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
+  return AddLocalReference<jobject>(env, declared_exceptions->Clone());
+}
+
 jobject Method_getReturnTypeNative(JNIEnv* env, jobject javaMethod) {
   Method* m = Decode<Object*>(env, javaMethod)->AsMethod();
   MethodHelper mh(m);
@@ -38,6 +56,7 @@ jobject Method_getReturnTypeNative(JNIEnv* env, jobject javaMethod) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Method, invoke, "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Method, getExceptionTypesNative, "()[Ljava/lang/Class;"),
   NATIVE_METHOD(Method, getReturnTypeNative, "()Ljava/lang/Class;")
 };
 

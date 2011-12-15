@@ -20,6 +20,7 @@
 #include "class_linker.h"
 #include "dex_cache.h"
 #include "dex_file.h"
+#include "intern_table.h"
 #include "object.h"
 #include "runtime.h"
 #include "UniquePtr.h"
@@ -90,8 +91,9 @@ class ClassHelper {
       return 0;
     } else if (klass_->IsArrayClass()) {
       return 2;
+    } else if (klass_->IsProxyClass()) {
+      return klass_->GetIfTable()->GetLength();
     } else {
-      CHECK(!klass_->IsProxyClass());
       const DexFile::TypeList* interfaces = GetInterfaceTypeList();
       if (interfaces == NULL) {
         return 0;
@@ -116,6 +118,8 @@ class ClassHelper {
         DCHECK_EQ(1U, idx);
         return GetClassLinker()->FindSystemClass("Ljava/io/Serializable;");
       }
+    } else if (klass_->IsProxyClass()) {
+      return klass_->GetIfTable()->Get(idx)->GetInterface();
     } else {
       uint16_t type_idx = GetInterfaceTypeIdx(idx);
       Class* interface = GetDexCache()->GetResolvedType(type_idx);
@@ -213,28 +217,60 @@ class FieldHelper {
     field_ = new_f;
   }
   const char* GetName() {
-    const DexFile& dex_file = GetDexFile();
-    return dex_file.GetFieldName(dex_file.GetFieldId(field_->GetDexFieldIndex()));
+    uint32_t field_index = field_->GetDexFieldIndex();
+    if (field_index != DexFile::kDexNoIndex) {
+      const DexFile& dex_file = GetDexFile();
+      return dex_file.GetFieldName(dex_file.GetFieldId(field_index));
+    } else {
+      // Proxy classes have a single static field called "throws"
+      CHECK(field_->GetDeclaringClass()->IsProxyClass());
+      DCHECK(field_->IsStatic());
+      return "throws";
+    }
   }
   String* GetNameAsString() {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_->GetDexFieldIndex());
-    return GetClassLinker()->ResolveString(dex_file, field_id.name_idx_, GetDexCache());
+    uint32_t field_index = field_->GetDexFieldIndex();
+    if (field_index != DexFile::kDexNoIndex) {
+      const DexFile& dex_file = GetDexFile();
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+      return GetClassLinker()->ResolveString(dex_file, field_id.name_idx_, GetDexCache());
+    } else {
+      // Proxy classes have a single static field called "throws"
+      CHECK(field_->GetDeclaringClass()->IsProxyClass());
+      DCHECK(field_->IsStatic());
+      return Runtime::Current()->GetInternTable()->InternStrong("throws");
+    }
   }
   Class* GetType() {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_->GetDexFieldIndex());
-    Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
-    if (type == NULL) {
-      type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
-      CHECK(type != NULL || Thread::Current()->IsExceptionPending());
+    uint32_t field_index = field_->GetDexFieldIndex();
+    if (field_index != DexFile::kDexNoIndex) {
+      const DexFile& dex_file = GetDexFile();
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+      Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
+      if (type == NULL) {
+        type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
+        CHECK(type != NULL || Thread::Current()->IsExceptionPending());
+      }
+      return type;
+    } else {
+      // Proxy classes have a single static field called "throws" whose type is Class[][]
+      CHECK(field_->GetDeclaringClass()->IsProxyClass());
+      DCHECK(field_->IsStatic());
+      return GetClassLinker()->FindSystemClass("[[Ljava/lang/Class;");
     }
-    return type;
   }
   const char* GetTypeDescriptor() {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_->GetDexFieldIndex());
-    return dex_file.GetFieldTypeDescriptor(field_id);
+    uint32_t field_index = field_->GetDexFieldIndex();
+    if (field_index != DexFile::kDexNoIndex) {
+      const DexFile& dex_file = GetDexFile();
+      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+      return dex_file.GetFieldTypeDescriptor(field_id);
+    } else {
+      // Proxy classes have a single static field called "throws" whose type is Class[][]
+      CHECK(field_->GetDeclaringClass()->IsProxyClass());
+      DCHECK(field_->IsStatic());
+      return "[[Ljava/lang/Class;";
+    }
   }
   Primitive::Type GetTypeAsPrimitiveType() {
     return Primitive::GetType(GetTypeDescriptor()[0]);
@@ -247,10 +283,20 @@ class FieldHelper {
     Primitive::Type type = GetTypeAsPrimitiveType();
     return Primitive::FieldSize(type);
   }
+
+  // The returned const char* is only guaranteed to be valid for the lifetime of the FieldHelper.
+  // If you need it longer, copy it into a std::string.
   const char* GetDeclaringClassDescriptor() {
     uint16_t type_idx = field_->GetDeclaringClass()->GetDexTypeIndex();
-    const DexFile& dex_file = GetDexFile();
-    return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
+    if (type_idx != DexFile::kDexNoIndex16) {
+      const DexFile& dex_file = GetDexFile();
+      return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
+    } else {
+      // Most likely a proxy class
+      ClassHelper kh(field_->GetDeclaringClass());
+      declaring_class_descriptor_ = kh.GetDescriptor();
+      return declaring_class_descriptor_.c_str();
+    }
   }
 
  private:
@@ -284,6 +330,7 @@ class FieldHelper {
   DexCache* dex_cache_;
   const DexFile* dex_file_;
   const Field* field_;
+  std::string declaring_class_descriptor_;
 
   DISALLOW_COPY_AND_ASSIGN(FieldHelper);
 };
@@ -387,7 +434,7 @@ class MethodHelper {
   }
   const char* GetDeclaringClassDescriptor() {
     Class* klass = method_->GetDeclaringClass();
-    CHECK(!klass->IsProxyClass());
+    DCHECK(!klass->IsProxyClass());
     uint16_t type_idx = klass->GetDexTypeIndex();
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));

@@ -353,7 +353,7 @@ class ClassLinker {
                                       const Class* klass1,
                                       const Class* klass2);
 
-  bool LinkClass(SirtRef<Class>& klass);
+  bool LinkClass(SirtRef<Class>& klass, ObjectArray<Class>* interfaces);
 
   bool LinkSuperClass(SirtRef<Class>& klass);
 

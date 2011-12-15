@@ -1074,7 +1074,6 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   CHECK(interface_method != NULL);
   CHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
-  LOG(INFO) << "Interface method is " << PrettyMethod(interface_method, true);
   // Box arguments
   cur_arg = 0;  // reset stack location to read to start
   // reset index, will index into param type array which doesn't include the receiver
@@ -1156,10 +1155,18 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     if (!exception->IsCheckedException()) {
       self->SetException(exception);
     } else {
-      // TODO: get the correct intersection of exceptions as passed to the class linker's create
-      // proxy code.
-      UNIMPLEMENTED(FATAL);
-      ObjectArray<Class>* declared_exceptions = NULL; // proxy_mh.GetExceptionTypes();
+      SynthesizedProxyClass* proxy_class =
+          down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
+      int throws_index = -1;
+      size_t num_virt_methods = proxy_class->NumVirtualMethods();
+      for (size_t i = 0; i < num_virt_methods; i++) {
+        if (proxy_class->GetVirtualMethod(i) == proxy_method) {
+          throws_index = i;
+          break;
+        }
+      }
+      CHECK_NE(throws_index, -1);
+      ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
       Class* exception_class = exception->GetClass();
       bool declares_exception = false;
       for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {

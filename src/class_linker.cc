@@ -1102,7 +1102,7 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
   CHECK(klass->IsLoaded());
   // Link the class (if necessary)
   CHECK(!klass->IsResolved());
-  if (!LinkClass(klass)) {
+  if (!LinkClass(klass, NULL)) {
     // Linking failed.
     CHECK(self->IsExceptionPending());
     klass->SetStatus(Class::kStatusError);
@@ -1201,7 +1201,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
-  DCHECK(klass->GetPrimitiveType() == Primitive::kPrimNot);
+  DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetStatus(Class::kStatusIdx);
 
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
@@ -1704,20 +1704,34 @@ void ClassLinker::VerifyClass(Class* klass) {
   }
 }
 
+static void CheckProxyConstructor(Method* constructor);
+static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype);
+
 Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interfaces,
                                      ClassLoader* loader, ObjectArray<Method>* methods,
                                      ObjectArray<ObjectArray<Class> >* throws) {
-  SirtRef<Class> klass(AllocClass(GetClassRoot(kJavaLangClass), sizeof(ProxyClass)));
+  SirtRef<Class> klass(AllocClass(GetClassRoot(kJavaLangClass), sizeof(SynthesizedProxyClass)));
   CHECK(klass.get() != NULL);
+  DCHECK(klass->GetClass() != NULL);
   klass->SetObjectSize(sizeof(Proxy));
   klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal);
   klass->SetClassLoader(loader);
+  DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetName(name);
   Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
   klass->SetDexCache(proxy_class->GetDexCache());
-  klass->SetDexTypeIndex(-1);
-  klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
-  klass->SetStatus(Class::kStatusInitialized);  // no loading or initializing necessary
+
+  klass->SetStatus(Class::kStatusIdx);
+
+  klass->SetDexTypeIndex(DexFile::kDexNoIndex16);
+
+  // Create static field that holds throws, instance fields are inherited
+  klass->SetSFields(AllocObjectArray<Field>(1));
+  SirtRef<Field> sfield(AllocField());
+  klass->SetStaticField(0, sfield.get());
+  sfield->SetDexFieldIndex(-1);
+  sfield->SetDeclaringClass(klass.get());
+  sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
   klass->SetDirectMethods(AllocObjectArray<Method>(1));
@@ -1730,10 +1744,39 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
     SirtRef<Method> prototype(methods->Get(i));
     klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype));
   }
-  // Link the virtual methods, creating vtable and iftables
-  if (!LinkMethods(klass, interfaces)) {
+
+  klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
+  klass->SetStatus(Class::kStatusLoaded);  // Class is now effectively in the loaded state
+  DCHECK(!Thread::Current()->IsExceptionPending());
+
+  // Link the fields and virtual methods, creating vtable and iftables
+  if (!LinkClass(klass, interfaces)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
+  }
+  sfield->SetObject(NULL, throws);    // initialize throws field
+  klass->SetStatus(Class::kStatusInitialized);
+
+  // sanity checks
+#ifndef NDEBUG
+  bool debug = true;
+#else
+  bool debug = false;
+#endif
+  if (debug) {
+    CHECK(klass->GetIFields() == NULL);
+    CheckProxyConstructor(klass->GetDirectMethod(0));
+    for (size_t i = 0; i < num_virtual_methods; ++i) {
+      SirtRef<Method> prototype(methods->Get(i));
+      CheckProxyMethod(klass->GetVirtualMethod(i), prototype);
+    }
+    std::string throws_field_name = "java.lang.Class[][] ";
+    throws_field_name += name->ToModifiedUtf8();
+    throws_field_name += ".throws";
+    CHECK(PrettyField(klass->GetStaticField(0)) == throws_field_name);
+
+    SynthesizedProxyClass* synth_proxy_class = down_cast<SynthesizedProxyClass*>(klass.get());
+    CHECK_EQ(synth_proxy_class->GetThrows(), throws);
   }
   return klass.get();
 }
@@ -1757,13 +1800,15 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_
   // Make this constructor public and fix the class to be our Proxy version
   constructor->SetAccessFlags((constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
   constructor->SetDeclaringClass(klass.get());
-  // Sanity checks
+  return constructor;
+}
+
+static void CheckProxyConstructor(Method* constructor) {
   CHECK(constructor->IsConstructor());
   MethodHelper mh(constructor);
   CHECK_STREQ(mh.GetName(), "<init>");
   CHECK(mh.GetSignature() == "(Ljava/lang/reflect/InvocationHandler;)V");
   DCHECK(constructor->IsPublic());
-  return constructor;
 }
 
 Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype) {
@@ -1786,7 +1831,10 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
   method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
+  return method;
+}
 
+static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype) {
   // Basic sanity
   CHECK(!prototype->IsFinal());
   CHECK(method->IsFinal());
@@ -1803,8 +1851,6 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
 
   // More complex sanity - via dex cache
   CHECK_EQ(mh.GetReturnType(), method_return);
-
-  return method;
 }
 
 bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
@@ -2111,12 +2157,12 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
   }
 }
 
-bool ClassLinker::LinkClass(SirtRef<Class>& klass) {
+bool ClassLinker::LinkClass(SirtRef<Class>& klass, ObjectArray<Class>* interfaces) {
   CHECK_EQ(Class::kStatusLoaded, klass->GetStatus());
   if (!LinkSuperClass(klass)) {
     return false;
   }
-  if (!LinkMethods(klass, NULL)) {
+  if (!LinkMethods(klass, interfaces)) {
     return false;
   }
   if (!LinkInstanceFields(klass)) {

@@ -1315,6 +1315,8 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   // Can this class access a member in the provided class with the provided member access flags?
+  // Note that access to the class isn't checked in case the declaring class is protected and the
+  // method has been exposed by a public sub-class
   bool CanAccessMember(Class* access_to, uint32_t member_flags) const {
     // Classes can access all of their own members
     if (this == access_to) {
@@ -2368,12 +2370,14 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
   DISALLOW_IMPLICIT_CONSTRUCTORS(InterfaceEntry);
 };
 
-class MANAGED ProxyClass : public Class {
+class MANAGED SynthesizedProxyClass : public Class {
+ public:
+  ObjectArray<ObjectArray<Class> >* GetThrows() {
+    return throws_;
+  }
  private:
-  int32_t NextClassNameIndex_;
-  int64_t serialVersionUID_;
-  friend struct ProxyClassOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(ProxyClass);
+  ObjectArray<ObjectArray<Class> >* throws_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(SynthesizedProxyClass);
 };
 
 class MANAGED Proxy : public Object {
