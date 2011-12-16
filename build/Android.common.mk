@@ -189,8 +189,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/runtime_support.cc \
 	src/utf.cc \
 	src/utils.cc \
-	src/zip_archive.cc \
-	src/runtime_support_asm.S
+	src/zip_archive.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -199,7 +198,8 @@ LIBART_TARGET_SRC_FILES := \
 	src/monitor_android.cc \
 	src/runtime_android.cc \
 	src/thread_android.cc \
-	src/thread_arm.cc
+	src/thread_arm.cc \
+	src/runtime_support_arm.S
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -207,7 +207,8 @@ LIBART_HOST_SRC_FILES := \
 	src/monitor_linux.cc \
 	src/runtime_linux.cc \
 	src/thread_linux.cc \
-	src/thread_x86.cc
+	src/thread_x86.cc \
+	src/runtime_support_x86.S
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	src/base64.cc \

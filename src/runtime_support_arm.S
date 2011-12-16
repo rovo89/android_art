@@ -1,7 +1,5 @@
 #include "asm_support.h"
 
-#if defined(__arm__)
-
     .balign 4
 
     /* Deliver the given exception */
@@ -652,39 +650,3 @@ art_ushr_long:
     movpl   r0, r1, lsr ip              @  if r2 >= 32, r0<-r1 >>> (r2-32)
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     bx      lr
-
-#endif
-
-#if defined(__i386__)
-
-    .global art_deliver_exception_from_code
-    .extern artDeliverExceptionFromCode
-    /*
-     * Called by managed code, saves callee saves and then calls artThrowException
-     * that will place a mock Method* at the bottom of the stack.
-     * EAX holds the exception.
-     */
-art_deliver_exception_from_code:
-    // Create frame
-    pushl %edi  // Save callee saves
-    pushl %esi
-    pushl %ebp
-    pushl %ebx
-    pushl $0
-    pushl $0
-    pushl $0   // Will be clobbered to be Method*
-    mov %esp, %ecx
-    // Outgoing argument set up
-    pushl $0  // Alignment padding
-    pushl %ecx                        // pass SP
-    pushl %fs:THREAD_SELF_OFFSET      // pass fs:offsetof(Thread,self_)
-    pushl %eax                        // pass Throwable*
-    call artDeliverExceptionFromCode  // artDeliverExceptionFromCode(Throwable*, Thread*, SP)
-    int3
-
-    // TODO
-    .global art_proxy_invoke_handler
-art_proxy_invoke_handler:
-    int3
-
-#endif
