@@ -137,7 +137,7 @@ public:
   static void GetClassList(std::vector<JDWP::RefTypeId>& classes);
   static void GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
   static bool GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
-  static void FindLoadedClassBySignature(const std::string& descriptor, std::vector<JDWP::RefTypeId>& ids);
+  static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
   static void GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
   static bool GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);

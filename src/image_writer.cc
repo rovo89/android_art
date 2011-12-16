@@ -99,7 +99,7 @@ bool ImageWriter::IsImageClass(const Class* klass) {
   while (klass->IsArrayClass()) {
     klass = klass->GetComponentType();
   }
-  if (klass->IsPrimitive()) { 
+  if (klass->IsPrimitive()) {
     return true;
   }
   const std::string descriptor(ClassHelper(klass).GetDescriptor());
@@ -127,7 +127,7 @@ void ImageWriter::PruneNonImageClasses() {
 
   typedef std::set<std::string>::const_iterator ClassIt;  // TODO: C++0x auto
   for (ClassIt it = non_image_classes.begin(), end = non_image_classes.end(); it != end; ++it) {
-    class_linker->RemoveClass(*it, NULL);
+    class_linker->RemoveClass((*it).c_str(), NULL);
   }
 
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
@@ -179,7 +179,18 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
     return;
   }
   Class* klass = obj->AsClass();
-  CHECK(image_writer->IsImageClass(klass)) << PrettyDescriptor(klass);
+  if (!image_writer->IsImageClass(klass)) {
+    image_writer->DumpImageClasses();
+    CHECK(image_writer->IsImageClass(klass)) << ClassHelper(klass).GetDescriptor()
+                                             << " " << PrettyDescriptor(klass);
+  }
+}
+
+void ImageWriter::DumpImageClasses() {
+  typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
+  for (It it = image_classes_->begin(), end = image_classes_->end(); it != end; ++it) {
+    LOG(INFO) << " " << *it;
+  }
 }
 
 void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
@@ -479,7 +490,7 @@ void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
     }
     // if it was unresolved or a resolved static method in an uninit class, use a resolution stub
     // we need to use the stub in the static method case to ensure <clinit> is run.
-    if (orig_method == NULL 
+    if (orig_method == NULL
         || (orig_method->IsStatic() && !orig_method->GetDeclaringClass()->IsInitialized())) {
       uint32_t orig_res_stub_code = orig_cadms->Get(CodeAndDirectMethods::CodeIndex(i));
       if (orig_res_stub_code == 0) {

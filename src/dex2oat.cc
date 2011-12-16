@@ -99,7 +99,7 @@ class Dex2Oat {
         continue;
       }
       std::string descriptor(DotToDescriptor(dot.c_str()));
-      SirtRef<Class> klass(class_linker->FindSystemClass(descriptor));
+      SirtRef<Class> klass(class_linker->FindSystemClass(descriptor.c_str()));
       if (klass.get() == NULL) {
         LOG(WARNING) << "Failed to find class " << descriptor;
         Thread::Current()->ClearException();

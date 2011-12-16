@@ -98,6 +98,7 @@ class ImageWriter {
   }
 
   bool IsImageClass(const Class* klass);
+  void DumpImageClasses();
 
   void PruneNonImageClasses();
   static bool NonImageClassesVisitor(Class* c, void* arg);

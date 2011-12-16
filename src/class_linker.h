@@ -55,28 +55,28 @@ class ClassLinker {
 
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
-  Class* FindClass(const std::string& descriptor, const ClassLoader* class_loader);
+  Class* FindClass(const char* descriptor, const ClassLoader* class_loader);
 
-  Class* FindSystemClass(const std::string& descriptor) {
+  Class* FindSystemClass(const char* descriptor) {
     return FindClass(descriptor, NULL);
   }
 
   // Define a new a class based on a ClassDef from a DexFile
-  Class* DefineClass(const std::string& descriptor, const ClassLoader* class_loader,
+  Class* DefineClass(const StringPiece& descriptor, const ClassLoader* class_loader,
                      const DexFile& dex_file, const DexFile::ClassDef& dex_class_def);
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'.
-  Class* LookupClass(const std::string& descriptor, const ClassLoader* class_loader);
+  Class* LookupClass(const char* descriptor, const ClassLoader* class_loader);
 
   // Finds all the classes with the given descriptor, regardless of ClassLoader.
-  void LookupClasses(const std::string& descriptor, std::vector<Class*>& classes);
+  void LookupClasses(const char* descriptor, std::vector<Class*>& classes);
 
   Class* FindPrimitiveClass(char type);
 
   // General class unloading is not supported, this is used to prune
   // unwanted classes during image writing.
-  bool RemoveClass(const std::string& descriptor, const ClassLoader* class_loader);
+  bool RemoveClass(const char* descriptor, const ClassLoader* class_loader);
 
   void DumpAllClasses(int flags) const;
 
@@ -309,8 +309,7 @@ class ClassLinker {
                                   Primitive::Type type);
 
 
-  Class* CreateArrayClass(const std::string& descriptor,
-                          const ClassLoader* class_loader);
+  Class* CreateArrayClass(const std::string& descriptor, const ClassLoader* class_loader);
 
   void AppendToBootClassPath(const DexFile& dex_file);
   void AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
@@ -334,7 +333,7 @@ class ClassLinker {
 
   // Inserts a class into the class table.  Returns true if the class
   // was inserted.
-  bool InsertClass(const std::string& descriptor, Class* klass, bool image_class);
+  bool InsertClass(const StringPiece& descriptor, Class* klass, bool image_class);
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;

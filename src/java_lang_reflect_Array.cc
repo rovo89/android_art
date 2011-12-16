@@ -46,7 +46,7 @@ Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dim
   }
   std::string sub_array_descriptor(ClassHelper(array_class).GetDescriptor() + 1);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* sub_array_class = class_linker->FindClass(sub_array_descriptor,
+  Class* sub_array_class = class_linker->FindClass(sub_array_descriptor.c_str(),
                                                    array_class->GetClassLoader());
   if (sub_array_class == NULL) {
     CHECK(Thread::Current()->IsExceptionPending());
@@ -106,7 +106,7 @@ jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, job
 
   // Find/generate the array class.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* array_class = class_linker->FindClass(descriptor, element_class->GetClassLoader());
+  Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
   if (array_class == NULL) {
     CHECK(Thread::Current()->IsExceptionPending());
     return NULL;
@@ -134,7 +134,7 @@ jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, ji
   descriptor += ClassHelper(element_class).GetDescriptor();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* array_class = class_linker->FindClass(descriptor, element_class->GetClassLoader());
+  Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
   if (array_class == NULL) {
     CHECK(Thread::Current()->IsExceptionPending());
     return NULL;

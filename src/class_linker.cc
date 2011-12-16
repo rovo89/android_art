@@ -136,6 +136,15 @@ void WrapExceptionInInitializer() {
   env->Throw(eiie.get());
 }
 
+static size_t Hash(const char* s) {
+  // This is the java.lang.String hashcode for convenience, not interoperability.
+  size_t hash = 0;
+  for (; *s != '\0'; ++s) {
+    hash = hash * 31 + *s;
+  }
+  return hash;
+}
+
 }  // namespace
 
 const char* ClassLinker::class_roots_descriptors_[] = {
@@ -812,8 +821,8 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
   if (obj->IsClass()) {
     // restore class to ClassLinker::classes_ table
     Class* klass = obj->AsClass();
-    std::string descriptor(ClassHelper(klass, class_linker).GetDescriptor());
-    bool success = class_linker->InsertClass(descriptor, klass, true);
+    ClassHelper kh(klass, class_linker);
+    bool success = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
     DCHECK(success);
     return;
   }
@@ -984,13 +993,12 @@ Class* EnsureResolved(Class* klass) {
   return klass;
 }
 
-Class* ClassLinker::FindClass(const std::string& descriptor,
-                              const ClassLoader* class_loader) {
-  CHECK_NE(descriptor.size(), 0U);
+Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_loader) {
+  DCHECK(*descriptor != '\0') << "descriptor is empty string";
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
   CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
-  if (descriptor.size() == 1) {
+  if (descriptor[1] == '\0') {
     // only the descriptors of primitive types should be 1 character long, also avoid class lookup
     // for primitive classes that aren't backed by dex files.
     return FindPrimitiveClass(descriptor[0]);
@@ -1050,11 +1058,11 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
     }
   }
 
-  ThrowNoClassDefFoundError("Class %s not found", PrintableString(descriptor).c_str());
+  ThrowNoClassDefFoundError("Class %s not found", PrintableString(StringPiece(descriptor)).c_str());
   return NULL;
 }
 
-Class* ClassLinker::DefineClass(const std::string& descriptor,
+Class* ClassLinker::DefineClass(const StringPiece& descriptor,
                                 const ClassLoader* class_loader,
                                 const DexFile& dex_file,
                                 const DexFile::ClassDef& dex_class_def) {
@@ -1094,7 +1102,7 @@ Class* ClassLinker::DefineClass(const std::string& descriptor,
   if (!success) {
     // We may fail to insert if we raced with another thread.
     klass->SetClinitThreadId(0);
-    klass.reset(LookupClass(descriptor, class_loader));
+    klass.reset(LookupClass(descriptor.data(), class_loader));
     CHECK(klass.get() != NULL);
     return klass.get();
   }
@@ -1454,12 +1462,11 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
 // array class; that always comes from the base element class.
 //
 // Returns NULL with an exception raised on failure.
-Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
-                                     const ClassLoader* class_loader) {
+Class* ClassLinker::CreateArrayClass(const std::string& descriptor, const ClassLoader* class_loader) {
   CHECK_EQ('[', descriptor[0]);
 
   // Identify the underlying component type
-  Class* component_type = FindClass(descriptor.substr(1), class_loader);
+  Class* component_type = FindClass(descriptor.substr(1).c_str(), class_loader);
   if (component_type == NULL) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
@@ -1483,7 +1490,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
   // class to the hash table --- necessary because of possible races with
   // other threads.)
   if (class_loader != component_type->GetClassLoader()) {
-    Class* new_class = LookupClass(descriptor, component_type->GetClassLoader());
+    Class* new_class = LookupClass(descriptor.c_str(), component_type->GetClassLoader());
     if (new_class != NULL) {
       return new_class;
     }
@@ -1564,7 +1571,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
   // (Yes, this happens.)
 
   // Grab the winning class.
-  Class* other_class = LookupClass(descriptor, component_type->GetClassLoader());
+  Class* other_class = LookupClass(descriptor.c_str(), component_type->GetClassLoader());
   DCHECK(other_class != NULL);
   return other_class;
 }
@@ -1597,7 +1604,7 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
   return NULL;
 }
 
-bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass, bool image_class) {
+bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, bool image_class) {
   if (VLOG_IS_ON(class_linker)) {
     DexCache* dex_cache = klass->GetDexCache();
     std::string source;
@@ -1620,8 +1627,8 @@ bool ClassLinker::InsertClass(const std::string& descriptor, Class* klass, bool 
   return ((*it).second == klass);
 }
 
-bool ClassLinker::RemoveClass(const std::string& descriptor, const ClassLoader* class_loader) {
-  size_t hash = StringPieceHash()(descriptor);
+bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_loader) {
+  size_t hash = Hash(descriptor);
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
@@ -1629,7 +1636,7 @@ bool ClassLinker::RemoveClass(const std::string& descriptor, const ClassLoader* 
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (kh.GetDescriptor() == descriptor && klass->GetClassLoader() == class_loader) {
+    if (strcmp(kh.GetDescriptor(), descriptor) == 0 && klass->GetClassLoader() == class_loader) {
       classes_.erase(it);
       return true;
     }
@@ -1637,7 +1644,7 @@ bool ClassLinker::RemoveClass(const std::string& descriptor, const ClassLoader* 
   for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (kh.GetDescriptor() == descriptor && klass->GetClassLoader() == class_loader) {
+    if (strcmp(kh.GetDescriptor(), descriptor) == 0 && klass->GetClassLoader() == class_loader) {
       image_classes_.erase(it);
       return true;
     }
@@ -1645,8 +1652,8 @@ bool ClassLinker::RemoveClass(const std::string& descriptor, const ClassLoader* 
   return false;
 }
 
-Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader* class_loader) {
-  size_t hash = StringPieceHash()(descriptor);
+Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader) {
+  size_t hash = Hash(descriptor);
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
@@ -1654,23 +1661,23 @@ Class* ClassLinker::LookupClass(const std::string& descriptor, const ClassLoader
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (descriptor == kh.GetDescriptor() && klass->GetClassLoader() == class_loader) {
+    if (strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader) {
       return klass;
     }
   }
   for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (descriptor == kh.GetDescriptor() && klass->GetClassLoader() == class_loader) {
+    if (strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader) {
       return klass;
     }
   }
   return NULL;
 }
 
-void ClassLinker::LookupClasses(const std::string& descriptor, std::vector<Class*>& classes) {
+void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& classes) {
   classes.clear();
-  size_t hash = StringPieceHash()(descriptor);
+  size_t hash = Hash(descriptor);
   MutexLock mu(classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
@@ -1678,14 +1685,14 @@ void ClassLinker::LookupClasses(const std::string& descriptor, std::vector<Class
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (descriptor == kh.GetDescriptor()) {
+    if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
       classes.push_back(klass);
     }
   }
   for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (descriptor == kh.GetDescriptor()) {
+    if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
       classes.push_back(klass);
     }
   }

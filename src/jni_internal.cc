@@ -714,9 +714,9 @@ class JNI {
     Class* c = NULL;
     if (runtime->IsStarted()) {
       const ClassLoader* cl = GetClassLoader(ts.Self());
-      c = class_linker->FindClass(descriptor, cl);
+      c = class_linker->FindClass(descriptor.c_str(), cl);
     } else {
-      c = class_linker->FindSystemClass(descriptor);
+      c = class_linker->FindSystemClass(descriptor.c_str());
     }
     return AddLocalReference<jclass>(env, c);
   }

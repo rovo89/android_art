@@ -198,7 +198,7 @@ static JdwpError handleVM_ClassesBySignature(JdwpState* state, const uint8_t* bu
   VLOG(jdwp) << "  Req for class by signature '" << classDescriptor << "'";
 
   std::vector<RefTypeId> ids;
-  Dbg::FindLoadedClassBySignature(classDescriptor, ids);
+  Dbg::FindLoadedClassBySignature(classDescriptor.c_str(), ids);
 
   expandBufAdd4BE(pReply, ids.size());
 

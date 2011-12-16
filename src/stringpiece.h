@@ -205,7 +205,7 @@ struct StringPieceHash {
   size_t operator()(const art::StringPiece& string_piece) const {
     size_t string_size = string_piece.size();
     const char* string_data = string_piece.data();
-    // this is the java.lang.String hashcode for convenience, not interoperability
+    // This is the java.lang.String hashcode for convenience, not interoperability.
     size_t hash = 0;
     while (string_size--) {
       hash = hash * 31 + *string_data++;

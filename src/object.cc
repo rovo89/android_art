@@ -307,15 +307,15 @@ Class* ExtractNextClassFromSignature(ClassLinker* class_linker, const ClassLoade
     ++p; // Either the ';' or the primitive type.
 
     std::string descriptor(start, (p - start));
-    return class_linker->FindClass(descriptor, cl);
+    return class_linker->FindClass(descriptor.c_str(), cl);
   } else if (*p == 'L') {
     const char* start = p;
     while (*p != ';') {
       ++p;
     }
     ++p;
-    StringPiece descriptor(start, (p - start));
-    return class_linker->FindClass(descriptor.ToString(), cl);
+    std::string descriptor(start, (p - start));
+    return class_linker->FindClass(descriptor.c_str(), cl);
   } else {
     return class_linker->FindPrimitiveClass(*p++);
   }

@@ -550,7 +550,7 @@ bool Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uin
   return true;
 }
 
-void Dbg::FindLoadedClassBySignature(const std::string& descriptor, std::vector<JDWP::RefTypeId>& ids) {
+void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids) {
   std::vector<Class*> classes;
   Runtime::Current()->GetClassLinker()->LookupClasses(descriptor, classes);
   ids.clear();

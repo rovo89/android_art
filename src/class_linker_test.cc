@@ -16,7 +16,7 @@ namespace art {
 class ClassLinkerTest : public CommonTest {
  protected:
   void AssertNonExistentClass(const std::string& descriptor) {
-    EXPECT_TRUE(class_linker_->FindSystemClass(descriptor) == NULL);
+    EXPECT_TRUE(class_linker_->FindSystemClass(descriptor.c_str()) == NULL);
     Thread* self = Thread::Current();
     EXPECT_TRUE(self->IsExceptionPending());
     Object* exception = self->GetException();
@@ -26,7 +26,7 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertPrimitiveClass(const std::string& descriptor) {
-    AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor));
+    AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor.c_str()));
   }
 
   void AssertPrimitiveClass(const std::string& descriptor, const Class* primitive) {
@@ -66,7 +66,7 @@ class ClassLinkerTest : public CommonTest {
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
                         const ClassLoader* class_loader) {
-    Class* array = class_linker_->FindClass(array_descriptor, class_loader);
+    Class* array = class_linker_->FindClass(array_descriptor.c_str(), class_loader);
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
     EXPECT_EQ(class_loader, array->GetClassLoader());
@@ -277,7 +277,7 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertDexFileClass(ClassLoader* class_loader, const std::string& descriptor) {
     ASSERT_TRUE(descriptor != NULL);
-    Class* klass = class_linker_->FindSystemClass(descriptor);
+    Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
     ASSERT_TRUE(klass != NULL);
     EXPECT_STREQ(descriptor.c_str(), ClassHelper(klass).GetDescriptor());
     EXPECT_EQ(class_loader, klass->GetClassLoader());
@@ -328,7 +328,7 @@ struct CheckOffsets {
   std::vector<CheckOffset> offsets;
 
   bool Check() {
-    Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor);
+    Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor.c_str());
     CHECK(klass != NULL) << class_descriptor;
 
     bool error = false;

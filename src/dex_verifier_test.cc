@@ -16,7 +16,7 @@ class DexVerifierTest : public CommonTest {
  protected:
   void VerifyClass(ClassLoader* class_loader, const std::string& descriptor) {
     ASSERT_TRUE(descriptor != NULL);
-    Class* klass = class_linker_->FindSystemClass(descriptor);
+    Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
 
     // Verify the class
     ASSERT_TRUE(DexVerifier::VerifyClass(klass));

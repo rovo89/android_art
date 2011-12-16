@@ -67,7 +67,7 @@ jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementCla
   std::string descriptor;
   descriptor += "[";
   descriptor += ClassHelper(element_class).GetDescriptor();
-  Class* array_class = class_linker->FindClass(descriptor, NULL);
+  Class* array_class = class_linker->FindClass(descriptor.c_str(), NULL);
   Array* result = Array::Alloc(array_class, length);
   if (result == NULL) {
     return NULL;

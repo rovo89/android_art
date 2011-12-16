@@ -268,10 +268,10 @@ std::string DotToDescriptor(const char* class_name) {
   return descriptor;
 }
 
-std::string DescriptorToDot(const std::string& descriptor) {
+std::string DescriptorToDot(const StringPiece& descriptor) {
   DCHECK_EQ(descriptor[0], 'L');
   DCHECK_EQ(descriptor[descriptor.size()-1], ';');
-  std::string dot(descriptor.substr(1, descriptor.size() - 2));
+  std::string dot(descriptor.substr(1, descriptor.size() - 2).ToString());
   std::replace(dot.begin(), dot.end(), '/', '.');
   return dot;
 }

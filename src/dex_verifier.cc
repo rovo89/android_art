@@ -348,7 +348,7 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
     if (entry == NULL) {
       Class* klass = NULL;
       if (descriptor.size() != 0) {
-        klass = Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor);
+        klass = Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor.c_str());
       }
       entry = new RegType(type, klass, 0, type);
       entries_[type] = entry;
@@ -370,7 +370,7 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
         return *cur_entry;
       }
     }
-    Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor, loader);
+    Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(), loader);
     if (klass != NULL) {
       // Able to resolve so create resolved register type
       RegType* entry = new RegType(type, klass, 0, entries_.size());
