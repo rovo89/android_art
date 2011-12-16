@@ -1,10 +1,30 @@
 import otherpackage.OtherPackagePublicEnum;
 
+import java.lang.reflect.*;
+
 public class Main {
     /** used by {@link #basisCall} */
     static private int basisTestValue = 12;
 
     static public void main(String[] args) throws Exception {
+        try {
+            Class<?> enumClass = Enum.class;
+            Method enumValueOf = null;
+            for (Method m : enumClass.getDeclaredMethods()) {
+                if (m.getName().equals("valueOf")) {
+                    enumValueOf = m;
+                    break;
+                }
+            }
+            enumValueOf.invoke(null, String.class, "blah");
+            throw new AssertionError();
+        } catch (InvocationTargetException expected) {
+            IllegalArgumentException iae = (IllegalArgumentException) expected.getCause();
+            if (!iae.getMessage().equals("class java.lang.String is not an enum type")) {
+                throw new AssertionError();
+            }
+        }
+
         boolean timing = (args.length >= 1) && args[0].equals("--timing");
         run(timing);
     }
