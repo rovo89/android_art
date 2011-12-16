@@ -44,8 +44,10 @@ art_cflags := \
 	-fno-align-jumps \
 	-fstrict-aliasing
 
+ifeq ($(HOST_OS),linux)
 art_non_debug_cflags := \
 	-Wframe-larger-than=1728
+endif
 
 art_debug_cflags := \
 	-UNDEBUG
