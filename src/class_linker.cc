@@ -1042,7 +1042,12 @@ Class* ClassLinker::FindClass(const std::string& descriptor,
     }
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
     ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid, class_name_object.get()));
-    return Decode<Class*>(env, result.get());
+    if (!env->ExceptionOccurred()) {
+      return Decode<Class*>(env, result.get());
+    } else {
+      env->ExceptionClear();  // Failed to find class fall-through to NCDFE
+      // TODO: initialize the cause of the NCDFE to this exception
+    }
   }
 
   ThrowNoClassDefFoundError("Class %s not found", PrintableString(descriptor).c_str());

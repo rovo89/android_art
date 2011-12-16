@@ -989,7 +989,9 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
       skipping_ = false;
     }
     if (!skipping_) {
-      ++depth_;
+      if (frame.HasMethod()) {  // ignore callee save frames
+        ++depth_;
+      }
     } else {
       ++skip_depth_;
     }
@@ -1042,6 +1044,9 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
     if (skip_depth_ > 0) {
       skip_depth_--;
       return;
+    }
+    if (!frame.HasMethod()) {
+      return;  // ignore callee save frames
     }
     method_trace_->Set(count_, frame.GetMethod());
     pc_trace_->Set(count_, pc);

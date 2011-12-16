@@ -3676,7 +3676,7 @@ void DexVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
   *gc_points = local_gc_points;
   *ref_bitmap_bits = max_ref_reg + 1;  // if max register is 0 we need 1 bit to encode (ie +1)
   size_t i = 0;
-  while ((1U << i) < max_insn) {
+  while ((1U << i) <= max_insn) {
     i++;
   }
   *log2_max_gc_pc = i;
@@ -3702,10 +3702,10 @@ ByteArray* DexVerifier::GenerateGcMap() {
   }
   size_t pc_bytes;
   RegisterMapFormat format;
-  if (pc_bits < 8) {
+  if (pc_bits <= 8) {
     format = kRegMapFormatCompact8;
     pc_bytes = 1;
-  } else if (pc_bits < 16) {
+  } else if (pc_bits <= 16) {
     format = kRegMapFormatCompact16;
     pc_bytes = 2;
   } else {
