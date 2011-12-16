@@ -95,6 +95,12 @@ void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
   ThreadList* thread_list = runtime->GetThreadList();
 
+  // We take the heap lock before suspending all threads so we don't end up in a situation where
+  // one of the suspended threads suspended via the implicit FullSuspendCheck on the slow path of
+  // Heap::Lock, which is the only case where a thread can be suspended while holding the heap lock.
+  // (We need the heap lock when we dump the thread list. We could probably fix this by duplicating
+  // more state from java.lang.Thread in struct Thread.)
+  ScopedHeapLock heap_lock;
   thread_list->SuspendAll();
 
   std::ostringstream os;

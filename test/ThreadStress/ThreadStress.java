@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import libcore.io.*;
 
 // Run on host with:
 //   javac ThreadTest.java && java ThreadStress && rm *.class
@@ -29,7 +30,8 @@ class ThreadStress implements Runnable {
 
     enum Operation {
         OOM(1),
-        ALLOC(99),
+        SIGQUIT(19),
+        ALLOC(80),
         EXIT(50),
         WAIT(50);
 
@@ -193,6 +195,12 @@ class ThreadStress implements Runnable {
                 switch (operation) {
                     case EXIT: {
                         return;
+                    }
+                    case SIGQUIT: {
+                        try {
+                            Libcore.os.kill(Libcore.os.getpid(), OsConstants.SIGQUIT);
+                        } catch (ErrnoException ex) {
+                        }
                     }
                     case WAIT: {
                         synchronized (lock) {
