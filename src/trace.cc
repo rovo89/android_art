@@ -12,6 +12,9 @@
 #include "runtime_support.h"
 #include "thread.h"
 
+
+namespace art {
+
 static const uint32_t kTraceMethodActionMask      = 0x03; // two bits
 static const char     kTraceTokenChar             = '*';
 static const uint16_t kTraceHeaderLength          = 32;
@@ -27,23 +30,6 @@ static inline uint32_t TraceMethodId(uint32_t methodValue) {
 static inline uint32_t TraceMethodCombine(uint32_t method, uint8_t traceEvent) {
   return (method | traceEvent);
 }
-
-namespace art {
-
-// TODO: Replace class statics with singleton instance
-bool Trace::method_tracing_active_ = false;
-std::map<const Method*, const void*> Trace::saved_code_map_;
-std::set<const Method*> Trace::visited_methods_;
-std::map<Thread*, uint64_t> Trace::thread_clock_base_map_;
-uint8_t* Trace::buf_;
-File* Trace::trace_file_;
-bool Trace::direct_to_ddms_ = false;
-int Trace::buffer_size_ = 0;
-uint64_t Trace::start_time_ = 0;
-bool Trace::overflow_ = false;
-uint16_t Trace::trace_version_;
-uint16_t Trace::record_size_;
-volatile int32_t Trace::cur_offset_;
 
 bool UseThreadCpuClock() {
   // TODO: Allow control over which clock is used
@@ -107,17 +93,18 @@ void Append8LE(uint8_t* buf, uint64_t val) {
 
 #if defined(__arm__)
 static bool InstallStubsClassVisitor(Class* klass, void* trace_stub) {
+  Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
     if (method->GetCode() != trace_stub) {
-      Trace::SaveAndUpdateCode(method, trace_stub);
+      tracer->SaveAndUpdateCode(method, trace_stub);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
     Method* method = klass->GetVirtualMethod(i);
     if (method->GetCode() != trace_stub) {
-      Trace::SaveAndUpdateCode(method, trace_stub);
+      tracer->SaveAndUpdateCode(method, trace_stub);
     }
   }
 
@@ -134,17 +121,18 @@ static bool InstallStubsClassVisitor(Class* klass, void* trace_stub) {
 }
 
 static bool UninstallStubsClassVisitor(Class* klass, void* trace_stub) {
+  Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
-    if (Trace::GetSavedCodeFromMap(method) != NULL) {
-      Trace::ResetSavedCode(method);
+    if (tracer->GetSavedCodeFromMap(method) != NULL) {
+      tracer->ResetSavedCode(method);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
     Method* method = klass->GetVirtualMethod(i);
-    if (Trace::GetSavedCodeFromMap(method) != NULL) {
-      Trace::ResetSavedCode(method);
+    if (tracer->GetSavedCodeFromMap(method) != NULL) {
+      tracer->ResetSavedCode(method);
     }
   }
 
@@ -154,8 +142,8 @@ static bool UninstallStubsClassVisitor(Class* klass, void* trace_stub) {
       const void* code = c_and_dm->GetResolvedCode(i);
       if (code == trace_stub) {
         Method* method = klass->GetDexCache()->GetResolvedMethod(i);
-        if (Trace::GetSavedCodeFromMap(method) != NULL) {
-          Trace::ResetSavedCode(method);
+        if (tracer->GetSavedCodeFromMap(method) != NULL) {
+          tracer->ResetSavedCode(method);
         }
         c_and_dm->SetResolvedDirectMethod(i, method);
       }
@@ -186,62 +174,53 @@ static void TraceRestoreStack(Thread* t, void*) {
 #endif
 
 void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
-  CHECK(IsMethodTracingActive());
   saved_code_map_.insert(std::make_pair(method, code));
 }
 
 void Trace::RemoveSavedCodeFromMap(const Method* method) {
-  CHECK(IsMethodTracingActive());
   saved_code_map_.erase(method);
 }
 
 const void* Trace::GetSavedCodeFromMap(const Method* method) {
-  CHECK(IsMethodTracingActive());
-  return saved_code_map_.find(method)->second;
+  typedef std::map<const Method*, const void*>::const_iterator It; // TODO: C++0x auto
+  It it = saved_code_map_.find(method);
+  if (it == saved_code_map_.end()) {
+    return NULL;
+  } else {
+    return it->second;
+  }
 }
 
 void Trace::SaveAndUpdateCode(Method* method, const void* new_code) {
-  CHECK(IsMethodTracingActive());
   CHECK(GetSavedCodeFromMap(method) == NULL);
   AddSavedCodeToMap(method, method->GetCode());
   method->SetCode(new_code);
 }
 
 void Trace::ResetSavedCode(Method* method) {
-  CHECK(IsMethodTracingActive());
   CHECK(GetSavedCodeFromMap(method) != NULL);
   method->SetCode(GetSavedCodeFromMap(method));
   RemoveSavedCodeFromMap(method);
 }
 
-bool Trace::IsMethodTracingActive() {
-  return method_tracing_active_;
-}
-
-void Trace::SetMethodTracingActive(bool value) {
-  method_tracing_active_ = value;
-}
-
 void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int flags, bool direct_to_ddms) {
-  LOG(INFO) << "Starting method tracing...";
-  if (IsMethodTracingActive()) {
-    // TODO: Stop the trace, then start it up again instead of returning.
+  if (Runtime::Current()->IsMethodTracingActive()) {
     LOG(INFO) << "Trace already in progress, ignoring this request";
     return;
   }
 
-  // Suspend all threads.
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Runtime::Current()->GetThreadList()->SuspendAll(false);
 
-  // Open files and allocate storage.
+  // Open trace file if not going directly to ddms.
+  File* trace_file = NULL;
   if (!direct_to_ddms) {
     if (trace_fd < 0) {
-      trace_file_ = OS::OpenFile(trace_filename, true);
+      trace_file = OS::OpenFile(trace_filename, true);
     } else {
-      trace_file_ = OS::FileFromFd("tracefile", trace_fd);
+      trace_file = OS::FileFromFd("tracefile", trace_fd);
     }
-    if (trace_file_ == NULL) {
+    if (trace_file == NULL) {
       PLOG(ERROR) << "Unable to open trace file '" << trace_filename;
       Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
           StringPrintf("Unable to open trace file '%s'", trace_filename).c_str());
@@ -249,14 +228,35 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       return;
     }
   }
-  buf_ = new uint8_t[buffer_size]();
 
-  // Populate profiler state.
-  direct_to_ddms_ = direct_to_ddms;
-  buffer_size_ = buffer_size;
-  overflow_ = false;
+  // Create Trace object.
+  Trace* tracer(new Trace(trace_file, buffer_size));
+  Runtime::Current()->EnableMethodTracing(tracer);
+  tracer->BeginTracing();
+
+  Runtime::Current()->GetThreadList()->ResumeAll(false);
+}
+
+void Trace::Stop() {
+  if (!Runtime::Current()->IsMethodTracingActive()) {
+    LOG(INFO) << "Trace stop requested, but no trace currently running";
+    return;
+  }
+
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  Runtime::Current()->GetThreadList()->SuspendAll(false);
+
+  Runtime::Current()->GetTracer()->FinishTracing();
+  Runtime::Current()->DisableMethodTracing();
+
+  Runtime::Current()->GetThreadList()->ResumeAll(false);
+}
+
+void Trace::BeginTracing() {
+  // Set the start time of tracing.
   start_time_ = MicroTime();
 
+  // Set trace version and record size.
   if (UseThreadCpuClock() && UseWallClock()) {
     trace_version_ = kTraceVersionDualClock;
     record_size_ = kTraceRecordSizeDualClock;
@@ -265,45 +265,26 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     record_size_ = kTraceRecordSizeSingleClock;
   }
 
-  saved_code_map_.clear();
-  visited_methods_.clear();
-  thread_clock_base_map_.clear();
-
   // Set up the beginning of the trace.
-  memset(buf_, 0, kTraceHeaderLength);
-  Append4LE(buf_, kTraceMagicValue);
-  Append2LE(buf_ + 4, trace_version_);
-  Append2LE(buf_ + 6, kTraceHeaderLength);
-  Append8LE(buf_ + 8, start_time_);
+  memset(buf_.get(), 0, kTraceHeaderLength);
+  Append4LE(buf_.get(), kTraceMagicValue);
+  Append2LE(buf_.get() + 4, trace_version_);
+  Append2LE(buf_.get() + 6, kTraceHeaderLength);
+  Append8LE(buf_.get() + 8, start_time_);
   if (trace_version_ >= kTraceVersionDualClock) {
-    Append2LE(buf_ + 16, record_size_);
+    Append2LE(buf_.get() + 16, record_size_);
   }
-  cur_offset_ = kTraceHeaderLength;
 
-  SetMethodTracingActive(true);
+  // Update current offset.
+  cur_offset_ = kTraceHeaderLength;
 
   // Install all method tracing stubs.
   InstallStubs();
-  LOG(INFO) << "Method tracing started";
-
-  Runtime::Current()->GetThreadList()->ResumeAll(false);
 }
 
-void Trace::Stop() {
-  LOG(INFO) << "Stopping method tracing...";
-  if (!IsMethodTracingActive()) {
-    LOG(INFO) << "Trace stop requested, but no trace currently running";
-    return;
-  }
-
-  // Suspend all threads.
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  Runtime::Current()->GetThreadList()->SuspendAll(false);
-
+void Trace::FinishTracing() {
   // Uninstall all method tracing stubs.
   UninstallStubs();
-
-  SetMethodTracingActive(false);
 
   // Compute elapsed time.
   uint64_t elapsed = MicroTime() - start_time_;
@@ -338,29 +319,22 @@ void Trace::Stop() {
   os << StringPrintf("%cend\n", kTraceTokenChar);
 
   std::string header(os.str());
-  if (direct_to_ddms_) {
+  if (trace_file_.get() == NULL) {
     struct iovec iov[2];
     iov[0].iov_base = reinterpret_cast<void*>(const_cast<char*>(header.c_str()));
     iov[0].iov_len = header.length();
-    iov[1].iov_base = buf_;
+    iov[1].iov_base = buf_.get();
     iov[1].iov_len = final_offset;
     Dbg::DdmSendChunkV(CHUNK_TYPE("MPSE"), iov, 2);
   } else {
     if (!trace_file_->WriteFully(header.c_str(), header.length()) ||
-        !trace_file_->WriteFully(buf_, final_offset)) {
+        !trace_file_->WriteFully(buf_.get(), final_offset)) {
       int err = errno;
       LOG(ERROR) << "Trace data write failed: " << strerror(err);
       Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
           StringPrintf("Trace data write failed: %s", strerror(err)).c_str());
     }
-    delete trace_file_;
   }
-
-  delete buf_;
-
-  LOG(INFO) << "Method tracing stopped";
-
-  Runtime::Current()->GetThreadList()->ResumeAll(false);
 }
 
 void Trace::LogMethodTraceEvent(Thread* self, const Method* method, Trace::TraceEvent event) {
@@ -384,7 +358,7 @@ void Trace::LogMethodTraceEvent(Thread* self, const Method* method, Trace::Trace
   uint32_t method_value = TraceMethodCombine(reinterpret_cast<uint32_t>(method), event);
 
   // Write data
-  uint8_t* ptr = buf_ + old_offset;
+  uint8_t* ptr = buf_.get() + old_offset;
   Append2LE(ptr, self->GetTid());
   Append4LE(ptr + 2, method_value);
   ptr += 6;
@@ -403,8 +377,8 @@ void Trace::LogMethodTraceEvent(Thread* self, const Method* method, Trace::Trace
 }
 
 void Trace::GetVisitedMethods(size_t end_offset) {
-  uint8_t* ptr = buf_ + kTraceHeaderLength;
-  uint8_t* end = buf_ + end_offset;
+  uint8_t* ptr = buf_.get() + kTraceHeaderLength;
+  uint8_t* end = buf_.get() + end_offset;
 
   while (ptr < end) {
     uint32_t method_value = ptr[2] | (ptr[3] << 8) | (ptr[4] << 16) | (ptr[5] << 24);
@@ -424,7 +398,6 @@ void Trace::DumpMethodList(std::ostream& os) {
         mh.GetSignature().c_str(), mh.GetDeclaringClassSourceFile(),
         mh.GetLineNumFromNativePC(0));
   }
-  visited_methods_.clear();
 }
 
 static void DumpThread(Thread* t, void* arg) {

@@ -92,7 +92,7 @@ void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFi
 }
 
 jboolean VMDebug_isMethodTracingActive(JNIEnv*, jclass) {
-  return Trace::IsMethodTracingActive();
+  return Runtime::Current()->IsMethodTracingActive();
 }
 
 void VMDebug_stopMethodTracing(JNIEnv*, jclass) {

@@ -447,7 +447,7 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = GetMappingTableLength();
-  const void* code_offset = Trace::IsMethodTracingActive() ? Trace::GetSavedCodeFromMap(this) : GetCode();
+  const void* code_offset = Runtime::Current()->IsMethodTracingActive() ? Runtime::Current()->GetTracer()->GetSavedCodeFromMap(this) : GetCode();
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(code_offset);
   uint32_t best_offset = 0;
   uint32_t best_dex_offset = 0;
@@ -478,8 +478,9 @@ uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
     uint32_t map_offset = mapping_table[i];
     uint32_t map_dex_offset = mapping_table[i + 1];
     if (map_dex_offset == dex_pc) {
-      if (Trace::IsMethodTracingActive()) {
-        return reinterpret_cast<uintptr_t>(Trace::GetSavedCodeFromMap(this)) + map_offset;
+      if (Runtime::Current()->IsMethodTracingActive()) {
+        Trace* tracer = Runtime::Current()->GetTracer();
+        return reinterpret_cast<uintptr_t>(tracer->GetSavedCodeFromMap(this)) + map_offset;
       } else {
         return reinterpret_cast<uintptr_t>(GetCode()) + map_offset;
       }

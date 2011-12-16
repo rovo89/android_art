@@ -141,7 +141,7 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
 extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Method** sp) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   // Remove extra entry pushed onto second stack during method tracing
-  if (Trace::IsMethodTracingActive()) {
+  if (Runtime::Current()->IsMethodTracingActive()) {
     artTraceMethodUnwindFromCode(thread);
   }
   thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
@@ -1183,30 +1183,33 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
 }
 
 extern "C" const void* artTraceMethodEntryFromCode(Method* method, Thread* self, uintptr_t lr) {
+  Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = TraceStackFrame(method, lr);
   self->PushTraceStackFrame(trace_frame);
 
-  Trace::LogMethodTraceEvent(self, method, Trace::kMethodTraceEnter);
+  tracer->LogMethodTraceEvent(self, method, Trace::kMethodTraceEnter);
 
-  return Trace::GetSavedCodeFromMap(method);
+  return tracer->GetSavedCodeFromMap(method);
 }
 
 extern "C" uintptr_t artTraceMethodExitFromCode() {
+  Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = Thread::Current()->PopTraceStackFrame();
   Method* method = trace_frame.method_;
   uintptr_t lr = trace_frame.return_pc_;
 
-  Trace::LogMethodTraceEvent(Thread::Current(), method, Trace::kMethodTraceExit);
+  tracer->LogMethodTraceEvent(Thread::Current(), method, Trace::kMethodTraceExit);
 
   return lr;
 }
 
 uintptr_t artTraceMethodUnwindFromCode(Thread* self) {
+  Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = self->PopTraceStackFrame();
   Method* method = trace_frame.method_;
   uintptr_t lr = trace_frame.return_pc_;
 
-  Trace::LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);
+  tracer->LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);
 
   return lr;
 }

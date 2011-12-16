@@ -47,7 +47,8 @@ Runtime::Runtime()
       vfprintf_(NULL),
       exit_(NULL),
       abort_(NULL),
-      stats_enabled_(false) {
+      stats_enabled_(false),
+      tracer_(NULL) {
   for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
     resolution_stub_array_[i] = NULL;
   }
@@ -868,6 +869,26 @@ Method* Runtime::GetCalleeSaveMethod(CalleeSaveType type) const {
 void Runtime::SetCalleeSaveMethod(Method* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_method_[type] = method;
+}
+
+void Runtime::EnableMethodTracing(Trace* tracer) {
+  CHECK(!IsMethodTracingActive());
+  tracer_ = tracer;
+}
+
+void Runtime::DisableMethodTracing() {
+  CHECK(IsMethodTracingActive());
+  delete tracer_;
+  tracer_ = NULL;
+}
+
+bool Runtime::IsMethodTracingActive() const {
+  return (tracer_ != NULL);
+}
+
+Trace* Runtime::GetTracer() const {
+  CHECK(IsMethodTracingActive());
+  return tracer_;
 }
 
 }  // namespace art

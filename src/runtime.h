@@ -34,6 +34,7 @@ class MonitorList;
 class SignalCatcher;
 class String;
 class ThreadList;
+class Trace;
 
 class Runtime {
  public:
@@ -203,6 +204,11 @@ class Runtime {
 
   void DidForkFromZygote();
 
+  void EnableMethodTracing(Trace* tracer);
+  void DisableMethodTracing();
+  bool IsMethodTracingActive() const;
+  Trace* GetTracer() const;
+
  private:
   static void PlatformAbort(const char*, int);
 
@@ -271,6 +277,8 @@ class Runtime {
 
   bool stats_enabled_;
   RuntimeStats stats_;
+
+  Trace* tracer_;
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;

@@ -1114,7 +1114,7 @@ void Thread::WalkStack(StackVisitor* visitor) const {
       // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
       visitor->VisitFrame(frame, pc);
       pc = ManglePc(frame.GetReturnPC());
-      if (Trace::IsMethodTracingActive()) {
+      if (Runtime::Current()->IsMethodTracingActive()) {
 #if defined(__arm__)
         uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
         if (ManglePc(trace_exit) == pc) {
@@ -1359,7 +1359,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
         native_method_count_++;
       } else {
         // Unwind stack during method tracing
-        if (Trace::IsMethodTracingActive()) {
+        if (Runtime::Current()->IsMethodTracingActive()) {
 #if defined(__arm__)
           uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
           if (ManglePc(trace_exit) == pc) {
