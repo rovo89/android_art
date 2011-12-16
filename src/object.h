@@ -1322,10 +1322,6 @@ class MANAGED Class : public StaticStorageBase {
     if (this == access_to) {
       return true;
     }
-    // Check we have access to the class
-    if (!CanAccess(access_to)) {
-      return false;
-    }
     // Public members are trivially accessible
     if (member_flags & kAccPublic) {
       return true;

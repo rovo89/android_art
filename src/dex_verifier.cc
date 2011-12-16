@@ -3028,15 +3028,19 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
 }
 
 Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_direct) {
+  const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+  const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
+  if (failure_ != VERIFY_ERROR_NONE) {
+    fail_messages_ << " in attempt to access method " << dex_file_->GetMethodName(method_id);
+    return NULL;
+  }
+  if(klass_type.IsUnresolvedTypes()) {
+    return NULL;  // Can't resolve Class so no more to do here
+  }
   Class* referrer = method_->GetDeclaringClass();
   DexCache* dex_cache = referrer->GetDexCache();
   Method* res_method = dex_cache->GetResolvedMethod(method_idx);
   if (res_method == NULL) {
-    const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-    const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
-    if(klass_type.IsUnresolvedTypes() || klass_type.IsUnknown()) {
-      return NULL;  // Can't resolve Class so no more to do here
-    }
     Class* klass = klass_type.GetClass();
     const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
@@ -3306,9 +3310,20 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
 }
 
 Field* DexVerifier::GetStaticField(int field_idx) {
+  const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+  // Check access to class
+  const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
+  if (failure_ != VERIFY_ERROR_NONE) {
+    fail_messages_ << " in attempt to access static field " << field_idx << " ("
+              << dex_file_->GetFieldName(field_id) << ") in "
+              << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
+    return NULL;
+  }
+  if(klass_type.IsUnresolvedTypes()) {
+    return NULL;  // Can't resolve Class so no more to do here
+  }
   Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
   if (field == NULL) {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
     LOG(INFO) << "unable to resolve static field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
@@ -3329,9 +3344,20 @@ Field* DexVerifier::GetStaticField(int field_idx) {
 }
 
 Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
+  const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+  // Check access to class
+  const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
+  if (failure_ != VERIFY_ERROR_NONE) {
+    fail_messages_ << " in attempt to access instance field " << field_idx << " ("
+              << dex_file_->GetFieldName(field_id) << ") in "
+              << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
+    return NULL;
+  }
+  if(klass_type.IsUnresolvedTypes()) {
+    return NULL;  // Can't resolve Class so no more to do here
+  }
   Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
   if (field == NULL) {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
     LOG(INFO) << "unable to resolve instance field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
