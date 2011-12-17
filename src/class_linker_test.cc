@@ -641,9 +641,9 @@ TEST_F(ClassLinkerTest, FindClassNested) {
 
 TEST_F(ClassLinkerTest, FindClass_Primitives) {
   const std::string expected("BCDFIJSZV");
-  for (int ch = 0; ch < 255; ch++) {
-    char* s = reinterpret_cast<char*>(&ch);
-    const std::string descriptor(s, 1);
+  for (int ch = 1; ch < 256; ++ch) {
+    std::string descriptor;
+    descriptor.push_back(ch);
     if (expected.find(ch) == std::string::npos) {
       AssertNonExistentClass(descriptor);
     } else {

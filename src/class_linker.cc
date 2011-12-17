@@ -993,6 +993,10 @@ Class* EnsureResolved(Class* klass) {
   return klass;
 }
 
+Class* ClassLinker::FindSystemClass(const char* descriptor) {
+  return FindClass(descriptor, NULL);
+}
+
 Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_loader) {
   DCHECK(*descriptor != '\0') << "descriptor is empty string";
   Thread* self = Thread::Current();

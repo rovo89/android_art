@@ -57,9 +57,7 @@ class ClassLinker {
   // If class_loader is null, searches boot_class_path_.
   Class* FindClass(const char* descriptor, const ClassLoader* class_loader);
 
-  Class* FindSystemClass(const char* descriptor) {
-    return FindClass(descriptor, NULL);
-  }
+  Class* FindSystemClass(const char* descriptor);
 
   // Define a new a class based on a ClassDef from a DexFile
   Class* DefineClass(const StringPiece& descriptor, const ClassLoader* class_loader,
