@@ -894,7 +894,7 @@ private:
   const char* function_name_;
   int flags_;
   bool has_method_;
-  size_t indent_;
+  int indent_;
 
   DISALLOW_COPY_AND_ASSIGN(ScopedCheck);
 };

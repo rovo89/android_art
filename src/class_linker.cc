@@ -2301,7 +2301,7 @@ bool ClassLinker::LinkMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfa
     // No vtable.
     size_t count = klass->NumVirtualMethods();
     if (!IsUint(16, count)) {
-      ThrowClassFormatError("Too many methods on interface: %d", count);
+      ThrowClassFormatError("Too many methods on interface: %zd", count);
       return false;
     }
     for (size_t i = 0; i < count; ++i) {
@@ -2355,7 +2355,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
       }
     }
     if (!IsUint(16, actual_count)) {
-      ThrowClassFormatError("Too many methods defined on class: %d", actual_count);
+      ThrowClassFormatError("Too many methods defined on class: %zd", actual_count);
       return false;
     }
     // Shrink vtable if possible

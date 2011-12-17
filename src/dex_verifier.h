@@ -568,7 +568,7 @@ class RegisterLine {
   std::string Dump() const {
     std::string result;
     for (size_t i = 0; i < num_regs_; i++) {
-      result += StringPrintf("%d:[", i);
+      result += StringPrintf("%zd:[", i);
       result += GetRegisterType(i).Dump();
       result += "],";
     }
