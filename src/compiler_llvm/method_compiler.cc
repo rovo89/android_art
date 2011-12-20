@@ -23,6 +23,8 @@
 #include "object.h"
 #include "object_utils.h"
 #include "stl_util.h"
+#include "stringprintf.h"
+#include "utils_llvm.h"
 
 #include <iomanip>
 
@@ -58,6 +60,67 @@ MethodCompiler::~MethodCompiler() {
 }
 
 
+void MethodCompiler::CreateFunction() {
+  // LLVM function name
+  std::string func_name(LLVMLongName(method_));
+
+  // Get function type
+  llvm::FunctionType* func_type =
+    GetFunctionType(method_idx_, method_->IsStatic());
+
+  // Create function
+  func_ = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage,
+                                 func_name, module_);
+
+  // Set argument name
+  llvm::Function::arg_iterator arg_iter(func_->arg_begin());
+  llvm::Function::arg_iterator arg_end(func_->arg_end());
+
+  DCHECK_NE(arg_iter, arg_end);
+  arg_iter->setName("method");
+  ++arg_iter;
+
+  if (!method_->IsStatic()) {
+    DCHECK_NE(arg_iter, arg_end);
+    arg_iter->setName("this");
+    ++arg_iter;
+  }
+
+  for (unsigned i = 0; arg_iter != arg_end; ++i, ++arg_iter) {
+    arg_iter->setName(StringPrintf("a%u", i));
+  }
+}
+
+
+llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
+                                                    bool is_static) {
+  // Get method signature
+  DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
+
+  int32_t shorty_size;
+  char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  CHECK_GE(shorty_size, 1);
+
+  // Get return type
+  llvm::Type* ret_type = irb_.getJType(shorty[0], kAccurate);
+
+  // Get argument type
+  std::vector<llvm::Type*> args_type;
+
+  args_type.push_back(irb_.getJObjectTy()); // method object pointer
+
+  if (!is_static) {
+    args_type.push_back(irb_.getJType('L', kAccurate)); // "this" object pointer
+  }
+
+  for (int32_t i = 1; i < shorty_size; ++i) {
+    args_type.push_back(irb_.getJType(shorty[i], kAccurate));
+  }
+
+  return llvm::FunctionType::get(ret_type, args_type, false);
+}
+
+
 void MethodCompiler::EmitPrologue() {
   // UNIMPLEMENTED(WARNING);
 }
@@ -75,8 +138,21 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
 
 
 CompiledMethod *MethodCompiler::Compile() {
-  // UNIMPLEMENTED(WARNING);
-  return new CompiledMethod(insn_set_, NULL);
+  // Code generation
+  CreateFunction();
+
+  EmitPrologue();
+  EmitInstructions();
+
+  // Delete the inferred register category map (won't be used anymore)
+  method_->ResetInferredRegCategoryMap();
+
+  return new CompiledMethod(insn_set_, func_);
+}
+
+
+llvm::Value* MethodCompiler::EmitLoadMethodObjectAddr() {
+  return func_->arg_begin();
 }
 
 

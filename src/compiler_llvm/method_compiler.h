@@ -102,6 +102,13 @@ class MethodCompiler {
   void EmitInstructions();
   void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
 
+
+  // Code generation helper function
+
+  llvm::Value* EmitLoadMethodObjectAddr();
+
+  llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
+
 };
 
 
