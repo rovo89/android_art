@@ -216,6 +216,7 @@ LIBART_COMMON_SRC_FILES := \
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/compiler_llvm.cc \
+	src/compiler_llvm/dalvik_reg.cc \
 	src/compiler_llvm/frontend.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \

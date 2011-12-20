@@ -29,6 +29,7 @@
 #include <iomanip>
 
 #include <llvm/Analysis/Verifier.h>
+#include <llvm/BasicBlock.h>
 #include <llvm/Function.h>
 
 namespace art {
@@ -52,12 +53,14 @@ MethodCompiler::MethodCompiler(InstructionSet insn_set,
   method_helper_(method_), method_idx_(method_idx),
   access_flags_(access_flags), module_(compiler_llvm_->GetModule()),
   context_(compiler_llvm_->GetLLVMContext()),
-  irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL),
-  prologue_(NULL), basic_blocks_(code_item->insns_size_in_code_units_) {
+  irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
+  basic_block_reg_alloca_(NULL), basic_block_reg_zero_init_(NULL),
+  basic_blocks_(code_item->insns_size_in_code_units_) {
 }
 
 
 MethodCompiler::~MethodCompiler() {
+  STLDeleteElements(&regs_);
 }
 
 
@@ -123,7 +126,28 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
 
 
 void MethodCompiler::EmitPrologue() {
-  // UNIMPLEMENTED(WARNING);
+  // Create basic blocks for prologue
+  basic_block_reg_alloca_ =
+    llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
+
+  basic_block_reg_zero_init_ =
+    llvm::BasicBlock::Create(*context_, "prologue.zeroinit", func_);
+
+  // Create register array
+  for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
+    regs_.push_back(DalvikReg::CreateLocalVarReg(*this, r));
+  }
+
+  retval_reg_.reset(DalvikReg::CreateRetValReg(*this));
+}
+
+
+void MethodCompiler::EmitPrologueLastBranch() {
+  irb_.SetInsertPoint(basic_block_reg_alloca_);
+  irb_.CreateBr(basic_block_reg_zero_init_);
+
+  irb_.SetInsertPoint(basic_block_reg_zero_init_);
+  irb_.CreateBr(GetBasicBlock(0));
 }
 
 
@@ -154,6 +178,7 @@ CompiledMethod *MethodCompiler::Compile() {
 
   EmitPrologue();
   EmitInstructions();
+  EmitPrologueLastBranch();
 
   // Verify the generated bitcode
   llvm::verifyFunction(*func_, llvm::PrintMessageAction);
@@ -202,6 +227,90 @@ llvm::BasicBlock*
 MethodCompiler::GetNextBasicBlock(uint32_t dex_pc) {
   Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
   return GetBasicBlock(dex_pc + insn->SizeInCodeUnits());
+}
+
+
+llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
+                                                    uint32_t reg_idx) {
+
+  // Save current IR builder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+
+  // Alloca
+  llvm::Value* reg_addr = NULL;
+
+  switch (cat) {
+  case kRegCat1nr:
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJIntTy(), 0,
+                                 StringPrintf("r%u", reg_idx));
+
+    irb_.SetInsertPoint(basic_block_reg_zero_init_);
+    irb_.CreateStore(irb_.getJInt(0), reg_addr);
+    break;
+
+  case kRegCat2:
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJLongTy(), 0,
+                                 StringPrintf("w%u", reg_idx));
+
+    irb_.SetInsertPoint(basic_block_reg_zero_init_);
+    irb_.CreateStore(irb_.getJLong(0), reg_addr);
+    break;
+
+  case kRegObject:
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJObjectTy(), 0,
+                                 StringPrintf("p%u", reg_idx));
+
+    irb_.SetInsertPoint(basic_block_reg_zero_init_);
+    irb_.CreateStore(irb_.getJNull(), reg_addr);
+    break;
+
+  default:
+    LOG(FATAL) << "Unknown register category for allocation: " << cat;
+  }
+
+  // Restore IRBuilder insert point
+  irb_.restoreIP(irb_ip_original);
+
+  DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
+  return reg_addr;
+}
+
+
+llvm::Value* MethodCompiler::AllocDalvikRetValReg(RegCategory cat) {
+  // Save current IR builder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+
+  // Alloca
+  llvm::Value* reg_addr = NULL;
+
+  switch (cat) {
+  case kRegCat1nr:
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJIntTy(), 0, "r_res");
+    break;
+
+  case kRegCat2:
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJLongTy(), 0, "w_res");
+    break;
+
+  case kRegObject:
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJObjectTy(), 0, "p_res");
+    break;
+
+  default:
+    LOG(FATAL) << "Unknown register category for allocation: " << cat;
+  }
+
+  // Restore IRBuilder insert point
+  irb_.restoreIP(irb_ip_original);
+
+  DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
+  return reg_addr;
 }
 
 

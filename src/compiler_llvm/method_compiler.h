@@ -19,6 +19,7 @@
 
 #include "backend_types.h"
 #include "constants.h"
+#include "dalvik_reg.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "object_utils.h"
@@ -80,8 +81,11 @@ class MethodCompiler {
   IRBuilder& irb_;
   llvm::Function* func_;
 
-  llvm::BasicBlock* prologue_;
+  std::vector<DalvikReg*> regs_;
+  UniquePtr<DalvikReg> retval_reg_;
 
+  llvm::BasicBlock* basic_block_reg_alloca_;
+  llvm::BasicBlock* basic_block_reg_zero_init_;
   std::vector<llvm::BasicBlock*> basic_blocks_;
 
 
@@ -100,10 +104,27 @@ class MethodCompiler {
 
   CompiledMethod* Compile();
 
+
+  // Code generation helper function
+
+  IRBuilder& GetIRBuilder() const {
+    return irb_;
+  }
+
+
+  // Register helper function
+
+  llvm::Value* AllocDalvikLocalVarReg(RegCategory cat, uint32_t reg_idx);
+
+  llvm::Value* AllocDalvikRetValReg(RegCategory cat);
+
+
  private:
   void CreateFunction();
 
+
   void EmitPrologue();
+  void EmitPrologueLastBranch();
   void EmitInstructions();
   void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
 
@@ -123,6 +144,46 @@ class MethodCompiler {
   llvm::BasicBlock* CreateBasicBlockWithDexPC(uint32_t dex_pc,
                                               char const* postfix = NULL);
 
+
+  // Register helper function
+
+  llvm::Value* EmitLoadDalvikReg(uint32_t reg_idx, JType jty,
+                                 JTypeSpace space) {
+    return regs_[reg_idx]->GetValue(jty, space);
+  }
+
+  llvm::Value* EmitLoadDalvikReg(uint32_t reg_idx, char shorty,
+                                 JTypeSpace space) {
+    return EmitLoadDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space);
+  }
+
+  void EmitStoreDalvikReg(uint32_t reg_idx, JType jty,
+                          JTypeSpace space, llvm::Value* new_value) {
+    regs_[reg_idx]->SetValue(jty, space, new_value);
+  }
+
+  void EmitStoreDalvikReg(uint32_t reg_idx, char shorty,
+                          JTypeSpace space, llvm::Value* new_value) {
+    EmitStoreDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space, new_value);
+  }
+
+  llvm::Value* EmitLoadDalvikRetValReg(JType jty, JTypeSpace space) {
+    return retval_reg_->GetValue(jty, space);
+  }
+
+  llvm::Value* EmitLoadDalvikRetValReg(char shorty, JTypeSpace space) {
+    return EmitLoadDalvikRetValReg(GetJTypeFromShorty(shorty), space);
+  }
+
+  void EmitStoreDalvikRetValReg(JType jty, JTypeSpace space,
+                                llvm::Value* new_value) {
+    retval_reg_->SetValue(jty, space, new_value);
+  }
+
+  void EmitStoreDalvikRetValReg(char shorty, JTypeSpace space,
+                                llvm::Value* new_value) {
+    EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
+  }
 };
 
 
