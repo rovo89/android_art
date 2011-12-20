@@ -33,6 +33,12 @@
 
 namespace art {
 
+#if defined(ART_USE_LLVM_COMPILER)
+namespace compiler_llvm {
+  class InferredRegCategoryMap;
+}
+#endif
+
 namespace verifier {
 
 class DexVerifier;
@@ -1221,6 +1227,14 @@ class DexVerifier {
   * Returns "false" if an error is encountered.
   */
   bool UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line);
+
+#if defined(ART_USE_LLVM_COMPILER)
+  /*
+   * Generate the inferred register category for LLVM-based code generator.
+   * Returns a pointer to a two-dimension Class array, or NULL on failure.
+   */
+  const compiler_llvm::InferredRegCategoryMap* GenerateInferredRegCategoryMap();
+#endif
 
   /*
    * Generate the GC map for a method that has just been verified (i.e. we're doing this as part of

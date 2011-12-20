@@ -32,6 +32,12 @@
 #include "runtime.h"
 #include "stringpiece.h"
 
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/backend_types.h"
+#include "compiler_llvm/inferred_reg_category_map.h"
+using namespace art::compiler_llvm;
+#endif
+
 namespace art {
 namespace verifier {
 
@@ -1608,7 +1614,15 @@ bool DexVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* gc_map = CreateLengthPrefixedGcMap(*(map.get()));
   Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
   verifier::DexVerifier::SetGcMap(ref, *gc_map);
+
+#if !defined(ART_USE_LLVM_COMPILER)
   method_->SetGcMap(&gc_map->at(0));
+#else
+  /* Generate Inferred Register Category for LLVM-based Code Generator */
+  const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
+  method_->SetInferredRegCategoryMap(table);
+#endif
+
   return true;
 }
 
@@ -3932,6 +3946,38 @@ void DexVerifier::DeleteGcMaps() {
   MutexLock mu(gc_maps_lock_);
   STLDeleteValues(&gc_maps_);
 }
+
+#if defined(ART_USE_LLVM_COMPILER)
+InferredRegCategoryMap const* DexVerifier::GenerateInferredRegCategoryMap() {
+  uint32_t insns_size = code_item_->insns_size_in_code_units_;
+  uint16_t regs_size = code_item_->registers_size_;
+
+  UniquePtr<InferredRegCategoryMap> table(
+    new InferredRegCategoryMap(insns_size, regs_size));
+
+  for (size_t i = 0; i < insns_size; ++i) {
+    if (RegisterLine* line = reg_table_.GetLine(i)) {
+      for (size_t r = 0; r < regs_size; ++r) {
+        RegType const &rt = line->GetRegisterType(r);
+
+        if (rt.IsZero()) {
+          table->SetRegCategory(i, r, kRegZero);
+        } else if (rt.IsCategory1Types()) {
+          table->SetRegCategory(i, r, kRegCat1nr);
+        } else if (rt.IsCategory2Types()) {
+          table->SetRegCategory(i, r, kRegCat2);
+        } else if (rt.IsReferenceTypes()) {
+          table->SetRegCategory(i, r, kRegObject);
+        } else {
+          table->SetRegCategory(i, r, kRegUnknown);
+        }
+      }
+    }
+  }
+
+  return table.release();
+}
+#endif
 
 }  // namespace verifier
 }  // namespace art

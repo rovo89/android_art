@@ -16,6 +16,7 @@
 
 #include "method_compiler.h"
 
+#include "backend_types.h"
 #include "compiler.h"
 #include "ir_builder.h"
 #include "logging.h"

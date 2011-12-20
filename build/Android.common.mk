@@ -218,6 +218,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/frontend.cc \
 	src/compiler_llvm/ir_builder.cc \
+	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/method_compiler.cc
 else
 LIBART_COMMON_SRC_FILES += \

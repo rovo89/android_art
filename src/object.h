@@ -72,6 +72,12 @@ union JValue {
   Object* l;
 };
 
+#if defined(ART_USE_LLVM_COMPILER)
+namespace compiler_llvm {
+  class InferredRegCategoryMap;
+}
+#endif
+
 static const uint32_t kAccPublic = 0x0001;  // class, field, method, ic
 static const uint32_t kAccPrivate = 0x0002;  // field, method, ic
 static const uint32_t kAccProtected = 0x0004;  // field, method, ic
@@ -725,6 +731,16 @@ class MANAGED Method : public Object {
     DCHECK(!Runtime::Current()->IsStarted());
     SetGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
   }
+
+#if defined(ART_USE_LLVM_COMPILER)
+  // NOTE: In order not to change the Oat file format, we are reusing the
+  // gc_map_ field, so be careful while altering the GC map related code.
+
+  const compiler_llvm::InferredRegCategoryMap* GetInferredRegCategoryMap() const;
+
+  void SetInferredRegCategoryMap(const compiler_llvm::InferredRegCategoryMap* map);
+  void ResetInferredRegCategoryMap();
+#endif
 
   size_t GetFrameSizeInBytes() const {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));

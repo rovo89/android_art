@@ -37,6 +37,11 @@
 #include "stack.h"
 #include "utils.h"
 
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/inferred_reg_category_map.h"
+using art::compiler_llvm::InferredRegCategoryMap;
+#endif
+
 namespace art {
 
 String* Object::AsString() {
@@ -377,6 +382,34 @@ void Method::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>*
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_initialized_static_storage_),
       new_value, false);
 }
+
+#if defined(ART_USE_LLVM_COMPILER)
+
+const InferredRegCategoryMap* Method::GetInferredRegCategoryMap() const {
+  const InferredRegCategoryMap* map = GetFieldPtr<const InferredRegCategoryMap*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
+  DCHECK(map != NULL) << PrettyMethod(this);
+  return map;
+}
+
+void Method::SetInferredRegCategoryMap(const InferredRegCategoryMap* map) {
+  const InferredRegCategoryMap* existing_map = GetInferredRegCategoryMap();
+
+  DCHECK(existing_map == NULL) << PrettyMethod(this);
+  DCHECK(map != NULL) << PrettyMethod(this);
+
+  // TODO: Remove if we won't find any use of InferredRegCategoryMap at runtime.
+  SetFieldPtr<const InferredRegCategoryMap*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), map, false);
+}
+
+void Method::ResetInferredRegCategoryMap() {
+  delete GetInferredRegCategoryMap();
+  SetFieldPtr<const InferredRegCategoryMap*>(
+    OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), NULL, false);
+}
+
+#endif
 
 size_t Method::NumArgRegisters(const StringPiece& shorty) {
   CHECK_LE(1, shorty.length());

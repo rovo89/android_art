@@ -17,6 +17,7 @@
 #ifndef ART_SRC_COMPILER_LLVM_METHOD_COMPILER_H_
 #define ART_SRC_COMPILER_LLVM_METHOD_COMPILER_H_
 
+#include "backend_types.h"
 #include "constants.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
