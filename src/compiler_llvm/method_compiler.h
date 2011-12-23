@@ -80,6 +80,11 @@ class MethodCompiler {
   IRBuilder& irb_;
   llvm::Function* func_;
 
+  llvm::BasicBlock* prologue_;
+
+  std::vector<llvm::BasicBlock*> basic_blocks_;
+
+
  public:
   MethodCompiler(InstructionSet insn_set,
                  Compiler* compiler,
@@ -108,6 +113,15 @@ class MethodCompiler {
   llvm::Value* EmitLoadMethodObjectAddr();
 
   llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
+
+
+  // Basic block helper functions
+  llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
+
+  llvm::BasicBlock* GetNextBasicBlock(uint32_t dex_pc);
+
+  llvm::BasicBlock* CreateBasicBlockWithDexPC(uint32_t dex_pc,
+                                              char const* postfix = NULL);
 
 };
 

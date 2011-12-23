@@ -52,7 +52,8 @@ MethodCompiler::MethodCompiler(InstructionSet insn_set,
   method_helper_(method_), method_idx_(method_idx),
   access_flags_(access_flags), module_(compiler_llvm_->GetModule()),
   context_(compiler_llvm_->GetLLVMContext()),
-  irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL) {
+  irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL),
+  prologue_(NULL), basic_blocks_(code_item->insns_size_in_code_units_) {
 }
 
 
@@ -127,13 +128,23 @@ void MethodCompiler::EmitPrologue() {
 
 
 void MethodCompiler::EmitInstructions() {
-  // UNIMPLEMENTED(WARNING);
+  uint32_t dex_pc = 0;
+  while (dex_pc < code_item_->insns_size_in_code_units_) {
+    Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+    EmitInstruction(dex_pc, insn);
+    dex_pc += insn->SizeInCodeUnits();
+  }
 }
 
 
 void MethodCompiler::EmitInstruction(uint32_t dex_pc,
                                      Instruction const* insn) {
+
+  // Set the IRBuilder insertion point
+  irb_.SetInsertPoint(GetBasicBlock(dex_pc));
+
   // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
 }
 
 
@@ -144,6 +155,9 @@ CompiledMethod *MethodCompiler::Compile() {
   EmitPrologue();
   EmitInstructions();
 
+  // Verify the generated bitcode
+  llvm::verifyFunction(*func_, llvm::PrintMessageAction);
+
   // Delete the inferred register category map (won't be used anymore)
   method_->ResetInferredRegCategoryMap();
 
@@ -153,6 +167,41 @@ CompiledMethod *MethodCompiler::Compile() {
 
 llvm::Value* MethodCompiler::EmitLoadMethodObjectAddr() {
   return func_->arg_begin();
+}
+
+
+llvm::BasicBlock* MethodCompiler::
+CreateBasicBlockWithDexPC(uint32_t dex_pc, char const* postfix) {
+  std::string name;
+
+  if (postfix) {
+    StringAppendF(&name, "B%u.%s", dex_pc, postfix);
+  } else {
+    StringAppendF(&name, "B%u", dex_pc);
+  }
+
+  return llvm::BasicBlock::Create(*context_, name, func_);
+}
+
+
+llvm::BasicBlock* MethodCompiler::GetBasicBlock(uint32_t dex_pc) {
+  DCHECK(dex_pc < code_item_->insns_size_in_code_units_);
+
+  llvm::BasicBlock* basic_block = basic_blocks_[dex_pc];
+
+  if (!basic_block) {
+    basic_block = CreateBasicBlockWithDexPC(dex_pc);
+    basic_blocks_[dex_pc] = basic_block;
+  }
+
+  return basic_block;
+}
+
+
+llvm::BasicBlock*
+MethodCompiler::GetNextBasicBlock(uint32_t dex_pc) {
+  Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+  return GetBasicBlock(dex_pc + insn->SizeInCodeUnits());
 }
 
 
