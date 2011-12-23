@@ -248,7 +248,7 @@ $(eval $(call build-art-cache-oat,system/framework/svc.jar))
 
 else
 
-ifeq ($(TARGET_PRODUCT),soju)
+ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),soju sojus))
 
 $(eval $(call build-art-cache-oat,system/app/ApplicationsProvider.apk))
 $(eval $(call build-art-cache-oat,system/app/BackupRestoreConfirmation.apk))
