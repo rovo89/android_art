@@ -1774,7 +1774,17 @@ void MethodCompiler::EmitInsn_IntToFP(uint32_t dex_pc,
                                       Instruction const* insn,
                                       JType src_jty,
                                       JType dest_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(src_jty == kInt || src_jty == kLong) << src_jty;
+  DCHECK(dest_jty == kFloat || dest_jty == kDouble) << dest_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, src_jty, kAccurate);
+  llvm::Type* dest_type = irb_.getJType(dest_jty, kAccurate);
+  llvm::Value* dest_value = irb_.CreateSIToFP(src_value, dest_type);
+  EmitStoreDalvikReg(dec_insn.vA_, dest_jty, kAccurate, dest_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
