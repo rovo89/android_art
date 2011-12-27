@@ -1296,15 +1296,62 @@ void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
                                            Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  struct PACKED Payload {
+    uint16_t ident_;
+    uint16_t num_cases_;
+    int32_t first_key_;
+    int32_t targets_[];
+  };
+
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           static_cast<int32_t>(dec_insn.vB_);
+
+  Payload const* payload =
+    reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
+
+  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+
+  llvm::SwitchInst* sw =
+    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->num_cases_);
+
+  for (uint16_t i = 0; i < payload->num_cases_; ++i) {
+    sw->addCase(irb_.getInt32(payload->first_key_ + i),
+                GetBasicBlock(dex_pc + payload->targets_[i]));
+  }
 }
 
 
 void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
                                            Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  struct PACKED Payload {
+    uint16_t ident_;
+    uint16_t num_cases_;
+    int32_t keys_and_targets_[];
+  };
+
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           static_cast<int32_t>(dec_insn.vB_);
+
+  Payload const* payload =
+    reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
+
+  int32_t const* keys = payload->keys_and_targets_;
+  int32_t const* targets = payload->keys_and_targets_ + payload->num_cases_;
+
+  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+
+  llvm::SwitchInst* sw =
+    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->num_cases_);
+
+  for (size_t i = 0; i < payload->num_cases_; ++i) {
+    sw->addCase(irb_.getInt32(keys[i]), GetBasicBlock(dex_pc + targets[i]));
+  }
 }
 
 
