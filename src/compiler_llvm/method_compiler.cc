@@ -1121,15 +1121,27 @@ void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
                                          Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+  // Garbage collection safe-point
+  EmitGuard_GarbageCollectionSuspend(dex_pc);
+
+  // Return!
+  irb_.CreateRetVoid();
 }
 
 
 void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
                                      Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  // Garbage collection safe-point
+  EmitGuard_GarbageCollectionSuspend(dex_pc);
+
+  // Return!
+  char ret_shorty = method_helper_.GetShorty()[0];
+  llvm::Value* retval = EmitLoadDalvikReg(dec_insn.vA_, ret_shorty, kAccurate);
+
+  irb_.CreateRet(retval);
 }
 
 
