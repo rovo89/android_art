@@ -1810,7 +1810,13 @@ void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
                                    Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kFloat, kAccurate);
+  llvm::Value* result_value = irb_.CreateFPExt(src_value, irb_.getJDoubleTy());
+  EmitStoreDalvikReg(dec_insn.vA_, kDouble, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
