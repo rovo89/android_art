@@ -1705,7 +1705,13 @@ void MethodCompiler::EmitInsn_SExt(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_Trunc(uint32_t dex_pc,
                                     Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kLong, kAccurate);
+  llvm::Value* result_value = irb_.CreateTrunc(src_value, irb_.getJIntTy());
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
