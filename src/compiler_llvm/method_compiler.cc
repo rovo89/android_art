@@ -1066,8 +1066,16 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_Nop(uint32_t dex_pc,
                                   Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  uint16_t insn_signature = code_item_->insns_[dex_pc];
+
+  if (insn_signature == Instruction::kPackedSwitchSignature ||
+      insn_signature == Instruction::kSparseSwitchSignature ||
+      insn_signature == Instruction::kArrayDataSignature) {
+    irb_.CreateUnreachable();
+  } else{
+    irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  }
 }
 
 
