@@ -1949,7 +1949,14 @@ MethodCompiler::EmitIntArithmResultComputation(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_RSubImmediate(uint32_t dex_pc,
                                             Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC_);
+  llvm::Value* result_value = irb_.CreateSub(imm_value, src_value);
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
