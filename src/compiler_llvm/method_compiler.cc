@@ -54,7 +54,8 @@ MethodCompiler::MethodCompiler(InstructionSet insn_set,
   access_flags_(access_flags), module_(compiler_llvm_->GetModule()),
   context_(compiler_llvm_->GetLLVMContext()),
   irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
-  basic_block_reg_alloca_(NULL), basic_block_reg_zero_init_(NULL),
+  basic_block_reg_alloca_(NULL),
+  basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
   basic_blocks_(code_item->insns_size_in_code_units_) {
 }
 
@@ -133,12 +134,22 @@ void MethodCompiler::EmitPrologue() {
   basic_block_reg_zero_init_ =
     llvm::BasicBlock::Create(*context_, "prologue.zeroinit", func_);
 
+  basic_block_reg_arg_init_ =
+    llvm::BasicBlock::Create(*context_, "prologue.arginit", func_);
+
   // Create register array
   for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
     regs_.push_back(DalvikReg::CreateLocalVarReg(*this, r));
   }
 
   retval_reg_.reset(DalvikReg::CreateRetValReg(*this));
+
+  // Store argument to dalvik register
+  irb_.SetInsertPoint(basic_block_reg_arg_init_);
+  EmitPrologueAssignArgRegister();
+
+  // Branch to start address
+  irb_.CreateBr(GetBasicBlock(0));
 }
 
 
@@ -147,7 +158,40 @@ void MethodCompiler::EmitPrologueLastBranch() {
   irb_.CreateBr(basic_block_reg_zero_init_);
 
   irb_.SetInsertPoint(basic_block_reg_zero_init_);
-  irb_.CreateBr(GetBasicBlock(0));
+  irb_.CreateBr(basic_block_reg_arg_init_);
+}
+
+
+void MethodCompiler::EmitPrologueAssignArgRegister() {
+  uint16_t arg_reg = code_item_->registers_size_ - code_item_->ins_size_;
+
+  llvm::Function::arg_iterator arg_iter(func_->arg_begin());
+  llvm::Function::arg_iterator arg_end(func_->arg_end());
+
+  char const* shorty = method_helper_.GetShorty();
+  int32_t shorty_size = method_helper_.GetShortyLength();
+  CHECK_LE(1, shorty_size);
+
+  ++arg_iter; // skip method object
+
+  if (!method_->IsStatic()) {
+    EmitStoreDalvikReg(arg_reg, kObject, kAccurate, arg_iter);
+    ++arg_iter;
+    ++arg_reg;
+  }
+
+  for (int32_t i = 1; i < shorty_size; ++i, ++arg_iter) {
+    EmitStoreDalvikReg(arg_reg, shorty[i], kAccurate, arg_iter);
+
+    ++arg_reg;
+    if (shorty[i] == 'J' || shorty[i] == 'D') {
+      // Wide types, such as long and double, are using a pair of registers
+      // to store the value, so we have to increase arg_reg again.
+      ++arg_reg;
+    }
+  }
+
+  DCHECK_EQ(arg_end, arg_iter);
 }
 
 

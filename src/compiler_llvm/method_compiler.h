@@ -86,6 +86,7 @@ class MethodCompiler {
 
   llvm::BasicBlock* basic_block_reg_alloca_;
   llvm::BasicBlock* basic_block_reg_zero_init_;
+  llvm::BasicBlock* basic_block_reg_arg_init_;
   std::vector<llvm::BasicBlock*> basic_blocks_;
 
 
@@ -125,6 +126,7 @@ class MethodCompiler {
 
   void EmitPrologue();
   void EmitPrologueLastBranch();
+  void EmitPrologueAssignArgRegister();
   void EmitInstructions();
   void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
 
