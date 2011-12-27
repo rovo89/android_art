@@ -1675,7 +1675,17 @@ void MethodCompiler::EmitInsn_Neg(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_Not(uint32_t dex_pc,
                                   Instruction const* insn,
                                   JType op_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  llvm::Value* result_value =
+    irb_.CreateXor(src_value, static_cast<uint64_t>(-1));
+
+  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
