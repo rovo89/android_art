@@ -1719,7 +1719,18 @@ void MethodCompiler::EmitInsn_Trunc(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_TruncAndSExt(uint32_t dex_pc,
                                            Instruction const* insn,
                                            unsigned N) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+
+  llvm::Value* trunc_value =
+    irb_.CreateTrunc(src_value, llvm::Type::getIntNTy(*context_, N));
+
+  llvm::Value* result_value = irb_.CreateSExt(trunc_value, irb_.getJIntTy());
+
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
@@ -1727,7 +1738,18 @@ void MethodCompiler::EmitInsn_TruncAndSExt(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_TruncAndZExt(uint32_t dex_pc,
                                            Instruction const* insn,
                                            unsigned N) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+
+  llvm::Value* trunc_value =
+    irb_.CreateTrunc(src_value, llvm::Type::getIntNTy(*context_, N));
+
+  llvm::Value* result_value = irb_.CreateZExt(trunc_value, irb_.getJIntTy());
+
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
