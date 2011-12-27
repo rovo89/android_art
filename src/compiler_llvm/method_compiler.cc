@@ -18,6 +18,7 @@
 
 #include "backend_types.h"
 #include "compiler.h"
+#include "inferred_reg_category_map.h"
 #include "ir_builder.h"
 #include "logging.h"
 #include "object.h"
@@ -1418,16 +1419,152 @@ llvm::Value* MethodCompiler::EmitCompareResultSelection(llvm::Value* cmp_eq,
 void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
                                                       Instruction const* insn,
                                                       CondBranchKind cond) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  int8_t src1_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA_);
+  int8_t src2_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vB_);
+
+  DCHECK_NE(kRegUnknown, src1_reg_cat);
+  DCHECK_NE(kRegUnknown, src2_reg_cat);
+  DCHECK_NE(kRegCat2, src1_reg_cat);
+  DCHECK_NE(kRegCat2, src2_reg_cat);
+
+  int32_t branch_offset = dec_insn.vC_;
+
+  if (branch_offset <= 0) {
+    // Garbage collection safe-point on backward branch
+    EmitGuard_GarbageCollectionSuspend(dex_pc);
+  }
+
+  if (src1_reg_cat == kRegZero && src2_reg_cat == kRegZero) {
+    irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
+    return;
+  }
+
+  llvm::Value* src1_value;
+  llvm::Value* src2_value;
+
+  if (src1_reg_cat != kRegZero && src2_reg_cat != kRegZero) {
+    CHECK_EQ(src1_reg_cat, src2_reg_cat);
+
+    if (src1_reg_cat == kRegCat1nr) {
+      src1_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+      src2_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+    } else {
+      src1_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+      src2_value = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+    }
+  } else {
+    DCHECK(src1_reg_cat == kRegZero ||
+           src2_reg_cat == kRegZero);
+
+    if (src1_reg_cat == kRegZero) {
+      if (src2_reg_cat == kRegCat1nr) {
+        src1_value = irb_.getJInt(0);
+        src2_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+      } else {
+        src1_value = irb_.getJNull();
+        src2_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+      }
+    } else { // src2_reg_cat == kRegZero
+      if (src2_reg_cat == kRegCat1nr) {
+        src1_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+        src2_value = irb_.getJInt(0);
+      } else {
+        src1_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+        src2_value = irb_.getJNull();
+      }
+    }
+  }
+
+  llvm::Value* cond_value =
+    EmitConditionResult(src1_value, src2_value, cond);
+
+  irb_.CreateCondBr(cond_value,
+                    GetBasicBlock(dex_pc + branch_offset),
+                    GetNextBasicBlock(dex_pc));
 }
 
 
 void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
                                                      Instruction const* insn,
                                                      CondBranchKind cond) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  int8_t src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA_);
+
+  DCHECK_NE(kRegUnknown, src_reg_cat);
+  DCHECK_NE(kRegCat2, src_reg_cat);
+
+  int32_t branch_offset = dec_insn.vB_;
+
+  if (branch_offset <= 0) {
+    // Garbage collection safe-point on backward branch
+    EmitGuard_GarbageCollectionSuspend(dex_pc);
+  }
+
+  if (src_reg_cat == kRegZero) {
+    irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
+    return;
+  }
+
+  llvm::Value* src1_value;
+  llvm::Value* src2_value;
+
+  if (src_reg_cat == kRegCat1nr) {
+    src1_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+    src2_value = irb_.getInt32(0);
+  } else {
+    src1_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+    src2_value = irb_.getJNull();
+  }
+
+  llvm::Value* cond_value =
+    EmitConditionResult(src1_value, src2_value, cond);
+
+  irb_.CreateCondBr(cond_value,
+                    GetBasicBlock(dex_pc + branch_offset),
+                    GetNextBasicBlock(dex_pc));
+}
+
+
+RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
+                                                   uint16_t reg_idx) {
+  InferredRegCategoryMap const* map = method_->GetInferredRegCategoryMap();
+  CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
+
+  return map->GetRegCategory(dex_pc, reg_idx);
+}
+
+
+llvm::Value* MethodCompiler::EmitConditionResult(llvm::Value* lhs,
+                                                 llvm::Value* rhs,
+                                                 CondBranchKind cond) {
+  switch (cond) {
+  case kCondBranch_EQ:
+    return irb_.CreateICmpEQ(lhs, rhs);
+
+  case kCondBranch_NE:
+    return irb_.CreateICmpNE(lhs, rhs);
+
+  case kCondBranch_LT:
+    return irb_.CreateICmpSLT(lhs, rhs);
+
+  case kCondBranch_GE:
+    return irb_.CreateICmpSGE(lhs, rhs);
+
+  case kCondBranch_GT:
+    return irb_.CreateICmpSGT(lhs, rhs);
+
+  case kCondBranch_LE:
+    return irb_.CreateICmpSLE(lhs, rhs);
+
+  default: // Unreachable
+    LOG(FATAL) << "Unknown conditional branch kind: " << cond;
+    return NULL;
+  }
 }
 
 

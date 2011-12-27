@@ -279,6 +279,12 @@ class MethodCompiler {
   llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
                                           llvm::Value* cmp_lt);
 
+  llvm::Value* EmitConditionResult(llvm::Value* lhs,
+                                   llvm::Value* rhs,
+                                   CondBranchKind cond);
+
+  RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
+
 
   // Basic block helper functions
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
