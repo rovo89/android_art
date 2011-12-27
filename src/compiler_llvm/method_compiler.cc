@@ -1757,7 +1757,15 @@ void MethodCompiler::EmitInsn_TruncAndZExt(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_FNeg(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType op_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kFloat || op_jty == kDouble) << op_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  llvm::Value* result_value = irb_.CreateFNeg(src_value);
+  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
