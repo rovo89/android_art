@@ -1966,8 +1966,56 @@ void MethodCompiler::EmitInsn_FPArithm(uint32_t dex_pc,
                                        FPArithmKind arithm,
                                        JType op_jty,
                                        bool is_2addr) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kFloat || op_jty == kDouble) << op_jty;
+
+  llvm::Value* src1_value;
+  llvm::Value* src2_value;
+
+  if (is_2addr) {
+    src1_value = EmitLoadDalvikReg(dec_insn.vA_, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  } else {
+    src1_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vC_, op_jty, kAccurate);
+  }
+
+  llvm::Value* result_value =
+    EmitFPArithmResultComputation(dex_pc, src1_value, src2_value, arithm);
+
+  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+llvm::Value*
+MethodCompiler::EmitFPArithmResultComputation(uint32_t dex_pc,
+                                              llvm::Value *lhs,
+                                              llvm::Value *rhs,
+                                              FPArithmKind arithm) {
+  switch (arithm) {
+  case kFPArithm_Add:
+    return irb_.CreateFAdd(lhs, rhs);
+
+  case kFPArithm_Sub:
+    return irb_.CreateFSub(lhs, rhs);
+
+  case kFPArithm_Mul:
+    return irb_.CreateFMul(lhs, rhs);
+
+  case kFPArithm_Div:
+    return irb_.CreateFDiv(lhs, rhs);
+
+  case kFPArithm_Rem:
+    return irb_.CreateFRem(lhs, rhs);
+
+  default:
+    LOG(FATAL) << "Unknown floating-point arithmetic kind: " << arithm;
+    return NULL;
+  }
 }
 
 
