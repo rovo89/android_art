@@ -216,8 +216,1250 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
   // Set the IRBuilder insertion point
   irb_.SetInsertPoint(GetBasicBlock(dex_pc));
 
+#define ARGS dex_pc, insn
+
+  // Dispatch the instruction
+  switch (insn->Opcode()) {
+  case Instruction::NOP:
+    EmitInsn_Nop(ARGS);
+    break;
+
+  case Instruction::MOVE:
+  case Instruction::MOVE_FROM16:
+  case Instruction::MOVE_16:
+    EmitInsn_Move(ARGS, kInt);
+    break;
+
+  case Instruction::MOVE_WIDE:
+  case Instruction::MOVE_WIDE_FROM16:
+  case Instruction::MOVE_WIDE_16:
+    EmitInsn_Move(ARGS, kLong);
+    break;
+
+  case Instruction::MOVE_OBJECT:
+  case Instruction::MOVE_OBJECT_FROM16:
+  case Instruction::MOVE_OBJECT_16:
+    EmitInsn_Move(ARGS, kObject);
+    break;
+
+  case Instruction::MOVE_RESULT:
+    EmitInsn_MoveResult(ARGS, kInt);
+    break;
+
+  case Instruction::MOVE_RESULT_WIDE:
+    EmitInsn_MoveResult(ARGS, kLong);
+    break;
+
+  case Instruction::MOVE_RESULT_OBJECT:
+    EmitInsn_MoveResult(ARGS, kObject);
+    break;
+
+  case Instruction::MOVE_EXCEPTION:
+    EmitInsn_MoveException(ARGS);
+    break;
+
+  case Instruction::RETURN_VOID:
+    EmitInsn_ReturnVoid(ARGS);
+    break;
+
+  case Instruction::RETURN:
+  case Instruction::RETURN_WIDE:
+  case Instruction::RETURN_OBJECT:
+    EmitInsn_Return(ARGS);
+    break;
+
+  case Instruction::CONST_4:
+  case Instruction::CONST_16:
+  case Instruction::CONST:
+  case Instruction::CONST_HIGH16:
+    EmitInsn_LoadConstant(ARGS, kInt);
+    break;
+
+  case Instruction::CONST_WIDE_16:
+  case Instruction::CONST_WIDE_32:
+  case Instruction::CONST_WIDE:
+  case Instruction::CONST_WIDE_HIGH16:
+    EmitInsn_LoadConstant(ARGS, kLong);
+    break;
+
+  case Instruction::CONST_STRING:
+  case Instruction::CONST_STRING_JUMBO:
+    EmitInsn_LoadConstantString(ARGS);
+    break;
+
+  case Instruction::CONST_CLASS:
+    EmitInsn_LoadConstantClass(ARGS);
+    break;
+
+  case Instruction::MONITOR_ENTER:
+    EmitInsn_MonitorEnter(ARGS);
+    break;
+
+  case Instruction::MONITOR_EXIT:
+    EmitInsn_MonitorExit(ARGS);
+    break;
+
+  case Instruction::CHECK_CAST:
+    EmitInsn_CheckCast(ARGS);
+    break;
+
+  case Instruction::INSTANCE_OF:
+    EmitInsn_InstanceOf(ARGS);
+    break;
+
+  case Instruction::ARRAY_LENGTH:
+    EmitInsn_ArrayLength(ARGS);
+    break;
+
+  case Instruction::NEW_INSTANCE:
+    EmitInsn_NewInstance(ARGS);
+    break;
+
+  case Instruction::NEW_ARRAY:
+    EmitInsn_NewArray(ARGS);
+    break;
+
+  case Instruction::FILLED_NEW_ARRAY:
+    EmitInsn_FilledNewArray(ARGS, false);
+    break;
+
+  case Instruction::FILLED_NEW_ARRAY_RANGE:
+    EmitInsn_FilledNewArray(ARGS, true);
+    break;
+
+  case Instruction::FILL_ARRAY_DATA:
+    EmitInsn_FillArrayData(ARGS);
+    break;
+
+  case Instruction::THROW:
+    EmitInsn_ThrowException(ARGS);
+    break;
+
+  case Instruction::GOTO:
+  case Instruction::GOTO_16:
+  case Instruction::GOTO_32:
+    EmitInsn_UnconditionalBranch(ARGS);
+    break;
+
+  case Instruction::PACKED_SWITCH:
+    EmitInsn_PackedSwitch(ARGS);
+    break;
+
+  case Instruction::SPARSE_SWITCH:
+    EmitInsn_SparseSwitch(ARGS);
+    break;
+
+  case Instruction::CMPL_FLOAT:
+    EmitInsn_FPCompare(ARGS, kFloat, false);
+    break;
+
+  case Instruction::CMPG_FLOAT:
+    EmitInsn_FPCompare(ARGS, kFloat, true);
+    break;
+
+  case Instruction::CMPL_DOUBLE:
+    EmitInsn_FPCompare(ARGS, kDouble, false);
+    break;
+
+  case Instruction::CMPG_DOUBLE:
+    EmitInsn_FPCompare(ARGS, kDouble, true);
+    break;
+
+  case Instruction::CMP_LONG:
+    EmitInsn_LongCompare(ARGS);
+    break;
+
+  case Instruction::IF_EQ:
+    EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_EQ);
+    break;
+
+  case Instruction::IF_NE:
+    EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_NE);
+    break;
+
+  case Instruction::IF_LT:
+    EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_LT);
+    break;
+
+  case Instruction::IF_GE:
+    EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_GE);
+    break;
+
+  case Instruction::IF_GT:
+    EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_GT);
+    break;
+
+  case Instruction::IF_LE:
+    EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_LE);
+    break;
+
+  case Instruction::IF_EQZ:
+    EmitInsn_UnaryConditionalBranch(ARGS, kCondBranch_EQ);
+    break;
+
+  case Instruction::IF_NEZ:
+    EmitInsn_UnaryConditionalBranch(ARGS, kCondBranch_NE);
+    break;
+
+  case Instruction::IF_LTZ:
+    EmitInsn_UnaryConditionalBranch(ARGS, kCondBranch_LT);
+    break;
+
+  case Instruction::IF_GEZ:
+    EmitInsn_UnaryConditionalBranch(ARGS, kCondBranch_GE);
+    break;
+
+  case Instruction::IF_GTZ:
+    EmitInsn_UnaryConditionalBranch(ARGS, kCondBranch_GT);
+    break;
+
+  case Instruction::IF_LEZ:
+    EmitInsn_UnaryConditionalBranch(ARGS, kCondBranch_LE);
+    break;
+
+  case Instruction::AGET:
+    EmitInsn_AGet(ARGS, kInt);
+    break;
+
+  case Instruction::AGET_WIDE:
+    EmitInsn_AGet(ARGS, kLong);
+    break;
+
+  case Instruction::AGET_OBJECT:
+    EmitInsn_AGet(ARGS, kObject);
+    break;
+
+  case Instruction::AGET_BOOLEAN:
+    EmitInsn_AGet(ARGS, kBoolean);
+    break;
+
+  case Instruction::AGET_BYTE:
+    EmitInsn_AGet(ARGS, kByte);
+    break;
+
+  case Instruction::AGET_CHAR:
+    EmitInsn_AGet(ARGS, kChar);
+    break;
+
+  case Instruction::AGET_SHORT:
+    EmitInsn_AGet(ARGS, kShort);
+    break;
+
+  case Instruction::APUT:
+    EmitInsn_APut(ARGS, kInt);
+    break;
+
+  case Instruction::APUT_WIDE:
+    EmitInsn_APut(ARGS, kLong);
+    break;
+
+  case Instruction::APUT_OBJECT:
+    EmitInsn_APut(ARGS, kObject);
+    break;
+
+  case Instruction::APUT_BOOLEAN:
+    EmitInsn_APut(ARGS, kBoolean);
+    break;
+
+  case Instruction::APUT_BYTE:
+    EmitInsn_APut(ARGS, kByte);
+    break;
+
+  case Instruction::APUT_CHAR:
+    EmitInsn_APut(ARGS, kChar);
+    break;
+
+  case Instruction::APUT_SHORT:
+    EmitInsn_APut(ARGS, kShort);
+    break;
+
+  case Instruction::IGET:
+    EmitInsn_IGet(ARGS, kInt);
+    break;
+
+  case Instruction::IGET_WIDE:
+    EmitInsn_IGet(ARGS, kLong);
+    break;
+
+  case Instruction::IGET_OBJECT:
+    EmitInsn_IGet(ARGS, kObject);
+    break;
+
+  case Instruction::IGET_BOOLEAN:
+    EmitInsn_IGet(ARGS, kBoolean);
+    break;
+
+  case Instruction::IGET_BYTE:
+    EmitInsn_IGet(ARGS, kByte);
+    break;
+
+  case Instruction::IGET_CHAR:
+    EmitInsn_IGet(ARGS, kChar);
+    break;
+
+  case Instruction::IGET_SHORT:
+    EmitInsn_IGet(ARGS, kShort);
+    break;
+
+  case Instruction::IPUT:
+    EmitInsn_IPut(ARGS, kInt);
+    break;
+
+  case Instruction::IPUT_WIDE:
+    EmitInsn_IPut(ARGS, kLong);
+    break;
+
+  case Instruction::IPUT_OBJECT:
+    EmitInsn_IPut(ARGS, kObject);
+    break;
+
+  case Instruction::IPUT_BOOLEAN:
+    EmitInsn_IPut(ARGS, kBoolean);
+    break;
+
+  case Instruction::IPUT_BYTE:
+    EmitInsn_IPut(ARGS, kByte);
+    break;
+
+  case Instruction::IPUT_CHAR:
+    EmitInsn_IPut(ARGS, kChar);
+    break;
+
+  case Instruction::IPUT_SHORT:
+    EmitInsn_IPut(ARGS, kShort);
+    break;
+
+  case Instruction::SGET:
+    EmitInsn_SGet(ARGS, kInt);
+    break;
+
+  case Instruction::SGET_WIDE:
+    EmitInsn_SGet(ARGS, kLong);
+    break;
+
+  case Instruction::SGET_OBJECT:
+    EmitInsn_SGet(ARGS, kObject);
+    break;
+
+  case Instruction::SGET_BOOLEAN:
+    EmitInsn_SGet(ARGS, kBoolean);
+    break;
+
+  case Instruction::SGET_BYTE:
+    EmitInsn_SGet(ARGS, kByte);
+    break;
+
+  case Instruction::SGET_CHAR:
+    EmitInsn_SGet(ARGS, kChar);
+    break;
+
+  case Instruction::SGET_SHORT:
+    EmitInsn_SGet(ARGS, kShort);
+    break;
+
+  case Instruction::SPUT:
+    EmitInsn_SPut(ARGS, kInt);
+    break;
+
+  case Instruction::SPUT_WIDE:
+    EmitInsn_SPut(ARGS, kLong);
+    break;
+
+  case Instruction::SPUT_OBJECT:
+    EmitInsn_SPut(ARGS, kObject);
+    break;
+
+  case Instruction::SPUT_BOOLEAN:
+    EmitInsn_SPut(ARGS, kBoolean);
+    break;
+
+  case Instruction::SPUT_BYTE:
+    EmitInsn_SPut(ARGS, kByte);
+    break;
+
+  case Instruction::SPUT_CHAR:
+    EmitInsn_SPut(ARGS, kChar);
+    break;
+
+  case Instruction::SPUT_SHORT:
+    EmitInsn_SPut(ARGS, kShort);
+    break;
+
+
+  case Instruction::INVOKE_VIRTUAL:
+    EmitInsn_InvokeVirtual(ARGS, false);
+    break;
+
+  case Instruction::INVOKE_SUPER:
+    EmitInsn_InvokeSuper(ARGS, false);
+    break;
+
+  case Instruction::INVOKE_DIRECT:
+    EmitInsn_InvokeDirect(ARGS, false);
+    break;
+
+  case Instruction::INVOKE_STATIC:
+    EmitInsn_InvokeStatic(ARGS, false);
+    break;
+
+  case Instruction::INVOKE_INTERFACE:
+    EmitInsn_InvokeInterface(ARGS, false);
+    break;
+
+  case Instruction::INVOKE_VIRTUAL_RANGE:
+    EmitInsn_InvokeVirtual(ARGS, true);
+    break;
+
+  case Instruction::INVOKE_SUPER_RANGE:
+    EmitInsn_InvokeSuper(ARGS, true);
+    break;
+
+  case Instruction::INVOKE_DIRECT_RANGE:
+    EmitInsn_InvokeDirect(ARGS, true);
+    break;
+
+  case Instruction::INVOKE_STATIC_RANGE:
+    EmitInsn_InvokeStatic(ARGS, true);
+    break;
+
+  case Instruction::INVOKE_INTERFACE_RANGE:
+    EmitInsn_InvokeInterface(ARGS, true);
+    break;
+
+  case Instruction::NEG_INT:
+    EmitInsn_Neg(ARGS, kInt);
+    break;
+
+  case Instruction::NOT_INT:
+    EmitInsn_Not(ARGS, kInt);
+    break;
+
+  case Instruction::NEG_LONG:
+    EmitInsn_Neg(ARGS, kLong);
+    break;
+
+  case Instruction::NOT_LONG:
+    EmitInsn_Not(ARGS, kLong);
+    break;
+
+  case Instruction::NEG_FLOAT:
+    EmitInsn_FNeg(ARGS, kFloat);
+    break;
+
+  case Instruction::NEG_DOUBLE:
+    EmitInsn_FNeg(ARGS, kDouble);
+    break;
+
+  case Instruction::INT_TO_LONG:
+    EmitInsn_SExt(ARGS);
+    break;
+
+  case Instruction::INT_TO_FLOAT:
+    EmitInsn_IntToFP(ARGS, kInt, kFloat);
+    break;
+
+  case Instruction::INT_TO_DOUBLE:
+    EmitInsn_IntToFP(ARGS, kInt, kDouble);
+    break;
+
+  case Instruction::LONG_TO_INT:
+    EmitInsn_Trunc(ARGS);
+    break;
+
+  case Instruction::LONG_TO_FLOAT:
+    EmitInsn_IntToFP(ARGS, kLong, kFloat);
+    break;
+
+  case Instruction::LONG_TO_DOUBLE:
+    EmitInsn_IntToFP(ARGS, kLong, kDouble);
+    break;
+
+  case Instruction::FLOAT_TO_INT:
+    EmitInsn_FPToInt(ARGS, kFloat, kInt);
+    break;
+
+  case Instruction::FLOAT_TO_LONG:
+    EmitInsn_FPToInt(ARGS, kFloat, kLong);
+    break;
+
+  case Instruction::FLOAT_TO_DOUBLE:
+    EmitInsn_FExt(ARGS);
+    break;
+
+  case Instruction::DOUBLE_TO_INT:
+    EmitInsn_FPToInt(ARGS, kDouble, kInt);
+    break;
+
+  case Instruction::DOUBLE_TO_LONG:
+    EmitInsn_FPToInt(ARGS, kDouble, kLong);
+    break;
+
+  case Instruction::DOUBLE_TO_FLOAT:
+    EmitInsn_FTrunc(ARGS);
+    break;
+
+  case Instruction::INT_TO_BYTE:
+    EmitInsn_TruncAndSExt(ARGS, 8);
+    break;
+
+  case Instruction::INT_TO_CHAR:
+    EmitInsn_TruncAndZExt(ARGS, 16);
+    break;
+
+  case Instruction::INT_TO_SHORT:
+    EmitInsn_TruncAndSExt(ARGS, 16);
+    break;
+
+  case Instruction::ADD_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Add, kInt, false);
+    break;
+
+  case Instruction::SUB_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Sub, kInt, false);
+    break;
+
+  case Instruction::MUL_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Mul, kInt, false);
+    break;
+
+  case Instruction::DIV_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Div, kInt, false);
+    break;
+
+  case Instruction::REM_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Rem, kInt, false);
+    break;
+
+  case Instruction::AND_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_And, kInt, false);
+    break;
+
+  case Instruction::OR_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Or, kInt, false);
+    break;
+
+  case Instruction::XOR_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kInt, false);
+    break;
+
+  case Instruction::SHL_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kInt, false);
+    break;
+
+  case Instruction::SHR_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kInt, false);
+    break;
+
+  case Instruction::USHR_INT:
+    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kInt, false);
+    break;
+
+  case Instruction::ADD_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Add, kLong, false);
+    break;
+
+  case Instruction::SUB_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Sub, kLong, false);
+    break;
+
+  case Instruction::MUL_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Mul, kLong, false);
+    break;
+
+  case Instruction::DIV_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Div, kLong, false);
+    break;
+
+  case Instruction::REM_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Rem, kLong, false);
+    break;
+
+  case Instruction::AND_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_And, kLong, false);
+    break;
+
+  case Instruction::OR_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Or, kLong, false);
+    break;
+
+  case Instruction::XOR_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kLong, false);
+    break;
+
+  case Instruction::SHL_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kLong, false);
+    break;
+
+  case Instruction::SHR_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kLong, false);
+    break;
+
+  case Instruction::USHR_LONG:
+    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kLong, false);
+    break;
+
+  case Instruction::ADD_FLOAT:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Add, kFloat, false);
+    break;
+
+  case Instruction::SUB_FLOAT:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Sub, kFloat, false);
+    break;
+
+  case Instruction::MUL_FLOAT:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Mul, kFloat, false);
+    break;
+
+  case Instruction::DIV_FLOAT:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Div, kFloat, false);
+    break;
+
+  case Instruction::REM_FLOAT:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Rem, kFloat, false);
+    break;
+
+  case Instruction::ADD_DOUBLE:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Add, kDouble, false);
+    break;
+
+  case Instruction::SUB_DOUBLE:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Sub, kDouble, false);
+    break;
+
+  case Instruction::MUL_DOUBLE:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Mul, kDouble, false);
+    break;
+
+  case Instruction::DIV_DOUBLE:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Div, kDouble, false);
+    break;
+
+  case Instruction::REM_DOUBLE:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Rem, kDouble, false);
+    break;
+
+  case Instruction::ADD_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Add, kInt, true);
+    break;
+
+  case Instruction::SUB_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Sub, kInt, true);
+    break;
+
+  case Instruction::MUL_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Mul, kInt, true);
+    break;
+
+  case Instruction::DIV_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Div, kInt, true);
+    break;
+
+  case Instruction::REM_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Rem, kInt, true);
+    break;
+
+  case Instruction::AND_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_And, kInt, true);
+    break;
+
+  case Instruction::OR_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Or, kInt, true);
+    break;
+
+  case Instruction::XOR_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kInt, true);
+    break;
+
+  case Instruction::SHL_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kInt, true);
+    break;
+
+  case Instruction::SHR_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kInt, true);
+    break;
+
+  case Instruction::USHR_INT_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kInt, true);
+    break;
+
+  case Instruction::ADD_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Add, kLong, true);
+    break;
+
+  case Instruction::SUB_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Sub, kLong, true);
+    break;
+
+  case Instruction::MUL_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Mul, kLong, true);
+    break;
+
+  case Instruction::DIV_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Div, kLong, true);
+    break;
+
+  case Instruction::REM_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Rem, kLong, true);
+    break;
+
+  case Instruction::AND_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_And, kLong, true);
+    break;
+
+  case Instruction::OR_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Or, kLong, true);
+    break;
+
+  case Instruction::XOR_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kLong, true);
+    break;
+
+  case Instruction::SHL_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kLong, true);
+    break;
+
+  case Instruction::SHR_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kLong, true);
+    break;
+
+  case Instruction::USHR_LONG_2ADDR:
+    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kLong, true);
+    break;
+
+  case Instruction::ADD_FLOAT_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Add, kFloat, true);
+    break;
+
+  case Instruction::SUB_FLOAT_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Sub, kFloat, true);
+    break;
+
+  case Instruction::MUL_FLOAT_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Mul, kFloat, true);
+    break;
+
+  case Instruction::DIV_FLOAT_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Div, kFloat, true);
+    break;
+
+  case Instruction::REM_FLOAT_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Rem, kFloat, true);
+    break;
+
+  case Instruction::ADD_DOUBLE_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Add, kDouble, true);
+    break;
+
+  case Instruction::SUB_DOUBLE_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Sub, kDouble, true);
+    break;
+
+  case Instruction::MUL_DOUBLE_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Mul, kDouble, true);
+    break;
+
+  case Instruction::DIV_DOUBLE_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Div, kDouble, true);
+    break;
+
+  case Instruction::REM_DOUBLE_2ADDR:
+    EmitInsn_FPArithm(ARGS, kFPArithm_Rem, kDouble, true);
+    break;
+
+  case Instruction::ADD_INT_LIT16:
+  case Instruction::ADD_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Add);
+    break;
+
+  case Instruction::RSUB_INT:
+  case Instruction::RSUB_INT_LIT8:
+    EmitInsn_RSubImmediate(ARGS);
+    break;
+
+  case Instruction::MUL_INT_LIT16:
+  case Instruction::MUL_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Mul);
+    break;
+
+  case Instruction::DIV_INT_LIT16:
+  case Instruction::DIV_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Div);
+    break;
+
+  case Instruction::REM_INT_LIT16:
+  case Instruction::REM_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Rem);
+    break;
+
+  case Instruction::AND_INT_LIT16:
+  case Instruction::AND_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_And);
+    break;
+
+  case Instruction::OR_INT_LIT16:
+  case Instruction::OR_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Or);
+    break;
+
+  case Instruction::XOR_INT_LIT16:
+  case Instruction::XOR_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Xor);
+    break;
+
+  case Instruction::SHL_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Shl);
+    break;
+
+  case Instruction::SHR_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Shr);
+    break;
+
+  case Instruction::USHR_INT_LIT8:
+    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_UShr);
+    break;
+
+  case Instruction::UNUSED_3E:
+  case Instruction::UNUSED_3F:
+  case Instruction::UNUSED_40:
+  case Instruction::UNUSED_41:
+  case Instruction::UNUSED_42:
+  case Instruction::UNUSED_43:
+  case Instruction::UNUSED_73:
+  case Instruction::UNUSED_79:
+  case Instruction::UNUSED_7A:
+  case Instruction::UNUSED_E3:
+  case Instruction::UNUSED_E4:
+  case Instruction::UNUSED_E5:
+  case Instruction::UNUSED_E6:
+  case Instruction::UNUSED_E7:
+  case Instruction::UNUSED_E8:
+  case Instruction::UNUSED_E9:
+  case Instruction::UNUSED_EA:
+  case Instruction::UNUSED_EB:
+  case Instruction::UNUSED_EC:
+  case Instruction::THROW_VERIFICATION_ERROR:
+  case Instruction::UNUSED_EE:
+  case Instruction::UNUSED_EF:
+  case Instruction::UNUSED_F0:
+  case Instruction::UNUSED_F1:
+  case Instruction::UNUSED_F2:
+  case Instruction::UNUSED_F3:
+  case Instruction::UNUSED_F4:
+  case Instruction::UNUSED_F5:
+  case Instruction::UNUSED_F6:
+  case Instruction::UNUSED_F7:
+  case Instruction::UNUSED_F8:
+  case Instruction::UNUSED_F9:
+  case Instruction::UNUSED_FA:
+  case Instruction::UNUSED_FB:
+  case Instruction::UNUSED_FC:
+  case Instruction::UNUSED_FD:
+  case Instruction::UNUSED_FE:
+  case Instruction::UNUSED_FF:
+    LOG(FATAL) << "Dex file contains UNUSED bytecode: " << insn->Opcode();
+    break;
+  }
+
+#undef ARGS
+}
+
+
+void MethodCompiler::EmitInsn_Nop(uint32_t dex_pc,
+                                  Instruction const* insn) {
   // UNIMPLEMENTED(WARNING);
   irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_Move(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
+                                         Instruction const* insn,
+                                         JType jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
+                                            Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
+                                             Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
+                                         Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
+                                     Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
+                                           Instruction const* insn,
+                                           JType imm_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
+                                                 Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
+                                                Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
+                                           Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
+                                          Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
+                                        Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
+                                         Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
+                                          Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
+                                          Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_NewArray(uint32_t dex_pc,
+                                       Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
+                                             Instruction const* insn,
+                                             bool is_range) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
+                                            Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
+                                                  Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
+                                           Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
+                                           Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
+                                        Instruction const* insn,
+                                        JType fp_jty,
+                                        bool gt_bias) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_LongCompare(uint32_t dex_pc,
+                                          Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
+                                                      Instruction const* insn,
+                                                      CondBranchKind cond) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
+                                                     Instruction const* insn,
+                                                     CondBranchKind cond) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateUnreachable();
+}
+
+
+void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType elem_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType elem_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType field_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType field_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType field_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType field_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
+                                            Instruction const* insn,
+                                            bool is_range) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
+                                          Instruction const* insn,
+                                          bool is_range) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_InvokeDirect(uint32_t dex_pc,
+                                           Instruction const* insn,
+                                           bool is_range) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_InvokeStatic(uint32_t dex_pc,
+                                           Instruction const* insn,
+                                           bool is_range) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
+                                              Instruction const* insn,
+                                              bool is_range) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_Neg(uint32_t dex_pc,
+                                  Instruction const* insn,
+                                  JType op_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_Not(uint32_t dex_pc,
+                                  Instruction const* insn,
+                                  JType op_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_SExt(uint32_t dex_pc,
+                                   Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_Trunc(uint32_t dex_pc,
+                                    Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_TruncAndSExt(uint32_t dex_pc,
+                                           Instruction const* insn,
+                                           unsigned N) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_TruncAndZExt(uint32_t dex_pc,
+                                           Instruction const* insn,
+                                           unsigned N) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FNeg(uint32_t dex_pc,
+                                   Instruction const* insn,
+                                   JType op_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_IntToFP(uint32_t dex_pc,
+                                      Instruction const* insn,
+                                      JType src_jty,
+                                      JType dest_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
+                                      Instruction const* insn,
+                                      JType src_jty,
+                                      JType dest_jty) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
+                                   Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FTrunc(uint32_t dex_pc,
+                                     Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
+                                        Instruction const* insn,
+                                        IntArithmKind arithm,
+                                        JType op_jty,
+                                        bool is_2addr) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_IntArithmImmediate(uint32_t dex_pc,
+                                                 Instruction const* insn,
+                                                 IntArithmKind arithm) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_RSubImmediate(uint32_t dex_pc,
+                                            Instruction const* insn) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitInsn_FPArithm(uint32_t dex_pc,
+                                       Instruction const* insn,
+                                       FPArithmKind arithm,
+                                       JType op_jty,
+                                       bool is_2addr) {
+  // UNIMPLEMENTED(WARNING);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
 

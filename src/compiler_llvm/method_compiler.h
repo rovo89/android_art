@@ -126,13 +126,142 @@ class MethodCompiler {
 
  private:
   void CreateFunction();
-
-
   void EmitPrologue();
   void EmitPrologueLastBranch();
   void EmitPrologueAssignArgRegister();
   void EmitInstructions();
   void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
+
+  enum CondBranchKind {
+    kCondBranch_EQ,
+    kCondBranch_NE,
+    kCondBranch_LT,
+    kCondBranch_GE,
+    kCondBranch_GT,
+    kCondBranch_LE,
+  };
+
+  enum IntArithmKind {
+    kIntArithm_Add,
+    kIntArithm_Sub,
+    kIntArithm_Mul,
+    kIntArithm_Div,
+    kIntArithm_Rem,
+    kIntArithm_And,
+    kIntArithm_Or,
+    kIntArithm_Xor,
+    kIntArithm_Shl,
+    kIntArithm_Shr,
+    kIntArithm_UShr,
+  };
+
+  enum FPArithmKind {
+    kFPArithm_Add,
+    kFPArithm_Sub,
+    kFPArithm_Mul,
+    kFPArithm_Div,
+    kFPArithm_Rem,
+  };
+
+#define GEN_INSN_ARGS uint32_t dex_pc, Instruction const* insn
+
+  // NOP, PAYLOAD (unreachable) instructions
+  void EmitInsn_Nop(GEN_INSN_ARGS);
+
+  // MOVE, MOVE_RESULT instructions
+  void EmitInsn_Move(GEN_INSN_ARGS, JType jty);
+  void EmitInsn_MoveResult(GEN_INSN_ARGS, JType jty);
+
+  // MOVE_EXCEPTION, THROW instructions
+  void EmitInsn_MoveException(GEN_INSN_ARGS);
+  void EmitInsn_ThrowException(GEN_INSN_ARGS);
+
+  // RETURN instructions
+  void EmitInsn_ReturnVoid(GEN_INSN_ARGS);
+  void EmitInsn_Return(GEN_INSN_ARGS);
+
+  // CONST, CONST_CLASS, CONST_STRING instructions
+  void EmitInsn_LoadConstant(GEN_INSN_ARGS, JType imm_jty);
+  void EmitInsn_LoadConstantString(GEN_INSN_ARGS);
+  void EmitInsn_LoadConstantClass(GEN_INSN_ARGS);
+
+  // MONITOR_ENTER, MONITOR_EXIT instructions
+  void EmitInsn_MonitorEnter(GEN_INSN_ARGS);
+  void EmitInsn_MonitorExit(GEN_INSN_ARGS);
+
+  // CHECK_CAST, INSTANCE_OF instructions
+  void EmitInsn_CheckCast(GEN_INSN_ARGS);
+  void EmitInsn_InstanceOf(GEN_INSN_ARGS);
+
+  // NEW_INSTANCE instructions
+  void EmitInsn_NewInstance(GEN_INSN_ARGS);
+
+  // ARRAY_LEN, NEW_ARRAY, FILLED_NEW_ARRAY, FILL_ARRAY_DATA instructions
+  void EmitInsn_ArrayLength(GEN_INSN_ARGS);
+  void EmitInsn_NewArray(GEN_INSN_ARGS);
+  void EmitInsn_FilledNewArray(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_FillArrayData(GEN_INSN_ARGS);
+
+  // GOTO, IF_TEST, IF_TESTZ instructions
+  void EmitInsn_UnconditionalBranch(GEN_INSN_ARGS);
+  void EmitInsn_BinaryConditionalBranch(GEN_INSN_ARGS, CondBranchKind cond);
+  void EmitInsn_UnaryConditionalBranch(GEN_INSN_ARGS, CondBranchKind cond);
+
+  // PACKED_SWITCH, SPARSE_SWITCH instrutions
+  void EmitInsn_PackedSwitch(GEN_INSN_ARGS);
+  void EmitInsn_SparseSwitch(GEN_INSN_ARGS);
+
+  // CMPX_FLOAT, CMPX_DOUBLE, CMP_LONG instructions
+  void EmitInsn_FPCompare(GEN_INSN_ARGS, JType fp_jty, bool gt_bias);
+  void EmitInsn_LongCompare(GEN_INSN_ARGS);
+
+  // AGET, APUT instrutions
+  void EmitInsn_AGet(GEN_INSN_ARGS, JType elem_jty);
+  void EmitInsn_APut(GEN_INSN_ARGS, JType elem_jty);
+
+  // IGET, IPUT instructions
+  void EmitInsn_IGet(GEN_INSN_ARGS, JType field_jty);
+  void EmitInsn_IPut(GEN_INSN_ARGS, JType field_jty);
+
+  // SGET, SPUT instructions
+  void EmitInsn_SGet(GEN_INSN_ARGS, JType field_jty);
+  void EmitInsn_SPut(GEN_INSN_ARGS, JType field_jty);
+
+  // INVOKE instructions
+  void EmitInsn_InvokeVirtual(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_InvokeSuper(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_InvokeDirect(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_InvokeStatic(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_InvokeInterface(GEN_INSN_ARGS, bool is_range);
+
+  // Unary instructions
+  void EmitInsn_Neg(GEN_INSN_ARGS, JType op_jty);
+  void EmitInsn_Not(GEN_INSN_ARGS, JType op_jty);
+  void EmitInsn_SExt(GEN_INSN_ARGS);
+  void EmitInsn_Trunc(GEN_INSN_ARGS);
+  void EmitInsn_TruncAndSExt(GEN_INSN_ARGS, unsigned N);
+  void EmitInsn_TruncAndZExt(GEN_INSN_ARGS, unsigned N);
+
+  void EmitInsn_FNeg(GEN_INSN_ARGS, JType op_jty);
+  void EmitInsn_IntToFP(GEN_INSN_ARGS, JType src_jty, JType dest_jty);
+  void EmitInsn_FPToInt(GEN_INSN_ARGS, JType src_jty, JType dest_jty);
+  void EmitInsn_FExt(GEN_INSN_ARGS);
+  void EmitInsn_FTrunc(GEN_INSN_ARGS);
+
+  // Integer binary arithmetic instructions
+  void EmitInsn_IntArithm(GEN_INSN_ARGS, IntArithmKind arithm,
+                          JType op_jty, bool is_2addr);
+
+  void EmitInsn_IntArithmImmediate(GEN_INSN_ARGS, IntArithmKind arithm);
+
+  void EmitInsn_RSubImmediate(GEN_INSN_ARGS);
+
+
+  // Floating-point binary arithmetic instructions
+  void EmitInsn_FPArithm(GEN_INSN_ARGS, FPArithmKind arithm,
+                         JType op_jty, bool is_2addr);
+
+#undef GEN_INSN_ARGS
 
 
   // Code generation helper function
@@ -145,7 +274,7 @@ class MethodCompiler {
 
   void EmitBranchExceptionLandingPad(uint32_t dex_pc);
 
-  void EmitGuard_GarbageCollectionSuspend(uint32_t addr);
+  void EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc);
 
 
   // Basic block helper functions
