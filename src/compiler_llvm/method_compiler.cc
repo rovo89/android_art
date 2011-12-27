@@ -1280,8 +1280,17 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
                                                   Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  int32_t branch_offset = dec_insn.vA_;
+
+  if (branch_offset <= 0) {
+    // Garbage collection safe-point on backward branch
+    EmitGuard_GarbageCollectionSuspend(dex_pc);
+  }
+
+  irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
 }
 
 
