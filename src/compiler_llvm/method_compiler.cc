@@ -1839,7 +1839,28 @@ void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
                                         IntArithmKind arithm,
                                         JType op_jty,
                                         bool is_2addr) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Value* src1_value;
+  llvm::Value* src2_value;
+
+  if (is_2addr) {
+    src1_value = EmitLoadDalvikReg(dec_insn.vA_, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  } else {
+    src1_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vC_, op_jty, kAccurate);
+  }
+
+  llvm::Value* result_value =
+    EmitIntArithmResultComputation(dex_pc, src1_value, src2_value,
+                                   arithm, op_jty);
+
+  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
@@ -1847,8 +1868,82 @@ void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_IntArithmImmediate(uint32_t dex_pc,
                                                  Instruction const* insn,
                                                  IntArithmKind arithm) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC_);
+
+  llvm::Value* result_value =
+    EmitIntArithmResultComputation(dex_pc, src_value, imm_value, arithm, kInt);
+
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+llvm::Value*
+MethodCompiler::EmitIntArithmResultComputation(uint32_t dex_pc,
+                                               llvm::Value* lhs,
+                                               llvm::Value* rhs,
+                                               IntArithmKind arithm,
+                                               JType op_jty) {
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  switch (arithm) {
+  case kIntArithm_Add:
+    return irb_.CreateAdd(lhs, rhs);
+
+  case kIntArithm_Sub:
+    return irb_.CreateSub(lhs, rhs);
+
+  case kIntArithm_Mul:
+    return irb_.CreateMul(lhs, rhs);
+
+  case kIntArithm_Div:
+    EmitGuard_DivZeroException(dex_pc, rhs, op_jty);
+    return irb_.CreateSDiv(lhs, rhs);
+
+  case kIntArithm_Rem:
+    EmitGuard_DivZeroException(dex_pc, rhs, op_jty);
+    return irb_.CreateSRem(lhs, rhs);
+
+  case kIntArithm_And:
+    return irb_.CreateAnd(lhs, rhs);
+
+  case kIntArithm_Or:
+    return irb_.CreateOr(lhs, rhs);
+
+  case kIntArithm_Xor:
+    return irb_.CreateXor(lhs, rhs);
+
+  case kIntArithm_Shl:
+    if (op_jty == kLong) {
+      return irb_.CreateShl(lhs, irb_.CreateAnd(rhs, 0x3f));
+    } else {
+      return irb_.CreateShl(lhs, irb_.CreateAnd(rhs, 0x1f));
+    }
+
+  case kIntArithm_Shr:
+    if (op_jty == kLong) {
+      return irb_.CreateAShr(lhs, irb_.CreateAnd(rhs, 0x3f));
+    } else {
+      return irb_.CreateAShr(lhs, irb_.CreateAnd(rhs, 0x1f));
+    }
+
+  case kIntArithm_UShr:
+    if (op_jty == kLong) {
+      return irb_.CreateLShr(lhs, irb_.CreateAnd(rhs, 0x3f));
+    } else {
+      return irb_.CreateLShr(lhs, irb_.CreateAnd(rhs, 0x1f));
+    }
+
+  default:
+    LOG(FATAL) << "Unknown integer arithmetic kind: " << arithm;
+    return NULL;
+  }
 }
 
 
@@ -1866,6 +1961,29 @@ void MethodCompiler::EmitInsn_FPArithm(uint32_t dex_pc,
                                        bool is_2addr) {
   // UNIMPLEMENTED(WARNING);
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
+                                                llvm::Value* denominator,
+                                                JType op_jty) {
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Constant* zero = irb_.getJZero(op_jty);
+
+  llvm::Value* equal_zero = irb_.CreateICmpEQ(denominator, zero);
+
+  llvm::BasicBlock* block_exception = CreateBasicBlockWithDexPC(dex_pc, "div0");
+
+  llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  irb_.CreateCondBr(equal_zero, block_exception, block_continue);
+
+  irb_.SetInsertPoint(block_exception);
+  irb_.CreateCall(irb_.GetRuntime(ThrowDivZeroException));
+  EmitBranchExceptionLandingPad(dex_pc);
+
+  irb_.SetInsertPoint(block_continue);
 }
 
 

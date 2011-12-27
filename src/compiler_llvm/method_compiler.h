@@ -283,6 +283,16 @@ class MethodCompiler {
                                    llvm::Value* rhs,
                                    CondBranchKind cond);
 
+  llvm::Value* EmitIntArithmResultComputation(uint32_t dex_pc,
+                                              llvm::Value* lhs,
+                                              llvm::Value* rhs,
+                                              IntArithmKind arithm,
+                                              JType op_jty);
+
+  void EmitGuard_DivZeroException(uint32_t dex_pc,
+                                  llvm::Value* denominator,
+                                  JType op_jty);
+
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
 
