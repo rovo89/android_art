@@ -276,6 +276,9 @@ class MethodCompiler {
 
   void EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc);
 
+  llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
+                                          llvm::Value* cmp_lt);
+
 
   // Basic block helper functions
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
