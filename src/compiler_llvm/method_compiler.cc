@@ -1082,7 +1082,12 @@ void MethodCompiler::EmitInsn_Nop(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_Move(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, jty, kReg);
+  EmitStoreDalvikReg(dec_insn.vA_, jty, kReg, src_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
@@ -1090,7 +1095,12 @@ void MethodCompiler::EmitInsn_Move(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
                                          Instruction const* insn,
                                          JType jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikRetValReg(jty, kReg);
+  EmitStoreDalvikReg(dec_insn.vA_, jty, kReg, src_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
