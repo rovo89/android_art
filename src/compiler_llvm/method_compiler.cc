@@ -1667,7 +1667,23 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType elem_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+  llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC_, kInt, kAccurate);
+
+  EmitGuard_ArrayException(dex_pc, array_addr, index_value);
+
+  llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
+
+  llvm::Value* array_elem_addr =
+    EmitArrayGEP(array_addr, index_value, elem_type);
+
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, elem_jty, kArray);
+
+  irb_.CreateStore(new_value, array_elem_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
