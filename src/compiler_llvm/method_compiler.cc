@@ -1688,10 +1688,70 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 }
 
 
+void MethodCompiler::PrintUnresolvedFieldWarning(int32_t field_idx) {
+  DexFile const& dex_file = method_helper_.GetDexFile();
+  DexFile::FieldId const& field_id = dex_file.GetFieldId(field_idx);
+
+  LOG(WARNING) << "unable to resolve static field " << field_idx << " ("
+               << dex_file.GetFieldName(field_id) << ") in "
+               << dex_file.GetFieldDeclaringClassDescriptor(field_id);
+}
+
+
 void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t reg_idx = dec_insn.vB_;
+  uint32_t field_idx = dec_insn.vC_;
+
+  Field* field = dex_cache_->GetResolvedField(field_idx);
+
+  llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  llvm::Value* field_value;
+
+  if (field == NULL) {
+    PrintUnresolvedFieldWarning(field_idx);
+
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(SetObjectInstance);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(Set64Instance);
+    } else {
+      runtime_func = irb_.GetRuntime(Set32Instance);
+    }
+
+    llvm::ConstantInt* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    field_value = irb_.CreateCall2(runtime_func, field_idx_value,
+                                   method_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    llvm::PointerType* field_type =
+      irb_.getJType(field_jty, kField)->getPointerTo();
+
+    llvm::ConstantInt* field_offset =
+      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+
+    llvm::Value* field_addr =
+      irb_.CreatePtrDisp(object_addr, field_offset, field_type);
+
+    field_value = irb_.CreateLoad(field_addr);
+  }
+
+  EmitStoreDalvikReg(dec_insn.vA_, field_jty, kField, field_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
