@@ -1592,10 +1592,74 @@ llvm::Value* MethodCompiler::EmitConditionResult(llvm::Value* lhs,
 }
 
 
+void
+MethodCompiler::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
+                                                         llvm::Value* array,
+                                                         llvm::Value* index) {
+  llvm::Value* array_len = EmitLoadArrayLength(array);
+
+  llvm::Value* cmp = irb_.CreateICmpUGE(index, array_len);
+
+  llvm::BasicBlock* block_exception =
+    CreateBasicBlockWithDexPC(dex_pc, "overflow");
+
+  llvm::BasicBlock* block_continue =
+    CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  irb_.CreateCondBr(cmp, block_exception, block_continue);
+
+  irb_.SetInsertPoint(block_exception);
+  irb_.CreateCall2(irb_.GetRuntime(ThrowIndexOutOfBounds), index, array_len);
+  EmitBranchExceptionLandingPad(dex_pc);
+
+  irb_.SetInsertPoint(block_continue);
+}
+
+
+void MethodCompiler::EmitGuard_ArrayException(uint32_t dex_pc,
+                                              llvm::Value* array,
+                                              llvm::Value* index) {
+  EmitGuard_NullPointerException(dex_pc, array);
+  EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array, index);
+}
+
+
+// Emit Array GetElementPtr
+llvm::Value* MethodCompiler::EmitArrayGEP(llvm::Value* array_addr,
+                                          llvm::Value* index_value,
+                                          llvm::Type* elem_type) {
+
+  llvm::Constant* data_offset_value =
+    irb_.getPtrEquivInt(Array::DataOffset().Int32Value());
+
+  llvm::Value* array_data_addr =
+    irb_.CreatePtrDisp(array_addr, data_offset_value,
+                       elem_type->getPointerTo());
+
+  return irb_.CreateGEP(array_data_addr, index_value);
+}
+
+
 void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType elem_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+  llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC_, kInt, kAccurate);
+
+  EmitGuard_ArrayException(dex_pc, array_addr, index_value);
+
+  llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
+
+  llvm::Value* array_elem_addr =
+    EmitArrayGEP(array_addr, index_value, elem_type);
+
+  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr);
+
+  EmitStoreDalvikReg(dec_insn.vA_, elem_jty, kArray, array_elem_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 

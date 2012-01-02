@@ -296,12 +296,24 @@ class MethodCompiler {
 
   llvm::Value* EmitLoadArrayLength(llvm::Value* array);
 
+  llvm::Value* EmitArrayGEP(llvm::Value* array_addr,
+                            llvm::Value* index_value,
+                            llvm::Type* elem_type);
+
   void EmitGuard_DivZeroException(uint32_t dex_pc,
                                   llvm::Value* denominator,
                                   JType op_jty);
 
   void EmitGuard_NullPointerException(uint32_t dex_pc,
                                       llvm::Value* object);
+
+  void EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
+                                                llvm::Value* array,
+                                                llvm::Value* index);
+
+  void EmitGuard_ArrayException(uint32_t dex_pc,
+                                llvm::Value* array,
+                                llvm::Value* index);
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
