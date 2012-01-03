@@ -1759,7 +1759,55 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t reg_idx = dec_insn.vB_;
+  uint32_t field_idx = dec_insn.vC_;
+
+  Field* field = dex_cache_->GetResolvedField(field_idx);
+
+  llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, field_jty, kField);
+
+  if (field == NULL) {
+    PrintUnresolvedFieldWarning(field_idx);
+
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(SetObjectInstance);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(Set64Instance);
+    } else {
+      runtime_func = irb_.GetRuntime(Set32Instance);
+    }
+
+    llvm::Value* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    irb_.CreateCall3(runtime_func, field_idx_value,
+                     method_object_addr, new_value);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    llvm::PointerType* field_type =
+      irb_.getJType(field_jty, kField)->getPointerTo();
+
+    llvm::Value* field_offset =
+      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+
+    llvm::Value* field_addr =
+      irb_.CreatePtrDisp(object_addr, field_offset, field_type);
+
+    irb_.CreateStore(new_value, field_addr);
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
