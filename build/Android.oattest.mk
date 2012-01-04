@@ -41,7 +41,7 @@ define build-art-oat
 $(2): $(1) $(3) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(3) $(addprefix --dex-file=,$$<) --oat=$$@ --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(3) $(addprefix --dex-file=,$$<) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT)
 endef
 
 ########################################################################
@@ -49,8 +49,8 @@ ART_TEST_OAT_FILES :=
 
 # $(1): directory
 define build-art-test-oat
-  $(call build-art-oat,$(ART_TEST_OUT)/art-test-dex-$(1).jar,$(ART_TEST_OUT)/art-test-dex-$(1).oat,$(TARGET_CORE_IMG))
-  ART_TEST_OAT_FILES += $(ART_TEST_OUT)/art-test-dex-$(1).oat
+  $(call build-art-oat,$(ART_TEST_OUT)/art-test-dex-$(1).jar,$(ART_TEST_OUT)/art-test-dex-$(1).jar.oat,$(TARGET_CORE_IMG))
+  ART_TEST_OAT_FILES += $(ART_TEST_OUT)/art-test-dex-$(1).jar.oat
 endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))
 

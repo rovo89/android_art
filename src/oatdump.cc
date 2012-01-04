@@ -27,7 +27,7 @@ static void usage() {
           "    Example: adb shell oatdump --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
-          "  --oat=<file.oat>: specifies an input oat filename.\n"
+          "  --oat-file=<file.oat>: specifies an input oat filename.\n"
           "      Example: --image=/system/framework/boot.oat\n"
           "\n");
   fprintf(stderr,
@@ -505,8 +505,8 @@ int oatdump(int argc, char** argv) {
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
-    if (option.starts_with("--oat=")) {
-      oat_filename = option.substr(strlen("--oat=")).data();
+    if (option.starts_with("--oat-file=")) {
+      oat_filename = option.substr(strlen("--oat-file=")).data();
     } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--boot-image=")) {

@@ -12,8 +12,8 @@ namespace art {
 
 std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
   CHECK(IsValidDexFilename(location) || IsValidZipFilename(location));
-  std::string oat_location(location.substr(0, location.size() - 3));
-  oat_location += "oat";
+  std::string oat_location(location);
+  oat_location += ".oat";
   return oat_location;
 }
 
