@@ -46,7 +46,7 @@ class ZipEntry {
 
  private:
 
-  ZipEntry(ZipArchive* zip_archive, const byte* ptr) : zip_archive_(zip_archive), ptr_(ptr) {}
+  ZipEntry(const ZipArchive* zip_archive, const byte* ptr) : zip_archive_(zip_archive), ptr_(ptr) {}
 
   // Zip compression methods
   enum {
@@ -62,7 +62,7 @@ class ZipEntry {
   // returns -1 on error
   off_t GetDataOffset();
 
-  ZipArchive* zip_archive_;
+  const ZipArchive* zip_archive_;
 
   // pointer to zip entry within central directory
   const byte* ptr_;
@@ -102,9 +102,9 @@ class ZipArchive {
 
   // return new ZipArchive instance on success, NULL on error.
   static ZipArchive* Open(const std::string& filename);
-  static ZipArchive* Open(int fd);
+  static ZipArchive* OpenFromFd(int fd);
 
-  ZipEntry* Find(const char* name);
+  ZipEntry* Find(const char* name) const;
 
   ~ZipArchive() {
     Close();

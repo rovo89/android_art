@@ -287,10 +287,10 @@ ZipArchive* ZipArchive::Open(const std::string& filename) {
     PLOG(WARNING) << "Unable to open '" << filename << "'";
     return NULL;
   }
-  return Open(fd);
+  return OpenFromFd(fd);
 }
 
-ZipArchive* ZipArchive::Open(int fd) {
+ZipArchive* ZipArchive::OpenFromFd(int fd) {
   UniquePtr<ZipArchive> zip_archive(new ZipArchive(fd));
   if (zip_archive.get() == NULL) {
       return NULL;
@@ -306,7 +306,7 @@ ZipArchive* ZipArchive::Open(int fd) {
   return zip_archive.release();
 }
 
-ZipEntry* ZipArchive::Find(const char* name) {
+ZipEntry* ZipArchive::Find(const char* name) const {
   DCHECK(name != NULL);
   DirEntries::const_iterator it = dir_entries_.find(name);
   if (it == dir_entries_.end()) {

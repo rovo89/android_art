@@ -80,9 +80,6 @@ OATDUMP_SRC_FILES := \
 OATEXEC_SRC_FILES := \
 	src/oatexec.cc
 
-OATOPT_SRC_FILES := \
-	src/oatopt.cc
-
 LIBART_COMMON_SRC_FILES := \
 	src/assembler.cc \
 	src/assembler_arm.cc \

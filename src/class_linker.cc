@@ -584,7 +584,7 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
   dex_file_option_string += filename;
   const char* dex_file_option = dex_file_option_string.c_str();
 
-  std::string oat_file_option_string("--oat=");
+  std::string oat_file_option_string("--oat-file=");
   oat_file_option_string += oat_filename;
   const char* oat_file_option = oat_file_option_string.c_str();
 

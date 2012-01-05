@@ -19,6 +19,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "stringpiece.h"
+#include "zip_archive.h"
 
 namespace art {
 
@@ -27,13 +28,27 @@ static void usage() {
           "Usage: dex2oat [options]...\n"
           "\n");
   fprintf(stderr,
-          "  --dex-file=<dex-file>: specifies a .dex file to compile. At least one .dex\n"
-          "      file must be specified. \n"
+          "  --dex-file=<dex-file>: specifies a .dex file to compile.\n"
           "      Example: --dex-file=/system/framework/core.jar\n"
           "\n");
   fprintf(stderr,
-          "  --oat=<file.oat>: specifies the required oat filename.\n"
-          "      Example: --oat=/system/framework/boot.oat\n"
+          "  --zip-fd=<file-descriptor>: specifies a file descriptor of a zip file\n"
+          "      containing a classes.dex file to compile.\n"
+          "      Example: --zip-fd=5\n"
+          "\n");
+  fprintf(stderr,
+          "  --zip-name=<zip-name>: specifies a symbolic name for the file corresponding\n"
+          "      to the file descriptor specified by --zip-fd.\n"
+          "      Example: --zip-name=/system/app/Calculator.apk\n"
+          "\n");
+  fprintf(stderr,
+          "  --oat-file=<file.oat>: specifies the required oat filename.\n"
+          "      Example: --oat-file=/system/framework/boot.oat\n"
+          "\n");
+  fprintf(stderr,
+          "  --oat-name=<oat-name>: specifies a symbolic name for the file corresponding\n"
+          "      to the file descriptor specified by --oat-fd.\n"
+          "      Example: --oat-name=/data/art-cache/system@app@Calculator.apk.oat\n"
           "\n");
   fprintf(stderr,
           "  --image=<file.art>: specifies the output image filename.\n"
@@ -146,8 +161,7 @@ class Dex2Oat {
   }
 
   bool CreateOatFile(const std::string& boot_image_option,
-                     const std::vector<const char*>& dex_filenames,
-                     const std::string& host_prefix,
+                     const std::vector<const DexFile*>& dex_files,
                      File* oat_file,
                      bool image,
                      const std::set<std::string>* image_classes) {
@@ -158,18 +172,14 @@ class Dex2Oat {
       return false;
     }
 
-    std::vector<const DexFile*> dex_files;
     if (!boot_image_option.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      DexFile::OpenDexFiles(dex_filenames, dex_files, host_prefix);
       std::vector<const DexFile*> class_path_files(dex_files);
       OpenClassPathFiles(runtime_->GetClassPath(), class_path_files);
       for (size_t i = 0; i < class_path_files.size(); i++) {
         class_linker->RegisterDexFile(*class_path_files[i]);
       }
       class_loader.get()->reset(PathClassLoader::AllocCompileTime(class_path_files));
-    } else {
-      dex_files = runtime_->GetClassLinker()->GetBootClassPath();
     }
 
     Compiler compiler(instruction_set_, image, image_classes);
@@ -333,6 +343,16 @@ class Dex2Oat {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
 
+bool parse_int(const char* in, int* out) {
+  char* end;
+  int result = strtol(in, &end, 10);
+  if (in == end || *end != '\0') {
+    return false;
+  }
+  *out = result;
+  return true;
+}
+
 int dex2oat(int argc, char** argv) {
   // Skip over argv[0].
   argv++;
@@ -344,7 +364,11 @@ int dex2oat(int argc, char** argv) {
   }
 
   std::vector<const char*> dex_filenames;
+  int zip_fd = -1;
+  std::string zip_name;
   std::string oat_filename;
+  int oat_fd = -1;
+  std::string oat_name;
   const char* image_filename = NULL;
   const char* image_classes_filename = NULL;
   std::string boot_image_filename;
@@ -354,13 +378,30 @@ int dex2oat(int argc, char** argv) {
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
-    if (false) {
+    bool log_options = false;
+    if (log_options) {
       LOG(INFO) << "dex2oat: option[" << i << "]=" << argv[i];
     }
     if (option.starts_with("--dex-file=")) {
       dex_filenames.push_back(option.substr(strlen("--dex-file=")).data());
-    } else if (option.starts_with("--oat=")) {
-      oat_filename = option.substr(strlen("--oat=")).data();
+    } else if (option.starts_with("--zip-fd=")) {
+      const char* zip_fd_str = option.substr(strlen("--zip-fd=")).data();
+      if (!parse_int(zip_fd_str, &zip_fd)) {
+        fprintf(stderr, "could not parse --zip-fd argument %s as integer\n", zip_fd_str);
+        usage();
+      }
+    } else if (option.starts_with("--zip-name=")) {
+      zip_name = option.substr(strlen("--zip-name=")).data();
+    } else if (option.starts_with("--oat-file=")) {
+      oat_filename = option.substr(strlen("--oat-file=")).data();
+    } else if (option.starts_with("--oat-fd=")) {
+      const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
+      if (!parse_int(oat_fd_str, &oat_fd)) {
+        fprintf(stderr, "could not parse --oat-fd argument %s as integer\n", oat_fd_str);
+        usage();
+      }
+    } else if (option.starts_with("--oat-name=")) {
+      oat_name = option.substr(strlen("--oat-name=")).data();
     } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--image-classes=")) {
@@ -382,6 +423,9 @@ int dex2oat(int argc, char** argv) {
         fprintf(stderr, "Missing required argument for --runtime-arg\n");
         usage();
       }
+      if (log_options) {
+        LOG(INFO) << "dex2oat: option[" << i << "]=" << argv[i];
+      }
       runtime_args.push_back(argv[i]);
     } else {
       fprintf(stderr, "unknown argument %s\n", option.data());
@@ -389,8 +433,33 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  if (oat_filename.empty()) {
-    fprintf(stderr, "--oat file name not specified\n");
+  if (oat_filename.empty() && oat_fd == -1) {
+    fprintf(stderr, "Output must be supplied with either --oat-file or --oat-fd\n");
+    return EXIT_FAILURE;
+  }
+
+  if (!oat_filename.empty() && oat_fd != -1) {
+    fprintf(stderr, "--oat-file should not be used with --oat-fd\n");
+    return EXIT_FAILURE;
+  }
+
+  if (!oat_filename.empty() && oat_fd != -1) {
+    fprintf(stderr, "--oat-file should not be used with --oat-fd\n");
+    return EXIT_FAILURE;
+  }
+
+  if (!oat_filename.empty() && !oat_name.empty()) {
+    fprintf(stderr, "--oat-file should not be used with --oat-name\n");
+    return EXIT_FAILURE;
+  }
+
+  if (oat_fd != -1 && oat_name.empty()) {
+    fprintf(stderr, "--oat-name should be supplied with --oat-fd\n");
+    return EXIT_FAILURE;
+  }
+
+  if (oat_fd != -1 && image_filename != NULL) {
+    fprintf(stderr, "--oat-fd should not be used with --image\n");
     return EXIT_FAILURE;
   }
 
@@ -404,7 +473,7 @@ int dex2oat(int argc, char** argv) {
   bool image = (image_filename != NULL);
   if (!image && boot_image_filename.empty()) {
     boot_image_filename += host_prefix;
-    boot_image_filename += "/data/art-cache/boot.art";
+    boot_image_filename += "/system/framework/boot.art";
   }
   std::string boot_image_option;
   if (boot_image_filename != NULL) {
@@ -422,6 +491,26 @@ int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (dex_filenames.empty() && zip_fd == -1) {
+    fprintf(stderr, "Input must be supplied with either --dex-file or --zip-fd\n");
+    return EXIT_FAILURE;
+  }
+
+  if (!dex_filenames.empty() && zip_fd != -1) {
+    fprintf(stderr, "--dex-file should not be used with --zip-fd\n");
+    return EXIT_FAILURE;
+  }
+
+  if (!dex_filenames.empty() && !zip_name.empty()) {
+    fprintf(stderr, "--dex-file should not be used with --zip-name\n");
+    return EXIT_FAILURE;
+  }
+
+  if (zip_fd != -1 && zip_name.empty()) {
+    fprintf(stderr, "--zip-name should be supplied with --zip-fd\n");
+    return EXIT_FAILURE;
+  }
+
   if (boot_image_option.empty()) {
     if (image_base == 0) {
       fprintf(stderr, "non-zero --base not specified\n");
@@ -430,12 +519,19 @@ int dex2oat(int argc, char** argv) {
   }
 
   // Check early that the result of compilation can be written
-  UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true));
+  UniquePtr<File> oat_file;
+  if (!oat_filename.empty()) {
+    oat_file.reset(OS::OpenFile(oat_filename.c_str(), true));
+    oat_name = oat_filename;
+  } else {
+    oat_file.reset(OS::FileFromFd(oat_name.c_str(), oat_fd));
+  }
   if (oat_file.get() == NULL) {
-    PLOG(ERROR) << "Unable to create oat file " << oat_filename;
+    PLOG(ERROR) << "Unable to create oat file " << oat_name;
     return EXIT_FAILURE;
   }
-  LOG(INFO) << "dex2oat: " << oat_filename;
+
+  LOG(INFO) << "dex2oat: " << oat_name;
 
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
@@ -470,13 +566,33 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
+  std::vector<const DexFile*> dex_files;
+  if (boot_image_option.empty()) {
+    dex_files = Runtime::Current()->GetClassLinker()->GetBootClassPath();
+  } else {
+    if (dex_filenames.empty()) {
+      UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd));
+      if (zip_archive.get() == NULL) {
+        LOG(ERROR) << "Failed to zip from file descriptor for " << zip_name;
+        return NULL;
+      }
+      const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_name);
+      if (dex_file == NULL) {
+        LOG(ERROR) << "Failed to open dex from file descriptor for zip file " << zip_name;
+        return EXIT_FAILURE;
+      }
+      dex_files.push_back(dex_file);
+    } else {
+      DexFile::OpenDexFiles(dex_filenames, dex_files, host_prefix);
+    }
+  }
+
   if (!dex2oat->CreateOatFile(boot_image_option,
-                              dex_filenames,
-                              host_prefix,
+                              dex_files,
                               oat_file.get(),
                               image,
                               image_classes.get())) {
-    LOG(ERROR) << "Failed to create oat file" << oat_filename;
+    LOG(ERROR) << "Failed to create oat file" << oat_name;
     return EXIT_FAILURE;
   }
 

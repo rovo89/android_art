@@ -18,6 +18,8 @@
 
 namespace art {
 
+class ZipArchive;
+
 // TODO: move all of the macro functionality into the DexCache class.
 class DexFile {
  public:
@@ -188,6 +190,9 @@ class DexFile {
   static const DexFile* Open(const uint8_t* base, size_t length, const std::string& location) {
     return OpenMemory(base, length, location, NULL);
   }
+
+  // Opens .dex file from the classes.dex in a zip archive
+  static const DexFile* Open(const ZipArchive& zip_archive, const std::string& location);
 
   // Closes a .dex file.
   virtual ~DexFile();

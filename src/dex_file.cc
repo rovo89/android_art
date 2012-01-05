@@ -187,9 +187,13 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     LOG(ERROR) << "Failed to open " << filename << " when looking for classes.dex";
     return NULL;
   }
-  UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
+  return DexFile::Open(*zip_archive.get(), location);
+}
+
+const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location) {
+  UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex));
   if (zip_entry.get() == NULL) {
-    LOG(ERROR) << "Failed to find classes.dex within " << filename;
+    LOG(ERROR) << "Failed to find classes.dex within " << location;
     return NULL;
   }
 
@@ -199,14 +203,14 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
                                              length,
                                              PROT_READ | PROT_WRITE));
   if (map.get() == NULL) {
-    LOG(ERROR) << "mmap classes.dex for \"" << filename << "\" failed";
+    LOG(ERROR) << "mmap classes.dex for \"" << location << "\" failed";
     return NULL;
   }
 
   // Extract classes.dex
   bool success = zip_entry->ExtractToMemory(*map.get());
   if (!success) {
-    LOG(ERROR) << "Failed to extract classes.dex from '" << filename << "' to memory";
+    LOG(ERROR) << "Failed to extract classes.dex from '" << location << "' to memory";
     return NULL;
   }
 

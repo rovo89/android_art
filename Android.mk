@@ -117,7 +117,7 @@ test-art-target-run-test-002: test-art-target-sync
 
 # $(1): jar or apk name
 define art-cache-oat
-  $(ART_CACHE_OUT)/$(subst /,@,$(patsubst %.apk,%.oat,$(patsubst %.jar,%.oat,$(1))))
+  $(ART_CACHE_OUT)/$(subst /,@,$(1).oat)
 endef
 
 ART_CACHE_OATS :=
@@ -127,13 +127,10 @@ define build-art-cache-oat
   ART_CACHE_OATS += $(call art-cache-oat,$(1))
 endef
 
-# for test-art-target-am
-$(eval $(call build-art-cache-oat,system/framework/am.jar))
 
-# for test-art-target-Calculator
-$(eval $(call build-art-cache-oat,system/app/Calculator.apk))
+########################################################################
+# oat-target-sync
 
-# for zygote-art
 ifeq ($(TARGET_PRODUCT),mysid)
 
 $(eval $(call build-art-cache-oat,system/app/ApplicationsProvider.apk))
@@ -142,6 +139,7 @@ $(eval $(call build-art-cache-oat,system/app/BIP.apk))
 $(eval $(call build-art-cache-oat,system/app/Bluetooth.apk))
 $(eval $(call build-art-cache-oat,system/app/BooksTablet.apk))
 $(eval $(call build-art-cache-oat,system/app/BrowserGoogle.apk))
+$(eval $(call build-art-cache-oat,system/app/Calculator.apk))
 $(eval $(call build-art-cache-oat,system/app/CalendarGoogle.apk))
 $(eval $(call build-art-cache-oat,system/app/CalendarProvider.apk))
 $(eval $(call build-art-cache-oat,system/app/CameraGoogle.apk))
@@ -229,6 +227,7 @@ $(eval $(call build-art-cache-oat,system/app/VZWAPNService.apk))
 $(eval $(call build-art-cache-oat,system/app/VZWBackupAssistant.apk))
 $(eval $(call build-art-cache-oat,system/app/YouTube.apk))
 $(eval $(call build-art-cache-oat,system/app/talkback.apk))
+$(eval $(call build-art-cache-oat,system/framework/am.jar))
 $(eval $(call build-art-cache-oat,system/framework/android.test.runner.jar))
 $(eval $(call build-art-cache-oat,system/framework/bmgr.jar))
 $(eval $(call build-art-cache-oat,system/framework/bu.jar))
@@ -255,6 +254,7 @@ $(eval $(call build-art-cache-oat,system/app/BackupRestoreConfirmation.apk))
 $(eval $(call build-art-cache-oat,system/app/Bluetooth.apk))
 $(eval $(call build-art-cache-oat,system/app/BooksTablet.apk))
 $(eval $(call build-art-cache-oat,system/app/BrowserGoogle.apk))
+$(eval $(call build-art-cache-oat,system/app/Calculator.apk))
 $(eval $(call build-art-cache-oat,system/app/CalendarGoogle.apk))
 $(eval $(call build-art-cache-oat,system/app/CalendarProvider.apk))
 $(eval $(call build-art-cache-oat,system/app/CameraGoogle.apk))
@@ -333,6 +333,7 @@ $(eval $(call build-art-cache-oat,system/app/VpnDialogs.apk))
 $(eval $(call build-art-cache-oat,system/app/YouTube.apk))
 $(eval $(call build-art-cache-oat,system/app/googlevoice.apk))
 $(eval $(call build-art-cache-oat,system/app/talkback.apk))
+$(eval $(call build-art-cache-oat,system/framework/am.jar))
 $(eval $(call build-art-cache-oat,system/framework/android.test.runner.jar))
 $(eval $(call build-art-cache-oat,system/framework/bmgr.jar))
 $(eval $(call build-art-cache-oat,system/framework/bu.jar))
@@ -358,51 +359,10 @@ endif
 
 endif
 
-.PHONY: test-art-target-am
-test-art-target-am: $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
-	adb shell sh -c "am start http://android.com && touch $(ART_TEST_DIR)/test-art-target-process-am"
-	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-am /tmp/ && echo test-art-target-process-am PASSED) || echo test-art-target-process-am FAILED
-	$(hide) rm /tmp/test-art-target-process-am
-
-.PHONY: test-art-target-Calculator
-test-art-target-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(call art-cache-oat,system/framework/am.jar) test-art-target-sync
-	adb shell kill `adb shell ps | fgrep com.android.calculator2 | sed -e 's/[^ ]* *\([0-9]*\).*/\1/'`
-	adb shell sh -c "am start -a android.intent.action.MAIN -n com.android.calculator2/.Calculator && touch $(ART_TEST_DIR)/test-art-target-process-Calculator"
-	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-process-Calculator /tmp/ && echo test-art-target-process-Calculator PASSED) || echo test-art-target-process-Calculator FAILED
-	$(hide) rm /tmp/test-art-target-process-Calculator
-
-########################################################################
-# zygote targets
-#
-# zygote-artd will change to use art to boot the device with a debug build
-# zygote-art will change to use art to boot the device with a production build
-#
-# zygote-artd-target-sync will just push a new artd in place of dvm
-# zygote-art-target-sync will just push a new art in place of dvm
-
-# $(1): "d" for debug build, "" for ndebug build
-define define-zygote-art-targets
-.PHONY: zygote-art$(1)-target-sync
-zygote-art$(1)-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
-	cp $(TARGET_OUT_EXECUTABLES)/oatopt$(1) $(TARGET_OUT_EXECUTABLES)/dexopt
-	cp $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/oatopt$(1) $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)/dexopt
-	mkdir -p $(TARGET_OUT_DATA)/property
-	echo -n 1 > $(TARGET_OUT_DATA)/property/persist.sys.strictmode.disable
+.PHONY: oat-target-sync
+oat-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
 	adb remount
 	adb sync
-
-.PHONY: zygote-art$(1)
-zygote-art$(1): zygote-art$(1)-target-sync
-	sed -e 's/--start-system-server/--start-system-server --no-preload/' -e 's/art-cache 0771/art-cache 0777/' < system/core/rootdir/init.rc > $(ANDROID_PRODUCT_OUT)/root/init.rc
-	rm -f $(ANDROID_PRODUCT_OUT)/boot.img
-	unset ONE_SHOT_MAKEFILE && $(MAKE) showcommands bootimage
-	adb reboot bootloader
-	fastboot flash boot $(ANDROID_PRODUCT_OUT)/boot.img
-	fastboot reboot
-endef
-
-$(eval $(call define-zygote-art-targets,d))
-$(eval $(call define-zygote-art-targets,))
 
 ########################################################################
 # oatdump targets
@@ -421,8 +381,8 @@ dump-oat-boot: $(TARGET_BOOT_OAT) $(OATDUMP)
 	@echo Output in /tmp/boot.oatdump.txt
 
 .PHONY: dump-oat-Calculator
-dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.oat) $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) --oat=$< --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
+dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.apk) $(TARGET_BOOT_OAT) $(OATDUMP)
+	$(OATDUMP) --oat-file=$< --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 
 
