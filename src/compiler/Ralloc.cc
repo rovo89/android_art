@@ -65,6 +65,20 @@ STATIC bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
     return false;
 }
 
+// Try to find the next move result which might have an FP target
+STATIC SSARepresentation* findMoveResult(MIR* mir)
+{
+    SSARepresentation* res = NULL;
+    for (; mir; mir = mir->next) {
+        if ((mir->dalvikInsn.opcode == OP_MOVE_RESULT) ||
+            (mir->dalvikInsn.opcode == OP_MOVE_RESULT_WIDE)) {
+            res = mir->ssaRep;
+            break;
+        }
+    }
+    return res;
+}
+
 /*
  * Infer types and sizes.  We don't need to track change on sizes,
  * as it doesn't propagate.  We're guaranteed at least one pass through
@@ -139,9 +153,9 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 }
             }
 
-           // Special-case handling for format 35c/3rc invokes
-           Opcode opcode = mir->dalvikInsn.opcode;
-           int flags = (opcode >= kNumPackedOpcodes) ? 0 :
+            // Special-case handling for format 35c/3rc invokes
+            Opcode opcode = mir->dalvikInsn.opcode;
+            int flags = (opcode >= kNumPackedOpcodes) ? 0 :
                 dexGetFlagsFromOpcode(opcode);
             if ((flags & kInstrInvoke) &&
                 (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
@@ -149,6 +163,24 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 int target_idx = mir->dalvikInsn.vB;
                 const char* shorty =
                     oatGetShortyFromTargetIdx(cUnit, target_idx);
+                // Handle result type if floating point
+                if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
+                    // Find move-result that consumes this result
+                    SSARepresentation* tgtRep = findMoveResult(mir->next);
+                    // Might be in next basic block
+                    if (!tgtRep) {
+                        tgtRep = findMoveResult(bb->fallThrough->firstMIRInsn);
+                    }
+                    // Result might not be used at all, so no move-result
+                    if (tgtRep) {
+                        tgtRep->fpDef[0] = true;
+                        changed |= setFp(cUnit, tgtRep->defs[0], true);
+                        if (shorty[0] == 'D') {
+                            tgtRep->fpDef[1] = true;
+                            changed |= setFp(cUnit, tgtRep->defs[1], true);
+                        }
+                    }
+                }
                 int numUses = mir->dalvikInsn.vA;
                 // If this is a non-static invoke, skip implicit "this"
                 if (((mir->dalvikInsn.opcode != OP_INVOKE_STATIC) &&
