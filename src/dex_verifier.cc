@@ -1049,10 +1049,6 @@ bool DexVerifier::ScanTryCatchBlocks() {
     if ((start >= end) || (start >= insns_size) || (end > insns_size)) {
       Fail(VERIFY_ERROR_GENERIC) << "bad exception entry: startAddr=" << start
                                  << " endAddr=" << end << " (size=" << insns_size << ")";
-      CHECK(false) << "XXX bdc "
-                   << PrettyMethod(method_)
-                   << "bad exception entry: startAddr=" << start
-                   << " endAddr=" << end << " (size=" << insns_size << ")";
       return false;
     }
     if (!insn_flags_[start].IsOpcode()) {

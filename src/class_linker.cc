@@ -2,6 +2,9 @@
 
 #include "class_linker.h"
 
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -565,8 +568,9 @@ void ClassLinker::RunRootClinits() {
   }
 }
 
-const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
-  std::string oat_filename(GetArtCacheFilenameOrDie(OatFile::DexFilenameToOatFilename(filename)));
+bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
+                                  int oat_fd,
+                                  const std::string& oat_cache_filename) {
 
   std::string dex2oat_string("/system/bin/dex2oat");
 #ifndef NDEBUG
@@ -581,12 +585,16 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
   const char* boot_image_option = boot_image_option_string.c_str();
 
   std::string dex_file_option_string("--dex-file=");
-  dex_file_option_string += filename;
+  dex_file_option_string += dex_filename;
   const char* dex_file_option = dex_file_option_string.c_str();
 
-  std::string oat_file_option_string("--oat-file=");
-  oat_file_option_string += oat_filename;
-  const char* oat_file_option = oat_file_option_string.c_str();
+  std::string oat_fd_option_string("--oat-fd=");
+  oat_fd_option_string += oat_fd;
+  const char* oat_fd_option = oat_fd_option_string.c_str();
+
+  std::string oat_name_option_string("--oat-name=");
+  oat_name_option_string += oat_cache_filename;
+  const char* oat_name_option = oat_name_option_string.c_str();
 
   // fork and exec dex2oat
   pid_t pid = fork();
@@ -599,25 +607,26 @@ const OatFile* ClassLinker::GenerateOatFile(const std::string& filename) {
           "--runtime-arg", class_path,
           boot_image_option,
           dex_file_option,
-          oat_file_option,
+          oat_fd_option,
+          oat_name_option,
           NULL);
 
     PLOG(FATAL) << "execl(" << dex2oat << ") failed";
-    return NULL;
+    return false;
   } else {
     // wait for dex2oat to finish
     int status;
     pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
     if (got_pid != pid) {
       PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
-      return NULL;
+      return false;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      LOG(ERROR) << dex2oat << " failed with dex-file=" << filename;
-      return NULL;
+      LOG(ERROR) << dex2oat << " failed with dex-file=" << dex_filename;
+      return false;
     }
   }
-  return OatFile::Open(oat_filename, "", NULL);
+  return true;
 }
 
 OatFile* ClassLinker::OpenOat(const Space* space) {
@@ -660,6 +669,52 @@ const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file)
   return NULL;
 }
 
+class LockedFd {
+ public:
+  static LockedFd* CreateAndLock(std::string& name, mode_t mode) {
+    int fd = open(name.c_str(), O_CREAT | O_RDWR, mode);
+    if (fd == -1) {
+      PLOG(ERROR) << "Failed to open file '" << name << "'";
+      return NULL;
+    }
+    fchmod(fd, mode);
+
+    LOG(INFO) << "locking file " << name << " (fd=" << fd << ")";
+    // try to lock non-blocking so we can log if we need may need to block
+    int result = flock(fd, LOCK_EX | LOCK_NB);
+    if (result == -1) {
+        LOG(WARNING) << "sleeping while locking file " << name;
+        // retry blocking
+        result = flock(fd, LOCK_EX);
+    }
+    if (result == -1) {
+      PLOG(ERROR) << "Failed to lock file '" << name << "'";
+      close(fd);
+      return NULL;
+    }
+    return new LockedFd(fd);
+  }
+
+  int GetFd() const {
+    return fd_;
+  }
+
+  ~LockedFd() {
+    if (fd_ != -1) {
+      int result = flock(fd_, LOCK_UN);
+      if (result == -1) {
+        PLOG(WARNING) << "flock(" << fd_ << ", LOCK_UN) failed";
+      }
+      close(fd_);
+    }
+  }
+
+ private:
+  explicit LockedFd(int fd) : fd_(fd) {}
+
+  int fd_;
+};
+
 const OatFile* ClassLinker::FindOatFileForDexFile(const DexFile& dex_file) {
   MutexLock mu(dex_lock_);
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
@@ -667,27 +722,66 @@ const OatFile* ClassLinker::FindOatFileForDexFile(const DexFile& dex_file) {
     return oat_file;
   }
 
-  oat_file = FindOatFileFromOatLocation(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
-  if (oat_file != NULL) {
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
-    if (dex_file.GetHeader().checksum_ == oat_dex_file->GetDexFileChecksum()) {
-      return oat_file;
+  std::string oat_filename(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
+  while (true) {
+    oat_file = FindOatFileFromOatLocation(oat_filename);
+    if (oat_file != NULL) {
+      const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+      if (dex_file.GetHeader().checksum_ == oat_dex_file->GetDexFileChecksum()) {
+        oat_files_.push_back(oat_file);
+        return oat_file;
+      }
+      LOG(WARNING) << ".oat file " << oat_file->GetLocation()
+                   << " checksum mismatch with " << dex_file.GetLocation() << " --- regenerating";
+      if (TEMP_FAILURE_RETRY(unlink(oat_file->GetLocation().c_str())) != 0) {
+        PLOG(FATAL) << "Couldn't remove obsolete .oat file " << oat_file->GetLocation();
+      }
+      // Fall through...
     }
-    LOG(WARNING) << ".oat file " << oat_file->GetLocation()
-                 << " is older than " << dex_file.GetLocation() << " --- regenerating";
-    if (TEMP_FAILURE_RETRY(unlink(oat_file->GetLocation().c_str())) != 0) {
-      PLOG(FATAL) << "Couldn't remove obsolete .oat file " << oat_file->GetLocation();
+    // Try to generate oat file if it wasn't found or was obsolete.
+    // Note we can be racing with another runtime to do this.
+    std::string oat_cache_filename(GetArtCacheFilenameOrDie(oat_filename));
+    UniquePtr<LockedFd> locked_fd(LockedFd::CreateAndLock(oat_cache_filename, 0644));
+    if (locked_fd.get() == NULL) {
+      LOG(ERROR) << "Failed to create and lock oat file " << oat_cache_filename;
+      return NULL;
     }
-    // Fall through...
+    // Check to see if the fd we opened and locked matches the file in
+    // the filesystem.  If they don't, then somebody else unlinked ours
+    // and created a new file, and we need to use that one instead.  (If
+    // we caught them between the unlink and the create, we'll get an
+    // ENOENT from the file stat.)
+    struct stat fd_stat;
+    int fd_stat_result = fstat(locked_fd->GetFd(), &fd_stat);
+    if (fd_stat_result != 0) {
+      PLOG(ERROR) << "Failed to fstat file descriptor of oat file " << oat_cache_filename;
+      return NULL;
+    }
+    struct stat file_stat;
+    int file_stat_result = stat(oat_cache_filename.c_str(), &file_stat);
+    if (file_stat_result != 0
+        || fd_stat.st_dev != file_stat.st_dev
+        || fd_stat.st_ino != file_stat.st_ino) {
+      LOG(INFO) << "Opened oat file " << oat_cache_filename << " is stale; sleeping and retrying";
+      usleep(250 * 1000);  // if something is hosed, don't peg machine
+      continue;
+    }
+
+    // We have the correct file open and locked.  If the file size is
+    // zero, then it was just created by us and we can generate its
+    // contents. If not, someone else created it. Either way, we'll
+    // loop to retry opening the file.
+    if (fd_stat.st_size == 0) {
+      bool success = GenerateOatFile(dex_file.GetLocation(),
+                                     locked_fd->GetFd(),
+                                     oat_cache_filename);
+      if (!success) {
+        LOG(ERROR) << "Failed to generate oat file " << oat_cache_filename;
+        return NULL;
+      }
+    }
   }
-  // Generate oat file if it wasn't found or was obsolete.
-  oat_file = GenerateOatFile(dex_file.GetLocation());
-  if (oat_file == NULL) {
-    LOG(ERROR) << "Failed to generate oat file from dex file " << dex_file.GetLocation();
-    return NULL;
-  }
-  oat_files_.push_back(oat_file);
-  return oat_file;
+  // Not reached
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& oat_location) {
