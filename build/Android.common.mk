@@ -40,7 +40,7 @@ art_cflags := \
 	-Werror \
 	-Wextra \
 	-Wno-unused-parameter \
-	-Wstrict-aliasing=2 \
+	-Wstrict-aliasing=3 \
 	-fno-align-jumps \
 	-fstrict-aliasing
 

@@ -2032,11 +2032,11 @@ class MANAGED PrimitiveArray : public Array {
   static PrimitiveArray<T>* Alloc(size_t length);
 
   const T* GetData() const {
-    return reinterpret_cast<const T*>(&elements_);
+    return &elements_[0];
   }
 
   T* GetData() {
-    return reinterpret_cast<T*>(&elements_);
+    return &elements_[0];
   }
 
   T Get(int32_t i) const {
