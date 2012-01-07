@@ -27,11 +27,11 @@ class File {
 
   // Get the length of the file. Returns a negative value if the length cannot
   // be determined (e.g. not seekable device).
-  virtual off64_t Length() = 0;
+  virtual off_t Length() = 0;
 
   // Get the current position in the file.
   // Returns a negative value if position cannot be determined.
-  virtual off64_t Position() = 0;
+  virtual off_t Position() = 0;
 
   virtual int Fd() = 0;
 
