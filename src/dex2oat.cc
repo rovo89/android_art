@@ -387,7 +387,7 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--zip-fd=")) {
       const char* zip_fd_str = option.substr(strlen("--zip-fd=")).data();
       if (!parse_int(zip_fd_str, &zip_fd)) {
-        fprintf(stderr, "could not parse --zip-fd argument %s as integer\n", zip_fd_str);
+        fprintf(stderr, "could not parse --zip-fd argument '%s' as an integer\n", zip_fd_str);
         usage();
       }
     } else if (option.starts_with("--zip-name=")) {
@@ -397,7 +397,7 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--oat-fd=")) {
       const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
       if (!parse_int(oat_fd_str, &oat_fd)) {
-        fprintf(stderr, "could not parse --oat-fd argument %s as integer\n", oat_fd_str);
+        fprintf(stderr, "could not parse --oat-fd argument '%s' as an integer\n", oat_fd_str);
         usage();
       }
     } else if (option.starts_with("--oat-name=")) {

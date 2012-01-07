@@ -589,7 +589,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
   const char* dex_file_option = dex_file_option_string.c_str();
 
   std::string oat_fd_option_string("--oat-fd=");
-  oat_fd_option_string += oat_fd;
+  StringAppendF(&oat_fd_option_string, "%d", oat_fd);
   const char* oat_fd_option = oat_fd_option_string.c_str();
 
   std::string oat_name_option_string("--oat-name=");
@@ -629,6 +629,16 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
   return true;
 }
 
+void ClassLinker::RegisterOatFile(const OatFile& oat_file) {
+  MutexLock mu(dex_lock_);
+  RegisterOatFileLocked(oat_file);
+}
+
+void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
+  dex_lock_.AssertHeld();
+  oat_files_.push_back(&oat_file);
+}
+
 OatFile* ClassLinker::OpenOat(const Space* space) {
   MutexLock mu(dex_lock_);
   const Runtime* runtime = Runtime::Current();
@@ -648,12 +658,12 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
   uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
   uint32_t image_oat_checksum = image_header.GetOatChecksum();
   if (oat_checksum != image_oat_checksum) {
-    LOG(ERROR) << "Failed to match oat filechecksum " << std::hex << oat_checksum
+    LOG(ERROR) << "Failed to match oat file checksum " << std::hex << oat_checksum
                << " to expected oat checksum " << std::hex << oat_checksum
                << " in image";
     return NULL;
   }
-  oat_files_.push_back(oat_file);
+  RegisterOatFileLocked(*oat_file);
   VLOG(startup) << "ClassLinker::OpenOat exiting";
   return oat_file;
 }
@@ -717,19 +727,24 @@ class LockedFd {
 
 const OatFile* ClassLinker::FindOatFileForDexFile(const DexFile& dex_file) {
   MutexLock mu(dex_lock_);
-  const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
-  if (oat_file != NULL) {
-    return oat_file;
+  const OatFile* open_oat_file = FindOpenedOatFileForDexFile(dex_file);
+  if (open_oat_file != NULL) {
+    return open_oat_file;
   }
 
   std::string oat_filename(OatFile::DexFilenameToOatFilename(dex_file.GetLocation()));
+  open_oat_file = FindOpenedOatFileFromOatLocation(oat_filename);
+  if (open_oat_file != NULL) {
+    return open_oat_file;
+  }
+
   while (true) {
-    oat_file = FindOatFileFromOatLocation(oat_filename);
-    if (oat_file != NULL) {
+    UniquePtr<const OatFile> oat_file(FindOatFileFromOatLocation(oat_filename));
+    if (oat_file.get() != NULL) {
       const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
       if (dex_file.GetHeader().checksum_ == oat_dex_file->GetDexFileChecksum()) {
-        oat_files_.push_back(oat_file);
-        return oat_file;
+        RegisterOatFileLocked(*oat_file.get());
+        return oat_file.release();
       }
       LOG(WARNING) << ".oat file " << oat_file->GetLocation()
                    << " checksum mismatch with " << dex_file.GetLocation() << " --- regenerating";
@@ -796,12 +811,7 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
 }
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location) {
-  const OatFile* oat_file = FindOpenedOatFileFromOatLocation(oat_location);
-  if (oat_file != NULL) {
-    return oat_file;
-  }
-
-  oat_file = OatFile::Open(oat_location, "", NULL);
+  const OatFile* oat_file = OatFile::Open(oat_location, "", NULL);
   if (oat_file == NULL) {
     if (oat_location.empty() || oat_location[0] != '/') {
       LOG(ERROR) << "Failed to open oat file from " << oat_location;
@@ -822,7 +832,6 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
   }
 
   CHECK(oat_file != NULL) << oat_location;
-  oat_files_.push_back(oat_file);
   return oat_file;
 }
 

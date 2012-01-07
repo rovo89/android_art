@@ -230,6 +230,8 @@ class ClassLinker {
   void RegisterDexFile(const DexFile& dex_file);
   void RegisterDexFile(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
 
+  void RegisterOatFile(const OatFile& oat_file);
+
   const std::vector<const DexFile*>& GetBootClassPath() {
     return boot_class_path_;
   }
@@ -337,6 +339,7 @@ class ClassLinker {
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
+  void RegisterOatFileLocked(const OatFile& oat_file);
 
   bool InitializeClass(Class* klass, bool can_run_clinit);
   bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);

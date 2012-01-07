@@ -274,6 +274,7 @@ class ImageDump {
     os << "\n";
     os << std::flush;
 
+    class_linker->RegisterOatFile(*oat_file);
     OatDump::Dump(oat_location, host_prefix, os, *oat_file);
   }
 
