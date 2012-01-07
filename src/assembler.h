@@ -359,8 +359,7 @@ class Assembler {
   virtual void CopyRef(FrameOffset dest, FrameOffset src,
                        ManagedRegister scratch) = 0;
 
-  virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch,
-                    unsigned int size) = 0;
+  virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) = 0;
 
   virtual void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
                     ManagedRegister scratch, size_t size) = 0;
