@@ -45,7 +45,7 @@ art_cflags := \
 	-fstrict-aliasing
 
 ifeq ($(HOST_OS),linux)
-art_non_debug_cflags := \
+  art_non_debug_cflags := \
 	-Wframe-larger-than=1728
 endif
 

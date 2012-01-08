@@ -173,8 +173,16 @@ class CommonTest : public testing::Test {
     uintptr_t limit = RoundUp(data + code_length, kPageSize);
     uintptr_t len = limit - base;
     int result = mprotect(reinterpret_cast<void*>(base), len, PROT_READ | PROT_WRITE | PROT_EXEC);
+
     // Flush instruction cache
+    // Only uses __builtin___clear_cache if GCC >= 4.3.3
+#if GCC_VERSION >= 40303
     __builtin___clear_cache(reinterpret_cast<void*>(base), reinterpret_cast<void*>(base + len));
+#else
+    // Currently, only Mac OS builds use GCC 4.2.*. Those host builds do not
+    // need to generate clear_cache on x86.
+#endif
+
     CHECK_EQ(result, 0);
   }
 
