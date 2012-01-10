@@ -118,7 +118,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(0xEBAD6070);  // return pc
 
   // Pull Method* of NULL to terminate the trace
-  fake_stack.push_back(NULL);
+  fake_stack.push_back(0);
 
   // Set up thread to appear as if we called out of method_g_ at pc 3
   Thread* thread = Thread::Current();

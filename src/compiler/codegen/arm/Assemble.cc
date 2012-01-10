@@ -1566,7 +1566,7 @@ void oatAssembleLIR(CompilationUnit* cUnit)
      */
 
     while (true) {
-        AssemblerStatus res = assembleInstructions(cUnit, NULL);
+        AssemblerStatus res = assembleInstructions(cUnit, 0);
         if (res == kSuccess) {
             break;
         } else {

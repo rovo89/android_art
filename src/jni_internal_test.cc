@@ -644,9 +644,9 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
     jfieldID fid = env_->GetStaticFieldID(c, field_name, sig); \
     EXPECT_TRUE(fid != NULL); \
     env_->SetStatic ## type ## Field(c, fid, value1); \
-    EXPECT_EQ(value1, env_->GetStatic ## type ## Field(c, fid)); \
+    EXPECT_TRUE(value1 == env_->GetStatic ## type ## Field(c, fid)); \
     env_->SetStatic ## type ## Field(c, fid, value2); \
-    EXPECT_EQ(value2, env_->GetStatic ## type ## Field(c, fid)); \
+    EXPECT_TRUE(value2 == env_->GetStatic ## type ## Field(c, fid)); \
   } while (false)
 
 #define EXPECT_PRIMITIVE_FIELD(instance, type, field_name, sig, value1, value2) \
@@ -654,9 +654,9 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
     jfieldID fid = env_->GetFieldID(c, field_name, sig); \
     EXPECT_TRUE(fid != NULL); \
     env_->Set ## type ## Field(instance, fid, value1); \
-    EXPECT_EQ(value1, env_->Get ## type ## Field(instance, fid)); \
+    EXPECT_TRUE(value1 == env_->Get ## type ## Field(instance, fid)); \
     env_->Set ## type ## Field(instance, fid, value2); \
-    EXPECT_EQ(value2, env_->Get ## type ## Field(instance, fid)); \
+    EXPECT_TRUE(value2 == env_->Get ## type ## Field(instance, fid)); \
   } while (false)
 
 

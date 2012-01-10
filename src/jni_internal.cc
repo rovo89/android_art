@@ -2356,6 +2356,8 @@ class JNI {
 
       return JNIInvalidRefType;
     }
+    LOG(FATAL) << "IndirectRefKind[" << kind << "]";
+    return JNIInvalidRefType;
   }
 };
 
@@ -2973,6 +2975,9 @@ std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
     return os;
   case JNIWeakGlobalRefType:
     os << "JNIWeakGlobalRefType";
+    return os;
+  default:
+    os << "jobjectRefType[" << static_cast<int>(rhs) << "]";
     return os;
   }
 }

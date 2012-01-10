@@ -1416,8 +1416,8 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   }
   uint32_t table_size = targets_offset + switch_count * 2;
   if (switch_insns[0] != expected_signature) {
-    Fail(VERIFY_ERROR_GENERIC) << "wrong signature for switch table (" << (void*) switch_insns[0]
-                               << ", wanted " << (void*) expected_signature << ")";
+    Fail(VERIFY_ERROR_GENERIC) << StringPrintf("wrong signature for switch table (%x, wanted %x)",
+                                               switch_insns[0], expected_signature);
     return false;
   }
   /* make sure the end of the switch is in range */

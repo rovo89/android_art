@@ -863,7 +863,9 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));
   s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
 
-  EXPECT_EQ(false,                s0->GetBoolean(NULL));
+  // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
+  // http://code.google.com/p/googletest/issues/detail?id=322
+  EXPECT_FALSE(                   s0->GetBoolean(NULL));
   EXPECT_EQ(6,                    s1->GetByte(NULL));
   EXPECT_EQ('b',                  s2->GetChar(NULL));
   EXPECT_EQ(-535,                 s3->GetShort(NULL));

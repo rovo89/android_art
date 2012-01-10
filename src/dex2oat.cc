@@ -574,7 +574,7 @@ int dex2oat(int argc, char** argv) {
       UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd));
       if (zip_archive.get() == NULL) {
         LOG(ERROR) << "Failed to zip from file descriptor for " << zip_name;
-        return NULL;
+        return EXIT_FAILURE;
       }
       const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_name);
       if (dex_file == NULL) {

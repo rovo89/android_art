@@ -97,7 +97,7 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
     if (!IsValidZipFilename(sourceName.c_str()) || !IsValidDexFilename(outputName.c_str())) {
       LOG(ERROR) << "Bad filenames extracting dex '" << outputName.c_str()
                  << "' from zip '" << sourceName.c_str() << "'";
-      return NULL;
+      return 0;
     }
     // Generate the output oat file for the source dex file
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
