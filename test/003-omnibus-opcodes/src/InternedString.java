@@ -25,12 +25,15 @@ public class InternedString {
         testDeadInternedString();
     }
 
-    private static void testDeadInternedString() {
+    private static WeakReference<String> makeWeakString() {
         String s = "blah";
         s = s + s;
-        WeakReference strRef = new WeakReference<String>(s.intern());
-        // Kill s, otherwise the string object is still accessible from root set
-        s = CONST;
+        WeakReference<String> strRef = new WeakReference<String>(s.intern());
+        return strRef;
+    }
+
+    private static void testDeadInternedString() {
+        WeakReference<String> strRef = makeWeakString();
         System.gc();
         // "blahblah" should disappear from the intern list
         Main.assertTrue(strRef.get() == null);
