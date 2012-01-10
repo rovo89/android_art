@@ -57,17 +57,11 @@ class ClassHelper {
   // The returned const char* is only guaranteed to be valid for the lifetime of the ClassHelper.
   // If you need it longer, copy it into a std::string.
   const char* GetDescriptor() {
-    if (klass_->IsArrayClass()) {
-      std::string result("[");
-      const Class* saved_klass = klass_;
-      ChangeClass(klass_->GetComponentType());
-      result += GetDescriptor();
-      ChangeClass(saved_klass);
-      descriptor_ = result;
-      return descriptor_.c_str();
-    } else if (klass_->IsPrimitive()) {
+    if (UNLIKELY(klass_->IsArrayClass())) {
+      return GetArrayDescriptor();
+    } else if (UNLIKELY(klass_->IsPrimitive())) {
       return Primitive::Descriptor(klass_->GetPrimitiveType());
-    } else if (klass_->IsProxyClass()) {
+    } else if (UNLIKELY(klass_->IsProxyClass())) {
       descriptor_ = GetClassLinker()->GetDescriptorForProxy(klass_);
       return descriptor_.c_str();
     } else {
@@ -75,6 +69,16 @@ class ClassHelper {
       const DexFile::TypeId& type_id = dex_file.GetTypeId(klass_->GetDexTypeIndex());
       return dex_file.GetTypeDescriptor(type_id);
     }
+  }
+
+  const char* GetArrayDescriptor() {
+    std::string result("[");
+    const Class* saved_klass = klass_;
+    ChangeClass(klass_->GetComponentType());
+    result += GetDescriptor();
+    ChangeClass(saved_klass);
+    descriptor_ = result;
+    return descriptor_.c_str();
   }
 
   const DexFile::ClassDef* GetClassDef() {
