@@ -26,247 +26,182 @@ namespace art {
 
 namespace JDWP {
 
-const char* ErrorStr(JdwpError error) {
-  switch (error) {
-  case ERR_NONE:
-    return "NONE";
-  case ERR_INVALID_THREAD:
-    return "INVALID_THREAD";
-  case ERR_INVALID_THREAD_GROUP:
-    return "INVALID_THREAD_GROUP";
-  case ERR_INVALID_PRIORITY:
-    return "INVALID_PRIORITY";
-  case ERR_THREAD_NOT_SUSPENDED:
-    return "THREAD_NOT_SUSPENDED";
-  case ERR_THREAD_SUSPENDED:
-    return "THREAD_SUSPENDED";
-  case ERR_THREAD_NOT_ALIVE:
-    return "THREAD_NOT_ALIVE";
-  case ERR_INVALID_OBJECT:
-    return "INVALID_OBJEC";
-  case ERR_INVALID_CLASS:
-    return "INVALID_CLASS";
-  case ERR_CLASS_NOT_PREPARED:
-    return "CLASS_NOT_PREPARED";
-  case ERR_INVALID_METHODID:
-    return "INVALID_METHODID";
-  case ERR_INVALID_LOCATION:
-    return "INVALID_LOCATION";
-  case ERR_INVALID_FIELDID:
-    return "INVALID_FIELDID";
-  case ERR_INVALID_FRAMEID:
-    return "INVALID_FRAMEID";
-  case ERR_NO_MORE_FRAMES:
-    return "NO_MORE_FRAMES";
-  case ERR_OPAQUE_FRAME:
-    return "OPAQUE_FRAME";
-  case ERR_NOT_CURRENT_FRAME:
-    return "NOT_CURRENT_FRAME";
-  case ERR_TYPE_MISMATCH:
-    return "TYPE_MISMATCH";
-  case ERR_INVALID_SLOT:
-    return "INVALID_SLOT";
-  case ERR_DUPLICATE:
-    return "DUPLICATE";
-  case ERR_NOT_FOUND:
-    return "NOT_FOUND";
-  case ERR_INVALID_MONITOR:
-    return "INVALID_MONITOR";
-  case ERR_NOT_MONITOR_OWNER:
-    return "NOT_MONITOR_OWNER";
-  case ERR_INTERRUPT:
-    return "INTERRUPT";
-  case ERR_INVALID_CLASS_FORMAT:
-    return "INVALID_CLASS_FORMAT";
-  case ERR_CIRCULAR_CLASS_DEFINITION:
-    return "CIRCULAR_CLASS_DEFINITION";
-  case ERR_FAILS_VERIFICATION:
-    return "FAILS_VERIFICATION";
-  case ERR_ADD_METHOD_NOT_IMPLEMENTED:
-    return "ADD_METHOD_NOT_IMPLEMENTED";
-  case ERR_SCHEMA_CHANGE_NOT_IMPLEMENTED:
-    return "SCHEMA_CHANGE_NOT_IMPLEMENTED";
-  case ERR_INVALID_TYPESTATE:
-    return "INVALID_TYPESTATE";
-  case ERR_HIERARCHY_CHANGE_NOT_IMPLEMENTED:
-    return "HIERARCHY_CHANGE_NOT_IMPLEMENTED";
-  case ERR_DELETE_METHOD_NOT_IMPLEMENTED:
-    return "DELETE_METHOD_NOT_IMPLEMENTED";
-  case ERR_UNSUPPORTED_VERSION:
-    return "UNSUPPORTED_VERSION";
-  case ERR_NAMES_DONT_MATCH:
-    return "NAMES_DONT_MATCH";
-  case ERR_CLASS_MODIFIERS_CHANGE_NOT_IMPLEMENTED:
-    return "CLASS_MODIFIERS_CHANGE_NOT_IMPLEMENTED";
-  case ERR_METHOD_MODIFIERS_CHANGE_NOT_IMPLEMENTED:
-    return "METHOD_MODIFIERS_CHANGE_NOT_IMPLEMENTED";
-  case ERR_NOT_IMPLEMENTED:
-    return "NOT_IMPLEMENTED";
-  case ERR_NULL_POINTER:
-    return "NULL_POINTER";
-  case ERR_ABSENT_INFORMATION:
-    return "ABSENT_INFORMATION";
-  case ERR_INVALID_EVENT_TYPE:
-    return "INVALID_EVENT_TYPE";
-  case ERR_ILLEGAL_ARGUMENT:
-    return "ILLEGAL_ARGUMENT";
-  case ERR_OUT_OF_MEMORY:
-    return "OUT_OF_MEMORY";
-  case ERR_ACCESS_DENIED:
-    return "ACCESS_DENIED";
-  case ERR_VM_DEAD:
-    return "VM_DEAD";
-  case ERR_INTERNAL:
-    return "INTERNAL";
-  case ERR_UNATTACHED_THREAD:
-    return "UNATTACHED_THREAD";
-  case ERR_INVALID_TAG:
-    return "INVALID_TAG";
-  case ERR_ALREADY_INVOKING:
-    return "ALREADY_INVOKING";
-  case ERR_INVALID_INDEX:
-    return "INVALID_INDEX";
-  case ERR_INVALID_LENGTH:
-    return "INVALID_LENGTH";
-  case ERR_INVALID_STRING:
-    return "INVALID_STRING";
-  case ERR_INVALID_CLASS_LOADER:
-    return "INVALID_CLASS_LOADER";
-  case ERR_INVALID_ARRAY:
-    return "INVALID_ARRAY";
-  case ERR_TRANSPORT_LOAD:
-    return "TRANSPORT_LOAD";
-  case ERR_TRANSPORT_INIT:
-    return "TRANSPORT_INIT";
-  case ERR_NATIVE_METHOD:
-    return "NATIVE_METHOD";
-  case ERR_INVALID_COUNT:
-    return "INVALID_COUNT";
+std::ostream& operator<<(std::ostream& os, const JdwpError& rhs) {
+  switch (rhs) {
+  case ERR_NONE: os << "NONE"; break;
+  case ERR_INVALID_THREAD: os << "INVALID_THREAD"; break;
+  case ERR_INVALID_THREAD_GROUP: os << "INVALID_THREAD_GROUP"; break;
+  case ERR_INVALID_PRIORITY: os << "INVALID_PRIORITY"; break;
+  case ERR_THREAD_NOT_SUSPENDED: os << "THREAD_NOT_SUSPENDED"; break;
+  case ERR_THREAD_SUSPENDED: os << "THREAD_SUSPENDED"; break;
+  case ERR_THREAD_NOT_ALIVE: os << "THREAD_NOT_ALIVE"; break;
+  case ERR_INVALID_OBJECT: os << "INVALID_OBJEC"; break;
+  case ERR_INVALID_CLASS: os << "INVALID_CLASS"; break;
+  case ERR_CLASS_NOT_PREPARED: os << "CLASS_NOT_PREPARED"; break;
+  case ERR_INVALID_METHODID: os << "INVALID_METHODID"; break;
+  case ERR_INVALID_LOCATION: os << "INVALID_LOCATION"; break;
+  case ERR_INVALID_FIELDID: os << "INVALID_FIELDID"; break;
+  case ERR_INVALID_FRAMEID: os << "INVALID_FRAMEID"; break;
+  case ERR_NO_MORE_FRAMES: os << "NO_MORE_FRAMES"; break;
+  case ERR_OPAQUE_FRAME: os << "OPAQUE_FRAME"; break;
+  case ERR_NOT_CURRENT_FRAME: os << "NOT_CURRENT_FRAME"; break;
+  case ERR_TYPE_MISMATCH: os << "TYPE_MISMATCH"; break;
+  case ERR_INVALID_SLOT: os << "INVALID_SLOT"; break;
+  case ERR_DUPLICATE: os << "DUPLICATE"; break;
+  case ERR_NOT_FOUND: os << "NOT_FOUND"; break;
+  case ERR_INVALID_MONITOR: os << "INVALID_MONITOR"; break;
+  case ERR_NOT_MONITOR_OWNER: os << "NOT_MONITOR_OWNER"; break;
+  case ERR_INTERRUPT: os << "INTERRUPT"; break;
+  case ERR_INVALID_CLASS_FORMAT: os << "INVALID_CLASS_FORMAT"; break;
+  case ERR_CIRCULAR_CLASS_DEFINITION: os << "CIRCULAR_CLASS_DEFINITION"; break;
+  case ERR_FAILS_VERIFICATION: os << "FAILS_VERIFICATION"; break;
+  case ERR_ADD_METHOD_NOT_IMPLEMENTED: os << "ADD_METHOD_NOT_IMPLEMENTED"; break;
+  case ERR_SCHEMA_CHANGE_NOT_IMPLEMENTED: os << "SCHEMA_CHANGE_NOT_IMPLEMENTED"; break;
+  case ERR_INVALID_TYPESTATE: os << "INVALID_TYPESTATE"; break;
+  case ERR_HIERARCHY_CHANGE_NOT_IMPLEMENTED: os << "HIERARCHY_CHANGE_NOT_IMPLEMENTED"; break;
+  case ERR_DELETE_METHOD_NOT_IMPLEMENTED: os << "DELETE_METHOD_NOT_IMPLEMENTED"; break;
+  case ERR_UNSUPPORTED_VERSION: os << "UNSUPPORTED_VERSION"; break;
+  case ERR_NAMES_DONT_MATCH: os << "NAMES_DONT_MATCH"; break;
+  case ERR_CLASS_MODIFIERS_CHANGE_NOT_IMPLEMENTED: os << "CLASS_MODIFIERS_CHANGE_NOT_IMPLEMENTED"; break;
+  case ERR_METHOD_MODIFIERS_CHANGE_NOT_IMPLEMENTED: os << "METHOD_MODIFIERS_CHANGE_NOT_IMPLEMENTED"; break;
+  case ERR_NOT_IMPLEMENTED: os << "NOT_IMPLEMENTED"; break;
+  case ERR_NULL_POINTER: os << "NULL_POINTER"; break;
+  case ERR_ABSENT_INFORMATION: os << "ABSENT_INFORMATION"; break;
+  case ERR_INVALID_EVENT_TYPE: os << "INVALID_EVENT_TYPE"; break;
+  case ERR_ILLEGAL_ARGUMENT: os << "ILLEGAL_ARGUMENT"; break;
+  case ERR_OUT_OF_MEMORY: os << "OUT_OF_MEMORY"; break;
+  case ERR_ACCESS_DENIED: os << "ACCESS_DENIED"; break;
+  case ERR_VM_DEAD: os << "VM_DEAD"; break;
+  case ERR_INTERNAL: os << "INTERNAL"; break;
+  case ERR_UNATTACHED_THREAD: os << "UNATTACHED_THREAD"; break;
+  case ERR_INVALID_TAG: os << "INVALID_TAG"; break;
+  case ERR_ALREADY_INVOKING: os << "ALREADY_INVOKING"; break;
+  case ERR_INVALID_INDEX: os << "INVALID_INDEX"; break;
+  case ERR_INVALID_LENGTH: os << "INVALID_LENGTH"; break;
+  case ERR_INVALID_STRING: os << "INVALID_STRING"; break;
+  case ERR_INVALID_CLASS_LOADER: os << "INVALID_CLASS_LOADER"; break;
+  case ERR_INVALID_ARRAY: os << "INVALID_ARRAY"; break;
+  case ERR_TRANSPORT_LOAD: os << "TRANSPORT_LOAD"; break;
+  case ERR_TRANSPORT_INIT: os << "TRANSPORT_INIT"; break;
+  case ERR_NATIVE_METHOD: os << "NATIVE_METHOD"; break;
+  case ERR_INVALID_COUNT: os << "INVALID_COUNT"; break;
   default:
-    return "?UNKNOWN?";
-  }
-}
-std::ostream& operator<<(std::ostream& os, const JdwpError& value) {
-  os << ErrorStr(value);
-  return os;
-}
-
-const char* EventKindStr(JdwpEventKind kind) {
-  switch (kind) {
-  case EK_SINGLE_STEP:        return "SINGLE_STEP";
-  case EK_BREAKPOINT:         return "BREAKPOINT";
-  case EK_FRAME_POP:          return "FRAME_POP";
-  case EK_EXCEPTION:          return "EXCEPTION";
-  case EK_USER_DEFINED:       return "USER_DEFINED";
-  case EK_THREAD_START:       return "THREAD_START";
-  case EK_THREAD_DEATH:       return "THREAD_DEATH";
-  case EK_CLASS_PREPARE:      return "CLASS_PREPARE";
-  case EK_CLASS_UNLOAD:       return "CLASS_UNLOAD";
-  case EK_CLASS_LOAD:         return "CLASS_LOAD";
-  case EK_FIELD_ACCESS:       return "FIELD_ACCESS";
-  case EK_FIELD_MODIFICATION: return "FIELD_MODIFICATION";
-  case EK_EXCEPTION_CATCH:    return "EXCEPTION_CATCH";
-  case EK_METHOD_ENTRY:       return "METHOD_ENTRY";
-  case EK_METHOD_EXIT:        return "METHOD_EXIT";
-  case EK_METHOD_EXIT_WITH_RETURN_VALUE: return "METHOD_EXIT_WITH_RETURN_VALUE";
-  case EK_MONITOR_CONTENDED_ENTER:       return "MONITOR_CONTENDED_ENTER";
-  case EK_MONITOR_CONTENDED_ENTERED:     return "MONITOR_CONTENDED_ENTERED";
-  case EK_MONITOR_WAIT:       return "MONITOR_WAIT";
-  case EK_MONITOR_WAITED:     return "MONITOR_WAITED";
-  case EK_VM_START:           return "VM_START";
-  case EK_VM_DEATH:           return "VM_DEATH";
-  case EK_VM_DISCONNECTED:    return "VM_DISCONNECTED";
-  default:                    return "?UNKNOWN?";
-  }
-}
-std::ostream& operator<<(std::ostream& os, const JdwpEventKind& value) {
-  os << EventKindStr(value);
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const JdwpModKind& value) {
-  switch (value) {
-  case MK_COUNT:             os << "COUNT"; break;
-  case MK_CONDITIONAL:       os << "CONDITIONAL"; break;
-  case MK_THREAD_ONLY:       os << "THREAD_ONLY"; break;
-  case MK_CLASS_ONLY:        os << "CLASS_ONLY"; break;
-  case MK_CLASS_MATCH:       os << "CLASS_MATCH"; break;
-  case MK_CLASS_EXCLUDE:     os << "CLASS_EXCLUDE"; break;
-  case MK_LOCATION_ONLY:     os << "LOCATION_ONLY"; break;
-  case MK_EXCEPTION_ONLY:    os << "EXCEPTION_ONLY"; break;
-  case MK_FIELD_ONLY:        os << "FIELD_ONLY"; break;
-  case MK_STEP:              os << "STEP"; break;
-  case MK_INSTANCE_ONLY:     os << "INSTANCE_ONLY"; break;
-  case MK_SOURCE_NAME_MATCH: os << "SOURCE_NAME_MATCH"; break;
-  default:
-    os << "JdwpModKind[" << static_cast<int>(value) << "]";
+    os << "JdwpError[" << static_cast<int>(rhs) << "]";
     break;
   }
   return os;
 }
 
-const char* StepDepthStr(JdwpStepDepth depth) {
-  switch (depth) {
-  case SD_INTO:               return "INTO";
-  case SD_OVER:               return "OVER";
-  case SD_OUT:                return "OUT";
-  default:                    return "?UNKNOWN?";
+std::ostream& operator<<(std::ostream& os, const JdwpEventKind& rhs) {
+  switch (rhs) {
+  case EK_SINGLE_STEP: os << "SINGLE_STEP"; break;
+  case EK_BREAKPOINT: os << "BREAKPOINT"; break;
+  case EK_FRAME_POP: os << "FRAME_POP"; break;
+  case EK_EXCEPTION: os << "EXCEPTION"; break;
+  case EK_USER_DEFINED: os << "USER_DEFINED"; break;
+  case EK_THREAD_START: os << "THREAD_START"; break;
+  case EK_THREAD_DEATH: os << "THREAD_DEATH"; break;
+  case EK_CLASS_PREPARE: os << "CLASS_PREPARE"; break;
+  case EK_CLASS_UNLOAD: os << "CLASS_UNLOAD"; break;
+  case EK_CLASS_LOAD: os << "CLASS_LOAD"; break;
+  case EK_FIELD_ACCESS: os << "FIELD_ACCESS"; break;
+  case EK_FIELD_MODIFICATION: os << "FIELD_MODIFICATION"; break;
+  case EK_EXCEPTION_CATCH: os << "EXCEPTION_CATCH"; break;
+  case EK_METHOD_ENTRY: os << "METHOD_ENTRY"; break;
+  case EK_METHOD_EXIT: os << "METHOD_EXIT"; break;
+  case EK_METHOD_EXIT_WITH_RETURN_VALUE: os << "METHOD_EXIT_WITH_RETURN_VALUE"; break;
+  case EK_MONITOR_CONTENDED_ENTER: os << "MONITOR_CONTENDED_ENTER"; break;
+  case EK_MONITOR_CONTENDED_ENTERED: os << "MONITOR_CONTENDED_ENTERED"; break;
+  case EK_MONITOR_WAIT: os << "MONITOR_WAIT"; break;
+  case EK_MONITOR_WAITED: os << "MONITOR_WAITED"; break;
+  case EK_VM_START: os << "VM_START"; break;
+  case EK_VM_DEATH: os << "VM_DEATH"; break;
+  case EK_VM_DISCONNECTED: os << "VM_DISCONNECTED"; break;
+  default:
+    os << "JdwpEventKind[" << static_cast<int>(rhs) << "]";
+    break;
   }
-}
-std::ostream& operator<<(std::ostream& os, const JdwpStepDepth& value) {
-  os << StepDepthStr(value);
   return os;
 }
 
-const char* StepSizeStr(JdwpStepSize size) {
-  switch (size) {
-  case SS_MIN:                return "MIN";
-  case SS_LINE:               return "LINE";
-  default:                    return "?UNKNOWN?";
+std::ostream& operator<<(std::ostream& os, const JdwpModKind& rhs) {
+  switch (rhs) {
+  case MK_COUNT: os << "COUNT"; break;
+  case MK_CONDITIONAL: os << "CONDITIONAL"; break;
+  case MK_THREAD_ONLY: os << "THREAD_ONLY"; break;
+  case MK_CLASS_ONLY: os << "CLASS_ONLY"; break;
+  case MK_CLASS_MATCH: os << "CLASS_MATCH"; break;
+  case MK_CLASS_EXCLUDE: os << "CLASS_EXCLUDE"; break;
+  case MK_LOCATION_ONLY: os << "LOCATION_ONLY"; break;
+  case MK_EXCEPTION_ONLY: os << "EXCEPTION_ONLY"; break;
+  case MK_FIELD_ONLY: os << "FIELD_ONLY"; break;
+  case MK_STEP: os << "STEP"; break;
+  case MK_INSTANCE_ONLY: os << "INSTANCE_ONLY"; break;
+  case MK_SOURCE_NAME_MATCH: os << "SOURCE_NAME_MATCH"; break;
+  default:
+    os << "JdwpModKind[" << static_cast<int>(rhs) << "]";
+    break;
   }
-}
-std::ostream& operator<<(std::ostream& os, const JdwpStepSize& value) {
-  os << StepSizeStr(value);
   return os;
 }
 
-const char* SuspendPolicyStr(JdwpSuspendPolicy policy) {
-  switch (policy) {
-  case SP_NONE:               return "NONE";
-  case SP_EVENT_THREAD:       return "EVENT_THREAD";
-  case SP_ALL:                return "ALL";
-  default:                    return "?UNKNOWN?";
+std::ostream& operator<<(std::ostream& os, const JdwpStepDepth& rhs) {
+  switch (rhs) {
+  case SD_INTO: os << "INTO"; break;
+  case SD_OVER: os << "OVER"; break;
+  case SD_OUT: os << "OUT"; break;
+  default:
+    os << "JdwpStepDepth[" << static_cast<int>(rhs) << "]";
+    break;
   }
-}
-std::ostream& operator<<(std::ostream& os, const JdwpSuspendPolicy& value) {
-  os << SuspendPolicyStr(value);
   return os;
 }
 
-const char* SuspendStatusStr(JdwpSuspendStatus status) {
-  switch (status) {
-  case SUSPEND_STATUS_NOT_SUSPENDED: return "Not SUSPENDED";
-  case SUSPEND_STATUS_SUSPENDED:     return "SUSPENDED";
-  default:                           return "?UNKNOWN?";
+std::ostream& operator<<(std::ostream& os, const JdwpStepSize& rhs) {
+  switch (rhs) {
+  case SS_MIN: os << "MIN"; break;
+  case SS_LINE: os << "LINE"; break;
+  default:
+    os << "JdwpStepSize[" << static_cast<int>(rhs) << "]";
+    break;
   }
-}
-std::ostream& operator<<(std::ostream& os, const JdwpSuspendStatus& value) {
-  os << SuspendStatusStr(value);
   return os;
 }
 
-const char* ThreadStatusStr(JdwpThreadStatus status) {
-  switch (status) {
-  case TS_ZOMBIE:             return "ZOMBIE";
-  case TS_RUNNING:            return "RUNNING";
-  case TS_SLEEPING:           return "SLEEPING";
-  case TS_MONITOR:            return "MONITOR";
-  case TS_WAIT:               return "WAIT";
-  default:                    return "?UNKNOWN?";
+std::ostream& operator<<(std::ostream& os, const JdwpSuspendPolicy& rhs) {
+  switch (rhs) {
+  case SP_NONE: os << "NONE"; break;
+  case SP_EVENT_THREAD: os << "EVENT_THREAD"; break;
+  case SP_ALL: os << "ALL"; break;
+  default:
+    os << "JdwpSuspendPolicy[" << static_cast<int>(rhs) << "]";
+    break;
   }
-};
-std::ostream& operator<<(std::ostream& os, const JdwpThreadStatus& value) {
-  os << ThreadStatusStr(value);
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const JdwpSuspendStatus& rhs) {
+  switch (rhs) {
+  case SUSPEND_STATUS_NOT_SUSPENDED: os << "NOT SUSPENDED"; break;
+  case SUSPEND_STATUS_SUSPENDED: os << "SUSPENDED"; break;
+  default:
+    os << "JdwpSuspendStatus[" << static_cast<int>(rhs) << "]";
+    break;
+  }
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const JdwpThreadStatus& rhs) {
+  switch (rhs) {
+  case TS_ZOMBIE: os << "ZOMBIE"; break;
+  case TS_RUNNING: os << "RUNNING"; break;
+  case TS_SLEEPING: os << "SLEEPING"; break;
+  case TS_MONITOR: os << "MONITOR"; break;
+  case TS_WAIT: os << "WAIT"; break;
+  default:
+    os << "JdwpThreadStatus[" << static_cast<int>(rhs) << "]";
+    break;
+  }
   return os;
 }
 
