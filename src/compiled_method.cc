@@ -110,7 +110,7 @@ size_t CompiledMethod::CodeDelta() const {
     }
     default:
       LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set_;
-      return NULL;
+      return 0;
   }
 }
 
