@@ -269,12 +269,12 @@ TEST_DEX_DIRECTORIES := \
 	ProtoCompare \
 	ProtoCompare2 \
 	ReferenceMap \
+	ReflectionTest \
 	StackWalk \
 	StackWalk2 \
 	StaticLeafMethods \
 	Statics \
 	StaticsFromCode \
-	SystemMethods \
 	ThreadStress \
 	Invoke \
 	XandY
