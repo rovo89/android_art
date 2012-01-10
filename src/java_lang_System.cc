@@ -210,9 +210,10 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   // we know is assignable to the destination array's component type.
   Class* lastAssignableElementClass = dstClass;
 
+  Object* o = NULL;
   int i = 0;
   for (; i < length; ++i) {
-    Object* o = srcObjects[i];
+    o = srcObjects[i];
     if (o != NULL) {
       Class* oClass = o->GetClass();
       if (lastAssignableElementClass == oClass) {
@@ -231,7 +232,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
 
   Heap::WriteBarrierArray(dstArray, dstPos, length);
   if (i != length) {
-    std::string actualSrcType(PrettyTypeOf(srcObjects[i]));
+    std::string actualSrcType(PrettyTypeOf(o));
     std::string dstType(PrettyTypeOf(dstArray));
     self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "source[%d] of type %s cannot be stored in destination array of type %s",
