@@ -185,7 +185,7 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
 
   // Neither class is primitive. Are the types trivially compatible?
   const size_t width = sizeof(Object*);
-  if (dstComponentType->IsAssignableFrom(srcComponentType)) {
+  if (dstArray == srcArray || dstComponentType->IsAssignableFrom(srcComponentType)) {
     // Yes. Bulk copy.
     COMPILE_ASSERT(sizeof(width) == sizeof(uint32_t), move32_assumes_Object_references_are_32_bit);
     move32(dstBytes + dstPos * width, srcBytes + srcPos * width, length * width);
@@ -193,49 +193,49 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
     return;
   }
 
-  // The arrays are not trivially compatible.  However, we
-  // may still be able to do this if the destination object is
-  // compatible (e.g. copy Object[] to String[], but the Object
-  // being copied is actually a String).  We need to copy elements
-  // one by one until something goes wrong.
-  //
-  // Because of overlapping moves, what we really want to do
-  // is compare the types and count up how many we can move,
-  // then call move32() to shift the actual data.  If we just
-  // start from the front we could do a smear rather than a move.
+  // The arrays are not trivially compatible. However, we may still be able to copy some or all of
+  // the elements if the source objects are compatible (for example, copying an Object[] to
+  // String[], the Objects being copied might actually be Strings).
+  // We can't do a bulk move because that would introduce a check-use race condition, so we copy
+  // elements one by one.
 
-  // TODO: this idea is flawed. a malicious caller could exploit the check-use
-  // race by modifying the source array after we check but before we copy,
-  // and cause us to copy incompatible elements.
+  // We already dealt with overlapping copies, so we don't need to cope with that case below.
+  CHECK_NE(dstArray, srcArray);
 
-  Object* const * srcObj = reinterpret_cast<Object* const *>(srcBytes + srcPos * width);
+  Object* const * srcObjects = reinterpret_cast<Object* const *>(srcBytes + srcPos * width);
+  Object** dstObjects = reinterpret_cast<Object**>(dstBytes + dstPos * width);
   Class* dstClass = dstArray->GetClass()->GetComponentType();
 
-  Class* initialElementClass = NULL;
-  if (length > 0 && srcObj[0] != NULL) {
-    initialElementClass = srcObj[0]->GetClass();
-    if (!dstClass->IsAssignableFrom(initialElementClass)) {
-      initialElementClass = NULL;
+  // We want to avoid redundant IsAssignableFrom checks where possible, so we cache a class that
+  // we know is assignable to the destination array's component type.
+  Class* lastAssignableElementClass = dstClass;
+
+  int i = 0;
+  for (; i < length; ++i) {
+    Object* o = srcObjects[i];
+    if (o != NULL) {
+      Class* oClass = o->GetClass();
+      if (lastAssignableElementClass == oClass) {
+        dstObjects[i] = o;
+      } else if (dstClass->IsAssignableFrom(oClass)) {
+        lastAssignableElementClass = oClass;
+        dstObjects[i] = o;
+      } else {
+        // Can't put this element into the array.
+        break;
+      }
+    } else {
+      dstObjects[i] = NULL;
     }
   }
 
-  int copyCount;
-  for (copyCount = 0; copyCount < length; copyCount++) {
-    if (srcObj[copyCount] != NULL && srcObj[copyCount]->GetClass() != initialElementClass && !dstClass->IsAssignableFrom(srcObj[copyCount]->GetClass())) {
-      // Can't put this element into the array.
-      // We'll copy up to this point, then throw.
-      break;
-    }
-  }
-
-  move32(dstBytes + dstPos * width, srcBytes + srcPos * width, copyCount * width);
   Heap::WriteBarrierArray(dstArray, dstPos, length);
-  if (copyCount != length) {
-    std::string actualSrcType(PrettyTypeOf(srcObj[copyCount]));
+  if (i != length) {
+    std::string actualSrcType(PrettyTypeOf(srcObjects[i]));
     std::string dstType(PrettyTypeOf(dstArray));
     self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "source[%d] of type %s cannot be stored in destination array of type %s",
-        srcPos + copyCount, actualSrcType.c_str(), dstType.c_str());
+        srcPos + i, actualSrcType.c_str(), dstType.c_str());
     return;
   }
 }
