@@ -72,7 +72,7 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/art-test-dex-$(1).jar test-art-target-
 ART_TEST_OAT_TARGETS += test-art-target-oat-$(1)
 endef
 
-# Delcare the simplest test first
+# Declare the simplest test first
 $(eval $(call declare-test-test-target,HelloWorld,))
 $(eval $(call declare-test-test-target,Fibonacci,10))
 
@@ -84,8 +84,8 @@ $(eval $(call declare-test-test-target,Invoke,))
 $(eval $(call declare-test-test-target,MemUsage,))
 $(eval $(call declare-test-test-target,ParallelGC,))
 $(eval $(call declare-test-test-target,ReferenceMap,))
+$(eval $(call declare-test-test-target,ReflectionTest,))
 $(eval $(call declare-test-test-target,StackWalk,))
-$(eval $(call declare-test-test-target,SystemMethods,))
 $(eval $(call declare-test-test-target,ThreadStress,))
 
 # TODO: Enable when the StackWalk2 tests are passing
