@@ -294,10 +294,10 @@ class RegTypeCache {
     return *result;
   }
 
-  const RegType& From(RegType::Type type, const ClassLoader* loader, const std::string& descriptor);
+  const RegType& From(RegType::Type type, const ClassLoader* loader, const char* descriptor);
   const RegType& FromClass(Class* klass);
   const RegType& FromCat1Const(int32_t value);
-  const RegType& FromDescriptor(const ClassLoader* loader, const std::string& descriptor);
+  const RegType& FromDescriptor(const ClassLoader* loader, const char* descriptor);
   const RegType& FromType(RegType::Type);
 
   const RegType& Boolean() { return FromType(RegType::kRegTypeBoolean); }
