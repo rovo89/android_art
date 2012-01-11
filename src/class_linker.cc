@@ -608,6 +608,10 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
   pid_t pid = fork();
   if (pid == 0) {
     // no allocation allowed between fork and exec
+
+    // change process groups, so we don't get reaped by ProcessManager
+    setpgid(0, 0);
+
     execl(dex2oat, dex2oat,
           "--runtime-arg", "-Xms64m",
           "--runtime-arg", "-Xmx64m",
