@@ -65,61 +65,63 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
     LOG(WARNING) << "Failed to map oat file " << filename;
     return false;
   }
-  CHECK(requested_base == 0 || requested_base == map->GetAddress()) << map->GetAddress();
-  DCHECK_EQ(0, memcmp(&oat_header, map->GetAddress(), sizeof(OatHeader)));
+  CHECK(requested_base == 0 || requested_base == map->GetAddress())
+          << filename << " " << reinterpret_cast<void*>(map->GetAddress());
+  DCHECK_EQ(0, memcmp(&oat_header, map->GetAddress(), sizeof(OatHeader))) << filename;
 
   off64_t code_offset = oat_header.GetExecutableOffset();
   if (code_offset < file->Length()) {
     byte* code_address = map->GetAddress() + code_offset;
     size_t code_length = file->Length() - code_offset;
     if (mprotect(code_address, code_length, PROT_READ | PROT_EXEC) != 0) {
-      PLOG(ERROR) << "Failed to make oat code executable.";
+      PLOG(ERROR) << "Failed to make oat code executable in " << filename;
       return false;
     }
   } else {
     // its possible to have no code if all the methods were abstract, native, etc
-    DCHECK_EQ(code_offset, RoundUp(file->Length(), kPageSize));
+    DCHECK_EQ(code_offset, RoundUp(file->Length(), kPageSize)) << filename;
   }
 
   const byte* oat = map->GetAddress();
+
   oat += sizeof(OatHeader);
-  CHECK_LT(oat, map->GetLimit());
+  CHECK_LT(oat, map->GetLimit()) << filename;
   for (size_t i = 0; i < oat_header.GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
+    CHECK_GT(dex_file_location_size, 0U) << filename;
     oat += sizeof(dex_file_location_size);
-    CHECK_LT(oat, map->GetLimit());
+    CHECK_LT(oat, map->GetLimit()) << filename;
 
     const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
     oat += dex_file_location_size;
-    CHECK_LT(oat, map->GetLimit());
+    CHECK_LT(oat, map->GetLimit()) << filename;
 
     std::string dex_file_location(dex_file_location_data, dex_file_location_size);
 
     uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(dex_file_checksum);
-    CHECK_LT(oat, map->GetLimit());
+    CHECK_LT(oat, map->GetLimit()) << filename;
 
     uint32_t dex_file_offset = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_offset, 0U);
-    CHECK_LT(dex_file_offset, static_cast<uint32_t>(file->Length()));
+    CHECK_GT(dex_file_offset, 0U) << filename;
+    CHECK_LT(dex_file_offset, static_cast<uint32_t>(file->Length())) << filename;
     oat += sizeof(dex_file_offset);
-    CHECK_LT(oat, map->GetLimit());
+    CHECK_LT(oat, map->GetLimit()) << filename;
 
     uint8_t* dex_file_pointer = map->GetAddress() + dex_file_offset;
+    CHECK(DexFile::IsMagicValid(dex_file_pointer)) << filename << " " << dex_file_pointer;
+    CHECK(DexFile::IsVersionValid(dex_file_pointer)) << filename << " "  << dex_file_pointer;
+    const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
+    const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
-    uint32_t classes_offset = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(classes_offset, 0U);
-    CHECK_LT(classes_offset, static_cast<uint32_t>(file->Length()));
-    oat += sizeof(classes_offset);
-    CHECK_LT(oat, map->GetLimit());
-
-    uint32_t* classes_pointer = reinterpret_cast<uint32_t*>(map->GetAddress() + classes_offset);
+    oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
+    CHECK_LT(oat, map->GetLimit()) << filename;
 
     oat_dex_files_[dex_file_location] = new OatDexFile(this,
                                                        dex_file_location,
                                                        dex_file_checksum,
                                                        dex_file_pointer,
-                                                       classes_pointer);
+                                                       methods_offsets_pointer);
   }
 
   mem_map_.reset(map.release());
@@ -164,12 +166,12 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 std::string dex_file_location,
                                 uint32_t dex_file_checksum,
                                 byte* dex_file_pointer,
-                                uint32_t* classes_pointer)
+                                const uint32_t* methods_offsets_pointer)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
       dex_file_checksum_(dex_file_checksum),
       dex_file_pointer_(dex_file_pointer),
-      classes_pointer_(classes_pointer) {}
+      methods_offsets_pointer_(methods_offsets_pointer) {}
 
 OatFile::OatDexFile::~OatDexFile() {}
 
@@ -179,7 +181,7 @@ const DexFile* OatFile::OatDexFile::OpenDexFile() const {
 }
 
 const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {
-  uint32_t methods_offset = classes_pointer_[class_def_index];
+  uint32_t methods_offset = methods_offsets_pointer_[class_def_index];
   const byte* methods_pointer = oat_file_->GetBase() + methods_offset;
   CHECK_LT(methods_pointer, oat_file_->GetLimit());
   return new OatClass(oat_file_, reinterpret_cast<const OatMethodOffsets*>(methods_pointer));

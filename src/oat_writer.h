@@ -20,7 +20,7 @@ namespace art {
 
 // OatHeader         fixed length with count of D OatDexFiles
 //
-// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
+// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatMethods
 // OatDexFile[1]
 // ...
 // OatDexFile[D]
@@ -29,11 +29,6 @@ namespace art {
 // Dex[1]            these are literal copies of the input .dex files.
 // ...
 // Dex[D]
-//
-// OatClasses[0]     one variable sized OatClasses for each OatDexFile
-// OatClasses[1]     contains DexFile::NumClassDefs offsets to OatMethods for each ClassDef
-// ...
-// OatClasses[D]
 //
 // OatMethods[0]     one variable sized OatMethods for each of C DexFile::ClassDefs
 // OatMethods[1]     contains OatMethod entries with offsets to code, method properities, etc.
@@ -66,7 +61,6 @@ class OatWriter {
   size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
-  size_t InitOatClasses(size_t offset);
   size_t InitOatMethods(size_t offset);
   size_t InitOatCode(size_t offset);
   size_t InitOatCodeDexFiles(size_t offset);
@@ -107,24 +101,10 @@ class OatWriter {
     const uint8_t* dex_file_location_data_;
     uint32_t dex_file_checksum_;
     uint32_t dex_file_offset_;
-    uint32_t classes_offset_;
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(OatDexFile);
-  };
-
-  class OatClasses {
-   public:
-    explicit OatClasses(const DexFile& dex_file);
-    size_t SizeOf() const;
-    void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(File* file) const;
-
-    // data to write
     std::vector<uint32_t> methods_offsets_;
 
    private:
-    DISALLOW_COPY_AND_ASSIGN(OatClasses);
+    DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
   class OatMethods {
@@ -152,7 +132,6 @@ class OatWriter {
   // data to write
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
-  std::vector<OatClasses*> oat_classes_;
   std::vector<OatMethods*> oat_methods_;
   uint32_t executable_offset_padding_length_;
 
