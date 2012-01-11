@@ -854,17 +854,22 @@ extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
   return InitializeStaticStorageAndVerifyAccess(type_idx, referrer, self);
 }
 
-// TODO: placeholder.  Helper function to resolve virtual method
-void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
+// Helper function to resolve virtual method
+extern "C" Method* artResolveMethodFromCode(Method* referrer,
+                                            uint32_t method_idx,
+                                            bool is_direct,
+                                            Thread* self,
+                                            Method** sp) {
     /*
      * Slow-path handler on invoke virtual method path in which
-     * base method is unresolved at compile-time.  Doesn't need to
-     * return anything - just either ensure that
-     * method->dex_cache_resolved_methods_(method_idx) != NULL or
-     * throw and unwind.  The caller will restart call sequence
-     * from the beginning.
+     * base method is unresolved at compile-time.  Caller will
+     * unwind if can't resolve.
      */
-    UNIMPLEMENTED(FATAL);
+    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Method* method = class_linker->ResolveMethod(method_idx, referrer, is_direct);
+    referrer->GetDexCacheResolvedMethods()->Set(method_idx, method);
+    return method;
 }
 
 String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {

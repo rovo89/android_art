@@ -545,6 +545,7 @@ STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
             loadConstant(cUnit, r1, dInsn->vB);
+            loadConstant(cUnit, r2, false);
             callRuntimeHelper(cUnit, rLR);
             genUnconditionalBranch(cUnit, rollback);
             // Resume normal slow path
@@ -729,6 +730,7 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
             loadConstant(cUnit, r1, dInsn->vB);
+            loadConstant(cUnit, r2, true);
             callRuntimeHelper(cUnit, rLR);
             genUnconditionalBranch(cUnit, rollback);
             // Resume normal slow path
@@ -1085,6 +1087,7 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
         loadConstant(cUnit, r1, dInsn->vB);
+        loadConstant(cUnit, r2, true);
         callRuntimeHelper(cUnit, rLR);
     }
 
@@ -1157,6 +1160,7 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
         loadConstant(cUnit, r1, dInsn->vB);
+        loadConstant(cUnit, r2, false);
         callRuntimeHelper(cUnit, rLR);
     }
 
