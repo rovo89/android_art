@@ -218,7 +218,7 @@ jobject DexFile::GetDexObject(JNIEnv* env) const {
 
 bool DexFile::Init() {
   InitMembers();
-  if (!IsMagicValid()) {
+  if (!CheckMagicAndVersion()) {
     return false;
   }
   InitIndex();
@@ -238,30 +238,34 @@ void DexFile::InitMembers() {
   DCHECK_EQ(length_, header_->file_size_);
 }
 
-bool DexFile::IsMagicValid() {
-  return CheckMagic(header_->magic_);
-}
-
-bool DexFile::CheckMagic(const byte* magic) {
-  CHECK(magic != NULL) << GetLocation();
-  if (memcmp(magic, kDexMagic, sizeof(kDexMagic)) != 0) {
+bool DexFile::CheckMagicAndVersion() {
+  CHECK(header_->magic_ != NULL) << GetLocation();
+  if (!IsMagicValid(header_->magic_)) {
     LOG(ERROR) << "Unrecognized magic number in "  << GetLocation() << ":"
-            << " " << magic[0]
-            << " " << magic[1]
-            << " " << magic[2]
-            << " " << magic[3];
+            << " " << header_->magic_[0]
+            << " " << header_->magic_[1]
+            << " " << header_->magic_[2]
+            << " " << header_->magic_[3];
     return false;
   }
-  const byte* version = &magic[sizeof(kDexMagic)];
-  if (memcmp(version, kDexMagicVersion, sizeof(kDexMagicVersion)) != 0) {
+  if (!IsVersionValid(header_->magic_)) {
     LOG(ERROR) << "Unrecognized version number in "  << GetLocation() << ":"
-            << " " << version[0]
-            << " " << version[1]
-            << " " << version[2]
-            << " " << version[3];
+            << " " << header_->magic_[4]
+            << " " << header_->magic_[5]
+            << " " << header_->magic_[6]
+            << " " << header_->magic_[7];
     return false;
   }
   return true;
+}
+
+bool DexFile::IsMagicValid(const byte* magic) {
+  return (memcmp(magic, kDexMagic, sizeof(kDexMagic)) == 0);
+}
+
+bool DexFile::IsVersionValid(const byte* magic) {
+  const byte* version = &magic[sizeof(kDexMagic)];
+  return (memcmp(version, kDexMagicVersion, sizeof(kDexMagicVersion)) == 0);
 }
 
 uint32_t DexFile::GetVersion() const {

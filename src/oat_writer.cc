@@ -30,19 +30,16 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
   offset = InitDexFiles(offset);
-  offset = InitOatClasses(offset);
   offset = InitOatMethods(offset);
   offset = InitOatCode(offset);
   offset = InitOatCodeDexFiles(offset);
 
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());
-  CHECK_EQ(dex_files_->size(), oat_classes_.size());
 }
 
 OatWriter::~OatWriter() {
   delete oat_header_;
   STLDeleteElements(&oat_dex_files_);
-  STLDeleteElements(&oat_classes_);
   STLDeleteElements(&oat_methods_);
 }
 
@@ -80,32 +77,16 @@ size_t OatWriter::InitDexFiles(size_t offset) {
   return offset;
 }
 
-size_t OatWriter::InitOatClasses(size_t offset) {
-  // create the OatClasses
-  // calculate the offsets within OatDexFiles to OatClasses
-  for (size_t i = 0; i != dex_files_->size(); ++i) {
-    // set offset in OatDexFile to OatClasses
-    oat_dex_files_[i]->classes_offset_ = offset;
-    oat_dex_files_[i]->UpdateChecksum(*oat_header_);
-
-    const DexFile* dex_file = (*dex_files_)[i];
-    OatClasses* oat_classes = new OatClasses(*dex_file);
-    oat_classes_.push_back(oat_classes);
-    offset += oat_classes->SizeOf();
-  }
-  return offset;
-}
-
 size_t OatWriter::InitOatMethods(size_t offset) {
   // create the OatMethods
-  // calculate the offsets within OatClasses to OatMethods
+  // calculate the offsets within OatDexFiles to OatMethods
   size_t class_index = 0;
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
     for (size_t class_def_index = 0;
          class_def_index < dex_file->NumClassDefs();
          class_def_index++, class_index++) {
-      oat_classes_[i]->methods_offsets_[class_def_index] = offset;
+      oat_dex_files_[i]->methods_offsets_[class_def_index] = offset;
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const byte* class_data = dex_file->GetClassData(class_def);
       uint32_t num_methods = 0;
@@ -119,7 +100,7 @@ size_t OatWriter::InitOatMethods(size_t offset) {
       oat_methods_.push_back(oat_methods);
       offset += oat_methods->SizeOf();
     }
-    oat_classes_[i]->UpdateChecksum(*oat_header_);
+    oat_dex_files_[i]->UpdateChecksum(*oat_header_);
   }
   return offset;
 }
@@ -371,12 +352,6 @@ bool OatWriter::WriteTables(File* file) {
       return false;
     }
   }
-  for (size_t i = 0; i != oat_classes_.size(); ++i) {
-    if (!oat_classes_[i]->Write(file)) {
-      PLOG(ERROR) << "Failed to write oat classes information to " << file->name();
-      return false;
-    }
-  }
   for (size_t i = 0; i != oat_methods_.size(); ++i) {
     if (!oat_methods_[i]->Write(file)) {
       PLOG(ERROR) << "Failed to write oat methods information to " << file->name();
@@ -400,7 +375,7 @@ size_t OatWriter::WriteCode(File* file) {
 
 size_t OatWriter::WriteCodeDexFiles(File* file, size_t code_offset) {
   size_t oat_class_index = 0;
-  for (size_t i = 0; i != oat_classes_.size(); ++i) {
+  for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
     CHECK(dex_file != NULL);
     code_offset = WriteCodeDexFile(file, code_offset, oat_class_index, *dex_file);
@@ -637,7 +612,7 @@ OatWriter::OatDexFile::OatDexFile(const DexFile& dex_file) {
   dex_file_location_data_ = reinterpret_cast<const uint8_t*>(location.data());
   dex_file_checksum_ = dex_file.GetHeader().checksum_;
   dex_file_offset_ = 0;
-  classes_offset_ = 0;
+  methods_offsets_.resize(dex_file.NumClassDefs());
 }
 
 size_t OatWriter::OatDexFile::SizeOf() const {
@@ -645,7 +620,7 @@ size_t OatWriter::OatDexFile::SizeOf() const {
           + dex_file_location_size_
           + sizeof(dex_file_checksum_)
           + sizeof(dex_file_offset_)
-          + sizeof(classes_offset_);
+          + (sizeof(methods_offsets_[0]) * methods_offsets_.size());
 }
 
 void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
@@ -653,7 +628,8 @@ void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
   oat_header.UpdateChecksum(dex_file_location_data_, dex_file_location_size_);
   oat_header.UpdateChecksum(&dex_file_checksum_, sizeof(dex_file_checksum_));
   oat_header.UpdateChecksum(&dex_file_offset_, sizeof(dex_file_offset_));
-  oat_header.UpdateChecksum(&classes_offset_, sizeof(classes_offset_));
+  oat_header.UpdateChecksum(&methods_offsets_[0],
+                            sizeof(methods_offsets_[0]) * methods_offsets_.size());
 }
 
 bool OatWriter::OatDexFile::Write(File* file) const {
@@ -673,27 +649,8 @@ bool OatWriter::OatDexFile::Write(File* file) const {
     PLOG(ERROR) << "Failed to write dex file offset to " << file->name();
     return false;
   }
-  if (!file->WriteFully(&classes_offset_, sizeof(classes_offset_))) {
-    PLOG(ERROR) << "Failed to write classes offset to " << file->name();
-    return false;
-  }
-  return true;
-}
-
-OatWriter::OatClasses::OatClasses(const DexFile& dex_file) {
-  methods_offsets_.resize(dex_file.NumClassDefs());
-}
-
-size_t OatWriter::OatClasses::SizeOf() const {
-  return (sizeof(methods_offsets_[0]) * methods_offsets_.size());
-}
-
-void OatWriter::OatClasses::UpdateChecksum(OatHeader& oat_header) const {
-  oat_header.UpdateChecksum(&methods_offsets_[0], SizeOf());
-}
-
-bool OatWriter::OatClasses::Write(File* file) const {
-  if (!file->WriteFully(&methods_offsets_[0], SizeOf())) {
+  if (!file->WriteFully(&methods_offsets_[0],
+                        sizeof(methods_offsets_[0]) * methods_offsets_.size())) {
     PLOG(ERROR) << "Failed to write methods offsets to " << file->name();
     return false;
   }

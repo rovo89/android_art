@@ -149,13 +149,13 @@ class OatFile {
                std::string dex_file_location,
                uint32_t dex_file_checksum,
                byte* dex_file_pointer,
-               uint32_t* classes_pointer);
+               const uint32_t* methods_offsets_pointer);
 
     const OatFile* oat_file_;
     std::string dex_file_location_;
     uint32_t dex_file_checksum_;
     const byte* dex_file_pointer_;
-    const uint32_t* classes_pointer_;
+    const uint32_t* methods_offsets_pointer_;
 
     friend class OatFile;
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);

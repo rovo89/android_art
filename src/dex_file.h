@@ -213,6 +213,12 @@ class DexFile {
   // Decode the dex magic version
   uint32_t GetVersion() const;
 
+  // Returns true if the byte string points to the magic value.
+  static bool IsMagicValid(const byte* magic);
+
+  // Returns true if the byte string after the magic is the correct value.
+  static bool IsVersionValid(const byte* magic);
+
   // Returns the number of string identifiers in the .dex file.
   size_t NumStringIds() const {
     CHECK(header_ != NULL) << GetLocation();
@@ -671,11 +677,8 @@ class DexFile {
   // Builds the index of descriptors to class definitions.
   void InitIndex();
 
-  // Returns true if the byte string equals the magic value.
-  bool CheckMagic(const byte* magic);
-
-  // Returns true if the header magic is of the expected value.
-  bool IsMagicValid();
+  // Returns true if the header magic and version numbers are of the expected values.
+  bool CheckMagicAndVersion();
 
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
