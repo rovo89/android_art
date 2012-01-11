@@ -50,6 +50,7 @@ Compiler::Compiler(InstructionSet instruction_set,
 }
 
 Compiler::~Compiler() {
+  STLDeleteValues(&compiled_classes_);
   STLDeleteValues(&compiled_methods_);
   STLDeleteValues(&compiled_invoke_stubs_);
 }
@@ -323,9 +324,20 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
     Class* klass = class_linker->FindClass(descriptor, class_loader);
     if (klass != NULL) {
       class_linker->EnsureInitialized(klass, false);
+      // record the final class status if necessary
+      Class::Status status = klass->GetStatus();
+      ClassReference ref(&dex_file, class_def_index);
+      CompiledClass* compiled_class = GetCompiledClass(ref);
+      if (compiled_class == NULL) {
+        compiled_class = new CompiledClass(status);
+        compiled_classes_[ref] = compiled_class;
+      } else {
+        DCHECK_EQ(status, compiled_class->GetStatus());
+      }
     }
     // clear any class not found or verification exceptions
     Thread::Current()->ClearException();
+
   }
 
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
@@ -404,13 +416,9 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
 
   if (compiled_method != NULL) {
     MethodReference ref(&dex_file, method_idx);
-    CHECK(compiled_methods_.find(ref) == compiled_methods_.end())
-        << PrettyMethod(method_idx, dex_file);
+    CHECK(GetCompiledMethod(ref) == NULL) << PrettyMethod(method_idx, dex_file);
     compiled_methods_[ref] = compiled_method;
-    DCHECK(compiled_methods_.find(ref) != compiled_methods_.end())
-        << PrettyMethod(method_idx, dex_file);
-    DCHECK(GetCompiledMethod(ref) != NULL)
-        << PrettyMethod(method_idx, dex_file);
+    DCHECK(GetCompiledMethod(ref) != NULL) << PrettyMethod(method_idx, dex_file);
   }
 
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
@@ -453,6 +461,15 @@ void Compiler::InsertInvokeStub(bool is_static, const char* shorty,
                                 const CompiledInvokeStub* compiled_invoke_stub) {
   std::string key(MakeInvokeStubKey(is_static, shorty));
   compiled_invoke_stubs_[key] = compiled_invoke_stub;
+}
+
+CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
+  ClassTable::const_iterator it = compiled_classes_.find(ref);
+  if (it == compiled_classes_.end()) {
+    return NULL;
+  }
+  CHECK(it->second != NULL);
+  return it->second;
 }
 
 CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {

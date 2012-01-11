@@ -109,12 +109,13 @@ class OatWriter {
 
   class OatClass {
    public:
-    explicit OatClass(uint32_t methods_count);
+    explicit OatClass(Class::Status status, uint32_t methods_count);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(File* file) const;
 
     // data to write
+    Class::Status status_;
     std::vector<OatMethodOffsets> method_offsets_;
 
    private:

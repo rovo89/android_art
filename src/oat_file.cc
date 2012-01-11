@@ -166,12 +166,12 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 std::string dex_file_location,
                                 uint32_t dex_file_checksum,
                                 byte* dex_file_pointer,
-                                const uint32_t* methods_offsets_pointer)
+                                const uint32_t* oat_class_offsets_pointer)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
       dex_file_checksum_(dex_file_checksum),
       dex_file_pointer_(dex_file_pointer),
-      methods_offsets_pointer_(methods_offsets_pointer) {}
+      oat_class_offsets_pointer_(oat_class_offsets_pointer) {}
 
 OatFile::OatDexFile::~OatDexFile() {}
 
@@ -181,16 +181,30 @@ const DexFile* OatFile::OatDexFile::OpenDexFile() const {
 }
 
 const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {
-  uint32_t methods_offset = methods_offsets_pointer_[class_def_index];
-  const byte* methods_pointer = oat_file_->GetBase() + methods_offset;
+  uint32_t oat_class_offset = oat_class_offsets_pointer_[class_def_index];
+
+  const byte* oat_class_pointer = oat_file_->GetBase() + oat_class_offset;
+  CHECK_LT(oat_class_pointer, oat_file_->GetLimit());
+  Class::Status status = *reinterpret_cast<const Class::Status*>(oat_class_pointer);
+
+  const byte* methods_pointer = oat_class_pointer + sizeof(status);
   CHECK_LT(methods_pointer, oat_file_->GetLimit());
-  return new OatClass(oat_file_, reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
+
+  return new OatClass(oat_file_,
+                      status,
+                      reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
 }
 
-OatFile::OatClass::OatClass(const OatFile* oat_file, const OatMethodOffsets* methods_pointer)
-    : oat_file_(oat_file), methods_pointer_(methods_pointer) {}
+OatFile::OatClass::OatClass(const OatFile* oat_file,
+                            Class::Status status,
+                            const OatMethodOffsets* methods_pointer)
+    : oat_file_(oat_file), status_(status), methods_pointer_(methods_pointer) {}
 
 OatFile::OatClass::~OatClass() {}
+
+Class::Status OatFile::OatClass::GetStatus() const {
+  return status_;
+}
 
 const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
   const OatMethodOffsets& oat_method_offsets = methods_pointer_[method_index];

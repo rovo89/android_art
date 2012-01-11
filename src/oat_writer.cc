@@ -96,7 +96,13 @@ size_t OatWriter::InitOatClasses(size_t offset) {
         size_t num_virtual_methods = it.NumVirtualMethods();
         num_methods = num_direct_methods + num_virtual_methods;
       }
-      OatClass* oat_class = new OatClass(num_methods);
+
+      CompiledClass* compiled_class =
+          compiler_->GetCompiledClass(art::Compiler::MethodReference(dex_file, class_def_index));
+      Class::Status status =
+          (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
+
+      OatClass* oat_class = new OatClass(status, num_methods);
       oat_classes_.push_back(oat_class);
       offset += oat_class->SizeOf();
     }
@@ -656,20 +662,29 @@ bool OatWriter::OatDexFile::Write(File* file) const {
   return true;
 }
 
-OatWriter::OatClass::OatClass(uint32_t methods_count) {
+OatWriter::OatClass::OatClass(Class::Status status, uint32_t methods_count) {
+  status_ = status;
   method_offsets_.resize(methods_count);
 }
 
 size_t OatWriter::OatClass::SizeOf() const {
-  return (sizeof(method_offsets_[0]) * method_offsets_.size());
+  return sizeof(status_)
+          + (sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
 void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
-  oat_header.UpdateChecksum(&method_offsets_[0], SizeOf());
+  oat_header.UpdateChecksum(&status_, sizeof(status_));
+  oat_header.UpdateChecksum(&method_offsets_[0],
+                            sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
 bool OatWriter::OatClass::Write(File* file) const {
-  if (!file->WriteFully(&method_offsets_[0], SizeOf())) {
+  if (!file->WriteFully(&status_, sizeof(status_))) {
+    PLOG(ERROR) << "Failed to write class status to " << file->name();
+    return false;
+  }
+  if (!file->WriteFully(&method_offsets_[0],
+                        sizeof(method_offsets_[0]) * method_offsets_.size())) {
     PLOG(ERROR) << "Failed to write method offsets to " << file->name();
     return false;
   }

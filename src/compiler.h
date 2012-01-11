@@ -3,6 +3,7 @@
 #ifndef ART_SRC_COMPILER_H_
 #define ART_SRC_COMPILER_H_
 
+#include "compiled_class.h"
 #include "compiled_method.h"
 #include "constants.h"
 #include "dex_cache.h"
@@ -55,10 +56,14 @@ class Compiler {
 
   static ByteArray* CreateJniDlysmLookupStub(InstructionSet instruction_set);
 
-  // A method is uniquely located by its DexFile and index into the method_id table of that dex file
-  typedef std::pair<const DexFile*, uint32_t> MethodReference;
+  // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
+  typedef std::pair<const DexFile*, uint32_t> ClassReference;
+  CompiledClass* GetCompiledClass(ClassReference ref) const;
 
+  // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
+  typedef std::pair<const DexFile*, uint32_t> MethodReference;
   CompiledMethod* GetCompiledMethod(MethodReference ref) const;
+
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
@@ -122,8 +127,25 @@ class Compiler {
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
 
+  struct ClassReferenceHash {
+    size_t operator()(const ClassReference& id) const {
+      size_t dex = reinterpret_cast<size_t>(id.first);
+      DCHECK_NE(dex, static_cast<size_t>(0));
+      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
+      size_t idx = id.second;
+      if (idx == 0) {  // special case of a method index of 0
+        return dex * 5381;
+      } else {
+        return dex * idx;
+      }
+    }
+  };
+  typedef std::tr1::unordered_map<const ClassReference, CompiledClass*, ClassReferenceHash> ClassTable;
+  // All class references that this compiler has compiled
+  ClassTable compiled_classes_;
+
   struct MethodReferenceHash {
-    size_t operator()(const MethodReference id) const {
+    size_t operator()(const MethodReference& id) const {
       size_t dex = reinterpret_cast<size_t>(id.first);
       DCHECK_NE(dex, static_cast<size_t>(0));
       dex += 33;  // dex is an aligned pointer, get some non-zero low bits

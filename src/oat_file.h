@@ -114,6 +114,8 @@ class OatFile {
 
   class OatClass {
    public:
+    Class::Status GetStatus() const;
+
     // get the OatMethod entry based on its index into the class
     // defintion. direct methods come first, followed by virtual
     // methods. note that runtime created methods such as miranda
@@ -122,9 +124,12 @@ class OatFile {
     ~OatClass();
 
    private:
-    OatClass(const OatFile* oat_file, const OatMethodOffsets* methods_pointer);
+    OatClass(const OatFile* oat_file,
+             Class::Status status,
+             const OatMethodOffsets* methods_pointer);
 
     const OatFile* oat_file_;
+    const Class::Status status_;
     const OatMethodOffsets* methods_pointer_;
 
     friend class OatDexFile;
@@ -149,13 +154,13 @@ class OatFile {
                std::string dex_file_location,
                uint32_t dex_file_checksum,
                byte* dex_file_pointer,
-               const uint32_t* methods_offsets_pointer);
+               const uint32_t* oat_class_offsets_pointer);
 
     const OatFile* oat_file_;
     std::string dex_file_location_;
     uint32_t dex_file_checksum_;
     const byte* dex_file_pointer_;
-    const uint32_t* methods_offsets_pointer_;
+    const uint32_t* oat_class_offsets_pointer_;
 
     friend class OatFile;
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);

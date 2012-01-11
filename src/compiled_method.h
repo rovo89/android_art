@@ -12,7 +12,7 @@ namespace art {
 
 class CompiledMethod {
  public:
-  // Create an CompiledMethod from the oatCompileMethod
+  // Create a CompiledMethod from the oatCompileMethod
   CompiledMethod(InstructionSet instruction_set,
                  std::vector<short>& code,
                  const size_t frame_size_in_bytes,
@@ -21,7 +21,7 @@ class CompiledMethod {
                  std::vector<uint32_t>& mapping_table,
                  std::vector<uint16_t>& vmap_table);
 
-  // Create an CompiledMethod from the JniCompiler
+  // Create a CompiledMethod from the JniCompiler
   CompiledMethod(InstructionSet instruction_set,
                  std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,
