@@ -1159,18 +1159,19 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
       return NULL;
     }
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
-    ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid, class_name_object.get()));
-    if (result.get() == NULL) {
+    ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid,
+                                                              class_name_object.get()));
+    if (env->ExceptionOccurred()) {
+      env->ExceptionClear();  // Failed to find class fall-through to NCDFE
+      // TODO: initialize the cause of the NCDFE to this exception
+    } else if (result.get() == NULL) {
       // broken loader - throw NPE to be compatible with Dalvik
       ThrowNullPointerException("ClassLoader.loadClass returned null for %s",
                                 class_name_string.c_str());
       return NULL;
-    } else if (!env->ExceptionOccurred()) {
+    } else {
       // success, return Class*
       return Decode<Class*>(env, result.get());
-    } else {
-      env->ExceptionClear();  // Failed to find class fall-through to NCDFE
-      // TODO: initialize the cause of the NCDFE to this exception
     }
   }
 
