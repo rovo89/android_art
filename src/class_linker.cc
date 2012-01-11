@@ -2326,6 +2326,14 @@ bool ClassLinker::LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& d
       DCHECK(Thread::Current()->IsExceptionPending());
       return false;
     }
+    // Verify
+    if (!klass->CanAccess(super_class)) {
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+          "Class %s extended by class %s is inaccessible",
+          PrettyDescriptor(super_class).c_str(),
+          PrettyDescriptor(klass.get()).c_str());
+      return false;
+    }
     klass->SetSuperClass(super_class);
   }
   const DexFile::TypeList* interfaces = dex_file.GetInterfacesList(*class_def);

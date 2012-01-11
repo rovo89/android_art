@@ -34,7 +34,13 @@ jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, js
 
   std::string descriptor(DotToDescriptor(name.c_str()));
   Class* c = Runtime::Current()->GetClassLinker()->LookupClass(descriptor.c_str(), loader);
-  return AddLocalReference<jclass>(env, c);
+  if (c != NULL && c->IsResolved()) {
+    return AddLocalReference<jclass>(env, c);
+  } else {
+    // Class wasn't resolved so it may be erroneous or not yet ready, force the caller to go into
+    // the regular loadClass code.
+    return NULL;
+  }
 }
 
 jint VMClassLoader_getBootClassPathSize(JNIEnv* env, jclass) {
