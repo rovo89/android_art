@@ -527,7 +527,7 @@ int dex2oat(int argc, char** argv) {
     oat_file.reset(OS::FileFromFd(oat_name.c_str(), oat_fd));
   }
   if (oat_file.get() == NULL) {
-    PLOG(ERROR) << "Unable to create oat file " << oat_name;
+    PLOG(ERROR) << "Unable to create oat file: " << oat_name;
     return EXIT_FAILURE;
   }
 
@@ -578,7 +578,7 @@ int dex2oat(int argc, char** argv) {
       }
       const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_name);
       if (dex_file == NULL) {
-        LOG(ERROR) << "Failed to open dex from file descriptor for zip file " << zip_name;
+        LOG(ERROR) << "Failed to open dex from file descriptor for zip file: " << zip_name;
         return EXIT_FAILURE;
       }
       dex_files.push_back(dex_file);
@@ -592,12 +592,12 @@ int dex2oat(int argc, char** argv) {
                               oat_file.get(),
                               image,
                               image_classes.get())) {
-    LOG(ERROR) << "Failed to create oat file" << oat_name;
+    LOG(ERROR) << "Failed to create oat file: " << oat_name;
     return EXIT_FAILURE;
   }
 
   if (!image) {
-    LOG(INFO) << "Oat file written successfully " << oat_filename;
+    LOG(INFO) << "Oat file written successfully: " << oat_name;
     return EXIT_SUCCESS;
   }
 
