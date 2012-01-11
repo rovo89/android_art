@@ -20,7 +20,7 @@ namespace art {
 
 // OatHeader         fixed length with count of D OatDexFiles
 //
-// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatMethods
+// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
 // OatDexFile[1]
 // ...
 // OatDexFile[D]
@@ -30,10 +30,10 @@ namespace art {
 // ...
 // Dex[D]
 //
-// OatMethods[0]     one variable sized OatMethods for each of C DexFile::ClassDefs
-// OatMethods[1]     contains OatMethod entries with offsets to code, method properities, etc.
+// OatClass[0]       one variable sized OatClass for each of C DexFile::ClassDefs
+// OatClass[1]       contains OatClass entries with class status, offsets to code, etc.
 // ...
-// OatMethods[C]
+// OatClass[C]
 //
 // padding           if necessary so that the follow code will be page aligned
 //
@@ -61,7 +61,7 @@ class OatWriter {
   size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
-  size_t InitOatMethods(size_t offset);
+  size_t InitOatClasses(size_t offset);
   size_t InitOatCode(size_t offset);
   size_t InitOatCodeDexFiles(size_t offset);
   size_t InitOatCodeDexFile(size_t offset,
@@ -107,9 +107,9 @@ class OatWriter {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  class OatMethods {
+  class OatClass {
    public:
-    explicit OatMethods(uint32_t methods_count);
+    explicit OatClass(uint32_t methods_count);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(File* file) const;
@@ -118,7 +118,7 @@ class OatWriter {
     std::vector<OatMethodOffsets> method_offsets_;
 
    private:
-    DISALLOW_COPY_AND_ASSIGN(OatMethods);
+    DISALLOW_COPY_AND_ASSIGN(OatClass);
   };
 
   const Compiler* compiler_;
@@ -132,7 +132,7 @@ class OatWriter {
   // data to write
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
-  std::vector<OatMethods*> oat_methods_;
+  std::vector<OatClass*> oat_classes_;
   uint32_t executable_offset_padding_length_;
 
   template <class T> struct MapCompare {
