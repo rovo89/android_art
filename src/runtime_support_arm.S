@@ -421,6 +421,22 @@ art_set_obj_static_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
+   .global art_resolve_method_from_code
+    .extern artResolveMethodFromCode
+    /*
+     * Entry from managed code to resolve a method.
+     */
+art_resolve_method_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    str    sp, [sp, #0]               @ pass SP
+    @ artResolveMethodFromCode(Method* referrer, uint32_t method_idx, bool is_direct, Thread*, SP)
+    bl     artResolveMethodFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                     @ success if result is non-null
+    bxne   lr                         @ return on success
+    DELIVER_PENDING_EXCEPTION
+
     .global art_resolve_string_from_code
     .extern artResolveStringFromCode
     /*

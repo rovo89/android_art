@@ -127,6 +127,7 @@ void Thread::InitFunctionPointers() {
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
+  pResolveMethodFromCode = art_resolve_method_from_code;
 #endif
   pF2l = F2L;
   pD2l = D2L;
@@ -137,7 +138,6 @@ void Thread::InitFunctionPointers() {
   pDeliverException = art_deliver_exception_from_code;
   pFindNativeMethod = FindNativeMethod;
   pInstanceofNonTrivialFromCode = IsAssignableFromCode;
-  pResolveMethodFromCode = ResolveMethodFromCode;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
 }

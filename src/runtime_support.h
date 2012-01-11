@@ -25,7 +25,6 @@ extern Class* InitializeStaticStorageAndVerifyAccess(uint32_t type_idx, const Me
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
-extern void ResolveMethodFromCode(Method* method, uint32_t method_idx);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
 uint32_t artTraceMethodUnwindFromCode(Thread* self);
 extern int64_t D2L(double d);
@@ -73,6 +72,7 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_trace_entry_from_code(void*);
   extern "C" void art_trace_exit_from_code();
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
+  extern "C" void* art_resolve_method_from_code(void* referrer, uint32_t method_idx, bool is_direct);
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT

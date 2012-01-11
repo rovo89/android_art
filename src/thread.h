@@ -143,7 +143,7 @@ class PACKED Thread {
   void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);
   void (*pLockObjectFromCode)(void*);
   void (*pObjectInit)(void*);
-  void (*pResolveMethodFromCode)(Method*, uint32_t);
+  void* (*pResolveMethodFromCode)(void*, uint32_t, bool);
   void* (*pResolveStringFromCode)(void*, uint32_t);
   int (*pSet32Static)(uint32_t, void*, int32_t);
   int (*pSet64Static)(uint32_t, void*, int64_t);
