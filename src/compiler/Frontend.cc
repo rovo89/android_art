@@ -41,6 +41,7 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugSlowStringPath) |
      //(1 << kDebugSlowestFieldPath) |
      //(1 << kDebugSlowestStringPath) |
+     //(1 << kDebugExerciseResolveMethod) |
      0;
 
 std::string compilerMethodMatch;      // Method name match to apply above flags

@@ -864,6 +864,7 @@ void ResolveMethodFromCode(Method* method, uint32_t method_idx) {
      * throw and unwind.  The caller will restart call sequence
      * from the beginning.
      */
+    UNIMPLEMENTED(FATAL);
 }
 
 String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {

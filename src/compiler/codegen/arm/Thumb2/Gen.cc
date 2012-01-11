@@ -30,6 +30,8 @@
     (1 << kDebugSlowestFieldPath))
 #define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
     (1 << kDebugSlowestStringPath))
+#define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
+    (1 << kDebugExerciseResolveMethod))
 
 STATIC RegLocation getRetLoc(CompilationUnit* cUnit);
 

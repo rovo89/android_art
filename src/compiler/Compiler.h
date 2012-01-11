@@ -51,6 +51,7 @@ enum debugControlVector {
     kDebugSlowTypePath,
     kDebugSlowestFieldPath,
     kDebugSlowestStringPath,
+    kDebugExerciseResolveMethod,
 };
 
 extern uint32_t compilerDebugFlags;

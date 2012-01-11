@@ -715,7 +715,7 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
         case 0:  // Get the current Method* [sets r0]
             loadCurrMethodDirect(cUnit, r0);
             break;
-        case 1: // Get method->dex_cache_resolved_methods_ [usr r0, set rLR]
+        case 1: // Get method->dex_cache_resolved_methods_ [uses r0, set rLR]
             loadWordDisp(cUnit, r0,
                 Method::GetDexCacheResolvedMethodsOffset().Int32Value(), rLR);
             break;
@@ -1078,6 +1078,16 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
 
     // Explicit register usage
     oatLockCallTemps(cUnit);
+
+    // For testing, force call to artResolveMethodFromCode & ignore result
+    if (EXERCISE_RESOLVE_METHOD) {
+        loadCurrMethodDirect(cUnit, r0);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
+        loadConstant(cUnit, r1, dInsn->vB);
+        callRuntimeHelper(cUnit, rLR);
+    }
+
     if (SLOW_INVOKE_PATH || baseMethod == NULL) {
         Thread* thread = Thread::Current();
         if (thread->IsExceptionPending()) {  // clear any exception left by resolve method
@@ -1138,9 +1148,18 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
                                                  false);
     NextCallInsn nextCallInsn;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
-
     // Explicit register usage
     oatLockCallTemps(cUnit);
+
+    // For testing, force call to artResolveMethodFromCode & ignore result
+    if (EXERCISE_RESOLVE_METHOD) {
+        loadCurrMethodDirect(cUnit, r0);
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
+        loadConstant(cUnit, r1, dInsn->vB);
+        callRuntimeHelper(cUnit, rLR);
+    }
+
     if (SLOW_INVOKE_PATH || method == NULL) {
         Thread* thread = Thread::Current();
         if (thread->IsExceptionPending()) {  // clear any exception left by resolve method
