@@ -2180,7 +2180,7 @@ STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
                     OFFSETOF_MEMBER(Thread, pThrowNegArraySizeFromCode);
                 break;
             case kArmThrowNoSuchMethod:
-                genRegCopy(cUnit, r0, v1);
+                genRegCopy(cUnit, r0, v2);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNoSuchMethodFromCode);
                 break;
