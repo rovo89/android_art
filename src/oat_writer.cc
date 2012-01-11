@@ -30,7 +30,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
   offset = InitDexFiles(offset);
-  offset = InitOatMethods(offset);
+  offset = InitOatClasses(offset);
   offset = InitOatCode(offset);
   offset = InitOatCodeDexFiles(offset);
 
@@ -40,7 +40,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
 OatWriter::~OatWriter() {
   delete oat_header_;
   STLDeleteElements(&oat_dex_files_);
-  STLDeleteElements(&oat_methods_);
+  STLDeleteElements(&oat_classes_);
 }
 
 size_t OatWriter::InitOatHeader() {
@@ -77,9 +77,9 @@ size_t OatWriter::InitDexFiles(size_t offset) {
   return offset;
 }
 
-size_t OatWriter::InitOatMethods(size_t offset) {
-  // create the OatMethods
-  // calculate the offsets within OatDexFiles to OatMethods
+size_t OatWriter::InitOatClasses(size_t offset) {
+  // create the OatClasses
+  // calculate the offsets within OatDexFiles to OatClasses
   size_t class_index = 0;
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
@@ -96,9 +96,9 @@ size_t OatWriter::InitOatMethods(size_t offset) {
         size_t num_virtual_methods = it.NumVirtualMethods();
         num_methods = num_direct_methods + num_virtual_methods;
       }
-      OatMethods* oat_methods = new OatMethods(num_methods);
-      oat_methods_.push_back(oat_methods);
-      offset += oat_methods->SizeOf();
+      OatClass* oat_class = new OatClass(num_methods);
+      oat_classes_.push_back(oat_class);
+      offset += oat_class->SizeOf();
     }
     oat_dex_files_[i]->UpdateChecksum(*oat_header_);
   }
@@ -116,7 +116,6 @@ size_t OatWriter::InitOatCode(size_t offset) {
 }
 
 size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
-  // calculate the offsets within OatMethods
   size_t oat_class_index = 0;
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
@@ -129,12 +128,12 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
 size_t OatWriter::InitOatCodeDexFile(size_t offset,
                                      size_t& oat_class_index,
                                      const DexFile& dex_file) {
-  for (size_t class_def_index = 0;
+   for (size_t class_def_index = 0;
        class_def_index < dex_file.NumClassDefs();
        class_def_index++, oat_class_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     offset = InitOatCodeClassDef(offset, oat_class_index, dex_file, class_def);
-    oat_methods_[oat_class_index]->UpdateChecksum(*oat_header_);
+    oat_classes_[oat_class_index]->UpdateChecksum(*oat_header_);
   }
   return offset;
 }
@@ -149,7 +148,7 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
     return offset;
   }
   ClassDataItemIterator it(dex_file, class_data);
-  CHECK_EQ(oat_methods_[oat_class_index]->method_offsets_.size(),
+  CHECK_EQ(oat_classes_[oat_class_index]->method_offsets_.size(),
            it.NumDirectMethods() + it.NumVirtualMethods());
   // Skip fields
   while (it.HasNextStaticField()) {
@@ -275,7 +274,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     }
   }
 
-  oat_methods_[oat_class_index]->method_offsets_[class_def_method_index]
+  oat_classes_[oat_class_index]->method_offsets_[class_def_method_index]
       = OatMethodOffsets(code_offset,
                          frame_size_in_bytes,
                          core_spill_mask,
@@ -352,8 +351,8 @@ bool OatWriter::WriteTables(File* file) {
       return false;
     }
   }
-  for (size_t i = 0; i != oat_methods_.size(); ++i) {
-    if (!oat_methods_[i]->Write(file)) {
+  for (size_t i = 0; i != oat_classes_.size(); ++i) {
+    if (!oat_classes_[i]->Write(file)) {
       PLOG(ERROR) << "Failed to write oat methods information to " << file->name();
       return false;
     }
@@ -457,7 +456,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
   uint32_t fp_spill_mask = 0;
 
   OatMethodOffsets method_offsets =
-      oat_methods_[oat_class_index]->method_offsets_[class_def_method_index];
+      oat_classes_[oat_class_index]->method_offsets_[class_def_method_index];
 
 
   if (compiled_method != NULL) {  // ie. not an abstract method
@@ -657,19 +656,19 @@ bool OatWriter::OatDexFile::Write(File* file) const {
   return true;
 }
 
-OatWriter::OatMethods::OatMethods(uint32_t methods_count) {
+OatWriter::OatClass::OatClass(uint32_t methods_count) {
   method_offsets_.resize(methods_count);
 }
 
-size_t OatWriter::OatMethods::SizeOf() const {
+size_t OatWriter::OatClass::SizeOf() const {
   return (sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
-void OatWriter::OatMethods::UpdateChecksum(OatHeader& oat_header) const {
+void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
   oat_header.UpdateChecksum(&method_offsets_[0], SizeOf());
 }
 
-bool OatWriter::OatMethods::Write(File* file) const {
+bool OatWriter::OatClass::Write(File* file) const {
   if (!file->WriteFully(&method_offsets_[0], SizeOf())) {
     PLOG(ERROR) << "Failed to write method offsets to " << file->name();
     return false;
