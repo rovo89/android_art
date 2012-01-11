@@ -91,6 +91,14 @@ void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchFieldError;", msg.str().c_str());
 }
 
+void ThrowNullPointerException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+void ThrowNullPointerException(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Thread::Current()->ThrowNewExceptionV("Ljava/lang/NullPointerException;", fmt, args);
+  va_end(args);
+}
+
 void ThrowEarlierClassFailure(Class* c) {
   /*
    * The class failed to initialize on a previous attempt, so we want to throw
@@ -1152,7 +1160,13 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     }
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
     ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid, class_name_object.get()));
-    if (!env->ExceptionOccurred()) {
+    if (result.get() == NULL) {
+      // broken loader - throw NPE to be compatible with Dalvik
+      ThrowNullPointerException("ClassLoader.loadClass returned null for %s",
+                                class_name_string.c_str());
+      return NULL;
+    } else if (!env->ExceptionOccurred()) {
+      // success, return Class*
       return Decode<Class*>(env, result.get());
     } else {
       env->ExceptionClear();  // Failed to find class fall-through to NCDFE
@@ -2299,9 +2313,7 @@ bool ClassLinker::LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& d
   CHECK_EQ(Class::kStatusIdx, klass->GetStatus());
   StringPiece descriptor(dex_file.StringByTypeIdx(klass->GetDexTypeIndex()));
   const DexFile::ClassDef* class_def = dex_file.FindClassDef(descriptor);
-  if (class_def == NULL) {
-    return false;
-  }
+  CHECK(class_def != NULL);
   uint16_t super_class_idx = class_def->superclass_idx_;
   if (super_class_idx != DexFile::kDexNoIndex16) {
     Class* super_class = ResolveType(dex_file, super_class_idx, klass.get());
@@ -2901,7 +2913,8 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
       //       same name to be loaded simultaneously by different loaders
       dex_cache->SetResolvedType(type_idx, resolved);
     } else {
-      DCHECK(Thread::Current()->IsExceptionPending());
+      CHECK(Thread::Current()->IsExceptionPending())
+          << "Expected pending exception for failed resolution of: " << descriptor;
     }
   }
   return resolved;

@@ -176,7 +176,26 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   class_linker->RegisterDexFile(*dex_file);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
   if (env->ExceptionCheck()) {
+    // Remember exception and clear it
+    jthrowable exception = env->ExceptionOccurred();
     env->ExceptionClear();
+    // If we threw a "class not found" exception, stifle it, since the contract in the higher
+    // method says we simply return null if the class is not found.
+    static const char* ignored_exception_classes[2] = {
+        "java/lang/ClassNotFoundException",
+        "java/lang/NoClassDefFoundError"
+    };
+    bool clear_exception = false;
+    for (int i = 0; i < 2; i++) {
+      jclass exception_class = env->FindClass(ignored_exception_classes[i]);
+      if (env->IsInstanceOf(exception, exception_class)) {
+        clear_exception = true;
+        break;
+      }
+    }
+    if (!clear_exception) {
+      env->Throw(exception);
+    }
     return NULL;
   }
   return AddLocalReference<jclass>(env, result);
