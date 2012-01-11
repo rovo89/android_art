@@ -24,6 +24,7 @@
 #include "runtime.h"
 #include "zip_archive.h"
 #include "toStringArray.h"
+#include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -181,14 +182,14 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
     env->ExceptionClear();
     // If we threw a "class not found" exception, stifle it, since the contract in the higher
     // method says we simply return null if the class is not found.
-    static const char* ignored_exception_classes[2] = {
+    static const char* ignored_exception_classes[] = {
         "java/lang/ClassNotFoundException",
         "java/lang/NoClassDefFoundError"
     };
     bool clear_exception = false;
-    for (int i = 0; i < 2; i++) {
-      jclass exception_class = env->FindClass(ignored_exception_classes[i]);
-      if (env->IsInstanceOf(exception, exception_class)) {
+    for (size_t i = 0; i < arraysize(ignored_exception_classes); i++) {
+      ScopedLocalRef<jclass> exception_class(env, env->FindClass(ignored_exception_classes[i]));
+      if (env->IsInstanceOf(exception, exception_class.get())) {
         clear_exception = true;
         break;
       }
