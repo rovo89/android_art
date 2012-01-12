@@ -347,13 +347,13 @@ class ClassLinker {
   bool InitializeSuperClass(Class* klass, bool can_run_clinit);
   void InitializeStaticFields(Class* klass);
 
-  bool HasSameDescriptorClasses(const char* descriptor,
-                                const Class* klass1,
-                                const Class* klass2);
+  bool IsSameDescriptorInDifferentClassContexts(const char* descriptor,
+                                                const Class* klass1,
+                                                const Class* klass2);
 
-  bool HasSameMethodDescriptorClasses(const Method* descriptor,
-                                      const Class* klass1,
-                                      const Class* klass2);
+  bool IsSameMethodSignatureInDifferentClassContexts(const Method* descriptor,
+                                                     const Class* klass1,
+                                                     const Class* klass2);
 
   bool LinkClass(SirtRef<Class>& klass, ObjectArray<Class>* interfaces);
 

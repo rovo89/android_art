@@ -2012,6 +2012,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     if (klass->GetStatus() == Class::kStatusResolved) {
       VerifyClass(klass);
       if (klass->GetStatus() != Class::kStatusVerified) {
+        CHECK(self->IsExceptionPending());
         return false;
       }
     }
@@ -2019,8 +2020,9 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
     if (clinit != NULL && !can_run_clinit) {
       // if the class has a <clinit> but we can't run it during compilation,
-      // don't bother going to kStatusInitializing
-      return false;
+      // don't bother going to kStatusInitializing. We return true to maintain
+      // the invariant that a false result implies there is a pending exception.
+      return true;
     }
 
     // If the class is kStatusInitializing, either this thread is
@@ -2039,6 +2041,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     }
 
     if (!ValidateSuperClassDescriptors(klass)) {
+      CHECK(self->IsExceptionPending());
       klass->SetStatus(Class::kStatusError);
       return false;
     }
@@ -2052,6 +2055,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   uint64_t t0 = NanoTime();
 
   if (!InitializeSuperClass(klass, can_run_clinit)) {
+    CHECK(self->IsExceptionPending());
     return false;
   }
 
@@ -2128,12 +2132,10 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
   if (klass->HasSuperClass() &&
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
     const Class* super = klass->GetSuperClass();
-    for (int i = super->NumVirtualMethods() - 1; i >= 0; --i) {
-      const Method* method = super->GetVirtualMethod(i);
-      if (method != super->GetVirtualMethod(i) &&
-          !HasSameMethodDescriptorClasses(method, super, klass)) {
-        klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
-
+    for (int i = super->GetVTable()->GetLength() - 1; i >= 0; --i) {
+      const Method* method = klass->GetVTable()->Get(i);
+      if (method != super->GetVTable()->Get(i) &&
+          !IsSameMethodSignatureInDifferentClassContexts(method, super, klass)) {
         ThrowLinkageError("Class %s method %s resolves differently in superclass %s",
                           PrettyDescriptor(klass).c_str(), PrettyMethod(method).c_str(),
                           PrettyDescriptor(super).c_str());
@@ -2147,10 +2149,8 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
         const Method* method = interface_entry->GetMethodArray()->Get(j);
-        if (!HasSameMethodDescriptorClasses(method, interface,
-                                            method->GetDeclaringClass())) {
-          klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
-
+        if (!IsSameMethodSignatureInDifferentClassContexts(method, interface,
+                                                           method->GetDeclaringClass())) {
           ThrowLinkageError("Class %s method %s resolves differently in interface %s",
                             PrettyDescriptor(method->GetDeclaringClass()).c_str(),
                             PrettyMethod(method).c_str(),
@@ -2163,9 +2163,11 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
   return true;
 }
 
-bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
-                                                 const Class* klass1,
-                                                 const Class* klass2) {
+// Returns true if classes referenced by the signature of the method are the
+// same classes in klass1 as they are in klass2.
+bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(const Method* method,
+                                                                const Class* klass1,
+                                                                const Class* klass2) {
   if (klass1 == klass2) {
     return true;
   }
@@ -2179,7 +2181,7 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
     }
     if (descriptor[0] == 'L' || descriptor[0] == '[') {
       // Found a non-primitive type.
-      if (!HasSameDescriptorClasses(descriptor, klass1, klass2)) {
+      if (!IsSameDescriptorInDifferentClassContexts(descriptor, klass1, klass2)) {
         return false;
       }
     }
@@ -2187,18 +2189,17 @@ bool ClassLinker::HasSameMethodDescriptorClasses(const Method* method,
   // Check the return type
   const char* descriptor = dex_file.GetReturnTypeDescriptor(proto_id);
   if (descriptor[0] == 'L' || descriptor[0] == '[') {
-    if (!HasSameDescriptorClasses(descriptor, klass1, klass2)) {
+    if (!IsSameDescriptorInDifferentClassContexts(descriptor, klass1, klass2)) {
       return false;
     }
   }
   return true;
 }
 
-// Returns true if classes referenced by the descriptor are the
-// same classes in klass1 as they are in klass2.
-bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
-                                           const Class* klass1,
-                                           const Class* klass2) {
+// Returns true if the descriptor resolves to the same class in the context of klass1 and klass2.
+bool ClassLinker::IsSameDescriptorInDifferentClassContexts(const char* descriptor,
+                                                           const Class* klass1,
+                                                           const Class* klass2) {
   CHECK(descriptor != NULL);
   CHECK(klass1 != NULL);
   CHECK(klass2 != NULL);
@@ -2206,16 +2207,14 @@ bool ClassLinker::HasSameDescriptorClasses(const char* descriptor,
     return true;
   }
   Class* found1 = FindClass(descriptor, klass1->GetClassLoader());
-  // TODO: found1 == NULL
-  Class* found2 = FindClass(descriptor, klass2->GetClassLoader());
-  // TODO: found2 == NULL
-  // TODO: lookup found1 in initiating loader list
-  if (found1 == NULL || found2 == NULL) {
+  if (found1 == NULL) {
     Thread::Current()->ClearException();
-    return found1 == found2;
-  } else {
-    return true;
   }
+  Class* found2 = FindClass(descriptor, klass2->GetClassLoader());
+  if (found2 == NULL) {
+    Thread::Current()->ClearException();
+  }
+  return found1 == found2;
 }
 
 bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
@@ -2253,8 +2252,11 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  InitializeClass(c, can_run_clinit);
-  return !self->IsExceptionPending();
+  bool success = InitializeClass(c, can_run_clinit);
+  if (!success) {
+    CHECK(self->IsExceptionPending());
+  }
+  return success;
 }
 
 void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
