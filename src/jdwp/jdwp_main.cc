@@ -228,7 +228,7 @@ JdwpState::~JdwpState() {
     /*
      * Close down the network to inspire the thread to halt.
      */
-    LOG(DEBUG) << "JDWP shutting down net...";
+    VLOG(jdwp) << "JDWP shutting down net...";
     (*transport->shutdown)(this);
 
     if (debug_thread_started_) {
@@ -239,7 +239,7 @@ JdwpState::~JdwpState() {
       }
     }
 
-    LOG(DEBUG) << "JDWP freeing netstate...";
+    VLOG(jdwp) << "JDWP freeing netstate...";
     (*transport->free)(this);
     netState = NULL;
   }
