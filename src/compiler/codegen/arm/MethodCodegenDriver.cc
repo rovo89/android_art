@@ -759,7 +759,7 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                 tReg = oatAllocTemp(cUnit);
                 loadWordDisp(cUnit, r0, art::Array::LengthOffset().Int32Value(),
                              tReg);
-                genRegRegCheck(cUnit, kArmCondCs, tReg, rLR, mir,
+                genRegRegCheck(cUnit, kArmCondCs, rLR, tReg, mir,
                                kArmThrowNoSuchMethod);
                 oatFreeTemp(cUnit, tReg);
             }
@@ -2203,7 +2203,7 @@ STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
                     OFFSETOF_MEMBER(Thread, pThrowNegArraySizeFromCode);
                 break;
             case kArmThrowNoSuchMethod:
-                genRegCopy(cUnit, r0, v2);
+                genRegCopy(cUnit, r0, v1);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNoSuchMethodFromCode);
                 break;
