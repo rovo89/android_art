@@ -2067,12 +2067,14 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
 
   uint64_t t1 = NanoTime();
 
+  bool success = true;
   {
     ObjectLock lock(klass);
 
     if (self->IsExceptionPending()) {
       WrapExceptionInInitializer();
       klass->SetStatus(Class::kStatusError);
+      success = false;
     } else {
       RuntimeStats* global_stats = Runtime::Current()->GetStats();
       RuntimeStats* thread_stats = self->GetStats();
@@ -2088,8 +2090,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     }
     lock.NotifyAll();
   }
-
-  return true;
+  return success;
 }
 
 bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock) {
