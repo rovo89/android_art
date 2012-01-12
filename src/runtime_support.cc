@@ -408,12 +408,18 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
   Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
   if (LIKELY(!thread->IsExceptionPending())) {
     if (LIKELY(called->IsDirect())) {
-      // Update CodeAndDirectMethod table
-      Method* caller = *caller_sp;
-      DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
-      dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, called);
-      // We got this far, ensure that the declaring class is initialized
-      linker->EnsureInitialized(called->GetDeclaringClass(), true);
+      // Ensure that the called method's class is initialized
+      Class* called_class = called->GetDeclaringClass();
+      linker->EnsureInitialized(called_class, true);
+      if (LIKELY(called_class->IsInitialized())) {
+        // Update CodeAndDirectMethod table and avoid the trampoline when we know the called class
+        // is initialized (see test 084-class-init SlowInit)
+        Method* caller = *caller_sp;
+        DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
+        dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, called);
+        // We got this far, ensure that the declaring class is initialized
+        linker->EnsureInitialized(called->GetDeclaringClass(), true);
+      }
     } else {
       // Direct method has been made virtual
       thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
@@ -430,7 +436,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
     thread->ClearException();
   } else {
     // Expect class to at least be initializing
-    CHECK(called->GetDeclaringClass()->IsInitializing());
+    DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Set up entry into main method
     regs[0] = reinterpret_cast<uintptr_t>(called);
     code = const_cast<void*>(called->GetCode());
