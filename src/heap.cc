@@ -146,7 +146,10 @@ void Heap::Init(size_t initial_size, size_t maximum_size, size_t growth_size,
 }
 
 void Heap::Destroy() {
-  ScopedHeapLock lock;
+  // We can't take the heap lock here because there might be a daemon thread suspended with the
+  // heap lock held. We know though that no non-daemon threads are executing, and we know that
+  // all daemon threads are suspended, and we also know that the threads list have been deleted, so
+  // those threads can't resume. We're the only running thread, and we can do whatever we like...
   STLDeleteElements(&spaces_);
   if (mark_bitmap_ != NULL) {
     delete mark_bitmap_;

@@ -386,6 +386,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->hook_abort_ = reinterpret_cast<void(*)()>(options[i].second);
     } else if (option == "host-prefix") {
       parsed->host_prefix_ = reinterpret_cast<const char*>(options[i].second);
+    } else if (option == "-Xgenregmap" || option == "-Xgc:precise") {
+      // We silently ignore these for backwards compatibility.
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf

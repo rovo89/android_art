@@ -144,7 +144,7 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
 
 static const DexFile* toDexFile(JNIEnv* env, int dex_file_address) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
-  if ((dex_file == NULL)) {
+  if (dex_file == NULL) {
     jniThrowNullPointerException(env, "dex_file == null");
   }
   return dex_file;
