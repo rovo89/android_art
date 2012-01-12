@@ -1799,23 +1799,102 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
 }
 
 void ClassLinker::VerifyClass(Class* klass) {
+  // TODO: assert that the monitor on the Class is held
   if (klass->IsVerified()) {
     return;
   }
 
-  CHECK_EQ(klass->GetStatus(), Class::kStatusResolved);
+  CHECK_EQ(klass->GetStatus(), Class::kStatusResolved) << PrettyClass(klass);
   klass->SetStatus(Class::kStatusVerifying);
 
-  if (verifier::DexVerifier::VerifyClass(klass)) {
+  // Try to use verification information from oat file, otherwise do runtime verification
+  const DexFile& dex_file = FindDexFile(klass->GetDexCache());
+  if (VerifyClassUsingOatFile(dex_file, klass) || verifier::DexVerifier::VerifyClass(klass)) {
+    // Make sure all classes referenced by catch blocks are resolved
+    ResolveClassExceptionHandlerTypes(dex_file, klass);
     klass->SetStatus(Class::kStatusVerified);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyClass(klass);
     Thread* self = Thread::Current();
-    CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+    CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException()) << PrettyClass(klass);
     self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Verification of %s failed",
         PrettyDescriptor(klass).c_str());
-    CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying);
+    CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyClass(klass);
     klass->SetStatus(Class::kStatusError);
+  }
+}
+
+bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass) {
+  if (!Runtime::Current()->IsStarted()) {
+    return false;
+  }
+  if (ClassLoader::UseCompileTimeClassPath()) {
+    return false;
+  }
+  const OatFile* oat_file = FindOatFileForDexFile(dex_file);
+  if (oat_file == NULL) {
+    return false;
+  }
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+  CHECK(oat_dex_file != NULL) << PrettyClass(klass);
+  const char* descriptor = ClassHelper(klass).GetDescriptor();
+  uint32_t class_def_index;
+  bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
+  CHECK(found) << descriptor;
+  UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
+  CHECK(oat_class.get() != NULL) << descriptor;
+  Class::Status status = oat_class->GetStatus();
+  if (status == Class::kStatusError) {
+    ThrowEarlierClassFailure(klass);
+    klass->SetVerifyErrorClass(Thread::Current()->GetException()->GetClass());
+    klass->SetStatus(Class::kStatusError);
+    return true;
+  }
+  if (status == Class::kStatusVerified || status == Class::kStatusInitialized) {
+    return true;
+  }
+  if (status == Class::kStatusNotReady) {
+    return false;
+  }
+  LOG(FATAL) << "Unexpected class status: " << status;
+  return false;
+}
+
+void ClassLinker::ResolveClassExceptionHandlerTypes(const DexFile& dex_file, Class* klass) {
+  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
+    ResolveMethodExceptionHandlerTypes(dex_file, klass->GetDirectMethod(i));
+  }
+  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
+    ResolveMethodExceptionHandlerTypes(dex_file, klass->GetVirtualMethod(i));
+  }
+}
+
+void ClassLinker::ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, Method* method) {
+  // similar to DexVerifier::ScanTryCatchBlocks and dex2oat's ResolveExceptionsForMethod.
+  const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
+  if (code_item == NULL) {
+    return;  // native or abstract method
+  }
+  if (code_item->tries_size_ == 0) {
+    return;  // nothing to process
+  }
+  const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item, 0);
+  uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  for (uint32_t idx = 0; idx < handlers_size; idx++) {
+    CatchHandlerIterator iterator(handlers_ptr);
+    for (; iterator.HasNext(); iterator.Next()) {
+      // Ensure exception types are resolved so that they don't need resolution to be delivered,
+      // unresolved exception types will be ignored by exception delivery
+      if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
+        Class* exception_type = linker->ResolveType(iterator.GetHandlerTypeIndex(), method);
+        if (exception_type == NULL) {
+          DCHECK(Thread::Current()->IsExceptionPending());
+          Thread::Current()->ClearException();
+        }
+      }
+    }
+    handlers_ptr = iterator.EndDataPointer();
   }
 }
 
@@ -2025,7 +2104,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       return false;
     }
 
-    DCHECK_EQ(klass->GetStatus(), Class::kStatusVerified);
+    DCHECK_EQ(klass->GetStatus(), Class::kStatusVerified) << PrettyClass(klass);
 
     klass->SetClinitThreadId(self->GetTid());
     klass->SetStatus(Class::kStatusInitializing);
@@ -2211,7 +2290,7 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
       if (!super_initialized) {
         if (!can_run_clinit) {
          // Don't set status to error when we can't run <clinit>.
-         CHECK_EQ(klass->GetStatus(), Class::kStatusInitializing);
+         CHECK_EQ(klass->GetStatus(), Class::kStatusInitializing) << PrettyClass(klass);
          klass->SetStatus(Class::kStatusVerified);
          return false;
         }

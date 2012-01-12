@@ -266,6 +266,9 @@ class ClassLinker {
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
 
   void VerifyClass(Class* klass);
+  bool VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass);
+  void ResolveClassExceptionHandlerTypes(const DexFile& dex_file, Class* klass);
+  void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, Method* klass);
 
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
                           ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);

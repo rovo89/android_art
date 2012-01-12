@@ -14,16 +14,19 @@ class CompiledMethod {
  public:
   // Create a CompiledMethod from the oatCompileMethod
   CompiledMethod(InstructionSet instruction_set,
-                 std::vector<short>& code,
+                 const std::vector<uint16_t>& code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 std::vector<uint32_t>& mapping_table,
-                 std::vector<uint16_t>& vmap_table);
+                 const std::vector<uint32_t>& mapping_table,
+                 const std::vector<uint16_t>& vmap_table);
+
+  // Add a GC map to a CompiledMethod created by oatCompileMethod
+  void SetGcMap(const std::vector<uint8_t>& gc_map);
 
   // Create a CompiledMethod from the JniCompiler
   CompiledMethod(InstructionSet instruction_set,
-                 std::vector<uint8_t>& code,
+                 const std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);
@@ -37,6 +40,8 @@ class CompiledMethod {
   uint32_t GetFpSpillMask() const;
   const std::vector<uint32_t>& GetMappingTable() const;
   const std::vector<uint16_t>& GetVmapTable() const;
+  const std::vector<uint8_t>& GetGcMap() const;
+
   // Aligns an offset from a page aligned value to make it suitable
   // for code storage. important to ensure that PC relative value
   // computations work out as expected on ARM.
@@ -61,6 +66,7 @@ class CompiledMethod {
   const uint32_t fp_spill_mask_;
   std::vector<uint32_t> mapping_table_;
   std::vector<uint16_t> vmap_table_;
+  std::vector<uint8_t> gc_map_;
 };
 
 class CompiledInvokeStub {

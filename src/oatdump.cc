@@ -122,9 +122,10 @@ class OatDump {
     for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
-      os << StringPrintf("%d: %s (type_idx=%d)\n", class_def_index, descriptor, class_def.class_idx_);
       UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
       CHECK(oat_class.get() != NULL);
+      os << StringPrintf("%d: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
+         << oat_class->GetStatus() << ")\n";
       DumpOatClass(os, oat_file, *oat_class.get(), *dex_file, class_def);
     }
 
@@ -189,6 +190,8 @@ class OatDump {
                        oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
     os << StringPrintf("\t\tvmap_table: %p (offset=%08x)\n",
                        oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
+    os << StringPrintf("\t\tgc_map: %p (offset=%08x)\n",
+                       oat_method.GetGcMap(), oat_method.GetGcMapOffset());
     os << StringPrintf("\t\tinvoke_stub: %p (offset=%08x)\n",
                        oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
   }
@@ -342,29 +345,36 @@ class ImageDump {
           StringAppendF(&summary, "\tNATIVE UNREGISTERED\n");
         }
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
+        DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else if (method->IsAbstract()) {
         StringAppendF(&summary, "\tABSTRACT\n");
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
+        DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else if (method->IsCalleeSaveMethod()) {
         StringAppendF(&summary, "\tCALLEE SAVE METHOD\n");
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
+        DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        if (method->GetGcMap() != NULL) {
-          size_t register_map_bytes = method->GetGcMap()->SizeOf();
-          state->stats_.register_map_bytes += register_map_bytes;
-        }
+        DCHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
+        DCHECK_NE(0U, method->GetGcMapLength()) << PrettyMethod(method);
 
-        if (method->GetMappingTable() != NULL) {
-          size_t pc_mapping_table_bytes = method->GetMappingTableLength();
-          state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
-        }
+        size_t register_map_bytes = method->GetGcMapLength();
+        state->stats_.register_map_bytes += register_map_bytes;
+        StringAppendF(&summary, "GC=%d ", register_map_bytes);
+
+        size_t pc_mapping_table_bytes = method->GetMappingTableLength();
+        state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
+        StringAppendF(&summary, "Mapping=%d ", pc_mapping_table_bytes);
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
+
+        StringAppendF(&summary, "\tSIZE Code=%d GC=%d Mapping=%d",
+                      dex_instruction_bytes, register_map_bytes, pc_mapping_table_bytes);
       }
     }
     state->os_ << summary << std::flush;

@@ -1495,7 +1495,9 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
     }
     // Process register map (which native and callee save methods don't have)
     if (!m->IsNative() && !m->IsCalleeSaveMethod() && !m->IsProxyMethod()) {
-      verifier::PcToReferenceMap map(m);
+      CHECK(m->GetGcMap() != NULL) << PrettyMethod(m);
+      CHECK_NE(0U, m->GetGcMapLength()) << PrettyMethod(m);
+      verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
       const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
       CHECK(reg_bitmap != NULL);
       const VmapTable vmap_table(m->GetVmapTableRaw());

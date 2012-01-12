@@ -58,10 +58,36 @@ class Compiler {
 
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> ClassReference;
+  struct ClassReferenceHash {
+    size_t operator()(const ClassReference& id) const {
+      size_t dex = reinterpret_cast<size_t>(id.first);
+      DCHECK_NE(dex, static_cast<size_t>(0));
+      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
+      size_t idx = id.second;
+      if (idx == 0) {  // special case of a method index of 0
+        return dex * 5381;
+      } else {
+        return dex * idx;
+      }
+    }
+  };
   CompiledClass* GetCompiledClass(ClassReference ref) const;
 
   // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> MethodReference;
+  struct MethodReferenceHash {
+    size_t operator()(const MethodReference& id) const {
+      size_t dex = reinterpret_cast<size_t>(id.first);
+      DCHECK_NE(dex, static_cast<size_t>(0));
+      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
+      size_t idx = id.second;
+      if (idx == 0) {  // special case of a method index of 0
+        return dex * 5381;
+      } else {
+        return dex * idx;
+      }
+    }
+  };
   CompiledMethod* GetCompiledMethod(MethodReference ref) const;
 
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
@@ -116,6 +142,10 @@ class Compiler {
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
                      const ClassLoader* class_loader, const DexFile& dex_file);
 
+  void SetGcMaps(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  void SetGcMapsMethod(const DexFile& dex_file, Method* method);
+
   // After compiling, walk all the DexCaches and set the code and
   // method pointers of CodeAndDirectMethods entries in the DexCaches.
   void SetCodeAndDirectMethods(const std::vector<const DexFile*>& dex_files);
@@ -127,36 +157,10 @@ class Compiler {
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
 
-  struct ClassReferenceHash {
-    size_t operator()(const ClassReference& id) const {
-      size_t dex = reinterpret_cast<size_t>(id.first);
-      DCHECK_NE(dex, static_cast<size_t>(0));
-      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
-      size_t idx = id.second;
-      if (idx == 0) {  // special case of a method index of 0
-        return dex * 5381;
-      } else {
-        return dex * idx;
-      }
-    }
-  };
   typedef std::tr1::unordered_map<const ClassReference, CompiledClass*, ClassReferenceHash> ClassTable;
   // All class references that this compiler has compiled
   ClassTable compiled_classes_;
 
-  struct MethodReferenceHash {
-    size_t operator()(const MethodReference& id) const {
-      size_t dex = reinterpret_cast<size_t>(id.first);
-      DCHECK_NE(dex, static_cast<size_t>(0));
-      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
-      size_t idx = id.second;
-      if (idx == 0) {  // special case of a method index of 0
-        return dex * 5381;
-      } else {
-        return dex * idx;
-      }
-    }
-  };
   typedef std::tr1::unordered_map<const MethodReference, CompiledMethod*, MethodReferenceHash> MethodTable;
   // All method references that this compiler has compiled
   MethodTable compiled_methods_;

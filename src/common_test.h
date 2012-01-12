@@ -105,6 +105,7 @@ class CommonTest : public testing::Test {
                                      const uint32_t fp_spill_mask,
                                      const uint32_t* mapping_table,
                                      const uint16_t* vmap_table,
+                                     const uint8_t* gc_map,
                                      const Method::InvokeStub* invoke_stub) {
       return OatFile::OatMethod(NULL,
                                 reinterpret_cast<uint32_t>(code),
@@ -113,6 +114,7 @@ class CommonTest : public testing::Test {
                                 fp_spill_mask,
                                 reinterpret_cast<uint32_t>(mapping_table),
                                 reinterpret_cast<uint32_t>(vmap_table),
+                                reinterpret_cast<uint32_t>(gc_map),
                                 reinterpret_cast<uint32_t>(invoke_stub));
   }
 
@@ -148,6 +150,7 @@ class CommonTest : public testing::Test {
                                                       compiled_method->GetFpSpillMask(),
                                                       &compiled_method->GetMappingTable()[0],
                                                       &compiled_method->GetVmapTable()[0],
+                                                      NULL,
                                                       method_invoke_stub);
       oat_method.LinkMethodPointers(method);
     } else {
@@ -158,6 +161,7 @@ class CommonTest : public testing::Test {
                                                       kStackAlignment,
                                                       0,
                                                       0,
+                                                      NULL,
                                                       NULL,
                                                       NULL,
                                                       method_invoke_stub);

@@ -701,12 +701,39 @@ class MANAGED Method : public Object {
     SetVmapTable(reinterpret_cast<uint16_t*>(vmap_table_offset));
   }
 
-  Object* GetGcMap() const {
-    return GetFieldObject<Object*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
+  const uint8_t* GetGcMap() const {
+    const uint8_t* gc_map_raw = GetGcMapRaw();
+    if (gc_map_raw == NULL) {
+      return gc_map_raw;
+    }
+    return gc_map_raw + sizeof(uint32_t);
   }
 
-  void SetGcMap(Object* data) {
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), data, false);
+  uint32_t GetGcMapLength() const {
+    const uint8_t* gc_map_raw = GetGcMapRaw();
+    if (gc_map_raw == NULL) {
+      return 0;
+    }
+    return static_cast<uint32_t>((gc_map_raw[0] << 24) |
+                                 (gc_map_raw[1] << 16) |
+                                 (gc_map_raw[2] << 8) |
+                                 (gc_map_raw[3] << 0));
+  }
+
+  const uint8_t* GetGcMapRaw() const {
+    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
+  }
+  void SetGcMap(const uint8_t* data) {
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), data, false);
+  }
+
+  uint32_t GetOatGcMapOffset() const {
+    DCHECK(!Runtime::Current()->IsStarted());
+    return reinterpret_cast<uint32_t>(GetGcMapRaw());
+  }
+  void SetOatGcMapOffset(uint32_t gc_map_offset) {
+    DCHECK(!Runtime::Current()->IsStarted());
+    SetGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
   }
 
   size_t GetFrameSizeInBytes() const {
@@ -859,9 +886,6 @@ class MANAGED Method : public Object {
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<String>* dex_cache_strings_;
 
-  // Garbage collection map
-  Object* gc_map_;
-
   // Access flags; low 16 bits are defined by spec.
   uint32_t access_flags_;
 
@@ -880,6 +904,9 @@ class MANAGED Method : public Object {
 
   // Total size in bytes of the frame
   size_t frame_size_in_bytes_;
+
+  // Garbage collection map
+  const uint8_t* gc_map_;
 
   // Native invocation stub entry point for calling from native to managed code.
   const InvokeStub* invoke_stub_;

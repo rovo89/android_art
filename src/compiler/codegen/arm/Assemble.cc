@@ -974,12 +974,12 @@ ArmEncodingMap EncodingMap[kArmLast] = {
  */
 #define PADDING_MOV_R5_R5               0x1C2D
 
-STATIC void pushWord(std::vector<short>&buf, int data) {
+STATIC void pushWord(std::vector<uint16_t>&buf, int data) {
     buf.push_back( data & 0xffff);
     buf.push_back( (data >> 16) & 0xffff);
 }
 
-void alignBuffer(std::vector<short>&buf, size_t offset) {
+void alignBuffer(std::vector<uint16_t>&buf, size_t offset) {
     while (buf.size() < (offset/2))
         buf.push_back(0);
 }

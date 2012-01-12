@@ -193,6 +193,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t fp_spill_mask = 0;
   uint32_t mapping_table_offset = 0;
   uint32_t vmap_table_offset = 0;
+  uint32_t gc_map_offset = 0;
   // derived from CompiledInvokeStub if available
   uint32_t invoke_stub_offset = 0;
 
@@ -258,6 +259,20 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       offset += vmap_table_size;
       oat_header_->UpdateChecksum(&vmap_table[0], vmap_table_size);
     }
+
+    const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+    size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
+    gc_map_offset = (gc_map_size == 0) ? 0 : offset;
+
+    // Deduplicate GC maps
+    std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter = gc_map_offsets_.find(&gc_map);
+    if (gc_map_iter != gc_map_offsets_.end()) {
+      gc_map_offset = gc_map_iter->second;
+    } else {
+      gc_map_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&gc_map, gc_map_offset));
+      offset += gc_map_size;
+      oat_header_->UpdateChecksum(&gc_map[0], gc_map_size);
+    }
   }
 
   const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx));
@@ -287,6 +302,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                          fp_spill_mask,
                          mapping_table_offset,
                          vmap_table_offset,
+                         gc_map_offset,
                          invoke_stub_offset);
 
   if (compiler_->IsImage()) {
@@ -301,6 +317,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     method->SetOatMappingTableOffset(mapping_table_offset);
     method->SetOatCodeOffset(code_offset);
     method->SetOatVmapTableOffset(vmap_table_offset);
+    method->SetOatGcMapOffset(gc_map_offset);
     method->SetOatInvokeStubOffset(invoke_stub_offset);
   }
   return offset;
@@ -565,6 +582,29 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
         return false;
       }
       code_offset += vmap_table_size;
+    }
+    DCHECK_CODE_OFFSET();
+
+    const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+    size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
+
+    // Deduplicate GC maps
+    std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter =
+        gc_map_offsets_.find(&gc_map);
+    if (gc_map_iter != gc_map_offsets_.end() &&
+        code_offset != method_offsets.gc_map_offset_) {
+      DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
+          || gc_map_iter->second == method_offsets.gc_map_offset_)
+          << PrettyMethod(method_idx, dex_file);
+    } else {
+      DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
+          || code_offset == method_offsets.gc_map_offset_)
+          << PrettyMethod(method_idx, dex_file);
+      if (!file->WriteFully(&gc_map[0], gc_map_size)) {
+        ReportWriteFailure("GC map", method_idx, dex_file, file);
+        return false;
+      }
+      code_offset += gc_map_size;
     }
     DCHECK_CODE_OFFSET();
   }

@@ -38,7 +38,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
       CHECK_EQ(pc, 0u);
       return;
     }
-    verifier::PcToReferenceMap map(m);
+    verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
     const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
     MethodHelper mh(m);
     StringPiece m_name(mh.GetName());

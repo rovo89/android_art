@@ -4,11 +4,13 @@
 #define ART_SRC_DEX_VERIFY_H_
 
 #include "casts.h"
+#include "compiler.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "macros.h"
 #include "object.h"
 #include "stl_util.h"
+#include "unordered_map.h"
 #include "UniquePtr.h"
 
 #include <deque>
@@ -17,6 +19,7 @@
 #include <vector>
 
 namespace art {
+
 namespace verifier {
 
 class DexVerifier;
@@ -702,7 +705,7 @@ class RegisterLine {
   }
 
   // Write a bit at each register location that holds a reference
-  void WriteReferenceBitMap(int8_t* data, size_t max_bytes);
+  void WriteReferenceBitMap(std::vector<uint8_t>& data, size_t max_bytes);
  private:
 
   void CopyRegToLockDepth(size_t dst, size_t src) {
@@ -863,6 +866,9 @@ class DexVerifier {
   // Dump the state of the verifier, namely each instruction, what flags are set on it, register
   // information
   void Dump(std::ostream& os);
+
+  static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
+  static void DeleteGcMaps();
 
  private:
 
@@ -1173,10 +1179,10 @@ class DexVerifier {
    * encode it in some clever fashion.
    * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
    */
-  ByteArray* GenerateGcMap();
+  const std::vector<uint8_t>* GenerateGcMap();
 
   // Verify that the GC map associated with method_ is well formed
-  void VerifyGcMap();
+  void VerifyGcMap(const std::vector<uint8_t>& data);
 
   // Compute sizes for GC map data
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
@@ -1184,6 +1190,13 @@ class DexVerifier {
   InsnFlags CurrentInsnFlags() {
     return insn_flags_[work_insn_idx_];
   }
+
+  typedef std::tr1::unordered_map<const Compiler::MethodReference,
+                                  const std::vector<uint8_t>*,
+                                  Compiler::MethodReferenceHash> GcMapTable;
+  // All the GC maps that the verifier has created
+  static GcMapTable gc_maps_;
+  static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
 
   RegTypeCache reg_types_;
 
@@ -1220,11 +1233,11 @@ class DexVerifier {
 // Lightweight wrapper for PC to reference bit maps.
 class PcToReferenceMap {
  public:
-  PcToReferenceMap(Method* m) {
-    data_ = down_cast<ByteArray*>(m->GetGcMap());
-    CHECK(data_ != NULL) << PrettyMethod(m);
+  PcToReferenceMap(const uint8_t* data, size_t data_length) {
+    data_ = data;
+    CHECK(data_ != NULL);
     // Check the size of the table agrees with the number of entries
-    size_t data_size = data_->GetLength() - 4;
+    size_t data_size = data_length - 4;
     DCHECK_EQ(EntryWidth() * NumEntries(), data_size);
   }
 
@@ -1288,9 +1301,9 @@ class PcToReferenceMap {
   }
 
   const uint8_t* GetData() const {
-    return reinterpret_cast<uint8_t*>(data_->GetData());
+    return data_;
   }
-  ByteArray* data_;  // The header and table data
+  const uint8_t* data_;  // The header and table data
 };
 
 }  // namespace verifier

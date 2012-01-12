@@ -147,6 +147,7 @@ class OatWriter {
   std::map<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > code_offsets_;
   std::map<const std::vector<uint16_t>*, uint32_t, MapCompare<std::vector<uint16_t> > > vmap_table_offsets_;
   std::map<const std::vector<uint32_t>*, uint32_t, MapCompare<std::vector<uint32_t> > > mapping_table_offsets_;
+  std::map<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > gc_map_offsets_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };

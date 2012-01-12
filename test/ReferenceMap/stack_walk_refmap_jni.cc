@@ -36,7 +36,7 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
     }
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
-    verifier::PcToReferenceMap map(m);
+    verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
 
     if (!pc) {
       // pc == NULL: m is either a native method or a phony method

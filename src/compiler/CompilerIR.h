@@ -215,7 +215,7 @@ typedef struct CompilationUnit {
     int totalSize;                      // header + code size
     AssemblerStatus assemblerStatus;    // Success or fix and retry
     int assemblerRetries;
-    std::vector<short> codeBuffer;
+    std::vector<uint16_t> codeBuffer;
     std::vector<uint32_t> mappingTable;
     std::vector<uint16_t> coreVmapTable;
     std::vector<uint16_t> fpVmapTable;

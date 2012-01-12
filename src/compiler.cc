@@ -8,6 +8,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
+#include "dex_verifier.h"
 #include "jni_compiler.h"
 #include "jni_internal.h"
 #include "oat_file.h"
@@ -136,6 +137,7 @@ void Compiler::PreCompile(const ClassLoader* class_loader,
 
 void Compiler::PostCompile(const ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
+  SetGcMaps(class_loader, dex_files);
   SetCodeAndDirectMethods(dex_files);
 }
 
@@ -479,6 +481,70 @@ CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
   }
   CHECK(it->second != NULL);
   return it->second;
+}
+
+void Compiler::SetGcMaps(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files) {
+  for (size_t i = 0; i != dex_files.size(); ++i) {
+    const DexFile* dex_file = dex_files[i];
+    CHECK(dex_file != NULL);
+    SetGcMapsDexFile(class_loader, *dex_file);
+  }
+}
+
+void Compiler::SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  DexCache* dex_cache = class_linker->FindDexCache(dex_file);
+  for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+    const char* descriptor = dex_file.GetClassDescriptor(class_def);
+    Class* klass = class_linker->FindClass(descriptor, class_loader);
+    if (klass == NULL || !klass->IsVerified()) {
+      Thread::Current()->ClearException();
+      continue;
+    }
+    const byte* class_data = dex_file.GetClassData(class_def);
+    if (class_data == NULL) {
+      // empty class such as a marker interface
+      continue;
+    }
+    ClassDataItemIterator it(dex_file, class_data);
+    while (it.HasNextStaticField()) {
+      it.Next();
+    }
+    while (it.HasNextInstanceField()) {
+      it.Next();
+    }
+    while (it.HasNextDirectMethod()) {
+      Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
+                                                   class_loader, true);
+      SetGcMapsMethod(dex_file, method);
+      it.Next();
+    }
+    while (it.HasNextVirtualMethod()) {
+      Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
+                                                   class_loader, false);
+      SetGcMapsMethod(dex_file, method);
+      it.Next();
+    }
+  }
+}
+
+void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
+  if (method == NULL) {
+    Thread::Current()->ClearException();
+    return;
+  }
+  uint16_t method_idx = method->GetDexMethodIndex();
+  MethodReference ref(&dex_file, method_idx);
+  CompiledMethod* compiled_method = GetCompiledMethod(ref);
+  if (compiled_method == NULL) {
+    return;
+  }
+  const std::vector<uint8_t>* gc_map = verifier::DexVerifier::GetGcMap(ref);
+  if (gc_map == NULL) {
+    return;
+  }
+  compiled_method->SetGcMap(*gc_map);
 }
 
 void Compiler::SetCodeAndDirectMethods(const std::vector<const DexFile*>& dex_files) {

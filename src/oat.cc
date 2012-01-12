@@ -72,6 +72,7 @@ OatMethodOffsets::OatMethodOffsets()
     fp_spill_mask_(0),
     mapping_table_offset_(0),
     vmap_table_offset_(0),
+    gc_map_offset_(0),
     invoke_stub_offset_(0) {}
 
 OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
@@ -80,6 +81,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t fp_spill_mask,
                                    uint32_t mapping_table_offset,
                                    uint32_t vmap_table_offset,
+                                   uint32_t gc_map_offset,
                                    uint32_t invoke_stub_offset)
   : code_offset_(code_offset),
     frame_size_in_bytes_(frame_size_in_bytes),
@@ -87,6 +89,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
     fp_spill_mask_(fp_spill_mask),
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
+    gc_map_offset_(gc_map_offset),
     invoke_stub_offset_(invoke_stub_offset) {}
 
 OatMethodOffsets::~OatMethodOffsets() {}

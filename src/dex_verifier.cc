@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "class_linker.h"
+#include "compiler.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
@@ -842,7 +843,7 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
   return changed;
 }
 
-void RegisterLine::WriteReferenceBitMap(int8_t* data, size_t max_bytes) {
+void RegisterLine::WriteReferenceBitMap(std::vector<uint8_t>& data, size_t max_bytes) {
   for (size_t i = 0; i < num_regs_; i += 8) {
     uint8_t val = 0;
     for (size_t j = 0; j < 8 && (i + j) < num_regs_; j++) {
@@ -851,10 +852,12 @@ void RegisterLine::WriteReferenceBitMap(int8_t* data, size_t max_bytes) {
         val |= 1 << j;
       }
     }
-    if (val != 0) {
-      DCHECK_LT(i / 8, max_bytes);
-      data[i / 8] = val;
+    if ((i / 8) >= max_bytes) {
+      DCHECK_EQ(0, val);
+      continue;
     }
+    DCHECK_LT(i / 8, max_bytes) << "val=" << static_cast<uint32_t>(val);
+    data.push_back(val);
   }
 }
 
@@ -966,12 +969,18 @@ void DexVerifier::VerifyMethodAndDump(Method* method) {
             << verifier.info_messages_.str() << Dumpable<DexVerifier>(verifier);
 }
 
-DexVerifier::DexVerifier(Method* method) : work_insn_idx_(-1), method_(method),
-                                           failure_(VERIFY_ERROR_NONE),
-
-                                           new_instance_count_(0), monitor_enter_count_(0) {
+DexVerifier::DexVerifier(Method* method)
+    : work_insn_idx_(-1),
+      method_(method),
+      failure_(VERIFY_ERROR_NONE),
+      new_instance_count_(0),
+      monitor_enter_count_(0) {
+  CHECK(method != NULL);
+  Runtime* runtime = Runtime::Current();
+  // We should only be running the verifier at compile time
+  CHECK(!runtime->IsStarted());
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ClassLinker* class_linker = runtime->GetClassLinker();
   dex_file_ = &class_linker->FindDexFile(dex_cache);
   code_item_ = dex_file_->GetCodeItem(method->GetCodeItemOffset());
 }
@@ -1063,7 +1072,7 @@ bool DexVerifier::ScanTryCatchBlocks() {
       insn_flags_[dex_pc].SetInTry();
     }
   }
-  /* Iterate over each of the handlers to verify target addresses. */
+  // Iterate over each of the handlers to verify target addresses.
   const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -1517,13 +1526,14 @@ bool DexVerifier::VerifyCodeFlow() {
   }
 
   /* Generate a register map and add it to the method. */
-  ByteArray* map = GenerateGcMap();
+  const std::vector<uint8_t>* map = GenerateGcMap();
   if (map == NULL) {
     return false;  // Not a real failure, but a failure to encode
   }
-  method_->SetGcMap(map);
+  Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
+  verifier::DexVerifier::SetGcMap(ref, *map);
 #ifndef NDEBUG
-  VerifyGcMap();
+  VerifyGcMap(*map);
 #endif
   return true;
 }
@@ -3712,7 +3722,7 @@ void DexVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
   *log2_max_gc_pc = i;
 }
 
-ByteArray* DexVerifier::GenerateGcMap() {
+const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
   size_t num_entries, ref_bitmap_bits, pc_bits;
   ComputeGcMapSizes(&num_entries, &ref_bitmap_bits, &pc_bits);
   // There's a single byte to encode the size of each bitmap
@@ -3745,39 +3755,35 @@ ByteArray* DexVerifier::GenerateGcMap() {
     return NULL;
   }
   size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries ) + 4;
-  ByteArray* table = ByteArray::Alloc(table_size);
+  std::vector<uint8_t>* table = new std::vector<uint8_t>;
   if (table == NULL) {
     Fail(VERIFY_ERROR_GENERIC) << "Failed to encode GC map (size=" << table_size << ")";
     return NULL;
   }
   // Write table header
-  table->Set(0, format);
-  table->Set(1, ref_bitmap_bytes);
-  table->Set(2, num_entries & 0xFF);
-  table->Set(3, (num_entries >> 8) & 0xFF);
+  table->push_back(format);
+  table->push_back(ref_bitmap_bytes);
+  table->push_back(num_entries & 0xFF);
+  table->push_back((num_entries >> 8) & 0xFF);
   // Write table data
-  size_t offset = 4;
   for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
     if (insn_flags_[i].IsGcPoint()) {
-      table->Set(offset, i & 0xFF);
-      offset++;
+      table->push_back(i & 0xFF);
       if (pc_bytes == 2) {
-        table->Set(offset, (i >> 8) & 0xFF);
-        offset++;
+        table->push_back((i >> 8) & 0xFF);
       }
       RegisterLine* line = reg_table_.GetLine(i);
-      line->WriteReferenceBitMap(table->GetData() + offset, ref_bitmap_bytes);
-      offset += ref_bitmap_bytes;
+      line->WriteReferenceBitMap(*table, ref_bitmap_bytes);
     }
   }
-  DCHECK(offset == table_size);
+  DCHECK_EQ(table->size(), table_size);
   return table;
 }
 
-void DexVerifier::VerifyGcMap() {
+void DexVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   // Check that for every GC point there is a map entry, there aren't entries for non-GC points,
   // that the table data is well formed and all references are marked (or not) in the bitmap
-  PcToReferenceMap map(method_);
+  PcToReferenceMap map(&data[0], data.size());
   size_t map_index = 0;
   for(size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
     const uint8_t* reg_bitmap = map.FindBitMap(i, false);
@@ -3832,6 +3838,27 @@ const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_p
     LOG(ERROR) << "Didn't find reference bit map for dex_pc " << dex_pc;
   }
   return NULL;
+}
+
+DexVerifier::GcMapTable DexVerifier::gc_maps_;
+
+void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
+  CHECK(GetGcMap(ref) == NULL);
+  gc_maps_[ref] = &gc_map;
+  CHECK(GetGcMap(ref) != NULL);
+}
+
+const std::vector<uint8_t>* DexVerifier::GetGcMap(Compiler::MethodReference ref) {
+  GcMapTable::const_iterator it = gc_maps_.find(ref);
+  if (it == gc_maps_.end()) {
+    return NULL;
+  }
+  CHECK(it->second != NULL);
+  return it->second;
+}
+
+void DexVerifier::DeleteGcMaps() {
+  STLDeleteValues(&gc_maps_);
 }
 
 }  // namespace verifier

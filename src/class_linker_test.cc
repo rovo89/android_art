@@ -439,7 +439,6 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "dexCacheStrings"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, gc_map_),                               "gcMap"));
 
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, access_flags_),        "accessFlags"));
@@ -448,6 +447,7 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, core_spill_mask_),     "coreSpillMask"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, fp_spill_mask_),       "fpSpillMask"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_), "frameSizeInBytes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, gc_map_),              "gcMap"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),         "invokeStub"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),       "mappingTable"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_dex_index_),    "methodDexIndex"));
