@@ -315,6 +315,8 @@ class MethodCompiler {
                             llvm::Value* index_value,
                             llvm::Type* elem_type);
 
+  llvm::Value* EmitLoadConstantClass(uint32_t dex_pc, uint32_t type_idx);
+
   void EmitGuard_DivZeroException(uint32_t dex_pc,
                                   llvm::Value* denominator,
                                   JType op_jty);

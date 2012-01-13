@@ -1237,9 +1237,88 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 }
 
 
+llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
+                                                   uint32_t type_idx) {
+  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
+                                             *dex_file_, type_idx)) {
+    llvm::Value* type_idx_value = irb_.getInt32(type_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::Function* runtime_func =
+      irb_.GetRuntime(InitializeTypeAndVerifyAccess);
+
+    llvm::Value* type_object_addr =
+      irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    return type_object_addr;
+
+  } else {
+    // Try to load the class (type) object from the test cache.
+    llvm::Value* type_field_addr =
+      EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
+
+    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr);
+
+    if (compiler_->CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
+      return type_object_addr;
+    }
+
+    llvm::BasicBlock* block_original = irb_.GetInsertBlock();
+
+    // Test whether class (type) object is in the dex cache or not
+    llvm::Value* equal_null =
+      irb_.CreateICmpEQ(type_object_addr, irb_.getJNull());
+
+    llvm::BasicBlock* block_cont =
+      CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+    llvm::BasicBlock* block_load_class =
+      CreateBasicBlockWithDexPC(dex_pc, "load_class");
+
+    irb_.CreateCondBr(equal_null, block_load_class, block_cont);
+
+    // Failback routine to load the class object
+    irb_.SetInsertPoint(block_load_class);
+
+    llvm::Function* runtime_func = irb_.GetRuntime(InitializeType);
+
+    llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::Value* loaded_type_object_addr =
+      irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    llvm::BasicBlock* block_after_load_class = irb_.GetInsertBlock();
+
+    irb_.CreateBr(block_cont);
+
+    // Now the class object must be loaded
+    irb_.SetInsertPoint(block_cont);
+
+    llvm::PHINode* phi = irb_.CreatePHI(irb_.getJObjectTy(), 2);
+
+    phi->addIncoming(type_object_addr, block_original);
+    phi->addIncoming(loaded_type_object_addr, block_after_load_class);
+
+    return phi;
+  }
+}
+
+
 void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
                                                 Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB_);
+  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, type_object_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
