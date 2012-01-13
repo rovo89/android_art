@@ -1108,7 +1108,29 @@ void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
                                             Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  // Get thread-local exception field address
+  llvm::Constant* exception_field_offset =
+    irb_.getPtrEquivInt(Thread::ExceptionOffset().Int32Value());
+
+  llvm::Value* thread_object_addr =
+    irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
+  llvm::Value* exception_field_addr =
+    irb_.CreatePtrDisp(thread_object_addr, exception_field_offset,
+                       irb_.getJObjectTy()->getPointerTo());
+
+  // Get exception object address
+  llvm::Value* exception_object_addr = irb_.CreateLoad(exception_field_addr);
+
+  // Set thread-local exception field address to NULL
+  irb_.CreateStore(irb_.getJNull(), exception_field_addr);
+
+  // Keep the exception object in the Dalvik register
+  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, exception_object_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
