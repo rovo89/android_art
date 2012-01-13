@@ -1217,14 +1217,35 @@ void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
                                            Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr =
+    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+
+  // TODO: Slow path always. May not need NullPointerException check.
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  irb_.CreateCall(irb_.GetRuntime(LockObject), object_addr);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
 
 void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
                                           Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr =
+    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  irb_.CreateCall(irb_.GetRuntime(UnlockObject), object_addr);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
