@@ -67,7 +67,7 @@ int64_t QuasiAtomicSwap64Sync(int64_t value, volatile int64_t* addr) {
 }
 
 int64_t QuasiAtomicRead64(volatile const int64_t* addr) {
-  return OSAtomicAdd64Barrier(0, addr);
+  return OSAtomicAdd64Barrier(0, const_cast<volatile int64_t*>(addr));
 }
 #endif
 
