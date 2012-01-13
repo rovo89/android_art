@@ -21,6 +21,7 @@
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "intern_table.h"
+#include "monitor.h"
 #include "object.h"
 #include "runtime.h"
 #include "UniquePtr.h"
@@ -28,6 +29,35 @@
 #include <string>
 
 namespace art {
+
+class ObjectLock {
+ public:
+  explicit ObjectLock(Object* object) : self_(Thread::Current()), obj_(object) {
+    CHECK(object != NULL);
+    obj_->MonitorEnter(self_);
+  }
+
+  ~ObjectLock() {
+    obj_->MonitorExit(self_);
+  }
+
+  void Wait() {
+    return Monitor::Wait(self_, obj_, 0, 0, false);
+  }
+
+  void Notify() {
+    obj_->Notify();
+  }
+
+  void NotifyAll() {
+    obj_->NotifyAll();
+  }
+
+ private:
+  Thread* self_;
+  Object* obj_;
+  DISALLOW_COPY_AND_ASSIGN(ObjectLock);
+};
 
 class ClassHelper {
  public:
