@@ -23,7 +23,6 @@
 #include "intern_table.h"
 #include "leb128.h"
 #include "logging.h"
-#include "monitor.h"
 #include "oat_file.h"
 #include "object.h"
 #include "object_utils.h"
@@ -191,35 +190,6 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "[J",
   "[S",
   "[Ljava/lang/StackTraceElement;",
-};
-
-class ObjectLock {
- public:
-  explicit ObjectLock(Object* object) : self_(Thread::Current()), obj_(object) {
-    CHECK(object != NULL);
-    obj_->MonitorEnter(self_);
-  }
-
-  ~ObjectLock() {
-    obj_->MonitorExit(self_);
-  }
-
-  void Wait() {
-    return Monitor::Wait(self_, obj_, 0, 0, false);
-  }
-
-  void Notify() {
-    obj_->Notify();
-  }
-
-  void NotifyAll() {
-    obj_->NotifyAll();
-  }
-
- private:
-  Thread* self_;
-  Object* obj_;
-  DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
 ClassLinker* ClassLinker::Create(const std::string& boot_class_path, InternTable* intern_table) {

@@ -900,6 +900,9 @@ bool DexVerifier::VerifyClass(const Class* klass) {
     return false;
   }
   if (super != NULL) {
+    // Acquire lock to prevent races on verifying the super class
+    ObjectLock lock(super);
+
     if (!super->IsVerified() && !super->IsErroneous()) {
       Runtime::Current()->GetClassLinker()->VerifyClass(super);
     }
