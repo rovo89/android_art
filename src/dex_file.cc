@@ -144,10 +144,9 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
   }
 
   uint32_t length = zip_entry->GetUncompressedLength();
-  UniquePtr<MemMap> map(MemMap::MapAnonymous("classes.dex extracted in memory",
-                                             NULL,
-                                             length,
-                                             PROT_READ | PROT_WRITE));
+  std::string name("classes.dex extracted in memory from ");
+  name += location;
+  UniquePtr<MemMap> map(MemMap::MapAnonymous(name.c_str(), NULL, length, PROT_READ | PROT_WRITE));
   if (map.get() == NULL) {
     LOG(ERROR) << "mmap classes.dex for \"" << location << "\" failed";
     return NULL;
