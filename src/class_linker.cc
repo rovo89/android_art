@@ -2537,7 +2537,8 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
   if (super_ifcount != 0) {
     ObjectArray<InterfaceEntry>* super_iftable = klass->GetSuperClass()->GetIfTable();
     for (size_t i = 0; i < super_ifcount; i++) {
-      iftable->Set(i, AllocInterfaceEntry(super_iftable->Get(i)->GetInterface()));
+      Class* super_interface = super_iftable->Get(i)->GetInterface();
+      iftable->Set(i, AllocInterfaceEntry(super_interface));
     }
   }
   // Flatten the interface inheritance hierarchy.
@@ -2555,15 +2556,43 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
       klass->SetVerifyErrorClass(thread->GetException()->GetClass());
       return false;
     }
-    // Add this interface.
-    iftable->Set(idx++, AllocInterfaceEntry(interface));
-    // Add this interface's superinterfaces.
-    for (int32_t j = 0; j < interface->GetIfTableCount(); j++) {
-      iftable->Set(idx++, AllocInterfaceEntry(interface->GetIfTable()->Get(j)->GetInterface()));
+    // Check if interface is already in iftable
+    bool duplicate = false;
+    for (size_t j = 0; j < idx; j++) {
+      Class* existing_interface = iftable->Get(j)->GetInterface();
+      if (existing_interface == interface) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      // Add this non-duplicate interface.
+      iftable->Set(idx++, AllocInterfaceEntry(interface));
+      // Add this interface's non-duplicate super-interfaces.
+      for (int32_t j = 0; j < interface->GetIfTableCount(); j++) {
+        Class* super_interface = interface->GetIfTable()->Get(j)->GetInterface();
+        bool super_duplicate = false;
+        for (size_t k = 0; k < idx; k++) {
+          Class* existing_interface = iftable->Get(k)->GetInterface();
+          if (existing_interface == super_interface) {
+            super_duplicate = true;
+            break;
+          }
+        }
+        if (!super_duplicate) {
+          iftable->Set(idx++, AllocInterfaceEntry(super_interface));
+        }
+      }
     }
   }
+  // Shrink iftable in case duplicates were found
+  if (idx < ifcount) {
+    iftable.reset(iftable->CopyOf(idx));
+    ifcount = idx;
+  } else {
+    CHECK_EQ(idx, ifcount);
+  }
   klass->SetIfTable(iftable.get());
-  CHECK_EQ(idx, ifcount);
 
   // If we're an interface, we don't need the vtable pointers, so we're done.
   if (klass->IsInterface() /*|| super_ifcount == ifcount*/) {
