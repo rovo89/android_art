@@ -1137,8 +1137,15 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
                                              Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateUnreachable();
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* exception_addr =
+    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+
+  irb_.CreateCall(irb_.GetRuntime(ThrowException), exception_addr);
+
+  EmitBranchExceptionLandingPad(dex_pc);
 }
 
 
