@@ -31,12 +31,19 @@ namespace art {
 namespace compiler_llvm {
 
 
+namespace {
+using namespace llvm;
+#include "art_module.cc"
+}
+
+
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
 : compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
   insn_set_(insn_set), context_(new llvm::LLVMContext()) {
 
   // Create the module and include the runtime function declaration
   module_ = new llvm::Module("art", *context_);
+  makeLLVMModuleContents(module_);
 
   // Create IRBuilder
   irb_.reset(new IRBuilder(*context_, *module_));

@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_IR_BUILDER_H_
 
 #include "backend_types.h"
+#include "runtime_support_func.h"
 
 #include <llvm/Constants.h>
 #include <llvm/DerivedTypes.h>
@@ -87,6 +88,13 @@ class IRBuilder : public LLVMIRBuilder {
 
     return CreatePtrDisp(base, total_offset, ret_ty);
   }
+
+
+  //--------------------------------------------------------------------------
+  // Runtime Helper Function
+  //--------------------------------------------------------------------------
+
+  llvm::Function* GetRuntime(runtime_support::RuntimeId rt) const;
 
 
   //--------------------------------------------------------------------------
@@ -240,6 +248,13 @@ class IRBuilder : public LLVMIRBuilder {
 
  private:
   //--------------------------------------------------------------------------
+  // Runtime Helper Function (Private)
+  //--------------------------------------------------------------------------
+
+  void InitRuntimeSupportFuncDecl(llvm::Module& module);
+
+
+  //--------------------------------------------------------------------------
   // Type Helper Function (Private)
   //--------------------------------------------------------------------------
 
@@ -250,6 +265,8 @@ class IRBuilder : public LLVMIRBuilder {
 
  private:
   llvm::PointerType* jobject_type_;
+
+  llvm::Function* runtime_support_func_decls_[runtime_support::MAX_ID];
 
 };
 

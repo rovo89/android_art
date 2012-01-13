@@ -15,6 +15,7 @@
  */
 
 #include "ir_builder.h"
+#include "runtime_support_func.h"
 
 #include <llvm/Module.h>
 
@@ -30,9 +31,45 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
 : LLVMIRBuilder(context) {
 
   // Get java object type from module
-  llvm::Type* jobject_struct_type =
-    llvm::StructType::create(context, "JavaObject");
+  llvm::Type* jobject_struct_type = module.getTypeByName("JavaObject");
+  CHECK_NE(jobject_struct_type, static_cast<llvm::Type*>(NULL));
   jobject_type_ = jobject_struct_type->getPointerTo();
+
+  // Load the runtime support function declaration from module
+  InitRuntimeSupportFuncDecl(module);
+}
+
+
+//----------------------------------------------------------------------------
+// Runtime Helper Function
+//----------------------------------------------------------------------------
+
+void IRBuilder::InitRuntimeSupportFuncDecl(llvm::Module& module) {
+  using namespace runtime_support;
+
+#define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
+  do { \
+    llvm::Function* fn = module.getFunction(NAME); \
+    DCHECK_NE(fn, (void*)NULL) << "Function not found: " << NAME; \
+    runtime_support_func_decls_[ID] = fn; \
+  } while (0);
+
+#include "runtime_support_func_list.h"
+  RUNTIME_SUPPORT_FUNC_LIST(GET_RUNTIME_SUPPORT_FUNC_DECL)
+#undef RUNTIME_SUPPORT_FUNC_LIST
+#undef GET_RUNTIME_SUPPORT_FUNC_DECL
+}
+
+
+llvm::Function* IRBuilder::GetRuntime(runtime_support::RuntimeId rt) const {
+  using namespace runtime_support;
+
+  if (rt >= 0 && rt < MAX_ID){
+    return runtime_support_func_decls_[rt];
+  } else {
+    LOG(ERROR) << "Unknown runtime function id: " << rt;
+    return NULL;
+  }
 }
 
 
