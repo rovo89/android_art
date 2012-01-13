@@ -126,6 +126,11 @@ T Decode(JNIEnv* public_env, jobject obj) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   return reinterpret_cast<T>(env->self->DecodeJObject(obj));
 }
+// TODO: Change to use template when Mac OS build server no longer uses GCC 4.2.*.
+Object* DecodeObj(JNIEnv* public_env, jobject obj) {
+  JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
+  return reinterpret_cast<Object*>(env->self->DecodeJObject(obj));
+}
 // Explicit instantiations.
 template Array* Decode<Array*>(JNIEnv*, jobject);
 template Class* Decode<Class*>(JNIEnv*, jobject);
@@ -179,7 +184,7 @@ static byte* CreateArgArray(JNIEnv* public_env, Method* method, va_list ap) {
         offset += 4;
         break;
       case 'L': {
-        Object* obj = Decode<Object*>(env, va_arg(ap, jobject));
+        Object* obj = DecodeObj(env, va_arg(ap, jobject));
         *reinterpret_cast<Object**>(&arg_array[offset]) = obj;
         offset += sizeof(Object*);
         break;
@@ -218,7 +223,7 @@ static byte* CreateArgArray(JNIEnv* public_env, Method* method, jvalue* args) {
         offset += 4;
         break;
       case 'L': {
-        Object* obj = Decode<Object*>(env, args[i - 1].l);
+        Object* obj = DecodeObj(env, args[i - 1].l);
         *reinterpret_cast<Object**>(&arg_array[offset]) = obj;
         offset += sizeof(Object*);
         break;
@@ -281,7 +286,7 @@ static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* m
 
 static JValue InvokeWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid, va_list args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  Object* receiver = Decode<Object*>(env, obj);
+  Object* receiver = DecodeObj(env, obj);
   Method* method = DecodeMethod(mid);
   UniquePtr<byte[]> arg_array(CreateArgArray(env, method, args));
   return InvokeWithArgArray(env, receiver, method, arg_array.get());
@@ -294,7 +299,7 @@ static Method* FindVirtualMethod(Object* receiver, Method* method) {
 static JValue InvokeVirtualOrInterfaceWithJValues(JNIEnv* public_env, jobject obj, jmethodID mid,
                                                   jvalue* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  Object* receiver = Decode<Object*>(env, obj);
+  Object* receiver = DecodeObj(env, obj);
   Method* method = FindVirtualMethod(receiver, DecodeMethod(mid));
   UniquePtr<byte[]> arg_array(CreateArgArray(env, method, args));
   return InvokeWithArgArray(env, receiver, method, arg_array.get());
@@ -303,7 +308,7 @@ static JValue InvokeVirtualOrInterfaceWithJValues(JNIEnv* public_env, jobject ob
 static JValue InvokeVirtualOrInterfaceWithVarArgs(JNIEnv* public_env, jobject obj, jmethodID mid,
                                                   va_list args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  Object* receiver = Decode<Object*>(env, obj);
+  Object* receiver = DecodeObj(env, obj);
   Method* method = FindVirtualMethod(receiver, DecodeMethod(mid));
   UniquePtr<byte[]> arg_array(CreateArgArray(env, method, args));
   return InvokeWithArgArray(env, receiver, method, arg_array.get());
@@ -2977,7 +2982,7 @@ std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
     os << "JNIWeakGlobalRefType";
     return os;
   default:
-    os << "jobjectRefType[" << static_cast<int>(rhs) << "]";
+    LOG(FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
     return os;
   }
 }
