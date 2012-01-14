@@ -163,7 +163,7 @@ std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
 }
 
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
-                                std::string dex_file_location,
+                                const std::string& dex_file_location,
                                 uint32_t dex_file_checksum,
                                 byte* dex_file_pointer,
                                 const uint32_t* oat_class_offsets_pointer)

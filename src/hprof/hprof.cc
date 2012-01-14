@@ -31,8 +31,6 @@
 #include "object.h"
 #include "object_utils.h"
 #include "stringprintf.h"
-#include "unordered_map.h"
-#include "unordered_set.h"
 
 #include <cutils/open_memstream.h>
 #include <sys/uio.h>

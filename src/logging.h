@@ -137,6 +137,32 @@ struct EagerEvaluator {
   RHS rhs;
 };
 
+// We want char*s to be treated as pointers, not strings. If you want them treated like strings,
+// you'd need to use CHECK_STREQ and CHECK_STRNE anyway to compare the characters rather than their
+// addresses. We could express this more succinctly with std::remove_const, but this is quick and
+// easy to understand, and works before we have C++0x. We rely on signed/unsigned warnings to
+// protect you against combinations not explicitly listed below.
+#define EAGER_PTR_EVALUATOR(T1, T2) \
+  template <> struct EagerEvaluator<T1, T2> { \
+    EagerEvaluator(T1 lhs, T2 rhs) \
+        : lhs(reinterpret_cast<const void*>(lhs)), \
+          rhs(reinterpret_cast<const void*>(rhs)) { } \
+    const void* lhs; \
+    const void* rhs; \
+  }
+EAGER_PTR_EVALUATOR(const char*, const char*);
+EAGER_PTR_EVALUATOR(const char*, char*);
+EAGER_PTR_EVALUATOR(char*, const char*);
+EAGER_PTR_EVALUATOR(char*, char*);
+EAGER_PTR_EVALUATOR(const unsigned char*, const unsigned char*);
+EAGER_PTR_EVALUATOR(const unsigned char*, unsigned char*);
+EAGER_PTR_EVALUATOR(unsigned char*, const unsigned char*);
+EAGER_PTR_EVALUATOR(unsigned char*, unsigned char*);
+EAGER_PTR_EVALUATOR(const signed char*, const signed char*);
+EAGER_PTR_EVALUATOR(const signed char*, signed char*);
+EAGER_PTR_EVALUATOR(signed char*, const signed char*);
+EAGER_PTR_EVALUATOR(signed char*, signed char*);
+
 // This indirection greatly reduces the stack impact of having
 // lots of checks/logging in a function.
 struct LogMessageData {
