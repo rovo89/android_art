@@ -455,7 +455,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
 
     // Dump mapping table
     if (cUnit->mappingTable.size() > 0) {
-        std::string line(StringPrintf("\n    MappingTable %s%s_%s_mappingTable[%d] = {",
+        std::string line(StringPrintf("\n    MappingTable %s%s_%s_mappingTable[%zu] = {",
             descriptor.c_str(), name.c_str(), signature.c_str(), cUnit->mappingTable.size()));
         std::replace(line.begin(), line.end(), ';', '_');
         LOG(INFO) << line;
