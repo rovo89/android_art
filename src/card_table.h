@@ -60,7 +60,7 @@ class CardTable {
    * Initializes the card table; must be called before any other
    * CardTable functions.
    */
-  bool Init(const byte* heap_base, size_t heap_max_size, size_t growth_size);
+  void Init(const byte* heap_base, size_t heap_max_size, size_t growth_size);
 
   /*
    * Resets all of the bytes in the card table to clean.

@@ -21,6 +21,7 @@
 #include "heap.h"
 #include "heap_bitmap.h"
 #include "logging.h"
+#include "utils.h"
 
 namespace art {
 /*
@@ -46,28 +47,27 @@ namespace art {
  */
 
 CardTable* CardTable::Create(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
-  UniquePtr<CardTable> bitmap(new CardTable);
-  if (!bitmap->Init(heap_base, heap_max_size, growth_size)) {
-    return NULL;
-  } else {
-    return bitmap.release();
-  }
+  CardTable* bitmap = new CardTable;
+  bitmap->Init(heap_base, heap_max_size, growth_size);
+  return bitmap;
 }
 
 /*
  * Initializes the card table; must be called before any other
  * CardTable functions.
  */
-bool CardTable::Init(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
+void CardTable::Init(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
   /* Set up the card table */
   size_t length = heap_max_size / GC_CARD_SIZE;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
-  mem_map_.reset(
-      MemMap::MapAnonymous("dalvik-card-table", NULL, length + 256, PROT_READ | PROT_WRITE));
-  byte* alloc_base = mem_map_->GetAddress();
-  if (alloc_base == NULL) {
-    return false;
+  mem_map_.reset(MemMap::MapAnonymous("dalvik-card-table", NULL, length + 256, PROT_READ | PROT_WRITE));
+  if (mem_map_.get() == NULL) {
+    std::string maps;
+    ReadFileToString("/proc/self/maps", &maps);
+    LOG(FATAL) << "couldn't allocate card table\n" << maps;
   }
+  byte* alloc_base = mem_map_->GetAddress();
+  CHECK(alloc_base != NULL);
   base_ = alloc_base;
   length_ = growth_size / GC_CARD_SIZE;
   max_length_ = length;
@@ -82,7 +82,6 @@ bool CardTable::Init(const byte* heap_base, size_t heap_max_size, size_t growth_
   }
   CHECK_EQ(reinterpret_cast<int>(biased_base_) & 0xff, GC_CARD_DIRTY);
   ClearCardTable();
-  return true;
 }
 
 void CardTable::ClearCardTable() {
