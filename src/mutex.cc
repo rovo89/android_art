@@ -21,6 +21,7 @@
 #include "heap.h" // for VERIFY_OBJECT_ENABLED
 #include "logging.h"
 #include "utils.h"
+#include "runtime.h"
 
 #define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
 
@@ -36,7 +37,12 @@ Mutex::Mutex(const char* name) : name_(name) {
 }
 
 Mutex::~Mutex() {
-  CHECK_MUTEX_CALL(pthread_mutex_destroy, (&mutex_));
+  int rc = pthread_mutex_destroy(&mutex_);
+  if (rc != 0) {
+    errno = rc;
+    bool shutting_down = Runtime::Current()->IsShuttingDown();
+    PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
+  }
 }
 
 void Mutex::Lock() {

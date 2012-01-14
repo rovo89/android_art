@@ -43,6 +43,7 @@ Runtime::Runtime()
       java_vm_(NULL),
       jni_stub_array_(NULL),
       abstract_method_error_stub_array_(NULL),
+      shutting_down_(false),
       started_(false),
       vfprintf_(NULL),
       exit_(NULL),
@@ -58,6 +59,8 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  shutting_down_ = true;
+
   Dbg::StopJdwp();
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
@@ -523,6 +526,10 @@ void Runtime::StartDaemonThreads() {
   env->CallStaticVoidMethod(c.get(), mid);
 
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
+}
+
+bool Runtime::IsShuttingDown() const {
+  return shutting_down_;
 }
 
 bool Runtime::IsStarted() const {

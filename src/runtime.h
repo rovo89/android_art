@@ -85,6 +85,7 @@ class Runtime {
   // Starts a runtime, which may cause threads to be started and code to run.
   void Start();
 
+  bool IsShuttingDown() const;
   bool IsStarted() const;
 
   static Runtime* Current() {
@@ -268,6 +269,7 @@ class Runtime {
   // As returned by ClassLoader.getSystemClassLoader()
   ClassLoader* system_class_loader_;
 
+  bool shutting_down_;
   bool started_;
 
   // Hooks supported by JNI_CreateJavaVM
