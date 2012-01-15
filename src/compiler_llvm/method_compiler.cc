@@ -1367,7 +1367,70 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
                                          Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Constant* zero = irb_.getJInt(0);
+  llvm::Constant* one = irb_.getJInt(1);
+
+  llvm::BasicBlock* block_nullp = CreateBasicBlockWithDexPC(dex_pc, "nullp");
+
+  llvm::BasicBlock* block_test_class =
+    CreateBasicBlockWithDexPC(dex_pc, "test_class");
+
+  llvm::BasicBlock* block_class_equals =
+    CreateBasicBlockWithDexPC(dex_pc, "class_eq");
+
+  llvm::BasicBlock* block_test_sub_class =
+    CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
+
+  llvm::Value* object_addr =
+    EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+
+  // Overview of the following code :
+  // We check for null, if so, then false, otherwise check for class == . If so
+  // then true, otherwise do callout slowpath.
+  //
+  // Test: Is the reference equal to null?  Set 0 when it is null.
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
+
+  irb_.CreateCondBr(equal_null, block_nullp, block_test_class);
+
+  irb_.SetInsertPoint(block_nullp);
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, zero);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+
+  // Test: Is the object instantiated from the given class?
+  irb_.SetInsertPoint(block_test_class);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vC_);
+  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+
+  llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
+
+  llvm::Value* object_type_field_addr =
+    irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
+
+  llvm::Value* object_type_object_addr =
+    irb_.CreateLoad(object_type_field_addr);
+
+  llvm::Value* equal_class =
+    irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
+
+  irb_.CreateCondBr(equal_class, block_class_equals, block_test_sub_class);
+
+  irb_.SetInsertPoint(block_class_equals);
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, one);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+
+  // Test: Is the object instantiated from the subclass of the given class?
+  irb_.SetInsertPoint(block_test_sub_class);
+
+  llvm::Value* result =
+    irb_.CreateCall2(irb_.GetRuntime(IsAssignable),
+                     type_object_addr, object_type_object_addr);
+
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
