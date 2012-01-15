@@ -1360,7 +1360,53 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
                                         Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::BasicBlock* block_test_class =
+    CreateBasicBlockWithDexPC(dex_pc, "test_class");
+
+  llvm::BasicBlock* block_test_sub_class =
+    CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
+
+  llvm::Value* object_addr =
+    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+
+  // Test: Is the reference equal to null?  Act as no-op when it is null.
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
+
+  irb_.CreateCondBr(equal_null,
+                    GetNextBasicBlock(dex_pc),
+                    block_test_class);
+
+  // Test: Is the object instantiated from the given class?
+  irb_.SetInsertPoint(block_test_class);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB_);
+  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+
+  llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
+
+  llvm::Value* object_type_field_addr =
+    irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
+
+  llvm::Value* object_type_object_addr =
+    irb_.CreateLoad(object_type_field_addr);
+
+  llvm::Value* equal_class =
+    irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
+
+  irb_.CreateCondBr(equal_class,
+                    GetNextBasicBlock(dex_pc),
+                    block_test_sub_class);
+
+  // Test: Is the object instantiated from the subclass of the given class?
+  irb_.SetInsertPoint(block_test_sub_class);
+
+  irb_.CreateCall2(irb_.GetRuntime(CheckCast),
+                   type_object_addr, object_type_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
