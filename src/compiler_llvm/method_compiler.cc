@@ -33,6 +33,8 @@
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/BasicBlock.h>
 #include <llvm/Function.h>
+#include <llvm/GlobalVariable.h>
+#include <llvm/Intrinsics.h>
 
 namespace art {
 namespace compiler_llvm {
@@ -1593,7 +1595,66 @@ void MethodCompiler::EmitInsn_NewArray(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
                                              Instruction const* insn,
                                              bool is_range) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr =
+    EmitAllocNewArray(dex_pc, dec_insn.vA_, dec_insn.vB_, true);
+
+  if (dec_insn.vA_ > 0) {
+    llvm::Value* object_addr_int =
+      irb_.CreatePtrToInt(object_addr, irb_.getPtrEquivIntTy());
+
+    llvm::Value* data_field_offset =
+      irb_.getPtrEquivInt(Array::DataOffset().Int32Value());
+
+    llvm::Value* data_field_addr_int =
+      irb_.CreateAdd(object_addr_int, data_field_offset);
+
+    Class* klass = method_->GetDexCacheResolvedTypes()->Get(dec_insn.vB_);
+    CHECK_NE(klass, static_cast<Class*>(NULL));
+    // Moved this below already: CHECK(!klass->IsPrimitive() || klass->IsPrimitiveInt());
+
+    llvm::Constant* word_size = irb_.getSizeOfPtrEquivIntValue();
+
+    llvm::Type* field_type;
+    if (klass->IsPrimitiveInt()) {
+      field_type = irb_.getJIntTy()->getPointerTo();
+    } else {
+      CHECK(!klass->IsPrimitive());
+      field_type = irb_.getJObjectTy()->getPointerTo();
+    }
+
+    // TODO: Tune this code.  Currently we are generating one instruction for
+    // one element which may be very space consuming.  Maybe changing to use
+    // memcpy may help; however, since we can't guarantee that the alloca of
+    // dalvik register are continuous, we can't perform such optimization yet.
+    for (uint32_t i = 0; i < dec_insn.vA_; ++i) {
+      llvm::Value* data_field_addr =
+        irb_.CreateIntToPtr(data_field_addr_int, field_type);
+
+      int reg_index;
+      if (is_range) {
+        reg_index = dec_insn.vC_ + i;
+      } else {
+        reg_index = dec_insn.arg_[i];
+      }
+
+      llvm::Value* reg_value;
+      if (klass->IsPrimitiveInt()) {
+        reg_value = EmitLoadDalvikReg(reg_index, kInt, kAccurate);
+      } else {
+        reg_value = EmitLoadDalvikReg(reg_index, kObject, kAccurate);
+      }
+
+      irb_.CreateStore(reg_value, data_field_addr);
+
+      data_field_addr_int = irb_.CreateAdd(data_field_addr_int, word_size);
+    }
+  }
+
+  EmitStoreDalvikRetValReg(kObject, kAccurate, object_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
