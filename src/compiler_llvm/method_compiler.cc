@@ -1514,7 +1514,28 @@ void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
                                           Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Function* runtime_func;
+  if (compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
+                                            *dex_file_, dec_insn.vB_)) {
+    runtime_func = irb_.GetRuntime(AllocObject);
+  } else {
+    runtime_func = irb_.GetRuntime(AllocObjectWithAccessCheck);
+  }
+
+  llvm::Constant* type_index_value = irb_.getInt32(dec_insn.vB_);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* object_addr =
+    irb_.CreateCall2(runtime_func, type_index_value, method_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, object_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
