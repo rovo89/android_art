@@ -1234,7 +1234,50 @@ void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
                                                  Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t string_idx = dec_insn.vB_;
+
+  llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
+
+  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr);
+
+  if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
+    llvm::BasicBlock* block_str_exist =
+      CreateBasicBlockWithDexPC(dex_pc, "str_exist");
+
+    llvm::BasicBlock* block_str_resolve =
+      CreateBasicBlockWithDexPC(dex_pc, "str_resolve");
+
+    // Test: Is the string resolved and in the dex cache?
+    llvm::Value* equal_null = irb_.CreateICmpEQ(string_addr, irb_.getJNull());
+
+    irb_.CreateCondBr(equal_null, block_str_exist, block_str_resolve);
+
+    // String is resolved, go to next basic block.
+    irb_.SetInsertPoint(block_str_exist);
+    EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, string_addr);
+    irb_.CreateBr(GetNextBasicBlock(dex_pc));
+
+    // String is not resolved yet, resolve it now.
+    irb_.SetInsertPoint(block_str_resolve);
+
+    llvm::Function* runtime_func = irb_.GetRuntime(ResolveString);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::Value* string_idx_value = irb_.getInt32(string_idx);
+
+    string_addr = irb_.CreateCall2(runtime_func,
+                                   method_object_addr, string_idx_value);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+  }
+
+  // Store the string object to the Dalvik register
+  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, string_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
