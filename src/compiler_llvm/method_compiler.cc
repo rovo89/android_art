@@ -1661,7 +1661,84 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
                                             Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  // Read the payload
+  struct PACKED Payload {
+    uint16_t ident_;
+    uint16_t elem_width_;
+    uint32_t num_elems_;
+    uint8_t data_[];
+  };
+
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           static_cast<int32_t>(dec_insn.vB_);
+
+  Payload const* payload =
+    reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
+
+  uint32_t size_in_bytes = payload->elem_width_ * payload->num_elems_;
+
+  // Load and check the array
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, array_addr);
+
+  if (payload->num_elems_ > 0) {
+    // Test: Is array length big enough?
+    llvm::Constant* last_index = irb_.getJInt(payload->num_elems_ - 1);
+
+    EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, last_index);
+
+    // Get array data field
+    llvm::Value* data_field_offset_value =
+      irb_.getPtrEquivInt(Array::DataOffset().Int32Value());
+
+    llvm::Value* data_field_addr =
+      irb_.CreatePtrDisp(array_addr, data_field_offset_value,
+                         irb_.getInt8Ty()->getPointerTo());
+
+    // Emit payload to bitcode constant pool
+    std::vector<llvm::Constant*> const_pool_data;
+    for (uint32_t i = 0; i < size_in_bytes; ++i) {
+      const_pool_data.push_back(irb_.getInt8(payload->data_[i]));
+    }
+
+    llvm::Constant* const_pool_data_array_value = llvm::ConstantArray::get(
+      llvm::ArrayType::get(irb_.getInt8Ty(), size_in_bytes), const_pool_data);
+
+    llvm::Value* const_pool_data_array_addr =
+      new llvm::GlobalVariable(*module_,
+                               const_pool_data_array_value->getType(),
+                               false, llvm::GlobalVariable::InternalLinkage,
+                               const_pool_data_array_value,
+                               "array_data_payload");
+
+    // Find the memcpy intrinsic
+    llvm::Type* memcpy_arg_types[] = {
+      llvm::Type::getInt8Ty(*context_)->getPointerTo(),
+      llvm::Type::getInt8Ty(*context_)->getPointerTo(),
+      llvm::Type::getInt32Ty(*context_)
+    };
+
+    llvm::Function* memcpy_intrinsic =
+      llvm::Intrinsic::getDeclaration(module_,
+                                      llvm::Intrinsic::memcpy,
+                                      memcpy_arg_types);
+
+    // Copy now!
+    llvm::Value *args[] = {
+      data_field_addr,
+      irb_.CreateConstGEP2_32(const_pool_data_array_addr, 0, 0),
+      irb_.getInt32(size_in_bytes),
+      irb_.getInt32(0), // alignment: no guarantee
+      irb_.getFalse() // is_volatile: false
+    };
+
+    irb_.CreateCall(memcpy_intrinsic, args);
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
