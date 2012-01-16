@@ -309,6 +309,11 @@ class MethodCompiler {
                                              llvm::Value* rhs,
                                              FPArithmKind arithm);
 
+  llvm::Value* EmitAllocNewArray(uint32_t dex_pc,
+                                 int32_t length,
+                                 uint32_t type_idx,
+                                 bool is_filled_new_array);
+
   llvm::Value* EmitLoadArrayLength(llvm::Value* array);
 
   llvm::Value* EmitArrayGEP(llvm::Value* array_addr,

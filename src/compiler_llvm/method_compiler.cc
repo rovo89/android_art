@@ -1540,9 +1540,52 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 }
 
 
+llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
+                                               int32_t length,
+                                               uint32_t type_idx,
+                                               bool is_filled_new_array) {
+  llvm::Function* runtime_func;
+
+  bool skip_access_check =
+    compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
+                                          *dex_file_, type_idx);
+
+  if (is_filled_new_array) {
+    runtime_func = skip_access_check ?
+      irb_.GetRuntime(CheckAndAllocArray) :
+      irb_.GetRuntime(CheckAndAllocArrayWithAccessCheck);
+  } else {
+    runtime_func = skip_access_check ?
+      irb_.GetRuntime(AllocArray) :
+      irb_.GetRuntime(AllocArrayWithAccessCheck);
+  }
+
+  llvm::Constant* type_index_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* array_length_value = irb_.getInt32(length);
+
+  llvm::Value* object_addr =
+    irb_.CreateCall3(runtime_func, type_index_value, method_object_addr,
+                     array_length_value);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return object_addr;
+}
+
+
 void MethodCompiler::EmitInsn_NewArray(uint32_t dex_pc,
                                        Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr =
+    EmitAllocNewArray(dex_pc, dec_insn.vB_, dec_insn.vC_, false);
+
+  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, object_addr);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
