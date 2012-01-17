@@ -107,7 +107,7 @@ namespace {
 void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) {
   std::string actualType(PrettyTypeOf(array));
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-      "%s is not an array: %s", identifier, actualType.c_str());
+      "%s of type %s is not an array", identifier, actualType.c_str());
 }
 
 void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
@@ -128,11 +128,11 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   Object* srcObject = Decode<Object*>(env, javaSrc);
   Object* dstObject = Decode<Object*>(env, javaDst);
   if (!srcObject->IsArrayInstance()) {
-    ThrowArrayStoreException_NotAnArray("src", srcObject);
+    ThrowArrayStoreException_NotAnArray("source", srcObject);
     return;
   }
   if (!dstObject->IsArrayInstance()) {
-    ThrowArrayStoreException_NotAnArray("dst", dstObject);
+    ThrowArrayStoreException_NotAnArray("destination", dstObject);
     return;
   }
   Array* srcArray = srcObject->AsArray();
