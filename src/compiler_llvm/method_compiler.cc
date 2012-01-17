@@ -2478,7 +2478,49 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t declaring_type_idx = DexFile::kDexNoIndex;
+
+  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB_, declaring_type_idx);
+
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, field_jty, kField);
+
+  if (field == NULL) {
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(SetObjectStatic);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(Set64Static);
+    } else {
+      runtime_func = irb_.GetRuntime(Set32Static);
+    }
+
+    llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB_);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    irb_.CreateCall3(runtime_func, field_idx_value,
+                     method_object_addr, new_value);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    llvm::Value* static_storage_addr =
+      EmitLoadStaticStorage(dex_pc, declaring_type_idx);
+
+    llvm::Value* static_field_offset_value =
+      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+
+    llvm::Value* static_field_addr =
+      irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
+                         irb_.getJType(field_jty, kField)->getPointerTo());
+
+    irb_.CreateStore(new_value, static_field_addr);
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
