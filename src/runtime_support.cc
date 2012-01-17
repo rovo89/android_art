@@ -778,7 +778,7 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-        "Cannot store an object of type %s in to an array of type %s",
+        "%s cannot be stored in an array of type %s",
         PrettyDescriptor(element_class).c_str(),
         PrettyDescriptor(array_class).c_str());
     return -1;  // Failure
