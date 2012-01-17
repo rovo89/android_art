@@ -37,6 +37,7 @@ namespace art {
   class CompiledMethod;
   class Compiler;
   class DexCache;
+  class Field;
 }
 
 
@@ -322,6 +323,8 @@ class MethodCompiler {
 
   llvm::Value* EmitLoadConstantClass(uint32_t dex_pc, uint32_t type_idx);
 
+  llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
+
   void EmitGuard_DivZeroException(uint32_t dex_pc,
                                   llvm::Value* denominator,
                                   JType op_jty);
@@ -338,6 +341,11 @@ class MethodCompiler {
                                 llvm::Value* index);
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
+
+  Field* ResolveField(uint32_t field_idx);
+
+  Field* FindFieldAndDeclaringTypeIdx(uint32_t field_idx,
+                                      uint32_t &resolved_type_idx);
 
 
   // Diagnostics helper function

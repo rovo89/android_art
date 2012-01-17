@@ -2295,10 +2295,182 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 }
 
 
+Field* MethodCompiler::ResolveField(uint32_t field_idx) {
+  Thread* thread = Thread::Current();
+
+  // Save the exception state
+  Throwable* old_exception = NULL;
+  if (thread->IsExceptionPending()) {
+    old_exception = thread->GetException();
+    thread->ClearException();
+  }
+
+  // Resolve the fields through the class linker
+  Field* field = class_linker_->ResolveField(*dex_file_, field_idx,
+                                             dex_cache_, class_loader_,
+                                             /* is_static= */ true);
+
+  if (field == NULL) {
+    // Ignore the exception raised during the field resolution
+    thread->ClearException();
+  }
+
+  // Restore the exception state
+  if (old_exception != NULL) {
+    thread->SetException(old_exception);
+  }
+
+  return field;
+}
+
+
+Field* MethodCompiler::
+FindFieldAndDeclaringTypeIdx(uint32_t field_idx,
+                             uint32_t &resolved_type_idx) {
+
+  // Resolve the field through the class linker
+  Field* field = ResolveField(field_idx);
+  if (field == NULL) {
+    return NULL;
+  }
+
+  DexFile::FieldId const& field_id = dex_file_->GetFieldId(field_idx);
+
+  // Search for the type_idx of the declaring class
+  uint16_t type_idx = field_id.class_idx_;
+  Class* klass = dex_cache_->GetResolvedTypes()->Get(type_idx);
+
+  // Test: Is referring_class equal to declaring_class?
+
+  // If true, then return the type_idx; otherwise, this field must be declared
+  // in super class or interfaces, we have to search for declaring class.
+
+  if (field->GetDeclaringClass() == klass) {
+    resolved_type_idx = type_idx;
+    return field;
+  }
+
+  // Search for the type_idx of the super class or interfaces
+  std::string desc(FieldHelper(field).GetDeclaringClassDescriptor());
+
+  DexFile::StringId const* string_id = dex_file_->FindStringId(desc);
+
+  if (string_id == NULL) {
+    return NULL;
+  }
+
+  DexFile::TypeId const* type_id =
+    dex_file_->FindTypeId(dex_file_->GetIndexForStringId(*string_id));
+
+  if (type_id == NULL) {
+    return NULL;
+  }
+
+  resolved_type_idx = dex_file_->GetIndexForTypeId(*type_id);
+  return field;
+}
+
+
+llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
+                                                   uint32_t type_idx) {
+  llvm::BasicBlock* block_load_static =
+    CreateBasicBlockWithDexPC(dex_pc, "load_static");
+
+  llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  // Load static storage from dex cache
+  llvm::Value* storage_field_addr =
+    EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
+
+  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr);
+
+  llvm::BasicBlock* block_original = irb_.GetInsertBlock();
+
+  // Test: Is the static storage of this class initialized?
+  llvm::Value* equal_null =
+    irb_.CreateICmpEQ(storage_object_addr, irb_.getJNull());
+
+  irb_.CreateCondBr(equal_null, block_load_static, block_cont);
+
+  // Failback routine to load the class object
+  irb_.SetInsertPoint(block_load_static);
+
+  llvm::Function* runtime_func =
+    irb_.GetRuntime(InitializeStaticStorage);
+
+  llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* loaded_storage_object_addr =
+    irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  llvm::BasicBlock* block_after_load_static = irb_.GetInsertBlock();
+
+  irb_.CreateBr(block_cont);
+
+  // Now the class object must be loaded
+  irb_.SetInsertPoint(block_cont);
+
+  llvm::PHINode* phi = irb_.CreatePHI(irb_.getJObjectTy(), 2);
+
+  phi->addIncoming(storage_object_addr, block_original);
+  phi->addIncoming(loaded_storage_object_addr, block_after_load_static);
+
+  return phi;
+}
+
+
 void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t declaring_type_idx = DexFile::kDexNoIndex;
+
+  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB_, declaring_type_idx);
+
+  llvm::Value* static_field_value;
+
+  if (field == NULL) {
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(GetObjectStatic);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(Get64Static);
+    } else {
+      runtime_func = irb_.GetRuntime(Get32Static);
+    }
+
+    llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB_);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    static_field_value =
+      irb_.CreateCall2(runtime_func, field_idx_value, method_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    llvm::Value* static_storage_addr =
+      EmitLoadStaticStorage(dex_pc, declaring_type_idx);
+
+    llvm::Value* static_field_offset_value =
+      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+
+    llvm::Value* static_field_addr =
+      irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
+                         irb_.getJType(field_jty, kField)->getPointerTo());
+
+    static_field_value = irb_.CreateLoad(static_field_addr);
+  }
+
+  EmitStoreDalvikReg(dec_insn.vA_, field_jty, kField, static_field_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
