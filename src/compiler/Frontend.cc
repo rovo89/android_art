@@ -44,6 +44,7 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugSlowestFieldPath) |
      //(1 << kDebugSlowestStringPath) |
      //(1 << kDebugExerciseResolveMethod) |
+     //(1 << kDebugVerifyDataflow) |
      0;
 
 std::string compilerMethodMatch;      // Method name match to apply above flags
@@ -136,6 +137,10 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
     bottomBlock->firstMIRInsn = insn;
     bottomBlock->lastMIRInsn = origBlock->lastMIRInsn;
 
+    /* Add it to the quick lookup cache */
+    cUnit->blockMap.insert(std::make_pair(bottomBlock->startOffset,
+                                          bottomBlock));
+
     /* Handle the taken path */
     bottomBlock->taken = origBlock->taken;
     if (bottomBlock->taken) {
@@ -196,6 +201,7 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
  * is not non-null and is the block being split, update *immedPredBlockP to
  * point to the bottom block so that outgoing edges can be set up properly
  * (by the caller)
+ * Utilizes a map for fast lookup of the typical cases.
  */
 STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
                              unsigned int codeOffset,
@@ -205,28 +211,36 @@ STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
     GrowableList* blockList = &cUnit->blockList;
     BasicBlock* bb;
     unsigned int i;
+    std::map<unsigned int, BasicBlock*>::iterator it;
 
-    for (i = 0; i < blockList->numUsed; i++) {
-        bb = (BasicBlock *) blockList->elemList[i];
-        if (bb->blockType != kDalvikByteCode) continue;
-        if (bb->startOffset == codeOffset) return bb;
-        /* Check if a branch jumps into the middle of an existing block */
-        if ((split == true) && (codeOffset > bb->startOffset) &&
-            (bb->lastMIRInsn != NULL) &&
-            (codeOffset <= bb->lastMIRInsn->offset)) {
-            BasicBlock *newBB = splitBlock(cUnit, codeOffset, bb,
-                                           bb == *immedPredBlockP ?
-                                           immedPredBlockP : NULL);
-            return newBB;
+    it = cUnit->blockMap.find(codeOffset);
+    if (it != cUnit->blockMap.end()) {
+        return it->second;
+    } else if (!create) {
+        return NULL;
+    }
+
+    if (split) {
+        for (i = 0; i < blockList->numUsed; i++) {
+            bb = (BasicBlock *) blockList->elemList[i];
+            if (bb->blockType != kDalvikByteCode) continue;
+            /* Check if a branch jumps into the middle of an existing block */
+            if ((codeOffset > bb->startOffset) && (bb->lastMIRInsn != NULL) &&
+                (codeOffset <= bb->lastMIRInsn->offset)) {
+                BasicBlock *newBB = splitBlock(cUnit, codeOffset, bb,
+                                               bb == *immedPredBlockP ?
+                                               immedPredBlockP : NULL);
+                return newBB;
+            }
         }
     }
-    if (create) {
-          bb = oatNewBB(kDalvikByteCode, cUnit->numBlocks++);
-          oatInsertGrowableList(&cUnit->blockList, (intptr_t) bb);
-          bb->startOffset = codeOffset;
-          return bb;
-    }
-    return NULL;
+
+    /* Create a new one */
+    bb = oatNewBB(kDalvikByteCode, cUnit->numBlocks++);
+    oatInsertGrowableList(&cUnit->blockList, (intptr_t) bb);
+    bb->startOffset = codeOffset;
+    cUnit->blockMap.insert(std::make_pair(bb->startOffset, bb));
+    return bb;
 }
 
 /* Dump the CFG into a DOT graph */
@@ -748,6 +762,8 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     cUnit->numOuts = code_item->outs_size_;
     /* Adjust this value accordingly once inlining is performed */
     cUnit->numDalvikRegisters = code_item->registers_size_;
+    cUnit->blockMap = std::map<unsigned int, BasicBlock*>();
+    cUnit->blockMap.clear();
     bool useMatch = compilerMethodMatch.length() != 0;
     bool match = useMatch && (compilerFlipMatch ^
         (PrettyMethod(method_idx, dex_file).find(compilerMethodMatch) != std::string::npos));
@@ -794,6 +810,8 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     BasicBlock *curBlock = oatNewBB(kDalvikByteCode, numBlocks++);
     curBlock->startOffset = 0;
     oatInsertGrowableList(&cUnit->blockList, (intptr_t) curBlock);
+    /* Add first block to the fast lookup cache */
+    cUnit->blockMap.insert(std::make_pair(curBlock->startOffset, curBlock));
     entryBlock->fallThrough = curBlock;
     oatSetBit(curBlock->predecessors, entryBlock->id);
 
@@ -885,8 +903,10 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
         oatDumpCompilationUnit(cUnit.get());
     }
 
-    /* Verify if all blocks are connected as claimed */
-    oatDataFlowAnalysisDispatcher(cUnit.get(), verifyPredInfo, kAllNodes, false /* isIterative */);
+    if (cUnit->enableDebug & (1 << kDebugVerifyDataflow)) {
+        /* Verify if all blocks are connected as claimed */
+        oatDataFlowAnalysisDispatcher(cUnit.get(), verifyPredInfo, kAllNodes, false /* isIterative */);
+    }
 
     /* Perform SSA transformation for the whole method */
     oatMethodSSATransformation(cUnit.get());

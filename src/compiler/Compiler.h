@@ -54,6 +54,7 @@ enum debugControlVector {
     kDebugSlowestFieldPath,
     kDebugSlowestStringPath,
     kDebugExerciseResolveMethod,
+    kDebugVerifyDataflow,
 };
 
 extern uint32_t compilerDebugFlags;
@@ -91,6 +92,7 @@ typedef enum DataFlowAnalysisMode {
     kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order
     kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order
     kPostOrderDOMTraversal,     // Dominator tree / Post-Order
+    kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
 } DataFlowAnalysisMode;
 
 struct CompilationUnit;

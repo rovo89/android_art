@@ -231,6 +231,8 @@ ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable)
     bv->storageSize = count;
     bv->expandable = expandable;
     bv->storage = (u4*) oatNew(count * sizeof(u4), true);
+    bv->firstDirty = true;
+    bv->lastDirty = true;
     return bv;
 }
 
@@ -252,6 +254,8 @@ void oatClearAllBits(ArenaBitVector* pBits)
 {
     unsigned int count = pBits->storageSize;
     memset(pBits->storage, 0, count * sizeof(u4));
+    pBits->firstDirty = true;
+    pBits->lastDirty = true;
 }
 
 /*
@@ -281,6 +285,12 @@ bool oatSetBit(ArenaBitVector* pBits, unsigned int num)
     }
 
     pBits->storage[num >> 5] |= checkMasks[num & 0x1f];
+    if (!pBits->firstDirty && ((int)num < pBits->firstBitSet)) {
+        pBits->firstBitSet = num;
+    }
+    if (!pBits->lastDirty && ((int)num > pBits->lastBitSet)) {
+        pBits->lastBitSet = num;
+    }
     return true;
 }
 
@@ -299,6 +309,8 @@ bool oatClearBit(ArenaBitVector* pBits, unsigned int num)
     }
 
     pBits->storage[num >> 5] &= ~checkMasks[num & 0x1f];
+    pBits->firstDirty = true;
+    pBits->lastDirty = true;
     return true;
 }
 
@@ -309,6 +321,8 @@ void oatMarkAllBits(ArenaBitVector* pBits, bool set)
 {
     int value = set ? -1 : 0;
     memset(pBits->storage, value, pBits->storageSize * (int)sizeof(u4));
+    pBits->firstDirty = true;
+    pBits->lastDirty = true;
 }
 
 void oatDebugBitVector(char* msg, const ArenaBitVector* bv, int length)
@@ -374,6 +388,10 @@ void oatCopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src)
     checkSizes(dest, src);
 
     memcpy(dest->storage, src->storage, sizeof(u4) * dest->storageSize);
+    dest->firstDirty = src->firstDirty;
+    dest->firstBitSet = src->firstBitSet;
+    dest->lastDirty = src->lastDirty;
+    dest->lastBitSet = src->lastBitSet;
 }
 
 /*
@@ -395,6 +413,8 @@ bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
     for (idx = 0; idx < dest->storageSize; idx++) {
         dest->storage[idx] = src1->storage[idx] & src2->storage[idx];
     }
+    dest->firstDirty = true;
+    dest->lastDirty = true;
     return true;
 }
 
@@ -416,6 +436,8 @@ bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
     for (idx = 0; idx < dest->storageSize; idx++) {
         dest->storage[idx] = src1->storage[idx] | src2->storage[idx];
     }
+    dest->firstDirty = true;
+    dest->lastDirty = true;
     return true;
 }
 
@@ -466,18 +488,36 @@ int oatCountSetBits(const ArenaBitVector* pBits)
 /* Return the next position set to 1. -1 means end-of-element reached */
 int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
 {
-    const ArenaBitVector* pBits = iterator->pBits;
+    ArenaBitVector* pBits = iterator->pBits;
     u4 bitIndex = iterator->idx;
 
     DCHECK_EQ(iterator->bitSize, pBits->storageSize * sizeof(u4) * 8);
     if (bitIndex >= iterator->bitSize) return -1;
 
+    /* If we know, skip past leading zeros */
+    if (!pBits->firstDirty && ((int)bitIndex < pBits->firstBitSet)) {
+        iterator->idx = pBits->firstBitSet + 1;
+        return pBits->firstBitSet;
+    }
+
+    /* If we know, skip past trailing zeroes */
+    if (!pBits->lastDirty && ((int)bitIndex > pBits->lastBitSet)) {
+        iterator->idx = iterator->bitSize;
+        return -1;
+    }
+
+    bool firstPass = (bitIndex == 0);
+    u4 startIndex = bitIndex;
     for (; bitIndex < iterator->bitSize;) {
         unsigned int wordIndex = bitIndex >> 5;
         unsigned int bitPos = bitIndex & 0x1f;
         unsigned int word = pBits->storage[wordIndex];
         if (word & checkMasks[bitPos]) {
             iterator->idx = bitIndex+1;
+            if (firstPass && pBits->firstDirty) {
+                pBits->firstBitSet = bitIndex;
+                pBits->firstDirty = false;
+            }
             return bitIndex;
         }
         if (word == 0) {
@@ -488,6 +528,14 @@ int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
         }
     }
     /* No more set bits */
+    if (firstPass) {
+        // Empty
+        pBits->firstBitSet = -1;
+        pBits->firstDirty = false;
+    } else {
+        pBits->lastBitSet = startIndex - 1;
+        pBits->lastDirty = false;
+    }
     return -1;
 }
 
@@ -507,6 +555,8 @@ void oatSetInitialBits(ArenaBitVector* pBits, unsigned int numBits)
     if (remNumBits) {
         pBits->storage[idx] = (1 << remNumBits) - 1;
     }
+    pBits->firstDirty = true;
+    pBits->lastDirty = true;
 }
 
 void oatGetBlockName(BasicBlock* bb, char* name)

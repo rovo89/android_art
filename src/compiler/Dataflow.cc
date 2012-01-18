@@ -1509,82 +1509,104 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
     while (change) {
         change = false;
 
+        switch (dfaMode) {
         /* Scan all blocks and perform the operations specified in func */
-        if (dfaMode == kAllNodes) {
-            GrowableListIterator iterator;
-            oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
-            while (true) {
-                BasicBlock* bb =
-                    (BasicBlock *) oatGrowableListIteratorNext(&iterator);
-                if (bb == NULL) break;
-                if (bb->hidden == true) continue;
-                change |= (*func)(cUnit, bb);
+        case kAllNodes:
+            {
+                GrowableListIterator iterator;
+                oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
+                while (true) {
+                    BasicBlock* bb =
+                        (BasicBlock *) oatGrowableListIteratorNext(&iterator);
+                    if (bb == NULL) break;
+                    if (bb->hidden == true) continue;
+                    change |= (*func)(cUnit, bb);
+                }
             }
-        }
-        /*
-         * Scan all reachable blocks and perform the operations specified in
-         * func.
-         */
-        else if (dfaMode == kReachableNodes) {
-            int numReachableBlocks = cUnit->numReachableBlocks;
-            int idx;
-            const GrowableList *blockList = &cUnit->blockList;
+            break;
+        /* Scan reachable blocks and perform the ops specified in func. */
+        case kReachableNodes:
+            {
+                int numReachableBlocks = cUnit->numReachableBlocks;
+                int idx;
+                const GrowableList *blockList = &cUnit->blockList;
 
-            for (idx = 0; idx < numReachableBlocks; idx++) {
-                int blockIdx = cUnit->dfsOrder.elemList[idx];
-                BasicBlock* bb =
-                    (BasicBlock *) oatGrowableListGetElement(blockList,
-                                                             blockIdx);
-                change |= (*func)(cUnit, bb);
+                for (idx = 0; idx < numReachableBlocks; idx++) {
+                    int blockIdx = cUnit->dfsOrder.elemList[idx];
+                    BasicBlock* bb =
+                        (BasicBlock *) oatGrowableListGetElement(blockList,
+                                                                 blockIdx);
+                    change |= (*func)(cUnit, bb);
+                }
             }
-        }
-        /*
-         * Scan all reachable blocks by the pre-order in the depth-first-search
-         * CFG and perform the operations specified in func.
-         */
-        else if (dfaMode == kPreOrderDFSTraversal) {
-            int numReachableBlocks = cUnit->numReachableBlocks;
-            int idx;
-            const GrowableList *blockList = &cUnit->blockList;
+            break;
 
-            for (idx = 0; idx < numReachableBlocks; idx++) {
-                int dfsIdx = cUnit->dfsOrder.elemList[idx];
-                BasicBlock* bb =
-                    (BasicBlock *) oatGrowableListGetElement(blockList, dfsIdx);
-                change |= (*func)(cUnit, bb);
-            }
-        }
-        /*
-         * Scan all reachable blocks by the post-order in the depth-first-search
-         * CFG and perform the operations specified in func.
-         */
-        else if (dfaMode == kPostOrderDFSTraversal) {
-            int numReachableBlocks = cUnit->numReachableBlocks;
-            int idx;
-            const GrowableList *blockList = &cUnit->blockList;
+        /* Scan reachable blocks by pre-order dfs and invoke func on each. */
+        case kPreOrderDFSTraversal:
+            {
+                int numReachableBlocks = cUnit->numReachableBlocks;
+                int idx;
+                const GrowableList *blockList = &cUnit->blockList;
 
-            for (idx = numReachableBlocks - 1; idx >= 0; idx--) {
-                int dfsIdx = cUnit->dfsOrder.elemList[idx];
-                BasicBlock* bb =
-                    (BasicBlock *) oatGrowableListGetElement(blockList, dfsIdx);
-                change |= (*func)(cUnit, bb);
+                for (idx = 0; idx < numReachableBlocks; idx++) {
+                    int dfsIdx = cUnit->dfsOrder.elemList[idx];
+                    BasicBlock* bb =
+                        (BasicBlock *) oatGrowableListGetElement(blockList,
+                                                                 dfsIdx);
+                    change |= (*func)(cUnit, bb);
+                }
             }
-        }
-        /*
-         * Scan all reachable blocks by the post-order in the dominator tree
-         * and perform the operations specified in func.
-         */
-        else if (dfaMode == kPostOrderDOMTraversal) {
-            int numReachableBlocks = cUnit->numReachableBlocks;
-            int idx;
-            const GrowableList *blockList = &cUnit->blockList;
+            break;
+        /* Scan reachable blocks post-order dfs and invoke func on each. */
+        case kPostOrderDFSTraversal:
+            {
+                int numReachableBlocks = cUnit->numReachableBlocks;
+                int idx;
+                const GrowableList *blockList = &cUnit->blockList;
 
-            for (idx = 0; idx < numReachableBlocks; idx++) {
-                int domIdx = cUnit->domPostOrderTraversal.elemList[idx];
-                BasicBlock* bb =
-                    (BasicBlock *) oatGrowableListGetElement(blockList, domIdx);
-                change |= (*func)(cUnit, bb);
+                for (idx = numReachableBlocks - 1; idx >= 0; idx--) {
+                    int dfsIdx = cUnit->dfsOrder.elemList[idx];
+                    BasicBlock* bb =
+                        (BasicBlock *) oatGrowableListGetElement(blockList,
+                                                                 dfsIdx);
+                    change |= (*func)(cUnit, bb);
+                }
             }
+            break;
+        /* Scan reachable post-order dom tree and invoke func on each. */
+        case kPostOrderDOMTraversal:
+            {
+                int numReachableBlocks = cUnit->numReachableBlocks;
+                int idx;
+                const GrowableList *blockList = &cUnit->blockList;
+
+                for (idx = 0; idx < numReachableBlocks; idx++) {
+                    int domIdx = cUnit->domPostOrderTraversal.elemList[idx];
+                    BasicBlock* bb =
+                        (BasicBlock *) oatGrowableListGetElement(blockList,
+                                                                 domIdx);
+                    change |= (*func)(cUnit, bb);
+                }
+            }
+            break;
+        /* Scan reachable blocks reverse post-order dfs, invoke func on each */
+        case kReversePostOrderTraversal:
+            {
+                int numReachableBlocks = cUnit->numReachableBlocks;
+                int idx;
+                const GrowableList *blockList = &cUnit->blockList;
+
+                for (idx = numReachableBlocks - 1; idx >= 0; idx--) {
+                    int revIdx = cUnit->dfsPostOrder.elemList[idx];
+                    BasicBlock* bb =
+                        (BasicBlock *) oatGrowableListGetElement(blockList,
+                                                                 revIdx);
+                    change |= (*func)(cUnit, bb);
+                }
+            }
+            break;
+        default:
+            LOG(FATAL) << "Unknown traversal mode " << (int)dfaMode;
         }
         /* If isIterative is false, exit the loop after the first iteration */
         change &= isIterative;

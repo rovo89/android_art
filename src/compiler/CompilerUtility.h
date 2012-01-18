@@ -58,8 +58,20 @@ typedef struct GrowableListIterator {
  */
 struct ArenaBitVector {
     bool    expandable;     /* expand bitmap if we run out? */
+    bool    firstDirty;     /* when true, don't believe firstBitSet */
+    bool    lastDirty;      /* when true, don't believe lastBitSet */
     u4      storageSize;    /* current size, in 32-bit words */
     u4*     storage;
+                            /*
+                             * Opportunistically remember first and
+                             * last set bits.  This yeilds a performance
+                             * advantage in cases where large
+                             * sparse vectors are repeatedly scanned
+                             * (something that can happen a lot during
+                             * dataflow analysis.
+                             */
+    int     firstBitSet;
+    int     lastBitSet;
 };
 
 /* Handy iterator to walk through the bit positions set to 1 */

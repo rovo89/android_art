@@ -20,17 +20,17 @@
 namespace art {
 
 /* Enter the node to the dfsOrder list then visit its successors */
-STATIC void recordDFSPreOrder(CompilationUnit* cUnit, BasicBlock* block)
+STATIC void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
 {
 
     if (block->visited || block->hidden) return;
     block->visited = true;
 
-    /* Enqueue the block id */
+    /* Enqueue the preOrder block id */
     oatInsertGrowableList(&cUnit->dfsOrder, block->id);
 
-    if (block->fallThrough) recordDFSPreOrder(cUnit, block->fallThrough);
-    if (block->taken) recordDFSPreOrder(cUnit, block->taken);
+    if (block->fallThrough) recordDFSOrders(cUnit, block->fallThrough);
+    if (block->taken) recordDFSOrders(cUnit, block->taken);
     if (block->successorBlockList.blockListType != kNotUsed) {
         GrowableListIterator iterator;
         oatGrowableListIteratorInit(&block->successorBlockList.blocks,
@@ -40,16 +40,20 @@ STATIC void recordDFSPreOrder(CompilationUnit* cUnit, BasicBlock* block)
                 (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
             if (successorBlockInfo == NULL) break;
             BasicBlock* succBB = successorBlockInfo->block;
-            recordDFSPreOrder(cUnit, succBB);
+            recordDFSOrders(cUnit, succBB);
         }
     }
+
+    /* Record postorder in basic block and enqueue normal id in dfsPostOrder */
+    block->dfsId = cUnit->dfsPostOrder.numUsed;
+    oatInsertGrowableList(&cUnit->dfsPostOrder, block->id);
     return;
 }
 
-/* Sort the blocks by the Depth-First-Search pre-order */
-STATIC void computeDFSOrder(CompilationUnit* cUnit)
+/* Sort the blocks by the Depth-First-Search */
+STATIC void computeDFSOrders(CompilationUnit* cUnit)
 {
-    /* Initialize or reset the DFS order list */
+    /* Initialize or reset the DFS preOrder list */
     if (cUnit->dfsOrder.elemList == NULL) {
         oatInitGrowableList(&cUnit->dfsOrder, cUnit->numBlocks);
     } else {
@@ -57,11 +61,19 @@ STATIC void computeDFSOrder(CompilationUnit* cUnit)
         cUnit->dfsOrder.numUsed = 0;
     }
 
+    /* Initialize or reset the DFS postOrder list */
+    if (cUnit->dfsPostOrder.elemList == NULL) {
+        oatInitGrowableList(&cUnit->dfsPostOrder, cUnit->numBlocks);
+    } else {
+        /* Just reset the used length on the counter */
+        cUnit->dfsPostOrder.numUsed = 0;
+    }
+
     oatDataFlowAnalysisDispatcher(cUnit, oatClearVisitedFlag,
                                           kAllNodes,
                                           false /* isIterative */);
 
-    recordDFSPreOrder(cUnit, cUnit->entryBlock);
+    recordDFSOrders(cUnit, cUnit->entryBlock);
     cUnit->numReachableBlocks = cUnit->dfsOrder.numUsed;
 }
 
@@ -125,6 +137,7 @@ STATIC void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
 
     /* Iterate through the dominated blocks first */
     while (true) {
+        //TUNING: hot call to oatBitVectorIteratorNext
         int bbIdx = oatBitVectorIteratorNext(&bvIterator);
         if (bbIdx == -1) break;
         BasicBlock* dominatedBB =
@@ -184,6 +197,7 @@ STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
     ArenaBitVectorIterator bvIterator;
     oatBitVectorIteratorInit(bb->iDominated, &bvIterator);
     while (true) {
+        //TUNING: hot call to oatBitVectorIteratorNext
         int dominatedIdx = oatBitVectorIteratorNext(&bvIterator);
         if (dominatedIdx == -1) break;
         BasicBlock* dominatedBB = (BasicBlock* )
@@ -191,6 +205,7 @@ STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
         ArenaBitVectorIterator dfIterator;
         oatBitVectorIteratorInit(dominatedBB->domFrontier, &dfIterator);
         while (true) {
+            //TUNING: hot call to oatBitVectorIteratorNext
             int dfUpIdx = oatBitVectorIteratorNext(&dfIterator);
             if (dfUpIdx == -1) break;
             BasicBlock* dfUpBlock = (BasicBlock* )
@@ -225,8 +240,12 @@ STATIC bool initializeDominationInfo(CompilationUnit* cUnit, BasicBlock* bb)
     return true;
 }
 
-/* Worker function to compute each block's dominators */
-STATIC bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
+/*
+ * Worker function to compute each block's dominators.  This implementation
+ * is only used when kDebugVerifyDataflow is active and should compute
+ * the same dominator sets as computeBlockDominators.
+ */
+STATIC bool slowComputeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableList* blockList = &cUnit->blockList;
     int numTotalBlocks = blockList->numUsed;
@@ -261,8 +280,12 @@ STATIC bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
     return false;
 }
 
-/* Worker function to compute the idom */
-STATIC bool computeImmediateDominator(CompilationUnit* cUnit, BasicBlock* bb)
+/*
+ * Worker function to compute the idom.  This implementation is only
+ * used when kDebugVerifyDataflow is active and should compute the
+ * same iDom as computeBlockIDom.
+ */
+STATIC bool slowComputeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableList* blockList = &cUnit->blockList;
     ArenaBitVector* tempBlockV = cUnit->tempBlockV;
@@ -304,6 +327,107 @@ STATIC bool computeImmediateDominator(CompilationUnit* cUnit, BasicBlock* bb)
     return true;
 }
 
+/*
+ * Walk through the ordered iDom list until we reach common parent.
+ * Given the ordering of iDomList, this common parent represents the
+ * last element of the intersection of block1 and block2 dominators.
+  */
+int findCommonParent(CompilationUnit *cUnit, int block1, int block2)
+{
+    while (block1 != block2) {
+        while (block1 < block2) {
+            block1 = cUnit->iDomList[block1];
+            DCHECK_NE(block1, NOTVISITED);
+        }
+        while (block2 < block1) {
+            block2 = cUnit->iDomList[block2];
+            DCHECK_NE(block2, NOTVISITED);
+        }
+    }
+    return block1;
+}
+
+/* Worker function to compute each block's immediate dominator */
+STATIC bool computeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    GrowableList* blockList = &cUnit->blockList;
+    ArenaBitVectorIterator bvIterator;
+    int idom = -1;
+
+    /* Special-case entry block */
+    if (bb == cUnit->entryBlock) {
+        return false;
+    }
+
+    /* Iterate through the predecessors */
+    oatBitVectorIteratorInit(bb->predecessors, &bvIterator);
+
+    /* Find the first processed predecessor */
+    while (true) {
+        //TUNING: hot call to oatBitVectorIteratorNext
+        int predIdx = oatBitVectorIteratorNext(&bvIterator);
+        DCHECK_NE(predIdx, -1);  /* Should find one */
+        BasicBlock* predBB = (BasicBlock* ) oatGrowableListGetElement(
+                                 blockList, predIdx);
+        if (cUnit->iDomList[predBB->dfsId] != NOTVISITED) {
+            idom = predBB->dfsId;
+            break;
+        }
+    }
+
+    /* Scan the rest of the predecessors */
+    while (true) {
+        int predIdx = oatBitVectorIteratorNext(&bvIterator);
+        if (predIdx == -1) break;
+        BasicBlock* predBB = (BasicBlock* ) oatGrowableListGetElement(
+                                 blockList, predIdx);
+        if (cUnit->iDomList[predBB->dfsId] == NOTVISITED) {
+            continue;
+        } else {
+            idom = findCommonParent(cUnit, predBB->dfsId, idom);
+        }
+    }
+
+    DCHECK_NE(idom, NOTVISITED);
+
+    /* Did something change? */
+    if (cUnit->iDomList[bb->dfsId] != idom) {
+        cUnit->iDomList[bb->dfsId] = idom;
+        return true;
+    }
+    return false;
+}
+
+/* Worker function to compute each block's domintors */
+STATIC bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    if (bb == cUnit->entryBlock) {
+        oatClearAllBits(bb->dominators);
+    } else {
+        oatCopyBitVector(bb->dominators, bb->iDom->dominators);
+    }
+    oatSetBit(bb->dominators, bb->id);
+    return false;
+}
+
+STATIC bool setDominators(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    if (bb != cUnit->entryBlock) {
+        int iDomDFSIdx = cUnit->iDomList[bb->dfsId];
+        DCHECK_NE(iDomDFSIdx, NOTVISITED);
+        int iDomIdx = cUnit->dfsPostOrder.elemList[iDomDFSIdx];
+        BasicBlock* iDom = (BasicBlock*)
+              oatGrowableListGetElement(&cUnit->blockList, iDomIdx);
+        if (cUnit->enableDebug & (1 << kDebugVerifyDataflow)) {
+            DCHECK_EQ(bb->iDom->id, iDom->id);
+        }
+        bb->iDom = iDom;
+        /* Add bb to the iDominated set of the immediate dominator block */
+        oatSetBit(iDom->iDominated, bb->id);
+    }
+    return false;
+}
+
 /* Compute dominators, immediate dominator, and dominance fronter */
 STATIC void computeDominators(CompilationUnit* cUnit)
 {
@@ -315,6 +439,23 @@ STATIC void computeDominators(CompilationUnit* cUnit)
                                           kReachableNodes,
                                           false /* isIterative */);
 
+    /* Initalize & Clear iDomList */
+    if (cUnit->iDomList == NULL) {
+        cUnit->iDomList = (int*)oatNew(sizeof(int) * numReachableBlocks, false);
+    }
+    for (int i = 0; i < numReachableBlocks; i++) {
+        cUnit->iDomList[i] = NOTVISITED;
+    }
+
+    /* For post-order, last block is entry block.  Set its iDom to istelf */
+    DCHECK_EQ(cUnit->entryBlock->dfsId, numReachableBlocks-1);
+    cUnit->iDomList[cUnit->entryBlock->dfsId] = cUnit->entryBlock->dfsId;
+
+    /* Compute the immediate dominators */
+    oatDataFlowAnalysisDispatcher(cUnit, computeBlockIDom,
+                                  kReversePostOrderTraversal,
+                                  true /* isIterative */);
+
     /* Set the dominator for the root node */
     oatClearAllBits(cUnit->entryBlock->dominators);
     oatSetBit(cUnit->entryBlock->dominators, cUnit->entryBlock->id);
@@ -325,14 +466,27 @@ STATIC void computeDominators(CompilationUnit* cUnit)
     } else {
         oatClearAllBits(cUnit->tempBlockV);
     }
-    oatDataFlowAnalysisDispatcher(cUnit, computeBlockDominators,
-                                          kPreOrderDFSTraversal,
-                                          true /* isIterative */);
-
     cUnit->entryBlock->iDom = NULL;
-    oatDataFlowAnalysisDispatcher(cUnit, computeImmediateDominator,
-                                          kReachableNodes,
-                                          false /* isIterative */);
+
+    /* For testing, compute sets using alternate mechanism */
+    if (cUnit->enableDebug & (1 << kDebugVerifyDataflow)) {
+        // Use alternate mechanism to compute dominators for comparison
+        oatDataFlowAnalysisDispatcher(cUnit, slowComputeBlockDominators,
+                                      kPreOrderDFSTraversal,
+                                      true /* isIterative */);
+
+       oatDataFlowAnalysisDispatcher(cUnit, slowComputeBlockIDom,
+                                     kReachableNodes,
+                                     false /* isIterative */);
+    }
+
+    oatDataFlowAnalysisDispatcher(cUnit, setDominators,
+                                  kReachableNodes,
+                                  false /* isIterative */);
+
+    oatDataFlowAnalysisDispatcher(cUnit, computeBlockDominators,
+                                  kReversePostOrderTraversal,
+                                  false /* isIterative */);
 
     /*
      * Now go ahead and compute the post order traversal based on the
@@ -456,6 +610,7 @@ STATIC void insertPhiNodes(CompilationUnit* cUnit)
                     (BasicBlock* ) oatGrowableListGetElement(blockList, idx);
 
                 /* Merge the dominance frontier to tmpBlocks */
+                //TUNING: hot call to oatUnifyBitVectors
                 if (defBB->domFrontier != NULL) {
                     oatUnifyBitVectors(tmpBlocks, tmpBlocks, defBB->domFrontier);
                 }
@@ -602,7 +757,7 @@ STATIC void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
 void oatMethodSSATransformation(CompilationUnit* cUnit)
 {
     /* Compute the DFS order */
-    computeDFSOrder(cUnit);
+    computeDFSOrders(cUnit);
 
     /* Compute the dominator info */
     computeDominators(cUnit);

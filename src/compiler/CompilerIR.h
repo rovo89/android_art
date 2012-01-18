@@ -147,6 +147,7 @@ typedef enum BlockListType {
 
 typedef struct BasicBlock {
     int id;
+    int dfsId;
     bool visited;
     bool hidden;
     bool catchEntry;
@@ -190,6 +191,8 @@ typedef enum AssemblerStatus {
     kRetryAll,
     kRetryHalve
 } AssemblerStatus;
+
+#define NOTVISITED (-1)
 
 typedef struct CompilationUnit {
     int numInsts;
@@ -265,9 +268,11 @@ typedef struct CompilationUnit {
     BasicBlock* curBlock;
     BasicBlock* nextCodegenBlock;       // for extended trace codegen
     GrowableList dfsOrder;
+    GrowableList dfsPostOrder;
     GrowableList domPostOrderTraversal;
     GrowableList throwLaunchpads;
     GrowableList suspendLaunchpads;
+    int* iDomList;
     ArenaBitVector* tryBlockAddr;
     ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks
     ArenaBitVector* tempBlockV;
@@ -310,6 +315,7 @@ typedef struct CompilationUnit {
      GrowableList fillArrayData;
      const u2* insns;
      u4 insnsSize;
+     std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
 } CompilationUnit;
 
 BasicBlock* oatNewBB(BBType blockType, int blockId);
