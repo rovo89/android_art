@@ -115,7 +115,8 @@ STATIC inline bool isUnconditionalBranch(MIR* insn)
 /* Split an existing block from the specified code offset into two */
 STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
                               unsigned int codeOffset,
-                              BasicBlock* origBlock)
+                              BasicBlock* origBlock,
+                              BasicBlock** immedPredBlockP)
 {
     MIR* insn = origBlock->firstMIRInsn;
     while (insn) {
@@ -176,16 +177,28 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
 
     insn->prev->next = NULL;
     insn->prev = NULL;
+    /*
+     * Update the immediate predecessor block pointer so that outgoing edges
+     * can be applied to the proper block.
+     */
+    if (immedPredBlockP) {
+        DCHECK_EQ(*immedPredBlockP, origBlock);
+        *immedPredBlockP = bottomBlock;
+    }
     return bottomBlock;
 }
 
 /*
  * Given a code offset, find out the block that starts with it. If the offset
- * is in the middle of an existing block, split it into two.
+ * is in the middle of an existing block, split it into two.  If immedPredBlockP
+ * is not non-null and is the block being split, update *immedPredBlockP to
+ * point to the bottom block so that outgoing edges can be set up properly
+ * (by the caller)
  */
 STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
                              unsigned int codeOffset,
-                             bool split, bool create)
+                             bool split, bool create,
+                             BasicBlock** immedPredBlockP)
 {
     GrowableList* blockList = &cUnit->blockList;
     BasicBlock* bb;
@@ -199,7 +212,9 @@ STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
         if ((split == true) && (codeOffset > bb->startOffset) &&
             (bb->lastMIRInsn != NULL) &&
             (codeOffset <= bb->lastMIRInsn->offset)) {
-            BasicBlock *newBB = splitBlock(cUnit, codeOffset, bb);
+            BasicBlock *newBB = splitBlock(cUnit, codeOffset, bb,
+                                           bb == *immedPredBlockP ?
+                                           immedPredBlockP : NULL);
             return newBB;
         }
     }
@@ -445,7 +460,8 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
         art::CatchHandlerIterator iterator(handlers_ptr);
         for (; iterator.HasNext(); iterator.Next()) {
             uint32_t address = iterator.GetHandlerAddress();
-            findBlock(cUnit, address, false /* split */, true /*create*/);
+            findBlock(cUnit, address, false /* split */, true /*create*/,
+                      /* immedPredBlockP */ NULL);
         }
         handlers_ptr = iterator.EndDataPointer();
     }
@@ -484,22 +500,13 @@ STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
             LOG(FATAL) << "Unexpected opcode(" << (int)insn->dalvikInsn.opcode
                 << ") with kInstrCanBranch set";
     }
-    /*
-     * Some ugliness here.  It is possible that findBlock will
-     * split the current block.  In that case, we need to operate
-     * on the 2nd half on the split pair.  It isn't directly obvious
-     * when this happens, so we infer.
-     */
-    DCHECK(curBlock->lastMIRInsn == insn);
     BasicBlock *takenBlock = findBlock(cUnit, target,
                                        /* split */
                                        true,
                                        /* create */
-                                       true);
-     if (curBlock->lastMIRInsn != insn) {
-         DCHECK(takenBlock->lastMIRInsn == insn);
-         curBlock = curBlock->fallThrough;
-    }
+                                       true,
+                                       /* immedPredBlockP */
+                                       &curBlock);
     curBlock->taken = takenBlock;
     oatSetBit(takenBlock->predecessors, curBlock->id);
 
@@ -521,7 +528,9 @@ STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
                                                   */
                                                  true,
                                                  /* create */
-                                                 true);
+                                                 true,
+                                                 /* immedPredBlockP */
+                                                 &curBlock);
         curBlock->fallThrough = fallthroughBlock;
         oatSetBit(fallthroughBlock->predecessors, curBlock->id);
     } else if (codePtr < codeEnd) {
@@ -531,7 +540,9 @@ STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
                       /* split */
                       false,
                       /* create */
-                      true);
+                      true,
+                      /* immedPredBlockP */
+                      NULL);
         }
     }
     return curBlock;
@@ -595,7 +606,9 @@ STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                                           /* split */
                                           true,
                                           /* create */
-                                          true);
+                                          true,
+                                          /* immedPredBlockP */
+                                          &curBlock);
         SuccessorBlockInfo *successorBlockInfo =
             (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
                                                   false);
@@ -613,7 +626,9 @@ STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                                              /* split */
                                              false,
                                              /* create */
-                                             true);
+                                             true,
+                                             /* immedPredBlockP */
+                                             NULL);
     curBlock->fallThrough = fallthroughBlock;
     oatSetBit(fallthroughBlock->predecessors, curBlock->id);
 }
@@ -641,7 +656,8 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
         for (;iterator.HasNext(); iterator.Next()) {
             BasicBlock *catchBlock = findBlock(cUnit, iterator.GetHandlerAddress(),
                                                false /* split*/,
-                                               false /* creat */);
+                                               false /* creat */,
+                                               NULL  /* immedPredBlockP */);
             catchBlock->catchEntry = true;
             SuccessorBlockInfo *successorBlockInfo =
                   (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
@@ -675,7 +691,9 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                                                      /* split */
                                                      false,
                                                      /* create */
-                                                     true);
+                                                     true,
+                                                     /* immedPredBlockP */
+                                                     NULL);
             /*
              * OP_THROW is an unconditional branch.  NOTE:
              * OP_THROW_VERIFICATION_ERROR is also an unconditional
@@ -822,7 +840,9 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
                               /* split */
                               false,
                               /* create */
-                              true);
+                              true,
+                              /* immedPredBlockP */
+                              NULL);
                 }
             }
         } else if (flags & kInstrCanThrow) {
@@ -836,7 +856,9 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
                                           /* split */
                                           false,
                                           /* create */
-                                          false);
+                                          false,
+                                          /* immedPredBlockP */
+                                          NULL);
         if (nextBlock) {
             /*
              * The next instruction could be the target of a previously parsed
