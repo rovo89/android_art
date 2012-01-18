@@ -16,6 +16,7 @@
 
 #include <grp.h>
 #include <paths.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
