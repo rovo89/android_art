@@ -976,11 +976,8 @@ DexVerifier::DexVerifier(Method* method)
       new_instance_count_(0),
       monitor_enter_count_(0) {
   CHECK(method != NULL);
-  Runtime* runtime = Runtime::Current();
-  // We should only be running the verifier at compile time
-  CHECK(!runtime->IsStarted());
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-  ClassLinker* class_linker = runtime->GetClassLinker();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   dex_file_ = &class_linker->FindDexFile(dex_cache);
   code_item_ = dex_file_->GetCodeItem(method->GetCodeItemOffset());
 }
