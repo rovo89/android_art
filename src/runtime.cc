@@ -12,6 +12,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "debugger.h"
+#include "dex_verifier.h"
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
@@ -73,6 +74,7 @@ Runtime::~Runtime() {
 
   delete class_linker_;
   Heap::Destroy();
+  verifier::DexVerifier::DeleteGcMaps();
   delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();

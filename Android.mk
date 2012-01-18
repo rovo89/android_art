@@ -73,7 +73,7 @@ test-art-host: $(ART_HOST_TEST_DEPENDENCIES) $(ART_HOST_TEST_TARGETS)
 # "mm valgrind-art-host" to build and run all host tests under valgrind.
 .PHONY: valgrind-art-host
 valgrind-art-host: $(ART_HOST_TEST_DEPENDENCIES)
-	$(call run-host-tests-with,"valgrind")
+	$(call run-host-tests-with,valgrind --leak-check=full)
 	@echo valgrind-art-host PASSED
 
 # "mm tsan-art-host" to build and run all host tests under tsan.

@@ -10,8 +10,8 @@ namespace art {
 class DexFileTest : public CommonTest {};
 
 TEST_F(DexFileTest, Open) {
-  UniquePtr<const DexFile> dex(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(dex.get() != NULL);
+  const DexFile* dex(OpenTestDexFile("Nested"));
+  ASSERT_TRUE(dex != NULL);
 }
 
 // Although this is the same content logically as the Nested test dex,
@@ -70,8 +70,8 @@ TEST_F(DexFileTest, Header) {
 }
 
 TEST_F(DexFileTest, ClassDefs) {
-  UniquePtr<const DexFile> raw(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(raw.get() != NULL);
+  const DexFile* raw(OpenTestDexFile("Nested"));
+  ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(2U, raw->NumClassDefs());
 
   const DexFile::ClassDef& c0 = raw->GetClassDef(0);
@@ -82,8 +82,8 @@ TEST_F(DexFileTest, ClassDefs) {
 }
 
 TEST_F(DexFileTest, CreateMethodSignature) {
-  UniquePtr<const DexFile> raw(OpenTestDexFile("CreateMethodSignature"));
-  ASSERT_TRUE(raw.get() != NULL);
+  const DexFile* raw(OpenTestDexFile("CreateMethodSignature"));
+  ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const DexFile::ClassDef& class_def = raw->GetClassDef(0);
@@ -91,7 +91,7 @@ TEST_F(DexFileTest, CreateMethodSignature) {
 
   const byte* class_data = raw->GetClassData(class_def);
   ASSERT_TRUE(class_data != NULL);
-  ClassDataItemIterator it(*raw.get(), class_data);
+  ClassDataItemIterator it(*raw, class_data);
 
   EXPECT_EQ(1u, it.NumDirectMethods());
 
@@ -137,8 +137,8 @@ TEST_F(DexFileTest, CreateMethodSignature) {
 }
 
 TEST_F(DexFileTest, FindStringId) {
-  UniquePtr<const DexFile> raw(OpenTestDexFile("CreateMethodSignature"));
-  ASSERT_TRUE(raw.get() != NULL);
+  const DexFile* raw(OpenTestDexFile("CreateMethodSignature"));
+  ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const char* strings[] = { "LCreateMethodSignature;", "Ljava/lang/Float;", "Ljava/lang/Object;",

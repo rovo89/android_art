@@ -151,14 +151,10 @@ void Heap::Destroy() {
   // all daemon threads are suspended, and we also know that the threads list have been deleted, so
   // those threads can't resume. We're the only running thread, and we can do whatever we like...
   STLDeleteElements(&spaces_);
-  if (mark_bitmap_ != NULL) {
-    delete mark_bitmap_;
-    mark_bitmap_ = NULL;
-  }
-  if (live_bitmap_ != NULL) {
-    delete live_bitmap_;
-  }
-  live_bitmap_ = NULL;
+  delete mark_bitmap_;
+  delete live_bitmap_;
+  delete card_table_;
+  delete lock_;
 }
 
 Object* Heap::AllocObject(Class* klass, size_t byte_count) {

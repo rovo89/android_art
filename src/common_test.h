@@ -33,13 +33,13 @@ static inline const DexFile* OpenDexFileBase64(const char* base64,
   // decode base64
   CHECK(base64 != NULL);
   size_t length;
-  byte* dex_bytes = DecodeBase64(base64, &length);
-  CHECK(dex_bytes != NULL);
+  UniquePtr<byte[]> dex_bytes(DecodeBase64(base64, &length));
+  CHECK(dex_bytes.get() != NULL);
 
   // write to provided file
   UniquePtr<File> file(OS::OpenFile(location.c_str(), true));
   CHECK(file.get() != NULL);
-  if (!file->WriteFully(dex_bytes, length)) {
+  if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
   file.reset();
@@ -295,6 +295,7 @@ class CommonTest : public testing::Test {
     (*icu_cleanup_fn)();
 
     compiler_.reset();
+    STLDeleteElements(&opened_dex_files_);
 
     Heap::VerifyHeap();  // Check for heap corruption after the test
   }
@@ -325,13 +326,13 @@ class CommonTest : public testing::Test {
     filename += ".jar";
     const DexFile* dex_file = DexFile::Open(filename, "");
     CHECK(dex_file != NULL) << "Failed to open " << filename;
+    opened_dex_files_.push_back(dex_file);
     return dex_file;
   }
 
   ClassLoader* LoadDex(const char* dex_name) {
     const DexFile* dex_file = OpenTestDexFile(dex_name);
     CHECK(dex_file != NULL);
-    loaded_dex_files_.push_back(dex_file);
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> class_path;
     class_path.push_back(dex_file);
@@ -398,7 +399,7 @@ class CommonTest : public testing::Test {
   UniquePtr<Compiler> compiler_;
 
  private:
-  std::vector<const DexFile*> loaded_dex_files_;
+  std::vector<const DexFile*> opened_dex_files_;
 };
 
 }  // namespace art
