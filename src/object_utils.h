@@ -169,11 +169,8 @@ class ClassHelper {
     std::string descriptor(GetDescriptor());
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
-    if (dex_class_def == NULL) {
-      return NULL;
-    } else {
-      return dex_file.GetSourceFile(*dex_class_def);
-    }
+    CHECK(dex_class_def != NULL);
+    return dex_file.GetSourceFile(*dex_class_def);
   }
 
   std::string GetLocation() {
@@ -477,11 +474,8 @@ class MethodHelper {
     const char* descriptor = GetDeclaringClassDescriptor();
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
-    if (dex_class_def == NULL) {
-      return NULL;
-    } else {
-      return dex_file.GetSourceFile(*dex_class_def);
-    }
+    CHECK(dex_class_def != NULL);
+    return dex_file.GetSourceFile(*dex_class_def);
   }
   bool IsStatic() {
     return method_->IsStatic();

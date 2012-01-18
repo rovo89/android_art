@@ -800,12 +800,15 @@ void Monitor::TranslateLocation(const Method* method, uint32_t pc,
                                 const char*& source_file, uint32_t& line_number) const {
   // If method is null, location is unknown
   if (method == NULL) {
-    source_file = "unknown";
+    source_file = "";
     line_number = 0;
     return;
   }
   MethodHelper mh(method);
   source_file = mh.GetDeclaringClassSourceFile();
+  if (source_file == NULL) {
+    source_file = "";
+  }
   line_number = mh.GetLineNumFromNativePC(pc);
 }
 
