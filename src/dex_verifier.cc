@@ -24,7 +24,22 @@ namespace verifier {
 static const bool gDebugVerify = false;
 
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs) {
-  return os << (int)rhs;
+  switch (rhs) {
+  case VERIFY_ERROR_NONE: os << "VERIFY_ERROR_NONE"; break;
+  case VERIFY_ERROR_GENERIC: os << "VERIFY_ERROR_GENERIC"; break;
+  case VERIFY_ERROR_NO_CLASS: os << "VERIFY_ERROR_NO_CLASS"; break;
+  case VERIFY_ERROR_NO_FIELD: os << "VERIFY_ERROR_NO_FIELD"; break;
+  case VERIFY_ERROR_NO_METHOD: os << "VERIFY_ERROR_NO_METHOD"; break;
+  case VERIFY_ERROR_ACCESS_CLASS: os << "VERIFY_ERROR_ACCESS_CLASS"; break;
+  case VERIFY_ERROR_ACCESS_FIELD: os << "VERIFY_ERROR_ACCESS_FIELD"; break;
+  case VERIFY_ERROR_ACCESS_METHOD: os << "VERIFY_ERROR_ACCESS_METHOD"; break;
+  case VERIFY_ERROR_CLASS_CHANGE: os << "VERIFY_ERROR_CLASS_CHANGE"; break;
+  case VERIFY_ERROR_INSTANTIATION: os << "VERIFY_ERROR_INSTANTIATION"; break;
+  default:
+    os << "VerifyError[" << static_cast<int>(rhs) << "]";
+    break;
+  }
+  return os;
 }
 
 static const char* type_strings[] = {
@@ -941,6 +956,8 @@ bool DexVerifier::VerifyClass(const Class* klass) {
 bool DexVerifier::VerifyMethod(Method* method) {
   DexVerifier verifier(method);
   bool success = verifier.Verify();
+  CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
+
   // We expect either success and no verification error, or failure and a generic failure to
   // reject the class.
   if (success) {
@@ -1496,6 +1513,24 @@ bool DexVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   return true;
 }
 
+const std::vector<uint8_t>* CreateLengthPrefixedGcMap(const std::vector<uint8_t>& gc_map) {
+  std::vector<uint8_t>* length_prefixed_gc_map = new std::vector<uint8_t>;
+  length_prefixed_gc_map->push_back((gc_map.size() & 0xff000000) >> 24);
+  length_prefixed_gc_map->push_back((gc_map.size() & 0x00ff0000) >> 16);
+  length_prefixed_gc_map->push_back((gc_map.size() & 0x0000ff00) >> 8);
+  length_prefixed_gc_map->push_back((gc_map.size() & 0x000000ff) >> 0);
+  length_prefixed_gc_map->insert(length_prefixed_gc_map->end(),
+                                 gc_map.begin(),
+                                 gc_map.end());
+  DCHECK_EQ(gc_map.size() + 4, length_prefixed_gc_map->size());
+  DCHECK_EQ(gc_map.size(),
+            static_cast<size_t>((length_prefixed_gc_map->at(0) << 24) |
+                                (length_prefixed_gc_map->at(1) << 16) |
+                                (length_prefixed_gc_map->at(2) << 8) |
+                                (length_prefixed_gc_map->at(3) << 0)));
+  return length_prefixed_gc_map;
+}
+
 bool DexVerifier::VerifyCodeFlow() {
   uint16_t registers_size = code_item_->registers_size_;
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
@@ -1519,19 +1554,23 @@ bool DexVerifier::VerifyCodeFlow() {
   }
   /* Perform code flow verification. */
   if (!CodeFlowVerifyMethod()) {
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
     return false;
   }
 
   /* Generate a register map and add it to the method. */
-  const std::vector<uint8_t>* map = GenerateGcMap();
-  if (map == NULL) {
+  UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
+  if (map.get() == NULL) {
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
     return false;  // Not a real failure, but a failure to encode
   }
-  Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
-  verifier::DexVerifier::SetGcMap(ref, *map);
 #ifndef NDEBUG
   VerifyGcMap(*map);
 #endif
+  const std::vector<uint8_t>* gc_map = CreateLengthPrefixedGcMap(*(map.get()));
+  Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
+  verifier::DexVerifier::SetGcMap(ref, *gc_map);
+  method_->SetGcMap(&gc_map->at(0));
   return true;
 }
 

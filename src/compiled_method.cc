@@ -50,22 +50,7 @@ void CompiledMethod::SetGcMap(const std::vector<uint8_t>& gc_map) {
   CHECK_NE(mapping_table_.size(), 0U);
   CHECK_NE(vmap_table_.size(), 0U);
 
-  std::vector<uint8_t> length_prefixed_gc_map;
-  length_prefixed_gc_map.push_back((gc_map.size() & 0xff000000) >> 24);
-  length_prefixed_gc_map.push_back((gc_map.size() & 0x00ff0000) >> 16);
-  length_prefixed_gc_map.push_back((gc_map.size() & 0x0000ff00) >> 8);
-  length_prefixed_gc_map.push_back((gc_map.size() & 0x000000ff) >> 0);
-  length_prefixed_gc_map.insert(length_prefixed_gc_map.end(),
-                                gc_map.begin(),
-                                gc_map.end());
-  DCHECK_EQ(gc_map.size() + 4, length_prefixed_gc_map.size());
-  DCHECK_EQ(gc_map.size(),
-            static_cast<size_t>((length_prefixed_gc_map[0] << 24) |
-                                (length_prefixed_gc_map[1] << 16) |
-                                (length_prefixed_gc_map[2] << 8) |
-                                (length_prefixed_gc_map[3] << 0)));
-
-  gc_map_ = length_prefixed_gc_map;
+  gc_map_ = gc_map;
 }
 
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
