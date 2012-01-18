@@ -18,7 +18,6 @@
 #include <paths.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -31,6 +30,10 @@
 #include "ScopedPrimitiveArray.h"
 #include "ScopedUtfChars.h"
 #include "thread.h"
+
+#if defined(HAVE_PRCTL)
+#include <sys/prctl.h>
+#endif
 
 namespace art {
 
