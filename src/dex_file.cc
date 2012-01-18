@@ -107,6 +107,10 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     close(fd);
     return NULL;
   }
+  if (S_ISDIR(sbuf.st_mode)) {
+    LOG(ERROR) << "attempt to mmap directory \"" << filename << "\"";
+    return NULL;
+  }
   size_t length = sbuf.st_size;
   UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0));
   if (map.get() == NULL) {
