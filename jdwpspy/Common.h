@@ -6,13 +6,14 @@
 #ifndef _JDWPSPY_COMMON
 #define _JDWPSPY_COMMON
 
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
 
-typedef unsigned char u1;
-typedef unsigned short u2;
-typedef unsigned int u4;
-typedef unsigned long long u8;
+typedef uint8_t u1;
+typedef uint16_t u2;
+typedef uint32_t u4;
+typedef uint64_t u8;
 
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
 

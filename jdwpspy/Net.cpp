@@ -53,7 +53,7 @@ typedef struct NetState {
 
     /* connect here to contact VM */
     struct in_addr vmAddr;
-    short   vmPort;
+    uint16_t vmPort;
 
     Peer    dbg;
     Peer    vm;
@@ -227,9 +227,7 @@ void jdwpNetFree(NetState* netState);       /* fwd */
  *
  * Returns 0 on success.
  */
-NetState* jdwpNetStartup(unsigned short listenPort, const char* connectHost,
-    unsigned short connectPort)
-{
+NetState* jdwpNetStartup(uint16_t listenPort, const char* connectHost, uint16_t connectPort) {
     NetState* netState = new NetState;
     memset(netState, 0, sizeof(*netState));
     netState->listenSock = -1;

@@ -15,22 +15,13 @@ typedef uintptr_t uword;
 const size_t KB = 1024;
 const size_t MB = KB * KB;
 const size_t GB = KB * KB * KB;
-const int kMaxInt = 0x7FFFFFFF;
-const int kMinInt = -kMaxInt - 1;
 
-const int kCharSize = sizeof(char);
-const int kShortSize = sizeof(short);
-const int kIntSize = sizeof(int);
-const int kDoubleSize = sizeof(double);
-const int kIntptrSize = sizeof(intptr_t);
 const int kWordSize = sizeof(word);
 const int kPointerSize = sizeof(void*);
 
 const int kBitsPerByte = 8;
 const int kBitsPerByteLog2 = 3;
-const int kBitsPerPointer = kPointerSize * kBitsPerByte;
 const int kBitsPerWord = kWordSize * kBitsPerByte;
-const int kBitsPerInt = kIntSize * kBitsPerByte;
 
 // Required stack alignment
 const int kStackAlignment = 16;

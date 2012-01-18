@@ -55,12 +55,12 @@ static void netFree(JdwpNetState* state);
  * We only talk to one debugger at a time.
  */
 struct JdwpNetState : public JdwpNetStateBase {
-    short   listenPort;
+    uint16_t listenPort;
     int     listenSock;         /* listen for connection from debugger */
     int     wakePipe[2];        /* break out of select */
 
     struct in_addr remoteAddr;
-    unsigned short remotePort;
+    uint16_t remotePort;
 
     bool    awaitingHandshake;  /* waiting for "JDWP-Handshake" */
 
@@ -80,18 +80,17 @@ struct JdwpNetState : public JdwpNetStateBase {
     }
 };
 
-static JdwpNetState* netStartup(short port, bool probe);
+static JdwpNetState* netStartup(uint16_t port, bool probe);
 
 /*
  * Set up some stuff for transport=dt_socket.
  */
 static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
-  unsigned short port;
+  uint16_t port = options->port;
 
   if (options->server) {
     if (options->port != 0) {
       /* try only the specified port */
-      port = options->port;
       state->netState = netStartup(port, false);
     } else {
       /* scan through a range of ports, binding to the first available */
@@ -107,8 +106,7 @@ static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
       return false;
     }
   } else {
-    port = options->port;   // used in a debug msg later
-    state->netState = netStartup(-1, false);
+    state->netState = netStartup(0, false);
   }
 
   if (options->suspend) {
@@ -130,8 +128,8 @@ static bool awaitingHandshake(JdwpState* state) {
 /*
  * Initialize JDWP stuff.
  *
- * Allocates a new state structure.  If "port" is non-negative, this also
- * tries to bind to a listen port.  If "port" is less than zero, we assume
+ * Allocates a new state structure.  If "port" is non-zero, this also
+ * tries to bind to a listen port.  If "port" is zero, we assume
  * we're preparing for an outbound connection, and return without binding
  * to anything.
  *
@@ -139,14 +137,11 @@ static bool awaitingHandshake(JdwpState* state) {
  *
  * Returns 0 on success.
  */
-static JdwpNetState* netStartup(short port, bool probe) {
-  int one = 1;
+static JdwpNetState* netStartup(uint16_t port, bool probe) {
   JdwpNetState* netState = new JdwpNetState;
-  if (port < 0) {
+  if (port == 0) {
     return netState;
   }
-
-  CHECK_NE(port, 0);
 
   netState->listenSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (netState->listenSock < 0) {
@@ -155,9 +150,12 @@ static JdwpNetState* netStartup(short port, bool probe) {
   }
 
   /* allow immediate re-use */
-  if (setsockopt(netState->listenSock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
-    PLOG(probe ? ERROR : FATAL) << "setsockopt(SO_REUSEADDR) failed";
-    goto fail;
+  {
+    int one = 1;
+    if (setsockopt(netState->listenSock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
+      PLOG(probe ? ERROR : FATAL) << "setsockopt(SO_REUSEADDR) failed";
+      goto fail;
+    }
   }
 
   union {

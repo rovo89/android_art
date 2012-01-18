@@ -95,7 +95,7 @@ struct JdwpOptions {
   bool server;
   bool suspend;
   std::string host;
-  short port;
+  uint16_t port;
 };
 
 struct JdwpEvent;
