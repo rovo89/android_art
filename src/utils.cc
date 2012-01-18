@@ -20,6 +20,21 @@
 #include <sys/prctl.h>
 #endif
 
+#if defined(__APPLE__)
+// Mac OS doesn't have gettid(2).
+pid_t gettid() { return getpid(); }
+#else
+// Neither bionic nor glibc exposes gettid(2).
+#define __KERNEL__
+#include <linux/unistd.h>
+#ifdef _syscall0
+_syscall0(pid_t, gettid)
+#else
+pid_t gettid() { return syscall(__NR_gettid); }
+#endif
+#undef __KERNEL__
+#endif
+
 namespace art {
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
@@ -623,16 +638,8 @@ bool IsValidDexFilename(const std::string& filename) {
   return (suffix == ".dex");
 }
 
-}  // namespace art
+pid_t GetTid() {
+  return gettid();
+}
 
-// Neither bionic nor glibc exposes gettid(2).
-#define __KERNEL__
-#include <linux/unistd.h>
-namespace art {
-#ifdef _syscall0
-_syscall0(pid_t, GetTid)
-#else
-pid_t GetTid() { return syscall(__NR_gettid); }
-#endif
 }  // namespace art
-#undef __KERNEL__
