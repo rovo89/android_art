@@ -36,6 +36,8 @@ void MarkStack::Init() {
   }
 }
 
-MarkStack::~MarkStack() {}
+MarkStack::~MarkStack() {
+  CHECK(IsEmpty());
+}
 
 }  // namespace art
