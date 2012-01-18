@@ -1119,6 +1119,7 @@ void Thread::WalkStack(StackVisitor* visitor) const {
         uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
         if (ManglePc(trace_exit) == pc) {
           TraceStackFrame trace_frame = GetTraceStackFrame(trace_stack_depth++);
+          CHECK(trace_frame.method_ == frame.GetMethod());
           pc = ManglePc(trace_frame.return_pc_);
         }
 #endif
