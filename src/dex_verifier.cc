@@ -3840,7 +3840,11 @@ const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_p
 DexVerifier::GcMapTable DexVerifier::gc_maps_;
 
 void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
-  CHECK(GetGcMap(ref) == NULL);
+  const std::vector<uint8_t>* existing_gc_map = GetGcMap(ref);
+  if (existing_gc_map != NULL) {
+    CHECK(*existing_gc_map == gc_map);
+    delete existing_gc_map;
+  }
   gc_maps_[ref] = &gc_map;
   CHECK(GetGcMap(ref) != NULL);
 }
