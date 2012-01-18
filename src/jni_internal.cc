@@ -94,7 +94,7 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
   }
 #endif
 
-  if (env->work_around_app_jni_bugs) {
+  if (env->vm->work_around_app_jni_bugs) {
     // Hand out direct pointers to support broken old apps.
     return reinterpret_cast<T>(obj);
   }
@@ -2347,7 +2347,7 @@ class JNI {
         return JNILocalRefType;
       }
 
-      if (!ts.Env()->work_around_app_jni_bugs) {
+      if (!ts.Vm()->work_around_app_jni_bugs) {
         return JNIInvalidRefType;
       }
 
@@ -2608,7 +2608,6 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
       local_ref_cookie(IRT_FIRST_SEGMENT),
       locals(kLocalsInitial, kLocalsMax, kLocal),
       check_jni(false),
-      work_around_app_jni_bugs(vm->work_around_app_jni_bugs),
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax) {
   functions = unchecked_functions = &gNativeInterface;
@@ -2750,7 +2749,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       check_jni(false),
       force_copy(false), // TODO: add a way to enable this
       trace(options->jni_trace_),
-      work_around_app_jni_bugs(false), // TODO: add a way to enable this
+      work_around_app_jni_bugs(false),
       pins_lock("JNI pin table lock"),
       pin_table("pin table", kPinTableInitial, kPinTableMax),
       globals_lock("JNI global reference table lock"),

@@ -38,7 +38,7 @@ class ScopedJniThreadState {
   static Thread* ThreadForEnv(JNIEnv* env) {
     JNIEnvExt* full_env(reinterpret_cast<JNIEnvExt*>(env));
     Thread* env_self = full_env->self;
-    Thread* self = full_env->work_around_app_jni_bugs ? Thread::Current() : env_self;
+    Thread* self = full_env->vm->work_around_app_jni_bugs ? Thread::Current() : env_self;
     if (self != env_self) {
       LOG(ERROR) << "JNI ERROR: JNIEnv for " << *env_self
                  << " used on " << *self;

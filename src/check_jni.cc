@@ -691,7 +691,7 @@ private:
     if (env_ != threadEnv) {
       LOG(ERROR) << "JNI ERROR: thread " << *self << " using JNIEnv* from thread " << *env_->self;
       // If we're keeping broken code limping along, we need to suppress the abort...
-      if (!env_->work_around_app_jni_bugs) {
+      if (!vm_->work_around_app_jni_bugs) {
         JniAbort();
         return;
       }
