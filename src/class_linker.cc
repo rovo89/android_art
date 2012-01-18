@@ -1288,7 +1288,16 @@ void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint3
   if (method->IsNative()) {
     // unregistering restores the dlsym lookup stub
     method->UnregisterNative();
-    return;
+  }
+
+  if (Runtime::Current()->IsMethodTracingActive()) {
+#if defined(__arm__)
+    Trace* tracer = Runtime::Current()->GetTracer();
+    void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
+    tracer->SaveAndUpdateCode(method.get(), trace_stub);
+#else
+    UNIMPLEMENTED(WARNING);
+#endif
   }
 }
 
