@@ -158,7 +158,6 @@ struct JNIEnvExt : public JNIEnv {
 
   // Frequently-accessed fields cached from JavaVM.
   bool check_jni;
-  bool work_around_app_jni_bugs;
 
   // How many nested "critical" JNI calls are we in?
   int critical;

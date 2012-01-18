@@ -957,7 +957,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     // Check if this is a local reference in the SIRT
     if (SirtContains(obj)) {
       result = *reinterpret_cast<Object**>(obj);  // Read from SIRT
-    } else if (jni_env_->work_around_app_jni_bugs) {
+    } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
       result = reinterpret_cast<Object*>(obj);
     } else {
