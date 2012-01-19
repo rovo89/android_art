@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,5 +33,44 @@ public class Main {
         result = faceObj2.iFunc2(5);
         System.out.print("ImplA: ");
         System.out.println(result);
+
+        objectOverrideTests();
     }
+
+  static void check(boolean z) {
+    if (!z) {
+      throw new AssertionError();
+    }
+  }
+
+  static void objectOverrideTests() {
+    ObjectOverridingInterface o =
+        new ObjectOverridingInterface() {
+          public boolean equals(Object o) {
+            return true;
+          }
+          public int hashCode() {
+            return 0xC001D00D;
+          }
+          public String toString() {
+            return "Mallet's Mallet";
+          }
+          public int length() {
+            return toString().length();
+          }
+          public char charAt(int i) {
+            return toString().charAt(i);
+          }
+          public CharSequence subSequence(int s, int e) {
+            return toString().subSequence(s, e);
+          }
+        };
+    doObjectOverrideTests(o);
+  }
+  static void doObjectOverrideTests(ObjectOverridingInterface o) {
+    check(o.equals(null));
+    check(o.hashCode() == 0xC001D00D);
+    check(o.toString().equals("Mallet's Mallet"));
+    System.out.println("objectOverrideTests: SUCCESS");
+  }
 }

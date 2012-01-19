@@ -859,7 +859,7 @@ Method* Class::FindVirtualMethodForInterface(Method* method, bool can_throw) {
 
 Method* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& signature) const {
   // Check the current class before checking the interfaces.
-  Method* method = FindVirtualMethod(name, signature);
+  Method* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
     return method;
   }
