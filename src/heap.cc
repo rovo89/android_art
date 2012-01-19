@@ -523,7 +523,7 @@ void Heap::CollectGarbageInternal() {
   // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
   size_t bytes_freed = initial_size - num_bytes_allocated_;
   bool is_small = (bytes_freed > 0 && bytes_freed < 1024);
-  size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/KB, 1U) : 0);
+  size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/KB, size_t(1U)) : 0);
 
   size_t total = GetTotalMemory();
   size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / total);

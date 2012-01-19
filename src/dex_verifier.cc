@@ -1583,7 +1583,7 @@ void DexVerifier::Dump(std::ostream& os) {
   const Instruction* inst = Instruction::At(code_item_->insns_);
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
       dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits()) {
-    os << StringPrintf("0x%04x", dex_pc) << ": " << insn_flags_[dex_pc].Dump()
+    os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].Dump()
         << " " << inst->DumpHex(5) << " " << inst->DumpString(dex_file_) << std::endl;
     RegisterLine* reg_line = reg_table_.GetLine(dex_pc);
     if (reg_line != NULL) {

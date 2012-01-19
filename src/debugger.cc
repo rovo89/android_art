@@ -971,7 +971,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId
     static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      VLOG(jdwp) << StringPrintf("    %2d: %d(%d) '%s' '%s' '%s' slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
+      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
 
       slot = MangleSlot(slot, name);
 
@@ -2333,7 +2333,7 @@ void Dbg::DumpRecentAllocations() {
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[i];
 
-    LOG(INFO) << StringPrintf(" T=%-2d %6d ", record->thin_lock_id, record->byte_count)
+    LOG(INFO) << StringPrintf(" T=%-2d %6zd ", record->thin_lock_id, record->byte_count)
               << PrettyClass(record->type);
 
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
