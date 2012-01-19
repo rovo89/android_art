@@ -194,7 +194,7 @@ void Monitor::Lock(Thread* self) {
   if (!lock_.TryLock()) {
     uint32_t wait_threshold = lock_profiling_threshold_;
     const Method* current_locking_method = NULL;
-    uint32_t current_locking_pc = 0;
+    uintptr_t current_locking_pc = 0;
     {
       ScopedThreadStateChange tsc(self, Thread::kBlocked);
       if (wait_threshold != 0) {
@@ -368,7 +368,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   owner_ = NULL;
   const Method* savedMethod = locking_method_;
   locking_method_ = NULL;
-  uint32_t savedPc = locking_pc_;
+  uintptr_t savedPc = locking_pc_;
   locking_pc_ = 0;
 
   /*

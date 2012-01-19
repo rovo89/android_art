@@ -95,7 +95,6 @@ void Mutex::ClearOwner() {
   reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner = 0;
 #else
   UNIMPLEMENTED(FATAL);
-  return 0;
 #endif
 }
 
