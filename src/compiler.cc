@@ -28,13 +28,13 @@ namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
   CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
-  ByteArray* CreateJniDlysmLookupStub();
+  ByteArray* CreateJniDlsymLookupStub();
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
   CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
-  ByteArray* CreateJniDlysmLookupStub();
+  ByteArray* CreateJniDlsymLookupStub();
 }
 
 Compiler::Compiler(InstructionSet instruction_set,
@@ -67,13 +67,13 @@ ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
   }
 }
 
-ByteArray* Compiler::CreateJniDlysmLookupStub(InstructionSet instruction_set) {
+ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:
     case kThumb2:
-      return arm::CreateJniDlysmLookupStub();
+      return arm::CreateJniDlsymLookupStub();
     case kX86:
-      return x86::CreateJniDlysmLookupStub();
+      return x86::CreateJniDlsymLookupStub();
     default:
       LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
       return NULL;

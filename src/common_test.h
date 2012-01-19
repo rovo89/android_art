@@ -236,7 +236,7 @@ class CommonTest : public testing::Test {
 #elif defined(__arm__)
     instruction_set = kThumb2;
 #endif
-    runtime_->SetJniDlsymLookupStub(Compiler::CreateJniDlysmLookupStub(instruction_set));
+    runtime_->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
     runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
     for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);

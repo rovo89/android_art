@@ -55,7 +55,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   return abstract_stub.get();
 }
 
-ByteArray* CreateJniDlysmLookupStub() {
+ByteArray* CreateJniDlsymLookupStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // Pad stack to ensure 16-byte alignment

@@ -3,6 +3,11 @@
 #ifndef ART_SRC_DEX_VERIFY_H_
 #define ART_SRC_DEX_VERIFY_H_
 
+#include <deque>
+#include <limits>
+#include <map>
+#include <vector>
+
 #include "casts.h"
 #include "compiler.h"
 #include "dex_file.h"
@@ -10,13 +15,7 @@
 #include "macros.h"
 #include "object.h"
 #include "stl_util.h"
-#include "unordered_map.h"
 #include "UniquePtr.h"
-
-#include <deque>
-#include <limits>
-#include <map>
-#include <vector>
 
 namespace art {
 
@@ -1191,9 +1190,7 @@ class DexVerifier {
     return insn_flags_[work_insn_idx_];
   }
 
-  typedef std::tr1::unordered_map<const Compiler::MethodReference,
-                                  const std::vector<uint8_t>*,
-                                  Compiler::MethodReferenceHash> GcMapTable;
+  typedef std::map<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
   // All the GC maps that the verifier has created
   static GcMapTable gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);

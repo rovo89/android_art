@@ -228,7 +228,7 @@ class Dex2Oat {
 
     // if we loaded an existing image, we will reuse values from the image roots.
     if (!runtime->HasJniDlsymLookupStub()) {
-      runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlysmLookupStub(instruction_set_));
+      runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set_));
     }
     if (!runtime->HasAbstractMethodErrorStubArray()) {
       runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set_));

@@ -4,6 +4,8 @@
 #define ART_SRC_COMPILER_H_
 
 #include <map>
+#include <set>
+#include <string>
 
 #include "compiled_class.h"
 #include "compiled_method.h"
@@ -14,10 +16,6 @@
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
-#include "unordered_map.h"
-
-#include <set>
-#include <string>
 
 namespace art {
 
@@ -56,40 +54,16 @@ class Compiler {
   static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
                                          Runtime::TrampolineType type);
 
-  static ByteArray* CreateJniDlysmLookupStub(InstructionSet instruction_set);
+  static ByteArray* CreateJniDlsymLookupStub(InstructionSet instruction_set);
 
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> ClassReference;
-  struct ClassReferenceHash {
-    size_t operator()(const ClassReference& id) const {
-      size_t dex = reinterpret_cast<size_t>(id.first);
-      DCHECK_NE(dex, static_cast<size_t>(0));
-      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
-      size_t idx = id.second;
-      if (idx == 0) {  // special case of a method index of 0
-        return dex * 5381;
-      } else {
-        return dex * idx;
-      }
-    }
-  };
+
   CompiledClass* GetCompiledClass(ClassReference ref) const;
 
   // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> MethodReference;
-  struct MethodReferenceHash {
-    size_t operator()(const MethodReference& id) const {
-      size_t dex = reinterpret_cast<size_t>(id.first);
-      DCHECK_NE(dex, static_cast<size_t>(0));
-      dex += 33;  // dex is an aligned pointer, get some non-zero low bits
-      size_t idx = id.second;
-      if (idx == 0) {  // special case of a method index of 0
-        return dex * 5381;
-      } else {
-        return dex * idx;
-      }
-    }
-  };
+
   CompiledMethod* GetCompiledMethod(MethodReference ref) const;
 
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
@@ -159,11 +133,11 @@ class Compiler {
   InstructionSet instruction_set_;
   JniCompiler jni_compiler_;
 
-  typedef std::tr1::unordered_map<const ClassReference, CompiledClass*, ClassReferenceHash> ClassTable;
+  typedef std::map<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled
   ClassTable compiled_classes_;
 
-  typedef std::tr1::unordered_map<const MethodReference, CompiledMethod*, MethodReferenceHash> MethodTable;
+  typedef std::map<const MethodReference, CompiledMethod*> MethodTable;
   // All method references that this compiler has compiled
   MethodTable compiled_methods_;
 
@@ -177,6 +151,16 @@ class Compiler {
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };
+
+inline bool operator<(const Compiler::ClassReference& lhs, const Compiler::ClassReference& rhs) {
+  if (lhs.second < rhs.second) {
+    return true;
+  } else if (lhs.second > rhs.second) {
+    return false;
+  } else {
+    return (lhs.first < rhs.first);
+  }
+}
 
 }  // namespace art
 

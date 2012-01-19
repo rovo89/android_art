@@ -89,7 +89,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   return abstract_stub.get();
 }
 
-ByteArray* CreateJniDlysmLookupStub() {
+ByteArray* CreateJniDlsymLookupStub() {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
   // Build frame and save argument registers and LR.
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
