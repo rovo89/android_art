@@ -122,7 +122,7 @@ static JdwpError finishInvoke(JdwpState* state,
     size_t width = Dbg::GetTagWidth(typeTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
-    VLOG(jdwp) << StringPrintf("          '%c'(%d): 0x%llx", typeTag, width, value);
+    VLOG(jdwp) << StringPrintf("          '%c'(%zd): 0x%llx", typeTag, width, value);
     argArray[i] = value;
   }
 
@@ -806,7 +806,7 @@ static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int da
     size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
-    VLOG(jdwp) << StringPrintf("    --> fieldId=%x tag='%c'(%d) value=%lld", fieldId, fieldTag, width, value);
+    VLOG(jdwp) << StringPrintf("    --> fieldId=%x tag='%c'(%zd) value=%lld", fieldId, fieldTag, width, value);
 
     Dbg::SetFieldValue(objectId, fieldId, value, width);
   }
@@ -985,7 +985,7 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
 
   size_t frameCount = Dbg::GetThreadFrameCount(threadId);
 
-  VLOG(jdwp) << StringPrintf("  Request for frames: threadId=%llx start=%d length=%d [count=%d]", threadId, startFrame, length, frameCount);
+  VLOG(jdwp) << StringPrintf("  Request for frames: threadId=%llx start=%d length=%d [count=%zd]", threadId, startFrame, length, frameCount);
   if (frameCount <= 0) {
     return ERR_THREAD_NOT_SUSPENDED;    /* == 0 means 100% native */
   }
