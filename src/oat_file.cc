@@ -69,7 +69,7 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
           << filename << " " << reinterpret_cast<void*>(map->GetAddress());
   DCHECK_EQ(0, memcmp(&oat_header, map->GetAddress(), sizeof(OatHeader))) << filename;
 
-  off64_t code_offset = oat_header.GetExecutableOffset();
+  off_t code_offset = oat_header.GetExecutableOffset();
   if (code_offset < file->Length()) {
     byte* code_address = map->GetAddress() + code_offset;
     size_t code_length = file->Length() - code_offset;

@@ -637,23 +637,23 @@ void Class::DumpClass(std::ostream& os, int flags) const {
     for (size_t i = 0; i < kh.NumInterfaces(); ++i) {
       Class* interface = kh.GetInterface(i);
       const ClassLoader* cl = interface->GetClassLoader();
-      os << StringPrintf("    %2d: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
+      os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
     }
   }
   os << "  vtable (" << NumVirtualMethods() << " entries, "
      << (super != NULL ? super->NumVirtualMethods() : 0) << " in super):\n";
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    os << StringPrintf("    %2d: %s\n", i, PrettyMethod(GetVirtualMethodDuringLinking(i)).c_str());
+    os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(GetVirtualMethodDuringLinking(i)).c_str());
   }
   os << "  direct methods (" << NumDirectMethods() << " entries):\n";
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
-    os << StringPrintf("    %2d: %s\n", i, PrettyMethod(GetDirectMethod(i)).c_str());
+    os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(GetDirectMethod(i)).c_str());
   }
   if (NumStaticFields() > 0) {
     os << "  static fields (" << NumStaticFields() << " entries):\n";
     if (IsResolved() || IsErroneous()) {
       for (size_t i = 0; i < NumStaticFields(); ++i) {
-        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetStaticField(i)).c_str());
+        os << StringPrintf("    %2zd: %s\n", i, PrettyField(GetStaticField(i)).c_str());
       }
     } else {
       os << "    <not yet available>";
@@ -663,7 +663,7 @@ void Class::DumpClass(std::ostream& os, int flags) const {
     os << "  instance fields (" << NumInstanceFields() << " entries):\n";
     if (IsResolved() || IsErroneous()) {
       for (size_t i = 0; i < NumInstanceFields(); ++i) {
-        os << StringPrintf("    %2d: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
+        os << StringPrintf("    %2zd: %s\n", i, PrettyField(GetInstanceField(i)).c_str());
       }
     } else {
       os << "    <not yet available>";
@@ -1023,7 +1023,7 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   size_t component_shift = sizeof(size_t) * 8 - 1 - CLZ(component_size);
   if (data_size >> component_shift != size_t(component_count) || size < data_size) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
-        "%s of length %zd exceeds the VM limit",
+        "%s of length %d exceeds the VM limit",
         PrettyDescriptor(array_class).c_str(), component_count);
     return NULL;
   }
