@@ -5,18 +5,18 @@
 
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
 #include "class_linker.h"
 #include "file.h"
 #include "image.h"
-#include "os.h"
 #include "object_utils.h"
+#include "os.h"
 #include "runtime.h"
 #include "space.h"
 #include "stringpiece.h"
-#include "unordered_map.h"
 
 namespace art {
 
@@ -414,10 +414,10 @@ class ImageDump {
           pc_mapping_table_bytes(0),
           dex_instruction_bytes(0) {}
 
-    typedef std::tr1::unordered_map<std::string,size_t> TableBytes;
+    typedef std::map<std::string, size_t> TableBytes;
     TableBytes descriptor_to_bytes;
 
-    typedef std::tr1::unordered_map<std::string,size_t> TableCount;
+    typedef std::map<std::string, size_t> TableCount;
     TableCount descriptor_to_count;
 
     double PercentOfFileBytes(size_t size) {

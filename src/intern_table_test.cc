@@ -88,7 +88,7 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
 
   EXPECT_EQ(2U, t.Size());
 
-  // Just check that we didn't corrupt the unordered_multimap.
+  // Just check that we didn't corrupt the map.
   SirtRef<String> still_here(String::AllocFromModifiedUtf8("still here"));
   t.InternWeak(still_here.get());
   EXPECT_EQ(3U, t.Size());

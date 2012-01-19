@@ -17,11 +17,13 @@
 #define HPROF_HPROF_H_
 
 #include <stdio.h>
-#include "globals.h"
+
+#include <map>
+#include <set>
+
 #include "file.h"
+#include "globals.h"
 #include "object.h"
-#include "unordered_map.h"
-#include "unordered_set.h"
 #include "thread_list.h"
 
 namespace art {
@@ -76,10 +78,10 @@ typedef uint32_t HprofId;
 typedef HprofId HprofStringId;
 typedef HprofId HprofObjectId;
 typedef HprofId HprofClassObjectId;
-typedef std::tr1::unordered_set<Class*, ObjectIdentityHash> ClassSet;
-typedef std::tr1::unordered_set<Class*, ObjectIdentityHash>::iterator ClassSetIterator;
-typedef std::tr1::unordered_map<std::string, size_t> StringMap;
-typedef std::tr1::unordered_map<std::string, size_t>::iterator StringMapIterator;
+typedef std::set<Class*> ClassSet;
+typedef std::set<Class*>::iterator ClassSetIterator;
+typedef std::map<std::string, size_t> StringMap;
+typedef std::map<std::string, size_t>::iterator StringMapIterator;
 
 enum HprofBasicType {
   hprof_basic_object = 2,

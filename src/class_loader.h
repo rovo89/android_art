@@ -3,11 +3,11 @@
 #ifndef ART_SRC_CLASS_LOADER_H_
 #define ART_SRC_CLASS_LOADER_H_
 
+#include <map>
 #include <vector>
 
 #include "dex_file.h"
 #include "object.h"
-#include "unordered_map.h"
 
 namespace art {
 
@@ -26,7 +26,7 @@ class MANAGED ClassLoader : public Object {
   ClassLoader* parent_;
   Object* proxyCache_;
 
-  typedef std::tr1::unordered_map<const ClassLoader*, std::vector<const DexFile*>, ObjectIdentityHash> Table;
+  typedef std::map<const ClassLoader*, std::vector<const DexFile*> > Table;
   static Table compile_time_class_paths_;
 
   static bool use_compile_time_class_path;

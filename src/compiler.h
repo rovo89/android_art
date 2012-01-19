@@ -3,6 +3,8 @@
 #ifndef ART_SRC_COMPILER_H_
 #define ART_SRC_COMPILER_H_
 
+#include <map>
+
 #include "compiled_class.h"
 #include "compiled_method.h"
 #include "constants.h"
@@ -165,7 +167,7 @@ class Compiler {
   // All method references that this compiler has compiled
   MethodTable compiled_methods_;
 
-  typedef std::tr1::unordered_map<std::string, const CompiledInvokeStub*> InvokeStubTable;
+  typedef std::map<std::string, const CompiledInvokeStub*> InvokeStubTable;
   // Invocation stubs created to allow invocation of the compiled methods
   InvokeStubTable compiled_invoke_stubs_;
 

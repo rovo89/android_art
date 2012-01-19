@@ -1730,7 +1730,7 @@ bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, bool 
 bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
   MutexLock mu(classes_lock_);
-  typedef Table::const_iterator It;  // TODO: C++0x auto
+  typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
   for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {

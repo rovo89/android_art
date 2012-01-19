@@ -9,14 +9,13 @@
 #include <set>
 #include <string>
 
-#include "UniquePtr.h"
 #include "dex_cache.h"
 #include "mem_map.h"
 #include "oat_file.h"
 #include "object.h"
 #include "os.h"
 #include "space.h"
-#include "unordered_set.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -145,7 +144,7 @@ class ImageWriter {
   const byte* oat_base_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
-  typedef std::tr1::unordered_set<DexCache*, ObjectIdentityHash> Set;
+  typedef std::set<DexCache*> Set;
   Set dex_caches_;
 };
 

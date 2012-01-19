@@ -4,11 +4,11 @@
 #define ART_SRC_INTERN_TABLE_H_
 
 #include <iosfwd>
+#include <map>
 
 #include "heap.h"
 #include "mutex.h"
 #include "object.h"
-#include "unordered_map.h"
 
 namespace art {
 
@@ -53,7 +53,7 @@ class InternTable {
   void DumpForSigQuit(std::ostream& os) const;
 
  private:
-  typedef std::tr1::unordered_multimap<int32_t, String*> Table;
+  typedef std::multimap<int32_t, String*> Table;
 
   String* Insert(String* s, bool is_strong);
 

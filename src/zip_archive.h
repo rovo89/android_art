@@ -23,13 +23,12 @@
 
 #include <map>
 
-#include "UniquePtr.h"
 #include "file.h"
 #include "globals.h"
 #include "logging.h"
 #include "mem_map.h"
 #include "stringpiece.h"
-#include "unordered_map.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -121,7 +120,7 @@ class ZipArchive {
   uint16_t num_entries_;
   off_t dir_offset_;
   UniquePtr<MemMap> dir_map_;
-  typedef std::tr1::unordered_map<StringPiece, const byte*, StringPieceHash> DirEntries;
+  typedef std::map<StringPiece, const byte*> DirEntries;
   DirEntries dir_entries_;
 
   friend class ZipEntry;

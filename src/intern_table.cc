@@ -56,7 +56,7 @@ void InternTable::RegisterStrong(String* s) {
 
 void InternTable::Remove(Table& table, const String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld();
-  typedef Table::const_iterator It; // TODO: C++0x auto
+  typedef Table::iterator It; // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     if (it->second == s) {
       table.erase(it);
@@ -138,7 +138,7 @@ bool InternTable::ContainsWeak(String* s) {
 
 void InternTable::SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg) {
   MutexLock mu(intern_table_lock_);
-  typedef Table::const_iterator It; // TODO: C++0x auto
+  typedef Table::iterator It; // TODO: C++0x auto
   for (It it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
     Object* object = it->second;
     if (!is_marked(object, arg)) {

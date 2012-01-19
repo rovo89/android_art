@@ -24,16 +24,13 @@
 
 #include "dex_cache.h"
 #include "dex_file.h"
+#include "gtest/gtest.h"
 #include "heap.h"
 #include "macros.h"
 #include "mutex.h"
 #include "oat_file.h"
 #include "object.h"
 #include "stack_indirect_reference_table.h"
-#include "unordered_map.h"
-#include "unordered_set.h"
-
-#include "gtest/gtest.h"
 
 namespace art {
 
@@ -404,7 +401,7 @@ class ClassLinker {
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
   // Protected by classes_lock_
-  typedef std::tr1::unordered_multimap<size_t, Class*> Table;
+  typedef std::multimap<size_t, Class*> Table;
   Table image_classes_;
   Table classes_;
   mutable Mutex classes_lock_;
