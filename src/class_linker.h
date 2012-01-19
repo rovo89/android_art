@@ -333,9 +333,10 @@ class ClassLinker {
   void LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
                   SirtRef<Class>& klass, SirtRef<Method>& dst);
 
-  // Inserts a class into the class table.  Returns true if the class
-  // was inserted.
-  bool InsertClass(const StringPiece& descriptor, Class* klass, bool image_class);
+  // Attempts to insert a class into a class table.  Returns NULL if
+  // the class was inserted, otherwise returns an existing class with
+  // the same descriptor and ClassLoader.
+  Class* InsertClass(const StringPiece& descriptor, Class* klass, bool image_class);
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
@@ -402,6 +403,8 @@ class ClassLinker {
   // Class::descriptor_ and Class::class_loader_.
   // Protected by classes_lock_
   typedef std::multimap<size_t, Class*> Table;
+  Class* LookupClass(const char* descriptor, const ClassLoader* class_loader,
+                     size_t hash, const Table& classes);
   Table image_classes_;
   Table classes_;
   mutable Mutex classes_lock_;

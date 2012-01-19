@@ -902,8 +902,8 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
     // restore class to ClassLinker::classes_ table
     Class* klass = obj->AsClass();
     ClassHelper kh(klass, class_linker);
-    bool success = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
-    DCHECK(success);
+    Class* existing = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
+    DCHECK(existing == NULL) << kh.GetDescriptor();
     return;
   }
 }
@@ -1189,13 +1189,12 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
   ObjectLock lock(klass.get());
   klass->SetClinitThreadId(self->GetTid());
   // Add the newly loaded class to the loaded classes table.
-  bool success = InsertClass(descriptor, klass.get(), false);  // TODO: just return collision
-  if (!success) {
-    // We may fail to insert if we raced with another thread.
+  Class* existing = InsertClass(descriptor, klass.get(), false);
+  if (existing != NULL) {
+    // We failed to insert because we raced with another thread.
     klass->SetClinitThreadId(0);
-    klass.reset(LookupClass(descriptor.data(), class_loader));
-    CHECK(klass.get() != NULL);
-    return klass.get();
+    klass.reset(existing);
+    return EnsureResolved(klass.get());
   }
   // Finish loading (if necessary) by finding parents
   CHECK(!klass->IsLoaded());
@@ -1544,8 +1543,8 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
   primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(Class::kStatusInitialized);
-  bool success = InsertClass(descriptor, primitive_class, false);
-  CHECK(success) << "InitPrimitiveClass(" << descriptor << ") failed";
+  Class* existing = InsertClass(descriptor, primitive_class, false);
+  CHECK(existing == NULL) << "InitPrimitiveClass(" << descriptor << ") failed";
   return primitive_class;
 }
 
@@ -1661,7 +1660,8 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor, const ClassL
   new_class->SetAccessFlags(((new_class->GetComponentType()->GetAccessFlags() &
                              ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask);
 
-  if (InsertClass(descriptor, new_class.get(), false)) {
+  Class* existing = InsertClass(descriptor, new_class.get(), false);
+  if (existing == NULL) {
     return new_class.get();
   }
   // Another thread must have loaded the class after we
@@ -1670,10 +1670,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor, const ClassL
   //
   // (Yes, this happens.)
 
-  // Grab the winning class.
-  Class* other_class = LookupClass(descriptor.c_str(), component_type->GetClassLoader());
-  DCHECK(other_class != NULL);
-  return other_class;
+  return existing;
 }
 
 Class* ClassLinker::FindPrimitiveClass(char type) {
@@ -1704,7 +1701,7 @@ Class* ClassLinker::FindPrimitiveClass(char type) {
   return NULL;
 }
 
-bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, bool image_class) {
+Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, bool image_class) {
   if (VLOG_IS_ON(class_linker)) {
     DexCache* dex_cache = klass->GetDexCache();
     std::string source;
@@ -1716,15 +1713,18 @@ bool ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, bool 
   }
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
-  Table::iterator it;
-  if (image_class) {
-    // TODO: sanity check there's no match in classes_
-    it = image_classes_.insert(std::make_pair(hash, klass));
-  } else {
-    // TODO: sanity check there's no match in image_classes_
-    it = classes_.insert(std::make_pair(hash, klass));
+  Table& classes = image_class ? image_classes_ : classes_;
+  Class* existing = LookupClass(descriptor.data(), klass->GetClassLoader(), hash, classes);
+#ifndef NDEBUG
+  // Check we don't have the class in the other table in error
+  Table& other_classes = image_class ? classes_ : image_classes_;
+  CHECK(LookupClass(descriptor.data(), klass->GetClassLoader(), hash, other_classes) == NULL);
+#endif
+  if (existing != NULL) {
+    return existing;
   }
-  return ((*it).second == klass);
+  classes.insert(std::make_pair(hash, klass));
+  return NULL;
 }
 
 bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_loader) {
@@ -1733,7 +1733,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_l
   typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
-  for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
+  for (It it = classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(kh.GetDescriptor(), descriptor) == 0 && klass->GetClassLoader() == class_loader) {
@@ -1741,7 +1741,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_l
       return true;
     }
   }
-  for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
+  for (It it = image_classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(kh.GetDescriptor(), descriptor) == 0 && klass->GetClassLoader() == class_loader) {
@@ -1755,20 +1755,30 @@ bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_l
 Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
   MutexLock mu(classes_lock_);
-  typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
-  ClassHelper kh(NULL, this);
-  for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
-    Class* klass = it->second;
-    kh.ChangeClass(klass);
-    if (strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader) {
-      return klass;
-    }
+  Class* klass = LookupClass(descriptor, class_loader, hash, classes_);
+  if (klass != NULL) {
+    return klass;
   }
-  for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
+  return LookupClass(descriptor, class_loader, hash, image_classes_);
+}
+
+Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader,
+                                size_t hash, const Table& classes) {
+  ClassHelper kh(NULL, this);
+  typedef Table::const_iterator It;  // TODO: C++0x auto
+  for (It it = classes.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader) {
+#ifndef NDEBUG
+      for (++it; it != end && it->first == hash; ++it) {
+        kh.ChangeClass(it->second);
+        CHECK(!(strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader))
+                << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
+                << PrettyClass(it->second) << " " << it->second << " " << it->second->GetClassLoader();
+      }
+#endif
       return klass;
     }
   }
@@ -1782,14 +1792,14 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh(NULL, this);
-  for (It it = classes_.find(hash), end = classes_.end(); it != end; ++it) {
+  for (It it = classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
       classes.push_back(klass);
     }
   }
-  for (It it = image_classes_.find(hash), end = image_classes_.end(); it != end; ++it) {
+  for (It it = image_classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
     Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
