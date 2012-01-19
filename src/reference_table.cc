@@ -118,7 +118,7 @@ void LogSummaryLine(const Object* obj, size_t elems, int identical, int equiv) {
   }
 
   size_t total = identical + equiv + 1;
-  std::string msg(StringPrintf("%5d of %s", total, className.c_str()));
+  std::string msg(StringPrintf("%5zd of %s", total, className.c_str()));
   if (identical + equiv != 0) {
     StringAppendF(&msg, " (%d unique instances)", equiv + 1);
   }

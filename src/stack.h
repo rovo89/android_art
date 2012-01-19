@@ -61,7 +61,7 @@ class PACKED Frame {
   uint32_t GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills, uint32_t fp_spills,
                     size_t frame_size, int vreg) const;
 
-  uintptr_t GetVReg(Method* m, int vreg) const;
+  uint32_t GetVReg(Method* m, int vreg) const;
   void SetVReg(Method* method, int vreg, uint32_t new_value);
 
   Method** GetSP() const {

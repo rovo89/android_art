@@ -341,6 +341,9 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
 }
 
 void Thread::InitStackHwm() {
+#if defined(__APPLE__)
+  UNIMPLEMENTED(FATAL) << "try pthread_get_stacksize_np and pthread_get_stackaddr_np";
+#else
   pthread_attr_t attributes;
   CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_self(), &attributes), __FUNCTION__);
 
@@ -361,6 +364,7 @@ void Thread::InitStackHwm() {
   CHECK_GT(&stack_variable, (void*) stack_end_);
 
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+#endif
 }
 
 void Thread::Dump(std::ostream& os, bool dump_pending_exception) const {
