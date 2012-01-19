@@ -1798,6 +1798,29 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
   }
 }
 
+#ifndef NDEBUG
+static void CheckMethodsHaveGcMaps(Class* klass) {
+  if (!Runtime::Current()->IsStarted()) {
+    return;
+  }
+  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
+    Method* method = klass->GetDirectMethod(i);
+    if (!method->IsNative() && !method->IsAbstract()) {
+      CHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
+    }
+  }
+  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
+    Method* method = klass->GetVirtualMethod(i);
+    if (!method->IsNative() && !method->IsAbstract()) {
+      CHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
+    }
+  }
+}
+#else
+static void CheckMethodsHaveGcMaps(Class* klass) {
+}
+#endif
+
 void ClassLinker::VerifyClass(Class* klass) {
   // TODO: assert that the monitor on the Class is held
   if (klass->IsVerified()) {
@@ -1813,6 +1836,8 @@ void ClassLinker::VerifyClass(Class* klass) {
     // Make sure all classes referenced by catch blocks are resolved
     ResolveClassExceptionHandlerTypes(dex_file, klass);
     klass->SetStatus(Class::kStatusVerified);
+    // Sanity check that a verified class has GC maps on all methods
+    CheckMethodsHaveGcMaps(klass);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyClass(klass);
     Thread* self = Thread::Current();

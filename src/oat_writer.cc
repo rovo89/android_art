@@ -80,12 +80,11 @@ size_t OatWriter::InitDexFiles(size_t offset) {
 size_t OatWriter::InitOatClasses(size_t offset) {
   // create the OatClasses
   // calculate the offsets within OatDexFiles to OatClasses
-  size_t class_index = 0;
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
     for (size_t class_def_index = 0;
          class_def_index < dex_file->NumClassDefs();
-         class_def_index++, class_index++) {
+         class_def_index++) {
       oat_dex_files_[i]->methods_offsets_[class_def_index] = offset;
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const byte* class_data = dex_file->GetClassData(class_def);
@@ -138,14 +137,14 @@ size_t OatWriter::InitOatCodeDexFile(size_t offset,
        class_def_index < dex_file.NumClassDefs();
        class_def_index++, oat_class_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-    offset = InitOatCodeClassDef(offset, oat_class_index, dex_file, class_def);
+    offset = InitOatCodeClassDef(offset, oat_class_index, class_def_index, dex_file, class_def);
     oat_classes_[oat_class_index]->UpdateChecksum(*oat_header_);
   }
   return offset;
 }
 
 size_t OatWriter::InitOatCodeClassDef(size_t offset,
-                                      size_t oat_class_index,
+                                      size_t oat_class_index, size_t class_def_index,
                                       const DexFile& dex_file,
                                       const DexFile::ClassDef& class_def) {
   const byte* class_data = dex_file.GetClassData(class_def);
@@ -167,15 +166,17 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
   size_t class_def_method_index = 0;
   while (it.HasNextDirectMethod()) {
     bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
-    offset = InitOatCodeMethod(offset, oat_class_index, class_def_method_index, is_static, true,
-                               it.GetMemberIndex(), &dex_file);
+    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
+    offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index, is_native,
+                               is_static, true, it.GetMemberIndex(), &dex_file);
     class_def_method_index++;
     it.Next();
   }
   while (it.HasNextVirtualMethod()) {
     CHECK_EQ(it.GetMemberAccessFlags() & kAccStatic, 0U);
-    offset = InitOatCodeMethod(offset, oat_class_index, class_def_method_index, false, false,
-                               it.GetMemberIndex(), &dex_file);
+    bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
+    offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index, is_native,
+                               false, false, it.GetMemberIndex(), &dex_file);
     class_def_method_index++;
     it.Next();
   }
@@ -183,9 +184,9 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
   return offset;
 }
 
-size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
-                                    size_t class_def_method_index, bool is_static, bool is_direct,
-                                    uint32_t method_idx, const DexFile* dex_file) {
+size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_index,
+                                    size_t class_def_method_index, bool is_native, bool is_static,
+                                    bool is_direct, uint32_t method_idx, const DexFile* dex_file) {
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
   uint32_t frame_size_in_bytes = kStackAlignment;
@@ -263,6 +264,16 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
     size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
     gc_map_offset = (gc_map_size == 0) ? 0 : offset;
+
+#ifndef NDEBUG
+    // We expect GC maps except when the class hasn't been verified or the method is native
+    CompiledClass* compiled_class =
+        compiler_->GetCompiledClass(art::Compiler::MethodReference(dex_file, class_def_index));
+    Class::Status status =
+        (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
+    CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
+        << PrettyMethod(method_idx, *dex_file);
+#endif
 
     // Deduplicate GC maps
     std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter = gc_map_offsets_.find(&gc_map);

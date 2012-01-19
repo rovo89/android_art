@@ -68,11 +68,12 @@ class OatWriter {
                             size_t& oat_class_index,
                             const DexFile& dex_file);
   size_t InitOatCodeClassDef(size_t offset,
-                             size_t oat_class_index,
+                             size_t oat_class_index, size_t class_def_index,
                              const DexFile& dex_file,
                              const DexFile::ClassDef& class_def);
-  size_t InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_method_index,
-                           bool is_static, bool is_direct, uint32_t method_idx, const DexFile*);
+  size_t InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_index,
+                           size_t class_def_method_index, bool is_native, bool is_static,
+                           bool is_direct, uint32_t method_idx, const DexFile*);
 
   bool Write(File* file);
   bool WriteTables(File* file);
