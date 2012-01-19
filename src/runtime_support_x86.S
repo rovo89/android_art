@@ -1,5 +1,12 @@
 #include "asm_support.h"
 
+#if defined(__APPLE__)
+    // Mac OS X mangles the functions with an underscore prefix
+    #define art_deliver_exception_from_code _art_deliver_exception_from_code
+    #define art_proxy_invoke_handler _art_proxy_invoke_handler
+    #define artDeliverExceptionFromCode _artDeliverExceptionFromCode
+#endif
+
     .globl art_deliver_exception_from_code
     /*
      * Called by managed code, saves callee saves and then calls artThrowException
