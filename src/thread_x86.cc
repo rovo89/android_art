@@ -2,16 +2,25 @@
 
 #include "thread.h"
 
-#include <asm/ldt.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 
 #include "asm_support.h"
 #include "macros.h"
 
+#if defined(__APPLE__)
+#include <architecture/i386/table.h>
+#include <i386/user_ldt.h>
+#else
+#include <asm/ldt.h>
+#endif
+
 namespace art {
 
 void Thread::InitCpu() {
+#if defined(__APPLE__)
+  UNIMPLEMENTED(WARNING);
+#else
   // Read LDT
   CHECK_EQ((size_t)LDT_ENTRY_SIZE, sizeof(uint64_t));
   std::vector<uint64_t> ldt(LDT_ENTRIES);
@@ -61,6 +70,7 @@ void Thread::InitCpu() {
       : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber
   CHECK_EQ(self_check, this);
+#endif
 }
 
 }  // namespace art
