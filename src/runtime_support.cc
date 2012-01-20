@@ -1215,11 +1215,11 @@ extern "C" uintptr_t artTraceMethodExitFromCode() {
   return lr;
 }
 
-uintptr_t artTraceMethodUnwindFromCode(Thread* self) {
+uint32_t artTraceMethodUnwindFromCode(Thread* self) {
   Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = self->PopTraceStackFrame();
   Method* method = trace_frame.method_;
-  uintptr_t lr = trace_frame.return_pc_;
+  uint32_t lr = trace_frame.return_pc_;
 
   tracer->LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);
 

@@ -309,7 +309,7 @@ void Trace::FinishTracing() {
     os << StringPrintf("clock=wall\n");
   }
   os << StringPrintf("elapsed-time-usec=%llu\n", elapsed);
-  os << StringPrintf("num-method-calls=%d\n", (final_offset - kTraceHeaderLength) / record_size_);
+  os << StringPrintf("num-method-calls=%zd\n", (final_offset - kTraceHeaderLength) / record_size_);
   os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead);
   os << StringPrintf("vm=art\n");
   os << StringPrintf("%cthreads\n", kTraceTokenChar);

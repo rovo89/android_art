@@ -280,13 +280,28 @@ bool ZipEntry::ExtractToMemory(MemMap& mem_map) {
   }
 }
 
+static void SetCloseOnExec(int fd) {
+  // This dance is more portable than Linux's O_CLOEXEC open(2) flag.
+  int flags = fcntl(fd, F_GETFD);
+  if (flags == -1) {
+    PLOG(WARNING) << "fcntl(" << fd << ", F_GETFD) failed";
+    return;
+  }
+  int rc = fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+  if (rc == -1) {
+    PLOG(WARNING) << "fcntl(" << fd << ", F_SETFD, " << flags << ") failed";
+    return;
+  }
+}
+
 ZipArchive* ZipArchive::Open(const std::string& filename) {
   DCHECK(!filename.empty());
-  int fd = open(filename.c_str(), O_RDONLY | O_CLOEXEC, 0);
-  if (fd < 0) {
+  int fd = open(filename.c_str(), O_RDONLY, 0);
+  if (fd == -1) {
     PLOG(WARNING) << "Unable to open '" << filename << "'";
     return NULL;
   }
+  SetCloseOnExec(fd);
   return OpenFromFd(fd);
 }
 

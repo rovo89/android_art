@@ -65,7 +65,7 @@ void Runtime::PlatformAbort(const char* file, int line) {
       index = text.find(')');
       text.erase(index, 1);
     }
-    std::string log_line(StringPrintf("\t#%02d ", i) + function_name + text);
+    std::string log_line(StringPrintf("\t#%02zd ", i) + function_name + text);
     LogMessage(filename.c_str(), -1, ERROR, -1).stream() << log_line;
   }
 

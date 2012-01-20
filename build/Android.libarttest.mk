@@ -42,7 +42,10 @@ define build-libarttest
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
-    LOCAL_LDLIBS := -ldl -lrt -lpthread
+    LOCAL_LDLIBS := -ldl -lpthread
+    ifeq ($(HOST_OS),linux)
+      LOCAL_LDLIBS += -lrt
+    endif
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

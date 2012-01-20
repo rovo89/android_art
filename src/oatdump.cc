@@ -124,7 +124,7 @@ class OatDump {
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
       UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
       CHECK(oat_class.get() != NULL);
-      os << StringPrintf("%d: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
+      os << StringPrintf("%zd: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
          << oat_class->GetStatus() << ")\n";
       DumpOatClass(os, oat_file, *oat_class.get(), *dex_file, class_def);
     }
@@ -180,7 +180,7 @@ class OatDump {
                        method_index, name, signature.c_str(), method_idx);
     os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
                        oat_method.GetCode(), oat_method.GetCodeOffset());
-    os << StringPrintf("\t\tframe_size_in_bytes: %d\n",
+    os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
                        oat_method.GetFrameSizeInBytes());
     os << StringPrintf("\t\tcore_spill_mask: %08x\n",
                        oat_method.GetCoreSpillMask());
@@ -363,17 +363,17 @@ class ImageDump {
 
         size_t register_map_bytes = method->GetGcMapLength();
         state->stats_.register_map_bytes += register_map_bytes;
-        StringAppendF(&summary, "GC=%d ", register_map_bytes);
+        StringAppendF(&summary, "GC=%zd ", register_map_bytes);
 
         size_t pc_mapping_table_bytes = method->GetMappingTableLength();
         state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
-        StringAppendF(&summary, "Mapping=%d ", pc_mapping_table_bytes);
+        StringAppendF(&summary, "Mapping=%zd ", pc_mapping_table_bytes);
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 
-        StringAppendF(&summary, "\tSIZE Code=%d GC=%d Mapping=%d",
+        StringAppendF(&summary, "\tSIZE Code=%zd GC=%zd Mapping=%zd",
                       dex_instruction_bytes, register_map_bytes, pc_mapping_table_bytes);
       }
     }
@@ -429,15 +429,15 @@ class ImageDump {
     }
 
     void Dump(std::ostream& os) {
-      os << StringPrintf("\tfile_bytes = %d\n", file_bytes);
+      os << StringPrintf("\tfile_bytes = %zd\n", file_bytes);
       os << "\n";
 
       os << "\tfile_bytes = header_bytes + object_bytes + alignment_bytes\n";
-      os << StringPrintf("\theader_bytes    = %10d (%2.0f%% of file_bytes)\n",
+      os << StringPrintf("\theader_bytes    = %10zd (%2.0f%% of file_bytes)\n",
                          header_bytes, PercentOfFileBytes(header_bytes));
-      os << StringPrintf("\tobject_bytes    = %10d (%2.0f%% of file_bytes)\n",
+      os << StringPrintf("\tobject_bytes    = %10zd (%2.0f%% of file_bytes)\n",
                          object_bytes, PercentOfFileBytes(object_bytes));
-      os << StringPrintf("\talignment_bytes = %10d (%2.0f%% of file_bytes)\n",
+      os << StringPrintf("\talignment_bytes = %10zd (%2.0f%% of file_bytes)\n",
                          alignment_bytes, PercentOfFileBytes(alignment_bytes));
       os << "\n";
       os << std::flush;
@@ -452,7 +452,7 @@ class ImageDump {
         size_t count = descriptor_to_count[descriptor];
         double average = static_cast<double>(bytes) / static_cast<double>(count);
         double percent = PercentOfObjectBytes(bytes);
-        os << StringPrintf("\t%32s %8d bytes %6d instances "
+        os << StringPrintf("\t%32s %8zd bytes %6zd instances "
                            "(%3.0f bytes/instance) %2.0f%% of object_bytes\n",
                            descriptor.c_str(), bytes, count,
                            average, percent);
@@ -463,25 +463,25 @@ class ImageDump {
       os << std::flush;
       CHECK_EQ(object_bytes, object_bytes_total);
 
-      os << StringPrintf("\tmanaged_code_bytes           = %8d (%2.0f%% of object_bytes)\n",
+      os << StringPrintf("\tmanaged_code_bytes           = %8zd (%2.0f%% of object_bytes)\n",
                          managed_code_bytes, PercentOfObjectBytes(managed_code_bytes));
-      os << StringPrintf("\tmanaged_to_native_code_bytes = %8d (%2.0f%% of object_bytes)\n",
+      os << StringPrintf("\tmanaged_to_native_code_bytes = %8zd (%2.0f%% of object_bytes)\n",
                          managed_to_native_code_bytes,
                          PercentOfObjectBytes(managed_to_native_code_bytes));
-      os << StringPrintf("\tnative_to_managed_code_bytes = %8d (%2.0f%% of object_bytes)\n",
+      os << StringPrintf("\tnative_to_managed_code_bytes = %8zd (%2.0f%% of object_bytes)\n",
                          native_to_managed_code_bytes,
                          PercentOfObjectBytes(native_to_managed_code_bytes));
       os << "\n";
       os << std::flush;
 
-      os << StringPrintf("\tregister_map_bytes     = %7d (%2.0f%% of object_bytes)\n",
+      os << StringPrintf("\tregister_map_bytes     = %7zd (%2.0f%% of object_bytes)\n",
                          register_map_bytes, PercentOfObjectBytes(register_map_bytes));
-      os << StringPrintf("\tpc_mapping_table_bytes = %7d (%2.0f%% of object_bytes)\n",
+      os << StringPrintf("\tpc_mapping_table_bytes = %7zd (%2.0f%% of object_bytes)\n",
                          pc_mapping_table_bytes, PercentOfObjectBytes(pc_mapping_table_bytes));
       os << "\n";
       os << std::flush;
 
-      os << StringPrintf("\tdex_instruction_bytes = %d\n", dex_instruction_bytes);
+      os << StringPrintf("\tdex_instruction_bytes = %zd\n", dex_instruction_bytes);
       os << StringPrintf("\tmanaged_code_bytes expansion = %.2f\n",
                          static_cast<double>(managed_code_bytes)
                          / static_cast<double>(dex_instruction_bytes));

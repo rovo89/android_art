@@ -40,7 +40,10 @@ size_t ParseHex(const std::string& string) {
 }
 
 void CheckMapRequest(byte* addr, size_t length) {
-#ifndef NDEBUG
+#if !defined(NDEBUG)
+#if defined(__APPLE__)
+  UNIMPLEMENTED(WARNING);
+#else
   if (addr == NULL) {
     return;
   }
@@ -100,6 +103,7 @@ void CheckMapRequest(byte* addr, size_t length) {
     i = maps.find('\n', i);
     CHECK(i != std::string::npos) << "Failed to find newline from pos " << i << "\n" << maps;
   }
+#endif
 #endif
 }
 

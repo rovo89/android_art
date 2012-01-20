@@ -16,6 +16,10 @@
 #include "object_utils.h"
 #include "os.h"
 
+#if !defined(HAVE_POSIX_CLOCKS)
+#include <sys/time.h>
+#endif
+
 #if defined(HAVE_PRCTL)
 #include <sys/prctl.h>
 #endif
@@ -66,27 +70,50 @@ std::string GetIsoDate() {
 }
 
 uint64_t MilliTime() {
+#if defined(HAVE_POSIX_CLOCKS)
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
+#else
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_usec / 1000LL;
+#endif
 }
 
 uint64_t MicroTime() {
+#if defined(HAVE_POSIX_CLOCKS)
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+#else
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_usec * 1000LL;
+#endif
 }
 
 uint64_t NanoTime() {
+#if defined(HAVE_POSIX_CLOCKS)
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+#else
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_usec * 1000LL;
+#endif
 }
 
 uint64_t ThreadCpuMicroTime() {
+#if defined(HAVE_POSIX_CLOCKS)
   struct timespec now;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+#else
+  UNIMPLEMENTED(WARNING);
+  return -1;
+#endif
 }
 
 std::string PrettyDescriptor(const String* java_descriptor) {
@@ -563,7 +590,7 @@ void SetThreadName(const char* threadName) {
 #elif defined(HAVE_PRCTL)
   prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
 #else
-#error no implementation for SetThreadName
+  UNIMPLEMENTED(WARNING) << threadName;
 #endif
 }
 
