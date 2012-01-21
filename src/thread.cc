@@ -342,7 +342,8 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
 
 void Thread::InitStackHwm() {
 #if defined(__APPLE__)
-  UNIMPLEMENTED(FATAL) << "try pthread_get_stacksize_np and pthread_get_stackaddr_np";
+  // Only needed to run code. Try implementing this with pthread_get_stacksize_np and pthread_get_stackaddr_np.
+  UNIMPLEMENTED(WARNING);
 #else
   pthread_attr_t attributes;
   CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_self(), &attributes), __FUNCTION__);
