@@ -72,7 +72,7 @@ ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
 
 ifneq ($(HOST_OS),linux)
   # Some Mac OS pthread header files are broken with -fkeep-inline-functions.
-  ART_HOST_DEBUG_CFLAGS := $(filter-out -fkeep-inline-functions,)
+  ART_HOST_DEBUG_CFLAGS := $(filter-out -fkeep-inline-functions,$(ART_HOST_DEBUG_CFLAGS))
 endif
 
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
