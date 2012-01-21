@@ -221,8 +221,7 @@ size_t ParseIntegerOrDie(const StringPiece& s) {
 }
 
 void LoadJniLibrary(JavaVMExt* vm, const char* name) {
-  // TODO: OS_SHARED_LIB_FORMAT_STR
-  std::string mapped_name(StringPrintf("lib%s.so", name));
+  std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, name));
   std::string reason;
   if (!vm->LoadNativeLibrary(mapped_name, NULL, reason)) {
     LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": "
