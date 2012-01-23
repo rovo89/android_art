@@ -185,7 +185,7 @@ class Dex2Oat {
     Compiler compiler(instruction_set_, image, image_classes);
     compiler.CompileAll(class_loader->get(), dex_files);
 
-    if (!OatWriter::Create(oat_file, class_loader->get(), compiler)) {
+    if (!OatWriter::Create(oat_file, class_loader->get(), dex_files, compiler)) {
       LOG(ERROR) << "Failed to create oat file " << oat_file->name();
       return false;
     }

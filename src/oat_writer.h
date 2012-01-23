@@ -49,7 +49,8 @@ namespace art {
 class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
-  static bool Create(File* file, const ClassLoader* class_loader, const Compiler& compiler);
+  static bool Create(File* file, const ClassLoader* class_loader,
+                     const std::vector<const DexFile*>& dex_files, const Compiler& compiler);
 
  private:
 

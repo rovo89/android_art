@@ -123,6 +123,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/debugger.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
+	src/dex_file_verifier.cc \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
 	src/file.cc \

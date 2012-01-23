@@ -18,7 +18,8 @@ class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
-  bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, *compiler_.get());
+  std::vector<const DexFile*> dex_files;
+  bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, *compiler_.get());
   ASSERT_TRUE(success_oat);
 
   // Force all system classes into memory

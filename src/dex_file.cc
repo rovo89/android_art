@@ -15,6 +15,7 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
+#include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
 #include "logging.h"
@@ -225,6 +226,9 @@ bool DexFile::Init() {
     return false;
   }
   InitIndex();
+  if (!DexFileVerifier::Verify(this, base_, length_)) {
+    return false;
+  }
   return true;
 }
 
@@ -241,7 +245,7 @@ void DexFile::InitMembers() {
   DCHECK_EQ(length_, header_->file_size_);
 }
 
-bool DexFile::CheckMagicAndVersion() {
+bool DexFile::CheckMagicAndVersion() const {
   CHECK(header_->magic_ != NULL) << GetLocation();
   if (!IsMagicValid(header_->magic_)) {
     LOG(ERROR) << "Unrecognized magic number in "  << GetLocation() << ":"

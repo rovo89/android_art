@@ -89,13 +89,16 @@ uint16_t GetUtf16FromUtf8(const char** utf8_data_in) {
 
 int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1, const char* utf8_2) {
   for (;;) {
-    uint16_t c1 = GetUtf16FromUtf8(&utf8_1);
-    uint16_t c2 = GetUtf16FromUtf8(&utf8_2);
-    if (c1 == 0) {
-      return (c2 == 0) ? 0 : -1;
-    } else if (c2 == 0) {
+    if (*utf8_1 == '\0') {
+      return (*utf8_2 == '\0') ? 0 : -1;
+    } else if (*utf8_2 == '\0') {
       return 1;
-    } else if (c1 != c2) {
+    }
+
+    int c1 = GetUtf16FromUtf8(&utf8_1);
+    int c2 = GetUtf16FromUtf8(&utf8_2);
+
+    if (c1 != c2) {
       return c1 > c2 ? 1 : -1;
     }
   }

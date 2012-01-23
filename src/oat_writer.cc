@@ -12,8 +12,8 @@ namespace art {
 
 bool OatWriter::Create(File* file,
                        const ClassLoader* class_loader,
+                       const std::vector<const DexFile*>& dex_files,
                        const Compiler& compiler) {
-  const std::vector<const DexFile*>& dex_files = ClassLoader::GetCompileTimeClassPath(class_loader);
   OatWriter oat_writer(dex_files, class_loader, compiler);
   return oat_writer.Write(file);
 }

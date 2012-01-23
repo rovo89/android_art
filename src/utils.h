@@ -198,6 +198,10 @@ bool IsValidBinaryClassName(const char* s);  // "java.lang.String"
 bool IsValidJniClassName(const char* s);     // "java/lang/String"
 bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 
+// Returns whether the given string is a valid field or method name,
+// additionally allowing names that begin with '<' and end with '>'.
+bool IsValidMemberName(const char* s);
+
 // Returns the JNI native function name for the non-overloaded method 'm'.
 std::string JniShortName(const Method* m);
 // Returns the JNI native function name for the overloaded method 'm'.

@@ -349,7 +349,7 @@ std::string JniLongName(const Method* m) {
   return long_name;
 }
 
-// Helper for IsValidMemberNameUtf8(), a bit vector indicating valid low ascii.
+// Helper for IsValidPartOfMemberNameUtf8(), a bit vector indicating valid low ascii.
 uint32_t DEX_MEMBER_VALID_LOW_ASCII[4] = {
   0x00000000, // 00..1f low control characters; nothing valid
   0x03ff2010, // 20..3f digits and symbols; valid: '0'..'9', '$', '-'
@@ -357,8 +357,8 @@ uint32_t DEX_MEMBER_VALID_LOW_ASCII[4] = {
   0x07fffffe  // 60..7f lowercase etc.; valid: 'a'..'z'
 };
 
-// Helper for IsValidMemberNameUtf8(); do not call directly.
-bool IsValidMemberNameUtf8Slow(const char** pUtf8Ptr) {
+// Helper for IsValidPartOfMemberNameUtf8(); do not call directly.
+bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
   /*
    * It's a multibyte encoded character. Decode it and analyze. We
    * accept anything that isn't (a) an improperly encoded low value,
@@ -413,7 +413,7 @@ bool IsValidMemberNameUtf8Slow(const char** pUtf8Ptr) {
  * this function returns false, then the given pointer may only have
  * been partially advanced.
  */
-bool IsValidMemberNameUtf8(const char** pUtf8Ptr) {
+bool IsValidPartOfMemberNameUtf8(const char** pUtf8Ptr) {
   uint8_t c = (uint8_t) **pUtf8Ptr;
   if (c <= 0x7f) {
     // It's low-ascii, so check the table.
@@ -425,7 +425,34 @@ bool IsValidMemberNameUtf8(const char** pUtf8Ptr) {
 
   // It's a multibyte encoded character. Call a non-inline function
   // for the heavy lifting.
-  return IsValidMemberNameUtf8Slow(pUtf8Ptr);
+  return IsValidPartOfMemberNameUtf8Slow(pUtf8Ptr);
+}
+
+bool IsValidMemberName(const char* s) {
+  bool angle_name = false;
+
+  switch(*s) {
+    case '\0':
+      // The empty string is not a valid name.
+      return false;
+    case '<':
+      angle_name = true;
+      s++;
+      break;
+  }
+
+  while (true) {
+    switch (*s) {
+      case '\0':
+        return !angle_name;
+      case '>':
+        return angle_name && s[1] == '\0';
+    }
+
+    if (!IsValidPartOfMemberNameUtf8(&s)) {
+      return false;
+    }
+  }
 }
 
 enum ClassNameType { kName, kDescriptor };
@@ -521,7 +548,7 @@ bool IsValidClassName(const char* s, ClassNameType type, char separator) {
       s++;
       break;
     default:
-      if (!IsValidMemberNameUtf8(&s)) {
+      if (!IsValidPartOfMemberNameUtf8(&s)) {
         return false;
       }
       sepOrFirst = false;

@@ -581,6 +581,16 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
     // change process groups, so we don't get reaped by ProcessManager
     setpgid(0, 0);
 
+    VLOG(class_linker) << dex2oat
+                       << " --runtime-arg -Xms64m"
+                       << " --runtime-arg -Xmx64m"
+                       << " --runtime-arg -classpath"
+                       << " --runtime-arg " << class_path
+                       << " " << boot_image_option
+                       << " " << dex_file_option
+                       << " " << oat_fd_option
+                       << " " << oat_name_option;
+
     execl(dex2oat, dex2oat,
           "--runtime-arg", "-Xms64m",
           "--runtime-arg", "-Xmx64m",

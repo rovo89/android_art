@@ -26,6 +26,7 @@ class DexFile {
   static const byte kDexMagic[];
   static const byte kDexMagicVersion[];
   static const size_t kSha1DigestSize = 20;
+  static const uint32_t kDexEndianConstant = 0x12345678;
 
   // name of the DexFile entry within a zip archive
   static const char* kClassesDex;
@@ -63,6 +64,44 @@ class DexFile {
     uint32_t data_off_;  // unused
    private:
     DISALLOW_COPY_AND_ASSIGN(Header);
+  };
+
+  // Map item type codes.
+  enum {
+    kDexTypeHeaderItem               = 0x0000,
+    kDexTypeStringIdItem             = 0x0001,
+    kDexTypeTypeIdItem               = 0x0002,
+    kDexTypeProtoIdItem              = 0x0003,
+    kDexTypeFieldIdItem              = 0x0004,
+    kDexTypeMethodIdItem             = 0x0005,
+    kDexTypeClassDefItem             = 0x0006,
+    kDexTypeMapList                  = 0x1000,
+    kDexTypeTypeList                 = 0x1001,
+    kDexTypeAnnotationSetRefList     = 0x1002,
+    kDexTypeAnnotationSetItem        = 0x1003,
+    kDexTypeClassDataItem            = 0x2000,
+    kDexTypeCodeItem                 = 0x2001,
+    kDexTypeStringDataItem           = 0x2002,
+    kDexTypeDebugInfoItem            = 0x2003,
+    kDexTypeAnnotationItem           = 0x2004,
+    kDexTypeEncodedArrayItem         = 0x2005,
+    kDexTypeAnnotationsDirectoryItem = 0x2006,
+  };
+
+  struct MapItem {
+    uint16_t type_;
+    uint16_t unused_;
+    uint32_t size_;
+    uint32_t offset_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(MapItem);
+  };
+
+  struct MapList {
+    uint32_t size_;
+    MapItem list_[1];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(MapList);
   };
 
   // Raw string_id_item.
@@ -168,6 +207,90 @@ class DexFile {
     uint16_t handler_off_;
    private:
     DISALLOW_COPY_AND_ASSIGN(TryItem);
+  };
+
+  // Annotation constants.
+  enum {
+    kDexVisibilityBuild         = 0x00,     /* annotation visibility */
+    kDexVisibilityRuntime       = 0x01,
+    kDexVisibilitySystem        = 0x02,
+
+    kDexAnnotationByte          = 0x00,
+    kDexAnnotationShort         = 0x02,
+    kDexAnnotationChar          = 0x03,
+    kDexAnnotationInt           = 0x04,
+    kDexAnnotationLong          = 0x06,
+    kDexAnnotationFloat         = 0x10,
+    kDexAnnotationDouble        = 0x11,
+    kDexAnnotationString        = 0x17,
+    kDexAnnotationType          = 0x18,
+    kDexAnnotationField         = 0x19,
+    kDexAnnotationMethod        = 0x1a,
+    kDexAnnotationEnum          = 0x1b,
+    kDexAnnotationArray         = 0x1c,
+    kDexAnnotationAnnotation    = 0x1d,
+    kDexAnnotationNull          = 0x1e,
+    kDexAnnotationBoolean       = 0x1f,
+
+    kDexAnnotationValueTypeMask = 0x1f,     /* low 5 bits */
+    kDexAnnotationValueArgShift = 5,
+  };
+
+  struct AnnotationsDirectoryItem {
+    uint32_t class_annotations_off_;
+    uint32_t fields_size_;
+    uint32_t methods_size_;
+    uint32_t parameters_size_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(AnnotationsDirectoryItem);
+  };
+
+  struct FieldAnnotationsItem {
+    uint32_t field_idx_;
+    uint32_t annotations_off_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(FieldAnnotationsItem);
+  };
+
+  struct MethodAnnotationsItem {
+    uint32_t method_idx_;
+    uint32_t annotations_off_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(MethodAnnotationsItem);
+  };
+
+  struct ParameterAnnotationsItem {
+    uint32_t method_idx_;
+    uint32_t annotations_off_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ParameterAnnotationsItem);
+  };
+
+  struct AnnotationSetRefItem {
+    uint32_t annotations_off_;
+   private:
+    DISALLOW_COPY_AND_ASSIGN(AnnotationSetRefItem);
+  };
+
+  struct AnnotationSetRefList {
+    uint32_t size_;
+    AnnotationSetRefItem list_[1];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(AnnotationSetRefList);
+  };
+
+  struct AnnotationSetItem {
+    uint32_t size_;
+    uint32_t entries_[1];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(AnnotationSetItem);
+  };
+
+  struct AnnotationItem {
+    uint8_t visibility_;
+    uint8_t annotation_[1];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
   };
 
   typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
@@ -678,12 +801,11 @@ class DexFile {
   void InitIndex();
 
   // Returns true if the header magic and version numbers are of the expected values.
-  bool CheckMagicAndVersion();
+  bool CheckMagicAndVersion() const;
 
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
       void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
-
 
   // The index of descriptors to class definition indexes (as opposed to type id indexes)
   typedef std::map<const StringPiece, uint32_t> Index;
@@ -843,6 +965,10 @@ class ClassDataItemIterator {
   }
   uint32_t GetMethodCodeItemOffset() const {
     return method_.code_off_;
+  }
+  const byte* EndDataPointer() const {
+    CHECK(!HasNext());
+    return ptr_pos_;
   }
  private:
   // A dex file's class_data_item is leb128 encoded, this structure holds a decoded form of the
