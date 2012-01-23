@@ -239,6 +239,7 @@ TEST_COMMON_SRC_FILES := \
 	src/jni_compiler_test.cc \
 	src/managed_register_arm_test.cc \
 	src/managed_register_x86_test.cc \
+	src/mutex_test.cc \
 	src/oat_test.cc \
 	src/object_test.cc \
 	src/reference_table_test.cc \

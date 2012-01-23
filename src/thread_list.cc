@@ -32,7 +32,8 @@ ScopedThreadListLock::ScopedThreadListLock() {
   // back into managed code to remove the thread from its ThreadGroup, and that allocates
   // an iterator).
   // TODO: this makes the distinction between the two locks pretty pointless.
-  if (self != NULL) {
+  heap_lock_held_ = (self != NULL);
+  if (heap_lock_held_) {
     Heap::Lock();
   }
 
@@ -50,14 +51,13 @@ ScopedThreadListLock::ScopedThreadListLock() {
       thread_list->thread_list_lock_.Lock();
     }
   }
-
-  if (self != NULL) {
-    Heap::Unlock();
-  }
 }
 
 ScopedThreadListLock::~ScopedThreadListLock() {
   Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
+  if (heap_lock_held_) {
+    Heap::Unlock();
+  }
 }
 
 ThreadList::ThreadList()
@@ -420,13 +420,16 @@ void ThreadList::SignalGo(Thread* child) {
   CHECK(child != self);
 
   {
-    ScopedThreadListLock thread_list_lock;
+    // We don't use ScopedThreadListLock here because we don't want to
+    // hold the heap lock while waiting because it can lead to deadlock.
+    thread_list_lock_.Lock();
     VLOG(threads) << *self << " waiting for child " << *child << " to be in thread list...";
 
     // We wait for the child to tell us that it's in the thread list.
     while (child->GetState() != Thread::kStarting) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
+    thread_list_lock_.Unlock();
   }
 
   // If we switch out of runnable and then back in, we know there's no pending suspend.
@@ -445,7 +448,9 @@ void ThreadList::WaitForGo() {
   DCHECK(Contains(self));
 
   {
-    ScopedThreadListLock thread_list_lock;
+    // We don't use ScopedThreadListLock here because we don't want to
+    // hold the heap lock while waiting because it can lead to deadlock.
+    thread_list_lock_.Lock();
 
     // Tell our parent that we're in the thread list.
     VLOG(threads) << *self << " telling parent that we're now in thread list...";
@@ -458,6 +463,7 @@ void ThreadList::WaitForGo() {
     while (self->GetState() != Thread::kVmWait) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
+    thread_list_lock_.Unlock();
   }
 
   // Enter the runnable state. We know that any pending suspend will affect us now.

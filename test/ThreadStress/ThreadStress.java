@@ -31,7 +31,8 @@ class ThreadStress implements Runnable {
     enum Operation {
         OOM(1),
         SIGQUIT(19),
-        ALLOC(80),
+        ALLOC(60),
+        STACKTRACE(20),
         EXIT(50),
         WAIT(50);
 
@@ -229,6 +230,10 @@ class ThreadStress implements Runnable {
                             }
                         } catch (OutOfMemoryError e) {
                         }
+                        break;
+                    }
+                    case STACKTRACE: {
+                        Thread.currentThread().getStackTrace();
                         break;
                     }
                     default: {

@@ -103,6 +103,33 @@ void Mutex::ClearOwner() {
 #endif
 }
 
+uint32_t Mutex::GetDepth() {
+  bool held = (GetOwner() == GetTid());
+  if (!held) {
+    return 0;
+  }
+  uint32_t depth;
+#if defined(__BIONIC__)
+  depth = static_cast<uint32_t>((mutex_.value >> 2) & 0x7ff) + 1;
+#elif defined(__GLIBC__)
+  struct __attribute__((__may_alias__)) glibc_pthread_t {
+    int lock;
+    unsigned int count;
+    int owner;
+    // ...other stuff we don't care about.
+  };
+  depth = reinterpret_cast<glibc_pthread_t*>(&mutex_)->count;
+#elif defined(__APPLE__)
+  // We don't know a way to implement this for Mac OS.
+  return 0;
+#else
+  UNIMPLEMENTED(FATAL);
+  return 0;
+#endif
+  CHECK_NE(0U, depth) << "owner=" << GetOwner() << " tid=" << GetTid();
+  return depth;
+}
+
 pid_t Mutex::GetTid() {
   return ::art::GetTid();
 }

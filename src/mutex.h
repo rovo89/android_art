@@ -18,6 +18,7 @@
 #define ART_SRC_MUTEX_H_
 
 #include <pthread.h>
+#include <stdint.h>
 #include <string>
 
 #include "logging.h"
@@ -58,10 +59,18 @@ class Mutex {
 
   pid_t GetOwner();
 
+  void AssertDepth(uint32_t depth) {
+#if !defined(__APPLE__)
+    DCHECK_EQ(depth, GetDepth());
+#endif
+  }
+
  private:
   static pid_t GetTid();
 
   void ClearOwner();
+
+  uint32_t GetDepth();
 
   std::string name_;
 

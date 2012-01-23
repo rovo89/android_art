@@ -22,6 +22,7 @@
 #include "card_table.h"
 #include "globals.h"
 #include "heap_bitmap.h"
+#include "mutex.h"
 #include "offsets.h"
 
 #define VERIFY_OBJECT_ENABLED 0
@@ -29,7 +30,6 @@
 namespace art {
 
 class Class;
-class Mutex;
 class Object;
 class Space;
 class Thread;
@@ -107,6 +107,12 @@ class Heap {
   static pid_t GetLockOwner(); // For SignalCatcher.
   static void Lock();
   static void Unlock();
+  static void AssertLockHeld() {
+    lock_->AssertHeld();
+  }
+  static void AssertLockNotHeld() {
+    lock_->AssertNotHeld();
+  }
 
   static const std::vector<Space*>& GetSpaces() {
     return spaces_;
