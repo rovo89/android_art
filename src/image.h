@@ -15,21 +15,21 @@ class PACKED ImageHeader {
  public:
   ImageHeader() {}
 
-  ImageHeader(uint32_t image_base_addr,
+  ImageHeader(uint32_t image_begin,
               uint32_t image_roots,
               uint32_t oat_checksum,
-              uint32_t oat_base_addr,
-              uint32_t oat_limit_addr)
-      : image_base_addr_(image_base_addr),
+              uint32_t oat_begin,
+              uint32_t oat_end)
+      : image_begin_(image_begin),
         oat_checksum_(oat_checksum),
-        oat_base_addr_(oat_base_addr),
-        oat_limit_addr_(oat_limit_addr),
+        oat_begin_(oat_begin),
+        oat_end_(oat_end),
         image_roots_(image_roots) {
-    CHECK_EQ(image_base_addr, RoundUp(image_base_addr, kPageSize));
-    CHECK_EQ(oat_base_addr, RoundUp(oat_base_addr, kPageSize));
-    CHECK_LT(image_base_addr, image_roots);
-    CHECK_LT(image_roots, oat_base_addr);
-    CHECK_LT(oat_base_addr, oat_limit_addr);
+    CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
+    CHECK_EQ(oat_begin, RoundUp(oat_begin, kPageSize));
+    CHECK_LT(image_begin, image_roots);
+    CHECK_LT(image_roots, oat_begin);
+    CHECK_LT(oat_begin, oat_end);
     memcpy(magic_, kImageMagic, sizeof(kImageMagic));
     memcpy(version_, kImageVersion, sizeof(kImageVersion));
   }
@@ -49,20 +49,20 @@ class PACKED ImageHeader {
     return reinterpret_cast<const char*>(magic_);
   }
 
-  byte* GetImageBaseAddr() const {
-    return reinterpret_cast<byte*>(image_base_addr_);
+  byte* GetImageBegin() const {
+    return reinterpret_cast<byte*>(image_begin_);
   }
 
   uint32_t GetOatChecksum() const {
     return oat_checksum_;
   }
 
-  byte* GetOatBaseAddr() const {
-    return reinterpret_cast<byte*>(oat_base_addr_);
+  byte* GetOatBegin() const {
+    return reinterpret_cast<byte*>(oat_begin_);
   }
 
-  byte* GetOatLimitAddr() const {
-    return reinterpret_cast<byte*>(oat_limit_addr_);
+  byte* GetOatEnd() const {
+    return reinterpret_cast<byte*>(oat_end_);
   }
 
   enum ImageRoot {
@@ -96,16 +96,16 @@ class PACKED ImageHeader {
   byte version_[4];
 
   // required base address for mapping the image.
-  uint32_t image_base_addr_;
+  uint32_t image_begin_;
 
   // checksum of the oat file we link to for load time sanity check
   uint32_t oat_checksum_;
 
   // required oat address expected by image Method::GetCode() pointers.
-  uint32_t oat_base_addr_;
+  uint32_t oat_begin_;
 
   // end of oat address range for this image file, used for positioning a following image
-  uint32_t oat_limit_addr_;
+  uint32_t oat_end_;
 
   // absolute address of an Object[] of objects needed to reinitialize from an image
   uint32_t image_roots_;

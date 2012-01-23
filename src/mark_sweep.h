@@ -85,7 +85,7 @@ class MarkSweep {
 
   static void CheckBitmapCallback(Object* obj, void* finger, void* arg);
 
-  static void SweepCallback(size_t num_ptrs, void** ptrs, void* arg);
+  static void SweepCallback(size_t num_ptrs, Object** ptrs, void* arg);
 
   void CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static);
 

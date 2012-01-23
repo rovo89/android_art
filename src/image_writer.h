@@ -23,12 +23,13 @@ namespace art {
 class ImageWriter {
  public:
   explicit ImageWriter(const std::set<std::string>* image_classes)
-      : source_space_(NULL), image_top_(0), image_base_(NULL), image_classes_(image_classes) {}
+      : source_space_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
+        oat_begin_(NULL) {}
 
   ~ImageWriter() {}
 
   bool Write(const char* image_filename,
-             uintptr_t image_base,
+             uintptr_t image_begin,
              const std::string& oat_filename,
              const std::string& strip_location_prefix);
  private:
@@ -39,9 +40,9 @@ class ImageWriter {
   void AssignImageOffset(Object* object) {
     DCHECK(object != NULL);
     DCHECK_EQ(object->monitor_, 0U);  // should be no lock
-    SetImageOffset(object, image_top_);
-    image_top_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
-    DCHECK_LT(image_top_, image_->GetLength());
+    SetImageOffset(object, image_end_);
+    image_end_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
+    DCHECK_LT(image_end_, image_->Size());
   }
   static void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
@@ -69,8 +70,7 @@ class ImageWriter {
 
   bool InSourceSpace(const Object* object) const {
     DCHECK(source_space_ != NULL);
-    const byte* o = reinterpret_cast<const byte*>(object);
-    return (o >= source_space_->GetBase() && o < source_space_->GetLimit());
+    return source_space_->Contains(object);
   }
   Object* GetImageAddress(const Object* object) const {
     if (object == NULL) {
@@ -80,20 +80,20 @@ class ImageWriter {
     if (!InSourceSpace(object)) {
       return const_cast<Object*>(object);
     }
-    return reinterpret_cast<Object*>(image_base_ + GetImageOffset(object));
+    return reinterpret_cast<Object*>(image_begin_ + GetImageOffset(object));
   }
   Object* GetLocalAddress(const Object* object) const {
     size_t offset = GetImageOffset(object);
-    byte* dst = image_->GetAddress() + offset;
+    byte* dst = image_->Begin() + offset;
     return reinterpret_cast<Object*>(dst);
   }
 
   const byte* GetOatAddress(uint32_t offset) const {
-    DCHECK_LT(offset, oat_file_->GetSize());
+    DCHECK_LT(offset, oat_file_->Size());
     if (offset == 0) {
       return NULL;
     }
-    return oat_base_ + offset;
+    return oat_begin_ + offset;
   }
 
   bool IsImageClass(const Class* klass);
@@ -132,16 +132,16 @@ class ImageWriter {
   UniquePtr<MemMap> image_;
 
   // Offset to the free space in image_
-  size_t image_top_;
+  size_t image_end_;
 
-  // Target image base address for the output image
-  byte* image_base_;
+  // Beginning target image address for the output image
+  byte* image_begin_;
 
   // Set of classes to be include in the image, or NULL for all.
   const std::set<std::string>* image_classes_;
 
-  // Target oat base address for the pointers from the output image to its oat file
-  const byte* oat_base_;
+  // Beginning target oat address for the pointers from the output image to its oat file
+  const byte* oat_begin_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
   typedef std::set<DexCache*> Set;

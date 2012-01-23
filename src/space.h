@@ -23,135 +23,217 @@
 #include "globals.h"
 #include "image.h"
 #include "macros.h"
+#include "dlmalloc.h"
 #include "mem_map.h"
-#include "mspace.h"
 
 namespace art {
 
+class AllocSpace;
+class ImageSpace;
 class Object;
 
 // A space contains memory allocated for managed objects.
 class Space {
  public:
-  // Create a Space with the requested sizes. The requested
+  // Create a AllocSpace with the requested sizes. The requested
   // base address is not guaranteed to be granted, if it is required,
-  // the caller should call GetBase on the returned space to confirm
+  // the caller should call Begin on the returned space to confirm
   // the request was granted.
-  static Space* Create(const std::string& name, size_t initial_size,
-      size_t maximum_size, size_t growth_size, byte* requested_base);
+  static AllocSpace* CreateAllocSpace(const std::string& name, size_t initial_size,
+                                      size_t growth_limit, size_t capacity,
+                                      byte* requested_begin);
 
   // create a Space from an image file. cannot be used for future allocation or collected.
-  static Space* CreateFromImage(const std::string& image);
+  static ImageSpace* CreateImageSpace(const std::string& image);
 
-  ~Space();
+  virtual ~Space() {}
 
-  Object* AllocWithGrowth(size_t num_bytes);
-
-  Object* AllocWithoutGrowth(size_t num_bytes);
-
-  size_t Free(void* ptr);
-
-  size_t FreeList(size_t num_ptrs, void** ptrs);
-
-  void Trim();
-
-  size_t GetMaxAllowedFootprint();
-  void SetMaxAllowedFootprint(size_t limit);
-
-  void Grow(size_t num_bytes);
-
-  byte* GetBase() const {
-    return base_;
+  const std::string& GetSpaceName() const {
+    return name_;
   }
 
-  byte* GetLimit() const {
+  // Address at which the space begins
+  byte* Begin() const {
+    return begin_;
+  }
+
+  // Address at which the space ends, which may vary as the space is filled
+  byte* End() const {
+    return end_;
+  }
+
+  // Is object within this space?
+  bool Contains(const Object* obj) const {
+    const byte* byte_ptr = reinterpret_cast<const byte*>(obj);
+    return Begin() <= byte_ptr && byte_ptr < End();
+  }
+
+  // Current size of space
+  size_t Size() const {
+    return End() - Begin();
+  }
+
+  // Maximum size of space
+  virtual size_t Capacity() const {
+    return mem_map_->Size();
+  }
+
+  // Support for having an impediment (GrowthLimit) removed from the space
+  virtual size_t UnimpededCapacity() const {
+    return Capacity();
+  }
+
+  ImageSpace* AsImageSpace() {
+    DCHECK(IsImageSpace());
+    return down_cast<ImageSpace*>(this);
+  }
+
+  AllocSpace* AsAllocSpace() {
+    DCHECK(IsAllocSpace());
+    return down_cast<AllocSpace*>(this);
+  }
+
+  virtual bool IsAllocSpace() const = 0;
+  virtual bool IsImageSpace() const = 0;
+
+ protected:
+  Space(const std::string& name, MemMap* mem_map, byte* end) : name_(name), mem_map_(mem_map),
+      begin_(mem_map->Begin()), end_(end) {}
+
+  std::string name_;
+  // Underlying storage of the space
+  UniquePtr<MemMap> mem_map_;
+
+  // The beginning of the storage for fast access (always equals mem_map_->GetAddress())
+  byte* const begin_;
+
+  // Current end of the space
+  byte* end_;
+
+  DISALLOW_COPY_AND_ASSIGN(Space);
+};
+
+std::ostream& operator<<(std::ostream& os, const Space& space);
+
+// An alloc space is a space where objects may be allocated and garbage collected.
+class AllocSpace : public Space {
+ public:
+  // Allocate num_bytes without allowing the underlying  mspace to grow
+  Object* AllocWithGrowth(size_t num_bytes);
+
+  // Allocate num_bytes allowing the underlying mspace to grow
+  Object* AllocWithoutGrowth(size_t num_bytes);
+
+  // Return the storage space required by obj
+  size_t AllocationSize(const Object* obj);
+
+  void Free(Object* ptr);
+
+  void FreeList(size_t num_ptrs, Object** ptrs);
+
+  void* MoreCore(intptr_t increment);
+
+  void* GetMspace() const {
+    return mspace_;
+  }
+
+  // Hand unused pages back to the system
+  void Trim();
+
+  // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
+  // in use, indicated by num_bytes equaling zero
+  void Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
+            void* arg);
+
+  // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore
+  size_t GetFootprintLimit();
+
+  // Set the maximum number of bytes that the heap is allowed to obtain from the system via MoreCore
+  void SetFootprintLimit(size_t limit);
+
+  // Removes the fork time growth limit (fence on capacity), allowing the application to allocate
+  // up to the maximum heap size.
+  void ClearGrowthLimit() {
+    growth_limit_ = UnimpededCapacity();
+  }
+
+  // Override capacity so that we only return the possibly limited capacity
+  virtual size_t Capacity() const {
     return growth_limit_;
   }
 
-  byte* GetMax() const {
-    return base_ + maximum_size_;
+  virtual size_t UnimpededCapacity() const {
+    return mem_map_->End() - mem_map_->Begin();
   }
 
-  const std::string& GetName() const {
-    return name_;
+  virtual bool IsAllocSpace() const {
+    return true;
   }
 
-  size_t Size() const {
-    return growth_limit_ - base_;
-  }
-
-  bool IsImageSpace() const {
-    return (image_header_ != NULL);
-  }
-
-  const ImageHeader& GetImageHeader() const {
-    CHECK(IsImageSpace());
-    return *image_header_;
-  }
-
-  const std::string& GetImageFilename() const {
-    CHECK(IsImageSpace());
-    return name_;
-  }
-
-  size_t AllocationSize(const Object* obj);
-
-  void ClearGrowthLimit() {
-    CHECK_GE(maximum_size_, growth_size_);
-    CHECK_GE(limit_, growth_limit_);
-    growth_size_ = maximum_size_;
-    growth_limit_ = limit_;
-  }
-
-  void Walk(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg);
-
-  bool Contains(const Object* obj) const {
-    const byte* byte_ptr = reinterpret_cast<const byte*>(obj);
-    return GetBase() <= byte_ptr && byte_ptr < GetLimit();
+  virtual bool IsImageSpace() const {
+    return false;
   }
 
  private:
+  friend class Space;
+
+  AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* end,
+             size_t growth_limit) :
+    Space(name, mem_map, end), mspace_(mspace), growth_limit_(growth_limit) {
+    CHECK(mspace != NULL);
+  }
+
+  bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
+
+  static void* CreateMallocSpace(void* base, size_t initial_size, size_t maximum_size);
+
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
 
-  // create a Space from an existing memory mapping, taking ownership of the address space.
-  static Space* Create(MemMap* mem_map);
+  // Underlying malloc space
+  void* const mspace_;
 
-  explicit Space(const std::string& name)
-      : name_(name), mspace_(NULL), maximum_size_(0), growth_size_(0),
-        image_header_(NULL), base_(0), limit_(0), growth_limit_(0) {
+  // The capacity of the alloc space until such time that ClearGrowthLimit is called.
+  // The underlying mem_map_ controls the maximum size we allow the heap to grow to. The growth
+  // limit is a value <= to the mem_map_ capacity used for ergonomic reasons because of the zygote.
+  // Prior to forking the zygote the heap will have a maximally sized mem_map_ but the growth_limit_
+  // will be set to a lower value. The growth_limit_ is used as the capacity of the alloc_space_,
+  // however, capacity normally can't vary. In the case of the growth_limit_ it can be cleared
+  // one time by a call to ClearGrowthLimit.
+  size_t growth_limit_;
+
+  DISALLOW_COPY_AND_ASSIGN(AllocSpace);
+};
+
+// An image space is a space backed with a memory mapped image
+class ImageSpace : public Space {
+ public:
+  const ImageHeader& GetImageHeader() const {
+    return *reinterpret_cast<ImageHeader*>(Begin());
   }
 
-  // Initializes the space and underlying storage.
-  bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
+  const std::string& GetImageFilename() const {
+    return name_;
+  }
 
-  // Initializes the space from existing storage, taking ownership of the storage.
-  void InitFromMemMap(MemMap* map);
+  // Mark the objects defined in this space in the given live bitmap
+  void RecordImageAllocations(HeapBitmap* live_bitmap) const;
 
-  // Initializes the space from an image file
-  bool InitFromImage(const std::string& image_file_name);
+  virtual bool IsAllocSpace() const {
+    return false;
+  }
 
-  void* CreateMallocSpace(void* base, size_t initial_size, size_t maximum_size);
+  virtual bool IsImageSpace() const {
+    return true;
+  }
 
-  static void DontNeed(void* start, void* end, void* num_bytes);
+ private:
+  friend class Space;
 
-  std::string name_;
+  ImageSpace(const std::string& name, MemMap* mem_map) :
+      Space(name, mem_map, mem_map->End()) {}
 
-  // TODO: have a Space subclass for non-image Spaces with mspace_ and maximum_size_
-  void* mspace_;
-  size_t maximum_size_;
-  size_t growth_size_;
-
-  // TODO: have a Space subclass for image Spaces with image_header_
-  ImageHeader* image_header_;
-
-  UniquePtr<MemMap> mem_map_;
-
-  byte* base_;
-  byte* limit_;
-  byte* growth_limit_;
-
-  DISALLOW_COPY_AND_ASSIGN(Space);
+  DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };
 
 }  // namespace art

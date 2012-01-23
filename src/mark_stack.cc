@@ -25,9 +25,9 @@ void MarkStack::Init() {
     ReadFileToString("/proc/self/maps", &maps);
     LOG(FATAL) << "couldn't allocate mark stack\n" << maps;
   }
-  byte* addr = mem_map_->GetAddress();
+  byte* addr = mem_map_->Begin();
   CHECK(addr != NULL);
-  base_ = reinterpret_cast<const Object**>(addr);
+  begin_ = reinterpret_cast<const Object**>(addr);
   limit_ = reinterpret_cast<const Object**>(addr + length);
   ptr_ = reinterpret_cast<Object const**>(addr);
   int result = madvise(addr, length, MADV_DONTNEED);

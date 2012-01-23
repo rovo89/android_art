@@ -26,19 +26,19 @@ class MarkStack {
   }
 
   const Object* Pop() {
-    DCHECK_NE(ptr_, base_);
+    DCHECK_NE(ptr_, begin_);
     --ptr_;
     DCHECK(*ptr_ != NULL);
     return *ptr_;
   }
 
   bool IsEmpty() const {
-    return ptr_ == base_;
+    return ptr_ == begin_;
   }
 
  private:
   MarkStack() :
-      base_(NULL), limit_(NULL), ptr_(NULL) {
+      begin_(NULL), limit_(NULL), ptr_(NULL) {
   }
 
   void Init();
@@ -47,7 +47,7 @@ class MarkStack {
   UniquePtr<MemMap> mem_map_;
 
   // Base of the mark stack.
-  const Object* const* base_;
+  const Object* const* begin_;
 
   // Exclusive limit of the mark stack.
   const Object* const* limit_;

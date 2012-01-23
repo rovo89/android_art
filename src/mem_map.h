@@ -57,26 +57,26 @@ class MemMap {
   // Releases the memory mapping
   ~MemMap();
 
-  byte* GetAddress() const {
-    return addr_;
+  byte* Begin() const {
+    return begin_;
   }
 
-  size_t GetLength() const {
-    return length_;
+  size_t Size() const {
+    return size_;
   }
 
-  byte* GetLimit() const {
-    return addr_ + length_;
+  byte* End() const {
+    return begin_ + size_;
   }
 
  private:
-  MemMap(byte* addr, size_t length, void* base_addr, size_t base_length);
+  MemMap(byte* begin, size_t size, void* base_begin, size_t base_size);
 
-  byte*  addr_;              // start of data
-  size_t length_;            // length of data
+  byte* const begin_;  // start of data
+  const size_t size_;  // length of data
 
-  void*  base_addr_;         // page-aligned base address
-  size_t base_length_;       // length of mapping
+  void* const base_begin_;  // page-aligned base address
+  const size_t base_size_;  // length of mapping
 };
 
 }  // namespace art

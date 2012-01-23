@@ -25,84 +25,75 @@ class Object;
 
 class CardTable {
  public:
-  typedef void Callback(Object* obj, void* arg);
 
-  static CardTable* Create(const byte* heap_base, size_t heap_max_size, size_t growth_size);
+  static CardTable* Create(const byte* heap_begin, size_t heap_capacity);
 
-  /*
-   * Set the card associated with the given address to GC_CARD_DIRTY.
-   */
+  // Set the card associated with the given address to GC_CARD_DIRTY.
   void MarkCard(const void *addr) {
     byte* cardAddr = CardFromAddr(addr);
     *cardAddr = GC_CARD_DIRTY;
   }
 
-  byte* GetBiasedBase() {
-    return biased_base_;
-  }
-
-  void Scan(byte* base, byte* limit, Callback* visitor, void* arg) const;
-
+  // Is the object on a dirty card?
   bool IsDirty(const Object* obj) const {
     return *CardFromAddr(obj) == GC_CARD_DIRTY;
   }
 
-  void ClearGrowthLimit() {
-    CHECK_GE(max_length_, length_);
-    length_ = max_length_;
+  // Returns a value that when added to a heap address >> GC_CARD_SHIFT will address the appropriate
+  // card table byte. For convenience this value is cached in every Thread
+  byte* GetBiasedBegin() const {
+    return biased_begin_;
   }
+
+  // For every dirty card between begin and end invoke the visitor with the specified argument
+  typedef void Callback(Object* obj, void* arg);
+  void Scan(byte* begin, byte* end, Callback* visitor, void* arg) const;
+
+
+  // Assertion used to check the given address is covered by the card table
+  void CheckAddrIsInCardTable(const byte* addr) const;
 
  private:
 
-  CardTable() {}
+  CardTable(MemMap* begin, byte* biased_begin, size_t offset) :
+    mem_map_(begin), biased_begin_(biased_begin), offset_(offset) {}
 
-  /*
-   * Initializes the card table; must be called before any other
-   * CardTable functions.
-   */
-  void Init(const byte* heap_base, size_t heap_max_size, size_t growth_size);
-
-  /*
-   * Resets all of the bytes in the card table to clean.
-   */
+  // Resets all of the bytes in the card table to clean.
   void ClearCardTable();
 
-  /*
-   * Returns the address of the relevant byte in the card table, given
-   * an address on the heap.
-   */
+  // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {
-    byte *cardAddr = biased_base_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
-    CHECK(IsValidCard(cardAddr));
+    byte *cardAddr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
+    // Sanity check the caller was asking for address covered by the card table
+    DCHECK(IsValidCard(cardAddr)) << "addr: " << addr
+        << " cardAddr: " << reinterpret_cast<void*>(cardAddr);
     return cardAddr;
   }
 
-  /*
-   * Returns the first address in the heap which maps to this card.
-   */
-  void* AddrFromCard(const byte *card) const;
+  // Returns the first address in the heap which maps to this card.
+  void* AddrFromCard(const byte *cardAddr) const {
+    DCHECK(IsValidCard(cardAddr));
+    uintptr_t offset = cardAddr - biased_begin_;
+    return (void *)(offset << GC_CARD_SHIFT);
+  }
 
-  /*
-   * Returns true iff the address is within the bounds of the card table.
-   */
+  // Returns true iff the card table address is within the bounds of the card table.
   bool IsValidCard(const byte* cardAddr) const {
-    byte* begin = mem_map_->GetAddress() + offset_;
-    byte* end = &begin[length_];
+    byte* begin = mem_map_->Begin() + offset_;
+    byte* end = mem_map_->End();
     return cardAddr >= begin && cardAddr < end;
   }
 
-  /*
-   * Verifies that all gray objects are on a dirty card.
-   */
+  // Verifies that all gray objects are on a dirty card.
   void VerifyCardTable();
 
-
+  // Mmapped pages for the card table
   UniquePtr<MemMap> mem_map_;
-  byte* base_;
-  byte* biased_base_;
-  size_t length_;
-  size_t max_length_;
-  size_t offset_;
+  // Value used to compute card table addresses from object addresses, see GetBiasedBegin
+  byte* const biased_begin_;
+  // Card table doesn't begin at the beginning of the mem_map_, instead it is displaced by offset
+  // to allow the byte value of biased_begin_ to equal GC_CARD_DIRTY
+  const size_t offset_;
 };
 
 }  // namespace art

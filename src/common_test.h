@@ -228,12 +228,15 @@ class CommonTest : public testing::Test {
     boot_class_path += "-Xbootclasspath:";
     boot_class_path += GetLibCoreDexFileName();
 
+    std::string min_heap_string = StringPrintf("-Xms%dm",Heap::kInitialSize / MB);
+    std::string max_heap_string = StringPrintf("-Xmx%dm",Heap::kMaximumSize / MB);
+
     Runtime::Options options;
     options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(boot_class_path.c_str(), reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
-    options.push_back(std::make_pair("-Xms64m", reinterpret_cast<void*>(NULL)));
-    options.push_back(std::make_pair("-Xmx64m", reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair(min_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair(max_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
     runtime_.reset(Runtime::Create(options, false));
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();

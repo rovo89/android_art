@@ -31,7 +31,7 @@ namespace {
 
 void Runtime_gc(JNIEnv*, jclass) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  Heap::CollectGarbage();
+  Heap::CollectGarbage(false);
 }
 
 void Runtime_nativeExit(JNIEnv* env, jclass, jint status, jboolean isExit) {

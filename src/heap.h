@@ -21,6 +21,7 @@
 
 #include "card_table.h"
 #include "globals.h"
+#include "gtest/gtest.h"
 #include "heap_bitmap.h"
 #include "mutex.h"
 #include "offsets.h"
@@ -29,17 +30,19 @@
 
 namespace art {
 
+class AllocSpace;
 class Class;
 class Object;
 class Space;
 class Thread;
 class HeapBitmap;
+class SpaceTest;
 
 class Heap {
  public:
-  static const size_t kInitialSize = 4 * MB;
+  static const size_t kInitialSize = 2 * MB;
 
-  static const size_t kMaximumSize = 16 * MB;
+  static const size_t kMaximumSize = 32 * MB;
 
   typedef void (RootVisitor)(const Object* root, void* arg);
   typedef bool (IsMarkedTester)(const Object* object, void* arg);
@@ -47,7 +50,7 @@ class Heap {
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
-  static void Init(size_t starting_size, size_t maximum_size, size_t growth_size,
+  static void Init(size_t starting_size, size_t growth_limit, size_t capacity,
                    const std::vector<std::string>& image_file_names);
 
   static void Destroy();
@@ -74,7 +77,7 @@ class Heap {
   static bool IsLiveObjectLocked(const Object* obj);
 
   // Initiates an explicit garbage collection.
-  static void CollectGarbage();
+  static void CollectGarbage(bool clear_soft_references);
 
   // Implements java.lang.Runtime.maxMemory.
   static int64_t GetMaxMemory();
@@ -89,12 +92,16 @@ class Heap {
   // Implements dalvik.system.VMRuntime.clearGrowthLimit.
   static void ClearGrowthLimit();
 
-  // Implements dalvik.system.VMRuntime.getTargetHeapUtilization.
+  // Target ideal heap utilization ratio, implements
+  // dalvik.system.VMRuntime.getTargetHeapUtilization.
   static float GetTargetHeapUtilization() {
     return target_utilization_;
   }
-  // Implements dalvik.system.VMRuntime.setTargetHeapUtilization.
+  // Set target ideal heap utilization ratio, implements
+  // dalvik.system.VMRuntime.setTargetHeapUtilization.
   static void SetTargetHeapUtilization(float target) {
+    DCHECK_GT(target, 0.0f);  // asserted in Java code
+    DCHECK_LT(target, 1.0f);
     target_utilization_ = target;
   }
   // Sets the maximum number of bytes that the heap is allowed to allocate
@@ -155,6 +162,9 @@ class Heap {
   }
 
   static void EnableObjectValidation() {
+#if VERIFY_OBJECT_ENABLED
+    Heap::VerifyHeap();
+#endif
     verify_objects_ = true;
   }
 
@@ -189,32 +199,33 @@ class Heap {
     card_marking_disabled_ = true;
   }
 
-  // dlmalloc_walk_heap-compatible heap walker.
-  static void WalkHeap(void(*callback)(const void*, size_t, const void*, size_t, void*), void* arg);
-
   static void AddFinalizerReference(Thread* self, Object* object);
 
   static size_t GetBytesAllocated() { return num_bytes_allocated_; }
   static size_t GetObjectsAllocated() { return num_objects_allocated_; }
 
-  static Space* GetAllocSpace() {
+  static AllocSpace* GetAllocSpace() {
     return alloc_space_;
   }
 
  private:
   // Allocates uninitialized storage.
   static Object* AllocateLocked(size_t num_bytes);
-  static Object* AllocateLocked(Space* space, size_t num_bytes);
+  static Object* AllocateLocked(AllocSpace* space, size_t num_bytes);
 
   // Pushes a list of cleared references out to the managed heap.
   static void EnqueueClearedReferences(Object** cleared_references);
 
-  static void RecordAllocationLocked(Space* space, const Object* object);
+  static void RecordAllocationLocked(AllocSpace* space, const Object* object);
   static void RecordImageAllocations(Space* space);
 
-  static void CollectGarbageInternal();
+  static void CollectGarbageInternal(bool clear_soft_references);
 
   static void GrowForUtilization();
+
+  static void AddSpace(Space* space) {
+    spaces_.push_back(space);
+  }
 
   static void VerifyObjectLocked(const Object *obj);
 
@@ -225,7 +236,7 @@ class Heap {
   static std::vector<Space*> spaces_;
 
   // default Space for allocations
-  static Space* alloc_space_;
+  static AllocSpace* alloc_space_;
 
   static HeapBitmap* mark_bitmap_;
 
@@ -236,16 +247,6 @@ class Heap {
   // Used by the image writer to disable card marking on copied objects
   // TODO: remove
   static bool card_marking_disabled_;
-
-  // The maximum size of the heap in bytes.
-  static size_t maximum_size_;
-
-  // The largest size the heap may grow. This value allows the app to limit the
-  // growth below the maximum size. This is a work around until we can
-  // dynamically set the maximum size. This value can range between the starting
-  // size and the maximum size but should never be set below the current
-  // footprint of the heap.
-  static size_t growth_size_;
 
   // True while the garbage collector is running.
   static bool is_gc_running_;
@@ -280,6 +281,8 @@ class Heap {
   static float target_utilization_;
 
   static bool verify_objects_;
+
+  FRIEND_TEST(SpaceTest, AllocAndFree);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

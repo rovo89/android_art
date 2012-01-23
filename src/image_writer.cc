@@ -26,13 +26,13 @@
 namespace art {
 
 bool ImageWriter::Write(const char* image_filename,
-                        uintptr_t image_base,
+                        uintptr_t image_begin,
                         const std::string& oat_filename,
                         const std::string& strip_location_prefix) {
   CHECK(image_filename != NULL);
 
-  CHECK_NE(image_base, 0U);
-  image_base_ = reinterpret_cast<byte*>(image_base);
+  CHECK_NE(image_begin, 0U);
+  image_begin_ = reinterpret_cast<byte*>(image_begin);
 
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   // currently just write the last space, assuming it is the space that was being used for allocation
@@ -59,7 +59,7 @@ bool ImageWriter::Write(const char* image_filename,
     return false;
   }
   PruneNonImageClasses();
-  Heap::CollectGarbage();
+  Heap::CollectGarbage(false);
 #ifndef NDEBUG
   CheckNonImageClassesRemoved();
 #endif
@@ -72,7 +72,7 @@ bool ImageWriter::Write(const char* image_filename,
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;
   }
-  bool success = file->WriteFully(image_->GetAddress(), image_top_);
+  bool success = file->WriteFully(image_->Begin(), image_end_);
   if (!success) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
     return false;
@@ -273,26 +273,26 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
   HeapBitmap* heap_bitmap = Heap::GetLiveBits();
   DCHECK(heap_bitmap != NULL);
-  DCHECK_EQ(0U, image_top_);
+  DCHECK_EQ(0U, image_end_);
 
   // leave space for the header, but do not write it yet, we need to
   // know where image_roots is going to end up
-  image_top_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
+  image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
   heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
-  DCHECK_LT(image_top_, image_->GetLength());
+  DCHECK_LT(image_end_, image_->Size());
 
   // Note that image_top_ is left at end of used space
-  oat_base_ = image_base_ +  RoundUp(image_top_, kPageSize);
-  const byte* oat_limit = oat_base_ +  oat_file_->GetSize();
+  oat_begin_ = image_begin_ +  RoundUp(image_end_, kPageSize);
+  const byte* oat_limit = oat_begin_ +  oat_file_->Size();
 
   // return to write header at start of image with future location of image_roots
-  ImageHeader image_header(reinterpret_cast<uint32_t>(image_base_),
+  ImageHeader image_header(reinterpret_cast<uint32_t>(image_begin_),
                            reinterpret_cast<uint32_t>(GetImageAddress(image_roots.get())),
                            oat_file_->GetOatHeader().GetChecksum(),
-                           reinterpret_cast<uint32_t>(oat_base_),
+                           reinterpret_cast<uint32_t>(oat_begin_),
                            reinterpret_cast<uint32_t>(oat_limit));
-  memcpy(image_->GetAddress(), &image_header, sizeof(image_header));
+  memcpy(image_->Begin(), &image_header, sizeof(image_header));
 }
 
 void ImageWriter::CopyAndFixupObjects() {
@@ -315,10 +315,10 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
 
   // see GetLocalAddress for similar computation
   size_t offset = image_writer->GetImageOffset(obj);
-  byte* dst = image_writer->image_->GetAddress() + offset;
+  byte* dst = image_writer->image_->Begin() + offset;
   const byte* src = reinterpret_cast<const byte*>(obj);
   size_t n = obj->SizeOf();
-  DCHECK_LT(offset + n, image_writer->image_->GetLength());
+  DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
   ResetImageOffset(copy);
@@ -363,7 +363,7 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
 
   // OatWriter replaces the code_ and invoke_stub_ with offset values.
-  // Here we readjust to a pointer relative to oat_base_
+  // Here we readjust to a pointer relative to oat_begin_
 
   // Every type of method can have an invoke stub
   uint32_t invoke_stub_offset = orig->GetOatInvokeStubOffset();

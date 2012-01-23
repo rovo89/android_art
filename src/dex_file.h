@@ -551,7 +551,7 @@ class DexFile {
     if (class_def.interfaces_off_ == 0) {
         return NULL;
     } else {
-      const byte* addr = base_ + class_def.interfaces_off_;
+      const byte* addr = begin_ + class_def.interfaces_off_;
       return reinterpret_cast<const TypeList*>(addr);
     }
   }
@@ -561,7 +561,7 @@ class DexFile {
     if (class_def.class_data_off_ == 0) {
       return NULL;
     } else {
-      return base_ + class_def.class_data_off_;
+      return begin_ + class_def.class_data_off_;
     }
   }
 
@@ -570,7 +570,7 @@ class DexFile {
     if (code_off == 0) {
       return NULL;  // native or abstract method
     } else {
-      const byte* addr = base_ + code_off;
+      const byte* addr = begin_ + code_off;
       return reinterpret_cast<const CodeItem*>(addr);
     }
   }
@@ -618,7 +618,7 @@ class DexFile {
     if (proto_id.parameters_off_ == 0) {
       return NULL;
     } else {
-      const byte* addr = base_ + proto_id.parameters_off_;
+      const byte* addr = begin_ + proto_id.parameters_off_;
       return reinterpret_cast<const TypeList*>(addr);
     }
   }
@@ -627,7 +627,7 @@ class DexFile {
     if (class_def.static_values_off_ == 0) {
       return 0;
     } else {
-      return base_ + class_def.static_values_off_;
+      return begin_ + class_def.static_values_off_;
     }
   }
 
@@ -655,7 +655,7 @@ class DexFile {
     if (code_item->debug_info_off_ == 0) {
       return NULL;
     } else {
-      return base_ + code_item->debug_info_off_;
+      return begin_ + code_item->debug_info_off_;
     }
   }
 
@@ -761,8 +761,8 @@ class DexFile {
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,
                                    MemMap* mem_map) {
-    return OpenMemory(mem_map->GetAddress(),
-                      mem_map->GetLength(),
+    return OpenMemory(mem_map->Begin(),
+                      mem_map->Size(),
                       location,
                       mem_map);
   }
@@ -774,7 +774,7 @@ class DexFile {
                                    MemMap* mem_map);
 
   DexFile(const byte* base, size_t length, const std::string& location, MemMap* mem_map)
-      : base_(base),
+      : begin_(base),
         length_(length),
         location_(location),
         mem_map_(mem_map),
@@ -787,7 +787,7 @@ class DexFile {
         method_ids_(0),
         proto_ids_(0),
         class_defs_(0) {
-    CHECK(base_ != NULL) << GetLocation();
+    CHECK(begin_ != NULL) << GetLocation();
     CHECK_GT(length_, 0U) << GetLocation();
   }
 
@@ -812,7 +812,7 @@ class DexFile {
   Index index_;
 
   // The base address of the memory mapping.
-  const byte* base_;
+  const byte* begin_;
 
   // The size of the underlying memory allocation in bytes.
   size_t length_;

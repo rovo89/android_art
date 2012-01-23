@@ -350,8 +350,8 @@ class MANAGED Object {
   }
 
   template<typename T>
-  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile) {
-    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile);
+  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile, bool this_is_valid = true) {
+    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
   }
 
  private:

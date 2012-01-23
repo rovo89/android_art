@@ -77,17 +77,17 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(Heap::GetSpaces()[0]->IsImageSpace());
   ASSERT_FALSE(Heap::GetSpaces()[1]->IsImageSpace());
 
-  Space* image_space = Heap::GetSpaces()[0];
-  byte* image_base = image_space->GetBase();
-  byte* image_limit = image_space->GetLimit();
-  CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_base));
+  ImageSpace* image_space = Heap::GetSpaces()[0]->AsImageSpace();
+  byte* image_begin = image_space->Begin();
+  byte* image_end = image_space->End();
+  CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_begin));
   for (size_t i = 0; i < dex->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);
     EXPECT_TRUE(klass != NULL) << descriptor;
-    EXPECT_LT(image_base, reinterpret_cast<byte*>(klass)) << descriptor;
-    EXPECT_LT(reinterpret_cast<byte*>(klass), image_limit) << descriptor;
+    EXPECT_LT(image_begin, reinterpret_cast<byte*>(klass)) << descriptor;
+    EXPECT_LT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
     EXPECT_EQ(*klass->GetRawLockWordAddress(), 0);  // address should have been removed from monitor
   }
 }

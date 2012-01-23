@@ -65,13 +65,13 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
     LOG(WARNING) << "Failed to map oat file " << filename;
     return false;
   }
-  CHECK(requested_base == 0 || requested_base == map->GetAddress())
-          << filename << " " << reinterpret_cast<void*>(map->GetAddress());
-  DCHECK_EQ(0, memcmp(&oat_header, map->GetAddress(), sizeof(OatHeader))) << filename;
+  CHECK(requested_base == 0 || requested_base == map->Begin())
+          << filename << " " << reinterpret_cast<void*>(map->Begin());
+  DCHECK_EQ(0, memcmp(&oat_header, map->Begin(), sizeof(OatHeader))) << filename;
 
   off_t code_offset = oat_header.GetExecutableOffset();
   if (code_offset < file->Length()) {
-    byte* code_address = map->GetAddress() + code_offset;
+    byte* code_address = map->Begin() + code_offset;
     size_t code_length = file->Length() - code_offset;
     if (mprotect(code_address, code_length, PROT_READ | PROT_EXEC) != 0) {
       PLOG(ERROR) << "Failed to make oat code executable in " << filename;
@@ -82,40 +82,40 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
     DCHECK_EQ(code_offset, RoundUp(file->Length(), kPageSize)) << filename;
   }
 
-  const byte* oat = map->GetAddress();
+  const byte* oat = map->Begin();
 
   oat += sizeof(OatHeader);
-  CHECK_LE(oat, map->GetLimit()) << filename;
+  CHECK_LE(oat, map->End()) << filename;
   for (size_t i = 0; i < oat_header.GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
     CHECK_GT(dex_file_location_size, 0U) << filename;
     oat += sizeof(dex_file_location_size);
-    CHECK_LT(oat, map->GetLimit()) << filename;
+    CHECK_LT(oat, map->End()) << filename;
 
     const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
     oat += dex_file_location_size;
-    CHECK_LT(oat, map->GetLimit()) << filename;
+    CHECK_LT(oat, map->End()) << filename;
 
     std::string dex_file_location(dex_file_location_data, dex_file_location_size);
 
     uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(dex_file_checksum);
-    CHECK_LT(oat, map->GetLimit()) << filename;
+    CHECK_LT(oat, map->End()) << filename;
 
     uint32_t dex_file_offset = *reinterpret_cast<const uint32_t*>(oat);
     CHECK_GT(dex_file_offset, 0U) << filename;
     CHECK_LT(dex_file_offset, static_cast<uint32_t>(file->Length())) << filename;
     oat += sizeof(dex_file_offset);
-    CHECK_LT(oat, map->GetLimit()) << filename;
+    CHECK_LT(oat, map->End()) << filename;
 
-    uint8_t* dex_file_pointer = map->GetAddress() + dex_file_offset;
+    uint8_t* dex_file_pointer = map->Begin() + dex_file_offset;
     CHECK(DexFile::IsMagicValid(dex_file_pointer)) << filename << " " << dex_file_pointer;
     CHECK(DexFile::IsVersionValid(dex_file_pointer)) << filename << " "  << dex_file_pointer;
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
-    CHECK_LE(oat, map->GetLimit()) << filename;
+    CHECK_LE(oat, map->End()) << filename;
 
     oat_dex_files_[dex_file_location] = new OatDexFile(this,
                                                        dex_file_location,
@@ -129,17 +129,17 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
 }
 
 const OatHeader& OatFile::GetOatHeader() const {
-  return *reinterpret_cast<const OatHeader*>(GetBase());
+  return *reinterpret_cast<const OatHeader*>(Begin());
 }
 
-const byte* OatFile::GetBase() const {
-  CHECK(mem_map_->GetAddress() != NULL);
-  return mem_map_->GetAddress();
+const byte* OatFile::Begin() const {
+  CHECK(mem_map_->Begin() != NULL);
+  return mem_map_->Begin();
 }
 
-const byte* OatFile::GetLimit() const {
-  CHECK(mem_map_->GetLimit() != NULL);
-  return mem_map_->GetLimit();
+const byte* OatFile::End() const {
+  CHECK(mem_map_->End() != NULL);
+  return mem_map_->End();
 }
 
 const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_file_location,
@@ -183,12 +183,12 @@ const DexFile* OatFile::OatDexFile::OpenDexFile() const {
 const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {
   uint32_t oat_class_offset = oat_class_offsets_pointer_[class_def_index];
 
-  const byte* oat_class_pointer = oat_file_->GetBase() + oat_class_offset;
-  CHECK_LT(oat_class_pointer, oat_file_->GetLimit());
+  const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
+  CHECK_LT(oat_class_pointer, oat_file_->End());
   Class::Status status = *reinterpret_cast<const Class::Status*>(oat_class_pointer);
 
   const byte* methods_pointer = oat_class_pointer + sizeof(status);
-  CHECK_LT(methods_pointer, oat_file_->GetLimit());
+  CHECK_LT(methods_pointer, oat_file_->End());
 
   return new OatClass(oat_file_,
                       status,
@@ -209,7 +209,7 @@ Class::Status OatFile::OatClass::GetStatus() const {
 const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
   const OatMethodOffsets& oat_method_offsets = methods_pointer_[method_index];
   return OatMethod(
-      oat_file_->GetBase(),
+      oat_file_->Begin(),
       oat_method_offsets.code_offset_,
       oat_method_offsets.frame_size_in_bytes_,
       oat_method_offsets.core_spill_mask_,
@@ -229,7 +229,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t vmap_table_offset,
                               const uint32_t gc_map_offset,
                               const uint32_t invoke_stub_offset)
-  : base_(base),
+  : begin_(base),
     code_offset_(code_offset),
     frame_size_in_bytes_(frame_size_in_bytes),
     core_spill_mask_(core_spill_mask),
@@ -243,7 +243,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
     if (vmap_table_offset_ == 0) {
       DCHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
     } else {
-      const uint16_t* vmap_table_ = reinterpret_cast<const uint16_t*>(base_ + vmap_table_offset_);
+      const uint16_t* vmap_table_ = reinterpret_cast<const uint16_t*>(begin_ + vmap_table_offset_);
       DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
     }
   } else {

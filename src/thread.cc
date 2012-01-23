@@ -43,6 +43,7 @@
 #include "runtime_support.h"
 #include "ScopedLocalRef.h"
 #include "scoped_jni_thread_state.h"
+#include "space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
@@ -68,7 +69,7 @@ static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
 void Thread::InitCardTable() {
-  card_table_ = Heap::GetCardTable()->GetBiasedBase();
+  card_table_ = Heap::GetCardTable()->GetBiasedBegin();
 }
 
 void Thread::InitFunctionPointers() {
@@ -357,7 +358,7 @@ void Thread::InitStackHwm() {
   void* temp_stack_base;
   CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &temp_stack_base, &stack_size_),
                      __FUNCTION__);
-  stack_base_ = reinterpret_cast<byte*>(temp_stack_base);
+  stack_begin_ = reinterpret_cast<byte*>(temp_stack_base);
 
   if (stack_size_ <= kStackOverflowReservedBytes) {
     LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << stack_size_ << " bytes)";

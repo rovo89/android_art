@@ -27,7 +27,7 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
     }
   }
 
-  Heap::CollectGarbage();
+  Heap::CollectGarbage(false);
 }
 
 }  // namespace art

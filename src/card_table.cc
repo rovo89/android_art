@@ -43,76 +43,73 @@ namespace art {
  * rather strange value.  In order to keep the JIT from having to
  * fabricate or load GC_DIRTY_CARD to store into the card table,
  * biased base is within the mmap allocation at a point where its low
- * byte is equal to GC_DIRTY_CARD. See CardTable::Init for details.
+ * byte is equal to GC_DIRTY_CARD. See CardTable::Create for details.
  */
 
-CardTable* CardTable::Create(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
-  CardTable* bitmap = new CardTable;
-  bitmap->Init(heap_base, heap_max_size, growth_size);
-  return bitmap;
-}
-
-/*
- * Initializes the card table; must be called before any other
- * CardTable functions.
- */
-void CardTable::Init(const byte* heap_base, size_t heap_max_size, size_t growth_size) {
+CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   /* Set up the card table */
-  size_t length = heap_max_size / GC_CARD_SIZE;
+  size_t capacity = heap_capacity / GC_CARD_SIZE;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
-  mem_map_.reset(MemMap::MapAnonymous("dalvik-card-table", NULL, length + 256, PROT_READ | PROT_WRITE));
-  if (mem_map_.get() == NULL) {
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous("dalvik-card-table", NULL,
+                                                 capacity + 256, PROT_READ | PROT_WRITE));
+  if (mem_map.get() == NULL) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
     LOG(FATAL) << "couldn't allocate card table\n" << maps;
   }
-  byte* alloc_base = mem_map_->GetAddress();
-  CHECK(alloc_base != NULL);
-  base_ = alloc_base;
-  length_ = growth_size / GC_CARD_SIZE;
-  max_length_ = length;
-  offset_ = 0;
-  /* All zeros is the correct initial value; all clean. */
+  // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
+  // don't clear the card table to avoid unnecessary pages being allocated
   CHECK_EQ(GC_CARD_CLEAN, 0);
-  biased_base_ = (byte *)((uintptr_t)alloc_base -((uintptr_t)heap_base >> GC_CARD_SHIFT));
-  if (((uintptr_t)biased_base_ & 0xff) != GC_CARD_DIRTY) {
-    int offset = GC_CARD_DIRTY - (reinterpret_cast<int>(biased_base_) & 0xff);
-    offset_ = offset + (offset < 0 ? 0x100 : 0);
-    biased_base_ += offset_;
+
+  byte* cardtable_begin = mem_map->Begin();
+  CHECK(cardtable_begin != NULL);
+
+  // We allocated up to a bytes worth of extra space to allow biased_begin's byte value to equal
+  // GC_CARD_DIRTY, compute a offset value to make this the case
+  size_t offset = 0;
+  byte* biased_begin = (byte *)((uintptr_t)cardtable_begin -((uintptr_t)heap_begin >> GC_CARD_SHIFT));
+  if (((uintptr_t)biased_begin & 0xff) != GC_CARD_DIRTY) {
+    int delta = GC_CARD_DIRTY - (reinterpret_cast<int>(biased_begin) & 0xff);
+    offset = delta + (delta < 0 ? 0x100 : 0);
+    biased_begin += offset;
   }
-  CHECK_EQ(reinterpret_cast<int>(biased_base_) & 0xff, GC_CARD_DIRTY);
-  ClearCardTable();
+  CHECK_EQ(reinterpret_cast<int>(biased_begin) & 0xff, GC_CARD_DIRTY);
+
+  return new CardTable(mem_map.release(), biased_begin, offset);
 }
 
 void CardTable::ClearCardTable() {
-  CHECK(mem_map_->GetAddress() != NULL);
-  memset(mem_map_->GetAddress(), GC_CARD_CLEAN, length_);
+  // TODO: clear just the range of the table that has been modified
+  memset(mem_map_->Begin(), GC_CARD_CLEAN, mem_map_->Size());
 }
 
-/*
- * Returns the first address in the heap which maps to this card.
- */
-void* CardTable::AddrFromCard(const byte *cardAddr) const {
-  CHECK(IsValidCard(cardAddr));
-  uintptr_t offset = cardAddr - biased_base_;
-  return (void *)(offset << GC_CARD_SHIFT);
+void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
+  byte* cardAddr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
+  if (!IsValidCard(cardAddr)) {
+    byte* begin = mem_map_->Begin() + offset_;
+    byte* end = mem_map_->End();
+    LOG(FATAL) << "Cardtable - begin: " << reinterpret_cast<void*>(begin)
+               << " end: " << reinterpret_cast<void*>(end)
+               << " addr: " << reinterpret_cast<const void*>(addr)
+               << " cardAddr: " << reinterpret_cast<void*>(cardAddr);
+  }
 }
 
-void CardTable::Scan(byte* base, byte* limit, Callback* visitor, void* arg) const {
-  byte* cur = CardFromAddr(base);
-  byte* end = CardFromAddr(limit);
-  while (cur < end) {
-    while (cur < end && *cur == GC_CARD_CLEAN) {
-      cur++;
+void CardTable::Scan(byte* heap_begin, byte* heap_end, Callback* visitor, void* arg) const {
+  byte* card_cur = CardFromAddr(heap_begin);
+  byte* card_end = CardFromAddr(heap_end);
+  while (card_cur < card_end) {
+    while (card_cur < card_end && *card_cur == GC_CARD_CLEAN) {
+      card_cur++;
     }
-    byte* run_start = cur;
+    byte* run_start = card_cur;
     size_t run = 0;
-    while (cur < end && *cur == GC_CARD_DIRTY) {
+    while (card_cur < card_end && *card_cur == GC_CARD_DIRTY) {
       run++;
-      cur++;
+      card_cur++;
     }
     if (run > 0) {
-      byte* run_end = &cur[run];
+      byte* run_end = &card_cur[run];
       Heap::GetLiveBits()->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
                                       reinterpret_cast<uintptr_t>(AddrFromCard(run_end)),
                                       visitor, arg);
@@ -120,9 +117,6 @@ void CardTable::Scan(byte* base, byte* limit, Callback* visitor, void* arg) cons
   }
 }
 
-/*
- * Verifies that gray objects are on a dirty card.
- */
 void CardTable::VerifyCardTable() {
   UNIMPLEMENTED(WARNING) << "Card table verification";
 }
