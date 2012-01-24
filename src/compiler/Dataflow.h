@@ -20,6 +20,8 @@
 #include "Dalvik.h"
 #include "CompilerInternals.h"
 
+namespace art {
+
 typedef enum DataFlowAttributePos {
     kUA = 0,
     kUB,
@@ -150,5 +152,7 @@ typedef struct ArrayAccessInfo {
 
 
 void oatMethodNullCheckElimination(CompilationUnit*);
+
+}  // namespace art
 
 #endif  // ART_SRC_COMPILER_DATAFLOW_H_

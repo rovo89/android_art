@@ -97,7 +97,7 @@ size_t OatWriter::InitOatClasses(size_t offset) {
       }
 
       CompiledClass* compiled_class =
-          compiler_->GetCompiledClass(art::Compiler::MethodReference(dex_file, class_def_index));
+          compiler_->GetCompiledClass(Compiler::MethodReference(dex_file, class_def_index));
       Class::Status status =
           (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
 
@@ -199,7 +199,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
   uint32_t invoke_stub_offset = 0;
 
   CompiledMethod* compiled_method =
-      compiler_->GetCompiledMethod(art::Compiler::MethodReference(dex_file, method_idx));
+      compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
     offset = compiled_method->AlignCode(offset);
     DCHECK_ALIGNED(offset, kArmAlignment);
@@ -268,7 +268,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
 #ifndef NDEBUG
     // We expect GC maps except when the class hasn't been verified or the method is native
     CompiledClass* compiled_class =
-        compiler_->GetCompiledClass(art::Compiler::MethodReference(dex_file, class_def_index));
+        compiler_->GetCompiledClass(Compiler::MethodReference(dex_file, class_def_index));
     Class::Status status =
         (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
     CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
@@ -483,7 +483,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
                                   size_t class_def_method_index, bool is_static,
                                   uint32_t method_idx, const DexFile& dex_file) {
   const CompiledMethod* compiled_method =
-      compiler_->GetCompiledMethod(art::Compiler::MethodReference(&dex_file, method_idx));
+      compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file, method_idx));
 
   uint32_t frame_size_in_bytes = 0;
   uint32_t core_spill_mask = 0;

@@ -1506,7 +1506,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
       const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
       CHECK(reg_bitmap != NULL);
       const VmapTable vmap_table(m->GetVmapTableRaw());
-      const art::DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+      const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
       DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
       uint32_t core_spills = m->GetCoreSpillMask();
       uint32_t fp_spills = m->GetFpSpillMask();

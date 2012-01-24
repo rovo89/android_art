@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 
+namespace art {
+
 void StringAppendV(std::string* dst, const char* format, va_list ap) {
   // First try with a small fixed size buffer
   char space[1024];
@@ -61,3 +63,5 @@ void StringAppendF(std::string* dst, const char* format, ...) {
   StringAppendV(dst, format, ap);
   va_end(ap);
 }
+
+}  // namespace art

@@ -20,6 +20,8 @@
 #include "../../Dalvik.h"
 #include "../../CompilerInternals.h"
 
+namespace art {
+
 // Set to 1 to measure cost of suspend check
 #define NO_SUSPEND 0
 
@@ -881,5 +883,7 @@ typedef struct FillArrayData {
 
 #define CHAIN_CELL_NORMAL_SIZE 12
 #define CHAIN_CELL_PREDICTED_SIZE 16
+
+}  // namespace art
 
 #endif  // ART_SRC_COMPILER_CODEGEN_ARM_ARMLIR_H_

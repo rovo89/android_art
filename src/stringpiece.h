@@ -154,7 +154,7 @@ class StringPiece {
 // This large function is defined inline so that in a fairly common case where
 // one of the arguments is a literal, the compiler can elide a lot of the
 // following comparisons.
-inline bool operator==(const art::StringPiece& x, const art::StringPiece& y) {
+inline bool operator==(const StringPiece& x, const StringPiece& y) {
   int len = x.size();
   if (len != y.size()) {
     return false;
@@ -180,29 +180,28 @@ inline bool operator==(const art::StringPiece& x, const art::StringPiece& y) {
   return memcmp(p1, p2, len) == 0;
 }
 
-inline bool operator!=(const art::StringPiece& x, const art::StringPiece& y) {
+inline bool operator!=(const StringPiece& x, const StringPiece& y) {
   return !(x == y);
 }
 
-bool operator<(const art::StringPiece& x, const art::StringPiece& y);
+bool operator<(const StringPiece& x, const StringPiece& y);
 
-inline bool operator>(const art::StringPiece& x, const art::StringPiece& y) {
+inline bool operator>(const StringPiece& x, const StringPiece& y) {
   return y < x;
 }
 
-inline bool operator<=(const art::StringPiece& x, const art::StringPiece& y) {
+inline bool operator<=(const StringPiece& x, const StringPiece& y) {
   return !(x > y);
 }
 
-inline bool operator>=(const art::StringPiece& x, const art::StringPiece& y) {
+inline bool operator>=(const StringPiece& x, const StringPiece& y) {
   return !(x < y);
 }
 
-extern std::ostream& operator<<(std::ostream& o, const art::StringPiece& piece);
+extern std::ostream& operator<<(std::ostream& o, const StringPiece& piece);
 
-// BEGIN android-added
 struct StringPieceHash {
-  size_t operator()(const art::StringPiece& string_piece) const {
+  size_t operator()(const StringPiece& string_piece) const {
     size_t string_size = string_piece.size();
     const char* string_data = string_piece.data();
     // This is the java.lang.String hashcode for convenience, not interoperability.
@@ -213,7 +212,6 @@ struct StringPieceHash {
     return hash;
   }
 };
-// END android-added
 
 }  // namespace art
 

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+namespace art {
+
 STATIC bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir,
                             RegLocation rlDest, RegLocation rlSrc1,
                             RegLocation rlSrc2)
@@ -240,3 +242,5 @@ STATIC bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     storeValue(cUnit, rlDest, rlResult);
     return false;
 }
+
+}  // namespace art

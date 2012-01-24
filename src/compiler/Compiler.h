@@ -19,6 +19,8 @@
 
 #include "dex_file.h"
 
+namespace art {
+
 #define COMPILER_TRACED(X)
 #define COMPILER_TRACEE(X)
 
@@ -103,8 +105,8 @@ void oatArchDump(void);
 bool oatStartup(void);
 void oatShutdown(void);
 CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
-                                 uint32_t method_idx, const art::ClassLoader* class_loader,
-                                 const art::DexFile& dex_file, OatInstructionSetType);
+                                 uint32_t method_idx, const ClassLoader* class_loader,
+                                 const DexFile& dex_file, OatInstructionSetType);
 void oatDumpStats(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);
@@ -134,5 +136,7 @@ void oatMethodSSATransformation(struct CompilationUnit* cUnit);
 u8 oatGetRegResourceMask(int reg);
 void oatDumpCFG(struct CompilationUnit* cUnit, const char* dirPrefix);
 void oatProcessSwitchTables(CompilationUnit* cUnit);
+
+}  // namespace art
 
 #endif // ART_SRC_COMPILER_COMPILER_H_

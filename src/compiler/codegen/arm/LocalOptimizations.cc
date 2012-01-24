@@ -19,6 +19,8 @@
 #include "ArmLIR.h"
 #include "Codegen.h"
 
+namespace art {
+
 #define DEBUG_OPT(X)
 
 /* Check RAW, WAR, and WAR dependency on the register operands */
@@ -446,3 +448,5 @@ void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
         applyLoadHoisting(cUnit, (ArmLIR* ) headLIR, (ArmLIR* ) tailLIR);
     }
 }
+
+}  // namespace art

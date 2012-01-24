@@ -16,6 +16,8 @@
 
 #include "object_utils.h"
 
+namespace art {
+
 #define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
     (1 << kDebugDisplayMissingTargets))
 
@@ -182,7 +184,7 @@ Field* FindFieldWithResolvedStaticStorage(CompilationUnit* cUnit,
         }
         return NULL;
     }
-    const art::DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
+    const DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
     int type_idx = field_id.class_idx_;
     Class* klass = cUnit->dex_cache->GetResolvedTypes()->Get(type_idx);
     // Check if storage class is the same as class referred to by type idx.
@@ -194,13 +196,13 @@ Field* FindFieldWithResolvedStaticStorage(CompilationUnit* cUnit,
     // See if we can find a dex reference for the storage class.
     // we may not if the dex file never references the super class,
     // but usually it will.
-    std::string descriptor(art::FieldHelper(field).GetDeclaringClassDescriptor());
-    const art::DexFile::StringId* string_id =
+    std::string descriptor(FieldHelper(field).GetDeclaringClassDescriptor());
+    const DexFile::StringId* string_id =
         cUnit->dex_file->FindStringId(descriptor);
     if (string_id == NULL) {
         return NULL;  // descriptor not found, resort to slow path
     }
-    const art::DexFile::TypeId* type_id =
+    const DexFile::TypeId* type_id =
         cUnit->dex_file->FindTypeId(cUnit->dex_file->GetIndexForStringId(*string_id));
     if (type_id == NULL) {
         return NULL;  // type id not found, resort to slow path
@@ -239,7 +241,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rMethod,
             Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
             rBase);
-        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
                       sizeof(int32_t*)* typeIdx, rBase);
         // TUNING: fast path should fall through
         // TUNING: Try a conditional skip here, might be faster
@@ -301,7 +303,7 @@ STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         loadWordDisp(cUnit, rMethod,
             Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
             rBase);
-        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
                       sizeof(int32_t*)* typeIdx, rBase);
         // TUNING: fast path should fall through
         ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
@@ -353,7 +355,7 @@ STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rMethod,
             Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
             rBase);
-        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
                       sizeof(int32_t*)* typeIdx, rBase);
         // TUNING: fast path should fall through
         ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
@@ -405,7 +407,7 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir,
         loadWordDisp(cUnit, rMethod,
             Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
             rBase);
-        loadWordDisp(cUnit, rBase, art::Array::DataOffset().Int32Value() +
+        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
                       sizeof(int32_t*)* typeIdx, rBase);
         // TUNING: fast path should fall through
         ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
@@ -453,9 +455,9 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 2:  // Grab target method* and target code_
             loadWordDisp(cUnit, r0,
-                art::CodeAndDirectMethods::CodeOffsetInBytes(idx), rLR);
+                CodeAndDirectMethods::CodeOffsetInBytes(idx), rLR);
             loadWordDisp(cUnit, r0,
-                art::CodeAndDirectMethods::MethodOffsetInBytes(idx), r0);
+                CodeAndDirectMethods::MethodOffsetInBytes(idx), r0);
             break;
         default:
             return -1;
@@ -502,7 +504,7 @@ STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3: // Get target method [use rLR, set r0]
             loadWordDisp(cUnit, rLR, (target_idx * 4) +
-                         art::Array::DataOffset().Int32Value(), r0);
+                         Array::DataOffset().Int32Value(), r0);
             break;
         case 4: // Get the target compiled code address [uses r0, sets rLR]
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
@@ -537,7 +539,7 @@ STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 2: // method->dex_cache_resolved_methods_->Get(method_idx)
             loadWordDisp(cUnit, rLR, (dInsn->vB * 4) +
-                         art::Array::DataOffset().Int32Value(), rLR);
+                         Array::DataOffset().Int32Value(), rLR);
             break;
         case 3: // Resolved?
             skipBranch = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
@@ -569,10 +571,10 @@ STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
         case 5:
             // get this->klass_->vtable_ [usr rLR, set rLR]
             loadWordDisp(cUnit, rLR, Class::VTableOffset().Int32Value(), rLR);
-            DCHECK_EQ((art::Array::DataOffset().Int32Value() & 0x3), 0);
+            DCHECK_EQ((Array::DataOffset().Int32Value() & 0x3), 0);
             // In load shadow fold vtable_ object header size into method_index_
             opRegImm(cUnit, kOpAdd, r0,
-                     art::Array::DataOffset().Int32Value() / 4);
+                     Array::DataOffset().Int32Value() / 4);
             // Get target Method*
             loadBaseIndexed(cUnit, rLR, r0, r0, 2, kWord);
             break;
@@ -648,7 +650,7 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
      * that the check to verify that the target method index falls
      * within the size of the super's vtable has been done at compile-time.
      */
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Method* baseMethod = class_linker->ResolveMethod(*cUnit->dex_file,
                                                      dInsn->vB,
                                                      cUnit->dex_cache,
@@ -685,7 +687,7 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3: // Get target method [use rLR, set r0]
             loadWordDisp(cUnit, rLR, (target_idx * 4) +
-                         art::Array::DataOffset().Int32Value(), r0);
+                         Array::DataOffset().Int32Value(), r0);
             break;
         case 4: // Get the target compiled code address [uses r0, sets rLR]
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
@@ -722,7 +724,7 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             break;
         case 2: // method->dex_cache_resolved_methods_->Get(meth_idx) [u/s rLR]
             loadWordDisp(cUnit, rLR, (dInsn->vB * 4) +
-                         art::Array::DataOffset().Int32Value(), rLR);
+                         Array::DataOffset().Int32Value(), rLR);
             break;
         case 3: // Resolved?
             skipBranch = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
@@ -757,14 +759,14 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
             if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
                 // Range check, throw NSM on failure
                 tReg = oatAllocTemp(cUnit);
-                loadWordDisp(cUnit, r0, art::Array::LengthOffset().Int32Value(),
+                loadWordDisp(cUnit, r0, Array::LengthOffset().Int32Value(),
                              tReg);
                 genRegRegCheck(cUnit, kArmCondCs, rLR, tReg, mir,
                                kArmThrowNoSuchMethod);
                 oatFreeTemp(cUnit, tReg);
             }
             // Adjust vtable_ base past object header
-            opRegImm(cUnit, kOpAdd, r0, art::Array::DataOffset().Int32Value());
+            opRegImm(cUnit, kOpAdd, r0, Array::DataOffset().Int32Value());
             // Get target Method*
             loadBaseIndexed(cUnit, r0, rLR, r0, 2, kWord);
             break;
@@ -1068,7 +1070,7 @@ STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* rollback;
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Method* baseMethod = class_linker->ResolveMethod(*cUnit->dex_file,
                                                      dInsn->vB,
                                                      cUnit->dex_cache,
@@ -1143,7 +1145,7 @@ STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* rollback;
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Method* method = class_linker->ResolveMethod(*cUnit->dex_file,
                                                  dInsn->vB,
                                                  cUnit->dex_cache,
@@ -1966,12 +1968,12 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
          */
         bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
                                   ((size_t)cUnit->frameSize <
-                                  art::Thread::kStackOverflowReservedBytes));
+                                  Thread::kStackOverflowReservedBytes));
         newLIR0(cUnit, kArmPseudoMethodEntry);
         if (!skipOverflowCheck) {
             /* Load stack limit */
             loadWordDisp(cUnit, rSELF,
-                         art::Thread::StackEndOffset().Int32Value(), r12);
+                         Thread::StackEndOffset().Int32Value(), r12);
         }
         /* Spill core callee saves */
         newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
@@ -2148,7 +2150,7 @@ STATIC void handleSuspendLaunchpads(CompilationUnit *cUnit)
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pTestSuspendFromCode), rLR);
         loadWordDisp(cUnit, rSELF,
-            art::Thread::SuspendCountOffset().Int32Value(), rSUSPEND);
+            Thread::SuspendCountOffset().Int32Value(), rSUSPEND);
         opReg(cUnit, kOpBlx, rLR);
         genUnconditionalBranch(cUnit, resumeLab);
     }
@@ -2289,3 +2291,5 @@ void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
 {
     storeBaseDispWide(cUnit, rBase, displacement, rSrcLo, rSrcHi);
 }
+
+}  // namespace art

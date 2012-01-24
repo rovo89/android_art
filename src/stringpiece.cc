@@ -18,7 +18,7 @@
 
 namespace art {
 
-bool operator<(const art::StringPiece& x, const art::StringPiece& y) {
+bool operator<(const StringPiece& x, const StringPiece& y) {
   const int r = memcmp(x.data(), y.data(),
                        std::min(x.size(), y.size()));
   return ((r < 0) || ((r == 0) && (x.size() < y.size())));
@@ -90,7 +90,7 @@ StringPiece StringPiece::substr(size_type pos, size_type n) const {
 
 const StringPiece::size_type StringPiece::npos = size_type(-1);
 
-std::ostream& operator<<(std::ostream& o, const art::StringPiece& piece) {
+std::ostream& operator<<(std::ostream& o, const StringPiece& piece) {
   o.write(piece.data(), piece.size());
   return o;
 }

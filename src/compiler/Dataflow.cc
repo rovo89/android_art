@@ -18,6 +18,8 @@
 #include "Dataflow.h"
 //#include "libdex/DexOpcodes.h"
 
+namespace art {
+
 /*
  * Main table containing data flow attributes for each bytecode. The
  * first kNumPackedOpcodes entries are for Dalvik bytecode
@@ -1612,7 +1614,7 @@ STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
 
     if ((bb->blockType == kEntryBlock) | bb->catchEntry) {
         oatClearAllBits(cUnit->tempSSARegisterV);
-        if ((cUnit->access_flags & art::kAccStatic) == 0) {
+        if ((cUnit->access_flags & kAccStatic) == 0) {
             // If non-static method, mark "this" as non-null
             int thisReg = cUnit->numDalvikRegisters - cUnit->numIns;
             oatSetBit(cUnit->tempSSARegisterV, thisReg);
@@ -1745,3 +1747,5 @@ void oatMethodNullCheckElimination(CompilationUnit *cUnit)
                                       true /* isIterative */);
     }
 }
+
+}  // namespace art

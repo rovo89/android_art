@@ -55,17 +55,6 @@ typedef unsigned long long  u8;
 #include "DexOpcodes.h"
 #include "InstrUtils.h"
 
-typedef art::Array Array;
-typedef art::Class Class;
-typedef art::Compiler Compiler;
-typedef art::Field Field;
-typedef art::JValue JValue;
-typedef art::Method Method;
-typedef art::CompiledMethod CompiledMethod;
-typedef art::Object Object;
-typedef art::String String;
-typedef art::Thread Thread;
-
 // use to switch visibility on DCHECK tracebacks
 #if 1
 #define STATIC

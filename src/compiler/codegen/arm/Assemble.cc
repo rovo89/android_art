@@ -20,6 +20,8 @@
 #include "Codegen.h"
 #include <sys/mman.h>           /* for protection change */
 
+namespace art {
+
 #define MAX_ASSEMBLER_RETRIES 50
 
 /*
@@ -1594,3 +1596,5 @@ void oatAssembleLIR(CompilationUnit* cUnit)
      */
     createMappingTable(cUnit);
 }
+
+}  // namespace art

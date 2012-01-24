@@ -14,6 +14,8 @@
 #include "toStringArray.h"
 #include "object.h"
 
+namespace art {
+
 // Determine whether or not the specified method is public.
 static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
   ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(clazz, method_id, JNI_FALSE));
@@ -34,7 +36,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
     return false;
   }
   int modifiers = env->CallIntMethod(reflected.get(), get_modifiers);
-  if ((modifiers & art::kAccPublic) == 0) {
+  if ((modifiers & kAccPublic) == 0) {
     return false;
   }
   return true;
@@ -89,7 +91,7 @@ static int InvokeMain(JNIEnv* env, int argc, char** argv) {
 
 // Parse arguments.  Most of it just gets passed through to the VM.
 // The JNI spec defines a handful of standard arguments.
-int main(int argc, char** argv) {
+int oatexec(int argc, char** argv) {
   setvbuf(stdout, NULL, _IONBF, 0);
 
   // Skip over argv[0].
@@ -168,4 +170,10 @@ int main(int argc, char** argv) {
   }
 
   return rc;
+}
+
+} // namespace art
+
+int main(int argc, char** argv) {
+  return art::oatexec(argc, argv);
 }

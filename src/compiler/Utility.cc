@@ -17,6 +17,8 @@
 #include "Dalvik.h"
 #include "CompilerInternals.h"
 
+namespace art {
+
 static ArenaMemBlock *arenaHead, *currentArena;
 static int numArenaBlocks;
 
@@ -163,7 +165,7 @@ void oatDumpCompilationUnit(CompilationUnit* cUnit)
         "Catch Block"
     };
 
-    LOG(INFO) << "Compiling " << art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+    LOG(INFO) << "Compiling " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     LOG(INFO) << cUnit->insns << " insns";
     LOG(INFO) << cUnit->numBlocks << " blocks in total";
     GrowableListIterator iterator;
@@ -530,6 +532,8 @@ void oatGetBlockName(BasicBlock* bb, char* name)
 
 const char* oatGetShortyFromTargetIdx(CompilationUnit *cUnit, int targetIdx)
 {
-    const art::DexFile::MethodId& methodId = cUnit->dex_file->GetMethodId(targetIdx);
+    const DexFile::MethodId& methodId = cUnit->dex_file->GetMethodId(targetIdx);
     return cUnit->dex_file->GetShorty(methodId.proto_idx_);
 }
+
+}  // namespace art

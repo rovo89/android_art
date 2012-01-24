@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+namespace art {
+
 /*
  * This file contains codegen for the Thumb ISA and is intended to be
  * includes by:
@@ -1156,3 +1158,5 @@ STATIC void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
         }
     }
 }
+
+}  // namespace art

@@ -365,7 +365,7 @@ class MANAGED Object {
 };
 
 struct ObjectIdentityHash {
-  size_t operator()(const art::Object* const& obj) const {
+  size_t operator()(const Object* const& obj) const {
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: we'll need to use the Object's internal concept of identity
     UNIMPLEMENTED(FATAL);
@@ -2211,7 +2211,7 @@ class MANAGED String : public Object {
 };
 
 struct StringHashCode {
-  int32_t operator()(art::String* string) const {
+  int32_t operator()(String* string) const {
     return string->GetHashCode();
   }
 };

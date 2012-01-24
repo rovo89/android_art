@@ -24,6 +24,8 @@
 
 #include "../../CompilerIR.h"
 
+namespace art {
+
 #if defined(_CODEGEN_C)
 /*
  * loadConstant() sometimes needs to add a small imm to a pre-existing constant
@@ -50,3 +52,5 @@ extern void oatSetupResourceMasks(ArmLIR* lir);
 
 extern ArmLIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest,
                                           int rSrc);
+
+}  // namespace art

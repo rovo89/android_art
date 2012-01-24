@@ -19,6 +19,8 @@
 #include "Dataflow.h"
 #include "codegen/Ralloc.h"
 
+namespace art {
+
 STATIC bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
     bool change = false;
     if (cUnit->regLocation[index].highWord) {
@@ -264,7 +266,7 @@ STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                  */
                 if ((definedFP && definedCore) &&
                     ((cUnit->disableOpt & (1 << kPromoteRegs)) == 0)) {
-                    LOG(WARNING) << art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
+                    LOG(WARNING) << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
                         << " op at block " << bb->id
                         << " has both fp and core uses for same def.";
                     cUnit->disableOpt |= (1 << kPromoteRegs);
@@ -329,7 +331,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     int numIns = cUnit->numIns;
     if (numIns > 0) {
         int sReg = numRegs - numIns;
-        if ((cUnit->access_flags & art::kAccStatic) == 0) {
+        if ((cUnit->access_flags & kAccStatic) == 0) {
             // For non-static, skip past "this"
             cUnit->regLocation[sReg].defined = true;
             cUnit->regLocation[sReg].core = true;
@@ -411,3 +413,5 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     cUnit->insOffset = cUnit->frameSize + 4;
     cUnit->regsOffset = (cUnit->numOuts + cUnit->numPadding + 1) * 4;
 }
+
+}  // namespace art

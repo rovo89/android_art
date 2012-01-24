@@ -33,14 +33,16 @@
 #define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
     (1 << kDebugExerciseResolveMethod))
 
+namespace art {
+
 STATIC RegLocation getRetLoc(CompilationUnit* cUnit);
 
 void warnIfUnresolved(CompilationUnit* cUnit, int fieldIdx, Field* field) {
   if (field == NULL) {
-    const art::DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
+    const DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
     std::string class_name(cUnit->dex_file->GetFieldDeclaringClassDescriptor(field_id));
     std::string field_name(cUnit->dex_file->GetFieldName(field_id));
-    LOG(INFO) << "Field " << art::PrettyDescriptor(class_name) << "." << field_name
+    LOG(INFO) << "Field " << PrettyDescriptor(class_name) << "." << field_name
               << " unresolved at compile time";
   } else {
     // We also use the slow path for wide volatile fields.
@@ -419,7 +421,7 @@ STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
     loadCurrMethodDirect(cUnit, r1);              // arg1 <= Method*
     loadWordDisp(cUnit, r1,
                  Method::DexCacheResolvedFieldsOffset().Int32Value(), r0);
-    loadWordDisp(cUnit, r0, art::Array::DataOffset().Int32Value() +
+    loadWordDisp(cUnit, r0, Array::DataOffset().Int32Value() +
                  sizeof(int32_t*)* fieldIdx, r0);
     /*
      * For testing, omit the test for run-time resolution. This will
@@ -443,7 +445,7 @@ STATIC void getFieldOffset(CompilationUnit* cUnit, MIR* mir, Field* fieldPtr)
     oatFreeTemp(cUnit, r1);
     oatFreeTemp(cUnit, r2);
     oatFreeTemp(cUnit, r3);
-    loadWordDisp(cUnit, r0, art::Field::OffsetOffset().Int32Value(), r0);
+    loadWordDisp(cUnit, r0, Field::OffsetOffset().Int32Value(), r0);
 }
 
 STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
@@ -2108,3 +2110,5 @@ void oatArchDump(void)
         LOG(INFO) << "dalvik.vm.oat.op = " << buf;
     }
 }
+
+}  // namespace art

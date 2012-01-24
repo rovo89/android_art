@@ -19,6 +19,8 @@
 
 #include "../Dalvik.h"
 
+namespace art {
+
 #define STACK_ALIGN_WORDS 4
 #define STACK_ALIGNMENT (STACK_ALIGN_WORDS * 4)
 
@@ -28,5 +30,7 @@ struct LIR;
 
 void oatApplyLocalOptimizations(struct CompilationUnit* cUnit,
                                 struct LIR* head, struct LIR* tail);
+
+}  // namespace art
 
 #endif  // ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_

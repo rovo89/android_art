@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+namespace art {
+
 /*
  * This file contains codegen and support common to all supported
  * ARM variants.  It is included by:
@@ -399,3 +401,5 @@ STATIC void genBarrier(CompilationUnit* cUnit)
     /* Mark all resources as being clobbered */
     barrier->defMask = -1;
 }
+
+}  // namespace art

@@ -20,6 +20,8 @@
 
 #include <string>
 
+namespace art {
+
 static const char* coreRegNames[16] = {
     "r0",
     "r1",
@@ -309,7 +311,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     switch(lir->opcode) {
         case kArmPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
-                art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+                PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
             break;
         case kArmPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
@@ -413,7 +415,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
 {
     LOG(INFO) << "/*";
     LOG(INFO) << "Dumping LIR insns for "
-        << art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+        << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     LIR* lirInsn;
     ArmLIR* armLIR;
     int insnsSize = cUnit->insnsSize;
@@ -447,7 +449,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
             armLIR->generic.offset, armLIR->generic.offset, armLIR->operands[0]);
     }
 
-    const art::DexFile::MethodId& method_id =
+    const DexFile::MethodId& method_id =
         cUnit->dex_file->GetMethodId(cUnit->method_idx);
     std::string signature(cUnit->dex_file->GetMethodSignature(method_id));
     std::string name(cUnit->dex_file->GetMethodName(method_id));
@@ -467,3 +469,5 @@ void oatCodegenDump(CompilationUnit* cUnit)
         LOG(INFO) <<"    };\n\n";
     }
 }
+
+}  // namespace art

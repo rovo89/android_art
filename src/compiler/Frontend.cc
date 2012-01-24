@@ -22,6 +22,8 @@
 #include "object.h"
 #include "runtime.h"
 
+namespace art {
+
 /* Default optimizer/debug setting for the compiler. */
 uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kLoadStoreElimination) |
@@ -231,7 +233,7 @@ STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 {
     FILE* file;
-    std::string name(art::PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
+    std::string name(PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
     char* fileName = (char*) oatNew(
@@ -432,7 +434,7 @@ STATIC bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 /* Identify code range in try blocks and set up the empty catch blocks */
 STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 {
-    const art::DexFile::CodeItem* code_item = cUnit->code_item;
+    const DexFile::CodeItem* code_item = cUnit->code_item;
     int triesSize = code_item->tries_size_;
     int offset;
 
@@ -443,8 +445,8 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
     ArenaBitVector* tryBlockAddr = cUnit->tryBlockAddr;
 
     for (int i = 0; i < triesSize; i++) {
-        const art::DexFile::TryItem* pTry =
-            art::DexFile::GetTryItems(*code_item, i);
+        const DexFile::TryItem* pTry =
+            DexFile::GetTryItems(*code_item, i);
         int startOffset = pTry->start_addr_;
         int endOffset = startOffset + pTry->insn_count_;
         for (offset = startOffset; offset < endOffset; offset++) {
@@ -453,11 +455,11 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
     }
 
     // Iterate over each of the handlers to enqueue the empty Catch blocks
-    const art::byte* handlers_ptr =
-        art::DexFile::GetCatchHandlerData(*code_item, 0);
-    uint32_t handlers_size = art::DecodeUnsignedLeb128(&handlers_ptr);
+    const byte* handlers_ptr =
+        DexFile::GetCatchHandlerData(*code_item, 0);
+    uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
     for (uint32_t idx = 0; idx < handlers_size; idx++) {
-        art::CatchHandlerIterator iterator(handlers_ptr);
+        CatchHandlerIterator iterator(handlers_ptr);
         for (; iterator.HasNext(); iterator.Next()) {
             uint32_t address = iterator.GetHandlerAddress();
             findBlock(cUnit, address, false /* split */, true /*create*/,
@@ -639,11 +641,11 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                             ArenaBitVector* tryBlockAddr, const u2* codePtr,
                             const u2* codeEnd)
 {
-    const art::DexFile::CodeItem* code_item = cUnit->code_item;
+    const DexFile::CodeItem* code_item = cUnit->code_item;
 
     /* In try block */
     if (oatIsBitSet(tryBlockAddr, curOffset)) {
-        art::CatchHandlerIterator iterator(*code_item, curOffset);
+        CatchHandlerIterator iterator(*code_item, curOffset);
 
         if (curBlock->successorBlockList.blockListType != kNotUsed) {
             LOG(FATAL) << "Successor block list already in use: " <<
@@ -712,10 +714,10 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::CodeItem* code_item,
+CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, uint32_t method_idx,
-                                 const art::ClassLoader* class_loader,
-                                 const art::DexFile& dex_file, art::InstructionSet insnSet)
+                                 const ClassLoader* class_loader,
+                                 const DexFile& dex_file, InstructionSet insnSet)
 {
     VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
     oatArenaReset();
@@ -727,7 +729,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
 
     oatInit(compiler);
 
-    art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     UniquePtr<CompilationUnit> cUnit(new CompilationUnit);
     memset(cUnit.get(), 0, sizeof(*cUnit));
     cUnit->compiler = &compiler;
@@ -935,7 +937,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const art::DexFile::C
                                     + __builtin_popcount(cUnit->fpSpillMask)));
     DCHECK_GE(vmapTable.size(), 1U);  // should always at least one INVALID_VREG for lr
 
-    CompiledMethod* result = new CompiledMethod(art::kThumb2, cUnit->codeBuffer,
+    CompiledMethod* result = new CompiledMethod(kThumb2, cUnit->codeBuffer,
                                                 cUnit->frameSize, cUnit->coreSpillMask,
                                                 cUnit->fpSpillMask, cUnit->mappingTable,
                                                 vmapTable);
@@ -960,3 +962,5 @@ void oatInit(const Compiler& compiler)
         LOG(FATAL) << "Failed to initialize oat heap";
     }
 }
+
+}  // namespace art

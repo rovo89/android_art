@@ -22,6 +22,8 @@
  *
  */
 
+namespace art {
+
 STATIC ArmLIR* genUnconditionalBranch(CompilationUnit*, ArmLIR*);
 STATIC ArmLIR* genConditionalBranch(CompilationUnit*, ArmConditionCode,
                                     ArmLIR*);
@@ -110,3 +112,5 @@ STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
     oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
 }
+
+}  // namespace art

@@ -16,13 +16,12 @@
 #include "runtime.h"
 #include "stl_util.h"
 
-art::CompiledMethod* oatCompileMethod(const art::Compiler& compiler,
-                                      const art::DexFile::CodeItem* code_item,
-                                      uint32_t access_flags, uint32_t method_idx,
-                                      const art::ClassLoader* class_loader,
-                                      const art::DexFile& dex_file, art::InstructionSet);
-
 namespace art {
+
+CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, uint32_t method_idx,
+                                 const ClassLoader* class_loader,
+                                 const DexFile& dex_file, InstructionSet);
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
@@ -428,11 +427,11 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub == NULL) {
     if (instruction_set_ == kX86) {
-      compiled_invoke_stub = art::x86::X86CreateInvokeStub(is_static, shorty);
+      compiled_invoke_stub = ::art::x86::X86CreateInvokeStub(is_static, shorty);
     } else {
       CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
       // Generates invocation stub using ARM instruction set
-      compiled_invoke_stub = art::arm::ArmCreateInvokeStub(is_static, shorty);
+      compiled_invoke_stub = ::art::arm::ArmCreateInvokeStub(is_static, shorty);
     }
     CHECK(compiled_invoke_stub != NULL);
     InsertInvokeStub(is_static, shorty, compiled_invoke_stub);

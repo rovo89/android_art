@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+namespace art {
+
 /*
  * This file contains codegen for the Thumb ISA and is intended to be
  * includes by:
@@ -49,3 +51,5 @@ int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint, int regClass)
         return oatAllocTempFloat(cUnit);
     return oatAllocTemp(cUnit);
 }
+
+}  // namespace art

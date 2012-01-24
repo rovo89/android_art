@@ -17,6 +17,8 @@
 #include "Dalvik.h"
 #include "CompilerInternals.h"
 
+namespace art {
+
 /* Allocate a new basic block */
 BasicBlock* oatNewBB(BBType blockType, int blockId)
 {
@@ -122,3 +124,5 @@ void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR)
     currentLIR->next = newLIR;
     newLIR->next->prev = newLIR;
 }
+
+}  // namespace art

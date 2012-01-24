@@ -19,6 +19,8 @@
 
 #include "Dalvik.h"
 
+namespace art {
+
 /* Each arena page has some overhead, so take a few bytes off */
 #define ARENA_DEFAULT_SIZE ((256 * 1024) - 256)
 
@@ -111,5 +113,7 @@ void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
 void oatGetBlockName(struct BasicBlock* bb, char* name);
 const char* oatGetShortyFromTargetIdx(CompilationUnit*, int);
 void oatDumpRegLocTable(struct RegLocation*, int);
+
+}  // namespace art
 
 #endif  // ART_SRC_COMPILER_COMPILER_UTILITY_H_

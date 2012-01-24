@@ -99,7 +99,7 @@ void Mutex::ClearOwner() {
 }
 
 pid_t Mutex::GetTid() {
-  return art::GetTid();
+  return ::art::GetTid();
 }
 
 ConditionVariable::ConditionVariable(const std::string& name) : name_(name) {

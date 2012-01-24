@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+namespace art {
+
 /*
  * This file contains target-independent codegen and support, and is
  * included by:
@@ -235,3 +237,5 @@ STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
         oatMarkDefWide(cUnit, rlDest, defStart, defEnd);
     }
 }
+
+}  // namespace art

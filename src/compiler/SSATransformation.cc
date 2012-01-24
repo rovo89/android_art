@@ -17,6 +17,8 @@
 #include "Dalvik.h"
 #include "Dataflow.h"
 
+namespace art {
+
 /* Enter the node to the dfsOrder list then visit its successors */
 STATIC void recordDFSPreOrder(CompilationUnit* cUnit, BasicBlock* block)
 {
@@ -632,3 +634,5 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
                                           kReachableNodes,
                                           false /* isIterative */);
 }
+
+}  // namespace art

@@ -19,6 +19,8 @@
 
 #include "../CompilerIR.h"
 
+namespace art {
+
 /* Lower middle-level IR to low-level IR for the whole method */
 void oatMethodMIR2LIR(CompilationUnit* cUnit);
 
@@ -50,5 +52,7 @@ int oatTargetOptHint(int key);
 
 /* Implemented in codegen/<target>/<target_variant>/ArchVariant.c */
 void oatGenMemBarrier(CompilationUnit* cUnit, int barrierKind);
+
+}  // namespace art
 
 #endif  // ART_SRC_COMPILER_COMPILERCODEGEN_H_

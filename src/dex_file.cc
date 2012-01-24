@@ -544,7 +544,7 @@ std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_
 }
 
 
-int32_t DexFile::GetLineNumFromPC(const art::Method* method, uint32_t rel_pc) const {
+int32_t DexFile::GetLineNumFromPC(const Method* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
   if (method->GetCodeItemOffset() == 0) {

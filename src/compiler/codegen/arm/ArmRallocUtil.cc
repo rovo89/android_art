@@ -15,7 +15,7 @@
  */
 
 /*
- * This file contains Arm-specific register alloction support.
+ * This file contains Arm-specific register allocation support.
  */
 
 #include "../../CompilerUtility.h"
@@ -24,6 +24,8 @@
 #include "ArmLIR.h"
 #include "Codegen.h"
 #include "../Ralloc.h"
+
+namespace art {
 
 /*
  * Placeholder routine until we do proper register allocation.
@@ -263,7 +265,7 @@ extern int oatSRegOffset(CompilationUnit* cUnit, int sReg)
 
 
 /* Return sp-relative offset in bytes using Method* */
-extern int oatVRegOffset(const art::DexFile::CodeItem* code_item,
+extern int oatVRegOffset(const DexFile::CodeItem* code_item,
                          uint32_t core_spills, uint32_t fp_spills,
                          size_t frame_size, int reg)
 {
@@ -337,3 +339,5 @@ extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
     return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
                       : &cUnit->regPool->coreRegs[reg];
 }
+
+}  // namespace art

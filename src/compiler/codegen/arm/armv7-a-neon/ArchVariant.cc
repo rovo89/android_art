@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+namespace art {
+
 /*
  * Determine the initial instruction set to be used for this trace.
  * Later components may decide to change this.
@@ -49,3 +51,5 @@ void oatGenMemBarrier(CompilationUnit* cUnit, int barrierKind)
     dmb->defMask = ENCODE_ALL;
 #endif
 }
+
+}  // namespace art

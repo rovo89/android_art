@@ -20,6 +20,8 @@
 #include "codegen/Optimizer.h"
 #include <vector>
 
+namespace art {
+
 typedef enum RegisterClass {
     kCoreReg,
     kFPReg,
@@ -194,12 +196,12 @@ typedef struct CompilationUnit {
     int numBlocks;
     GrowableList blockList;
     const Compiler* compiler;           // Compiler driving this compiler
-    art::ClassLinker* class_linker;     // Linker to resolve fields and methods
-    const art::DexFile* dex_file;       // DexFile containing the method being compiled
-    art::DexCache* dex_cache;           // DexFile's corresponding cache
-    const art::ClassLoader* class_loader;  // compiling method's class loader
+    ClassLinker* class_linker;     // Linker to resolve fields and methods
+    const DexFile* dex_file;       // DexFile containing the method being compiled
+    DexCache* dex_cache;           // DexFile's corresponding cache
+    const ClassLoader* class_loader;  // compiling method's class loader
     uint32_t method_idx;                // compiling method's index into method_ids of DexFile
-    const art::DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
+    const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
     uint32_t access_flags;              // compiling method's access flags
     const char* shorty;                 // compiling method's shorty
     LIR* firstLIRInsn;
@@ -326,5 +328,7 @@ void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR);
 
 /* Debug Utilities */
 void oatDumpCompilationUnit(CompilationUnit* cUnit);
+
+}  // namespace art
 
 #endif // ART_SRC_COMPILER_COMPILER_IR_H_

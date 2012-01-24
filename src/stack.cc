@@ -21,11 +21,11 @@
 #include "object_utils.h"
 #include "thread_list.h"
 
-int oatVRegOffset(const art::DexFile::CodeItem* code_item,
+namespace art {
+
+int oatVRegOffset(const DexFile::CodeItem* code_item,
                   uint32_t core_spills, uint32_t fp_spills,
                   size_t frame_size, int reg);
-
-namespace art {
 
 bool Frame::HasMethod() const {
   return GetMethod() != NULL && (!GetMethod()->IsCalleeSaveMethod());
@@ -62,7 +62,7 @@ uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills
 
 uint32_t Frame::GetVReg(Method* m, int vreg) const {
   DCHECK(m == GetMethod());
-  const art::DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
   DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
   uint32_t core_spills = m->GetCoreSpillMask();
   uint32_t fp_spills = m->GetFpSpillMask();
@@ -72,7 +72,7 @@ uint32_t Frame::GetVReg(Method* m, int vreg) const {
 
 void Frame::SetVReg(Method* m, int vreg, uint32_t new_value) {
   DCHECK(m == GetMethod());
-  const art::DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
   DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
   uint32_t core_spills = m->GetCoreSpillMask();
   uint32_t fp_spills = m->GetFpSpillMask();

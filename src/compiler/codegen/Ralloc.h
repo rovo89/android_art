@@ -16,6 +16,7 @@
 
 #ifndef ART_SRC_COMPILER_RALLOC_H_
 #define ART_SRC_COMPILER_RALLOC_H_
+
 /*
  * This file contains target independent register alloction support.
  */
@@ -24,6 +25,8 @@
 #include "../CompilerIR.h"
 #include "../Dataflow.h"
 #include "arm/ArmLIR.h"
+
+namespace art {
 
 /*
  * Return most flexible allowed register class based on size.
@@ -237,4 +240,7 @@ extern void oatDumpCoreRegPool(CompilationUnit* cUint);
 extern void oatDumpFPRegPool(CompilationUnit* cUint);
 extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg);
+
+}  // namespace art
+
 #endif // ART_SRC_COMPILER_RALLOC_H_

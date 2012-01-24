@@ -24,8 +24,8 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
-art::Mutex& GetLoggingLock() {
-  static art::Mutex lock("LogMessage lock");
+Mutex& GetLoggingLock() {
+  static Mutex lock("LogMessage lock");
   return lock;
 }
 
@@ -38,7 +38,7 @@ LogMessage::~LogMessage() {
 
   // Do the actual logging with the lock held.
   {
-    art::MutexLock mu(GetLoggingLock());
+    MutexLock mu(GetLoggingLock());
     if (msg.find('\n') == std::string::npos) {
       LogLine(msg.c_str());
     } else {
@@ -55,7 +55,7 @@ LogMessage::~LogMessage() {
 
   // Abort if necessary.
   if (data_->severity == FATAL) {
-    art::Runtime::Abort(data_->file, data_->line_number);
+    Runtime::Abort(data_->file, data_->line_number);
   }
 
   delete data_;

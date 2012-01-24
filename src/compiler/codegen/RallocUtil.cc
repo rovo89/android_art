@@ -27,6 +27,8 @@
 #include "../Dataflow.h"
 #include "Ralloc.h"
 
+namespace art {
+
 #define SREG(c, s) ((c)->regLocation[(s)].sRegLow)
 /*
  * Get the "real" sreg number associated with an sReg slot.  In general,
@@ -1080,3 +1082,5 @@ extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
     DCHECK(res.wide);
     return res;
 }
+
+}  // namespace art
