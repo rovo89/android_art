@@ -402,7 +402,7 @@ void Trace::DumpMethodList(std::ostream& os) {
 
 static void DumpThread(Thread* t, void* arg) {
   std::ostream* os = reinterpret_cast<std::ostream*>(arg);
-  *os << StringPrintf("%d\t%s\n", t->GetTid(), t->GetName()->ToModifiedUtf8().c_str());
+  *os << StringPrintf("%d\t%s\n", t->GetTid(), t->GetThreadName()->ToModifiedUtf8().c_str());
 }
 
 void Trace::DumpThreadList(std::ostream& os) {

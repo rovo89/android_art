@@ -97,7 +97,11 @@ struct AbortState {
     if (self == NULL) {
       os << "(Aborting thread was not attached to runtime!)\n";
     } else {
-      self->Dump(os, true);
+      self->Dump(os);
+      if (self->IsExceptionPending()) {
+        os << "Pending " << PrettyTypeOf(self->GetException()) << " on thread:\n"
+           << self->GetException()->Dump();
+      }
     }
   }
 };
