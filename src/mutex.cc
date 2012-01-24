@@ -76,6 +76,9 @@ pid_t Mutex::GetOwner() {
     // ...other stuff we don't care about.
   };
   return reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner;
+#elif defined(__APPLE__)
+  // We don't know a way to implement this for Mac OS.
+  return 0;
 #else
   UNIMPLEMENTED(FATAL);
   return 0;
@@ -93,6 +96,8 @@ void Mutex::ClearOwner() {
     // ...other stuff we don't care about.
   };
   reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner = 0;
+#elif defined(__APPLE__)
+  // We don't know a way to implement this for Mac OS.
 #else
   UNIMPLEMENTED(FATAL);
 #endif

@@ -45,11 +45,15 @@ class Mutex {
   }
 
   void AssertHeld() {
+#if !defined(__APPLE__)
     DCHECK_EQ(GetOwner(), GetTid());
+#endif
   }
 
   void AssertNotHeld() {
+#if !defined(__APPLE__)
     DCHECK_NE(GetOwner(), GetTid());
+#endif
   }
 
   pid_t GetOwner();
