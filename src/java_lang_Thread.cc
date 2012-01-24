@@ -75,13 +75,17 @@ void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
   }
 }
 
-void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring) {
+void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread == NULL) {
     return;
   }
-  Dbg::DdmSendThreadNotification(thread, CHUNK_TYPE("THNM"));
+  ScopedUtfChars name(env, javaName);
+  if (name.c_str() == NULL) {
+    return;
+  }
+  thread->SetThreadName(name.c_str());
 }
 
 /*

@@ -1088,7 +1088,7 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
   if (thread == NULL) {
     return false;
   }
-  StringAppendF(&name, "<%d> %s", thread->GetThinLockId(), thread->GetName()->ToModifiedUtf8().c_str());
+  StringAppendF(&name, "<%d> %s", thread->GetThinLockId(), thread->GetThreadName()->ToModifiedUtf8().c_str());
   return true;
 }
 
@@ -1873,7 +1873,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
   } else {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
-    SirtRef<String> name(t->GetName());
+    SirtRef<String> name(t->GetThreadName());
     size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
     const jchar* chars = name->GetCharArray()->GetData();
 

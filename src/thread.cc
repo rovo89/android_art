@@ -173,8 +173,8 @@ void* Thread::CreateCallback(void* arg) {
 
   {
     CHECK_EQ(self->GetState(), Thread::kRunnable);
-    SirtRef<String> thread_name(self->GetName());
-    SetThreadName(thread_name->ToModifiedUtf8().c_str());
+    SirtRef<String> thread_name(self->GetThreadName());
+    self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
   }
 
   Dbg::PostThreadStart(self);
@@ -315,7 +315,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   CHECK(!IsExceptionPending()) << " " << PrettyTypeOf(GetException());
   SetVmData(peer_, Thread::Current());
 
-  SirtRef<String> peer_thread_name(GetName());
+  SirtRef<String> peer_thread_name(GetThreadName());
   if (peer_thread_name.get() == NULL) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
@@ -325,11 +325,11 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
     gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group.get()));
     gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
     gThread_priority->SetInt(peer_, thread_priority);
-    peer_thread_name.reset(GetName());
+    peer_thread_name.reset(GetThreadName());
   }
   // thread_name may have been null, so don't trust this to be non-null
   if (peer_thread_name.get() != NULL) {
-    SetThreadName(GetName()->ToModifiedUtf8().c_str());
+    SetThreadName(peer_thread_name->ToModifiedUtf8().c_str());
   }
 
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
@@ -338,6 +338,12 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
   ScopedLocalRef<jthrowable> exception(env, env->ExceptionOccurred());
   env->ExceptionClear();
   pre_allocated_OutOfMemoryError_ = Decode<Throwable*>(env, exception.get());
+}
+
+void Thread::SetThreadName(const char* name) {
+  name_->assign(name);
+  ::art::SetThreadName(name);
+  Dbg::DdmSendThreadNotification(this, CHUNK_TYPE("THNM"));
 }
 
 void Thread::InitStackHwm() {
@@ -368,12 +374,21 @@ void Thread::InitStackHwm() {
 #endif
 }
 
-void Thread::Dump(std::ostream& os, bool dump_pending_exception) const {
-  DumpState(os);
-  DumpStack(os);
-  if (dump_pending_exception && IsExceptionPending()) {
-    os << "Pending " << PrettyTypeOf(GetException()) << " on thread:\n";
-    os << GetException()->Dump();
+void Thread::Dump(std::ostream& os, bool full) const {
+  if (full) {
+    DumpState(os);
+    DumpStack(os);
+  } else {
+    os << "Thread[";
+    if (GetThinLockId() != 0) {
+      // If we're in kStarting, we won't have a thin lock id or tid yet.
+      os << GetThinLockId()
+         << ",tid=" << GetTid() << ',';
+    }
+    os << GetState()
+       << ",Thread*=" << this
+       << ",\"" << *name_ << "\""
+       << "]";
   }
 }
 
@@ -402,19 +417,16 @@ std::string GetSchedulerGroup(pid_t tid) {
   return "";
 }
 
-String* Thread::GetName() const {
+String* Thread::GetThreadName() const {
   return (peer_ != NULL) ? reinterpret_cast<String*>(gThread_name->GetObject(peer_)) : NULL;
 }
 
 void Thread::DumpState(std::ostream& os) const {
-  std::string thread_name("<native thread without managed peer>");
   std::string group_name;
   int priority;
   bool is_daemon = false;
 
   if (peer_ != NULL) {
-    String* thread_name_string = reinterpret_cast<String*>(gThread_name->GetObject(peer_));
-    thread_name = (thread_name_string != NULL) ? thread_name_string->ToModifiedUtf8() : "<null>";
     priority = gThread_priority->GetInt(peer_);
     is_daemon = gThread_daemon->GetBoolean(peer_);
 
@@ -424,13 +436,6 @@ void Thread::DumpState(std::ostream& os) const {
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
   } else {
-    // This name may be truncated, but it's the best we can do in the absence of a managed peer.
-    std::string stats;
-    if (ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
-      size_t start = stats.find('(') + 1;
-      size_t end = stats.find(')') - start;
-      thread_name = stats.substr(start, end);
-    }
     priority = GetNativePriority();
   }
 
@@ -443,7 +448,7 @@ void Thread::DumpState(std::ostream& os) const {
     scheduler_group = "default";
   }
 
-  os << '"' << thread_name << '"';
+  os << '"' << *name_ << '"';
   if (is_daemon) {
     os << " daemon";
   }
@@ -801,7 +806,8 @@ Thread::Thread()
       throwing_OutOfMemoryError_(false),
       pre_allocated_OutOfMemoryError_(NULL),
       debug_invoke_req_(new DebugInvokeReq),
-      trace_stack_(new std::vector<TraceStackFrame>) {
+      trace_stack_(new std::vector<TraceStackFrame>),
+      name_(new std::string("<native thread without managed peer>")) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
 }
 
@@ -847,6 +853,7 @@ Thread::~Thread() {
 
   delete debug_invoke_req_;
   delete trace_stack_;
+  delete name_;
 }
 
 void Thread::HandleUncaughtExceptions() {
@@ -1608,16 +1615,7 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
-  os << "Thread[";
-  if (thread.GetThinLockId() != 0) {
-    // If we're in kStarting, we won't have a thin lock id or tid yet.
-    os << thread.GetThinLockId()
-       << ",tid=" << thread.GetTid() << ',';
-  }
-  os << thread.GetState()
-     << ",Thread*=" << &thread
-     << ",Object*=" << thread.GetPeer()
-     << "]";
+  thread.Dump(os, false);
   return os;
 }
 

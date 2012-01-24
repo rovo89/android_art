@@ -184,7 +184,9 @@ class PACKED Thread {
   static Thread* FromManagedThread(JNIEnv* env, jobject thread);
   static uint32_t LockOwnerFromThreadLock(Object* thread_lock);
 
-  void Dump(std::ostream& os, bool dump_pending_exception = false) const;
+  // When full == true, dumps the detailed thread state and the thread stack (used for SIGQUIT).
+  // When full == false, dumps a one-line summary of thread state (used for operator<<).
+  void Dump(std::ostream& os, bool full = true) const;
 
   State GetState() const {
     return state_;
@@ -231,7 +233,10 @@ class PACKED Thread {
   }
 
   // Returns the java.lang.Thread's name, or NULL.
-  String* GetName() const;
+  String* GetThreadName() const;
+
+  // Sets the thread's name.
+  void SetThreadName(const char* name);
 
   Object* GetPeer() const {
     return peer_;
@@ -308,8 +313,6 @@ class PACKED Thread {
                                      void* throw_pc,
                                      const DexFile& dex_file,
                                      ClassLinker* class_linker);
-
-  void SetName(const char* name);
 
   static void Startup();
   static void FinishStartup();
@@ -627,6 +630,9 @@ class PACKED Thread {
   // Additional stack used by method tracer to store method and return pc values.
   // Stored as a pointer since std::vector is not PACKED.
   std::vector<TraceStackFrame>* trace_stack_;
+
+  // A cached copy of the java.lang.Thread's name.
+  std::string* name_;
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
