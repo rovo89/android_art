@@ -199,7 +199,13 @@ class CommonTest : public testing::Test {
       // We need to set this so that icu4c can find its locale data.
       std::string root;
       root += getenv("ANDROID_BUILD_TOP");
+#if defined(__linux__)
       root += "/out/host/linux-x86";
+#elif defined(__APPLE__)
+      root += "/out/host/darwin-x86";
+#else
+#error unsupported OS
+#endif
       setenv("ANDROID_ROOT", root.c_str(), 1);
     }
 
