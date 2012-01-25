@@ -1739,10 +1739,9 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
-  static jclass Chunk_class = env->FindClass("org/apache/harmony/dalvik/ddmc/Chunk");
-  static jclass DdmServer_class = env->FindClass("org/apache/harmony/dalvik/ddmc/DdmServer");
-  static jmethodID dispatch_mid = env->GetStaticMethodID(DdmServer_class, "dispatch",
-      "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
+  static jclass Chunk_class = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
+  static jclass DdmServer_class = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
+  static jmethodID dispatch_mid = env->GetStaticMethodID(DdmServer_class, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
   static jfieldID data_fid = env->GetFieldID(Chunk_class, "data", "[B");
   static jfieldID length_fid = env->GetFieldID(Chunk_class, "length", "I");
   static jfieldID offset_fid = env->GetFieldID(Chunk_class, "offset", "I");
@@ -1836,7 +1835,7 @@ void Dbg::DdmBroadcast(bool connect) {
   }
 
   JNIEnv* env = self->GetJniEnv();
-  static jclass DdmServer_class = env->FindClass("org/apache/harmony/dalvik/ddmc/DdmServer");
+  static jclass DdmServer_class = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
   static jmethodID broadcast_mid = env->GetStaticMethodID(DdmServer_class, "broadcast", "(I)V");
   jint event = connect ? 1 /*DdmServer.CONNECTED*/ : 2 /*DdmServer.DISCONNECTED*/;
   env->CallStaticVoidMethod(DdmServer_class, broadcast_mid, event);

@@ -52,18 +52,12 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (c == NULL) {
     // Convert NoClassDefFoundError to ClassNotFoundException.
-    ScopedLocalRef<jthrowable> ncdfe(env, env->ExceptionOccurred());
+    ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
-
-    Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;", name.c_str());
-
-    ScopedLocalRef<jthrowable> cnfe(env, env->ExceptionOccurred());
-    env->ExceptionClear();
-
-    static jclass Throwable_class = env->FindClass("java/lang/Throwable");
-    static jmethodID initCause_mid = env->GetMethodID(Throwable_class, "initCause", "(Ljava/lang/Throwable;)Ljava/lang/Throwable;");
-    env->CallObjectMethod(cnfe.get(), initCause_mid, ncdfe.get());
-    env->Throw(cnfe.get());
+    static jclass ClassNotFoundException_class = CacheClass(env, "java/lang/ClassNotFoundException");
+    static jmethodID ctor = env->GetMethodID(ClassNotFoundException_class, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
+    jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(ClassNotFoundException_class, ctor, javaName, cause.get()));
+    env->Throw(cnfe);
     return NULL;
   }
   if (initialize) {

@@ -1156,8 +1156,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     // Initialize the cause of the NCDFE.
     ScopedLocalRef<jthrowable> ncdfe(env, env->ExceptionOccurred());
     env->ExceptionClear();
-    static jclass Throwable_class = env->FindClass("java/lang/Throwable");
-    static jmethodID initCause_mid = env->GetMethodID(Throwable_class, "initCause", "(Ljava/lang/Throwable;)Ljava/lang/Throwable;");
+    static jmethodID initCause_mid = env->GetMethodID(env->FindClass("java/lang/Throwable"), "initCause", "(Ljava/lang/Throwable;)Ljava/lang/Throwable;");
     env->CallObjectMethod(ncdfe.get(), initCause_mid, cause.get());
     env->Throw(ncdfe.get());
   }

@@ -26,6 +26,7 @@ class Thread;
 void SetJniGlobalsMax(size_t max);
 void JniAbort(const char* jni_function_name);
 void* FindNativeMethod(Thread* thread);
+jclass CacheClass(JNIEnv* env, const char* jni_class_name);
 
 template<typename T> T Decode(JNIEnv*, jobject);
 template<typename T> T AddLocalReference(JNIEnv*, const Object*);

@@ -2964,6 +2964,14 @@ void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }
 
+jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
+  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
+  if (c.get() == NULL) {
+    return NULL;
+  }
+  return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
+}
+
 }  // namespace art
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
