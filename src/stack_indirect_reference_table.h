@@ -29,9 +29,8 @@ class Object;
 // the bridge frame between managed and native code backed by stack
 // storage or manually allocated by SirtRef to hold one reference.
 class StackIndirectReferenceTable {
-public:
-
-  StackIndirectReferenceTable(Object* object) {
+ public:
+  explicit StackIndirectReferenceTable(Object* object) {
     number_of_references_ = 1;
     references_[0] = object;
     Thread::Current()->PushSirt(this);
@@ -86,7 +85,7 @@ public:
     return OFFSETOF_MEMBER(StackIndirectReferenceTable, link_);
   }
 
-private:
+ private:
   StackIndirectReferenceTable() {}
 
   size_t number_of_references_;
@@ -100,8 +99,8 @@ private:
 
 template<class T>
 class SirtRef {
-public:
-  SirtRef(T* object) : sirt_(object) {}
+ public:
+  explicit SirtRef(T* object) : sirt_(object) {}
   ~SirtRef() {}
 
   T& operator*() const { return *get(); }
@@ -114,7 +113,7 @@ public:
     sirt_.SetReference(0, object);
   }
 
-private:
+ private:
   StackIndirectReferenceTable sirt_;
 
   DISALLOW_COPY_AND_ASSIGN(SirtRef);

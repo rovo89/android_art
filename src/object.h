@@ -1259,7 +1259,7 @@ class MANAGED Class : public StaticStorageBase {
   // Depth of class from java.lang.Object
   size_t Depth() {
     size_t depth = 0;
-    for(Class* klass = this; klass->GetSuperClass() != NULL; klass = klass->GetSuperClass()) {
+    for (Class* klass = this; klass->GetSuperClass() != NULL; klass = klass->GetSuperClass()) {
       depth++;
     }
     return depth;

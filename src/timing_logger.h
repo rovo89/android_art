@@ -28,7 +28,7 @@
 namespace art {
 
 class TimingLogger {
-public:
+ public:
   explicit TimingLogger(const char* name) : name_(name) {
     AddSplit("");
   }
@@ -46,7 +46,7 @@ public:
     LOG(INFO) << name_ << ": end, " << ToMs(times_.back() - times_.front()) << " ms";
   }
 
-private:
+ private:
   static uint64_t ToMs(uint64_t ns) {
     return ns/1000/1000;
   }

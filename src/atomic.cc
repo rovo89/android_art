@@ -43,7 +43,7 @@ namespace art {
 #else
 
 int QuasiAtomicCas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
-  return OSAtomicCompareAndSwap64Barrier(old_value, new_value, (int64_t*)addr) == 0;
+  return OSAtomicCompareAndSwap64Barrier(old_value, new_value, const_cast<int64_t*>(addr)) == 0;
 }
 
 static inline int64_t QuasiAtomicSwap64Impl(int64_t value, volatile int64_t* addr) {

@@ -70,7 +70,7 @@ struct DebugInvokeReq {
 };
 
 class Dbg {
-public:
+ public:
   static bool ParseJdwpOptions(const std::string& options);
   static void SetJdwpAllowed(bool allowed);
 

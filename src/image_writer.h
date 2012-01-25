@@ -22,7 +22,7 @@ namespace art {
 // Write a Space built during compilation for use during execution.
 class ImageWriter {
  public:
-  ImageWriter(const std::set<std::string>* image_classes)
+  explicit ImageWriter(const std::set<std::string>* image_classes)
       : source_space_(NULL), image_top_(0), image_base_(NULL), image_classes_(image_classes) {}
 
   ~ImageWriter() {}

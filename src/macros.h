@@ -16,9 +16,7 @@
 
 #include <stddef.h>  // for size_t
 
-#define GCC_VERSION (  _GNUC_ * 10000      \
-                     + _GNUC_MINOR_ * 100  \
-                     + __GNUC_PATCHLEVEL__)
+#define GCC_VERSION (_GNUC_ * 10000 + _GNUC_MINOR_ * 100 + __GNUC_PATCHLEVEL__)
 
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the
@@ -116,7 +114,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define ARRAYSIZE_UNSAFE(a) \
   ((sizeof(a) / sizeof(*(a))) / static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
 
-#define SIZEOF_MEMBER(t, f) sizeof(((t*) 4096)->f)
+#define SIZEOF_MEMBER(t, f) sizeof((reinterpret_cast<t*>(4096))->f)
 
 #define OFFSETOF_MEMBER(t, f) \
   (reinterpret_cast<char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<char*>(16))
@@ -126,8 +124,8 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 #define PACKED __attribute__ ((__packed__))
 
-#define LIKELY(x)       __builtin_expect((x),true)
-#define UNLIKELY(x)     __builtin_expect((x),false)
+#define LIKELY(x)       __builtin_expect((x), true)
+#define UNLIKELY(x)     __builtin_expect((x), false)
 
 // bionic and glibc both have TEMP_FAILURE_RETRY, but Mac OS' libc doesn't.
 #ifndef TEMP_FAILURE_RETRY

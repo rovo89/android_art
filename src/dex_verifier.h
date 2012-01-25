@@ -695,7 +695,7 @@ class RegisterLine {
 
   size_t GetMaxNonZeroReferenceReg(size_t max_ref_reg) {
     size_t i = static_cast<int>(max_ref_reg) < 0 ? 0 : max_ref_reg;
-    for(; i < num_regs_; i++) {
+    for (; i < num_regs_; i++) {
       if (GetRegisterType(i).IsNonZeroReferenceTypes()) {
         max_ref_reg = i;
       }
@@ -853,13 +853,13 @@ class DexVerifier {
     CHECK_EQ(failure_, VERIFY_ERROR_NONE);
     failure_ = error;
     return fail_messages_ << "VFY: " << PrettyMethod(method_)
-                          << '[' << (void*)work_insn_idx_ << "] : ";
+                          << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
   }
 
   // Log for verification information
   std::ostream& LogVerifyInfo() {
     return info_messages_ << "VFY: " << PrettyMethod(method_)
-                          << '[' << (void*)work_insn_idx_ << "] : ";
+                          << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
   }
 
   // Dump the state of the verifier, namely each instruction, what flags are set on it, register

@@ -31,7 +31,7 @@ class Thread;
  */
 class SignalCatcher {
  public:
-  SignalCatcher(const std::string& stack_trace_file);
+  explicit SignalCatcher(const std::string& stack_trace_file);
   ~SignalCatcher();
 
   void HandleSigQuit();

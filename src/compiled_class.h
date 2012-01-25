@@ -9,8 +9,8 @@ namespace art {
 
 class CompiledClass {
  public:
-  CompiledClass(Class::Status status) : status_(status) {};
-  ~CompiledClass() {};
+  explicit CompiledClass(Class::Status status) : status_(status) {}
+  ~CompiledClass() {}
   Class::Status GetStatus() const {
     return status_;
   }
@@ -21,4 +21,3 @@ class CompiledClass {
 }  // namespace art
 
 #endif  // ART_SRC_COMPILED_CLASS_H_
-

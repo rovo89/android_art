@@ -87,7 +87,6 @@ class CallingConvention {
       return true;  // this argument
     }
     return shorty_[param] == 'L';
-
   }
   size_t NumArgs() const {
     return num_args_;

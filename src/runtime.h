@@ -219,7 +219,7 @@ class Runtime {
 
   bool Init(const Options& options, bool ignore_unrecognized);
   void InitNativeMethods();
-  void RegisterRuntimeNativeMethods(JNIEnv*);
+  void RegisterRuntimeNativeMethods(JNIEnv* env);
 
   void StartDaemonThreads();
   void StartSignalCatcher();

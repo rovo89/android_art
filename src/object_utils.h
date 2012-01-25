@@ -232,7 +232,7 @@ class ClassHelper {
 class FieldHelper {
  public:
   FieldHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(NULL) {}
-  FieldHelper(const Field* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
+  explicit FieldHelper(const Field* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
   FieldHelper(const Field* f, ClassLinker* l) : class_linker_(l), dex_cache_(NULL), dex_file_(NULL),
       field_(f) {}
 
@@ -370,7 +370,7 @@ class MethodHelper {
  public:
   MethodHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL),
       shorty_(NULL), shorty_len_(0) {}
-  MethodHelper(const Method* m) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL),
+  explicit MethodHelper(const Method* m) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL),
       method_(NULL), shorty_(NULL), shorty_len_(0) {
     SetMethod(m);
   }

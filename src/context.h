@@ -37,7 +37,7 @@ class Context {
 
 class VmapTable {
  public:
-  VmapTable(const uint16_t* table) : table_(table) {
+  explicit VmapTable(const uint16_t* table) : table_(table) {
   }
 
   uint16_t operator[](size_t i) const {
