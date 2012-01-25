@@ -109,7 +109,7 @@ uint32_t CompiledMethod::AlignCode(uint32_t offset, InstructionSet instruction_s
     case kX86:
       return offset;
     default:
-      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      LOG(FATAL) << "Unknown InstructionSet: " << static_cast<int>(instruction_set);
       return 0;
   }
 }
@@ -124,7 +124,7 @@ size_t CompiledMethod::CodeDelta() const {
       return 1;
     }
     default:
-      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set_;
+      LOG(FATAL) << "Unknown InstructionSet: " << static_cast<int>(instruction_set_);
       return 0;
   }
 }
@@ -142,7 +142,7 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
       return reinterpret_cast<const void*>(address);
     }
     default:
-      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      LOG(FATAL) << "Unknown InstructionSet: " << static_cast<int>(instruction_set);
       return NULL;
   }
 }

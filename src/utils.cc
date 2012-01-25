@@ -127,7 +127,6 @@ std::string PrettyDescriptor(const Class* klass) {
     return "null";
   }
   return PrettyDescriptor(ClassHelper(klass).GetDescriptor());
-
 }
 
 std::string PrettyDescriptor(const std::string& descriptor) {

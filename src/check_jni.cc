@@ -134,7 +134,7 @@ bool ShouldTrace(JavaVMExt* vm, const Method* method) {
 }
 
 class ScopedCheck {
-public:
+ public:
   // For JNIEnv* functions.
   explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName) {
     Init(env, reinterpret_cast<JNIEnvExt*>(env)->vm, flags, functionName, true);
@@ -554,11 +554,11 @@ public:
         } else if (ch == 'z') {
           CheckLengthPositive(va_arg(ap, jsize));
         } else if (strchr("BCISZbfmpEv", ch) != NULL) {
-          va_arg(ap, int); // Skip this argument.
+          va_arg(ap, uint32_t); // Skip this argument.
         } else if (ch == 'D' || ch == 'F') {
           va_arg(ap, double); // Skip this argument.
         } else if (ch == 'J') {
-          va_arg(ap, long); // Skip this argument.
+          va_arg(ap, uint64_t); // Skip this argument.
         } else if (ch == '.') {
         } else {
           LOG(FATAL) << "Unknown check format specifier: " << ch;
@@ -568,7 +568,7 @@ public:
     }
   }
 
-private:
+ private:
   void Init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
     env_ = reinterpret_cast<JNIEnvExt*>(env);
     vm_ = reinterpret_cast<JavaVMExt*>(vm);
@@ -943,7 +943,7 @@ struct GuardedCopy {
     uint8_t* newBuf = DebugAlloc(newLen);
 
     /* fill it in with a pattern */
-    uint16_t* pat = (uint16_t*) newBuf;
+    uint16_t* pat = reinterpret_cast<uint16_t*>(newBuf);
     for (size_t i = 0; i < newLen / 2; i++) {
       *pat++ = kGuardPattern;
     }
@@ -955,8 +955,8 @@ struct GuardedCopy {
     uLong adler = 0;
     if (!modOkay) {
       adler = adler32(0L, Z_NULL, 0);
-      adler = adler32(adler, (const Bytef*)buf, len);
-      *(uLong*)newBuf = adler;
+      adler = adler32(adler, reinterpret_cast<const Bytef*>(buf), len);
+      *reinterpret_cast<uLong*>(newBuf) = adler;
     }
 
     GuardedCopy* pExtra = reinterpret_cast<GuardedCopy*>(newBuf);
@@ -973,7 +973,7 @@ struct GuardedCopy {
    */
   static void* Destroy(void* dataBuf) {
     const GuardedCopy* pExtra = GuardedCopy::FromData(dataBuf);
-    void* original_ptr = (void*) pExtra->original_ptr;
+    void* original_ptr = const_cast<void*>(pExtra->original_ptr);
     size_t len = pExtra->original_length;
     DebugFree(dataBuf, len);
     return original_ptr;
@@ -1008,10 +1008,10 @@ struct GuardedCopy {
     size_t len = pExtra->original_length;
 
     /* check bottom half of guard; skip over optional checksum storage */
-    const uint16_t* pat = (uint16_t*) fullBuf;
+    const uint16_t* pat = reinterpret_cast<const uint16_t*>(fullBuf);
     for (size_t i = sizeof(GuardedCopy) / 2; i < (kGuardLen / 2 - sizeof(GuardedCopy)) / 2; i++) {
       if (pat[i] != kGuardPattern) {
-        LOG(ERROR) << "JNI: guard pattern(1) disturbed at " << (void*) fullBuf << " + " << (i*2);
+        LOG(ERROR) << "JNI: guard pattern(1) disturbed at " << reinterpret_cast<const void*>(fullBuf) << " + " << (i*2);
         JniAbort(functionName);
       }
     }
@@ -1020,9 +1020,9 @@ struct GuardedCopy {
     if (offset & 0x01) {
       /* odd byte; expected value depends on endian-ness of host */
       const uint16_t patSample = kGuardPattern;
-      if (fullBuf[offset] != ((const uint8_t*) &patSample)[1]) {
+      if (fullBuf[offset] != reinterpret_cast<const uint8_t*>(&patSample)[1]) {
         LOG(ERROR) << "JNI: guard pattern disturbed in odd byte after "
-                   << (void*) fullBuf << " (+" << offset << ") "
+                   << reinterpret_cast<const void*>(fullBuf) << " (+" << offset << ") "
                    << StringPrintf("0x%02x 0x%02x", fullBuf[offset], ((const uint8_t*) &patSample)[1]);
         JniAbort(functionName);
       }
@@ -1030,10 +1030,10 @@ struct GuardedCopy {
     }
 
     /* check top half of guard */
-    pat = (uint16_t*) (fullBuf + offset);
+    pat = reinterpret_cast<const uint16_t*>(fullBuf + offset);
     for (size_t i = 0; i < kGuardLen / 4; i++) {
       if (pat[i] != kGuardPattern) {
-        LOG(ERROR) << "JNI: guard pattern(2) disturbed at " << (void*) fullBuf << " + " << (offset + i*2);
+        LOG(ERROR) << "JNI: guard pattern(2) disturbed at " << reinterpret_cast<const void*>(fullBuf) << " + " << (offset + i*2);
         JniAbort(functionName);
       }
     }
@@ -1071,7 +1071,7 @@ struct GuardedCopy {
     //     LOGW("mprotect(PROT_NONE) failed: %s", strerror(errno));
     // }
     if (munmap(fullBuf, totalByteCount) != 0) {
-      PLOG(FATAL) << "munmap(" << (void*) fullBuf << ", " << totalByteCount << ") failed";
+      PLOG(FATAL) << "munmap(" << reinterpret_cast<void*>(fullBuf) << ", " << totalByteCount << ") failed";
     }
   }
 
@@ -1385,7 +1385,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
-        _retasgn baseEnv(env)->Call##_jname##MethodV(env, obj, mid, args); \
+        _retasgn(baseEnv(env)->Call##_jname##MethodV(env, obj, mid, args)); \
         va_end(args); \
         _retok; \
     } \
@@ -1396,7 +1396,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
-        _retasgn baseEnv(env)->Call##_jname##MethodV(env, obj, mid, args); \
+        _retasgn(baseEnv(env)->Call##_jname##MethodV(env, obj, mid, args)); \
         _retok; \
     } \
     static _ctype Call##_jname##MethodA(JNIEnv* env, jobject obj, \
@@ -1406,7 +1406,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
-        _retasgn baseEnv(env)->Call##_jname##MethodA(env, obj, mid, args); \
+        _retasgn(baseEnv(env)->Call##_jname##MethodA(env, obj, mid, args)); \
         _retok; \
     } \
     /* Non-virtual... */ \
@@ -1419,7 +1419,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
-        _retasgn baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args); \
+        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args)); \
         va_end(args); \
         _retok; \
     } \
@@ -1430,7 +1430,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
-        _retasgn baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args); \
+        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args)); \
         _retok; \
     } \
     static _ctype CallNonvirtual##_jname##MethodA(JNIEnv* env, \
@@ -1440,7 +1440,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
-        _retasgn baseEnv(env)->CallNonvirtual##_jname##MethodA(env, obj, clazz, mid, args); \
+        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodA(env, obj, clazz, mid, args)); \
         _retok; \
     } \
     /* Static... */ \
@@ -1453,7 +1453,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
-        _retasgn baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args); \
+        _retasgn(baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args)); \
         va_end(args); \
         _retok; \
     } \
@@ -1464,7 +1464,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         sc.CheckSig(mid, _retsig, true); \
         sc.CheckStaticMethod(clazz, mid); \
         _retdecl; \
-        _retasgn baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args); \
+         _retasgn(baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args)); \
         _retok; \
     } \
     static _ctype CallStatic##_jname##MethodA(JNIEnv* env, \
@@ -1474,22 +1474,22 @@ FIELD_ACCESSORS(jdouble, Double, "D");
         sc.CheckSig(mid, _retsig, true); \
         sc.CheckStaticMethod(clazz, mid); \
         _retdecl; \
-        _retasgn baseEnv(env)->CallStatic##_jname##MethodA(env, clazz, mid, args); \
+        _retasgn(baseEnv(env)->CallStatic##_jname##MethodA(env, clazz, mid, args)); \
         _retok; \
     }
 
 #define NON_VOID_RETURN(_retsig, _ctype) return CHECK_JNI_EXIT(_retsig, (_ctype) result)
 #define VOID_RETURN CHECK_JNI_EXIT_VOID()
 
-CALL(jobject, Object, Object* result, result=(Object*), NON_VOID_RETURN("L", jobject), "L");
-CALL(jboolean, Boolean, jboolean result, result=, NON_VOID_RETURN("Z", jboolean), "Z");
-CALL(jbyte, Byte, jbyte result, result=, NON_VOID_RETURN("B", jbyte), "B");
-CALL(jchar, Char, jchar result, result=, NON_VOID_RETURN("C", jchar), "C");
-CALL(jshort, Short, jshort result, result=, NON_VOID_RETURN("S", jshort), "S");
-CALL(jint, Int, jint result, result=, NON_VOID_RETURN("I", jint), "I");
-CALL(jlong, Long, jlong result, result=, NON_VOID_RETURN("J", jlong), "J");
-CALL(jfloat, Float, jfloat result, result=, NON_VOID_RETURN("F", jfloat), "F");
-CALL(jdouble, Double, jdouble result, result=, NON_VOID_RETURN("D", jdouble), "D");
+CALL(jobject, Object, Object* result, result = reinterpret_cast<Object*>, NON_VOID_RETURN("L", jobject), "L");
+CALL(jboolean, Boolean, jboolean result, result =, NON_VOID_RETURN("Z", jboolean), "Z");
+CALL(jbyte, Byte, jbyte result, result =, NON_VOID_RETURN("B", jbyte), "B");
+CALL(jchar, Char, jchar result, result =, NON_VOID_RETURN("C", jchar), "C");
+CALL(jshort, Short, jshort result, result =, NON_VOID_RETURN("S", jshort), "S");
+CALL(jint, Int, jint result, result =, NON_VOID_RETURN("I", jint), "I");
+CALL(jlong, Long, jlong result, result =, NON_VOID_RETURN("J", jlong), "J");
+CALL(jfloat, Float, jfloat result, result =, NON_VOID_RETURN("F", jfloat), "F");
+CALL(jdouble, Double, jdouble result, result =, NON_VOID_RETURN("D", jdouble), "D");
 CALL(void, Void, , , VOID_RETURN, "V");
 
   static jstring NewString(JNIEnv* env, const jchar* unicodeChars, jsize len) {
@@ -1522,7 +1522,7 @@ CALL(void, Void, , , VOID_RETURN, "V");
     sc.CheckNonNull(chars);
     if (sc.ForceCopy()) {
       GuardedCopy::Check(__FUNCTION__, chars, false);
-      chars = (const jchar*) GuardedCopy::Destroy((jchar*)chars);
+      chars = reinterpret_cast<const jchar*>(GuardedCopy::Destroy(const_cast<jchar*>(chars)));
     }
     baseEnv(env)->ReleaseStringChars(env, string, chars);
     CHECK_JNI_EXIT_VOID();
@@ -1554,7 +1554,7 @@ CALL(void, Void, , , VOID_RETURN, "V");
     CHECK_JNI_ENTRY(kFlag_ExcepOkay | kFlag_Release, "Esu", env, string, utf); // TODO: show pointer and truncate string.
     if (sc.ForceCopy()) {
       GuardedCopy::Check(__FUNCTION__, utf, false);
-      utf = (const char*) GuardedCopy::Destroy((char*)utf);
+      utf = reinterpret_cast<const char*>(GuardedCopy::Destroy(const_cast<char*>(utf)));
     }
     baseEnv(env)->ReleaseStringUTFChars(env, string, utf);
     CHECK_JNI_EXIT_VOID();
@@ -1596,13 +1596,13 @@ NEW_PRIMITIVE_ARRAY(jfloatArray, Float);
 NEW_PRIMITIVE_ARRAY(jdoubleArray, Double);
 
 struct ForceCopyGetChecker {
-public:
+ public:
   ForceCopyGetChecker(ScopedCheck& sc, jboolean* isCopy) {
     force_copy = sc.ForceCopy();
     no_copy = 0;
     if (force_copy && isCopy != NULL) {
       /* capture this before the base call tramples on it */
-      no_copy = *(uint32_t*) isCopy;
+      no_copy = *reinterpret_cast<uint32_t*>(isCopy);
     }
   }
 
@@ -1744,7 +1744,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
     sc.CheckNonNull(carray);
     if (sc.ForceCopy()) {
       GuardedCopy::Check(__FUNCTION__, carray, false);
-      carray = (const jchar*) GuardedCopy::Destroy((jchar*)carray);
+      carray = reinterpret_cast<const jchar*>(GuardedCopy::Destroy(const_cast<jchar*>(carray)));
     }
     baseEnv(env)->ReleaseStringCritical(env, string, carray);
     CHECK_JNI_EXIT_VOID();
@@ -2040,7 +2040,7 @@ const JNINativeInterface* GetCheckJniNativeInterface() {
 }
 
 class CheckJII {
-public:
+ public:
   static jint DestroyJavaVM(JavaVM* vm) {
     ScopedCheck sc(vm, false, __FUNCTION__);
     sc.Check(true, "v", vm);

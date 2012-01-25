@@ -562,7 +562,7 @@ int32_t DexFile::GetLineNumFromPC(const Method* method, uint32_t rel_pc) const {
 }
 
 int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries_size,
-                                        uint32_t address){
+                                        uint32_t address) {
   // Note: Signed type is important for max and min.
   int32_t min = 0;
   int32_t max = tries_size - 1;
@@ -763,7 +763,7 @@ void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_
 }
 
 bool DexFile::LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num) {
-  LineNumFromPcContext* context = (LineNumFromPcContext*) cnxt;
+  LineNumFromPcContext* context = reinterpret_cast<LineNumFromPcContext*>(cnxt);
 
   // We know that this callback will be called in
   // ascending address order, so keep going until we find

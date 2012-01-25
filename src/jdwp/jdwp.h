@@ -259,7 +259,7 @@ struct JdwpState {
   void UnregisterAll();
 
  private:
-  JdwpState(const JdwpOptions* options);
+  explicit JdwpState(const JdwpOptions* options);
   bool InvokeInProgress();
   bool IsConnected();
   void SuspendByPolicy(JdwpSuspendPolicy suspendPolicy);

@@ -393,7 +393,7 @@ void Trace::DumpMethodList(std::ostream& os) {
   for (It it = visited_methods_.begin(); it != visited_methods_.end(); ++it) {
     const Method* method = *it;
     MethodHelper mh(method);
-    os << StringPrintf("0x%08x\t%s\t%s\t%s\t%s\t%d\n", (int) method,
+    os << StringPrintf("%p\t%s\t%s\t%s\t%s\t%d\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),
         mh.GetSignature().c_str(), mh.GetDeclaringClassSourceFile(),
         mh.GetLineNumFromNativePC(0));

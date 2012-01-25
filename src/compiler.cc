@@ -74,7 +74,7 @@ ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
     case kX86:
       return x86::CreateJniDlsymLookupStub();
     default:
-      LOG(FATAL) << "Unknown InstructionSet " << (int) instruction_set;
+      LOG(FATAL) << "Unknown InstructionSet: " << static_cast<int>(instruction_set);
       return NULL;
   }
 }
@@ -338,7 +338,6 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
     }
     // clear any class not found or verification exceptions
     Thread::Current()->ClearException();
-
   }
 
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);

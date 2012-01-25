@@ -49,7 +49,7 @@ void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
   const char* argp[] = {_PATH_BSHELL, "-c", command.c_str(), NULL};
   LOG(INFO) << "Exec: " << argp[0] << ' ' << argp[1] << ' ' << argp[2];
 
-  execv(_PATH_BSHELL, (char**)argp);
+  execv(_PATH_BSHELL, const_cast<char**>(argp));
   exit(127);
 }
 
@@ -266,8 +266,7 @@ extern "C" int gMallocLeakZygoteChild;
 // Utility routine to fork zygote and specialize the child process.
 pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
                               jint debug_flags, jobjectArray javaRlimits,
-                              jlong permittedCapabilities, jlong effectiveCapabilities)
-{
+                              jlong permittedCapabilities, jlong effectiveCapabilities) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsZygote()) << "runtime instance not started with -Xzygote";
   if (false) { // TODO: do we need do anything special like !dvmGcPreZygoteFork()?

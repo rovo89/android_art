@@ -133,7 +133,7 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
 size_t OatWriter::InitOatCodeDexFile(size_t offset,
                                      size_t& oat_class_index,
                                      const DexFile& dex_file) {
-   for (size_t class_def_index = 0;
+  for (size_t class_def_index = 0;
        class_def_index < dex_file.NumClassDefs();
        class_def_index++, oat_class_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);

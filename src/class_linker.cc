@@ -549,7 +549,6 @@ void ClassLinker::RunRootClinits() {
 bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
                                   int oat_fd,
                                   const std::string& oat_cache_filename) {
-
   std::string dex2oat_string("/system/bin/dex2oat");
 #ifndef NDEBUG
   dex2oat_string += 'd';
@@ -823,7 +822,7 @@ void ClassLinker::InitFromImage() {
 
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   for (size_t i = 0; i < spaces.size(); i++) {
-    Space* space = spaces[i] ;
+    Space* space = spaces[i];
     if (space->IsImageSpace()) {
       OatFile* oat_file = OpenOat(space);
       CHECK(oat_file != NULL) << "Failed to open oat file for image";
@@ -1078,7 +1077,7 @@ Class* ClassLinker::FindSystemClass(const char* descriptor) {
 }
 
 Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_loader) {
-  DCHECK(*descriptor != '\0') << "descriptor is empty string";
+  DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
   CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
@@ -2044,7 +2043,7 @@ static void CheckProxyConstructor(Method* constructor) {
   CHECK(constructor->IsConstructor());
   MethodHelper mh(constructor);
   CHECK_STREQ(mh.GetName(), "<init>");
-  CHECK(mh.GetSignature() == "(Ljava/lang/reflect/InvocationHandler;)V");
+  CHECK_EQ(mh.GetSignature(), std::string("(Ljava/lang/reflect/InvocationHandler;)V"));
   DCHECK(constructor->IsPublic());
 }
 
@@ -2801,7 +2800,7 @@ bool ClassLinker::LinkStaticFields(SirtRef<Class>& klass) {
 }
 
 struct LinkFieldsComparator {
-  LinkFieldsComparator(FieldHelper* fh) : fh_(fh) {}
+  explicit LinkFieldsComparator(FieldHelper* fh) : fh_(fh) {}
   bool operator()(const Field* field1, const Field* field2) {
     // First come reference fields, then 64-bit, and finally 32-bit
     fh_->ChangeField(field1);
@@ -2929,8 +2928,7 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
     fh.ChangeField(fields->Get(num_fields - 1));
-    StringPiece name(fh.GetName());
-    CHECK(name == "referent");
+    CHECK_STREQ(fh.GetName(), "referent");
     --num_reference_fields;
   }
 

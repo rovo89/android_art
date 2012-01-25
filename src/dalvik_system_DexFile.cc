@@ -45,40 +45,38 @@ namespace {
 //
 // TODO: rewrite to get rid of this, or change ScopedUtfChars to offer this option.
 class NullableScopedUtfChars {
-public:
-    NullableScopedUtfChars(JNIEnv* env, jstring s)
-    : mEnv(env), mString(s)
-    {
-        mUtfChars = (s != NULL) ? env->GetStringUTFChars(s, NULL) : NULL;
+ public:
+  NullableScopedUtfChars(JNIEnv* env, jstring s) : mEnv(env), mString(s) {
+    mUtfChars = (s != NULL) ? env->GetStringUTFChars(s, NULL) : NULL;
+  }
+
+  ~NullableScopedUtfChars() {
+    if (mUtfChars) {
+      mEnv->ReleaseStringUTFChars(mString, mUtfChars);
     }
+  }
 
-    ~NullableScopedUtfChars() {
-        if (mUtfChars) {
-            mEnv->ReleaseStringUTFChars(mString, mUtfChars);
-        }
-    }
+  const char* c_str() const {
+    return mUtfChars;
+  }
 
-    const char* c_str() const {
-        return mUtfChars;
-    }
+  size_t size() const {
+    return strlen(mUtfChars);
+  }
 
-    size_t size() const {
-        return strlen(mUtfChars);
-    }
+  // Element access.
+  const char& operator[](size_t n) const {
+    return mUtfChars[n];
+  }
 
-    // Element access.
-    const char& operator[](size_t n) const {
-        return mUtfChars[n];
-    }
+ private:
+  JNIEnv* mEnv;
+  jstring mString;
+  const char* mUtfChars;
 
-private:
-    JNIEnv* mEnv;
-    jstring mString;
-    const char* mUtfChars;
-
-    // Disallow copy and assignment.
-    NullableScopedUtfChars(const NullableScopedUtfChars&);
-    void operator=(const NullableScopedUtfChars&);
+  // Disallow copy and assignment.
+  NullableScopedUtfChars(const NullableScopedUtfChars&);
+  void operator=(const NullableScopedUtfChars&);
 };
 
 static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
