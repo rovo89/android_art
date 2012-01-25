@@ -106,6 +106,7 @@ typedef enum DataFlowAttributePos {
 #define DF_B_IS_REG             (DF_UB | DF_UB_WIDE)
 #define DF_C_IS_REG             (DF_UC | DF_UC_WIDE)
 #define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
+#define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
 
 extern int oatDataFlowAttributes[kMirOpLast];
 

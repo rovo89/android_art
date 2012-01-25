@@ -32,6 +32,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kNullCheckElimination) |
      //(1 << kPromoteRegs) |
      //(1 << kTrackLiveTemps) |
+     //(1 << kSkipLargeMethodOptimization) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
@@ -840,6 +841,9 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
         codePtr += width;
         int flags = dexGetFlagsFromOpcode(insn->dalvikInsn.opcode);
 
+        cUnit->usesFP |= (oatDataFlowAttributes[insn->dalvikInsn.opcode] &
+              DF_USES_FP);
+
         if (flags & kInstrCanBranch) {
             curBlock = processCanBranch(cUnit.get(), curBlock, insn, curOffset,
                                         width, flags, codePtr, codeEnd);
@@ -896,6 +900,24 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
                 oatSetBit(nextBlock->predecessors, curBlock->id);
             }
             curBlock = nextBlock;
+        }
+    }
+
+    if (!cUnit->usesFP &&
+        !(cUnit->disableOpt & (1 << kSkipLargeMethodOptimization))) {
+        if ((cUnit->numBlocks > MANY_BLOCKS) ||
+              ((cUnit->numBlocks > MANY_BLOCKS_INITIALIZER) &&
+               PrettyMethod(method_idx, dex_file).find("init>") !=
+               std::string::npos)) {
+            cUnit->disableDataflow = true;
+            // Disable optimization which require dataflow/ssa
+            cUnit->disableOpt |=
+                (1 << kNullCheckElimination) |
+                (1 << kPromoteRegs);
+            if (cUnit->printMe) {
+                LOG(INFO) << "Compiler: " << PrettyMethod(method_idx, dex_file)
+                   << " too big: " << cUnit->numBlocks;
+            }
         }
     }
 

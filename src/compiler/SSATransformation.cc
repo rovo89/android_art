@@ -759,17 +759,21 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
     /* Compute the DFS order */
     computeDFSOrders(cUnit);
 
-    /* Compute the dominator info */
-    computeDominators(cUnit);
+    if (!cUnit->disableDataflow) {
+        /* Compute the dominator info */
+        computeDominators(cUnit);
+    }
 
     /* Allocate data structures in preparation for SSA conversion */
     oatInitializeSSAConversion(cUnit);
 
-    /* Find out the "Dalvik reg def x block" relation */
-    computeDefBlockMatrix(cUnit);
+    if (!cUnit->disableDataflow) {
+        /* Find out the "Dalvik reg def x block" relation */
+        computeDefBlockMatrix(cUnit);
 
-    /* Insert phi nodes to dominance frontiers for all variables */
-    insertPhiNodes(cUnit);
+        /* Insert phi nodes to dominance frontiers for all variables */
+        insertPhiNodes(cUnit);
+    }
 
     /* Rename register names by local defs and phi nodes */
     oatDataFlowAnalysisDispatcher(cUnit, oatClearVisitedFlag,
@@ -777,17 +781,19 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
                                           false /* isIterative */);
     doDFSPreOrderSSARename(cUnit, cUnit->entryBlock);
 
-    /*
-     * Shared temp bit vector used by each block to count the number of defs
-     * from all the predecessor blocks.
-     */
-    cUnit->tempSSARegisterV = oatAllocBitVector(cUnit->numSSARegs,
+    if (!cUnit->disableDataflow) {
+        /*
+         * Shared temp bit vector used by each block to count the number of defs
+         * from all the predecessor blocks.
+         */
+        cUnit->tempSSARegisterV = oatAllocBitVector(cUnit->numSSARegs,
                                                         false);
 
-    /* Insert phi-operands with latest SSA names from predecessor blocks */
-    oatDataFlowAnalysisDispatcher(cUnit, insertPhiNodeOperands,
-                                          kReachableNodes,
-                                          false /* isIterative */);
+        /* Insert phi-operands with latest SSA names from predecessor blocks */
+        oatDataFlowAnalysisDispatcher(cUnit, insertPhiNodeOperands,
+                                      kReachableNodes,
+                                      false /* isIterative */);
+    }
 }
 
 }  // namespace art

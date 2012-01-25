@@ -38,6 +38,7 @@ enum optControlVector {
     kNullCheckElimination,
     kPromoteRegs,
     kTrackLiveTemps,
+    kSkipLargeMethodOptimization,
 };
 
 extern uint32_t compilerOptimizerDisableFlags;

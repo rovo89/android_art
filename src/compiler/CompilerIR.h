@@ -60,6 +60,19 @@ typedef struct RegLocation {
 #define INVALID_REG (0xFF)
 #define INVALID_OFFSET (-1)
 
+/*
+ * Some code patterns cause the generation of excessively large
+ * methods - in particular initialization sequences.  There isn't much
+ * benefit in optimizing these methods, and the cost can be very high.
+ * We attempt to identify these cases, and avoid performing most dataflow
+ * analysis.  Two thresholds are used - one for known initializers and one
+ * for everything else.  Note: we require dataflow analysis for floating point
+ * type inference. If any non-move fp operations exist in a method, dataflow
+ * is performed regardless of block count.
+ */
+#define MANY_BLOCKS_INITIALIZER 200 /* Threshold for switching dataflow off */
+#define MANY_BLOCKS 3000 /* Non-initializer threshold */
+
 typedef enum BBType {
     kEntryBlock,
     kDalvikByteCode,
@@ -315,6 +328,8 @@ typedef struct CompilationUnit {
      GrowableList fillArrayData;
      const u2* insns;
      u4 insnsSize;
+     bool usesFP;          // Method contains at least 1 non-move FP operation
+     bool disableDataflow; // Skip dataflow analysis if possible
      std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
 } CompilationUnit;
 
