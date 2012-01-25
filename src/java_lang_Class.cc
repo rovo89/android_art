@@ -51,11 +51,19 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (c == NULL) {
-    // Convert NoClassDefFoundError to ClassNotFoundException
-    // TODO: chain exceptions?
-    DCHECK(env->ExceptionCheck());
+    // Convert NoClassDefFoundError to ClassNotFoundException.
+    ScopedLocalRef<jthrowable> ncdfe(env, env->ExceptionOccurred());
     env->ExceptionClear();
+
     Thread::Current()->ThrowNewException("Ljava/lang/ClassNotFoundException;", name.c_str());
+
+    ScopedLocalRef<jthrowable> cnfe(env, env->ExceptionOccurred());
+    env->ExceptionClear();
+
+    static jclass Throwable_class = env->FindClass("java/lang/Throwable");
+    static jmethodID initCause_mid = env->GetMethodID(Throwable_class, "initCause", "(Ljava/lang/Throwable;)Ljava/lang/Throwable;");
+    env->CallObjectMethod(cnfe.get(), initCause_mid, ncdfe.get());
+    env->Throw(cnfe.get());
     return NULL;
   }
   if (initialize) {

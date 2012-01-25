@@ -1093,6 +1093,8 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     return EnsureResolved(klass);
   }
   // Class is not yet loaded.
+  JNIEnv* env = self->GetJniEnv();
+  ScopedLocalRef<jthrowable> cause(env, NULL);
   if (descriptor[0] == '[') {
     return CreateArrayClass(descriptor, class_loader);
 
@@ -1122,7 +1124,6 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
   } else {
     std::string class_name_string(DescriptorToDot(descriptor));
     ScopedThreadStateChange(self, Thread::kNative);
-    JNIEnv* env = self->GetJniEnv();
     ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
     CHECK(c.get() != NULL);
     // TODO: cache method?
@@ -1135,9 +1136,10 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
     ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid,
                                                               class_name_object.get()));
-    if (env->ExceptionOccurred()) {
-      env->ExceptionClear();  // Failed to find class fall-through to NCDFE
-      // TODO: initialize the cause of the NCDFE to this exception
+    cause.reset(env->ExceptionOccurred());
+    if (cause.get() != NULL) {
+      env->ExceptionClear();
+      // Failed to find class, so fall-through to throw NCDFE.
     } else if (result.get() == NULL) {
       // broken loader - throw NPE to be compatible with Dalvik
       ThrowNullPointerException("ClassLoader.loadClass returned null for %s",
@@ -1150,6 +1152,15 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
   }
 
   ThrowNoClassDefFoundError("Class %s not found", PrintableString(StringPiece(descriptor)).c_str());
+  if (cause.get() != NULL) {
+    // Initialize the cause of the NCDFE.
+    ScopedLocalRef<jthrowable> ncdfe(env, env->ExceptionOccurred());
+    env->ExceptionClear();
+    static jclass Throwable_class = env->FindClass("java/lang/Throwable");
+    static jmethodID initCause_mid = env->GetMethodID(Throwable_class, "initCause", "(Ljava/lang/Throwable;)Ljava/lang/Throwable;");
+    env->CallObjectMethod(ncdfe.get(), initCause_mid, cause.get());
+    env->Throw(ncdfe.get());
+  }
   return NULL;
 }
 
@@ -1449,8 +1460,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
   dst->SetDexCacheResolvedFields(klass->GetDexCache()->GetResolvedFields());
   dst->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
-
-  // TODO: check for finalize method
 }
 
 void ClassLinker::AppendToBootClassPath(const DexFile& dex_file) {

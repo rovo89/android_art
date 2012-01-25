@@ -33,7 +33,16 @@ class UnresTest2 {
             un = new UnresClass();
             Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
+          ncdfe.printStackTrace();
             // good
+        }
+
+        try {
+          new UnresClassSubclass();
+          Main.assertTrue(false);
+        } catch (NoClassDefFoundError ncdfe) {
+          ncdfe.printStackTrace();
+          // good
         }
 
         try {

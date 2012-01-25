@@ -190,7 +190,7 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
     // method says we simply return null if the class is not found.
     static const char* ignored_exception_classes[] = {
         "java/lang/ClassNotFoundException",
-        "java/lang/NoClassDefFoundError"
+//        "java/lang/NoClassDefFoundError"
     };
     bool clear_exception = false;
     for (size_t i = 0; i < arraysize(ignored_exception_classes); i++) {
