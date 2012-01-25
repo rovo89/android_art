@@ -539,15 +539,18 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
   if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
     bool log = false;
     if (log) {
-      LOG(INFO) << "invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
+      LOG(INFO) << StringPrintf("invoking %s code=%p stub=%p",
+                                PrettyMethod(this).c_str(), GetCode(), stub);
     }
     (*stub)(this, receiver, self, args, result);
     if (log) {
-      LOG(INFO) << "returned " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub;
+      LOG(INFO) << StringPrintf("returned %s code=%p stub=%p",
+                                PrettyMethod(this).c_str(), GetCode(), stub);
     }
   } else {
-    LOG(INFO) << "not invoking " << PrettyMethod(this) << " code=" << (void*) GetCode() << " stub=" << (void*) stub
-              << " started=" << Runtime::Current()->IsStarted();
+    LOG(INFO) << StringPrintf("not invoking %s code=%p stub=%p started=%s",
+                              PrettyMethod(this).c_str(), GetCode(), stub,
+                              Runtime::Current()->IsStarted() ? "true" : "false");
     if (result != NULL) {
       result->j = 0;
     }

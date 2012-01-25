@@ -10,7 +10,7 @@ namespace x86 {
 X86Context::X86Context() {
 #ifndef NDEBUG
   // Initialize registers with easy to spot debug values
-  for (int i=0; i < 8; i++) {
+  for (int i = 0; i < 8; i++) {
     gprs_[i] = 0xEBAD6070+i;
   }
   eip_ = 0xEBAD601F;
@@ -38,7 +38,7 @@ void X86Context::DoLongJump() {
 #if defined(__i386__)
   // Load ESP and EIP
   gprs_[ESP] -= 4;  // push EIP for return
-  *((uintptr_t*)(gprs_[ESP])) = eip_;
+  *(reinterpret_cast<uintptr_t*>(gprs_[ESP])) = eip_;
   asm volatile(
       "pushl %4\n\t"
       "pushl %0\n\t"

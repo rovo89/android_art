@@ -217,7 +217,7 @@ class Dex2Oat {
 
  private:
 
-  Dex2Oat(Runtime* runtime) : runtime_(runtime) {}
+  explicit Dex2Oat(Runtime* runtime) : runtime_(runtime) {}
 
   static Runtime* CreateRuntime(Runtime::Options& options) {
     Runtime* runtime = Runtime::Create(options, false);

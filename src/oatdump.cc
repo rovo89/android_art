@@ -92,7 +92,7 @@ class OatDump {
 
     os << std::flush;
 
-    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file.GetOatDexFiles() ;
+    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file.GetOatDexFiles();
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
       CHECK(oat_dex_file != NULL);

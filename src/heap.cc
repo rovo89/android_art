@@ -526,7 +526,7 @@ void Heap::CollectGarbageInternal() {
   size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/KB, size_t(1U)) : 0);
 
   size_t total = GetTotalMemory();
-  size_t percentFree = 100 - static_cast<size_t>(100.0f * float(num_bytes_allocated_) / total);
+  size_t percentFree = 100 - static_cast<size_t>(100.0f * static_cast<float>(num_bytes_allocated_) / total);
 
   uint32_t duration = (t1 - t0)/1000/1000;
   bool gc_was_particularly_slow = (duration > 100); // TODO: crank this down for concurrent.

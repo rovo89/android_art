@@ -189,7 +189,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
       vB_wide = FETCH_u4(1) | ((uint64_t) FETCH_u4(3) << 32);
       break;
     default:
-      LOG(ERROR) << "Can't decode unexpected format " << (int) Format() << " (op=" << opcode << ")";
+      LOG(ERROR) << "Can't decode unexpected format " << static_cast<int>(Format()) << " (op=" << opcode << ")";
       return;
   }
 }

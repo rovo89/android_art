@@ -238,7 +238,6 @@ OatFile::OatMethod::OatMethod(const byte* base,
     vmap_table_offset_(vmap_table_offset),
     gc_map_offset_(gc_map_offset),
     invoke_stub_offset_(invoke_stub_offset) {
-
 #ifndef NDEBUG
   if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
     if (vmap_table_offset_ == 0) {
@@ -248,7 +247,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
       DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
     }
   } else {
-    DCHECK(vmap_table_offset_ == 0);
+    DCHECK_EQ(vmap_table_offset_, 0U);
   }
 #endif
 }

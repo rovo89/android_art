@@ -34,8 +34,7 @@ static void AbortMaybe() {
 }
 
 IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
-    size_t maxCount, IndirectRefKind desiredKind)
-{
+                                               size_t maxCount, IndirectRefKind desiredKind) {
   CHECK_GT(initialCount, 0U);
   CHECK_LE(initialCount, maxCount);
   CHECK_NE(desiredKind, kSirtOrInvalid);
@@ -106,8 +105,8 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     }
     DCHECK_GT(newSize, alloc_entries_);
 
-    table_ = (const Object**) realloc(table_, newSize * sizeof(const Object*));
-    slot_data_ = (IndirectRefSlot*) realloc(slot_data_, newSize * sizeof(IndirectRefSlot));
+    table_ = reinterpret_cast<const Object**>(realloc(table_, newSize * sizeof(const Object*)));
+    slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_, newSize * sizeof(IndirectRefSlot)));
     if (table_ == NULL || slot_data_ == NULL) {
       LOG(ERROR) << "JNI ERROR (app bug): unable to expand "
                  << kind_ << " table (from "

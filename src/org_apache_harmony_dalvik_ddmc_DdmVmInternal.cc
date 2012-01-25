@@ -40,7 +40,7 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv* env, jclass) {
 
 static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
   struct ThreadFinder {
-    ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
+    explicit ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
     }
 
     static void Callback(Thread* t, void* context) {

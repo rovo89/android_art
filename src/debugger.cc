@@ -260,8 +260,8 @@ static bool ParseJdwpOption(const std::string& name, const std::string& value) {
       return false;
     }
     char* end;
-    long port = strtol(port_string.c_str(), &end, 10);
-    if (*end != '\0') {
+    uint64_t port = strtoul(port_string.c_str(), &end, 10);
+    if (*end != '\0' || port > 0xffff) {
       LOG(ERROR) << "JDWP address has junk in port field: " << value;
       return false;
     }
@@ -500,7 +500,7 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
   // the primitive types).
   // Returns a newly-allocated buffer full of RefTypeId values.
   struct ClassListCreator {
-    ClassListCreator(std::vector<JDWP::RefTypeId>& classes) : classes(classes) {
+    explicit ClassListCreator(std::vector<JDWP::RefTypeId>& classes) : classes(classes) {
     }
 
     static bool Visit(Class* c, void* arg) {
@@ -1256,7 +1256,7 @@ bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP
   ScopedThreadListLock thread_list_lock;
   struct GetFrameVisitor : public Thread::StackVisitor {
     GetFrameVisitor(int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc)
-        : found(false) ,depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
+        : found(false), depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
     }
     virtual void VisitFrame(const Frame& f, uintptr_t pc) {
       // TODO: we'll need to skip callee-save frames too.
@@ -1821,7 +1821,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   *pReplyBuf = reply;
   *pReplyLen = length + kChunkHdrLen;
 
-  VLOG(jdwp) << StringPrintf("dvmHandleDdm returning type=%.4s buf=%p len=%d", (char*) reply, reply, length);
+  VLOG(jdwp) << StringPrintf("dvmHandleDdm returning type=%.4s buf=%p len=%d", reinterpret_cast<char*>(reply), reply, length);
   return true;
 }
 
@@ -2245,7 +2245,7 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
 }
 
 struct AllocRecordStackVisitor : public Thread::StackVisitor {
-  AllocRecordStackVisitor(AllocRecord* record) : record(record), depth(0) {
+  explicit AllocRecordStackVisitor(AllocRecord* record) : record(record), depth(0) {
   }
 
   virtual void VisitFrame(const Frame& f, uintptr_t pc) {

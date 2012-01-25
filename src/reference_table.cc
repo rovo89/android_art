@@ -60,7 +60,7 @@ size_t GetElementCount(const Object* obj) {
 }
 
 struct ObjectComparator {
-  bool operator()(const Object* obj1, const Object* obj2){
+  bool operator()(const Object* obj1, const Object* obj2) {
     // Ensure null references and cleared jweaks appear at the end.
     if (obj1 == NULL) {
       return true;
