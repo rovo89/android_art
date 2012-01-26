@@ -147,6 +147,14 @@ class Compiler {
 
   bool image_;
 
+  size_t dex_file_count_;
+  size_t class_count_;
+  size_t abstract_method_count_;
+  size_t native_method_count_;
+  size_t regular_method_count_;
+  size_t instruction_count_;
+  uint64_t start_ns_;
+
   const std::set<std::string>* image_classes_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);

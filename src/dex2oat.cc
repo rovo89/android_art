@@ -19,6 +19,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "stringpiece.h"
+#include "timing_logger.h"
 #include "zip_archive.h"
 
 namespace art {
@@ -95,6 +96,7 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
+    LOG(INFO) << "dex2oat took " << NsToMs(NanoTime() - start_ns_) << "ms";
   }
 
   // Make a list of descriptors for classes to include in the image
@@ -217,7 +219,8 @@ class Dex2Oat {
 
  private:
 
-  explicit Dex2Oat(Runtime* runtime) : runtime_(runtime) {}
+  explicit Dex2Oat(Runtime* runtime) : runtime_(runtime), start_ns_(NanoTime()) {
+  }
 
   static Runtime* CreateRuntime(Runtime::Options& options) {
     Runtime* runtime = Runtime::Create(options, false);
@@ -337,13 +340,15 @@ class Dex2Oat {
     return false;
   }
 
-  Runtime* runtime_;
   static const InstructionSet instruction_set_ = kThumb2;
+
+  Runtime* runtime_;
+  uint64_t start_ns_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
 
-bool parse_int(const char* in, int* out) {
+bool ParseInt(const char* in, int* out) {
   char* end;
   int result = strtol(in, &end, 10);
   if (in == end || *end != '\0') {
@@ -386,7 +391,7 @@ int dex2oat(int argc, char** argv) {
       dex_filenames.push_back(option.substr(strlen("--dex-file=")).data());
     } else if (option.starts_with("--zip-fd=")) {
       const char* zip_fd_str = option.substr(strlen("--zip-fd=")).data();
-      if (!parse_int(zip_fd_str, &zip_fd)) {
+      if (!ParseInt(zip_fd_str, &zip_fd)) {
         fprintf(stderr, "could not parse --zip-fd argument '%s' as an integer\n", zip_fd_str);
         usage();
       }
@@ -396,7 +401,7 @@ int dex2oat(int argc, char** argv) {
       oat_filename = option.substr(strlen("--oat-file=")).data();
     } else if (option.starts_with("--oat-fd=")) {
       const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
-      if (!parse_int(oat_fd_str, &oat_fd)) {
+      if (!ParseInt(oat_fd_str, &oat_fd)) {
         fprintf(stderr, "could not parse --oat-fd argument '%s' as an integer\n", oat_fd_str);
         usage();
       }
@@ -556,7 +561,7 @@ int dex2oat(int argc, char** argv) {
 
   UniquePtr<Dex2Oat> dex2oat(Dex2Oat::Create(options));
 
-  // If --image-classes was specified, calculate the full list classes to include in the image
+  // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<const std::set<std::string> > image_classes(NULL);
   if (image_classes_filename != NULL) {
     image_classes.reset(dex2oat->GetImageClassDescriptors(image_classes_filename));
@@ -610,8 +615,8 @@ int dex2oat(int argc, char** argv) {
   }
 
   // We wrote the oat file successfully, and want to keep it.
-  LOG(INFO) << "Oat file written successfully " << oat_filename;
-  LOG(INFO) << "Image written successfully " << image_filename;
+  LOG(INFO) << "Oat file written successfully: " << oat_filename;
+  LOG(INFO) << "Image written successfully: " << image_filename;
   return EXIT_SUCCESS;
 }
 

@@ -42,6 +42,13 @@ Compiler::Compiler(InstructionSet instruction_set,
     : instruction_set_(instruction_set),
       jni_compiler_(instruction_set),
       image_(image),
+      dex_file_count_(0),
+      class_count_(0),
+      abstract_method_count_(0),
+      native_method_count_(0),
+      regular_method_count_(0),
+      instruction_count_(0),
+      start_ns_(NanoTime()),
       image_classes_(image_classes) {
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -53,6 +60,18 @@ Compiler::~Compiler() {
   STLDeleteValues(&compiled_classes_);
   STLDeleteValues(&compiled_methods_);
   STLDeleteValues(&compiled_invoke_stubs_);
+  if (dex_file_count_ > 0) {
+    uint64_t duration_ns = NanoTime() - start_ns_;
+    uint64_t duration_ms = NsToMs(duration_ns);
+    LOG(INFO) << "Compiled files:" << dex_file_count_
+              << " classes:" << class_count_
+              << " methods:(abstract:" << abstract_method_count_
+              << " native:" << native_method_count_
+              << " regular:" << regular_method_count_ << ")"
+              << " instructions:" << instruction_count_
+              << " (took " << duration_ms << "ms, "
+              << (duration_ns/instruction_count_) << " ns/instruction)";
+  }
 }
 
 ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
@@ -361,6 +380,7 @@ void Compiler::Compile(const ClassLoader* class_loader,
 }
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  ++dex_file_count_;
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     CompileClass(class_def, class_loader, dex_file);
@@ -372,6 +392,7 @@ void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoade
   if (SkipClass(class_loader, dex_file, class_def)) {
     return;
   }
+  ++class_count_;
   const byte* class_data = dex_file.GetClassData(class_def);
   if (class_data == NULL) {
     // empty class, probably a marker interface
@@ -404,14 +425,24 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
                              uint32_t method_idx, const ClassLoader* class_loader,
                              const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
+  uint64_t start_ns = NanoTime();
   if ((access_flags & kAccNative) != 0) {
+    ++native_method_count_;
     compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
+    ++abstract_method_count_;
   } else {
+    ++regular_method_count_;
+    instruction_count_ += code_item->insns_size_in_code_units_;
     compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
                                        dex_file, kThumb2);
-    CHECK(compiled_method != NULL);
+    CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
+  }
+  uint64_t duration_ms = NsToMs(NanoTime() - start_ns);
+  if (duration_ms > 10) {
+    LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
+                 << " took " << duration_ms << "ms";
   }
 
   if (compiled_method != NULL) {
@@ -441,7 +472,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
 static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
   std::string key(shorty);
   if (is_static) {
-    key += "$";  // musn't be a shorty type character
+    key += "$";  // Must not be a shorty type character.
   }
   return key;
 }

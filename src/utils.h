@@ -224,6 +224,9 @@ uint64_t NanoTime();
 // Returns the current time in microseconds (using the POSIX CLOCK_THREAD_CPUTIME_ID).
 uint64_t ThreadCpuMicroTime();
 
+// Converts the given number of nanoseconds to milliseconds.
+uint64_t NsToMs(uint64_t ns);
+
 // Splits a string using the given delimiter character into a vector of
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char delim, std::vector<std::string>& result);

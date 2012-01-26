@@ -115,6 +115,10 @@ uint64_t ThreadCpuMicroTime() {
 #endif
 }
 
+uint64_t NsToMs(uint64_t ns) {
+  return ns/1000/1000;
+}
+
 std::string PrettyDescriptor(const String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
