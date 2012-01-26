@@ -63,14 +63,25 @@ Compiler::~Compiler() {
   if (dex_file_count_ > 0) {
     uint64_t duration_ns = NanoTime() - start_ns_;
     uint64_t duration_ms = NsToMs(duration_ns);
-    LOG(INFO) << "Compiled files:" << dex_file_count_
-              << " classes:" << class_count_
-              << " methods:(abstract:" << abstract_method_count_
-              << " native:" << native_method_count_
-              << " regular:" << regular_method_count_ << ")"
-              << " instructions:" << instruction_count_
-              << " (took " << duration_ms << "ms, "
-              << (duration_ns/instruction_count_) << " ns/instruction)";
+    std::string stats(StringPrintf("Compiled files:%d"
+                                   " classes:%d"
+                                   " methods:(abstract:%d"
+                                   " native:%d"
+                                   " regular:%d)"
+                                   " instructions:%d"
+                                   " (took %llums",
+                                   dex_file_count_,
+                                   class_count_,
+                                   abstract_method_count_,
+                                   native_method_count_,
+                                   regular_method_count_,
+                                   instruction_count_,
+                                   duration_ms));
+    if (instruction_count_ != 0) {
+        stats += StringPrintf(", %llu ns/instruction", duration_ns/instruction_count_);
+    }
+    stats += ")";
+    LOG(INFO) << stats;
   }
 }
 
