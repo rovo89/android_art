@@ -93,6 +93,8 @@ myMethod (I)I
 ReflectTest done!
 checkType invoking null
 checkType got expected exception
+calling const-class NoisyInitUser.class
+called const-class NoisyInitUser.class
 got methods
 NoisyInitUser is initializing
 NoisyInit is initializing

@@ -920,7 +920,7 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
 }
 
-TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
+TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   // pretend we are trying to get the static storage for the StaticsFromCode class.
 
   // case 1, get the uninitialized storage from StaticsFromCode.<clinit>
@@ -939,10 +939,10 @@ TEST_F(ClassLinkerTest, InitializeStaticStorageFromCode) {
   ASSERT_TRUE(type_id != NULL);
   uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* uninit = InitializeStaticStorage(type_idx, clinit, Thread::Current());
+  StaticStorageBase* uninit = ResolveVerifyAndClinit(type_idx, clinit, Thread::Current(), true, false);
   EXPECT_TRUE(uninit != NULL);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* init = InitializeStaticStorage(type_idx, getS0, Thread::Current());
+  StaticStorageBase* init = ResolveVerifyAndClinit(type_idx, getS0, Thread::Current(), true, false);
   EXPECT_TRUE(init != NULL);
   EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
 }

@@ -341,8 +341,10 @@ public class Main {
     }
 
     public static void checkInit() {
-        Class niuClass = NoisyInitUser.class;
-        Method[] methods;
+      System.out.println("calling const-class NoisyInitUser.class");
+      Class niuClass = NoisyInitUser.class;
+      System.out.println("called const-class NoisyInitUser.class");
+      Method[] methods;
 
         methods = niuClass.getDeclaredMethods();
         System.out.println("got methods");

@@ -19,9 +19,8 @@ extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool
 extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
 void* UnresolvedDirectMethodTrampolineFromCode(int32_t, Method**, Thread*, Runtime::TrampolineType);
-extern Class* InitializeStaticStorage(uint32_t type_idx, const Method* referrer, Thread* self);
-extern Class* InitializeStaticStorageAndVerifyAccess(uint32_t type_idx, const Method* referrer,
-                                                     Thread* self);
+extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
+                                     bool can_run_clinit, bool verify_access);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
