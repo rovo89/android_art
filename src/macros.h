@@ -16,7 +16,7 @@
 
 #include <stddef.h>  // for size_t
 
-#define GCC_VERSION (_GNUC_ * 10000 + _GNUC_MINOR_ * 100 + __GNUC_PATCHLEVEL__)
+#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the

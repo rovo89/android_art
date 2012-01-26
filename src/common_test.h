@@ -16,6 +16,7 @@
 #include "file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
+#include "macros.h"
 #include "oat_file.h"
 #include "object_utils.h"
 #include "os.h"
@@ -177,17 +178,18 @@ class CommonTest : public testing::Test {
     uintptr_t limit = RoundUp(data + code_length, kPageSize);
     uintptr_t len = limit - base;
     int result = mprotect(reinterpret_cast<void*>(base), len, PROT_READ | PROT_WRITE | PROT_EXEC);
+    CHECK_EQ(result, 0);
 
     // Flush instruction cache
     // Only uses __builtin___clear_cache if GCC >= 4.3.3
 #if GCC_VERSION >= 40303
     __builtin___clear_cache(reinterpret_cast<void*>(base), reinterpret_cast<void*>(base + len));
-#else
+#elif defined(__APPLE__)
     // Currently, only Mac OS builds use GCC 4.2.*. Those host builds do not
     // need to generate clear_cache on x86.
+#else
+#error unsupported
 #endif
-
-    CHECK_EQ(result, 0);
   }
 
  protected:
