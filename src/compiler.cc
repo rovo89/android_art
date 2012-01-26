@@ -63,12 +63,12 @@ Compiler::~Compiler() {
   if (dex_file_count_ > 0) {
     uint64_t duration_ns = NanoTime() - start_ns_;
     uint64_t duration_ms = NsToMs(duration_ns);
-    std::string stats(StringPrintf("Compiled files:%d"
-                                   " classes:%d"
-                                   " methods:(abstract:%d"
-                                   " native:%d"
-                                   " regular:%d)"
-                                   " instructions:%d"
+    std::string stats(StringPrintf("Compiled files:%zd"
+                                   " classes:%zd"
+                                   " methods:(abstract:%zd"
+                                   " native:%zd"
+                                   " regular:%zd)"
+                                   " instructions:%zd"
                                    " (took %llums",
                                    dex_file_count_,
                                    class_count_,
