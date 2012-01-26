@@ -1147,8 +1147,14 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
                                                               class_name_object.get()));
     cause.reset(env->ExceptionOccurred());
     if (cause.get() != NULL) {
+      // Throw LinkageErrors unmolested...
       env->ExceptionClear();
-      // Failed to find class, so fall-through to throw NCDFE.
+      static jclass LinkageError_class = CacheClass(env, "java/lang/LinkageError");
+      if (env->IsInstanceOf(cause.get(), LinkageError_class)) {
+        env->Throw(cause.get());
+        return NULL;
+      }
+      // ...otherwise fall through and throw NCDFE.
     } else if (result.get() == NULL) {
       // broken loader - throw NPE to be compatible with Dalvik
       ThrowNullPointerException("ClassLoader.loadClass returned null for %s",
