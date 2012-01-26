@@ -19,6 +19,7 @@ class ImageTest : public CommonTest {};
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
   std::vector<const DexFile*> dex_files;
+  dex_files.push_back(GetLibCoreDex());
   bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, *compiler_.get());
   ASSERT_TRUE(success_oat);
 

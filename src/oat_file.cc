@@ -85,7 +85,7 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
   const byte* oat = map->GetAddress();
 
   oat += sizeof(OatHeader);
-  CHECK_LT(oat, map->GetLimit()) << filename;
+  CHECK_LE(oat, map->GetLimit()) << filename;
   for (size_t i = 0; i < oat_header.GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
     CHECK_GT(dex_file_location_size, 0U) << filename;
@@ -115,7 +115,7 @@ bool OatFile::Read(const std::string& filename, byte* requested_base) {
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
-    CHECK_LT(oat, map->GetLimit()) << filename;
+    CHECK_LE(oat, map->GetLimit()) << filename;
 
     oat_dex_files_[dex_file_location] = new OatDexFile(this,
                                                        dex_file_location,
