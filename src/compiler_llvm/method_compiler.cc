@@ -2670,7 +2670,93 @@ void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
                                           Instruction const* insn,
                                           bool is_range) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t callee_method_idx = dec_insn.vB_;
+
+  // Find the method object at compile time
+  Method* callee_overiding_method = ResolveMethod(callee_method_idx);
+
+  if (callee_overiding_method == NULL) {
+    // Callee method can't be resolved at compile time.  Emit the runtime
+    // method resolution code.
+
+    UNIMPLEMENTED(FATAL) << "Method index " << callee_method_idx
+                         << " can't be resolved";
+
+  } else {
+    // CHECK: Is the instruction well-encoded or is the class hierarchy correct?
+    Class* declaring_class = method_->GetDeclaringClass();
+    CHECK_NE(declaring_class, static_cast<Class*>(NULL));
+
+    Class* super_class = declaring_class->GetSuperClass();
+    CHECK_NE(super_class, static_cast<Class*>(NULL));
+
+    uint16_t callee_method_index = callee_overiding_method->GetMethodIndex();
+    CHECK_GT(super_class->GetVTable()->GetLength(), callee_method_index);
+
+    Method* callee_method = super_class->GetVTable()->Get(callee_method_index);
+    CHECK_NE(callee_method, static_cast<Method*>(NULL));
+
+    // Test: Is *this* parameter equal to null?
+    llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
+    EmitGuard_NullPointerException(dex_pc, this_addr);
+
+    // Load declaring class of the caller method
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::ConstantInt* declaring_class_offset_value =
+      irb_.getPtrEquivInt(Method::DeclaringClassOffset().Int32Value());
+
+    llvm::Value* declaring_class_field_addr =
+      irb_.CreatePtrDisp(method_object_addr, declaring_class_offset_value,
+                         irb_.getJObjectTy()->getPointerTo());
+
+    llvm::Value* declaring_class_addr =
+      irb_.CreateLoad(declaring_class_field_addr);
+
+    // Load the super class of the declaring class
+    llvm::Value* super_class_offset_value =
+      irb_.getPtrEquivInt(Class::SuperClassOffset().Int32Value());
+
+    llvm::Value* super_class_field_addr =
+      irb_.CreatePtrDisp(declaring_class_addr, super_class_offset_value,
+                         irb_.getJObjectTy()->getPointerTo());
+
+    llvm::Value* super_class_addr =
+      irb_.CreateLoad(super_class_field_addr);
+
+    // Load method object from virtual table
+    llvm::Value* vtable_addr = EmitLoadVTableAddr(super_class_addr);
+
+    llvm::Value* callee_method_object_addr =
+      EmitLoadMethodObjectAddrFromVTable(vtable_addr,
+                                         callee_method->GetMethodIndex());
+
+    llvm::Value* code_addr =
+      EmitLoadCodeAddr(callee_method_object_addr,
+                       callee_method_idx, false);
+
+    // Load actual parameters
+    std::vector<llvm::Value*> args;
+    args.push_back(callee_method_object_addr);
+    args.push_back(this_addr);
+    EmitLoadActualParameters(args, callee_method_idx, dec_insn,
+                             is_range, false);
+
+    // Invoke callee
+    llvm::Value* retval = irb_.CreateCall(code_addr, args);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    MethodHelper method_helper(callee_method);
+    char ret_shorty = method_helper.GetShorty()[0];
+    if (ret_shorty != 'V') {
+      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+    }
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
