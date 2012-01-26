@@ -51,7 +51,6 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (c == NULL) {
-    // Convert NoClassDefFoundError to ClassNotFoundException.
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
     static jclass ClassNotFoundException_class = CacheClass(env, "java/lang/ClassNotFoundException");

@@ -181,12 +181,15 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   class_linker->RegisterDexFile(*dex_file);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
   if (env->ExceptionCheck()) {
-    // If we threw a ClassNotFoundException, stifle it, since the contract in the caller
-    // says we simply return null if the class is not found.
+    // Swallow any ClassNotFoundException or NoClassDefFoundError; the contract with the caller
+    // is that we return null if the class is not found.
     jthrowable exception = env->ExceptionOccurred();
     env->ExceptionClear();
-    ScopedLocalRef<jclass> exception_class(env, env->FindClass("java/lang/ClassNotFoundException"));
-    if (!env->IsInstanceOf(exception, exception_class.get())) {
+
+    static jclass ClassNotFoundException_class = CacheClass(env, "java/lang/ClassNotFoundException");
+    static jclass NoClassDefFoundError_class = CacheClass(env, "java/lang/NoClassDefFoundError");
+
+    if (!env->IsInstanceOf(exception, ClassNotFoundException_class) && !env->IsInstanceOf(exception, NoClassDefFoundError_class)) {
       env->Throw(exception);
     }
     return NULL;
