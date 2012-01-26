@@ -1,1 +1,1 @@
-caught expected assert exception
+didn't assert (is '-ea' implemented?)

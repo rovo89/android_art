@@ -8,7 +8,7 @@ public class Main {
         assert true;
         try {
             assert false;
-            System.out.println("GLITCH: didn't assert (is '-ea' set?)");
+            System.out.println("didn't assert (is '-ea' implemented?)");
         } catch (AssertionError ae) {
             System.out.println("caught expected assert exception");
         }
