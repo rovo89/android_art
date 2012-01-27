@@ -429,7 +429,7 @@ int64_t JdwpState::LastDebuggerActivity() {
 
   /* now get the current time */
   int64_t now = MilliTime();
-  CHECK_GT(now, last);
+  CHECK_GE(now, last);
 
   VLOG(jdwp) << "+++ debugger interval=" << (now - last);
   return now - last;
