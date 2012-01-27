@@ -218,8 +218,6 @@ LIBART_HOST_SRC_FILES := \
 	src/runtime_support_x86.S
 
 LIBARTTEST_COMMON_SRC_FILES := \
-	src/base64.cc \
-	src/jni_tests.cc \
 	test/StackWalk/stack_walk_jni.cc \
 	test/ReferenceMap/stack_walk_refmap_jni.cc
 

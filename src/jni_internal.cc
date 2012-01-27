@@ -2853,7 +2853,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   void* handle = NULL;
   {
     ScopedThreadStateChange tsc(self, Thread::kVmWait);
-    handle = dlopen(path.c_str(), RTLD_LAZY);
+    handle = dlopen(path.empty() ? NULL : path.c_str(), RTLD_LAZY);
   }
 
   VLOG(jni) << "[Call to dlopen(\"" << path << "\") returned " << handle << "]";
