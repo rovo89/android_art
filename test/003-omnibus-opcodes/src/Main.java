@@ -64,9 +64,10 @@ public class Main {
             UnresTest2.run();
         } catch (VerifyError ve) {
             System.out.println("Caught: " + ve);
-        } catch (NoClassDefFoundError ncdfe) {
-            /* UnresClass can cause desktop Java to freak out */
-            System.out.println("NOTE: UnresTest2 not available");
+        } catch (Throwable th) {
+            // We and the RI throw ClassNotFoundException, but that isn't declared so javac
+            // won't let us try to catch it.
+            th.printStackTrace();
         }
         InternedString.run();
     }
