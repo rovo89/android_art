@@ -331,6 +331,7 @@ typedef struct CompilationUnit {
      bool usesFP;          // Method contains at least 1 non-move FP operation
      bool disableDataflow; // Skip dataflow analysis if possible
      std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
+     std::map<unsigned int, LIR*> boundaryMap; // boundary lookup cache
 } CompilationUnit;
 
 BasicBlock* oatNewBB(BBType blockType, int blockId);

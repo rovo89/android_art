@@ -765,6 +765,8 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     cUnit->numDalvikRegisters = code_item->registers_size_;
     cUnit->blockMap = std::map<unsigned int, BasicBlock*>();
     cUnit->blockMap.clear();
+    cUnit->boundaryMap = std::map<unsigned int, LIR*>();
+    cUnit->boundaryMap.clear();
     bool useMatch = compilerMethodMatch.length() != 0;
     bool match = useMatch && (compilerFlipMatch ^
         (PrettyMethod(method_idx, dex_file).find(compilerMethodMatch) != std::string::npos));

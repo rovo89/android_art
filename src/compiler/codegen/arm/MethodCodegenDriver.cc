@@ -2049,6 +2049,8 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         boundaryLIR = newLIR1(cUnit, kArmPseudoDalvikByteCodeBoundary,
                              (int) oatGetDalvikDisassembly(
                              &mir->dalvikInsn, ""));
+        cUnit->boundaryMap.insert(std::make_pair(mir->offset,
+                                 (LIR*)boundaryLIR));
         /* Remember the first LIR for this block */
         if (headLIR == NULL) {
             headLIR = boundaryLIR;
