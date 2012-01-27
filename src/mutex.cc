@@ -47,6 +47,7 @@ Mutex::~Mutex() {
 
 void Mutex::Lock() {
   CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
+  AssertHeld();
 }
 
 bool Mutex::TryLock() {
@@ -58,10 +59,12 @@ bool Mutex::TryLock() {
     errno = result;
     PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
   }
+  AssertHeld();
   return true;
 }
 
 void Mutex::Unlock() {
+  AssertHeld();
   CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 }
 
