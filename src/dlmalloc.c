@@ -7,7 +7,6 @@
 #include <stdlib.h>
 
 // Disable GCC diagnostics so that -Werror won't fail
-#pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wempty-body"
 
