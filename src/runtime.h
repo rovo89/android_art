@@ -285,6 +285,8 @@ class Runtime {
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
 
+  static Mutex abort_lock_;
+
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
 

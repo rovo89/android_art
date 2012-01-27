@@ -33,6 +33,8 @@ namespace art {
 
 Runtime* Runtime::instance_ = NULL;
 
+Mutex Runtime::abort_lock_("abort lock");
+
 Runtime::Runtime()
     : is_zygote_(false),
       default_stack_size_(Thread::kDefaultStackSize),
@@ -107,6 +109,10 @@ struct AbortState {
 };
 
 void Runtime::Abort(const char* file, int line) {
+  // Ensure that we don't have multiple threads trying to abort at once,
+  // which would result in significantly worse diagnostics.
+  MutexLock mu(abort_lock_);
+
   // Get any pending output out of the way.
   fflush(NULL);
 
