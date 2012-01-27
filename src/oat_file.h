@@ -103,10 +103,10 @@ class OatFile {
       if (offset == 0) {
         return NULL;
       }
-      return reinterpret_cast<T>(base_ + offset);
+      return reinterpret_cast<T>(begin_ + offset);
     }
 
-    const byte* base_;
+    const byte* begin_;
 
     uint32_t code_offset_;
     size_t frame_size_in_bytes_;
@@ -178,16 +178,16 @@ class OatFile {
                                   bool warn_if_not_found = true) const;
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
-  size_t GetSize() const {
-    return GetLimit() - GetBase();
+  size_t Size() const {
+    return End() - Begin();
   }
 
  private:
   explicit OatFile(const std::string& filename);
   bool Read(const std::string& filename, byte* requested_base);
 
-  const byte* GetBase() const;
-  const byte* GetLimit() const;
+  const byte* Begin() const;
+  const byte* End() const;
 
   // The oat file name.
   //

@@ -156,23 +156,21 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t length, int prot, int flags,
 }
 
 MemMap::~MemMap() {
-  if (base_addr_ == NULL && base_length_ == 0) {
+  if (base_begin_ == NULL && base_size_ == 0) {
     return;
   }
-  int result = munmap(base_addr_, base_length_);
-  base_addr_ = NULL;
-  base_length_ = 0;
+  int result = munmap(base_begin_, base_size_);
   if (result == -1) {
     PLOG(FATAL) << "munmap failed";
   }
 }
 
-MemMap::MemMap(byte* addr, size_t length, void* base_addr, size_t base_length)
-    : addr_(addr), length_(length), base_addr_(base_addr), base_length_(base_length) {
-  CHECK(addr_ != NULL);
-  CHECK_NE(length_, 0U);
-  CHECK(base_addr_ != NULL);
-  CHECK_NE(base_length_, 0U);
+MemMap::MemMap(byte* begin, size_t size, void* base_begin, size_t base_size)
+    : begin_(begin), size_(size), base_begin_(base_begin), base_size_(base_size) {
+  CHECK(begin_ != NULL);
+  CHECK_NE(size_, 0U);
+  CHECK(base_begin_ != NULL);
+  CHECK_NE(base_size_, 0U);
 };
 
 }  // namespace art

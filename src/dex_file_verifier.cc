@@ -85,15 +85,15 @@ static bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor,
   return true;
 }
 
-bool DexFileVerifier::Verify(DexFile* dex_file, const byte* base, size_t length) {
-  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, base, length));
+bool DexFileVerifier::Verify(DexFile* dex_file, const byte* begin, size_t length) {
+  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, length));
   return verifier->Verify();
 }
 
 bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, const char* label) const {
   uint32_t range_start = reinterpret_cast<uint32_t>(start);
   uint32_t range_end = reinterpret_cast<uint32_t>(end);
-  uint32_t file_start = reinterpret_cast<uint32_t>(base_);
+  uint32_t file_start = reinterpret_cast<uint32_t>(begin_);
   uint32_t file_end = file_start + length_;
   if ((range_start < file_start) || (range_start > file_end) ||
       (range_end < file_start) || (range_end > file_end)) {
@@ -151,7 +151,7 @@ bool DexFileVerifier::CheckHeader() const {
 }
 
 bool DexFileVerifier::CheckMap() const {
-  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(base_ + header_->map_off_);
+  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(begin_ + header_->map_off_);
   const DexFile::MapItem* item = map->list_;
 
   uint32_t count = map->size_;
@@ -366,7 +366,7 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
 
 bool DexFileVerifier::CheckPadding(uint32_t offset, uint32_t aligned_offset) {
   if (offset < aligned_offset) {
-    if (!CheckPointerRange(base_ + offset, base_ + aligned_offset, "section")) {
+    if (!CheckPointerRange(begin_ + offset, begin_ + aligned_offset, "section")) {
       return false;
     }
     while (offset < aligned_offset) {
@@ -671,7 +671,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
 
 bool DexFileVerifier::CheckIntraStringDataItem() {
   uint32_t size = DecodeUnsignedLeb128(&ptr_);
-  const byte* file_end = base_ + length_;
+  const byte* file_end = begin_ + length_;
 
   for (uint32_t i = 0; i < size; i++) {
     if (ptr_ >= file_end) {
@@ -1106,7 +1106,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
       offset_to_type_map_.insert(std::make_pair(aligned_offset, type));
     }
 
-    aligned_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(base_);
+    aligned_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
     if (aligned_offset > length_) {
       LOG(ERROR) << StringPrintf("Item %d at ends out of bounds", i);
       return false;
@@ -1180,7 +1180,7 @@ bool DexFileVerifier::CheckIntraDataSection(uint32_t offset, uint32_t count, uin
     return false;
   }
 
-  uint32_t next_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(base_);
+  uint32_t next_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
   if (next_offset > data_end) {
     LOG(ERROR) << StringPrintf("Out-of-bounds end of data subsection: %x", next_offset);
     return false;
@@ -1190,12 +1190,12 @@ bool DexFileVerifier::CheckIntraDataSection(uint32_t offset, uint32_t count, uin
 }
 
 bool DexFileVerifier::CheckIntraSection() {
-  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(base_ + header_->map_off_);
+  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(begin_ + header_->map_off_);
   const DexFile::MapItem* item = map->list_;
 
   uint32_t count = map->size_;
   uint32_t offset = 0;
-  ptr_ = base_;
+  ptr_ = begin_;
 
   // Check the items listed in the map.
   while (count--) {
@@ -1222,7 +1222,7 @@ bool DexFileVerifier::CheckIntraSection() {
           LOG(ERROR) << StringPrintf("Header at %x, not at start of file", section_offset);
           return false;
         }
-        ptr_ = base_ + header_->header_size_;
+        ptr_ = begin_ + header_->header_size_;
         offset = header_->header_size_;
         break;
       case DexFile::kDexTypeStringIdItem:
@@ -1234,7 +1234,7 @@ bool DexFileVerifier::CheckIntraSection() {
         if (!CheckIntraIdSection(section_offset, section_count, type)) {
           return false;
         }
-        offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(base_);
+        offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
         break;
       case DexFile::kDexTypeMapList:
         if (section_count != 1) {
@@ -1261,7 +1261,7 @@ bool DexFileVerifier::CheckIntraSection() {
         if (!CheckIntraDataSection(section_offset, section_count, type)) {
           return false;
         }
-        offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(base_);
+        offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
         break;
       default:
         LOG(ERROR) << StringPrintf("Unknown map item type %x", type);
@@ -1593,7 +1593,7 @@ bool DexFileVerifier::CheckInterClassDefItem() {
 
   // Check that references in class_data_item are to the right class.
   if (item->class_data_off_ != 0) {
-    const byte* data = base_ + item->class_data_off_;
+    const byte* data = begin_ + item->class_data_off_;
     uint16_t data_definer = FindFirstClassDataDefiner(data);
     if ((data_definer != item->class_idx_) && (data_definer != DexFile::kDexNoIndex16)) {
       LOG(ERROR) << "Invalid class_data_item";
@@ -1603,7 +1603,7 @@ bool DexFileVerifier::CheckInterClassDefItem() {
 
   // Check that references in annotations_directory_item are to right class.
   if (item->annotations_off_ != 0) {
-    const byte* data = base_ + item->annotations_off_;
+    const byte* data = begin_ + item->annotations_off_;
     uint16_t annotations_definer = FindFirstAnnotationsDirectoryDefiner(data);
     if ((annotations_definer != item->class_idx_) && (annotations_definer != DexFile::kDexNoIndex16)) {
       LOG(ERROR) << "Invalid annotations_directory_item";
@@ -1646,7 +1646,7 @@ bool DexFileVerifier::CheckInterAnnotationSetItem() {
 
     // Get the annotation from the offset and the type index for the annotation.
     const DexFile::AnnotationItem* annotation =
-        reinterpret_cast<const DexFile::AnnotationItem*>(base_ + *offsets);
+        reinterpret_cast<const DexFile::AnnotationItem*>(begin_ + *offsets);
     const uint8_t* data = annotation->annotation_;
     uint32_t idx = DecodeUnsignedLeb128(&data);
 
@@ -1768,7 +1768,7 @@ bool DexFileVerifier::CheckInterSectionIterate(uint32_t offset, uint32_t count, 
   previous_item_ = NULL;
   for (uint32_t i = 0; i < count; i++) {
     uint32_t new_offset = (offset + alignment_mask) & ~alignment_mask;
-    ptr_ = base_ + new_offset;
+    ptr_ = begin_ + new_offset;
     const byte* prev_ptr = ptr_;
 
     // Check depending on the section type.
@@ -1839,14 +1839,14 @@ bool DexFileVerifier::CheckInterSectionIterate(uint32_t offset, uint32_t count, 
     }
 
     previous_item_ = prev_ptr;
-    offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(base_);
+    offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
   }
 
   return true;
 }
 
 bool DexFileVerifier::CheckInterSection() {
-  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(base_ + header_->map_off_);
+  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(begin_ + header_->map_off_);
   const DexFile::MapItem* item = map->list_;
   uint32_t count = map->size_;
 

@@ -419,26 +419,26 @@ class PACKED Thread {
 
   // Size of stack less any space reserved for stack overflow
   size_t GetStackSize() {
-    return stack_size_ - (stack_end_ - stack_base_);
+    return stack_size_ - (stack_end_ - stack_begin_);
   }
 
   // Set the stack end to that to be used during a stack overflow
   void SetStackEndForStackOverflow() {
     // During stack overflow we allow use of the full stack
-    if (stack_end_ == stack_base_) {
+    if (stack_end_ == stack_begin_) {
       DumpStack(std::cerr);
       LOG(FATAL) << "Need to increase kStackOverflowReservedBytes (currently "
                  << kStackOverflowReservedBytes << ")";
     }
 
-    stack_end_ = stack_base_;
+    stack_end_ = stack_begin_;
   }
 
   // Set the stack end to that to be used during regular execution
   void ResetDefaultStackEnd() {
     // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
     // to throw a StackOverflowError.
-    stack_end_ = stack_base_ + kStackOverflowReservedBytes;
+    stack_end_ = stack_begin_ + kStackOverflowReservedBytes;
   }
 
   static ThreadOffset StackEndOffset() {
@@ -578,7 +578,7 @@ class PACKED Thread {
   size_t stack_size_;
 
   // The "lowest addressable byte" of the stack
-  byte* stack_base_;
+  byte* stack_begin_;
 
   // A linked list (of stack allocated records) recording transitions from
   // native to managed code.

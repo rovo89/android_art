@@ -11,11 +11,11 @@ namespace art {
 
 class DexFileVerifier {
  public:
-  static bool Verify(DexFile* dex_file, const byte* base, size_t length);
+  static bool Verify(DexFile* dex_file, const byte* begin, size_t length);
 
  private:
-  DexFileVerifier(DexFile* dex_file, const byte* base, size_t length)
-      : dex_file_(dex_file), base_(base), length_(length),
+  DexFileVerifier(DexFile* dex_file, const byte* begin, size_t length)
+      : dex_file_(dex_file), begin_(begin), length_(length),
         header_(&dex_file->GetHeader()), ptr_(NULL), previous_item_(NULL)  {
   }
 
@@ -70,7 +70,7 @@ class DexFileVerifier {
   bool CheckInterSection();
 
   DexFile* dex_file_;
-  const byte* base_;
+  const byte* begin_;
   size_t length_;
   const DexFile::Header* header_;
 

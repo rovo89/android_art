@@ -126,6 +126,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/dex_file_verifier.cc \
 	src/dex_instruction.cc \
 	src/dex_verifier.cc \
+	src/dlmalloc.c \
 	src/file.cc \
 	src/file_linux.cc \
 	src/heap.cc \
@@ -168,7 +169,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/mem_map.cc \
 	src/memory_region.cc \
 	src/monitor.cc \
-	src/mspace.c \
 	src/mutex.cc \
 	src/oat.cc \
 	src/oat_file.cc \

@@ -201,11 +201,17 @@ class Dex2Oat {
                        const std::string& host_prefix) {
     // If we have an existing boot image, position new space after its oat file
     if (Heap::GetSpaces().size() > 1) {
-      Space* last_image_space = Heap::GetSpaces()[Heap::GetSpaces().size()-2];
+      ImageSpace* last_image_space = NULL;
+      const std::vector<Space*>& spaces = Heap::GetSpaces();
+      for (size_t i=0; i < spaces.size(); i++) {
+        if (spaces[i]->IsImageSpace()) {
+          last_image_space = spaces[i]->AsImageSpace();
+        }
+      }
       CHECK(last_image_space != NULL);
       CHECK(last_image_space->IsImageSpace());
       CHECK(!Heap::GetSpaces()[Heap::GetSpaces().size()-1]->IsImageSpace());
-      byte* oat_limit_addr = last_image_space->GetImageHeader().GetOatLimitAddr();
+      byte* oat_limit_addr = last_image_space->GetImageHeader().GetOatEnd();
       image_base = RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr), kPageSize);
     }
 

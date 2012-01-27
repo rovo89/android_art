@@ -131,7 +131,7 @@ void SignalCatcher::HandleSigQuit() {
 
 void SignalCatcher::HandleSigUsr1() {
   LOG(INFO) << "SIGUSR1 forcing GC (no HPROF)";
-  Heap::CollectGarbage();
+  Heap::CollectGarbage(false);
 }
 
 int SignalCatcher::WaitForSignal(sigset_t& mask) {

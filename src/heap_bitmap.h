@@ -51,9 +51,11 @@ class HeapBitmap {
 
   typedef void ScanCallback(Object* obj, void* finger, void* arg);
 
-  typedef void SweepCallback(size_t numPtrs, void** ptrs, void* arg);
+  typedef void SweepCallback(size_t numPtrs, Object** ptrs, void* arg);
 
-  static HeapBitmap* Create(const char* name, byte* base, size_t length);
+  // Initialize a HeapBitmap so that it points to a bitmap large enough to cover a heap at
+  // heap_begin of heap_capacity bytes, where objects are guaranteed to be kAlignment-aligned.
+  static HeapBitmap* Create(const char* name, byte* heap_begin, size_t heap_capacity);
 
   ~HeapBitmap();
 
@@ -70,11 +72,11 @@ class HeapBitmap {
   inline bool Test(const Object* obj) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
     DCHECK(HasAddress(obj)) << obj;
-    DCHECK(words_ != NULL);
-    DCHECK_GE(addr, base_);
-    if (addr <= max_) {
-      const uintptr_t offset = addr - base_;
-      return (words_[HB_OFFSET_TO_INDEX(offset)] & HB_OFFSET_TO_MASK(offset)) != 0;
+    DCHECK(bitmap_begin_ != NULL);
+    DCHECK_GE(addr, heap_begin_);
+    if (addr <= heap_end_) {
+      const uintptr_t offset = addr - heap_begin_;
+      return (bitmap_begin_[HB_OFFSET_TO_INDEX(offset)] & HB_OFFSET_TO_MASK(offset)) != 0;
     } else {
       return false;
     }
@@ -94,47 +96,50 @@ class HeapBitmap {
                         SweepCallback* thunk, void* arg);
 
  private:
-  HeapBitmap(const void* base, size_t length)
-      : words_(NULL),
-        num_bytes_(length),
-        base_(reinterpret_cast<uintptr_t>(base)) {
-  };
+  // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
+  // however, we document that this is expected on heap_end_
+  HeapBitmap(const char* name, MemMap* mem_map, word* bitmap_begin, size_t bitmap_size, const void* heap_begin)
+      : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
+        heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)), heap_end_(heap_begin_ - 1),
+        name_(name) {}
 
   inline void Modify(const Object* obj, bool do_set) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    DCHECK_GE(addr, base_);
-    const uintptr_t offset = addr - base_;
+    DCHECK_GE(addr, heap_begin_);
+    const uintptr_t offset = addr - heap_begin_;
     const size_t index = HB_OFFSET_TO_INDEX(offset);
     const word mask = HB_OFFSET_TO_MASK(offset);
-    DCHECK_LT(index, num_bytes_ / kWordSize);
+    DCHECK_LT(index, bitmap_size_ / kWordSize);
     if (do_set) {
-      if (addr > max_) {
-        max_ = addr;
+      if (addr > heap_end_) {
+        heap_end_ = addr;
       }
-      words_[index] |= mask;
+      bitmap_begin_[index] |= mask;
     } else {
-      words_[index] &= ~mask;
+      bitmap_begin_[index] &= ~mask;
     }
   }
 
-  bool Init(const char* name, const byte* base, size_t length);
-
+  // Backing storage for bitmap.
   UniquePtr<MemMap> mem_map_;
 
-  word* words_;
+  // This bitmap itself, word sized for efficiency in scanning.
+  word* const bitmap_begin_;
 
-  size_t num_bytes_;
+  // Size of this bitmap.
+  const size_t bitmap_size_;
 
-  // The base address, which corresponds to the word containing the
-  // first bit in the bitmap.
-  uintptr_t base_;
+  // The base address of the heap, which corresponds to the word containing the first bit in the
+  // bitmap.
+  const uintptr_t heap_begin_;
 
   // The highest pointer value ever returned by an allocation from
   // this heap.  I.e., the highest address that may correspond to a
-  // set bit.  If there are no bits set, (max_ < base_).
-  uintptr_t max_;
+  // set bit.  If there are no bits set, (heap_end_ < heap_begin_).
+  uintptr_t heap_end_;
 
-  const char* name_;
+  // Name of this bitmap.
+  const char* const name_;
 };
 
 }  // namespace art

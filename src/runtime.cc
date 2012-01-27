@@ -577,8 +577,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   intern_table_ = new InternTable;
 
   Heap::Init(options->heap_initial_size_,
-             options->heap_maximum_size_,
              options->heap_growth_limit_,
+             options->heap_maximum_size_,
              options->images_);
 
   BlockSignals();

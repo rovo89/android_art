@@ -121,7 +121,7 @@ off_t ZipEntry::GetDataOffset() {
 }
 
 static bool CopyFdToMemory(MemMap& mem_map, int in, size_t count) {
-  uint8_t* dst = mem_map.GetAddress();
+  uint8_t* dst = mem_map.Begin();
   std::vector<uint8_t> buf(kBufSize);
   while (count != 0) {
     size_t bytes_to_read = (count > kBufSize) ? kBufSize : count;
@@ -134,7 +134,7 @@ static bool CopyFdToMemory(MemMap& mem_map, int in, size_t count) {
     dst += bytes_to_read;
     count -= bytes_to_read;
   }
-  DCHECK_EQ(dst, mem_map.GetLimit());
+  DCHECK_EQ(dst, mem_map.End());
   return true;
 }
 
@@ -165,7 +165,7 @@ class ZStream {
 };
 
 static bool InflateToMemory(MemMap& mem_map, int in, size_t uncompressed_length, size_t compressed_length) {
-  uint8_t* dst = mem_map.GetAddress();
+  uint8_t* dst = mem_map.Begin();
   UniquePtr<uint8_t[]> read_buf(new uint8_t[kBufSize]);
   UniquePtr<uint8_t[]> write_buf(new uint8_t[kBufSize]);
   if (read_buf.get() == NULL || write_buf.get() == NULL) {
@@ -235,7 +235,7 @@ static bool InflateToMemory(MemMap& mem_map, int in, size_t uncompressed_length,
     return false;
   }
 
-  DCHECK_EQ(dst, mem_map.GetLimit());
+  DCHECK_EQ(dst, mem_map.End());
   return true;
 }
 
@@ -438,8 +438,8 @@ bool ZipArchive::MapCentralDirectory() {
 }
 
 bool ZipArchive::Parse() {
-  const byte* cd_ptr = dir_map_->GetAddress();
-  size_t cd_length = dir_map_->GetLength();
+  const byte* cd_ptr = dir_map_->Begin();
+  size_t cd_length = dir_map_->Size();
 
   // Walk through the central directory, adding entries to the hash
   // table and verifying values.

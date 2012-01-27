@@ -26,6 +26,7 @@
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
+#include "space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 
@@ -2035,78 +2036,84 @@ enum HpsgKind {
 #define HPSG_PARTIAL (1<<7)
 #define HPSG_STATE(solidity, kind) ((uint8_t)((((kind) & 0x7) << 3) | ((solidity) & 0x7)))
 
-struct HeapChunkContext {
-  std::vector<uint8_t> buf;
-  uint8_t* p;
-  uint8_t* pieceLenField;
-  size_t totalAllocationUnits;
-  uint32_t type;
-  bool merge;
-  bool needHeader;
-
+class HeapChunkContext {
+ public:
   // Maximum chunk size.  Obtain this from the formula:
   // (((maximum_heap_size / ALLOCATION_UNIT_SIZE) + 255) / 256) * 2
   HeapChunkContext(bool merge, bool native)
-      : buf(16384 - 16),
-        type(0),
-        merge(merge) {
+      : buf_(16384 - 16),
+        type_(0),
+        merge_(merge) {
     Reset();
     if (native) {
-      type = CHUNK_TYPE("NHSG");
+      type_ = CHUNK_TYPE("NHSG");
     } else {
-      type = merge ? CHUNK_TYPE("HPSG") : CHUNK_TYPE("HPSO");
+      type_ = merge ? CHUNK_TYPE("HPSG") : CHUNK_TYPE("HPSO");
     }
   }
 
   ~HeapChunkContext() {
-    if (p > &buf[0]) {
+    if (p_ > &buf_[0]) {
       Flush();
     }
   }
 
   void EnsureHeader(const void* chunk_ptr) {
-    if (!needHeader) {
+    if (!needHeader_) {
       return;
     }
 
     // Start a new HPSx chunk.
-    JDWP::Write4BE(&p, 1); // Heap id (bogus; we only have one heap).
-    JDWP::Write1BE(&p, 8); // Size of allocation unit, in bytes.
+    JDWP::Write4BE(&p_, 1); // Heap id (bogus; we only have one heap).
+    JDWP::Write1BE(&p_, 8); // Size of allocation unit, in bytes.
 
-    JDWP::Write4BE(&p, reinterpret_cast<uintptr_t>(chunk_ptr)); // virtual address of segment start.
-    JDWP::Write4BE(&p, 0); // offset of this piece (relative to the virtual address).
+    JDWP::Write4BE(&p_, reinterpret_cast<uintptr_t>(chunk_ptr)); // virtual address of segment start.
+    JDWP::Write4BE(&p_, 0); // offset of this piece (relative to the virtual address).
     // [u4]: length of piece, in allocation units
     // We won't know this until we're done, so save the offset and stuff in a dummy value.
-    pieceLenField = p;
-    JDWP::Write4BE(&p, 0x55555555);
-    needHeader = false;
+    pieceLenField_ = p_;
+    JDWP::Write4BE(&p_, 0x55555555);
+    needHeader_ = false;
   }
 
   void Flush() {
     // Patch the "length of piece" field.
-    CHECK_LE(&buf[0], pieceLenField);
-    CHECK_LE(pieceLenField, p);
-    JDWP::Set4BE(pieceLenField, totalAllocationUnits);
+    CHECK_LE(&buf_[0], pieceLenField_);
+    CHECK_LE(pieceLenField_, p_);
+    JDWP::Set4BE(pieceLenField_, totalAllocationUnits_);
 
-    Dbg::DdmSendChunk(type, p - &buf[0], &buf[0]);
+    Dbg::DdmSendChunk(type_, p_ - &buf_[0], &buf_[0]);
     Reset();
   }
 
-  static void HeapChunkCallback(const void* chunk_ptr, size_t chunk_len, const void* user_ptr, size_t user_len, void* arg) {
-    reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkCallback(chunk_ptr, chunk_len, user_ptr, user_len);
+  static void HeapChunkCallback(void* start, void* end, size_t used_bytes, void* arg) {
+    reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkCallback(start, end, used_bytes);
   }
 
  private:
   enum { ALLOCATION_UNIT_SIZE = 8 };
 
   void Reset() {
-    p = &buf[0];
-    totalAllocationUnits = 0;
-    needHeader = true;
-    pieceLenField = NULL;
+    p_ = &buf_[0];
+    totalAllocationUnits_ = 0;
+    needHeader_ = true;
+    pieceLenField_ = NULL;
   }
 
-  void HeapChunkCallback(const void* chunk_ptr, size_t chunk_len, const void* user_ptr, size_t user_len) {
+  void HeapChunkCallback(void* start, void* end, size_t used_bytes) {
+    // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
+    // in the following code not to allocate memory, by ensuring buf_ is of the correct size
+
+    const void* user_ptr = used_bytes > 0 ? const_cast<void*>(start) : NULL;
+    // from malloc.c mem2chunk(mem)
+    const void* chunk_ptr =
+        reinterpret_cast<const void*>(reinterpret_cast<const char*>(const_cast<void*>(start)) -
+            (2 * sizeof(size_t)));
+    // from malloc.c chunksize
+    size_t chunk_len = (*reinterpret_cast<size_t* const*>(chunk_ptr))[1] & ~7;
+
+
+    //size_t chunk_len = malloc_usable_size(user_ptr);
     CHECK_EQ((chunk_len & (ALLOCATION_UNIT_SIZE-1)), 0U);
 
     /* Make sure there's enough room left in the buffer.
@@ -2115,12 +2122,12 @@ struct HeapChunkContext {
      */
     {
       size_t needed = (((chunk_len/ALLOCATION_UNIT_SIZE + 255) / 256) * 2);
-      size_t bytesLeft = buf.size() - (size_t)(p - &buf[0]);
+      size_t bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
       if (bytesLeft < needed) {
         Flush();
       }
 
-      bytesLeft = buf.size() - (size_t)(p - &buf[0]);
+      bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
       if (bytesLeft < needed) {
         LOG(WARNING) << "Chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
         return;
@@ -2133,18 +2140,18 @@ struct HeapChunkContext {
     // Determine the type of this chunk.
     // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
     // If it's the same, we should combine them.
-    uint8_t state = ExamineObject(reinterpret_cast<const Object*>(user_ptr), (type == CHUNK_TYPE("NHSG")));
+    uint8_t state = ExamineObject(reinterpret_cast<const Object*>(user_ptr), (type_ == CHUNK_TYPE("NHSG")));
 
     // Write out the chunk description.
     chunk_len /= ALLOCATION_UNIT_SIZE;   // convert to allocation units
-    totalAllocationUnits += chunk_len;
+    totalAllocationUnits_ += chunk_len;
     while (chunk_len > 256) {
-      *p++ = state | HPSG_PARTIAL;
-      *p++ = 255;     // length - 1
+      *p_++ = state | HPSG_PARTIAL;
+      *p_++ = 255;     // length - 1
       chunk_len -= 256;
     }
-    *p++ = state;
-    *p++ = chunk_len - 1;
+    *p_++ = state;
+    *p_++ = chunk_len - 1;
   }
 
   uint8_t ExamineObject(const Object* o, bool is_native_heap) {
@@ -2190,6 +2197,14 @@ struct HeapChunkContext {
     return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
   }
 
+  std::vector<uint8_t> buf_;
+  uint8_t* p_;
+  uint8_t* pieceLenField_;
+  size_t totalAllocationUnits_;
+  uint32_t type_;
+  bool merge_;
+  bool needHeader_;
+
   DISALLOW_COPY_AND_ASSIGN(HeapChunkContext);
 };
 
@@ -2218,9 +2233,11 @@ void Dbg::DdmSendHeapSegments(bool native) {
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
   if (native) {
-    dlmalloc_walk_heap(HeapChunkContext::HeapChunkCallback, &context);
+    // TODO: enable when bionic has moved to dlmalloc 2.8.5
+    // dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
+    UNIMPLEMENTED(WARNING) << "Native heap send heap segments";
   } else {
-    Heap::WalkHeap(HeapChunkContext::HeapChunkCallback, &context);
+    Heap::GetAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
 
   // Finally, send a heap end chunk.

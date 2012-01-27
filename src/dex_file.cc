@@ -72,7 +72,7 @@ const DexFile* DexFile::Open(const std::string& filename,
 }
 
 void DexFile::ChangePermissions(int prot) const {
-  if (mprotect(mem_map_->GetAddress(), mem_map_->GetLength(), prot) != 0) {
+  if (mprotect(mem_map_->Begin(), mem_map_->Size(), prot) != 0) {
     PLOG(FATAL) << "Failed to change dex file permissions to " << prot << " for " << GetLocation();
   }
 }
@@ -193,7 +193,7 @@ jobject DexFile::GetDexObject(JNIEnv* env) const {
     return dex_object_;
   }
 
-  void* address = const_cast<void*>(reinterpret_cast<const void*>(base_));
+  void* address = const_cast<void*>(reinterpret_cast<const void*>(begin_));
   jobject byte_buffer = env->NewDirectByteBuffer(address, length_);
   if (byte_buffer == NULL) {
     return NULL;
@@ -226,14 +226,14 @@ bool DexFile::Init() {
     return false;
   }
   InitIndex();
-  if (!DexFileVerifier::Verify(this, base_, length_)) {
+  if (!DexFileVerifier::Verify(this, begin_, length_)) {
     return false;
   }
   return true;
 }
 
 void DexFile::InitMembers() {
-  const byte* b = base_;
+  const byte* b = begin_;
   header_ = reinterpret_cast<const Header*>(b);
   const Header* h = header_;
   string_ids_ = reinterpret_cast<const StringId*>(b + h->string_ids_off_);
@@ -281,14 +281,14 @@ uint32_t DexFile::GetVersion() const {
 }
 
 int32_t DexFile::GetStringLength(const StringId& string_id) const {
-  const byte* ptr = base_ + string_id.string_data_off_;
+  const byte* ptr = begin_ + string_id.string_data_off_;
   return DecodeUnsignedLeb128(&ptr);
 }
 
 // Returns a pointer to the UTF-8 string data referred to by the given string_id.
 const char* DexFile::GetStringDataAndLength(const StringId& string_id, int32_t* length) const {
   CHECK(length != NULL) << GetLocation();
-  const byte* ptr = base_ + string_id.string_data_off_;
+  const byte* ptr = begin_ + string_id.string_data_off_;
   *length = DecodeUnsignedLeb128(&ptr);
   return reinterpret_cast<const char*>(ptr);
 }

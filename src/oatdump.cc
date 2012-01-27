@@ -84,11 +84,11 @@ class OatDump {
     os << "EXECUTABLE OFFSET:\n";
     os << StringPrintf("%08x\n\n", oat_header.GetExecutableOffset());
 
-    os << "BASE:\n";
-    os << reinterpret_cast<const void*>(oat_file.GetBase()) << "\n\n";
+    os << "BEGIN:\n";
+    os << reinterpret_cast<const void*>(oat_file.Begin()) << "\n\n";
 
-    os << "LIMIT:\n";
-    os << reinterpret_cast<const void*>(oat_file.GetLimit()) << "\n\n";
+    os << "END:\n";
+    os << reinterpret_cast<const void*>(oat_file.End()) << "\n\n";
 
     os << std::flush;
 
@@ -207,17 +207,17 @@ class ImageDump {
     os << "MAGIC:\n";
     os << image_header.GetMagic() << "\n\n";
 
-    os << "IMAGE BASE:\n";
-    os << reinterpret_cast<void*>(image_header.GetImageBaseAddr()) << "\n\n";
+    os << "IMAGE BEGIN:\n";
+    os << reinterpret_cast<void*>(image_header.GetImageBegin()) << "\n\n";
 
     os << "OAT CHECKSUM:\n";
     os << StringPrintf("%08x\n\n", image_header.GetOatChecksum());
 
-    os << "OAT BASE:\n";
-    os << reinterpret_cast<void*>(image_header.GetOatBaseAddr()) << "\n\n";
+    os << "OAT BEGIN:\n";
+    os << reinterpret_cast<void*>(image_header.GetOatBegin()) << "\n\n";
 
-    os << "OAT LIMIT:\n";
-    os << reinterpret_cast<void*>(image_header.GetOatLimitAddr()) << "\n\n";
+    os << "OAT END:\n";
+    os << reinterpret_cast<void*>(image_header.GetOatEnd()) << "\n\n";
 
     os << "ROOTS:\n";
     os << reinterpret_cast<void*>(image_header.GetImageRoots()) << "\n";
@@ -381,8 +381,7 @@ class ImageDump {
   }
 
   bool InDumpSpace(const Object* object) {
-    const byte* o = reinterpret_cast<const byte*>(object);
-    return (o >= dump_space_.GetBase() && o < dump_space_.GetLimit());
+    return dump_space_.Contains(object);
   }
 
  public:
@@ -584,7 +583,7 @@ int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  Space* image_space = Heap::GetSpaces()[Heap::GetSpaces().size()-2];
+  ImageSpace* image_space = Heap::GetSpaces()[Heap::GetSpaces().size()-2]->AsImageSpace();
   CHECK(image_space != NULL);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {

@@ -558,7 +558,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
   const char* class_path = Runtime::Current()->GetClassPath().c_str();
 
   std::string boot_image_option_string("--boot-image=");
-  boot_image_option_string += Heap::GetSpaces()[0]->GetImageFilename();
+  boot_image_option_string += Heap::GetSpaces()[0]->AsImageSpace()->GetImageFilename();
   const char* boot_image_option = boot_image_option_string.c_str();
 
   std::string dex_file_option_string("--dex-file=");
@@ -630,10 +630,9 @@ void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
   oat_files_.push_back(&oat_file);
 }
 
-OatFile* ClassLinker::OpenOat(const Space* space) {
+OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   MutexLock mu(dex_lock_);
   const Runtime* runtime = Runtime::Current();
-  VLOG(startup) << "ClassLinker::OpenOat entering";
   const ImageHeader& image_header = space->GetImageHeader();
   // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
   // check the down cast
@@ -641,7 +640,8 @@ OatFile* ClassLinker::OpenOat(const Space* space) {
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
-  OatFile* oat_file = OatFile::Open(oat_filename, "", image_header.GetOatBaseAddr());
+  OatFile* oat_file = OatFile::Open(oat_filename, "", image_header.GetOatBegin());
+  VLOG(startup) << "ClassLinker::OpenOat entering oat_filename=" << oat_filename;
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
     return NULL;
@@ -832,8 +832,8 @@ void ClassLinker::InitFromImage() {
 
   const std::vector<Space*>& spaces = Heap::GetSpaces();
   for (size_t i = 0; i < spaces.size(); i++) {
-    Space* space = spaces[i];
-    if (space->IsImageSpace()) {
+    if (spaces[i]->IsImageSpace()) {
+      ImageSpace* space = spaces[i]->AsImageSpace();
       OatFile* oat_file = OpenOat(space);
       CHECK(oat_file != NULL) << "Failed to open oat file for image";
       Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
@@ -842,7 +842,7 @@ void ClassLinker::InitFromImage() {
       if (i == 0) {
         // Special case of setting up the String class early so that we can test arbitrary objects
         // as being Strings or not
-        Class* java_lang_String = spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)
+        Class* java_lang_String = space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)
             ->AsObjectArray<Class>()->Get(kJavaLangString);
         String::SetClass(java_lang_String);
       }
@@ -873,7 +873,8 @@ void ClassLinker::InitFromImage() {
   heap_bitmap->Walk(InitFromImageCallback, this);
 
   // reinit class_roots_
-  Object* class_roots_object = spaces[0]->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
+  Object* class_roots_object =
+      spaces[0]->AsImageSpace()->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
   class_roots_ = class_roots_object->AsObjectArray<Class>();
 
   // reinit array_iftable_ from any array class instance, they should be ==
@@ -2568,7 +2569,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
     size_t actual_count = klass->GetSuperClass()->GetVTable()->GetLength();
     CHECK_LE(actual_count, max_count);
     // TODO: do not assign to the vtable field until it is fully constructed.
-    ObjectArray<Method>* vtable = klass->GetSuperClass()->GetVTable()->CopyOf(max_count);
+    SirtRef<ObjectArray<Method> > vtable(klass->GetSuperClass()->GetVTable()->CopyOf(max_count));
     // See if any of our virtual methods override the superclass.
     MethodHelper local_mh(NULL, this);
     MethodHelper super_mh(NULL, this);
@@ -2607,9 +2608,9 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
     // Shrink vtable if possible
     CHECK_LE(actual_count, max_count);
     if (actual_count < max_count) {
-      vtable = vtable->CopyOf(actual_count);
+      vtable.reset(vtable->CopyOf(actual_count));
     }
-    klass->SetVTable(vtable);
+    klass->SetVTable(vtable.get());
   } else {
     CHECK(klass.get() == GetClassRoot(kJavaLangObject));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
@@ -2775,11 +2776,11 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
                              ? AllocObjectArray<Method>(new_method_count)
                              : klass->GetVirtualMethods()->CopyOf(new_method_count));
 
-    ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();
-    CHECK(vtable != NULL);
+    SirtRef<ObjectArray<Method> > vtable(klass->GetVTableDuringLinking());
+    CHECK(vtable.get() != NULL);
     int old_vtable_count = vtable->GetLength();
     int new_vtable_count = old_vtable_count + miranda_list.size();
-    vtable = vtable->CopyOf(new_vtable_count);
+    vtable.reset(vtable->CopyOf(new_vtable_count));
     for (size_t i = 0; i < miranda_list.size(); ++i) {
       Method* method = miranda_list[i];
       // Leave the declaring class alone as type indices are relative to it
@@ -2789,7 +2790,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
       vtable->Set(old_vtable_count + i, method);
     }
     // TODO: do not assign to the vtable field until it is fully constructed.
-    klass->SetVTable(vtable);
+    klass->SetVTable(vtable.get());
   }
 
   ObjectArray<Method>* vtable = klass->GetVTableDuringLinking();

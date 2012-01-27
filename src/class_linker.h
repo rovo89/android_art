@@ -35,6 +35,7 @@
 namespace art {
 
 class ClassLoader;
+class ImageSpace;
 class InternTable;
 class ObjectLock;
 
@@ -282,7 +283,7 @@ class ClassLinker {
 
   // Initialize class linker from one or more images.
   void InitFromImage();
-  OatFile* OpenOat(const Space* space);
+  OatFile* OpenOat(const ImageSpace* space);
   static void InitFromImageCallback(Object* obj, void* arg);
   struct InitFromImageCallbackState;
 

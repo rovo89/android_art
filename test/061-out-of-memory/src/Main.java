@@ -46,15 +46,15 @@ public class Main {
         /* Just shy of the typical max heap size so that it will actually
          * try to allocate it instead of short-circuiting.
          *
-         * TODO: stop assuming the VM defaults to 16MB max
+         * TODO: stop assuming the VM defaults to 64MB max
          */
-        final int SIXTEEN_MB = (16 * 1024 * 1024 - 32);
+        final int SIXTY_FOUR_MB = (64 * 1024 * 1024 - 32);
 
         Boolean sawEx = false;
         byte a[];
 
         try {
-            a = new byte[SIXTEEN_MB];
+            a = new byte[SIXTY_FOUR_MB];
         } catch (OutOfMemoryError oom) {
             //Log.i(TAG, "HeapTest/OomeLarge caught " + oom);
             sawEx = true;
@@ -72,10 +72,10 @@ public class Main {
      * list afterwards.  Even if we null out list when we're done, the conservative
      * GC may see a stale pointer to it in a register.
      *
-     * TODO: stop assuming the VM defaults to 16MB max
+     * TODO: stop assuming the VM defaults to 64MB max
      */
     private static boolean testOomeSmallInternal() {
-        final int SIXTEEN_MB = (16 * 1024 * 1024);
+        final int SIXTY_FOUR_MB = (64 * 1024 * 1024);
         final int LINK_SIZE = 6 * 4; // estimated size of a LinkedList's node
 
         LinkedList<Object> list = new LinkedList<Object>();
@@ -86,7 +86,7 @@ public class Main {
         while (objSize >= LINK_SIZE) {
             boolean sawEx = false;
             try {
-                for (int i = 0; i < SIXTEEN_MB / objSize; i++) {
+                for (int i = 0; i < SIXTY_FOUR_MB / objSize; i++) {
                     list.add((Object)new byte[objSize]);
                 }
             } catch (OutOfMemoryError oom) {
