@@ -228,8 +228,8 @@ class CommonTest : public testing::Test {
     boot_class_path += "-Xbootclasspath:";
     boot_class_path += GetLibCoreDexFileName();
 
-    std::string min_heap_string = StringPrintf("-Xms%dm",Heap::kInitialSize / MB);
-    std::string max_heap_string = StringPrintf("-Xmx%dm",Heap::kMaximumSize / MB);
+    std::string min_heap_string(StringPrintf("-Xms%zdm", Heap::kInitialSize / MB));
+    std::string max_heap_string(StringPrintf("-Xmx%zdm", Heap::kMaximumSize / MB));
 
     Runtime::Options options;
     options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
