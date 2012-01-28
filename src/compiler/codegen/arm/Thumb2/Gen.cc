@@ -129,21 +129,17 @@ STATIC ArmLIR* genIT(CompilationUnit* cUnit, ArmConditionCode code,
  */
 STATIC ArmLIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
 {
-    ArmLIR* lir;
-    for (lir = (ArmLIR*)cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
-        if ((lir->opcode == kArmPseudoDalvikByteCodeBoundary) &&
-            (lir->generic.dalvikOffset == vaddr)) {
-            ArmLIR* newLabel = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
-            newLabel->generic.dalvikOffset = vaddr;
-            newLabel->opcode = kArmPseudoCaseLabel;
-            newLabel->operands[0] = keyVal;
-            oatInsertLIRAfter((LIR*)lir, (LIR*)newLabel);
-            return newLabel;
-        }
+    std::map<unsigned int, LIR*>::iterator it;
+    it = cUnit->boundaryMap.find(vaddr);
+    if (it == cUnit->boundaryMap.end()) {
+        LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
     }
-    oatCodegenDump(cUnit);
-    LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
-    return NULL; // Quiet gcc
+    ArmLIR* newLabel = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    newLabel->generic.dalvikOffset = vaddr;
+    newLabel->opcode = kArmPseudoCaseLabel;
+    newLabel->operands[0] = keyVal;
+    oatInsertLIRAfter(it->second, (LIR*)newLabel);
+    return newLabel;
 }
 
 STATIC void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
