@@ -222,7 +222,7 @@ class CommonTest : public testing::Test {
     int mkdir_result = mkdir(art_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
 
-    java_lang_dex_file_.reset(GetLibCoreDex());
+    java_lang_dex_file_.reset(DexFile::Open(GetLibCoreDexFileName(), ""));
 
     std::string boot_class_path;
     boot_class_path += "-Xbootclasspath:";
@@ -318,11 +318,6 @@ class CommonTest : public testing::Test {
       return StringPrintf("%s/framework/core-hostdex.jar", host_dir);
     }
     return std::string("/system/framework/core.jar");
-  }
-
-  const DexFile* GetLibCoreDex() {
-    std::string libcore_dex_file_name(GetLibCoreDexFileName());
-    return DexFile::Open(libcore_dex_file_name, "");
   }
 
   const DexFile* OpenTestDexFile(const char* name) {

@@ -19,7 +19,7 @@ class ImageTest : public CommonTest {};
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
   std::vector<const DexFile*> dex_files;
-  dex_files.push_back(GetLibCoreDex());
+  dex_files.push_back(java_lang_dex_file_.get());
   bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, *compiler_.get());
   ASSERT_TRUE(success_oat);
 
@@ -59,7 +59,7 @@ TEST_F(ImageTest, WriteRead) {
   // lucky by pointers that happen to work referencing the earlier
   // dex.
   delete java_lang_dex_file_.release();
-  UniquePtr<const DexFile> dex(GetLibCoreDex());
+  UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName(), ""));
   ASSERT_TRUE(dex.get() != NULL);
 
   Runtime::Options options;
