@@ -65,7 +65,7 @@ define declare-test-test-target
 test-art-target-oat-$(1): $(ART_TEST_OUT)/art-test-dex-$(1).jar test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
 	adb shell rm $(ART_TEST_DIR)/test-art-target-oat-$(1)
-	adb shell sh -c "oatexecd -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/art-test-dex-$(1).jar $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
+	adb shell sh -c "oatexecd -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/art-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR) $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 

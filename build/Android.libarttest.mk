@@ -39,6 +39,7 @@ define build-libarttest
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libstlport
     LOCAL_STATIC_LIBRARIES := libgtest
+    LOCAL_MODULE_PATH := $(ART_TEST_OUT)
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)

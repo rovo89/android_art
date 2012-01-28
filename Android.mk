@@ -65,8 +65,8 @@ endif
 
 ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_TEST_OAT_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TEST_OAT_FILES)
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_OAT_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_OAT_FILES)
 
 ########################################################################
 # host test targets
@@ -97,7 +97,7 @@ test-art-target: test-art-target-gtest test-art-target-oat test-art-target-run-t
 	@echo test-art-target PASSED
 
 .PHONY: test-art-target-sync
-test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES)
+test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest.so
 	adb remount
 	adb sync
 	adb shell mkdir -p $(ART_TEST_DIR)

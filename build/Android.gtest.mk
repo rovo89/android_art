@@ -43,15 +43,18 @@ define build-art-test
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
-  LOCAL_SHARED_LIBRARIES := libarttest libartd
+  LOCAL_SHARED_LIBRARIES := libartd
+
+  # options to allow jni_compiler_test to find Java_MyClass_bar within itself using dlopen(NULL, )
+  LOCAL_LDFLAGS := -Wl,--export-dynamic -Wl,-u,Java_MyClass_bar
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
-    LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_NATIVE_TESTS)/$$(LOCAL_MODULE)
+    LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
     include $(BUILD_EXECUTABLE)
-    art_gtest_exe := $$(LOCAL_MODULE_PATH)
+    art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
     ART_TARGET_TEST_EXECUTABLES += $$(art_gtest_exe)
   else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
@@ -67,14 +70,13 @@ define build-art-test
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_TEST_EXECUTABLES += $$(art_gtest_exe)
   endif
-
 art_gtest_target := test-art-$$(art_target_or_host)-gtest-$$(art_gtest_name)
 ifeq ($$(art_target_or_host),target)
 .PHONY: $$(art_gtest_target)
 $$(art_gtest_target): $$(art_gtest_exe) test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/$$@
 	adb shell rm $(ART_TEST_DIR)/$$@
-	adb shell sh -c "/data/nativetest/$$(notdir $$<)/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
+	adb shell sh -c "/data/nativetest/art/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
 	$(hide) (adb pull $(ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
 	$(hide) rm /tmp/$$@
 

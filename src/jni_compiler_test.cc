@@ -17,6 +17,11 @@
 #include "scoped_jni_thread_state.h"
 #include "thread.h"
 
+extern "C"
+JNIEXPORT jint JNICALL Java_MyClass_bar(JNIEnv* env, jobject thisObj, jint count) {
+  return count + 1;
+}
+
 namespace art {
 
 class JniCompilerTest : public CommonTest {
@@ -109,12 +114,11 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
   SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
   SetupForTest(class_loader.get(), false, "bar", "(I)I",
-               NULL /* dlsym will find &Java_MyClass_bar later */);
+               NULL /* calling through stub will load &Java_MyClass_bar */);
 
-  std::string path("libarttest.so");
   std::string reason;
-  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary(path, class_loader.get(), reason))
-      << path << ": " << reason;
+  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader.get(), reason))
+      << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
   EXPECT_EQ(25, result);
