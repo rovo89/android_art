@@ -105,7 +105,7 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
   AddSpace(alloc_space_);
   UpdateFirstAndLastSpace(&first_space, &last_space, alloc_space_);
   byte* heap_begin = first_space->Begin();
-  size_t heap_capacity = (last_space->Begin() - first_space->Begin()) + last_space->UnimpededCapacity();
+  size_t heap_capacity = (last_space->Begin() - first_space->Begin()) + last_space->NonGrowthLimitCapacity();
 
   // Allocate the initial live bitmap.
   UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create("dalvik-bitmap-1", heap_begin, heap_capacity));
@@ -366,8 +366,8 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
     // OLD-TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
-    VLOG(gc) << "Grow heap (frag case) to " << (new_footprint/KB) << "KiB "
-             << "for a " << alloc_size << "-byte allocation";
+    VLOG(gc) << "Grow heap (frag case) to " << PrettySize(new_footprint)
+             << "for a " << PrettySize(alloc_size) << " allocation";
     return ptr;
   }
 
@@ -378,14 +378,14 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   // cleared before throwing an OOME.
 
   // OLD-TODO: wait for the finalizers from the previous GC to finish
-  VLOG(gc) << "Forcing collection of SoftReferences for " << alloc_size << "-byte allocation";
+  VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size) << " allocation";
   CollectGarbageInternal(true);
   ptr = space->AllocWithGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
   }
 
-  LOG(ERROR) << "Out of memory on a " << alloc_size << "-byte allocation";
+  LOG(ERROR) << "Out of memory on a " << PrettySize(alloc_size) << " allocation";
 
   // TODO: tell the HeapSource to dump its state
   // TODO: dump stack traces for all threads
@@ -509,21 +509,22 @@ void Heap::CollectGarbageInternal(bool clear_soft_references) {
 
   EnqueueClearedReferences(&cleared_references);
 
-  // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
-  size_t bytes_freed = initial_size - num_bytes_allocated_;
-  bool is_small = (bytes_freed > 0 && bytes_freed < 1024);
-  size_t kib_freed = (bytes_freed > 0 ? std::max(bytes_freed/KB, size_t(1U)) : 0);
-
-  size_t total = GetTotalMemory();
-  size_t percentFree = 100 - static_cast<size_t>(100.0f * static_cast<float>(num_bytes_allocated_) / total);
-
-  uint32_t duration = (t1 - t0)/1000/1000;
-  bool gc_was_particularly_slow = (duration > 100); // TODO: crank this down for concurrent.
+  uint64_t duration_ns = t1 - t0;
+  bool gc_was_particularly_slow = duration_ns > MsToNs(100); // TODO: crank this down for concurrent.
   if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
-    LOG(INFO) << "GC freed " << (is_small ? "<" : "") << kib_freed << "KiB, "
-              << percentFree << "% free "
-              << (num_bytes_allocated_/KB) << "KiB/" << (total/KB) << "KiB, "
-              << "paused " << duration << "ms";
+    // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
+    size_t bytes_freed = initial_size - num_bytes_allocated_;
+    if (bytes_freed > KB) {  // ignore freed bytes in output if > 1KB
+      bytes_freed = RoundDown(bytes_freed, KB);
+    }
+    size_t bytes_allocated = RoundUp(num_bytes_allocated_, KB);
+    // lose low nanoseconds in duration. TODO: make this part of PrettyDuration
+    duration_ns = (duration_ns / 1000) * 1000;
+    size_t total = GetTotalMemory();
+    size_t percentFree = 100 - static_cast<size_t>(100.0f * static_cast<float>(num_bytes_allocated_) / total);
+    LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << percentFree << "% free, "
+              << PrettySize(bytes_allocated) << "/" << PrettySize(total) << ", "
+              << "paused " << PrettyDuration(duration_ns);
   }
   Dbg::GcDidFinish();
   if (VLOG_IS_ON(heap)) {
@@ -535,49 +536,22 @@ void Heap::WaitForConcurrentGcToComplete() {
   lock_->AssertHeld();
 }
 
-/* Terminology:
- *  1. Footprint: Capacity we allocate from system.
- *  2. Active space: a.k.a. alloc_space_.
- *  3. Soft footprint: external allocation + spaces footprint + active space footprint
- *  4. Overhead: soft footprint excluding active.
- *
- * Layout: (The spaces below might not be contiguous, but are lumped together to depict size.)
- * |----------------------spaces footprint--------- --------------|----active space footprint----|
- *                                                                |--active space allocated--|
- * |--------------------soft footprint (include active)--------------------------------------|
- * |----------------soft footprint excluding active---------------|
- *                                                                |------------soft limit-------...|
- * |------------------------------------ideal footprint-----------------------------------------...|
- *
- */
-
-// Sets the maximum number of bytes that the heap is allowed to
-// allocate from the system.  Clamps to the appropriate maximum
-// value.
-// Old spaces will count against the ideal size.
-//
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   size_t alloc_space_capacity = alloc_space_->Capacity();
   if (max_allowed_footprint > alloc_space_capacity) {
-    VLOG(gc) << "Clamp target GC heap from " << (max_allowed_footprint/KB) << "KiB"
-             << " to " << (alloc_space_capacity/KB) << "KiB";
+    VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint)
+             << " to " << PrettySize(alloc_space_capacity);
     max_allowed_footprint = alloc_space_capacity;
   }
-
   alloc_space_->SetFootprintLimit(max_allowed_footprint);
 }
 
-// kHeapIdealFree is the ideal maximum free size, when we grow the heap for
-// utilization.
+// kHeapIdealFree is the ideal maximum free size, when we grow the heap for utilization.
 static const size_t kHeapIdealFree = 2 * MB;
-// kHeapMinFree guarantees that you always have at least 512 KB free, when
-// you grow for utilization, regardless of target utilization ratio.
+// kHeapMinFree guarantees that you always have at least 512 KB free, when you grow for utilization,
+// regardless of target utilization ratio.
 static const size_t kHeapMinFree = kHeapIdealFree / 4;
 
-// Given the current contents of the active space, increase the allowed
-// heap footprint to match the target utilization ratio.  This should
-// only be called immediately after a full garbage collection.
-//
 void Heap::GrowForUtilization() {
   lock_->AssertHeld();
 

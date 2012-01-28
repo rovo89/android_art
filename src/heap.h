@@ -89,7 +89,8 @@ class Heap {
   // Implements VMDebug.countInstancesOfClass.
   static int64_t CountInstances(Class* c, bool count_assignable);
 
-  // Implements dalvik.system.VMRuntime.clearGrowthLimit.
+  // Removes the growth limit on the alloc space so it may grow to its maximum capacity. Used to
+  // implement dalvik.system.VMRuntime.clearGrowthLimit.
   static void ClearGrowthLimit();
 
   // Target ideal heap utilization ratio, implements
@@ -104,8 +105,9 @@ class Heap {
     DCHECK_LT(target, 1.0f);
     target_utilization_ = target;
   }
-  // Sets the maximum number of bytes that the heap is allowed to allocate
-  // from the system.  Clamps to the appropriate maximum value.
+
+  // For the alloc space, sets the maximum number of bytes that the heap is allowed to allocate
+  // from the system. Doesn't allow the space to exceed its growth limit.
   static void SetIdealFootprint(size_t max_allowed_footprint);
 
   // Blocks the caller until the garbage collector becomes idle.
@@ -221,6 +223,9 @@ class Heap {
 
   static void CollectGarbageInternal(bool clear_soft_references);
 
+  // Given the current contents of the alloc space, increase the allowed heap footprint to match
+  // the target utilization ratio.  This should only be called immediately after a full garbage
+  // collection.
   static void GrowForUtilization();
 
   static void AddSpace(Space* space) {
@@ -283,6 +288,8 @@ class Heap {
   static bool verify_objects_;
 
   FRIEND_TEST(SpaceTest, AllocAndFree);
+  FRIEND_TEST(SpaceTest, AllocAndFreeList);
+  friend class SpaceTest;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

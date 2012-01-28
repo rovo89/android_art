@@ -183,6 +183,14 @@ std::string PrettyClass(const Class* c);
 // Returns a human-readable form of the name of the given class with its class loader.
 std::string PrettyClassAndClassLoader(const Class* c);
 
+// Returns a human-readable size string. e.g. "1MB"
+std::string PrettySize(size_t size_in_bytes);
+
+// Returns a human-readable time string which prints every nanosecond while trying to limit the
+// number of trailing zeros. Prints using the largest human readable unit up to a second.
+// e.g. "1ms", "1.000000001s", "1.001us"
+std::string PrettyDuration(uint64_t nano_duration);
+
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);
@@ -225,7 +233,15 @@ uint64_t NanoTime();
 uint64_t ThreadCpuMicroTime();
 
 // Converts the given number of nanoseconds to milliseconds.
-uint64_t NsToMs(uint64_t ns);
+static inline uint64_t NsToMs(uint64_t ns) {
+  return ns / 1000 / 1000;
+}
+
+// Converts the given number of milliseconds to nanoseconds
+static inline uint64_t MsToNs(uint64_t ns) {
+  return ns * 1000 * 1000;
+}
+
 
 // Splits a string using the given delimiter character into a vector of
 // strings. Empty strings will be omitted.

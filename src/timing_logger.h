@@ -41,9 +41,9 @@ class TimingLogger {
   void Dump() {
     LOG(INFO) << name_ << ": begin";
     for (size_t i = 1; i < times_.size(); ++i) {
-      LOG(INFO) << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i];
+      LOG(INFO) << name_ << ": " << PrettyDuration(times_[i] - times_[i-1]) << labels_[i];
     }
-    LOG(INFO) << name_ << ": end, " << NsToMs(times_.back() - times_.front()) << " ms";
+    LOG(INFO) << name_ << ": end, " << PrettyDuration(times_.back() - times_.front());
   }
 
  private:

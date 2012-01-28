@@ -115,10 +115,6 @@ uint64_t ThreadCpuMicroTime() {
 #endif
 }
 
-uint64_t NsToMs(uint64_t ns) {
-  return ns/1000/1000;
-}
-
 std::string PrettyDescriptor(const String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
@@ -270,6 +266,65 @@ std::string PrettyClassAndClassLoader(const Class* c) {
   // TODO: add an identifying hash value for the loader
   result += ">";
   return result;
+}
+
+std::string PrettySize(size_t size_in_bytes) {
+  if ((size_in_bytes / GB) * GB == size_in_bytes) {
+    return StringPrintf("%zdGB", size_in_bytes / GB);
+  } else if ((size_in_bytes / MB) * MB == size_in_bytes) {
+    return StringPrintf("%zdMB", size_in_bytes / MB);
+  } else if ((size_in_bytes / KB) * KB == size_in_bytes) {
+    return StringPrintf("%zdKiB", size_in_bytes / KB);
+  } else {
+    return StringPrintf("%zdB", size_in_bytes);
+  }
+}
+
+std::string PrettyDuration(uint64_t nano_duration) {
+  if (nano_duration == 0) {
+    return "0";
+  } else {
+    const uint64_t one_sec = 1000 * 1000 * 1000;
+    const uint64_t one_ms  = 1000 * 1000;
+    const uint64_t one_us  = 1000;
+    const char* unit;
+    uint64_t divisor;
+    uint32_t zero_fill;
+    if (nano_duration >= one_sec) {
+      unit = "s";
+      divisor = one_sec;
+      zero_fill = 9;
+    } else if(nano_duration >= one_ms) {
+      unit = "ms";
+      divisor = one_ms;
+      zero_fill = 6;
+    } else if(nano_duration >= one_us) {
+      unit = "us";
+      divisor = one_us;
+      zero_fill = 3;
+    } else {
+      unit = "ns";
+      divisor = 1;
+      zero_fill = 0;
+    }
+    uint64_t whole_part = nano_duration / divisor;
+    uint64_t fractional_part = nano_duration % divisor;
+    if (fractional_part == 0) {
+      return StringPrintf("%llu%s", whole_part, unit);
+    } else {
+      while ((fractional_part % 1000) == 0) {
+        zero_fill -= 3;
+        fractional_part /= 1000;
+      }
+      if (zero_fill == 3) {
+        return StringPrintf("%llu.%03llu%s", whole_part, fractional_part, unit);
+      } else if (zero_fill == 6) {
+        return StringPrintf("%llu.%06llu%s", whole_part, fractional_part, unit);
+      } else {
+        return StringPrintf("%llu.%09llu%s", whole_part, fractional_part, unit);
+      }
+    }
+  }
 }
 
 std::string MangleForJni(const std::string& s) {

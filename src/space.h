@@ -78,8 +78,9 @@ class Space {
     return mem_map_->Size();
   }
 
-  // Support for having an impediment (GrowthLimit) removed from the space
-  virtual size_t UnimpededCapacity() const {
+  // Size of the space without a limit on its growth. By default this is just the Capacity, but
+  // for the allocation space we support starting with a small heap and then extending it.
+  virtual size_t NonGrowthLimitCapacity() const {
     return Capacity();
   }
 
@@ -118,13 +119,13 @@ std::ostream& operator<<(std::ostream& os, const Space& space);
 // An alloc space is a space where objects may be allocated and garbage collected.
 class AllocSpace : public Space {
  public:
-  // Allocate num_bytes without allowing the underlying  mspace to grow
+  // Allocate num_bytes without allowing the underlying mspace to grow.
   Object* AllocWithGrowth(size_t num_bytes);
 
-  // Allocate num_bytes allowing the underlying mspace to grow
+  // Allocate num_bytes allowing the underlying mspace to grow.
   Object* AllocWithoutGrowth(size_t num_bytes);
 
-  // Return the storage space required by obj
+  // Return the storage space required by obj.
   size_t AllocationSize(const Object* obj);
 
   void Free(Object* ptr);
@@ -137,24 +138,26 @@ class AllocSpace : public Space {
     return mspace_;
   }
 
-  // Hand unused pages back to the system
+  // Hand unused pages back to the system.
   void Trim();
 
   // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
-  // in use, indicated by num_bytes equaling zero
+  // in use, indicated by num_bytes equaling zero.
   void Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
             void* arg);
 
-  // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore
+  // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore.
   size_t GetFootprintLimit();
 
-  // Set the maximum number of bytes that the heap is allowed to obtain from the system via MoreCore
+  // Set the maximum number of bytes that the heap is allowed to obtain from the system via
+  // MoreCore. Note this is used to stop the mspace growing beyond the limit to Capacity. When
+  // allocations fail we GC before increasing the footprint limit and allowing the mspace to grow.
   void SetFootprintLimit(size_t limit);
 
-  // Removes the fork time growth limit (fence on capacity), allowing the application to allocate
-  // up to the maximum heap size.
+  // Removes the fork time growth limit on capacity, allowing the application to allocate up to the
+  // maximum reserved size of the heap.
   void ClearGrowthLimit() {
-    growth_limit_ = UnimpededCapacity();
+    growth_limit_ = NonGrowthLimitCapacity();
   }
 
   // Override capacity so that we only return the possibly limited capacity
@@ -162,7 +165,8 @@ class AllocSpace : public Space {
     return growth_limit_;
   }
 
-  virtual size_t UnimpededCapacity() const {
+  // The total amount of memory reserved for the alloc space
+  virtual size_t NonGrowthLimitCapacity() const {
     return mem_map_->End() - mem_map_->Begin();
   }
 
@@ -185,7 +189,7 @@ class AllocSpace : public Space {
 
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
 
-  static void* CreateMallocSpace(void* base, size_t initial_size, size_t maximum_size);
+  static void* CreateMallocSpace(void* base, size_t morecore_start, size_t initial_size);
 
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;

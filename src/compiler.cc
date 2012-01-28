@@ -62,23 +62,24 @@ Compiler::~Compiler() {
   STLDeleteValues(&compiled_invoke_stubs_);
   if (dex_file_count_ > 0) {
     uint64_t duration_ns = NanoTime() - start_ns_;
-    uint64_t duration_ms = NsToMs(duration_ns);
     std::string stats(StringPrintf("Compiled files:%zd"
                                    " classes:%zd"
                                    " methods:(abstract:%zd"
                                    " native:%zd"
                                    " regular:%zd)"
-                                   " instructions:%zd"
-                                   " (took %llums",
+                                   " instructions:%zd",
                                    dex_file_count_,
                                    class_count_,
                                    abstract_method_count_,
                                    native_method_count_,
                                    regular_method_count_,
-                                   instruction_count_,
-                                   duration_ms));
+                                   instruction_count_));
+    stats += " (took ",
+    stats += PrettyDuration(duration_ns);
     if (instruction_count_ != 0) {
-        stats += StringPrintf(", %llu ns/instruction", duration_ns/instruction_count_);
+        stats += ", ";
+        stats += PrettyDuration(duration_ns / instruction_count_);
+        stats += "/instruction";
     }
     stats += ")";
     LOG(INFO) << stats;
@@ -450,10 +451,10 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
                                        dex_file, kThumb2);
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
-  uint64_t duration_ms = NsToMs(NanoTime() - start_ns);
-  if (duration_ms > 10) {
+  uint64_t duration_ns = NanoTime() - start_ns;
+  if (duration_ns > MsToNs(10)) {
     LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
-                 << " took " << duration_ms << "ms";
+                 << " took " << PrettyDuration(duration_ns);
   }
 
   if (compiled_method != NULL) {

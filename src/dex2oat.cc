@@ -96,7 +96,7 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
-    LOG(INFO) << "dex2oat took " << NsToMs(NanoTime() - start_ns_) << "ms";
+    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_);
   }
 
   // Make a list of descriptors for classes to include in the image

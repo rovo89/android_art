@@ -102,6 +102,51 @@ TEST_F(UtilsTest, PrettyField) {
   EXPECT_EQ("java.lang.String.value", PrettyField(f, false));
 }
 
+TEST_F(UtilsTest, PrettySize) {
+  EXPECT_EQ("1GB", PrettySize(1 * GB));
+  EXPECT_EQ("2GB", PrettySize(2 * GB));
+  if (sizeof(size_t) > sizeof(uint32_t)) {
+    EXPECT_EQ("100GB", PrettySize(100 * GB));
+  }
+  EXPECT_EQ("1MB", PrettySize(1 * MB));
+  EXPECT_EQ("10MB", PrettySize(10 * MB));
+  EXPECT_EQ("100MB", PrettySize(100 * MB));
+  EXPECT_EQ("1KiB", PrettySize(1 * KB));
+  EXPECT_EQ("10KiB", PrettySize(10 * KB));
+  EXPECT_EQ("100KiB", PrettySize(100 * KB));
+  EXPECT_EQ("1B", PrettySize(1));
+  EXPECT_EQ("10B", PrettySize(10));
+  EXPECT_EQ("100B", PrettySize(100));
+}
+
+TEST_F(UtilsTest, PrettyDuration) {
+  const uint64_t one_sec = 1000000000;
+  const uint64_t one_ms  = 1000000;
+  const uint64_t one_us  = 1000;
+
+  EXPECT_EQ("1s", PrettyDuration(1 * one_sec));
+  EXPECT_EQ("10s", PrettyDuration(10 * one_sec));
+  EXPECT_EQ("100s", PrettyDuration(100 * one_sec));
+  EXPECT_EQ("1.001s", PrettyDuration(1 * one_sec + one_ms));
+  EXPECT_EQ("1.000001s", PrettyDuration(1 * one_sec + one_us));
+  EXPECT_EQ("1.000000001s", PrettyDuration(1 * one_sec + 1));
+
+  EXPECT_EQ("1ms", PrettyDuration(1 * one_ms));
+  EXPECT_EQ("10ms", PrettyDuration(10 * one_ms));
+  EXPECT_EQ("100ms", PrettyDuration(100 * one_ms));
+  EXPECT_EQ("1.001ms", PrettyDuration(1 * one_ms + one_us));
+  EXPECT_EQ("1.000001ms", PrettyDuration(1 * one_ms + 1));
+
+  EXPECT_EQ("1us", PrettyDuration(1 * one_us));
+  EXPECT_EQ("10us", PrettyDuration(10 * one_us));
+  EXPECT_EQ("100us", PrettyDuration(100 * one_us));
+  EXPECT_EQ("1.001us", PrettyDuration(1 * one_us + 1));
+
+  EXPECT_EQ("1ns", PrettyDuration(1));
+  EXPECT_EQ("10ns", PrettyDuration(10));
+  EXPECT_EQ("100ns", PrettyDuration(100));
+}
+
 TEST_F(UtilsTest, MangleForJni) {
   EXPECT_EQ("hello_00024world", MangleForJni("hello$world"));
   EXPECT_EQ("hello_000a9world", MangleForJni("hello\xc2\xa9world"));

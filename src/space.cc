@@ -30,25 +30,35 @@ namespace art {
 AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size,
                                     size_t growth_limit, size_t capacity,
                                     byte* requested_begin) {
+  // Memory we promise to dlmalloc before it asks for morecore.
+  // Note: making this value large means that large allocations are unlikely to succeed as dlmalloc
+  // will ask for this memory from sys_alloc which will fail as the footprint (this value plus the
+  // size of the large allocation) will be greater than the footprint limit.
+  size_t starting_size = kPageSize;
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     start_time = NanoTime();
     VLOG(startup) << "Space::CreateAllocSpace entering " << name
-                  << " initial_size=" << (initial_size / KB) << "KiB"
-                  << " growth_limit=" << (growth_limit / KB) << "KiB"
-                  << " capacity=" << (capacity / KB) << "KiB"
+                  << " initial_size=" << PrettySize(initial_size)
+                  << " growth_limit=" << PrettySize(growth_limit)
+                  << " capacity=" << PrettySize(capacity)
                   << " requested_begin=" << reinterpret_cast<void*>(requested_begin);
   }
 
   // Sanity check arguments
+  if (starting_size > initial_size) {
+    initial_size = starting_size;
+  }
   if (initial_size > growth_limit) {
     LOG(ERROR) << "Failed to create alloc space (" << name << ") where the initial size ("
-        << initial_size << ") is larger than its capacity (" << growth_limit << ")";
+        << PrettySize(initial_size) << ") is larger than its capacity ("
+        << PrettySize(growth_limit) << ")";
     return NULL;
   }
   if (growth_limit > capacity) {
-    LOG(ERROR) << "Failed to create alloc space (" << name << ") where the growth limit capacity"
-        " (" << growth_limit << ") is larger than the capacity (" << capacity << ")";
+    LOG(ERROR) << "Failed to create alloc space (" << name << ") where the growth limit capacity ("
+        << PrettySize(growth_limit) << ") is larger than the capacity ("
+        << PrettySize(capacity) << ")";
     return NULL;
   }
 
@@ -60,18 +70,18 @@ AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size
                                                  capacity, PROT_READ | PROT_WRITE));
   if (mem_map.get() == NULL) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
-        << capacity << " bytes";
+        << PrettySize(capacity);
     return NULL;
   }
 
-  void* mspace = AllocSpace::CreateMallocSpace(mem_map->Begin(), initial_size, capacity);
+  void* mspace = AllocSpace::CreateMallocSpace(mem_map->Begin(), starting_size, initial_size);
   if (mspace == NULL) {
     LOG(ERROR) << "Failed to initialize mspace for alloc space (" << name << ")";
     return NULL;
   }
 
-  // Protect memory beyond the initial size
-  byte* end = mem_map->Begin() + initial_size;
+  // Protect memory beyond the initial size.
+  byte* end = mem_map->Begin() + starting_size;
   if (capacity - initial_size > 0) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), name);
   }
@@ -79,22 +89,22 @@ AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size
   // Everything is set so record in immutable structure and leave
   AllocSpace* space = new AllocSpace(name, mem_map.release(), mspace, end, growth_limit);
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    uint64_t duration_ms = (NanoTime() - start_time)/1000/1000;
-    LOG(INFO) << "Space::CreateAllocSpace exiting (" << duration_ms << " ms) " << *space;
+    LOG(INFO) << "Space::CreateAllocSpace exiting (" << PrettyDuration(NanoTime() - start_time)
+        << " ) " << *space;
   }
   return space;
 }
 
-void* AllocSpace::CreateMallocSpace(void* begin, size_t size, size_t capacity) {
+void* AllocSpace::CreateMallocSpace(void* begin, size_t morecore_start, size_t initial_size) {
   // clear errno to allow PLOG on error
   errno = 0;
-  // create mspace using our backing storage starting at begin and of half the specified size.
-  // Don't use an internal dlmalloc lock (as we already hold heap lock). When size is exhaused
-  // morecore will be called.
-  void* msp = create_mspace_with_base(begin, size, false /*locked*/);
+  // create mspace using our backing storage starting at begin and with a footprint of
+  // morecore_start. Don't use an internal dlmalloc lock (as we already hold heap lock). When
+  // morecore_start bytes of memory is exhaused morecore will be called.
+  void* msp = create_mspace_with_base(begin, morecore_start, false /*locked*/);
   if (msp != NULL) {
     // Do not allow morecore requests to succeed beyond the initial size of the heap
-    mspace_set_footprint_limit(msp, size);
+    mspace_set_footprint_limit(msp, initial_size);
   } else {
     PLOG(ERROR) << "create_mspace_with_base failed";
   }
@@ -175,7 +185,7 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
 void* AllocSpace::MoreCore(intptr_t increment) {
   byte* original_end = end_;
   if (increment != 0) {
-    VLOG(heap) << "AllocSpace::MoreCore " << (increment/KB) << "KiB";
+    VLOG(heap) << "AllocSpace::MoreCore " << PrettySize(increment);
     byte* new_end = original_end + increment;
     if (increment > 0) {
 #if DEBUG_SPACES
@@ -190,6 +200,11 @@ void* AllocSpace::MoreCore(intptr_t increment) {
       CHECK_GT(original_end + increment, Begin());
 #endif
       // Advise we don't need the pages and protect them
+      // TODO: by removing permissions to the pages we may be causing TLB shoot-down which can be
+      // expensive (note the same isn't true for giving permissions to a page as the protected
+      // page shouldn't be in a TLB). We should investigate performance impact of just
+      // removing ignoring the memory protection change here and in Space::CreateAllocSpace. It's
+      // likely just a useful debug feature.
       size_t size = -increment;
       CHECK_MEMORY_CALL(madvise, (new_end, size, MADV_DONTNEED), GetSpaceName());
       CHECK_MEMORY_CALL(mprotect, (new_end, size, PROT_NONE), GetSpaceName());
@@ -238,10 +253,9 @@ size_t AllocSpace::GetFootprintLimit() {
 }
 
 void AllocSpace::SetFootprintLimit(size_t new_size) {
-  VLOG(heap) << "AllocSpace::SetFootprintLimit " << (new_size/KB) << "KiB";
+  VLOG(heap) << "AllocSpace::SetFootprintLimit " << PrettySize(new_size);
   // Compare against the actual footprint, rather than the Size(), because the heap may not have
   // grown all the way to the allowed size yet.
-  //
   size_t current_space_size = mspace_footprint(mspace_);
   if (new_size < current_space_size) {
     // Don't let the space grow any more.
@@ -310,8 +324,8 @@ ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
 
   ImageSpace* space = new ImageSpace(image_file_name, map.release());
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    uint64_t duration_ms = (NanoTime() - start_time)/1000/1000;
-    LOG(INFO) << "Space::CreateImageSpace exiting (" << duration_ms << " ms) " << *space;
+    LOG(INFO) << "Space::CreateImageSpace exiting (" << PrettyDuration(NanoTime() - start_time)
+        << ") " << *space;
   }
   return space;
 }
@@ -333,8 +347,8 @@ void ImageSpace::RecordImageAllocations(HeapBitmap* live_bitmap) const {
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
   }
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    uint64_t duration_ms = (NanoTime() - start_time)/1000/1000;
-    LOG(INFO) << "ImageSpace::RecordImageAllocations exiting (" << duration_ms << " ms)";
+    LOG(INFO) << "ImageSpace::RecordImageAllocations exiting ("
+        << PrettyDuration(NanoTime() - start_time) << ")";
   }
 }
 
@@ -342,8 +356,7 @@ std::ostream& operator<<(std::ostream& os, const Space& space) {
   os << (space.IsImageSpace() ? "Image" : "Alloc") << "Space["
       << "begin=" << reinterpret_cast<void*>(space.Begin())
       << ",end=" << reinterpret_cast<void*>(space.End())
-      << ",size=" << (space.Size()/KB) << "KiB"
-      << ",capacity=" << (space.Capacity()/KB) << "KiB"
+      << ",size=" << PrettySize(space.Size()) << ",capacity=" << PrettySize(space.Capacity())
       << ",name=\"" << space.GetSpaceName() << "\"]";
   return os;
 }
