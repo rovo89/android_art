@@ -436,8 +436,11 @@ TEST_F(JniInternalTest, GetSuperclass) {
   ASSERT_TRUE(object_class != NULL);
   jclass string_class = env_->FindClass("java/lang/String");
   ASSERT_TRUE(string_class != NULL);
+  jclass runnable_interface = env_->FindClass("java/lang/Runnable");
+  ASSERT_TRUE(runnable_interface != NULL);
   ASSERT_TRUE(env_->IsSameObject(object_class, env_->GetSuperclass(string_class)));
   ASSERT_TRUE(env_->GetSuperclass(object_class) == NULL);
+  ASSERT_TRUE(env_->IsSameObject(object_class, env_->GetSuperclass(runnable_interface)));
 }
 
 TEST_F(JniInternalTest, IsAssignableFrom) {

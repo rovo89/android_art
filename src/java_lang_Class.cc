@@ -342,12 +342,6 @@ jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   return env->NewStringUTF(descriptor.c_str());
 }
 
-jclass Class_getSuperclass(JNIEnv* env, jobject javaThis) {
-  Class* c = Decode<Class*>(env, javaThis);
-  Class* result = c->GetSuperClass();
-  return AddLocalReference<jclass>(env, result);
-}
-
 jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* lhs = Decode<Class*>(env, javaLhs);
@@ -484,7 +478,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
   NATIVE_METHOD(Class, getNonInnerClassModifiers, "()I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
-  NATIVE_METHOD(Class, getSuperclass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, isInterface, "()Z"),
