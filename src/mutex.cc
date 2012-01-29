@@ -90,7 +90,8 @@ pid_t Mutex::GetOwner() {
 
 void Mutex::ClearOwner() {
 #if defined(__BIONIC__)
-  mutex_.value = 0;
+#define  __PTHREAD_RECURSIVE_MUTEX_INIT_VALUE  0x4000
+  mutex_.value = __PTHREAD_RECURSIVE_MUTEX_INIT_VALUE;
 #elif defined(__GLIBC__)
   struct __attribute__((__may_alias__)) glibc_pthread_t {
     int lock;
