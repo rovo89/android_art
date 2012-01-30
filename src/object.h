@@ -1059,14 +1059,13 @@ class MANAGED Class : public StaticStorageBase {
   //
   // kStatusIdx: LoadClass populates with Class with information from
   // the DexFile, moving the status to kStatusIdx, indicating that the
-  // Class values in super_class_ and interfaces_ have not been
-  // populated based on super_class_type_idx_ and
-  // interfaces_type_idx_. The new Class can then be inserted into the
-  // classes table.
+  // Class value in super_class_ has not been populated. The new Class
+  // can then be inserted into the classes table.
   //
   // kStatusLoaded: After taking a lock on Class, the ClassLinker will
   // attempt to move a kStatusIdx class forward to kStatusLoaded by
-  // using ResolveClass to initialize the super_class_ and interfaces_.
+  // using ResolveClass to initialize the super_class_ and ensuring the
+  // interfaces are resolved.
   //
   // kStatusResolved: Still holding the lock on Class, the ClassLinker
   // shows linking is complete and fields of the Class populated by making
@@ -1193,8 +1192,10 @@ class MANAGED Class : public StaticStorageBase {
     return (GetAccessFlags() & kAccClassIsPhantomReference) != 0;
   }
 
-  String* GetName() const;
-  void SetName(String* name);
+
+  String* GetName() const ; // Returns the cached name
+  void SetName(String* name);  // Sets the cached name
+  String* ComputeName();  // Computes the name, then sets the cached value
 
   bool IsProxyClass() const {
     // Read access flags without using getter as whether something is a proxy can be check in
@@ -1724,9 +1725,6 @@ class MANAGED Class : public StaticStorageBase {
   bool IsArrayAssignableFromArray(const Class* klass) const;
   bool IsAssignableFromArray(const Class* klass) const;
 
-  // descriptor for the class such as "java.lang.Class" or "[C"
-  String* name_;  // TODO initialize
-
   // defining class loader, or NULL for the "bootstrap" system loader
   ClassLoader* class_loader_;
 
@@ -1768,12 +1766,13 @@ class MANAGED Class : public StaticStorageBase {
   // of the concrete vtable_ methods for the methods in the interface.
   ObjectArray<InterfaceEntry>* iftable_;
 
+  // descriptor for the class such as "java.lang.Class" or "[C". Lazily initialized by ComputeName
+  String* name_;
+
   // Static fields
   ObjectArray<Field>* sfields_;
 
-  // The superclass, or NULL if this is java.lang.Object or a
-  // primitive type.
-  // see also super_class_type_idx_;
+  // The superclass, or NULL if this is java.lang.Object, an interface or primitive type.
   Class* super_class_;
 
   // If class verify fails, we must return same error on subsequent tries.
@@ -1788,10 +1787,6 @@ class MANAGED Class : public StaticStorageBase {
   // virtual_ methods_ for miranda methods.
   ObjectArray<Method>* vtable_;
 
-  // type index from dex file
-  // TODO: really 16bits
-  uint32_t dex_type_idx_;
-
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;
 
@@ -1801,6 +1796,10 @@ class MANAGED Class : public StaticStorageBase {
 
   // tid used to check for recursive <clinit> invocation
   pid_t clinit_thread_id_;
+
+  // type index from dex file
+  // TODO: really 16bits
+  uint32_t dex_type_idx_;
 
   // number of instance fields that are object refs
   size_t num_reference_instance_fields_;
@@ -1813,7 +1812,7 @@ class MANAGED Class : public StaticStorageBase {
   // See also class_size_.
   size_t object_size_;
 
-  // primitive type index, or Primitive::kPrimNot (0); set for generated prim classes
+  // primitive type value, or Primitive::kPrimNot (0); set for generated prim classes
   Primitive::Type primitive_type_;
 
   // Bitmap of offsets of ifields.

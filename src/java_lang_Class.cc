@@ -89,7 +89,7 @@ jobjectArray ToArray(JNIEnv* env, const char* array_class_name, const std::vecto
   return result;
 }
 
-bool IsVisibleConstructor(Method* m, bool public_only) {
+static bool IsVisibleConstructor(Method* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
     return false;
   }
@@ -113,7 +113,7 @@ jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboole
   return ToArray(env, "java/lang/reflect/Constructor", constructors);
 }
 
-bool IsVisibleField(Field* f, bool public_only) {
+static bool IsVisibleField(Field* f, bool public_only) {
   if (public_only && !f->IsPublic()) {
     return false;
   }
@@ -146,7 +146,7 @@ jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean pub
   return ToArray(env, "java/lang/reflect/Field", fields);
 }
 
-bool IsVisibleMethod(Method* m, bool public_only) {
+static bool IsVisibleMethod(Method* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
     return false;
   }
@@ -181,10 +181,6 @@ jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean pu
   return ToArray(env, "java/lang/reflect/Method", methods);
 }
 
-jboolean Class_desiredAssertionStatus(JNIEnv* env, jobject javaThis) {
-    return JNI_FALSE;
-}
-
 jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
 
@@ -196,22 +192,7 @@ jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   return Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache).GetDexObject(env);
 }
 
-jint Class_getNonInnerClassModifiers(JNIEnv* env, jclass javaClass) {
-  Class* c = Decode<Class*>(env, javaClass);
-  return c->GetAccessFlags() & kAccJavaFlagsMask;
-}
-
-jobject Class_getClassLoaderNative(JNIEnv* env, jclass javaClass) {
-  Class* c = Decode<Class*>(env, javaClass);
-  Object* result = c->GetClassLoader();
-  return AddLocalReference<jobject>(env, result);
-}
-
-jclass Class_getComponentType(JNIEnv* env, jclass javaClass) {
-  return AddLocalReference<jclass>(env, Decode<Class*>(env, javaClass)->GetComponentType());
-}
-
-bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>* arg_array) {
+static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>* arg_array) {
   if (name != mh->GetName()) {
     return false;
   }
@@ -231,7 +212,7 @@ bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>
   return true;
 }
 
-Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
+static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
                                        ObjectArray<Class>* arg_array) {
   if (methods == NULL) {
     return NULL;
@@ -300,46 +281,9 @@ jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) 
   return NULL;
 }
 
-/*
- * private native String getNameNative()
- *
- * Return the class' name. The exact format is bizarre, but it's the specified
- * behavior: keywords for primitive types, regular "[I" form for primitive
- * arrays (so "int" but "[I"), and arrays of reference types written
- * between "L" and ";" but with dots rather than slashes (so "java.lang.String"
- * but "[Ljava.lang.String;"). Madness.
- */
 jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   Class* c = Decode<Class*>(env, javaThis);
-  std::string descriptor(ClassHelper(c).GetDescriptor());
-  if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
-    // The descriptor indicates that this is the class for
-    // a primitive type; special-case the return value.
-    const char* name = NULL;
-    switch (descriptor[0]) {
-    case 'Z': name = "boolean"; break;
-    case 'B': name = "byte";    break;
-    case 'C': name = "char";    break;
-    case 'S': name = "short";   break;
-    case 'I': name = "int";     break;
-    case 'J': name = "long";    break;
-    case 'F': name = "float";   break;
-    case 'D': name = "double";  break;
-    case 'V': name = "void";    break;
-    default:
-      LOG(FATAL) << "Unknown primitive type: " << PrintableChar(descriptor[0]);
-    }
-    return env->NewStringUTF(name);
-  }
-
-  // Convert the UTF-8 name to a java.lang.String. The
-  // name must use '.' to separate package components.
-  if (descriptor.size() > 2 && descriptor[0] == 'L' && descriptor[descriptor.size() - 1] == ';') {
-    descriptor.erase(0, 1);
-    descriptor.erase(descriptor.size() - 1);
-  }
-  std::replace(descriptor.begin(), descriptor.end(), '/', '.');
-  return env->NewStringUTF(descriptor.c_str());
+  return AddLocalReference<jstring>(env, c->ComputeName());
 }
 
 jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
@@ -362,18 +306,8 @@ jboolean Class_isInstance(JNIEnv* env, jobject javaClass, jobject javaObject) {
   return o->InstanceOf(c) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean Class_isInterface(JNIEnv* env, jobject javaThis) {
-  Class* c = Decode<Class*>(env, javaThis);
-  return c->IsInterface();
-}
-
-jboolean Class_isPrimitive(JNIEnv* env, jobject javaThis) {
-  Class* c = Decode<Class*>(env, javaThis);
-  return c->IsPrimitive();
-}
-
 // Validate method/field access.
-bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32_t member_flags) {
+static bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32_t member_flags) {
   // quick accept for public access */
   if (member_flags & kAccPublic) {
     return true;
@@ -466,22 +400,16 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, desiredAssertionStatus, "()Z"),
   NATIVE_METHOD(Class, getAnnotationDirectoryOffset, "()I"),
-  NATIVE_METHOD(Class, getClassLoaderNative, "()Ljava/lang/ClassLoader;"),
-  NATIVE_METHOD(Class, getComponentType, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDeclaredConstructorOrMethod, "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Member;"),
   NATIVE_METHOD(Class, getDeclaredConstructors, "(Z)[Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredFieldNative, "(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFields, "(Z)[Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredMethods, "(Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
-  NATIVE_METHOD(Class, getNonInnerClassModifiers, "()I"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
-  NATIVE_METHOD(Class, isInterface, "()Z"),
-  NATIVE_METHOD(Class, isPrimitive, "()Z"),
   NATIVE_METHOD(Class, newInstanceImpl, "()Ljava/lang/Object;"),
 };
 

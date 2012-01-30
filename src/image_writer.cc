@@ -59,6 +59,7 @@ bool ImageWriter::Write(const char* image_filename,
     return false;
   }
   PruneNonImageClasses();
+  ComputeLazyFieldsForImageClasses();
   Heap::CollectGarbage(false);
 #ifndef NDEBUG
   CheckNonImageClassesRemoved();
@@ -89,6 +90,17 @@ bool ImageWriter::AllocMemory() {
     LOG(ERROR) << "Failed to allocate memory for image file generation";
     return false;
   }
+  return true;
+}
+
+void ImageWriter::ComputeLazyFieldsForImageClasses() {
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  class_linker->VisitClasses(ComputeLazyFieldsForClassesVisitor, NULL);
+}
+
+bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg) {
+  klass->ComputeName();
   return true;
 }
 
