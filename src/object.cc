@@ -608,6 +608,48 @@ void Class::SetClassSize(size_t new_class_size) {
   SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size, false);
 }
 
+// Return the class' name. The exact format is bizarre, but it's the specified behavior for
+// Class.getName: keywords for primitive types, regular "[I" form for primitive arrays (so "int"
+// but "[I"), and arrays of reference types written between "L" and ";" but with dots rather than
+// slashes (so "java.lang.String" but "[Ljava.lang.String;"). Madness.
+String* Class::ComputeName() {
+  String* name = GetName();
+  if (name != NULL) {
+    return name;
+  }
+  std::string descriptor(ClassHelper(this).GetDescriptor());
+  if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
+    // The descriptor indicates that this is the class for
+    // a primitive type; special-case the return value.
+    const char* c_name = NULL;
+    switch (descriptor[0]) {
+    case 'Z': c_name = "boolean"; break;
+    case 'B': c_name = "byte";    break;
+    case 'C': c_name = "char";    break;
+    case 'S': c_name = "short";   break;
+    case 'I': c_name = "int";     break;
+    case 'J': c_name = "long";    break;
+    case 'F': c_name = "float";   break;
+    case 'D': c_name = "double";  break;
+    case 'V': c_name = "void";    break;
+    default:
+      LOG(FATAL) << "Unknown primitive type: " << PrintableChar(descriptor[0]);
+    }
+    name = String::AllocFromModifiedUtf8(c_name);
+  } else {
+    // Convert the UTF-8 name to a java.lang.String. The name must use '.' to separate package
+    // components.
+    if (descriptor.size() > 2 && descriptor[0] == 'L' && descriptor[descriptor.size() - 1] == ';') {
+      descriptor.erase(0, 1);
+      descriptor.erase(descriptor.size() - 1);
+    }
+    std::replace(descriptor.begin(), descriptor.end(), '/', '.');
+    name = String::AllocFromModifiedUtf8(descriptor.c_str());
+  }
+  SetName(name);
+  return name;
+}
+
 void Class::DumpClass(std::ostream& os, int flags) const {
   if ((flags & kDumpClassFullDetail) == 0) {
     os << PrettyClass(this);

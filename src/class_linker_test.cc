@@ -467,31 +467,31 @@ struct ConstructorOffsets : public MethodOffsets {
 struct ClassOffsets : public CheckOffsets<Class> {
   ClassOffsets() : CheckOffsets<Class>(false, "Ljava/lang/Class;") {
     // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "classLoader"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, component_type_),                "componentType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "dexCache"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "directMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "iFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "ifTable"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "shadow$_class_loader_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, component_type_),                "shadow$_component_type_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "shadow$_dex_cache_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "shadow$_direct_methods_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "shadow$_ifields_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "shadow$_iftable_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "shadow$_sfields_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "shadow$_super_class_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "shadow$_verify_error_class_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "shadow$_virtual_methods_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, vtable_),                        "shadow$_vtable_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "sFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "superClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "verifyErrorClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "virtualMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, vtable_),                        "vtable"));
 
     // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "classSize"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "clinitThreadId"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_type_idx_),                  "dexTypeIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "shadow$_access_flags_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "shadow$_class_size_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "shadow$_clinit_thread_id_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "shadow$_num_reference_instance_fields_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "shadow$_num_reference_static_fields_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "shadow$_object_size_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "shadow$_primitive_type_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "shadow$_reference_instance_offsets_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "shadow$_reference_static_offsets_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "shadow$_status_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "numReferenceInstanceFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "numReferenceStaticFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "objectSize"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "primitiveType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "referenceInstanceOffsets"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "referenceStaticOffsets"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "status"));
   };
 };
 

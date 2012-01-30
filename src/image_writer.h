@@ -99,6 +99,9 @@ class ImageWriter {
   bool IsImageClass(const Class* klass);
   void DumpImageClasses();
 
+  void ComputeLazyFieldsForImageClasses();
+  static bool ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg);
+
   void PruneNonImageClasses();
   static bool NonImageClassesVisitor(Class* c, void* arg);
 

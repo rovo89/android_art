@@ -48,16 +48,9 @@ jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   return AddLocalReference<jobject>(env, declared_exceptions->Clone());
 }
 
-jobject Method_getReturnTypeNative(JNIEnv* env, jobject javaMethod) {
-  Method* m = Decode<Object*>(env, javaMethod)->AsMethod();
-  MethodHelper mh(m);
-  return AddLocalReference<jobject>(env, mh.GetReturnType());
-}
-
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Method, invoke, "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;"),
   NATIVE_METHOD(Method, getExceptionTypesNative, "()[Ljava/lang/Class;"),
-  NATIVE_METHOD(Method, getReturnTypeNative, "()Ljava/lang/Class;")
 };
 
 }  // namespace
