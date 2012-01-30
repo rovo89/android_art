@@ -45,8 +45,11 @@ define build-art-test
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libartd
 
-  # options to allow jni_compiler_test to find Java_MyClass_bar within itself using dlopen(NULL, )
-  LOCAL_LDFLAGS := -Wl,--export-dynamic -Wl,-u,Java_MyClass_bar
+  # Mac OS linker doesn't understand --export-dynamic
+  ifeq ($(HOST_OS),linux)
+    # options to allow jni_compiler_test to find Java_MyClass_bar within itself using dlopen(NULL, )
+    LOCAL_LDFLAGS := -Wl,--export-dynamic -Wl,-u,Java_MyClass_bar
+  endif
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
