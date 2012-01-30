@@ -121,6 +121,7 @@ void ThrowEarlierClassFailure(Class* c) {
    */
   LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
 
+  CHECK(c->IsErroneous()) << PrettyClass(c);
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
     ClassHelper ve_ch(c->GetVerifyErrorClass());
@@ -1079,6 +1080,7 @@ Class* EnsureResolved(Class* klass) {
     if (!klass->IsResolved() && klass->GetClinitThreadId() == self->GetTid()) {
       self->ThrowNewException("Ljava/lang/ClassCircularityError;",
           PrettyDescriptor(klass).c_str());
+      klass->SetStatus(Class::kStatusError);
       return NULL;
     }
     // Wait for the pending initialization to complete.
@@ -1159,7 +1161,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
     ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid,
                                                               class_name_object.get()));
-    if (env->ExceptionOccurred()) {
+    if (env->ExceptionCheck()) {
       // If the ClassLoader threw, pass that exception up.
       return NULL;
     } else if (result.get() == NULL) {
@@ -1208,6 +1210,7 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
   // Check for a pending exception during load
   Thread* self = Thread::Current();
   if (self->IsExceptionPending()) {
+    klass->SetStatus(Class::kStatusError);
     return NULL;
   }
   ObjectLock lock(klass.get());
@@ -1224,7 +1227,6 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
   CHECK(!klass->IsLoaded());
   if (!LoadSuperAndInterfaces(klass, dex_file)) {
     // Loading failed.
-    CHECK(self->IsExceptionPending());
     klass->SetStatus(Class::kStatusError);
     lock.NotifyAll();
     return NULL;
@@ -1234,7 +1236,6 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
   CHECK(!klass->IsResolved());
   if (!LinkClass(klass, NULL)) {
     // Linking failed.
-    CHECK(self->IsExceptionPending());
     klass->SetStatus(Class::kStatusError);
     lock.NotifyAll();
     return NULL;
@@ -1902,8 +1903,9 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass)
   CHECK(oat_class.get() != NULL) << descriptor;
   Class::Status status = oat_class->GetStatus();
   if (status == Class::kStatusError) {
-    ThrowEarlierClassFailure(klass);
-    klass->SetVerifyErrorClass(Thread::Current()->GetException()->GetClass());
+    // TODO: include appropriate verify_error_class_ information in oat file for use here.
+    ThrowNoClassDefFoundError("Class failed compile-time verification: %s",
+                              PrettyDescriptor(klass).c_str());
     klass->SetStatus(Class::kStatusError);
     return true;
   }
@@ -2002,7 +2004,7 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
 
   // Link the fields and virtual methods, creating vtable and iftables
   if (!LinkClass(klass, interfaces)) {
-    DCHECK(Thread::Current()->IsExceptionPending());
+    klass->SetStatus(Class::kStatusError);
     return NULL;
   }
   sfield->SetObject(NULL, throws);    // initialize throws field
@@ -2156,7 +2158,6 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     }
 
     if (!ValidateSuperClassDescriptors(klass)) {
-      CHECK(self->IsExceptionPending());
       klass->SetStatus(Class::kStatusError);
       return false;
     }
@@ -2170,7 +2171,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   uint64_t t0 = NanoTime();
 
   if (!InitializeSuperClass(klass, can_run_clinit)) {
-    CHECK(self->IsExceptionPending());
+    CHECK(klass->IsErroneous());
     return false;
   }
 
@@ -2346,10 +2347,10 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
       // TODO: check for a pending exception
       if (!super_initialized) {
         if (!can_run_clinit) {
-         // Don't set status to error when we can't run <clinit>.
-         CHECK_EQ(klass->GetStatus(), Class::kStatusInitializing) << PrettyClass(klass);
-         klass->SetStatus(Class::kStatusVerified);
-         return false;
+          // Don't set status to error when we can't run <clinit>.
+          CHECK_EQ(klass->GetStatus(), Class::kStatusInitializing) << PrettyClass(klass);
+          klass->SetStatus(Class::kStatusVerified);
+          return false;
         }
         klass->SetStatus(Class::kStatusError);
         klass->NotifyAll();
@@ -2370,7 +2371,7 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
   bool success = InitializeClass(c, can_run_clinit);
   if (!success) {
-    CHECK(self->IsExceptionPending());
+    CHECK(self->IsExceptionPending()) << PrettyClass(c);
   }
   return success;
 }
@@ -2496,13 +2497,12 @@ bool ClassLinker::LinkSuperClass(SirtRef<Class>& klass) {
   }
   // Verify
   if (super->IsFinal() || super->IsInterface()) {
-    Thread* thread = Thread::Current();
-    thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+    Thread* self = Thread::Current();
+    self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
         "Superclass %s of %s is %s",
         PrettyDescriptor(super).c_str(),
         PrettyDescriptor(klass.get()).c_str(),
         super->IsFinal() ? "declared final" : "an interface");
-    klass->SetVerifyErrorClass(thread->GetException()->GetClass());
     return false;
   }
   if (!klass->CanAccess(super)) {
@@ -2663,12 +2663,11 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
       ClassHelper ih(interface);
-      Thread* thread = Thread::Current();
-      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+      Thread* self = Thread::Current();
+      self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
           "Class %s implements non-interface class %s",
           PrettyDescriptor(klass.get()).c_str(),
           PrettyDescriptor(ih.GetDescriptor()).c_str());
-      klass->SetVerifyErrorClass(thread->GetException()->GetClass());
       return false;
     }
     // Check if interface is already in iftable

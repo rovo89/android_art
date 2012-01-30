@@ -35,10 +35,10 @@ import java.lang.reflect.InvocationTargetException;
  */
 public class FancyLoader extends ClassLoader {
     /* this is where the "alternate" .class files live */
-    static final String CLASS_PATH = "/data/art-test";
+    static final String CLASS_PATH = "classes-ex/";
 
     /* this is the "alternate" DEX/Jar file */
-    static final String DEX_FILE = "068-classloader-ex.jar";
+    static final String DEX_FILE = "/data/art-test/068-classloader-ex.jar";
 
     /* on Dalvik, this is a DexFile; otherwise, it's null */
     private Class mDexClass;
@@ -94,7 +94,7 @@ public class FancyLoader extends ClassLoader {
                 }
 
                 try {
-                    mDexFile = ctor.newInstance(CLASS_PATH + File.separator + DEX_FILE);
+                    mDexFile = ctor.newInstance(DEX_FILE);
                 } catch (InstantiationException ie) {
                     throw new ClassNotFoundException("newInstance failed", ie);
                 } catch (IllegalAccessException iae) {

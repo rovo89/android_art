@@ -597,6 +597,30 @@ void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError || !Runtime::Current()->IsStarted())
       << PrettyClass(this) << " " << GetStatus() << " -> " << new_status;
   CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
+  if (new_status == kStatusError) {
+    CHECK_NE(GetStatus(), kStatusError) << PrettyClass(this);
+
+    // stash current exception
+    Thread* self = Thread::Current();
+    SirtRef<Throwable> exception(self->GetException());
+    CHECK(exception.get() != NULL);
+
+    // clear exception to call FindSystemClass
+    self->ClearException();
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Class* eiie_class = class_linker->FindSystemClass("Ljava/lang/ExceptionInInitializerError;");
+    CHECK(!self->IsExceptionPending());
+
+    // only verification errors, not initialization problems, should set a verify error.
+    // this is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
+    Class* exception_class = exception->GetClass();
+    if (!eiie_class->IsAssignableFrom(exception_class)) {
+      SetVerifyErrorClass(exception_class);
+    }
+
+    // restore exception
+    self->SetException(exception.get());
+  }
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
 }
 

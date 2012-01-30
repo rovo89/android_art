@@ -1708,10 +1708,6 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
   }
 
-  void SetVerifyErrorClass(Class* klass) {
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
-  }
-
   uint16_t GetDexTypeIndex() const {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), false);
   }
@@ -1721,6 +1717,11 @@ class MANAGED Class : public StaticStorageBase {
   }
 
  private:
+  void SetVerifyErrorClass(Class* klass) {
+    CHECK(klass != NULL) << PrettyClass(this);
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
+  }
+
   bool Implements(const Class* klass) const;
   bool IsArrayAssignableFromArray(const Class* klass) const;
   bool IsAssignableFromArray(const Class* klass) const;

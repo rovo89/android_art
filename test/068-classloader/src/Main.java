@@ -99,7 +99,7 @@ public class Main {
 
         try {
             altClass = loader.loadClass("Inaccessible2");
-            System.err.println("ERROR: Inaccessible2 was accessible");
+            System.err.println("ERROR: Inaccessible2 was accessible: " + altClass);
         } catch (ClassNotFoundException cnfe) {
             Throwable cause = cnfe.getCause();
             if (cause instanceof IllegalAccessError) {
@@ -119,7 +119,7 @@ public class Main {
 
         try {
             altClass = loader.loadClass("Inaccessible3");
-            System.err.println("ERROR: Inaccessible3 was accessible");
+            System.err.println("ERROR: Inaccessible3 was accessible: " + altClass);
         } catch (ClassNotFoundException cnfe) {
             Throwable cause = cnfe.getCause();
             if (cause instanceof IllegalAccessError) {
