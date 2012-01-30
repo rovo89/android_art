@@ -817,20 +817,6 @@ MonitorList::MonitorList() : lock_("MonitorList lock") {
 
 MonitorList::~MonitorList() {
   MutexLock mu(lock_);
-
-  // In case there is a daemon thread with the monitor locked, clear
-  // the owner here so we can destroy the mutex, which will otherwise
-  // fail in pthread_mutex_destroy.
-  typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
-  for (It it = list_.begin(); it != list_.end(); it++) {
-      Monitor* monitor = *it;
-      Mutex& lock = monitor->lock_;
-      if (lock.GetOwner() != 0) {
-        DCHECK_EQ(lock.GetOwner(), monitor->owner_->GetTid());
-        lock.ClearOwner();
-      }
-  }
-
   STLDeleteElements(&list_);
 }
 

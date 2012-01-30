@@ -88,25 +88,6 @@ pid_t Mutex::GetOwner() {
 #endif
 }
 
-void Mutex::ClearOwner() {
-#if defined(__BIONIC__)
-#define  __PTHREAD_RECURSIVE_MUTEX_INIT_VALUE  0x4000
-  mutex_.value = __PTHREAD_RECURSIVE_MUTEX_INIT_VALUE;
-#elif defined(__GLIBC__)
-  struct __attribute__((__may_alias__)) glibc_pthread_t {
-    int lock;
-    unsigned int count;
-    int owner;
-    // ...other stuff we don't care about.
-  };
-  reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner = 0;
-#elif defined(__APPLE__)
-  // We don't know a way to implement this for Mac OS.
-#else
-  UNIMPLEMENTED(FATAL);
-#endif
-}
-
 uint32_t Mutex::GetDepth() {
   bool held = (GetOwner() == GetTid());
   if (!held) {

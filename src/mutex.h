@@ -68,15 +68,12 @@ class Mutex {
  private:
   static pid_t GetTid();
 
-  void ClearOwner();
-
   uint32_t GetDepth();
 
   std::string name_;
 
   pthread_mutex_t mutex_;
 
-  friend class MonitorList;  // for ClearOwner
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
