@@ -89,6 +89,10 @@ class MethodCompiler {
   llvm::BasicBlock* basic_block_reg_arg_init_;
   std::vector<llvm::BasicBlock*> basic_blocks_;
 
+  std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
+  llvm::BasicBlock* basic_block_unwind_;
+  llvm::BasicBlock* basic_block_unreachable_;
+
 
  public:
   MethodCompiler(InstructionSet insn_set,
@@ -137,6 +141,10 @@ class MethodCompiler {
 
   llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
 
+  void EmitGuard_ExceptionLandingPad(uint32_t dex_pc);
+
+  void EmitBranchExceptionLandingPad(uint32_t dex_pc);
+
 
   // Basic block helper functions
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
@@ -145,6 +153,12 @@ class MethodCompiler {
 
   llvm::BasicBlock* CreateBasicBlockWithDexPC(uint32_t dex_pc,
                                               char const* postfix = NULL);
+
+  int32_t GetTryItemOffset(uint32_t dex_pc);
+
+  llvm::BasicBlock* GetLandingPadBasicBlock(uint32_t dex_pc);
+
+  llvm::BasicBlock* GetUnwindBasicBlock();
 
 
   // Register helper function

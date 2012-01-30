@@ -59,7 +59,9 @@ MethodCompiler::MethodCompiler(InstructionSet insn_set,
   irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
   basic_block_reg_alloca_(NULL),
   basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
-  basic_blocks_(code_item->insns_size_in_code_units_) {
+  basic_blocks_(code_item->insns_size_in_code_units_),
+  basic_block_landing_pads_(code_item->tries_size_, NULL),
+  basic_block_unwind_(NULL), basic_block_unreachable_(NULL) {
 }
 
 
@@ -242,6 +244,31 @@ llvm::Value* MethodCompiler::EmitLoadMethodObjectAddr() {
 }
 
 
+void MethodCompiler::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
+  if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+    irb_.CreateBr(lpad);
+  } else {
+    irb_.CreateBr(GetUnwindBasicBlock());
+  }
+}
+
+
+void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
+  llvm::Value* exception_pending =
+    irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
+
+  llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+    irb_.CreateCondBr(exception_pending, lpad, block_cont);
+  } else {
+    irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont);
+  }
+
+  irb_.SetInsertPoint(block_cont);
+}
+
+
 llvm::BasicBlock* MethodCompiler::
 CreateBasicBlockWithDexPC(uint32_t dex_pc, char const* postfix) {
   std::string name;
@@ -274,6 +301,129 @@ llvm::BasicBlock*
 MethodCompiler::GetNextBasicBlock(uint32_t dex_pc) {
   Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
   return GetBasicBlock(dex_pc + insn->SizeInCodeUnits());
+}
+
+
+int32_t MethodCompiler::GetTryItemOffset(uint32_t dex_pc) {
+  // TODO: Since we are emitting the dex instructions in ascending order
+  // w.r.t.  address, we can cache the lastest try item offset so that we
+  // don't have to do binary search for every query.
+
+  int32_t min = 0;
+  int32_t max = code_item_->tries_size_ - 1;
+
+  while (min <= max) {
+    int32_t mid = min + (max - min) / 2;
+
+    DexFile::TryItem const* ti = DexFile::GetTryItems(*code_item_, mid);
+    uint32_t start = ti->start_addr_;
+    uint32_t end = start + ti->insn_count_;
+
+    if (dex_pc < start) {
+      max = mid - 1;
+    } else if (dex_pc >= end) {
+      min = mid + 1;
+    } else {
+      return mid; // found
+    }
+  }
+
+  return -1; // not found
+}
+
+
+llvm::BasicBlock* MethodCompiler::GetLandingPadBasicBlock(uint32_t dex_pc) {
+  // Find the try item for this address in this method
+  int32_t ti_offset = GetTryItemOffset(dex_pc);
+
+  if (ti_offset == -1) {
+    return NULL; // No landing pad is available for this address.
+  }
+
+  // Check for the existing landing pad basic block
+  DCHECK_GT(basic_block_landing_pads_.size(), static_cast<size_t>(ti_offset));
+  llvm::BasicBlock* block_lpad = basic_block_landing_pads_[ti_offset];
+
+  if (block_lpad) {
+    // We have generated landing pad for this try item already.  Return the
+    // same basic block.
+    return block_lpad;
+  }
+
+  // Get try item from code item
+  DexFile::TryItem const* ti = DexFile::GetTryItems(*code_item_, ti_offset);
+
+  // Create landing pad basic block
+  block_lpad = llvm::BasicBlock::Create(*context_,
+                                        StringPrintf("lpad%d", ti_offset),
+                                        func_);
+
+  // Change IRBuilder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  irb_.SetInsertPoint(block_lpad);
+
+  // Find catch block with matching type
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  // TODO: Maybe passing try item offset will be a better idea?  For now,
+  // we are passing dex_pc, so that we can use existing runtime support
+  // function directly.  However, in the runtime supporting function we
+  // have to search for try item with binary search which can be
+  // eliminated.
+  llvm::Value* dex_pc_value = irb_.getInt32(ti->start_addr_);
+
+  llvm::Value* catch_handler_index_value =
+    irb_.CreateCall2(irb_.GetRuntime(FindCatchBlock),
+                     method_object_addr, dex_pc_value);
+
+  // Switch instruction (Go to unwind basic block by default)
+  llvm::SwitchInst* sw =
+    irb_.CreateSwitch(catch_handler_index_value, GetUnwindBasicBlock());
+
+  // Cases with matched catch block
+  CatchHandlerIterator iter(*code_item_, ti->start_addr_);
+
+  for (uint32_t c = 0; iter.HasNext(); iter.Next(), ++c) {
+    sw->addCase(irb_.getInt32(c), GetBasicBlock(iter.GetHandlerAddress()));
+  }
+
+  // Restore the orignal insert point for IRBuilder
+  irb_.restoreIP(irb_ip_original);
+
+  // Cache this landing pad
+  DCHECK_GT(basic_block_landing_pads_.size(), static_cast<size_t>(ti_offset));
+  basic_block_landing_pads_[ti_offset] = block_lpad;
+
+  return block_lpad;
+}
+
+
+llvm::BasicBlock* MethodCompiler::GetUnwindBasicBlock() {
+  // Check the existing unwinding baisc block block
+  if (basic_block_unwind_ != NULL) {
+    return basic_block_unwind_;
+  }
+
+  // Create new basic block for unwinding
+  basic_block_unwind_ =
+    llvm::BasicBlock::Create(*context_, "exception_unwind", func_);
+
+  // Change IRBuilder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  irb_.SetInsertPoint(basic_block_unwind_);
+
+  // Emit the code to return default value (zero) for the given return type.
+  char ret_shorty = method_helper_.GetShorty()[0];
+  if (ret_shorty == 'V') {
+    irb_.CreateRetVoid();
+  } else {
+    irb_.CreateRet(irb_.getJZero(ret_shorty));
+  }
+
+  // Restore the orignal insert point for IRBuilder
+  irb_.restoreIP(irb_ip_original);
+
+  return basic_block_unwind_;
 }
 
 
