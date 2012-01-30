@@ -327,32 +327,25 @@ std::string PrettyDuration(uint64_t nano_duration) {
   }
 }
 
+// See http://java.sun.com/j2se/1.5.0/docs/guide/jni/spec/design.html#wp615 for the full rules.
 std::string MangleForJni(const std::string& s) {
   std::string result;
   size_t char_count = CountModifiedUtf8Chars(s.c_str());
   const char* cp = &s[0];
   for (size_t i = 0; i < char_count; ++i) {
     uint16_t ch = GetUtf16FromUtf8(&cp);
-    if (ch == '$' || ch > 127) {
-      StringAppendF(&result, "_0%04x", ch);
+    if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+      result.push_back(ch);
+    } else if (ch == '.' || ch == '/') {
+      result += "_";
+    } else if (ch == '_') {
+      result += "_1";
+    } else if (ch == ';') {
+      result += "_2";
+    } else if (ch == '[') {
+      result += "_3";
     } else {
-      switch (ch) {
-      case '_':
-        result += "_1";
-        break;
-      case ';':
-        result += "_2";
-        break;
-      case '[':
-        result += "_3";
-        break;
-      case '/':
-        result += "_";
-        break;
-      default:
-        result.push_back(ch);
-        break;
-      }
+      StringAppendF(&result, "_0%04x", ch);
     }
   }
   return result;
