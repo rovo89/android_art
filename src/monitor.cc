@@ -123,13 +123,6 @@ Monitor::Monitor(Object* obj)
 Monitor::~Monitor() {
   DCHECK(obj_ != NULL);
   DCHECK_EQ(LW_SHAPE(*obj_->GetRawLockWordAddress()), LW_SHAPE_FAT);
-
-#ifndef NDEBUG
-  // This lock is associated with an object that's being swept.
-  bool locked = lock_.TryLock();
-  DCHECK(locked) << obj_;
-  lock_.Unlock();
-#endif
 }
 
 /*
