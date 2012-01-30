@@ -145,6 +145,8 @@ class MethodCompiler {
 
   void EmitBranchExceptionLandingPad(uint32_t dex_pc);
 
+  void EmitGuard_GarbageCollectionSuspend(uint32_t addr);
+
 
   // Basic block helper functions
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);

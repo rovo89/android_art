@@ -269,6 +269,14 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
 }
 
 
+void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
+  llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
+  irb_.CreateCall(runtime_func);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+}
+
+
 llvm::BasicBlock* MethodCompiler::
 CreateBasicBlockWithDexPC(uint32_t dex_pc, char const* postfix) {
   std::string name;
