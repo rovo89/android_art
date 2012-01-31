@@ -219,7 +219,8 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/frontend.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
-	src/compiler_llvm/method_compiler.cc
+	src/compiler_llvm/method_compiler.cc \
+	src/compiler_llvm/utils_llvm.cc
 else
 LIBART_COMMON_SRC_FILES += \
 	src/compiler/Dataflow.cc \
@@ -284,6 +285,11 @@ TEST_COMMON_SRC_FILES := \
 	src/space_test.cc \
 	src/utils_test.cc \
 	src/zip_archive_test.cc
+
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+TEST_COMMON_SRC_FILES += \
+	src/compiler_llvm/utils_llvm_test.cc
+endif
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)
