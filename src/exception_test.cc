@@ -149,14 +149,14 @@ TEST_F(ExceptionTest, StackTraceElement) {
                trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("g", trace_array->Get(0)->GetMethodName()->ToModifiedUtf8().c_str());
-  EXPECT_EQ(22, trace_array->Get(0)->GetLineNumber());
+  EXPECT_EQ(37, trace_array->Get(0)->GetLineNumber());
 
   ASSERT_TRUE(trace_array->Get(1) != NULL);
   EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
-  EXPECT_EQ(7, trace_array->Get(1)->GetLineNumber());
+  EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
 }
 
 }  // namespace art

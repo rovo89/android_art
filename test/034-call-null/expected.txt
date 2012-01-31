@@ -1,2 +1,2 @@
 java.lang.NullPointerException
-	at Main.main(Main.java:12)
+	at Main.main(Main.java:26)
