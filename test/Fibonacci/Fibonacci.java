@@ -31,14 +31,16 @@ class Fibonacci {
     }
 
     public static void main(String[] args) {
+        String arg = (args.length > 0) ? args[0] : "10";
         try {
-            if (args.length == 1) {
-                int x = Integer.parseInt(args[0]);
-                int y = fibonacci(x); /* to warm up cache */
-                System.out.printf("fibonacci(%d)=%d\n", x, y);
-                y = fibonacci(x + 1);
-                System.out.printf("fibonacci(%d)=%d\n", x + 1, y);
-            }
-        } catch (NumberFormatException ex) {}
+            int x = Integer.parseInt(arg);
+            int y = fibonacci(x); /* to warm up cache */
+            System.out.printf("fibonacci(%d)=%d\n", x, y);
+            y = fibonacci(x + 1);
+            System.out.printf("fibonacci(%d)=%d\n", x + 1, y);
+        } catch (NumberFormatException ex) {
+            System.err.println(ex);
+            System.exit(1);
+        }
     }
 }
