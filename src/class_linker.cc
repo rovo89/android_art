@@ -1929,9 +1929,9 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass)
   CHECK(oat_class.get() != NULL) << descriptor;
   Class::Status status = oat_class->GetStatus();
   if (status == Class::kStatusError) {
-    // TODO: include appropriate verify_error_class_ information in oat file for use here.
-    ThrowNoClassDefFoundError("Class failed compile-time verification: %s",
-                              PrettyDescriptor(klass).c_str());
+    Thread* self = Thread::Current();
+    self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Compile-time verification of %s failed",
+        PrettyDescriptor(klass).c_str());
     klass->SetStatus(Class::kStatusError);
     return true;
   }
