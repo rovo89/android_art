@@ -212,6 +212,24 @@ class RegType {
   bool IsJavaLangObject() const {
     return IsReference() && GetClass()->IsObjectClass();
   }
+  bool IsObjectArray() const {
+    if (IsReference()) {
+      Class* type = GetClass();
+      return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
+    } else if (IsUnresolvedTypes()) {
+      // Primitive arrays will always resolve
+      DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
+      return GetDescriptor()->CharAt(0) == '[';
+    }
+    return false;
+  }
+  bool IsJavaLangObjectArray() const {
+    if (IsReference()) {
+      Class* type = GetClass();
+      return type->IsArrayClass() && type->GetComponentType()->IsObjectClass();
+    }
+    return false;
+  }
   bool IsInstantiableTypes() const {
     return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
   }
