@@ -212,34 +212,8 @@ class RegType {
   bool IsJavaLangObject() const {
     return IsReference() && GetClass()->IsObjectClass();
   }
-  bool IsObjectArray() const {
-    if (IsReference()) {
-      Class* type = GetClass();
-      return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
-    } else if (IsUnresolvedTypes()) {
-      // Primitive arrays will always resolve
-      DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
-      return GetDescriptor()->CharAt(0) == '[';
-    }
-    return false;
-  }
-  bool IsJavaLangObjectArray() const {
-    if (IsReference()) {
-      Class* type = GetClass();
-      return type->IsArrayClass() && type->GetComponentType()->IsObjectClass();
-    }
-    return false;
-  }
-  bool IsInstantiableTypes() const {
-    return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
-  }
-  String* GetDescriptor() const {
-    DCHECK(IsUnresolvedTypes());
-    DCHECK(klass_or_descriptor_ != NULL);
-    DCHECK(klass_or_descriptor_->GetClass()->IsStringClass());
-    return down_cast<String*>(klass_or_descriptor_);
-  }
-  bool IsArrayClass() const {
+
+  bool IsArrayTypes() const {
     if (IsUnresolvedTypes()) {
       return GetDescriptor()->CharAt(0) == '[';
     } else if (!IsConstant()) {
@@ -247,6 +221,61 @@ class RegType {
     } else {
       return false;
     }
+  }
+
+  bool IsObjectArrayTypes() const {
+    if (IsUnresolvedTypes()) {
+      // Primitive arrays will always resolve
+      DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
+      return GetDescriptor()->CharAt(0) == '[';
+    } else if (!IsConstant()) {
+      Class* type = GetClass();
+      return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
+    } else {
+      return false;
+    }
+  }
+
+  Primitive::Type GetPrimitiveType() const {
+    if (IsNonZeroReferenceTypes()) {
+      return Primitive::kPrimNot;
+    } else if (IsBooleanTypes()) {
+      return Primitive::kPrimBoolean;
+    } else if (IsByteTypes()) {
+      return Primitive::kPrimByte;
+    } else if (IsShortTypes()) {
+      return Primitive::kPrimShort;
+    } else if (IsCharTypes()) {
+      return Primitive::kPrimChar;
+    } else if (IsFloat()) {
+      return Primitive::kPrimFloat;
+    } else if (IsIntegralTypes()) {
+      return Primitive::kPrimInt;
+    } else if (IsDouble()) {
+      return Primitive::kPrimDouble;
+    } else {
+      DCHECK(IsLongTypes());
+      return Primitive::kPrimLong;
+    }
+  }
+
+  bool IsJavaLangObjectArray() const {
+    if (IsReference()) {
+      Class* type = GetClass();
+      return type->IsArrayClass() && type->GetComponentType()->IsObjectClass();
+    }
+    return false;
+  }
+
+  bool IsInstantiableTypes() const {
+    return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
+  }
+
+  String* GetDescriptor() const {
+    DCHECK(IsUnresolvedTypes());
+    DCHECK(klass_or_descriptor_ != NULL);
+    DCHECK(klass_or_descriptor_->GetClass()->IsStringClass());
+    return down_cast<String*>(klass_or_descriptor_);
   }
 
   uint16_t GetId() const {
@@ -666,13 +695,6 @@ class RegisterLine {
    * versions. We just need to make sure vA is >= 1 and then return vC.
    */
   const RegType& GetInvocationThis(const Instruction::DecodedInstruction& dec_insn);
-
-  /*
-   * Get the value from a register, and cast it to a Class. Sets "*failure" if something fails.
-   * This fails if the register holds an uninitialized class.
-   * If the register holds kRegTypeZero, this returns a NULL pointer.
-   */
-  Class* GetClassFromRegister(uint32_t vsrc) const;
 
   /*
    * Verify types for a simple two-register instruction (e.g. "neg-int").

@@ -210,7 +210,7 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
         } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
           return true;  // We allow assignment to any interface, see comment in ClassJoin
         } else if (IsJavaLangObjectArray()) {
-          return src.IsObjectArray();  // All reference arrays may be assigned to Object[]
+          return src.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
         } else if (!IsUnresolvedTypes() && !src.IsUnresolvedTypes() &&
                    GetClass()->IsAssignableFrom(src.GetClass())) {
           // We're assignable from the Class point-of-view
@@ -553,7 +553,7 @@ const RegType& RegTypeCache::FromCat1Const(int32_t value) {
 }
 
 const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassLoader* loader) {
-  CHECK(array.IsArrayClass());
+  CHECK(array.IsArrayTypes());
   if (array.IsUnresolvedTypes()) {
     std::string descriptor(array.GetDescriptor()->ToModifiedUtf8());
     std::string component(descriptor.substr(1, descriptor.size() - 1));
@@ -627,24 +627,6 @@ const RegType& RegisterLine::GetInvocationThis(const Instruction::DecodedInstruc
     return verifier_->GetRegTypeCache()->Unknown();
   }
   return this_type;
-}
-
-Class* RegisterLine::GetClassFromRegister(uint32_t vsrc) const {
-  /* get the element type of the array held in vsrc */
-  const RegType& type = GetRegisterType(vsrc);
-  /* if "always zero", we allow it to fail at runtime */
-  if (type.IsZero()) {
-    return NULL;
-  } else if (!type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "tried to get class from non-ref register v" << vsrc
-                                         << " (type=" << type << ")";
-    return NULL;
-  } else if (type.IsUninitializedReference()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "register " << vsrc << " holds uninitialized reference";
-    return NULL;
-  } else {
-    return type.GetClass();
-  }
 }
 
 bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) {
@@ -2119,7 +2101,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::ARRAY_LENGTH: {
       const RegType& res_type = work_line_->GetRegisterType(dec_insn.vB_);
       if (res_type.IsReferenceTypes()) {
-        if (!res_type.IsArrayClass() && !res_type.IsZero()) {  // ie not an array or null
+        if (!res_type.IsArrayTypes() && !res_type.IsZero()) {  // ie not an array or null
           Fail(VERIFY_ERROR_GENERIC) << "array-length on non-array " << res_type;
         } else {
           work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
@@ -2147,7 +2129,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::NEW_ARRAY: {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vC_);
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-      if (!res_type.IsArrayClass()) {
+      if (!res_type.IsArrayTypes()) {
         Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
       } else {
         /* make sure "size" register is valid type */
@@ -2161,7 +2143,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::FILLED_NEW_ARRAY_RANGE: {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-      if (!res_type.IsArrayClass()) {
+      if (!res_type.IsArrayTypes()) {
         Fail(VERIFY_ERROR_GENERIC) << "filled-new-array on non-array class";
       } else {
         bool is_range = (dec_insn.opcode_ == Instruction::FILLED_NEW_ARRAY_RANGE);
@@ -2211,31 +2193,27 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
     case Instruction::FILL_ARRAY_DATA: {
       /* Similar to the verification done for APUT */
-      Class* res_class = work_line_->GetClassFromRegister(dec_insn.vA_);
-      if (failure_ == VERIFY_ERROR_NONE) {
-        /* res_class can be null if the reg type is Zero */
-        if (res_class != NULL) {
-          Class* component_type = res_class->GetComponentType();
-          if (!res_class->IsArrayClass() || !component_type->IsPrimitive()  ||
-              component_type->IsPrimitiveVoid()) {
-            Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data on "
-                                       << PrettyDescriptor(res_class);
+      const RegType& array_type = work_line_->GetRegisterType(dec_insn.vA_);
+      /* array_type can be null if the reg type is Zero */
+      if (!array_type.IsZero()) {
+        const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
+        DCHECK(!component_type.IsUnknown());
+        if (!array_type.IsArrayTypes() || component_type.IsNonZeroReferenceTypes()) {
+          Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data on " << array_type;
+        } else {
+          // Now verify if the element width in the table matches the element width declared in
+          // the array
+          const uint16_t* array_data = insns + (insns[1] | (((int32_t) insns[2]) << 16));
+          if (array_data[0] != Instruction::kArrayDataSignature) {
+            Fail(VERIFY_ERROR_GENERIC) << "invalid magic for array-data";
           } else {
-            const RegType& value_type = reg_types_.FromClass(component_type);
-            DCHECK(!value_type.IsUnknown());
-            // Now verify if the element width in the table matches the element width declared in
-            // the array
-            const uint16_t* array_data = insns + (insns[1] | (((int32_t) insns[2]) << 16));
-            if (array_data[0] != Instruction::kArrayDataSignature) {
-              Fail(VERIFY_ERROR_GENERIC) << "invalid magic for array-data";
-            } else {
-              size_t elem_width = Primitive::ComponentSize(component_type->GetPrimitiveType());
-              // Since we don't compress the data in Dex, expect to see equal width of data stored
-              // in the table and expected from the array class.
-              if (array_data[1] != elem_width) {
-                Fail(VERIFY_ERROR_GENERIC) << "array-data size mismatch (" << array_data[1]
-                                           << " vs " << elem_width << ")";
-              }
+            size_t elem_width = Primitive::ComponentSize(component_type.GetPrimitiveType());
+            // Since we don't compress the data in Dex, expect to see equal width of data stored
+            // in the table and expected from the array class.
+            if (array_data[1] != elem_width) {
+              Fail(VERIFY_ERROR_GENERIC) << "array-data size mismatch (" << array_data[1]
+                                         << " vs " << elem_width << ")";
             }
           }
         }
@@ -3284,45 +3262,39 @@ void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
   if (!index_type.IsArrayIndexTypes()) {
     Fail(VERIFY_ERROR_GENERIC) << "Invalid reg type for array index (" << index_type << ")";
   } else {
-    Class* array_class = work_line_->GetClassFromRegister(dec_insn.vB_);
-    if (failure_ == VERIFY_ERROR_NONE) {
-      if (array_class == NULL) {
-        // Null array class; this code path will fail at runtime. Infer a merge-able type from the
-        // instruction type. TODO: have a proper notion of bottom here.
-        if (!is_primitive || insn_type.IsCategory1Types()) {
-          // Reference or category 1
-          work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Zero());
-        } else {
-          // Category 2
-          work_line_->SetRegisterType(dec_insn.vA_, reg_types_.ConstLo());
-        }
+    const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB_);
+    if (array_type.IsZero()) {
+      // Null array class; this code path will fail at runtime. Infer a merge-able type from the
+      // instruction type. TODO: have a proper notion of bottom here.
+      if (!is_primitive || insn_type.IsCategory1Types()) {
+        // Reference or category 1
+        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Zero());
       } else {
-        /* verify the class */
-        Class* component_class = array_class->GetComponentType();
-        const RegType& component_type = reg_types_.FromClass(component_class);
-        if (!array_class->IsArrayClass()) {
-          Fail(VERIFY_ERROR_GENERIC) << "not array type "
-              << PrettyDescriptor(array_class) << " with aget";
-        } else if (component_class->IsPrimitive() && !is_primitive) {
-          Fail(VERIFY_ERROR_GENERIC) << "primitive array type "
-                                     << PrettyDescriptor(array_class)
-                                     << " source for aget-object";
-        } else if (!component_class->IsPrimitive() && is_primitive) {
-          Fail(VERIFY_ERROR_GENERIC) << "reference array type "
-                                     << PrettyDescriptor(array_class)
-                                     << " source for category 1 aget";
-        } else if (is_primitive && !insn_type.Equals(component_type) &&
-                   !((insn_type.IsInteger() && component_type.IsFloat()) ||
-                     (insn_type.IsLong() && component_type.IsDouble()))) {
-          Fail(VERIFY_ERROR_GENERIC) << "array type "
-              << PrettyDescriptor(array_class)
+        // Category 2
+        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.ConstLo());
+      }
+    } else {
+      /* verify the class */
+      const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
+      if (!array_type.IsArrayTypes()) {
+        Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aget";
+      } else if (!component_type.IsReferenceTypes() && !is_primitive) {
+        Fail(VERIFY_ERROR_GENERIC) << "primitive array type " << array_type
+            << " source for aget-object";
+      } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
+        Fail(VERIFY_ERROR_GENERIC) << "reference array type " << array_type
+            << " source for category 1 aget";
+      } else if (is_primitive && !insn_type.Equals(component_type) &&
+                 !((insn_type.IsInteger() && component_type.IsFloat()) ||
+                   (insn_type.IsLong() && component_type.IsDouble()))) {
+          Fail(VERIFY_ERROR_GENERIC) << "array type " << array_type
               << " incompatible with aget of type " << insn_type;
-        } else {
+      } else {
           // Use knowledge of the field type which is stronger than the type inferred from the
           // instruction, which can't differentiate object types and ints from floats, longs from
           // doubles.
           work_line_->SetRegisterType(dec_insn.vA_, component_type);
-        }
       }
     }
   }
@@ -3334,38 +3306,32 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
   if (!index_type.IsArrayIndexTypes()) {
     Fail(VERIFY_ERROR_GENERIC) << "Invalid reg type for array index (" << index_type << ")";
   } else {
-    Class* array_class = work_line_->GetClassFromRegister(dec_insn.vB_);
-    if (failure_ == VERIFY_ERROR_NONE) {
-      if (array_class == NULL) {
-        // Null array class; this code path will fail at runtime. Infer a merge-able type from the
-        // instruction type.
+    const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB_);
+    if (array_type.IsZero()) {
+      // Null array type; this code path will fail at runtime. Infer a merge-able type from the
+      // instruction type.
+    } else {
+      /* verify the class */
+      const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
+      if (!array_type.IsArrayTypes()) {
+        Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aput";
+      } else if (!component_type.IsReferenceTypes() && !is_primitive) {
+        Fail(VERIFY_ERROR_GENERIC) << "primitive array type " << array_type
+            << " source for aput-object";
+      } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
+        Fail(VERIFY_ERROR_GENERIC) << "reference array type " << array_type
+            << " source for category 1 aput";
+      } else if (is_primitive && !insn_type.Equals(component_type) &&
+                 !((insn_type.IsInteger() && component_type.IsFloat()) ||
+                   (insn_type.IsLong() && component_type.IsDouble()))) {
+        Fail(VERIFY_ERROR_GENERIC) << "array type " << array_type
+            << " incompatible with aput of type " << insn_type;
       } else {
-        /* verify the class */
-        Class* component_class = array_class->GetComponentType();
-        const RegType& component_type = reg_types_.FromClass(component_class);
-        if (!array_class->IsArrayClass()) {
-          Fail(VERIFY_ERROR_GENERIC) << "not array type "
-              << PrettyDescriptor(array_class) << " with aput";
-        } else if (component_class->IsPrimitive() && !is_primitive) {
-          Fail(VERIFY_ERROR_GENERIC) << "primitive array type "
-                                     << PrettyDescriptor(array_class)
-                                     << " source for aput-object";
-        } else if (!component_class->IsPrimitive() && is_primitive) {
-          Fail(VERIFY_ERROR_GENERIC) << "reference array type "
-                                     << PrettyDescriptor(array_class)
-                                     << " source for category 1 aput";
-        } else if (is_primitive && !insn_type.Equals(component_type) &&
-                   !((insn_type.IsInteger() && component_type.IsFloat()) ||
-                     (insn_type.IsLong() && component_type.IsDouble()))) {
-          Fail(VERIFY_ERROR_GENERIC) << "array type "
-              << PrettyDescriptor(array_class)
-              << " incompatible with aput of type " << insn_type;
-        } else {
-          // The instruction agrees with the type of array, confirm the value to be stored does too
-          // Note: we use the instruction type (rather than the component type) for aput-object as
-          // incompatible classes will be caught at runtime as an array store exception
-          work_line_->VerifyRegisterType(dec_insn.vA_, is_primitive ? component_type : insn_type);
-        }
+        // The instruction agrees with the type of array, confirm the value to be stored does too
+        // Note: we use the instruction type (rather than the component type) for aput-object as
+        // incompatible classes will be caught at runtime as an array store exception
+        work_line_->VerifyRegisterType(dec_insn.vA_, is_primitive ? component_type : insn_type);
       }
     }
   }
@@ -3603,7 +3569,7 @@ bool DexVerifier::CheckMoveException(const uint16_t* insns, int insn_idx) {
 
 void DexVerifier::VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn,
                                            const RegType& res_type, bool is_range) {
-  DCHECK(res_type.IsArrayClass()) << res_type;  // Checked before calling.
+  DCHECK(res_type.IsArrayTypes()) << res_type;  // Checked before calling.
   /*
    * Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of the
    * list and fail. It's legal, if silly, for arg_count to be zero.
