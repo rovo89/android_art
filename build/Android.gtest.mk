@@ -55,7 +55,7 @@ define build-art-test
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES := libgtest libgtest_main
-    LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
+    LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
     include $(BUILD_EXECUTABLE)
     art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
     ART_TARGET_TEST_EXECUTABLES += $$(art_gtest_exe)
@@ -79,7 +79,7 @@ ifeq ($$(art_target_or_host),target)
 $$(art_gtest_target): $$(art_gtest_exe) test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/$$@
 	adb shell rm $(ART_TEST_DIR)/$$@
-	adb shell sh -c "/data/nativetest/art/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
+	adb shell sh -c "$(ART_NATIVETEST_DIR)/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
 	$(hide) (adb pull $(ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
 	$(hide) rm /tmp/$$@
 

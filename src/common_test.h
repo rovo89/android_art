@@ -406,7 +406,7 @@ class CommonTest : public testing::Test {
       // on the host, just read target dex file
       filename += getenv("ANDROID_PRODUCT_OUT");
     }
-    filename += "/data/art-test/art-test-dex-";
+    filename += "/data/nativetest/art/art-test-dex-";
     filename += name;
     filename += ".jar";
     const DexFile* dex_file = DexFile::Open(filename, "");

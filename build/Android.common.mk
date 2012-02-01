@@ -18,6 +18,10 @@
 ART_CACHE_DIR := /data/art-cache
 ART_CACHE_OUT := $(TARGET_OUT_DATA)/art-cache
 
+# directory used for gtests on device
+ART_NATIVETEST_DIR := /data/nativetest/art
+ART_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
+
 # directory used for tests on device
 ART_TEST_DIR := /data/art-test
 ART_TEST_OUT := $(TARGET_OUT_DATA)/art-test
@@ -254,36 +258,45 @@ TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
 	src/assembler_x86_test.cc
 
-# subdirectories of test/
+# subdirectories of test/ which are used as inputs for gtests
 TEST_DEX_DIRECTORIES := \
 	AbstractMethod \
 	AllFields \
 	CreateMethodSignature \
 	ExceptionHandle \
-	ExceptionTest \
-	Fibonacci \
-	GrowthLimit \
-	HelloWorld \
 	IntMath \
 	Interfaces \
 	Main \
-	MemUsage \
 	MyClass \
 	MyClassNatives \
 	Nested \
-	ParallelGC \
 	ProtoCompare \
 	ProtoCompare2 \
-	ReferenceMap \
-	ReflectionTest \
-	StackWalk \
-	StackWalk2 \
 	StaticLeafMethods \
 	Statics \
 	StaticsFromCode \
-	ThreadStress \
-	Invoke \
 	XandY
+
+# subdirectories of test/ which are used with test-art-target-oat
+# Declare the simplest tests (Main, HelloWorld, and Fibonacci) first, the rest are alphabetical
+TEST_OAT_DIRECTORIES := \
+	Main \
+	HelloWorld \
+	Fibonacci \
+	\
+	ExceptionTest \
+	GrowthLimit \
+	IntMath \
+	Invoke \
+	MemUsage \
+	ParallelGC \
+	ReferenceMap \
+	ReflectionTest \
+	StackWalk \
+	ThreadStress
+
+# TODO: Enable when the StackWalk2 tests are passing
+#	StackWalk2 \
 
 ART_BUILD_TARGET := false
 ART_BUILD_HOST := false
