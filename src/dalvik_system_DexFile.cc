@@ -90,7 +90,10 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   }
   const DexFile* dex_file;
   if (outputName.c_str() == NULL) {
-    dex_file = DexFile::Open(sourceName.c_str(), "");
+    dex_file = Runtime::Current()->GetClassLinker()->FindDexFileFromDexLocation(sourceName.c_str());
+    if (dex_file == NULL) {
+      dex_file = DexFile::Open(sourceName.c_str(), "");
+    }
   } else {
     // Sanity check the arguments.
     if (!IsValidZipFilename(sourceName.c_str()) || !IsValidDexFilename(outputName.c_str())) {
@@ -233,20 +236,8 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
     }
   }
 
-  UniquePtr<const DexFile> dex_file(DexFile::Open(filename.c_str(), ""));
-  if (dex_file.get() == NULL) {
-    return JNI_TRUE;
-  }
-
-  const OatFile* oat_file = class_linker->FindOatFileForDexFile(*dex_file.get());
-  if (oat_file == NULL) {
-    return JNI_TRUE;
-  }
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation());
-  if (oat_dex_file == NULL) {
-    return JNI_TRUE;
-  }
-  if (oat_dex_file->GetDexFileChecksum() != dex_file->GetHeader().checksum_) {
+  const DexFile* dex_file = class_linker->FindDexFileFromDexLocation(filename.c_str());
+  if (dex_file == NULL) {
     return JNI_TRUE;
   }
   return JNI_FALSE;

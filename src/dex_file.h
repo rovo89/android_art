@@ -56,7 +56,7 @@ class DexFile {
     uint8_t magic_[8];
     uint32_t checksum_;
     uint8_t signature_[kSha1DigestSize];
-    uint32_t file_size_;  // length of entire file
+    uint32_t file_size_;  // size of entire file
     uint32_t header_size_;  // offset to start of next section
     uint32_t endian_tag_;
     uint32_t link_size_;  // unused
@@ -324,8 +324,8 @@ class DexFile {
                              const std::string& strip_location_prefix);
 
   // Opens .dex file, backed by existing memory
-  static const DexFile* Open(const uint8_t* base, size_t length, const std::string& location) {
-    return OpenMemory(base, length, location, NULL);
+  static const DexFile* Open(const uint8_t* base, size_t size, const std::string& location) {
+    return OpenMemory(base, size, location, NULL);
   }
 
   // Opens .dex file from the classes.dex in a zip archive
@@ -783,13 +783,13 @@ class DexFile {
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
   static const DexFile* OpenMemory(const byte* dex_file,
-                                   size_t length,
+                                   size_t size,
                                    const std::string& location,
                                    MemMap* mem_map);
 
-  DexFile(const byte* base, size_t length, const std::string& location, MemMap* mem_map)
+  DexFile(const byte* base, size_t size, const std::string& location, MemMap* mem_map)
       : begin_(base),
-        length_(length),
+        size_(size),
         location_(location),
         mem_map_(mem_map),
         dex_object_lock_("a dex_object_lock_"),
@@ -802,7 +802,15 @@ class DexFile {
         proto_ids_(0),
         class_defs_(0) {
     CHECK(begin_ != NULL) << GetLocation();
-    CHECK_GT(length_, 0U) << GetLocation();
+    CHECK_GT(size_, 0U) << GetLocation();
+  }
+
+  const byte* Begin() const {
+    return begin_;
+  }
+
+  size_t Size() const {
+    return size_;
   }
 
   // Top-level initializer that calls other Init methods.
@@ -829,7 +837,7 @@ class DexFile {
   const byte* begin_;
 
   // The size of the underlying memory allocation in bytes.
-  size_t length_;
+  size_t size_;
 
   // Typically the dex file name when available, alternatively some identifying string.
   //
