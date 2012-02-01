@@ -26,7 +26,7 @@ namespace art {
 
 extern void CheckSuspendFromCode(Thread* thread);
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                         Thread* self);
+                                         Thread* self, bool access_check);
 extern void DebugMe(Method* method, uint32_t info);
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static);
@@ -73,9 +73,11 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_throw_verification_error_from_code(int32_t src1, int32_t ref);
   extern "C" void art_unlock_object_from_code(void*);
   extern "C" void* art_alloc_array_from_code(uint32_t, void*, int32_t);
+  extern "C" void* art_alloc_array_from_code_with_access_check(uint32_t, void*, int32_t);
   extern "C" void* art_alloc_object_from_code(uint32_t type_idx, void* method);
   extern "C" void* art_alloc_object_from_code_with_access_check(uint32_t type_idx, void* method);
   extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
+  extern "C" void* art_check_and_alloc_array_from_code_with_access_check(uint32_t, void*, int32_t);
   extern "C" void* art_find_instance_field_from_code(uint32_t, void*);
   extern "C" void* art_find_static_field_from_code(uint32_t, void*);
   extern "C" void* art_get_obj_static_from_code(uint32_t, void*);

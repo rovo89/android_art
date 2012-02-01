@@ -58,11 +58,8 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
     } else {
-        UNIMPLEMENTED(WARNING) << "Need to check access of '"
-                               << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
-                               << "' to unresolved type " << type_idx;
         loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
+                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCodeWithAccessCheck), rLR);
     }
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, type_idx);            // arg0 <- type_id
@@ -84,15 +81,15 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     int elems = dInsn->vA;
     int typeId = dInsn->vB;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCode), rLR);
-    if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                     cUnit->dex_cache,
-                                                     *cUnit->dex_file,
-                                                     typeId)) {
-        UNIMPLEMENTED(WARNING) << "Need to check access of '"
-            << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
-            << "' to unresolved type " << typeId;
+    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
+                                                    cUnit->dex_cache,
+                                                    *cUnit->dex_file,
+                                                    typeId)) {
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCode), rLR);
+    } else {
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCodeWithAccessCheck), rLR);
     }
     loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
     loadConstant(cUnit, r0, typeId);              // arg0 <- type_id

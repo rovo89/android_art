@@ -637,9 +637,10 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
-extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
-                                          Thread* self, Method** sp) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+// When verification/compiler hasn't been able to verify access, optionally perform an access
+// check.
+static Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
+                                   bool access_check) {
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
   if (UNLIKELY(klass == NULL)) {
@@ -649,41 +650,84 @@ extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
       return NULL;  // Failure
     }
   }
+  if (access_check) {
+    Class* referrer = method->GetDeclaringClass();
+    if (UNLIKELY(!referrer->CanAccess(klass))) {
+      self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+                               "illegal class access: '%s' -> '%s'",
+                               PrettyDescriptor(referrer).c_str(),
+                               PrettyDescriptor(klass).c_str());
+      return NULL;  // Failure
+    }
+  }
   if (!runtime->GetClassLinker()->EnsureInitialized(klass, true)) {
     DCHECK(self->IsExceptionPending());
     return NULL;  // Failure
   }
   return klass->AllocObject();
+}
+
+extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
+                                          Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return AllocObjectFromCode(type_idx, method, self, false);
 }
 
 extern "C" Object* artAllocObjectFromCodeWithAccessCheck(uint32_t type_idx, Method* method,
                                                          Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return AllocObjectFromCode(type_idx, method, self, true);
+}
+
+// Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
+// it cannot be resolved, throw an error. If it can, use it to create an array.
+// When verification/compiler hasn't been able to verify access, optionally perform an access
+// check.
+static Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+                                  Thread* self, bool access_check) {
+  if (UNLIKELY(component_count < 0)) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
+                                         component_count);
+    return NULL;  // Failure
+  }
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(klass == NULL)) {
-    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {
-      DCHECK(self->IsExceptionPending());
+  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {  // Error
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return NULL;  // Failure
+    }
+    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
+  }
+  if (access_check) {
+    Class* referrer = method->GetDeclaringClass();
+    if (UNLIKELY(!referrer->CanAccess(klass))) {
+      self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+                               "illegal class access: '%s' -> '%s'",
+                               PrettyDescriptor(referrer).c_str(),
+                               PrettyDescriptor(klass).c_str());
       return NULL;  // Failure
     }
   }
-  Class* referrer = method->GetDeclaringClass();
-  if (UNLIKELY(!referrer->CanAccess(klass))) {
-    self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;", "illegal class access: '%s' -> '%s'",
-                             PrettyDescriptor(referrer).c_str(),
-                             PrettyDescriptor(klass).c_str());
-    return NULL;  // Failure
-  }
-  if (!runtime->GetClassLinker()->EnsureInitialized(klass, true)) {
-    DCHECK(self->IsExceptionPending());
-    return NULL;  // Failure
-  }
-  return klass->AllocObject();
+  return Array::Alloc(klass, component_count);
 }
 
+extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+                                        Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return AllocArrayFromCode(type_idx, method, component_count, self, false);
+}
+
+extern "C" Array* artAllocArrayFromCodeWithAccessCheck(uint32_t type_idx, Method* method,
+                                                       int32_t component_count,
+                                                       Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  return AllocArrayFromCode(type_idx, method, component_count, self, true);
+}
+
+// Helper function to alloc array for OP_FILLED_NEW_ARRAY
 Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                     Thread* self) {
+                                  Thread* self, bool access_check) {
   if (UNLIKELY(component_count < 0)) {
     self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
     return NULL;  // Failure
@@ -708,38 +752,32 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t com
     }
     return NULL;  // Failure
   } else {
+    if (access_check) {
+      Class* referrer = method->GetDeclaringClass();
+      if (UNLIKELY(!referrer->CanAccess(klass))) {
+        self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+                                 "illegal class access: '%s' -> '%s'",
+                                 PrettyDescriptor(referrer).c_str(),
+                                 PrettyDescriptor(klass).c_str());
+        return NULL;  // Failure
+      }
+    }
     DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
     return Array::Alloc(klass, component_count);
   }
 }
 
-// Helper function to alloc array for OP_FILLED_NEW_ARRAY
 extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
                                                int32_t component_count, Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  return CheckAndAllocArrayFromCode(type_idx, method, component_count, self);
+  return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, false);
 }
 
-// Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
-// it cannot be resolved, throw an error. If it can, use it to create an array.
-extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                        Thread* self, Method** sp) {
+extern "C" Array* artCheckAndAllocArrayFromCodeWithAccessCheck(uint32_t type_idx, Method* method,
+                                                               int32_t component_count,
+                                                               Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  if (UNLIKELY(component_count < 0)) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
-                                         component_count);
-    return NULL;  // Failure
-  }
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {  // Error
-      DCHECK(Thread::Current()->IsExceptionPending());
-      return NULL;  // Failure
-    }
-    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
-  }
-  return Array::Alloc(klass, component_count);
+  return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, true);
 }
 
 // Assignable test for code, won't throw.  Null and equality tests already performed

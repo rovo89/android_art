@@ -520,10 +520,27 @@ art_alloc_array_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
+    .global art_alloc_array_from_code_with_access_check
+    .extern artAllocArrayFromCodeWithAccessCheck
+    /*
+     * Called by managed code to allocate an array when the caller doesn't know whether it has
+     * access to the created type
+     */
+art_alloc_array_from_code_with_access_check:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    str    sp, [sp, #0]               @ pass SP
+    @ artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, SP)
+    bl     artAllocArrayFromCodeWithAccessCheck
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                     @ success if result is non-null
+    bxne   lr                         @ return on success
+    DELIVER_PENDING_EXCEPTION
+
     .global art_check_and_alloc_array_from_code
     .extern artCheckAndAllocArrayFromCode
     /*
-     * Called by managed code to allocate an array
+     * Called by managed code to allocate an array in a special case for OP_FILLED_NEW_ARRAY
      */
 art_check_and_alloc_array_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
@@ -531,6 +548,22 @@ art_check_and_alloc_array_from_code:
     str    sp, [sp, #0]               @ pass SP
     @ artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
     bl     artCheckAndAllocArrayFromCode
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                     @ success if result is non-null
+    bxne   lr                         @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_check_and_alloc_array_from_code_with_access_check
+    .extern artCheckAndAllocArrayFromCodeWithAccessCheck
+    /*
+     * Called by managed code to allocate an array in a special case for OP_FILLED_NEW_ARRAY
+     */
+art_check_and_alloc_array_from_code_with_access_check:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    str    sp, [sp, #0]               @ pass SP
+    @ artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , SP)
+    bl     artCheckAndAllocArrayFromCodeWithAccessCheck
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
