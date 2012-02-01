@@ -1924,6 +1924,7 @@ void ClassLinker::VerifyClass(Class* klass) {
   const DexFile& dex_file = FindDexFile(klass->GetDexCache());
   if (VerifyClassUsingOatFile(dex_file, klass) ||
       verifier::DexVerifier::VerifyClass(klass, error_msg)) {
+    DCHECK(!Thread::Current()->IsExceptionPending());
     // Make sure all classes referenced by catch blocks are resolved
     ResolveClassExceptionHandlerTypes(dex_file, klass);
     klass->SetStatus(Class::kStatusVerified);
@@ -1934,7 +1935,7 @@ void ClassLinker::VerifyClass(Class* klass) {
         << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
         << " because: " << error_msg;
     Thread* self = Thread::Current();
-    CHECK(!self->IsExceptionPending()) << self->GetException()->Dump();
+    CHECK(!self->IsExceptionPending());
     self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
     CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyDescriptor(klass);
     klass->SetStatus(Class::kStatusError);
@@ -1961,17 +1962,34 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass)
   UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
   CHECK(oat_class.get() != NULL) << descriptor;
   Class::Status status = oat_class->GetStatus();
-  if (status == Class::kStatusError) {
-    Thread* self = Thread::Current();
-    self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Compile-time verification of %s failed",
-        PrettyDescriptor(klass).c_str());
-    klass->SetStatus(Class::kStatusError);
-    return true;
-  }
   if (status == Class::kStatusVerified || status == Class::kStatusInitialized) {
     return true;
   }
+  if (status == Class::kStatusError) {
+    // Compile time verification failed. Compile time verification can fail because we have
+    // incomplete type information. Consider the following:
+    // class ... {
+    //   Foo x;
+    //   .... () {
+    //     if (...) {
+    //       v1 gets assigned a type of resolved class Foo
+    //     } else {
+    //       v1 gets assigned a type of unresolved class Bar
+    //     }
+    //     iput x = v1
+    // } }
+    // when we merge v1 following the if-the-else it results in Conflict
+    // (see verifier::RegType::Merge) as we can't know the type of Bar and we could possibly be
+    // allowing an unsafe assignment to the field x in the iput (javac may have compiled this as
+    // it knew Bar was a sub-class of Foo, but for us this may have been moved into a separate apk
+    // at compile time).
+    return false;
+  }
   if (status == Class::kStatusNotReady) {
+    // Status is uninitialized if we couldn't determine the status at compile time, for example,
+    // not loading the class.
+    // TODO: when the verifier doesn't rely on Class-es failing to resolve/load the type hierarchy
+    // isn't a problem and this case shouldn't occur
     return false;
   }
   LOG(FATAL) << "Unexpected class status: " << status;

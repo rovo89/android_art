@@ -3038,17 +3038,17 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
             common_super = &reg_types_.JavaLangThrowable();
           } else {
             const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
-            /* TODO: on error do we want to keep going?  If we don't fail this we run the risk of
-             * having a non-Throwable introduced at runtime. However, that won't pass an instanceof
-             * test, so is essentially harmless.
-             */
-            if(!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
+            if (common_super == NULL) {
+              // Unconditionally assign for the first handler. We don't assert this is a Throwable
+              // as that is caught at runtime
+              common_super = &exception;
+            } else if(!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
+              // We don't know enough about the type and the common path merge will result in
+              // Conflict. Fail here knowing the correct thing can be done at runtime.
               Fail(VERIFY_ERROR_GENERIC) << "unexpected non-exception class " << exception;
               return reg_types_.Unknown();
-            } else if (common_super == NULL) {
-              common_super = &exception;
             } else if (common_super->Equals(exception)) {
-              // nothing to do
+              // odd case, but nothing to do
             } else {
               common_super = &common_super->Merge(exception, &reg_types_);
               CHECK(reg_types_.JavaLangThrowable().IsAssignableFrom(*common_super));
@@ -3062,6 +3062,7 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
   if (common_super == NULL) {
     /* no catch blocks, or no catches with classes we can find */
     Fail(VERIFY_ERROR_GENERIC) << "unable to find exception handler";
+    return reg_types_.Unknown();
   }
   return *common_super;
 }

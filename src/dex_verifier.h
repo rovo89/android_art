@@ -1161,9 +1161,8 @@ class DexVerifier {
 
   /*
    * For the "move-exception" instruction at "work_insn_idx_", which must be at an exception handler
-   * address, determine the first common superclass of all exceptions that can land here.
-   * Returns NULL if no matching exception handler can be found, or if the exception is not a
-   * subclass of Throwable.
+   * address, determine the Join of all exceptions that can land here. Fails if no matching
+   * exception handler can be found or if the Join of exception types fails.
    */
   const RegType& GetCaughtExceptionType();
 
