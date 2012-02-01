@@ -381,7 +381,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
     //       free space is equal to the old free space + the
     //       utilization slop for the new allocation.
     VLOG(gc) << "Grow heap (frag case) to " << PrettySize(new_footprint)
-             << "for a " << PrettySize(alloc_size) << " allocation";
+             << " for a " << PrettySize(alloc_size) << " allocation";
     return ptr;
   }
 
