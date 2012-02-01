@@ -135,9 +135,16 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
   }
   close(fd);
   const DexFile* dex_file = OpenMemory(location, map.release());
-  if (dex_file != NULL) {
-    DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size());
+  if (dex_file == NULL) {
+    LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
+    return NULL;
   }
+
+  if (!DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
+    LOG(ERROR) << "Failed to verify dex file '" << location << "'";
+    return NULL;
+  }
+
   return dex_file;
 }
 
@@ -183,9 +190,16 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
   }
 
   const DexFile* dex_file = OpenMemory(location, map.release());
-  if (dex_file != NULL) {
-    DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size());
+  if (dex_file == NULL) {
+    LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
+    return NULL;
   }
+
+  if (!DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
+    LOG(ERROR) << "Failed to verify dex file '" << location << "'";
+    return NULL;
+  }
+
   return dex_file;
 }
 
