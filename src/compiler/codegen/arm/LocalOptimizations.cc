@@ -236,7 +236,7 @@ STATIC void applyLoadStoreElimination(CompilationUnit* cUnit,
                 /* Only sink store instructions */
                 if (sinkDistance && !isThisLIRLoad) {
                     ArmLIR* newStoreLIR =
-                        (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+                        (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
                     *newStoreLIR = *thisLIR;
                     /*
                      * Stop point found - insert *before* the checkLIR
@@ -424,7 +424,7 @@ STATIC void applyLoadHoisting(CompilationUnit* cUnit,
             if (slot >= 0) {
                 ArmLIR* curLIR = prevInstList[slot];
                 ArmLIR* newLoadLIR = (ArmLIR* ) oatNew(sizeof(ArmLIR),
-                                                               true);
+                                                       true, kAllocLIR);
                 *newLoadLIR = *thisLIR;
                 /*
                  * Insertion is guaranteed to succeed since checkLIR

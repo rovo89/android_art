@@ -132,9 +132,9 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
      * reg.
      */
     RefCounts *coreRegs = (RefCounts *)
-          oatNew(sizeof(RefCounts) * numRegs, true);
+          oatNew(sizeof(RefCounts) * numRegs, true, kAllocRegAlloc);
     RefCounts *fpRegs = (RefCounts *)
-          oatNew(sizeof(RefCounts) * numRegs, true);
+          oatNew(sizeof(RefCounts) * numRegs, true, kAllocRegAlloc);
     for (int i = 0; i < numRegs; i++) {
         coreRegs[i].sReg = fpRegs[i].sReg = i;
     }

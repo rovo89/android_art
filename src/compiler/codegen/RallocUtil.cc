@@ -137,9 +137,8 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
 }
 
 /* Mark a temp register as dead.  Does not affect allocation state. */
-void oatClobber(CompilationUnit* cUnit, int reg)
+static inline void clobberBody(CompilationUnit *cUnit, RegisterInfo* p)
 {
-    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
     if (p->isTemp) {
         DCHECK(!(p->live && p->dirty))  << "Live & dirty temp in clobber";
         p->live = false;
@@ -151,6 +150,12 @@ void oatClobber(CompilationUnit* cUnit, int reg)
             oatClobber(cUnit, p->partner);
         }
     }
+}
+
+/* Mark a temp register as dead.  Does not affect allocation state. */
+void oatClobber(CompilationUnit* cUnit, int reg)
+{
+    clobberBody(cUnit, oatGetRegInfo(cUnit, reg));
 }
 
 STATIC void clobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
@@ -577,11 +582,15 @@ extern void oatLockTemp(CompilationUnit* cUnit, int reg)
     LOG(FATAL) << "Tried to lock a non-existant temp: r" << reg;
 }
 
-extern void oatResetDef(CompilationUnit* cUnit, int reg)
+static inline void resetDefBody(RegisterInfo* p)
 {
-    RegisterInfo* p = oatGetRegInfo(cUnit, reg);
     p->defStart = NULL;
     p->defEnd = NULL;
+}
+
+extern void oatResetDef(CompilationUnit* cUnit, int reg)
+{
+    resetDefBody(oatGetRegInfo(cUnit, reg));
 }
 
 STATIC void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
@@ -687,10 +696,10 @@ extern void oatResetDefTracking(CompilationUnit* cUnit)
 {
     int i;
     for (i=0; i< cUnit->regPool->numCoreRegs; i++) {
-        oatResetDef(cUnit, cUnit->regPool->coreRegs[i].reg);
+        resetDefBody(&cUnit->regPool->coreRegs[i]);
     }
     for (i=0; i< cUnit->regPool->numFPRegs; i++) {
-        oatResetDef(cUnit, cUnit->regPool->FPRegs[i].reg);
+        resetDefBody(&cUnit->regPool->FPRegs[i]);
     }
 }
 
@@ -698,10 +707,10 @@ extern void oatClobberAllRegs(CompilationUnit* cUnit)
 {
     int i;
     for (i=0; i< cUnit->regPool->numCoreRegs; i++) {
-        oatClobber(cUnit, cUnit->regPool->coreRegs[i].reg);
+        clobberBody(cUnit, &cUnit->regPool->coreRegs[i]);
     }
     for (i=0; i< cUnit->regPool->numFPRegs; i++) {
-        oatClobber(cUnit, cUnit->regPool->FPRegs[i].reg);
+        clobberBody(cUnit, &cUnit->regPool->FPRegs[i]);
     }
 }
 

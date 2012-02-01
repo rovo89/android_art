@@ -900,7 +900,7 @@ char* oatGetDalvikDisassembly(const DecodedInstruction* insn,
         }
     }
     int length = strlen(buffer) + 1;
-    ret = (char*)oatNew(length, false);
+    ret = (char*)oatNew(length, false, kAllocDFInfo);
     memcpy(ret, buffer, length);
     return ret;
 }
@@ -1036,7 +1036,7 @@ char* oatFullDisassembler(const CompilationUnit* cUnit,
 
 done:
     length = strlen(buffer) + 1;
-    ret = (char*) oatNew(length, false);
+    ret = (char*) oatNew(length, false, kAllocDFInfo);
     memcpy(ret, buffer, length);
     return ret;
 }
@@ -1078,7 +1078,7 @@ char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
     }
 
     int length = strlen(buffer) + 1;
-    ret = (char*)oatNew(length, false);
+    ret = (char*)oatNew(length, false, kAllocDFInfo);
     memcpy(ret, buffer, length);
     return ret;
 }
@@ -1111,11 +1111,11 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
     if (bb->dataFlowInfo == NULL) return false;
 
     useV = bb->dataFlowInfo->useV =
-        oatAllocBitVector(cUnit->numDalvikRegisters, false);
+        oatAllocBitVector(cUnit->numDalvikRegisters, false, kBitMapUse);
     defV = bb->dataFlowInfo->defV =
-        oatAllocBitVector(cUnit->numDalvikRegisters, false);
+        oatAllocBitVector(cUnit->numDalvikRegisters, false, kBitMapDef);
     liveInV = bb->dataFlowInfo->liveInV =
-        oatAllocBitVector(cUnit->numDalvikRegisters, false);
+        oatAllocBitVector(cUnit->numDalvikRegisters, false, kBitMapLiveIn);
 
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
         int dfAttributes =
@@ -1186,9 +1186,11 @@ STATIC void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
     int i;
 
     mir->ssaRep->numUses = numUses;
-    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, true);
+    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, true,
+                                      kAllocDFInfo);
     // NOTE: will be filled in during type & size inference pass
-    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, true);
+    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, true,
+                                        kAllocDFInfo);
 
     for (i = 0; i < numUses; i++) {
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->arg[i], i);
@@ -1203,9 +1205,11 @@ STATIC void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
     int i;
 
     mir->ssaRep->numUses = numUses;
-    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, true);
+    mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses, true,
+                                      kAllocDFInfo);
     // NOTE: will be filled in during type & size inference pass
-    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, true);
+    mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses, true,
+                                        kAllocDFInfo);
 
     for (i = 0; i < numUses; i++) {
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+i, i);
@@ -1221,7 +1225,7 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
         mir->ssaRep = (struct SSARepresentation *)
-            oatNew(sizeof(SSARepresentation), true);
+            oatNew(sizeof(SSARepresentation), true, kAllocDFInfo);
 
         int dfAttributes =
             oatDataFlowAttributes[mir->dalvikInsn.opcode];
@@ -1272,9 +1276,9 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
         if (numUses) {
             mir->ssaRep->numUses = numUses;
             mir->ssaRep->uses = (int *)oatNew(sizeof(int) * numUses,
-                                                      false);
+                                              false, kAllocDFInfo);
             mir->ssaRep->fpUse = (bool *)oatNew(sizeof(bool) * numUses,
-                                                false);
+                                                false, kAllocDFInfo);
         }
 
         int numDefs = 0;
@@ -1289,9 +1293,9 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
         if (numDefs) {
             mir->ssaRep->numDefs = numDefs;
             mir->ssaRep->defs = (int *)oatNew(sizeof(int) * numDefs,
-                                                      false);
+                                              false, kAllocDFInfo);
             mir->ssaRep->fpDef = (bool *)oatNew(sizeof(bool) * numDefs,
-                                                        false);
+                                                false, kAllocDFInfo);
         }
 
         DecodedInstruction *dInsn = &mir->dalvikInsn;
@@ -1336,16 +1340,19 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
         }
     }
 
-    /*
-     * Take a snapshot of Dalvik->SSA mapping at the end of each block. The
-     * input to PHI nodes can be derived from the snapshot of all predecessor
-     * blocks.
-     */
-    bb->dataFlowInfo->dalvikToSSAMap =
-        (int *)oatNew(sizeof(int) * cUnit->numDalvikRegisters, false);
+    if (!cUnit->disableDataflow) {
+        /*
+         * Take a snapshot of Dalvik->SSA mapping at the end of each block. The
+         * input to PHI nodes can be derived from the snapshot of all
+         * predecessor blocks.
+         */
+        bb->dataFlowInfo->dalvikToSSAMap =
+            (int *)oatNew(sizeof(int) * cUnit->numDalvikRegisters, false,
+                          kAllocDFInfo);
 
-    memcpy(bb->dataFlowInfo->dalvikToSSAMap, cUnit->dalvikToSSAMap,
-           sizeof(int) * cUnit->numDalvikRegisters);
+        memcpy(bb->dataFlowInfo->dalvikToSSAMap, cUnit->dalvikToSSAMap,
+               sizeof(int) * cUnit->numDalvikRegisters);
+    }
     return true;
 }
 
@@ -1436,9 +1443,11 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
     int numDalvikReg = cUnit->numDalvikRegisters;
 
     cUnit->ssaToDalvikMap = (GrowableList *)oatNew(sizeof(GrowableList),
-                                                           false);
-    oatInitGrowableList(cUnit->ssaToDalvikMap, numDalvikReg);
-
+                                                   false, kAllocDFInfo);
+    // Create the SSAtoDalvikMap, estimating the max size
+    oatInitGrowableList(cUnit->ssaToDalvikMap,
+                        numDalvikReg + cUnit->defCount + 128,
+                        kListSSAtoDalvikMap);
     /*
      * Initial number of SSA registers is equal to the number of Dalvik
      * registers.
@@ -1460,10 +1469,10 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
      * register N is mapped to SSA register N with subscript 0.
      */
     cUnit->dalvikToSSAMap = (int *)oatNew(sizeof(int) * numDalvikReg,
-                                                  false);
+                                          false, kAllocDFInfo);
     /* Keep track of the higest def for each dalvik reg */
     cUnit->SSALastDefs = (int *)oatNew(sizeof(int) * numDalvikReg,
-                                                  false);
+                                       false, kAllocDFInfo);
 
     for (i = 0; i < numDalvikReg; i++) {
         cUnit->dalvikToSSAMap[i] = i;
@@ -1486,7 +1495,7 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
             bb->blockType == kExitBlock) {
             bb->dataFlowInfo = (BasicBlockDataFlow *)
                 oatNew(sizeof(BasicBlockDataFlow),
-                               true);
+                       true, kAllocDFInfo);
         }
     }
 }
@@ -1618,7 +1627,7 @@ STATIC bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
 {
     if (bb->dataFlowInfo == NULL) return false;
     bb->dataFlowInfo->endingNullCheckV =
-        oatAllocBitVector(cUnit->numSSARegs, false);
+        oatAllocBitVector(cUnit->numSSARegs, false, kBitMapNullCheck);
     oatClearAllBits(bb->dataFlowInfo->endingNullCheckV);
     return true;
 }
@@ -1628,12 +1637,12 @@ STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
                                  struct BasicBlock* bb)
 {
     if (bb->dataFlowInfo == NULL) return false;
+
     /*
      * Set initial state.  Be conservative with catch
      * blocks and start with no assumptions about null check
      * status (except for "this").
      */
-
     if ((bb->blockType == kEntryBlock) | bb->catchEntry) {
         oatClearAllBits(cUnit->tempSSARegisterV);
         if ((cUnit->access_flags & kAccStatic) == 0) {
@@ -1643,20 +1652,15 @@ STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
         }
     } else {
         // Starting state is intesection of all incoming arcs
-        GrowableList* blockList = &cUnit->blockList;
-        ArenaBitVectorIterator bvIterator;
-        oatBitVectorIteratorInit(bb->predecessors, &bvIterator);
-        int predBBIdx = oatBitVectorIteratorNext(&bvIterator);
-        DCHECK_NE(predBBIdx, -1);
-        BasicBlock* predBB = (BasicBlock*)oatGrowableListGetElement(
-            blockList, predBBIdx);
+        GrowableListIterator iter;
+        oatGrowableListIteratorInit(bb->predecessors, &iter);
+        BasicBlock* predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter);
+        DCHECK(predBB != NULL);
         oatCopyBitVector(cUnit->tempSSARegisterV,
                          predBB->dataFlowInfo->endingNullCheckV);
         while (true) {
-            predBBIdx = oatBitVectorIteratorNext(&bvIterator);
-            if (predBBIdx == -1) break;
-            predBB = (BasicBlock*)oatGrowableListGetElement(
-                blockList, predBBIdx);
+            predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter);
+            if (!predBB) break;
             if ((predBB->dataFlowInfo == NULL) ||
                 (predBB->dataFlowInfo->endingNullCheckV == NULL)) {
                 continue;

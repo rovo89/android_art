@@ -1859,13 +1859,20 @@ STATIC const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
 STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
 {
     int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
-    char* msg = (char*)oatNew(strlen(extendedMIROpNames[opOffset]) + 1, false);
-    strcpy(msg, extendedMIROpNames[opOffset]);
+    char* msg = NULL;
+    if (cUnit->printMe) {
+        msg = (char*)oatNew(strlen(extendedMIROpNames[opOffset]) + 1, false,
+                            kAllocDebugInfo);
+        strcpy(msg, extendedMIROpNames[opOffset]);
+    }
     ArmLIR* op = newLIR1(cUnit, kArmPseudoExtended, (int) msg);
 
     switch ((ExtendedMIROpcode)mir->dalvikInsn.opcode) {
         case kMirOpPhi: {
-            char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
+            char* ssaString = NULL;
+            if (cUnit->printMe) {
+                ssaString = oatGetSSAString(cUnit, mir->ssaRep);
+            }
             op->flags.isNop = true;
             newLIR1(cUnit, kArmPseudoSSARep, (int) ssaString);
             break;
@@ -2043,9 +2050,10 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         ArmLIR* boundaryLIR;
 
         /* Mark the beginning of a Dalvik instruction for line tracking */
+        char* instStr = cUnit->printMe ?
+           oatGetDalvikDisassembly(&mir->dalvikInsn, "") : NULL;
         boundaryLIR = newLIR1(cUnit, kArmPseudoDalvikByteCodeBoundary,
-                             (int) oatGetDalvikDisassembly(
-                             &mir->dalvikInsn, ""));
+                              (intptr_t) instStr);
         cUnit->boundaryMap.insert(std::make_pair(mir->offset,
                                  (LIR*)boundaryLIR));
         /* Remember the first LIR for this block */
@@ -2227,7 +2235,7 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
     /* Used to hold the labels of each block */
     cUnit->blockLabelList =
-        (void *) oatNew(sizeof(ArmLIR) * cUnit->numBlocks, true);
+        (void *) oatNew(sizeof(ArmLIR) * cUnit->numBlocks, true, kAllocLIR);
 
     oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                   kPreOrderDFSTraversal, false /* Iterative */);

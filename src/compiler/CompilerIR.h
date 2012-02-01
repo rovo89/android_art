@@ -66,12 +66,10 @@ typedef struct RegLocation {
  * benefit in optimizing these methods, and the cost can be very high.
  * We attempt to identify these cases, and avoid performing most dataflow
  * analysis.  Two thresholds are used - one for known initializers and one
- * for everything else.  Note: we require dataflow analysis for floating point
- * type inference. If any non-move fp operations exist in a method, dataflow
- * is performed regardless of block count.
+ * for everything else.
  */
-#define MANY_BLOCKS_INITIALIZER 200 /* Threshold for switching dataflow off */
-#define MANY_BLOCKS 3000 /* Non-initializer threshold */
+#define MANY_BLOCKS_INITIALIZER 1000 /* Threshold for switching dataflow off */
+#define MANY_BLOCKS 4000 /* Non-initializer threshold */
 
 typedef enum BBType {
     kEntryBlock,
@@ -175,7 +173,7 @@ typedef struct BasicBlock {
     struct BasicBlock* taken;
     struct BasicBlock* iDom;            // Immediate dominator
     struct BasicBlockDataFlow* dataFlowInfo;
-    ArenaBitVector* predecessors;
+    GrowableList* predecessors;
     ArenaBitVector* dominators;
     ArenaBitVector* iDominated;         // Set nodes being immediately dominated
     ArenaBitVector* domFrontier;        // Dominance frontier
@@ -328,13 +326,13 @@ typedef struct CompilationUnit {
      GrowableList fillArrayData;
      const u2* insns;
      u4 insnsSize;
-     bool usesFP;          // Method contains at least 1 non-move FP operation
      bool disableDataflow; // Skip dataflow analysis if possible
      std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
      std::map<unsigned int, LIR*> boundaryMap; // boundary lookup cache
+     int defCount;         // Used to estimate number of SSA names
 } CompilationUnit;
 
-BasicBlock* oatNewBB(BBType blockType, int blockId);
+BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
 
 void oatAppendMIR(BasicBlock* bb, MIR* mir);
 

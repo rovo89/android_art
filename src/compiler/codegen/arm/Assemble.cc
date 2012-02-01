@@ -118,7 +118,7 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  "add", "!0C, !1C", 1),
     ENCODING_MAP(kThumbAddPcRel,    0xa000,
                  kFmtBitBlt, 10, 8, kFmtBitBlt, 7, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | IS_BRANCH,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | IS_BRANCH | NEEDS_FIXUP,
                  "add", "!0C, pc, #!1E", 1),
     ENCODING_MAP(kThumbAddSpRel,    0xa800,
                  kFmtBitBlt, 10, 8, kFmtUnused, -1, -1, kFmtBitBlt, 7, 0,
@@ -145,11 +145,11 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  "asrs", "!0C, !1C", 1),
     ENCODING_MAP(kThumbBCond,        0xd000,
                  kFmtBitBlt, 7, 0, kFmtBitBlt, 11, 8, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | USES_CCODES,
-                 "b!1c", "!0t", 1),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | USES_CCODES |
+                 NEEDS_FIXUP, "b!1c", "!0t", 1),
     ENCODING_MAP(kThumbBUncond,      0xe000,
                  kFmtBitBlt, 10, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH,
+                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | NEEDS_FIXUP,
                  "b", "!0t", 1),
     ENCODING_MAP(kThumbBicRR,        0x4380,
                  kFmtBitBlt, 2, 0, kFmtBitBlt, 5, 3, kFmtUnused, -1, -1,
@@ -162,12 +162,12 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  "bkpt", "!0d", 1),
     ENCODING_MAP(kThumbBlx1,         0xf000,
                  kFmtBitBlt, 10, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_DEF_LR,
-                 "blx_1", "!0u", 1),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_DEF_LR |
+                 NEEDS_FIXUP, "blx_1", "!0u", 1),
     ENCODING_MAP(kThumbBlx2,         0xe800,
                  kFmtBitBlt, 10, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_DEF_LR,
-                 "blx_2", "!0v", 1),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_DEF_LR |
+                 NEEDS_FIXUP, "blx_2", "!0v", 1),
     ENCODING_MAP(kThumbBl1,          0xf000,
                  kFmtBitBlt, 10, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR,
@@ -230,7 +230,7 @@ ArmEncodingMap EncodingMap[kArmLast] = {
     ENCODING_MAP(kThumbLdrPcRel,    0x4800,
                  kFmtBitBlt, 10, 8, kFmtBitBlt, 7, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0 | REG_USE_PC
-                 | IS_LOAD, "ldr", "!0C, [pc, #!1E]", 1),
+                 | IS_LOAD | NEEDS_FIXUP, "ldr", "!0C, [pc, #!1E]", 1),
     ENCODING_MAP(kThumbLdrSpRel,    0x9800,
                  kFmtBitBlt, 10, 8, kFmtUnused, -1, -1, kFmtBitBlt, 7, 0,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0 | REG_USE_SP
@@ -405,11 +405,11 @@ ArmEncodingMap EncodingMap[kArmLast] = {
     ENCODING_MAP(kThumb2Vldrs,       0xed900a00,
                  kFmtSfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD |
-                 REG_DEF_LR, "vldr", "!0s, [!1C, #!2E]", 2),
+                 REG_DEF_LR | NEEDS_FIXUP, "vldr", "!0s, [!1C, #!2E]", 2),
     ENCODING_MAP(kThumb2Vldrd,       0xed900b00,
                  kFmtDfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD |
-                 REG_DEF_LR, "vldr", "!0S, [!1C, #!2E]", 2),
+                 REG_DEF_LR | NEEDS_FIXUP, "vldr", "!0S, [!1C, #!2E]", 2),
     ENCODING_MAP(kThumb2Vmuls,        0xee200a00,
                  kFmtSfp, 22, 12, kFmtSfp, 7, 16, kFmtSfp, 5, 0,
                  kFmtUnused, -1, -1,
@@ -509,12 +509,12 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  "ldr", "!0C, [!1C, #-!2d]", 2),
     ENCODING_MAP(kThumb2Cbnz,       0xb900, /* Note: does not affect flags */
                  kFmtBitBlt, 2, 0, kFmtImm6, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | IS_BRANCH,
-                 "cbnz", "!0C,!1t", 1),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | IS_BRANCH |
+                 NEEDS_FIXUP, "cbnz", "!0C,!1t", 1),
     ENCODING_MAP(kThumb2Cbz,       0xb100, /* Note: does not affect flags */
                  kFmtBitBlt, 2, 0, kFmtImm6, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | IS_BRANCH,
-                 "cbz", "!0C,!1t", 1),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | IS_BRANCH |
+                 NEEDS_FIXUP, "cbz", "!0C,!1t", 1),
     ENCODING_MAP(kThumb2AddRRI12,       0xf2000000,
                  kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16, kFmtImm12, -1, -1,
                  kFmtUnused, -1, -1,
@@ -644,12 +644,12 @@ ArmEncodingMap EncodingMap[kArmLast] = {
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_DEF_LIST0
-                 | IS_LOAD, "pop", "<!0R>", 2),
+                 | IS_LOAD | NEEDS_FIXUP, "pop", "<!0R>", 2),
     ENCODING_MAP(kThumb2Push,          0xe92d0000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_USE_LIST0
-                 | IS_STORE, "push", "<!0R>", 2),
+                 | IS_STORE | NEEDS_FIXUP, "push", "<!0R>", 2),
     ENCODING_MAP(kThumb2CmpRI8, 0xf1b00f00,
                  kFmtBitBlt, 19, 16, kFmtModImm, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
@@ -791,12 +791,12 @@ ArmEncodingMap EncodingMap[kArmLast] = {
     ENCODING_MAP(kThumb2LdrPcRel12,       0xf8df0000,
                  kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
-                 IS_TERTIARY_OP | REG_DEF0 | REG_USE_PC | IS_LOAD,
+                 IS_TERTIARY_OP | REG_DEF0 | REG_USE_PC | IS_LOAD | NEEDS_FIXUP,
                  "ldr", "!0C, [r15pc, #!1d]", 2),
     ENCODING_MAP(kThumb2BCond,        0xf0008000,
                  kFmtBrOffset, -1, -1, kFmtBitBlt, 25, 22, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
-                 IS_BINARY_OP | IS_BRANCH | USES_CCODES,
+                 IS_BINARY_OP | IS_BRANCH | USES_CCODES | NEEDS_FIXUP,
                  "b!1c", "!0t", 2),
     ENCODING_MAP(kThumb2Vmovd_RR,       0xeeb00b40,
                  kFmtDfp, 22, 12, kFmtDfp, 5, 0, kFmtUnused, -1, -1,
@@ -931,15 +931,16 @@ ArmEncodingMap EncodingMap[kArmLast] = {
     ENCODING_MAP(kThumb2Adr,         0xf20f0000,
                  kFmtBitBlt, 11, 8, kFmtImm12, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
-                 IS_TERTIARY_OP | REG_DEF0,/* Note: doesn't affect flags */
+                 /* Note: doesn't affect flags */
+                 IS_TERTIARY_OP | REG_DEF0 | NEEDS_FIXUP,
                  "adr", "!0C,#!1d", 2),
     ENCODING_MAP(kThumb2MovImm16LST,     0xf2400000,
                  kFmtBitBlt, 11, 8, kFmtImm16, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | NEEDS_FIXUP,
                  "mov", "!0C, #!1M", 2),
     ENCODING_MAP(kThumb2MovImm16HST,     0xf2c00000,
                  kFmtBitBlt, 11, 8, kFmtImm16, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | NEEDS_FIXUP,
                  "movh", "!0C, #!1M", 2),
     ENCODING_MAP(kThumb2LdmiaWB,         0xe8b00000,
                  kFmtBitBlt, 19, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
@@ -1067,6 +1068,7 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
     AssemblerStatus res = kSuccess;  // Assume success
 
     for (lir = (ArmLIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+
         if (lir->opcode < 0) {
             if ((lir->opcode == kArmPseudoPseudoAlign4) &&
                 /* 1 means padding is needed */
@@ -1091,244 +1093,249 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
          * Of course, the patching itself may cause new overflows so this
          * is an iterative process.
          */
-
-        if (lir->opcode == kThumbLdrPcRel ||
-            lir->opcode == kThumb2LdrPcRel12 ||
-            lir->opcode == kThumbAddPcRel ||
-            ((lir->opcode == kThumb2Vldrd) && (lir->operands[1] == r15pc)) ||
-            ((lir->opcode == kThumb2Vldrs) && (lir->operands[1] == r15pc))) {
-            /*
-             * PC-relative loads are mostly used to load immediates
-             * that are too large to materialize directly in one shot.
-             * However, if the load displacement exceeds the limit,
-             * we revert to a 2-instruction materialization sequence.
-             */
-            ArmLIR *lirTarget = (ArmLIR *) lir->generic.target;
-            intptr_t pc = (lir->generic.offset + 4) & ~3;
-            intptr_t target = lirTarget->generic.offset;
-            int delta = target - pc;
-            if (delta & 0x3) {
-                LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
-            }
-            // First, a sanity check for cases we shouldn't see now
-            if (((lir->opcode == kThumbAddPcRel) && (delta > 1020)) ||
-                ((lir->opcode == kThumbLdrPcRel) && (delta > 1020))) {
-                // Shouldn't happen in current codegen.
-                LOG(FATAL) << "Unexpected pc-rel offset " << delta;
-            }
-            // Now, check for the two difficult cases
-            if (((lir->opcode == kThumb2LdrPcRel12) && (delta > 4091)) ||
-                ((lir->opcode == kThumb2Vldrs) && (delta > 1020)) ||
-                ((lir->opcode == kThumb2Vldrd) && (delta > 1020))) {
+        if (lir->flags.pcRelFixup) {
+            if (lir->opcode == kThumbLdrPcRel ||
+                lir->opcode == kThumb2LdrPcRel12 ||
+                lir->opcode == kThumbAddPcRel ||
+                ((lir->opcode == kThumb2Vldrd) && (lir->operands[1] == r15pc)) ||
+                ((lir->opcode == kThumb2Vldrs) && (lir->operands[1] == r15pc))) {
                 /*
-                 * Note: because rLR may be used to fix up out-of-range
-                 * vldrs/vldrd we include REG_DEF_LR in the resource
-                 * masks for these instructions.
+                 * PC-relative loads are mostly used to load immediates
+                 * that are too large to materialize directly in one shot.
+                 * However, if the load displacement exceeds the limit,
+                 * we revert to a 2-instruction materialization sequence.
                  */
-                int baseReg = (lir->opcode == kThumb2LdrPcRel12) ?
-                    lir->operands[0] : rLR;
-
-                // Add new Adr to generate the address
-                ArmLIR *newAdr =
-                    (ArmLIR *)oatNew(sizeof(ArmLIR), true);
-                newAdr->generic.dalvikOffset = lir->generic.dalvikOffset;
-                newAdr->generic.target = lir->generic.target;
-                newAdr->opcode = kThumb2Adr;
-                newAdr->operands[0] = baseReg;
-                oatSetupResourceMasks(newAdr);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newAdr);
-
-                // Convert to normal load
-                if (lir->opcode == kThumb2LdrPcRel12) {
-                    lir->opcode = kThumb2LdrRRI12;
+                ArmLIR *lirTarget = (ArmLIR *) lir->generic.target;
+                intptr_t pc = (lir->generic.offset + 4) & ~3;
+                intptr_t target = lirTarget->generic.offset;
+                int delta = target - pc;
+                if (delta & 0x3) {
+                    LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
                 }
-                // Change the load to be relative to the new Adr base
-                lir->operands[1] = baseReg;
-                lir->operands[2] = 0;
-                oatSetupResourceMasks(lir);
-                res = kRetryAll;
-            } else {
-                if ((lir->opcode == kThumb2Vldrs) ||
-                    (lir->opcode == kThumb2Vldrd)) {
-                    lir->operands[2] = delta >> 2;
+                // First, a sanity check for cases we shouldn't see now
+                if (((lir->opcode == kThumbAddPcRel) && (delta > 1020)) ||
+                    ((lir->opcode == kThumbLdrPcRel) && (delta > 1020))) {
+                    // Shouldn't happen in current codegen.
+                    LOG(FATAL) << "Unexpected pc-rel offset " << delta;
+                }
+                // Now, check for the two difficult cases
+                if (((lir->opcode == kThumb2LdrPcRel12) && (delta > 4091)) ||
+                    ((lir->opcode == kThumb2Vldrs) && (delta > 1020)) ||
+                    ((lir->opcode == kThumb2Vldrd) && (delta > 1020))) {
+                    /*
+                     * Note: because rLR may be used to fix up out-of-range
+                     * vldrs/vldrd we include REG_DEF_LR in the resource
+                     * masks for these instructions.
+                     */
+                    int baseReg = (lir->opcode == kThumb2LdrPcRel12) ?
+                        lir->operands[0] : rLR;
+
+                    // Add new Adr to generate the address
+                    ArmLIR *newAdr =
+                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                    newAdr->generic.dalvikOffset = lir->generic.dalvikOffset;
+                    newAdr->generic.target = lir->generic.target;
+                    newAdr->opcode = kThumb2Adr;
+                    newAdr->operands[0] = baseReg;
+                    oatSetupResourceMasks(newAdr);
+                    oatInsertLIRBefore((LIR*)lir, (LIR*)newAdr);
+
+                    // Convert to normal load
+                    if (lir->opcode == kThumb2LdrPcRel12) {
+                        lir->opcode = kThumb2LdrRRI12;
+                    }
+                    // Change the load to be relative to the new Adr base
+                    lir->operands[1] = baseReg;
+                    lir->operands[2] = 0;
+                    oatSetupResourceMasks(lir);
+                    res = kRetryAll;
                 } else {
-                    lir->operands[1] = (lir->opcode == kThumb2LdrPcRel12) ?
-                                        delta : delta >> 2;
-                }
-            }
-        } else if (lir->opcode == kThumb2Cbnz || lir->opcode == kThumb2Cbz) {
-            ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
-            int delta = target - pc;
-            if (delta > 126 || delta < 0) {
-                /* Convert to cmp rx,#0 / b[eq/ne] tgt pair */
-                ArmLIR *newInst =
-                    (ArmLIR *)oatNew(sizeof(ArmLIR), true);
-                /* Make new branch instruction and insert after */
-                newInst->generic.dalvikOffset = lir->generic.dalvikOffset;
-                newInst->opcode = kThumbBCond;
-                newInst->operands[0] = 0;
-                newInst->operands[1] = (lir->opcode == kThumb2Cbz) ?
-                                        kArmCondEq : kArmCondNe;
-                newInst->generic.target = lir->generic.target;
-                oatSetupResourceMasks(newInst);
-                oatInsertLIRAfter((LIR *)lir, (LIR *)newInst);
-                /* Convert the cb[n]z to a cmp rx, #0 ] */
-                lir->opcode = kThumbCmpRI8;
-                /* operand[0] is src1 in both cb[n]z & CmpRI8 */
-                lir->operands[1] = 0;
-                lir->generic.target = 0;
-                oatSetupResourceMasks(lir);
-                res = kRetryAll;
-            } else {
-                lir->operands[1] = delta >> 1;
-            }
-        } else if (lir->opcode == kThumb2Push ||
-                   lir->opcode == kThumb2Pop) {
-            if (__builtin_popcount(lir->operands[0]) == 1) {
-                /*
-                 * The standard push/pop multiple instruction
-                 * requires at least two registers in the list.
-                 * If we've got just one, switch to the single-reg
-                 * encoding.
-                 */
-                lir->opcode = (lir->opcode == kThumb2Push)
-                    ? kThumb2Push1 : kThumb2Pop1;
-                int reg = 0;
-                while (lir->operands[0]) {
-                    if (lir->operands[0] & 0x1) {
-                        break;
+                    if ((lir->opcode == kThumb2Vldrs) ||
+                        (lir->opcode == kThumb2Vldrd)) {
+                        lir->operands[2] = delta >> 2;
                     } else {
-                        reg++;
-                        lir->operands[0] >>= 1;
+                        lir->operands[1] = (lir->opcode == kThumb2LdrPcRel12) ?
+                                            delta : delta >> 2;
                     }
                 }
-                lir->operands[0] = reg;
-                oatSetupResourceMasks(lir);
-                res = kRetryAll;
-            }
-        } else if (lir->opcode == kThumbBCond ||
-                   lir->opcode == kThumb2BCond) {
-            ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-            int delta = 0;
-            DCHECK(targetLIR);
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
-            delta = target - pc;
-            if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
-                lir->opcode = kThumb2BCond;
-                oatSetupResourceMasks(lir);
-                res = kRetryAll;
-            }
-            lir->operands[0] = delta >> 1;
-        } else if (lir->opcode == kThumb2BUncond) {
-            ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
-            int delta = target - pc;
-            lir->operands[0] = delta >> 1;
-            if (lir->operands[0] == 0) {  // Useless branch?
-                lir->flags.isNop = true;
-                res = kRetryAll;
-            }
-        } else if (lir->opcode == kThumbBUncond) {
-            ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
-            int delta = target - pc;
-            if (delta > 2046 || delta < -2048) {
-                // Convert to Thumb2BCond w/ kArmCondAl
-                lir->opcode = kThumb2BUncond;
-                lir->operands[0] = 0;
-                oatSetupResourceMasks(lir);
-                res = kRetryAll;
-            }
-            lir->operands[0] = delta >> 1;
-            if ((lir->operands[0] == 0) ||
-                (lir->operands[0] == -1)) {  // Useless branch?
-                lir->flags.isNop = true;
-                res = kRetryAll;
-            }
-        } else if (lir->opcode == kThumbBlx1) {
-            DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);
-            /* curPC is Thumb */
-            intptr_t curPC = (startAddr + lir->generic.offset + 4) & ~3;
-            intptr_t target = lir->operands[1];
+            } else if (lir->opcode == kThumb2Cbnz || lir->opcode == kThumb2Cbz) {
+                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
+                intptr_t pc = lir->generic.offset + 4;
+                intptr_t target = targetLIR->generic.offset;
+                int delta = target - pc;
+                if (delta > 126 || delta < 0) {
+                    /* Convert to cmp rx,#0 / b[eq/ne] tgt pair */
+                    ArmLIR *newInst =
+                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                    /* Make new branch instruction and insert after */
+                    newInst->generic.dalvikOffset = lir->generic.dalvikOffset;
+                    newInst->opcode = kThumbBCond;
+                    newInst->operands[0] = 0;
+                    newInst->operands[1] = (lir->opcode == kThumb2Cbz) ?
+                                            kArmCondEq : kArmCondNe;
+                    newInst->generic.target = lir->generic.target;
+                    oatSetupResourceMasks(newInst);
+                    oatInsertLIRAfter((LIR *)lir, (LIR *)newInst);
+                    /* Convert the cb[n]z to a cmp rx, #0 ] */
+                    lir->opcode = kThumbCmpRI8;
+                    /* operand[0] is src1 in both cb[n]z & CmpRI8 */
+                    lir->operands[1] = 0;
+                    lir->generic.target = 0;
+                    oatSetupResourceMasks(lir);
+                    res = kRetryAll;
+                } else {
+                    lir->operands[1] = delta >> 1;
+                }
+            } else if (lir->opcode == kThumb2Push ||
+                       lir->opcode == kThumb2Pop) {
+                if (__builtin_popcount(lir->operands[0]) == 1) {
+                    /*
+                     * The standard push/pop multiple instruction
+                     * requires at least two registers in the list.
+                     * If we've got just one, switch to the single-reg
+                     * encoding.
+                     */
+                    lir->opcode = (lir->opcode == kThumb2Push)
+                        ? kThumb2Push1 : kThumb2Pop1;
+                    int reg = 0;
+                    while (lir->operands[0]) {
+                        if (lir->operands[0] & 0x1) {
+                            break;
+                        } else {
+                            reg++;
+                            lir->operands[0] >>= 1;
+                        }
+                    }
+                    lir->operands[0] = reg;
+                    oatSetupResourceMasks(lir);
+                    res = kRetryAll;
+                }
+            } else if (lir->opcode == kThumbBCond ||
+                       lir->opcode == kThumb2BCond) {
+                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
+                int delta = 0;
+                DCHECK(targetLIR);
+                intptr_t pc = lir->generic.offset + 4;
+                intptr_t target = targetLIR->generic.offset;
+                delta = target - pc;
+                if ((lir->opcode == kThumbBCond) &&
+                    (delta > 254 || delta < -256)) {
+                    lir->opcode = kThumb2BCond;
+                    oatSetupResourceMasks(lir);
+                    res = kRetryAll;
+                }
+                lir->operands[0] = delta >> 1;
+            } else if (lir->opcode == kThumb2BUncond) {
+                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
+                intptr_t pc = lir->generic.offset + 4;
+                intptr_t target = targetLIR->generic.offset;
+                int delta = target - pc;
+                lir->operands[0] = delta >> 1;
+                if (lir->operands[0] == 0) {  // Useless branch?
+                    lir->flags.isNop = true;
+                    res = kRetryAll;
+                }
+            } else if (lir->opcode == kThumbBUncond) {
+                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
+                intptr_t pc = lir->generic.offset + 4;
+                intptr_t target = targetLIR->generic.offset;
+                int delta = target - pc;
+                if (delta > 2046 || delta < -2048) {
+                    // Convert to Thumb2BCond w/ kArmCondAl
+                    lir->opcode = kThumb2BUncond;
+                    lir->operands[0] = 0;
+                    oatSetupResourceMasks(lir);
+                    res = kRetryAll;
+                }
+                lir->operands[0] = delta >> 1;
+                if ((lir->operands[0] == 0) ||
+                    (lir->operands[0] == -1)) {  // Useless branch?
+                    lir->flags.isNop = true;
+                    res = kRetryAll;
+                }
+            } else if (lir->opcode == kThumbBlx1) {
+                DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);
+                /* curPC is Thumb */
+                intptr_t curPC = (startAddr + lir->generic.offset + 4) & ~3;
+                intptr_t target = lir->operands[1];
 
-            /* Match bit[1] in target with base */
-            if (curPC & 0x2) {
-                target |= 0x2;
+                /* Match bit[1] in target with base */
+                if (curPC & 0x2) {
+                    target |= 0x2;
+                }
+                int delta = target - curPC;
+                DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
+
+                lir->operands[0] = (delta >> 12) & 0x7ff;
+                NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
+            } else if (lir->opcode == kThumbBl1) {
+                DCHECK(NEXT_LIR(lir)->opcode == kThumbBl2);
+                /* Both curPC and target are Thumb */
+                intptr_t curPC = startAddr + lir->generic.offset + 4;
+                intptr_t target = lir->operands[1];
+
+                int delta = target - curPC;
+                DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
+
+                lir->operands[0] = (delta >> 12) & 0x7ff;
+                NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
+            } else if (lir->opcode == kThumb2Adr) {
+                SwitchTable *tabRec = (SwitchTable*)lir->operands[2];
+                ArmLIR* target = (ArmLIR*)lir->generic.target;
+                int targetDisp = tabRec ? tabRec->offset
+                                        : target->generic.offset;
+                int disp = targetDisp - ((lir->generic.offset + 4) & ~3);
+                if (disp < 4096) {
+                    lir->operands[1] = disp;
+                } else {
+                    // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
+                    ArmLIR *newMov16L =
+                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                    newMov16L->generic.dalvikOffset = lir->generic.dalvikOffset;
+                    newMov16L->generic.target = lir->generic.target;
+                    newMov16L->opcode = kThumb2MovImm16LST;
+                    newMov16L->operands[0] = lir->operands[0];
+                    newMov16L->operands[2] = (intptr_t)lir;
+                    newMov16L->operands[3] = (intptr_t)tabRec;
+                    oatSetupResourceMasks(newMov16L);
+                    oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
+                    ArmLIR *newMov16H =
+                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                    newMov16H->generic.dalvikOffset = lir->generic.dalvikOffset;
+                    newMov16H->generic.target = lir->generic.target;
+                    newMov16H->opcode = kThumb2MovImm16HST;
+                    newMov16H->operands[0] = lir->operands[0];
+                    newMov16H->operands[2] = (intptr_t)lir;
+                    newMov16H->operands[3] = (intptr_t)tabRec;
+                    oatSetupResourceMasks(newMov16H);
+                    oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16H);
+                    lir->opcode = kThumb2AddRRR;
+                    lir->operands[1] = rPC;
+                    lir->operands[2] = lir->operands[0];
+                    oatSetupResourceMasks(lir);
+                    res = kRetryAll;
+                }
+            } else if (lir->opcode == kThumb2MovImm16LST) {
+                // operands[1] should hold disp, [2] has add, [3] has tabRec
+                ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
+                SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+                // If tabRec is null, this is a literal load. Use generic.target
+                ArmLIR* target = (ArmLIR*)lir->generic.target;
+                int targetDisp = tabRec ? tabRec->offset
+                                        : target->generic.offset;
+                lir->operands[1] = (targetDisp -
+                    (addPCInst->generic.offset + 4)) & 0xffff;
+            } else if (lir->opcode == kThumb2MovImm16HST) {
+                // operands[1] should hold disp, [2] has add, [3] has tabRec
+                ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
+                SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+                // If tabRec is null, this is a literal load. Use generic.target
+                ArmLIR* target = (ArmLIR*)lir->generic.target;
+                int targetDisp = tabRec ? tabRec->offset
+                                        : target->generic.offset;
+                lir->operands[1] = ((targetDisp -
+                    (addPCInst->generic.offset + 4)) >> 16) & 0xffff;
             }
-            int delta = target - curPC;
-            DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
-
-            lir->operands[0] = (delta >> 12) & 0x7ff;
-            NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
-        } else if (lir->opcode == kThumbBl1) {
-            DCHECK(NEXT_LIR(lir)->opcode == kThumbBl2);
-            /* Both curPC and target are Thumb */
-            intptr_t curPC = startAddr + lir->generic.offset + 4;
-            intptr_t target = lir->operands[1];
-
-            int delta = target - curPC;
-            DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
-
-            lir->operands[0] = (delta >> 12) & 0x7ff;
-            NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
-        } else if (lir->opcode == kThumb2Adr) {
-            SwitchTable *tabRec = (SwitchTable*)lir->operands[2];
-            ArmLIR* target = (ArmLIR*)lir->generic.target;
-            int targetDisp = tabRec ? tabRec->offset : target->generic.offset;
-            int disp = targetDisp - ((lir->generic.offset + 4) & ~3);
-            if (disp < 4096) {
-                lir->operands[1] = disp;
-            } else {
-                // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
-                ArmLIR *newMov16L =
-                    (ArmLIR *)oatNew(sizeof(ArmLIR), true);
-                newMov16L->generic.dalvikOffset = lir->generic.dalvikOffset;
-                newMov16L->generic.target = lir->generic.target;
-                newMov16L->opcode = kThumb2MovImm16LST;
-                newMov16L->operands[0] = lir->operands[0];
-                newMov16L->operands[2] = (intptr_t)lir;
-                newMov16L->operands[3] = (intptr_t)tabRec;
-                oatSetupResourceMasks(newMov16L);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
-                ArmLIR *newMov16H =
-                    (ArmLIR *)oatNew(sizeof(ArmLIR), true);
-                newMov16H->generic.dalvikOffset = lir->generic.dalvikOffset;
-                newMov16H->generic.target = lir->generic.target;
-                newMov16H->opcode = kThumb2MovImm16HST;
-                newMov16H->operands[0] = lir->operands[0];
-                newMov16H->operands[2] = (intptr_t)lir;
-                newMov16H->operands[3] = (intptr_t)tabRec;
-                oatSetupResourceMasks(newMov16H);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16H);
-                lir->opcode = kThumb2AddRRR;
-                lir->operands[1] = rPC;
-                lir->operands[2] = lir->operands[0];
-                oatSetupResourceMasks(lir);
-                res = kRetryAll;
-            }
-        } else if (lir->opcode == kThumb2MovImm16LST) {
-            // operands[1] should hold disp, [2] has add, [3] has tabRec
-            ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
-            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            // If tabRec is null, this is a literal load - use generic.target
-            ArmLIR* target = (ArmLIR*)lir->generic.target;
-            int targetDisp = tabRec ? tabRec->offset : target->generic.offset;
-            lir->operands[1] = (targetDisp -
-                (addPCInst->generic.offset + 4)) & 0xffff;
-        } else if (lir->opcode == kThumb2MovImm16HST) {
-            // operands[1] should hold disp, [2] has add, [3] has tabRec
-            ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
-            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            // If tabRec is null, this is a literal load - use generic.target
-            ArmLIR* target = (ArmLIR*)lir->generic.target;
-            int targetDisp = tabRec ? tabRec->offset : target->generic.offset;
-            lir->operands[1] = ((targetDisp -
-                (addPCInst->generic.offset + 4)) >> 16) & 0xffff;
         }
         ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
         u4 bits = encoder->skeleton;
@@ -1526,9 +1533,11 @@ void assignOffsets(CompilationUnit* cUnit)
          armLIR;
          armLIR = NEXT_LIR(armLIR)) {
         armLIR->generic.offset = offset;
-        if (armLIR->opcode >= 0 && !armLIR->flags.isNop) {
-            armLIR->flags.size = EncodingMap[armLIR->opcode].size * 2;
-            offset += armLIR->flags.size;
+        if (armLIR->opcode >= 0) {
+            if (!armLIR->flags.isNop) {
+                armLIR->flags.size = EncodingMap[armLIR->opcode].size * 2;
+                offset += armLIR->flags.size;
+            }
         } else if (armLIR->opcode == kArmPseudoPseudoAlign4) {
             if (offset & 0x2) {
                 offset += 2;

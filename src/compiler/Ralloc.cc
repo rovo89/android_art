@@ -315,7 +315,8 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     RegLocation* loc;
 
     /* Allocate the location map */
-    loc = (RegLocation*)oatNew(cUnit->numSSARegs * sizeof(*loc), true);
+    loc = (RegLocation*)oatNew(cUnit->numSSARegs * sizeof(*loc), true,
+                               kAllocRegAlloc);
     for (i=0; i< cUnit->numSSARegs; i++) {
         loc[i] = freshLoc;
         loc[i].sRegLow = i;
@@ -325,7 +326,8 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     /* Allocation the promotion map */
     int numRegs = cUnit->numDalvikRegisters;
     cUnit->promotionMap =
-        (PromotionMap*)oatNew(numRegs * sizeof(cUnit->promotionMap[0]), true);
+        (PromotionMap*)oatNew(numRegs * sizeof(cUnit->promotionMap[0]), true,
+                              kAllocRegAlloc);
 
     /* Add types of incoming arguments based on signature */
     int numIns = cUnit->numIns;

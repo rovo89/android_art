@@ -56,7 +56,7 @@ STATIC int loadCurrMethod(CompilationUnit *cUnit)
 STATIC ArmLIR* genCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                         MIR* mir, ArmThrowKind kind)
 {
-    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir ? mir->offset : 0;
@@ -69,7 +69,7 @@ STATIC ArmLIR* genCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
 STATIC ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                              int reg, int immVal, MIR* mir, ArmThrowKind kind)
 {
-    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir->offset;
@@ -100,7 +100,7 @@ STATIC ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
 STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                                int reg1, int reg2, MIR* mir, ArmThrowKind kind)
 {
-    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true);
+    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir ? mir->offset : 0;

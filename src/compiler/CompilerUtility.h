@@ -27,6 +27,9 @@ namespace art {
 /* Allocate the initial memory block for arena-based allocation */
 bool oatHeapInit(void);
 
+/* Collect memory usage statstics */
+//#define WITH_MEMSTATS
+
 typedef struct ArenaMemBlock {
     size_t blockSize;
     size_t bytesAllocated;
@@ -34,7 +37,7 @@ typedef struct ArenaMemBlock {
     char ptr[0];
 } ArenaMemBlock;
 
-void* oatNew(size_t size, bool zero);
+void* oatNew(size_t size, bool zero, oatAllocKind kind = kAllocMisc);
 
 void oatArenaReset(void);
 
@@ -42,6 +45,9 @@ typedef struct GrowableList {
     size_t numAllocated;
     size_t numUsed;
     intptr_t *elemList;
+#ifdef WITH_MEMSTATS
+    oatListKind kind;
+#endif
 } GrowableList;
 
 typedef struct GrowableListIterator {
@@ -58,20 +64,11 @@ typedef struct GrowableListIterator {
  */
 struct ArenaBitVector {
     bool    expandable;     /* expand bitmap if we run out? */
-    bool    firstDirty;     /* when true, don't believe firstBitSet */
-    bool    lastDirty;      /* when true, don't believe lastBitSet */
     u4      storageSize;    /* current size, in 32-bit words */
     u4*     storage;
-                            /*
-                             * Opportunistically remember first and
-                             * last set bits.  This yeilds a performance
-                             * advantage in cases where large
-                             * sparse vectors are repeatedly scanned
-                             * (something that can happen a lot during
-                             * dataflow analysis.
-                             */
-    int     firstBitSet;
-    int     lastBitSet;
+#ifdef WITH_MEMSTATS
+    oatBitMapKind kind;      /* for memory use tuning */
+#endif
 };
 
 /* Handy iterator to walk through the bit positions set to 1 */
@@ -90,14 +87,17 @@ struct LIR;
 struct BasicBlock;
 struct CompilationUnit;
 
-void oatInitGrowableList(GrowableList* gList, size_t initLength);
+void oatInitGrowableList(GrowableList* gList, size_t initLength,
+                         oatListKind kind = kListMisc);
 void oatInsertGrowableList(GrowableList* gList, intptr_t elem);
+void oatDeleteGrowableList(GrowableList* gList, intptr_t elem);
 void oatGrowableListIteratorInit(GrowableList* gList,
                                  GrowableListIterator* iterator);
 intptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator);
 intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx);
 
-ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable);
+ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable,
+                                  oatBitMapKind = kBitMapMisc);
 void oatBitVectorIteratorInit(ArenaBitVector* pBits,
                               ArenaBitVectorIterator* iterator);
 int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator);
@@ -125,6 +125,7 @@ void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
 void oatGetBlockName(struct BasicBlock* bb, char* name);
 const char* oatGetShortyFromTargetIdx(CompilationUnit*, int);
 void oatDumpRegLocTable(struct RegLocation*, int);
+void oatDumpMemStats(CompilationUnit* cUnit);
 
 }  // namespace art
 

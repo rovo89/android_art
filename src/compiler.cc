@@ -466,7 +466,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;
-  if (duration_ns > MsToNs(10)) {
+  if (duration_ns > MsToNs(100)) {
     LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
                  << " took " << PrettyDuration(duration_ns);
   }
