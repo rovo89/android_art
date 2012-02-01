@@ -379,6 +379,21 @@ bool ParseInt(const char* in, int* out) {
   return true;
 }
 
+void OpenDexFiles(const std::vector<const char*>& dex_filenames,
+                  std::vector<const DexFile*>& dex_files,
+                  const std::string& strip_location_prefix) {
+  for (size_t i = 0; i < dex_filenames.size(); i++) {
+    const char* dex_filename = dex_filenames[i];
+    const DexFile* dex_file = DexFile::Open(dex_filename, strip_location_prefix);
+    if (dex_file == NULL) {
+      fprintf(stderr, "could not open .dex from file %s\n", dex_filename);
+      exit(EXIT_FAILURE);
+    }
+    dex_files.push_back(dex_file);
+  }
+}
+
+
 int dex2oat(int argc, char** argv) {
   // Skip over argv[0].
   argv++;
@@ -609,7 +624,7 @@ int dex2oat(int argc, char** argv) {
       }
       dex_files.push_back(dex_file);
     } else {
-      DexFile::OpenDexFiles(dex_filenames, dex_files, host_prefix);
+      OpenDexFiles(dex_filenames, dex_files, host_prefix);
     }
   }
 

@@ -81,6 +81,19 @@ TEST_F(DexFileTest, Header) {
   EXPECT_EQ(256U, header.class_defs_off_);
   EXPECT_EQ(584U, header.data_size_);
   EXPECT_EQ(320U, header.data_off_);
+
+  EXPECT_EQ(header.checksum_, raw->GetLocationChecksum());
+}
+
+TEST_F(DexFileTest, GetLocationChecksum) {
+  const DexFile* raw(OpenTestDexFile("Main"));
+  EXPECT_NE(raw->GetHeader().checksum_, raw->GetLocationChecksum());
+}
+
+TEST_F(DexFileTest, GetChecksum) {
+  uint32_t checksum;
+  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileName(), checksum));
+  EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksum);
 }
 
 TEST_F(DexFileTest, ClassDefs) {

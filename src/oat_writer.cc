@@ -680,7 +680,7 @@ OatWriter::OatDexFile::OatDexFile(const DexFile& dex_file) {
   const std::string& location(dex_file.GetLocation());
   dex_file_location_size_ = location.size();
   dex_file_location_data_ = reinterpret_cast<const uint8_t*>(location.data());
-  dex_file_checksum_ = dex_file.GetHeader().checksum_;
+  dex_file_location_checksum_ = dex_file.GetLocationChecksum();
   dex_file_offset_ = 0;
   methods_offsets_.resize(dex_file.NumClassDefs());
 }
@@ -688,7 +688,7 @@ OatWriter::OatDexFile::OatDexFile(const DexFile& dex_file) {
 size_t OatWriter::OatDexFile::SizeOf() const {
   return sizeof(dex_file_location_size_)
           + dex_file_location_size_
-          + sizeof(dex_file_checksum_)
+          + sizeof(dex_file_location_checksum_)
           + sizeof(dex_file_offset_)
           + (sizeof(methods_offsets_[0]) * methods_offsets_.size());
 }
@@ -696,7 +696,7 @@ size_t OatWriter::OatDexFile::SizeOf() const {
 void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
   oat_header.UpdateChecksum(&dex_file_location_size_, sizeof(dex_file_location_size_));
   oat_header.UpdateChecksum(dex_file_location_data_, dex_file_location_size_);
-  oat_header.UpdateChecksum(&dex_file_checksum_, sizeof(dex_file_checksum_));
+  oat_header.UpdateChecksum(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_));
   oat_header.UpdateChecksum(&dex_file_offset_, sizeof(dex_file_offset_));
   oat_header.UpdateChecksum(&methods_offsets_[0],
                             sizeof(methods_offsets_[0]) * methods_offsets_.size());
@@ -711,8 +711,8 @@ bool OatWriter::OatDexFile::Write(File* file) const {
     PLOG(ERROR) << "Failed to write dex file location data to " << file->name();
     return false;
   }
-  if (!file->WriteFully(&dex_file_checksum_, sizeof(dex_file_checksum_))) {
-    PLOG(ERROR) << "Failed to write dex file checksum to " << file->name();
+  if (!file->WriteFully(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_))) {
+    PLOG(ERROR) << "Failed to write dex file location checksum to " << file->name();
     return false;
   }
   if (!file->WriteFully(&dex_file_offset_, sizeof(dex_file_offset_))) {

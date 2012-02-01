@@ -60,18 +60,28 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
-void DexFile::OpenDexFiles(const std::vector<const char*>& dex_filenames,
-                           std::vector<const DexFile*>& dex_files,
-                           const std::string& strip_location_prefix) {
-  for (size_t i = 0; i < dex_filenames.size(); i++) {
-    const char* dex_filename = dex_filenames[i];
-    const DexFile* dex_file = Open(dex_filename, strip_location_prefix);
-    if (dex_file == NULL) {
-      fprintf(stderr, "could not open .dex from file %s\n", dex_filename);
-      exit(EXIT_FAILURE);
+bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
+  if (IsValidZipFilename(filename)) {
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
+    if (zip_archive.get() == NULL) {
+      return false;
     }
-    dex_files.push_back(dex_file);
+    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
+    if (zip_entry.get() == NULL) {
+      return false;
+    }
+    checksum = zip_entry->GetCrc32();
+    return true;
   }
+  if (IsValidDexFilename(filename)) {
+    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(filename, "", false));
+    if (dex_file.get() == NULL) {
+      return false;
+    }
+    checksum = dex_file->GetHeader().checksum_;
+    return true;
+  }
+  return false;
 }
 
 const DexFile* DexFile::Open(const std::string& filename,
@@ -82,7 +92,7 @@ const DexFile* DexFile::Open(const std::string& filename,
   if (!IsValidDexFilename(filename)) {
     LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
   }
-  return DexFile::OpenFile(filename, filename, strip_location_prefix);
+  return DexFile::OpenFile(filename, strip_location_prefix, true);
 }
 
 void DexFile::ChangePermissions(int prot) const {
@@ -103,9 +113,9 @@ const std::string StripLocationPrefix(const std::string& original_location,
 }
 
 const DexFile* DexFile::OpenFile(const std::string& filename,
-                                 const std::string& original_location,
-                                 const std::string& strip_location_prefix) {
-  std::string location(StripLocationPrefix(original_location, strip_location_prefix));
+                                 const std::string& strip_location_prefix,
+                                 bool verify) {
+  std::string location(StripLocationPrefix(filename, strip_location_prefix));
   if (location.empty()) {
     return NULL;
   }
@@ -134,14 +144,22 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     return NULL;
   }
   close(fd);
-  const DexFile* dex_file = OpenMemory(location, map.release());
+
+  if (map->Size() < sizeof(DexFile::Header)) {
+    LOG(ERROR) << "Failed to open dex file '" << filename << "' that is too short to have a header";
+    return NULL;
+  }
+
+  const Header* dex_header = reinterpret_cast<const Header*>(map->Begin());
+
+  const DexFile* dex_file = OpenMemory(location, dex_header->checksum_, map.release());
   if (dex_file == NULL) {
-    LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
+    LOG(ERROR) << "Failed to open dex file '" << filename << "' from memory";
     return NULL;
   }
 
   if (!DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
-    LOG(ERROR) << "Failed to verify dex file '" << location << "'";
+    LOG(ERROR) << "Failed to verify dex file '" << filename << "'";
     return NULL;
   }
 
@@ -189,7 +207,7 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
     return NULL;
   }
 
-  const DexFile* dex_file = OpenMemory(location, map.release());
+  const DexFile* dex_file = OpenMemory(location, zip_entry->GetCrc32(), map.release());
   if (dex_file == NULL) {
     LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
     return NULL;
@@ -206,9 +224,10 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
 const DexFile* DexFile::OpenMemory(const byte* base,
                                    size_t size,
                                    const std::string& location,
+                                   uint32_t location_checksum,
                                    MemMap* mem_map) {
   CHECK_ALIGNED(base, 4); // various dex file structures must be word aligned
-  UniquePtr<DexFile> dex_file(new DexFile(base, size, location, mem_map));
+  UniquePtr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
   if (!dex_file->Init()) {
     return NULL;
   } else {

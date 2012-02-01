@@ -247,12 +247,18 @@ class ClassLinker {
                        int oat_fd,
                        const std::string& oat_cache_filename);
 
-  // Find, possibily opening, an OatFile corresponding to a DexFile
-  const OatFile* FindOatFileForDexFile(const DexFile& dex_file);
   const OatFile* FindOatFileFromOatLocation(const std::string& location);
 
-  // Find a DexFile within an OatFile given a DexFile location
-  const DexFile* FindDexFileFromDexLocation(const std::string& location);
+  // Finds the oat file for a dex location, generating the oat file if
+  // it is missing or out of date. Returns the DexFile from within the
+  // created oat file.
+  const DexFile* FindOrCreateOatFileForDexLocation(const std::string& dex_location,
+                                                   const std::string& oat_location);
+  // Find a DexFile within an OatFile given a DexFile location. Note
+  // that this returns null if the location checksum of the DexFile
+  // does not match the OatFile.
+  const DexFile* FindDexFileInOatFileFromDexLocation(const std::string& location);
+
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
@@ -388,6 +394,8 @@ class ClassLinker {
   }
 
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file);
+  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location,
+                                                  uint32_t dex_location_checksum);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location);
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class);

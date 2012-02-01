@@ -54,7 +54,7 @@ class DexFile {
   // Raw header_item.
   struct Header {
     uint8_t magic_[8];
-    uint32_t checksum_;
+    uint32_t checksum_; // See also location_checksum_
     uint8_t signature_[kSha1DigestSize];
     uint32_t file_size_;  // size of entire file
     uint32_t header_size_;  // offset to start of next section
@@ -314,18 +314,20 @@ class DexFile {
   static ClassPathEntry FindInClassPath(const StringPiece& descriptor,
                                         const ClassPath& class_path);
 
-  // Opens a collection of .dex files
-  static void OpenDexFiles(const std::vector<const char*>& dex_filenames,
-                           std::vector<const DexFile*>& dex_files,
-                           const std::string& strip_location_prefix);
+  // Returns the checksum of a file for comparison with GetLocationChecksum().
+  // For .dex files, this is the header checksum.
+  // For zip files, this is the classes.dex zip entry CRC32 checksum.
+  // Return true if the checksum could be found, false otherwise.
+  static bool GetChecksum(const std::string& filename, uint32_t& checksum);
 
   // Opens .dex file, guessing the container format based on file extension
   static const DexFile* Open(const std::string& filename,
                              const std::string& strip_location_prefix);
 
   // Opens .dex file, backed by existing memory
-  static const DexFile* Open(const uint8_t* base, size_t size, const std::string& location) {
-    return OpenMemory(base, size, location, NULL);
+  static const DexFile* Open(const uint8_t* base, size_t size,
+                             const std::string& location, uint32_t location_checksum) {
+    return OpenMemory(base, size, location, location_checksum, NULL);
   }
 
   // Opens .dex file from the classes.dex in a zip archive
@@ -336,6 +338,12 @@ class DexFile {
 
   const std::string& GetLocation() const {
     return location_;
+  }
+
+  // For DexFiles directly from .dex files, this is the checksum from the DexFile::Header.
+  // For DexFiles opened from a zip files, this will be the ZipEntry CRC32 of classes.dex.
+  uint32_t GetLocationChecksum() const {
+    return location_checksum_;
   }
 
   // Returns a com.android.dex.Dex object corresponding to the mapped-in dex file.
@@ -765,8 +773,8 @@ class DexFile {
 
   // Opens a .dex file
   static const DexFile* OpenFile(const std::string& filename,
-                                 const std::string& original_location,
-                                 const std::string& strip_location_prefix);
+                                 const std::string& strip_location_prefix,
+                                 bool verify);
 
   // Opens a dex file from within a .jar, .zip, or .apk file
   static const DexFile* OpenZip(const std::string& filename,
@@ -774,10 +782,12 @@ class DexFile {
 
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,
+                                   uint32_t location_checksum,
                                    MemMap* mem_map) {
     return OpenMemory(mem_map->Begin(),
                       mem_map->Size(),
                       location,
+                      location_checksum,
                       mem_map);
   }
 
@@ -785,12 +795,16 @@ class DexFile {
   static const DexFile* OpenMemory(const byte* dex_file,
                                    size_t size,
                                    const std::string& location,
+                                   uint32_t location_checksum,
                                    MemMap* mem_map);
 
-  DexFile(const byte* base, size_t size, const std::string& location, MemMap* mem_map)
+  DexFile(const byte* base, size_t size,
+          const std::string& location, uint32_t location_checksum,
+          MemMap* mem_map)
       : begin_(base),
         size_(size),
         location_(location),
+        location_checksum_(location_checksum),
         mem_map_(mem_map),
         dex_object_lock_("a dex_object_lock_"),
         dex_object_(NULL),
@@ -844,6 +858,8 @@ class DexFile {
   // The ClassLinker will use this to match DexFiles the boot class
   // path to DexCache::GetLocation when loading from an image.
   const std::string location_;
+
+  const uint32_t location_checksum_;
 
   // Manages the underlying memory allocation.
   UniquePtr<MemMap> mem_map_;

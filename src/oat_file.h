@@ -39,6 +39,11 @@ class OatFile {
                        const std::string& strip_location_prefix,
                        byte* requested_base);
 
+  // Open an oat file from an already opened File with the given location.
+  static OatFile* Open(File& file,
+                       const std::string& location,
+                       byte* requested_base);
+
   ~OatFile();
 
   const std::string& GetLocation() const {
@@ -166,8 +171,8 @@ class OatFile {
       return dex_file_location_;
     }
 
-    uint32_t GetDexFileChecksum() const {
-      return dex_file_checksum_;
+    uint32_t GetDexFileLocationChecksum() const {
+      return dex_file_location_checksum_;
     }
 
     ~OatDexFile();
@@ -180,7 +185,7 @@ class OatFile {
 
     const OatFile* oat_file_;
     std::string dex_file_location_;
-    uint32_t dex_file_checksum_;
+    uint32_t dex_file_location_checksum_;
     const byte* dex_file_pointer_;
     const uint32_t* oat_class_offsets_pointer_;
 
@@ -198,7 +203,7 @@ class OatFile {
 
  private:
   explicit OatFile(const std::string& filename);
-  bool Read(const std::string& filename, byte* requested_base);
+  bool Read(File& file, byte* requested_base);
 
   const byte* Begin() const;
   const byte* End() const;

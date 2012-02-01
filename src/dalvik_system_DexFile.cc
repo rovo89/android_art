@@ -84,60 +84,22 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   if (sourceName.c_str() == NULL) {
     return 0;
   }
+  std::string source(sourceName.c_str());
   NullableScopedUtfChars outputName(env, javaOutputName);
   if (env->ExceptionCheck()) {
     return 0;
   }
   const DexFile* dex_file;
   if (outputName.c_str() == NULL) {
-    dex_file = Runtime::Current()->GetClassLinker()->FindDexFileFromDexLocation(sourceName.c_str());
-    if (dex_file == NULL) {
-      dex_file = DexFile::Open(sourceName.c_str(), "");
-    }
+    dex_file = Runtime::Current()->GetClassLinker()->FindDexFileInOatFileFromDexLocation(source);
   } else {
-    // Sanity check the arguments.
-    if (!IsValidZipFilename(sourceName.c_str()) || !IsValidDexFilename(outputName.c_str())) {
-      LOG(ERROR) << "Bad filenames extracting dex '" << outputName.c_str()
-                 << "' from zip '" << sourceName.c_str() << "'";
-      return 0;
-    }
-    // Generate the output oat file for the source dex file
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    UniquePtr<File> file(OS::OpenFile(outputName.c_str(), true));
-    if (file.get() == NULL) {
-      LOG(WARNING) << "unable to create oat file: " << outputName.c_str();
-      jniThrowExceptionFmt(env, "java/io/IOException", "unable to create oat file: %s",
-                           outputName.c_str());
-      return 0;
-    }
-    if (!class_linker->GenerateOatFile(sourceName.c_str(), file->Fd(), outputName.c_str())) {
-      LOG(WARNING) << "unable to generate oat file: " << outputName.c_str();
-      jniThrowExceptionFmt(env, "java/io/IOException", "unable to generate oat file: %s",
-                           outputName.c_str());
-      return 0;
-    }
-    UniquePtr<OatFile> oat_file(OatFile::Open(outputName.c_str(), "", NULL));
-    if (oat_file.get() == NULL) {
-      LOG(WARNING) << "unable to open oat file: " << outputName.c_str();
-      jniThrowExceptionFmt(env, "java/io/IOException", "unable to open oat file: %s",
-                           outputName.c_str());
-      return 0;
-    }
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(sourceName.c_str());
-    if (oat_dex_file == NULL) {
-      LOG(WARNING) << "unable to find dex file in oat file: " << outputName.c_str();
-      jniThrowExceptionFmt(env, "java/io/IOException", "unable to find dex file in oat file: %s",
-                           outputName.c_str());
-      return 0;
-    }
-    Runtime::Current()->GetClassLinker()->RegisterOatFile(*oat_file.release());
-    dex_file = oat_dex_file->OpenDexFile();
+    std::string output(outputName.c_str());
+    dex_file = Runtime::Current()->GetClassLinker()->FindOrCreateOatFileForDexLocation(source, output);
   }
-
   if (dex_file == NULL) {
-    LOG(WARNING) << "unable to open dex file: " << sourceName.c_str();
+    LOG(WARNING) << "Failed to open dex file: " << source;
     jniThrowExceptionFmt(env, "java/io/IOException", "unable to open dex file: %s",
-                         sourceName.c_str());
+                         source.c_str());
     return 0;
   }
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
@@ -236,10 +198,26 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
     }
   }
 
-  const DexFile* dex_file = class_linker->FindDexFileFromDexLocation(filename.c_str());
-  if (dex_file == NULL) {
+  uint32_t location_checksum;
+  if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
     return JNI_TRUE;
   }
+
+  std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
+  const OatFile* oat_file(class_linker->FindOatFileFromOatLocation(oat_filename));
+  if (oat_file == NULL) {
+    return JNI_TRUE;
+  }
+
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
+  if (oat_dex_file == NULL) {
+    return JNI_TRUE;
+  }
+
+  if (location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
+    return JNI_TRUE;
+  }
+
   return JNI_FALSE;
 }
 

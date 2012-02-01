@@ -47,6 +47,7 @@ TEST_F(OatTest, WriteRead) {
 
   const DexFile& dex_file = *java_lang_dex_file_.get();
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+  CHECK_EQ(dex_file.GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
   for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
     const byte* class_data = dex_file.GetClassData(class_def);

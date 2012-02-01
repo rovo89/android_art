@@ -115,7 +115,7 @@ class OatWriter {
     // data to write
     uint32_t dex_file_location_size_;
     const uint8_t* dex_file_location_data_;
-    uint32_t dex_file_checksum_;
+    uint32_t dex_file_location_checksum_;
     uint32_t dex_file_offset_;
     std::vector<uint32_t> methods_offsets_;
 

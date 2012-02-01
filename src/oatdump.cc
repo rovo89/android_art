@@ -127,7 +127,7 @@ class OatDump {
       os << " (" << dex_file_location << ")";
     }
     os << "\n";
-    os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileChecksum());
+    os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileLocationChecksum());
     const DexFile* dex_file = DexFile::Open(dex_file_location, "");
     if (dex_file == NULL) {
       os << "NOT FOUND\n\n";
