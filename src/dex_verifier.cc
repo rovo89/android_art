@@ -922,45 +922,41 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
   }
 }
 
-bool DexVerifier::VerifyClass(const Class* klass) {
+bool DexVerifier::VerifyClass(const Class* klass, std::string& error) {
   if (klass->IsVerified()) {
     return true;
   }
   Class* super = klass->GetSuperClass();
   if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
-    LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass) << " that has no super class";
+    error = "Verifier rejected class ";
+    error += PrettyDescriptor(klass);
+    error += " that has no super class";
     return false;
   }
-  if (super != NULL) {
-    // Acquire lock to prevent races on verifying the super class
-    ObjectLock lock(super);
-
-    if (!super->IsVerified() && !super->IsErroneous()) {
-      Runtime::Current()->GetClassLinker()->VerifyClass(super);
-    }
-    if (!super->IsVerified()) {
-      LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass)
-                 << " that attempts to sub-class corrupt class " << PrettyClass(super);
-      return false;
-    } else if (super->IsFinal()) {
-      LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass)
-                 << " that attempts to sub-class final class " << PrettyClass(super);
-      return false;
-    }
+  if (super != NULL && super->IsFinal()) {
+    error = "Verifier rejected class ";
+    error += PrettyDescriptor(klass);
+    error += " that attempts to sub-class final class ";
+    error += PrettyDescriptor(super);
+    return false;
   }
   for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
     Method* method = klass->GetDirectMethod(i);
     if (!VerifyMethod(method)) {
-      LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass) << " due to bad method "
-                 << PrettyMethod(method, true);
+      error = "Verifier rejected class ";
+      error += PrettyDescriptor(klass);
+      error += " due to bad method ";
+      error += PrettyMethod(method, true);
       return false;
     }
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
     Method* method = klass->GetVirtualMethod(i);
     if (!VerifyMethod(method)) {
-      LOG(ERROR) << "Verifier rejected class " << PrettyClass(klass) << " due to bad method "
-                 << PrettyMethod(method, true);
+      error = "Verifier rejected class ";
+      error += PrettyDescriptor(klass);
+      error += " due to bad method ";
+      error += PrettyMethod(method, true);
       return false;
     }
   }

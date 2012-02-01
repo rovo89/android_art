@@ -33,7 +33,8 @@ class DexVerifierTest : public CommonTest {
     Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
 
     // Verify the class
-    ASSERT_TRUE(DexVerifier::VerifyClass(klass));
+    std::string error_msg;
+    ASSERT_TRUE(DexVerifier::VerifyClass(klass, error_msg)) << error_msg;
   }
 
   void VerifyDexFile(const DexFile* dex, ClassLoader* class_loader) {
@@ -55,7 +56,8 @@ TEST_F(DexVerifierTest, LibCore) {
 TEST_F(DexVerifierTest, IntMath) {
   SirtRef<ClassLoader> class_loader(LoadDex("IntMath"));
   Class* klass = class_linker_->FindClass("LIntMath;", class_loader.get());
-  ASSERT_TRUE(DexVerifier::VerifyClass(klass));
+  std::string error_msg;
+  ASSERT_TRUE(DexVerifier::VerifyClass(klass, error_msg)) << error_msg;
 }
 
 TEST_F(DexVerifierTest, RegTypes_Primitives) {

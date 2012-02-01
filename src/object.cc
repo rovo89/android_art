@@ -1337,6 +1337,13 @@ std::string String::ToModifiedUtf8() const {
   return result;
 }
 
+void Throwable::SetCause(Throwable* cause) {
+  CHECK(cause != NULL);
+  CHECK(cause != this);
+  CHECK(GetFieldObject<Throwable*>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), false) == NULL);
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
+}
+
 bool Throwable::IsCheckedException() const {
   Class* error = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Error;");
   if (InstanceOf(error)) {
@@ -1366,6 +1373,11 @@ std::string Throwable::Dump() const {
       result += PrettyMethod(method, true);
       result += "\n";
     }
+  }
+  Throwable* cause = GetFieldObject<Throwable*>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), false);
+  if (cause != NULL) {
+    result += "Caused by: ";
+    result += cause->Dump();
   }
   return result;
 }

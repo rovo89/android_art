@@ -1889,9 +1889,41 @@ void ClassLinker::VerifyClass(Class* klass) {
   CHECK_EQ(klass->GetStatus(), Class::kStatusResolved) << PrettyClass(klass);
   klass->SetStatus(Class::kStatusVerifying);
 
+  // Verify super class
+  Class* super = klass->GetSuperClass();
+  std::string error_msg;
+  if (super != NULL) {
+    // Acquire lock to prevent races on verifying the super class
+    ObjectLock lock(super);
+
+    if (!super->IsVerified() && !super->IsErroneous()) {
+      Runtime::Current()->GetClassLinker()->VerifyClass(super);
+    }
+    if (!super->IsVerified()) {
+      error_msg = "Rejecting class ";
+      error_msg += PrettyDescriptor(klass);
+      error_msg += " that attempts to sub-class erroneous class ";
+      error_msg += PrettyDescriptor(super);
+      LOG(ERROR) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+      Thread* self = Thread::Current();
+      SirtRef<Throwable> cause(self->GetException());
+      if (cause.get() != NULL) {
+        self->ClearException();
+      }
+      self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
+      if (cause.get() != NULL) {
+        self->GetException()->SetCause(cause.get());
+      }
+      CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyDescriptor(klass);
+      klass->SetStatus(Class::kStatusError);
+      return;
+    }
+  }
+
   // Try to use verification information from oat file, otherwise do runtime verification
   const DexFile& dex_file = FindDexFile(klass->GetDexCache());
-  if (VerifyClassUsingOatFile(dex_file, klass) || verifier::DexVerifier::VerifyClass(klass)) {
+  if (VerifyClassUsingOatFile(dex_file, klass) ||
+      verifier::DexVerifier::VerifyClass(klass, error_msg)) {
     // Make sure all classes referenced by catch blocks are resolved
     ResolveClassExceptionHandlerTypes(dex_file, klass);
     klass->SetStatus(Class::kStatusVerified);
@@ -1899,12 +1931,12 @@ void ClassLinker::VerifyClass(Class* klass) {
     CheckMethodsHaveGcMaps(klass);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(klass)
-        << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+        << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
+        << " because: " << error_msg;
     Thread* self = Thread::Current();
     CHECK(!self->IsExceptionPending()) << self->GetException()->Dump();
-    self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Verification of %s failed",
-        PrettyDescriptor(klass).c_str());
-    CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyClass(klass);
+    self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
+    CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyDescriptor(klass);
     klass->SetStatus(Class::kStatusError);
   }
 }

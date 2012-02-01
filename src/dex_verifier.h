@@ -826,7 +826,7 @@ class PcToRegisterLineTable {
 class DexVerifier {
  public:
   /* Verify a class. Returns "true" on success. */
-  static bool VerifyClass(const Class* klass);
+  static bool VerifyClass(const Class* klass, std::string& error);
   /*
    * Perform verification on a single method.
    *

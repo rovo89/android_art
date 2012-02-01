@@ -2273,6 +2273,10 @@ class MANAGED Throwable : public Object {
   }
   std::string Dump() const;
 
+  // This is a runtime version of initCause, you shouldn't use it if initCause may have been
+  // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
+  // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
+  void SetCause(Throwable* cause);
   bool IsCheckedException() const;
  private:
   Object* GetStackState() const {
